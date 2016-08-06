@@ -157,7 +157,6 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 			error("Transport FIFO write error: %s", strerror(errno));
 		}
 
-		fprintf(stderr, "~");
 	}
 
 fail:
@@ -171,7 +170,7 @@ fail:
 	return NULL;
 }
 
-void *io_thread_s2dp_sbc_backward(void *arg) {
+void *io_thread_a2dp_sbc_backward(void *arg) {
 	(void)arg;
 	return NULL;
 }

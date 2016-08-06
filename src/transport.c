@@ -10,32 +10,54 @@
 
 #include "transport.h"
 
-#include <assert.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "a2dp-codecs.h"
 #include "io.h"
 #include "log.h"
 
 
 static void io_thread_create(struct ba_transport *t) {
 
-	static void *(*routine[__TRANSPORT_MAX])(void *) = {
-		[TRANSPORT_A2DP_SOURCE] = io_thread_a2dp_sbc_forward,
-		[TRANSPORT_A2DP_SINK] = io_thread_s2dp_sbc_backward,
-	};
-
-	const int type = t->type;
 	int ret;
+	void *(*routine)(void *) = NULL;
 
-	if (routine[type] == NULL) {
-		warn("Transport not implemented: %d", type);
-		return;
+	switch (t->profile) {
+	case TRANSPORT_PROFILE_A2DP_SOURCE:
+		switch (t->codec) {
+		case A2DP_CODEC_SBC:
+			routine = io_thread_a2dp_sbc_backward;
+			break;
+		case A2DP_CODEC_MPEG12:
+		case A2DP_CODEC_MPEG24:
+		default:
+			warn("Codec not supported: %u", t->codec);
+		}
+		break;
+	case TRANSPORT_PROFILE_A2DP_SINK:
+		switch (t->codec) {
+		case A2DP_CODEC_SBC:
+			routine = io_thread_a2dp_sbc_forward;
+			break;
+		case A2DP_CODEC_MPEG12:
+		case A2DP_CODEC_MPEG24:
+		default:
+			warn("Codec not supported: %u", t->codec);
+		}
+		break;
+	case TRANSPORT_PROFILE_HFP:
+	case TRANSPORT_PROFILE_HSP:
+	default:
+		warn("Profile not implemented: %u", t->profile);
 	}
 
-	if ((ret = pthread_create(&t->thread, NULL, routine[type], t)) != 0)
+	if (routine == NULL)
+		return;
+
+	if ((ret = pthread_create(&t->thread, NULL, routine, t)) != 0)
 		error("Cannot create IO thread: %s", strerror(ret));
 }
 
@@ -44,15 +66,30 @@ int transport_threads_init(void) {
 	return sigaction(SIGUSR1, &sigact, NULL);
 }
 
-struct ba_transport *transport_new(enum ba_transport_type type, const char *name) {
+struct ba_transport *transport_new(DBusConnection *conn, const char *dbus_owner,
+		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
+		const uint8_t *config, size_t config_size) {
 
 	struct ba_transport *t;
 
 	if ((t = calloc(1, sizeof(*t))) == NULL)
 		return NULL;
 
-	t->type = type;
+	t->dbus_conn = conn;
+	t->dbus_owner = strdup(dbus_owner);
+	t->dbus_path = strdup(dbus_path);
+
 	t->name = strdup(name);
+
+	t->profile = profile;
+	t->codec = codec;
+
+	if (config_size > 0) {
+		t->config = malloc(sizeof(*t->config) * config_size);
+		t->config_size = config_size;
+		memcpy(t->config, config, config_size);
+	}
+
 	t->bt_fd = -1;
 	t->pcm_fd = -1;
 
@@ -82,31 +119,6 @@ void transport_free(struct ba_transport *t) {
 	free(t->dbus_path);
 	free(t->config);
 	free(t);
-}
-
-int transport_set_dbus(struct ba_transport *t, DBusConnection *conn,
-		const char *owner, const char *path) {
-	t->dbus_conn = conn;
-	free(t->dbus_owner);
-	t->dbus_owner = strdup(owner);
-	free(t->dbus_path);
-	t->dbus_path = strdup(path);
-	return 0;
-}
-
-int transport_set_codec(struct ba_transport *t, uint8_t codec,
-		const uint8_t *config, size_t size) {
-
-	t->codec = codec;
-	t->config_size = size;
-
-	if (size > 0) {
-		free(t->config);
-		t->config = malloc(sizeof(*t->config) * size);
-		memcpy(t->config, config, size);
-	}
-
-	return 0;
 }
 
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
@@ -153,9 +165,6 @@ int transport_set_state_from_string(struct ba_transport *t, const char *state) {
 
 int transport_acquire(struct ba_transport *t) {
 
-	assert(t->dbus_conn != NULL && "D-Bus connection is not set");
-	assert(t->dbus_owner != NULL && "D-Bus owner is not set");
-
 	DBusMessage *msg, *rep;
 	DBusError err;
 
@@ -190,9 +199,6 @@ int transport_acquire(struct ba_transport *t) {
 
 int transport_release(struct ba_transport *t) {
 
-	assert(t->dbus_conn != NULL && "D-Bus connection is not set");
-	assert(t->dbus_owner != NULL && "D-Bus owner is not set");
-
 	DBusMessage *msg;
 	DBusError err;
 	int ret = 0;
@@ -214,19 +220,4 @@ int transport_release(struct ba_transport *t) {
 
 	dbus_message_unref(msg);
 	return ret;
-}
-
-const char *transport_type_to_string(enum ba_transport_type type) {
-	switch (type) {
-	case TRANSPORT_A2DP_SOURCE:
-		return "A2DP Source";
-	case TRANSPORT_A2DP_SINK:
-		return "A2DP Sink";
-	case TRANSPORT_HFP:
-		return "HFP";
-	case TRANSPORT_HSP:
-		return "HSP";
-	default:
-		return "N/A";
-	};
 }

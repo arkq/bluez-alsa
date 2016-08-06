@@ -12,90 +12,85 @@
 #define BLUEALSA_CTL_H_
 
 #if HAVE_CONFIG_H
-# include "../config.h"
+# include "config.h"
 #endif
 
 #include <stdint.h>
 #include <bluetooth/bluetooth.h>
 
-/* Location where control socket and pipes are stored. */
+/* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
 
 /* Maximal number of clients connected to the controller. */
-#define BLUEALSA_CTL_MAX_CLIENTS 7
+#define BLUEALSA_MAX_CLIENTS 7
 
-enum ctl_command {
-	CTL_COMMAND_PING,
-	CTL_COMMAND_LIST_DEVICES,
-	CTL_COMMAND_LIST_TRANSPORTS,
-	CTL_COMMAND_GET_TRANSPORT,
-	CTL_COMMAND_OPEN_PCM,
-	__CTL_COMMAND_MAX
+enum command {
+	COMMAND_PING,
+	COMMAND_LIST_DEVICES,
+	COMMAND_LIST_TRANSPORTS,
+	COMMAND_GET_TRANSPORT,
+	COMMAND_OPEN_PCM,
+	__COMMAND_MAX
 };
 
-/* List of supported Bluetooth profiles. */
-enum ctl_transport_type {
-	CTL_TRANSPORT_TYPE_DISABLED = 0,
-	CTL_TRANSPORT_TYPE_A2DP_SOURCE,
-	CTL_TRANSPORT_TYPE_A2DP_SINK,
-	CTL_TRANSPORT_TYPE_HFP,
-	CTL_TRANSPORT_TYPE_HSP,
-	__CTL_TRANSPORT_TYPE_MAX
+enum status_code {
+	STATUS_CODE_SUCCESS = 0,
+	STATUS_CODE_ERROR_UNKNOWN,
+	STATUS_CODE_DEVICE_NOT_FOUND,
+	STATUS_CODE_PONG,
 };
 
-/* List of supported sampling frequencies. */
-enum ctl_transport_sp_freq {
-	CTL_TRANSPORT_SP_FREQ_16000,
-	CTL_TRANSPORT_SP_FREQ_32000,
-	CTL_TRANSPORT_SP_FREQ_44100,
-	CTL_TRANSPORT_SP_FREQ_48000,
-	__CTL_TRANSPORT_SP_FREQ_MAX
-};
+struct __attribute__ ((packed)) request {
 
-struct __attribute__ ((packed)) ctl_request {
+	enum command command;
 
-	enum ctl_command command;
-
-	/* fields used for selecting transport */
+	/* selected device address */
 	bdaddr_t addr;
-	uint8_t type;
 
-	union {
-		uint8_t volume;
-	};
+	/* requested transport type */
+	uint8_t profile;
+	uint8_t codec;
 
 };
 
-/* Single byte string send by the controller to indicate end of
- * data for list responses or "not-found" for get requests. */
-#define CTL_END "\xED"
+/**
+ * Single byte status message send by the controller at the end of every
+ * response. This message contains the overall request status, which could
+ * indicate either success or error. */
+struct __attribute__ ((packed)) msg_status {
+	uint8_t code;
+};
 
-struct __attribute__ ((packed)) ctl_device {
+struct __attribute__ ((packed)) msg_device {
 	bdaddr_t addr;
 	char name[32];
 };
 
-struct __attribute__ ((packed)) ctl_transport {
+struct __attribute__ ((packed)) msg_transport {
 
-	/* device address for which the transport is created with
-	 * the transport type create unique transport identifier */
+	/* device address for which the transport is created */
 	bdaddr_t addr;
-	uint8_t type;
 
-	uint8_t _pad1;
+	/* transport name - most likely generic profile name */
 	char name[32];
+
+	/* selected profile and audio codec */
+	uint8_t profile;
+	/* TODO: Is codec required?? It's more like internal stuff. */
+	uint8_t codec;
 
 	/* number of audio channels */
-	uint8_t channels:2;
+	uint8_t channels;
 	/* used sampling frequency */
-	uint8_t frequency:2;
+	uint16_t sampling;
 
-	uint8_t volume;
+	uint8_t muted:1;
+	uint8_t volume:7;
 
 };
 
-struct __attribute__ ((packed)) ctl_pcm {
-	struct ctl_transport transport;
+struct __attribute__ ((packed)) msg_pcm {
+	struct msg_transport transport;
 	char fifo[128];
 };
 

@@ -26,6 +26,7 @@
 
 #include "a2dp-codecs.h"
 #include "bluez.h"
+#include "device.h"
 #include "log.h"
 #include "transport.h"
 
@@ -36,7 +37,7 @@ static struct controller_ctl {
 	pthread_t thread;
 
 	char *socket_path;
-	struct pollfd pfds[1 + BLUEALSA_CTL_MAX_CLIENTS];
+	struct pollfd pfds[1 + BLUEALSA_MAX_CLIENTS];
 
 	char *hci_device;
 	GHashTable *devices;
@@ -48,41 +49,7 @@ static struct controller_ctl {
 };
 
 
-/**
- * Convert a ctl transport type to the internal one.
- *
- * @param type The ctl transport type value.
- * @return Bluealsa transport type. If the given ctl transport type value is
- *   invalid (does not fit into the valid value range), or is not supported,
- *   this function returns TRANSPORT_DISABLED. */
-static enum ba_transport_type _transport_type_ctl2ba(uint8_t type) {
-	static const enum ba_transport_type tt[__CTL_TRANSPORT_TYPE_MAX] = {
-		[CTL_TRANSPORT_TYPE_DISABLED] = TRANSPORT_DISABLED,
-		[CTL_TRANSPORT_TYPE_A2DP_SOURCE] = TRANSPORT_A2DP_SOURCE,
-		[CTL_TRANSPORT_TYPE_A2DP_SINK] = TRANSPORT_A2DP_SINK,
-	};
-	if (type >= __CTL_TRANSPORT_TYPE_MAX)
-		return tt[CTL_TRANSPORT_TYPE_DISABLED];
-	return tt[type];
-}
-
-/**
- * Convert internal transport type to the ctl one.
- *
- * @param type Bluealsa transport type.
- * @return Ctl transport type. */
-static enum ctl_transport_type _transport_type_ba2ctl(enum ba_transport_type type) {
-	static const enum ctl_transport_type tt[__TRANSPORT_MAX] = {
-		[TRANSPORT_DISABLED] = CTL_TRANSPORT_TYPE_DISABLED,
-		[TRANSPORT_A2DP_SOURCE] = CTL_TRANSPORT_TYPE_A2DP_SOURCE,
-		[TRANSPORT_A2DP_SINK] = CTL_TRANSPORT_TYPE_A2DP_SINK,
-		[TRANSPORT_HFP] = CTL_TRANSPORT_TYPE_HFP,
-		[TRANSPORT_HSP] = CTL_TRANSPORT_TYPE_HSP,
-	};
-	return tt[type];
-}
-
-static int _transport_lookup(const bdaddr_t *addr, uint8_t type,
+static int _transport_lookup(const bdaddr_t *addr, uint8_t profile,
 		struct ba_device **d, struct ba_transport **t) {
 
 	GHashTableIter iter_d, iter_t;
@@ -98,7 +65,7 @@ static int _transport_lookup(const bdaddr_t *addr, uint8_t type,
 
 		for (g_hash_table_iter_init(&iter_t, (*d)->transports);
 				g_hash_table_iter_next(&iter_t, &_tmp, (gpointer)t); )
-			if (_transport_type_ctl2ba(type) == (*t)->type)
+			if ((*t)->profile == profile)
 				return 0;
 
 	}
@@ -106,16 +73,21 @@ static int _transport_lookup(const bdaddr_t *addr, uint8_t type,
 	return -1;
 }
 
-static int _ctl_transport(const struct ba_device *d, const struct ba_transport *t,
-		struct ctl_transport *transport) {
+static void _ctl_transport(const struct ba_device *d, const struct ba_transport *t,
+		struct msg_transport *transport) {
 
 	bacpy(&transport->addr, &d->addr);
-	transport->type = _transport_type_ba2ctl(t->type);
 
 	strncpy(transport->name, t->name, sizeof(transport->name) - 1);
 	transport->name[sizeof(transport->name)] = '\0';
 
+	transport->profile = t->profile;
+	transport->codec = t->codec;
+
 	transport->volume = t->volume;
+	transport->muted = t->muted;
+
+	/* TODO: support other profiles and codecs */
 
 	a2dp_sbc_t *c;
 	c = (a2dp_sbc_t *)t->config;
@@ -135,32 +107,32 @@ static int _ctl_transport(const struct ba_device *d, const struct ba_transport *
 
 	switch (c->frequency) {
 	case SBC_SAMPLING_FREQ_16000:
-		transport->frequency = CTL_TRANSPORT_SP_FREQ_16000;
+		transport->sampling = 16000;
 		break;
 	case SBC_SAMPLING_FREQ_32000:
-		transport->frequency = CTL_TRANSPORT_SP_FREQ_32000;
+		transport->sampling = 32000;
 		break;
 	case SBC_SAMPLING_FREQ_44100:
-		transport->frequency = CTL_TRANSPORT_SP_FREQ_44100;
+		transport->sampling = 44100;
 		break;
 	case SBC_SAMPLING_FREQ_48000:
-		transport->frequency = CTL_TRANSPORT_SP_FREQ_48000;
+		transport->sampling = 48000;
 		break;
 	}
 
-	return 0;
 }
 
-static void ctl_thread_cmd_ping(const struct ctl_request *req, int fd) {
+static void ctl_thread_cmd_ping(const struct request *req, int fd) {
 	(void)req;
-	time_t ts = time(NULL);
-	send(fd, &ts, sizeof(ts), MSG_NOSIGNAL);
+	static const struct msg_status status = { STATUS_CODE_PONG };
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_list_devices(const struct ctl_request *req, int fd) {
+static void ctl_thread_cmd_list_devices(const struct request *req, int fd) {
 	(void)req;
 
-	struct ctl_device device;
+	static const struct msg_status status = { STATUS_CODE_SUCCESS };
+	struct msg_device device;
 	GHashTableIter iter_d;
 	struct ba_device *d;
 	gpointer _tmp;
@@ -177,13 +149,14 @@ static void ctl_thread_cmd_list_devices(const struct ctl_request *req, int fd) {
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);
 	}
 
-	send(fd, CTL_END, 1, MSG_NOSIGNAL);
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_list_transports(const struct ctl_request *req, int fd) {
+static void ctl_thread_cmd_list_transports(const struct request *req, int fd) {
 	(void)req;
 
-	struct ctl_transport transport;
+	static const struct msg_status status = { STATUS_CODE_SUCCESS };
+	struct msg_transport transport;
 	GHashTableIter iter_d, iter_t;
 	struct ba_device *d;
 	struct ba_transport *t;
@@ -195,55 +168,60 @@ static void ctl_thread_cmd_list_transports(const struct ctl_request *req, int fd
 			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)&d); )
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, &_tmp, (gpointer)&t); ) {
-
-			if (_ctl_transport(d, t, &transport) != 0)
-				continue;
-
+			_ctl_transport(d, t, &transport);
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
 
-	send(fd, CTL_END, 1, MSG_NOSIGNAL);
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_get_transport(const struct ctl_request *req, int fd) {
+static void ctl_thread_cmd_get_transport(const struct request *req, int fd) {
 
-	struct ctl_transport transport;
+	struct msg_status status = { STATUS_CODE_SUCCESS };
+	struct msg_transport transport;
 	struct ba_device *d;
 	struct ba_transport *t;
 
-	if (_transport_lookup(&req->addr, req->type, &d, &t) != 0)
-		goto fail;
-	if (_ctl_transport(d, t, &transport) != 0)
-		goto fail;
-
-	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
-	return;
-
-fail:
-	send(fd, CTL_END, 1, MSG_NOSIGNAL);
-}
-
-static void ctl_thread_cmd_open_pcm(const struct ctl_request *req, int fd) {
-
-	struct ctl_pcm pcm;
-	struct ba_device *d;
-	struct ba_transport *t;
-
-	if (_transport_lookup(&req->addr, req->type, &d, &t) != 0)
-		goto fail;
-	if (t->pcm_fifo != NULL) {
-		debug("PCM already requested: %u", t->pcm_fd);
+	if (_transport_lookup(&req->addr, req->profile, &d, &t) != 0) {
+		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
-	if (_ctl_transport(d, t, &pcm.transport) != 0)
-		goto fail;
 
+	_ctl_transport(d, t, &transport);
+	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
+
+fail:
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
+}
+
+static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
+
+	struct msg_status status = { STATUS_CODE_SUCCESS };
+	struct msg_pcm pcm;
+	struct ba_device *d;
+	struct ba_transport *t;
+	char addr[18];
+
+	if (_transport_lookup(&req->addr, req->profile, &d, &t) != 0) {
+		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	}
+	if (t->pcm_fifo != NULL) {
+		debug("PCM already requested: %u", t->pcm_fd);
+		status.code = STATUS_CODE_ERROR_UNKNOWN;
+		goto fail;
+	}
+
+	_ctl_transport(d, t, &pcm.transport);
+
+	ba2str(&d->addr, addr);
 	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u",
-			ctl.hci_device, batostr(&d->addr), req->type);
+			ctl.hci_device, addr, req->profile);
 	pcm.fifo[sizeof(pcm.fifo)] = '\0';
 
 	if (mkfifo(pcm.fifo, 0660) != 0) {
 		error("Cannot create FIFO: %s", strerror(errno));
+		status.code = STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
 
@@ -252,32 +230,31 @@ static void ctl_thread_cmd_open_pcm(const struct ctl_request *req, int fd) {
 	t->pcm_fifo = strdup(pcm.fifo);
 
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
-	return;
 
 fail:
-	send(fd, CTL_END, 1, MSG_NOSIGNAL);
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void *ctl_thread(void *arg) {
 	(void)arg;
 
-	static void (*commands[__CTL_COMMAND_MAX])(const struct ctl_request *, int) = {
-		[CTL_COMMAND_PING] = ctl_thread_cmd_ping,
-		[CTL_COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
-		[CTL_COMMAND_LIST_TRANSPORTS] = ctl_thread_cmd_list_transports,
-		[CTL_COMMAND_GET_TRANSPORT] = ctl_thread_cmd_get_transport,
-		[CTL_COMMAND_OPEN_PCM] = ctl_thread_cmd_open_pcm,
+	static void (*commands[__COMMAND_MAX])(const struct request *, int) = {
+		[COMMAND_PING] = ctl_thread_cmd_ping,
+		[COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
+		[COMMAND_LIST_TRANSPORTS] = ctl_thread_cmd_list_transports,
+		[COMMAND_GET_TRANSPORT] = ctl_thread_cmd_get_transport,
+		[COMMAND_OPEN_PCM] = ctl_thread_cmd_open_pcm,
 	};
 
 	struct pollfd *pfd;
-	struct ctl_request request;
+	struct request request;
 	ssize_t len;
 	int i;
 
 	debug("Starting controller loop");
 	while (ctl.created) {
 
-		if (poll(ctl.pfds, 1 + BLUEALSA_CTL_MAX_CLIENTS, -1) == -1)
+		if (poll(ctl.pfds, 1 + BLUEALSA_MAX_CLIENTS, -1) == -1)
 			break;
 
 		/* Clients handling loop will update this variable to point to the
@@ -286,7 +263,7 @@ static void *ctl_thread(void *arg) {
 		pfd = NULL;
 
 		/* handle data transmission with connected clients */
-		for (i = 1; i < 1 + BLUEALSA_CTL_MAX_CLIENTS; i++) {
+		for (i = 1; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
 			const int fd = ctl.pfds[i].fd;
 
 			if (fd == -1) {
@@ -311,7 +288,7 @@ static void *ctl_thread(void *arg) {
 				}
 
 				/* validate and execute requested command */
-				if (request.command >= __CTL_COMMAND_MAX)
+				if (request.command >= __COMMAND_MAX)
 					warn("Invalid command: %u", request.command);
 				else if (commands[request.command] != NULL)
 					commands[request.command](&request, fd);
@@ -343,7 +320,7 @@ int ctl_thread_init(const char *device, void *userdata) {
 
 	{ /* initialize (mark as closed) all sockets */
 		int i;
-		for (i = 0; i < 1 + BLUEALSA_CTL_MAX_CLIENTS; i++) {
+		for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
 			ctl.pfds[i].events = POLLIN;
 			ctl.pfds[i].fd = -1;
 		}
@@ -388,7 +365,7 @@ void ctl_free() {
 			error("Cannot join controller thread: %s", strerror(err));
 	}
 
-	for (i = 0; i < 1 + BLUEALSA_CTL_MAX_CLIENTS; i++)
+	for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++)
 		if (ctl.pfds[i].fd != -1)
 			close(ctl.pfds[i].fd);
 

@@ -17,14 +17,10 @@
 
 #include <dbus/dbus.h>
 
-enum ba_transport_type {
-	TRANSPORT_DISABLED = 0,
-	TRANSPORT_A2DP_SOURCE,
-	TRANSPORT_A2DP_SINK,
-	TRANSPORT_HFP,
-	TRANSPORT_HSP,
-	__TRANSPORT_MAX,
-};
+#define TRANSPORT_PROFILE_A2DP_SOURCE 0x01
+#define TRANSPORT_PROFILE_A2DP_SINK   0x02
+#define TRANSPORT_PROFILE_HFP         0x03
+#define TRANSPORT_PROFILE_HSP         0x04
 
 enum ba_transport_state {
 	TRANSPORT_IDLE,
@@ -34,20 +30,24 @@ enum ba_transport_state {
 
 struct ba_transport {
 
-	enum ba_transport_type type;
-	char *name;
-
 	/* data required for D-Bus management */
 	DBusConnection *dbus_conn;
 	char *dbus_owner;
 	char *dbus_path;
 
-	/* selected audio codec */
+	char *name;
+
+	/* selected profile and audio codec */
+	uint8_t profile;
 	uint8_t codec;
+
+	/* selected audio codec configuration */
 	uint8_t *config;
 	size_t config_size;
 
-	uint16_t volume;
+	/* audio properties */
+	uint8_t volume;
+	uint8_t muted;
 
 	/* IO thread - actual transport layer */
 	enum ba_transport_state state;
@@ -60,33 +60,19 @@ struct ba_transport {
 	char *pcm_fifo;
 	int pcm_fd;
 
-#if 0
-	uint16_t microphone_gain;
-	uint16_t speaker_gain;
-
-	// persistent stuff for encoding purpose
-	uint16_t seq_num;   //cumulative packet number
-	uint32_t timestamp; //timestamp
-#endif
-
 };
-
 
 int transport_threads_init(void);
 
-struct ba_transport *transport_new(enum ba_transport_type type, const char *name);
+struct ba_transport *transport_new(DBusConnection *conn, const char *dbus_owner,
+		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
+		const uint8_t *config, size_t config_size);
 void transport_free(struct ba_transport *t);
 
-int transport_set_dbus(struct ba_transport *t, DBusConnection *conn,
-		const char *owner, const char *path);
-int transport_set_codec(struct ba_transport *t, uint8_t codec,
-		const uint8_t *config, size_t size);
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
 
 int transport_acquire(struct ba_transport *t);
 int transport_release(struct ba_transport *t);
-
-const char *transport_type_to_string(enum ba_transport_type type);
 
 #endif

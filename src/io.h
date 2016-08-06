@@ -12,6 +12,6 @@
 #define BLUEALSA_IO_H_
 
 void *io_thread_a2dp_sbc_forward(void *arg);
-void *io_thread_s2dp_sbc_backward(void *arg);
+void *io_thread_a2dp_sbc_backward(void *arg);
 
 #endif

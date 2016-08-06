@@ -117,23 +117,23 @@
 
 #define AAC_SET_BITRATE(a, b) \
 	do { \
-		(a).bitrate1 = (b >> 16) & 0x7f; \
-		(a).bitrate2 = (b >> 8) & 0xff; \
-		(a).bitrate3 = b & 0xff; \
+		(a).bitrate1 = ((b) >> 16) & 0x7f; \
+		(a).bitrate2 = ((b) >> 8) & 0xff; \
+		(a).bitrate3 = (b) & 0xff; \
 	} while (0)
 #define AAC_SET_FREQUENCY(a, f) \
 	do { \
-		(a).frequency1 = (f >> 4) & 0xff; \
-		(a).frequency2 = f & 0x0f; \
+		(a).frequency1 = ((f) >> 4) & 0xff; \
+		(a).frequency2 = (f) & 0x0f; \
 	} while (0)
 
 #define AAC_INIT_BITRATE(b) \
-	.bitrate1 = (b >> 16) & 0x7f, \
-	.bitrate2 = (b >> 8) & 0xff, \
-	.bitrate3 = b & 0xff,
+	.bitrate1 = ((b) >> 16) & 0x7f, \
+	.bitrate2 = ((b) >> 8) & 0xff, \
+	.bitrate3 = (b) & 0xff,
 #define AAC_INIT_FREQUENCY(f) \
-	.frequency1 = (f >> 4) & 0xff, \
-	.frequency2 = f & 0x0f,
+	.frequency1 = ((f) >> 4) & 0xff, \
+	.frequency2 = (f) & 0x0f,
 
 #define APTX_VENDOR_ID			0x0000004f
 #define APTX_CODEC_ID			0x0001

@@ -1,5 +1,5 @@
 /*
- * bluealsa-ctl - alsa-ctl.c
+ * bluealsa-ctl - bluealsa-ctl.c
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -27,7 +27,7 @@ struct bluealsa_ctl {
 	int fd;
 
 	/* list of all currently available transports */
-	struct ctl_transport *transports;
+	struct msg_transport *transports;
 	unsigned int transports_count;
 
 };
@@ -43,13 +43,13 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	struct ctl_request req = {
-		.command = CTL_COMMAND_LIST_TRANSPORTS,
+	const struct request req = {
+		.command = COMMAND_LIST_TRANSPORTS,
 	};
 
 	send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL);
 
-	struct ctl_transport transport;
+	struct msg_transport transport;
 	int i = 0;
 
 	while (recv(ctl->fd, &transport, sizeof(transport), 0) == sizeof(transport)) {
@@ -59,20 +59,31 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 	}
 
 	ctl->transports_count = i;
-	return i;
+
+	/* XXX: Every transport has two controls associated to itself - volume
+	 *      adjustment and mute switch. Since ALSA operates on raw controls,
+	 *      we need to multiply our transport count by 2. By convention we
+	 *      will assume, that every even control is a volume regulator, and
+	 *      every odd control is a mute switch. */
+	return i * 2;
 }
 
 static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_elem_id_t *id) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	if (offset > ctl->transports_count)
+	if (offset / 2 > ctl->transports_count)
 		return -EINVAL;
 
-	struct ctl_transport *transport = &ctl->transports[offset];
+	struct msg_transport *transport = &ctl->transports[offset / 2];
+	char name[sizeof(transport->name) + 8];
 
 	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
-	snd_ctl_elem_id_set_name(id, transport->name);
 
+	strcpy(name, transport->name);
+	if (offset % 2)
+		strcat(name, " Switch");
+
+	snd_ctl_elem_id_set_name(id, name);
 	return 0;
 }
 
@@ -84,7 +95,7 @@ static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_el
 	const char *name;
 
 	numid = snd_ctl_elem_id_get_numid(id);
-	if (numid > 0 && numid <= count)
+	if (numid > 0 && numid / 2 <= count)
 		return numid - 1;
 
 	name = snd_ctl_elem_id_get_name(id);
@@ -97,22 +108,50 @@ static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_el
 
 static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		int *type, unsigned int *acc, unsigned int *count) {
-	*type = SND_CTL_ELEM_TYPE_INTEGER;
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+
+	if (key / 2 > ctl->transports_count)
+		return -EINVAL;
+
+	struct msg_transport *transport = &ctl->transports[key / 2];
+
 	*acc = SND_CTL_EXT_ACCESS_READWRITE;
-	*count = 1;
+
+	if (key % 2) {
+		*type = SND_CTL_ELEM_TYPE_BOOLEAN;
+		*count = 1;
+	}
+	else {
+		*type = SND_CTL_ELEM_TYPE_INTEGER;
+		*count = transport->channels;
+	}
+
 	return 0;
 }
 
 static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		long *imin, long *imax, long *istep) {
-	*istep = 1;
+	(void)ext;
+	(void)key;
 	*imin = 0;
-	*imax = 10;
+	*imax = 100;
+	*istep = 1;
 	return 0;
 }
 
 static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
-	*value = 7;
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+
+	if (key / 2 > ctl->transports_count)
+		return -EINVAL;
+
+	struct msg_transport *transport = &ctl->transports[key / 2];
+
+	if (key % 2)
+		*value = !transport->muted;
+	else
+		*value = transport->volume;
+
 	return 0;
 }
 
@@ -191,7 +230,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	strncpy(ctl->ext.id, "bluealsa", sizeof(ctl->ext.id) - 1);
 	strncpy(ctl->ext.driver, "BlueALSA", sizeof(ctl->ext.driver) - 1);
 	strncpy(ctl->ext.name, "BlueALSA", sizeof(ctl->ext.name) - 1);
-	strncpy(ctl->ext.longname, "ALSA Bluetooth Controller", sizeof(ctl->ext.longname) - 1);
+	strncpy(ctl->ext.longname, "Bluetooth Audio Hub Controller", sizeof(ctl->ext.longname) - 1);
 	strncpy(ctl->ext.mixername, "BlueALSA Plugin", sizeof(ctl->ext.mixername) - 1);
 
 	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;

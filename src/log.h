@@ -12,7 +12,7 @@
 #define BLUEALSA_LOG_H_
 
 #if HAVE_CONFIG_H
-# include "../config.h"
+# include "config.h"
 #endif
 
 void log_open(const char *ident, int syslog);

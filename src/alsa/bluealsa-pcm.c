@@ -1,5 +1,5 @@
 /*
- * bluealsa-pcm - alsa-pcm.c
+ * bluealsa-pcm - bluealsa-pcm.c
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -8,6 +8,8 @@
  *
  */
 
+#include <errno.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -17,7 +19,8 @@
 #include <alsa/pcm_external.h>
 
 #include "ctl.h"
-#include "log.h"
+#include "log.c"
+#include "transport.h"
 
 
 /* Helper macro for obtaining the size of a static array. */
@@ -31,12 +34,16 @@ struct bluealsa_pcm {
 	int fd;
 
 	/* requested transport */
-	struct ctl_transport transport;
+	struct msg_transport transport;
 	int transport_fd;
 
 	/* ALSA operates on frames, we on bytes */
-	size_t pointer_frame;
 	size_t frame_size;
+	size_t buffer_size;
+
+	/* fake ring buffer */
+	size_t last_size;
+	size_t pointer;
 
 };
 
@@ -45,13 +52,13 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
 	ssize_t len;
-	struct ctl_pcm res;
-	struct ctl_request req = {
-		.command = CTL_COMMAND_OPEN_PCM,
+	struct msg_pcm res;
+	struct request req = {
+		.command = COMMAND_OPEN_PCM,
 	};
 
 	bacpy(&req.addr, &pcm->transport.addr);
-	req.type = pcm->transport.type;
+	req.profile = pcm->transport.profile;
 
 	send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL);
 	if ((len = recv(pcm->fd, &res, sizeof(res), 0)) == -1)
@@ -64,9 +71,6 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 
 	/* prevent hijacking our precious data */
 	unlink(res.fifo);
-
-	/* initialize "fake" pointer */
-	pcm->pointer_frame = 0;
 
 	debug("Started");
 	return 0;
@@ -86,12 +90,32 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	int size;
+	if (io->state == SND_PCM_STATE_XRUN)
+		return -EPIPE;
 
-	ioctl(pcm->transport_fd, FIONREAD, &size);
-	pcm->pointer_frame += size / pcm->frame_size;
+	if (io->state != SND_PCM_STATE_RUNNING)
+		return 0;
 
-	return pcm->pointer_frame;
+	size_t size = 0;
+	struct pollfd pfds[1] = {{ pcm->transport_fd, POLLIN, 0 }};
+
+	/* Wait until some data appears in the FIFO. It is required, because the
+	 * IOCTL call (the next one) will not block, however we need some progress.
+	 * Returning twice the same pointer will terminate reading. */
+	if (poll(pfds, 1, -1) == -1)
+		return -errno;
+
+	if (ioctl(pcm->transport_fd, FIONREAD, &size) == -1)
+		return -errno;
+
+	if (size > pcm->last_size) {
+		pcm->pointer += size - pcm->last_size;
+		pcm->pointer %= pcm->buffer_size;
+	}
+
+	pcm->last_size = size;
+
+	return snd_pcm_bytes_to_frames(io->pcm, pcm->pointer);
 }
 
 static snd_pcm_sframes_t bluealsa_transfer_read(snd_pcm_ioplug_t *io,
@@ -105,6 +129,7 @@ static snd_pcm_sframes_t bluealsa_transfer_read(snd_pcm_ioplug_t *io,
 	if ((len = read(pcm->transport_fd, buffer, size * pcm->frame_size)) <= 0)
 		return len;
 
+	pcm->last_size -= len;
 	return len / pcm->frame_size;
 }
 
@@ -128,8 +153,20 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	(void)params;
 
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
+	pcm->buffer_size = io->buffer_size * pcm->frame_size;
 
 	debug("HW params obtained");
+	return 0;
+}
+
+static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
+	struct bluealsa_pcm *pcm = io->private_data;
+
+	/* initialize "fake" ring buffer */
+	pcm->last_size = 0;
+	pcm->pointer = 0;
+
+	debug("Prepared");
 	return 0;
 }
 
@@ -151,6 +188,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
 	.transfer = bluealsa_transfer_write,
 	.close = bluealsa_close,
 	.hw_params = bluealsa_hw_params,
+	.prepare = bluealsa_prepare,
 };
 
 static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
@@ -160,28 +198,50 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
 	.transfer = bluealsa_transfer_read,
 	.close = bluealsa_close,
 	.hw_params = bluealsa_hw_params,
+	.prepare = bluealsa_prepare,
 	.drain = bluealsa_drain,
 };
+
+uint8_t bluealsa_parse_profile(const char *profile, snd_pcm_stream_t stream) {
+
+	if (profile == NULL)
+		return 0;
+
+	if (strcasecmp(profile, "a2dp") == 0) {
+		return stream == SND_PCM_STREAM_PLAYBACK ?
+			TRANSPORT_PROFILE_A2DP_SOURCE : TRANSPORT_PROFILE_A2DP_SINK;
+	}
+
+	return 0;
+}
 
 static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 
 	ssize_t len;
-	struct ctl_request req = {
-		.command = CTL_COMMAND_GET_TRANSPORT,
+	struct msg_status status = { 0xAB };
+	struct request req = {
+		.command = COMMAND_GET_TRANSPORT,
 	};
 
 	bacpy(&req.addr, &pcm->transport.addr);
-	req.type = CTL_TRANSPORT_TYPE_A2DP_SOURCE;
+	req.profile = pcm->transport.profile;
 
 	send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL);
 
 	if ((len = recv(pcm->fd, &pcm->transport, sizeof(pcm->transport), 0)) == -1)
 		return -1;
+
 	if (len != sizeof(pcm->transport)) {
-		errno = EHOSTUNREACH;
-		return -1;
+		memcpy(&status, &pcm->transport, sizeof(status));
+		errno = status.code == STATUS_CODE_DEVICE_NOT_FOUND ? ENODEV : EFAULT;
+		goto fail;
 	}
-	return 0;
+
+	if ((len = recv(pcm->fd, &status, sizeof(status), 0)) == -1)
+		return -1;
+
+fail:
+	return status.code == STATUS_CODE_SUCCESS ? 0 : -1;
 }
 
 static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
@@ -192,12 +252,6 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 	};
 	static const unsigned int formats[] = {
 		SND_PCM_FORMAT_S16_LE,
-	};
-	static const unsigned int frequencies[] = {
-		[CTL_TRANSPORT_SP_FREQ_16000] = 16000,
-		[CTL_TRANSPORT_SP_FREQ_32000] = 32000,
-		[CTL_TRANSPORT_SP_FREQ_44100] = 44100,
-		[CTL_TRANSPORT_SP_FREQ_48000] = 48000,
 	};
 
 	int err;
@@ -218,9 +272,8 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 					pcm->transport.channels, pcm->transport.channels)) < 0)
 		return err;
 
-	unsigned int rate = frequencies[pcm->transport.frequency];
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_RATE,
-					rate, rate)) < 0)
+					pcm->transport.sampling, pcm->transport.sampling)) < 0)
 		return err;
 
 	return 0;
@@ -231,7 +284,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	snd_config_iterator_t i, next;
 	const char *interface = "hci0";
-	const char *device = NULL, *profile = NULL;
+	const char *device = NULL;
+	const char *profile = NULL;
 	struct bluealsa_pcm *pcm;
 	int ret;
 
@@ -288,6 +342,12 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
+	if ((pcm->transport.profile = bluealsa_parse_profile(profile, stream)) == 0) {
+		SNDERR("Invalid BT profile: %s", profile);
+		ret = -EINVAL;
+		goto fail;
+	}
+
 	if ((pcm->fd = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)) == -1) {
 		ret = -errno;
 		goto fail;
@@ -301,7 +361,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if ((ret = bluealsa_get_transport(pcm)) < 0) {
 		SNDERR("Cannot get BlueALSA transport: %s", strerror(errno));
-		ret = -ENODEV;
+		ret = -errno;
 		goto fail;
 	}
 

@@ -20,6 +20,7 @@
 #include <glib.h>
 
 #include "bluez.h"
+#include "device.h"
 #include "ctl.h"
 #include "log.h"
 #include "transport.h"
@@ -85,7 +86,7 @@ int main(int argc, char **argv) {
 	DBusConnection *dbus;
 	DBusError err;
 
-	if ((devices = bluez_devices_init()) == NULL) {
+	if ((devices = devices_init()) == NULL) {
 		error("Cannot initialize device list structure");
 		return EXIT_FAILURE;
 	}
@@ -111,9 +112,8 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	bluez_register_profile_hsp_ag(dbus, devices);
-	bluez_register_a2dp_source(dbus, hci_dev.name, devices);
-	bluez_register_a2dp_sink(dbus, hci_dev.name, devices);
+	bluez_register_a2dp(dbus, hci_dev.name, devices);
+	bluez_register_hsp(dbus, devices);
 	bluez_register_signal_handler(dbus, hci_dev.name, devices);
 
 	/* main dispatching loop */

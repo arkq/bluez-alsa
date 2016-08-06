@@ -16,43 +16,22 @@
 #include <string.h>
 
 #include "a2dp-codecs.h"
+#include "device.h"
 #include "log.h"
 #include "transport.h"
 #include "utils.h"
 
 
-static struct ba_transport *bluez_transport_lookup(GHashTable *devices, const char *key) {
-
-	GHashTableIter iter;
-	struct ba_device *d;
-	struct ba_transport *t;
-	gpointer _key;
-
-	g_hash_table_iter_init(&iter, devices);
-	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
-		if ((t = g_hash_table_lookup(d->transports, key)) != NULL)
-			return t;
-	}
-
-	return NULL;
+static DBusMessage *bluez_error_invalid_arguments(DBusMessage *reply_to, const char *message) {
+	return dbus_message_new_error(reply_to, "org.bluez.Error.InvalidArguments", message);
 }
 
-static gboolean bluez_transport_remove(GHashTable *devices, const char *key) {
+static DBusMessage *bluez_error_not_supported(DBusMessage *reply_to, const char *message) {
+	return dbus_message_new_error(reply_to, "org.bluez.Error.NotSupported", message);
+}
 
-	GHashTableIter iter;
-	struct ba_device *d;
-	gpointer _key;
-
-	g_hash_table_iter_init(&iter, devices);
-	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
-		if (g_hash_table_remove(d->transports, key)) {
-			if (g_hash_table_size(d->transports) == 0)
-				g_hash_table_iter_remove(&iter);
-			return TRUE;
-		}
-	}
-
-	return FALSE;
+static DBusMessage *bluez_error_failed(DBusMessage *reply_to, const char *message) {
+	return dbus_message_new_error(reply_to, "org.bluez.Error.Failed", message);
 }
 
 static DBusMessage *bluez_endpoint_select_configuration(DBusConnection *conn, DBusMessage *msg, void *userdata) {
@@ -74,19 +53,6 @@ static DBusMessage *bluez_endpoint_select_configuration(DBusConnection *conn, DB
 		goto fail;
 	}
 
-	if (cap->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-	else if (cap->channel_mode & SBC_CHANNEL_MODE_STEREO)
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_STEREO;
-	else if (cap->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-	else if (cap->channel_mode & SBC_CHANNEL_MODE_MONO) {
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
-	} else {
-		error("No supported channel modes: %u", cap->channel_mode);
-		goto fail;
-	}
-
 	if (cap->frequency & SBC_SAMPLING_FREQ_48000)
 		a2dp_sbc.frequency = SBC_SAMPLING_FREQ_48000;
 	else if (cap->frequency & SBC_SAMPLING_FREQ_44100)
@@ -100,17 +66,16 @@ static DBusMessage *bluez_endpoint_select_configuration(DBusConnection *conn, DB
 		goto fail;
 	}
 
-	if (cap->allocation_method & SBC_ALLOCATION_LOUDNESS)
-		a2dp_sbc.allocation_method = SBC_ALLOCATION_LOUDNESS;
-	else if (cap->allocation_method & SBC_ALLOCATION_SNR)
-		a2dp_sbc.allocation_method = SBC_ALLOCATION_SNR;
-
-	if (cap->subbands & SBC_SUBBANDS_8)
-		a2dp_sbc.subbands = SBC_SUBBANDS_8;
-	else if (cap->subbands & SBC_SUBBANDS_4)
-		a2dp_sbc.subbands = SBC_SUBBANDS_4;
-	else {
-		error("No supported subbands: %u", cap->subbands);
+	if (cap->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+	else if (cap->channel_mode & SBC_CHANNEL_MODE_STEREO)
+		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_STEREO;
+	else if (cap->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+	else if (cap->channel_mode & SBC_CHANNEL_MODE_MONO) {
+		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
+	} else {
+		error("No supported channel modes: %u", cap->channel_mode);
 		goto fail;
 	}
 
@@ -127,6 +92,20 @@ static DBusMessage *bluez_endpoint_select_configuration(DBusConnection *conn, DB
 		goto fail;
 	}
 
+	if (cap->subbands & SBC_SUBBANDS_8)
+		a2dp_sbc.subbands = SBC_SUBBANDS_8;
+	else if (cap->subbands & SBC_SUBBANDS_4)
+		a2dp_sbc.subbands = SBC_SUBBANDS_4;
+	else {
+		error("No supported subbands: %u", cap->subbands);
+		goto fail;
+	}
+
+	if (cap->allocation_method & SBC_ALLOCATION_LOUDNESS)
+		a2dp_sbc.allocation_method = SBC_ALLOCATION_LOUDNESS;
+	else if (cap->allocation_method & SBC_ALLOCATION_SNR)
+		a2dp_sbc.allocation_method = SBC_ALLOCATION_SNR;
+
 	int bitpool = a2dp_default_bitpool(a2dp_sbc.frequency, a2dp_sbc.channel_mode);
 	a2dp_sbc.min_bitpool = MAX(MIN_BITPOOL, cap->min_bitpool);
 	a2dp_sbc.max_bitpool = MIN(bitpool, cap->max_bitpool);
@@ -137,23 +116,53 @@ static DBusMessage *bluez_endpoint_select_configuration(DBusConnection *conn, DB
 	return rep;
 
 fail:
-	return dbus_message_new_error(msg, "org.bluez.Error.InvalidArguments", "Unable to select configuration");
+	return bluez_error_invalid_arguments(msg, "Unable to select configuration");
 }
 
 static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusMessage *msg, void *userdata) {
 
+	static GHashTable *profiles = NULL;
 	DBusMessageIter arg_i, element_i;
 
 	GHashTable *devices = (GHashTable *)userdata;
-	enum ba_transport_type type = TRANSPORT_DISABLED;
 	struct ba_transport *t;
 	struct ba_device *d;
+	int profile = -1;
+	int codec = -1;
 
 	const char *path;
 	const char *dev_path = NULL, *uuid = NULL, *state = NULL;
 	const uint8_t *config = NULL;
 	uint16_t volume = 0;
 	int size = 0;
+
+	if (profiles == NULL) {
+		/* initialize profiles hash table - used for profile lookup */
+
+		size_t i;
+		const struct profile_data {
+			const char *uuid;
+			const char *endpoint;
+			unsigned int profile;
+		} data[] = {
+			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_SBC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_SBC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_MPEG12_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_MPEG24_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_ATRAC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_ATRAC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+		};
+
+		profiles = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+
+		for (i = 0; i < sizeof(data) / sizeof(struct profile_data); i++) {
+			gchar *key = g_strdup_printf("%s%s", data[i].uuid, data[i].endpoint);
+			g_hash_table_insert(profiles, key, GINT_TO_POINTER(data[i].profile));
+		}
+
+	}
 
 	if (!dbus_message_iter_init(msg, &arg_i) || !dbus_message_has_signature(msg, "oa{sv}")) {
 		error("Invalid signature for %s: %s != %s", "SetConfiguration()",
@@ -163,7 +172,7 @@ static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusM
 
 	dbus_message_iter_get_basic(&arg_i, &path);
 
-	if (bluez_transport_lookup(devices, path) != NULL) {
+	if (device_transport_lookup(devices, path) != NULL) {
 		error("Transport already configured: %s", path);
 		goto fail;
 	}
@@ -206,25 +215,30 @@ static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusM
 				goto fail;
 			}
 
-			const char *endpoint_path = dbus_message_get_path(msg);
 			dbus_message_iter_get_basic(&value, &uuid);
 
-			if (strcmp(endpoint_path, ENDPOINT_A2DP_SOURCE) == 0) {
-				if (strcmp(uuid, BLUETOOTH_UUID_A2DP_SOURCE) == 0)
-					type = TRANSPORT_A2DP_SINK;
-			} else if (strcmp(endpoint_path, ENDPOINT_A2DP_SINK) == 0) {
-				if (strcmp(uuid, BLUETOOTH_UUID_A2DP_SINK) == 0)
-					type = TRANSPORT_A2DP_SOURCE;
-			}
+			const char *endpoint_path = dbus_message_get_path(msg);
+			gchar *key = g_strdup_printf("%s%s", uuid, endpoint_path);
 
-			if (type == TRANSPORT_DISABLED) {
+			profile = GPOINTER_TO_INT(g_hash_table_lookup(profiles, key));
+			g_free(key);
+
+			if (profile == 0) {
 				error("UUID %s of transport %s incompatible with endpoint %s", uuid, path, endpoint_path);
 				goto fail;
 			}
 
 		}
 		else if (strcmp(key, "Codec") == 0) {
-			/* TODO: Check if selected coded matches supported one. */
+
+			if (var != DBUS_TYPE_BYTE) {
+				error("Invalid argument type for %s: %s != %s", key,
+						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_BYTE));
+				goto fail;
+			}
+
+			dbus_message_iter_get_basic(&value, &codec);
+
 		}
 		else if (strcmp(key, "Configuration") == 0) {
 
@@ -292,6 +306,8 @@ static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusM
 			dbus_message_iter_get_basic(&value, &state);
 
 		}
+		else if (strcmp(key, "Delay") == 0) {
+		}
 		else if (strcmp(key, "Volume") == 0) {
 
 			if (var != DBUS_TYPE_UINT16) {
@@ -302,6 +318,9 @@ static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusM
 
 			dbus_message_iter_get_basic(&value, &volume);
 
+			/* scale volume from 0 to 100 */
+			volume = volume * 100 / 127;
+
 		}
 
 	}
@@ -310,29 +329,28 @@ static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusM
 		bdaddr_t addr;
 		dbus_devpath_to_bdaddr(dev_path, &addr);
 		/* TODO: Get real device name! */
-		d = bluez_device_new(&addr, dev_path);
+		d = device_new(&addr, dev_path);
 		g_hash_table_insert(devices, g_strdup(dev_path), d);
 	}
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new(type, transport_type_to_string(type))) == NULL) {
+	if ((t = transport_new(conn, dbus_message_get_sender(msg), path,
+					bluetooth_profile_to_string(profile, codec), profile, codec, config, size)) == NULL) {
 		error("Cannot create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
-	transport_set_dbus(t, conn, dbus_message_get_sender(msg), path);
-	transport_set_codec(t, A2DP_CODEC_SBC, config, size);
 	transport_set_state_from_string(t, state);
 	t->volume = volume;
 
 	g_hash_table_insert(d->transports, g_strdup(path), t);
 
-	debug("Transport %s available for device %s", t->name, d->name);
+	debug("%s configured for device %s", t->name, batostr(&d->addr));
 	return dbus_message_new_method_return(msg);
 
 fail:
-	return dbus_message_new_error(msg, "org.bluez.Error.InvalidArguments", "Unable to set configuration");
+	return bluez_error_invalid_arguments(msg, "Unable to set configuration");
 }
 
 static DBusMessage *bluez_endpoint_clear_configuration(DBusConnection *conn, DBusMessage *msg, void *userdata) {
@@ -345,33 +363,31 @@ static DBusMessage *bluez_endpoint_clear_configuration(DBusConnection *conn, DBu
 	dbus_error_init(&err);
 
 	if (!dbus_message_get_args(msg, &err, DBUS_TYPE_OBJECT_PATH, &path, DBUS_TYPE_INVALID)) {
-		error("Endpoint ClearConfiguration(): %s", err.message);
+		error("Invalid request for %s: %s", "ClearConfiguration()", err.message);
 		dbus_error_free(&err);
 		goto fail;
 	}
 
-	bluez_transport_remove(devices, path);
+	device_transport_remove(devices, path);
 	return dbus_message_new_method_return(msg);
 
 fail:
-	return dbus_message_new_error(msg, "org.bluez.Error.InvalidArguments", "Unable to clear configuration");
+	return bluez_error_invalid_arguments(msg, "Unable to clear configuration");
 }
 
 static DBusMessage *bluez_endpoint_release(DBusConnection *conn, DBusMessage *msg, void *userdata) {
 	(void)conn;
 	(void)userdata;
-	return dbus_message_new_error(msg, "org.bluez.Error.NotImplemented", "Method not implemented");
+	return dbus_message_new_method_return(msg);
 }
 
 static DBusHandlerResult bluez_endpoint_handler(DBusConnection *conn, DBusMessage *msg, void *userdata) {
 
 	const char *path = dbus_message_get_path(msg);
+	const char *member = dbus_message_get_member(msg);
 	DBusMessage *rep = NULL;
 
-	debug("Endpoint handler: %s", path);
-
-	if (strcmp(path, ENDPOINT_A2DP_SOURCE) != 0 && strcmp(path, ENDPOINT_A2DP_SINK) != 0)
-		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+	debug("Endpoint handler: %s/%s()", path, member);
 
 	if (dbus_message_is_method_call(msg, "org.bluez.MediaEndpoint1", "SelectConfiguration"))
 		rep = bluez_endpoint_select_configuration(conn, msg, userdata);
@@ -381,8 +397,10 @@ static DBusHandlerResult bluez_endpoint_handler(DBusConnection *conn, DBusMessag
 		rep = bluez_endpoint_clear_configuration(conn, msg, userdata);
 	else if (dbus_message_is_method_call(msg, "org.bluez.MediaEndpoint1", "Release"))
 		rep = bluez_endpoint_release(conn, msg, userdata);
-	else
+	else {
+		warn("Unsupported endpoint method: %s", member);
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+	}
 
 	if (rep != NULL) {
 		dbus_connection_send(conn, rep, NULL);
@@ -392,25 +410,47 @@ static DBusHandlerResult bluez_endpoint_handler(DBusConnection *conn, DBusMessag
   return DBUS_HANDLER_RESULT_HANDLED;
 }
 
+static const DBusObjectPathVTable endpoint_vtable = {
+	.message_function = bluez_endpoint_handler,
+};
+
+static DBusMessage *bluez_profile_new_connection(DBusConnection *conn, DBusMessage *msg, void *userdata) {
+	(void)conn;
+	(void)userdata;
+	return bluez_error_not_supported(msg, "Not implemented yet");
+}
+
+static DBusMessage *bluez_profile_request_disconnection(DBusConnection *conn, DBusMessage *msg, void *userdata) {
+	(void)conn;
+	(void)userdata;
+	return bluez_error_not_supported(msg, "Not implemented yet");
+}
+
+static DBusMessage *bluez_profile_release(DBusConnection *conn, DBusMessage *msg, void *userdata) {
+	(void)conn;
+	(void)userdata;
+	return bluez_error_not_supported(msg, "Not implemented yet");
+}
+
 static DBusHandlerResult bluez_profile_handler(DBusConnection *conn, DBusMessage *msg, void *userdata) {
 	(void)userdata;
 
 	const char *path = dbus_message_get_path(msg);
+	const char *member = dbus_message_get_member(msg);
 	DBusMessage *rep = NULL;
 
-	debug("Profile handler: %s", path);
+	debug("Profile handler: %s/%s()", path, member);
 
-	if (strcmp(path, PROFILE_HSP_AG) != 0)
+	if (dbus_message_is_method_call(msg, "org.bluez.Profile1", "NewConnection"))
+		rep = bluez_profile_new_connection(conn, msg, userdata);
+	else if (dbus_message_is_method_call(msg, "org.bluez.Profile1", "RequestDisconnection"))
+		rep = bluez_profile_request_disconnection(conn, msg, userdata);
+	else if (dbus_message_is_method_call(msg, "org.bluez.Profile1", "Release"))
+		rep = bluez_profile_release(conn, msg, userdata);
+	else {
+		warn("Unsupported profile method: %s", member);
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-
-	if (dbus_message_is_method_call(msg, "org.bluez.ProfileManager1", "Release")) {
 	}
-	else if (dbus_message_is_method_call(msg, "org.bluez.ProfileManager1", "RequestDisconnection")) {
-	}
-	else if (dbus_message_is_method_call(msg, "org.bluez.ProfileManager1", "NewConnection")) {
-	}
-	else
-		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
 	if (rep != NULL) {
 		dbus_connection_send(conn, rep, NULL);
@@ -419,6 +459,10 @@ static DBusHandlerResult bluez_profile_handler(DBusConnection *conn, DBusMessage
 
 	return DBUS_HANDLER_RESULT_HANDLED;
 }
+
+static const DBusObjectPathVTable profile_vtable = {
+	.message_function = bluez_profile_handler,
+};
 
 static DBusHandlerResult bluez_signal_handler(DBusConnection *conn, DBusMessage *msg, void *userdata) {
 	(void)conn;
@@ -452,7 +496,7 @@ static DBusHandlerResult bluez_signal_handler(DBusConnection *conn, DBusMessage 
 			DBusMessageIter element_i;
 			struct ba_transport *t;
 
-			if ((t = bluez_transport_lookup(devices, path)) == NULL) {
+			if ((t = device_transport_lookup(devices, path)) == NULL) {
 				error("Transport not available: %s", path);
 				goto fail;
 			}
@@ -496,125 +540,224 @@ fail:
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-static void dbus_add_dict_variant_entry(DBusMessageIter *iter, char *key, int type, const void *value) {
-	DBusMessageIter dict, variant;
-	dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict);
-	dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &key);
-	dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, (char *)&type, &variant);
-	dbus_message_iter_append_basic(&variant, type, &value);
-	dbus_message_iter_close_container(&dict, &variant);
-	dbus_message_iter_close_container(iter, &dict);
-}
+/**
+ * Register A2DP endpoints.
+ *
+ * @param conn D-Bus connection handler.
+ * @param device HCI device name for which endpoints should be registered.
+ * @param userdata Data passed to the endpoint handler.
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+int bluez_register_a2dp(DBusConnection *conn, const char *device, void *userdata) {
 
-static void dbus_add_dict_array_entry(DBusMessageIter *iter, char *key, int type, void *buf, int elements) {
-	DBusMessageIter dict, variant, array;
-	char array_type[5] = "a";
-	strncat(array_type, (char *)&type, sizeof(array_type));
-	dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict);
-	dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &key);
-	dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, array_type, &variant);
-	dbus_message_iter_open_container(&variant, DBUS_TYPE_ARRAY, (char *)&type, &array);
-	dbus_message_iter_append_fixed_array(&array, type, &buf, elements);
-	dbus_message_iter_close_container(&variant, &array);
-	dbus_message_iter_close_container(&dict, &variant);
-	dbus_message_iter_close_container(iter, &dict);
-}
-
-struct ba_device *bluez_device_new(bdaddr_t *addr, const char *name) {
-
-	struct ba_device *d;
-
-	if ((d = calloc(1, sizeof(*d))) == NULL)
-		return NULL;
-
-	bacpy(&d->addr, addr);
-	d->name = strdup(name);
-	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
-			g_free, (GDestroyNotify)transport_free);
-
-	return d;
-}
-
-void bluez_device_free(struct ba_device *d) {
-	if (d == NULL)
-		return;
-	free(d->name);
-	free(d);
-}
-
-int bluez_register_endpoint(DBusConnection *conn, const char *device, const char *endpoint, const char *uuid) {
-
-	DBusMessage *msg, *rep;
-	DBusMessageIter iter, iterarray;
-	DBusError err;
-	char path[32] = "/org/bluez";
-
-	a2dp_sbc_t a2dp_sbc = {
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
+	static a2dp_sbc_t a2dp_sbc = {
 		.frequency =
 			SBC_SAMPLING_FREQ_16000 |
 			SBC_SAMPLING_FREQ_32000 |
 			SBC_SAMPLING_FREQ_44100 |
 			SBC_SAMPLING_FREQ_48000,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
+		.channel_mode =
+			SBC_CHANNEL_MODE_MONO |
+			SBC_CHANNEL_MODE_DUAL_CHANNEL |
+			SBC_CHANNEL_MODE_STEREO |
+			SBC_CHANNEL_MODE_JOINT_STEREO,
 		.block_length =
 			SBC_BLOCK_LENGTH_4 |
 			SBC_BLOCK_LENGTH_8 |
 			SBC_BLOCK_LENGTH_12 |
 			SBC_BLOCK_LENGTH_16,
+		.subbands =
+			SBC_SUBBANDS_4 |
+			SBC_SUBBANDS_8,
+		.allocation_method =
+			SBC_ALLOCATION_SNR |
+			SBC_ALLOCATION_LOUDNESS,
 		.min_bitpool = MIN_BITPOOL,
 		.max_bitpool = MAX_BITPOOL,
 	};
 
-	if (device != NULL)
-		strcat(strcat(path, "/"), device);
+	static a2dp_mpeg_t a2dp_mpeg = {
+		.layer =
+			MPEG_LAYER_MP1 |
+			MPEG_LAYER_MP2 |
+			MPEG_LAYER_MP3,
+		.crc = 1,
+		.channel_mode =
+			MPEG_CHANNEL_MODE_MONO |
+			MPEG_CHANNEL_MODE_DUAL_CHANNEL |
+			MPEG_CHANNEL_MODE_STEREO |
+			MPEG_CHANNEL_MODE_JOINT_STEREO,
+		.mpf = 1,
+		.frequency =
+			MPEG_SAMPLING_FREQ_16000 |
+			MPEG_SAMPLING_FREQ_22050 |
+			MPEG_SAMPLING_FREQ_24000 |
+			MPEG_SAMPLING_FREQ_32000 |
+			MPEG_SAMPLING_FREQ_44100 |
+			MPEG_SAMPLING_FREQ_48000,
+		.bitrate =
+			MPEG_BIT_RATE_VBR |
+			MPEG_BIT_RATE_320000 |
+			MPEG_BIT_RATE_256000 |
+			MPEG_BIT_RATE_224000 |
+			MPEG_BIT_RATE_192000 |
+			MPEG_BIT_RATE_160000 |
+			MPEG_BIT_RATE_128000 |
+			MPEG_BIT_RATE_112000 |
+			MPEG_BIT_RATE_96000 |
+			MPEG_BIT_RATE_80000 |
+			MPEG_BIT_RATE_64000 |
+			MPEG_BIT_RATE_56000 |
+			MPEG_BIT_RATE_48000 |
+			MPEG_BIT_RATE_40000 |
+			MPEG_BIT_RATE_32000 |
+			MPEG_BIT_RATE_FREE,
+	};
 
-	msg = dbus_message_new_method_call("org.bluez", path, "org.bluez.Media1", "RegisterEndpoint");
+	static a2dp_aac_t a2dp_aac = {
+		.object_type =
+			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
+			AAC_OBJECT_TYPE_MPEG4_AAC_LC |
+			AAC_OBJECT_TYPE_MPEG4_AAC_LTP |
+			AAC_OBJECT_TYPE_MPEG4_AAC_SCA,
+		AAC_INIT_FREQUENCY(
+			AAC_SAMPLING_FREQ_8000 |
+			AAC_SAMPLING_FREQ_11025 |
+			AAC_SAMPLING_FREQ_12000 |
+			AAC_SAMPLING_FREQ_16000 |
+			AAC_SAMPLING_FREQ_22050 |
+			AAC_SAMPLING_FREQ_24000 |
+			AAC_SAMPLING_FREQ_32000 |
+			AAC_SAMPLING_FREQ_44100 |
+			AAC_SAMPLING_FREQ_48000 |
+			AAC_SAMPLING_FREQ_64000 |
+			AAC_SAMPLING_FREQ_88200 |
+			AAC_SAMPLING_FREQ_96000)
+		.channels =
+			AAC_CHANNELS_1 |
+			AAC_CHANNELS_2,
+		.vbr = 1,
+		AAC_INIT_BITRATE(0xFFFF)
+	};
 
-	dbus_message_iter_init_append(msg, &iter);
-	dbus_message_iter_append_basic(&iter, DBUS_TYPE_OBJECT_PATH, &endpoint);
-	dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &iterarray);
-	dbus_add_dict_variant_entry(&iterarray, "UUID", DBUS_TYPE_STRING, uuid);
-	dbus_add_dict_variant_entry(&iterarray, "Codec", DBUS_TYPE_BYTE, A2DP_CODEC_SBC);
-	dbus_add_dict_array_entry(&iterarray, "Capabilities", DBUS_TYPE_BYTE, &a2dp_sbc, sizeof(a2dp_sbc));
-	dbus_message_iter_close_container (&iter, &iterarray);
+	static struct endpoint {
+		const char *uuid;
+		const char *endpoint;
+		uint8_t codec;
+		const void *config;
+		size_t config_size;
+	} endpoints[] = {
+		{
+			BLUETOOTH_UUID_A2DP_SOURCE,
+			BLUEZ_ENDPOINT_A2DP_SBC_SOURCE,
+			A2DP_CODEC_SBC,
+			&a2dp_sbc,
+			sizeof(a2dp_sbc),
+		},
+		{
+			BLUETOOTH_UUID_A2DP_SOURCE,
+			BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE,
+			A2DP_CODEC_MPEG12,
+			&a2dp_mpeg,
+			sizeof(a2dp_mpeg),
+		},
+		{
+			BLUETOOTH_UUID_A2DP_SOURCE,
+			BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE,
+			A2DP_CODEC_MPEG24,
+			&a2dp_aac,
+			sizeof(a2dp_aac),
+		},
+		{
+			BLUETOOTH_UUID_A2DP_SINK,
+			BLUEZ_ENDPOINT_A2DP_SBC_SINK,
+			A2DP_CODEC_SBC,
+			&a2dp_sbc,
+			sizeof(a2dp_sbc),
+		},
+		{
+			BLUETOOTH_UUID_A2DP_SINK,
+			BLUEZ_ENDPOINT_A2DP_MPEG12_SINK,
+			A2DP_CODEC_MPEG12,
+			&a2dp_mpeg,
+			sizeof(a2dp_mpeg),
+		},
+		{
+			BLUETOOTH_UUID_A2DP_SINK,
+			BLUEZ_ENDPOINT_A2DP_MPEG24_SINK,
+			A2DP_CODEC_MPEG24,
+			&a2dp_aac,
+			sizeof(a2dp_aac),
+		},
+	};
 
-	dbus_error_init(&err);
+	char path[32];
+	size_t i;
 
-	rep = dbus_connection_send_with_reply_and_block(conn, msg, -1, &err);
-	dbus_message_unref(msg);
+	snprintf(path, sizeof(path), "/org/bluez/%s", device);
 
-	if (dbus_error_is_set(&err))
-		error("Cannot register endpoint: %s", err.message);
-	dbus_error_free(&err);
+	for (i = 0; i < sizeof(endpoints) / sizeof(struct endpoint); i++) {
 
-	if (!rep)
-		return 0;
+		DBusMessage *msg, *rep;
+		DBusMessageIter iter, iterarray;
+		DBusError err;
 
-	dbus_message_unref(rep);
-	return -1;
+		debug("Registering endpoint: %s: %s", endpoints[i].uuid, endpoints[i].endpoint);
+		dbus_connection_register_object_path(conn, endpoints[i].endpoint, &endpoint_vtable, userdata);
+
+		if ((msg = dbus_message_new_method_call("org.bluez", path,
+						"org.bluez.Media1", "RegisterEndpoint")) == NULL) {
+			error("Couldn't allocate D-Bus message");
+			return -1;
+		}
+
+		dbus_message_iter_init_append(msg, &iter);
+		dbus_message_iter_append_basic(&iter, DBUS_TYPE_OBJECT_PATH, &endpoints[i].endpoint);
+
+		dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &iterarray);
+		dbus_message_iter_append_dict_variant(&iterarray,
+				"UUID", DBUS_TYPE_STRING, endpoints[i].uuid);
+		dbus_message_iter_append_dict_variant(&iterarray,
+				"Codec", DBUS_TYPE_BYTE, GINT_TO_POINTER(endpoints[i].codec));
+		dbus_message_iter_append_dict_array(&iterarray,
+				"Capabilities", DBUS_TYPE_BYTE, endpoints[i].config, endpoints[i].config_size);
+		dbus_message_iter_close_container(&iter, &iterarray);
+
+		dbus_error_init(&err);
+
+		rep = dbus_connection_send_with_reply_and_block(conn, msg, -1, &err);
+		if (dbus_error_is_set(&err)) {
+			warn("Couldn't register endpoint: %s", err.message);
+			dbus_error_free(&err);
+		}
+
+		dbus_message_unref(msg);
+		dbus_message_unref(rep);
+	}
+
+	return 0;
 }
 
-int bluez_register_profile(DBusConnection *conn, const char *profile, const char *uuid) {
+int bluez_register_hsp(DBusConnection *conn, void *userdata) {
 
 	DBusMessage *msg, *rep;
 	DBusMessageIter iter, iterarray;
 	DBusError err;
 
-	msg = dbus_message_new_method_call("org.bluez", "/org/bluez", "org.bluez.ProfileManager1", "RegisterProfile");
+	dbus_connection_register_object_path(conn, BLUEZ_PROFILE_HSP_AG, &profile_vtable, userdata);
+
+	if ((msg = dbus_message_new_method_call("org.bluez", "/org/bluez",
+			"org.bluez.ProfileManager1", "RegisterProfile")) == NULL) {
+		error("Couldn't allocate D-Bus message");
+		return -1;
+	}
+
+	const char *path = BLUEZ_PROFILE_HSP_AG;
+	const char *uuid = BLUETOOTH_UUID_HSP_AG;
 
 	dbus_message_iter_init_append(msg, &iter);
-	dbus_message_iter_append_basic(&iter, DBUS_TYPE_OBJECT_PATH, &profile);
+	dbus_message_iter_append_basic(&iter, DBUS_TYPE_OBJECT_PATH, &path);
 	dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &uuid);
+
 	dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &iterarray);
 	dbus_message_iter_close_container(&iter, &iterarray);
 
@@ -623,38 +766,17 @@ int bluez_register_profile(DBusConnection *conn, const char *profile, const char
 	rep = dbus_connection_send_with_reply_and_block(conn, msg, -1, &err);
 	dbus_message_unref(msg);
 
-	if (dbus_error_is_set(&err))
-		fprintf(stderr, "DBus error: %s: %s\n", __FUNCTION__, err.message);
-	dbus_error_free(&err);
+	if (dbus_error_is_set(&err)) {
+		error("Cannot register profile: %s", err.message);
+		dbus_error_free(&err);
+	}
 
 	if (!rep)
 		return 0;
 
+	dbus_message_unref(msg);
 	dbus_message_unref(rep);
-	return 1;
-}
-
-static const DBusObjectPathVTable endpoint_vtable = {
-	.message_function = bluez_endpoint_handler,
-};
-
-static const DBusObjectPathVTable profile_vtable = {
-	.message_function = bluez_profile_handler,
-};
-
-int bluez_register_a2dp_source(DBusConnection *conn, const char *device, void *userdata) {
-	dbus_connection_register_object_path(conn, ENDPOINT_A2DP_SOURCE, &endpoint_vtable, userdata);
-	return bluez_register_endpoint(conn, device, ENDPOINT_A2DP_SOURCE, BLUETOOTH_UUID_A2DP_SOURCE);
-}
-
-int bluez_register_a2dp_sink(DBusConnection *conn, const char *device, void *userdata) {
-	dbus_connection_register_object_path(conn, ENDPOINT_A2DP_SINK, &endpoint_vtable, userdata);
-	return bluez_register_endpoint(conn, device, ENDPOINT_A2DP_SINK, BLUETOOTH_UUID_A2DP_SINK);
-}
-
-int bluez_register_profile_hsp_ag(DBusConnection *conn, void *userdata) {
-	dbus_connection_register_object_path(conn, PROFILE_HSP_AG, &profile_vtable, userdata);
-	return bluez_register_profile(conn, PROFILE_HSP_AG, BLUETOOTH_UUID_HSP_AG);
+	return -1;
 }
 
 int bluez_register_signal_handler(DBusConnection *conn, const char *device, void *userdata) {

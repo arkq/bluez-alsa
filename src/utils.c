@@ -14,10 +14,10 @@
 #include <string.h>
 
 #include <bluetooth/hci_lib.h>
-#include <dbus/dbus.h>
 
 #include "a2dp-codecs.h"
 #include "log.h"
+#include "transport.h"
 
 
 /**
@@ -160,4 +160,75 @@ int dbus_devpath_to_bdaddr(const char *path, bdaddr_t *addr) {
 
 	free(tmp);
 	return ret;
+}
+
+/**
+ * Convert Bluetooth profile into a human-readable string.
+ *
+ * @param profile Bluetooth profile.
+ * @param codec Bluetooth profile audio codec.
+ * @return Human-readable string. */
+const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
+	switch (profile) {
+	case TRANSPORT_PROFILE_A2DP_SOURCE:
+		switch (codec) {
+		case A2DP_CODEC_SBC:
+			return "A2DP-SBC Source";
+		case A2DP_CODEC_MPEG12:
+			return "A2DP-MPEG12 Source";
+		case A2DP_CODEC_MPEG24:
+			return "A2DP-MPEG24 Source";
+		}
+		return "A2DP Source";
+	case TRANSPORT_PROFILE_A2DP_SINK:
+		switch (codec) {
+		case A2DP_CODEC_SBC:
+			return "A2DP-SBC Sink";
+		case A2DP_CODEC_MPEG12:
+			return "A2DP-MPEG12 Sink";
+		case A2DP_CODEC_MPEG24:
+			return "A2DP-MPEG24 Sink";
+		}
+		return "A2DP Sink";
+	case TRANSPORT_PROFILE_HFP:
+		return "HFP";
+	case TRANSPORT_PROFILE_HSP:
+		return "HSP";
+	default:
+		return "N/A";
+	}
+}
+
+dbus_bool_t dbus_message_iter_append_dict_variant(DBusMessageIter *iter,
+		char *key, int type, const void *value) {
+
+	const char typestr[] = { type, '\0' };
+	DBusMessageIter dict, variant;
+
+	dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict);
+	dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &key);
+	dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, typestr, &variant);
+	dbus_message_iter_append_basic(&variant, type, &value);
+	dbus_message_iter_close_container(&dict, &variant);
+	dbus_message_iter_close_container(iter, &dict);
+
+	return TRUE;
+}
+
+dbus_bool_t dbus_message_iter_append_dict_array(DBusMessageIter *iter,
+		char *key, int type, const void *value, int elements) {
+
+	const char typestr[] = { 'a', type, '\0' };
+	DBusMessageIter dict, variant, array;
+
+	dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict);
+	dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &key);
+	dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, typestr, &variant);
+	dbus_message_iter_open_container(&variant, DBUS_TYPE_ARRAY, &typestr[1], &array);
+	dbus_message_iter_append_fixed_array(&array, type, &value, elements);
+	dbus_message_iter_close_container(&variant, &array);
+	dbus_message_iter_close_container(&dict, &variant);
+	dbus_message_iter_close_container(iter, &dict);
+
+	return TRUE;
 }

@@ -61,5 +61,8 @@ AC_SUBST([ALSA_DATA_DIR], [$alsadatadir])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
 AC_SUBST([RUN_STATE_DIR], [$runstatedir])
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([
+	Makefile
+	src/Makefile
+	src/alsa/Makefile])
 AC_OUTPUT

@@ -11,45 +11,35 @@
 #ifndef BLUEALSA_BLUEZ_H_
 #define BLUEALSA_BLUEZ_H_
 
-#include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
-#include <glib.h>
 
-#define BLUETOOTH_UUID_A2DP_SOURCE "0000110a-0000-1000-8000-00805f9b34fb"
-#define BLUETOOTH_UUID_A2DP_SINK   "0000110b-0000-1000-8000-00805f9b34fb"
-#define BLUETOOTH_UUID_HSP_HS      "00001108-0000-1000-8000-00805f9b34fb"
-#define BLUETOOTH_UUID_HSP_AG      "00001112-0000-1000-8000-00805f9b34fb"
-#define BLUETOOTH_UUID_HFP_HF      "0000111e-0000-1000-8000-00805f9b34fb"
-#define BLUETOOTH_UUID_HFP_AG      "0000111f-0000-1000-8000-00805f9b34fb"
+/* List of Bluetoth audio profiles. */
+#define BLUETOOTH_UUID_A2DP_SOURCE "0000110A-0000-1000-8000-00805F9B34FB"
+#define BLUETOOTH_UUID_A2DP_SINK   "0000110B-0000-1000-8000-00805F9B34FB"
+#define BLUETOOTH_UUID_HSP_HS      "00001108-0000-1000-8000-00805F9B34FB"
+#define BLUETOOTH_UUID_HSP_AG      "00001112-0000-1000-8000-00805F9B34FB"
+#define BLUETOOTH_UUID_HFP_HF      "0000111E-0000-1000-8000-00805F9B34FB"
+#define BLUETOOTH_UUID_HFP_AG      "0000111F-0000-1000-8000-00805F9B34FB"
 
-#define ENDPOINT_A2DP_SOURCE "/MediaEndpoint/A2DPSource"
-#define ENDPOINT_A2DP_SINK   "/MediaEndpoint/A2DPSink"
-#define PROFILE_HSP_AG       "/Profile/HSPAGProfile"
+/* List of media endpoints registered by us. */
+#define BLUEZ_ENDPOINT_A2DP_SBC_SOURCE    "/MediaEndpoint/A2DPSource"
+#define BLUEZ_ENDPOINT_A2DP_SBC_SINK      "/MediaEndpoint/A2DPSink"
+#define BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE "/MediaEndpoint/A2DP_MPEG12_Source"
+#define BLUEZ_ENDPOINT_A2DP_MPEG12_SINK   "/MediaEndpoint/A2DP_MPEG12_Sink"
+#define BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE "/MediaEndpoint/A2DP_MPEG24_Source"
+#define BLUEZ_ENDPOINT_A2DP_MPEG24_SINK   "/MediaEndpoint/A2DP_MPEG24_Sink"
+#define BLUEZ_ENDPOINT_A2DP_ATRAC_SOURCE  "/MediaEndpoint/A2DP_ATRAC_Source"
+#define BLUEZ_ENDPOINT_A2DP_ATRAC_SINK    "/MediaEndpoint/A2DP_ATRAC_Sink"
 
-struct ba_device {
+/* List of profiles registered by us. */
+#define BLUEZ_PROFILE_HSP_HS "/Profile/HSPHS"
+#define BLUEZ_PROFILE_HSP_AG "/Profile/HSPAG"
+#define BLUEZ_PROFILE_HFP_HF "/Profile/HFPHF"
+#define BLUEZ_PROFILE_HFP_AG "/Profile/HFPAG"
 
-	bdaddr_t addr;
-	char *name;
-
-	/* collection of connected transports */
-	GHashTable *transports;
-
-};
-
-struct ba_device *bluez_device_new(bdaddr_t *addr, const char *name);
-void bluez_device_free(struct ba_device *d);
-
-int bluez_register_endpoint(DBusConnection *conn, const char *device, const char *endpoint, const char *uuid);
-int bluez_register_profile(DBusConnection *conn, const char *profile, const char *uuid);
-
-int bluez_register_a2dp_source(DBusConnection *conn, const char *device, void *userdata);
-int bluez_register_a2dp_sink(DBusConnection *conn, const char *device, void *userdata);
-int bluez_register_profile_hsp_ag(DBusConnection *conn, void *userdata);
+int bluez_register_a2dp(DBusConnection *conn, const char *device, void *userdata);
+int bluez_register_hsp(DBusConnection *conn, void *userdata);
 
 int bluez_register_signal_handler(DBusConnection *conn, const char *device, void *userdata);
-
-/* Helper macro for proper initialization of the device list structure. */
-#define bluez_devices_init() \
-	g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)bluez_device_free)
 
 #endif
