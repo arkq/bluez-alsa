@@ -38,10 +38,14 @@ static void vlog(int priority, const char *format, va_list ap) {
 	if (_syslog)
 		vsyslog(priority, format, ap);
 
+	flockfile(stderr);
+
 	if (_ident != NULL)
 		fprintf(stderr, "%s: ", _ident);
 	vfprintf(stderr, format, ap);
 	fputs("\n", stderr);
+
+	funlockfile(stderr);
 
 }
 

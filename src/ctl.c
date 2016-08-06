@@ -334,6 +334,8 @@ int ctl_thread_init(const char *device, void *userdata) {
 	ctl.hci_device = strdup(device);
 	ctl.devices = (GHashTable *)userdata;
 
+	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST)
+		goto fail;
 	if ((ctl.pfds[0].fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
 		goto fail;
 	if (bind(ctl.pfds[0].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
@@ -356,18 +358,20 @@ fail:
 
 void ctl_free() {
 
-	int i;
+	int created = ctl.created;
+	int i, err;
 
-	if (ctl.created) {
-		int err;
-		ctl.created = 0;
-		if ((err = pthread_join(ctl.thread, NULL)) != 0)
-			error("Cannot join controller thread: %s", strerror(err));
-	}
+	ctl.created = 0;
 
 	for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++)
 		if (ctl.pfds[i].fd != -1)
 			close(ctl.pfds[i].fd);
+
+	if (created) {
+		pthread_cancel(ctl.thread);
+		if ((err = pthread_join(ctl.thread, NULL)) != 0)
+			error("Cannot join controller thread: %s", strerror(err));
+	}
 
 	if (ctl.socket_path != NULL)
 		unlink(ctl.socket_path);

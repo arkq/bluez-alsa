@@ -10,6 +10,7 @@
 
 #include <errno.h>
 #include <getopt.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -26,6 +27,19 @@
 #include "transport.h"
 #include "utils.h"
 
+
+static DBusConnection *dbus = NULL;
+static void main_loop_stop(int sig) {
+	(void)(sig);
+
+	/* NOTE: Call to this handler restores the default action, so on the
+	 *       second call the program will be forcefully terminated. */
+
+	struct sigaction sigact = { .sa_handler = SIG_DFL };
+	sigaction(SIGINT, &sigact, NULL);
+
+	dbus_connection_close(dbus);
+}
 
 int main(int argc, char **argv) {
 
@@ -83,7 +97,6 @@ int main(int argc, char **argv) {
 	}
 
 	GHashTable *devices;
-	DBusConnection *dbus;
 	DBusError err;
 
 	if ((devices = devices_init()) == NULL) {
@@ -101,14 +114,14 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	if ((ctl_thread_init(hci_dev.name, devices)) == -1) {
-		error("Cannot initialize controller thread: %s", strerror(errno));
-		return EXIT_FAILURE;
-	}
-
 	dbus_error_init(&err);
 	if ((dbus = dbus_bus_get(DBUS_BUS_SYSTEM, &err)) == NULL) {
 		error("Cannot obtain D-Bus connection: %s", err.message);
+		return EXIT_FAILURE;
+	}
+
+	if ((ctl_thread_init(hci_dev.name, devices)) == -1) {
+		error("Cannot initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -116,16 +129,18 @@ int main(int argc, char **argv) {
 	bluez_register_hsp(dbus, devices);
 	bluez_register_signal_handler(dbus, hci_dev.name, devices);
 
+	struct sigaction sigact = { .sa_handler = main_loop_stop };
+	sigaction(SIGINT, &sigact, NULL);
+
 	/* main dispatching loop */
 	debug("Starting main dispatching loop");
+	dbus_connection_set_exit_on_disconnect(dbus, FALSE);
 	while (dbus_connection_read_write_dispatch(dbus, -1))
 		continue;
 
 	debug("Exiting main loop");
 
 	ctl_free();
-	dbus_error_free(&err);
-	dbus_connection_flush(dbus);
 	dbus_connection_unref(dbus);
 	return EXIT_SUCCESS;
 }
