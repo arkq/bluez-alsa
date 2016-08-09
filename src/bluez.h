@@ -11,7 +11,7 @@
 #ifndef BLUEALSA_BLUEZ_H_
 #define BLUEALSA_BLUEZ_H_
 
-#include <dbus/dbus.h>
+#include <gio/gio.h>
 
 /* List of Bluetoth audio profiles. */
 #define BLUETOOTH_UUID_A2DP_SOURCE "0000110A-0000-1000-8000-00805F9B34FB"
@@ -37,9 +37,8 @@
 #define BLUEZ_PROFILE_HFP_HF "/Profile/HFPHF"
 #define BLUEZ_PROFILE_HFP_AG "/Profile/HFPAG"
 
-int bluez_register_a2dp(DBusConnection *conn, const char *device, void *userdata);
-int bluez_register_hsp(DBusConnection *conn, void *userdata);
-
-int bluez_register_signal_handler(DBusConnection *conn, const char *device, void *userdata);
+int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdata);
+int bluez_register_hsp(GDBusConnection *conn, const char *device, void *userdata);
+int bluez_subscribe_signals(GDBusConnection *conn, const char *device, void *userdata);
 
 #endif

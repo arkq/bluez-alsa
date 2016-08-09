@@ -32,8 +32,8 @@ AC_CHECK_HEADERS([ortp/rtp.h],
 
 PKG_CHECK_MODULES([ALSA], [alsa])
 PKG_CHECK_MODULES([BLUEZ], [bluez])
-PKG_CHECK_MODULES([DBUS1], [dbus-1])
 PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.16])
+PKG_CHECK_MODULES([GIO20], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
 
 AC_ARG_WITH([alsaplugindir],

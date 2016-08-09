@@ -6,6 +6,7 @@ SUBDIRS = alsa
 
 bluealsa_SOURCES = \
 	bluez.c \
+	bluez-iface.c \
 	ctl.c \
 	device.c \
 	io.c \
@@ -16,12 +17,12 @@ bluealsa_SOURCES = \
 
 AM_CFLAGS = \
 	@BLUEZ_CFLAGS@ \
-	@DBUS1_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
+	@GIO20_CFLAGS@ \
 	@SBC_CFLAGS@
 
 LDADD = \
 	@BLUEZ_LIBS@ \
-	@DBUS1_LIBS@ \
 	@GLIB2_LIBS@ \
+	@GIO20_LIBS@ \
 	@SBC_LIBS@

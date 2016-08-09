@@ -8,6 +8,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include "transport.h"
 
 #include <signal.h>
@@ -15,12 +16,14 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <gio/gunixfdlist.h>
+
 #include "a2dp-codecs.h"
 #include "io.h"
 #include "log.h"
 
 
-static void io_thread_create(struct ba_transport *t) {
+static int io_thread_create(struct ba_transport *t) {
 
 	int ret;
 	void *(*routine)(void *) = NULL;
@@ -33,6 +36,7 @@ static void io_thread_create(struct ba_transport *t) {
 			break;
 		case A2DP_CODEC_MPEG12:
 		case A2DP_CODEC_MPEG24:
+		case A2DP_CODEC_ATRAC:
 		default:
 			warn("Codec not supported: %u", t->codec);
 		}
@@ -44,6 +48,7 @@ static void io_thread_create(struct ba_transport *t) {
 			break;
 		case A2DP_CODEC_MPEG12:
 		case A2DP_CODEC_MPEG24:
+		case A2DP_CODEC_ATRAC:
 		default:
 			warn("Codec not supported: %u", t->codec);
 		}
@@ -55,10 +60,16 @@ static void io_thread_create(struct ba_transport *t) {
 	}
 
 	if (routine == NULL)
-		return;
+		return -1;
 
-	if ((ret = pthread_create(&t->thread, NULL, routine, t)) != 0)
+	if ((ret = pthread_create(&t->thread, NULL, routine, t)) != 0) {
 		error("Cannot create IO thread: %s", strerror(ret));
+		return -1;
+	}
+
+	pthread_setname_np(t->thread, "baio");
+	debug("Created new IO thread: %lu", (unsigned long)t->thread);
+	return 0;
 }
 
 int transport_threads_init(void) {
@@ -66,7 +77,7 @@ int transport_threads_init(void) {
 	return sigaction(SIGUSR1, &sigact, NULL);
 }
 
-struct ba_transport *transport_new(DBusConnection *conn, const char *dbus_owner,
+struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
 		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
 		const uint8_t *config, size_t config_size) {
 
@@ -127,6 +138,8 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	if (t->state == state)
 		return -1;
 
+	int ret = -1;
+
 	t->state = state;
 
 	switch (state) {
@@ -134,17 +147,18 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		/* TODO: Maybe use pthread_cancel() ? */
 		pthread_kill(t->thread, SIGUSR1);
 		pthread_join(t->thread, NULL);
-		transport_release(t);
+		ret = transport_release(t);
 		break;
+	case TRANSPORT_ACQUIRE:
 	case TRANSPORT_PENDING:
-		transport_acquire(t);
+		ret = transport_acquire(t);
 		break;
 	case TRANSPORT_ACTIVE:
-		io_thread_create(t);
+		ret = io_thread_create(t);
 		break;
 	}
 
-	return 0;
+	return ret;
 }
 
 int transport_set_state_from_string(struct ba_transport *t, const char *state) {
@@ -165,59 +179,71 @@ int transport_set_state_from_string(struct ba_transport *t, const char *state) {
 
 int transport_acquire(struct ba_transport *t) {
 
-	DBusMessage *msg, *rep;
-	DBusError err;
+	GDBusMessage *msg, *rep;
+	GUnixFDList *fd_list;
+	GError *err = NULL;
 
-	dbus_error_init(&err);
-
-	msg = dbus_message_new_method_call(t->dbus_owner, t->dbus_path, "org.bluez.MediaTransport1", "Acquire");
+	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path, "org.bluez.MediaTransport1",
+			t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
 
 	if (t->bt_fd != -1) {
 		close(t->bt_fd);
 		t->bt_fd = -1;
 	}
 
-	if ((rep = dbus_connection_send_with_reply_and_block(t->dbus_conn, msg, -1, &err)) == NULL) {
-		error("Cannot acquire transport: %s", err.message);
-		dbus_error_free(&err);
-	}
-	else if (!dbus_message_get_args(rep, &err,
-				DBUS_TYPE_UNIX_FD, &t->bt_fd,
-				DBUS_TYPE_UINT16, &t->mtu_read,
-				DBUS_TYPE_UINT16, &t->mtu_write,
-				DBUS_TYPE_INVALID)) {
-		error("Invalid D-Bus reply: %s", err.message);
-		dbus_error_free(&err);
-	}
-	else
-		debug("Acquired new transport: %d", t->bt_fd);
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(t->dbus_conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
 
-	dbus_message_unref(msg);
-	dbus_message_unref(rep);
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+	g_variant_get(g_dbus_message_get_body(rep), "(hqq)", (int32_t *)&t->bt_fd,
+			(uint16_t *)&t->mtu_read, (uint16_t *)&t->mtu_write);
+
+	fd_list = g_dbus_message_get_unix_fd_list(rep);
+	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
+
+	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+
+fail:
+	g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't acquire transport: %s", err->message);
+		g_error_free(err);
+	}
 	return t->bt_fd;
 }
 
 int transport_release(struct ba_transport *t) {
 
-	DBusMessage *msg;
-	DBusError err;
-	int ret = 0;
+	GDBusMessage *msg, *rep;
+	GError *err = NULL;
+	int ret = -1;
 
-	dbus_error_init(&err);
+	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
+			"org.bluez.MediaTransport1", "Release");
 
-	msg = dbus_message_new_method_call(t->dbus_owner, t->dbus_path, "org.bluez.MediaTransport1", "Release");
-	dbus_connection_send_with_reply_and_block(t->dbus_conn, msg, -1, &err);
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(t->dbus_conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
 
-	if (dbus_error_is_set(&err)) {
-		error("Cannot release transport: %s", err.message);
-		dbus_error_free(&err);
-		ret = -1;
-	}
-	else {
-		close(t->bt_fd);
-		t->bt_fd = -1;
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
 	}
 
-	dbus_message_unref(msg);
+	ret = 0;
+	close(t->bt_fd);
+	t->bt_fd = -1;
+
+fail:
+	g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
 	return ret;
 }

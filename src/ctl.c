@@ -8,6 +8,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include "ctl.h"
 
 #include <errno.h>
@@ -208,7 +209,7 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 	}
 	if (t->pcm_fifo != NULL) {
 		debug("PCM already requested: %u", t->pcm_fd);
-		status.code = STATUS_CODE_ERROR_UNKNOWN;
+		status.code = STATUS_CODE_DEVICE_BUSY;
 		goto fail;
 	}
 
@@ -349,6 +350,7 @@ int ctl_thread_init(const char *device, void *userdata) {
 		goto fail;
 	}
 
+	pthread_setname_np(ctl.thread, "bactl");
 	return 0;
 
 fail:

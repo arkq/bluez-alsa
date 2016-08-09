@@ -17,8 +17,9 @@
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
-#include <dbus/dbus.h>
+
 #include <glib.h>
+#include <gio/gio.h>
 
 #include "bluez.h"
 #include "device.h"
@@ -28,7 +29,7 @@
 #include "utils.h"
 
 
-static DBusConnection *dbus = NULL;
+static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
 	(void)(sig);
 
@@ -38,7 +39,7 @@ static void main_loop_stop(int sig) {
 	struct sigaction sigact = { .sa_handler = SIG_DFL };
 	sigaction(SIGINT, &sigact, NULL);
 
-	dbus_connection_close(dbus);
+	g_main_loop_quit(loop);
 }
 
 int main(int argc, char **argv) {
@@ -48,12 +49,16 @@ int main(int argc, char **argv) {
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "device", required_argument, NULL, 'i' },
+		{ "disable-a2dp", no_argument, NULL, 1 },
+		{ "disable-hsp", no_argument, NULL, 2 },
 		{ 0, 0, 0, 0 },
 	};
 
 	struct hci_dev_info hci_dev;
 	struct hci_dev_info *hci_devs;
 	int hci_devs_num;
+	int a2dp = 1;
+	int hsp = 1;
 
 	log_open(argv[0], 0);
 
@@ -75,12 +80,21 @@ int main(int argc, char **argv) {
 		case 'h':
 			printf("usage: %s [ -hi ]\n"
 					"  -h, --help\t\tprint this help and exit\n"
-					"  -i, --device=hciX\tHCI device to use\n",
+					"  -i, --device=hciX\tHCI device to use\n"
+					"  --disable-a2dp\tdisable A2DP support\n"
+					"  --disable-hsp\t\tdisable HSP support\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 
 		case 'i':
 			warn("This feature is not implemented yet!");
+			break;
+
+		case 1:
+			a2dp = 0;
+			break;
+		case 2:
+			hsp = 0;
 			break;
 
 		default:
@@ -96,8 +110,10 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
+	GDBusConnection *dbus;
 	GHashTable *devices;
-	DBusError err;
+	gchar *address;
+	GError *err;
 
 	if ((devices = devices_init()) == NULL) {
 		error("Cannot initialize device list structure");
@@ -109,14 +125,13 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	if (!dbus_threads_init_default()) {
-		error("Cannot initialize D-Bus threads");
-		return EXIT_FAILURE;
-	}
-
-	dbus_error_init(&err);
-	if ((dbus = dbus_bus_get(DBUS_BUS_SYSTEM, &err)) == NULL) {
-		error("Cannot obtain D-Bus connection: %s", err.message);
+	err = NULL;
+	address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
+	if ((dbus = g_dbus_connection_new_for_address_sync(address,
+					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
+					NULL, NULL, &err)) == NULL) {
+		error("Cannot obtain D-Bus connection: %s", err->message);
 		return EXIT_FAILURE;
 	}
 
@@ -125,22 +140,23 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	bluez_register_a2dp(dbus, hci_dev.name, devices);
-	bluez_register_hsp(dbus, devices);
-	bluez_register_signal_handler(dbus, hci_dev.name, devices);
+	if (a2dp)
+		bluez_register_a2dp(dbus, hci_dev.name, devices);
+	if (hsp)
+		bluez_register_hsp(dbus, hci_dev.name, devices);
+
+	bluez_subscribe_signals(dbus, hci_dev.name, devices);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGINT, &sigact, NULL);
 
 	/* main dispatching loop */
 	debug("Starting main dispatching loop");
-	dbus_connection_set_exit_on_disconnect(dbus, FALSE);
-	while (dbus_connection_read_write_dispatch(dbus, -1))
-		continue;
+	loop = g_main_loop_new(NULL, FALSE);
+	g_main_loop_run(loop);
 
 	debug("Exiting main loop");
 
 	ctl_free();
-	dbus_connection_unref(dbus);
 	return EXIT_SUCCESS;
 }

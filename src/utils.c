@@ -86,55 +86,6 @@ int hci_devlist(struct hci_dev_info **di, int *num) {
 }
 
 /**
- * Convert D-Bus type into a machine-readable string.
- *
- * @param typecode D-Bus type code.
- * @return Machine-readable string. */
-const char *dbus_type_to_string(int typecode) {
-	switch (typecode) {
-	case DBUS_TYPE_INVALID:
-		return "invalid";
-	case DBUS_TYPE_BOOLEAN:
-		return "boolean";
-	case DBUS_TYPE_BYTE:
-		return "byte";
-	case DBUS_TYPE_INT16:
-		return "int16";
-	case DBUS_TYPE_UINT16:
-		return "uint16";
-	case DBUS_TYPE_INT32:
-		return "int32";
-	case DBUS_TYPE_UINT32:
-		return "uint32";
-	case DBUS_TYPE_INT64:
-		return "int64";
-	case DBUS_TYPE_UINT64:
-		return "uint64";
-	case DBUS_TYPE_DOUBLE:
-		return "double";
-	case DBUS_TYPE_STRING:
-		return "string";
-	case DBUS_TYPE_OBJECT_PATH:
-		return "object_path";
-	case DBUS_TYPE_SIGNATURE:
-		return "signature";
-	case DBUS_TYPE_STRUCT:
-		return "struct";
-	case DBUS_TYPE_DICT_ENTRY:
-		return "dict_entry";
-	case DBUS_TYPE_ARRAY:
-		return "array";
-	case DBUS_TYPE_VARIANT:
-		return "variant";
-	case DBUS_TYPE_UNIX_FD:
-		return "unix_fd";
-	default:
-		warn("Unrecognized argument type: %u", typecode);
-		return "unknown";
-	}
-}
-
-/**
  * Convert BlueZ D-Bus device path into a bdaddr_t structure.
  *
  * @param path BlueZ D-Bus device path.
@@ -197,38 +148,4 @@ const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
 	default:
 		return "N/A";
 	}
-}
-
-dbus_bool_t dbus_message_iter_append_dict_variant(DBusMessageIter *iter,
-		char *key, int type, const void *value) {
-
-	const char typestr[] = { type, '\0' };
-	DBusMessageIter dict, variant;
-
-	dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict);
-	dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &key);
-	dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, typestr, &variant);
-	dbus_message_iter_append_basic(&variant, type, &value);
-	dbus_message_iter_close_container(&dict, &variant);
-	dbus_message_iter_close_container(iter, &dict);
-
-	return TRUE;
-}
-
-dbus_bool_t dbus_message_iter_append_dict_array(DBusMessageIter *iter,
-		char *key, int type, const void *value, int elements) {
-
-	const char typestr[] = { 'a', type, '\0' };
-	DBusMessageIter dict, variant, array;
-
-	dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict);
-	dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &key);
-	dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, typestr, &variant);
-	dbus_message_iter_open_container(&variant, DBUS_TYPE_ARRAY, &typestr[1], &array);
-	dbus_message_iter_append_fixed_array(&array, type, &value, elements);
-	dbus_message_iter_close_container(&variant, &array);
-	dbus_message_iter_close_container(&dict, &variant);
-	dbus_message_iter_close_container(iter, &dict);
-
-	return TRUE;
 }

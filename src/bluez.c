@@ -16,125 +16,141 @@
 #include <string.h>
 
 #include "a2dp-codecs.h"
+#include "bluez-iface.h"
 #include "device.h"
 #include "log.h"
 #include "transport.h"
 #include "utils.h"
 
 
-static DBusMessage *bluez_error_invalid_arguments(DBusMessage *reply_to, const char *message) {
-	return dbus_message_new_error(reply_to, "org.bluez.Error.InvalidArguments", message);
-}
-
-static DBusMessage *bluez_error_not_supported(DBusMessage *reply_to, const char *message) {
-	return dbus_message_new_error(reply_to, "org.bluez.Error.NotSupported", message);
-}
-
-static DBusMessage *bluez_error_failed(DBusMessage *reply_to, const char *message) {
-	return dbus_message_new_error(reply_to, "org.bluez.Error.Failed", message);
-}
-
-static DBusMessage *bluez_endpoint_select_configuration(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)conn;
+static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
 
-	DBusMessage *rep;
-	DBusError err;
-	a2dp_sbc_t a2dp_sbc = { 0 }, *cap;
-	int size;
+	const char *path = g_dbus_method_invocation_get_object_path(inv);
+	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 
-	dbus_error_init(&err);
+	const uint8_t *data;
+	uint8_t *capabilities;
+	size_t size = 0;
 
-	if (!dbus_message_get_args(msg, &err,
-				DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &cap, &size,
-				DBUS_TYPE_INVALID)) {
-		error("Invalid request for %s: %s", "SelectConfiguration()", err.message);
-		dbus_error_free(&err);
-		goto fail;
+	params = g_variant_get_child_value(params, 0);
+	data = g_variant_get_fixed_array(params, &size, sizeof(uint8_t));
+	capabilities = g_memdup(data, size);
+	g_variant_unref(params);
+
+	if (strcmp(path, BLUEZ_ENDPOINT_A2DP_SBC_SOURCE) == 0 ||
+			strcmp(path, BLUEZ_ENDPOINT_A2DP_SBC_SINK) == 0) {
+
+		if (size != sizeof(a2dp_sbc_t)) {
+			error("Invalid capabilities size: %zu != %zu", size, sizeof(a2dp_sbc_t));
+			goto fail;
+		}
+
+		a2dp_sbc_t *cap = (a2dp_sbc_t *)capabilities;
+
+		if (cap->frequency & SBC_SAMPLING_FREQ_48000)
+			cap->frequency = SBC_SAMPLING_FREQ_48000;
+		else if (cap->frequency & SBC_SAMPLING_FREQ_44100)
+			cap->frequency = SBC_SAMPLING_FREQ_44100;
+		else if (cap->frequency & SBC_SAMPLING_FREQ_32000)
+			cap->frequency = SBC_SAMPLING_FREQ_32000;
+		else if (cap->frequency & SBC_SAMPLING_FREQ_16000)
+			cap->frequency = SBC_SAMPLING_FREQ_16000;
+		else {
+			error("No supported frequencies: %u", cap->frequency);
+			goto fail;
+		}
+
+		if (cap->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+			cap->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+		else if (cap->channel_mode & SBC_CHANNEL_MODE_STEREO)
+			cap->channel_mode = SBC_CHANNEL_MODE_STEREO;
+		else if (cap->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+			cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+		else if (cap->channel_mode & SBC_CHANNEL_MODE_MONO) {
+			cap->channel_mode = SBC_CHANNEL_MODE_MONO;
+		} else {
+			error("No supported channel modes: %u", cap->channel_mode);
+			goto fail;
+		}
+
+		if (cap->block_length & SBC_BLOCK_LENGTH_16)
+			cap->block_length = SBC_BLOCK_LENGTH_16;
+		else if (cap->block_length & SBC_BLOCK_LENGTH_12)
+			cap->block_length = SBC_BLOCK_LENGTH_12;
+		else if (cap->block_length & SBC_BLOCK_LENGTH_8)
+			cap->block_length = SBC_BLOCK_LENGTH_8;
+		else if (cap->block_length & SBC_BLOCK_LENGTH_4)
+			cap->block_length = SBC_BLOCK_LENGTH_4;
+		else {
+			error("No supported block lengths: %u", cap->block_length);
+			goto fail;
+		}
+
+		if (cap->subbands & SBC_SUBBANDS_8)
+			cap->subbands = SBC_SUBBANDS_8;
+		else if (cap->subbands & SBC_SUBBANDS_4)
+			cap->subbands = SBC_SUBBANDS_4;
+		else {
+			error("No supported subbands: %u", cap->subbands);
+			goto fail;
+		}
+
+		if (cap->allocation_method & SBC_ALLOCATION_LOUDNESS)
+			cap->allocation_method = SBC_ALLOCATION_LOUDNESS;
+		else if (cap->allocation_method & SBC_ALLOCATION_SNR)
+			cap->allocation_method = SBC_ALLOCATION_SNR;
+		else {
+			error("No supported allocation: %u", cap->allocation_method);
+			goto fail;
+		}
+
+		int bitpool = a2dp_default_bitpool(cap->frequency, cap->channel_mode);
+		cap->min_bitpool = MAX(MIN_BITPOOL, cap->min_bitpool);
+		cap->max_bitpool = MIN(bitpool, cap->max_bitpool);
+
 	}
-
-	if (cap->frequency & SBC_SAMPLING_FREQ_48000)
-		a2dp_sbc.frequency = SBC_SAMPLING_FREQ_48000;
-	else if (cap->frequency & SBC_SAMPLING_FREQ_44100)
-		a2dp_sbc.frequency = SBC_SAMPLING_FREQ_44100;
-	else if (cap->frequency & SBC_SAMPLING_FREQ_32000)
-		a2dp_sbc.frequency = SBC_SAMPLING_FREQ_32000;
-	else if (cap->frequency & SBC_SAMPLING_FREQ_16000)
-		a2dp_sbc.frequency = SBC_SAMPLING_FREQ_16000;
 	else {
-		error("No supported frequencies: %u", cap->frequency);
-		goto fail;
+		debug("Endpoint path not supported: %s", path);
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+				G_DBUS_ERROR_UNKNOWN_OBJECT, "Not supported");
+		goto final;
 	}
 
-	if (cap->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-	else if (cap->channel_mode & SBC_CHANNEL_MODE_STEREO)
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_STEREO;
-	else if (cap->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-	else if (cap->channel_mode & SBC_CHANNEL_MODE_MONO) {
-		a2dp_sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
-	} else {
-		error("No supported channel modes: %u", cap->channel_mode);
-		goto fail;
-	}
+	GVariantBuilder *caps = g_variant_builder_new(G_VARIANT_TYPE("ay"));
+	size_t i;
 
-	if (cap->block_length & SBC_BLOCK_LENGTH_16)
-		a2dp_sbc.block_length = SBC_BLOCK_LENGTH_16;
-	else if (cap->block_length & SBC_BLOCK_LENGTH_12)
-		a2dp_sbc.block_length = SBC_BLOCK_LENGTH_12;
-	else if (cap->block_length & SBC_BLOCK_LENGTH_8)
-		a2dp_sbc.block_length = SBC_BLOCK_LENGTH_8;
-	else if (cap->block_length & SBC_BLOCK_LENGTH_4)
-		a2dp_sbc.block_length = SBC_BLOCK_LENGTH_4;
-	else {
-		error("No supported block lengths: %u", cap->block_length);
-		goto fail;
-	}
+	for (i = 0; i < size; i++)
+		g_variant_builder_add(caps, "y", capabilities[i]);
 
-	if (cap->subbands & SBC_SUBBANDS_8)
-		a2dp_sbc.subbands = SBC_SUBBANDS_8;
-	else if (cap->subbands & SBC_SUBBANDS_4)
-		a2dp_sbc.subbands = SBC_SUBBANDS_4;
-	else {
-		error("No supported subbands: %u", cap->subbands);
-		goto fail;
-	}
+	g_dbus_method_invocation_return_value(inv, g_variant_new("(ay)", caps));
 
-	if (cap->allocation_method & SBC_ALLOCATION_LOUDNESS)
-		a2dp_sbc.allocation_method = SBC_ALLOCATION_LOUDNESS;
-	else if (cap->allocation_method & SBC_ALLOCATION_SNR)
-		a2dp_sbc.allocation_method = SBC_ALLOCATION_SNR;
-
-	int bitpool = a2dp_default_bitpool(a2dp_sbc.frequency, a2dp_sbc.channel_mode);
-	a2dp_sbc.min_bitpool = MAX(MIN_BITPOOL, cap->min_bitpool);
-	a2dp_sbc.max_bitpool = MIN(bitpool, cap->max_bitpool);
-
-	uint8_t *pconf = (uint8_t *)&a2dp_sbc;
-	rep = dbus_message_new_method_return(msg);
-	dbus_message_append_args(rep, DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &pconf, size, DBUS_TYPE_INVALID);
-	return rep;
+	goto final;
 
 fail:
-	return bluez_error_invalid_arguments(msg, "Unable to select configuration");
+	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+			G_DBUS_ERROR_INVALID_ARGS, "Invalid capabilities");
+
+final:
+	g_free(capabilities);
 }
 
-static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusMessage *msg, void *userdata) {
+static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	static GHashTable *profiles = NULL;
-	DBusMessageIter arg_i, element_i;
 
+	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	GHashTable *devices = (GHashTable *)userdata;
 	struct ba_transport *t;
 	struct ba_device *d;
 	int profile = -1;
 	int codec = -1;
 
-	const char *path;
-	const char *dev_path = NULL, *uuid = NULL, *state = NULL;
-	const uint8_t *config = NULL;
+	const char *transport;
+	char *device = NULL, *uuid = NULL, *state = NULL;
+	uint8_t *config = NULL;
 	uint16_t volume = 0;
-	int size = 0;
+	size_t size = 0;
 
 	if (profiles == NULL) {
 		/* initialize profiles hash table - used for profile lookup */
@@ -164,178 +180,169 @@ static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusM
 
 	}
 
-	if (!dbus_message_iter_init(msg, &arg_i) || !dbus_message_has_signature(msg, "oa{sv}")) {
-		error("Invalid signature for %s: %s != %s", "SetConfiguration()",
-				dbus_message_get_signature(msg), "oa{sv}");
+	GVariantIter *properties;
+	GVariant *value = NULL;
+	const char *key;
+
+	g_variant_get(params, "(&oa{sv})", &transport, &properties);
+
+	if (device_transport_lookup(devices, transport) != NULL) {
+		error("Transport already configured: %s", transport);
 		goto fail;
 	}
-
-	dbus_message_iter_get_basic(&arg_i, &path);
-
-	if (device_transport_lookup(devices, path) != NULL) {
-		error("Transport already configured: %s", path);
-		goto fail;
-	}
-
-	dbus_message_iter_next(&arg_i);
 
 	/* read transport properties */
-	for (dbus_message_iter_recurse(&arg_i, &element_i);
-			dbus_message_iter_get_arg_type(&element_i) == DBUS_TYPE_DICT_ENTRY;
-			dbus_message_iter_next(&element_i)) {
-
-		const char *key;
-		DBusMessageIter value, entry;
-		int var;
-
-		dbus_message_iter_recurse(&element_i, &entry);
-		dbus_message_iter_get_basic(&entry, &key);
-
-		dbus_message_iter_next(&entry);
-		dbus_message_iter_recurse(&entry, &value);
-
-		var = dbus_message_iter_get_arg_type(&value);
+	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
 
 		if (strcmp(key, "Device") == 0) {
 
-			if (var != DBUS_TYPE_OBJECT_PATH) {
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_OBJECT_PATH)) {
 				error("Invalid argument type for %s: %s != %s", key,
-						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_OBJECT_PATH));
+						g_variant_get_type_string(value), "o");
 				goto fail;
 			}
 
-			dbus_message_iter_get_basic(&value, &dev_path);
+			g_variant_get(value, "o", &device);
 
 		}
 		else if (strcmp(key, "UUID") == 0) {
 
-			if (var != DBUS_TYPE_STRING) {
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
 				error("Invalid argument type for %s: %s != %s", key,
-						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_STRING));
+						g_variant_get_type_string(value), "s");
 				goto fail;
 			}
 
-			dbus_message_iter_get_basic(&value, &uuid);
+			g_variant_get(value, "s", &uuid);
 
-			const char *endpoint_path = dbus_message_get_path(msg);
-			gchar *key = g_strdup_printf("%s%s", uuid, endpoint_path);
+			const gchar *path = g_dbus_method_invocation_get_object_path(inv);
+			gchar *key = g_strdup_printf("%s%s", uuid, path);
 
 			profile = GPOINTER_TO_INT(g_hash_table_lookup(profiles, key));
 			g_free(key);
 
 			if (profile == 0) {
-				error("UUID %s of transport %s incompatible with endpoint %s", uuid, path, endpoint_path);
+				error("UUID %s of transport %s incompatible with endpoint %s", uuid, transport, path);
 				goto fail;
 			}
 
 		}
 		else if (strcmp(key, "Codec") == 0) {
 
-			if (var != DBUS_TYPE_BYTE) {
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_BYTE)) {
 				error("Invalid argument type for %s: %s != %s", key,
-						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_BYTE));
+						g_variant_get_type_string(value), "y");
 				goto fail;
 			}
 
-			dbus_message_iter_get_basic(&value, &codec);
+			g_variant_get(value, "y", &codec);
 
 		}
 		else if (strcmp(key, "Configuration") == 0) {
 
-			if (var != DBUS_TYPE_ARRAY) {
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_BYTESTRING)) {
 				error("Invalid argument type for %s: %s != %s", key,
-						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_ARRAY));
+						g_variant_get_type_string(value), "ay");
 				goto fail;
 			}
 
-			DBusMessageIter array;
-			a2dp_sbc_t *c;
+			const guchar *capabilities;
 
-			dbus_message_iter_recurse(&value, &array);
-			if ((var = dbus_message_iter_get_arg_type(&array)) != DBUS_TYPE_BYTE) {
-				error("Invalid array type for %s: %s != %s", key,
-						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_BYTE));
-				goto fail;
-			}
+			capabilities = g_variant_get_fixed_array(value, &size, sizeof(uint8_t));
+			config = g_memdup(capabilities, size);
 
-			dbus_message_iter_get_fixed_array(&array, &config, &size);
-			if (size != sizeof(a2dp_sbc_t)) {
-				error("Invalid configuration: %s:", "Invalid size");
-				goto fail;
-			}
+			if (codec == A2DP_CODEC_SBC) {
 
-			c = (a2dp_sbc_t *)config;
+				if (size != sizeof(a2dp_sbc_t)) {
+					error("Invalid configuration: %s", "Invalid size");
+					goto fail;
+				}
 
-			if (c->frequency != SBC_SAMPLING_FREQ_16000 && c->frequency != SBC_SAMPLING_FREQ_32000 &&
-					c->frequency != SBC_SAMPLING_FREQ_44100 && c->frequency != SBC_SAMPLING_FREQ_48000) {
-				error("Invalid configuration: %s:", "Invalid sampling frequency");
-				goto fail;
-			}
+				a2dp_sbc_t *cap = (a2dp_sbc_t *)capabilities;
 
-			if (c->channel_mode != SBC_CHANNEL_MODE_MONO && c->channel_mode != SBC_CHANNEL_MODE_DUAL_CHANNEL &&
-					c->channel_mode != SBC_CHANNEL_MODE_STEREO && c->channel_mode != SBC_CHANNEL_MODE_JOINT_STEREO) {
-				error("Invalid configuration: %s:", "Invalid channel mode");
-				goto fail;
-			}
+				if (cap->frequency != SBC_SAMPLING_FREQ_16000 &&
+						cap->frequency != SBC_SAMPLING_FREQ_32000 &&
+						cap->frequency != SBC_SAMPLING_FREQ_44100 &&
+						cap->frequency != SBC_SAMPLING_FREQ_48000) {
+					error("Invalid configuration: %s", "Invalid sampling frequency");
+					goto fail;
+				}
 
-			if (c->allocation_method != SBC_ALLOCATION_SNR && c->allocation_method != SBC_ALLOCATION_LOUDNESS) {
-				error("Invalid configuration: %s:", "Invalid allocation method");
-				goto fail;
-			}
+				if (cap->channel_mode != SBC_CHANNEL_MODE_MONO &&
+						cap->channel_mode != SBC_CHANNEL_MODE_DUAL_CHANNEL &&
+						cap->channel_mode != SBC_CHANNEL_MODE_STEREO &&
+						cap->channel_mode != SBC_CHANNEL_MODE_JOINT_STEREO) {
+					error("Invalid configuration: %s", "Invalid channel mode");
+					goto fail;
+				}
 
-			if (c->subbands != SBC_SUBBANDS_4 && c->subbands != SBC_SUBBANDS_8) {
-				error("Invalid configuration: %s:", "Invalid SBC subbands");
-				goto fail;
-			}
+				if (cap->allocation_method != SBC_ALLOCATION_SNR &&
+						cap->allocation_method != SBC_ALLOCATION_LOUDNESS) {
+					error("Invalid configuration: %s:", "Invalid allocation method");
+					goto fail;
+				}
 
-			if (c->block_length != SBC_BLOCK_LENGTH_4 && c->block_length != SBC_BLOCK_LENGTH_8 &&
-					c->block_length != SBC_BLOCK_LENGTH_12 && c->block_length != SBC_BLOCK_LENGTH_16) {
-				error("Invalid configuration: %s:", "Invalid block length");
-				goto fail;
+				if (cap->subbands != SBC_SUBBANDS_4 &&
+						cap->subbands != SBC_SUBBANDS_8) {
+					error("Invalid configuration: %s", "Invalid SBC subbands");
+					goto fail;
+				}
+
+				if (cap->block_length != SBC_BLOCK_LENGTH_4 &&
+						cap->block_length != SBC_BLOCK_LENGTH_8 &&
+						cap->block_length != SBC_BLOCK_LENGTH_12 &&
+						cap->block_length != SBC_BLOCK_LENGTH_16) {
+					error("Invalid configuration: %s", "Invalid block length");
+					goto fail;
+				}
+
 			}
 
 		}
 		else if (strcmp(key, "State") == 0) {
 
-			if (var != DBUS_TYPE_STRING) {
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
 				error("Invalid argument type for %s: %s != %s", key,
-						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_STRING));
-				continue;
+						g_variant_get_type_string(value), "s");
+				goto fail;
 			}
 
-			dbus_message_iter_get_basic(&value, &state);
+			g_variant_get(value, "s", &state);
 
 		}
 		else if (strcmp(key, "Delay") == 0) {
 		}
 		else if (strcmp(key, "Volume") == 0) {
 
-			if (var != DBUS_TYPE_UINT16) {
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
 				error("Invalid argument type for %s: %s != %s", key,
-						dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_STRING));
-				continue;
+						g_variant_get_type_string(value), "q");
+				goto fail;
 			}
 
-			dbus_message_iter_get_basic(&value, &volume);
+			g_variant_get(value, "q", &volume);
 
 			/* scale volume from 0 to 100 */
 			volume = volume * 100 / 127;
 
 		}
 
+		g_variant_unref(value);
+		value = NULL;
 	}
 
-	if ((d = g_hash_table_lookup(devices, dev_path)) == NULL) {
+	if ((d = g_hash_table_lookup(devices, device)) == NULL) {
 		bdaddr_t addr;
-		dbus_devpath_to_bdaddr(dev_path, &addr);
+		dbus_devpath_to_bdaddr(device, &addr);
 		/* TODO: Get real device name! */
-		d = device_new(&addr, dev_path);
-		g_hash_table_insert(devices, g_strdup(dev_path), d);
+		d = device_new(&addr, device);
+		g_hash_table_insert(devices, g_strdup(device), d);
 	}
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new(conn, dbus_message_get_sender(msg), path,
+	if ((t = transport_new(g_dbus_method_invocation_get_connection(inv),
+					g_dbus_method_invocation_get_sender(inv), transport,
 					bluetooth_profile_to_string(profile, codec), profile, codec, config, size)) == NULL) {
 		error("Cannot create new transport: %s", strerror(errno));
 		goto fail;
@@ -344,201 +351,74 @@ static DBusMessage *bluez_endpoint_set_configuration(DBusConnection *conn, DBusM
 	transport_set_state_from_string(t, state);
 	t->volume = volume;
 
-	g_hash_table_insert(d->transports, g_strdup(path), t);
+	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
 	debug("%s configured for device %s", t->name, batostr(&d->addr));
-	return dbus_message_new_method_return(msg);
+	g_dbus_method_invocation_return_value(inv, NULL);
+
+	goto final;
 
 fail:
-	return bluez_error_invalid_arguments(msg, "Unable to set configuration");
+	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+			G_DBUS_ERROR_INVALID_ARGS, "Unable to set configuration");
+
+final:
+	g_variant_iter_free(properties);
+	if (value != NULL)
+		g_variant_unref(value);
+	g_free(device);
+	g_free(uuid);
+	g_free(config);
+	g_free(state);
 }
 
-static DBusMessage *bluez_endpoint_clear_configuration(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)conn;
+static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
+	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	GHashTable *devices = (GHashTable *)userdata;
-	const char *path;
-	DBusError err;
+	const char *transport;
 
-	dbus_error_init(&err);
+	g_variant_get(params, "(&o)", &transport);
+	device_transport_remove(devices, transport);
 
-	if (!dbus_message_get_args(msg, &err, DBUS_TYPE_OBJECT_PATH, &path, DBUS_TYPE_INVALID)) {
-		error("Invalid request for %s: %s", "ClearConfiguration()", err.message);
-		dbus_error_free(&err);
-		goto fail;
-	}
-
-	device_transport_remove(devices, path);
-	return dbus_message_new_method_return(msg);
-
-fail:
-	return bluez_error_invalid_arguments(msg, "Unable to clear configuration");
+	g_dbus_method_invocation_return_value(inv, NULL);
 }
 
-static DBusMessage *bluez_endpoint_release(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)conn;
+static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
-	return dbus_message_new_method_return(msg);
+	g_dbus_method_invocation_return_value(inv, NULL);
 }
 
-static DBusHandlerResult bluez_endpoint_handler(DBusConnection *conn, DBusMessage *msg, void *userdata) {
+static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sender,
+		const gchar *path, const gchar *interface, const gchar *method, GVariant *params,
+		GDBusMethodInvocation *invocation, void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)params;
 
-	const char *path = dbus_message_get_path(msg);
-	const char *member = dbus_message_get_member(msg);
-	DBusMessage *rep = NULL;
+	debug("Endpoint method call: %s.%s()", interface, method);
 
-	debug("Endpoint handler: %s/%s()", path, member);
+	if (strcmp(method, "SelectConfiguration") == 0)
+		bluez_endpoint_select_configuration(invocation, userdata);
+	else if (strcmp(method, "SetConfiguration") == 0)
+		bluez_endpoint_set_configuration(invocation, userdata);
+	else if (strcmp(method, "ClearConfiguration") == 0)
+		bluez_endpoint_clear_configuration(invocation, userdata);
+	else if (strcmp(method, "Release") == 0)
+		bluez_endpoint_release(invocation, userdata);
+	else
+		warn("Unsupported endpoint method: %s", method);
 
-	if (dbus_message_is_method_call(msg, "org.bluez.MediaEndpoint1", "SelectConfiguration"))
-		rep = bluez_endpoint_select_configuration(conn, msg, userdata);
-	else if (dbus_message_is_method_call(msg, "org.bluez.MediaEndpoint1", "SetConfiguration"))
-		rep = bluez_endpoint_set_configuration(conn, msg, userdata);
-	else if (dbus_message_is_method_call(msg, "org.bluez.MediaEndpoint1", "ClearConfiguration"))
-		rep = bluez_endpoint_clear_configuration(conn, msg, userdata);
-	else if (dbus_message_is_method_call(msg, "org.bluez.MediaEndpoint1", "Release"))
-		rep = bluez_endpoint_release(conn, msg, userdata);
-	else {
-		warn("Unsupported endpoint method: %s", member);
-		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-	}
-
-	if (rep != NULL) {
-		dbus_connection_send(conn, rep, NULL);
-		dbus_message_unref(rep);
-	}
-
-  return DBUS_HANDLER_RESULT_HANDLED;
 }
 
-static const DBusObjectPathVTable endpoint_vtable = {
-	.message_function = bluez_endpoint_handler,
+static void endpoint_free(gpointer data) {
+	(void)data;
+}
+
+static const GDBusInterfaceVTable endpoint_vtable = {
+	.method_call = bluez_endpoint_method_call,
 };
-
-static DBusMessage *bluez_profile_new_connection(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)conn;
-	(void)userdata;
-	return bluez_error_not_supported(msg, "Not implemented yet");
-}
-
-static DBusMessage *bluez_profile_request_disconnection(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)conn;
-	(void)userdata;
-	return bluez_error_not_supported(msg, "Not implemented yet");
-}
-
-static DBusMessage *bluez_profile_release(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)conn;
-	(void)userdata;
-	return bluez_error_not_supported(msg, "Not implemented yet");
-}
-
-static DBusHandlerResult bluez_profile_handler(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)userdata;
-
-	const char *path = dbus_message_get_path(msg);
-	const char *member = dbus_message_get_member(msg);
-	DBusMessage *rep = NULL;
-
-	debug("Profile handler: %s/%s()", path, member);
-
-	if (dbus_message_is_method_call(msg, "org.bluez.Profile1", "NewConnection"))
-		rep = bluez_profile_new_connection(conn, msg, userdata);
-	else if (dbus_message_is_method_call(msg, "org.bluez.Profile1", "RequestDisconnection"))
-		rep = bluez_profile_request_disconnection(conn, msg, userdata);
-	else if (dbus_message_is_method_call(msg, "org.bluez.Profile1", "Release"))
-		rep = bluez_profile_release(conn, msg, userdata);
-	else {
-		warn("Unsupported profile method: %s", member);
-		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-	}
-
-	if (rep != NULL) {
-		dbus_connection_send(conn, rep, NULL);
-		dbus_message_unref(rep);
-	}
-
-	return DBUS_HANDLER_RESULT_HANDLED;
-}
-
-static const DBusObjectPathVTable profile_vtable = {
-	.message_function = bluez_profile_handler,
-};
-
-static DBusHandlerResult bluez_signal_handler(DBusConnection *conn, DBusMessage *msg, void *userdata) {
-	(void)conn;
-
-	const char *path = dbus_message_get_path(msg);
-	GHashTable *devices = (GHashTable *)userdata;
-
-	if (dbus_message_is_signal(msg, "org.freedesktop.DBus.Properties", "PropertiesChanged")) {
-
-		DBusMessageIter arg_i;
-		const char *iface;
-
-		if (!dbus_message_iter_init(msg, &arg_i) || !dbus_message_has_signature(msg, "sa{sv}as")) {
-			error("Invalid signature for %s: %s != %s", "PropertiesChanged",
-					dbus_message_get_signature(msg), "sa{sv}as");
-			goto fail;
-		}
-
-		dbus_message_iter_get_basic(&arg_i, &iface);
-		dbus_message_iter_next(&arg_i);
-
-		if (strcmp(iface, "org.bluez.Adapter1") == 0) {
-			debug("Properties changed in adapter %s", path);
-		}
-		else if (strcmp(iface, "org.bluez.Device1") == 0) {
-			debug("Properties changed in device %s", path);
-		}
-		else if (strcmp(iface, "org.bluez.MediaTransport1") == 0) {
-			debug("Properties changed in media transport %s", path);
-
-			DBusMessageIter element_i;
-			struct ba_transport *t;
-
-			if ((t = device_transport_lookup(devices, path)) == NULL) {
-				error("Transport not available: %s", path);
-				goto fail;
-			}
-
-			for (dbus_message_iter_recurse(&arg_i, &element_i);
-					dbus_message_iter_get_arg_type(&element_i) == DBUS_TYPE_DICT_ENTRY;
-					dbus_message_iter_next(&element_i)) {
-
-				const char *key, *state;
-				DBusMessageIter value, dict_i;
-				int var;
-
-				dbus_message_iter_recurse(&element_i, &dict_i);
-				dbus_message_iter_get_basic(&dict_i, &key);
-
-				dbus_message_iter_next(&dict_i);
-				dbus_message_iter_recurse(&dict_i, &value);
-
-				var = dbus_message_iter_get_arg_type(&value);
-
-				if (strcmp(key, "State") == 0) {
-
-					if (var != DBUS_TYPE_STRING) {
-						error("Invalid argument type for %s: %s != %s", key,
-								dbus_type_to_string(var), dbus_type_to_string(DBUS_TYPE_STRING));
-						continue;
-					}
-
-					dbus_message_iter_get_basic(&value, &state);
-					transport_set_state_from_string(t, state);
-
-				}
-
-			}
-
-		}
-
-	}
-
-fail:
-	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-}
 
 /**
  * Register A2DP endpoints.
@@ -547,7 +427,7 @@ fail:
  * @param device HCI device name for which endpoints should be registered.
  * @param userdata Data passed to the endpoint handler.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_a2dp(DBusConnection *conn, const char *device, void *userdata) {
+int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdata) {
 
 	static a2dp_sbc_t a2dp_sbc = {
 		.frequency =
@@ -690,109 +570,227 @@ int bluez_register_a2dp(DBusConnection *conn, const char *device, void *userdata
 		},
 	};
 
-	char path[32];
+	char *path;
 	size_t i;
 
-	snprintf(path, sizeof(path), "/org/bluez/%s", device);
+	path = g_strdup_printf("/org/bluez/%s", device);
 
 	for (i = 0; i < sizeof(endpoints) / sizeof(struct endpoint); i++) {
 
-		DBusMessage *msg, *rep;
-		DBusMessageIter iter, iterarray;
-		DBusError err;
+		GDBusMessage *msg = NULL, *rep = NULL;
+		GError *err = NULL;
 
 		debug("Registering endpoint: %s: %s", endpoints[i].uuid, endpoints[i].endpoint);
-		dbus_connection_register_object_path(conn, endpoints[i].endpoint, &endpoint_vtable, userdata);
 
-		if ((msg = dbus_message_new_method_call("org.bluez", path,
-						"org.bluez.Media1", "RegisterEndpoint")) == NULL) {
-			error("Couldn't allocate D-Bus message");
-			return -1;
+		if (g_dbus_connection_register_object(conn, endpoints[i].endpoint,
+					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
+					userdata, endpoint_free, &err) == 0)
+			goto fail;
+
+		msg = g_dbus_message_new_method_call("org.bluez", path,
+				"org.bluez.Media1", "RegisterEndpoint");
+
+		GVariantBuilder *payload = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+		GVariantBuilder *caps = g_variant_builder_new(G_VARIANT_TYPE("ay"));
+		size_t ii;
+
+		for (ii = 0; ii < endpoints[i].config_size; ii++)
+			g_variant_builder_add(caps, "y", ((uint8_t *)endpoints[i].config)[ii]);
+
+		g_variant_builder_add(payload, "{sv}", "UUID", g_variant_new_string(endpoints[i].uuid));
+		g_variant_builder_add(payload, "{sv}", "Codec", g_variant_new_byte(endpoints[i].codec));
+		g_variant_builder_add(payload, "{sv}", "Capabilities", g_variant_new("ay", caps));
+
+		g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", endpoints[i].endpoint, payload));
+
+		if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+			goto fail;
+
+		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+			g_dbus_message_to_gerror(rep, &err);
+			goto fail;
 		}
 
-		dbus_message_iter_init_append(msg, &iter);
-		dbus_message_iter_append_basic(&iter, DBUS_TYPE_OBJECT_PATH, &endpoints[i].endpoint);
-
-		dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &iterarray);
-		dbus_message_iter_append_dict_variant(&iterarray,
-				"UUID", DBUS_TYPE_STRING, endpoints[i].uuid);
-		dbus_message_iter_append_dict_variant(&iterarray,
-				"Codec", DBUS_TYPE_BYTE, GINT_TO_POINTER(endpoints[i].codec));
-		dbus_message_iter_append_dict_array(&iterarray,
-				"Capabilities", DBUS_TYPE_BYTE, endpoints[i].config, endpoints[i].config_size);
-		dbus_message_iter_close_container(&iter, &iterarray);
-
-		dbus_error_init(&err);
-
-		rep = dbus_connection_send_with_reply_and_block(conn, msg, -1, &err);
-		if (dbus_error_is_set(&err)) {
-			warn("Couldn't register endpoint: %s", err.message);
-			dbus_error_free(&err);
+fail:
+		if (msg != NULL)
+			g_object_unref(msg);
+		if (rep != NULL)
+			g_object_unref(rep);
+		if (err != NULL) {
+			warn("Couldn't register endpoint: %s", err->message);
+			g_error_free(err);
 		}
+	}
 
-		dbus_message_unref(msg);
-		dbus_message_unref(rep);
+	g_free(path);
+	return 0;
+}
+
+static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userdata) {
+	(void)userdata;
+	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+			G_DBUS_ERROR_NOT_SUPPORTED, "Not implemented yet");
+}
+
+static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void *userdata) {
+	(void)userdata;
+	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+			G_DBUS_ERROR_NOT_SUPPORTED, "Not implemented yet");
+}
+
+static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
+	(void)userdata;
+	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+			G_DBUS_ERROR_NOT_SUPPORTED, "Not implemented yet");
+}
+
+static void bluez_profile_method_call(GDBusConnection *conn, const gchar *sender,
+		const gchar *path, const gchar *interface, const gchar *method, GVariant *params,
+		GDBusMethodInvocation *invocation, void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)params;
+
+	debug("Profile method call: %s.%s()", interface, method);
+
+	if (strcmp(method, "NewConnection") == 0)
+		bluez_profile_new_connection(invocation, userdata);
+	else if (strcmp(method, "RequestDisconnection") == 0)
+		bluez_profile_request_disconnection(invocation, userdata);
+	else if (strcmp(method, "Release") == 0)
+		bluez_profile_release(invocation, userdata);
+	else
+		warn("Unsupported profile method: %s", method);
+
+}
+
+void profile_free(gpointer data) {
+	(void)data;
+}
+
+static const GDBusInterfaceVTable profile_vtable = {
+	.method_call = bluez_profile_method_call,
+};
+
+/**
+ * Register Bluetooth Audio Profiles.
+ *
+ * @param conn D-Bus connection handler.
+ * @param device HCI device name for which profile should be registered.
+ * @param userdata Data passed to the profile handler.
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+int bluez_register_hsp(GDBusConnection *conn, const char *device, void *userdata) {
+	(void)device;
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+
+	if (g_dbus_connection_register_object(conn, BLUEZ_PROFILE_HSP_AG,
+				(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
+				userdata, profile_free, &err) == 0)
+		goto fail;
+
+	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
+			"org.bluez.ProfileManager1", "RegisterProfile");
+
+	g_dbus_message_set_body(msg, g_variant_new("(osa{sv})",
+				BLUEZ_PROFILE_HSP_AG, BLUETOOTH_UUID_HSP_AG, NULL));
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+fail:
+
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		warn("Couldn't register profile: %s", err->message);
+		g_error_free(err);
+		return -1;
 	}
 
 	return 0;
 }
 
-int bluez_register_hsp(DBusConnection *conn, void *userdata) {
+static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *sender,
+		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
+		void *userdata) {
+	(void)conn;
+	(void)sender;
 
-	DBusMessage *msg, *rep;
-	DBusMessageIter iter, iterarray;
-	DBusError err;
+	GHashTable *devices = (GHashTable *)userdata;
+	const gchar *signature = g_variant_get_type_string(params);
+	GVariantIter *properties = NULL;
+	GVariantIter *unknown = NULL;
+	GVariant *value = NULL;
+	struct ba_transport *t;
+	const char *iface;
+	const char *key;
 
-	dbus_connection_register_object_path(conn, BLUEZ_PROFILE_HSP_AG, &profile_vtable, userdata);
+	debug("Signal: %s.%s", interface, signal);
 
-	if ((msg = dbus_message_new_method_call("org.bluez", "/org/bluez",
-			"org.bluez.ProfileManager1", "RegisterProfile")) == NULL) {
-		error("Couldn't allocate D-Bus message");
-		return -1;
+	if (strcmp(signature, "(sa{sv}as)") != 0) {
+		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
+		goto fail;
 	}
 
-	const char *path = BLUEZ_PROFILE_HSP_AG;
-	const char *uuid = BLUETOOTH_UUID_HSP_AG;
-
-	dbus_message_iter_init_append(msg, &iter);
-	dbus_message_iter_append_basic(&iter, DBUS_TYPE_OBJECT_PATH, &path);
-	dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &uuid);
-
-	dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &iterarray);
-	dbus_message_iter_close_container(&iter, &iterarray);
-
-	dbus_error_init(&err);
-
-	rep = dbus_connection_send_with_reply_and_block(conn, msg, -1, &err);
-	dbus_message_unref(msg);
-
-	if (dbus_error_is_set(&err)) {
-		error("Cannot register profile: %s", err.message);
-		dbus_error_free(&err);
+	if ((t = device_transport_lookup(devices, path)) == NULL) {
+		error("Transport not available: %s", path);
+		goto fail;
 	}
 
-	if (!rep)
-		return 0;
+	g_variant_get(params, "(&sa{sv}as)", &iface, &properties, &unknown);
 
-	dbus_message_unref(msg);
-	dbus_message_unref(rep);
-	return -1;
+	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
+
+		if (strcmp(key, "State") == 0) {
+
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
+				error("Invalid argument type for %s: %s != %s", key,
+						g_variant_get_type_string(value), "s");
+				goto fail;
+			}
+
+			const char *state;
+			g_variant_get(value, "&s", &state);
+			transport_set_state_from_string(t, state);
+
+		}
+
+		g_variant_unref(value);
+		value = NULL;
+	}
+
+fail:
+	if (properties != NULL)
+		g_variant_iter_free(properties);
+	if (value != NULL)
+		g_variant_unref(value);
 }
 
-int bluez_register_signal_handler(DBusConnection *conn, const char *device, void *userdata) {
+/**
+ * Subscribe to audio related signals.
+ *
+ * @param conn D-Bus connection handler.
+ * @param device HCI device name for which subscription should be made.
+ * @param userdata Data passed to the signal handler.
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+int bluez_subscribe_signals(GDBusConnection *conn, const char *device, void *userdata) {
 	(void)device;
 
-	dbus_bus_add_match(conn,
-			"type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Adapter1'", NULL);
-	dbus_bus_add_match(conn,
-			"type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Device1'", NULL);
-	dbus_bus_add_match(conn,
-			"type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.MediaTransport1'", NULL);
-
-	if (!dbus_connection_add_filter(conn, bluez_signal_handler, userdata, NULL)) {
-		error("Adding D-Bus filter callback failed");
-		return -1;
-	}
+	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.Properties",
+			"PropertiesChanged", NULL, "org.bluez.MediaTransport1", 0, bluez_signal_transport_changed,
+			userdata, NULL);
 
 	return 0;
 }

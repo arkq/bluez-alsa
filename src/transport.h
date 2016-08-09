@@ -15,7 +15,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <dbus/dbus.h>
+#include <gio/gio.h>
 
 #define TRANSPORT_PROFILE_A2DP_SOURCE 0x01
 #define TRANSPORT_PROFILE_A2DP_SINK   0x02
@@ -24,6 +24,7 @@
 
 enum ba_transport_state {
 	TRANSPORT_IDLE,
+	TRANSPORT_ACQUIRE,
 	TRANSPORT_PENDING,
 	TRANSPORT_ACTIVE,
 };
@@ -31,7 +32,7 @@ enum ba_transport_state {
 struct ba_transport {
 
 	/* data required for D-Bus management */
-	DBusConnection *dbus_conn;
+	GDBusConnection *dbus_conn;
 	char *dbus_owner;
 	char *dbus_path;
 
@@ -64,7 +65,7 @@ struct ba_transport {
 
 int transport_threads_init(void);
 
-struct ba_transport *transport_new(DBusConnection *conn, const char *dbus_owner,
+struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
 		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
 		const uint8_t *config, size_t config_size);
 void transport_free(struct ba_transport *t);
