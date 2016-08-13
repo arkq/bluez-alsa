@@ -353,7 +353,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
-	debug("%s configured for device %s", t->name, batostr(&d->addr));
+	debug("%s configured for device %s", t->name, batostr_(&d->addr));
 	g_dbus_method_invocation_return_value(inv, NULL);
 
 	goto final;
@@ -687,6 +687,8 @@ int bluez_register_hsp(GDBusConnection *conn, const char *device, void *userdata
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
 
+	debug("Registering profile: %s: %s", BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG);
+
 	if (g_dbus_connection_register_object(conn, BLUEZ_PROFILE_HSP_AG,
 				(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
 				userdata, profile_free, &err) == 0)
@@ -727,6 +729,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 		void *userdata) {
 	(void)conn;
 	(void)sender;
+	(void)interface;
 
 	GHashTable *devices = (GHashTable *)userdata;
 	const gchar *signature = g_variant_get_type_string(params);
@@ -736,8 +739,6 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	struct ba_transport *t;
 	const char *iface;
 	const char *key;
-
-	debug("Signal: %s.%s", interface, signal);
 
 	if (strcmp(signature, "(sa{sv}as)") != 0) {
 		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
@@ -750,6 +751,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	}
 
 	g_variant_get(params, "(&sa{sv}as)", &iface, &properties, &unknown);
+	debug("Signal: %s: %s", signal, iface);
 
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
 

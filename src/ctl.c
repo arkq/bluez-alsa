@@ -44,7 +44,7 @@ static struct controller_ctl {
 	GHashTable *devices;
 
 } ctl = {
-	/* XXX: Other fields will be initialized properly
+	/* XXX: Other fields will be properly initialized
 	 *      in the ctl_thread_init() function. */
 	.created = 0,
 };
@@ -203,10 +203,18 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 	struct ba_transport *t;
 	char addr[18];
 
+	ba2str(&req->addr, addr);
+	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u",
+			ctl.hci_device, addr, req->profile);
+	pcm.fifo[sizeof(pcm.fifo)] = '\0';
+
+	debug("PCM open request for %s profile %d", addr, req->profile);
+
 	if (_transport_lookup(&req->addr, req->profile, &d, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
+
 	if (t->pcm_fifo != NULL) {
 		debug("PCM already requested: %u", t->pcm_fd);
 		status.code = STATUS_CODE_DEVICE_BUSY;
@@ -214,11 +222,6 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 	}
 
 	_ctl_transport(d, t, &pcm.transport);
-
-	ba2str(&d->addr, addr);
-	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u",
-			ctl.hci_device, addr, req->profile);
-	pcm.fifo[sizeof(pcm.fifo)] = '\0';
 
 	if (mkfifo(pcm.fifo, 0660) != 0) {
 		error("Cannot create FIFO: %s", strerror(errno));
@@ -307,7 +310,7 @@ static void *ctl_thread(void *arg) {
 		debug("+-+-");
 	}
 
-	debug("Exiting from controller thread");
+	debug("Exiting controller thread");
 	return NULL;
 }
 
@@ -350,7 +353,9 @@ int ctl_thread_init(const char *device, void *userdata) {
 		goto fail;
 	}
 
+	/* name controller thread - for aesthetic purposes only */
 	pthread_setname_np(ctl.thread, "bactl");
+
 	return 0;
 
 fail:

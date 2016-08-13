@@ -149,3 +149,23 @@ const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
 		return "N/A";
 	}
 }
+
+/**
+ * Convert Bluetooth address into a human-readable string.
+ *
+ * This function returns statically allocated buffer. It is not by any means
+ * thread safe. This function should be used for debugging purposes only.
+ *
+ * For debugging purposes, one could use the batostr() function provided by
+ * the bluez library. However, this function converts the Bluetooth address
+ * to the string with a reversed bytes order...
+ *
+ * @param ba Pointer to the Bluetooth address structure.
+ * @return On success this function returns statically allocated buffer with
+ *   human-readable Bluetooth address. On error, it returns NULL. */
+const char *batostr_(const bdaddr_t *ba) {
+	static char addr[18];
+	if (ba2str(ba, addr) > 0)
+		return addr;
+	return NULL;
+}

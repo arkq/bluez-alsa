@@ -101,6 +101,7 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 		memcpy(t->config, config, config_size);
 	}
 
+	t->state = TRANSPORT_IDLE;
 	t->bt_fd = -1;
 	t->pcm_fd = -1;
 
@@ -118,9 +119,9 @@ void transport_free(struct ba_transport *t) {
 		close(t->pcm_fd);
 
 	if (t->pcm_fifo != NULL) {
-		/* XXX: During normal operation the FIFO node should be unlinked by the
-		 *      alsa-pcm plugin in order to prevent data hijacking. However, a
-		 *      proper cleaning on the server site will not hurt. */
+		/* During normal operation the FIFO node should be unlinked by the
+		 * alsa-pcm plugin in order to prevent data hijacking. However, a
+		 * proper cleaning on the server site will not hurt. */
 		unlink(t->pcm_fifo);
 		free(t->pcm_fifo);
 	}
@@ -225,6 +226,14 @@ int transport_release(struct ba_transport *t) {
 	GError *err = NULL;
 	int ret = -1;
 
+	/* If the transport has not been acquired, or it has been released already,
+	 * there is no need to release it again. In fact, trying to release already
+	 * closed transport will result in returning error message. */
+	if (t->bt_fd == -1)
+		return 0;
+
+	debug("Releasing transport: %d", t->bt_fd);
+
 	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
 			"org.bluez.MediaTransport1", "Release");
 
@@ -245,5 +254,9 @@ fail:
 	g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't release transport: %s", err->message);
+		g_error_free(err);
+	}
 	return ret;
 }

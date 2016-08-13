@@ -20,42 +20,30 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <ortp/rtp.h>
 #include <sbc/sbc.h>
 
 #include "a2dp-codecs.h"
+#include "a2dp-rtp.h"
 #include "log.h"
 #include "transport.h"
-
-
-/* Little endian payload - we are not using these fields anyway. */
-struct __attribute__ ((packed)) rtp_payload {
-	uint8_t frame_count:4;
-	uint8_t rfa0:1;
-	uint8_t is_last_fragment:1;
-	uint8_t is_first_fragment:1;
-	uint8_t is_fragmented:1;
-};
 
 
 void *io_thread_a2dp_sbc_forward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	sbc_t sbc;
-	int ret;
 
-	if ((ret = sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
-		error("Cannot initialize SBC codec: %s", strerror(ret));
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
+		error("Cannot initialize %s codec: %s", "SBC", strerror(errno));
 		return NULL;
 	}
 
-	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
-	ssize_t len;
+	const size_t sbc_codesize = sbc_get_codesize(&sbc);
+	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 
 	const rtp_header_t *rtp_header;
 	const size_t rbuffer_size = t->mtu_read;
-	const size_t dbuffer_size = sbc_get_codesize(&sbc) *
-		(rbuffer_size / sbc_get_frame_length(&sbc) + 1);
+	const size_t dbuffer_size = sbc_codesize * (rbuffer_size / sbc_frame_len + 1);
 	uint8_t *rbuffer;
 	uint8_t *dbuffer;
 
@@ -64,13 +52,16 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	rtp_header = (rtp_header_t *)rbuffer;
 
 	if (rbuffer == NULL || dbuffer == NULL) {
-		error("Cannot create data buffers: %s", strerror(ret));
+		error("Cannot create data buffers: %s", strerror(errno));
 		goto fail;
 	}
 
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	if (sigaction(SIGPIPE, &sigact, NULL) == -1)
 		warn("Cannot change signal action: %s", strerror(errno));
+
+	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
+	ssize_t len;
 
 	debug("Starting transport IO loop");
 	while (t->state == TRANSPORT_ACTIVE) {
@@ -116,7 +107,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 			continue;
 		}
 
-		const uint8_t *input = (uint8_t *)&rtp_header->csrc[rtp_header->cc] + sizeof(struct rtp_payload);
+		const uint8_t *input = (uint8_t *)&rtp_header->csrc[rtp_header->cc] + sizeof(rtp_payload_sbc_t);
 		size_t input_len = len - (input - rbuffer);
 		uint8_t *output = dbuffer;
 		size_t output_len = dbuffer_size;
@@ -128,7 +119,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 			size_t decoded;
 
 			if ((len = sbc_decode(&sbc, input, input_len, output, output_len, &decoded)) <= 0) {
-				error("SBC decoding error: %s", strerror(len));
+				error("SBC decoding error: %s", strerror(-len));
 				break;
 			}
 
