@@ -24,7 +24,6 @@
 
 enum ba_transport_state {
 	TRANSPORT_IDLE,
-	TRANSPORT_ACQUIRE,
 	TRANSPORT_PENDING,
 	TRANSPORT_ACTIVE,
 };
@@ -61,9 +60,11 @@ struct ba_transport {
 	char *pcm_fifo;
 	int pcm_fd;
 
-};
+	/* callback functions for self-management */
+	int (*acquire)(struct ba_transport *);
+	int (*release)(struct ba_transport *);
 
-int transport_threads_init(void);
+};
 
 struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
 		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,

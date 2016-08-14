@@ -120,8 +120,8 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	if (transport_threads_init() == -1) {
-		error("Cannot initialize transport threads: %s", strerror(errno));
+	if ((ctl_thread_init(hci_dev.name, devices)) == -1) {
+		error("Cannot initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -132,11 +132,6 @@ int main(int argc, char **argv) {
 					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
 					NULL, NULL, &err)) == NULL) {
 		error("Cannot obtain D-Bus connection: %s", err->message);
-		return EXIT_FAILURE;
-	}
-
-	if ((ctl_thread_init(hci_dev.name, devices)) == -1) {
-		error("Cannot initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
 

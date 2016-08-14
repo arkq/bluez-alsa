@@ -72,11 +72,6 @@ static int io_thread_create(struct ba_transport *t) {
 	return 0;
 }
 
-int transport_threads_init(void) {
-	struct sigaction sigact = { .sa_handler = SIG_IGN };
-	return sigaction(SIGUSR1, &sigact, NULL);
-}
-
 struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
 		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
 		const uint8_t *config, size_t config_size) {
@@ -113,6 +108,18 @@ void transport_free(struct ba_transport *t) {
 	if (t == NULL)
 		return;
 
+	/* If the transport is active, prior to releasing resources, we have to
+	 * terminate the IO thread (or at least make sure it is not running any
+	 * more). Not doing so might result in an undefined behavior or even a
+	 * race condition (closed and reused file descriptor). */
+	if (t->state == TRANSPORT_ACTIVE) {
+		/* TODO: Use cancellation mechanism. */
+		pthread_kill(t->thread, SIGUSR1);
+		pthread_join(t->thread, NULL);
+	}
+
+	if (t->release != NULL)
+		t->release(t);
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
 	if (t->pcm_fd != -1)
@@ -137,7 +144,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	debug("State transition: %d -> %d", t->state, state);
 
 	if (t->state == state)
-		return -1;
+		return 0;
 
 	int ret = -1;
 
@@ -145,12 +152,10 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 
 	switch (state) {
 	case TRANSPORT_IDLE:
-		/* TODO: Maybe use pthread_cancel() ? */
 		pthread_kill(t->thread, SIGUSR1);
 		pthread_join(t->thread, NULL);
 		ret = transport_release(t);
 		break;
-	case TRANSPORT_ACQUIRE:
 	case TRANSPORT_PENDING:
 		ret = transport_acquire(t);
 		break;
@@ -158,6 +163,10 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		ret = io_thread_create(t);
 		break;
 	}
+
+	/* something went wrong, so go back to idle */
+	if (ret == -1)
+		return transport_set_state(t, TRANSPORT_IDLE);
 
 	return ret;
 }
@@ -188,6 +197,7 @@ int transport_acquire(struct ba_transport *t) {
 			t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
 
 	if (t->bt_fd != -1) {
+		warn("Closing dangling BT socket: %d", t->bt_fd);
 		close(t->bt_fd);
 		t->bt_fd = -1;
 	}
@@ -206,6 +216,8 @@ int transport_acquire(struct ba_transport *t) {
 
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
 	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
+	t->release = transport_release;
+	t->state = TRANSPORT_PENDING;
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 

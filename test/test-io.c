@@ -9,10 +9,11 @@
  */
 
 #define _GNU_SOURCE
+#include "a2dp.inc"
 #include "test.inc"
 #include "../src/io.c"
 
-static a2dp_sbc_t config_sbc_44100_joint_stereo = {
+static const a2dp_sbc_t config_sbc_44100_joint_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,
 	.block_length = SBC_BLOCK_LENGTH_16,
@@ -22,17 +23,10 @@ static a2dp_sbc_t config_sbc_44100_joint_stereo = {
 	.max_bitpool = MAX_BITPOOL,
 };
 
-static struct ba_transport transport_a2dp_src_sbc = {
-	.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
-	.codec = A2DP_CODEC_SBC,
-	.config_size = sizeof(a2dp_sbc_t),
-	.state = TRANSPORT_IDLE,
-	.bt_fd = -1,
-	.pcm_fd = -1,
-};
-
-/* Helper function for timed thread join, which takes timeout value
- * in milliseconds since the call to this function. */
+/**
+ * Helper function for timed thread join.
+ *
+ * This function takes the timeout value in milliseconds. */
 static int pthread_timedjoin(pthread_t thread, void **retval, useconds_t usec) {
 
 	struct timespec ts;
@@ -47,40 +41,145 @@ static int pthread_timedjoin(pthread_t thread, void **retval, useconds_t usec) {
 	return pthread_timedjoin_np(thread, retval, &ts);
 }
 
-int test_invalid_sbc_config(void) {
+/**
+ * Helper function for loading file content into the buffer. */
+static int load_file(const char *path, char **buffer, size_t *size) {
+
+	FILE *f;
+
+	if ((f = fopen(path, "rb")) == NULL)
+		return -errno;
+
+	*size = lseek(fileno(f), 0, SEEK_END);
+	*buffer = malloc(*size);
+
+	rewind(f);
+	*size = fread(*buffer, 1, *size, f);
+
+	return fclose(f);
+}
+
+int test_a2dp_sbc_invalid_setup(void) {
+
+	const uint8_t codec[] = { 0xff, 0xff, 0xff, 0xff };
+	struct ba_transport transport = {
+		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_SBC,
+		.config = (uint8_t *)&codec,
+		.config_size = sizeof(a2dp_sbc_t),
+		.state = TRANSPORT_IDLE,
+		.bt_fd = -1,
+	};
 
 	pthread_t thread;
-	/* invalid SBC codec configuration */
-	uint8_t codec[] = { 0xff, 0xff, 0xff, 0xff };
-	transport_a2dp_src_sbc.config = (uint8_t *)&codec;
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport_a2dp_src_sbc);
-	assert(pthread_timedjoin(thread, NULL, 10e3) == 0);
-
+	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 1);
+	assert(strcmp(test_error_msg, "Invalid BT socket: -1") == 0);
+
+	transport.bt_fd = 0;
+
+	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
+	assert(test_error_count == 2);
+	assert(strcmp(test_error_msg, "Invalid reading MTU: 0") == 0);
+
+	transport.mtu_read = 475;
+
+	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
+	assert(test_error_count == 3);
 	assert(strcmp(test_error_msg, "Cannot initialize SBC codec: Invalid argument") == 0);
+
+	transport.config = (uint8_t *)&config_sbc_44100_joint_stereo;
+	*test_error_msg = '\0';
+
+	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
+	assert(test_error_count == 3);
+	assert(strcmp(test_error_msg, "") == 0);
+
 	return 0;
 }
 
-int test_transport_idle(void) {
+int test_a2dp_sbc_decoding(void) {
+
+	int bt_fds[2];
+	int pcm_fds[2];
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, bt_fds) == 0);
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
+
+	struct ba_transport transport = {
+		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_SBC,
+		.config = (uint8_t *)&config_sbc_44100_joint_stereo,
+		.config_size = sizeof(a2dp_sbc_t),
+		.state = TRANSPORT_ACTIVE,
+		.pcm_fifo = "/force-decoding",
+		.pcm_fd = pcm_fds[0],
+		.mtu_read = 475,
+		.bt_fd = bt_fds[1],
+	};
 
 	pthread_t thread;
-	transport_a2dp_src_sbc.config = (uint8_t *)&config_sbc_44100_joint_stereo;
-	/* transport state is IDLE, so it should terminate immediately */
-	transport_a2dp_src_sbc.state = TRANSPORT_IDLE;
+	char *buffer;
+	size_t size;
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport_a2dp_src_sbc);
-	assert(pthread_timedjoin(thread, NULL, 10e3) == 0);
+	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
 
+	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
+	assert(a2dp_write_sbc(bt_fds[0], &config_sbc_44100_joint_stereo, buffer, size) == 0);
+	close(bt_fds[0]);
+
+	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 0);
-	assert(strcmp(test_error_msg, "") == 0);
+
+	free(buffer);
+	return 0;
+}
+
+int test_a2dp_sbc_encoding(void) {
+
+	int bt_fds[2];
+	int pcm_fds[2];
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, bt_fds) == 0);
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
+
+	struct ba_transport transport = {
+		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_SBC,
+		.config = (uint8_t *)&config_sbc_44100_joint_stereo,
+		.config_size = sizeof(a2dp_sbc_t),
+		.state = TRANSPORT_ACTIVE,
+		.pcm_fd = pcm_fds[1],
+		.bt_fd = bt_fds[0],
+	};
+
+	pthread_t thread;
+	char *buffer;
+	size_t size;
+
+	pthread_create(&thread, NULL, io_thread_a2dp_sbc_backward, &transport);
+
+	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
+	assert(write(pcm_fds[0], buffer, size) == (signed)size);
+	close(pcm_fds[0]);
+
+	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
+	assert(test_error_count == 0);
+
+	free(buffer);
 	return 0;
 }
 
 int main(void) {
 
-	test_run(test_invalid_sbc_config);
-	test_run(test_transport_idle);
+	test_run(test_a2dp_sbc_invalid_setup);
+	test_run(test_a2dp_sbc_decoding);
+	test_run(test_a2dp_sbc_encoding);
 
 	return EXIT_SUCCESS;
 }

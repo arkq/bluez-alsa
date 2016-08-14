@@ -53,6 +53,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 
 	ssize_t len;
 	struct msg_pcm res;
+	struct msg_status status = { 0xAB };
 	struct request req = {
 		.command = COMMAND_OPEN_PCM,
 	};
@@ -61,10 +62,23 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	req.profile = pcm->transport.profile;
 
 	send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL);
-	if ((len = recv(pcm->fd, &res, sizeof(res), 0)) == -1)
+	if ((len = read(pcm->fd, &res, sizeof(res))) == -1)
 		return -errno;
-	if (len != sizeof(res))
-		return -EBUSY;
+
+	if (len != sizeof(res)) {
+		memcpy(&status, &res, sizeof(status));
+		switch (status.code) {
+		case STATUS_CODE_DEVICE_NOT_FOUND:
+			return -ENODEV;
+		case STATUS_CODE_DEVICE_BUSY:
+			return -EBUSY;
+		default:
+			return -EFAULT;
+		}
+	}
+
+	if ((len = read(pcm->fd, &status, sizeof(status))) == -1)
+		return -errno;
 
 	if ((pcm->transport_fd = open(res.fifo, O_RDONLY)) == -1)
 		return -errno;
@@ -228,20 +242,18 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 
 	send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL);
 
-	if ((len = recv(pcm->fd, &pcm->transport, sizeof(pcm->transport), 0)) == -1)
-		return -1;
+	if ((len = read(pcm->fd, &pcm->transport, sizeof(pcm->transport))) == -1)
+		return -errno;
 
 	if (len != sizeof(pcm->transport)) {
 		memcpy(&status, &pcm->transport, sizeof(status));
-		errno = status.code == STATUS_CODE_DEVICE_NOT_FOUND ? ENODEV : EFAULT;
-		goto fail;
+		return status.code == STATUS_CODE_DEVICE_NOT_FOUND ? -ENODEV : -EFAULT;
 	}
 
-	if ((len = recv(pcm->fd, &status, sizeof(status), 0)) == -1)
-		return -1;
+	if ((len = read(pcm->fd, &status, sizeof(status))) == -1)
+		return -errno;
 
-fail:
-	return status.code == STATUS_CODE_SUCCESS ? 0 : -1;
+	return 0;
 }
 
 static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
@@ -360,8 +372,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	}
 
 	if ((ret = bluealsa_get_transport(pcm)) < 0) {
-		SNDERR("Cannot get BlueALSA transport: %s", strerror(errno));
-		ret = -errno;
+		SNDERR("Cannot get BlueALSA transport: %s", strerror(-ret));
 		goto fail;
 	}
 

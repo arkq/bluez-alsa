@@ -229,8 +229,18 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 		goto fail;
 	}
 
-	/* XXX: This will notify the transport IO thread, that there was a request
-	 *      for opening a FIFO and that the node has been just created. */
+	/* for source profile we need to open transport by ourself */
+	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
+		if (transport_acquire(t) == -1) {
+			status.code = STATUS_CODE_ERROR_UNKNOWN;
+			unlink(pcm.fifo);
+			goto fail;
+		}
+
+	/* XXX: This will notify our forward transport IO thread, that the FIFO has
+	 *      just been created, so it is possible to open it. Backward IO thread
+	 *      should not be started before the PCM open request has been made, so
+	 *      this "notification" mechanism does not apply. */
 	t->pcm_fifo = strdup(pcm.fifo);
 
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);

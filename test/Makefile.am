@@ -8,6 +8,7 @@ check_PROGRAMS = \
 	test-io
 
 AM_CFLAGS = \
+	-DSRCDIR=\"$(srcdir)\" \
 	@BLUEZ_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
 	@GIO20_CFLAGS@ \
