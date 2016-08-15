@@ -63,12 +63,12 @@ static int io_thread_create(struct ba_transport *t) {
 		return -1;
 
 	if ((ret = pthread_create(&t->thread, NULL, routine, t)) != 0) {
-		error("Cannot create IO thread: %s", strerror(ret));
+		error("Couldn't create IO thread: %s", strerror(ret));
 		return -1;
 	}
 
 	pthread_setname_np(t->thread, "baio");
-	debug("Created new IO thread: %lu", (unsigned long)t->thread);
+	debug("Created new IO thread: %s", t->name);
 	return 0;
 }
 
@@ -236,10 +236,19 @@ int transport_release(struct ba_transport *t) {
 	GError *err = NULL;
 	int ret = -1;
 
+	debug("Releasing transport: %s", t->name);
+
 	if (t->pcm_fifo != NULL) {
+		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
 		unlink(t->pcm_fifo);
 		free(t->pcm_fifo);
 		t->pcm_fifo = NULL;
+	}
+
+	if (t->pcm_fd != -1) {
+		debug("Closing PCM: %d", t->pcm_fd);
+		close(t->pcm_fd);
+		t->pcm_fd = -1;
 	}
 
 	/* If the transport has not been acquired, or it has been released already,
@@ -248,7 +257,7 @@ int transport_release(struct ba_transport *t) {
 	if (t->bt_fd == -1)
 		return 0;
 
-	debug("Releasing transport: %d", t->bt_fd);
+	debug("Closing BT: %d", t->bt_fd);
 
 	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
 			"org.bluez.MediaTransport1", "Release");

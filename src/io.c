@@ -49,7 +49,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	}
 
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
-		error("Cannot initialize %s codec: %s", "SBC", strerror(errno));
+		error("Couldn't initialize %s codec: %s", "SBC", strerror(errno));
 		return NULL;
 	}
 
@@ -62,7 +62,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	uint8_t *wbuffer = malloc(wbuffer_size);
 
 	if (rbuffer == NULL || wbuffer == NULL) {
-		error("Cannot create data buffers: %s", strerror(errno));
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -85,12 +85,17 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		}
 
 		if ((len = read(pfds[0].fd, rbuffer, rbuffer_size)) == -1) {
-			debug("Data receive failed: %s", strerror(errno));
+			debug("BT read error: %s", strerror(errno));
 			continue;
 		}
 
+		/* It seems that this block of code is not executed... */
 		if (len == 0) {
-			debug("BT closed connection: %d", pfds[0].fd);
+			debug("BT socket has been closed: %d", pfds[0].fd);
+			/* Prevent sending the release request to the BlueZ. If the socket has
+			 * been closed, it means that BlueZ has already closed the connection. */
+			close(pfds[0].fd);
+			t->bt_fd = -1;
 			break;
 		}
 
@@ -102,7 +107,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 			if ((t->pcm_fd = open(t->pcm_fifo, O_WRONLY | O_NONBLOCK)) == -1) {
 				if (errno != ENXIO)
-					error("Cannot open FIFO: %s", strerror(errno));
+					error("Couldn't open FIFO: %s", strerror(errno));
 				/* FIFO endpoint is not connected yet */
 				continue;
 			}
@@ -150,7 +155,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		if (write(t->pcm_fd, wbuffer, wbuffer_size - output_len) == -1) {
 
 			if (errno == EPIPE) {
-				debug("Closing transport FIFO: %d", t->pcm_fd);
+				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
 				unlink(t->pcm_fifo);
 				free(t->pcm_fifo);
 				t->pcm_fifo = NULL;
@@ -159,20 +164,18 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 				continue;
 			}
 
-			error("Transport FIFO write error: %s", strerror(errno));
+			error("FIFO write error: %s", strerror(errno));
 		}
 
 	}
 
 fail:
 
+	/* XXX: During the normal operation mode, the release callback should not
+	 *      be NULL. Hence, we will relay on this callback - file descriptors
+	 *      are closed in it. */
 	if (t->release != NULL)
 		t->release(t);
-
-	if (t->pcm_fd != -1) {
-		close(t->pcm_fd);
-		t->pcm_fd = -1;
-	}
 
 	free(rbuffer);
 	free(wbuffer);
@@ -188,7 +191,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	sbc_t sbc;
 
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
-		error("Cannot initialize %s codec: %s", "SBC", strerror(errno));
+		error("Couldn't initialize %s codec: %s", "SBC", strerror(errno));
 		return NULL;
 	}
 
@@ -217,7 +220,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	uint8_t *wbuffer = malloc(wbuffer_size);
 
 	if (rbuffer == NULL || wbuffer == NULL) {
-		error("Cannot create data buffers: %s", strerror(errno));
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -227,7 +230,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		debug("Opening FIFO for reading: %s", t->pcm_fifo);
 		/* this call will block until writing end is opened */
 		if ((t->pcm_fd = open(t->pcm_fifo, O_RDONLY)) == -1) {
-			error("Cannot open FIFO: %s", strerror(errno));
+			error("Couldn't open FIFO: %s", strerror(errno));
 			goto fail;
 		}
 	}
@@ -340,13 +343,9 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 fail:
 
+	/* NOTE: See the cleanup stage of the io_thread_a2dp_sbc_forward(). */
 	if (t->release != NULL)
 		t->release(t);
-
-	if (t->pcm_fd != -1) {
-		close(t->pcm_fd);
-		t->pcm_fd = -1;
-	}
 
 	free(rbuffer);
 	free(wbuffer);
