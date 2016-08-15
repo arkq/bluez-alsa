@@ -90,7 +90,7 @@ int test_a2dp_sbc_invalid_setup(void) {
 	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 3);
-	assert(strcmp(test_error_msg, "Cannot initialize SBC codec: Invalid argument") == 0);
+	assert(strcmp(test_error_msg, "Couldn't initialize SBC codec: Invalid argument") == 0);
 
 	transport.config = (uint8_t *)&config_sbc_44100_joint_stereo;
 	*test_error_msg = '\0';

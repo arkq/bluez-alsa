@@ -43,6 +43,11 @@ static struct controller_ctl {
 	char *hci_device;
 	GHashTable *devices;
 
+	/* Association table for clients which have opened PCM device. The FIFO
+	 * state is managed by the controller module itself. Connection has to be
+	 * preserved among many transport acquisitions. */
+	GHashTable *pcms;
+
 } ctl = {
 	/* XXX: Other fields will be properly initialized
 	 *      in the ctl_thread_init() function. */
@@ -224,7 +229,7 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 	_ctl_transport(d, t, &pcm.transport);
 
 	if (mkfifo(pcm.fifo, 0660) != 0) {
-		error("Cannot create FIFO: %s", strerror(errno));
+		error("Couldn't create FIFO: %s", strerror(errno));
 		status.code = STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
@@ -236,6 +241,8 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 			unlink(pcm.fifo);
 			goto fail;
 		}
+
+	g_hash_table_insert(ctl.pcms, GINT_TO_POINTER(fd), t);
 
 	/* XXX: This will notify our forward transport IO thread, that the FIFO has
 	 *      just been created, so it is possible to open it. Backward IO thread
@@ -289,6 +296,7 @@ static void *ctl_thread(void *arg) {
 
 				if ((len = recv(fd, &request, sizeof(request), MSG_DONTWAIT)) <= 0) {
 					debug("Client closed connection: %d", fd);
+					g_hash_table_remove(ctl.pcms, GINT_TO_POINTER(fd));
 					ctl.pfds[i].fd = -1;
 					close(fd);
 					continue;
@@ -296,6 +304,7 @@ static void *ctl_thread(void *arg) {
 
 				if (len != sizeof(request)) {
 					debug("Invalid request length: %zd != %zd", len, sizeof(request));
+					g_hash_table_remove(ctl.pcms, GINT_TO_POINTER(fd));
 					ctl.pfds[i].fd = -1;
 					close(fd);
 					continue;
@@ -324,6 +333,24 @@ static void *ctl_thread(void *arg) {
 	return NULL;
 }
 
+static void ctl_pcm_free(gpointer data) {
+	struct ba_transport *t = (struct ba_transport *)data;
+
+	if (t->pcm_fifo != NULL) {
+		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
+		unlink(t->pcm_fifo);
+		free(t->pcm_fifo);
+		t->pcm_fifo = NULL;
+	}
+
+	if (t->pcm_fd != -1) {
+		debug("Closing PCM: %d", t->pcm_fd);
+		close(t->pcm_fd);
+		t->pcm_fd = -1;
+	}
+
+}
+
 int ctl_thread_init(const char *device, void *userdata) {
 
 	if (ctl.created) {
@@ -347,6 +374,7 @@ int ctl_thread_init(const char *device, void *userdata) {
 	ctl.socket_path = strdup(saddr.sun_path);
 	ctl.hci_device = strdup(device);
 	ctl.devices = (GHashTable *)userdata;
+	ctl.pcms = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, ctl_pcm_free);
 
 	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST)
 		goto fail;
@@ -387,12 +415,13 @@ void ctl_free() {
 	if (created) {
 		pthread_cancel(ctl.thread);
 		if ((err = pthread_join(ctl.thread, NULL)) != 0)
-			error("Cannot join controller thread: %s", strerror(err));
+			error("Couldn't join controller thread: %s", strerror(err));
 	}
 
 	if (ctl.socket_path != NULL)
 		unlink(ctl.socket_path);
 
+	g_hash_table_unref(ctl.pcms);
 	free(ctl.socket_path);
 	free(ctl.hci_device);
 }

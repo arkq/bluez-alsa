@@ -238,19 +238,6 @@ int transport_release(struct ba_transport *t) {
 
 	debug("Releasing transport: %s", t->name);
 
-	if (t->pcm_fifo != NULL) {
-		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
-		unlink(t->pcm_fifo);
-		free(t->pcm_fifo);
-		t->pcm_fifo = NULL;
-	}
-
-	if (t->pcm_fd != -1) {
-		debug("Closing PCM: %d", t->pcm_fd);
-		close(t->pcm_fd);
-		t->pcm_fd = -1;
-	}
-
 	/* If the transport has not been acquired, or it has been released already,
 	 * there is no need to release it again. In fact, trying to release already
 	 * closed transport will result in returning error message. */
