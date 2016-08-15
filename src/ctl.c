@@ -216,7 +216,7 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 	}
 
 	if (t->pcm_fifo != NULL) {
-		debug("PCM already requested: %u", t->pcm_fd);
+		debug("PCM already requested: %d", t->pcm_fd);
 		status.code = STATUS_CODE_DEVICE_BUSY;
 		goto fail;
 	}

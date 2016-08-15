@@ -64,6 +64,6 @@ AC_SUBST([RUN_STATE_DIR], [$runstatedir])
 AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
-	src/alsa/Makefile
+	src/asound/Makefile
 	test/Makefile])
 AC_OUTPUT

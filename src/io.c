@@ -150,16 +150,12 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		if (write(t->pcm_fd, wbuffer, wbuffer_size - output_len) == -1) {
 
 			if (errno == EPIPE) {
-				/* XXX: When the pipe endpoint is closed it is practically impossible
-				 *      to reopen it, since the FIFO node should have been unlinked
-				 *      the seconds after the FIFO opening by the client. */
-
 				debug("Closing transport FIFO: %d", t->pcm_fd);
+				unlink(t->pcm_fifo);
 				free(t->pcm_fifo);
 				t->pcm_fifo = NULL;
 				close(t->pcm_fd);
 				t->pcm_fd = -1;
-
 				continue;
 			}
 

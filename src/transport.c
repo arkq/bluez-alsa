@@ -120,18 +120,16 @@ void transport_free(struct ba_transport *t) {
 
 	if (t->release != NULL)
 		t->release(t);
+
+	if (t->pcm_fifo != NULL) {
+		unlink(t->pcm_fifo);
+		free(t->pcm_fifo);
+	}
+
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
 	if (t->pcm_fd != -1)
 		close(t->pcm_fd);
-
-	if (t->pcm_fifo != NULL) {
-		/* During normal operation the FIFO node should be unlinked by the
-		 * alsa-pcm plugin in order to prevent data hijacking. However, a
-		 * proper cleaning on the server site will not hurt. */
-		unlink(t->pcm_fifo);
-		free(t->pcm_fifo);
-	}
 
 	free(t->name);
 	free(t->dbus_owner);
@@ -237,6 +235,12 @@ int transport_release(struct ba_transport *t) {
 	GDBusMessage *msg, *rep;
 	GError *err = NULL;
 	int ret = -1;
+
+	if (t->pcm_fifo != NULL) {
+		unlink(t->pcm_fifo);
+		free(t->pcm_fifo);
+		t->pcm_fifo = NULL;
+	}
 
 	/* If the transport has not been acquired, or it has been released already,
 	 * there is no need to release it again. In fact, trying to release already

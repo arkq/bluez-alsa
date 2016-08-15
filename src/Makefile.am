@@ -2,7 +2,7 @@
 # Copyright (c) 2016 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
-SUBDIRS = alsa
+SUBDIRS = asound
 
 bluealsa_SOURCES = \
 	bluez.c \
