@@ -30,6 +30,7 @@
 #include "device.h"
 #include "log.h"
 #include "transport.h"
+#include "utils.h"
 
 
 static struct controller_ctl {
@@ -85,7 +86,7 @@ static void _ctl_transport(const struct ba_device *d, const struct ba_transport 
 	bacpy(&transport->addr, &d->addr);
 
 	strncpy(transport->name, t->name, sizeof(transport->name) - 1);
-	transport->name[sizeof(transport->name)] = '\0';
+	transport->name[sizeof(transport->name) - 1] = '\0';
 
 	transport->profile = t->profile;
 	transport->codec = t->codec;
@@ -150,7 +151,7 @@ static void ctl_thread_cmd_list_devices(const struct request *req, int fd) {
 
 		bacpy(&device.addr, &d->addr);
 		strncpy(device.name, d->name, sizeof(device.name) - 1);
-		device.name[sizeof(device.name)] = '\0';
+		device.name[sizeof(device.name) - 1] = '\0';
 
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);
 	}
@@ -200,6 +201,27 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
+static void ctl_thread_cmd_set_transport_volume(const struct request *req, int fd) {
+
+	struct msg_status status = { STATUS_CODE_SUCCESS };
+	struct ba_device *d;
+	struct ba_transport *t;
+
+	if (_transport_lookup(&req->addr, req->profile, &d, &t) != 0) {
+		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	}
+
+	debug("Setting volume for %s profile %d: %d [%s]", batostr_(&req->addr),
+			req->profile, req->volume, req->muted ? "off" : "on");
+
+	t->muted = req->muted;
+	t->volume = req->volume;
+
+fail:
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
+}
+
 static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 
 	struct msg_status status = { STATUS_CODE_SUCCESS };
@@ -211,7 +233,7 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 	ba2str(&req->addr, addr);
 	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u",
 			ctl.hci_device, addr, req->profile);
-	pcm.fifo[sizeof(pcm.fifo)] = '\0';
+	pcm.fifo[sizeof(pcm.fifo) - 1] = '\0';
 
 	debug("PCM open request for %s profile %d", addr, req->profile);
 
@@ -264,6 +286,7 @@ static void *ctl_thread(void *arg) {
 		[COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
 		[COMMAND_LIST_TRANSPORTS] = ctl_thread_cmd_list_transports,
 		[COMMAND_GET_TRANSPORT] = ctl_thread_cmd_get_transport,
+		[COMMAND_SET_TRANSPORT_VOLUME] = ctl_thread_cmd_set_transport_volume,
 		[COMMAND_OPEN_PCM] = ctl_thread_cmd_open_pcm,
 	};
 

@@ -45,8 +45,9 @@ struct ba_transport {
 	uint8_t *config;
 	size_t config_size;
 
-	/* audio properties */
+	/* software audio volume in range [0, 100] */
 	uint8_t volume;
+	/* if non-zero, equivalent of volume = 0 */
 	uint8_t muted;
 
 	/* IO thread - actual transport layer */

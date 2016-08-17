@@ -26,7 +26,7 @@
  * @param freq Sampling frequency.
  * @param model Channel mode.
  * @return Coded SBC bitpool. */
-int a2dp_default_bitpool(int freq, int mode) {
+int a2dp_sbc_default_bitpool(int freq, int mode) {
 	switch (freq) {
 	case SBC_SAMPLING_FREQ_16000:
 	case SBC_SAMPLING_FREQ_32000:
@@ -168,4 +168,30 @@ const char *batostr_(const bdaddr_t *ba) {
 	if (ba2str(ba, addr) > 0)
 		return addr;
 	return NULL;
+}
+
+/**
+ * Mute PCM signal stored in the buffer.
+ *
+ * @param buffer Address to the buffer where the PCM signal is stored.
+ * @param size The size of the buffer in bytes.
+ * @return The number of audio samples which has been modified. */
+int snd_pcm_mute_s16le(void *buffer, size_t size) {
+	memset(buffer, 0, size);
+	return size / sizeof(int16_t);
+}
+
+/**
+ * Scale PCM signal stored in the buffer.
+ *
+ * @param buffer Address to the buffer where the PCM signal is stored.
+ * @param size The size of the buffer in bytes.
+ * @param scale The scaling factor - 100 is a neutral value.
+ * @return The number of audio samples which has been modified. */
+int snd_pcm_scale_s16le(void *buffer, size_t size, int scale) {
+	const size_t samples = size / sizeof(int16_t);
+	size_t i = samples;
+	while (i--)
+		((int16_t *)buffer)[i] = ((int32_t)((int16_t *)buffer)[i] * scale) / 100;
+	return samples;
 }

@@ -18,6 +18,8 @@
 #include <alsa/control_external.h>
 
 #include "ctl.h"
+#include "transport.h"
+#include "log.c"
 
 
 struct bluealsa_ctl {
@@ -75,15 +77,24 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 		return -EINVAL;
 
 	struct msg_transport *transport = &ctl->transports[offset / 2];
-	char name[sizeof(transport->name) + 8];
-
-	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
+	char name[sizeof(transport->name) + 16];
 
 	strcpy(name, transport->name);
-	if (offset % 2)
-		strcat(name, " Switch");
 
+	/* XXX: It seems, that ALSA determines the element type by checking it's
+	 *      name suffix. However, this functionality is not documented! */
+	switch (transport->profile) {
+	case TRANSPORT_PROFILE_A2DP_SOURCE:
+		strcat(name, offset % 2 ? " Playback Switch" : " Playback Volume");
+		break;
+	case TRANSPORT_PROFILE_A2DP_SINK:
+		strcat(name, offset % 2 ? " Capture Switch" : " Capture Volume");
+		break;
+	}
+
+	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
 	snd_ctl_elem_id_set_name(id, name);
+
 	return 0;
 }
 
@@ -91,17 +102,11 @@ static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_el
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
 	unsigned int count = ctl->transports_count;
-	unsigned int i, numid;
-	const char *name;
+	unsigned int numid;
 
 	numid = snd_ctl_elem_id_get_numid(id);
 	if (numid > 0 && numid / 2 <= count)
 		return numid - 1;
-
-	name = snd_ctl_elem_id_get_name(id);
-	for (i = 0; i < count; i++)
-		if (strcmp(name, ctl->transports[i].name) == 0)
-			return i;
 
 	return SND_CTL_EXT_KEY_NOT_FOUND;
 }
@@ -135,7 +140,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	(void)key;
 	*imin = 0;
 	*imax = 100;
-	*istep = 1;
+	*istep = 10;
 	return 0;
 }
 
@@ -150,16 +155,37 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 	if (key % 2)
 		*value = !transport->muted;
 	else
-		*value = transport->volume;
+		value[0] = value[1] = transport->volume;
 
 	return 0;
 }
 
 static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
-	return 0;
-}
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsigned int *event_mask) {
+	if (key / 2 > ctl->transports_count)
+		return -EINVAL;
+
+	struct msg_status status;
+	struct msg_transport *transport = &ctl->transports[key / 2];
+	struct request req = {
+		.command = COMMAND_SET_TRANSPORT_VOLUME,
+		.profile = transport->profile,
+		.muted = transport->muted,
+		.volume = transport->volume,
+	};
+
+	bacpy(&req.addr, &transport->addr);
+
+	if (key % 2)
+		req.muted = transport->muted = !*value;
+	else
+		req.volume = transport->volume = (value[0] + value[1]) / 2;
+
+	send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL);
+	if (read(ctl->fd, &status, sizeof(status)) == -1)
+		return -EIO;
+
 	return 0;
 }
 
@@ -172,7 +198,6 @@ static const snd_ctl_ext_callback_t bluealsa_snd_ctl_ext_callback = {
 	.get_integer_info = bluealsa_get_integer_info,
 	.read_integer = bluealsa_read_integer,
 	.write_integer = bluealsa_write_integer,
-	.read_event = bluealsa_read_event,
 };
 
 SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
@@ -226,7 +251,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	}
 
 	ctl->ext.version = SND_CTL_EXT_VERSION;
-	ctl->ext.card_idx = -1;
+	ctl->ext.card_idx = 0;
 	strncpy(ctl->ext.id, "bluealsa", sizeof(ctl->ext.id) - 1);
 	strncpy(ctl->ext.driver, "BlueALSA", sizeof(ctl->ext.driver) - 1);
 	strncpy(ctl->ext.name, "BlueALSA", sizeof(ctl->ext.name) - 1);
@@ -235,6 +260,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
 	ctl->ext.private_data = ctl;
+	ctl->ext.poll_fd = -1;
 
 	if ((ret = snd_ctl_ext_create(&ctl->ext, name, mode)) < 0)
 		goto fail;

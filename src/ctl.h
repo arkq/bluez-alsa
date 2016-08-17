@@ -29,6 +29,7 @@ enum command {
 	COMMAND_LIST_DEVICES,
 	COMMAND_LIST_TRANSPORTS,
 	COMMAND_GET_TRANSPORT,
+	COMMAND_SET_TRANSPORT_VOLUME,
 	COMMAND_OPEN_PCM,
 	__COMMAND_MAX
 };
@@ -51,6 +52,10 @@ struct __attribute__ ((packed)) request {
 	/* requested transport type */
 	uint8_t profile;
 	uint8_t codec;
+
+	/* fields used by the SET_TRANSPORT_VOLUME command */
+	uint8_t muted:1;
+	uint8_t volume:7;
 
 };
 
@@ -77,7 +82,6 @@ struct __attribute__ ((packed)) msg_transport {
 
 	/* selected profile and audio codec */
 	uint8_t profile;
-	/* TODO: Is codec required?? It's more like internal stuff. */
 	uint8_t codec;
 
 	/* number of audio channels */

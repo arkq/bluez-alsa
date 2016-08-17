@@ -105,7 +105,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		int bitpool = a2dp_default_bitpool(cap->frequency, cap->channel_mode);
+		int bitpool = a2dp_sbc_default_bitpool(cap->frequency, cap->channel_mode);
 		cap->min_bitpool = MAX(MIN_BITPOOL, cap->min_bitpool);
 		cap->max_bitpool = MIN(bitpool, cap->max_bitpool);
 
@@ -149,7 +149,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	const char *transport;
 	char *device = NULL, *uuid = NULL, *state = NULL;
 	uint8_t *config = NULL;
-	uint16_t volume = 0;
+	uint16_t volume = 100;
 	size_t size = 0;
 
 	if (profiles == NULL) {
@@ -395,6 +395,7 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sende
 	(void)conn;
 	(void)sender;
 	(void)path;
+	(void)interface;
 	(void)params;
 
 	debug("Endpoint method call: %s.%s()", interface, method);
@@ -455,6 +456,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 		.max_bitpool = MAX_BITPOOL,
 	};
 
+#if 0
 	static a2dp_mpeg_t a2dp_mpeg = {
 		.layer =
 			MPEG_LAYER_MP1 |
@@ -492,7 +494,9 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 			MPEG_BIT_RATE_32000 |
 			MPEG_BIT_RATE_FREE,
 	};
+#endif
 
+#if 0
 	static a2dp_aac_t a2dp_aac = {
 		.object_type =
 			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
@@ -518,6 +522,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 		.vbr = 1,
 		AAC_INIT_BITRATE(0xFFFF)
 	};
+#endif
 
 	static struct endpoint {
 		const char *uuid;
@@ -533,6 +538,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 			&a2dp_sbc,
 			sizeof(a2dp_sbc),
 		},
+#if 0
 		{
 			BLUETOOTH_UUID_A2DP_SOURCE,
 			BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE,
@@ -540,6 +546,8 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 			&a2dp_mpeg,
 			sizeof(a2dp_mpeg),
 		},
+#endif
+#if 0
 		{
 			BLUETOOTH_UUID_A2DP_SOURCE,
 			BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE,
@@ -547,6 +555,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 			&a2dp_aac,
 			sizeof(a2dp_aac),
 		},
+#endif
 		{
 			BLUETOOTH_UUID_A2DP_SINK,
 			BLUEZ_ENDPOINT_A2DP_SBC_SINK,
@@ -554,6 +563,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 			&a2dp_sbc,
 			sizeof(a2dp_sbc),
 		},
+#if 0
 		{
 			BLUETOOTH_UUID_A2DP_SINK,
 			BLUEZ_ENDPOINT_A2DP_MPEG12_SINK,
@@ -561,6 +571,8 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 			&a2dp_mpeg,
 			sizeof(a2dp_mpeg),
 		},
+#endif
+#if 0
 		{
 			BLUETOOTH_UUID_A2DP_SINK,
 			BLUEZ_ENDPOINT_A2DP_MPEG24_SINK,
@@ -568,6 +580,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 			&a2dp_aac,
 			sizeof(a2dp_aac),
 		},
+#endif
 	};
 
 	char *path;
@@ -651,6 +664,7 @@ static void bluez_profile_method_call(GDBusConnection *conn, const gchar *sender
 	(void)conn;
 	(void)sender;
 	(void)path;
+	(void)interface;
 	(void)params;
 
 	debug("Profile method call: %s.%s()", interface, method);

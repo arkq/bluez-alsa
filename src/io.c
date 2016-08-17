@@ -27,6 +27,7 @@
 #include "a2dp-rtp.h"
 #include "log.h"
 #include "transport.h"
+#include "utils.h"
 
 
 void *io_thread_a2dp_sbc_forward(void *arg) {
@@ -279,7 +280,17 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		}
 
 		const uint8_t *input = rbuffer;
-		size_t input_len = rbuffer_size;
+		size_t input_len = (rhead - rbuffer) + len;
+
+		/* Get a snapshot of audio properties. Please note, that mutex is not
+		 * required here, because we are not modifying these variables. */
+		const uint8_t volume = t->volume;
+		const uint8_t muted = t->muted;
+
+		if (muted || volume == 0)
+			snd_pcm_mute_s16le(rbuffer, input_len);
+		else if (volume != 100)
+			snd_pcm_scale_s16le(rbuffer, input_len, volume);
 
 		/* encode and transfer obtained data */
 		while (input_len >= sbc_codesize) {

@@ -89,9 +89,10 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 
 	t->profile = profile;
 	t->codec = codec;
+	t->volume = 100;
 
 	if (config_size > 0) {
-		t->config = malloc(sizeof(*t->config) * config_size);
+		t->config = malloc(config_size);
 		t->config_size = config_size;
 		memcpy(t->config, config, config_size);
 	}

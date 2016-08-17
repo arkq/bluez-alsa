@@ -2,10 +2,12 @@
 # Copyright (c) 2016 Arkadiusz Bokowy
 
 TESTS = \
-	test-io
+	test-io \
+	test-utils
 
 check_PROGRAMS = \
-	test-io
+	test-io \
+	test-utils
 
 AM_CFLAGS = \
 	-DSRCDIR=\"$(srcdir)\" \

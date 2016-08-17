@@ -19,8 +19,8 @@
 #include <alsa/pcm_external.h>
 
 #include "ctl.h"
-#include "log.c"
 #include "transport.h"
+#include "log.c"
 
 
 /* Helper macro for obtaining the size of a static array. */

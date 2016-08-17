@@ -12,6 +12,7 @@
 #include "a2dp.inc"
 #include "test.inc"
 #include "../src/io.c"
+#include "../src/utils.c"
 
 static const a2dp_sbc_t config_sbc_44100_joint_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
