@@ -1,4 +1,4 @@
-# bluez-alsa - Makefile.am
+# BlueALSA - Makefile.am
 # Copyright (c) 2016 Arkadiusz Bokowy
 
 TESTS = \

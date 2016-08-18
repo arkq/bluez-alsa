@@ -1,5 +1,5 @@
 /*
- * bluealsa - log.h
+ * BlueALSA - log.h
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

@@ -1,5 +1,5 @@
 /*
- * bluealsa - device.h
+ * BlueALSA - device.h
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

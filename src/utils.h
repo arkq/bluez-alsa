@@ -1,5 +1,5 @@
 /*
- * bluealsa - utils.h
+ * BlueALSA - utils.h
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

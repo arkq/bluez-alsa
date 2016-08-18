@@ -1,5 +1,5 @@
 /*
- * bluealsa - io.c
+ * BlueALSA - io.c
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

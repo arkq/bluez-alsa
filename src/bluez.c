@@ -1,5 +1,5 @@
 /*
- * bluealsa - bluez.c
+ * BlueALSA - bluez.c
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

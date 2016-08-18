@@ -1,5 +1,5 @@
 /*
- * bluealsa-pcm - bluealsa-pcm.c
+ * bluealsa-pcm.c
  * Copyright (c) 2016 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

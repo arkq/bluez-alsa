@@ -1,4 +1,4 @@
-# bluez-alsa - configure.ac
+# BlueALSA - configure.ac
 # Copyright (c) 2016 Arkadiusz Bokowy
 
 AC_INIT([bluez-alsa], [0.1.0], [arkadiusz.bokowy@gmail.com])
