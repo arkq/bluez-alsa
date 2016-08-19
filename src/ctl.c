@@ -85,7 +85,7 @@ static void _ctl_transport(const struct ba_device *d, const struct ba_transport 
 
 	bacpy(&transport->addr, &d->addr);
 
-	strncpy(transport->name, t->name, sizeof(transport->name) - 1);
+	strncpy(transport->name, d->name, sizeof(transport->name) - 1);
 	transport->name[sizeof(transport->name) - 1] = '\0';
 
 	transport->profile = t->profile;

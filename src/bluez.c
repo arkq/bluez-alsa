@@ -139,6 +139,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	static GHashTable *profiles = NULL;
 
+	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	GHashTable *devices = (GHashTable *)userdata;
 	struct ba_transport *t;
@@ -331,18 +332,31 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		value = NULL;
 	}
 
+	/* If the device is not in our "repository" yet, add it. */
 	if ((d = g_hash_table_lookup(devices, device)) == NULL) {
+
+		GVariant *property;
 		bdaddr_t addr;
-		dbus_devpath_to_bdaddr(device, &addr);
-		/* TODO: Get real device name! */
-		d = device_new(&addr, device);
+		char name[32];
+
+		g_dbus_devpath_to_bdaddr(device, &addr);
+		ba2str(&addr, name);
+
+		if ((property = g_dbus_get_property(conn, "org.bluez", device,
+						"org.bluez.Device1", "Name")) != NULL) {
+			strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
+			name[sizeof(name) - 1] = '\0';
+			g_variant_unref(property);
+		}
+
+		d = device_new(&addr, name);
 		g_hash_table_insert(devices, g_strdup(device), d);
+
 	}
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new(g_dbus_method_invocation_get_connection(inv),
-					g_dbus_method_invocation_get_sender(inv), transport,
+	if ((t = transport_new(conn, g_dbus_method_invocation_get_sender(inv), transport,
 					bluetooth_profile_to_string(profile, codec), profile, codec, config, size)) == NULL) {
 		error("Cannot create new transport: %s", strerror(errno));
 		goto fail;
