@@ -143,6 +143,7 @@ int main(int argc, char **argv) {
 	bluez_subscribe_signals(dbus, hci_dev.name, devices);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
+	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGINT, &sigact, NULL);
 
 	/* main dispatching loop */

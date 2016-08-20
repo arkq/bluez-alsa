@@ -12,6 +12,7 @@
 #include "ctl.h"
 
 #include <errno.h>
+#include <grp.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -40,6 +41,7 @@ static struct controller_ctl {
 
 	char *socket_path;
 	struct pollfd pfds[1 + BLUEALSA_MAX_CLIENTS];
+	gid_t gid_audio;
 
 	char *hci_device;
 	GHashTable *devices;
@@ -256,6 +258,13 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd) {
 		goto fail;
 	}
 
+	/* During the mkfifo() call the FIFO mode is modified by the process umask,
+	 * so the post-creation correction is required. */
+	if (chmod(pcm.fifo, 0660) == -1)
+		goto fail;
+	if (chown(pcm.fifo, -1, ctl.gid_audio) == -1)
+		goto fail;
+
 	/* for source profile we need to open transport by ourself */
 	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
 		if (transport_acquire(t) == -1) {
@@ -399,11 +408,22 @@ int ctl_thread_init(const char *device, void *userdata) {
 	ctl.devices = (GHashTable *)userdata;
 	ctl.pcms = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, ctl_pcm_free);
 
+	struct group *grp;
+	ctl.gid_audio = -1;
+
+	/* use proper ACL group for our audio device */
+	if ((grp = getgrnam("audio")) != NULL)
+		ctl.gid_audio = grp->gr_gid;
+
 	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST)
 		goto fail;
 	if ((ctl.pfds[0].fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
 		goto fail;
 	if (bind(ctl.pfds[0].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
+		goto fail;
+	if (chmod(ctl.socket_path, 0660) == -1)
+		goto fail;
+	if (chown(ctl.socket_path, -1, ctl.gid_audio) == -1)
 		goto fail;
 	if (listen(ctl.pfds[0].fd, 2) == -1)
 		goto fail;
