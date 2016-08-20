@@ -63,7 +63,12 @@ int main(int argc, char **argv) {
 	log_open(argv[0], 0);
 
 	if (hci_devlist(&hci_devs, &hci_devs_num)) {
-		error("Cannot enumerate devices: %s", strerror(errno));
+		error("Couldn't enumerate HCI devices: %s", strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	if (!hci_devs_num) {
+		error("No HCI device available");
 		return EXIT_FAILURE;
 	}
 
@@ -86,9 +91,36 @@ int main(int argc, char **argv) {
 					argv[0]);
 			return EXIT_SUCCESS;
 
-		case 'i':
-			warn("This feature is not implemented yet!");
+		case 'i': {
+
+			bdaddr_t addr;
+			int i = hci_devs_num;
+			int found = 0;
+
+			if (str2ba(optarg, &addr) == 0) {
+				while (i--)
+					if (bacmp(&addr, &hci_devs[i].bdaddr) == 0) {
+						memcpy(&hci_dev, &hci_devs[i], sizeof(hci_dev));
+						found = 1;
+						break;
+					}
+			}
+			else {
+				while (i--)
+					if (strcmp(optarg, hci_devs[i].name) == 0) {
+						memcpy(&hci_dev, &hci_devs[i], sizeof(hci_dev));
+						found = 1;
+						break;
+				}
+			}
+
+			if (found == 0) {
+				error("HCI device not found: %s", optarg);
+				return EXIT_FAILURE;
+			}
+
 			break;
+		}
 
 		case 1:
 			a2dp = 0;
@@ -105,23 +137,18 @@ int main(int argc, char **argv) {
 	/* device list is no longer required */
 	free(hci_devs);
 
-	if (!hci_devs_num) {
-		error("Bluetooth adapter not available");
-		return EXIT_FAILURE;
-	}
-
 	GDBusConnection *dbus;
 	GHashTable *devices;
 	gchar *address;
 	GError *err;
 
 	if ((devices = devices_init()) == NULL) {
-		error("Cannot initialize device list structure");
+		error("Couldn't initialize device list structure");
 		return EXIT_FAILURE;
 	}
 
 	if ((ctl_thread_init(hci_dev.name, devices)) == -1) {
-		error("Cannot initialize controller thread: %s", strerror(errno));
+		error("Couldn't initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -131,7 +158,7 @@ int main(int argc, char **argv) {
 					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
 					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
 					NULL, NULL, &err)) == NULL) {
-		error("Cannot obtain D-Bus connection: %s", err->message);
+		error("Couldn't obtain D-Bus connection: %s", err->message);
 		return EXIT_FAILURE;
 	}
 
