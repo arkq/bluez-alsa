@@ -36,7 +36,9 @@
 
 static struct controller_ctl {
 
-	int created;
+	int socket_created;
+	int thread_created;
+
 	pthread_t thread;
 
 	char *socket_path;
@@ -54,7 +56,8 @@ static struct controller_ctl {
 } ctl = {
 	/* XXX: Other fields will be properly initialized
 	 *      in the ctl_thread_init() function. */
-	.created = 0,
+	.socket_created = 0,
+	.thread_created = 0,
 };
 
 
@@ -305,7 +308,7 @@ static void *ctl_thread(void *arg) {
 	int i;
 
 	debug("Starting controller loop");
-	while (ctl.created) {
+	while (ctl.thread_created) {
 
 		if (poll(ctl.pfds, 1 + BLUEALSA_MAX_CLIENTS, -1) == -1)
 			break;
@@ -385,7 +388,7 @@ static void ctl_pcm_free(gpointer data) {
 
 int ctl_thread_init(const char *device, void *userdata) {
 
-	if (ctl.created) {
+	if (ctl.thread_created) {
 		/* thread is already created */
 		errno = EISCONN;
 		return -1;
@@ -421,6 +424,7 @@ int ctl_thread_init(const char *device, void *userdata) {
 		goto fail;
 	if (bind(ctl.pfds[0].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
 		goto fail;
+	ctl.socket_created = 1;
 	if (chmod(ctl.socket_path, 0660) == -1)
 		goto fail;
 	if (chown(ctl.socket_path, -1, ctl.gid_audio) == -1)
@@ -428,9 +432,9 @@ int ctl_thread_init(const char *device, void *userdata) {
 	if (listen(ctl.pfds[0].fd, 2) == -1)
 		goto fail;
 
-	ctl.created = 1;
+	ctl.thread_created = 1;
 	if ((errno = pthread_create(&ctl.thread, NULL, ctl_thread, NULL)) != 0) {
-		ctl.created = 0;
+		ctl.thread_created = 0;
 		goto fail;
 	}
 
@@ -446,10 +450,10 @@ fail:
 
 void ctl_free() {
 
-	int created = ctl.created;
+	int created = ctl.thread_created;
 	int i, err;
 
-	ctl.created = 0;
+	ctl.thread_created = 0;
 
 	for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++)
 		if (ctl.pfds[i].fd != -1)
@@ -461,8 +465,10 @@ void ctl_free() {
 			error("Couldn't join controller thread: %s", strerror(err));
 	}
 
-	if (ctl.socket_path != NULL)
+	if (ctl.socket_path != NULL && ctl.socket_created) {
 		unlink(ctl.socket_path);
+		ctl.socket_created = 0;
+	}
 
 	g_hash_table_unref(ctl.pcms);
 	free(ctl.socket_path);
