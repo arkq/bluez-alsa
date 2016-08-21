@@ -248,9 +248,6 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	rtp_header->version = 2;
 	rtp_header->paytype = 96;
 
-	struct pollfd pfds[1] = {{ t->pcm_fd, POLLIN, 0 }};
-	ssize_t len;
-
 	/* reading head position and available read length */
 	uint8_t *rhead = rbuffer;
 	size_t rlen = rbuffer_size;
@@ -263,19 +260,21 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	debug("Starting backward IO loop");
 	while (t->state == TRANSPORT_ACTIVE) {
 
-		if (poll(pfds, 1, -1) == -1) {
-			if (errno != EINTR)
-				error("Transport poll error: %s", strerror(errno));
-			break;
-		}
+		ssize_t len;
 
-		if ((len = read(pfds[0].fd, rhead, rlen)) == -1) {
-			error("FIFO read error: %s", strerror(errno));
+		/* This call will block until data arrives. If the passed file descriptor
+		 * is invalid (e.g. -1) is means, that other thread (the controller) has
+		 * closed the connection. If the connection was closed during the blocking
+		 * part, we will still read correct data, because Linux kernel does not
+		 * decrement file descriptor reference counter until the read returns. */
+		if ((len = read(t->pcm_fd, rhead, rlen)) == -1) {
+			if (errno != EBADF)
+				error("FIFO read error: %s", strerror(errno));
 			break;
 		}
 
 		if (len == 0) {
-			debug("FIFO has been closed: %d", pfds[0].fd);
+			debug("FIFO has been closed: %d", t->pcm_fd);
 			break;
 		}
 
