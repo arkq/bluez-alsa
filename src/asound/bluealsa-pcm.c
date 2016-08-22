@@ -8,8 +8,11 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
+#include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -129,9 +132,19 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 		return -1;
 
 	debug("Opening PCM FIFO (mode: %s): %s", flags == O_WRONLY ? "WR" : "RD", res.fifo);
-	/* TODO: Open in non-blocking mode, and maybe then block. */
 	if ((fd = open(res.fifo, flags)) == -1)
 		return -1;
+
+	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
+		/* By default, the size of the pipe buffer is set to a too large value for
+		 * our purpose. On modern Linux system it is 65536 bytes. Large buffer in
+		 * the playback mode might contribute to an unnecessary audio delay. Since
+		 * it is possible to modify the size of this buffer we will set is to some
+		 * low value, but big enough to prevent audio tearing. Note, that the size
+		 * will be rounded up to the page size (typically 4096 bytes). */
+		fcntl(fd, F_SETPIPE_SZ, 2048);
+		debug("FIFO buffer size: %d", fcntl(fd, F_GETPIPE_SZ));
+	}
 
 	return fd;
 }
