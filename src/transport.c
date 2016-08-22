@@ -260,6 +260,8 @@ int transport_release(struct ba_transport *t) {
 	}
 
 	ret = 0;
+	t->release = NULL;
+	t->state = TRANSPORT_IDLE;;
 	close(t->bt_fd);
 	t->bt_fd = -1;
 

@@ -211,7 +211,12 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 	rtp_header_t *rtp_header;
 	rtp_payload_sbc_t *rtp_payload;
-	struct timespec ts0, ts;
+
+	/* The internal timestamp has to be stored in a variable, which can handle
+	 * reasonable big time (more then one hour) with a microsecond precision.
+	 * Unsigned 32 bit integer is not enough for this purpose. It is possible
+	 * to store up to 0xFFFFFFFF microseconds which is ~71.6 minutes. */
+	struct timespec ts_timestamp = { 0 };
 	uint16_t seq_number = 0;
 	uint32_t timestamp = 0;
 
@@ -255,6 +260,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	/* Get initial time point. This time point is used to calculate time drift
 	 * during data transmission. The transfer should be kept at constant pace,
 	 * so we should be able to detect (and correct) all fluctuations. */
+	struct timespec ts0;
 	clock_gettime(CLOCK_MONOTONIC, &ts0);
 
 	debug("Starting backward IO loop");
@@ -323,10 +329,12 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 			rtp_header->timestamp = htonl(timestamp);
 			rtp_payload->frame_count = frames;
 
-			/* keep transfer at constant rate, always 10 ms ahead */
+			struct timespec ts;
 			clock_gettime(CLOCK_MONOTONIC, &ts);
-			const time_t rt_elapsed = (ts.tv_sec - ts0.tv_sec) * 1e6 + (ts.tv_nsec - ts0.tv_nsec) / 1e3;
-			const int rt_delta = timestamp - rt_elapsed - 10e3;
+
+			/* keep transfer at constant rate, always 10 ms ahead */
+			const int rt_delta = (ts_timestamp.tv_sec - (ts.tv_sec - ts0.tv_sec)) * 1e6 +
+				(ts_timestamp.tv_nsec - (ts.tv_nsec - ts0.tv_nsec)) / 1e3 - 10e3;
 			if (rt_delta > 0)
 				usleep(rt_delta);
 
@@ -334,7 +342,11 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				error("BT socket write error: %s", strerror(errno));
 
 			/* get timestamp for the next frame */
-			timestamp += sbc_frame_duration * frames;
+			const unsigned payload_duration = sbc_frame_duration * frames;
+			ts_timestamp.tv_nsec += payload_duration * 1000;
+			ts_timestamp.tv_sec += ts_timestamp.tv_nsec / (long)1e9;
+			ts_timestamp.tv_nsec = ts_timestamp.tv_nsec % (long)1e9;
+			timestamp += payload_duration;
 
 		}
 
