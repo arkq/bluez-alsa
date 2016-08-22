@@ -49,3 +49,10 @@ like this:
 	defaults.bluealsa.hci "hci0"
 	defaults.bluealsa.device "XX:XX:XX:XX:XX:XX"
 	defaults.bluealsa.profile "a2dp"
+
+In order to control input or output audio level, one can use provided `bluealsa` control plugin.
+This plugin allows adjusting the volume of the audio stream or simply mute/unmute it, e.g.:
+
+	$ amixer -D bluealsa '<device name>' sset 70%
+
+where the device name is the name of connected Bluetooth device.
