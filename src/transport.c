@@ -109,6 +109,8 @@ void transport_free(struct ba_transport *t) {
 	if (t == NULL)
 		return;
 
+	debug("Freeing transport: %s", t->name);
+
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
 	 * more). Not doing so might result in an undefined behavior or even a
@@ -256,12 +258,19 @@ int transport_release(struct ba_transport *t) {
 
 	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
 		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
+		if (err->code == G_DBUS_ERROR_NO_REPLY) {
+			/* If Bluez is already terminated (or is terminating), we won't receive
+			 * any response. Do not treat such a case as an error - omit logging. */
+			g_error_free(err);
+			err = NULL;
+		}
+		else
+			goto fail;
 	}
 
 	ret = 0;
 	t->release = NULL;
-	t->state = TRANSPORT_IDLE;;
+	t->state = TRANSPORT_IDLE;
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
