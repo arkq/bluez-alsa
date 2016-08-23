@@ -338,8 +338,12 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 			if (rt_delta > 0)
 				usleep(rt_delta);
 
-			if (write(t->bt_fd, wbuffer, output - wbuffer) == -1)
+			if (write(t->bt_fd, wbuffer, output - wbuffer) == -1) {
 				error("BT socket write error: %s", strerror(errno));
+				/* socket is connected no more */
+				if (errno == ENOTCONN)
+					goto fail;
+			}
 
 			/* get timestamp for the next frame */
 			const unsigned payload_duration = sbc_frame_duration * frames;
