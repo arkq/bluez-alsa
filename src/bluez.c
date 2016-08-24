@@ -394,12 +394,12 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 	g_variant_get(params, "(&o)", &transport);
 	transport_remove(devices, transport);
 
-	g_dbus_method_invocation_return_value(inv, NULL);
+	g_object_unref(inv);
 }
 
 static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
-	g_dbus_method_invocation_return_value(inv, NULL);
+	g_object_unref(inv);
 }
 
 static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sender,
@@ -605,12 +605,13 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 
 		GDBusMessage *msg = NULL, *rep = NULL;
 		GError *err = NULL;
+		guint id;
 
 		debug("Registering endpoint: %s: %s", endpoints[i].uuid, endpoints[i].endpoint);
 
-		if (g_dbus_connection_register_object(conn, endpoints[i].endpoint,
-					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
-					userdata, endpoint_free, &err) == 0)
+		if ((id = g_dbus_connection_register_object(conn, endpoints[i].endpoint,
+						(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
+						userdata, endpoint_free, &err)) == 0)
 			goto fail;
 
 		msg = g_dbus_message_new_method_call("org.bluez", path,
@@ -645,6 +646,7 @@ fail:
 			g_object_unref(rep);
 		if (err != NULL) {
 			warn("Couldn't register endpoint: %s", err->message);
+			g_dbus_connection_unregister_object(conn, id);
 			g_error_free(err);
 		}
 	}
@@ -667,8 +669,7 @@ static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void
 
 static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_NOT_SUPPORTED, "Not implemented yet");
+	g_object_unref(inv);
 }
 
 static void bluez_profile_method_call(GDBusConnection *conn, const gchar *sender,
@@ -713,12 +714,13 @@ int bluez_register_hsp(GDBusConnection *conn, const char *device, void *userdata
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
+	guint id;
 
 	debug("Registering profile: %s: %s", BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG);
 
-	if (g_dbus_connection_register_object(conn, BLUEZ_PROFILE_HSP_AG,
-				(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
-				userdata, profile_free, &err) == 0)
+	if ((id = g_dbus_connection_register_object(conn, BLUEZ_PROFILE_HSP_AG,
+					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
+					userdata, profile_free, &err)) == 0)
 		goto fail;
 
 	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
@@ -744,6 +746,7 @@ fail:
 		g_object_unref(rep);
 	if (err != NULL) {
 		warn("Couldn't register profile: %s", err->message);
+		g_dbus_connection_unregister_object(conn, id);
 		g_error_free(err);
 		return -1;
 	}
@@ -818,8 +821,8 @@ int bluez_subscribe_signals(GDBusConnection *conn, const char *device, void *use
 	(void)device;
 
 	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.Properties",
-			"PropertiesChanged", NULL, "org.bluez.MediaTransport1", 0, bluez_signal_transport_changed,
-			userdata, NULL);
+			"PropertiesChanged", NULL, "org.bluez.MediaTransport1", G_DBUS_SIGNAL_FLAGS_NONE,
+			bluez_signal_transport_changed, userdata, NULL);
 
 	return 0;
 }
