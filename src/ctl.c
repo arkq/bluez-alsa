@@ -28,7 +28,6 @@
 
 #include "a2dp-codecs.h"
 #include "bluez.h"
-#include "device.h"
 #include "log.h"
 #include "transport.h"
 #include "utils.h"

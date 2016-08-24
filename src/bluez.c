@@ -17,7 +17,6 @@
 
 #include "a2dp-codecs.h"
 #include "bluez-iface.h"
-#include "device.h"
 #include "log.h"
 #include "transport.h"
 #include "utils.h"
@@ -187,7 +186,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	g_variant_get(params, "(&oa{sv})", &transport, &properties);
 
-	if (device_transport_lookup(devices, transport) != NULL) {
+	if (transport_lookup(devices, transport) != NULL) {
 		error("Transport already configured: %s", transport);
 		goto fail;
 	}
@@ -393,7 +392,7 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 	const char *transport;
 
 	g_variant_get(params, "(&o)", &transport);
-	device_transport_remove(devices, transport);
+	transport_remove(devices, transport);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 }
@@ -773,7 +772,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 		goto fail;
 	}
 
-	if ((t = device_transport_lookup(devices, path)) == NULL) {
+	if ((t = transport_lookup(devices, path)) == NULL) {
 		error("Transport not available: %s", path);
 		goto fail;
 	}

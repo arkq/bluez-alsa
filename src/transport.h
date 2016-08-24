@@ -15,6 +15,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <bluetooth/bluetooth.h>
 #include <gio/gio.h>
 
 #define TRANSPORT_PROFILE_A2DP_SOURCE 0x01
@@ -26,6 +27,15 @@ enum ba_transport_state {
 	TRANSPORT_IDLE,
 	TRANSPORT_PENDING,
 	TRANSPORT_ACTIVE,
+};
+
+struct ba_device {
+
+	bdaddr_t addr;
+	char *name;
+
+	GHashTable *transports;
+
 };
 
 struct ba_transport {
@@ -70,12 +80,17 @@ struct ba_transport {
 
 };
 
+struct ba_device *device_new(bdaddr_t *addr, const char *name);
+void device_free(struct ba_device *d);
+
 struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
 		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
 		const uint8_t *config, size_t config_size);
 void transport_free(struct ba_transport *t);
 
+struct ba_transport *transport_lookup(GHashTable *devices, const char *key);
 struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client);
+gboolean transport_remove(GHashTable *devices, const char *key);
 
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);

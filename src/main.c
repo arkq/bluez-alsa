@@ -22,12 +22,14 @@
 #include <gio/gio.h>
 
 #include "bluez.h"
-#include "device.h"
 #include "ctl.h"
 #include "log.h"
 #include "transport.h"
 #include "utils.h"
 
+/* Helper macro for proper initialization of the device list structure. */
+#define devices_init() \
+	g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)device_free)
 
 static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
@@ -180,6 +182,9 @@ int main(int argc, char **argv) {
 
 	debug("Exiting main loop");
 
+	/* From all of the cleanup routines, this one cannot be omitted. We have
+	 * to unlink the named socket, otherwise service will not start. */
 	ctl_free();
+
 	return EXIT_SUCCESS;
 }

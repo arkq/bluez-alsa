@@ -8,7 +8,6 @@ bluealsa_SOURCES = \
 	bluez.c \
 	bluez-iface.c \
 	ctl.c \
-	device.c \
 	io.c \
 	log.c \
 	transport.c \

@@ -19,7 +19,6 @@
 #include <gio/gunixfdlist.h>
 
 #include "a2dp-codecs.h"
-#include "device.h"
 #include "io.h"
 #include "log.h"
 
@@ -71,6 +70,31 @@ static int io_thread_create(struct ba_transport *t) {
 	pthread_setname_np(t->thread, "baio");
 	debug("Created new IO thread: %s", t->name);
 	return 0;
+}
+
+struct ba_device *device_new(bdaddr_t *addr, const char *name) {
+
+	struct ba_device *d;
+
+	if ((d = calloc(1, sizeof(*d))) == NULL)
+		return NULL;
+
+	bacpy(&d->addr, addr);
+	d->name = strdup(name);
+	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
+			g_free, (GDestroyNotify)transport_free);
+
+	return d;
+}
+
+void device_free(struct ba_device *d) {
+
+	if (d == NULL)
+		return;
+
+	g_hash_table_unref(d->transports);
+	free(d->name);
+	free(d);
 }
 
 struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
@@ -146,6 +170,22 @@ void transport_free(struct ba_transport *t) {
 	free(t);
 }
 
+struct ba_transport *transport_lookup(GHashTable *devices, const char *key) {
+
+	GHashTableIter iter;
+	struct ba_device *d;
+	struct ba_transport *t;
+	gpointer _key;
+
+	g_hash_table_iter_init(&iter, devices);
+	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
+		if ((t = g_hash_table_lookup(d->transports, key)) != NULL)
+			return t;
+	}
+
+	return NULL;
+}
+
 struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client) {
 
 	GHashTableIter iter_d, iter_t;
@@ -162,6 +202,24 @@ struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client
 	}
 
 	return NULL;
+}
+
+gboolean transport_remove(GHashTable *devices, const char *key) {
+
+	GHashTableIter iter;
+	struct ba_device *d;
+	gpointer _key;
+
+	g_hash_table_iter_init(&iter, devices);
+	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
+		if (g_hash_table_remove(d->transports, key)) {
+			if (g_hash_table_size(d->transports) == 0)
+				g_hash_table_iter_remove(&iter);
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
