@@ -131,7 +131,7 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	if (read(pcm->fd, &status, sizeof(status)) == -1)
 		return -1;
 
-	debug("Opening PCM FIFO (mode: %s): %s", flags == O_WRONLY ? "WR" : "RD", res.fifo);
+	debug("Opening PCM FIFO (mode: %s): %s", flags == O_WRONLY ? "WR" : "RO", res.fifo);
 	if ((fd = open(res.fifo, flags)) == -1)
 		return -1;
 

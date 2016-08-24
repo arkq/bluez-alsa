@@ -235,11 +235,9 @@ fail:
 
 int transport_release(struct ba_transport *t) {
 
-	GDBusMessage *msg, *rep;
+	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
 	int ret = -1;
-
-	debug("Releasing transport: %s", t->name);
 
 	/* If the transport has not been acquired, or it has been released already,
 	 * there is no need to release it again. In fact, trying to release already
@@ -247,26 +245,35 @@ int transport_release(struct ba_transport *t) {
 	if (t->bt_fd == -1)
 		return 0;
 
-	debug("Closing BT: %d", t->bt_fd);
+	debug("Releasing transport: %s", t->name);
 
-	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
-			"org.bluez.MediaTransport1", "Release");
+	/* If the state is idle, it means that either transport was not acquired, or
+	 * was released by the Bluez. In both cases there is no point in a explicit
+	 * release request. It might even return error (e.g. not authorized). */
+	if (t->state != TRANSPORT_IDLE) {
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(t->dbus_conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-		goto fail;
+		msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
+				"org.bluez.MediaTransport1", "Release");
 
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		if (err->code == G_DBUS_ERROR_NO_REPLY) {
-			/* If Bluez is already terminated (or is terminating), we won't receive
-			 * any response. Do not treat such a case as an error - omit logging. */
-			g_error_free(err);
-			err = NULL;
-		}
-		else
+		if ((rep = g_dbus_connection_send_message_with_reply_sync(t->dbus_conn, msg,
+						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
 			goto fail;
+
+		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+			g_dbus_message_to_gerror(rep, &err);
+			if (err->code == G_DBUS_ERROR_NO_REPLY) {
+				/* If Bluez is already terminated (or is terminating), we won't receive
+				 * any response. Do not treat such a case as an error - omit logging. */
+				g_error_free(err);
+				err = NULL;
+			}
+			else
+				goto fail;
+		}
+
 	}
+
+	debug("Closing BT: %d", t->bt_fd);
 
 	ret = 0;
 	t->release = NULL;
@@ -275,7 +282,8 @@ int transport_release(struct ba_transport *t) {
 	t->bt_fd = -1;
 
 fail:
-	g_object_unref(msg);
+	if (msg != NULL)
+		g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
 	if (err != NULL) {
