@@ -19,6 +19,7 @@
 #include <gio/gunixfdlist.h>
 
 #include "a2dp-codecs.h"
+#include "device.h"
 #include "io.h"
 #include "log.h"
 
@@ -99,6 +100,7 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 
 	t->state = TRANSPORT_IDLE;
 	t->bt_fd = -1;
+	t->pcm_client = -1;
 	t->pcm_fd = -1;
 
 	return t;
@@ -121,8 +123,11 @@ void transport_free(struct ba_transport *t) {
 		pthread_join(t->thread, NULL);
 	}
 
-	if (t->release != NULL)
-		t->release(t);
+	/* if possible, try to release resources gracefully */
+	if (t->release_bt != NULL)
+		t->release_bt(t);
+	if (t->release_pcm != NULL)
+		t->release_pcm(t);
 
 	if (t->pcm_fifo != NULL) {
 		unlink(t->pcm_fifo);
@@ -139,6 +144,24 @@ void transport_free(struct ba_transport *t) {
 	free(t->dbus_path);
 	free(t->config);
 	free(t);
+}
+
+struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client) {
+
+	GHashTableIter iter_d, iter_t;
+	struct ba_device *d;
+	struct ba_transport *t;
+	gpointer tmp;
+
+	g_hash_table_iter_init(&iter_d, devices);
+	while (g_hash_table_iter_next(&iter_d, &tmp, (gpointer)&d)) {
+		g_hash_table_iter_init(&iter_t, d->transports);
+		while (g_hash_table_iter_next(&iter_t, &tmp, (gpointer)&t))
+			if (t->pcm_client == client)
+				return t;
+	}
+
+	return NULL;
 }
 
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
@@ -217,7 +240,7 @@ int transport_acquire(struct ba_transport *t) {
 
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
 	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
-	t->release = transport_release;
+	t->release_bt = transport_release;
 	t->state = TRANSPORT_PENDING;
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
@@ -276,7 +299,7 @@ int transport_release(struct ba_transport *t) {
 	debug("Closing BT: %d", t->bt_fd);
 
 	ret = 0;
-	t->release = NULL;
+	t->release_bt = NULL;
 	t->state = TRANSPORT_IDLE;
 	close(t->bt_fd);
 	t->bt_fd = -1;

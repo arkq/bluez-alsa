@@ -61,9 +61,12 @@ struct ba_transport {
 	char *pcm_fifo;
 	int pcm_fd;
 
+	/* used by PCM client lookup */
+	int pcm_client;
+
 	/* callback functions for self-management */
-	int (*acquire)(struct ba_transport *);
-	int (*release)(struct ba_transport *);
+	int (*release_bt)(struct ba_transport *);
+	int (*release_pcm)(struct ba_transport *);
 
 };
 
@@ -71,6 +74,8 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
 		const uint8_t *config, size_t config_size);
 void transport_free(struct ba_transport *t);
+
+struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client);
 
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);

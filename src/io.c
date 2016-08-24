@@ -175,8 +175,8 @@ fail:
 	/* XXX: During the normal operation mode, the release callback should not
 	 *      be NULL. Hence, we will relay on this callback - file descriptors
 	 *      are closed in it. */
-	if (t->release != NULL)
-		t->release(t);
+	if (t->release_bt != NULL)
+		t->release_bt(t);
 
 	free(rbuffer);
 	free(wbuffer);
@@ -370,8 +370,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 fail:
 
 	/* NOTE: See the cleanup stage of the io_thread_a2dp_sbc_forward(). */
-	if (t->release != NULL)
-		t->release(t);
+	if (t->release_bt != NULL)
+		t->release_bt(t);
 
 	free(rbuffer);
 	free(wbuffer);
