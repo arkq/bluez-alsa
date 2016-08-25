@@ -11,11 +11,15 @@
 #ifndef BLUEALSA_BLUEALSA_H
 #define BLUEALSA_BLUEALSA_H
 
+#include <poll.h>
 #include <pthread.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <glib.h>
+
+/* Maximal number of clients connected to the controller. */
+#define BLUEALSA_MAX_CLIENTS 7
 
 struct ba_setup {
 
@@ -31,6 +35,15 @@ struct ba_setup {
 
 	/* registered D-Bus objects */
 	GHashTable *dbus_objects;
+
+	/* audio group ID */
+	gid_t gid_audio;
+
+	pthread_t ctl_thread;
+	struct pollfd ctl_pfds[1 + BLUEALSA_MAX_CLIENTS];
+
+	gboolean ctl_socket_created;
+	gboolean ctl_thread_created;
 
 };
 

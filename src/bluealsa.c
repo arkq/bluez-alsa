@@ -10,6 +10,8 @@
 
 #include "bluealsa.h"
 
+#include <grp.h>
+
 #include "transport.h"
 
 
@@ -23,6 +25,16 @@ int bluealsa_setup_init(struct ba_setup *setup) {
 			(GDestroyNotify)device_free);
 
 	setup->dbus_objects = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+
+	struct group *grp;
+	setup->gid_audio = -1;
+
+	/* use proper ACL group for our audio device */
+	if ((grp = getgrnam("audio")) != NULL)
+		setup->gid_audio = grp->gr_gid;
+
+	setup->ctl_socket_created = FALSE;
+	setup->ctl_thread_created = FALSE;
 
 	return 0;
 }

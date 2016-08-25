@@ -22,9 +22,6 @@
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
 
-/* Maximal number of clients connected to the controller. */
-#define BLUEALSA_MAX_CLIENTS 7
-
 enum command {
 	COMMAND_PING,
 	COMMAND_LIST_DEVICES,
@@ -102,6 +99,6 @@ struct __attribute__ ((packed)) msg_pcm {
 
 /* XXX: These functions are not exported in any library. */
 int ctl_thread_init(struct ba_setup *setup);
-void ctl_free();
+void ctl_free(struct ba_setup *setup);
 
 #endif

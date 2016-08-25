@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
 
 	/* From all of the cleanup routines, this one cannot be omitted. We have
 	 * to unlink the named socket, otherwise service will not start. */
-	ctl_free();
+	ctl_free(&setup);
 
 	return EXIT_SUCCESS;
 }
