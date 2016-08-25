@@ -21,15 +21,13 @@
 #include <glib.h>
 #include <gio/gio.h>
 
+#include "bluealsa.h"
 #include "bluez.h"
 #include "ctl.h"
 #include "log.h"
 #include "transport.h"
 #include "utils.h"
 
-/* Helper macro for proper initialization of the device list structure. */
-#define devices_init() \
-	g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)device_free)
 
 static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
@@ -56,13 +54,16 @@ int main(int argc, char **argv) {
 		{ 0, 0, 0, 0 },
 	};
 
-	struct hci_dev_info hci_dev;
+	struct ba_setup setup;
 	struct hci_dev_info *hci_devs;
 	int hci_devs_num;
-	int a2dp = 1;
-	int hsp = 1;
 
 	log_open(argv[0], 0);
+
+	if (bluealsa_setup_init(&setup) != 0) {
+		error("Couldn't initialize bluealsa setup");
+		return EXIT_FAILURE;
+	}
 
 	if (hci_devlist(&hci_devs, &hci_devs_num)) {
 		error("Couldn't enumerate HCI devices: %s", strerror(errno));
@@ -78,7 +79,7 @@ int main(int argc, char **argv) {
 		int i;
 		for (i = 0; i < hci_devs_num; i++)
 			if (i == 0 || hci_test_bit(HCI_UP, &hci_devs[i].flags))
-				memcpy(&hci_dev, &hci_devs[i], sizeof(hci_dev));
+				memcpy(&setup.hci_dev, &hci_devs[i], sizeof(setup.hci_dev));
 	}
 
 	/* parse options */
@@ -102,7 +103,7 @@ int main(int argc, char **argv) {
 			if (str2ba(optarg, &addr) == 0) {
 				while (i--)
 					if (bacmp(&addr, &hci_devs[i].bdaddr) == 0) {
-						memcpy(&hci_dev, &hci_devs[i], sizeof(hci_dev));
+						memcpy(&setup.hci_dev, &hci_devs[i], sizeof(setup.hci_dev));
 						found = 1;
 						break;
 					}
@@ -110,7 +111,7 @@ int main(int argc, char **argv) {
 			else {
 				while (i--)
 					if (strcmp(optarg, hci_devs[i].name) == 0) {
-						memcpy(&hci_dev, &hci_devs[i], sizeof(hci_dev));
+						memcpy(&setup.hci_dev, &hci_devs[i], sizeof(setup.hci_dev));
 						found = 1;
 						break;
 				}
@@ -125,10 +126,10 @@ int main(int argc, char **argv) {
 		}
 
 		case 1:
-			a2dp = 0;
+			setup.enable_a2dp = 0;
 			break;
 		case 2:
-			hsp = 0;
+			setup.enable_hsp = 0;
 			break;
 
 		default:
@@ -140,16 +141,10 @@ int main(int argc, char **argv) {
 	free(hci_devs);
 
 	GDBusConnection *dbus;
-	GHashTable *devices;
 	gchar *address;
 	GError *err;
 
-	if ((devices = devices_init()) == NULL) {
-		error("Couldn't initialize device list structure");
-		return EXIT_FAILURE;
-	}
-
-	if ((ctl_thread_init(hci_dev.name, devices)) == -1) {
+	if ((ctl_thread_init(&setup)) == -1) {
 		error("Couldn't initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
@@ -164,12 +159,12 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	if (a2dp)
-		bluez_register_a2dp(dbus, hci_dev.name, devices);
-	if (hsp)
-		bluez_register_hsp(dbus, hci_dev.name, devices);
+	if (setup.enable_a2dp)
+		bluez_register_a2dp(dbus, &setup);
+	if (setup.enable_hsp)
+		bluez_register_hsp(dbus, &setup);
 
-	bluez_subscribe_signals(dbus, hci_dev.name, devices);
+	bluez_subscribe_signals(dbus, &setup);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);

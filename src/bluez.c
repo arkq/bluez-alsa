@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include "a2dp-codecs.h"
+#include "bluealsa.h"
 #include "bluez-iface.h"
 #include "log.h"
 #include "transport.h"
@@ -140,7 +141,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	GHashTable *devices = (GHashTable *)userdata;
+	struct ba_setup *setup = (struct ba_setup *)userdata;
 	struct ba_transport *t;
 	struct ba_device *d;
 	int profile = -1;
@@ -186,7 +187,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	g_variant_get(params, "(&oa{sv})", &transport, &properties);
 
-	if (transport_lookup(devices, transport) != NULL) {
+	if (transport_lookup(setup->devices, transport) != NULL) {
 		error("Transport already configured: %s", transport);
 		goto fail;
 	}
@@ -332,7 +333,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	}
 
 	/* If the device is not in our "repository" yet, add it. */
-	if ((d = g_hash_table_lookup(devices, device)) == NULL) {
+	if ((d = g_hash_table_lookup(setup->devices, device)) == NULL) {
 
 		GVariant *property;
 		bdaddr_t addr;
@@ -349,7 +350,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		}
 
 		d = device_new(&addr, name);
-		g_hash_table_insert(devices, g_strdup(device), d);
+		g_hash_table_insert(setup->devices, g_strdup(device), d);
 
 	}
 
@@ -388,11 +389,11 @@ final:
 static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	GHashTable *devices = (GHashTable *)userdata;
+	struct ba_setup *setup = (struct ba_setup *)userdata;
 	const char *transport;
 
 	g_variant_get(params, "(&o)", &transport);
-	transport_remove(devices, transport);
+	transport_remove(setup->devices, transport);
 
 	g_object_unref(inv);
 }
@@ -438,10 +439,9 @@ static const GDBusInterfaceVTable endpoint_vtable = {
  * Register A2DP endpoints.
  *
  * @param conn D-Bus connection handler.
- * @param device HCI device name for which endpoints should be registered.
- * @param userdata Data passed to the endpoint handler.
+ * @param setup Address of the BlueALSA setup structure.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdata) {
+int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 
 	static a2dp_sbc_t a2dp_sbc = {
 		.frequency =
@@ -599,7 +599,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 	char *path;
 	size_t i;
 
-	path = g_strdup_printf("/org/bluez/%s", device);
+	path = g_strdup_printf("/org/bluez/%s", setup->hci_dev.name);
 
 	for (i = 0; i < sizeof(endpoints) / sizeof(struct endpoint); i++) {
 
@@ -611,7 +611,7 @@ int bluez_register_a2dp(GDBusConnection *conn, const char *device, void *userdat
 
 		if ((id = g_dbus_connection_register_object(conn, endpoints[i].endpoint,
 						(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
-						userdata, endpoint_free, &err)) == 0)
+						setup, endpoint_free, &err)) == 0)
 			goto fail;
 
 		msg = g_dbus_message_new_method_call("org.bluez", path,
@@ -706,11 +706,9 @@ static const GDBusInterfaceVTable profile_vtable = {
  * Register Bluetooth Audio Profiles.
  *
  * @param conn D-Bus connection handler.
- * @param device HCI device name for which profile should be registered.
- * @param userdata Data passed to the profile handler.
+ * @param setup Address of the BlueALSA setup structure.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_hsp(GDBusConnection *conn, const char *device, void *userdata) {
-	(void)device;
+int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
@@ -720,7 +718,7 @@ int bluez_register_hsp(GDBusConnection *conn, const char *device, void *userdata
 
 	if ((id = g_dbus_connection_register_object(conn, BLUEZ_PROFILE_HSP_AG,
 					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
-					userdata, profile_free, &err)) == 0)
+					setup, profile_free, &err)) == 0)
 		goto fail;
 
 	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
@@ -761,7 +759,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	(void)sender;
 	(void)interface;
 
-	GHashTable *devices = (GHashTable *)userdata;
+	struct ba_setup *setup = (struct ba_setup *)userdata;
 	const gchar *signature = g_variant_get_type_string(params);
 	GVariantIter *properties = NULL;
 	GVariantIter *unknown = NULL;
@@ -775,7 +773,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 		goto fail;
 	}
 
-	if ((t = transport_lookup(devices, path)) == NULL) {
+	if ((t = transport_lookup(setup->devices, path)) == NULL) {
 		error("Transport not available: %s", path);
 		goto fail;
 	}
@@ -811,18 +809,16 @@ fail:
 }
 
 /**
- * Subscribe to audio related signals.
+ * Subscribe to Bluez related signals.
  *
  * @param conn D-Bus connection handler.
- * @param device HCI device name for which subscription should be made.
- * @param userdata Data passed to the signal handler.
+ * @param setup Address of the BlueALSA setup structure.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_subscribe_signals(GDBusConnection *conn, const char *device, void *userdata) {
-	(void)device;
+int bluez_subscribe_signals(GDBusConnection *conn, struct ba_setup *setup) {
 
 	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.Properties",
 			"PropertiesChanged", NULL, "org.bluez.MediaTransport1", G_DBUS_SIGNAL_FLAGS_NONE,
-			bluez_signal_transport_changed, userdata, NULL);
+			bluez_signal_transport_changed, setup, NULL);
 
 	return 0;
 }

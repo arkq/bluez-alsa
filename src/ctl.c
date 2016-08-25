@@ -27,6 +27,7 @@
 #include <glib.h>
 
 #include "a2dp-codecs.h"
+#include "bluealsa.h"
 #include "bluez.h"
 #include "log.h"
 #include "transport.h"
@@ -388,7 +389,7 @@ static void *ctl_thread(void *arg) {
 	return NULL;
 }
 
-int ctl_thread_init(const char *device, void *userdata) {
+int ctl_thread_init(struct ba_setup *setup) {
 
 	if (ctl.thread_created) {
 		/* thread is already created */
@@ -406,11 +407,11 @@ int ctl_thread_init(const char *device, void *userdata) {
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
-			BLUEALSA_RUN_STATE_DIR "/%s", device);
+			BLUEALSA_RUN_STATE_DIR "/%s", setup->hci_dev.name);
 
 	ctl.socket_path = strdup(saddr.sun_path);
-	ctl.hci_device = strdup(device);
-	ctl.devices = (GHashTable *)userdata;
+	ctl.hci_device = strdup(setup->hci_dev.name);
+	ctl.devices = setup->devices;
 
 	struct group *grp;
 	ctl.gid_audio = -1;

@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <bluetooth/bluetooth.h>
+#include "bluealsa.h"
 
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
@@ -100,7 +101,7 @@ struct __attribute__ ((packed)) msg_pcm {
 };
 
 /* XXX: These functions are not exported in any library. */
-int ctl_thread_init(const char *device, void *userdata);
+int ctl_thread_init(struct ba_setup *setup);
 void ctl_free();
 
 #endif

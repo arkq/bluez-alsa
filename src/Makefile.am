@@ -5,6 +5,7 @@ bin_PROGRAMS = bluealsa
 SUBDIRS = asound
 
 bluealsa_SOURCES = \
+	bluealsa.c \
 	bluez.c \
 	bluez-iface.c \
 	ctl.c \
