@@ -399,7 +399,21 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 }
 
 static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
+
+	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
+	const char *path = g_dbus_method_invocation_get_object_path(inv);
+	struct ba_setup *setup = (struct ba_setup *)userdata;
+	unsigned int hash;
+	guint id;
+
+	debug("Releasing endpoint: %s", path);
+
+	hash = g_str_hash(path);
+	if ((id = GPOINTER_TO_INT(g_hash_table_lookup(setup->dbus_objects, GINT_TO_POINTER(hash)))) != 0) {
+		g_hash_table_remove(setup->dbus_objects, GINT_TO_POINTER(hash));
+		g_dbus_connection_unregister_object(conn, id);
+	}
+
 	g_object_unref(inv);
 }
 
@@ -605,9 +619,16 @@ int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 
 		GDBusMessage *msg = NULL, *rep = NULL;
 		GError *err = NULL;
+		unsigned int hash;
 		guint id;
 
 		debug("Registering endpoint: %s: %s", endpoints[i].uuid, endpoints[i].endpoint);
+
+		hash = g_str_hash(endpoints[i].endpoint);
+		if (g_hash_table_contains(setup->dbus_objects, GINT_TO_POINTER(hash))) {
+			debug("Endpoint already registered");
+			continue;
+		}
 
 		if ((id = g_dbus_connection_register_object(conn, endpoints[i].endpoint,
 						(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
@@ -639,6 +660,8 @@ int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 			goto fail;
 		}
 
+		g_hash_table_insert(setup->dbus_objects, GINT_TO_POINTER(hash), GINT_TO_POINTER(id));
+
 fail:
 		if (msg != NULL)
 			g_object_unref(msg);
@@ -668,7 +691,21 @@ static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void
 }
 
 static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
+
+	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
+	const char *path = g_dbus_method_invocation_get_object_path(inv);
+	struct ba_setup *setup = (struct ba_setup *)userdata;
+	unsigned int hash;
+	guint id;
+
+	debug("Releasing profile: %s", path);
+
+	hash = g_str_hash(path);
+	if ((id = GPOINTER_TO_INT(g_hash_table_lookup(setup->dbus_objects, GINT_TO_POINTER(hash)))) != 0) {
+		g_hash_table_remove(setup->dbus_objects, GINT_TO_POINTER(hash));
+		g_dbus_connection_unregister_object(conn, id);
+	}
+
 	g_object_unref(inv);
 }
 
@@ -712,9 +749,16 @@ int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
+	unsigned int hash;
 	guint id;
 
 	debug("Registering profile: %s: %s", BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG);
+
+	hash = g_str_hash(BLUEZ_PROFILE_HSP_AG);
+	if (g_hash_table_contains(setup->dbus_objects, GINT_TO_POINTER(hash))) {
+		debug("Profile already registered");
+		return 0;
+	}
 
 	if ((id = g_dbus_connection_register_object(conn, BLUEZ_PROFILE_HSP_AG,
 					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
@@ -736,6 +780,8 @@ int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup) {
 		goto fail;
 	}
 
+	g_hash_table_insert(setup->dbus_objects, GINT_TO_POINTER(hash), GINT_TO_POINTER(id));
+
 fail:
 
 	if (msg != NULL)
@@ -750,6 +796,30 @@ fail:
 	}
 
 	return 0;
+}
+
+static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,
+		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
+		void *userdata) {
+	(void)sender;
+	(void)path;
+	(void)interface;
+	(void)signal;
+
+	struct ba_setup *setup = (struct ba_setup *)userdata;
+	char *device_path = g_strdup_printf("/org/bluez/%s", setup->hci_dev.name);
+	GVariantIter *interfaces;
+	const char *object;
+
+	g_variant_get(params, "(&oa{sa{sv}})", &object, &interfaces);
+
+	if (setup->enable_hsp && strcmp(object, "/org/bluez") == 0)
+		bluez_register_hsp(conn, setup);
+	if (setup->enable_a2dp && strcmp(object, device_path) == 0)
+		bluez_register_a2dp(conn, setup);
+
+	g_variant_iter_free(interfaces);
+	g_free(device_path);
 }
 
 static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *sender,
@@ -815,6 +885,14 @@ fail:
  * @param setup Address of the BlueALSA setup structure.
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int bluez_subscribe_signals(GDBusConnection *conn, struct ba_setup *setup) {
+
+	/* Note, that we do not have to subscribe for the interfaces remove signal,
+	 * because prior to removal, Bluez will call appropriate Release method. */
+	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.ObjectManager",
+			"InterfacesAdded", NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE,
+			/* TODO: Use arg0 filtering, but is seems it doesn't work... */
+			/* "InterfacesAdded", NULL, "/org/bluez/hci0", G_DBUS_SIGNAL_FLAGS_NONE, */
+			bluez_signal_interfaces_added, setup, NULL);
 
 	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.Properties",
 			"PropertiesChanged", NULL, "org.bluez.MediaTransport1", G_DBUS_SIGNAL_FLAGS_NONE,

@@ -29,6 +29,9 @@ struct ba_setup {
 	pthread_mutex_t devices_mutex;
 	GHashTable *devices;
 
+	/* registered D-Bus objects */
+	GHashTable *dbus_objects;
+
 };
 
 int bluealsa_setup_init(struct ba_setup *setup);

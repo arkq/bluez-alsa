@@ -22,9 +22,12 @@ int bluealsa_setup_init(struct ba_setup *setup) {
 	setup->devices = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
 			(GDestroyNotify)device_free);
 
+	setup->dbus_objects = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+
 	return 0;
 }
 
 void bluealsa_setup_free(struct ba_setup *setup) {
 	g_hash_table_unref(setup->devices);
+	g_hash_table_unref(setup->dbus_objects);
 }
