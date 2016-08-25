@@ -30,10 +30,26 @@
 #include "utils.h"
 
 
+static void transport_release_bt(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	/* During the normal operation mode, the release callback should not
+	 * be NULL. Hence, we will relay on this callback - file descriptors
+	 * are closed in it. */
+	if (t->release_bt != NULL)
+		t->release_bt(t);
+
+	/* XXX: If the order of the cleanup push is right, this function will
+	 *      indicate the end of the IO thread. */
+	debug("Exiting IO thread");
+}
+
 void *io_thread_a2dp_sbc_forward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
-	sbc_t sbc;
+	/* Cancellation should be possible only in the carefully selected place
+	 * in order to prevent memory leaks and resources not being released. */
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -49,6 +65,8 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		return NULL;
 	}
 
+	sbc_t sbc;
+
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
 		error("Couldn't initialize %s codec: %s", "SBC", strerror(errno));
 		return NULL;
@@ -62,6 +80,11 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	uint8_t *rbuffer = malloc(rbuffer_size);
 	uint8_t *wbuffer = malloc(wbuffer_size);
 
+	pthread_cleanup_push(transport_release_bt, t);
+	pthread_cleanup_push(sbc_finish, &sbc);
+	pthread_cleanup_push(free, wbuffer);
+	pthread_cleanup_push(free, rbuffer);
+
 	if (rbuffer == NULL || wbuffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail;
@@ -69,21 +92,24 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
-	sigaction(SIGUSR1, &sigact, NULL);
 
 	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
-	ssize_t len;
 
 	/* TODO: support for "out of the hat" reading MTU */
 
 	debug("Starting forward IO loop");
 	while (t->state == TRANSPORT_ACTIVE) {
 
+		ssize_t len;
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
 		if (poll(pfds, 1, -1) == -1) {
-			if (errno != EINTR)
-				error("Transport poll error: %s", strerror(errno));
+			error("Transport poll error: %s", strerror(errno));
 			break;
 		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if ((len = read(pfds[0].fd, rbuffer, rbuffer_size)) == -1) {
 			debug("BT read error: %s", strerror(errno));
@@ -171,23 +197,17 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	}
 
 fail:
-
-	/* XXX: During the normal operation mode, the release callback should not
-	 *      be NULL. Hence, we will relay on this callback - file descriptors
-	 *      are closed in it. */
-	if (t->release_bt != NULL)
-		t->release_bt(t);
-
-	free(rbuffer);
-	free(wbuffer);
-	sbc_finish(&sbc);
-
-	debug("Exiting IO thread");
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
 void *io_thread_a2dp_sbc_backward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	sbc_t sbc;
 
@@ -225,6 +245,11 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	uint8_t *rbuffer = malloc(rbuffer_size);
 	uint8_t *wbuffer = malloc(wbuffer_size);
 
+	pthread_cleanup_push(transport_release_bt, t);
+	pthread_cleanup_push(sbc_finish, &sbc);
+	pthread_cleanup_push(free, wbuffer);
+	pthread_cleanup_push(free, rbuffer);
+
 	if (rbuffer == NULL || wbuffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail;
@@ -243,7 +268,6 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
-	sigaction(SIGUSR1, &sigact, NULL);
 
 	/* initialize RTP headers (the constant part) */
 	rtp_header = (rtp_header_t *)wbuffer;
@@ -268,6 +292,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 		ssize_t len;
 
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
 		/* This call will block until data arrives. If the passed file descriptor
 		 * is invalid (e.g. -1) is means, that other thread (the controller) has
 		 * closed the connection. If the connection was closed during the blocking
@@ -278,6 +304,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				error("FIFO read error: %s", strerror(errno));
 			break;
 		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (len == 0) {
 			debug("FIFO has been closed: %d", t->pcm_fd);
@@ -368,15 +396,9 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	}
 
 fail:
-
-	/* NOTE: See the cleanup stage of the io_thread_a2dp_sbc_forward(). */
-	if (t->release_bt != NULL)
-		t->release_bt(t);
-
-	free(rbuffer);
-	free(wbuffer);
-	sbc_finish(&sbc);
-
-	debug("Exiting IO thread");
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
 	return NULL;
 }

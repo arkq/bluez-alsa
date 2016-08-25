@@ -11,7 +11,6 @@
 #define _GNU_SOURCE
 #include "transport.h"
 
-#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -142,8 +141,7 @@ void transport_free(struct ba_transport *t) {
 	 * more). Not doing so might result in an undefined behavior or even a
 	 * race condition (closed and reused file descriptor). */
 	if (t->state == TRANSPORT_ACTIVE) {
-		/* TODO: Use cancellation mechanism. */
-		pthread_kill(t->thread, SIGUSR1);
+		pthread_cancel(t->thread);
 		pthread_join(t->thread, NULL);
 	}
 
@@ -234,7 +232,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 
 	switch (state) {
 	case TRANSPORT_IDLE:
-		pthread_kill(t->thread, SIGUSR1);
+		pthread_cancel(t->thread);
 		pthread_join(t->thread, NULL);
 		ret = transport_release(t);
 		break;
