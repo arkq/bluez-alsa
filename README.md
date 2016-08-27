@@ -1,9 +1,6 @@
 Bluetooth Audio ALSA Backend
 ============================
 
-**Disclaimer:** This project is in a very, very, very alpha stage. Not every feature mentioned
-in this document is implemented!
-
 This project is a rebirth of a direct integration between [Bluez](http://www.bluez.org/) and
 [ALSA](http://www.alsa-project.org/). Since Bluez >= 5, the build-in integration has been removed
 in favor of 3rd party audio applications. From now on, Bluez acts as a middleware between an

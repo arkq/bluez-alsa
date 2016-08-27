@@ -1,0 +1,66 @@
+#!/usr/bin/python
+# hcitop - display HCI bandwidth
+#
+# Copyright (c) 2016 Arkadiusz Bokowy
+#
+# This project is licensed under the terms of the MIT license.
+#
+
+import re
+import signal
+import subprocess
+import sys
+import time
+
+rx = re.compile(b'RX (bytes):(\d+) (acl):(\d+) (sco):(\d+) (events):(\d+) (errors):(\d+)')
+tx = re.compile(b'TX (bytes):(\d+) (acl):(\d+) (sco):(\d+) (commands):(\d+) (errors):(\d+)')
+
+def hciconfig(hci):
+    config = {}
+    for line in subprocess.check_output(('hciconfig', hci)).splitlines():
+        for key, re in (('rx', rx), ('tx', tx)):
+            re = re.search(line)
+            if re is not None:
+                config[key] = {
+                    k.decode(): int(v)
+                    for k, v in zip(re.groups()[0::2], re.groups()[1::2])
+                }
+    return config
+
+def add(queue, value):
+    old = sum(queue)
+    queue.append(value)
+    queue.pop(0)
+    return (sum(queue) - old) / len(queue)
+
+def fmt(num, suffix='B'):
+    # https://stackoverflow.com/questions/1094841/get-human-readable-version-of-size
+    for unit in ('', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi'):
+        if abs(num) < 1024.0:
+            return "{:3.2f} {}{}".format(num, unit, suffix)
+        num /= 1024.0
+    return "{:.2f} {}{}".format(num, 'Yi', suffix)
+
+def exit(signal, frame):
+    sys.stdout.write('\n')
+    sys.exit()
+
+if len(sys.argv) != 2:
+    print("usage: {} hciX".format(sys.argv[0]))
+    sys.exit(1)
+
+hci = hciconfig(sys.argv[1])
+rxqueue = [hci['rx']['bytes']] * 3
+txqueue = [hci['tx']['bytes']] * 3
+
+signal.signal(signal.SIGINT, exit)
+while True:
+    hci = hciconfig(sys.argv[1])
+    rxdiff = add(rxqueue, hci['rx']['bytes'])
+    txdiff = add(txqueue, hci['tx']['bytes'])
+    sys.stdout.write("\rRX: {} ({}) TX: {} ({})\r".format(
+        fmt(hci['rx']['bytes']), fmt(rxdiff * 2, 'B/s'),
+        fmt(hci['tx']['bytes']), fmt(txdiff * 2, 'B/s')
+    ))
+    sys.stdout.flush()
+    time.sleep(0.5)
