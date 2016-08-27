@@ -332,6 +332,9 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		value = NULL;
 	}
 
+	/* we are going to modify the devices hash-map */
+	pthread_mutex_lock(&setup->devices_mutex);
+
 	/* If the device is not in our "repository" yet, add it. */
 	if ((d = g_hash_table_lookup(setup->devices, device)) == NULL) {
 
@@ -377,6 +380,7 @@ fail:
 			G_DBUS_ERROR_INVALID_ARGS, "Unable to set configuration");
 
 final:
+	pthread_mutex_unlock(&setup->devices_mutex);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);
@@ -392,9 +396,12 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 	struct ba_setup *setup = (struct ba_setup *)userdata;
 	const char *transport;
 
+	pthread_mutex_lock(&setup->devices_mutex);
+
 	g_variant_get(params, "(&o)", &transport);
 	transport_remove(setup->devices, transport);
 
+	pthread_mutex_unlock(&setup->devices_mutex);
 	g_object_unref(inv);
 }
 

@@ -33,13 +33,25 @@
 #include "utils.h"
 
 
+/**
+ * Looks up a transport matching BT address and profile.
+ *
+ * This function is not thread-safe. It returns references to objects managed
+ * by the devices hash-table. If the devices hash-table is modified in some
+ * other thread, it may result in an undefined behavior.
+ *
+ * @param devices Address of the hash-table with connected devices.
+ * @param addr Address to the structure with the looked up BT address.
+ * @param profile Looked up transport profile.
+ * @param d Address, where the device structure pointer should be stored.
+ * @param t Address, where the transport structure pointer should be stored.
+ * @return If the lookup succeeded, this function returns 0. Otherwise, -1 is
+ *   returned and value of device and transport pointer is undefined. */
 static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr, uint8_t profile,
 		struct ba_device **d, struct ba_transport **t) {
 
 	GHashTableIter iter_d, iter_t;
 	gpointer _tmp;
-
-	/* TODO: acquire mutex for transport modifications */
 
 	for (g_hash_table_iter_init(&iter_d, devices);
 			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)d); ) {
@@ -123,7 +135,7 @@ static void ctl_thread_cmd_list_devices(const struct request *req, int fd, void 
 	struct ba_device *d;
 	gpointer _tmp;
 
-	/* TODO: acquire mutex for transport modifications */
+	pthread_mutex_lock(&setup->devices_mutex);
 
 	for (g_hash_table_iter_init(&iter_d, setup->devices);
 			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)&d); ) {
@@ -135,6 +147,7 @@ static void ctl_thread_cmd_list_devices(const struct request *req, int fd, void 
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);
 	}
 
+	pthread_mutex_unlock(&setup->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -149,7 +162,7 @@ static void ctl_thread_cmd_list_transports(const struct request *req, int fd, vo
 	struct ba_transport *t;
 	gpointer _tmp;
 
-	/* TODO: acquire mutex for transport modifications */
+	pthread_mutex_lock(&setup->devices_mutex);
 
 	for (g_hash_table_iter_init(&iter_d, setup->devices);
 			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)&d); )
@@ -159,6 +172,7 @@ static void ctl_thread_cmd_list_transports(const struct request *req, int fd, vo
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
 
+	pthread_mutex_unlock(&setup->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -170,6 +184,8 @@ static void ctl_thread_cmd_get_transport(const struct request *req, int fd, void
 	struct ba_device *d;
 	struct ba_transport *t;
 
+	pthread_mutex_lock(&setup->devices_mutex);
+
 	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -179,6 +195,7 @@ static void ctl_thread_cmd_get_transport(const struct request *req, int fd, void
 	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 
 fail:
+	pthread_mutex_unlock(&setup->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -188,6 +205,8 @@ static void ctl_thread_cmd_set_transport_volume(const struct request *req, int f
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct ba_device *d;
 	struct ba_transport *t;
+
+	pthread_mutex_lock(&setup->devices_mutex);
 
 	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
@@ -201,6 +220,7 @@ static void ctl_thread_cmd_set_transport_volume(const struct request *req, int f
 	t->volume = req->volume;
 
 fail:
+	pthread_mutex_unlock(&setup->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -243,6 +263,8 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd, void *arg
 	pcm.fifo[sizeof(pcm.fifo) - 1] = '\0';
 
 	debug("PCM requested for %s profile %d", addr, req->profile);
+
+	pthread_mutex_lock(&setup->devices_mutex);
 
 	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
@@ -290,6 +312,7 @@ static void ctl_thread_cmd_open_pcm(const struct request *req, int fd, void *arg
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
 
 fail:
+	pthread_mutex_unlock(&setup->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 

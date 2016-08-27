@@ -40,6 +40,7 @@ int bluealsa_setup_init(struct ba_setup *setup) {
 }
 
 void bluealsa_setup_free(struct ba_setup *setup) {
+	pthread_mutex_destroy(&setup->devices_mutex);
 	g_hash_table_unref(setup->devices);
 	g_hash_table_unref(setup->dbus_objects);
 }
