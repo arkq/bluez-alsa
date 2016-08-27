@@ -18,7 +18,7 @@ AM_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
-	@GIO20_CFLAGS@
+	@GLIB2_CFLAGS@
 
 AM_LDFLAGS = -module -avoid-version
 

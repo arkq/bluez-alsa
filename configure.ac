@@ -1,7 +1,7 @@
 # BlueALSA - configure.ac
 # Copyright (c) 2016 Arkadiusz Bokowy
 
-AC_INIT([bluez-alsa], [0.1.0], [arkadiusz.bokowy@gmail.com])
+AC_INIT([bluez-alsa], [1.0.0], [arkadiusz.bokowy@gmail.com])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
 AC_CONFIG_HEADERS([config.h])
@@ -31,9 +31,9 @@ AC_CHECK_HEADERS([ortp/rtp.h],
 	[], [AC_MSG_ERROR([ortp/rtp.h header not found])])
 
 PKG_CHECK_MODULES([ALSA], [alsa])
-PKG_CHECK_MODULES([BLUEZ], [bluez])
+PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])
 PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.16])
-PKG_CHECK_MODULES([GIO20], [gio-unix-2.0])
+PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
 
 AC_ARG_WITH([alsaplugindir],

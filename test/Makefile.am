@@ -13,11 +13,11 @@ AM_CFLAGS = \
 	-DSRCDIR=\"$(srcdir)\" \
 	@BLUEZ_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
-	@GIO20_CFLAGS@ \
+	@GIO2_CFLAGS@ \
 	@SBC_CFLAGS@
 
 LDADD = \
 	@BLUEZ_LIBS@ \
 	@GLIB2_LIBS@ \
-	@GIO20_LIBS@ \
+	@GIO2_LIBS@ \
 	@SBC_LIBS@
