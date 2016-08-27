@@ -80,40 +80,57 @@ static void _ctl_transport(const struct ba_device *d, const struct ba_transport 
 	transport->profile = t->profile;
 	transport->codec = t->codec;
 
+	transport->channels = 0;
+	transport->sampling = 0;
 	transport->volume = t->volume;
 	transport->muted = t->muted;
 
-	/* TODO: support other profiles and codecs */
+	switch (t->profile) {
+	case TRANSPORT_PROFILE_A2DP_SOURCE:
+	case TRANSPORT_PROFILE_A2DP_SINK:
+		switch (t->codec) {
+		case A2DP_CODEC_SBC: {
+			a2dp_sbc_t *c = (a2dp_sbc_t *)t->config;
 
-	a2dp_sbc_t *c;
-	c = (a2dp_sbc_t *)t->config;
+			switch (c->channel_mode) {
+			case SBC_CHANNEL_MODE_MONO:
+				transport->channels = 1;
+				break;
+			case SBC_CHANNEL_MODE_STEREO:
+			case SBC_CHANNEL_MODE_JOINT_STEREO:
+			case SBC_CHANNEL_MODE_DUAL_CHANNEL:
+				transport->channels = 2;
+				break;
+			}
 
-	switch (c->channel_mode) {
-	case SBC_CHANNEL_MODE_MONO:
-		transport->channels = 1;
+			switch (c->frequency) {
+			case SBC_SAMPLING_FREQ_16000:
+				transport->sampling = 16000;
+				break;
+			case SBC_SAMPLING_FREQ_32000:
+				transport->sampling = 32000;
+				break;
+			case SBC_SAMPLING_FREQ_44100:
+				transport->sampling = 44100;
+				break;
+			case SBC_SAMPLING_FREQ_48000:
+				transport->sampling = 48000;
+				break;
+			}
+
+			break;
+		}
+		case A2DP_CODEC_MPEG12:
+		case A2DP_CODEC_MPEG24:
+		case A2DP_CODEC_ATRAC:
+		default:
+			warn("Codec not supported: %u", t->codec);
+		}
 		break;
-	case SBC_CHANNEL_MODE_STEREO:
-	case SBC_CHANNEL_MODE_JOINT_STEREO:
-	case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-		transport->channels = 2;
-		break;
+	case TRANSPORT_PROFILE_HFP:
+	case TRANSPORT_PROFILE_HSP:
 	default:
-		transport->channels = 0;
-	}
-
-	switch (c->frequency) {
-	case SBC_SAMPLING_FREQ_16000:
-		transport->sampling = 16000;
-		break;
-	case SBC_SAMPLING_FREQ_32000:
-		transport->sampling = 32000;
-		break;
-	case SBC_SAMPLING_FREQ_44100:
-		transport->sampling = 44100;
-		break;
-	case SBC_SAMPLING_FREQ_48000:
-		transport->sampling = 48000;
-		break;
+		warn("Profile not supported: %u", t->profile);
 	}
 
 }
@@ -328,11 +345,6 @@ static void *ctl_thread(void *arg) {
 		[COMMAND_OPEN_PCM] = ctl_thread_cmd_open_pcm,
 	};
 
-	struct pollfd *pfd;
-	struct request request;
-	ssize_t len;
-	int i;
-
 	debug("Starting controller loop");
 	while (setup->ctl_thread_created) {
 
@@ -344,7 +356,8 @@ static void *ctl_thread(void *arg) {
 		/* Clients handling loop will update this variable to point to the
 		 * first available client structure, which might be later used by
 		 * the connection handling loop. */
-		pfd = NULL;
+		struct pollfd *pfd = NULL;
+		size_t i;
 
 		/* handle data transmission with connected clients */
 		for (i = 1; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
@@ -356,6 +369,9 @@ static void *ctl_thread(void *arg) {
 			}
 
 			if (setup->ctl_pfds[i].revents & POLLIN) {
+
+				struct request request;
+				ssize_t len;
 
 				if ((len = recv(fd, &request, sizeof(request), MSG_DONTWAIT)) != sizeof(request)) {
 					/* if the request cannot be retrieved, release resources */
@@ -406,7 +422,7 @@ int ctl_thread_init(struct ba_setup *setup) {
 	}
 
 	{ /* initialize (mark as closed) all sockets */
-		int i;
+		size_t i;
 		for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
 			setup->ctl_pfds[i].events = POLLIN;
 			setup->ctl_pfds[i].fd = -1;
@@ -450,7 +466,7 @@ fail:
 void ctl_free(struct ba_setup *setup) {
 
 	int created = setup->ctl_thread_created;
-	int i, err;
+	size_t i;
 
 	setup->ctl_thread_created = 0;
 
@@ -460,8 +476,8 @@ void ctl_free(struct ba_setup *setup) {
 
 	if (created) {
 		pthread_cancel(setup->ctl_thread);
-		if ((err = pthread_join(setup->ctl_thread, NULL)) != 0)
-			error("Couldn't join controller thread: %s", strerror(err));
+		if ((errno = pthread_join(setup->ctl_thread, NULL)) != 0)
+			error("Couldn't join controller thread: %s", strerror(errno));
 	}
 
 	if (setup->ctl_socket_created) {

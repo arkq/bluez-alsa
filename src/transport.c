@@ -55,7 +55,7 @@ static int io_thread_create(struct ba_transport *t) {
 	case TRANSPORT_PROFILE_HFP:
 	case TRANSPORT_PROFILE_HSP:
 	default:
-		warn("Profile not implemented: %u", t->profile);
+		warn("Profile not supported: %u", t->profile);
 	}
 
 	if (routine == NULL)
