@@ -52,6 +52,26 @@ struct bluealsa_pcm {
 
 
 /**
+ * Convert BlueALSA status message into the POSIX errno value. */
+static int bluealsa_status_to_errno(struct msg_status *status) {
+	switch (status->code) {
+	case STATUS_CODE_SUCCESS:
+		return 0;
+	case STATUS_CODE_ERROR_UNKNOWN:
+		return EIO;
+	case STATUS_CODE_DEVICE_NOT_FOUND:
+		return ENODEV;
+	case STATUS_CODE_DEVICE_BUSY:
+		return EBUSY;
+	case STATUS_CODE_FORBIDDEN:
+		return EACCES;
+	default:
+		/* some generic error code */
+		return EINVAL;
+	}
+}
+
+/**
  * Get PCM transport.
  *
  * @param pcm An address to the bluealsa pcm structure.
@@ -76,7 +96,7 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 	/* in case of error, status message is returned */
 	if (len != sizeof(pcm->transport)) {
 		memcpy(&status, &pcm->transport, sizeof(status));
-		errno = status.code == STATUS_CODE_DEVICE_NOT_FOUND ? ENODEV : EIO;
+		errno = bluealsa_status_to_errno(&status);
 		return -1;
 	}
 
@@ -114,17 +134,7 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	/* in case of error, status message is returned */
 	if (len != sizeof(res)) {
 		memcpy(&status, &res, sizeof(status));
-		switch (status.code) {
-		case STATUS_CODE_DEVICE_NOT_FOUND:
-			errno = ENODEV;
-			break;
-		case STATUS_CODE_DEVICE_BUSY:
-			errno = EBUSY;
-			break;
-		default:
-			/* some generic error code */
-			errno = EIO;
-		}
+		errno = bluealsa_status_to_errno(&status);
 		return -1;
 	}
 
