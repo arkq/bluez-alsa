@@ -193,7 +193,7 @@ static void ctl_thread_cmd_list_transports(const struct request *req, int fd, vo
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_get_transport(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_transport_get(const struct request *req, int fd, void *arg) {
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
@@ -216,7 +216,7 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_set_transport_volume(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_transport_set_volume(const struct request *req, int fd, void *arg) {
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
@@ -265,7 +265,7 @@ static int ctl_pcm_release(struct ba_transport *t) {
 	return 0;
 }
 
-static void ctl_thread_cmd_open_pcm(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg) {
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
@@ -333,6 +333,51 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
+static void ctl_thread_cmd_pcm_control(const struct request *req, int fd, void *arg) {
+
+	struct ba_setup *setup = (struct ba_setup *)arg;
+	struct msg_status status = { STATUS_CODE_SUCCESS };
+	struct ba_device *d;
+	struct ba_transport *t;
+
+	pthread_mutex_lock(&setup->devices_mutex);
+
+	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
+		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	}
+	if (t->pcm_fifo == NULL || t->pcm_client == -1) {
+		status.code = STATUS_CODE_ERROR_UNKNOWN;
+		goto fail;
+	}
+	if (t->pcm_client != fd) {
+		status.code = STATUS_CODE_FORBIDDEN;
+		goto fail;
+	}
+
+	switch (req->command) {
+	case COMMAND_PCM_PAUSE:
+		clock_gettime(CLOCK_MONOTONIC, &t->ts_pause_start);
+		break;
+	case COMMAND_PCM_RESUME:
+		if (t->ts_pause_start.tv_sec && t->ts_pause_start.tv_nsec) {
+			struct timespec ts;
+			clock_gettime(CLOCK_MONOTONIC, &ts);
+			t->ts_paused.tv_sec += ts.tv_sec - t->ts_pause_start.tv_sec;
+			t->ts_paused.tv_nsec += ts.tv_nsec - t->ts_pause_start.tv_nsec;
+			t->ts_pause_start.tv_sec = 0;
+			t->ts_pause_start.tv_nsec = 0;
+		}
+		break;
+	default:
+		warn("Invalid PCM control command: %d", req->command);
+	}
+
+fail:
+	pthread_mutex_unlock(&setup->devices_mutex);
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
+}
+
 static void *ctl_thread(void *arg) {
 	struct ba_setup *setup = (struct ba_setup *)arg;
 
@@ -340,9 +385,11 @@ static void *ctl_thread(void *arg) {
 		[COMMAND_PING] = ctl_thread_cmd_ping,
 		[COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
 		[COMMAND_LIST_TRANSPORTS] = ctl_thread_cmd_list_transports,
-		[COMMAND_GET_TRANSPORT] = ctl_thread_cmd_get_transport,
-		[COMMAND_SET_TRANSPORT_VOLUME] = ctl_thread_cmd_set_transport_volume,
-		[COMMAND_OPEN_PCM] = ctl_thread_cmd_open_pcm,
+		[COMMAND_TRANSPORT_GET] = ctl_thread_cmd_transport_get,
+		[COMMAND_TRANSPORT_SET_VOLUME] = ctl_thread_cmd_transport_set_volume,
+		[COMMAND_PCM_OPEN] = ctl_thread_cmd_pcm_open,
+		[COMMAND_PCM_PAUSE] = ctl_thread_cmd_pcm_control,
+		[COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
 	};
 
 	debug("Starting controller loop");

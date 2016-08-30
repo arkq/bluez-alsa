@@ -361,8 +361,9 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 			clock_gettime(CLOCK_MONOTONIC, &ts);
 
 			/* keep transfer at constant rate, always 10 ms ahead */
-			const int rt_delta = (ts_timestamp.tv_sec - (ts.tv_sec - ts0.tv_sec)) * 1e6 +
+			int rt_delta = (ts_timestamp.tv_sec - (ts.tv_sec - ts0.tv_sec)) * 1e6 +
 				(ts_timestamp.tv_nsec - (ts.tv_nsec - ts0.tv_nsec)) / 1e3 - 10e3;
+			rt_delta += t->ts_paused.tv_sec * 1e6 + t->ts_paused.tv_nsec / 1e3;
 			if (rt_delta > 0)
 				usleep(rt_delta);
 

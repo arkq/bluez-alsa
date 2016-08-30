@@ -169,7 +169,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	struct msg_status status;
 	struct msg_transport *transport = &ctl->transports[key / 2];
 	struct request req = {
-		.command = COMMAND_SET_TRANSPORT_VOLUME,
+		.command = COMMAND_TRANSPORT_SET_VOLUME,
 		.profile = transport->profile,
 		.muted = transport->muted,
 		.volume = transport->volume,

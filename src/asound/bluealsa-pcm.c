@@ -80,7 +80,7 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 
 	struct msg_status status = { 0xAB };
 	struct request req = {
-		.command = COMMAND_GET_TRANSPORT,
+		.command = COMMAND_TRANSPORT_GET,
 		.profile = pcm->transport.profile,
 	};
 	ssize_t len;
@@ -116,7 +116,7 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	const int flags = pcm->io.stream == SND_PCM_STREAM_PLAYBACK ? O_WRONLY : O_RDONLY;
 	struct msg_status status = { 0xAB };
 	struct request req = {
-		.command = COMMAND_OPEN_PCM,
+		.command = COMMAND_PCM_OPEN,
 		.profile = pcm->transport.profile,
 	};
 	struct msg_pcm res;
@@ -157,6 +157,32 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	}
 
 	return fd;
+}
+
+/**
+ * Pause/resume PCM transport.
+ *
+ * @param pcm An address to the bluealsa pcm structure.
+ * @param pause If non-zero, pause transport, otherwise resume it.
+ * @return Upon success this function returns 0. Otherwise, -1 is returned. */
+static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, int pause) {
+
+	struct msg_status status = { 0xAB };
+	struct request req = {
+		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
+		.profile = pcm->transport.profile,
+	};
+
+	bacpy(&req.addr, &pcm->transport.addr);
+
+	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", batostr(&req.addr));
+	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
+		return -1;
+	if (read(pcm->fd, &status, sizeof(status)) == -1)
+		return -1;
+
+	errno = bluealsa_status_to_errno(&status);
+	return errno != 0 ? -1 : 0;
 }
 
 static int bluealsa_start(snd_pcm_ioplug_t *io) {
@@ -296,6 +322,11 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	return 0;
 }
 
+static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
+	struct bluealsa_pcm *pcm = io->private_data;
+	return bluealsa_pause_transport(pcm, enable) == -1 ? -errno : 0;
+}
+
 static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
 	.start = bluealsa_start,
 	.stop = bluealsa_stop,
@@ -305,7 +336,6 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
 	.hw_params = bluealsa_hw_params,
 	.hw_free = bluealsa_hw_free,
 	.prepare = bluealsa_prepare,
-	.drain = bluealsa_drain,
 };
 
 static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
@@ -317,6 +347,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
 	.hw_params = bluealsa_hw_params,
 	.hw_free = bluealsa_hw_free,
 	.prepare = bluealsa_prepare,
+	.pause = bluealsa_pause,
 };
 
 uint8_t bluealsa_parse_profile(const char *profile, snd_pcm_stream_t stream) {

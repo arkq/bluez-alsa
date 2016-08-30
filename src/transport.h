@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 #include <bluetooth/bluetooth.h>
 #include <gio/gio.h>
@@ -59,6 +60,10 @@ struct ba_transport {
 	uint8_t volume;
 	/* if non-zero, equivalent of volume = 0 */
 	uint8_t muted;
+
+	/* paused time accounting */
+	struct timespec ts_pause_start;
+	struct timespec ts_paused;
 
 	/* IO thread - actual transport layer */
 	enum ba_transport_state state;
