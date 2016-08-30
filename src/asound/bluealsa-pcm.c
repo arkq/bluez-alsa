@@ -38,7 +38,7 @@ struct bluealsa_pcm {
 
 	/* requested transport */
 	struct msg_transport transport;
-	int transport_fd;
+	int pcm_fd;
 
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
@@ -210,7 +210,7 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 
 	if (io->stream == SND_PCM_STREAM_CAPTURE) {
 
-		struct pollfd pfds[1] = {{ pcm->transport_fd, POLLIN, 0 }};
+		struct pollfd pfds[1] = {{ pcm->pcm_fd, POLLIN, 0 }};
 
 		/* Wait until some data appears in the FIFO. It is required, because the
 		 * IOCTL call (the next one) will not block, however we need some progress.
@@ -218,7 +218,7 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 		if (poll(pfds, 1, -1) == -1)
 			return -errno;
 
-		if (ioctl(pcm->transport_fd, FIONREAD, &size) == -1)
+		if (ioctl(pcm->pcm_fd, FIONREAD, &size) == -1)
 			return -errno;
 
 		if (size > pcm->last_size) {
@@ -236,7 +236,7 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	}
 
 	pcm->last_size = size;
-	return snd_pcm_bytes_to_frames(io->pcm, pcm->pointer);
+	return pcm->pointer / pcm->frame_size;
 }
 
 static int bluealsa_close(snd_pcm_ioplug_t *io) {
@@ -255,7 +255,7 @@ static snd_pcm_sframes_t bluealsa_transfer_read(snd_pcm_ioplug_t *io,
 	char *buffer = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
 	ssize_t len;
 
-	if ((len = read(pcm->transport_fd, buffer, size * pcm->frame_size)) == -1)
+	if ((len = read(pcm->pcm_fd, buffer, size * pcm->frame_size)) == -1)
 		return -errno;
 
 	pcm->last_size -= len;
@@ -270,8 +270,16 @@ static snd_pcm_sframes_t bluealsa_transfer_write(snd_pcm_ioplug_t *io,
 	const char *buffer = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
 	ssize_t len;
 
-	if ((len = write(pcm->transport_fd, buffer, size * pcm->frame_size)) == -1)
+	if ((len = write(pcm->pcm_fd, buffer, size * pcm->frame_size)) == -1) {
+
+		/* reading end has been closed */
+		if (errno == EPIPE) {
+			close(pcm->pcm_fd);
+			pcm->pcm_fd = -1;
+		}
+
 		return -errno;
+	}
 
 	return len / pcm->frame_size;
 }
@@ -283,12 +291,12 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 	pcm->buffer_size = io->buffer_size * pcm->frame_size;
 
-	if ((pcm->transport_fd = bluealsa_open_transport(pcm)) == -1) {
+	if ((pcm->pcm_fd = bluealsa_open_transport(pcm)) == -1) {
 		debug("Couldn't open PCM FIFO: %s", strerror(errno));
 		return -errno;
 	}
 
-	io->poll_fd = pcm->transport_fd;
+	io->poll_fd = pcm->pcm_fd;
 	io->poll_events = io->stream == SND_PCM_STREAM_PLAYBACK ? POLLOUT : POLLIN;
 	return snd_pcm_ioplug_reinit_status(io);
 }
@@ -296,7 +304,8 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug("Releasing PCM FIFO");
-	close(pcm->transport_fd);
+	if (pcm->pcm_fd != -1)
+		close(pcm->pcm_fd);
 	return 0;
 }
 
@@ -315,7 +324,7 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	static char buffer[512];
 
-	while (read(pcm->transport_fd, buffer, sizeof(buffer)) > 0)
+	while (read(pcm->pcm_fd, buffer, sizeof(buffer)) > 0)
 		continue;
 
 	debug("Drained");
@@ -452,7 +461,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		return -ENOMEM;
 
 	pcm->fd = -1;
-	pcm->transport_fd = -1;
+	pcm->pcm_fd = -1;
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
