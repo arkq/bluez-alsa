@@ -312,6 +312,10 @@ static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
+	/* if PCM FIFO is not opened, report it right away */
+	if (pcm->pcm_fd == -1)
+		return -ENODEV;
+
 	/* initialize "fake" ring buffer */
 	pcm->last_size = 0;
 	pcm->pointer = 0;
@@ -336,6 +340,16 @@ static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	return bluealsa_pause_transport(pcm, enable) == -1 ? -errno : 0;
 }
 
+static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
+	struct bluealsa_pcm *pcm = io->private_data;
+	char addr[18];
+
+	ba2str(&pcm->transport.addr, addr);
+	snd_output_printf(out, "Bluetooth device: %s\n", addr);
+	snd_output_printf(out, "Bluetooth profile: %d\n", pcm->transport.profile);
+	snd_output_printf(out, "Bluetooth codec: %d\n", pcm->transport.codec);
+}
+
 static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
 	.start = bluealsa_start,
 	.stop = bluealsa_stop,
@@ -345,6 +359,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
 	.hw_params = bluealsa_hw_params,
 	.hw_free = bluealsa_hw_free,
 	.prepare = bluealsa_prepare,
+	.dump = bluealsa_dump,
 };
 
 static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
@@ -357,6 +372,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
 	.hw_free = bluealsa_hw_free,
 	.prepare = bluealsa_prepare,
 	.pause = bluealsa_pause,
+	.dump = bluealsa_dump,
 };
 
 uint8_t bluealsa_parse_profile(const char *profile, snd_pcm_stream_t stream) {
