@@ -325,17 +325,6 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	return 0;
 }
 
-static int bluealsa_drain(snd_pcm_ioplug_t *io) {
-	struct bluealsa_pcm *pcm = io->private_data;
-	static char buffer[512];
-
-	while (read(pcm->pcm_fd, buffer, sizeof(buffer)) > 0)
-		continue;
-
-	debug("Drained");
-	return 0;
-}
-
 static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	return bluealsa_pause_transport(pcm, enable) == -1 ? -errno : 0;
@@ -401,6 +390,10 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
 	.hw_params = bluealsa_hw_params,
 	.hw_free = bluealsa_hw_free,
 	.prepare = bluealsa_prepare,
+	/* Drain callback is not required, because every data written to the PCM
+	 * FIFO will be processed regardless of the ALSA client state - playback
+	 * client can be closed immediately. */
+	.drain = NULL,
 	.pause = bluealsa_pause,
 	.dump = bluealsa_dump,
 	.delay = bluealsa_delay,
