@@ -38,6 +38,7 @@ struct bluealsa_pcm {
 
 	/* requested transport */
 	struct msg_transport transport;
+	size_t pcm_buffer_size;
 	int pcm_fd;
 
 	/* ALSA operates on frames, we on bytes */
@@ -152,8 +153,8 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 		 * it is possible to modify the size of this buffer we will set is to some
 		 * low value, but big enough to prevent audio tearing. Note, that the size
 		 * will be rounded up to the page size (typically 4096 bytes). */
-		fcntl(fd, F_SETPIPE_SZ, 2048);
-		debug("FIFO buffer size: %d", fcntl(fd, F_GETPIPE_SZ));
+		pcm->pcm_buffer_size = fcntl(fd, F_SETPIPE_SZ, 2048);
+		debug("FIFO buffer size: %zd", pcm->pcm_buffer_size);
 	}
 
 	return fd;
@@ -350,6 +351,34 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 	snd_output_printf(out, "Bluetooth codec: %d\n", pcm->transport.codec);
 }
 
+static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
+	struct bluealsa_pcm *pcm = io->private_data;
+
+	/* Exact calculation of the PCM delay is very hard, if not impossible. For
+	 * the sake of simplicity we will make few assumptions and approximations.
+	 * In general, the delay is proportional to the number of bytes queued in
+	 * the FIFO buffer, the time required to encode data, Bluetooth transfer
+	 * latency and the time required by the device to decode and play audio. */
+
+	snd_pcm_sframes_t delay = 0;
+
+	if (io->stream == SND_PCM_STREAM_PLAYBACK)
+		/* Since, it is not possible to obtain the number of bytes available for
+		 * writing to the FIFO (there is no write related FIONREAD call), we will
+		 * assume, that the whole buffer is filled (upper approximation). */
+		delay += pcm->pcm_buffer_size / pcm->frame_size;
+	else {
+		size_t size;
+		if (ioctl(pcm->pcm_fd, FIONREAD, &size) != -1)
+			delay += size / pcm->frame_size;
+	}
+
+	/* TODO: Delay contribution from other components. */
+
+	*delayp = delay;
+	return 0;
+}
+
 static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
 	.start = bluealsa_start,
 	.stop = bluealsa_stop,
@@ -360,6 +389,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_capture = {
 	.hw_free = bluealsa_hw_free,
 	.prepare = bluealsa_prepare,
 	.dump = bluealsa_dump,
+	.delay = bluealsa_delay,
 };
 
 static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
@@ -373,6 +403,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_a2dp_playback = {
 	.prepare = bluealsa_prepare,
 	.pause = bluealsa_pause,
 	.dump = bluealsa_dump,
+	.delay = bluealsa_delay,
 };
 
 uint8_t bluealsa_parse_profile(const char *profile, snd_pcm_stream_t stream) {
