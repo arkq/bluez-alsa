@@ -277,6 +277,7 @@ static snd_pcm_sframes_t bluealsa_transfer_write(snd_pcm_ioplug_t *io,
 		if (errno == EPIPE) {
 			close(pcm->pcm_fd);
 			pcm->pcm_fd = -1;
+			return -ENODEV;
 		}
 
 		return -errno;
