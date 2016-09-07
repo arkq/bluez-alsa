@@ -7,6 +7,7 @@ TESTS = \
 
 check_PROGRAMS = \
 	test-io \
+	test-pcm \
 	test-utils
 
 AM_CFLAGS = \

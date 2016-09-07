@@ -211,14 +211,6 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 
 	if (io->stream == SND_PCM_STREAM_CAPTURE) {
 
-		struct pollfd pfds[1] = {{ pcm->pcm_fd, POLLIN, 0 }};
-
-		/* Wait until some data appears in the FIFO. It is required, because the
-		 * IOCTL call (the next one) will not block, however we need some progress.
-		 * Returning twice the same pointer will terminate reading. */
-		if (poll(pfds, 1, -1) == -1)
-			return -errno;
-
 		if (ioctl(pcm->pcm_fd, FIONREAD, &size) == -1)
 			return -errno;
 
