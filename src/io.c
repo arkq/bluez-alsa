@@ -307,7 +307,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 			if (len == 0)
 				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
 			transport_release_pcm(t);
-			break;
+			goto fail;
 		}
 
 		const uint8_t *input = rbuffer;
