@@ -79,9 +79,8 @@ struct ba_transport {
 	/* used by PCM client lookup */
 	int pcm_client;
 
-	/* callback functions for self-management */
-	int (*release_bt)(struct ba_transport *);
-	int (*release_pcm)(struct ba_transport *);
+	/* callback function for self-management */
+	int (*release)(struct ba_transport *);
 
 };
 
@@ -101,6 +100,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
 
 int transport_acquire(struct ba_transport *t);
-int transport_release(struct ba_transport *t);
+int transport_release_bt(struct ba_transport *t);
+int transport_release_pcm(struct ba_transport *t);
 
 #endif

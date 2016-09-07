@@ -241,30 +241,6 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static int ctl_pcm_release(struct ba_transport *t) {
-
-	t->release_pcm = NULL;
-	t->pcm_client = -1;
-
-	/* The FIFO state should be managed by the controller module itself. Opened
-	 * PCM connection has to be preserved among many transport acquisitions. */
-
-	if (t->pcm_fifo != NULL) {
-		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
-		unlink(t->pcm_fifo);
-		free(t->pcm_fifo);
-		t->pcm_fifo = NULL;
-	}
-
-	if (t->pcm_fd != -1) {
-		debug("Closing PCM: %d", t->pcm_fd);
-		close(t->pcm_fd);
-		t->pcm_fd = -1;
-	}
-
-	return 0;
-}
-
 static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg) {
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
@@ -323,7 +299,6 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 	 *      this "notification" mechanism does not apply. */
 	t->pcm_fifo = strdup(pcm.fifo);
 
-	t->release_pcm = ctl_pcm_release;
 	t->pcm_client = fd;
 
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
@@ -430,7 +405,7 @@ static void *ctl_thread(void *arg) {
 
 					struct ba_transport *t;
 					if ((t = transport_lookup_pcm_client(setup->devices, fd)) != NULL)
-						t->release_pcm(t);
+						transport_release_pcm(t);
 
 					setup->ctl_pfds[i].fd = -1;
 					close(fd);

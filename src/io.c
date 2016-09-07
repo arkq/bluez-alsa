@@ -30,14 +30,14 @@
 #include "utils.h"
 
 
-static void transport_release_bt(void *arg) {
+static void io_thread_release_bt(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	/* During the normal operation mode, the release callback should not
 	 * be NULL. Hence, we will relay on this callback - file descriptors
 	 * are closed in it. */
-	if (t->release_bt != NULL)
-		t->release_bt(t);
+	if (t->release != NULL)
+		t->release(t);
 
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the IO thread. */
@@ -80,7 +80,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	uint8_t *rbuffer = malloc(rbuffer_size);
 	uint8_t *wbuffer = malloc(wbuffer_size);
 
-	pthread_cleanup_push(transport_release_bt, t);
+	pthread_cleanup_push(io_thread_release_bt, t);
 	pthread_cleanup_push(sbc_finish, &sbc);
 	pthread_cleanup_push(free, wbuffer);
 	pthread_cleanup_push(free, rbuffer);
@@ -183,11 +183,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 			if (errno == EPIPE) {
 				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
-				unlink(t->pcm_fifo);
-				free(t->pcm_fifo);
-				t->pcm_fifo = NULL;
-				close(t->pcm_fd);
-				t->pcm_fd = -1;
+				transport_release_pcm(t);
 				continue;
 			}
 
@@ -197,6 +193,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	}
 
 fail:
+	warn("IO thread failure");
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -245,7 +242,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	uint8_t *rbuffer = malloc(rbuffer_size);
 	uint8_t *wbuffer = malloc(wbuffer_size);
 
-	pthread_cleanup_push(transport_release_bt, t);
+	pthread_cleanup_push(io_thread_release_bt, t);
 	pthread_cleanup_push(sbc_finish, &sbc);
 	pthread_cleanup_push(free, wbuffer);
 	pthread_cleanup_push(free, rbuffer);
@@ -302,13 +299,14 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		if ((len = read(t->pcm_fd, rhead, rlen)) == -1) {
 			if (errno != EBADF)
 				error("FIFO read error: %s", strerror(errno));
-			break;
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-		if (len == 0) {
-			debug("FIFO has been closed: %d", t->pcm_fd);
+		if (len <= 0) {
+			if (len == 0)
+				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
+			transport_release_pcm(t);
 			break;
 		}
 

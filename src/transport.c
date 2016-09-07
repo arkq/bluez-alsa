@@ -150,20 +150,13 @@ void transport_free(struct ba_transport *t) {
 	}
 
 	/* if possible, try to release resources gracefully */
-	if (t->release_bt != NULL)
-		t->release_bt(t);
-	if (t->release_pcm != NULL)
-		t->release_pcm(t);
-
-	if (t->pcm_fifo != NULL) {
-		unlink(t->pcm_fifo);
-		free(t->pcm_fifo);
-	}
+	if (t->release != NULL)
+		t->release(t);
 
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
-	if (t->pcm_fd != -1)
-		close(t->pcm_fd);
+
+	transport_release_pcm(t);
 
 	free(t->name);
 	free(t->dbus_owner);
@@ -237,8 +230,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	switch (state) {
 	case TRANSPORT_IDLE:
 		pthread_cancel(t->thread);
-		pthread_join(t->thread, NULL);
-		ret = transport_release(t);
+		ret = pthread_join(t->thread, NULL);
 		break;
 	case TRANSPORT_PENDING:
 		ret = transport_acquire(t);
@@ -300,7 +292,7 @@ int transport_acquire(struct ba_transport *t) {
 
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
 	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
-	t->release_bt = transport_release;
+	t->release = transport_release_bt;
 	t->state = TRANSPORT_PENDING;
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
@@ -316,7 +308,7 @@ fail:
 	return t->bt_fd;
 }
 
-int transport_release(struct ba_transport *t) {
+int transport_release_bt(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
@@ -359,7 +351,7 @@ int transport_release(struct ba_transport *t) {
 	debug("Closing BT: %d", t->bt_fd);
 
 	ret = 0;
-	t->release_bt = NULL;
+	t->release = NULL;
 	t->state = TRANSPORT_IDLE;
 	close(t->bt_fd);
 	t->bt_fd = -1;
@@ -374,4 +366,25 @@ fail:
 		g_error_free(err);
 	}
 	return ret;
+}
+
+int transport_release_pcm(struct ba_transport *t) {
+
+	/* disconnect transport from a client */
+	t->pcm_client = -1;
+
+	if (t->pcm_fifo != NULL) {
+		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
+		unlink(t->pcm_fifo);
+		free(t->pcm_fifo);
+		t->pcm_fifo = NULL;
+	}
+
+	if (t->pcm_fd != -1) {
+		debug("Closing PCM: %d", t->pcm_fd);
+		close(t->pcm_fd);
+		t->pcm_fd = -1;
+	}
+
+	return 0;
 }

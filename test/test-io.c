@@ -13,6 +13,7 @@
 #include "test.inc"
 #include "utils.inc"
 #include "../src/io.c"
+#include "../src/transport.c"
 #include "../src/utils.c"
 
 static const a2dp_sbc_t config_sbc_44100_joint_stereo = {
@@ -115,10 +116,13 @@ int test_a2dp_sbc_decoding(void) {
 
 	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
 	assert(a2dp_write_sbc(bt_fds[0], &config_sbc_44100_joint_stereo, buffer, size) == 0);
-	close(bt_fds[0]);
 
+	assert(pthread_cancel(thread) == 0);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
-	assert(test_error_count == 0);
+	assert(test_warn_count == 0 && test_error_count == 0);
+
+	close(pcm_fds[1]);
+	close(bt_fds[0]);
 
 	free(buffer);
 	return 0;
@@ -150,10 +154,13 @@ int test_a2dp_sbc_encoding(void) {
 
 	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
 	assert(write(pcm_fds[0], buffer, size) == (signed)size);
-	close(pcm_fds[0]);
 
+	assert(pthread_cancel(thread) == 0);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
-	assert(test_error_count == 0);
+	assert(test_warn_count == 1 && test_error_count == 0);
+
+	close(pcm_fds[0]);
+	close(bt_fds[1]);
 
 	free(buffer);
 	return 0;
