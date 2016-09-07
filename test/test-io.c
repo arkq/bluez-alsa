@@ -11,6 +11,7 @@
 #define _GNU_SOURCE
 #include "a2dp.inc"
 #include "test.inc"
+#include "utils.inc"
 #include "../src/io.c"
 #include "../src/utils.c"
 
@@ -40,24 +41,6 @@ static int pthread_timedjoin(pthread_t thread, void **retval, useconds_t usec) {
 	ts.tv_nsec = ts.tv_nsec % (long)1e9;
 
 	return pthread_timedjoin_np(thread, retval, &ts);
-}
-
-/**
- * Helper function for loading file content into the buffer. */
-static int load_file(const char *path, char **buffer, size_t *size) {
-
-	FILE *f;
-
-	if ((f = fopen(path, "rb")) == NULL)
-		return -errno;
-
-	*size = lseek(fileno(f), 0, SEEK_END);
-	*buffer = malloc(*size);
-
-	rewind(f);
-	*size = fread(*buffer, 1, *size, f);
-
-	return fclose(f);
 }
 
 int test_a2dp_sbc_invalid_setup(void) {
