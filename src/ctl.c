@@ -404,8 +404,20 @@ static void *ctl_thread(void *arg) {
 						debug("Invalid request length: %zd != %zd", len, sizeof(request));
 
 					struct ba_transport *t;
-					if ((t = transport_lookup_pcm_client(setup->devices, fd)) != NULL)
+					if ((t = transport_lookup_pcm_client(setup->devices, fd)) != NULL) {
+
 						transport_release_pcm(t);
+
+						/* For a source profile (where the stream is read from the PCM)
+						 * an IO thread terminates when the PCM is closed. However, it is
+						 * asynchronous, so if a client closes the connection, and then
+						 * very quickly opens the PCM again, we might try to acquire not
+						 * released yet transport. To prevent this, we have to wait for
+						 * the thread to terminate. */
+						if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
+							pthread_join(t->thread, NULL);
+
+					}
 
 					setup->ctl_pfds[i].fd = -1;
 					close(fd);
