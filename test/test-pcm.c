@@ -46,7 +46,7 @@ static char *drum_buffer;
 static size_t drum_buffer_size;
 
 static void test_pcm_setup_free(void) {
-	ctl_free(&setup);
+	bluealsa_ctl_free(&setup);
 	bluealsa_setup_free(&setup);
 }
 
@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
 		}
 
 	assert(bluealsa_setup_init(&setup) == 0);
-	if ((ctl_thread_init(&setup) == -1)) {
+	if ((bluealsa_ctl_thread_init(&setup) == -1)) {
 		perror("ctl_thread_init");
 		return EXIT_FAILURE;
 	}

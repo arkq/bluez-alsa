@@ -101,7 +101,7 @@ struct __attribute__ ((packed)) msg_pcm {
 };
 
 /* XXX: These functions are not exported in any library. */
-int ctl_thread_init(struct ba_setup *setup);
-void ctl_free(struct ba_setup *setup);
+int bluealsa_ctl_thread_init(struct ba_setup *setup);
+void bluealsa_ctl_free(struct ba_setup *setup);
 
 #endif

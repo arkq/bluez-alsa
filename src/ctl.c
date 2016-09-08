@@ -435,7 +435,7 @@ static void *ctl_thread(void *arg) {
 	return NULL;
 }
 
-int ctl_thread_init(struct ba_setup *setup) {
+int bluealsa_ctl_thread_init(struct ba_setup *setup) {
 
 	if (setup->ctl_thread_created) {
 		/* thread is already created */
@@ -481,11 +481,11 @@ int ctl_thread_init(struct ba_setup *setup) {
 	return 0;
 
 fail:
-	ctl_free(setup);
+	bluealsa_ctl_free(setup);
 	return -1;
 }
 
-void ctl_free(struct ba_setup *setup) {
+void bluealsa_ctl_free(struct ba_setup *setup) {
 
 	int created = setup->ctl_thread_created;
 	size_t i;

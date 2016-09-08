@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
 	gchar *address;
 	GError *err;
 
-	if ((ctl_thread_init(&setup)) == -1) {
+	if ((bluealsa_ctl_thread_init(&setup)) == -1) {
 		error("Couldn't initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
@@ -177,9 +177,10 @@ int main(int argc, char **argv) {
 
 	debug("Exiting main loop");
 
-	/* From all of the cleanup routines, this one cannot be omitted. We have
-	 * to unlink the named socket, otherwise service will not start. */
-	ctl_free(&setup);
+	/* From all of the cleanup routines, these ones cannot be omitted. We have
+	 * to unlink named sockets, otherwise service will not start any more. */
+	bluealsa_ctl_free(&setup);
+	bluealsa_setup_free(&setup);
 
 	return EXIT_SUCCESS;
 }
