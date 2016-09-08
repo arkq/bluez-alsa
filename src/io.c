@@ -327,7 +327,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		while (input_len >= sbc_codesize) {
 
 			uint8_t *output = (uint8_t *)(rtp_payload + 1);
-			size_t output_len = len - (output - wbuffer);
+			size_t output_len = wbuffer_size - (output - wbuffer);
 			size_t frames = 0;
 
 			/* Generate as many SBC frames as possible to fill the output buffer
@@ -366,10 +366,12 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				usleep(rt_delta);
 
 			if (write(t->bt_fd, wbuffer, output - wbuffer) == -1) {
-				error("BT socket write error: %s", strerror(errno));
-				/* socket is connected no more */
-				if (errno == ENOTCONN)
+				if (errno == ECONNRESET || errno == ENOTCONN) {
+					/* exit the thread upon BT socket disconnection */
+					debug("BT socket disconnected: %s", strerror(errno));
 					goto fail;
+				}
+				error("BT socket write error: %s", strerror(errno));
 			}
 
 			/* get timestamp for the next frame */

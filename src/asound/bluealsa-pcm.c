@@ -46,7 +46,7 @@ struct bluealsa_pcm {
 	size_t buffer_size;
 
 	/* fake ring buffer */
-	size_t last_size;
+	size_t pointer_read;
 	size_t pointer;
 
 };
@@ -207,29 +207,33 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	if (io->state != SND_PCM_STATE_RUNNING)
 		return 0;
 
-	size_t size = 0;
+	unsigned int size;
+	size_t pointer;
+
+	/* get the number of bytes queued in the PCM FIFO */
+	if (ioctl(pcm->pcm_fd, FIONREAD, &size) == -1)
+		return -errno;
 
 	if (io->stream == SND_PCM_STREAM_CAPTURE) {
 
-		if (ioctl(pcm->pcm_fd, FIONREAD, &size) == -1)
-			return -errno;
-
-		if (size > pcm->last_size) {
-			pcm->pointer += size - pcm->last_size;
+		if (pcm->pointer_read < size) {
+			pcm->pointer_read = size - pcm->pointer_read;
+			pcm->pointer += size;
 			pcm->pointer %= pcm->buffer_size;
 		}
+
+		pointer = pcm->pointer;
 
 	}
 	else {
 
-		/* XXX: There is no FIONREAD for writing... */
-		pcm->pointer++;
-		pcm->pointer %= pcm->buffer_size;
+		/* for playback get the equivalent of "FIONWRITE" */
+		size = pcm->pcm_buffer_size - size;
+		pointer = (pcm->pointer + size) % pcm->buffer_size;
 
 	}
 
-	pcm->last_size = size;
-	return pcm->pointer / pcm->frame_size;
+	return pointer / pcm->frame_size;
 }
 
 static int bluealsa_close(snd_pcm_ioplug_t *io) {
@@ -251,7 +255,7 @@ static snd_pcm_sframes_t bluealsa_transfer_read(snd_pcm_ioplug_t *io,
 	if ((len = read(pcm->pcm_fd, buffer, size * pcm->frame_size)) == -1)
 		return -errno;
 
-	pcm->last_size -= len;
+	pcm->pointer_read -= len;
 	return len / pcm->frame_size;
 }
 
@@ -275,6 +279,8 @@ static snd_pcm_sframes_t bluealsa_transfer_write(snd_pcm_ioplug_t *io,
 		return -errno;
 	}
 
+	pcm->pointer += len;
+	pcm->pointer %= pcm->buffer_size;
 	return len / pcm->frame_size;
 }
 
@@ -311,8 +317,11 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 		return -ENODEV;
 
 	/* initialize "fake" ring buffer */
-	pcm->last_size = 0;
+	pcm->pointer_read = 0;
 	pcm->pointer = 0;
+
+	if (io->stream == SND_PCM_STREAM_PLAYBACK)
+		pcm->pointer = pcm->pcm_buffer_size;
 
 	debug("Prepared");
 	return 0;
