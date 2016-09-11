@@ -170,12 +170,11 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	struct msg_transport *transport = &ctl->transports[key / 2];
 	struct request req = {
 		.command = COMMAND_TRANSPORT_SET_VOLUME,
+		.addr = transport->addr,
 		.profile = transport->profile,
 		.muted = transport->muted,
 		.volume = transport->volume,
 	};
-
-	bacpy(&req.addr, &transport->addr);
 
 	if (key % 2)
 		req.muted = transport->muted = !*value;

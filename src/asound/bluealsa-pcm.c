@@ -82,11 +82,10 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 	struct msg_status status = { 0xAB };
 	struct request req = {
 		.command = COMMAND_TRANSPORT_GET,
+		.addr = pcm->transport.addr,
 		.profile = pcm->transport.profile,
 	};
 	ssize_t len;
-
-	bacpy(&req.addr, &pcm->transport.addr);
 
 	debug("Getting transport for %s profile %d", batostr(&req.addr), req.profile);
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
@@ -118,13 +117,12 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	struct msg_status status = { 0xAB };
 	struct request req = {
 		.command = COMMAND_PCM_OPEN,
+		.addr = pcm->transport.addr,
 		.profile = pcm->transport.profile,
 	};
 	struct msg_pcm res;
 	ssize_t len;
 	int fd;
-
-	bacpy(&req.addr, &pcm->transport.addr);
 
 	debug("Requesting PCM open for %s", batostr(&req.addr));
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
@@ -171,10 +169,9 @@ static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, int pause) {
 	struct msg_status status = { 0xAB };
 	struct request req = {
 		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
+		.addr = pcm->transport.addr,
 		.profile = pcm->transport.profile,
 	};
-
-	bacpy(&req.addr, &pcm->transport.addr);
 
 	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", batostr(&req.addr));
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
