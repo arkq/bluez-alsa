@@ -308,6 +308,40 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
+static void ctl_thread_cmd_pcm_close(const struct request *req, int fd, void *arg) {
+
+	struct ba_setup *setup = (struct ba_setup *)arg;
+	struct msg_status status = { STATUS_CODE_SUCCESS };
+	struct ba_device *d;
+	struct ba_transport *t;
+
+	pthread_mutex_lock(&setup->devices_mutex);
+
+	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
+		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	}
+	if (t->pcm_client != fd) {
+		status.code = STATUS_CODE_FORBIDDEN;
+		goto fail;
+	}
+
+	transport_release_pcm(t);
+	t->pcm_client = -1;
+
+	/* For a source profile (where the stream is read from the PCM) an IO thread
+	 * terminates when the PCM is closed. However, it is asynchronous, so if the
+	 * client closes the connection, and then quickly tries to open it again, we
+	 * might try to acquire not yet released transport. To prevent this, we have
+	 * to wait for the thread to terminate. */
+	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
+		pthread_join(t->thread, NULL);
+
+fail:
+	pthread_mutex_unlock(&setup->devices_mutex);
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
+}
+
 static void ctl_thread_cmd_pcm_control(const struct request *req, int fd, void *arg) {
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
@@ -363,6 +397,7 @@ static void *ctl_thread(void *arg) {
 		[COMMAND_TRANSPORT_GET] = ctl_thread_cmd_transport_get,
 		[COMMAND_TRANSPORT_SET_VOLUME] = ctl_thread_cmd_transport_set_volume,
 		[COMMAND_PCM_OPEN] = ctl_thread_cmd_pcm_open,
+		[COMMAND_PCM_CLOSE] = ctl_thread_cmd_pcm_close,
 		[COMMAND_PCM_PAUSE] = ctl_thread_cmd_pcm_control,
 		[COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
 	};
@@ -405,18 +440,8 @@ static void *ctl_thread(void *arg) {
 
 					struct ba_transport *t;
 					if ((t = transport_lookup_pcm_client(setup->devices, fd)) != NULL) {
-
 						transport_release_pcm(t);
-
-						/* For a source profile (where the stream is read from the PCM)
-						 * an IO thread terminates when the PCM is closed. However, it is
-						 * asynchronous, so if a client closes the connection, and then
-						 * very quickly opens the PCM again, we might try to acquire not
-						 * released yet transport. To prevent this, we have to wait for
-						 * the thread to terminate. */
-						if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
-							pthread_join(t->thread, NULL);
-
+						t->pcm_client = -1;
 					}
 
 					setup->ctl_pfds[i].fd = -1;

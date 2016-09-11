@@ -370,9 +370,6 @@ fail:
 
 int transport_release_pcm(struct ba_transport *t) {
 
-	/* disconnect transport from a client */
-	t->pcm_client = -1;
-
 	if (t->pcm_fifo != NULL) {
 		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
 		unlink(t->pcm_fifo);

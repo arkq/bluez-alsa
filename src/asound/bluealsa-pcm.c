@@ -159,6 +159,30 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 }
 
 /**
+ * Close PCM transport.
+ *
+ * @param pcm An address to the bluealsa pcm structure.
+ * @return Upon success this function returns 0. Otherwise, -1 is returned. */
+static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
+
+	struct msg_status status = { 0xAB };
+	struct request req = {
+		.command = COMMAND_PCM_CLOSE,
+		.addr = pcm->transport.addr,
+		.profile = pcm->transport.profile,
+	};
+
+	debug("Closing PCM for %s", batostr(&req.addr));
+	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
+		return -1;
+	if (read(pcm->fd, &status, sizeof(status)) == -1)
+		return -1;
+
+	errno = bluealsa_status_to_errno(&status);
+	return errno != 0 ? -1 : 0;
+}
+
+/**
  * Pause/resume PCM transport.
  *
  * @param pcm An address to the bluealsa pcm structure.
@@ -300,10 +324,17 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	debug("Releasing PCM FIFO");
-	if (pcm->pcm_fd != -1)
-		close(pcm->pcm_fd);
-	return 0;
+
+	if (pcm->pcm_fd == -1)
+		return -EBADF;
+
+	close(pcm->pcm_fd);
+	if (bluealsa_close_transport(pcm) == -1)
+		debug("Couldn't close PCM FIFO: %s", strerror(errno));
+
+	io->poll_fd = -1;
+	io->poll_events = 0;
+	return snd_pcm_ioplug_reinit_status(io);
 }
 
 static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
