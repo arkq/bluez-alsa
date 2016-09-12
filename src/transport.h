@@ -28,7 +28,11 @@ enum ba_transport_state {
 	TRANSPORT_IDLE,
 	TRANSPORT_PENDING,
 	TRANSPORT_ACTIVE,
+	TRANSPORT_PAUSED,
 };
+
+#define TRANSPORT_RUN_IO_THREAD(t) \
+	((t)->state == TRANSPORT_ACTIVE || (t)->state == TRANSPORT_PAUSED)
 
 struct ba_device {
 
@@ -61,13 +65,15 @@ struct ba_transport {
 	/* if non-zero, equivalent of volume = 0 */
 	uint8_t muted;
 
-	/* paused time accounting */
-	struct timespec ts_pause_start;
-	struct timespec ts_paused;
-
 	/* IO thread - actual transport layer */
 	enum ba_transport_state state;
 	pthread_t thread;
+
+	/* paused time accounting */
+	struct timespec ts_paused;
+
+	pthread_mutex_t resume_mutex;
+	pthread_cond_t resume;
 
 	int bt_fd;
 	size_t mtu_read;

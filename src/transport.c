@@ -125,6 +125,9 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 		memcpy(t->config, config, config_size);
 	}
 
+	pthread_mutex_init(&t->resume_mutex, NULL);
+	pthread_cond_init(&t->resume, NULL);
+
 	t->state = TRANSPORT_IDLE;
 	t->bt_fd = -1;
 	t->pcm_client = -1;
@@ -144,7 +147,7 @@ void transport_free(struct ba_transport *t) {
 	 * terminate the IO thread (or at least make sure it is not running any
 	 * more). Not doing so might result in an undefined behavior or even a
 	 * race condition (closed and reused file descriptor). */
-	if (t->state == TRANSPORT_ACTIVE) {
+	if (TRANSPORT_RUN_IO_THREAD(t)) {
 		pthread_cancel(t->thread);
 		pthread_join(t->thread, NULL);
 	}
@@ -157,6 +160,9 @@ void transport_free(struct ba_transport *t) {
 		close(t->bt_fd);
 
 	transport_release_pcm(t);
+
+	pthread_mutex_destroy(&t->resume_mutex);
+	pthread_cond_destroy(&t->resume);
 
 	free(t->name);
 	free(t->dbus_owner);
@@ -223,7 +229,8 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	if (t->state == state)
 		return 0;
 
-	int ret = -1;
+	const int running = TRANSPORT_RUN_IO_THREAD(t);
+	int ret = 0;
 
 	t->state = state;
 
@@ -236,7 +243,9 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		ret = transport_acquire(t);
 		break;
 	case TRANSPORT_ACTIVE:
-		ret = io_thread_create(t);
+	case TRANSPORT_PAUSED:
+		if (!running)
+			ret = io_thread_create(t);
 		break;
 	}
 

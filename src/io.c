@@ -30,6 +30,8 @@
 #include "utils.h"
 
 
+/**
+ * Wrapper for release callback, which can be used by pthread cleanup. */
 static void io_thread_release_bt(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
@@ -42,6 +44,25 @@ static void io_thread_release_bt(void *arg) {
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the IO thread. */
 	debug("Exiting IO thread");
+}
+
+/**
+ * Pause IO thread until the resume signal is received. */
+static void io_thread_pause(struct ba_transport *t) {
+
+	struct timespec ts0, ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts0);
+
+	debug("Pausing IO thread: %s", t->name);
+	pthread_mutex_lock(&t->resume_mutex);
+	pthread_cond_wait(&t->resume, &t->resume_mutex);
+	pthread_mutex_unlock(&t->resume_mutex);
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	t->ts_paused.tv_sec += ts.tv_sec - ts0.tv_sec;
+	t->ts_paused.tv_nsec += ts.tv_nsec - ts0.tv_nsec;
+
+	debug("Resuming IO thread: %s", t->name);
 }
 
 void *io_thread_a2dp_sbc_forward(void *arg) {
@@ -98,11 +119,14 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	/* TODO: support for "out of the hat" reading MTU */
 
 	debug("Starting forward IO loop");
-	while (t->state == TRANSPORT_ACTIVE) {
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t len;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		if (t->state == TRANSPORT_PAUSED)
+			io_thread_pause(t);
 
 		if (poll(pfds, 1, -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
@@ -285,11 +309,14 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	clock_gettime(CLOCK_MONOTONIC, &ts0);
 
 	debug("Starting backward IO loop");
-	while (t->state == TRANSPORT_ACTIVE) {
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t len;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		if (t->state == TRANSPORT_PAUSED)
+			io_thread_pause(t);
 
 		/* This call will block until data arrives. If the passed file descriptor
 		 * is invalid (e.g. -1) is means, that other thread (the controller) has

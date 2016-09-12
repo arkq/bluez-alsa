@@ -334,8 +334,10 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd, void *ar
 	 * client closes the connection, and then quickly tries to open it again, we
 	 * might try to acquire not yet released transport. To prevent this, we have
 	 * to wait for the thread to terminate. */
-	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
+	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE) {
+		pthread_cond_signal(&t->resume);
 		pthread_join(t->thread, NULL);
+	}
 
 fail:
 	pthread_mutex_unlock(&setup->devices_mutex);
@@ -366,17 +368,11 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd, void *
 
 	switch (req->command) {
 	case COMMAND_PCM_PAUSE:
-		clock_gettime(CLOCK_MONOTONIC, &t->ts_pause_start);
+		transport_set_state(t, TRANSPORT_PAUSED);
 		break;
 	case COMMAND_PCM_RESUME:
-		if (t->ts_pause_start.tv_sec && t->ts_pause_start.tv_nsec) {
-			struct timespec ts;
-			clock_gettime(CLOCK_MONOTONIC, &ts);
-			t->ts_paused.tv_sec += ts.tv_sec - t->ts_pause_start.tv_sec;
-			t->ts_paused.tv_nsec += ts.tv_nsec - t->ts_pause_start.tv_nsec;
-			t->ts_pause_start.tv_sec = 0;
-			t->ts_pause_start.tv_nsec = 0;
-		}
+		transport_set_state(t, TRANSPORT_ACTIVE);
+		pthread_cond_signal(&t->resume);
 		break;
 	default:
 		warn("Invalid PCM control command: %d", req->command);
