@@ -107,21 +107,39 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 void *io_thread_a2dp_sbc_backward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
-	char buffer[1024 * 4];
 
 	while ((t->pcm_fd = open(t->pcm_fifo, O_RDONLY)) == -1)
 		usleep(10000);
 
-	do {
+	char buffer[1024 * 4];
+	struct timespec ts0, ts;
+	size_t frames = 0;
+	ssize_t len;
+
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
 		fprintf(stderr, ".");
 
-		if (read(t->pcm_fd, buffer, sizeof(buffer)) == -1)
+		if (frames == 0)
+			clock_gettime(CLOCK_MONOTONIC, &ts0);
+
+		if ((len = read(t->pcm_fd, buffer, sizeof(buffer))) == -1) {
 			error("FIFO read error: %s", strerror(errno));
+			return NULL;
+		}
+
+		frames += len / 4;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+
+		/* keep reading at a constant rate - 44100 Hz */
+		const int rt_delta = (frames * 1000000 / 44100) -
+			((ts.tv_sec - ts0.tv_sec) * 1e6 + (ts.tv_nsec - ts0.tv_nsec) / 1e3);
+		if (rt_delta > 0)
+			usleep(rt_delta);
+
+		if (frames > 3000)
+			frames = 0;
 
 	}
-	while (usleep(10000) == 0);
-
-	return NULL;
 }
 
 int main(int argc, char *argv[]) {
@@ -168,8 +186,6 @@ int main(int argc, char *argv[]) {
 	/* make sure to cleanup named pipes */
 	atexit(test_pcm_setup_free);
 
-	assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);
-
 	bdaddr_t addr;
 	struct ba_device *d;
 
@@ -183,6 +199,7 @@ int main(int argc, char *argv[]) {
 						TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
 						(uint8_t *)&config, sizeof(config))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_source->dbus_path), t_source);
+		t_source->state = TRANSPORT_ACTIVE;
 		assert(io_thread_create(t_source) == 0);
 	}
 
@@ -192,6 +209,8 @@ int main(int argc, char *argv[]) {
 						TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
 						(uint8_t *)&config, sizeof(config))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_sink->dbus_path), t_sink);
+		assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);
+		t_sink->state = TRANSPORT_ACTIVE;
 		assert(io_thread_create(t_sink) == 0);
 	}
 
