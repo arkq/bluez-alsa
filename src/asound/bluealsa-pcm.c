@@ -144,17 +144,6 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	if ((fd = open(res.fifo, flags)) == -1)
 		return -1;
 
-	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
-		/* By default, the size of the pipe buffer is set to a too large value for
-		 * our purpose. On modern Linux system it is 65536 bytes. Large buffer in
-		 * the playback mode might contribute to an unnecessary audio delay. Since
-		 * it is possible to modify the size of this buffer we will set is to some
-		 * low value, but big enough to prevent audio tearing. Note, that the size
-		 * will be rounded up to the page size (typically 4096 bytes). */
-		pcm->pcm_buffer_size = fcntl(fd, F_SETPIPE_SZ, 2048);
-		debug("FIFO buffer size: %zd", pcm->pcm_buffer_size);
-	}
-
 	return fd;
 }
 
@@ -309,12 +298,24 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	struct bluealsa_pcm *pcm = io->private_data;
 	(void)params;
 
+	debug("Period: %zd bytes x %zd", io->period_size, io->buffer_size / io->period_size);
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 	pcm->buffer_size = io->buffer_size * pcm->frame_size;
 
 	if ((pcm->pcm_fd = bluealsa_open_transport(pcm)) == -1) {
 		debug("Couldn't open PCM FIFO: %s", strerror(errno));
 		return -errno;
+	}
+
+	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
+		/* By default, the size of the pipe buffer is set to a too large value for
+		 * our purpose. On modern Linux system it is 65536 bytes. Large buffer in
+		 * the playback mode might contribute to an unnecessary audio delay. Since
+		 * it is possible to modify the size of this buffer we will set is to some
+		 * low value, but big enough to prevent audio tearing. Note, that the size
+		 * will be rounded up to the page size (typically 4096 bytes). */
+		pcm->pcm_buffer_size = fcntl(pcm->pcm_fd, F_SETPIPE_SZ, 2048);
+		debug("FIFO buffer size: %zd", pcm->pcm_buffer_size);
 	}
 
 	io->poll_fd = pcm->pcm_fd;
