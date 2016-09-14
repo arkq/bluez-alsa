@@ -302,11 +302,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	uint8_t *rhead = rbuffer;
 	size_t rlen = rbuffer_size;
 
-	/* Get initial time point. This time point is used to calculate time drift
-	 * during data transmission. The transfer should be kept at constant pace,
-	 * so we should be able to detect (and correct) all fluctuations. */
+	int initialized = 0;
 	struct timespec ts0;
-	clock_gettime(CLOCK_MONOTONIC, &ts0);
 
 	debug("Starting backward IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
@@ -335,6 +332,18 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
 			transport_release_pcm(t);
 			goto fail;
+		}
+
+		/* When the thread is created, there might be no data in the FIFO. In fact
+		 * there might be no data for a long time - until client starts playback.
+		 * In order to correctly calculate time drift, the zero time point has to
+		 * be obtained after the stream has started. */
+		if (!initialized) {
+			initialized = 1;
+			/* Get initial time point. This time point is used to calculate time
+			 * drift during data transmission. The transfer should be kept at a
+			 * constant pace (audio bit rate). */
+			clock_gettime(CLOCK_MONOTONIC, &ts0);
 		}
 
 		const uint8_t *input = rbuffer;
