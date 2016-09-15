@@ -69,6 +69,25 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr, uint8_t 
 	return -1;
 }
 
+/**
+ * Release transport resources acquired by the controller module. */
+static void _transport_release(struct ba_transport *t) {
+
+	transport_release_pcm(t);
+	t->pcm_client = -1;
+
+	/* For a source profile (where the stream is read from the PCM) an IO thread
+	 * terminates when the PCM is closed. However, it is asynchronous, so if the
+	 * client closes the connection, and then quickly tries to open it again, we
+	 * might try to acquire not yet released transport. To prevent this, we have
+	 * to wait for the thread to terminate. */
+	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE) {
+		pthread_cond_signal(&t->resume);
+		pthread_join(t->thread, NULL);
+	}
+
+}
+
 static void _ctl_transport(const struct ba_device *d, const struct ba_transport *t,
 		struct msg_transport *transport) {
 
@@ -285,6 +304,12 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 	if (chown(pcm.fifo, -1, setup->gid_audio) == -1)
 		goto fail;
 
+	/* XXX: This will notify our forward transport IO thread, that the FIFO has
+	 *      just been created, so it is possible to open it. Backward IO thread
+	 *      should not be started before the PCM open request has been made, so
+	 *      this "notification" mechanism does not apply. */
+	t->pcm_fifo = strdup(pcm.fifo);
+
 	/* for source profile we need to open transport by ourself */
 	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
 		if (transport_acquire(t) == -1) {
@@ -293,14 +318,7 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 			goto fail;
 		}
 
-	/* XXX: This will notify our forward transport IO thread, that the FIFO has
-	 *      just been created, so it is possible to open it. Backward IO thread
-	 *      should not be started before the PCM open request has been made, so
-	 *      this "notification" mechanism does not apply. */
-	t->pcm_fifo = strdup(pcm.fifo);
-
 	t->pcm_client = fd;
-
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
 
 fail:
@@ -326,18 +344,7 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd, void *ar
 		goto fail;
 	}
 
-	transport_release_pcm(t);
-	t->pcm_client = -1;
-
-	/* For a source profile (where the stream is read from the PCM) an IO thread
-	 * terminates when the PCM is closed. However, it is asynchronous, so if the
-	 * client closes the connection, and then quickly tries to open it again, we
-	 * might try to acquire not yet released transport. To prevent this, we have
-	 * to wait for the thread to terminate. */
-	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE) {
-		pthread_cond_signal(&t->resume);
-		pthread_join(t->thread, NULL);
-	}
+	_transport_release(t);
 
 fail:
 	pthread_mutex_unlock(&setup->devices_mutex);
@@ -435,10 +442,8 @@ static void *ctl_thread(void *arg) {
 						debug("Invalid request length: %zd != %zd", len, sizeof(request));
 
 					struct ba_transport *t;
-					if ((t = transport_lookup_pcm_client(setup->devices, fd)) != NULL) {
-						transport_release_pcm(t);
-						t->pcm_client = -1;
-					}
+					if ((t = transport_lookup_pcm_client(setup->devices, fd)) != NULL)
+						_transport_release(t);
 
 					setup->ctl_pfds[i].fd = -1;
 					close(fd);
