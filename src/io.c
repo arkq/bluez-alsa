@@ -167,7 +167,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 			 * only for the opening process - we do not want to block if the reading
 			 * endpoint is not connected yet. Blocking upon data write will prevent
 			 * frame dropping. */
-			fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) ^ O_NONBLOCK);
+			fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) & ~O_NONBLOCK);
 		}
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)rbuffer;

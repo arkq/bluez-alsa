@@ -55,36 +55,61 @@ int transport_acquire(struct ba_transport *t) {
 	return 0;
 }
 
+static void io_thread_sync_44100_hz(size_t frames, struct timespec *ts0) {
+
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+
+	/* keep a constant bit rate - 44100 Hz */
+	const int delay = (frames * 1000000 / 44100) -
+		((ts.tv_sec - ts0->tv_sec) * 1e6 + (ts.tv_nsec - ts0->tv_nsec) / 1e3);
+
+	if (delay > 0)
+		usleep(delay);
+
+}
+
 void *io_thread_a2dp_sbc_forward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	const char *end = drum_buffer + drum_buffer_size;
 	char *head = drum_buffer;
-	size_t len;
+	struct timespec ts0;
+	size_t frames = 0;
+	ssize_t len;
 
-	do {
-		fprintf(stderr, ".");
+	struct sigaction sigact = { .sa_handler = SIG_IGN };
+	sigaction(SIGPIPE, &sigact, NULL);
 
-		if (t->pcm_fifo == NULL)
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
+
+		if (t->pcm_fifo == NULL) {
+			usleep(10000);
 			continue;
-
-		fprintf(stderr, ":");
+		}
 
 		if (t->pcm_fd == -1) {
 			if ((t->pcm_fd = open(t->pcm_fifo, O_WRONLY | O_NONBLOCK)) == -1) {
 				if (errno != ENXIO)
 					error("Couldn't open FIFO: %s", strerror(errno));
 				/* FIFO endpoint is not connected yet */
+				usleep(10000);
 				continue;
 			}
 			/* Restore the blocking mode of our FIFO. */
-			fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) ^ O_NONBLOCK);
+			fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) & ~O_NONBLOCK);
 		}
 
-		fprintf(stderr, "+");
+		fprintf(stderr, ".");
 
-		len = head + 512 > end ? end - head : 512;
-		if (write(t->pcm_fd, head, len) == -1) {
+		if (frames == 0)
+			clock_gettime(CLOCK_MONOTONIC, &ts0);
+
+		if (head == end)
+			head = drum_buffer;
+
+		len = head + 1024 > end ? end - head : 1024;
+		if ((len = write(t->pcm_fd, head, len)) == -1) {
 
 			if (errno == EPIPE) {
 				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
@@ -96,13 +121,13 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		}
 
 		head += len;
-		if (head == end)
-			head = drum_buffer;
+		frames += len / 4;
+		io_thread_sync_44100_hz(frames, &ts0);
+
+		if (frames > 3000)
+			frames = 0;
 
 	}
-	while (usleep(100000) == 0);
-
-	return NULL;
 }
 
 void *io_thread_a2dp_sbc_backward(void *arg) {
@@ -112,7 +137,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		usleep(10000);
 
 	char buffer[1024 * 4];
-	struct timespec ts0, ts;
+	struct timespec ts0;
 	size_t frames = 0;
 	ssize_t len;
 
@@ -128,13 +153,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		}
 
 		frames += len / 4;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
-
-		/* keep reading at a constant rate - 44100 Hz */
-		const int rt_delta = (frames * 1000000 / 44100) -
-			((ts.tv_sec - ts0.tv_sec) * 1e6 + (ts.tv_nsec - ts0.tv_nsec) / 1e3);
-		if (rt_delta > 0)
-			usleep(rt_delta);
+		io_thread_sync_44100_hz(frames, &ts0);
 
 		if (frames > 3000)
 			frames = 0;
