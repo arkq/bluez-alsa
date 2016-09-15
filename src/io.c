@@ -321,14 +321,16 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		 * part, we will still read correct data, because Linux kernel does not
 		 * decrement file descriptor reference counter until the read returns. */
 		if ((len = read(t->pcm_fd, rhead, rlen)) == -1) {
-			if (errno != EBADF)
-				error("FIFO read error: %s", strerror(errno));
+			if (errno == EINTR)
+				continue;
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (len <= 0) {
-			if (len == 0)
+			if (len == -1 && errno != EBADF)
+				error("FIFO read error: %s", strerror(errno));
+			else if (len == 0)
 				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
 			transport_release_pcm(t);
 			goto fail;

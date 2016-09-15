@@ -43,7 +43,7 @@ Setup parameters of the bluealsa PCM device can be set in the local `.asoundrc` 
 like this:
 
 	$ cat ~/.asoundrc
-	defaults.bluealsa.hci "hci0"
+	defaults.bluealsa.interface "hci0"
 	defaults.bluealsa.device "XX:XX:XX:XX:XX:XX"
 	defaults.bluealsa.profile "a2dp"
 
