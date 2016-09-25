@@ -119,7 +119,6 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
  * @return PCM FIFO file descriptor, or -1 on error. */
 static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 
-	const int flags = pcm->io.stream == SND_PCM_STREAM_PLAYBACK ? O_WRONLY : O_RDONLY;
 	struct msg_status status = { 0xAB };
 	struct request req = {
 		.command = COMMAND_PCM_OPEN,
@@ -146,9 +145,17 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	if (read(pcm->fd, &status, sizeof(status)) == -1)
 		return -1;
 
-	debug("Opening PCM FIFO (mode: %s): %s", flags == O_WRONLY ? "WR" : "RO", res.fifo);
-	if ((fd = open(res.fifo, flags)) == -1)
+	debug("Opening PCM FIFO (mode: %s): %s",
+			pcm->io.stream == SND_PCM_STREAM_PLAYBACK ? "WR" : "RO", res.fifo);
+	if ((fd = open(res.fifo, pcm->io.stream == SND_PCM_STREAM_PLAYBACK ?
+					O_WRONLY : O_RDONLY | O_NONBLOCK)) == -1)
 		return -1;
+
+	/* Restore the blocking mode. Non-blocking mode was required only for the
+	 * opening stage - FIFO read-write sides synchronization is done in the IO
+	 * thread. */
+	if (pcm->io.stream == SND_PCM_STREAM_CAPTURE)
+		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
 
 	return fd;
 }
@@ -210,6 +217,18 @@ static void *io_thread(void *arg) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
 	const size_t period_size = io->period_size * pcm->frame_size;
+
+	/* In the capture mode, the PCM FIFO is opened in the non-blocking mode.
+	 * So right now, we have to synchronize write and read sides, otherwise
+	 * reading might return 0, which will be incorrectly recognized as FIFO
+	 * close signal, but in fact it means, that it was not opened yet. */
+	if (io->stream == SND_PCM_STREAM_CAPTURE) {
+		struct pollfd pfds[1] = {{ pcm->pcm_fd, POLLIN, 0 }};
+		if (poll(pfds, 1, -1) == -1) {
+			SNDERR("PCM FIFO poll error: %s", strerror(errno));
+			goto final;
+		}
+	}
 
 	debug("Starting IO loop");
 	while (pcm->io_started) {
