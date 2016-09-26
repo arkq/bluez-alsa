@@ -102,6 +102,9 @@ struct ba_transport *transport_lookup(GHashTable *devices, const char *key);
 struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client);
 gboolean transport_remove(GHashTable *devices, const char *key);
 
+unsigned int transport_get_channels(const struct ba_transport *t);
+unsigned int transport_get_sampling(const struct ba_transport *t);
+
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
 

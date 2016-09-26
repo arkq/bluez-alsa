@@ -99,58 +99,10 @@ static void _ctl_transport(const struct ba_device *d, const struct ba_transport 
 	transport->profile = t->profile;
 	transport->codec = t->codec;
 
-	transport->channels = 0;
-	transport->sampling = 0;
+	transport->channels = transport_get_channels(t);
+	transport->sampling = transport_get_sampling(t);
 	transport->volume = t->volume;
 	transport->muted = t->muted;
-
-	switch (t->profile) {
-	case TRANSPORT_PROFILE_A2DP_SOURCE:
-	case TRANSPORT_PROFILE_A2DP_SINK:
-		switch (t->codec) {
-		case A2DP_CODEC_SBC: {
-			a2dp_sbc_t *c = (a2dp_sbc_t *)t->config;
-
-			switch (c->channel_mode) {
-			case SBC_CHANNEL_MODE_MONO:
-				transport->channels = 1;
-				break;
-			case SBC_CHANNEL_MODE_STEREO:
-			case SBC_CHANNEL_MODE_JOINT_STEREO:
-			case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-				transport->channels = 2;
-				break;
-			}
-
-			switch (c->frequency) {
-			case SBC_SAMPLING_FREQ_16000:
-				transport->sampling = 16000;
-				break;
-			case SBC_SAMPLING_FREQ_32000:
-				transport->sampling = 32000;
-				break;
-			case SBC_SAMPLING_FREQ_44100:
-				transport->sampling = 44100;
-				break;
-			case SBC_SAMPLING_FREQ_48000:
-				transport->sampling = 48000;
-				break;
-			}
-
-			break;
-		}
-		case A2DP_CODEC_MPEG12:
-		case A2DP_CODEC_MPEG24:
-		case A2DP_CODEC_ATRAC:
-		default:
-			warn("Codec not supported: %u", t->codec);
-		}
-		break;
-	case TRANSPORT_PROFILE_HFP:
-	case TRANSPORT_PROFILE_HSP:
-	default:
-		warn("Profile not supported: %u", t->profile);
-	}
 
 }
 

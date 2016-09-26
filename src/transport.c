@@ -223,6 +223,122 @@ gboolean transport_remove(GHashTable *devices, const char *key) {
 	return FALSE;
 }
 
+unsigned int transport_get_channels(const struct ba_transport *t) {
+
+	switch (t->profile) {
+	case TRANSPORT_PROFILE_A2DP_SOURCE:
+	case TRANSPORT_PROFILE_A2DP_SINK:
+		switch (t->codec) {
+		case A2DP_CODEC_SBC:
+			switch (((a2dp_sbc_t *)t->config)->channel_mode) {
+			case SBC_CHANNEL_MODE_MONO:
+				return 1;
+			case SBC_CHANNEL_MODE_STEREO:
+			case SBC_CHANNEL_MODE_JOINT_STEREO:
+			case SBC_CHANNEL_MODE_DUAL_CHANNEL:
+				return 2;
+			}
+			break;
+		case A2DP_CODEC_MPEG12:
+			switch (((a2dp_mpeg_t *)t->config)->channel_mode) {
+			case MPEG_CHANNEL_MODE_MONO:
+				return 1;
+			case MPEG_CHANNEL_MODE_STEREO:
+			case MPEG_CHANNEL_MODE_JOINT_STEREO:
+			case MPEG_CHANNEL_MODE_DUAL_CHANNEL:
+				return 2;
+			}
+			break;
+		case A2DP_CODEC_MPEG24:
+			switch (((a2dp_aac_t *)t->config)->channels) {
+			case AAC_CHANNELS_1:
+				return 1;
+			case AAC_CHANNELS_2:
+				return 2;
+			}
+			break;
+		}
+		break;
+	case TRANSPORT_PROFILE_HFP:
+		return 1;
+	case TRANSPORT_PROFILE_HSP:
+		return 1;
+	}
+
+	/* the number of channels is unspecified */
+	return 0;
+}
+
+unsigned int transport_get_sampling(const struct ba_transport *t) {
+
+	switch (t->profile) {
+	case TRANSPORT_PROFILE_A2DP_SOURCE:
+	case TRANSPORT_PROFILE_A2DP_SINK:
+		switch (t->codec) {
+		case A2DP_CODEC_SBC:
+			switch (((a2dp_sbc_t *)t->config)->frequency) {
+			case SBC_SAMPLING_FREQ_16000:
+				return 16000;
+			case SBC_SAMPLING_FREQ_32000:
+				return 32000;
+			case SBC_SAMPLING_FREQ_44100:
+				return 44100;
+			case SBC_SAMPLING_FREQ_48000:
+				return 48000;
+			}
+			break;
+		case A2DP_CODEC_MPEG12:
+			switch (((a2dp_mpeg_t *)t->config)->frequency) {
+			case MPEG_SAMPLING_FREQ_16000:
+				return 16000;
+			case MPEG_SAMPLING_FREQ_22050:
+				return 22050;
+			case MPEG_SAMPLING_FREQ_24000:
+				return 24000;
+			case MPEG_SAMPLING_FREQ_32000:
+				return 32000;
+			case MPEG_SAMPLING_FREQ_44100:
+				return 44100;
+			case MPEG_SAMPLING_FREQ_48000:
+				return 48000;
+			}
+			break;
+		case A2DP_CODEC_MPEG24:
+			switch (AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->config)) {
+			case AAC_SAMPLING_FREQ_8000:
+				return 8000;
+			case AAC_SAMPLING_FREQ_11025:
+				return 11025;
+			case AAC_SAMPLING_FREQ_12000:
+				return 12000;
+			case AAC_SAMPLING_FREQ_16000:
+				return 16000;
+			case AAC_SAMPLING_FREQ_22050:
+				return 22050;
+			case AAC_SAMPLING_FREQ_24000:
+				return 24000;
+			case AAC_SAMPLING_FREQ_32000:
+				return 32000;
+			case AAC_SAMPLING_FREQ_44100:
+				return 44100;
+			case AAC_SAMPLING_FREQ_48000:
+				return 48000;
+			case AAC_SAMPLING_FREQ_64000:
+				return 64000;
+			case AAC_SAMPLING_FREQ_88200:
+				return 88200;
+			case AAC_SAMPLING_FREQ_96000:
+				return 96000;
+			}
+			break;
+		}
+		break;
+	}
+
+	/* the sampling frequency is unspecified */
+	return 0;
+}
+
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	debug("State transition: %d -> %d", t->state, state);
 
