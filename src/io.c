@@ -47,6 +47,66 @@ static void io_thread_release_bt(void *arg) {
 }
 
 /**
+ * Open PCM for reading. */
+static int io_thread_open_pcm_read(struct ba_transport *t) {
+
+	/* XXX: This check allows testing. During normal operation PCM FIFO
+	 *      should not be opened outside the IO thread function. */
+	if (t->pcm_fd == -1) {
+		debug("Opening FIFO for reading: %s", t->pcm_fifo);
+		/* this call will block until writing side is opened */
+		if ((t->pcm_fd = open(t->pcm_fifo, O_RDONLY)) == -1)
+			return -1;
+	}
+
+	return 0;
+}
+
+/**
+ * Open PCM for writing. */
+static int io_thread_open_pcm_write(struct ba_transport *t) {
+
+	/* transport PCM FIFO has not been requested */
+	if (t->pcm_fifo == NULL) {
+		errno = ENXIO;
+		return -1;
+	}
+
+	if (t->pcm_fd == -1) {
+
+		debug("Opening FIFO for writing: %s", t->pcm_fifo);
+		if ((t->pcm_fd = open(t->pcm_fifo, O_WRONLY | O_NONBLOCK)) == -1)
+			/* FIFO endpoint is not connected yet */
+			return -1;
+
+		/* Restore the blocking mode of our FIFO. Non-blocking mode was required
+		 * only for the opening process - we do not want to block if the reading
+		 * endpoint is not connected yet. On the other hand, blocking upon data
+		 * write will prevent frame dropping. */
+		fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) & ~O_NONBLOCK);
+
+	}
+
+	return 0;
+}
+
+/**
+ * Scale PCM signal according to the transport audio properties. */
+static void io_thread_scale_pcm(struct ba_transport *t, void *buffer, size_t size) {
+
+	/* Get a snapshot of audio properties. Please note, that mutex is not
+	 * required here, because we are not modifying these variables. */
+	const uint8_t volume = t->volume;
+	const uint8_t muted = t->muted;
+
+	if (muted || volume == 0)
+		snd_pcm_mute_s16le(buffer, size);
+	else if (volume != 100)
+		snd_pcm_scale_s16le(buffer, size, volume);
+
+}
+
+/**
  * Pause IO thread until the resume signal is received. */
 static void io_thread_pause(struct ba_transport *t) {
 
@@ -150,24 +210,10 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 			break;
 		}
 
-		/* transport PCM FIFO has not been requested */
-		if (t->pcm_fifo == NULL)
+		if (io_thread_open_pcm_write(t) == -1) {
+			if (errno != ENXIO)
+				error("Couldn't open FIFO: %s", strerror(errno));
 			continue;
-
-		if (t->pcm_fd == -1) {
-
-			if ((t->pcm_fd = open(t->pcm_fifo, O_WRONLY | O_NONBLOCK)) == -1) {
-				if (errno != ENXIO)
-					error("Couldn't open FIFO: %s", strerror(errno));
-				/* FIFO endpoint is not connected yet */
-				continue;
-			}
-
-			/* Restore the blocking mode of our FIFO. Non-blocking mode was required
-			 * only for the opening process - we do not want to block if the reading
-			 * endpoint is not connected yet. Blocking upon data write will prevent
-			 * frame dropping. */
-			fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) & ~O_NONBLOCK);
 		}
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)rbuffer;
@@ -276,15 +322,9 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		goto fail;
 	}
 
-	/* XXX: This check allows testing. During normal operation PCM FIFO
-	 *      should not be opened by some external entity. */
-	if (t->pcm_fd == -1) {
-		debug("Opening FIFO for reading: %s", t->pcm_fifo);
-		/* this call will block until writing end is opened */
-		if ((t->pcm_fd = open(t->pcm_fifo, O_RDONLY)) == -1) {
-			error("Couldn't open FIFO: %s", strerror(errno));
-			goto fail;
-		}
+	if (io_thread_open_pcm_read(t) == -1) {
+		error("Couldn't open FIFO: %s", strerror(errno));
+		goto fail;
 	}
 
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
@@ -351,15 +391,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		const uint8_t *input = rbuffer;
 		size_t input_len = (rhead - rbuffer) + len;
 
-		/* Get a snapshot of audio properties. Please note, that mutex is not
-		 * required here, because we are not modifying these variables. */
-		const uint8_t volume = t->volume;
-		const uint8_t muted = t->muted;
-
-		if (muted || volume == 0)
-			snd_pcm_mute_s16le(rbuffer, input_len);
-		else if (volume != 100)
-			snd_pcm_scale_s16le(rbuffer, input_len, volume);
+		/* lower volume or mute audio signal */
+		io_thread_scale_pcm(t, rbuffer, input_len);
 
 		/* encode and transfer obtained data */
 		while (input_len >= sbc_codesize) {
