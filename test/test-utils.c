@@ -45,10 +45,51 @@ int test_pcm_scale_s16le(void) {
 	return 0;
 }
 
+int test_difftimespec(void) {
+
+	struct timespec ts1, ts2, ts;
+
+	ts1.tv_sec = ts2.tv_sec = 12345;
+	ts1.tv_nsec = ts2.tv_nsec = 67890;
+	assert(difftimespec(&ts1, &ts2, &ts) == 0);
+	assert(ts.tv_sec == 0 && ts.tv_nsec == 0);
+
+	ts1.tv_sec = 10;
+	ts1.tv_nsec = 100000000;
+	ts2.tv_sec = 10;
+	ts2.tv_nsec = 500000000;
+	assert(difftimespec(&ts1, &ts2, &ts) > 0);
+	assert(ts.tv_sec == 0 && ts.tv_nsec == 400000000);
+
+	ts1.tv_sec = 10;
+	ts1.tv_nsec = 800000000;
+	ts2.tv_sec = 12;
+	ts2.tv_nsec = 100000000;
+	assert(difftimespec(&ts1, &ts2, &ts) > 0);
+	assert(ts.tv_sec == 1 && ts.tv_nsec == 300000000);
+
+	ts1.tv_sec = 10;
+	ts1.tv_nsec = 500000000;
+	ts2.tv_sec = 10;
+	ts2.tv_nsec = 100000000;
+	assert(difftimespec(&ts1, &ts2, &ts) < 0);
+	assert(ts.tv_sec == 0 && ts.tv_nsec == 400000000);
+
+	ts1.tv_sec = 12;
+	ts1.tv_nsec = 100000000;
+	ts2.tv_sec = 10;
+	ts2.tv_nsec = 800000000;
+	assert(difftimespec(&ts1, &ts2, &ts) < 0);
+	assert(ts.tv_sec == 1 && ts.tv_nsec == 300000000);
+
+	return 0;
+}
+
 int main(void) {
 
 	test_run(test_pcm_mute_s16le);
 	test_run(test_pcm_scale_s16le);
+	test_run(test_difftimespec);
 
 	return EXIT_SUCCESS;
 }

@@ -61,10 +61,6 @@ static int io_thread_create(struct ba_transport *t) {
 	if (routine == NULL)
 		return -1;
 
-	/* initialize time accounting */
-	t->ts_paused.tv_sec = 0;
-	t->ts_paused.tv_nsec = 0;
-
 	if ((ret = pthread_create(&t->thread, NULL, routine, t)) != 0) {
 		error("Couldn't create IO thread: %s", strerror(ret));
 		return -1;

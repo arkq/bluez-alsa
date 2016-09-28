@@ -14,7 +14,6 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <time.h>
 
 #include <bluetooth/bluetooth.h>
 #include <gio/gio.h>
@@ -68,9 +67,6 @@ struct ba_transport {
 	/* IO thread - actual transport layer */
 	enum ba_transport_state state;
 	pthread_t thread;
-
-	/* paused time accounting */
-	struct timespec ts_paused;
 
 	pthread_mutex_t resume_mutex;
 	pthread_cond_t resume;

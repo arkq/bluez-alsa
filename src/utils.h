@@ -11,6 +11,8 @@
 #ifndef BLUEALSA_UTILS_H_
 #define BLUEALSA_UTILS_H_
 
+#include <time.h>
+
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <gio/gio.h>
@@ -26,5 +28,8 @@ GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
 
 int snd_pcm_mute_s16le(void *buffer, size_t size);
 int snd_pcm_scale_s16le(void *buffer, size_t size, int scale);
+
+int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
+		struct timespec *ts);
 
 #endif

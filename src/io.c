@@ -30,6 +30,17 @@
 #include "utils.h"
 
 
+struct io_sync {
+
+	/* reference time point */
+	struct timespec ts0;
+	/* transfered frames since ts0 */
+	uint32_t frames;
+	/* used sampling frequency */
+	uint16_t sampling;
+
+};
+
 /**
  * Wrapper for release callback, which can be used by pthread cleanup. */
 static void io_thread_release_bt(void *arg) {
@@ -109,20 +120,48 @@ static void io_thread_scale_pcm(struct ba_transport *t, void *buffer, size_t siz
 /**
  * Pause IO thread until the resume signal is received. */
 static void io_thread_pause(struct ba_transport *t) {
-
-	struct timespec ts0, ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts0);
-
 	debug("Pausing IO thread: %s", t->name);
 	pthread_mutex_lock(&t->resume_mutex);
 	pthread_cond_wait(&t->resume, &t->resume_mutex);
 	pthread_mutex_unlock(&t->resume_mutex);
-
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	t->ts_paused.tv_sec += ts.tv_sec - ts0.tv_sec;
-	t->ts_paused.tv_nsec += ts.tv_nsec - ts0.tv_nsec;
-
 	debug("Resuming IO thread: %s", t->name);
+}
+
+/**
+ * Synchronize thread timing with the audio sampling frequency.
+ *
+ * Time synchronization relies on the frame counter being linear. This counter
+ * should be initialized upon transfer start and resume. With the size of this
+ * counter being 32 bits, it is possible to track up to ~24 hours of playback,
+ * with the sampling rate of 48 kHz. If this is insufficient, one can switch
+ * to 64 bits, which would be sufficient to play for 12 million years. */
+static int io_thread_time_sync(struct io_sync *io_sync, uint32_t frames) {
+
+	const uint16_t sampling = io_sync->sampling;
+	struct timespec ts_audio;
+	struct timespec ts_clock;
+	struct timespec ts;
+
+	io_sync->frames += frames;
+	frames = io_sync->frames;
+
+	/* keep transfer 10ms ahead */
+	unsigned int overframes = sampling / 100;
+	frames = frames > overframes ? frames - overframes : 0;
+
+	ts_audio.tv_sec = frames / sampling;
+	ts_audio.tv_nsec = 1000000000 / sampling * (frames % sampling);
+
+	clock_gettime(CLOCK_MONOTONIC, &ts_clock);
+	difftimespec(&io_sync->ts0, &ts_clock, &ts_clock);
+
+	/* maintain constant bit rate */
+	if (difftimespec(&ts_clock, &ts_audio, &ts) > 0) {
+		nanosleep(&ts, NULL);
+		return 1;
+	}
+
+	return 0;
 }
 
 void *io_thread_a2dp_sbc_forward(void *arg) {
@@ -286,6 +325,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	const size_t sbc_codesize = sbc_get_codesize(&sbc);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 	const unsigned sbc_frame_duration = sbc_get_frame_duration(&sbc);
+	const unsigned int channels = transport_get_channels(t);
 
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
 	 * header and at least one SBC frame. In general, there is no constraint
@@ -298,12 +338,6 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 	rtp_header_t *rtp_header;
 	rtp_payload_sbc_t *rtp_payload;
-
-	/* The internal timestamp has to be stored in a variable, which can handle
-	 * reasonable big time (more then one hour) with a microsecond precision.
-	 * Unsigned 32 bit integer is not enough for this purpose. It is possible
-	 * to store up to 0xFFFFFFFF microseconds which is ~71.6 minutes. */
-	struct timespec ts_timestamp = { 0 };
 	uint16_t seq_number = 0;
 	uint32_t timestamp = 0;
 
@@ -342,8 +376,9 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	uint8_t *rhead = rbuffer;
 	size_t rlen = rbuffer_size;
 
-	int initialized = 0;
-	struct timespec ts0;
+	struct io_sync io_sync = {
+		.sampling = transport_get_sampling(t),
+	};
 
 	debug("Starting backward IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
@@ -352,8 +387,10 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		if (t->state == TRANSPORT_PAUSED)
+		if (t->state == TRANSPORT_PAUSED) {
 			io_thread_pause(t);
+			io_sync.frames = 0;
+		}
 
 		/* This call will block until data arrives. If the passed file descriptor
 		 * is invalid (e.g. -1) is means, that other thread (the controller) has
@@ -380,13 +417,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		 * there might be no data for a long time - until client starts playback.
 		 * In order to correctly calculate time drift, the zero time point has to
 		 * be obtained after the stream has started. */
-		if (!initialized) {
-			initialized = 1;
-			/* Get initial time point. This time point is used to calculate time
-			 * drift during data transmission. The transfer should be kept at a
-			 * constant pace (audio bit rate). */
-			clock_gettime(CLOCK_MONOTONIC, &ts0);
-		}
+		if (io_sync.frames == 0)
+			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		const uint8_t *input = rbuffer;
 		size_t input_len = (rhead - rbuffer) + len;
@@ -399,7 +431,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 			uint8_t *output = (uint8_t *)(rtp_payload + 1);
 			size_t output_len = wbuffer_size - (output - wbuffer);
-			size_t frames = 0;
+			size_t pcm_frames = 0;
+			size_t sbc_frames = 0;
 
 			/* Generate as many SBC frames as possible to fill the output buffer
 			 * without overflowing it. The size of the output buffer is based on
@@ -418,22 +451,14 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				input_len -= len;
 				output += encoded;
 				output_len -= encoded;
-				frames++;
+				pcm_frames += len / channels / 2;
+				sbc_frames++;
 
 			}
 
 			rtp_header->seq_number = htons(++seq_number);
 			rtp_header->timestamp = htonl(timestamp);
-			rtp_payload->frame_count = frames;
-
-			struct timespec ts;
-			clock_gettime(CLOCK_MONOTONIC, &ts);
-
-			/* keep transfer at constant rate, always 10 ms ahead */
-			int rt_delta = (ts_timestamp.tv_sec + t->ts_paused.tv_sec - (ts.tv_sec - ts0.tv_sec)) * 1e6 +
-				(ts_timestamp.tv_nsec + t->ts_paused.tv_nsec - (ts.tv_nsec - ts0.tv_nsec)) / 1e3 - 10e3;
-			if (rt_delta > 0)
-				usleep(rt_delta);
+			rtp_payload->frame_count = sbc_frames;
 
 			if (write(t->bt_fd, wbuffer, output - wbuffer) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
@@ -444,12 +469,11 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				error("BT socket write error: %s", strerror(errno));
 			}
 
-			/* get timestamp for the next frame */
-			const unsigned payload_duration = sbc_frame_duration * frames;
-			ts_timestamp.tv_nsec += payload_duration * 1000;
-			ts_timestamp.tv_sec += ts_timestamp.tv_nsec / (long)1e9;
-			ts_timestamp.tv_nsec = ts_timestamp.tv_nsec % (long)1e9;
-			timestamp += payload_duration;
+			/* get a timestamp for the next frame */
+			timestamp += sbc_frame_duration * sbc_frames;
+
+			/* keep transfer at a constant bit rate */
+			io_thread_time_sync(&io_sync, pcm_frames);
 
 		}
 
