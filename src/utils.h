@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_UTILS_H_
 #define BLUEALSA_UTILS_H_
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <time.h>
 
 #include <bluetooth/bluetooth.h>
@@ -31,5 +35,10 @@ int snd_pcm_scale_s16le(void *buffer, size_t size, int scale);
 
 int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
 		struct timespec *ts);
+
+#if ENABLE_AAC
+#include <fdk-aac/aacenc_lib.h>
+const char *aacenc_strerror(AACENC_ERROR err);
+#endif
 
 #endif

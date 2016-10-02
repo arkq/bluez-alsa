@@ -285,3 +285,41 @@ int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
 	}
 	return -1;
 }
+
+#if ENABLE_AAC
+/**
+ * Get string representation of the FDK-AAC encoder error code.
+ *
+ * @param error FDK-AAC encoder error code.
+ * @return Human-readable string. */
+const char *aacenc_strerror(AACENC_ERROR err) {
+	switch (err) {
+	case AACENC_OK:
+		return "Success";
+	case AACENC_INVALID_HANDLE:
+		return "Invalid handle";
+	case AACENC_MEMORY_ERROR:
+		return "Memory allocation error";
+	case AACENC_UNSUPPORTED_PARAMETER:
+		return "Unsupported parameter";
+	case AACENC_INVALID_CONFIG:
+		return "Invalid config";
+	case AACENC_INIT_ERROR:
+		return "Initialization error";
+	case AACENC_INIT_AAC_ERROR:
+		return "AAC library initialization error";
+	case AACENC_INIT_SBR_ERROR:
+		return "SBR library initialization error";
+	case AACENC_INIT_TP_ERROR:
+		return "Transport library initialization error";
+	case AACENC_INIT_META_ERROR:
+		return "Metadata library initialization error";
+	case AACENC_ENCODE_ERROR:
+		return "Encoding error";
+	case AACENC_ENCODE_EOF:
+		return "End of file";
+	default:
+		return "Unknown error";
+	}
+}
+#endif

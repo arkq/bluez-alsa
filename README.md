@@ -22,7 +22,7 @@ Installation
 
 	$ autoreconf --install
 	$ mkdir build && cd build
-	$ ../configure --enable-debug
+	$ ../configure --enable-aac --enable-debug
 	$ make && make install
 
 

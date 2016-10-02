@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_BLUEZ_H_
 #define BLUEALSA_BLUEZ_H_
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <gio/gio.h>
 #include "bluealsa.h"
 

@@ -22,7 +22,7 @@ AC_ARG_ENABLE([debug],
 	AS_HELP_STRING([--enable-debug], [enable debugging support]))
 AM_CONDITIONAL([ENABLE_DEBUG], [test "x$enable_debug" = "xyes"])
 AM_COND_IF([ENABLE_DEBUG], [
-	AC_DEFINE([DEBUG], [1], [Define to 1 if the debugging is enabled])
+	AC_DEFINE([DEBUG], [1], [Define to 1 if the debugging is enabled.])
 ])
 
 AC_CHECK_LIB([pthread], [pthread_create],
@@ -35,6 +35,14 @@ PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])
 PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.16])
 PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
+
+AC_ARG_ENABLE([aac],
+	[AS_HELP_STRING([--enable-aac], [enable AAC support])])
+AM_CONDITIONAL([ENABLE_AAC], [test "x$enable_aac" = "xyes"])
+AM_COND_IF([ENABLE_AAC], [
+	PKG_CHECK_MODULES([AAC], [fdk-aac >= 0.1.3])
+	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
+])
 
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
