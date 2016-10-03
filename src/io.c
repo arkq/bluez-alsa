@@ -22,6 +22,9 @@
 #include <sys/types.h>
 
 #include <sbc/sbc.h>
+#if ENABLE_AAC
+# include <fdk-aac/aacenc_lib.h>
+#endif
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
@@ -142,6 +145,11 @@ static int io_thread_time_sync(struct io_sync *io_sync, uint32_t frames) {
 	struct timespec ts_clock;
 	struct timespec ts;
 
+	/* calculate the playback duration of given frames */
+	unsigned int sec = frames / sampling;
+	unsigned int res = frames % sampling;
+	int duration = 1000000 * sec + 1000000 / sampling * res;
+
 	io_sync->frames += frames;
 	frames = io_sync->frames;
 
@@ -156,12 +164,10 @@ static int io_thread_time_sync(struct io_sync *io_sync, uint32_t frames) {
 	difftimespec(&io_sync->ts0, &ts_clock, &ts_clock);
 
 	/* maintain constant bit rate */
-	if (difftimespec(&ts_clock, &ts_audio, &ts) > 0) {
+	if (difftimespec(&ts_clock, &ts_audio, &ts) > 0)
 		nanosleep(&ts, NULL);
-		return 1;
-	}
 
-	return 0;
+	return duration;
 }
 
 void *io_thread_a2dp_sbc_forward(void *arg) {
@@ -188,7 +194,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	sbc_t sbc;
 
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
-		error("Couldn't initialize %s codec: %s", "SBC", strerror(errno));
+		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		return NULL;
 	}
 
@@ -206,7 +212,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	pthread_cleanup_push(free, rbuffer);
 
 	if (rbuffer == NULL || wbuffer == NULL) {
-		error("Couldn't create data buffers: %s", strerror(errno));
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
 
@@ -314,17 +320,17 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(io_thread_release_bt, t);
 
 	sbc_t sbc;
 
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
-		error("Couldn't initialize %s codec: %s", "SBC", strerror(errno));
-		return NULL;
+		error("Couldn't initialize SBC codec: %s", strerror(errno));
+		goto fail_init;
 	}
 
 	const size_t sbc_codesize = sbc_get_codesize(&sbc);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
-	const unsigned sbc_frame_duration = sbc_get_frame_duration(&sbc);
 	const unsigned int channels = transport_get_channels(t);
 
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
@@ -346,13 +352,12 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	uint8_t *rbuffer = malloc(rbuffer_size);
 	uint8_t *wbuffer = malloc(wbuffer_size);
 
-	pthread_cleanup_push(io_thread_release_bt, t);
 	pthread_cleanup_push(sbc_finish, &sbc);
 	pthread_cleanup_push(free, wbuffer);
 	pthread_cleanup_push(free, rbuffer);
 
 	if (rbuffer == NULL || wbuffer == NULL) {
-		error("Couldn't create data buffers: %s", strerror(errno));
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
 
@@ -469,11 +474,9 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				error("BT socket write error: %s", strerror(errno));
 			}
 
-			/* get a timestamp for the next frame */
-			timestamp += sbc_frame_duration * sbc_frames;
-
-			/* keep transfer at a constant bit rate */
-			io_thread_time_sync(&io_sync, pcm_frames);
+			/* keep data transfer at a constant bit rate, also
+			 * get a timestamp for the next RTP frame */
+			timestamp += io_thread_time_sync(&io_sync, pcm_frames);
 
 		}
 
@@ -483,7 +486,6 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		 * of our linear buffer. */
 		if (input_len > 0 && rbuffer != input)
 			memmove(rbuffer, input, input_len);
-
 		/* reposition our reading head */
 		rhead = rbuffer + input_len;
 		rlen = rbuffer_size - input_len;
@@ -494,6 +496,283 @@ fail:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
+fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
+
+#if ENABLE_AAC
+void *io_thread_a2dp_aac_forward(void *arg) {
+	(void)arg;
+}
+#endif
+
+#if ENABLE_AAC
+void *io_thread_a2dp_aac_backward(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+	const a2dp_aac_t *config = (a2dp_aac_t *)t->config;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(io_thread_release_bt, t);
+
+	HANDLE_AACENCODER handle;
+	AACENC_InfoStruct aacinf;
+	AACENC_ERROR err;
+
+	/* create AAC encoder without the Meta Data module */
+	const unsigned int channels = transport_get_channels(t);
+	if ((err = aacEncOpen(&handle, 0x07, channels)) != AACENC_OK) {
+		error("Couldn't open AAC encoder: %s", aacenc_strerror(err));
+		goto fail_open;
+	}
+
+	pthread_cleanup_push(aacEncClose, &handle);
+
+	unsigned int aot = AOT_NONE;
+	unsigned int bitrate = AAC_GET_BITRATE(*config);
+	unsigned int samplerate = transport_get_sampling(t);
+	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
+
+	switch (config->object_type) {
+	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
+		aot = AOT_MP2_AAC_LC;
+		break;
+	case AAC_OBJECT_TYPE_MPEG4_AAC_LC:
+		aot = AOT_AAC_LC;
+		break;
+	case AAC_OBJECT_TYPE_MPEG4_AAC_LTP:
+		aot = AOT_AAC_LTP;
+		break;
+	case AAC_OBJECT_TYPE_MPEG4_AAC_SCA:
+		aot = AOT_AAC_SCAL;
+		break;
+	}
+
+	if ((err = aacEncoder_SetParam(handle, AACENC_AOT, aot)) != AACENC_OK) {
+		error("Couldn't set audio object type: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+	if ((err = aacEncoder_SetParam(handle, AACENC_BITRATE, bitrate)) != AACENC_OK) {
+		error("Couldn't set bitrate: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+	if ((err = aacEncoder_SetParam(handle, AACENC_SAMPLERATE, samplerate)) != AACENC_OK) {
+		error("Couldn't set sampling rate: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+	if ((err = aacEncoder_SetParam(handle, AACENC_CHANNELMODE, channelmode)) != AACENC_OK) {
+		error("Couldn't set channel mode: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+	if (config->vbr) {
+		if ((err = aacEncoder_SetParam(handle, AACENC_BITRATEMODE, 5)) != AACENC_OK) {
+			error("Couldn't set VBR bitrate mode: %s", aacenc_strerror(err));
+			goto fail_init;
+		}
+	}
+	if ((err = aacEncoder_SetParam(handle, AACENC_AFTERBURNER, 1)) != AACENC_OK) {
+		error("Couldn't enable afterburner: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+	if ((err = aacEncoder_SetParam(handle, AACENC_TRANSMUX, TT_MP4_LATM_MCP1)) != AACENC_OK) {
+		error("Couldn't enable LATM transport type: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+	if ((err = aacEncoder_SetParam(handle, AACENC_HEADER_PERIOD, 1)) != AACENC_OK) {
+		error("Couldn't set LATM header period: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+
+	if ((err = aacEncEncode(handle, NULL, NULL, NULL, NULL)) != AACENC_OK) {
+		error("Couldn't initialize AAC encoder: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+	if ((err = aacEncInfo(handle, &aacinf)) != AACENC_OK) {
+		error("Couldn't get encoder info: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+
+	int in_buffer_identifier = IN_AUDIO_DATA;
+	int out_buffer_identifier = OUT_BITSTREAM_DATA;
+	int in_buffer_element_size = 2;
+	int out_buffer_element_size = 1;
+	uint8_t *in_buffer, *in_buffer_head;
+	uint8_t *out_buffer, *out_payload;
+	int in_buffer_size;
+	int out_payload_size;
+
+	AACENC_BufDesc in_buf = {
+		.numBufs = 1,
+		.bufs = (void **)&in_buffer_head,
+		.bufferIdentifiers = &in_buffer_identifier,
+		.bufSizes = &in_buffer_size,
+		.bufElSizes = &in_buffer_element_size,
+	};
+	AACENC_BufDesc out_buf = {
+		.numBufs = 1,
+		.bufs = (void **)&out_payload,
+		.bufferIdentifiers = &out_buffer_identifier,
+		.bufSizes = &out_payload_size,
+		.bufElSizes = &out_buffer_element_size,
+	};
+	AACENC_InArgs in_args = { 0 };
+	AACENC_OutArgs out_args = { 0 };
+
+	in_buffer_size = in_buffer_element_size * aacinf.inputChannels * aacinf.frameLength;
+	out_payload_size = aacinf.maxOutBufBytes;
+	in_buffer = malloc(in_buffer_size);
+	out_buffer = malloc(sizeof(rtp_header_t) + out_payload_size);
+
+	pthread_cleanup_push(free, in_buffer);
+	pthread_cleanup_push(free, out_buffer);
+
+	if (in_buffer == NULL || out_buffer == NULL) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	uint16_t seq_number = 0;
+	uint32_t timestamp = 0;
+
+	/* initialize RTP header (the constant part) */
+	rtp_header_t *rtp_header = (rtp_header_t *)out_buffer;
+	memset(rtp_header, 0, sizeof(*rtp_header));
+	rtp_header->version = 2;
+	rtp_header->paytype = 96;
+
+	/* anchor for RTP payload - audioMuxElement (RFC 3016) */
+	out_payload = (uint8_t *)&rtp_header->csrc[rtp_header->cc];
+	/* helper variable used during payload fragmentation */
+	const size_t rtp_header_len = out_payload - out_buffer;
+
+	if (io_thread_open_pcm_read(t) == -1) {
+		error("Couldn't open FIFO: %s", strerror(errno));
+		goto fail;
+	}
+
+	/* initial input buffer head position and the available size */
+	size_t in_len = in_buffer_size;
+	in_buffer_head = in_buffer;
+
+	struct io_sync io_sync = {
+		.sampling = samplerate,
+	};
+
+	debug("Starting backward IO loop");
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
+
+		ssize_t len;
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		if (t->state == TRANSPORT_PAUSED) {
+			io_thread_pause(t);
+			io_sync.frames = 0;
+		}
+
+		if ((len = read(t->pcm_fd, in_buffer_head, in_len)) == -1) {
+			if (errno == EINTR)
+				continue;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		if (len <= 0) {
+			if (len == -1 && errno != EBADF)
+				error("FIFO read error: %s", strerror(errno));
+			else if (len == 0)
+				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
+			transport_release_pcm(t);
+			goto fail;
+		}
+
+		if (io_sync.frames == 0)
+			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
+
+		/* overall input buffer size */
+		len += in_buffer_head - in_buffer;
+		/* in the encoding loop head is used for reading */
+		in_buffer_head = in_buffer;
+
+		while ((in_args.numInSamples = len / in_buffer_element_size) != 0) {
+
+			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
+				error("AAC encoding error: %s", aacenc_strerror(err));
+
+			if (out_args.numOutBytes > 0) {
+
+				size_t payload_len_max = t->mtu_write - rtp_header_len;
+				size_t payload_len = out_args.numOutBytes;
+				rtp_header->timestamp = htonl(timestamp);
+
+				/* If the size of the RTP packet exceeds writing MTU, the RTP payload
+				 * should be fragmented. According to the RFC 3016, fragmentation of
+				 * the audioMuxElement requires no extra header - the payload should
+				 * be fragmented and spread across multiple RTP packets.
+				 *
+				 * TODO: Confirm that the fragmentation logic is correct.
+				 *
+				 * This code has been tested with Jabra Move headset, however the
+				 * outcome of this test is not positive. Fragmented packets are not
+				 * recognized by the device. */
+				for (;;) {
+
+					ssize_t ret;
+					size_t len;
+
+					len = payload_len > payload_len_max ? payload_len_max : payload_len;
+					rtp_header->markbit = len < payload_len_max;
+					rtp_header->seq_number = htons(++seq_number);
+
+					if ((ret = write(t->bt_fd, out_buffer, rtp_header_len + len)) == -1) {
+						if (errno == ECONNRESET || errno == ENOTCONN) {
+							/* exit the thread upon BT socket disconnection */
+							debug("BT socket disconnected: %s", strerror(errno));
+							goto fail;
+						}
+						error("BT socket write error: %s", strerror(errno));
+						break;
+					}
+
+					/* break if the last part of the payload has been written */
+					if ((payload_len -= ret - rtp_header_len) == 0)
+						break;
+
+					/* move rest of data to the beginning of the payload */
+					memmove(out_payload, out_payload + ret, payload_len);
+
+				}
+
+			}
+
+			/* progress the head position by the number of bytes consumed by the
+			 * encoder, also adjust the number of bytes in the input buffer */
+			const size_t numInBytes = out_args.numInSamples * in_buffer_element_size;
+			in_buffer_head += numInBytes;
+			len -= numInBytes;
+
+			/* keep data transfer at a constant bit rate, also
+			 * get a timestamp for the next RTP frame */
+			timestamp += io_thread_time_sync(&io_sync, out_args.numInSamples / channels);
+
+		}
+
+		/* move leftovers to the beginning */
+		if (len > 0 && in_buffer != in_buffer_head)
+			memmove(in_buffer, in_buffer_head, len);
+		/* reposition input buffer head */
+		in_buffer_head = in_buffer + len;
+		in_len = in_buffer_size - len;
+
+	}
+
+fail:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+fail_open:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif

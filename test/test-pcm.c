@@ -23,6 +23,12 @@
 
 #include "../src/bluealsa.c"
 #include "../src/ctl.c"
+#include "../src/io.h"
+#define io_thread_a2dp_sbc_forward _io_thread_a2dp_sbc_forward
+#define io_thread_a2dp_sbc_backward _io_thread_a2dp_sbc_backward
+#include "../src/io.c"
+#undef io_thread_a2dp_sbc_forward
+#undef io_thread_a2dp_sbc_backward
 #define transport_acquire _transport_acquire
 #include "../src/transport.c"
 #undef transport_acquire
@@ -55,31 +61,19 @@ int transport_acquire(struct ba_transport *t) {
 	return 0;
 }
 
-static void io_thread_sync_44100_hz(size_t frames, struct timespec *ts0) {
-
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-
-	/* keep a constant bit rate - 44100 Hz */
-	const int delay = (frames * 1000000 / 44100) -
-		((ts.tv_sec - ts0->tv_sec) * 1e6 + (ts.tv_nsec - ts0->tv_nsec) / 1e3);
-
-	if (delay > 0)
-		usleep(delay);
-
-}
-
 void *io_thread_a2dp_sbc_forward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	const char *end = drum_buffer + drum_buffer_size;
 	char *head = drum_buffer;
-	struct timespec ts0;
-	size_t frames = 0;
 	ssize_t len;
 
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
+
+	struct io_sync io_sync = {
+		.sampling = transport_get_sampling(t),
+	};
 
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
@@ -102,8 +96,8 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 		fprintf(stderr, ".");
 
-		if (frames == 0)
-			clock_gettime(CLOCK_MONOTONIC, &ts0);
+		if (io_sync.frames == 0)
+			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		if (head == end)
 			head = drum_buffer;
@@ -121,12 +115,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		}
 
 		head += len;
-		frames += len / 4;
-		io_thread_sync_44100_hz(frames, &ts0);
-
-		if (frames > 3000)
-			frames = 0;
-
+		io_thread_time_sync(&io_sync, len / 2 / 2);
 	}
 }
 
@@ -137,27 +126,24 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		usleep(10000);
 
 	char buffer[1024 * 4];
-	struct timespec ts0;
-	size_t frames = 0;
 	ssize_t len;
+
+	struct io_sync io_sync = {
+		.sampling = transport_get_sampling(t),
+	};
 
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 		fprintf(stderr, ".");
 
-		if (frames == 0)
-			clock_gettime(CLOCK_MONOTONIC, &ts0);
+		if (io_sync.frames == 0)
+			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		if ((len = read(t->pcm_fd, buffer, sizeof(buffer))) == -1) {
 			error("FIFO read error: %s", strerror(errno));
 			return NULL;
 		}
 
-		frames += len / 4;
-		io_thread_sync_44100_hz(frames, &ts0);
-
-		if (frames > 3000)
-			frames = 0;
-
+		io_thread_time_sync(&io_sync, len / 2 / 2);
 	}
 }
 

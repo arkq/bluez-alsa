@@ -33,9 +33,11 @@ static int io_thread_create(struct ba_transport *t) {
 		case A2DP_CODEC_SBC:
 			routine = io_thread_a2dp_sbc_backward;
 			break;
-		case A2DP_CODEC_MPEG12:
+#if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-		case A2DP_CODEC_ATRAC:
+			routine = io_thread_a2dp_aac_backward;
+			break;
+#endif
 		default:
 			warn("Codec not supported: %u", t->codec);
 		}
@@ -45,9 +47,11 @@ static int io_thread_create(struct ba_transport *t) {
 		case A2DP_CODEC_SBC:
 			routine = io_thread_a2dp_sbc_forward;
 			break;
-		case A2DP_CODEC_MPEG12:
+#if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-		case A2DP_CODEC_ATRAC:
+			routine = io_thread_a2dp_aac_forward;
+			break;
+#endif
 		default:
 			warn("Codec not supported: %u", t->codec);
 		}
