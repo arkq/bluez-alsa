@@ -203,7 +203,7 @@ const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
  *
  * For debugging purposes, one could use the batostr() function provided by
  * the bluez library. However, this function converts the Bluetooth address
- * to the string with a reversed bytes order...
+ * to the string with a incorrect (reversed) bytes order...
  *
  * @param ba Pointer to the Bluetooth address structure.
  * @return On success this function returns statically allocated buffer with

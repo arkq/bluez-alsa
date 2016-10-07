@@ -55,6 +55,9 @@ struct bluealsa_pcm {
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
 
+	/* BT device address used for debugging */
+	char dev_addr[18];
+
 };
 
 
@@ -93,7 +96,9 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 	};
 	ssize_t len;
 
-	debug("Getting transport for %s profile %d", batostr(&req.addr), req.profile);
+	ba2str(&req.addr, pcm->dev_addr);
+
+	debug("Getting transport for %s profile %d", pcm->dev_addr, req.profile);
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
 		return -1;
 	if ((len = read(pcm->fd, &pcm->transport, sizeof(pcm->transport))) == -1)
@@ -129,7 +134,7 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	ssize_t len;
 	int fd;
 
-	debug("Requesting PCM open for %s", batostr(&req.addr));
+	debug("Requesting PCM open for %s", pcm->dev_addr);
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
 		return -1;
 	if ((len = read(pcm->fd, &res, sizeof(res))) == -1)
@@ -174,7 +179,7 @@ static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
 		.profile = pcm->transport.profile,
 	};
 
-	debug("Closing PCM for %s", batostr(&req.addr));
+	debug("Closing PCM for %s", pcm->dev_addr);
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
 		return -1;
 	if (read(pcm->fd, &status, sizeof(status)) == -1)
@@ -199,7 +204,7 @@ static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, int pause) {
 		.profile = pcm->transport.profile,
 	};
 
-	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", batostr(&req.addr));
+	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", pcm->dev_addr);
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
 		return -1;
 	if (read(pcm->fd, &status, sizeof(status)) == -1)
