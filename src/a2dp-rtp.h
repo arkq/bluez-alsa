@@ -30,6 +30,6 @@ typedef struct rtp_payload_sbc {
 	uint8_t rfa:1;
 	uint8_t frame_count:4;
 #endif
-} rtp_payload_sbc_t;
+} __attribute__ ((packed)) rtp_payload_sbc_t;
 
 #endif

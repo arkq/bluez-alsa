@@ -342,11 +342,6 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu", t->mtu_write, mtu_write);
 	}
 
-	rtp_header_t *rtp_header;
-	rtp_payload_sbc_t *rtp_payload;
-	uint16_t seq_number = 0;
-	uint32_t timestamp = 0;
-
 	const size_t rbuffer_size = sbc_codesize * (mtu_write / sbc_frame_len);
 	const size_t wbuffer_size = mtu_write;
 	uint8_t *rbuffer = malloc(rbuffer_size);
@@ -369,13 +364,18 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	/* initialize RTP headers (the constant part) */
-	rtp_header = (rtp_header_t *)wbuffer;
+	uint16_t seq_number = random();
+	uint32_t timestamp = random();
+
+	/* initialize RTP header (the constant part) */
+	rtp_header_t *rtp_header = (rtp_header_t *)wbuffer;
 	memset(rtp_header, 0, sizeof(*rtp_header));
-	rtp_payload = (rtp_payload_sbc_t *)&rtp_header->csrc[rtp_header->cc];
-	memset(rtp_payload, 0, sizeof(*rtp_payload));
 	rtp_header->version = 2;
 	rtp_header->paytype = 96;
+
+	rtp_payload_sbc_t *rtp_payload;
+	rtp_payload = (rtp_payload_sbc_t *)&rtp_header->csrc[rtp_header->cc];
+	memset(rtp_payload, 0, sizeof(*rtp_payload));
 
 	/* reading head position and available read length */
 	uint8_t *rhead = rbuffer;
@@ -631,8 +631,8 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 		goto fail;
 	}
 
-	uint16_t seq_number = 0;
-	uint32_t timestamp = 0;
+	uint16_t seq_number = random();
+	uint32_t timestamp = random();
 
 	/* initialize RTP header (the constant part) */
 	rtp_header_t *rtp_header = (rtp_header_t *)out_buffer;

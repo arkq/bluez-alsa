@@ -140,14 +140,17 @@ int main(int argc, char **argv) {
 	/* device list is no longer required */
 	free(hci_devs);
 
-	GDBusConnection *dbus;
-	gchar *address;
-	GError *err;
+	/* initialize random generator */
+	srandom(time(NULL));
 
 	if ((bluealsa_ctl_thread_init(&setup)) == -1) {
 		error("Couldn't initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
+
+	GDBusConnection *dbus;
+	gchar *address;
+	GError *err;
 
 	err = NULL;
 	address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
