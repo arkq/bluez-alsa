@@ -282,6 +282,83 @@ int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
 
 #if ENABLE_AAC
 /**
+ * Get string representation of the FDK-AAC decoder error code.
+ *
+ * @param error FDK-AAC decoder error code.
+ * @return Human-readable string. */
+const char *aacdec_strerror(AAC_DECODER_ERROR err) {
+	switch (err) {
+	case AAC_DEC_OK:
+		return "Success";
+	case AAC_DEC_OUT_OF_MEMORY:
+		return "Out of memory";
+	case AAC_DEC_TRANSPORT_SYNC_ERROR:
+		return "Transport sync error";
+	case AAC_DEC_NOT_ENOUGH_BITS:
+		return "Not enough bits";
+	case AAC_DEC_INVALID_HANDLE:
+		return "Invalid handle";
+	case AAC_DEC_UNSUPPORTED_AOT:
+		return "Unsupported AOT";
+	case AAC_DEC_UNSUPPORTED_FORMAT:
+		return "Unsupported format";
+	case AAC_DEC_UNSUPPORTED_ER_FORMAT:
+		return "Unsupported ER format";
+	case AAC_DEC_UNSUPPORTED_EPCONFIG:
+		return "Unsupported EP format";
+	case AAC_DEC_UNSUPPORTED_MULTILAYER:
+		return "Unsupported multilayer";
+	case AAC_DEC_UNSUPPORTED_CHANNELCONFIG:
+		return "Unsupported channels";
+	case AAC_DEC_UNSUPPORTED_SAMPLINGRATE:
+		return "Unsupported sample rate";
+	case AAC_DEC_INVALID_SBR_CONFIG:
+		return "Unsupported SBR";
+	case AAC_DEC_SET_PARAM_FAIL:
+		return "Unsupported parameter";
+	case AAC_DEC_NEED_TO_RESTART:
+		return "Restart required";
+	case AAC_DEC_TRANSPORT_ERROR:
+		return "Transport error";
+	case AAC_DEC_PARSE_ERROR:
+		return "Parse error";
+	case AAC_DEC_UNSUPPORTED_EXTENSION_PAYLOAD:
+		return "Unsupported extension payload";
+	case AAC_DEC_DECODE_FRAME_ERROR:
+		return "Bitstream corrupted";
+	case AAC_DEC_CRC_ERROR:
+		return "CRC mismatch";
+	case AAC_DEC_INVALID_CODE_BOOK:
+		return "Invalid codebook";
+	case AAC_DEC_UNSUPPORTED_PREDICTION:
+		return "Unsupported prediction";
+	case AAC_DEC_UNSUPPORTED_CCE:
+		return "Unsupported CCE";
+	case AAC_DEC_UNSUPPORTED_LFE:
+		return "Unsupported LFE";
+	case AAC_DEC_UNSUPPORTED_GAIN_CONTROL_DATA:
+		return "Unsupported gain control data";
+	case AAC_DEC_UNSUPPORTED_SBA:
+		return "Unsupported SBA";
+	case AAC_DEC_TNS_READ_ERROR:
+		return "TNS read error";
+	case AAC_DEC_RVLC_ERROR:
+		return "RVLC decode error";
+	case AAC_DEC_ANC_DATA_ERROR:
+		return "Ancillary data error";
+	case AAC_DEC_TOO_SMALL_ANC_BUFFER:
+		return "Too small ancillary buffer";
+	case AAC_DEC_TOO_MANY_ANC_ELEMENTS:
+		return "Too many ancillary elements";
+	default:
+		debug("Unknown error code: %x", err);
+		return "Unknown error";
+	}
+}
+#endif
+
+#if ENABLE_AAC
+/**
  * Get string representation of the FDK-AAC encoder error code.
  *
  * @param error FDK-AAC encoder error code.
@@ -293,7 +370,7 @@ const char *aacenc_strerror(AACENC_ERROR err) {
 	case AACENC_INVALID_HANDLE:
 		return "Invalid handle";
 	case AACENC_MEMORY_ERROR:
-		return "Memory allocation error";
+		return "Out of memory";
 	case AACENC_UNSUPPORTED_PARAMETER:
 		return "Unsupported parameter";
 	case AACENC_INVALID_CONFIG:
@@ -313,6 +390,7 @@ const char *aacenc_strerror(AACENC_ERROR err) {
 	case AACENC_ENCODE_EOF:
 		return "End of file";
 	default:
+		debug("Unknown error code: %x", err);
 		return "Unknown error";
 	}
 }

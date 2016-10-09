@@ -716,7 +716,7 @@ int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 			sizeof(a2dp_mpeg),
 		},
 #endif
-#if 0
+#if ENABLE_AAC
 		{
 			BLUETOOTH_UUID_A2DP_SINK,
 			BLUEZ_ENDPOINT_A2DP_MPEG24_SINK,

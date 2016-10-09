@@ -23,6 +23,7 @@
 
 #include <sbc/sbc.h>
 #if ENABLE_AAC
+# include <fdk-aac/aacdecoder_lib.h>
 # include <fdk-aac/aacenc_lib.h>
 #endif
 
@@ -118,6 +119,36 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer, size_t 
 	else if (volume != 100)
 		snd_pcm_scale_s16le(buffer, size, volume);
 
+}
+
+/**
+ * Write PCM signal to the transport PCM FIFO. */
+static ssize_t io_thread_write_pcm(struct ba_transport *t, int16_t *buffer, size_t size) {
+
+	uint8_t *head = (uint8_t *)buffer;
+	size_t len = size * sizeof(int16_t);
+	ssize_t ret;
+
+	do {
+		if ((ret = write(t->pcm_fd, head, len)) == -1) {
+			if (errno == EINTR)
+				continue;
+			if (errno == EPIPE) {
+				/* This errno value will be received only, when the SIGPIPE
+				 * signal is caught, blocked or ignored. */
+				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
+				transport_release_pcm(t);
+				errno = EPIPE;
+			}
+			return ret;
+		}
+		head += ret;
+		len -= ret;
+	}
+	while (len != 0);
+
+	/* It is guaranteed, that this function will write data atomically. */
+	return size;
 }
 
 /**
@@ -294,16 +325,9 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 		}
 
-		if (write(t->pcm_fd, out_buffer, out_buffer_size - output_len) == -1) {
-
-			if (errno == EPIPE) {
-				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
-				transport_release_pcm(t);
-				continue;
-			}
-
+		const size_t size = output - out_buffer;
+		if (io_thread_write_pcm(t, out_buffer, size) == -1 && errno != EPIPE)
 			error("FIFO write error: %s", strerror(errno));
-		}
 
 	}
 
@@ -503,7 +527,119 @@ fail_init:
 
 #if ENABLE_AAC
 void *io_thread_a2dp_aac_forward(void *arg) {
-	(void)arg;
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(io_thread_release_bt, t);
+
+	if (t->bt_fd == -1) {
+		error("Invalid BT socket: %d", t->bt_fd);
+		goto fail_open;
+	}
+	if (t->mtu_read <= 0) {
+		error("Invalid reading MTU: %zu", t->mtu_read);
+		goto fail_open;
+	}
+
+	HANDLE_AACDECODER handle;
+	AAC_DECODER_ERROR err;
+
+	if ((handle = aacDecoder_Open(TT_MP4_LATM_MCP1, 1)) == NULL) {
+		error("Couldn't open AAC decoder");
+		goto fail_open;
+	}
+
+	pthread_cleanup_push(aacDecoder_Close, handle);
+
+	const unsigned int channels = transport_get_channels(t);
+	if ((err = aacDecoder_SetParam(handle, AAC_PCM_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
+		error("Couldn't set output channels: %s", aacdec_strerror(err));
+		goto fail_init;
+	}
+
+	const size_t in_buffer_size = t->mtu_read;
+	const size_t out_buffer_size = 2048 * channels * sizeof(INT_PCM);
+	uint8_t *in_buffer = malloc(in_buffer_size);
+	int16_t *out_buffer = malloc(out_buffer_size);
+
+	pthread_cleanup_push(free, in_buffer);
+	pthread_cleanup_push(free, out_buffer);
+
+	if (in_buffer == NULL || out_buffer == NULL) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	struct sigaction sigact = { .sa_handler = SIG_IGN };
+	sigaction(SIGPIPE, &sigact, NULL);
+
+	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
+
+	debug("Starting forward IO loop");
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
+
+		CStreamInfo *aacinf;
+		ssize_t len;
+
+		if (poll(pfds, 1, -1) == -1) {
+			error("Transport poll error: %s", strerror(errno));
+			break;
+		}
+
+		if ((len = read(pfds[0].fd, in_buffer, in_buffer_size)) == -1) {
+			debug("BT read error: %s", strerror(errno));
+			continue;
+		}
+
+		/* it seems that zero is never returned... */
+		if (len == 0) {
+			debug("BT socket has been closed: %d", pfds[0].fd);
+			/* Prevent sending the release request to the BlueZ. If the socket has
+			 * been closed, it means that BlueZ has already closed the connection. */
+			close(pfds[0].fd);
+			t->bt_fd = -1;
+			break;
+		}
+
+		if (io_thread_open_pcm_write(t) == -1) {
+			if (errno != ENXIO)
+				error("Couldn't open FIFO: %s", strerror(errno));
+			continue;
+		}
+
+		const rtp_header_t *rtp_header = (rtp_header_t *)in_buffer;
+		uint8_t *rtp_latm = (uint8_t *)&rtp_header->csrc[rtp_header->cc];
+		size_t rtp_latm_len = len - ((void *)rtp_latm - (void *)rtp_header);
+
+		if (rtp_header->paytype != 96) {
+			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
+			continue;
+		}
+
+		unsigned int data_len = rtp_latm_len;
+		unsigned int valid = rtp_latm_len;
+
+		if ((err = aacDecoder_Fill(handle, &rtp_latm, &data_len, &valid)) != AAC_DEC_OK)
+			error("AAC buffer fill error: %s", aacdec_strerror(err));
+		else if ((err = aacDecoder_DecodeFrame(handle, out_buffer, out_buffer_size, 0)) != AAC_DEC_OK)
+			error("AAC decode frame error: %s", aacdec_strerror(err));
+		else if ((aacinf = aacDecoder_GetStreamInfo(handle)) == NULL)
+			error("Couldn't get AAC stream info");
+		else {
+			const size_t size = aacinf->frameSize * aacinf->numChannels;
+			if (io_thread_write_pcm(t, out_buffer, size) == -1 && errno != EPIPE)
+				error("FIFO write error: %s", strerror(errno));
+		}
+
+	}
+
+fail:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+fail_open:
+	pthread_cleanup_pop(1);
 }
 #endif
 

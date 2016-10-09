@@ -37,7 +37,9 @@ int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
 		struct timespec *ts);
 
 #if ENABLE_AAC
+#include <fdk-aac/aacdecoder_lib.h>
 #include <fdk-aac/aacenc_lib.h>
+const char *aacdec_strerror(AAC_DECODER_ERROR err);
 const char *aacenc_strerror(AACENC_ERROR err);
 #endif
 
