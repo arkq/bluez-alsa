@@ -30,8 +30,8 @@ int g_dbus_devpath_to_bdaddr(const char *path, bdaddr_t *addr);
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
 		const char *path, const char *interface, const char *property);
 
-int snd_pcm_mute_s16le(void *buffer, size_t size);
-int snd_pcm_scale_s16le(void *buffer, size_t size, int scale);
+void snd_pcm_mute_s16le(int16_t *buffer, size_t size);
+void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int scale);
 
 int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
 		struct timespec *ts);

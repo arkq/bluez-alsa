@@ -106,7 +106,7 @@ static int io_thread_open_pcm_write(struct ba_transport *t) {
 
 /**
  * Scale PCM signal according to the transport audio properties. */
-static void io_thread_scale_pcm(struct ba_transport *t, void *buffer, size_t size) {
+static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer, size_t size) {
 
 	/* Get a snapshot of audio properties. Please note, that mutex is not
 	 * required here, because we are not modifying these variables. */
@@ -176,10 +176,11 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(io_thread_release_bt, t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
-		return NULL;
+		goto fail_init;
 	}
 
 	/* Check for invalid (e.g. not set) reading MTU. If buffer allocation does
@@ -188,30 +189,29 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	 * "connection closed" action. */
 	if (t->mtu_read <= 0) {
 		error("Invalid reading MTU: %zu", t->mtu_read);
-		return NULL;
+		goto fail_init;
 	}
 
 	sbc_t sbc;
 
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
-		return NULL;
+		goto fail_init;
 	}
 
 	const size_t sbc_codesize = sbc_get_codesize(&sbc);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 
-	const size_t rbuffer_size = t->mtu_read;
-	const size_t wbuffer_size = sbc_codesize * (rbuffer_size / sbc_frame_len + 1);
-	uint8_t *rbuffer = malloc(rbuffer_size);
-	uint8_t *wbuffer = malloc(wbuffer_size);
+	const size_t in_buffer_size = t->mtu_read;
+	const size_t out_buffer_size = sbc_codesize * (in_buffer_size / sbc_frame_len + 1);
+	uint8_t *in_buffer = malloc(in_buffer_size);
+	int16_t *out_buffer = malloc(out_buffer_size);
 
-	pthread_cleanup_push(io_thread_release_bt, t);
 	pthread_cleanup_push(sbc_finish, &sbc);
-	pthread_cleanup_push(free, wbuffer);
-	pthread_cleanup_push(free, rbuffer);
+	pthread_cleanup_push(free, in_buffer);
+	pthread_cleanup_push(free, out_buffer);
 
-	if (rbuffer == NULL || wbuffer == NULL) {
+	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
@@ -240,12 +240,12 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-		if ((len = read(pfds[0].fd, rbuffer, rbuffer_size)) == -1) {
+		if ((len = read(pfds[0].fd, in_buffer, in_buffer_size)) == -1) {
 			debug("BT read error: %s", strerror(errno));
 			continue;
 		}
 
-		/* It seems that this block of code is not executed... */
+		/* it seems that zero is never returned... */
 		if (len == 0) {
 			debug("BT socket has been closed: %d", pfds[0].fd);
 			/* Prevent sending the release request to the BlueZ. If the socket has
@@ -261,7 +261,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 			continue;
 		}
 
-		const rtp_header_t *rtp_header = (rtp_header_t *)rbuffer;
+		const rtp_header_t *rtp_header = (rtp_header_t *)in_buffer;
 		const rtp_payload_sbc_t *rtp_payload = (rtp_payload_sbc_t *)&rtp_header->csrc[rtp_header->cc];
 
 		if (rtp_header->paytype != 96) {
@@ -270,9 +270,9 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		}
 
 		const uint8_t *input = (uint8_t *)(rtp_payload + 1);
-		uint8_t *output = wbuffer;
-		size_t input_len = len - (input - rbuffer);
-		size_t output_len = wbuffer_size;
+		int16_t *output = out_buffer;
+		size_t input_len = len - (input - in_buffer);
+		size_t output_len = out_buffer_size;
 		size_t frames = rtp_payload->frame_count;
 
 		/* decode retrieved SBC frames */
@@ -288,13 +288,13 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 			input += len;
 			input_len -= len;
-			output += decoded;
+			output += decoded / sizeof(int16_t);
 			output_len -= decoded;
 			frames--;
 
 		}
 
-		if (write(t->pcm_fd, wbuffer, wbuffer_size - output_len) == -1) {
+		if (write(t->pcm_fd, out_buffer, out_buffer_size - output_len) == -1) {
 
 			if (errno == EPIPE) {
 				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
@@ -308,10 +308,10 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	}
 
 fail:
-	warn("IO thread failure");
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
+fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
@@ -342,16 +342,16 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu", t->mtu_write, mtu_write);
 	}
 
-	const size_t rbuffer_size = sbc_codesize * (mtu_write / sbc_frame_len);
-	const size_t wbuffer_size = mtu_write;
-	uint8_t *rbuffer = malloc(rbuffer_size);
-	uint8_t *wbuffer = malloc(wbuffer_size);
+	const size_t in_buffer_size = sbc_codesize * (mtu_write / sbc_frame_len);
+	const size_t out_buffer_size = mtu_write;
+	int16_t *in_buffer = malloc(in_buffer_size);
+	uint8_t *out_buffer = malloc(out_buffer_size);
 
 	pthread_cleanup_push(sbc_finish, &sbc);
-	pthread_cleanup_push(free, wbuffer);
-	pthread_cleanup_push(free, rbuffer);
+	pthread_cleanup_push(free, in_buffer);
+	pthread_cleanup_push(free, out_buffer);
 
-	if (rbuffer == NULL || wbuffer == NULL) {
+	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
@@ -368,7 +368,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	uint32_t timestamp = random();
 
 	/* initialize RTP header (the constant part) */
-	rtp_header_t *rtp_header = (rtp_header_t *)wbuffer;
+	rtp_header_t *rtp_header = (rtp_header_t *)out_buffer;
 	memset(rtp_header, 0, sizeof(*rtp_header));
 	rtp_header->version = 2;
 	rtp_header->paytype = 96;
@@ -378,8 +378,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	memset(rtp_payload, 0, sizeof(*rtp_payload));
 
 	/* reading head position and available read length */
-	uint8_t *rhead = rbuffer;
-	size_t rlen = rbuffer_size;
+	uint8_t *in_buffer_head = (uint8_t *)in_buffer;
+	size_t in_len = in_buffer_size;
 
 	struct io_sync io_sync = {
 		.sampling = transport_get_sampling(t),
@@ -402,7 +402,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		 * closed the connection. If the connection was closed during the blocking
 		 * part, we will still read correct data, because Linux kernel does not
 		 * decrement file descriptor reference counter until the read returns. */
-		if ((len = read(t->pcm_fd, rhead, rlen)) == -1) {
+		if ((len = read(t->pcm_fd, in_buffer_head, in_len)) == -1) {
 			if (errno == EINTR)
 				continue;
 		}
@@ -425,17 +425,17 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
-		const uint8_t *input = rbuffer;
-		size_t input_len = (rhead - rbuffer) + len;
+		const uint8_t *input = (uint8_t *)in_buffer;
+		size_t input_len = (in_buffer_head - (uint8_t *)in_buffer) + len;
 
-		/* lower volume or mute audio signal */
-		io_thread_scale_pcm(t, rbuffer, input_len);
+		/* scale volume or mute audio signal */
+		io_thread_scale_pcm(t, in_buffer, input_len / sizeof(int16_t));
 
 		/* encode and transfer obtained data */
 		while (input_len >= sbc_codesize) {
 
 			uint8_t *output = (uint8_t *)(rtp_payload + 1);
-			size_t output_len = wbuffer_size - (output - wbuffer);
+			size_t output_len = out_buffer_size - (output - out_buffer);
 			size_t pcm_frames = 0;
 			size_t sbc_frames = 0;
 
@@ -456,7 +456,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 				input_len -= len;
 				output += encoded;
 				output_len -= encoded;
-				pcm_frames += len / channels / 2;
+				pcm_frames += len / channels / sizeof(int16_t);
 				sbc_frames++;
 
 			}
@@ -465,7 +465,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 			rtp_header->timestamp = htonl(timestamp);
 			rtp_payload->frame_count = sbc_frames;
 
-			if (write(t->bt_fd, wbuffer, output - wbuffer) == -1) {
+			if (write(t->bt_fd, out_buffer, output - out_buffer) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit the thread upon BT socket disconnection */
 					debug("BT socket disconnected: %s", strerror(errno));
@@ -484,11 +484,11 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		 * have to append new data to the existing one. Since we do not use
 		 * ring buffer, we will simply move unprocessed data to the front
 		 * of our linear buffer. */
-		if (input_len > 0 && rbuffer != input)
-			memmove(rbuffer, input, input_len);
+		if (input_len > 0 && (uint8_t *)in_buffer != input)
+			memmove(in_buffer, input, input_len);
 		/* reposition our reading head */
-		rhead = rbuffer + input_len;
-		rlen = rbuffer_size - input_len;
+		in_buffer_head = (uint8_t *)in_buffer + input_len;
+		in_len = in_buffer_size - input_len;
 
 	}
 
@@ -594,9 +594,9 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 
 	int in_buffer_identifier = IN_AUDIO_DATA;
 	int out_buffer_identifier = OUT_BITSTREAM_DATA;
-	int in_buffer_element_size = 2;
+	int in_buffer_element_size = sizeof(int16_t);
 	int out_buffer_element_size = 1;
-	uint8_t *in_buffer, *in_buffer_head;
+	int16_t *in_buffer, *in_buffer_head;
 	uint8_t *out_buffer, *out_payload;
 	int in_buffer_size;
 	int out_payload_size;
@@ -694,6 +694,9 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 		/* in the encoding loop head is used for reading */
 		in_buffer_head = in_buffer;
 
+		/* scale volume or mute audio signal */
+		io_thread_scale_pcm(t, in_buffer, len / in_buffer_element_size);
+
 		while ((in_args.numInSamples = len / in_buffer_element_size) != 0) {
 
 			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
@@ -748,7 +751,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 			/* progress the head position by the number of bytes consumed by the
 			 * encoder, also adjust the number of bytes in the input buffer */
 			const size_t numInBytes = out_args.numInSamples * in_buffer_element_size;
-			in_buffer_head += numInBytes;
+			in_buffer_head += out_args.numInSamples;
 			len -= numInBytes;
 
 			/* keep data transfer at a constant bit rate, also
@@ -761,7 +764,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 		if (len > 0 && in_buffer != in_buffer_head)
 			memmove(in_buffer, in_buffer_head, len);
 		/* reposition input buffer head */
-		in_buffer_head = in_buffer + len;
+		in_buffer_head = in_buffer + len / in_buffer_element_size;
 		in_len = in_buffer_size - len;
 
 	}

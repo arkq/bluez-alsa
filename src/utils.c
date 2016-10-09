@@ -219,26 +219,20 @@ const char *batostr_(const bdaddr_t *ba) {
  * Mute PCM signal stored in the buffer.
  *
  * @param buffer Address to the buffer where the PCM signal is stored.
- * @param size The size of the buffer in bytes.
- * @return The number of audio samples which has been modified. */
-int snd_pcm_mute_s16le(void *buffer, size_t size) {
-	memset(buffer, 0, size);
-	return size / sizeof(int16_t);
+ * @param size The number of samples in the buffer. */
+void snd_pcm_mute_s16le(int16_t *buffer, size_t size) {
+	memset(buffer, 0, size * sizeof(*buffer));
 }
 
 /**
  * Scale PCM signal stored in the buffer.
  *
  * @param buffer Address to the buffer where the PCM signal is stored.
- * @param size The size of the buffer in bytes.
- * @param scale The scaling factor - 100 is a neutral value.
- * @return The number of audio samples which has been modified. */
-int snd_pcm_scale_s16le(void *buffer, size_t size, int scale) {
-	const size_t samples = size / sizeof(int16_t);
-	size_t i = samples;
-	while (i--)
-		((int16_t *)buffer)[i] = ((int32_t)((int16_t *)buffer)[i] * scale) / 100;
-	return samples;
+ * @param size The number of samples in the buffer.
+ * @param scale The scaling factor - 100 is a neutral value. */
+void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int scale) {
+	while (size--)
+		buffer[size] = buffer[size] * scale / 100;
 }
 
 /**
