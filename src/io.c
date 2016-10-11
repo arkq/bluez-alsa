@@ -47,8 +47,7 @@ struct io_sync {
 
 /**
  * Wrapper for release callback, which can be used by pthread cleanup. */
-static void io_thread_release_bt(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void io_thread_release_bt(struct ba_transport *t) {
 
 	/* During the normal operation mode, the release callback should not
 	 * be NULL. Hence, we will relay on this callback - file descriptors
@@ -99,6 +98,12 @@ static int io_thread_open_pcm_write(struct ba_transport *t) {
 		 * endpoint is not connected yet. On the other hand, blocking upon data
 		 * write will prevent frame dropping. */
 		fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) & ~O_NONBLOCK);
+
+		/* In order to receive EPIPE while writing to the pipe whose reading end
+		 * is closed, the SIGPIPE signal has to be handled. For more information
+		 * see the io_thread_write_pcm() function. */
+		const struct sigaction sigact = { .sa_handler = SIG_IGN };
+		sigaction(SIGPIPE, &sigact, NULL);
 
 	}
 
@@ -247,9 +252,6 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		goto fail;
 	}
 
-	struct sigaction sigact = { .sa_handler = SIG_IGN };
-	sigaction(SIGPIPE, &sigact, NULL);
-
 	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
 
 	/* TODO: support for "out of the hat" reading MTU */
@@ -384,9 +386,6 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		error("Couldn't open FIFO: %s", strerror(errno));
 		goto fail;
 	}
-
-	struct sigaction sigact = { .sa_handler = SIG_IGN };
-	sigaction(SIGPIPE, &sigact, NULL);
 
 	uint16_t seq_number = random();
 	uint32_t timestamp = random();
@@ -569,9 +568,6 @@ void *io_thread_a2dp_aac_forward(void *arg) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
-
-	struct sigaction sigact = { .sa_handler = SIG_IGN };
-	sigaction(SIGPIPE, &sigact, NULL);
 
 	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
 
