@@ -1,4 +1,4 @@
-Bluetooth Audio ALSA Backend
+Bluetooth Audio ALSA Backend [![Build Status](https://travis-ci.org/Arkq/bluez-alsa.svg?branch=master)](https://travis-ci.org/Arkq/bluez-alsa)
 ============================
 
 This project is a rebirth of a direct integration between [Bluez](http://www.bluez.org/) and

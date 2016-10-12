@@ -1,0 +1,24 @@
+sudo: true
+dist: trusty
+
+language: c
+
+addons:
+  apt:
+    sources:
+      - sourceline: 'deb http://cz.archive.ubuntu.com/ubuntu xenial main'
+    packages:
+      - libasound2-dev
+      - libbluetooth-dev
+      - libfdk-aac-dev
+      - libglib2.0-dev
+      - libortp-dev
+      - libsbc-dev
+
+before_script:
+  - mkdir -p m4
+  - autoreconf --install && mkdir build && cd build
+
+script:
+  - ../configure && make && make check
+  - ../configure --enable-aac && make && make check

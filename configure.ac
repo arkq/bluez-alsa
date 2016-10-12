@@ -5,7 +5,7 @@ AC_INIT([bluez-alsa], [1.0.0], [arkadiusz.bokowy@gmail.com])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_MACRO_DIRS([m4])
+AC_CONFIG_MACRO_DIR([m4])
 
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -40,7 +40,7 @@ AC_ARG_ENABLE([aac],
 	[AS_HELP_STRING([--enable-aac], [enable AAC support])])
 AM_CONDITIONAL([ENABLE_AAC], [test "x$enable_aac" = "xyes"])
 AM_COND_IF([ENABLE_AAC], [
-	PKG_CHECK_MODULES([AAC], [fdk-aac >= 0.1.3])
+	PKG_CHECK_MODULES([AAC], [fdk-aac >= 0.1.1])
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
