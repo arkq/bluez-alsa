@@ -302,6 +302,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 		return -errno;
 	}
 
+	pthread_setname_np(pcm->io_thread, "pcm-io");
 	return 0;
 }
 

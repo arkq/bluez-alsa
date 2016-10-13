@@ -897,6 +897,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 						break;
 
 					/* move rest of data to the beginning of the payload */
+					debug("Payload fragmentation: extra %zd bytes", payload_len);
 					memmove(out_payload, out_payload + ret, payload_len);
 
 				}
