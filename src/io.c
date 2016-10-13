@@ -448,11 +448,11 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
+		/* scale volume or mute audio signal */
+		io_thread_scale_pcm(t, (int16_t *)in_buffer_head, len / sizeof(int16_t));
+
 		const uint8_t *input = (uint8_t *)in_buffer;
 		size_t input_len = (in_buffer_head - (uint8_t *)in_buffer) + len;
-
-		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, in_buffer, input_len / sizeof(int16_t));
 
 		/* encode and transfer obtained data */
 		while (input_len >= sbc_codesize) {
@@ -821,13 +821,13 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
+		/* scale volume or mute audio signal */
+		io_thread_scale_pcm(t, in_buffer_head, len / in_buffer_element_size);
+
 		/* overall input buffer size */
 		len += in_buffer_head - in_buffer;
 		/* in the encoding loop head is used for reading */
 		in_buffer_head = in_buffer;
-
-		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, in_buffer, len / in_buffer_element_size);
 
 		while ((in_args.numInSamples = len / in_buffer_element_size) != 0) {
 
