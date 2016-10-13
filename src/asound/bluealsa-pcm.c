@@ -238,7 +238,7 @@ static void *io_thread(void *arg) {
 	debug("Starting IO loop");
 	while (pcm->io_started) {
 
-		ssize_t len = period_size;
+		size_t len = period_size;
 		char *buffer = areas->addr + (areas->first + areas->step * pcm->io_ptr) / 8;
 		char *head = buffer;
 		ssize_t ret;

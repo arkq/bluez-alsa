@@ -127,10 +127,47 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer, size_t 
 }
 
 /**
- * Write PCM signal to the transport PCM FIFO. */
-static ssize_t io_thread_write_pcm(struct ba_transport *t, int16_t *buffer, size_t size) {
+ * Read PCM signal from the transport PCM FIFO. */
+static ssize_t io_thread_read_pcm(struct ba_transport *t, int16_t *buffer, size_t size) {
 
 	uint8_t *head = (uint8_t *)buffer;
+	size_t len = size * sizeof(int16_t);
+	ssize_t ret;
+
+	/* This call will block until data arrives. If the passed file descriptor
+	 * is invalid (e.g. -1) is means, that other thread (the controller) has
+	 * closed the connection. If the connection was closed during the blocking
+	 * part, we will still read correct data, because Linux kernel does not
+	 * decrement file descriptor reference counter until the read returns. */
+	while (len != 0 && (ret = read(t->pcm_fd, head, len)) != 0) {
+		if (ret == -1) {
+			if (errno == EINTR)
+				continue;
+			break;
+		}
+		head += ret;
+		len -= ret;
+	}
+
+	if (ret > 0)
+		/* atomic data read is guaranteed */
+		return size;
+
+	if (ret == 0)
+		debug("FIFO endpoint has been closed: %d", t->pcm_fd);
+	if (errno == EBADF)
+		ret = 0;
+	if (ret == 0)
+		transport_release_pcm(t);
+
+	return ret;
+}
+
+/**
+ * Write PCM signal to the transport PCM FIFO. */
+static ssize_t io_thread_write_pcm(struct ba_transport *t, const int16_t *buffer, size_t size) {
+
+	const uint8_t *head = (uint8_t *)buffer;
 	size_t len = size * sizeof(int16_t);
 	ssize_t ret;
 
@@ -143,14 +180,13 @@ static ssize_t io_thread_write_pcm(struct ba_transport *t, int16_t *buffer, size
 				 * signal is caught, blocked or ignored. */
 				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
 				transport_release_pcm(t);
-				errno = EPIPE;
+				return 0;
 			}
 			return ret;
 		}
 		head += ret;
 		len -= ret;
-	}
-	while (len != 0);
+	} while (len != 0);
 
 	/* It is guaranteed, that this function will write data atomically. */
 	return size;
@@ -328,7 +364,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 		}
 
 		const size_t size = output - out_buffer;
-		if (io_thread_write_pcm(t, out_buffer, size) == -1 && errno != EPIPE)
+		if (io_thread_write_pcm(t, out_buffer, size) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 	}
@@ -401,8 +437,8 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	memset(rtp_payload, 0, sizeof(*rtp_payload));
 
 	/* reading head position and available read length */
-	uint8_t *in_buffer_head = (uint8_t *)in_buffer;
-	size_t in_len = in_buffer_size;
+	int16_t *in_buffer_head = in_buffer;
+	size_t in_samples = in_buffer_size / sizeof(int16_t);
 
 	struct io_sync io_sync = {
 		.sampling = transport_get_sampling(t),
@@ -411,7 +447,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	debug("Starting backward IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
-		ssize_t len;
+		ssize_t samples;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -420,26 +456,14 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 			io_sync.frames = 0;
 		}
 
-		/* This call will block until data arrives. If the passed file descriptor
-		 * is invalid (e.g. -1) is means, that other thread (the controller) has
-		 * closed the connection. If the connection was closed during the blocking
-		 * part, we will still read correct data, because Linux kernel does not
-		 * decrement file descriptor reference counter until the read returns. */
-		if ((len = read(t->pcm_fd, in_buffer_head, in_len)) == -1) {
-			if (errno == EINTR)
-				continue;
+		/* read data from the FIFO - this function will block */
+		if ((samples = io_thread_read_pcm(t, in_buffer_head, in_samples)) <= 0) {
+			if (samples == -1)
+				error("FIFO read error: %s", strerror(errno));
+			break;
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		if (len <= 0) {
-			if (len == -1 && errno != EBADF)
-				error("FIFO read error: %s", strerror(errno));
-			else if (len == 0)
-				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
-			transport_release_pcm(t);
-			goto fail;
-		}
 
 		/* When the thread is created, there might be no data in the FIFO. In fact
 		 * there might be no data for a long time - until client starts playback.
@@ -449,10 +473,13 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, (int16_t *)in_buffer_head, len / sizeof(int16_t));
+		io_thread_scale_pcm(t, in_buffer_head, samples);
+
+		/* overall input buffer size */
+		samples += in_buffer_head - in_buffer;
 
 		const uint8_t *input = (uint8_t *)in_buffer;
-		size_t input_len = (in_buffer_head - (uint8_t *)in_buffer) + len;
+		size_t input_len = samples * sizeof(int16_t);
 
 		/* encode and transfer obtained data */
 		while (input_len >= sbc_codesize) {
@@ -503,15 +530,18 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 
 		}
 
+		/* convert bytes length to samples length */
+		samples = input_len / sizeof(int16_t);
+
 		/* If the input buffer was not consumed (due to codesize limit), we
 		 * have to append new data to the existing one. Since we do not use
 		 * ring buffer, we will simply move unprocessed data to the front
 		 * of our linear buffer. */
-		if (input_len > 0 && (uint8_t *)in_buffer != input)
-			memmove(in_buffer, input, input_len);
+		if (samples > 0 && (uint8_t *)in_buffer != input)
+			memmove(in_buffer, input, samples * sizeof(int16_t));
 		/* reposition our reading head */
-		in_buffer_head = (uint8_t *)in_buffer + input_len;
-		in_len = in_buffer_size - input_len;
+		in_buffer_head = in_buffer + samples;
+		in_samples = in_buffer_size / sizeof(int16_t) - samples;
 
 	}
 
@@ -623,7 +653,7 @@ void *io_thread_a2dp_aac_forward(void *arg) {
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t size = aacinf->frameSize * aacinf->numChannels;
-			if (io_thread_write_pcm(t, out_buffer, size) == -1 && errno != EPIPE)
+			if (io_thread_write_pcm(t, out_buffer, size) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 
@@ -783,7 +813,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 	}
 
 	/* initial input buffer head position and the available size */
-	size_t in_len = in_buffer_size;
+	size_t in_samples = in_buffer_size / in_buffer_element_size;
 	in_buffer_head = in_buffer;
 
 	struct io_sync io_sync = {
@@ -793,7 +823,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 	debug("Starting backward IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
-		ssize_t len;
+		ssize_t samples;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -802,34 +832,27 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 			io_sync.frames = 0;
 		}
 
-		if ((len = read(t->pcm_fd, in_buffer_head, in_len)) == -1) {
-			if (errno == EINTR)
-				continue;
+		/* read data from the FIFO - this function will block */
+		if ((samples = io_thread_read_pcm(t, in_buffer_head, in_samples)) <= 0) {
+			if (samples == -1)
+				error("FIFO read error: %s", strerror(errno));
+			break;
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		if (len <= 0) {
-			if (len == -1 && errno != EBADF)
-				error("FIFO read error: %s", strerror(errno));
-			else if (len == 0)
-				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
-			transport_release_pcm(t);
-			goto fail;
-		}
 
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, in_buffer_head, len / in_buffer_element_size);
+		io_thread_scale_pcm(t, in_buffer_head, samples);
 
 		/* overall input buffer size */
-		len += in_buffer_head - in_buffer;
+		samples += in_buffer_head - in_buffer;
 		/* in the encoding loop head is used for reading */
 		in_buffer_head = in_buffer;
 
-		while ((in_args.numInSamples = len / in_buffer_element_size) != 0) {
+		while ((in_args.numInSamples = samples) != 0) {
 
 			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
 				error("AAC encoding error: %s", aacenc_strerror(err));
@@ -880,11 +903,10 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 
 			}
 
-			/* progress the head position by the number of bytes consumed by the
-			 * encoder, also adjust the number of bytes in the input buffer */
-			const size_t numInBytes = out_args.numInSamples * in_buffer_element_size;
+			/* progress the head position by the number of samples consumed by the
+			 * encoder, also adjust the number of samples in the input buffer */
 			in_buffer_head += out_args.numInSamples;
-			len -= numInBytes;
+			samples -= out_args.numInSamples;
 
 			/* keep data transfer at a constant bit rate, also
 			 * get a timestamp for the next RTP frame */
@@ -893,11 +915,11 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 		}
 
 		/* move leftovers to the beginning */
-		if (len > 0 && in_buffer != in_buffer_head)
-			memmove(in_buffer, in_buffer_head, len);
+		if (samples > 0 && in_buffer != in_buffer_head)
+			memmove(in_buffer, in_buffer_head, samples * in_buffer_element_size);
 		/* reposition input buffer head */
-		in_buffer_head = in_buffer + len / in_buffer_element_size;
-		in_len = in_buffer_size - len;
+		in_buffer_head = in_buffer + samples;
+		in_samples = in_buffer_size / in_buffer_element_size - samples;
 
 	}
 

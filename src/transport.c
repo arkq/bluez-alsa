@@ -495,6 +495,15 @@ fail:
 
 int transport_release_pcm(struct ba_transport *t) {
 
+	int oldstate;
+
+	/* Transport IO workers are managed using thread cancellation mechanism,
+	 * so we have to take into account a possibility of cancellation during the
+	 * execution. In this release function it is important to perform actions
+	 * atomically. Since unlink and close calls are cancellation points, it is
+	 * required to temporally disable cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
+
 	if (t->pcm_fifo != NULL) {
 		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
 		unlink(t->pcm_fifo);
@@ -508,5 +517,6 @@ int transport_release_pcm(struct ba_transport *t) {
 		t->pcm_fd = -1;
 	}
 
+	pthread_setcancelstate(oldstate, NULL);
 	return 0;
 }
