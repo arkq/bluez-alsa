@@ -44,6 +44,14 @@ AM_COND_IF([ENABLE_AAC], [
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
+AC_ARG_ENABLE([hcitop],
+	[AS_HELP_STRING([--disable-hcitop], [disable building of hcitop tool])])
+AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" != "xno"])
+AM_COND_IF([ENABLE_HCITOP], [
+	PKG_CHECK_MODULES([LIBBSD], [libbsd])
+	PKG_CHECK_MODULES([NCURSES], [ncurses])
+])
+
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
 	[alsaplugindir="$withval"], [alsaplugindir="$libdir/alsa-lib"])
@@ -73,5 +81,6 @@ AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
 	src/asound/Makefile
+	utils/Makefile
 	test/Makefile])
 AC_OUTPUT
