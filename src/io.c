@@ -581,10 +581,21 @@ void *io_thread_a2dp_aac_forward(void *arg) {
 	pthread_cleanup_push(CANCEL_ROUTINE(aacDecoder_Close), handle);
 
 	const unsigned int channels = transport_get_channels(t);
+#ifdef AACDECODER_LIB_VL0
+	if ((err = aacDecoder_SetParam(handle, AAC_PCM_MIN_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
+		error("Couldn't set min output channels: %s", aacdec_strerror(err));
+		goto fail_init;
+	}
+	if ((err = aacDecoder_SetParam(handle, AAC_PCM_MAX_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
+		error("Couldn't set max output channels: %s", aacdec_strerror(err));
+		goto fail_init;
+	}
+#else
 	if ((err = aacDecoder_SetParam(handle, AAC_PCM_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
 		error("Couldn't set output channels: %s", aacdec_strerror(err));
 		goto fail_init;
 	}
+#endif
 
 	const size_t in_buffer_size = t->mtu_read;
 	const size_t out_buffer_size = 2048 * channels * sizeof(INT_PCM);
