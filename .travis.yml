@@ -10,8 +10,10 @@ addons:
     packages:
       - libasound2-dev
       - libbluetooth-dev
+      - libbsd-dev
       - libfdk-aac-dev
       - libglib2.0-dev
+      - libncurses5-dev
       - libortp-dev
       - libsbc-dev
 

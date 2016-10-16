@@ -1,7 +1,7 @@
 # BlueALSA - configure.ac
 # Copyright (c) 2016 Arkadiusz Bokowy
 
-AC_INIT([bluez-alsa], [1.0.0], [arkadiusz.bokowy@gmail.com])
+AC_INIT([bluez-alsa], [1.1.0], [arkadiusz.bokowy@gmail.com])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
 AC_CONFIG_HEADERS([config.h])
