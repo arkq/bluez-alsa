@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
 
 	int opt;
 	const char *opts = "hi:";
-	struct option longopts[] = {
+	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "disable-a2dp", no_argument, NULL, 1 },

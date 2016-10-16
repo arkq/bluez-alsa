@@ -15,6 +15,9 @@
 # include "config.h"
 #endif
 
+/* Casting wrapper for the brevity's sake. */
+#define CANCEL_ROUTINE(f) ((void (*)(void *))(f))
+
 void *io_thread_a2dp_sbc_forward(void *arg);
 void *io_thread_a2dp_sbc_backward(void *arg);
 #if ENABLE_AAC

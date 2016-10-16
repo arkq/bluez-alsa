@@ -248,7 +248,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(io_thread_release_bt, t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -279,9 +279,9 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	uint8_t *in_buffer = malloc(in_buffer_size);
 	int16_t *out_buffer = malloc(out_buffer_size);
 
-	pthread_cleanup_push(sbc_finish, &sbc);
-	pthread_cleanup_push(free, in_buffer);
-	pthread_cleanup_push(free, out_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(sbc_finish), &sbc);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
@@ -382,7 +382,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(io_thread_release_bt, t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
 
 	sbc_t sbc;
 
@@ -409,9 +409,9 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 	int16_t *in_buffer = malloc(in_buffer_size);
 	uint8_t *out_buffer = malloc(out_buffer_size);
 
-	pthread_cleanup_push(sbc_finish, &sbc);
-	pthread_cleanup_push(free, in_buffer);
-	pthread_cleanup_push(free, out_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(sbc_finish), &sbc);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
@@ -559,7 +559,7 @@ void *io_thread_a2dp_aac_forward(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(io_thread_release_bt, t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -578,7 +578,7 @@ void *io_thread_a2dp_aac_forward(void *arg) {
 		goto fail_open;
 	}
 
-	pthread_cleanup_push(aacDecoder_Close, handle);
+	pthread_cleanup_push(CANCEL_ROUTINE(aacDecoder_Close), handle);
 
 	const unsigned int channels = transport_get_channels(t);
 	if ((err = aacDecoder_SetParam(handle, AAC_PCM_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
@@ -591,8 +591,8 @@ void *io_thread_a2dp_aac_forward(void *arg) {
 	uint8_t *in_buffer = malloc(in_buffer_size);
 	int16_t *out_buffer = malloc(out_buffer_size);
 
-	pthread_cleanup_push(free, in_buffer);
-	pthread_cleanup_push(free, out_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
@@ -675,7 +675,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 	const a2dp_aac_t *config = (a2dp_aac_t *)t->config;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(io_thread_release_bt, t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
 
 	HANDLE_AACENCODER handle;
 	AACENC_InfoStruct aacinf;
@@ -688,7 +688,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 		goto fail_open;
 	}
 
-	pthread_cleanup_push(aacEncClose, &handle);
+	pthread_cleanup_push(CANCEL_ROUTINE(aacEncClose), &handle);
 
 	unsigned int aot = AOT_NONE;
 	unsigned int bitrate = AAC_GET_BITRATE(*config);
@@ -785,8 +785,8 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 	in_buffer = malloc(in_buffer_size);
 	out_buffer = malloc(sizeof(rtp_header_t) + out_payload_size);
 
-	pthread_cleanup_push(free, in_buffer);
-	pthread_cleanup_push(free, out_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
