@@ -169,27 +169,31 @@ const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
 	case TRANSPORT_PROFILE_A2DP_SOURCE:
 		switch (codec) {
 		case A2DP_CODEC_SBC:
-			return "A2DP-SBC Source";
+			return "A2DP Source (SBC)";
 		case A2DP_CODEC_MPEG12:
-			return "A2DP-MPEG12 Source";
+			return "A2DP Source (MP3)";
 		case A2DP_CODEC_MPEG24:
-			return "A2DP-MPEG24 Source";
+			return "A2DP Source (AAC)";
 		}
 		return "A2DP Source";
 	case TRANSPORT_PROFILE_A2DP_SINK:
 		switch (codec) {
 		case A2DP_CODEC_SBC:
-			return "A2DP-SBC Sink";
+			return "A2DP Sink (SBC)";
 		case A2DP_CODEC_MPEG12:
-			return "A2DP-MPEG12 Sink";
+			return "A2DP Sink (MP3)";
 		case A2DP_CODEC_MPEG24:
-			return "A2DP-MPEG24 Sink";
+			return "A2DP Sink (AAC)";
 		}
 		return "A2DP Sink";
-	case TRANSPORT_PROFILE_HFP:
-		return "HFP";
-	case TRANSPORT_PROFILE_HSP:
-		return "HSP";
+	case TRANSPORT_PROFILE_HSP_HS:
+		return "HSP Headset";
+	case TRANSPORT_PROFILE_HSP_AG:
+		return "HSP Audio Gateway";
+	case TRANSPORT_PROFILE_HFP_HF:
+		return "HFP Hands-Free";
+	case TRANSPORT_PROFILE_HFP_AG:
+		return "HFP Audio Gateway";
 	default:
 		return "N/A";
 	}

@@ -33,6 +33,10 @@ static int io_thread_create(struct ba_transport *t) {
 		case A2DP_CODEC_SBC:
 			routine = io_thread_a2dp_source_sbc;
 			break;
+#if 0
+		case A2DP_CODEC_MPEG12:
+			break;
+#endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			routine = io_thread_a2dp_source_aac;
@@ -47,6 +51,10 @@ static int io_thread_create(struct ba_transport *t) {
 		case A2DP_CODEC_SBC:
 			routine = io_thread_a2dp_sink_sbc;
 			break;
+#if 0
+		case A2DP_CODEC_MPEG12:
+			break;
+#endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			routine = io_thread_a2dp_sink_aac;
@@ -56,8 +64,10 @@ static int io_thread_create(struct ba_transport *t) {
 			warn("Codec not supported: %u", t->codec);
 		}
 		break;
-	case TRANSPORT_PROFILE_HFP:
-	case TRANSPORT_PROFILE_HSP:
+	case TRANSPORT_PROFILE_HSP_HS:
+	case TRANSPORT_PROFILE_HSP_AG:
+	case TRANSPORT_PROFILE_HFP_HF:
+	case TRANSPORT_PROFILE_HFP_AG:
 	default:
 		warn("Profile not supported: %u", t->profile);
 	}
@@ -259,9 +269,10 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			break;
 		}
 		break;
-	case TRANSPORT_PROFILE_HFP:
-		return 1;
-	case TRANSPORT_PROFILE_HSP:
+	case TRANSPORT_PROFILE_HSP_HS:
+	case TRANSPORT_PROFILE_HSP_AG:
+	case TRANSPORT_PROFILE_HFP_HF:
+	case TRANSPORT_PROFILE_HFP_AG:
 		return 1;
 	}
 
