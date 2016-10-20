@@ -91,6 +91,10 @@ struct ba_transport {
 struct ba_device *device_new(bdaddr_t *addr, const char *name);
 void device_free(struct ba_device *d);
 
+struct ba_device *device_get(GDBusConnection *conn, GHashTable *devices, const char *key);
+struct ba_device *device_lookup(GHashTable *devices, const char *key);
+gboolean device_remove(GHashTable *devices, const char *key);
+
 struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
 		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
 		const uint8_t *config, size_t config_size);

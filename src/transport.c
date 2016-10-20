@@ -20,6 +20,7 @@
 #include "a2dp-codecs.h"
 #include "io.h"
 #include "log.h"
+#include "utils.h"
 
 
 static int io_thread_create(struct ba_transport *t) {
@@ -108,6 +109,39 @@ void device_free(struct ba_device *d) {
 	g_hash_table_unref(d->transports);
 	free(d->name);
 	free(d);
+}
+
+struct ba_device *device_get(GDBusConnection *conn, GHashTable *devices, const char *key) {
+
+	struct ba_device *d;
+	GVariant *property;
+	bdaddr_t addr;
+	char name[32];
+
+	if ((d = g_hash_table_lookup(devices, key)) != NULL)
+		return d;
+
+	g_dbus_device_path_to_bdaddr(key, &addr);
+	ba2str(&addr, name);
+
+	if ((property = g_dbus_get_property(conn, "org.bluez", key,
+					"org.bluez.Device1", "Name")) != NULL) {
+		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
+		name[sizeof(name) - 1] = '\0';
+		g_variant_unref(property);
+	}
+
+	d = device_new(&addr, name);
+	g_hash_table_insert(devices, g_strdup(key), d);
+	return d;
+}
+
+struct ba_device *device_lookup(GHashTable *devices, const char *key) {
+	return g_hash_table_lookup(devices, key);
+}
+
+gboolean device_remove(GHashTable *devices, const char *key) {
+	return g_hash_table_remove(devices, key);
 }
 
 struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,

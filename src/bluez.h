@@ -37,10 +37,10 @@
 #define BLUEZ_ENDPOINT_A2DP_ATRAC_SINK    "/MediaEndpoint/A2DP_ATRAC_Sink"
 
 /* List of profiles registered by us. */
-#define BLUEZ_PROFILE_HSP_HS "/Profile/HSPHS"
-#define BLUEZ_PROFILE_HSP_AG "/Profile/HSPAG"
-#define BLUEZ_PROFILE_HFP_HF "/Profile/HFPHF"
-#define BLUEZ_PROFILE_HFP_AG "/Profile/HFPAG"
+#define BLUEZ_PROFILE_HSP_HS "/Profile/HSPHeadset"
+#define BLUEZ_PROFILE_HSP_AG "/Profile/HSPAudioGateway"
+#define BLUEZ_PROFILE_HFP_HF "/Profile/HFPHandsFree"
+#define BLUEZ_PROFILE_HFP_AG "/Profile/HFPAudioGateway"
 
 int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup);
 int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup);

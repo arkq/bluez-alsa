@@ -16,6 +16,7 @@
 #include <bluetooth/hci_lib.h>
 
 #include "a2dp-codecs.h"
+#include "bluez.h"
 #include "log.h"
 #include "transport.h"
 
@@ -86,12 +87,53 @@ int hci_devlist(struct hci_dev_info **di, int *num) {
 }
 
 /**
+ * Convert BlueZ D-Bus object path into a transport profile.
+ *
+ * @param path BlueZ D-Bus object path.
+ * @return On success this function returns transport profile. If object
+ *   path cannot be recognize, 0 is returned. */
+int g_dbus_object_path_to_profile(const char *path) {
+
+	static GHashTable *profiles = NULL;
+
+	/* initialize profile hash table */
+	if (profiles == NULL) {
+
+		size_t i;
+		const struct profile_data {
+			char *endpoint;
+			unsigned int profile;
+		} data[] = {
+			{ BLUEZ_ENDPOINT_A2DP_SBC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_SBC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
+			{ BLUEZ_PROFILE_HSP_HS, TRANSPORT_PROFILE_HSP_HS },
+			{ BLUEZ_PROFILE_HSP_AG, TRANSPORT_PROFILE_HSP_AG },
+			{ BLUEZ_PROFILE_HFP_HF, TRANSPORT_PROFILE_HFP_HF },
+			{ BLUEZ_PROFILE_HFP_AG, TRANSPORT_PROFILE_HFP_AG },
+		};
+
+		profiles = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+		for (i = 0; i < sizeof(data) / sizeof(struct profile_data); i++)
+			g_hash_table_insert(profiles, data[i].endpoint, GINT_TO_POINTER(data[i].profile));
+
+	}
+
+	return GPOINTER_TO_INT(g_hash_table_lookup(profiles, path));
+}
+
+/**
  * Convert BlueZ D-Bus device path into a bdaddr_t structure.
  *
  * @param path BlueZ D-Bus device path.
  * @param addr Address where the parsed address will be stored.
  * @return On success this function returns 0. Otherwise, -1 is returned. */
-int g_dbus_devpath_to_bdaddr(const char *path, bdaddr_t *addr) {
+int g_dbus_device_path_to_bdaddr(const char *path, bdaddr_t *addr) {
 
 	char *tmp, *p;
 	int ret;

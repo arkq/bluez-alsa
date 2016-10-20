@@ -189,7 +189,6 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		g_variant_builder_add(caps, "y", capabilities[i]);
 
 	g_dbus_method_invocation_return_value(inv, g_variant_new("(ay)", caps));
-
 	goto final;
 
 fail:
@@ -202,49 +201,21 @@ final:
 
 static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
-	static GHashTable *profiles = NULL;
-
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
+	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct ba_setup *setup = (struct ba_setup *)userdata;
 	struct ba_transport *t;
 	struct ba_device *d;
-	int profile = -1;
+
+	const int profile = g_dbus_object_path_to_profile(path);
 	int codec = -1;
 
 	const char *transport;
-	char *device = NULL, *uuid = NULL, *state = NULL;
+	char *device = NULL, *state = NULL;
 	uint8_t *config = NULL;
 	uint16_t volume = 100;
 	size_t size = 0;
-
-	if (profiles == NULL) {
-		/* initialize profiles hash table - used for profile lookup */
-
-		size_t i;
-		const struct profile_data {
-			const char *uuid;
-			const char *endpoint;
-			unsigned int profile;
-		} data[] = {
-			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_SBC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_SBC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_MPEG12_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_MPEG24_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-			{ BLUETOOTH_UUID_A2DP_SOURCE, BLUEZ_ENDPOINT_A2DP_ATRAC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUETOOTH_UUID_A2DP_SINK, BLUEZ_ENDPOINT_A2DP_ATRAC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-		};
-
-		profiles = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-
-		for (i = 0; i < sizeof(data) / sizeof(struct profile_data); i++) {
-			gchar *key = g_strdup_printf("%s%s", data[i].uuid, data[i].endpoint);
-			g_hash_table_insert(profiles, key, GINT_TO_POINTER(data[i].profile));
-		}
-
-	}
 
 	GVariantIter *properties;
 	GVariant *value = NULL;
@@ -272,26 +243,6 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 		}
 		else if (strcmp(key, "UUID") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
-				error("Invalid argument type for %s: %s != %s", key,
-						g_variant_get_type_string(value), "s");
-				goto fail;
-			}
-
-			g_variant_get(value, "s", &uuid);
-
-			const gchar *path = g_dbus_method_invocation_get_object_path(inv);
-			gchar *key = g_strdup_printf("%s%s", uuid, path);
-
-			profile = GPOINTER_TO_INT(g_hash_table_lookup(profiles, key));
-			g_free(key);
-
-			if (profile == 0) {
-				error("UUID %s of transport %s incompatible with endpoint %s", uuid, transport, path);
-				goto fail;
-			}
-
 		}
 		else if (strcmp(key, "Codec") == 0) {
 
@@ -443,33 +394,17 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	/* we are going to modify the devices hash-map */
 	pthread_mutex_lock(&setup->devices_mutex);
 
-	/* If the device is not in our "repository" yet, add it. */
-	if ((d = g_hash_table_lookup(setup->devices, device)) == NULL) {
-
-		GVariant *property;
-		bdaddr_t addr;
-		char name[32];
-
-		g_dbus_devpath_to_bdaddr(device, &addr);
-		ba2str(&addr, name);
-
-		if ((property = g_dbus_get_property(conn, "org.bluez", device,
-						"org.bluez.Device1", "Name")) != NULL) {
-			strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
-			name[sizeof(name) - 1] = '\0';
-			g_variant_unref(property);
-		}
-
-		d = device_new(&addr, name);
-		g_hash_table_insert(setup->devices, g_strdup(device), d);
-
+	/* get the device structure for obtained device path */
+	if ((d = device_get(conn, setup->devices, device)) == NULL) {
+		error("Couldn't get device: %s", strerror(errno));
+		goto fail;
 	}
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
 	if ((t = transport_new(conn, g_dbus_method_invocation_get_sender(inv), transport,
 					bluetooth_profile_to_string(profile, codec), profile, codec, config, size)) == NULL) {
-		error("Cannot create new transport: %s", strerror(errno));
+		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -481,8 +416,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	debug("%s configured for device %s", t->name, batostr_(&d->addr));
 	debug("Configuration: channels: %u, sampling: %u",
 			transport_get_channels(t), transport_get_sampling(t));
-	g_dbus_method_invocation_return_value(inv, NULL);
 
+	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;
 
 fail:
@@ -495,7 +430,6 @@ final:
 	if (value != NULL)
 		g_variant_unref(value);
 	g_free(device);
-	g_free(uuid);
 	g_free(config);
 	g_free(state);
 }
@@ -574,7 +508,7 @@ static const GDBusInterfaceVTable endpoint_vtable = {
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 
-	static a2dp_sbc_t a2dp_sbc = {
+	static const a2dp_sbc_t a2dp_sbc = {
 		.frequency =
 			SBC_SAMPLING_FREQ_16000 |
 			SBC_SAMPLING_FREQ_32000 |
@@ -601,7 +535,7 @@ int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 	};
 
 #if 0
-	static a2dp_mpeg_t a2dp_mpeg = {
+	static const a2dp_mpeg_t a2dp_mpeg = {
 		.layer =
 			MPEG_LAYER_MP1 |
 			MPEG_LAYER_MP2 |
@@ -641,7 +575,7 @@ int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 #endif
 
 #if ENABLE_AAC
-	static a2dp_aac_t a2dp_aac = {
+	static const a2dp_aac_t a2dp_aac = {
 		.object_type =
 			/* NOTE: AAC Long Term Prediction and AAC Scalable are
 			 *       not supported by the FDK-AAC library. */
@@ -668,7 +602,7 @@ int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 	};
 #endif
 
-	static struct endpoint {
+	static const struct endpoint {
 		const char *uuid;
 		const char *endpoint;
 		uint8_t codec;
@@ -864,52 +798,65 @@ static const GDBusInterfaceVTable profile_vtable = {
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
-	unsigned int hash;
-	guint id;
+	static const struct profile {
+		const char *uuid;
+		const char *endpoint;
+	} profiles[] = {
+		/* { BLUETOOTH_UUID_HSP_HS, BLUEZ_PROFILE_HSP_HS }, */
+		{ BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG },
+		/* { BLUETOOTH_UUID_HFP_HF, BLUEZ_PROFILE_HFP_HF }, */
+		/* { BLUETOOTH_UUID_HFP_AG, BLUEZ_PROFILE_HFP_AG }, */
+	};
 
-	debug("Registering profile: %s: %s", BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG);
+	size_t i;
 
-	hash = g_str_hash(BLUEZ_PROFILE_HSP_AG);
-	if (g_hash_table_contains(setup->dbus_objects, GINT_TO_POINTER(hash))) {
-		debug("Profile already registered");
-		return 0;
-	}
+	for (i = 0; i < sizeof(profiles) / sizeof(struct profile); i++) {
 
-	if ((id = g_dbus_connection_register_object(conn, BLUEZ_PROFILE_HSP_AG,
-					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
-					setup, profile_free, &err)) == 0)
-		goto fail;
+		GDBusMessage *msg = NULL, *rep = NULL;
+		GError *err = NULL;
+		unsigned int hash;
+		guint id;
 
-	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
-			"org.bluez.ProfileManager1", "RegisterProfile");
+		debug("Registering profile: %s: %s", profiles[i].uuid, profiles[i].endpoint);
 
-	g_dbus_message_set_body(msg, g_variant_new("(osa{sv})",
-				BLUEZ_PROFILE_HSP_AG, BLUETOOTH_UUID_HSP_AG, NULL));
+		hash = g_str_hash(profiles[i].endpoint);
+		if (g_hash_table_contains(setup->dbus_objects, GINT_TO_POINTER(hash))) {
+			debug("Profile already registered");
+			continue;
+		}
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-		goto fail;
+		if ((id = g_dbus_connection_register_object(conn, profiles[i].endpoint,
+						(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
+						setup, profile_free, &err)) == 0)
+			goto fail;
 
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
+		msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
+				"org.bluez.ProfileManager1", "RegisterProfile");
 
-	g_hash_table_insert(setup->dbus_objects, GINT_TO_POINTER(hash), GINT_TO_POINTER(id));
+		g_dbus_message_set_body(msg, g_variant_new("(osa{sv})",
+					profiles[i].endpoint, profiles[i].uuid, NULL));
+
+		if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+			goto fail;
+
+		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+			g_dbus_message_to_gerror(rep, &err);
+			goto fail;
+		}
+
+		g_hash_table_insert(setup->dbus_objects, GINT_TO_POINTER(hash), GINT_TO_POINTER(id));
 
 fail:
-
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
-		warn("Couldn't register profile: %s", err->message);
-		g_dbus_connection_unregister_object(conn, id);
-		g_error_free(err);
-		return -1;
+		if (msg != NULL)
+			g_object_unref(msg);
+		if (rep != NULL)
+			g_object_unref(rep);
+		if (err != NULL) {
+			warn("Couldn't register profile: %s", err->message);
+			g_dbus_connection_unregister_object(conn, id);
+			g_error_free(err);
+		}
 	}
 
 	return 0;

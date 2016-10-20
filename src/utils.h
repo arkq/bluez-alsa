@@ -26,7 +26,8 @@ int hci_devlist(struct hci_dev_info **di, int *num);
 const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec);
 const char *batostr_(const bdaddr_t *ba);
 
-int g_dbus_devpath_to_bdaddr(const char *path, bdaddr_t *addr);
+int g_dbus_object_path_to_profile(const char *path);
+int g_dbus_device_path_to_bdaddr(const char *path, bdaddr_t *addr);
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
 		const char *path, const char *interface, const char *property);
 
