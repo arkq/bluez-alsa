@@ -242,7 +242,7 @@ static int io_thread_time_sync(struct io_sync *io_sync, uint32_t frames) {
 	return duration;
 }
 
-void *io_thread_a2dp_sbc_forward(void *arg) {
+void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -292,7 +292,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 
 	/* TODO: support for "out of the hat" reading MTU */
 
-	debug("Starting forward IO loop");
+	debug("Starting sink IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t len;
@@ -378,7 +378,7 @@ fail_init:
 	return NULL;
 }
 
-void *io_thread_a2dp_sbc_backward(void *arg) {
+void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -444,7 +444,7 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 		.sampling = transport_get_sampling(t),
 	};
 
-	debug("Starting backward IO loop");
+	debug("Starting source IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t samples;
@@ -555,7 +555,7 @@ fail_init:
 }
 
 #if ENABLE_AAC
-void *io_thread_a2dp_aac_forward(void *arg) {
+void *io_thread_a2dp_sink_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -612,7 +612,7 @@ void *io_thread_a2dp_aac_forward(void *arg) {
 
 	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
 
-	debug("Starting forward IO loop");
+	debug("Starting sink IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		CStreamInfo *aacinf;
@@ -681,7 +681,7 @@ fail_open:
 #endif
 
 #if ENABLE_AAC
-void *io_thread_a2dp_aac_backward(void *arg) {
+void *io_thread_a2dp_source_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 	const a2dp_aac_t *config = (a2dp_aac_t *)t->config;
 
@@ -831,7 +831,7 @@ void *io_thread_a2dp_aac_backward(void *arg) {
 		.sampling = samplerate,
 	};
 
-	debug("Starting backward IO loop");
+	debug("Starting source IO loop");
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t samples;

@@ -58,21 +58,21 @@ int test_a2dp_sbc_invalid_setup(void) {
 
 	pthread_t thread;
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 1);
 	assert(strcmp(test_error_msg, "Invalid BT socket: -1") == 0);
 
 	transport.bt_fd = 0;
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 2);
 	assert(strcmp(test_error_msg, "Invalid reading MTU: 0") == 0);
 
 	transport.mtu_read = 475;
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 3);
 	assert(strcmp(test_error_msg, "Couldn't initialize SBC codec: Invalid argument") == 0);
@@ -80,7 +80,7 @@ int test_a2dp_sbc_invalid_setup(void) {
 	transport.config = (uint8_t *)&config_sbc_44100_joint_stereo;
 	*test_error_msg = '\0';
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 3);
 	assert(strcmp(test_error_msg, "") == 0);
@@ -112,7 +112,7 @@ int test_a2dp_sbc_decoding(void) {
 	char *buffer;
 	size_t size;
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_forward, &transport);
+	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
 
 	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
 	assert(a2dp_write_sbc(bt_fds[0], &config_sbc_44100_joint_stereo, buffer, size) == 0);
@@ -150,7 +150,7 @@ int test_a2dp_sbc_encoding(void) {
 	char *buffer;
 	size_t size;
 
-	pthread_create(&thread, NULL, io_thread_a2dp_sbc_backward, &transport);
+	pthread_create(&thread, NULL, io_thread_a2dp_source_sbc, &transport);
 
 	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
 	assert(write(pcm_fds[0], buffer, size) == (signed)size);

@@ -24,11 +24,11 @@
 #include "../src/bluealsa.c"
 #include "../src/ctl.c"
 #include "../src/io.h"
-#define io_thread_a2dp_sbc_forward _io_thread_a2dp_sbc_forward
-#define io_thread_a2dp_sbc_backward _io_thread_a2dp_sbc_backward
+#define io_thread_a2dp_sink_sbc _io_thread_a2dp_sink_sbc
+#define io_thread_a2dp_source_sbc _io_thread_a2dp_source_sbc
 #include "../src/io.c"
-#undef io_thread_a2dp_sbc_forward
-#undef io_thread_a2dp_sbc_backward
+#undef io_thread_a2dp_sink_sbc
+#undef io_thread_a2dp_source_sbc
 #define transport_acquire _transport_acquire
 #include "../src/transport.c"
 #undef transport_acquire
@@ -61,7 +61,7 @@ int transport_acquire(struct ba_transport *t) {
 	return 0;
 }
 
-void *io_thread_a2dp_sbc_forward(void *arg) {
+void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	const char *end = drum_buffer + drum_buffer_size;
@@ -119,7 +119,7 @@ void *io_thread_a2dp_sbc_forward(void *arg) {
 	}
 }
 
-void *io_thread_a2dp_sbc_backward(void *arg) {
+void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	while ((t->pcm_fd = open(t->pcm_fifo, O_RDONLY)) == -1)
@@ -150,29 +150,29 @@ void *io_thread_a2dp_sbc_backward(void *arg) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hbft:";
+	const char *opts = "hsit:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
-		{ "backward", no_argument, NULL, 'b' },
-		{ "forward", no_argument, NULL, 'f' },
+		{ "source", no_argument, NULL, 's' },
+		{ "sink", no_argument, NULL, 'i' },
 		{ "timeout", required_argument, NULL, 't' },
 		{ 0, 0, 0, 0 },
 	};
 
-	int backward = 0;
-	int forward = 0;
+	int source = 0;
+	int sink = 0;
 	int timeout = 5;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h':
-			printf("usage: %s [--backward] [--forward] [--timeout SEC]\n", argv[0]);
+			printf("usage: %s [--source] [--sink] [--timeout SEC]\n", argv[0]);
 			return EXIT_SUCCESS;
-		case 'b':
-			backward = 1;
+		case 's':
+			source = 1;
 			break;
-		case 'f':
-			forward = 1;
+		case 'i':
+			sink = 1;
 			break;
 		case 't':
 			timeout = atoi(optarg);
@@ -198,9 +198,9 @@ int main(int argc, char *argv[]) {
 	assert((d = device_new(&addr, "Test Device")) != NULL);
 	g_hash_table_insert(setup.devices, g_strdup("/device"), d);
 
-	if (backward) {
+	if (source) {
 		struct ba_transport *t_source;
-		assert((t_source = transport_new(NULL, ":test", "/source", "Backward",
+		assert((t_source = transport_new(NULL, ":test", "/source", "Source",
 						TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
 						(uint8_t *)&config, sizeof(config))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_source->dbus_path), t_source);
@@ -208,9 +208,9 @@ int main(int argc, char *argv[]) {
 		assert(io_thread_create(t_source) == 0);
 	}
 
-	if (forward) {
+	if (sink) {
 		struct ba_transport *t_sink;
-		assert((t_sink = transport_new(NULL, ":test", "/sink", "Forward",
+		assert((t_sink = transport_new(NULL, ":test", "/sink", "Sink",
 						TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
 						(uint8_t *)&config, sizeof(config))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_sink->dbus_path), t_sink);

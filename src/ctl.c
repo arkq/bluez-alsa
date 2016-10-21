@@ -256,10 +256,10 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 	if (chown(pcm.fifo, -1, setup->gid_audio) == -1)
 		goto fail;
 
-	/* XXX: This will notify our forward transport IO thread, that the FIFO has
-	 *      just been created, so it is possible to open it. Backward IO thread
-	 *      should not be started before the PCM open request has been made, so
-	 *      this "notification" mechanism does not apply. */
+	/* XXX: This change will notify our sink IO thread, that the FIFO has just
+	 *      been created, so it is possible to open it. Source IO thread should
+	 *      not be started before the PCM open request has been made, so this
+	 *      "notification" mechanism does not apply. */
 	t->pcm_fifo = strdup(pcm.fifo);
 
 	/* for source profile we need to open transport by ourself */

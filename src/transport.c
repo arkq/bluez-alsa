@@ -31,11 +31,11 @@ static int io_thread_create(struct ba_transport *t) {
 	case TRANSPORT_PROFILE_A2DP_SOURCE:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_sbc_backward;
+			routine = io_thread_a2dp_source_sbc;
 			break;
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_aac_backward;
+			routine = io_thread_a2dp_source_aac;
 			break;
 #endif
 		default:
@@ -45,11 +45,11 @@ static int io_thread_create(struct ba_transport *t) {
 	case TRANSPORT_PROFILE_A2DP_SINK:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_sbc_forward;
+			routine = io_thread_a2dp_sink_sbc;
 			break;
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_aac_forward;
+			routine = io_thread_a2dp_sink_aac;
 			break;
 #endif
 		default:

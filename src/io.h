@@ -18,11 +18,11 @@
 /* Casting wrapper for the brevity's sake. */
 #define CANCEL_ROUTINE(f) ((void (*)(void *))(f))
 
-void *io_thread_a2dp_sbc_forward(void *arg);
-void *io_thread_a2dp_sbc_backward(void *arg);
+void *io_thread_a2dp_sink_sbc(void *arg);
+void *io_thread_a2dp_source_sbc(void *arg);
 #if ENABLE_AAC
-void *io_thread_a2dp_aac_forward(void *arg);
-void *io_thread_a2dp_aac_backward(void *arg);
+void *io_thread_a2dp_sink_aac(void *arg);
+void *io_thread_a2dp_source_aac(void *arg);
 #endif
 
 #endif
