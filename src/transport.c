@@ -65,10 +65,10 @@ static int io_thread_create(struct ba_transport *t) {
 			warn("Codec not supported: %u", t->codec);
 		}
 		break;
-	case TRANSPORT_PROFILE_HSP_HS:
 	case TRANSPORT_PROFILE_HSP_AG:
-	case TRANSPORT_PROFILE_HFP_HF:
 	case TRANSPORT_PROFILE_HFP_AG:
+		routine = io_thread_audio_gateway;
+		break;
 	default:
 		warn("Profile not supported: %u", t->profile);
 	}
@@ -174,6 +174,7 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 
 	t->state = TRANSPORT_IDLE;
 	t->bt_fd = -1;
+	t->rfcomm_fd = -1;
 	t->pcm_client = -1;
 	t->pcm_fd = -1;
 
@@ -202,6 +203,8 @@ void transport_free(struct ba_transport *t) {
 
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
+	if (t->rfcomm_fd != -1)
+		close(t->rfcomm_fd);
 
 	transport_release_pcm(t);
 
@@ -401,7 +404,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		ret = pthread_join(t->thread, NULL);
 		break;
 	case TRANSPORT_PENDING:
-		ret = transport_acquire(t);
+		ret = transport_acquire_bt(t);
 		break;
 	case TRANSPORT_ACTIVE:
 	case TRANSPORT_PAUSED:
@@ -433,7 +436,7 @@ int transport_set_state_from_string(struct ba_transport *t, const char *state) {
 	return 0;
 }
 
-int transport_acquire(struct ba_transport *t) {
+int transport_acquire_bt(struct ba_transport *t) {
 
 	GDBusMessage *msg, *rep;
 	GUnixFDList *fd_list;

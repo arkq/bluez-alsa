@@ -35,6 +35,11 @@ enum ba_transport_state {
 #define TRANSPORT_RUN_IO_THREAD(t) \
 	((t)->state == TRANSPORT_ACTIVE || (t)->state == TRANSPORT_PAUSED)
 
+#define TRANSPORT_XAPL_FEATURE_BATTERY (1 << 1)
+#define TRANSPORT_XAPL_FEATURE_DOCKING (1 << 2)
+#define TRANSPORT_XAPL_FEATURE_SIRI    (1 << 3)
+#define TRANSPORT_XAPL_FEATURE_DENOISE (1 << 4)
+
 struct ba_device {
 
 	bdaddr_t addr;
@@ -77,11 +82,28 @@ struct ba_transport {
 	size_t mtu_read;
 	size_t mtu_write;
 
+	int rfcomm_fd;
+
 	char *pcm_fifo;
 	int pcm_fd;
 
 	/* used by PCM client lookup */
 	int pcm_client;
+
+	/* Apple's extension used for HFP profile */
+	struct {
+
+		uint16_t vendor_id;
+		uint16_t product_id;
+		uint16_t version;
+		uint8_t features;
+
+		/* headset battery level in range [0, 9] */
+		uint8_t accev_battery;
+		/* determine whatever headset is docked */
+		uint8_t accev_docked;
+
+	} xapl;
 
 	/* callback function for self-management */
 	int (*release)(struct ba_transport *);
@@ -110,7 +132,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t);
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
 
-int transport_acquire(struct ba_transport *t);
+int transport_acquire_bt(struct ba_transport *t);
 int transport_release_bt(struct ba_transport *t);
 int transport_release_pcm(struct ba_transport *t);
 

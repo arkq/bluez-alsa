@@ -264,7 +264,7 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 
 	/* for source profile we need to open transport by ourself */
 	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
-		if (transport_acquire(t) == -1) {
+		if (transport_acquire_bt(t) == -1) {
 			status.code = STATUS_CODE_ERROR_UNKNOWN;
 			unlink(pcm.fifo);
 			goto fail;

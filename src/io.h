@@ -24,5 +24,6 @@ void *io_thread_a2dp_source_sbc(void *arg);
 void *io_thread_a2dp_sink_aac(void *arg);
 void *io_thread_a2dp_source_aac(void *arg);
 #endif
+void *io_thread_audio_gateway(void *arg);
 
 #endif

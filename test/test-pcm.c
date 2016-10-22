@@ -29,9 +29,9 @@
 #include "../src/io.c"
 #undef io_thread_a2dp_sink_sbc
 #undef io_thread_a2dp_source_sbc
-#define transport_acquire _transport_acquire
+#define transport_acquire_bt _transport_acquire_bt
 #include "../src/transport.c"
-#undef transport_acquire
+#undef transport_acquire_bt
 #include "../src/utils.c"
 
 static struct ba_setup setup = {
@@ -56,7 +56,7 @@ static void test_pcm_setup_free(void) {
 	bluealsa_setup_free(&setup);
 }
 
-int transport_acquire(struct ba_transport *t) {
+int transport_acquire_bt(struct ba_transport *t) {
 	(void)t;
 	return 0;
 }

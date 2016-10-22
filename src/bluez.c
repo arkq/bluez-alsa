@@ -15,6 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <gio/gunixfdlist.h>
+
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
 #include "bluez-iface.h"
@@ -408,14 +410,14 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		goto fail;
 	}
 
-	transport_set_state_from_string(t, state);
 	t->volume = volume;
-
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
 	debug("%s configured for device %s", t->name, batostr_(&d->addr));
 	debug("Configuration: channels: %u, sampling: %u",
 			transport_get_channels(t), transport_get_sampling(t));
+
+	transport_set_state_from_string(t, state);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;
@@ -730,9 +732,65 @@ fail:
 }
 
 static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
+
+	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
+	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
+	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
+	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	struct ba_setup *setup = (struct ba_setup *)userdata;
+	struct ba_transport *t;
+	struct ba_device *d;
+
+	const int profile = g_dbus_object_path_to_profile(path);
+	const int codec = -1;
+
+	GVariantIter *properties;
+	GUnixFDList *fd_list;
+	const char *device;
+	char *transport = NULL;
+	GError *err = NULL;
+	int fd;
+
+	g_variant_get(params, "(&oha{sv})", &device, &fd, &properties);
+
+	fd_list = g_dbus_message_get_unix_fd_list(msg);
+	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1) {
+		error("Couldn't obtain RFCOMM socket: %s", err->message);
+		goto fail;
+	}
+
+	if ((d = device_get(conn, setup->devices, device)) == NULL) {
+		error("Couldn't get device: %s", strerror(errno));
+		goto fail;
+	}
+
+	transport = g_strdup_printf("%s/fd%d", path, fd);
+	if ((t = transport_new(conn, g_dbus_method_invocation_get_sender(inv), transport,
+					bluetooth_profile_to_string(profile, codec), profile, codec, NULL, 0)) == NULL) {
+		error("Couldn't create new transport: %s", strerror(errno));
+		goto fail;
+	}
+
+	t->rfcomm_fd = fd;
+	g_hash_table_insert(d->transports, g_strdup(transport), t);
+
+	debug("%s configured for device %s", t->name, batostr_(&d->addr));
+
+	transport_set_state(t, TRANSPORT_ACTIVE);
+
+	g_dbus_method_invocation_return_value(inv, NULL);
+	goto final;
+
+fail:
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_NOT_SUPPORTED, "Not implemented yet");
+			G_DBUS_ERROR_INVALID_ARGS, "Unable to connect profile");
+
+final:
+	g_variant_iter_free(properties);
+	if (transport != NULL)
+		g_free(transport);
+	if (err != NULL)
+		g_error_free(err);
 }
 
 static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void *userdata) {
@@ -802,7 +860,7 @@ int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup) {
 		const char *uuid;
 		const char *endpoint;
 	} profiles[] = {
-		/* { BLUETOOTH_UUID_HSP_HS, BLUEZ_PROFILE_HSP_HS }, */
+		{ BLUETOOTH_UUID_HSP_HS, BLUEZ_PROFILE_HSP_HS },
 		{ BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG },
 		/* { BLUETOOTH_UUID_HFP_HF, BLUEZ_PROFILE_HFP_HF }, */
 		/* { BLUETOOTH_UUID_HFP_AG, BLUEZ_PROFILE_HFP_AG }, */

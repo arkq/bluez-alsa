@@ -47,7 +47,7 @@ struct io_sync {
 
 /**
  * Wrapper for release callback, which can be used by pthread cleanup. */
-static void io_thread_release_bt(struct ba_transport *t) {
+static void io_thread_release(struct ba_transport *t) {
 
 	/* During the normal operation mode, the release callback should not
 	 * be NULL. Hence, we will relay on this callback - file descriptors
@@ -248,7 +248,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -292,7 +292,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	/* TODO: support for "out of the hat" reading MTU */
 
-	debug("Starting sink IO loop");
+	debug("Starting IO loop: %s", t->name);
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t len;
@@ -382,7 +382,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
 
 	sbc_t sbc;
 
@@ -444,7 +444,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		.sampling = transport_get_sampling(t),
 	};
 
-	debug("Starting source IO loop");
+	debug("Starting IO loop: %s", t->name);
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t samples;
@@ -518,7 +518,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			if (write(t->bt_fd, out_buffer, output - out_buffer) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit the thread upon BT socket disconnection */
-					debug("BT socket disconnected: %s", strerror(errno));
+					debug("BT socket disconnected");
 					goto fail;
 				}
 				error("BT socket write error: %s", strerror(errno));
@@ -559,7 +559,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -612,7 +612,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
 
-	debug("Starting sink IO loop");
+	debug("Starting IO loop: %s", t->name);
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		CStreamInfo *aacinf;
@@ -686,7 +686,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	const a2dp_aac_t *config = (a2dp_aac_t *)t->config;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release_bt), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
 
 	HANDLE_AACENCODER handle;
 	AACENC_InfoStruct aacinf;
@@ -831,7 +831,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		.sampling = samplerate,
 	};
 
-	debug("Starting source IO loop");
+	debug("Starting IO loop: %s", t->name);
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t samples;
@@ -896,7 +896,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 					if ((ret = write(t->bt_fd, out_buffer, rtp_header_len + len)) == -1) {
 						if (errno == ECONNRESET || errno == ENOTCONN) {
 							/* exit the thread upon BT socket disconnection */
-							debug("BT socket disconnected: %s", strerror(errno));
+							debug("BT socket disconnected");
 							goto fail;
 						}
 						error("BT socket write error: %s", strerror(errno));
@@ -945,3 +945,110 @@ fail_open:
 	return NULL;
 }
 #endif
+
+void *io_thread_audio_gateway(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
+
+	struct pollfd pfds[1] = {{ t->rfcomm_fd, POLLIN, 0 }};
+	char buffer[64];
+
+	debug("Starting IO loop: %s", t->name);
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
+
+		const char *response = "OK";
+		char command[16], value[32];
+		ssize_t ret;
+		size_t len;
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		if (poll(pfds, 1, -1) == -1) {
+			error("Transport poll error: %s", strerror(errno));
+			break;
+		}
+
+		if ((ret = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
+			if (errno == ECONNRESET || errno == ENOTCONN) {
+				/* exit the thread upon RFCOMM socket disconnection */
+				debug("RFCOMM socket disconnected");
+				break;
+			}
+			debug("RFCOMM read error: %s", strerror(errno));
+			continue;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		/* Parse AT command received from the headset. */
+		if (sscanf(buffer, "AT%15[^=]=%30s", command, value) != 2) {
+			warn("Invalid AT command: %s", buffer);
+			continue;
+		}
+
+		debug("AT command: %s=%s", command, value);
+
+		if (strcmp(command, "RING") == 0) {
+		}
+		else if (strcmp(command, "+CKPD") == 0 && atoi(value) == 200) {
+		}
+		else if (strcmp(command, "+VGM") == 0)
+			t->volume = atoi(value) * 100 / 15;
+		else if (strcmp(command, "+VGS") == 0)
+			t->volume = atoi(value) * 100 / 15;
+		else if (strcmp(command, "+IPHONEACCEV") == 0) {
+
+			char *ptr = value;
+			size_t count = atoi(strsep(&ptr, ","));
+			char tmp;
+
+			while (count-- && ptr != NULL)
+				switch (tmp = *strsep(&ptr, ",")) {
+				case '1':
+					if (ptr != NULL)
+						t->xapl.accev_battery = atoi(strsep(&ptr, ","));
+					break;
+				case '2':
+					if (ptr != NULL)
+						t->xapl.accev_docked = atoi(strsep(&ptr, ","));
+					break;
+				default:
+					warn("Unsupported IPHONEACCEV key: %c", tmp);
+					strsep(&ptr, ",");
+				}
+
+		}
+		else if (strcmp(command, "+XAPL") == 0) {
+
+			unsigned int vendor, product;
+			unsigned int version, features;
+
+			if (sscanf(value, "%x-%x-%u,%u", &vendor, &product, &version, &features) == 4) {
+				t->xapl.vendor_id = vendor;
+				t->xapl.product_id = product;
+				t->xapl.version = version;
+				t->xapl.features = features;
+				response = "+XAPL=BlueALSA,0";
+			}
+			else {
+				warn("Invalid XAPL value: %s", value);
+				response = "ERROR";
+			}
+
+		}
+		else {
+			warn("Unsupported AT command: %s=%s", command, value);
+			response = "ERROR";
+		}
+
+		len = sprintf(buffer, "\r\n%s\r\n", response);
+		if (write(pfds[0].fd, buffer, len) == -1)
+			error("RFCOMM write error: %s", strerror(errno));
+
+	}
+
+	pthread_cleanup_pop(1);
+	return NULL;
+}

@@ -164,10 +164,10 @@ int main(int argc, char **argv) {
 
 	bluez_subscribe_signals(dbus, &setup);
 
-	if (setup.enable_hsp)
-		bluez_register_hsp(dbus, &setup);
 	if (setup.enable_a2dp)
 		bluez_register_a2dp(dbus, &setup);
+	if (setup.enable_hsp)
+		bluez_register_hsp(dbus, &setup);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);
