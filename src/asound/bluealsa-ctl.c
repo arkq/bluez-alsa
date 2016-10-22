@@ -22,15 +22,30 @@
 #include "log.c"
 
 
+enum ctl_elem_type {
+	CTL_ELEM_TYPE_SWITCH,
+	CTL_ELEM_TYPE_VOLUME,
+};
+
+struct ctl_elem {
+	struct msg_transport *transport;
+	snd_pcm_stream_t stream;
+	enum ctl_elem_type type;
+};
+
 struct bluealsa_ctl {
 	snd_ctl_ext_t ext;
 
 	/* bluealsa socket */
 	int fd;
 
-	/* list of all currently available transports */
+	/* list of all transports */
 	struct msg_transport *transports;
-	unsigned int transports_count;
+	size_t transports_count;
+
+	/* list of control elements */
+	struct ctl_elem *elems;
+	size_t elems_count;
 
 };
 
@@ -39,6 +54,7 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 	close(ctl->fd);
 	free(ctl->transports);
+	free(ctl->elems);
 	free(ctl);
 }
 
@@ -52,43 +68,138 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 	send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL);
 
 	struct msg_transport transport;
-	int i = 0;
+	size_t count = 0;
+	size_t i = 0;
 
 	while (recv(ctl->fd, &transport, sizeof(transport), 0) == sizeof(transport)) {
+
 		ctl->transports = realloc(ctl->transports, (i + 1) * sizeof(*ctl->transports));
 		memcpy(&ctl->transports[i], &transport, sizeof(*ctl->transports));
 		i++;
+
+		/* Every stream has two controls associated to itself - volume adjustment
+		 * and mute switch. A2DP transport contains only one stream. However, HSP
+		 * and HFP transports represent both streams - playback and capture. */
+		switch (transport.profile) {
+		case TRANSPORT_PROFILE_A2DP_SOURCE:
+		case TRANSPORT_PROFILE_A2DP_SINK:
+			count += 2;
+			break;
+		case TRANSPORT_PROFILE_HSP_HS:
+		case TRANSPORT_PROFILE_HSP_AG:
+		case TRANSPORT_PROFILE_HFP_HF:
+		case TRANSPORT_PROFILE_HFP_AG:
+			count += 4;
+			break;
+		default:
+			SNDERR("Unsupported transport profile: %x", transport.profile);
+			return -ENOTSUP;
+		}
+
 	}
 
 	ctl->transports_count = i;
+	ctl->elems = malloc(sizeof(*ctl->elems) * count);
+	ctl->elems_count = count;
 
-	/* XXX: Every transport has two controls associated to itself - volume
-	 *      adjustment and mute switch. Since ALSA operates on raw controls,
-	 *      we need to multiply our transport count by 2. By convention we
-	 *      will assume, that every even control is a volume regulator, and
-	 *      every odd control is a mute switch. */
-	return i * 2;
+	/* construct control elements based on received transports */
+	for (i = count = 0; i < ctl->transports_count; i++) {
+		const uint8_t profile = ctl->transports[i].profile;
+		switch (profile) {
+		case TRANSPORT_PROFILE_A2DP_SOURCE:
+		case TRANSPORT_PROFILE_A2DP_SINK:
+
+			ctl->elems[count].transport = &ctl->transports[i];
+			ctl->elems[count].stream = profile == TRANSPORT_PROFILE_A2DP_SOURCE
+				? SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
+			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
+			count++;
+
+			ctl->elems[count].transport = &ctl->transports[i];
+			ctl->elems[count].stream = profile == TRANSPORT_PROFILE_A2DP_SOURCE
+				? SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
+			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
+			count++;
+
+			break;
+
+		case TRANSPORT_PROFILE_HSP_HS:
+		case TRANSPORT_PROFILE_HSP_AG:
+		case TRANSPORT_PROFILE_HFP_HF:
+		case TRANSPORT_PROFILE_HFP_AG:
+
+			ctl->elems[count].transport = &ctl->transports[i];
+			ctl->elems[count].stream = SND_PCM_STREAM_PLAYBACK;
+			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
+			count++;
+
+			ctl->elems[count].transport = &ctl->transports[i];
+			ctl->elems[count].stream = SND_PCM_STREAM_PLAYBACK;
+			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
+			count++;
+
+			ctl->elems[count].transport = &ctl->transports[i];
+			ctl->elems[count].stream = SND_PCM_STREAM_CAPTURE;
+			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
+			count++;
+
+			ctl->elems[count].transport = &ctl->transports[i];
+			ctl->elems[count].stream = SND_PCM_STREAM_CAPTURE;
+			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
+			count++;
+
+			break;
+
+		}
+	}
+
+	return count;
 }
 
 static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_elem_id_t *id) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	if (offset / 2 > ctl->transports_count)
+	if (offset > ctl->elems_count)
 		return -EINVAL;
 
-	struct msg_transport *transport = &ctl->transports[offset / 2];
-	char name[sizeof(transport->name) + 16];
+	const struct ctl_elem *elem = &ctl->elems[offset];
+	const struct msg_transport *transport = elem->transport;
+	char name[sizeof(transport->name) + 25];
 
 	strcpy(name, transport->name);
 
-	/* XXX: It seems, that ALSA determines the element type by checking it's
-	 *      name suffix. However, this functionality is not documented! */
+	/* avoid name duplication by adding profile suffixes */
 	switch (transport->profile) {
 	case TRANSPORT_PROFILE_A2DP_SOURCE:
-		strcat(name, offset % 2 ? " Playback Switch" : " Playback Volume");
-		break;
 	case TRANSPORT_PROFILE_A2DP_SINK:
-		strcat(name, offset % 2 ? " Capture Switch" : " Capture Volume");
+		strcat(name, " (A2DP)");
+		break;
+	case TRANSPORT_PROFILE_HSP_HS:
+	case TRANSPORT_PROFILE_HSP_AG:
+		strcat(name, " (HSP)");
+		break;
+	case TRANSPORT_PROFILE_HFP_HF:
+	case TRANSPORT_PROFILE_HFP_AG:
+		strcat(name, " (HFP)");
+		break;
+	}
+
+	/* XXX: It seems, that ALSA determines the element type by checking it's
+	 *      name suffix. However, this functionality is not documented! */
+	switch (elem->stream) {
+	case SND_PCM_STREAM_PLAYBACK:
+		strcat(name, " Playback");
+		break;
+	case SND_PCM_STREAM_CAPTURE:
+		strcat(name, " Capture");
+		break;
+	}
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_SWITCH:
+		strcat(name, " Switch");
+		break;
+	case CTL_ELEM_TYPE_VOLUME:
+		strcat(name, " Volume");
 		break;
 	}
 
@@ -101,11 +212,9 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_elem_id_t *id) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	unsigned int count = ctl->transports_count;
-	unsigned int numid;
+	unsigned int numid = snd_ctl_elem_id_get_numid(id);
 
-	numid = snd_ctl_elem_id_get_numid(id);
-	if (numid > 0 && numid / 2 <= count)
+	if (numid > 0 && numid <= ctl->elems_count)
 		return numid - 1;
 
 	return SND_CTL_EXT_KEY_NOT_FOUND;
@@ -115,20 +224,23 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		int *type, unsigned int *acc, unsigned int *count) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	if (key / 2 > ctl->transports_count)
+	if (key > ctl->elems_count)
 		return -EINVAL;
 
-	struct msg_transport *transport = &ctl->transports[key / 2];
+	const struct ctl_elem *elem = &ctl->elems[key];
+	const struct msg_transport *transport = elem->transport;
 
 	*acc = SND_CTL_EXT_ACCESS_READWRITE;
 
-	if (key % 2) {
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_SWITCH:
 		*type = SND_CTL_ELEM_TYPE_BOOLEAN;
 		*count = 1;
-	}
-	else {
+		break;
+	case CTL_ELEM_TYPE_VOLUME:
 		*type = SND_CTL_ELEM_TYPE_INTEGER;
 		*count = transport->channels;
+		break;
 	}
 
 	return 0;
@@ -147,15 +259,22 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	if (key / 2 > ctl->transports_count)
+	if (key > ctl->elems_count)
 		return -EINVAL;
 
-	struct msg_transport *transport = &ctl->transports[key / 2];
+	const struct ctl_elem *elem = &ctl->elems[key];
+	const struct msg_transport *transport = elem->transport;
+	uint8_t channel = transport->channels;
 
-	if (key % 2)
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_SWITCH:
 		*value = !transport->muted;
-	else
-		value[0] = value[1] = transport->volume;
+		break;
+	case CTL_ELEM_TYPE_VOLUME:
+		while (channel--)
+			value[channel] = transport->volume;
+		break;
+	}
 
 	return 0;
 }
@@ -163,11 +282,12 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	if (key / 2 > ctl->transports_count)
+	if (key > ctl->elems_count)
 		return -EINVAL;
 
 	struct msg_status status;
-	struct msg_transport *transport = &ctl->transports[key / 2];
+	struct ctl_elem *elem = &ctl->elems[key];
+	struct msg_transport *transport = elem->transport;
 	struct request req = {
 		.command = COMMAND_TRANSPORT_SET_VOLUME,
 		.addr = transport->addr,
@@ -176,10 +296,22 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		.volume = transport->volume,
 	};
 
-	if (key % 2)
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_SWITCH:
 		req.muted = transport->muted = !*value;
-	else
-		req.volume = transport->volume = (value[0] + value[1]) / 2;
+		break;
+	case CTL_ELEM_TYPE_VOLUME: {
+
+		int volume = 0;
+		int i;
+
+		for (i = 0; i < transport->channels; i++)
+			volume += value[i];
+
+		req.volume = transport->volume = volume / transport->channels;
+
+		break;
+	}}
 
 	send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL);
 	if (read(ctl->fd, &status, sizeof(status)) == -1)
