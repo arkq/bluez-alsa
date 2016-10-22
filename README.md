@@ -53,3 +53,12 @@ This plugin allows adjusting the volume of the audio stream or simply mute/unmut
 	$ amixer -D bluealsa '<device name>' sset 70%
 
 where the device name is the name of connected Bluetooth device.
+
+
+Resources
+---------
+
+1. [Bluetooth Adopted Specifications](https://www.bluetooth.com/specifications/adopted-specifications)
+2. [Bluetooth Design Guidelines](https://developer.apple.com/hardwaredrivers/BluetoothDesignGuidelines.pdf)
+3. [RTP Payload Format for MPEG-4](https://tools.ietf.org/html/rfc3016)
+4. [Coding of MPEG-4 Audio](http://www.iso.org/iso/iso_catalogue/catalogue_tc/catalogue_detail.htm?csnumber=42739)
