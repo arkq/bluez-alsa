@@ -148,13 +148,12 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	GDBusConnection *dbus;
 	gchar *address;
 	GError *err;
 
 	err = NULL;
 	address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
-	if ((dbus = g_dbus_connection_new_for_address_sync(address,
+	if ((setup.dbus = g_dbus_connection_new_for_address_sync(address,
 					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
 					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
 					NULL, NULL, &err)) == NULL) {
@@ -162,12 +161,12 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	bluez_subscribe_signals(dbus, &setup);
+	bluez_subscribe_signals(&setup);
 
 	if (setup.enable_a2dp)
-		bluez_register_a2dp(dbus, &setup);
+		bluez_register_a2dp(&setup);
 	if (setup.enable_hsp)
-		bluez_register_hsp(dbus, &setup);
+		bluez_register_hsp(&setup);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);

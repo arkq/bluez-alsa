@@ -16,7 +16,9 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
+
 #include <glib.h>
+#include <gio/gio.h>
 
 /* Maximal number of clients connected to the controller. */
 #define BLUEALSA_MAX_CLIENTS 7
@@ -28,6 +30,9 @@ struct ba_setup {
 
 	gboolean enable_a2dp;
 	gboolean enable_hsp;
+
+	/* established D-Bus connection */
+	GDBusConnection *dbus;
 
 	/* collection of connected devices */
 	pthread_mutex_t devices_mutex;

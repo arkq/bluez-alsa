@@ -506,10 +506,9 @@ static const GDBusInterfaceVTable endpoint_vtable = {
 /**
  * Register A2DP endpoints.
  *
- * @param conn D-Bus connection handler.
  * @param setup Address of the BlueALSA setup structure.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
+int bluez_register_a2dp(struct ba_setup *setup) {
 
 	static const a2dp_sbc_t a2dp_sbc = {
 		.frequency =
@@ -664,6 +663,7 @@ int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup) {
 #endif
 	};
 
+	GDBusConnection *conn = setup->dbus;
 	char *path;
 	size_t i;
 
@@ -853,10 +853,9 @@ static const GDBusInterfaceVTable profile_vtable = {
 /**
  * Register Bluetooth Audio Profiles.
  *
- * @param conn D-Bus connection handler.
  * @param setup Address of the BlueALSA setup structure.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup) {
+int bluez_register_hsp(struct ba_setup *setup) {
 
 	static const struct profile {
 		const char *uuid;
@@ -868,6 +867,7 @@ int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup) {
 		/* { BLUETOOTH_UUID_HFP_AG, BLUEZ_PROFILE_HFP_AG }, */
 	};
 
+	GDBusConnection *conn = setup->dbus;
 	size_t i;
 
 	for (i = 0; i < sizeof(profiles) / sizeof(struct profile); i++) {
@@ -925,6 +925,7 @@ fail:
 static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,
 		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
 		void *userdata) {
+	(void)conn;
 	(void)sender;
 	(void)path;
 	(void)interface;
@@ -938,9 +939,9 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *se
 	g_variant_get(params, "(&oa{sa{sv}})", &object, &interfaces);
 
 	if (setup->enable_hsp && strcmp(object, "/org/bluez") == 0)
-		bluez_register_hsp(conn, setup);
+		bluez_register_hsp(setup);
 	if (setup->enable_a2dp && strcmp(object, device_path) == 0)
-		bluez_register_a2dp(conn, setup);
+		bluez_register_a2dp(setup);
 
 	g_variant_iter_free(interfaces);
 	g_free(device_path);
@@ -1005,10 +1006,11 @@ fail:
 /**
  * Subscribe to Bluez related signals.
  *
- * @param conn D-Bus connection handler.
  * @param setup Address of the BlueALSA setup structure.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_subscribe_signals(GDBusConnection *conn, struct ba_setup *setup) {
+int bluez_subscribe_signals(struct ba_setup *setup) {
+
+	GDBusConnection *conn = setup->dbus;
 
 	/* Note, that we do not have to subscribe for the interfaces remove signal,
 	 * because prior to removal, Bluez will call appropriate Release method. */

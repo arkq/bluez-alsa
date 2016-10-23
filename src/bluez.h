@@ -15,7 +15,6 @@
 # include "config.h"
 #endif
 
-#include <gio/gio.h>
 #include "bluealsa.h"
 
 /* List of Bluetoth audio profiles. */
@@ -42,8 +41,8 @@
 #define BLUEZ_PROFILE_HFP_HF "/Profile/HFPHandsFree"
 #define BLUEZ_PROFILE_HFP_AG "/Profile/HFPAudioGateway"
 
-int bluez_register_a2dp(GDBusConnection *conn, struct ba_setup *setup);
-int bluez_register_hsp(GDBusConnection *conn, struct ba_setup *setup);
-int bluez_subscribe_signals(GDBusConnection *conn, struct ba_setup *setup);
+int bluez_register_a2dp(struct ba_setup *setup);
+int bluez_register_hsp(struct ba_setup *setup);
+int bluez_subscribe_signals(struct ba_setup *setup);
 
 #endif
