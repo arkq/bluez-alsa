@@ -34,11 +34,11 @@
 #undef transport_acquire_bt
 #include "../src/utils.c"
 
-static struct ba_setup setup = {
+struct ba_config config = {
 	.hci_dev = { .name = "hci-test", },
 };
 
-static const a2dp_sbc_t config = {
+static const a2dp_sbc_t cconfig = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,
 	.block_length = SBC_BLOCK_LENGTH_16,
@@ -52,8 +52,8 @@ static char *drum_buffer;
 static size_t drum_buffer_size;
 
 static void test_pcm_setup_free(void) {
-	bluealsa_ctl_free(&setup);
-	bluealsa_setup_free(&setup);
+	bluealsa_ctl_free();
+	bluealsa_config_free();
 }
 
 int transport_acquire_bt(struct ba_transport *t) {
@@ -186,8 +186,8 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
-	assert(bluealsa_setup_init(&setup) == 0);
-	if ((bluealsa_ctl_thread_init(&setup) == -1)) {
+	assert(bluealsa_config_init() == 0);
+	if ((bluealsa_ctl_thread_init() == -1)) {
 		perror("ctl_thread_init");
 		return EXIT_FAILURE;
 	}
@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
 
 	str2ba("12:34:56:78:9A:BC", &addr);
 	assert((d = device_new(1, &addr, "Test Device")) != NULL);
-	g_hash_table_insert(setup.devices, g_strdup("/device"), d);
+	g_hash_table_insert(config.devices, g_strdup("/device"), d);
 
 	if (source) {
 		struct ba_transport *t_source;

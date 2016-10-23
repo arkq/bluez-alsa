@@ -18,8 +18,6 @@
 #include <bluetooth/bluetooth.h>
 #include <gio/gio.h>
 
-#include "bluealsa.h"
-
 #define TRANSPORT_PROFILE_A2DP_SOURCE 0x01
 #define TRANSPORT_PROFILE_A2DP_SINK   0x02
 #define TRANSPORT_PROFILE_HSP_HS      0x03
@@ -123,8 +121,7 @@ struct ba_transport {
 struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name);
 void device_free(struct ba_device *d);
 
-struct ba_device *device_get(GHashTable *devices, const char *key,
-		const struct ba_setup *setup);
+struct ba_device *device_get(GHashTable *devices, const char *key);
 struct ba_device *device_lookup(GHashTable *devices, const char *key);
 gboolean device_remove(GHashTable *devices, const char *key);
 

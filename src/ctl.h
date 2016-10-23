@@ -17,7 +17,6 @@
 
 #include <stdint.h>
 #include <bluetooth/bluetooth.h>
-#include "bluealsa.h"
 
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
@@ -101,8 +100,9 @@ struct __attribute__ ((packed)) msg_pcm {
 	char fifo[128];
 };
 
-/* XXX: These functions are not exported in any library. */
-int bluealsa_ctl_thread_init(struct ba_setup *setup);
-void bluealsa_ctl_free(struct ba_setup *setup);
+/* XXX: These functions are not exported in any library. What's more, they
+ *      relay on a global config variable initialized in the main.c file. */
+int bluealsa_ctl_thread_init(void);
+void bluealsa_ctl_free(void);
 
 #endif

@@ -16,6 +16,8 @@
 #include "../src/transport.c"
 #include "../src/utils.c"
 
+struct ba_config config;
+
 static const a2dp_sbc_t config_sbc_44100_joint_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,

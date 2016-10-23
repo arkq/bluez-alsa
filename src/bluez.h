@@ -15,8 +15,6 @@
 # include "config.h"
 #endif
 
-#include "bluealsa.h"
-
 /* List of Bluetoth audio profiles. */
 #define BLUETOOTH_UUID_A2DP_SOURCE "0000110A-0000-1000-8000-00805F9B34FB"
 #define BLUETOOTH_UUID_A2DP_SINK   "0000110B-0000-1000-8000-00805F9B34FB"
@@ -41,8 +39,8 @@
 #define BLUEZ_PROFILE_HFP_HF "/Profile/HFPHandsFree"
 #define BLUEZ_PROFILE_HFP_AG "/Profile/HFPAudioGateway"
 
-int bluez_register_a2dp(struct ba_setup *setup);
-int bluez_register_hsp(struct ba_setup *setup);
-int bluez_subscribe_signals(struct ba_setup *setup);
+int bluez_register_a2dp(void);
+int bluez_register_hsp(void);
+int bluez_subscribe_signals(void);
 
 #endif

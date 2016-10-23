@@ -105,26 +105,24 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 
 }
 
-static void ctl_thread_cmd_ping(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_ping(const struct request *req, int fd) {
 	(void)req;
-	(void)arg;
 	static const struct msg_status status = { STATUS_CODE_PONG };
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_list_devices(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_list_devices(const struct request *req, int fd) {
 	(void)req;
 
-	struct ba_setup *setup = (struct ba_setup *)arg;
 	static const struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct msg_device device;
 	GHashTableIter iter_d;
 	struct ba_device *d;
 	gpointer _tmp;
 
-	pthread_mutex_lock(&setup->devices_mutex);
+	pthread_mutex_lock(&config.devices_mutex);
 
-	for (g_hash_table_iter_init(&iter_d, setup->devices);
+	for (g_hash_table_iter_init(&iter_d, config.devices);
 			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)&d); ) {
 
 		bacpy(&device.addr, &d->addr);
@@ -134,14 +132,13 @@ static void ctl_thread_cmd_list_devices(const struct request *req, int fd, void 
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);
 	}
 
-	pthread_mutex_unlock(&setup->devices_mutex);
+	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_list_transports(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_list_transports(const struct request *req, int fd) {
 	(void)req;
 
-	struct ba_setup *setup = (struct ba_setup *)arg;
 	static const struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct msg_transport transport;
 	GHashTableIter iter_d, iter_t;
@@ -149,9 +146,9 @@ static void ctl_thread_cmd_list_transports(const struct request *req, int fd, vo
 	struct ba_transport *t;
 	gpointer _tmp;
 
-	pthread_mutex_lock(&setup->devices_mutex);
+	pthread_mutex_lock(&config.devices_mutex);
 
-	for (g_hash_table_iter_init(&iter_d, setup->devices);
+	for (g_hash_table_iter_init(&iter_d, config.devices);
 			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)&d); )
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, &_tmp, (gpointer)&t); ) {
@@ -159,20 +156,19 @@ static void ctl_thread_cmd_list_transports(const struct request *req, int fd, vo
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
 
-	pthread_mutex_unlock(&setup->devices_mutex);
+	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_transport_get(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_transport_get(const struct request *req, int fd) {
 
-	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct msg_transport transport;
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&setup->devices_mutex);
+	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -181,19 +177,18 @@ static void ctl_thread_cmd_transport_get(const struct request *req, int fd, void
 	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 
 fail:
-	pthread_mutex_unlock(&setup->devices_mutex);
+	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_transport_set_volume(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_transport_set_volume(const struct request *req, int fd) {
 
-	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&setup->devices_mutex);
+	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -205,13 +200,12 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 	t->volume = req->volume;
 
 fail:
-	pthread_mutex_unlock(&setup->devices_mutex);
+	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 
-	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct msg_pcm pcm;
 	struct ba_transport *t;
@@ -219,14 +213,14 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 
 	ba2str(&req->addr, addr);
 	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u",
-			setup->hci_dev.name, addr, req->profile);
+			config.hci_dev.name, addr, req->profile);
 	pcm.fifo[sizeof(pcm.fifo) - 1] = '\0';
 
 	debug("PCM requested for %s profile %d", addr, req->profile);
 
-	pthread_mutex_lock(&setup->devices_mutex);
+	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -249,7 +243,7 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 	 * so the post-creation correction is required. */
 	if (chmod(pcm.fifo, 0660) == -1)
 		goto fail;
-	if (chown(pcm.fifo, -1, setup->gid_audio) == -1)
+	if (chown(pcm.fifo, -1, config.gid_audio) == -1)
 		goto fail;
 
 	/* XXX: This change will notify our sink IO thread, that the FIFO has just
@@ -270,19 +264,18 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
 
 fail:
-	pthread_mutex_unlock(&setup->devices_mutex);
+	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_pcm_close(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_pcm_close(const struct request *req, int fd) {
 
-	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&setup->devices_mutex);
+	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -294,19 +287,18 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd, void *ar
 	_transport_release(t);
 
 fail:
-	pthread_mutex_unlock(&setup->devices_mutex);
+	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_pcm_control(const struct request *req, int fd, void *arg) {
+static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 
-	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&setup->devices_mutex);
+	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -332,14 +324,14 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd, void *
 	}
 
 fail:
-	pthread_mutex_unlock(&setup->devices_mutex);
+	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void *ctl_thread(void *arg) {
-	struct ba_setup *setup = (struct ba_setup *)arg;
+	(void)arg;
 
-	static void (*commands[__COMMAND_MAX])(const struct request *, int, void *) = {
+	static void (*commands[__COMMAND_MAX])(const struct request *, int) = {
 		[COMMAND_PING] = ctl_thread_cmd_ping,
 		[COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
 		[COMMAND_LIST_TRANSPORTS] = ctl_thread_cmd_list_transports,
@@ -352,9 +344,9 @@ static void *ctl_thread(void *arg) {
 	};
 
 	debug("Starting controller loop");
-	while (setup->ctl_thread_created) {
+	while (config.ctl_thread_created) {
 
-		if (poll(setup->ctl_pfds, 1 + BLUEALSA_MAX_CLIENTS, -1) == -1) {
+		if (poll(config.ctl_pfds, 1 + BLUEALSA_MAX_CLIENTS, -1) == -1) {
 			error("Controller poll error: %s", strerror(errno));
 			break;
 		}
@@ -367,14 +359,14 @@ static void *ctl_thread(void *arg) {
 
 		/* handle data transmission with connected clients */
 		for (i = 1; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
-			const int fd = setup->ctl_pfds[i].fd;
+			const int fd = config.ctl_pfds[i].fd;
 
 			if (fd == -1) {
-				pfd = &setup->ctl_pfds[i];
+				pfd = &config.ctl_pfds[i];
 				continue;
 			}
 
-			if (setup->ctl_pfds[i].revents & POLLIN) {
+			if (config.ctl_pfds[i].revents & POLLIN) {
 
 				struct request request;
 				ssize_t len;
@@ -388,10 +380,10 @@ static void *ctl_thread(void *arg) {
 						debug("Invalid request length: %zd != %zd", len, sizeof(request));
 
 					struct ba_transport *t;
-					if ((t = transport_lookup_pcm_client(setup->devices, fd)) != NULL)
+					if ((t = transport_lookup_pcm_client(config.devices, fd)) != NULL)
 						_transport_release(t);
 
-					setup->ctl_pfds[i].fd = -1;
+					config.ctl_pfds[i].fd = -1;
 					close(fd);
 					continue;
 				}
@@ -400,15 +392,15 @@ static void *ctl_thread(void *arg) {
 				if (request.command >= __COMMAND_MAX)
 					warn("Invalid command: %u", request.command);
 				else if (commands[request.command] != NULL)
-					commands[request.command](&request, fd, setup);
+					commands[request.command](&request, fd);
 
 			}
 
 		}
 
 		/* process new connections to our controller */
-		if (setup->ctl_pfds[0].revents & POLLIN && pfd != NULL) {
-			pfd->fd = accept(setup->ctl_pfds[0].fd, NULL, NULL);
+		if (config.ctl_pfds[0].revents & POLLIN && pfd != NULL) {
+			pfd->fd = accept(config.ctl_pfds[0].fd, NULL, NULL);
 			debug("New client accepted: %d", pfd->fd);
 		}
 
@@ -419,9 +411,9 @@ static void *ctl_thread(void *arg) {
 	return NULL;
 }
 
-int bluealsa_ctl_thread_init(struct ba_setup *setup) {
+int bluealsa_ctl_thread_init(void) {
 
-	if (setup->ctl_thread_created) {
+	if (config.ctl_thread_created) {
 		/* thread is already created */
 		errno = EISCONN;
 		return -1;
@@ -430,66 +422,66 @@ int bluealsa_ctl_thread_init(struct ba_setup *setup) {
 	{ /* initialize (mark as closed) all sockets */
 		size_t i;
 		for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
-			setup->ctl_pfds[i].events = POLLIN;
-			setup->ctl_pfds[i].fd = -1;
+			config.ctl_pfds[i].events = POLLIN;
+			config.ctl_pfds[i].fd = -1;
 		}
 	}
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
-			BLUEALSA_RUN_STATE_DIR "/%s", setup->hci_dev.name);
+			BLUEALSA_RUN_STATE_DIR "/%s", config.hci_dev.name);
 
 	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST)
 		goto fail;
-	if ((setup->ctl_pfds[0].fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
+	if ((config.ctl_pfds[0].fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
 		goto fail;
-	if (bind(setup->ctl_pfds[0].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
+	if (bind(config.ctl_pfds[0].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
 		goto fail;
-	setup->ctl_socket_created = 1;
+	config.ctl_socket_created = 1;
 	if (chmod(saddr.sun_path, 0660) == -1)
 		goto fail;
-	if (chown(saddr.sun_path, -1, setup->gid_audio) == -1)
+	if (chown(saddr.sun_path, -1, config.gid_audio) == -1)
 		goto fail;
-	if (listen(setup->ctl_pfds[0].fd, 2) == -1)
+	if (listen(config.ctl_pfds[0].fd, 2) == -1)
 		goto fail;
 
-	setup->ctl_thread_created = 1;
-	if ((errno = pthread_create(&setup->ctl_thread, NULL, ctl_thread, setup)) != 0) {
-		setup->ctl_thread_created = 0;
+	config.ctl_thread_created = 1;
+	if ((errno = pthread_create(&config.ctl_thread, NULL, ctl_thread, NULL)) != 0) {
+		config.ctl_thread_created = 0;
 		goto fail;
 	}
 
 	/* name controller thread - for aesthetic purposes only */
-	pthread_setname_np(setup->ctl_thread, "bactl");
+	pthread_setname_np(config.ctl_thread, "bactl");
 
 	return 0;
 
 fail:
-	bluealsa_ctl_free(setup);
+	bluealsa_ctl_free();
 	return -1;
 }
 
-void bluealsa_ctl_free(struct ba_setup *setup) {
+void bluealsa_ctl_free(void) {
 
-	int created = setup->ctl_thread_created;
+	int created = config.ctl_thread_created;
 	size_t i;
 
-	setup->ctl_thread_created = 0;
+	config.ctl_thread_created = 0;
 
 	for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++)
-		if (setup->ctl_pfds[i].fd != -1)
-			close(setup->ctl_pfds[i].fd);
+		if (config.ctl_pfds[i].fd != -1)
+			close(config.ctl_pfds[i].fd);
 
 	if (created) {
-		pthread_cancel(setup->ctl_thread);
-		if ((errno = pthread_join(setup->ctl_thread, NULL)) != 0)
+		pthread_cancel(config.ctl_thread);
+		if ((errno = pthread_join(config.ctl_thread, NULL)) != 0)
 			error("Couldn't join controller thread: %s", strerror(errno));
 	}
 
-	if (setup->ctl_socket_created) {
+	if (config.ctl_socket_created) {
 		char tmp[256] = BLUEALSA_RUN_STATE_DIR "/";
-		unlink(strcat(tmp, setup->hci_dev.name));
-		setup->ctl_socket_created = 0;
+		unlink(strcat(tmp, config.hci_dev.name));
+		config.ctl_socket_created = 0;
 	}
 
 }

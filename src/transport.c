@@ -23,6 +23,7 @@
 #include <gio/gunixfdlist.h>
 
 #include "a2dp-codecs.h"
+#include "bluealsa.h"
 #include "io.h"
 #include "log.h"
 #include "utils.h"
@@ -118,8 +119,7 @@ void device_free(struct ba_device *d) {
 	free(d);
 }
 
-struct ba_device *device_get(GHashTable *devices, const char *key,
-		const struct ba_setup *setup) {
+struct ba_device *device_get(GHashTable *devices, const char *key) {
 
 	struct ba_device *d;
 	GVariant *property;
@@ -132,14 +132,14 @@ struct ba_device *device_get(GHashTable *devices, const char *key,
 	g_dbus_device_path_to_bdaddr(key, &addr);
 	ba2str(&addr, name);
 
-	if ((property = g_dbus_get_property(setup->dbus, "org.bluez", key,
+	if ((property = g_dbus_get_property(config.dbus, "org.bluez", key,
 					"org.bluez.Device1", "Name")) != NULL) {
 		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
 		name[sizeof(name) - 1] = '\0';
 		g_variant_unref(property);
 	}
 
-	d = device_new(setup->hci_dev.dev_id, &addr, name);
+	d = device_new(config.hci_dev.dev_id, &addr, name);
 	g_hash_table_insert(devices, g_strdup(key), d);
 	return d;
 }

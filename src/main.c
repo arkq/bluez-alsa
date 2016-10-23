@@ -29,6 +29,9 @@
 #include "utils.h"
 
 
+/* Global configuration structure. */
+struct ba_config config;
+
 static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
 	(void)(sig);
@@ -54,14 +57,13 @@ int main(int argc, char **argv) {
 		{ 0, 0, 0, 0 },
 	};
 
-	struct ba_setup setup;
 	struct hci_dev_info *hci_devs;
 	int hci_devs_num;
 
 	log_open(argv[0], 0);
 
-	if (bluealsa_setup_init(&setup) != 0) {
-		error("Couldn't initialize bluealsa setup");
+	if (bluealsa_config_init() != 0) {
+		error("Couldn't initialize bluealsa config");
 		return EXIT_FAILURE;
 	}
 
@@ -79,7 +81,7 @@ int main(int argc, char **argv) {
 		int i;
 		for (i = 0; i < hci_devs_num; i++)
 			if (i == 0 || hci_test_bit(HCI_UP, &hci_devs[i].flags))
-				memcpy(&setup.hci_dev, &hci_devs[i], sizeof(setup.hci_dev));
+				memcpy(&config.hci_dev, &hci_devs[i], sizeof(config.hci_dev));
 	}
 
 	/* parse options */
@@ -103,7 +105,7 @@ int main(int argc, char **argv) {
 			if (str2ba(optarg, &addr) == 0) {
 				while (i--)
 					if (bacmp(&addr, &hci_devs[i].bdaddr) == 0) {
-						memcpy(&setup.hci_dev, &hci_devs[i], sizeof(setup.hci_dev));
+						memcpy(&config.hci_dev, &hci_devs[i], sizeof(config.hci_dev));
 						found = 1;
 						break;
 					}
@@ -111,7 +113,7 @@ int main(int argc, char **argv) {
 			else {
 				while (i--)
 					if (strcmp(optarg, hci_devs[i].name) == 0) {
-						memcpy(&setup.hci_dev, &hci_devs[i], sizeof(setup.hci_dev));
+						memcpy(&config.hci_dev, &hci_devs[i], sizeof(config.hci_dev));
 						found = 1;
 						break;
 				}
@@ -126,10 +128,10 @@ int main(int argc, char **argv) {
 		}
 
 		case 1:
-			setup.enable_a2dp = 0;
+			config.enable_a2dp = 0;
 			break;
 		case 2:
-			setup.enable_hsp = 0;
+			config.enable_hsp = 0;
 			break;
 
 		default:
@@ -143,7 +145,7 @@ int main(int argc, char **argv) {
 	/* initialize random generator */
 	srandom(time(NULL));
 
-	if ((bluealsa_ctl_thread_init(&setup)) == -1) {
+	if ((bluealsa_ctl_thread_init()) == -1) {
 		error("Couldn't initialize controller thread: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
@@ -153,7 +155,7 @@ int main(int argc, char **argv) {
 
 	err = NULL;
 	address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
-	if ((setup.dbus = g_dbus_connection_new_for_address_sync(address,
+	if ((config.dbus = g_dbus_connection_new_for_address_sync(address,
 					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
 					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
 					NULL, NULL, &err)) == NULL) {
@@ -161,12 +163,12 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	bluez_subscribe_signals(&setup);
+	bluez_subscribe_signals();
 
-	if (setup.enable_a2dp)
-		bluez_register_a2dp(&setup);
-	if (setup.enable_hsp)
-		bluez_register_hsp(&setup);
+	if (config.enable_a2dp)
+		bluez_register_a2dp();
+	if (config.enable_hsp)
+		bluez_register_hsp();
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);
@@ -181,8 +183,8 @@ int main(int argc, char **argv) {
 
 	/* From all of the cleanup routines, these ones cannot be omitted. We have
 	 * to unlink named sockets, otherwise service will not start any more. */
-	bluealsa_ctl_free(&setup);
-	bluealsa_setup_free(&setup);
+	bluealsa_ctl_free();
+	bluealsa_config_free();
 
 	return EXIT_SUCCESS;
 }

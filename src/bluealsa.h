@@ -23,7 +23,7 @@
 /* Maximal number of clients connected to the controller. */
 #define BLUEALSA_MAX_CLIENTS 7
 
-struct ba_setup {
+struct ba_config {
 
 	/* used HCI device */
 	struct hci_dev_info hci_dev;
@@ -52,7 +52,10 @@ struct ba_setup {
 
 };
 
-int bluealsa_setup_init(struct ba_setup *setup);
-void bluealsa_setup_free(struct ba_setup *setup);
+/* Global BlueALSA configuration. */
+extern struct ba_config config;
+
+int bluealsa_config_init(void);
+void bluealsa_config_free(void);
 
 #endif
