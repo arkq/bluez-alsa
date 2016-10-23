@@ -611,22 +611,6 @@ int bluez_register_a2dp(struct ba_setup *setup) {
 		const void *config;
 		size_t config_size;
 	} endpoints[] = {
-		{
-			BLUETOOTH_UUID_A2DP_SOURCE,
-			BLUEZ_ENDPOINT_A2DP_SBC_SOURCE,
-			A2DP_CODEC_SBC,
-			&a2dp_sbc,
-			sizeof(a2dp_sbc),
-		},
-#if 0
-		{
-			BLUETOOTH_UUID_A2DP_SOURCE,
-			BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE,
-			A2DP_CODEC_MPEG12,
-			&a2dp_mpeg,
-			sizeof(a2dp_mpeg),
-		},
-#endif
 #if ENABLE_AAC
 		{
 			BLUETOOTH_UUID_A2DP_SOURCE,
@@ -636,22 +620,22 @@ int bluez_register_a2dp(struct ba_setup *setup) {
 			sizeof(a2dp_aac),
 		},
 #endif
-		{
-			BLUETOOTH_UUID_A2DP_SINK,
-			BLUEZ_ENDPOINT_A2DP_SBC_SINK,
-			A2DP_CODEC_SBC,
-			&a2dp_sbc,
-			sizeof(a2dp_sbc),
-		},
 #if 0
 		{
-			BLUETOOTH_UUID_A2DP_SINK,
-			BLUEZ_ENDPOINT_A2DP_MPEG12_SINK,
+			BLUETOOTH_UUID_A2DP_SOURCE,
+			BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE,
 			A2DP_CODEC_MPEG12,
 			&a2dp_mpeg,
 			sizeof(a2dp_mpeg),
 		},
 #endif
+		{
+			BLUETOOTH_UUID_A2DP_SOURCE,
+			BLUEZ_ENDPOINT_A2DP_SBC_SOURCE,
+			A2DP_CODEC_SBC,
+			&a2dp_sbc,
+			sizeof(a2dp_sbc),
+		},
 #if ENABLE_AAC
 		{
 			BLUETOOTH_UUID_A2DP_SINK,
@@ -661,6 +645,22 @@ int bluez_register_a2dp(struct ba_setup *setup) {
 			sizeof(a2dp_aac),
 		},
 #endif
+#if 0
+		{
+			BLUETOOTH_UUID_A2DP_SINK,
+			BLUEZ_ENDPOINT_A2DP_MPEG12_SINK,
+			A2DP_CODEC_MPEG12,
+			&a2dp_mpeg,
+			sizeof(a2dp_mpeg),
+		},
+#endif
+		{
+			BLUETOOTH_UUID_A2DP_SINK,
+			BLUEZ_ENDPOINT_A2DP_SBC_SINK,
+			A2DP_CODEC_SBC,
+			&a2dp_sbc,
+			sizeof(a2dp_sbc),
+		},
 	};
 
 	GDBusConnection *conn = setup->dbus;
