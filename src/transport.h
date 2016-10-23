@@ -56,6 +56,9 @@ struct ba_transport {
 	char *dbus_owner;
 	char *dbus_path;
 
+	/* backward reference to transport owner */
+	struct ba_device *device;
+
 	char *name;
 
 	/* selected profile and audio codec */

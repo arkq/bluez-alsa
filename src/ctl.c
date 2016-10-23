@@ -43,23 +43,23 @@
  * @param devices Address of the hash-table with connected devices.
  * @param addr Address to the structure with the looked up BT address.
  * @param profile Looked up transport profile.
- * @param d Address, where the device structure pointer should be stored.
  * @param t Address, where the transport structure pointer should be stored.
  * @return If the lookup succeeded, this function returns 0. Otherwise, -1 is
  *   returned and value of device and transport pointer is undefined. */
 static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr, uint8_t profile,
-		struct ba_device **d, struct ba_transport **t) {
+		struct ba_transport **t) {
 
 	GHashTableIter iter_d, iter_t;
+	struct ba_device *d;
 	gpointer _tmp;
 
 	for (g_hash_table_iter_init(&iter_d, devices);
-			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)d); ) {
+			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)&d); ) {
 
-		if (bacmp(&(*d)->addr, addr) != 0)
+		if (bacmp(&d->addr, addr) != 0)
 			continue;
 
-		for (g_hash_table_iter_init(&iter_t, (*d)->transports);
+		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, &_tmp, (gpointer)t); )
 			if ((*t)->profile == profile)
 				return 0;
@@ -88,12 +88,11 @@ static void _transport_release(struct ba_transport *t) {
 
 }
 
-static void _ctl_transport(const struct ba_device *d, const struct ba_transport *t,
-		struct msg_transport *transport) {
+static void _ctl_transport(const struct ba_transport *t, struct msg_transport *transport) {
 
-	bacpy(&transport->addr, &d->addr);
+	bacpy(&transport->addr, &t->device->addr);
 
-	strncpy(transport->name, d->name, sizeof(transport->name) - 1);
+	strncpy(transport->name, t->device->name, sizeof(transport->name) - 1);
 	transport->name[sizeof(transport->name) - 1] = '\0';
 
 	transport->profile = t->profile;
@@ -156,7 +155,7 @@ static void ctl_thread_cmd_list_transports(const struct request *req, int fd, vo
 			g_hash_table_iter_next(&iter_d, &_tmp, (gpointer)&d); )
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, &_tmp, (gpointer)&t); ) {
-			_ctl_transport(d, t, &transport);
+			_ctl_transport(t, &transport);
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
 
@@ -169,17 +168,16 @@ static void ctl_thread_cmd_transport_get(const struct request *req, int fd, void
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct msg_transport transport;
-	struct ba_device *d;
 	struct ba_transport *t;
 
 	pthread_mutex_lock(&setup->devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
+	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
 
-	_ctl_transport(d, t, &transport);
+	_ctl_transport(t, &transport);
 	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 
 fail:
@@ -191,12 +189,11 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
-	struct ba_device *d;
 	struct ba_transport *t;
 
 	pthread_mutex_lock(&setup->devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
+	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -217,7 +214,6 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct msg_pcm pcm;
-	struct ba_device *d;
 	struct ba_transport *t;
 	char addr[18];
 
@@ -230,7 +226,7 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 
 	pthread_mutex_lock(&setup->devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
+	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -241,7 +237,7 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd, void *arg
 		goto fail;
 	}
 
-	_ctl_transport(d, t, &pcm.transport);
+	_ctl_transport(t, &pcm.transport);
 
 	if (mkfifo(pcm.fifo, 0660) != 0) {
 		error("Couldn't create FIFO: %s", strerror(errno));
@@ -282,12 +278,11 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd, void *ar
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
-	struct ba_device *d;
 	struct ba_transport *t;
 
 	pthread_mutex_lock(&setup->devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
+	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -307,12 +302,11 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd, void *
 
 	struct ba_setup *setup = (struct ba_setup *)arg;
 	struct msg_status status = { STATUS_CODE_SUCCESS };
-	struct ba_device *d;
 	struct ba_transport *t;
 
 	pthread_mutex_lock(&setup->devices_mutex);
 
-	if (_transport_lookup(setup->devices, &req->addr, req->profile, &d, &t) != 0) {
+	if (_transport_lookup(setup->devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}

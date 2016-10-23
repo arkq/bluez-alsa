@@ -410,6 +410,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		goto fail;
 	}
 
+	t->device = d;
 	t->volume = volume;
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
@@ -771,6 +772,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
+	t->device = d;
 	t->rfcomm_fd = fd;
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
