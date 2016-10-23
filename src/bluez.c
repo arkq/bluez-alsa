@@ -397,7 +397,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	pthread_mutex_lock(&setup->devices_mutex);
 
 	/* get the device structure for obtained device path */
-	if ((d = device_get(conn, setup->devices, device)) == NULL) {
+	if ((d = device_get(setup->devices, device, setup)) == NULL) {
 		error("Couldn't get device: %s", strerror(errno));
 		goto fail;
 	}
@@ -760,12 +760,12 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if ((d = device_get(conn, setup->devices, device)) == NULL) {
+	if ((d = device_get(setup->devices, device, setup)) == NULL) {
 		error("Couldn't get device: %s", strerror(errno));
 		goto fail;
 	}
 
-	transport = g_strdup_printf("%s/fd%d", path, fd);
+	transport = g_strdup_printf("%s/pr%d", path, profile);
 	if ((t = transport_new(conn, g_dbus_method_invocation_get_sender(inv), transport,
 					bluetooth_profile_to_string(profile, codec), profile, codec, NULL, 0)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
@@ -774,6 +774,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 
 	t->device = d;
 	t->rfcomm_fd = fd;
+	t->release = transport_release_bt_rfcomm;
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
 	debug("%s configured for device %s", t->name, batostr_(&d->addr));
@@ -796,9 +797,24 @@ final:
 }
 
 static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_NOT_SUPPORTED, "Not implemented yet");
+
+	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
+	const int profile = g_dbus_object_path_to_profile(path);
+	struct ba_setup *setup = (struct ba_setup *)userdata;
+	char *transport;
+
+	pthread_mutex_lock(&setup->devices_mutex);
+
+	g_variant_get(params, "(&o)", &transport);
+
+	transport = g_strdup_printf("%s/pr%d", path, profile);
+	transport_remove(setup->devices, transport);
+
+	pthread_mutex_unlock(&setup->devices_mutex);
+
+	g_free(transport);
+	g_object_unref(inv);
 }
 
 static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {

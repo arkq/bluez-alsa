@@ -117,6 +117,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		head += len;
 		io_thread_time_sync(&io_sync, len / 2 / 2);
 	}
+
+	return NULL;
 }
 
 void *io_thread_a2dp_source_sbc(void *arg) {
@@ -145,6 +147,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 		io_thread_time_sync(&io_sync, len / 2 / 2);
 	}
+
+	return NULL;
 }
 
 int main(int argc, char *argv[]) {
@@ -195,7 +199,7 @@ int main(int argc, char *argv[]) {
 	struct ba_device *d;
 
 	str2ba("12:34:56:78:9A:BC", &addr);
-	assert((d = device_new(&addr, "Test Device")) != NULL);
+	assert((d = device_new(1, &addr, "Test Device")) != NULL);
 	g_hash_table_insert(setup.devices, g_strdup("/device"), d);
 
 	if (source) {

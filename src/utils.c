@@ -10,10 +10,13 @@
 
 #include "utils.h"
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <bluetooth/bluetooth.h>
 #include <bluetooth/hci_lib.h>
+#include <bluetooth/sco.h>
 
 #include "a2dp-codecs.h"
 #include "bluez.h"
@@ -84,6 +87,42 @@ int hci_devlist(struct hci_dev_info **di, int *num) {
 			(*num)++;
 
 	return 0;
+}
+
+/**
+ * Open SCO link for given Bluetooth device.
+ *
+ * @param di The address to the HCI device info structure for which the SCO
+ *   link should be established.
+ * @param ba Pointer to the Bluetooth address structure for a target device.
+ * @return On success this function returns socket file descriptor. Otherwise,
+ *   -1 is returned and errno is set to indicate the error. */
+int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba) {
+
+	struct sockaddr_sco addr_hci = {
+		.sco_family = AF_BLUETOOTH,
+		.sco_bdaddr = di->bdaddr,
+	};
+	struct sockaddr_sco addr_dev = {
+		.sco_family = AF_BLUETOOTH,
+		.sco_bdaddr = *ba,
+	};
+	int dd, err;
+
+	if ((dd = socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)) == -1)
+		return -1;
+	if (bind(dd, (struct sockaddr *)&addr_hci, sizeof(addr_hci)) == -1)
+		goto fail;
+	if (connect(dd, (struct sockaddr *)&addr_dev, sizeof(addr_dev)) == -1)
+		goto fail;
+
+	return dd;
+
+fail:
+	err = errno;
+	close(dd);
+	errno = err;
+	return -1;
 }
 
 /**

@@ -677,6 +677,7 @@ fail_init:
 	pthread_cleanup_pop(1);
 fail_open:
 	pthread_cleanup_pop(1);
+	return NULL;
 }
 #endif
 
@@ -974,6 +975,7 @@ void *io_thread_audio_gateway(void *arg) {
 			if (errno == ECONNRESET || errno == ENOTCONN) {
 				/* exit the thread upon RFCOMM socket disconnection */
 				debug("RFCOMM socket disconnected");
+				transport_set_state(t, TRANSPORT_ABORTED);
 				break;
 			}
 			debug("RFCOMM read error: %s", strerror(errno));

@@ -18,6 +18,8 @@
 #include <bluetooth/bluetooth.h>
 #include <gio/gio.h>
 
+#include "bluealsa.h"
+
 #define TRANSPORT_PROFILE_A2DP_SOURCE 0x01
 #define TRANSPORT_PROFILE_A2DP_SINK   0x02
 #define TRANSPORT_PROFILE_HSP_HS      0x03
@@ -30,6 +32,7 @@ enum ba_transport_state {
 	TRANSPORT_PENDING,
 	TRANSPORT_ACTIVE,
 	TRANSPORT_PAUSED,
+	TRANSPORT_ABORTED,
 };
 
 #define TRANSPORT_RUN_IO_THREAD(t) \
@@ -42,9 +45,13 @@ enum ba_transport_state {
 
 struct ba_device {
 
+	/* ID of the underlying HCI device */
+	int hci_dev_id;
+	/* address of the Bluetooth device */
 	bdaddr_t addr;
 	char *name;
 
+	/* hash-map with connected transports */
 	GHashTable *transports;
 
 };
@@ -56,7 +63,7 @@ struct ba_transport {
 	char *dbus_owner;
 	char *dbus_path;
 
-	/* backward reference to transport owner */
+	/* backward reference to the owner */
 	struct ba_device *device;
 
 	char *name;
@@ -113,10 +120,11 @@ struct ba_transport {
 
 };
 
-struct ba_device *device_new(bdaddr_t *addr, const char *name);
+struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name);
 void device_free(struct ba_device *d);
 
-struct ba_device *device_get(GDBusConnection *conn, GHashTable *devices, const char *key);
+struct ba_device *device_get(GHashTable *devices, const char *key,
+		const struct ba_setup *setup);
 struct ba_device *device_lookup(GHashTable *devices, const char *key);
 gboolean device_remove(GHashTable *devices, const char *key);
 
@@ -136,7 +144,9 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
 
 int transport_acquire_bt(struct ba_transport *t);
+int transport_acquire_bt_sco(struct ba_transport *t);
 int transport_release_bt(struct ba_transport *t);
+int transport_release_bt_rfcomm(struct ba_transport *t);
 int transport_release_pcm(struct ba_transport *t);
 
 #endif

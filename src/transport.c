@@ -11,9 +11,14 @@
 #define _GNU_SOURCE
 #include "transport.h"
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
 
 #include <gio/gunixfdlist.h>
 
@@ -86,15 +91,17 @@ static int io_thread_create(struct ba_transport *t) {
 	return 0;
 }
 
-struct ba_device *device_new(bdaddr_t *addr, const char *name) {
+struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name) {
 
 	struct ba_device *d;
 
 	if ((d = calloc(1, sizeof(*d))) == NULL)
 		return NULL;
 
+	d->hci_dev_id = hci_dev_id;
 	bacpy(&d->addr, addr);
 	d->name = strdup(name);
+
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
 			g_free, (GDestroyNotify)transport_free);
 
@@ -111,7 +118,8 @@ void device_free(struct ba_device *d) {
 	free(d);
 }
 
-struct ba_device *device_get(GDBusConnection *conn, GHashTable *devices, const char *key) {
+struct ba_device *device_get(GHashTable *devices, const char *key,
+		const struct ba_setup *setup) {
 
 	struct ba_device *d;
 	GVariant *property;
@@ -124,14 +132,14 @@ struct ba_device *device_get(GDBusConnection *conn, GHashTable *devices, const c
 	g_dbus_device_path_to_bdaddr(key, &addr);
 	ba2str(&addr, name);
 
-	if ((property = g_dbus_get_property(conn, "org.bluez", key,
+	if ((property = g_dbus_get_property(setup->dbus, "org.bluez", key,
 					"org.bluez.Device1", "Name")) != NULL) {
 		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
 		name[sizeof(name) - 1] = '\0';
 		g_variant_unref(property);
 	}
 
-	d = device_new(&addr, name);
+	d = device_new(setup->hci_dev.dev_id, &addr, name);
 	g_hash_table_insert(devices, g_strdup(key), d);
 	return d;
 }
@@ -411,6 +419,8 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		if (!running)
 			ret = io_thread_create(t);
 		break;
+	case TRANSPORT_ABORTED:
+		break;
 	}
 
 	/* something went wrong, so go back to idle */
@@ -481,6 +491,28 @@ fail:
 	return t->bt_fd;
 }
 
+int transport_acquire_bt_sco(struct ba_transport *t) {
+
+	struct hci_dev_info di;
+
+	if (hci_devinfo(t->device->hci_dev_id, &di) == -1) {
+		error("Couldn't get HCI device info: %s", strerror(errno));
+		return -1;
+	}
+
+	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr)) == -1) {
+		error("Couldn't open SCO link: %s", strerror(errno));
+		return -1;
+	}
+
+	t->mtu_read = di.sco_mtu;
+	t->mtu_write = di.sco_mtu;
+
+	debug("New SCO link: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+
+	return t->bt_fd;
+}
+
 int transport_release_bt(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
@@ -539,6 +571,34 @@ fail:
 		g_error_free(err);
 	}
 	return ret;
+}
+
+int transport_release_bt_rfcomm(struct ba_transport *t) {
+
+	if (t->rfcomm_fd == -1)
+		return 0;
+
+	if (t->bt_fd != -1) {
+		debug("Closing SCO link: %d", t->bt_fd);
+		shutdown(t->bt_fd, SHUT_RDWR);
+		close(t->bt_fd);
+		t->bt_fd = -1;
+	}
+
+	debug("Closing RFCOMM: %d", t->rfcomm_fd);
+
+	t->release = NULL;
+	shutdown(t->rfcomm_fd, SHUT_RDWR);
+	close(t->rfcomm_fd);
+	t->rfcomm_fd = -1;
+
+	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
+	 * link has been lost (e.g. device power down). However, it is required to
+	 * remove transport from the transport pool before reconnecting. */
+	if (t->state == TRANSPORT_ABORTED)
+		g_hash_table_remove(t->device->transports, t->dbus_path);
+
+	return 0;
 }
 
 int transport_release_pcm(struct ba_transport *t) {
