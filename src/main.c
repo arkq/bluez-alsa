@@ -29,9 +29,6 @@
 #include "utils.h"
 
 
-/* Global configuration structure. */
-struct ba_config config;
-
 static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
 	(void)(sig);
@@ -54,6 +51,11 @@ int main(int argc, char **argv) {
 		{ "device", required_argument, NULL, 'i' },
 		{ "disable-a2dp", no_argument, NULL, 1 },
 		{ "disable-hsp", no_argument, NULL, 2 },
+		{ "disable-hfp", no_argument, NULL, 3 },
+#if ENABLE_AAC
+		{ "aac-afterburner", no_argument, NULL, 4 },
+		{ "aac-vbr-mode", required_argument, NULL, 5 },
+#endif
 		{ 0, 0, 0, 0 },
 	};
 
@@ -87,16 +89,22 @@ int main(int argc, char **argv) {
 	/* parse options */
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h':
-			printf("usage: %s [ -hi ]\n"
+
+		case 'h' /* --help */ :
+			printf("usage: %s [OPTION]...\n\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -i, --device=hciX\tHCI device to use\n"
 					"  --disable-a2dp\tdisable A2DP support\n"
-					"  --disable-hsp\t\tdisable HSP support\n",
-					argv[0]);
+					"  --disable-hsp\t\tdisable HSP support\n"
+					"  --disable-hfp\t\tdisable HFP support\n"
+#if ENABLE_AAC
+					"  --aac-afterburner\tenable afterburner\n"
+					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
+#endif
+					, argv[0]);
 			return EXIT_SUCCESS;
 
-		case 'i': {
+		case 'i' /* --device=HCI */ : {
 
 			bdaddr_t addr;
 			int i = hci_devs_num;
@@ -127,12 +135,28 @@ int main(int argc, char **argv) {
 			break;
 		}
 
-		case 1:
-			config.enable_a2dp = 0;
+		case 1 /* --disable-a2dp */ :
+			config.enable_a2dp = FALSE;
 			break;
-		case 2:
-			config.enable_hsp = 0;
+		case 2 /* --disable-hsp */ :
+			config.enable_hsp = FALSE;
 			break;
+		case 3 /* --disable-hfp */ :
+			config.enable_hfp = FALSE;
+			break;
+
+#if ENABLE_AAC
+		case 4 /* --aac-afterburner */ :
+			config.aac_afterburner = TRUE;
+			break;
+		case 5 /* --aac-vbr-mode=NB */ :
+			config.aac_vbr_mode = atoi(optarg);
+			if (config.aac_vbr_mode > 5) {
+				error("Invalid bitrate mode [0, 5]: %s", optarg);
+				return EXIT_FAILURE;
+			}
+			break;
+#endif
 
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
@@ -142,7 +166,7 @@ int main(int argc, char **argv) {
 	/* device list is no longer required */
 	free(hci_devs);
 
-	/* initialize random generator */
+	/* initialize random number generator */
 	srandom(time(NULL));
 
 	if ((bluealsa_ctl_thread_init()) == -1) {

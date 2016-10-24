@@ -71,8 +71,8 @@ struct ba_transport {
 	uint8_t codec;
 
 	/* selected audio codec configuration */
-	uint8_t *config;
-	size_t config_size;
+	uint8_t *cconfig;
+	size_t cconfig_size;
 
 	/* software audio volume in range [0, 100] */
 	uint8_t volume;

@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_BLUEALSA_H
 #define BLUEALSA_BLUEALSA_H
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <poll.h>
 #include <pthread.h>
 
@@ -30,6 +34,7 @@ struct ba_config {
 
 	gboolean enable_a2dp;
 	gboolean enable_hsp;
+	gboolean enable_hfp;
 
 	/* established D-Bus connection */
 	GDBusConnection *dbus;
@@ -49,6 +54,11 @@ struct ba_config {
 
 	gboolean ctl_socket_created;
 	gboolean ctl_thread_created;
+
+#if ENABLE_AAC
+	gboolean aac_afterburner;
+	uint8_t aac_vbr_mode;
+#endif
 
 };
 

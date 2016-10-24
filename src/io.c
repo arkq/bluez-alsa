@@ -29,6 +29,7 @@
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
+#include "bluealsa.h"
 #include "log.h"
 #include "transport.h"
 #include "utils.h"
@@ -266,7 +267,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->cconfig, t->cconfig_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -386,7 +387,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->config, t->config_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->cconfig, t->cconfig_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -684,7 +685,7 @@ fail_open:
 #if ENABLE_AAC
 void *io_thread_a2dp_source_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
-	const a2dp_aac_t *config = (a2dp_aac_t *)t->config;
+	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
@@ -703,11 +704,11 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	pthread_cleanup_push(CANCEL_ROUTINE(aacEncClose), &handle);
 
 	unsigned int aot = AOT_NONE;
-	unsigned int bitrate = AAC_GET_BITRATE(*config);
+	unsigned int bitrate = AAC_GET_BITRATE(*cconfig);
 	unsigned int samplerate = transport_get_sampling(t);
 	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
 
-	switch (config->object_type) {
+	switch (cconfig->object_type) {
 	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
 		aot = AOT_MP2_AAC_LC;
 		break;
@@ -738,13 +739,13 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		error("Couldn't set channel mode: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
-	if (config->vbr) {
-		if ((err = aacEncoder_SetParam(handle, AACENC_BITRATEMODE, 5)) != AACENC_OK) {
-			error("Couldn't set VBR bitrate mode: %s", aacenc_strerror(err));
+	if (cconfig->vbr) {
+		if ((err = aacEncoder_SetParam(handle, AACENC_BITRATEMODE, config.aac_vbr_mode)) != AACENC_OK) {
+			error("Couldn't set VBR bitrate mode %u: %s", config.aac_vbr_mode, aacenc_strerror(err));
 			goto fail_init;
 		}
 	}
-	if ((err = aacEncoder_SetParam(handle, AACENC_AFTERBURNER, 1)) != AACENC_OK) {
+	if ((err = aacEncoder_SetParam(handle, AACENC_AFTERBURNER, config.aac_afterburner)) != AACENC_OK) {
 		error("Couldn't enable afterburner: %s", aacenc_strerror(err));
 		goto fail_init;
 	}

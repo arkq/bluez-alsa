@@ -52,8 +52,8 @@ int test_a2dp_sbc_invalid_setup(void) {
 	struct ba_transport transport = {
 		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC,
-		.config = (uint8_t *)&codec,
-		.config_size = sizeof(a2dp_sbc_t),
+		.cconfig = (uint8_t *)&codec,
+		.cconfig_size = sizeof(a2dp_sbc_t),
 		.state = TRANSPORT_IDLE,
 		.bt_fd = -1,
 	};
@@ -79,7 +79,7 @@ int test_a2dp_sbc_invalid_setup(void) {
 	assert(test_error_count == 3);
 	assert(strcmp(test_error_msg, "Couldn't initialize SBC codec: Invalid argument") == 0);
 
-	transport.config = (uint8_t *)&config_sbc_44100_joint_stereo;
+	transport.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo;
 	*test_error_msg = '\0';
 
 	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
@@ -101,8 +101,8 @@ int test_a2dp_sbc_decoding(void) {
 	struct ba_transport transport = {
 		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC,
-		.config = (uint8_t *)&config_sbc_44100_joint_stereo,
-		.config_size = sizeof(a2dp_sbc_t),
+		.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo,
+		.cconfig_size = sizeof(a2dp_sbc_t),
 		.state = TRANSPORT_ACTIVE,
 		.pcm_fifo = "/force-decoding",
 		.pcm_fd = pcm_fds[0],
@@ -141,8 +141,8 @@ int test_a2dp_sbc_encoding(void) {
 	struct ba_transport transport = {
 		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC,
-		.config = (uint8_t *)&config_sbc_44100_joint_stereo,
-		.config_size = sizeof(a2dp_sbc_t),
+		.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo,
+		.cconfig_size = sizeof(a2dp_sbc_t),
 		.state = TRANSPORT_ACTIVE,
 		.pcm_fd = pcm_fds[1],
 		.bt_fd = bt_fds[0],

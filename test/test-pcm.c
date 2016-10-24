@@ -34,10 +34,6 @@
 #undef transport_acquire_bt
 #include "../src/utils.c"
 
-struct ba_config config = {
-	.hci_dev = { .name = "hci-test", },
-};
-
 static const a2dp_sbc_t cconfig = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,
@@ -185,6 +181,9 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return EXIT_FAILURE;
 		}
+
+	/* emulate dummy test HCI device */
+	strcpy(config.hci_dev.name, "hci-test");
 
 	assert(bluealsa_config_init() == 0);
 	if ((bluealsa_ctl_thread_init() == -1)) {

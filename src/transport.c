@@ -172,9 +172,9 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 	t->volume = 100;
 
 	if (config_size > 0) {
-		t->config = malloc(config_size);
-		t->config_size = config_size;
-		memcpy(t->config, config, config_size);
+		t->cconfig = malloc(config_size);
+		t->cconfig_size = config_size;
+		memcpy(t->cconfig, config, config_size);
 	}
 
 	pthread_mutex_init(&t->resume_mutex, NULL);
@@ -222,7 +222,7 @@ void transport_free(struct ba_transport *t) {
 	free(t->name);
 	free(t->dbus_owner);
 	free(t->dbus_path);
-	free(t->config);
+	free(t->cconfig);
 	free(t);
 }
 
@@ -285,7 +285,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 	case TRANSPORT_PROFILE_A2DP_SINK:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
-			switch (((a2dp_sbc_t *)t->config)->channel_mode) {
+			switch (((a2dp_sbc_t *)t->cconfig)->channel_mode) {
 			case SBC_CHANNEL_MODE_MONO:
 				return 1;
 			case SBC_CHANNEL_MODE_STEREO:
@@ -295,7 +295,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG12:
-			switch (((a2dp_mpeg_t *)t->config)->channel_mode) {
+			switch (((a2dp_mpeg_t *)t->cconfig)->channel_mode) {
 			case MPEG_CHANNEL_MODE_MONO:
 				return 1;
 			case MPEG_CHANNEL_MODE_STEREO:
@@ -305,7 +305,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG24:
-			switch (((a2dp_aac_t *)t->config)->channels) {
+			switch (((a2dp_aac_t *)t->cconfig)->channels) {
 			case AAC_CHANNELS_1:
 				return 1;
 			case AAC_CHANNELS_2:
@@ -332,7 +332,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 	case TRANSPORT_PROFILE_A2DP_SINK:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
-			switch (((a2dp_sbc_t *)t->config)->frequency) {
+			switch (((a2dp_sbc_t *)t->cconfig)->frequency) {
 			case SBC_SAMPLING_FREQ_16000:
 				return 16000;
 			case SBC_SAMPLING_FREQ_32000:
@@ -344,7 +344,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG12:
-			switch (((a2dp_mpeg_t *)t->config)->frequency) {
+			switch (((a2dp_mpeg_t *)t->cconfig)->frequency) {
 			case MPEG_SAMPLING_FREQ_16000:
 				return 16000;
 			case MPEG_SAMPLING_FREQ_22050:
@@ -360,7 +360,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG24:
-			switch (AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->config)) {
+			switch (AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->cconfig)) {
 			case AAC_SAMPLING_FREQ_8000:
 				return 8000;
 			case AAC_SAMPLING_FREQ_11025:
