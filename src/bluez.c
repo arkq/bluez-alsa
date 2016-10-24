@@ -1006,6 +1006,21 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 			transport_set_state_from_string(t, state);
 
 		}
+		else if (strcmp(key, "Delay") == 0) {
+		}
+		else if (strcmp(key, "Volume") == 0) {
+
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
+				error("Invalid argument type for %s: %s != %s", key,
+						g_variant_get_type_string(value), "q");
+				goto fail;
+			}
+
+			uint16_t volume;
+			g_variant_get(value, "q", &volume);
+			t->volume = volume * 100 / 127;
+
+		}
 
 		g_variant_unref(value);
 		value = NULL;
