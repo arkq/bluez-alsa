@@ -36,10 +36,10 @@ enum ba_transport_state {
 #define TRANSPORT_RUN_IO_THREAD(t) \
 	((t)->state == TRANSPORT_ACTIVE || (t)->state == TRANSPORT_PAUSED)
 
-#define TRANSPORT_XAPL_FEATURE_BATTERY (1 << 1)
-#define TRANSPORT_XAPL_FEATURE_DOCKING (1 << 2)
-#define TRANSPORT_XAPL_FEATURE_SIRI    (1 << 3)
-#define TRANSPORT_XAPL_FEATURE_DENOISE (1 << 4)
+#define DEVICE_XAPL_FEATURE_BATTERY (1 << 1)
+#define DEVICE_XAPL_FEATURE_DOCKING (1 << 2)
+#define DEVICE_XAPL_FEATURE_SIRI    (1 << 3)
+#define DEVICE_XAPL_FEATURE_DENOISE (1 << 4)
 
 struct ba_device {
 
@@ -48,6 +48,21 @@ struct ba_device {
 	/* address of the Bluetooth device */
 	bdaddr_t addr;
 	char *name;
+
+	/* Apple's extension used with HFP profile */
+	struct {
+
+		uint16_t vendor_id;
+		uint16_t product_id;
+		uint16_t version;
+		uint8_t features;
+
+		/* headset battery level in range [0, 9] */
+		uint8_t accev_battery;
+		/* determine whatever headset is docked */
+		uint8_t accev_docked;
+
+	} xapl;
 
 	/* hash-map with connected transports */
 	GHashTable *transports;
@@ -97,21 +112,6 @@ struct ba_transport {
 
 	/* used by PCM client lookup */
 	int pcm_client;
-
-	/* Apple's extension used for HFP profile */
-	struct {
-
-		uint16_t vendor_id;
-		uint16_t product_id;
-		uint16_t version;
-		uint8_t features;
-
-		/* headset battery level in range [0, 9] */
-		uint8_t accev_battery;
-		/* determine whatever headset is docked */
-		uint8_t accev_docked;
-
-	} xapl;
 
 	/* callback function for self-management */
 	int (*release)(struct ba_transport *);

@@ -1011,11 +1011,11 @@ void *io_thread_audio_gateway(void *arg) {
 				switch (tmp = *strsep(&ptr, ",")) {
 				case '1':
 					if (ptr != NULL)
-						t->xapl.accev_battery = atoi(strsep(&ptr, ","));
+						t->device->xapl.accev_battery = atoi(strsep(&ptr, ","));
 					break;
 				case '2':
 					if (ptr != NULL)
-						t->xapl.accev_docked = atoi(strsep(&ptr, ","));
+						t->device->xapl.accev_docked = atoi(strsep(&ptr, ","));
 					break;
 				default:
 					warn("Unsupported IPHONEACCEV key: %c", tmp);
@@ -1029,10 +1029,10 @@ void *io_thread_audio_gateway(void *arg) {
 			unsigned int version, features;
 
 			if (sscanf(value, "%x-%x-%u,%u", &vendor, &product, &version, &features) == 4) {
-				t->xapl.vendor_id = vendor;
-				t->xapl.product_id = product;
-				t->xapl.version = version;
-				t->xapl.features = features;
+				t->device->xapl.vendor_id = vendor;
+				t->device->xapl.product_id = product;
+				t->device->xapl.version = version;
+				t->device->xapl.features = features;
 				response = "+XAPL=BlueALSA,0";
 			}
 			else {
