@@ -604,7 +604,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	if ((pcm->event_fd = eventfd(0, 0)) == -1) {
+	if ((pcm->event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
 		ret = -errno;
 		goto fail;
 	}

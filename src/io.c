@@ -973,7 +973,7 @@ void *io_thread_audio_gateway(void *arg) {
 		}
 
 		if ((ret = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
-			if (errno == ECONNRESET || errno == ENOTCONN) {
+			if (errno == ECONNABORTED || errno == ECONNRESET || errno == ENOTCONN) {
 				/* exit the thread upon RFCOMM socket disconnection */
 				debug("RFCOMM socket disconnected");
 				transport_set_state(t, TRANSPORT_ABORTED);
