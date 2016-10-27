@@ -216,7 +216,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	const char *transport;
 	char *device = NULL, *state = NULL;
 	uint8_t *configuration = NULL;
-	uint16_t volume = 100;
+	uint16_t volume = 127;
 	size_t size = 0;
 
 	GVariantIter *properties;
@@ -382,10 +382,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				goto fail;
 			}
 
+			/* received volume is in range [0, 127]*/
 			g_variant_get(value, "q", &volume);
-
-			/* scale volume from 0 to 100 */
-			volume = volume * 100 / 127;
 
 		}
 
@@ -1016,9 +1014,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 				goto fail;
 			}
 
-			uint16_t volume;
-			g_variant_get(value, "q", &volume);
-			t->volume = volume * 100 / 127;
+			/* received volume is in range [0, 127]*/
+			g_variant_get(value, "q", &t->volume);
 
 		}
 

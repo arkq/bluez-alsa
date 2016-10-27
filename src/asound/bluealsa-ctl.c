@@ -23,14 +23,17 @@
 
 
 enum ctl_elem_type {
+	CTL_ELEM_TYPE_BATTERY,
 	CTL_ELEM_TYPE_SWITCH,
 	CTL_ELEM_TYPE_VOLUME,
 };
 
 struct ctl_elem {
-	struct msg_transport *transport;
-	snd_pcm_stream_t stream;
 	enum ctl_elem_type type;
+	struct msg_device *device;
+	struct msg_transport *transport;
+	/* if TRUE, element is a playback control */
+	uint8_t playback;
 };
 
 struct bluealsa_ctl {
@@ -38,6 +41,10 @@ struct bluealsa_ctl {
 
 	/* bluealsa socket */
 	int fd;
+
+	/* list of all BT devices */
+	struct msg_device *devices;
+	size_t devices_count;
 
 	/* list of all transports */
 	struct msg_transport *transports;
@@ -50,9 +57,62 @@ struct bluealsa_ctl {
 };
 
 
+/**
+ * Get Bluetooth devices.
+ *
+ * @param ctl An address to the bluealsa ctl structure.
+ * @return Upon success this function returns 0. Otherwise, -1 is returned. */
+static int bluealsa_get_devices(struct bluealsa_ctl *ctl) {
+
+	const struct request req = { .command = COMMAND_LIST_DEVICES };
+	struct msg_device *devices = NULL;
+	struct msg_device device;
+	size_t i = 0;
+
+	if (send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
+		return -1;
+
+	while (recv(ctl->fd, &device, sizeof(device), 0) == sizeof(device)) {
+		devices = realloc(devices, (i + 1) * sizeof(*devices));
+		memcpy(&devices[i], &device, sizeof(*devices));
+		i++;
+	}
+
+	ctl->devices = devices;
+	ctl->devices_count = i;
+	return 0;
+}
+
+/**
+ * Get PCM transports.
+ *
+ * @param ctl An address to the bluealsa ctl structure.
+ * @return Upon success this function returns 0. Otherwise, -1 is returned. */
+static int bluealsa_get_transports(struct bluealsa_ctl *ctl) {
+
+	const struct request req = { .command = COMMAND_LIST_TRANSPORTS };
+	struct msg_transport *transports = NULL;
+	struct msg_transport transport;
+	size_t i = 0;
+
+	if (send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
+		return -1;
+
+	while (recv(ctl->fd, &transport, sizeof(transport), 0) == sizeof(transport)) {
+		transports = realloc(transports, (i + 1) * sizeof(*transports));
+		memcpy(&transports[i], &transport, sizeof(*transports));
+		i++;
+	}
+
+	ctl->transports = transports;
+	ctl->transports_count = i;
+	return 0;
+}
+
 static void bluealsa_close(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 	close(ctl->fd);
+	free(ctl->devices);
 	free(ctl->transports);
 	free(ctl->elems);
 	free(ctl);
@@ -61,26 +121,25 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
-	const struct request req = {
-		.command = COMMAND_LIST_TRANSPORTS,
-	};
-
-	send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL);
-
-	struct msg_transport transport;
 	size_t count = 0;
-	size_t i = 0;
+	size_t i;
 
-	while (recv(ctl->fd, &transport, sizeof(transport), 0) == sizeof(transport)) {
+	if (bluealsa_get_devices(ctl) == -1)
+		return -errno;
+	if (bluealsa_get_transports(ctl) == -1)
+		return -errno;
 
-		ctl->transports = realloc(ctl->transports, (i + 1) * sizeof(*ctl->transports));
-		memcpy(&ctl->transports[i], &transport, sizeof(*ctl->transports));
-		i++;
+	for (i = 0; i < ctl->devices_count; i++) {
+		/* add additional element for battery level */
+		if (ctl->devices[i].battery)
+			count++;
+	}
 
+	for (i = 0; i < ctl->transports_count; i++) {
 		/* Every stream has two controls associated to itself - volume adjustment
 		 * and mute switch. A2DP transport contains only one stream. However, HSP
 		 * and HFP transports represent both streams - playback and capture. */
-		switch (transport.profile) {
+		switch (ctl->transports[i].profile) {
 		case TRANSPORT_PROFILE_A2DP_SOURCE:
 		case TRANSPORT_PROFILE_A2DP_SINK:
 			count += 2;
@@ -92,33 +151,49 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			count += 4;
 			break;
 		default:
-			SNDERR("Unsupported transport profile: %x", transport.profile);
+			SNDERR("Unsupported transport profile: %x", ctl->transports[i].profile);
 			return -ENOTSUP;
 		}
-
 	}
 
-	ctl->transports_count = i;
 	ctl->elems = malloc(sizeof(*ctl->elems) * count);
 	ctl->elems_count = count;
+	count = 0;
 
 	/* construct control elements based on received transports */
-	for (i = count = 0; i < ctl->transports_count; i++) {
-		const uint8_t profile = ctl->transports[i].profile;
-		switch (profile) {
+	for (i = 0; i < ctl->transports_count; i++) {
+
+		struct msg_transport *transport = &ctl->transports[i];
+		struct msg_device *device = NULL;
+		uint8_t profile;
+		size_t ii;
+
+		/* get device structure for given transport */
+		for (ii = 0; ii < ctl->devices_count; ii++) {
+			if (bacmp(&ctl->devices[ii].addr, &transport->addr) == 0)
+				device = &ctl->devices[ii];
+		}
+
+		/* If the timing is right, the device list might not contain all devices.
+		 * It will happen, when between the get devices and get transports calls,
+		 * new BT device has been connected. */
+		if (device == NULL)
+			continue;
+
+		switch (profile = transport->profile) {
 		case TRANSPORT_PROFILE_A2DP_SOURCE:
 		case TRANSPORT_PROFILE_A2DP_SINK:
 
-			ctl->elems[count].transport = &ctl->transports[i];
-			ctl->elems[count].stream = profile == TRANSPORT_PROFILE_A2DP_SOURCE
-				? SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
+			ctl->elems[count].device = device;
+			ctl->elems[count].transport = transport;
+			ctl->elems[count].playback = profile == TRANSPORT_PROFILE_A2DP_SOURCE;
 			count++;
 
-			ctl->elems[count].transport = &ctl->transports[i];
-			ctl->elems[count].stream = profile == TRANSPORT_PROFILE_A2DP_SOURCE
-				? SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
+			ctl->elems[count].device = device;
+			ctl->elems[count].transport = transport;
+			ctl->elems[count].playback = profile == TRANSPORT_PROFILE_A2DP_SOURCE;
 			count++;
 
 			break;
@@ -128,28 +203,45 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 		case TRANSPORT_PROFILE_HFP_HF:
 		case TRANSPORT_PROFILE_HFP_AG:
 
-			ctl->elems[count].transport = &ctl->transports[i];
-			ctl->elems[count].stream = SND_PCM_STREAM_PLAYBACK;
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
+			ctl->elems[count].device = device;
+			ctl->elems[count].transport = transport;
+			ctl->elems[count].playback = TRUE;
 			count++;
 
-			ctl->elems[count].transport = &ctl->transports[i];
-			ctl->elems[count].stream = SND_PCM_STREAM_PLAYBACK;
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
+			ctl->elems[count].device = device;
+			ctl->elems[count].transport = transport;
+			ctl->elems[count].playback = TRUE;
 			count++;
 
-			ctl->elems[count].transport = &ctl->transports[i];
-			ctl->elems[count].stream = SND_PCM_STREAM_CAPTURE;
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
+			ctl->elems[count].device = device;
+			ctl->elems[count].transport = transport;
+			ctl->elems[count].playback = FALSE;
 			count++;
 
-			ctl->elems[count].transport = &ctl->transports[i];
-			ctl->elems[count].stream = SND_PCM_STREAM_CAPTURE;
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
+			ctl->elems[count].device = device;
+			ctl->elems[count].transport = transport;
+			ctl->elems[count].playback = FALSE;
 			count++;
 
 			break;
 
+		}
+
+	}
+
+	/* construct device specific elements */
+	for (i = 0; i < ctl->devices_count; i++) {
+		/* add additional element for battery level */
+		if (ctl->devices[i].battery) {
+			ctl->elems[count].type = CTL_ELEM_TYPE_BATTERY;
+			ctl->elems[count].device = &ctl->devices[i];
+			ctl->elems[count].transport = NULL;
+			ctl->elems[count].playback = TRUE;
+			count++;
 		}
 	}
 
@@ -163,41 +255,48 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 		return -EINVAL;
 
 	const struct ctl_elem *elem = &ctl->elems[offset];
+	const struct msg_device *device = elem->device;
 	const struct msg_transport *transport = elem->transport;
-	char name[sizeof(transport->name) + 25];
+	char name[44 /* internal ALSA constraint */];
 
-	strcpy(name, transport->name);
+	strcpy(name, device->name);
 
-	/* avoid name duplication by adding profile suffixes */
-	switch (transport->profile) {
-	case TRANSPORT_PROFILE_A2DP_SOURCE:
-	case TRANSPORT_PROFILE_A2DP_SINK:
-		strcat(name, " (A2DP)");
-		break;
-	case TRANSPORT_PROFILE_HSP_HS:
-	case TRANSPORT_PROFILE_HSP_AG:
-		strcat(name, " (HSP)");
-		break;
-	case TRANSPORT_PROFILE_HFP_HF:
-	case TRANSPORT_PROFILE_HFP_AG:
-		strcat(name, " (HFP)");
-		break;
+	if (elem->type == CTL_ELEM_TYPE_BATTERY) {
+		name[sizeof(name) - 10 - 16 - 1] = '\0';
+		strcat(name, " | Battery");
+	}
+
+	if (transport != NULL) {
+		/* avoid name duplication by adding profile suffixes */
+		switch (transport->profile) {
+		case TRANSPORT_PROFILE_A2DP_SOURCE:
+		case TRANSPORT_PROFILE_A2DP_SINK:
+			name[sizeof(name) - 7 - 16 - 1] = '\0';
+			strcat(name, " - A2DP");
+			break;
+		case TRANSPORT_PROFILE_HSP_HS:
+		case TRANSPORT_PROFILE_HSP_AG:
+			name[sizeof(name) - 6 - 16 - 1] = '\0';
+			strcat(name, " - HSP");
+			break;
+		case TRANSPORT_PROFILE_HFP_HF:
+		case TRANSPORT_PROFILE_HFP_AG:
+			name[sizeof(name) - 6 - 16 - 1] = '\0';
+			strcat(name, " - HFP");
+			break;
+		}
 	}
 
 	/* XXX: It seems, that ALSA determines the element type by checking it's
 	 *      name suffix. However, this functionality is not documented! */
-	switch (elem->stream) {
-	case SND_PCM_STREAM_PLAYBACK:
-		strcat(name, " Playback");
-		break;
-	case SND_PCM_STREAM_CAPTURE:
-		strcat(name, " Capture");
-		break;
-	}
+
+	strcat(name, elem->playback ? " Playback" : " Capture");
+
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_SWITCH:
 		strcat(name, " Switch");
 		break;
+	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_VOLUME:
 		strcat(name, " Volume");
 		break;
@@ -230,14 +329,19 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	const struct ctl_elem *elem = &ctl->elems[key];
 	const struct msg_transport *transport = elem->transport;
 
-	*acc = SND_CTL_EXT_ACCESS_READWRITE;
-
 	switch (elem->type) {
-	case CTL_ELEM_TYPE_SWITCH:
-		*type = SND_CTL_ELEM_TYPE_BOOLEAN;
+	case CTL_ELEM_TYPE_BATTERY:
+		*acc = SND_CTL_EXT_ACCESS_READ;
+		*type = SND_CTL_ELEM_TYPE_INTEGER;
 		*count = 1;
 		break;
+	case CTL_ELEM_TYPE_SWITCH:
+		*acc = SND_CTL_EXT_ACCESS_READWRITE;
+		*type = SND_CTL_ELEM_TYPE_BOOLEAN;
+		*count = transport->channels;
+		break;
 	case CTL_ELEM_TYPE_VOLUME:
+		*acc = SND_CTL_EXT_ACCESS_READWRITE;
 		*type = SND_CTL_ELEM_TYPE_INTEGER;
 		*count = transport->channels;
 		break;
@@ -248,11 +352,28 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 
 static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		long *imin, long *imax, long *istep) {
-	(void)ext;
-	(void)key;
-	*imin = 0;
-	*imax = 100;
-	*istep = 10;
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+
+	if (key > ctl->elems_count)
+		return -EINVAL;
+
+	const struct ctl_elem *elem = &ctl->elems[key];
+
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_BATTERY:
+		*imin = 0;
+		*imax = 9;
+		*istep = 1;
+		break;
+	case CTL_ELEM_TYPE_SWITCH:
+		return -EINVAL;
+	case CTL_ELEM_TYPE_VOLUME:
+		*imin = 0;
+		*imax = 127;
+		*istep = 1;
+		break;
+	}
+
 	return 0;
 }
 
@@ -263,16 +384,22 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		return -EINVAL;
 
 	const struct ctl_elem *elem = &ctl->elems[key];
+	const struct msg_device *device = elem->device;
 	const struct msg_transport *transport = elem->transport;
-	uint8_t channel = transport->channels;
 
 	switch (elem->type) {
+	case CTL_ELEM_TYPE_BATTERY:
+		value[0] = device->battery_level;
+		break;
 	case CTL_ELEM_TYPE_SWITCH:
-		*value = !transport->muted;
+		value[0] = !transport->ch1_muted;
+		if (transport->channels == 2)
+			value[1] = !transport->ch2_muted;
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		while (channel--)
-			value[channel] = transport->volume;
+		value[0] = transport->ch1_volume;
+		if (transport->channels == 2)
+			value[1] = transport->ch2_volume;
 		break;
 	}
 
@@ -288,30 +415,35 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	struct msg_status status;
 	struct ctl_elem *elem = &ctl->elems[key];
 	struct msg_transport *transport = elem->transport;
+
+	if (transport == NULL)
+		return -EINVAL;
+
 	struct request req = {
 		.command = COMMAND_TRANSPORT_SET_VOLUME,
 		.addr = transport->addr,
 		.profile = transport->profile,
-		.muted = transport->muted,
-		.volume = transport->volume,
+		.ch1_muted = transport->ch1_muted,
+		.ch1_volume = transport->ch1_volume,
+		.ch2_muted = transport->ch2_muted,
+		.ch2_volume = transport->ch2_volume,
 	};
 
 	switch (elem->type) {
+	case CTL_ELEM_TYPE_BATTERY:
+		/* this element should be read-only */
+		return -EINVAL;
 	case CTL_ELEM_TYPE_SWITCH:
-		req.muted = transport->muted = !*value;
+		req.ch1_muted = transport->ch1_muted = !value[0];
+		if (transport->channels == 2)
+			req.ch2_muted = transport->ch2_muted = !value[1];
 		break;
-	case CTL_ELEM_TYPE_VOLUME: {
-
-		int volume = 0;
-		int i;
-
-		for (i = 0; i < transport->channels; i++)
-			volume += value[i];
-
-		req.volume = transport->volume = volume / transport->channels;
-
+	case CTL_ELEM_TYPE_VOLUME:
+		req.ch1_volume = transport->ch1_volume = value[0];
+		if (transport->channels == 2)
+			req.ch2_volume = transport->ch2_volume = value[1];
 		break;
-	}}
+	}
 
 	send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL);
 	if (read(ctl->fd, &status, sizeof(status)) == -1)

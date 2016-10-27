@@ -169,7 +169,7 @@ struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner
 
 	t->profile = profile;
 	t->codec = codec;
-	t->volume = 100;
+	t->volume = 127;
 
 	if (config_size > 0) {
 		t->cconfig = malloc(config_size);

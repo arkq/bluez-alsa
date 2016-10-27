@@ -55,8 +55,10 @@ struct __attribute__ ((packed)) request {
 	uint8_t codec;
 
 	/* fields used by the SET_TRANSPORT_VOLUME command */
-	uint8_t muted:1;
-	uint8_t volume:7;
+	uint8_t ch1_muted:1;
+	uint8_t ch1_volume:7;
+	uint8_t ch2_muted:1;
+	uint8_t ch2_volume:7;
 
 };
 
@@ -69,15 +71,23 @@ struct __attribute__ ((packed)) msg_status {
 };
 
 struct __attribute__ ((packed)) msg_device {
+
+	/* device address */
 	bdaddr_t addr;
+	/* name obtained from the Bluetooth device itself */
 	char name[32];
+
+	/* determine whatever battery is available */
+	uint8_t battery:1;
+	/* device battery level in range [0, 9] */
+	uint8_t battery_level:7;
+
 };
 
 struct __attribute__ ((packed)) msg_transport {
 
 	/* device address for which the transport is created */
 	bdaddr_t addr;
-
 	/* transport name - most likely generic profile name */
 	char name[32];
 
@@ -90,8 +100,13 @@ struct __attribute__ ((packed)) msg_transport {
 	/* used sampling frequency */
 	uint16_t sampling;
 
-	uint8_t muted:1;
-	uint8_t volume:7;
+	/* Levels for channel 1 (left) and 2 (right). These fields are also
+	 * used for HSP/HFP. In such a case channel 1 and 2 is responsible
+	 * for respectively playback and capture. */
+	uint8_t ch1_muted:1;
+	uint8_t ch1_volume:7;
+	uint8_t ch2_muted:1;
+	uint8_t ch2_volume:7;
 
 };
 

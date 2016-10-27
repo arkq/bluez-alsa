@@ -92,7 +92,7 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 
 	bacpy(&transport->addr, &t->device->addr);
 
-	strncpy(transport->name, t->device->name, sizeof(transport->name) - 1);
+	strncpy(transport->name, t->name, sizeof(transport->name) - 1);
 	transport->name[sizeof(transport->name) - 1] = '\0';
 
 	transport->profile = t->profile;
@@ -100,8 +100,11 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 
 	transport->channels = transport_get_channels(t);
 	transport->sampling = transport_get_sampling(t);
-	transport->volume = t->volume;
-	transport->muted = t->muted;
+
+	transport->ch1_muted = t->muted;
+	transport->ch1_volume = t->volume;
+	transport->ch2_muted = t->muted;
+	transport->ch2_volume = t->volume;
 
 }
 
@@ -128,6 +131,9 @@ static void ctl_thread_cmd_list_devices(const struct request *req, int fd) {
 		bacpy(&device.addr, &d->addr);
 		strncpy(device.name, d->name, sizeof(device.name) - 1);
 		device.name[sizeof(device.name) - 1] = '\0';
+
+		device.battery = d->xapl.features & DEVICE_XAPL_FEATURE_BATTERY ? 1 : 0;
+		device.battery_level = d->xapl.accev_battery;
 
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);
 	}
@@ -193,11 +199,12 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 		goto fail;
 	}
 
-	debug("Setting volume for %s profile %d: %d [%s]", batostr_(&req->addr),
-			req->profile, req->volume, req->muted ? "off" : "on");
+	debug("Setting volume for %s profile %d: %d/%d [%s]", batostr_(&req->addr),
+			req->profile, req->ch1_volume, req->ch2_volume,
+			req->ch1_muted * req->ch2_muted ? "off" : "on");
 
-	t->muted = req->muted;
-	t->volume = req->volume;
+	t->muted = req->ch1_muted * req->ch2_muted;
+	t->volume = (req->ch1_volume + req->ch2_volume) / 2;
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);

@@ -122,8 +122,8 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer, size_t 
 
 	if (muted || volume == 0)
 		snd_pcm_mute_s16le(buffer, size);
-	else if (volume != 100)
-		snd_pcm_scale_s16le(buffer, size, volume);
+	else if (volume != 127)
+		snd_pcm_scale_s16le(buffer, size, volume * 100 / 127);
 
 }
 
