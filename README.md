@@ -50,9 +50,16 @@ like this:
 In order to control input or output audio level, one can use provided `bluealsa` control plugin.
 This plugin allows adjusting the volume of the audio stream or simply mute/unmute it, e.g.:
 
-	$ amixer -D bluealsa '<device name>' sset 70%
+	$ amixer -D bluealsa sset '<control name>' 70%
 
-where the device name is the name of connected Bluetooth device.
+where the control name is the name of a connected Bluetooth device with a control element suffix,
+e.g.:
+
+	$ amixer -D bluealsa sset 'Jabra MOVE v2.3.0 - A2DP' 50%
+
+For more advanced ALSA configuration, consult the asoundrc on-line
+[documentation](http://www.alsa-project.org/main/index.php/Asoundrc) provided by the AlsaProject
+wiki page.
 
 
 Resources
@@ -62,3 +69,4 @@ Resources
 2. [Bluetooth Design Guidelines](https://developer.apple.com/hardwaredrivers/BluetoothDesignGuidelines.pdf)
 3. [RTP Payload Format for MPEG-4](https://tools.ietf.org/html/rfc3016)
 4. [Coding of MPEG-4 Audio](http://www.iso.org/iso/iso_catalogue/catalogue_tc/catalogue_detail.htm?csnumber=42739)
+5. [ALSA project library reference](http://www.alsa-project.org/alsa-doc/alsa-lib/index.html)
