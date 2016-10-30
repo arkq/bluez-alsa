@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
 	if (source) {
 		struct ba_transport *t_source;
 		assert((t_source = transport_new(NULL, ":test", "/source", "Source",
-						TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
+						BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
 						(uint8_t *)&config, sizeof(config))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_source->dbus_path), t_source);
 		t_source->state = TRANSPORT_ACTIVE;
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
 	if (sink) {
 		struct ba_transport *t_sink;
 		assert((t_sink = transport_new(NULL, ":test", "/sink", "Sink",
-						TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
+						BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
 						(uint8_t *)&config, sizeof(config))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_sink->dbus_path), t_sink);
 		assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);

@@ -9,6 +9,7 @@
  */
 
 #include <errno.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -17,8 +18,8 @@
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
+#include "bluez.h"
 #include "ctl.h"
-#include "transport.h"
 #include "log.c"
 
 
@@ -32,8 +33,8 @@ struct ctl_elem {
 	enum ctl_elem_type type;
 	struct msg_device *device;
 	struct msg_transport *transport;
-	/* if TRUE, element is a playback control */
-	uint8_t playback;
+	/* if true, element is a playback control */
+	bool playback;
 };
 
 struct bluealsa_ctl {
@@ -140,14 +141,14 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 		 * and mute switch. A2DP transport contains only one stream. However, HSP
 		 * and HFP transports represent both streams - playback and capture. */
 		switch (ctl->transports[i].profile) {
-		case TRANSPORT_PROFILE_A2DP_SOURCE:
-		case TRANSPORT_PROFILE_A2DP_SINK:
+		case BLUETOOTH_PROFILE_A2DP_SOURCE:
+		case BLUETOOTH_PROFILE_A2DP_SINK:
 			count += 2;
 			break;
-		case TRANSPORT_PROFILE_HSP_HS:
-		case TRANSPORT_PROFILE_HSP_AG:
-		case TRANSPORT_PROFILE_HFP_HF:
-		case TRANSPORT_PROFILE_HFP_AG:
+		case BLUETOOTH_PROFILE_HSP_HS:
+		case BLUETOOTH_PROFILE_HSP_AG:
+		case BLUETOOTH_PROFILE_HFP_HF:
+		case BLUETOOTH_PROFILE_HFP_AG:
 			count += 4;
 			break;
 		default:
@@ -181,50 +182,50 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			continue;
 
 		switch (profile = transport->profile) {
-		case TRANSPORT_PROFILE_A2DP_SOURCE:
-		case TRANSPORT_PROFILE_A2DP_SINK:
+		case BLUETOOTH_PROFILE_A2DP_SOURCE:
+		case BLUETOOTH_PROFILE_A2DP_SINK:
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = profile == TRANSPORT_PROFILE_A2DP_SOURCE;
+			ctl->elems[count].playback = profile == BLUETOOTH_PROFILE_A2DP_SOURCE;
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = profile == TRANSPORT_PROFILE_A2DP_SOURCE;
+			ctl->elems[count].playback = profile == BLUETOOTH_PROFILE_A2DP_SOURCE;
 			count++;
 
 			break;
 
-		case TRANSPORT_PROFILE_HSP_HS:
-		case TRANSPORT_PROFILE_HSP_AG:
-		case TRANSPORT_PROFILE_HFP_HF:
-		case TRANSPORT_PROFILE_HFP_AG:
+		case BLUETOOTH_PROFILE_HSP_HS:
+		case BLUETOOTH_PROFILE_HSP_AG:
+		case BLUETOOTH_PROFILE_HFP_HF:
+		case BLUETOOTH_PROFILE_HFP_AG:
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = TRUE;
+			ctl->elems[count].playback = true;
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = TRUE;
+			ctl->elems[count].playback = true;
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = FALSE;
+			ctl->elems[count].playback = false;
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = FALSE;
+			ctl->elems[count].playback = false;
 			count++;
 
 			break;
@@ -240,7 +241,7 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			ctl->elems[count].type = CTL_ELEM_TYPE_BATTERY;
 			ctl->elems[count].device = &ctl->devices[i];
 			ctl->elems[count].transport = NULL;
-			ctl->elems[count].playback = TRUE;
+			ctl->elems[count].playback = true;
 			count++;
 		}
 	}
@@ -269,18 +270,18 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 	if (transport != NULL) {
 		/* avoid name duplication by adding profile suffixes */
 		switch (transport->profile) {
-		case TRANSPORT_PROFILE_A2DP_SOURCE:
-		case TRANSPORT_PROFILE_A2DP_SINK:
+		case BLUETOOTH_PROFILE_A2DP_SOURCE:
+		case BLUETOOTH_PROFILE_A2DP_SINK:
 			name[sizeof(name) - 7 - 16 - 1] = '\0';
 			strcat(name, " - A2DP");
 			break;
-		case TRANSPORT_PROFILE_HSP_HS:
-		case TRANSPORT_PROFILE_HSP_AG:
+		case BLUETOOTH_PROFILE_HSP_HS:
+		case BLUETOOTH_PROFILE_HSP_AG:
 			name[sizeof(name) - 6 - 16 - 1] = '\0';
 			strcat(name, " - HSP");
 			break;
-		case TRANSPORT_PROFILE_HFP_HF:
-		case TRANSPORT_PROFILE_HFP_AG:
+		case BLUETOOTH_PROFILE_HFP_HF:
+		case BLUETOOTH_PROFILE_HFP_AG:
 			name[sizeof(name) - 6 - 16 - 1] = '\0';
 			strcat(name, " - HFP");
 			break;

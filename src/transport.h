@@ -18,12 +18,7 @@
 #include <bluetooth/bluetooth.h>
 #include <gio/gio.h>
 
-#define TRANSPORT_PROFILE_A2DP_SOURCE 0x01
-#define TRANSPORT_PROFILE_A2DP_SINK   0x02
-#define TRANSPORT_PROFILE_HSP_HS      0x03
-#define TRANSPORT_PROFILE_HSP_AG      0x04
-#define TRANSPORT_PROFILE_HFP_HF      0x05
-#define TRANSPORT_PROFILE_HFP_AG      0x06
+#include "bluez.h"
 
 enum ba_transport_state {
 	TRANSPORT_IDLE,
@@ -82,7 +77,7 @@ struct ba_transport {
 	char *name;
 
 	/* selected profile and audio codec */
-	uint8_t profile;
+	enum bluetooth_profile profile;
 	uint8_t codec;
 
 	/* selected audio codec configuration */
@@ -126,8 +121,8 @@ struct ba_device *device_lookup(GHashTable *devices, const char *key);
 gboolean device_remove(GHashTable *devices, const char *key);
 
 struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
-		const char *dbus_path, const char *name, uint8_t profile, uint8_t codec,
-		const uint8_t *config, size_t config_size);
+		const char *dbus_path, const char *name, enum bluetooth_profile profile,
+		uint8_t codec, const uint8_t *config, size_t config_size);
 void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *key);

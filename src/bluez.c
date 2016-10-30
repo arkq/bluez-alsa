@@ -690,18 +690,18 @@ int bluez_register_a2dp(void) {
 		msg = g_dbus_message_new_method_call("org.bluez", path,
 				"org.bluez.Media1", "RegisterEndpoint");
 
-		GVariantBuilder *payload = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+		GVariantBuilder *properties = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
 		GVariantBuilder *caps = g_variant_builder_new(G_VARIANT_TYPE("ay"));
 		size_t ii;
 
 		for (ii = 0; ii < endpoints[i].config_size; ii++)
 			g_variant_builder_add(caps, "y", ((uint8_t *)endpoints[i].config)[ii]);
 
-		g_variant_builder_add(payload, "{sv}", "UUID", g_variant_new_string(endpoints[i].uuid));
-		g_variant_builder_add(payload, "{sv}", "Codec", g_variant_new_byte(endpoints[i].codec));
-		g_variant_builder_add(payload, "{sv}", "Capabilities", g_variant_new("ay", caps));
+		g_variant_builder_add(properties, "{sv}", "UUID", g_variant_new_string(endpoints[i].uuid));
+		g_variant_builder_add(properties, "{sv}", "Codec", g_variant_new_byte(endpoints[i].codec));
+		g_variant_builder_add(properties, "{sv}", "Capabilities", g_variant_new("ay", caps));
 
-		g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", endpoints[i].endpoint, payload));
+		g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", endpoints[i].endpoint, properties));
 
 		if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)

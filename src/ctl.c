@@ -42,12 +42,12 @@
  *
  * @param devices Address of the hash-table with connected devices.
  * @param addr Address to the structure with the looked up BT address.
- * @param profile Looked up transport profile.
+ * @param profile Looked up Bluetooth profile.
  * @param t Address, where the transport structure pointer should be stored.
  * @return If the lookup succeeded, this function returns 0. Otherwise, -1 is
  *   returned and value of device and transport pointer is undefined. */
-static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr, uint8_t profile,
-		struct ba_transport **t) {
+static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
+		enum bluetooth_profile profile, struct ba_transport **t) {
 
 	GHashTableIter iter_d, iter_t;
 	struct ba_device *d;
@@ -81,7 +81,7 @@ static void _transport_release(struct ba_transport *t) {
 	 * client closes the connection, and then quickly tries to open it again, we
 	 * might try to acquire not yet released transport. To prevent this, we have
 	 * to wait for the thread to terminate. */
-	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE) {
+	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE) {
 		pthread_cond_signal(&t->resume);
 		pthread_join(t->thread, NULL);
 	}
@@ -229,13 +229,13 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 
 	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
-		goto fail;
+		goto final;
 	}
 
 	if (t->pcm_fifo != NULL) {
 		debug("PCM already requested: %d", t->pcm_fd);
 		status.code = STATUS_CODE_DEVICE_BUSY;
-		goto fail;
+		goto final;
 	}
 
 	_ctl_transport(t, &pcm.transport);
@@ -243,7 +243,10 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 	if (mkfifo(pcm.fifo, 0660) != 0) {
 		error("Couldn't create FIFO: %s", strerror(errno));
 		status.code = STATUS_CODE_ERROR_UNKNOWN;
-		goto fail;
+		/* Jumping to the final section will prevent from unintentional removal
+		 * of the FIFO, which was not created by ourself. Cleanup action should
+		 * be applied to the stuff created in this function only. */
+		goto final;
 	}
 
 	/* During the mkfifo() call the FIFO mode is modified by the process umask,
@@ -260,17 +263,22 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 	t->pcm_fifo = strdup(pcm.fifo);
 
 	/* for source profile we need to open transport by ourself */
-	if (t->profile == TRANSPORT_PROFILE_A2DP_SOURCE)
+	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
 		if (transport_acquire_bt(t) == -1) {
 			status.code = STATUS_CODE_ERROR_UNKNOWN;
-			unlink(pcm.fifo);
 			goto fail;
 		}
 
 	t->pcm_client = fd;
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
+	goto final;
 
 fail:
+	free(t->pcm_fifo);
+	t->pcm_fifo = NULL;
+	unlink(pcm.fifo);
+
+final:
 	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }

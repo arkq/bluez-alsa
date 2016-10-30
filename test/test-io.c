@@ -50,7 +50,7 @@ int test_a2dp_sbc_invalid_setup(void) {
 
 	const uint8_t codec[] = { 0xff, 0xff, 0xff, 0xff };
 	struct ba_transport transport = {
-		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
+		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC,
 		.cconfig = (uint8_t *)&codec,
 		.cconfig_size = sizeof(a2dp_sbc_t),
@@ -99,7 +99,7 @@ int test_a2dp_sbc_decoding(void) {
 	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
 
 	struct ba_transport transport = {
-		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
+		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC,
 		.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo,
 		.cconfig_size = sizeof(a2dp_sbc_t),
@@ -139,7 +139,7 @@ int test_a2dp_sbc_encoding(void) {
 	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
 
 	struct ba_transport transport = {
-		.profile = TRANSPORT_PROFILE_A2DP_SOURCE,
+		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC,
 		.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo,
 		.cconfig_size = sizeof(a2dp_sbc_t),

@@ -21,7 +21,6 @@
 #include "a2dp-codecs.h"
 #include "bluez.h"
 #include "log.h"
-#include "transport.h"
 
 
 /**
@@ -126,12 +125,12 @@ fail:
 }
 
 /**
- * Convert BlueZ D-Bus object path into a transport profile.
+ * Convert BlueZ D-Bus object path into a Bluetooth profile.
  *
  * @param path BlueZ D-Bus object path.
- * @return On success this function returns transport profile. If object
- *   path cannot be recognize, 0 is returned. */
-int g_dbus_object_path_to_profile(const char *path) {
+ * @return On success this function returns Bluetooth profile. If object
+ *   path cannot be recognize, NULL profile is returned. */
+enum bluetooth_profile g_dbus_object_path_to_profile(const char *path) {
 
 	static GHashTable *profiles = NULL;
 
@@ -141,20 +140,20 @@ int g_dbus_object_path_to_profile(const char *path) {
 		size_t i;
 		const struct profile_data {
 			char *endpoint;
-			unsigned int profile;
+			enum bluetooth_profile profile;
 		} data[] = {
-			{ BLUEZ_ENDPOINT_A2DP_SBC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_SBC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SOURCE, TRANSPORT_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SINK, TRANSPORT_PROFILE_A2DP_SINK },
-			{ BLUEZ_PROFILE_HSP_HS, TRANSPORT_PROFILE_HSP_HS },
-			{ BLUEZ_PROFILE_HSP_AG, TRANSPORT_PROFILE_HSP_AG },
-			{ BLUEZ_PROFILE_HFP_HF, TRANSPORT_PROFILE_HFP_HF },
-			{ BLUEZ_PROFILE_HFP_AG, TRANSPORT_PROFILE_HFP_AG },
+			{ BLUEZ_ENDPOINT_A2DP_SBC_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_SBC_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
+			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
+			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
+			{ BLUEZ_PROFILE_HSP_HS, BLUETOOTH_PROFILE_HSP_HS },
+			{ BLUEZ_PROFILE_HSP_AG, BLUETOOTH_PROFILE_HSP_AG },
+			{ BLUEZ_PROFILE_HFP_HF, BLUETOOTH_PROFILE_HFP_HF },
+			{ BLUEZ_PROFILE_HFP_AG, BLUETOOTH_PROFILE_HFP_AG },
 		};
 
 		profiles = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
@@ -245,9 +244,12 @@ fail:
  * @param profile Bluetooth profile.
  * @param codec Bluetooth profile audio codec.
  * @return Human-readable string. */
-const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
+const char *bluetooth_profile_to_string(enum bluetooth_profile profile,
+		uint8_t codec) {
 	switch (profile) {
-	case TRANSPORT_PROFILE_A2DP_SOURCE:
+	case BLUETOOTH_PROFILE_NULL:
+		return "N/A";
+	case BLUETOOTH_PROFILE_A2DP_SOURCE:
 		switch (codec) {
 		case A2DP_CODEC_SBC:
 			return "A2DP Source (SBC)";
@@ -257,7 +259,7 @@ const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
 			return "A2DP Source (AAC)";
 		}
 		return "A2DP Source";
-	case TRANSPORT_PROFILE_A2DP_SINK:
+	case BLUETOOTH_PROFILE_A2DP_SINK:
 		switch (codec) {
 		case A2DP_CODEC_SBC:
 			return "A2DP Sink (SBC)";
@@ -267,17 +269,16 @@ const char *bluetooth_profile_to_string(uint8_t profile, uint8_t codec) {
 			return "A2DP Sink (AAC)";
 		}
 		return "A2DP Sink";
-	case TRANSPORT_PROFILE_HSP_HS:
+	case BLUETOOTH_PROFILE_HSP_HS:
 		return "HSP Headset";
-	case TRANSPORT_PROFILE_HSP_AG:
+	case BLUETOOTH_PROFILE_HSP_AG:
 		return "HSP Audio Gateway";
-	case TRANSPORT_PROFILE_HFP_HF:
+	case BLUETOOTH_PROFILE_HFP_HF:
 		return "HFP Hands-Free";
-	case TRANSPORT_PROFILE_HFP_AG:
+	case BLUETOOTH_PROFILE_HFP_AG:
 		return "HFP Audio Gateway";
-	default:
-		return "N/A";
 	}
+	return "N/A";
 }
 
 /**

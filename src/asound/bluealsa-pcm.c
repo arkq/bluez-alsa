@@ -23,8 +23,8 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 
+#include "bluez.h"
 #include "ctl.h"
-#include "transport.h"
 #include "log.c"
 
 
@@ -481,7 +481,7 @@ static uint8_t bluealsa_parse_profile(const char *profile, snd_pcm_stream_t stre
 
 	if (strcasecmp(profile, "a2dp") == 0) {
 		return stream == SND_PCM_STREAM_PLAYBACK ?
-			TRANSPORT_PROFILE_A2DP_SOURCE : TRANSPORT_PROFILE_A2DP_SINK;
+			BLUETOOTH_PROFILE_A2DP_SOURCE : BLUETOOTH_PROFILE_A2DP_SINK;
 	}
 
 	return 0;
