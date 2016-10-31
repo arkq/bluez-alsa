@@ -773,7 +773,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	}
 
 	t->device = d;
-	t->rfcomm_fd = fd;
+	t->bt_fd = fd;
 	t->release = transport_release_bt_rfcomm;
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 

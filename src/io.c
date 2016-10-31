@@ -958,7 +958,7 @@ void *io_thread_rfcomm(void *arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
 
-	struct pollfd pfds[1] = {{ t->rfcomm_fd, POLLIN, 0 }};
+	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
 	char buffer[64];
 
 	debug("Starting IO loop: %s",

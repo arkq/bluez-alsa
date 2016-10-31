@@ -105,11 +105,14 @@ struct ba_transport {
 	pthread_mutex_t resume_mutex;
 	pthread_cond_t resume;
 
+	/* This field stores a file descriptor (socket) associated with the BlueZ
+	 * site of the transport. The role of this socket depends on the transport
+	 * type - it can be either A2DP, RFCOMM or SCO link. */
 	int bt_fd;
+
+	/* max transfer unit values for bt_fd */
 	size_t mtu_read;
 	size_t mtu_write;
-
-	int rfcomm_fd;
 
 	char *pcm_fifo;
 	int pcm_fd;

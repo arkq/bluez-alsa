@@ -183,7 +183,6 @@ struct ba_transport *transport_new(enum ba_transport_type type,
 
 	t->state = TRANSPORT_IDLE;
 	t->bt_fd = -1;
-	t->rfcomm_fd = -1;
 	t->pcm_client = -1;
 	t->pcm_fd = -1;
 
@@ -213,8 +212,6 @@ void transport_free(struct ba_transport *t) {
 
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
-	if (t->rfcomm_fd != -1)
-		close(t->rfcomm_fd);
 
 	transport_release_pcm(t);
 
@@ -578,22 +575,15 @@ fail:
 
 int transport_release_bt_rfcomm(struct ba_transport *t) {
 
-	if (t->rfcomm_fd == -1)
+	if (t->bt_fd == -1)
 		return 0;
 
-	if (t->bt_fd != -1) {
-		debug("Closing SCO link: %d", t->bt_fd);
-		shutdown(t->bt_fd, SHUT_RDWR);
-		close(t->bt_fd);
-		t->bt_fd = -1;
-	}
-
-	debug("Closing RFCOMM: %d", t->rfcomm_fd);
+	debug("Closing RFCOMM: %d", t->bt_fd);
 
 	t->release = NULL;
-	shutdown(t->rfcomm_fd, SHUT_RDWR);
-	close(t->rfcomm_fd);
-	t->rfcomm_fd = -1;
+	shutdown(t->bt_fd, SHUT_RDWR);
+	close(t->bt_fd);
+	t->bt_fd = -1;
 
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
 	 * link has been lost (e.g. device power down). However, it is required to
