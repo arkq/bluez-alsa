@@ -43,6 +43,17 @@ enum status_code {
 	STATUS_CODE_PONG,
 };
 
+enum pcm_type {
+	PCM_TYPE_NULL = 0,
+	PCM_TYPE_A2DP,
+	PCM_TYPE_SCO,
+};
+
+enum pcm_stream {
+	PCM_STREAM_PLAYBACK,
+	PCM_STREAM_CAPTURE,
+};
+
 struct __attribute__ ((packed)) request {
 
 	enum command command;
@@ -51,8 +62,8 @@ struct __attribute__ ((packed)) request {
 	bdaddr_t addr;
 
 	/* requested transport type */
-	uint8_t profile;
-	uint8_t codec;
+	enum pcm_type type;
+	enum pcm_stream stream;
 
 	/* fields used by the SET_TRANSPORT_VOLUME command */
 	uint8_t ch1_muted:1;
@@ -92,7 +103,8 @@ struct __attribute__ ((packed)) msg_transport {
 	char name[32];
 
 	/* selected profile and audio codec */
-	uint8_t profile;
+	enum pcm_type type;
+	enum pcm_stream stream;
 	uint8_t codec;
 
 	/* number of audio channels */
@@ -101,7 +113,7 @@ struct __attribute__ ((packed)) msg_transport {
 	uint16_t sampling;
 
 	/* Levels for channel 1 (left) and 2 (right). These fields are also
-	 * used for HFP. In such a case channel 1 and 2 is responsible for
+	 * used for SCO. In such a case channel 1 and 2 is responsible for
 	 * respectively playback and capture. */
 	uint8_t ch1_muted:1;
 	uint8_t ch1_volume:7;

@@ -31,53 +31,50 @@
 
 static int io_thread_create(struct ba_transport *t) {
 
-	int ret;
 	void *(*routine)(void *) = NULL;
+	int ret;
 
-	switch (t->profile) {
-	case BLUETOOTH_PROFILE_NULL:
-		break;
-	case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		switch (t->codec) {
-		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_source_sbc;
-			break;
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
+		if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
+			switch (t->codec) {
+			case A2DP_CODEC_SBC:
+				routine = io_thread_a2dp_source_sbc;
+				break;
 #if 0
-		case A2DP_CODEC_MPEG12:
-			break;
+			case A2DP_CODEC_MPEG12:
+				break;
 #endif
 #if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_source_aac;
-			break;
+			case A2DP_CODEC_MPEG24:
+				routine = io_thread_a2dp_source_aac;
+				break;
 #endif
-		default:
-			warn("Codec not supported: %u", t->codec);
-		}
-		break;
-	case BLUETOOTH_PROFILE_A2DP_SINK:
-		switch (t->codec) {
-		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_sink_sbc;
-			break;
+			default:
+				warn("Codec not supported: %u", t->codec);
+			}
+		if (t->profile == BLUETOOTH_PROFILE_A2DP_SINK)
+			switch (t->codec) {
+			case A2DP_CODEC_SBC:
+				routine = io_thread_a2dp_sink_sbc;
+				break;
 #if 0
-		case A2DP_CODEC_MPEG12:
-			break;
+			case A2DP_CODEC_MPEG12:
+				break;
 #endif
 #if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_sink_aac;
-			break;
+			case A2DP_CODEC_MPEG24:
+				routine = io_thread_a2dp_sink_aac;
+				break;
 #endif
-		default:
-			warn("Codec not supported: %u", t->codec);
-		}
+			default:
+				warn("Codec not supported: %u", t->codec);
+			}
 		break;
-	case BLUETOOTH_PROFILE_HSP_HS:
-	case BLUETOOTH_PROFILE_HSP_AG:
-	case BLUETOOTH_PROFILE_HFP_HF:
-	case BLUETOOTH_PROFILE_HFP_AG:
-		routine = io_thread_audio_gateway;
+	case TRANSPORT_TYPE_RFCOMM:
+		routine = io_thread_rfcomm;
+		break;
+	case TRANSPORT_TYPE_SCO:
 		break;
 	}
 
@@ -154,14 +151,17 @@ gboolean device_remove(GHashTable *devices, const char *key) {
 	return g_hash_table_remove(devices, key);
 }
 
-struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
-		const char *dbus_path, const char *name, enum bluetooth_profile profile,
-		uint8_t codec, const uint8_t *config, size_t config_size) {
+struct ba_transport *transport_new(enum ba_transport_type type,
+		GDBusConnection *conn, const char *dbus_owner, const char *dbus_path,
+		const char *name, enum bluetooth_profile profile, uint8_t codec,
+		const uint8_t *config, size_t config_size) {
 
 	struct ba_transport *t;
 
 	if ((t = calloc(1, sizeof(*t))) == NULL)
 		return NULL;
+
+	t->type = type;
 
 	t->dbus_conn = conn;
 	t->dbus_owner = strdup(dbus_owner);
@@ -282,11 +282,8 @@ gboolean transport_remove(GHashTable *devices, const char *key) {
 
 unsigned int transport_get_channels(const struct ba_transport *t) {
 
-	switch (t->profile) {
-	case BLUETOOTH_PROFILE_NULL:
-		break;
-	case BLUETOOTH_PROFILE_A2DP_SOURCE:
-	case BLUETOOTH_PROFILE_A2DP_SINK:
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
 			switch (((a2dp_sbc_t *)t->cconfig)->channel_mode) {
@@ -318,10 +315,9 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			break;
 		}
 		break;
-	case BLUETOOTH_PROFILE_HSP_HS:
-	case BLUETOOTH_PROFILE_HSP_AG:
-	case BLUETOOTH_PROFILE_HFP_HF:
-	case BLUETOOTH_PROFILE_HFP_AG:
+	case TRANSPORT_TYPE_RFCOMM:
+		break;
+	case TRANSPORT_TYPE_SCO:
 		return 1;
 	}
 
@@ -331,11 +327,8 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 
 unsigned int transport_get_sampling(const struct ba_transport *t) {
 
-	switch (t->profile) {
-	case BLUETOOTH_PROFILE_NULL:
-		break;
-	case BLUETOOTH_PROFILE_A2DP_SOURCE:
-	case BLUETOOTH_PROFILE_A2DP_SINK:
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
 			switch (((a2dp_sbc_t *)t->cconfig)->frequency) {
@@ -395,11 +388,10 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 			break;
 		}
 		break;
-	case BLUETOOTH_PROFILE_HSP_HS:
-	case BLUETOOTH_PROFILE_HSP_AG:
-	case BLUETOOTH_PROFILE_HFP_HF:
-	case BLUETOOTH_PROFILE_HFP_AG:
+	case TRANSPORT_TYPE_RFCOMM:
 		break;
+	case TRANSPORT_TYPE_SCO:
+		return 8000;
 	}
 
 	/* the sampling frequency is unspecified */

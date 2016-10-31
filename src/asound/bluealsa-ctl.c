@@ -138,22 +138,17 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 
 	for (i = 0; i < ctl->transports_count; i++) {
 		/* Every stream has two controls associated to itself - volume adjustment
-		 * and mute switch. A2DP transport contains only one stream. However, HSP
-		 * and HFP transports represent both streams - playback and capture. */
-		switch (ctl->transports[i].profile) {
-		case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		case BLUETOOTH_PROFILE_A2DP_SINK:
+		 * and mute switch. A2DP transport contains only one stream. However, SCO
+		 * transport represent both streams - playback and capture. */
+		switch (ctl->transports[i].type) {
+		case PCM_TYPE_NULL:
+			continue;
+		case PCM_TYPE_A2DP:
 			count += 2;
 			break;
-		case BLUETOOTH_PROFILE_HSP_HS:
-		case BLUETOOTH_PROFILE_HSP_AG:
-		case BLUETOOTH_PROFILE_HFP_HF:
-		case BLUETOOTH_PROFILE_HFP_AG:
+		case PCM_TYPE_SCO:
 			count += 4;
 			break;
-		default:
-			SNDERR("Unsupported transport profile: %x", ctl->transports[i].profile);
-			return -ENOTSUP;
 		}
 	}
 
@@ -166,7 +161,6 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 
 		struct msg_transport *transport = &ctl->transports[i];
 		struct msg_device *device = NULL;
-		uint8_t profile;
 		size_t ii;
 
 		/* get device structure for given transport */
@@ -176,33 +170,32 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 		}
 
 		/* If the timing is right, the device list might not contain all devices.
-		 * It will happen, when between the get devices and get transports calls,
-		 * new BT device has been connected. */
+		 * It will happen, when between the get devices and get transports calls
+		 * a new BT device has been connected. */
 		if (device == NULL)
 			continue;
 
-		switch (profile = transport->profile) {
-		case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		case BLUETOOTH_PROFILE_A2DP_SINK:
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			break;
+
+		case PCM_TYPE_A2DP:
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = profile == BLUETOOTH_PROFILE_A2DP_SOURCE;
+			ctl->elems[count].playback = transport->stream == PCM_STREAM_PLAYBACK;
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = profile == BLUETOOTH_PROFILE_A2DP_SOURCE;
+			ctl->elems[count].playback = transport->stream == PCM_STREAM_PLAYBACK;
 			count++;
 
 			break;
 
-		case BLUETOOTH_PROFILE_HSP_HS:
-		case BLUETOOTH_PROFILE_HSP_AG:
-		case BLUETOOTH_PROFILE_HFP_HF:
-		case BLUETOOTH_PROFILE_HFP_AG:
+		case PCM_TYPE_SCO:
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
@@ -269,21 +262,16 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 
 	if (transport != NULL) {
 		/* avoid name duplication by adding profile suffixes */
-		switch (transport->profile) {
-		case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		case BLUETOOTH_PROFILE_A2DP_SINK:
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			break;
+		case PCM_TYPE_A2DP:
 			name[sizeof(name) - 7 - 16 - 1] = '\0';
 			strcat(name, " - A2DP");
 			break;
-		case BLUETOOTH_PROFILE_HSP_HS:
-		case BLUETOOTH_PROFILE_HSP_AG:
+		case PCM_TYPE_SCO:
 			name[sizeof(name) - 6 - 16 - 1] = '\0';
-			strcat(name, " - HSP");
-			break;
-		case BLUETOOTH_PROFILE_HFP_HF:
-		case BLUETOOTH_PROFILE_HFP_AG:
-			name[sizeof(name) - 6 - 16 - 1] = '\0';
-			strcat(name, " - HFP");
+			strcat(name, " - SCO");
 			break;
 		}
 	}
@@ -423,7 +411,8 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	struct request req = {
 		.command = COMMAND_TRANSPORT_SET_VOLUME,
 		.addr = transport->addr,
-		.profile = transport->profile,
+		.stream = transport->stream,
+		.type = transport->type,
 		.ch1_muted = transport->ch1_muted,
 		.ch1_volume = transport->ch1_volume,
 		.ch2_muted = transport->ch2_muted,

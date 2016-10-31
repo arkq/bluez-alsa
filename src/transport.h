@@ -20,6 +20,12 @@
 
 #include "bluez.h"
 
+enum ba_transport_type {
+	TRANSPORT_TYPE_A2DP,
+	TRANSPORT_TYPE_RFCOMM,
+	TRANSPORT_TYPE_SCO,
+};
+
 enum ba_transport_state {
 	TRANSPORT_IDLE,
 	TRANSPORT_PENDING,
@@ -65,6 +71,11 @@ struct ba_device {
 };
 
 struct ba_transport {
+
+	/* Transport structure covers all transports supported by BlueALSA. However,
+	 * every transport requires specific handling - link acquisition, transport
+	 * specific configuration, freeing resources, etc. */
+	enum ba_transport_type type;
 
 	/* data required for D-Bus management */
 	GDBusConnection *dbus_conn;
@@ -120,9 +131,10 @@ struct ba_device *device_get(GHashTable *devices, const char *key);
 struct ba_device *device_lookup(GHashTable *devices, const char *key);
 gboolean device_remove(GHashTable *devices, const char *key);
 
-struct ba_transport *transport_new(GDBusConnection *conn, const char *dbus_owner,
-		const char *dbus_path, const char *name, enum bluetooth_profile profile,
-		uint8_t codec, const uint8_t *config, size_t config_size);
+struct ba_transport *transport_new(enum ba_transport_type type,
+		GDBusConnection *conn, const char *dbus_owner, const char *dbus_path,
+		const char *name, enum bluetooth_profile profile, uint8_t codec,
+		const uint8_t *config, size_t config_size);
 void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *key);

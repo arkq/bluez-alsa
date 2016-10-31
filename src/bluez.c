@@ -205,6 +205,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	(void)userdata;
 
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
+	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
 	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct ba_transport *t;
@@ -402,7 +403,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new(conn, g_dbus_method_invocation_get_sender(inv),
+	if ((t = transport_new(TRANSPORT_TYPE_A2DP, conn, sender,
 					transport, bluetooth_profile_to_string(profile, codec), profile,
 					codec, configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
@@ -735,6 +736,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
+	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
 	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct ba_transport *t;
@@ -764,7 +766,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	}
 
 	transport = g_strdup_printf("%s/pr%d", path, profile);
-	if ((t = transport_new(conn, g_dbus_method_invocation_get_sender(inv), transport,
+	if ((t = transport_new(TRANSPORT_TYPE_RFCOMM, conn, sender, transport,
 					bluetooth_profile_to_string(profile, codec), profile, codec, NULL, 0)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;

@@ -92,13 +92,14 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 	struct request req = {
 		.command = COMMAND_TRANSPORT_GET,
 		.addr = pcm->transport.addr,
-		.profile = pcm->transport.profile,
+		.stream = pcm->transport.stream,
+		.type = pcm->transport.type,
 	};
 	ssize_t len;
 
 	ba2str(&req.addr, pcm->dev_addr);
 
-	debug("Getting transport for %s profile %d", pcm->dev_addr, req.profile);
+	debug("Getting transport for %s type %d", pcm->dev_addr, req.type);
 	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
 		return -1;
 	if ((len = read(pcm->fd, &pcm->transport, sizeof(pcm->transport))) == -1)
@@ -128,7 +129,8 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	struct request req = {
 		.command = COMMAND_PCM_OPEN,
 		.addr = pcm->transport.addr,
-		.profile = pcm->transport.profile,
+		.stream = pcm->transport.stream,
+		.type = pcm->transport.type,
 	};
 	struct msg_pcm res;
 	ssize_t len;
@@ -176,7 +178,8 @@ static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
 	struct request req = {
 		.command = COMMAND_PCM_CLOSE,
 		.addr = pcm->transport.addr,
-		.profile = pcm->transport.profile,
+		.stream = pcm->transport.stream,
+		.type = pcm->transport.type,
 	};
 
 	debug("Closing PCM for %s", pcm->dev_addr);
@@ -201,7 +204,8 @@ static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, int pause) {
 	struct request req = {
 		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
 		.addr = pcm->transport.addr,
-		.profile = pcm->transport.profile,
+		.stream = pcm->transport.stream,
+		.type = pcm->transport.type,
 	};
 
 	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", pcm->dev_addr);
@@ -402,7 +406,7 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 
 	ba2str(&pcm->transport.addr, addr);
 	snd_output_printf(out, "Bluetooth device: %s\n", addr);
-	snd_output_printf(out, "Bluetooth profile: %d\n", pcm->transport.profile);
+	snd_output_printf(out, "Bluetooth profile: %d\n", pcm->transport.type);
 	snd_output_printf(out, "Bluetooth codec: %d\n", pcm->transport.codec);
 }
 
@@ -474,17 +478,17 @@ static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.poll_revents = bluealsa_poll_revents,
 };
 
-static uint8_t bluealsa_parse_profile(const char *profile, snd_pcm_stream_t stream) {
+static enum pcm_type bluealsa_parse_profile(const char *profile) {
 
 	if (profile == NULL)
-		return 0;
+		return PCM_TYPE_NULL;
 
-	if (strcasecmp(profile, "a2dp") == 0) {
-		return stream == SND_PCM_STREAM_PLAYBACK ?
-			BLUETOOTH_PROFILE_A2DP_SOURCE : BLUETOOTH_PROFILE_A2DP_SINK;
-	}
+	if (strcasecmp(profile, "a2dp") == 0)
+		return PCM_TYPE_A2DP;
+	else if (strcasecmp(profile, "sco") == 0)
+		return PCM_TYPE_SCO;
 
-	return 0;
+	return PCM_TYPE_NULL;
 }
 
 static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
@@ -593,8 +597,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	if ((pcm->transport.profile = bluealsa_parse_profile(profile, stream)) == 0) {
-		SNDERR("Invalid BT profile: %s", profile);
+	pcm->transport.stream = stream == SND_PCM_STREAM_PLAYBACK ?
+			PCM_STREAM_PLAYBACK : PCM_STREAM_CAPTURE;
+
+	if ((pcm->transport.type = bluealsa_parse_profile(profile)) == PCM_TYPE_NULL) {
+		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
 		ret = -EINVAL;
 		goto fail;
 	}

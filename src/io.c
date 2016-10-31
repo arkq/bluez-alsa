@@ -948,7 +948,7 @@ fail_open:
 }
 #endif
 
-void *io_thread_audio_gateway(void *arg) {
+void *io_thread_rfcomm(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -998,9 +998,9 @@ void *io_thread_audio_gateway(void *arg) {
 		else if (strcmp(command, "+CKPD") == 0 && atoi(value) == 200) {
 		}
 		else if (strcmp(command, "+VGM") == 0)
-			t->volume = atoi(value) * 100 / 15;
+			t->volume = atoi(value) * 127 / 15;
 		else if (strcmp(command, "+VGS") == 0)
-			t->volume = atoi(value) * 100 / 15;
+			t->volume = atoi(value) * 127 / 15;
 		else if (strcmp(command, "+IPHONEACCEV") == 0) {
 
 			char *ptr = value;

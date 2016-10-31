@@ -42,12 +42,13 @@
  *
  * @param devices Address of the hash-table with connected devices.
  * @param addr Address to the structure with the looked up BT address.
- * @param profile Looked up Bluetooth profile.
+ * @param type Looked up PCM type.
+ * @param stream Looked up PCM stream direction.
  * @param t Address, where the transport structure pointer should be stored.
  * @return If the lookup succeeded, this function returns 0. Otherwise, -1 is
  *   returned and value of device and transport pointer is undefined. */
 static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
-		enum bluetooth_profile profile, struct ba_transport **t) {
+		enum pcm_type type, enum pcm_stream stream, struct ba_transport **t) {
 
 	GHashTableIter iter_d, iter_t;
 	struct ba_device *d;
@@ -60,9 +61,33 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 			continue;
 
 		for (g_hash_table_iter_init(&iter_t, d->transports);
-				g_hash_table_iter_next(&iter_t, &_tmp, (gpointer)t); )
-			if ((*t)->profile == profile)
-				return 0;
+				g_hash_table_iter_next(&iter_t, &_tmp, (gpointer)t); ) {
+
+			switch (type) {
+			case PCM_TYPE_NULL:
+				continue;
+			case PCM_TYPE_A2DP:
+				if ((*t)->type != TRANSPORT_TYPE_A2DP)
+					continue;
+				switch (stream) {
+				case PCM_STREAM_PLAYBACK:
+					if ((*t)->profile != BLUETOOTH_PROFILE_A2DP_SOURCE)
+						continue;
+					break;
+				case PCM_STREAM_CAPTURE:
+					if ((*t)->profile != BLUETOOTH_PROFILE_A2DP_SINK)
+						continue;
+					break;
+				}
+				break;
+			case PCM_TYPE_SCO:
+				if ((*t)->type != TRANSPORT_TYPE_SCO)
+					continue;
+				break;
+			}
+
+			return 0;
+		}
 
 	}
 
@@ -95,7 +120,20 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 	strncpy(transport->name, t->name, sizeof(transport->name) - 1);
 	transport->name[sizeof(transport->name) - 1] = '\0';
 
-	transport->profile = t->profile;
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
+		transport->type = PCM_TYPE_A2DP;
+		transport->stream = t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+			PCM_STREAM_PLAYBACK : PCM_STREAM_CAPTURE;
+		break;
+	case TRANSPORT_TYPE_RFCOMM:
+		transport->type = PCM_TYPE_NULL;
+		break;
+	case TRANSPORT_TYPE_SCO:
+		transport->type = PCM_TYPE_SCO;
+		break;
+	}
+
 	transport->codec = t->codec;
 
 	transport->channels = transport_get_channels(t);
@@ -174,7 +212,7 @@ static void ctl_thread_cmd_transport_get(const struct request *req, int fd) {
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -194,13 +232,13 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
 
 	debug("Setting volume for %s profile %d: %d/%d [%s]", batostr_(&req->addr),
-			req->profile, req->ch1_volume, req->ch2_volume,
+			t->profile, req->ch1_volume, req->ch2_volume,
 			req->ch1_muted * req->ch2_muted ? "off" : "on");
 
 	t->muted = req->ch1_muted * req->ch2_muted;
@@ -219,15 +257,15 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 	char addr[18];
 
 	ba2str(&req->addr, addr);
-	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u",
-			config.hci_dev.name, addr, req->profile);
+	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u-%u",
+			config.hci_dev.name, addr, req->type, req->stream);
 	pcm.fifo[sizeof(pcm.fifo) - 1] = '\0';
 
-	debug("PCM requested for %s profile %d", addr, req->profile);
+	debug("PCM requested for %s type %d stream %d", addr, req->type, req->stream);
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto final;
 	}
@@ -290,7 +328,7 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd) {
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
@@ -313,7 +351,7 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->profile, &t) != 0) {
+	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
