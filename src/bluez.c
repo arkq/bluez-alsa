@@ -881,11 +881,33 @@ int bluez_register_hfp(void) {
 		gboolean *enabled;
 		const char *uuid;
 		const char *endpoint;
+		uint16_t version;
+		uint16_t features;
 	} profiles[] = {
-		{ &config.enable_hsp, BLUETOOTH_UUID_HSP_HS, BLUEZ_PROFILE_HSP_HS },
-		{ &config.enable_hsp, BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG },
-		{ &config.enable_hfp, BLUETOOTH_UUID_HFP_HF, BLUEZ_PROFILE_HFP_HF },
-		{ &config.enable_hfp, BLUETOOTH_UUID_HFP_AG, BLUEZ_PROFILE_HFP_AG },
+		{ &config.enable_hsp,
+			BLUETOOTH_UUID_HSP_HS,
+			BLUEZ_PROFILE_HSP_HS,
+			0x0,
+			0x0,
+		},
+		{ &config.enable_hsp,
+			BLUETOOTH_UUID_HSP_AG,
+			BLUEZ_PROFILE_HSP_AG,
+			0x0,
+			0x0,
+		},
+		{ &config.enable_hfp,
+			BLUETOOTH_UUID_HFP_HF,
+			BLUEZ_PROFILE_HFP_HF,
+			0x0107,
+			0x0,
+		},
+		{ &config.enable_hfp,
+			BLUETOOTH_UUID_HFP_AG,
+			BLUEZ_PROFILE_HFP_AG,
+			0x0107,
+			0x0,
+		},
 	};
 
 	GDBusConnection *conn = config.dbus;
@@ -918,8 +940,15 @@ int bluez_register_hfp(void) {
 		msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
 				"org.bluez.ProfileManager1", "RegisterProfile");
 
+		GVariantBuilder *options = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+
+		if (profiles[i].version)
+			g_variant_builder_add(options, "{sv}", "Version", g_variant_new_uint16(profiles[i].version));
+		if (profiles[i].features)
+			g_variant_builder_add(options, "{sv}", "Features", g_variant_new_uint16(profiles[i].features));
+
 		g_dbus_message_set_body(msg, g_variant_new("(osa{sv})",
-					profiles[i].endpoint, profiles[i].uuid, NULL));
+					profiles[i].endpoint, profiles[i].uuid, options));
 
 		if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
