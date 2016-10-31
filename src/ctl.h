@@ -101,8 +101,8 @@ struct __attribute__ ((packed)) msg_transport {
 	uint16_t sampling;
 
 	/* Levels for channel 1 (left) and 2 (right). These fields are also
-	 * used for HSP/HFP. In such a case channel 1 and 2 is responsible
-	 * for respectively playback and capture. */
+	 * used for HFP. In such a case channel 1 and 2 is responsible for
+	 * respectively playback and capture. */
 	uint8_t ch1_muted:1;
 	uint8_t ch1_volume:7;
 	uint8_t ch2_muted:1;

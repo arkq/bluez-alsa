@@ -50,7 +50,7 @@ enum bluetooth_profile {
 #define BLUEZ_PROFILE_HFP_AG "/Profile/HFPAudioGateway"
 
 int bluez_register_a2dp(void);
-int bluez_register_hsp(void);
+int bluez_register_hfp(void);
 int bluez_subscribe_signals(void);
 
 #endif

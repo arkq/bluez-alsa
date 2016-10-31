@@ -865,25 +865,34 @@ static const GDBusInterfaceVTable profile_vtable = {
 };
 
 /**
- * Register Bluetooth Audio Profiles.
+ * Register Bluetooth Hands-Free Audio Profiles.
+ *
+ * This function also registers deprecated HSP profile. Profiles registration
+ * is controlled by the global configuration structure - if none is enabled,
+ * this function will do nothing.
  *
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_hsp(void) {
+int bluez_register_hfp(void) {
 
 	static const struct profile {
+		gboolean *enabled;
 		const char *uuid;
 		const char *endpoint;
 	} profiles[] = {
-		{ BLUETOOTH_UUID_HSP_HS, BLUEZ_PROFILE_HSP_HS },
-		{ BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG },
-		/* { BLUETOOTH_UUID_HFP_HF, BLUEZ_PROFILE_HFP_HF }, */
-		/* { BLUETOOTH_UUID_HFP_AG, BLUEZ_PROFILE_HFP_AG }, */
+		{ &config.enable_hsp, BLUETOOTH_UUID_HSP_HS, BLUEZ_PROFILE_HSP_HS },
+		{ &config.enable_hsp, BLUETOOTH_UUID_HSP_AG, BLUEZ_PROFILE_HSP_AG },
+		{ &config.enable_hfp, BLUETOOTH_UUID_HFP_HF, BLUEZ_PROFILE_HFP_HF },
+		{ &config.enable_hfp, BLUETOOTH_UUID_HFP_AG, BLUEZ_PROFILE_HFP_AG },
 	};
 
 	GDBusConnection *conn = config.dbus;
 	size_t i;
 
 	for (i = 0; i < sizeof(profiles) / sizeof(struct profile); i++) {
+
+		/* skip registration if profile is not enabled */
+		if (!*profiles[i].enabled)
+			continue;
 
 		GDBusMessage *msg = NULL, *rep = NULL;
 		GError *err = NULL;
@@ -951,10 +960,10 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *se
 
 	g_variant_get(params, "(&oa{sa{sv}})", &object, &interfaces);
 
-	if (config.enable_hsp && strcmp(object, "/org/bluez") == 0)
-		bluez_register_hsp();
 	if (config.enable_a2dp && strcmp(object, device_path) == 0)
 		bluez_register_a2dp();
+	if (strcmp(object, "/org/bluez") == 0)
+		bluez_register_hfp();
 
 	g_variant_iter_free(interfaces);
 	g_free(device_path);

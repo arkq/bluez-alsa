@@ -191,8 +191,7 @@ int main(int argc, char **argv) {
 
 	if (config.enable_a2dp)
 		bluez_register_a2dp();
-	if (config.enable_hsp)
-		bluez_register_hsp();
+	bluez_register_hfp();
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);

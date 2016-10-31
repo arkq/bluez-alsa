@@ -35,6 +35,8 @@ static int io_thread_create(struct ba_transport *t) {
 	void *(*routine)(void *) = NULL;
 
 	switch (t->profile) {
+	case BLUETOOTH_PROFILE_NULL:
+		break;
 	case BLUETOOTH_PROFILE_A2DP_SOURCE:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
@@ -71,12 +73,12 @@ static int io_thread_create(struct ba_transport *t) {
 			warn("Codec not supported: %u", t->codec);
 		}
 		break;
+	case BLUETOOTH_PROFILE_HSP_HS:
 	case BLUETOOTH_PROFILE_HSP_AG:
+	case BLUETOOTH_PROFILE_HFP_HF:
 	case BLUETOOTH_PROFILE_HFP_AG:
 		routine = io_thread_audio_gateway;
 		break;
-	default:
-		warn("Profile not supported: %u", t->profile);
 	}
 
 	if (routine == NULL)
