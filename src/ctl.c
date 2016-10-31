@@ -117,9 +117,6 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 
 	bacpy(&transport->addr, &t->device->addr);
 
-	strncpy(transport->name, t->name, sizeof(transport->name) - 1);
-	transport->name[sizeof(transport->name) - 1] = '\0';
-
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
 		transport->type = PCM_TYPE_A2DP;

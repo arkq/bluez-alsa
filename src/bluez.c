@@ -404,8 +404,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
 	if ((t = transport_new(TRANSPORT_TYPE_A2DP, conn, sender,
-					transport, bluetooth_profile_to_string(profile, codec), profile,
-					codec, configuration, size)) == NULL) {
+					transport, profile, codec, configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -414,7 +413,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	t->volume = volume;
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
-	debug("%s configured for device %s", t->name, batostr_(&d->addr));
+	debug("%s configured for device %s",
+			bluetooth_profile_to_string(profile, codec), batostr_(&d->addr));
 	debug("Configuration: channels: %u, sampling: %u",
 			transport_get_channels(t), transport_get_sampling(t));
 
@@ -766,8 +766,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	}
 
 	transport = g_strdup_printf("%s/pr%d", path, profile);
-	if ((t = transport_new(TRANSPORT_TYPE_RFCOMM, conn, sender, transport,
-					bluetooth_profile_to_string(profile, codec), profile, codec, NULL, 0)) == NULL) {
+	if ((t = transport_new(TRANSPORT_TYPE_RFCOMM, conn, sender,
+					transport, profile, codec, NULL, 0)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -777,7 +777,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	t->release = transport_release_bt_rfcomm;
 	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
-	debug("%s configured for device %s", t->name, batostr_(&d->addr));
+	debug("%s configured for device %s",
+			bluetooth_profile_to_string(profile, codec), batostr_(&d->addr));
 
 	transport_set_state(t, TRANSPORT_ACTIVE);
 

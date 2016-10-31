@@ -87,7 +87,8 @@ static int io_thread_create(struct ba_transport *t) {
 	}
 
 	pthread_setname_np(t->thread, "baio");
-	debug("Created new IO thread: %s", t->name);
+	debug("Created new IO thread: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 	return 0;
 }
 
@@ -153,8 +154,8 @@ gboolean device_remove(GHashTable *devices, const char *key) {
 
 struct ba_transport *transport_new(enum ba_transport_type type,
 		GDBusConnection *conn, const char *dbus_owner, const char *dbus_path,
-		const char *name, enum bluetooth_profile profile, uint8_t codec,
-		const uint8_t *config, size_t config_size) {
+		enum bluetooth_profile profile, uint8_t codec, const uint8_t *config,
+		size_t config_size) {
 
 	struct ba_transport *t;
 
@@ -166,8 +167,6 @@ struct ba_transport *transport_new(enum ba_transport_type type,
 	t->dbus_conn = conn;
 	t->dbus_owner = strdup(dbus_owner);
 	t->dbus_path = strdup(dbus_path);
-
-	t->name = strdup(name);
 
 	t->profile = profile;
 	t->codec = codec;
@@ -196,7 +195,8 @@ void transport_free(struct ba_transport *t) {
 	if (t == NULL)
 		return;
 
-	debug("Freeing transport: %s", t->name);
+	debug("Freeing transport: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
@@ -221,7 +221,6 @@ void transport_free(struct ba_transport *t) {
 	pthread_mutex_destroy(&t->resume_mutex);
 	pthread_cond_destroy(&t->resume);
 
-	free(t->name);
 	free(t->dbus_owner);
 	free(t->dbus_path);
 	free(t->cconfig);
@@ -528,7 +527,8 @@ int transport_release_bt(struct ba_transport *t) {
 	if (t->bt_fd == -1)
 		return 0;
 
-	debug("Releasing transport: %s", t->name);
+	debug("Releasing transport: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the Bluez. In both cases there is no point in a explicit

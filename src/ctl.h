@@ -99,8 +99,6 @@ struct __attribute__ ((packed)) msg_transport {
 
 	/* device address for which the transport is created */
 	bdaddr_t addr;
-	/* transport name - most likely generic profile name */
-	char name[32];
 
 	/* selected profile and audio codec */
 	enum pcm_type type;

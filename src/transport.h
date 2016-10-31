@@ -85,8 +85,6 @@ struct ba_transport {
 	/* backward reference to the owner */
 	struct ba_device *device;
 
-	char *name;
-
 	/* selected profile and audio codec */
 	enum bluetooth_profile profile;
 	uint8_t codec;
@@ -133,8 +131,8 @@ gboolean device_remove(GHashTable *devices, const char *key);
 
 struct ba_transport *transport_new(enum ba_transport_type type,
 		GDBusConnection *conn, const char *dbus_owner, const char *dbus_path,
-		const char *name, enum bluetooth_profile profile, uint8_t codec,
-		const uint8_t *config, size_t config_size);
+		enum bluetooth_profile profile, uint8_t codec, const uint8_t *config,
+		size_t config_size);
 void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *key);

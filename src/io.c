@@ -196,11 +196,11 @@ static ssize_t io_thread_write_pcm(struct ba_transport *t, const int16_t *buffer
 /**
  * Pause IO thread until the resume signal is received. */
 static void io_thread_pause(struct ba_transport *t) {
-	debug("Pausing IO thread: %s", t->name);
+	debug("Pausing IO thread: %s", bluetooth_profile_to_string(t->profile, t->codec));
 	pthread_mutex_lock(&t->resume_mutex);
 	pthread_cond_wait(&t->resume, &t->resume_mutex);
 	pthread_mutex_unlock(&t->resume_mutex);
-	debug("Resuming IO thread: %s", t->name);
+	debug("Resuming IO thread: %s", bluetooth_profile_to_string(t->profile, t->codec));
 }
 
 /**
@@ -293,7 +293,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	/* TODO: support for "out of the hat" reading MTU */
 
-	debug("Starting IO loop: %s", t->name);
+	debug("Starting IO loop: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t len;
@@ -445,7 +446,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		.sampling = transport_get_sampling(t),
 	};
 
-	debug("Starting IO loop: %s", t->name);
+	debug("Starting IO loop: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t samples;
@@ -613,7 +615,8 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
 
-	debug("Starting IO loop: %s", t->name);
+	debug("Starting IO loop: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		CStreamInfo *aacinf;
@@ -833,7 +836,8 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		.sampling = samplerate,
 	};
 
-	debug("Starting IO loop: %s", t->name);
+	debug("Starting IO loop: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		ssize_t samples;
@@ -957,7 +961,8 @@ void *io_thread_rfcomm(void *arg) {
 	struct pollfd pfds[1] = {{ t->rfcomm_fd, POLLIN, 0 }};
 	char buffer[64];
 
-	debug("Starting IO loop: %s", t->name);
+	debug("Starting IO loop: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
 		const char *response = "OK";
