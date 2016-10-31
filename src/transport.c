@@ -153,7 +153,7 @@ gboolean device_remove(GHashTable *devices, const char *key) {
 }
 
 struct ba_transport *transport_new(enum ba_transport_type type,
-		GDBusConnection *conn, const char *dbus_owner, const char *dbus_path,
+		const char *dbus_owner, const char *dbus_path,
 		enum bluetooth_profile profile, uint8_t codec, const uint8_t *config,
 		size_t config_size) {
 
@@ -164,7 +164,6 @@ struct ba_transport *transport_new(enum ba_transport_type type,
 
 	t->type = type;
 
-	t->dbus_conn = conn;
 	t->dbus_owner = strdup(dbus_owner);
 	t->dbus_path = strdup(dbus_path);
 
@@ -460,7 +459,7 @@ int transport_acquire_bt(struct ba_transport *t) {
 		t->bt_fd = -1;
 	}
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(t->dbus_conn, msg,
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
 		goto fail;
 
@@ -535,7 +534,7 @@ int transport_release_bt(struct ba_transport *t) {
 		msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
 				"org.bluez.MediaTransport1", "Release");
 
-		if ((rep = g_dbus_connection_send_message_with_reply_sync(t->dbus_conn, msg,
+		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
 			goto fail;
 

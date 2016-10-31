@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 #include <bluetooth/bluetooth.h>
-#include <gio/gio.h>
+#include <glib.h>
 
 #include "bluez.h"
 
@@ -78,7 +78,6 @@ struct ba_transport {
 	enum ba_transport_type type;
 
 	/* data required for D-Bus management */
-	GDBusConnection *dbus_conn;
 	char *dbus_owner;
 	char *dbus_path;
 
@@ -133,7 +132,7 @@ struct ba_device *device_lookup(GHashTable *devices, const char *key);
 gboolean device_remove(GHashTable *devices, const char *key);
 
 struct ba_transport *transport_new(enum ba_transport_type type,
-		GDBusConnection *conn, const char *dbus_owner, const char *dbus_path,
+		const char *dbus_owner, const char *dbus_path,
 		enum bluetooth_profile profile, uint8_t codec, const uint8_t *config,
 		size_t config_size);
 void transport_free(struct ba_transport *t);
