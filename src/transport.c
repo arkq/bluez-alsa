@@ -101,7 +101,9 @@ struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *n
 
 	d->hci_dev_id = hci_dev_id;
 	bacpy(&d->addr, addr);
-	d->name = strdup(name);
+
+	strncpy(d->name, name, sizeof(d->name));
+	d->name[sizeof(d->name) - 1] = '\0';
 
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
 			g_free, (GDestroyNotify)transport_free);
@@ -115,16 +117,15 @@ void device_free(struct ba_device *d) {
 		return;
 
 	g_hash_table_unref(d->transports);
-	free(d->name);
 	free(d);
 }
 
 struct ba_device *device_get(GHashTable *devices, const char *key) {
 
 	struct ba_device *d;
+	char name[sizeof(d->name)];
 	GVariant *property;
 	bdaddr_t addr;
-	char name[32];
 
 	if ((d = g_hash_table_lookup(devices, key)) != NULL)
 		return d;
@@ -132,8 +133,9 @@ struct ba_device *device_get(GHashTable *devices, const char *key) {
 	g_dbus_device_path_to_bdaddr(key, &addr);
 	ba2str(&addr, name);
 
+	/* get local (user editable) Bluetooth device name */
 	if ((property = g_dbus_get_property(config.dbus, "org.bluez", key,
-					"org.bluez.Device1", "Name")) != NULL) {
+					"org.bluez.Device1", "Alias")) != NULL) {
 		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
 		name[sizeof(name) - 1] = '\0';
 		g_variant_unref(property);

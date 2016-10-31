@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
 #include <glib.h>
 
 #include "bluez.h"
@@ -48,7 +49,8 @@ struct ba_device {
 	int hci_dev_id;
 	/* address of the Bluetooth device */
 	bdaddr_t addr;
-	char *name;
+	/* human-readable Bluetooth device name */
+	char name[HCI_MAX_NAME_LENGTH];
 
 	/* Apple's extension used with HFP profile */
 	struct {
