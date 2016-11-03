@@ -79,12 +79,12 @@ struct ba_transport {
 	 * specific configuration, freeing resources, etc. */
 	enum ba_transport_type type;
 
+	/* backward reference to the owner */
+	struct ba_device *device;
+
 	/* data required for D-Bus management */
 	char *dbus_owner;
 	char *dbus_path;
-
-	/* backward reference to the owner */
-	struct ba_device *device;
 
 	/* selected profile and audio codec */
 	enum bluetooth_profile profile;
@@ -135,13 +135,13 @@ gboolean device_remove(GHashTable *devices, const char *key);
 
 struct ba_transport *transport_new(enum ba_transport_type type,
 		const char *dbus_owner, const char *dbus_path,
-		enum bluetooth_profile profile, uint8_t codec, const uint8_t *config,
-		size_t config_size);
+		enum bluetooth_profile profile, uint8_t codec, const uint8_t *cconfig,
+		size_t cconfig_size);
 void transport_free(struct ba_transport *t);
 
-struct ba_transport *transport_lookup(GHashTable *devices, const char *key);
+struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path);
 struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client);
-gboolean transport_remove(GHashTable *devices, const char *key);
+gboolean transport_remove(GHashTable *devices, const char *dbus_path);
 
 unsigned int transport_get_channels(const struct ba_transport *t);
 unsigned int transport_get_sampling(const struct ba_transport *t);

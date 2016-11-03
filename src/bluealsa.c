@@ -47,6 +47,8 @@ int bluealsa_config_init(void) {
 
 	struct group *grp;
 
+	config.main_thread = pthread_self();
+
 	pthread_mutex_init(&config.devices_mutex, NULL);
 	config.devices = g_hash_table_new_full(g_str_hash, g_str_equal,
 			g_free, (GDestroyNotify)device_free);

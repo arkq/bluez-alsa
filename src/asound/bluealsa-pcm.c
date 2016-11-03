@@ -372,11 +372,11 @@ static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	if (pcm->pcm_fd == -1)
 		return -EBADF;
 
-	close(pcm->pcm_fd);
-	pcm->pcm_fd = -1;
-
 	if (bluealsa_close_transport(pcm) == -1)
 		debug("Couldn't close PCM FIFO: %s", strerror(errno));
+
+	close(pcm->pcm_fd);
+	pcm->pcm_fd = -1;
 
 	return 0;
 }

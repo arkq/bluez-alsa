@@ -98,18 +98,18 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
  * Release transport resources acquired by the controller module. */
 static void _transport_release(struct ba_transport *t) {
 
-	transport_release_pcm(t);
-	t->pcm_client = -1;
-
 	/* For a source profile (where the stream is read from the PCM) an IO thread
 	 * terminates when the PCM is closed. However, it is asynchronous, so if the
 	 * client closes the connection, and then quickly tries to open it again, we
 	 * might try to acquire not yet released transport. To prevent this, we have
-	 * to wait for the thread to terminate. */
+	 * to make sure, that the thread is terminated. */
 	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE) {
-		pthread_cond_signal(&t->resume);
+		pthread_cancel(t->thread);
 		pthread_join(t->thread, NULL);
 	}
+
+	transport_release_pcm(t);
+	t->pcm_client = -1;
 
 }
 
@@ -322,6 +322,8 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd) {
 
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
+
+	debug("PCM close for %s type %d stream %d", batostr_(&req->addr), req->type, req->stream);
 
 	pthread_mutex_lock(&config.devices_mutex);
 

@@ -39,6 +39,9 @@ struct ba_config {
 	/* established D-Bus connection */
 	GDBusConnection *dbus;
 
+	/* used for main thread identification */
+	pthread_t main_thread;
+
 	/* collection of connected devices */
 	pthread_mutex_t devices_mutex;
 	GHashTable *devices;

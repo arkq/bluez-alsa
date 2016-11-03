@@ -83,6 +83,7 @@ static int io_thread_create(struct ba_transport *t) {
 
 	if ((ret = pthread_create(&t->thread, NULL, routine, t)) != 0) {
 		error("Couldn't create IO thread: %s", strerror(ret));
+		t->thread = config.main_thread;
 		return -1;
 	}
 
@@ -156,8 +157,8 @@ gboolean device_remove(GHashTable *devices, const char *key) {
 
 struct ba_transport *transport_new(enum ba_transport_type type,
 		const char *dbus_owner, const char *dbus_path,
-		enum bluetooth_profile profile, uint8_t codec, const uint8_t *config,
-		size_t config_size) {
+		enum bluetooth_profile profile, uint8_t codec, const uint8_t *cconfig,
+		size_t cconfig_size) {
 
 	struct ba_transport *t;
 
@@ -173,16 +174,17 @@ struct ba_transport *transport_new(enum ba_transport_type type,
 	t->codec = codec;
 	t->volume = 127;
 
-	if (config_size > 0) {
-		t->cconfig = malloc(config_size);
-		t->cconfig_size = config_size;
-		memcpy(t->cconfig, config, config_size);
+	if (cconfig_size > 0) {
+		t->cconfig = malloc(cconfig_size);
+		t->cconfig_size = cconfig_size;
+		memcpy(t->cconfig, cconfig, cconfig_size);
 	}
 
 	pthread_mutex_init(&t->resume_mutex, NULL);
 	pthread_cond_init(&t->resume, NULL);
 
 	t->state = TRANSPORT_IDLE;
+	t->thread = config.main_thread;
 	t->bt_fd = -1;
 	t->pcm_client = -1;
 	t->pcm_fd = -1;
@@ -202,7 +204,7 @@ void transport_free(struct ba_transport *t) {
 	 * terminate the IO thread (or at least make sure it is not running any
 	 * more). Not doing so might result in an undefined behavior or even a
 	 * race condition (closed and reused file descriptor). */
-	if (TRANSPORT_RUN_IO_THREAD(t)) {
+	if (!pthread_equal(t->thread, config.main_thread)) {
 		pthread_cancel(t->thread);
 		pthread_join(t->thread, NULL);
 	}
@@ -225,7 +227,7 @@ void transport_free(struct ba_transport *t) {
 	free(t);
 }
 
-struct ba_transport *transport_lookup(GHashTable *devices, const char *key) {
+struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path) {
 
 	GHashTableIter iter;
 	struct ba_device *d;
@@ -234,7 +236,7 @@ struct ba_transport *transport_lookup(GHashTable *devices, const char *key) {
 
 	g_hash_table_iter_init(&iter, devices);
 	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
-		if ((t = g_hash_table_lookup(d->transports, key)) != NULL)
+		if ((t = g_hash_table_lookup(d->transports, dbus_path)) != NULL)
 			return t;
 	}
 
@@ -259,7 +261,7 @@ struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client
 	return NULL;
 }
 
-gboolean transport_remove(GHashTable *devices, const char *key) {
+gboolean transport_remove(GHashTable *devices, const char *dbus_path) {
 
 	GHashTableIter iter;
 	struct ba_device *d;
@@ -267,7 +269,7 @@ gboolean transport_remove(GHashTable *devices, const char *key) {
 
 	g_hash_table_iter_init(&iter, devices);
 	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
-		if (g_hash_table_remove(d->transports, key)) {
+		if (g_hash_table_remove(d->transports, dbus_path)) {
 			if (g_hash_table_size(d->transports) == 0)
 				g_hash_table_iter_remove(&iter);
 			return TRUE;
@@ -401,22 +403,25 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	if (t->state == state)
 		return 0;
 
-	const int running = TRANSPORT_RUN_IO_THREAD(t);
+	const int created = !pthread_equal(t->thread, config.main_thread);
 	int ret = 0;
 
 	t->state = state;
 
 	switch (state) {
 	case TRANSPORT_IDLE:
-		pthread_cancel(t->thread);
-		ret = pthread_join(t->thread, NULL);
+		if (created) {
+			pthread_cancel(t->thread);
+			ret = pthread_join(t->thread, NULL);
+			t->thread = config.main_thread;
+		}
 		break;
 	case TRANSPORT_PENDING:
 		ret = transport_acquire_bt(t);
 		break;
 	case TRANSPORT_ACTIVE:
 	case TRANSPORT_PAUSED:
-		if (!running)
+		if (!created)
 			ret = io_thread_create(t);
 		break;
 	case TRANSPORT_ABORTED:
@@ -558,7 +563,6 @@ int transport_release_bt(struct ba_transport *t) {
 
 	ret = 0;
 	t->release = NULL;
-	t->state = TRANSPORT_IDLE;
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
@@ -603,7 +607,8 @@ int transport_release_pcm(struct ba_transport *t) {
 	 * so we have to take into account a possibility of cancellation during the
 	 * execution. In this release function it is important to perform actions
 	 * atomically. Since unlink and close calls are cancellation points, it is
-	 * required to temporally disable cancellation. */
+	 * required to temporally disable cancellation. For a better understanding
+	 * of what is going on, see the io_thread_read_pcm() function. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
 	if (t->pcm_fifo != NULL) {
