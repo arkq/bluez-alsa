@@ -73,13 +73,13 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
-		if (t->pcm_fifo == NULL) {
+		if (t->pcm.fifo == NULL) {
 			usleep(10000);
 			continue;
 		}
 
-		if (t->pcm_fd == -1) {
-			if ((t->pcm_fd = open(t->pcm_fifo, O_WRONLY | O_NONBLOCK)) == -1) {
+		if (t->pcm.fd == -1) {
+			if ((t->pcm.fd = open(t->pcm.fifo, O_WRONLY | O_NONBLOCK)) == -1) {
 				if (errno != ENXIO)
 					error("Couldn't open FIFO: %s", strerror(errno));
 				/* FIFO endpoint is not connected yet */
@@ -87,7 +87,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 				continue;
 			}
 			/* Restore the blocking mode of our FIFO. */
-			fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) & ~O_NONBLOCK);
+			fcntl(t->pcm.fd, F_SETFL, fcntl(t->pcm.fd, F_GETFL) & ~O_NONBLOCK);
 		}
 
 		fprintf(stderr, ".");
@@ -99,11 +99,11 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			head = drum_buffer;
 
 		len = head + 1024 > end ? end - head : 1024;
-		if ((len = write(t->pcm_fd, head, len)) == -1) {
+		if ((len = write(t->pcm.fd, head, len)) == -1) {
 
 			if (errno == EPIPE) {
-				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
-				transport_release_pcm(t);
+				debug("FIFO endpoint has been closed: %d", t->pcm.fd);
+				transport_release_pcm(&t->pcm);
 				continue;
 			}
 
@@ -120,7 +120,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
-	while ((t->pcm_fd = open(t->pcm_fifo, O_RDONLY)) == -1)
+	while ((t->pcm.fd = open(t->pcm.fifo, O_RDONLY)) == -1)
 		usleep(10000);
 
 	char buffer[1024 * 4];
@@ -136,7 +136,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
-		if ((len = read(t->pcm_fd, buffer, sizeof(buffer))) == -1) {
+		if ((len = read(t->pcm.fd, buffer, sizeof(buffer))) == -1) {
 			error("FIFO read error: %s", strerror(errno));
 			return NULL;
 		}

@@ -186,8 +186,8 @@ struct ba_transport *transport_new(enum ba_transport_type type,
 	t->state = TRANSPORT_IDLE;
 	t->thread = config.main_thread;
 	t->bt_fd = -1;
-	t->pcm_client = -1;
-	t->pcm_fd = -1;
+	t->pcm.client = -1;
+	t->pcm.fd = -1;
 
 	return t;
 }
@@ -216,7 +216,7 @@ void transport_free(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
 
-	transport_release_pcm(t);
+	transport_release_pcm(&t->pcm);
 
 	pthread_mutex_destroy(&t->resume_mutex);
 	pthread_cond_destroy(&t->resume);
@@ -254,7 +254,7 @@ struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client
 	while (g_hash_table_iter_next(&iter_d, &tmp, (gpointer)&d)) {
 		g_hash_table_iter_init(&iter_t, d->transports);
 		while (g_hash_table_iter_next(&iter_t, &tmp, (gpointer)&t))
-			if (t->pcm_client == client)
+			if (t->pcm.client == client)
 				return t;
 	}
 
@@ -599,7 +599,7 @@ int transport_release_bt_rfcomm(struct ba_transport *t) {
 	return 0;
 }
 
-int transport_release_pcm(struct ba_transport *t) {
+int transport_release_pcm(struct ba_pcm *pcm) {
 
 	int oldstate;
 
@@ -611,17 +611,17 @@ int transport_release_pcm(struct ba_transport *t) {
 	 * of what is going on, see the io_thread_read_pcm() function. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
-	if (t->pcm_fifo != NULL) {
-		debug("Cleaning PCM FIFO: %s", t->pcm_fifo);
-		unlink(t->pcm_fifo);
-		free(t->pcm_fifo);
-		t->pcm_fifo = NULL;
+	if (pcm->fifo != NULL) {
+		debug("Cleaning PCM FIFO: %s", pcm->fifo);
+		unlink(pcm->fifo);
+		free(pcm->fifo);
+		pcm->fifo = NULL;
 	}
 
-	if (t->pcm_fd != -1) {
-		debug("Closing PCM: %d", t->pcm_fd);
-		close(t->pcm_fd);
-		t->pcm_fd = -1;
+	if (pcm->fd != -1) {
+		debug("Closing PCM: %d", pcm->fd);
+		close(pcm->fd);
+		pcm->fd = -1;
 	}
 
 	pthread_setcancelstate(oldstate, NULL);

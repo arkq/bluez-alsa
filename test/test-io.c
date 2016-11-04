@@ -104,8 +104,10 @@ int test_a2dp_sbc_decoding(void) {
 		.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo,
 		.cconfig_size = sizeof(a2dp_sbc_t),
 		.state = TRANSPORT_ACTIVE,
-		.pcm_fifo = "/force-decoding",
-		.pcm_fd = pcm_fds[0],
+		.pcm = {
+			.fd = pcm_fds[0],
+			.fifo = "/force-decoding",
+		},
 		.mtu_read = 475,
 		.bt_fd = bt_fds[1],
 	};
@@ -144,7 +146,7 @@ int test_a2dp_sbc_encoding(void) {
 		.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo,
 		.cconfig_size = sizeof(a2dp_sbc_t),
 		.state = TRANSPORT_ACTIVE,
-		.pcm_fd = pcm_fds[1],
+		.pcm = { .fd = pcm_fds[1] },
 		.bt_fd = bt_fds[0],
 	};
 

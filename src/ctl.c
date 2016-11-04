@@ -108,8 +108,8 @@ static void _transport_release(struct ba_transport *t) {
 		pthread_join(t->thread, NULL);
 	}
 
-	transport_release_pcm(t);
-	t->pcm_client = -1;
+	transport_release_pcm(&t->pcm);
+	t->pcm.client = -1;
 
 }
 
@@ -267,8 +267,8 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 		goto final;
 	}
 
-	if (t->pcm_fifo != NULL) {
-		debug("PCM already requested: %d", t->pcm_fd);
+	if (t->pcm.fifo != NULL) {
+		debug("PCM already requested: %d", t->pcm.fd);
 		status.code = STATUS_CODE_DEVICE_BUSY;
 		goto final;
 	}
@@ -295,7 +295,7 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 	 *      been created, so it is possible to open it. Source IO thread should
 	 *      not be started before the PCM open request has been made, so this
 	 *      "notification" mechanism does not apply. */
-	t->pcm_fifo = strdup(pcm.fifo);
+	t->pcm.fifo = strdup(pcm.fifo);
 
 	/* for source profile we need to open transport by ourself */
 	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
@@ -304,13 +304,13 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 			goto fail;
 		}
 
-	t->pcm_client = fd;
+	t->pcm.client = fd;
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
 	goto final;
 
 fail:
-	free(t->pcm_fifo);
-	t->pcm_fifo = NULL;
+	free(t->pcm.fifo);
+	t->pcm.fifo = NULL;
 	unlink(pcm.fifo);
 
 final:
@@ -331,7 +331,7 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
-	if (t->pcm_client != fd) {
+	if (t->pcm.client != fd) {
 		status.code = STATUS_CODE_FORBIDDEN;
 		goto fail;
 	}
@@ -354,11 +354,11 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
-	if (t->pcm_fifo == NULL || t->pcm_client == -1) {
+	if (t->pcm.fifo == NULL || t->pcm.client == -1) {
 		status.code = STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
-	if (t->pcm_client != fd) {
+	if (t->pcm.client != fd) {
 		status.code = STATUS_CODE_FORBIDDEN;
 		goto fail;
 	}

@@ -63,14 +63,14 @@ static void io_thread_release(struct ba_transport *t) {
 
 /**
  * Open PCM for reading. */
-static int io_thread_open_pcm_read(struct ba_transport *t) {
+static int io_thread_open_pcm_read(struct ba_pcm *pcm) {
 
 	/* XXX: This check allows testing. During normal operation PCM FIFO
 	 *      should not be opened outside the IO thread function. */
-	if (t->pcm_fd == -1) {
-		debug("Opening FIFO for reading: %s", t->pcm_fifo);
+	if (pcm->fd == -1) {
+		debug("Opening FIFO for reading: %s", pcm->fifo);
 		/* this call will block until writing side is opened */
-		if ((t->pcm_fd = open(t->pcm_fifo, O_RDONLY)) == -1)
+		if ((pcm->fd = open(pcm->fifo, O_RDONLY)) == -1)
 			return -1;
 	}
 
@@ -79,18 +79,18 @@ static int io_thread_open_pcm_read(struct ba_transport *t) {
 
 /**
  * Open PCM for writing. */
-static int io_thread_open_pcm_write(struct ba_transport *t) {
+static int io_thread_open_pcm_write(struct ba_pcm *pcm) {
 
 	/* transport PCM FIFO has not been requested */
-	if (t->pcm_fifo == NULL) {
+	if (pcm->fifo == NULL) {
 		errno = ENXIO;
 		return -1;
 	}
 
-	if (t->pcm_fd == -1) {
+	if (pcm->fd == -1) {
 
-		debug("Opening FIFO for writing: %s", t->pcm_fifo);
-		if ((t->pcm_fd = open(t->pcm_fifo, O_WRONLY | O_NONBLOCK)) == -1)
+		debug("Opening FIFO for writing: %s", pcm->fifo);
+		if ((pcm->fd = open(pcm->fifo, O_WRONLY | O_NONBLOCK)) == -1)
 			/* FIFO endpoint is not connected yet */
 			return -1;
 
@@ -98,7 +98,7 @@ static int io_thread_open_pcm_write(struct ba_transport *t) {
 		 * only for the opening process - we do not want to block if the reading
 		 * endpoint is not connected yet. On the other hand, blocking upon data
 		 * write will prevent frame dropping. */
-		fcntl(t->pcm_fd, F_SETFL, fcntl(t->pcm_fd, F_GETFL) & ~O_NONBLOCK);
+		fcntl(pcm->fd, F_SETFL, fcntl(pcm->fd, F_GETFL) & ~O_NONBLOCK);
 
 		/* In order to receive EPIPE while writing to the pipe whose reading end
 		 * is closed, the SIGPIPE signal has to be handled. For more information
@@ -129,7 +129,7 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer, size_t 
 
 /**
  * Read PCM signal from the transport PCM FIFO. */
-static ssize_t io_thread_read_pcm(struct ba_transport *t, int16_t *buffer, size_t size) {
+static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t size) {
 
 	uint8_t *head = (uint8_t *)buffer;
 	size_t len = size * sizeof(int16_t);
@@ -140,7 +140,7 @@ static ssize_t io_thread_read_pcm(struct ba_transport *t, int16_t *buffer, size_
 	 * closed the connection. If the connection was closed during the blocking
 	 * part, we will still read correct data, because Linux kernel does not
 	 * decrement file descriptor reference counter until the read returns. */
-	while (len != 0 && (ret = read(t->pcm_fd, head, len)) != 0) {
+	while (len != 0 && (ret = read(pcm->fd, head, len)) != 0) {
 		if (ret == -1) {
 			if (errno == EINTR)
 				continue;
@@ -155,32 +155,32 @@ static ssize_t io_thread_read_pcm(struct ba_transport *t, int16_t *buffer, size_
 		return size;
 
 	if (ret == 0)
-		debug("FIFO endpoint has been closed: %d", t->pcm_fd);
+		debug("FIFO endpoint has been closed: %d", pcm->fd);
 	if (errno == EBADF)
 		ret = 0;
 	if (ret == 0)
-		transport_release_pcm(t);
+		transport_release_pcm(pcm);
 
 	return ret;
 }
 
 /**
  * Write PCM signal to the transport PCM FIFO. */
-static ssize_t io_thread_write_pcm(struct ba_transport *t, const int16_t *buffer, size_t size) {
+static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, size_t size) {
 
 	const uint8_t *head = (uint8_t *)buffer;
 	size_t len = size * sizeof(int16_t);
 	ssize_t ret;
 
 	do {
-		if ((ret = write(t->pcm_fd, head, len)) == -1) {
+		if ((ret = write(pcm->fd, head, len)) == -1) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EPIPE) {
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
-				debug("FIFO endpoint has been closed: %d", t->pcm_fd);
-				transport_release_pcm(t);
+				debug("FIFO endpoint has been closed: %d", pcm->fd);
+				transport_release_pcm(pcm);
 				return 0;
 			}
 			return ret;
@@ -326,7 +326,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			break;
 		}
 
-		if (io_thread_open_pcm_write(t) == -1) {
+		if (io_thread_open_pcm_write(&t->pcm) == -1) {
 			if (errno != ENXIO)
 				error("Couldn't open FIFO: %s", strerror(errno));
 			continue;
@@ -366,7 +366,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		}
 
 		const size_t size = output - out_buffer;
-		if (io_thread_write_pcm(t, out_buffer, size) == -1)
+		if (io_thread_write_pcm(&t->pcm, out_buffer, size) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 	}
@@ -420,7 +420,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		goto fail;
 	}
 
-	if (io_thread_open_pcm_read(t) == -1) {
+	if (io_thread_open_pcm_read(&t->pcm) == -1) {
 		error("Couldn't open FIFO: %s", strerror(errno));
 		goto fail;
 	}
@@ -460,7 +460,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(t, in_buffer_head, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->pcm, in_buffer_head, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			break;
@@ -642,7 +642,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			break;
 		}
 
-		if (io_thread_open_pcm_write(t) == -1) {
+		if (io_thread_open_pcm_write(&t->pcm) == -1) {
 			if (errno != ENXIO)
 				error("Couldn't open FIFO: %s", strerror(errno));
 			continue;
@@ -668,7 +668,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t size = aacinf->frameSize * aacinf->numChannels;
-			if (io_thread_write_pcm(t, out_buffer, size) == -1)
+			if (io_thread_write_pcm(&t->pcm, out_buffer, size) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 
@@ -823,7 +823,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	/* helper variable used during payload fragmentation */
 	const size_t rtp_header_len = out_payload - out_buffer;
 
-	if (io_thread_open_pcm_read(t) == -1) {
+	if (io_thread_open_pcm_read(&t->pcm) == -1) {
 		error("Couldn't open FIFO: %s", strerror(errno));
 		goto fail;
 	}
@@ -850,7 +850,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(t, in_buffer_head, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->pcm, in_buffer_head, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			break;
@@ -961,7 +961,7 @@ void *io_thread_rfcomm(void *arg) {
 	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
 	char buffer[64];
 
-	debug("Starting IO loop: %s",
+	debug("Starting RFCOMM loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 

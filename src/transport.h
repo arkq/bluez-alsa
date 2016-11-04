@@ -72,6 +72,18 @@ struct ba_device {
 
 };
 
+struct ba_pcm {
+
+	int fd;
+	/* named FIFO absolute file name */
+	char *fifo;
+
+	/* client identifier (most likely client socket file descriptor) used
+	 * by the PCM client lookup function - transport_lookup_pcm_client() */
+	int client;
+
+};
+
 struct ba_transport {
 
 	/* Transport structure covers all transports supported by BlueALSA. However,
@@ -115,11 +127,7 @@ struct ba_transport {
 	size_t mtu_read;
 	size_t mtu_write;
 
-	char *pcm_fifo;
-	int pcm_fd;
-
-	/* used by PCM client lookup */
-	int pcm_client;
+	struct ba_pcm pcm;
 
 	/* callback function for self-management */
 	int (*release)(struct ba_transport *);
@@ -153,6 +161,6 @@ int transport_acquire_bt(struct ba_transport *t);
 int transport_acquire_bt_sco(struct ba_transport *t);
 int transport_release_bt(struct ba_transport *t);
 int transport_release_bt_rfcomm(struct ba_transport *t);
-int transport_release_pcm(struct ba_transport *t);
+int transport_release_pcm(struct ba_pcm *pcm);
 
 #endif
