@@ -60,9 +60,8 @@ int transport_acquire_bt(struct ba_transport *t) {
 void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
-	const char *end = drum_buffer + drum_buffer_size;
-	char *head = drum_buffer;
-	ssize_t len;
+	int16_t *head = (int16_t *)drum_buffer;
+	int16_t *end = head + drum_buffer_size / sizeof(int16_t);
 
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
@@ -73,21 +72,11 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
-		if (t->pcm.fifo == NULL) {
+		if (io_thread_open_pcm_write(&t->pcm) == -1) {
+			if (errno != ENXIO)
+				error("Couldn't open FIFO: %s", strerror(errno));
 			usleep(10000);
 			continue;
-		}
-
-		if (t->pcm.fd == -1) {
-			if ((t->pcm.fd = open(t->pcm.fifo, O_WRONLY | O_NONBLOCK)) == -1) {
-				if (errno != ENXIO)
-					error("Couldn't open FIFO: %s", strerror(errno));
-				/* FIFO endpoint is not connected yet */
-				usleep(10000);
-				continue;
-			}
-			/* Restore the blocking mode of our FIFO. */
-			fcntl(t->pcm.fd, F_SETFL, fcntl(t->pcm.fd, F_GETFL) & ~O_NONBLOCK);
 		}
 
 		fprintf(stderr, ".");
@@ -96,22 +85,14 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		if (head == end)
-			head = drum_buffer;
+			head = (int16_t *)drum_buffer;
 
-		len = head + 1024 > end ? end - head : 1024;
-		if ((len = write(t->pcm.fd, head, len)) == -1) {
-
-			if (errno == EPIPE) {
-				debug("FIFO endpoint has been closed: %d", t->pcm.fd);
-				transport_release_pcm(&t->pcm);
-				continue;
-			}
-
+		size_t samples = head + 512 > end ? end - head : 512;
+		if (io_thread_write_pcm(&t->pcm, head, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
-		}
 
-		head += len;
-		io_thread_time_sync(&io_sync, len / 2 / 2);
+		head += samples;
+		io_thread_time_sync(&io_sync, samples / 2);
 	}
 
 	return NULL;
@@ -123,8 +104,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	while ((t->pcm.fd = open(t->pcm.fifo, O_RDONLY)) == -1)
 		usleep(10000);
 
-	char buffer[1024 * 4];
-	ssize_t len;
+	int16_t buffer[1024 * 2];
+	ssize_t samples;
 
 	struct io_sync io_sync = {
 		.sampling = transport_get_sampling(t),
@@ -136,12 +117,14 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
-		if ((len = read(t->pcm.fd, buffer, sizeof(buffer))) == -1) {
-			error("FIFO read error: %s", strerror(errno));
-			return NULL;
+		const size_t in_samples = sizeof(buffer) / sizeof(int16_t);
+		if ((samples = io_thread_read_pcm(&t->pcm, buffer, in_samples)) <= 0) {
+			if (samples == -1)
+				error("FIFO read error: %s", strerror(errno));
+			break;
 		}
 
-		io_thread_time_sync(&io_sync, len / 2 / 2);
+		io_thread_time_sync(&io_sync, samples / 2);
 	}
 
 	return NULL;
@@ -205,8 +188,9 @@ int main(int argc, char *argv[]) {
 		struct ba_transport *t_source;
 		assert((t_source = transport_new(TRANSPORT_TYPE_A2DP, ":test", "/source",
 						BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
-						(uint8_t *)&config, sizeof(config))) != NULL);
+						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_source->dbus_path), t_source);
+		t_source->device = d;
 		t_source->state = TRANSPORT_ACTIVE;
 		assert(io_thread_create(t_source) == 0);
 	}
@@ -215,9 +199,10 @@ int main(int argc, char *argv[]) {
 		struct ba_transport *t_sink;
 		assert((t_sink = transport_new(TRANSPORT_TYPE_A2DP, ":test", "/sink",
 						BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
-						(uint8_t *)&config, sizeof(config))) != NULL);
+						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
 		g_hash_table_insert(d->transports, g_strdup(t_sink->dbus_path), t_sink);
 		assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);
+		t_sink->device = d;
 		t_sink->state = TRANSPORT_ACTIVE;
 		assert(io_thread_create(t_sink) == 0);
 	}
