@@ -186,23 +186,19 @@ int main(int argc, char *argv[]) {
 
 	if (source) {
 		struct ba_transport *t_source;
-		assert((t_source = transport_new(TRANSPORT_TYPE_A2DP, ":test", "/source",
+		assert((t_source = transport_new(d, TRANSPORT_TYPE_A2DP, ":test", "/source",
 						BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
 						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
-		g_hash_table_insert(d->transports, g_strdup(t_source->dbus_path), t_source);
-		t_source->device = d;
 		t_source->state = TRANSPORT_ACTIVE;
 		assert(io_thread_create(t_source) == 0);
 	}
 
 	if (sink) {
 		struct ba_transport *t_sink;
-		assert((t_sink = transport_new(TRANSPORT_TYPE_A2DP, ":test", "/sink",
+		assert((t_sink = transport_new(d, TRANSPORT_TYPE_A2DP, ":test", "/sink",
 						BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
 						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
-		g_hash_table_insert(d->transports, g_strdup(t_sink->dbus_path), t_sink);
 		assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);
-		t_sink->device = d;
 		t_sink->state = TRANSPORT_ACTIVE;
 		assert(io_thread_create(t_sink) == 0);
 	}

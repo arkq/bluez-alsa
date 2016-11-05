@@ -86,13 +86,13 @@ struct ba_pcm {
 
 struct ba_transport {
 
+	/* backward reference to the owner */
+	struct ba_device *device;
+
 	/* Transport structure covers all transports supported by BlueALSA. However,
 	 * every transport requires specific handling - link acquisition, transport
 	 * specific configuration, freeing resources, etc. */
 	enum ba_transport_type type;
-
-	/* backward reference to the owner */
-	struct ba_device *device;
 
 	/* data required for D-Bus management */
 	char *dbus_owner;
@@ -141,9 +141,14 @@ struct ba_device *device_get(GHashTable *devices, const char *key);
 struct ba_device *device_lookup(GHashTable *devices, const char *key);
 gboolean device_remove(GHashTable *devices, const char *key);
 
-struct ba_transport *transport_new(enum ba_transport_type type,
-		const char *dbus_owner, const char *dbus_path,
-		enum bluetooth_profile profile, uint8_t codec, const uint8_t *cconfig,
+struct ba_transport *transport_new(
+		struct ba_device *device,
+		enum ba_transport_type type,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile,
+		uint8_t codec,
+		const uint8_t *cconfig,
 		size_t cconfig_size);
 void transport_free(struct ba_transport *t);
 

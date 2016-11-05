@@ -402,15 +402,13 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new(TRANSPORT_TYPE_A2DP, sender,
+	if ((t = transport_new(d, TRANSPORT_TYPE_A2DP, sender,
 					transport, profile, codec, configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
-	t->device = d;
 	t->volume = volume;
-	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
 	debug("%s configured for device %s",
 			bluetooth_profile_to_string(profile, codec), batostr_(&d->addr));
@@ -746,7 +744,6 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	GVariantIter *properties;
 	GUnixFDList *fd_list;
 	const char *device;
-	char *transport = NULL;
 	GError *err = NULL;
 	int fd;
 
@@ -763,17 +760,14 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	transport = g_strdup_printf("%s/pr%d", path, profile);
-	if ((t = transport_new(TRANSPORT_TYPE_RFCOMM, sender,
-					transport, profile, codec, NULL, 0)) == NULL) {
+	if ((t = transport_new(d, TRANSPORT_TYPE_RFCOMM, sender,
+					device, profile, codec, NULL, 0)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
-	t->device = d;
 	t->bt_fd = fd;
 	t->release = transport_release_bt_rfcomm;
-	g_hash_table_insert(d->transports, g_strdup(transport), t);
 
 	debug("%s configured for device %s",
 			bluetooth_profile_to_string(profile, codec), batostr_(&d->addr));
@@ -789,8 +783,6 @@ fail:
 
 final:
 	g_variant_iter_free(properties);
-	if (transport != NULL)
-		g_free(transport);
 	if (err != NULL)
 		g_error_free(err);
 }
@@ -799,20 +791,15 @@ static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void
 	(void)userdata;
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
-	const int profile = g_dbus_object_path_to_profile(path);
-	char *transport;
+	const char *device;
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	g_variant_get(params, "(&o)", &transport);
-
-	transport = g_strdup_printf("%s/pr%d", path, profile);
-	transport_remove(config.devices, transport);
+	g_variant_get(params, "(&o)", &device);
+	transport_remove(config.devices, device);
 
 	pthread_mutex_unlock(&config.devices_mutex);
 
-	g_free(transport);
 	g_object_unref(inv);
 }
 

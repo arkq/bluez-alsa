@@ -107,7 +107,7 @@ struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *n
 	d->name[sizeof(d->name) - 1] = '\0';
 
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
-			g_free, (GDestroyNotify)transport_free);
+			NULL, (GDestroyNotify)transport_free);
 
 	return d;
 }
@@ -155,9 +155,14 @@ gboolean device_remove(GHashTable *devices, const char *key) {
 	return g_hash_table_remove(devices, key);
 }
 
-struct ba_transport *transport_new(enum ba_transport_type type,
-		const char *dbus_owner, const char *dbus_path,
-		enum bluetooth_profile profile, uint8_t codec, const uint8_t *cconfig,
+struct ba_transport *transport_new(
+		struct ba_device *device,
+		enum ba_transport_type type,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile,
+		uint8_t codec,
+		const uint8_t *cconfig,
 		size_t cconfig_size) {
 
 	struct ba_transport *t;
@@ -165,10 +170,12 @@ struct ba_transport *transport_new(enum ba_transport_type type,
 	if ((t = calloc(1, sizeof(*t))) == NULL)
 		return NULL;
 
+	t->device = device;
 	t->type = type;
 
 	t->dbus_owner = strdup(dbus_owner);
 	t->dbus_path = strdup(dbus_path);
+	g_hash_table_insert(device->transports, t->dbus_path, t);
 
 	t->profile = profile;
 	t->codec = codec;
