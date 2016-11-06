@@ -117,8 +117,8 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer, size_t 
 
 	/* Get a snapshot of audio properties. Please note, that mutex is not
 	 * required here, because we are not modifying these variables. */
-	const uint8_t volume = t->volume;
-	const uint8_t muted = t->muted;
+	const uint8_t volume = t->a2dp.ch1_volume;
+	const uint8_t muted = t->a2dp.ch1_muted;
 
 	if (muted || volume == 0)
 		snd_pcm_mute_s16le(buffer, size);
@@ -197,9 +197,9 @@ static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, si
  * Pause IO thread until the resume signal is received. */
 static void io_thread_pause(struct ba_transport *t) {
 	debug("Pausing IO thread: %s", bluetooth_profile_to_string(t->profile, t->codec));
-	pthread_mutex_lock(&t->resume_mutex);
-	pthread_cond_wait(&t->resume, &t->resume_mutex);
-	pthread_mutex_unlock(&t->resume_mutex);
+	pthread_mutex_lock(&t->a2dp.resume_mutex);
+	pthread_cond_wait(&t->a2dp.resume, &t->a2dp.resume_mutex);
+	pthread_mutex_unlock(&t->a2dp.resume_mutex);
 	debug("Resuming IO thread: %s", bluetooth_profile_to_string(t->profile, t->codec));
 }
 
@@ -267,7 +267,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->cconfig, t->cconfig_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.cconfig, t->a2dp.cconfig_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -326,7 +326,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			break;
 		}
 
-		if (io_thread_open_pcm_write(&t->pcm) == -1) {
+		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
 			if (errno != ENXIO)
 				error("Couldn't open FIFO: %s", strerror(errno));
 			continue;
@@ -366,7 +366,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		}
 
 		const size_t size = output - out_buffer;
-		if (io_thread_write_pcm(&t->pcm, out_buffer, size) == -1)
+		if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, size) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 	}
@@ -388,7 +388,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->cconfig, t->cconfig_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.cconfig, t->a2dp.cconfig_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -420,7 +420,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		goto fail;
 	}
 
-	if (io_thread_open_pcm_read(&t->pcm) == -1) {
+	if (io_thread_open_pcm_read(&t->a2dp.pcm) == -1) {
 		error("Couldn't open FIFO: %s", strerror(errno));
 		goto fail;
 	}
@@ -460,7 +460,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->pcm, in_buffer_head, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_head, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			break;
@@ -642,7 +642,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			break;
 		}
 
-		if (io_thread_open_pcm_write(&t->pcm) == -1) {
+		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
 			if (errno != ENXIO)
 				error("Couldn't open FIFO: %s", strerror(errno));
 			continue;
@@ -668,7 +668,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t size = aacinf->frameSize * aacinf->numChannels;
-			if (io_thread_write_pcm(&t->pcm, out_buffer, size) == -1)
+			if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, size) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 
@@ -688,7 +688,7 @@ fail_open:
 #if ENABLE_AAC
 void *io_thread_a2dp_source_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
-	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->cconfig;
+	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
@@ -823,7 +823,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	/* helper variable used during payload fragmentation */
 	const size_t rtp_header_len = out_payload - out_buffer;
 
-	if (io_thread_open_pcm_read(&t->pcm) == -1) {
+	if (io_thread_open_pcm_read(&t->a2dp.pcm) == -1) {
 		error("Couldn't open FIFO: %s", strerror(errno));
 		goto fail;
 	}
@@ -850,7 +850,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->pcm, in_buffer_head, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_head, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			break;
@@ -1003,9 +1003,9 @@ void *io_thread_rfcomm(void *arg) {
 		else if (strcmp(command, "+CKPD") == 0 && atoi(value) == 200) {
 		}
 		else if (strcmp(command, "+VGM") == 0)
-			t->volume = atoi(value) * 127 / 15;
+			t->rfcomm.sco->sco.mic_gain = atoi(value);
 		else if (strcmp(command, "+VGS") == 0)
-			t->volume = atoi(value) * 127 / 15;
+			t->rfcomm.sco->sco.spk_gain = atoi(value);
 		else if (strcmp(command, "+IPHONEACCEV") == 0) {
 
 			char *ptr = value;

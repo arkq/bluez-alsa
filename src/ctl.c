@@ -97,21 +97,64 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 }
 
 /**
+ * Get transport PCM structure.
+ *
+ * @param t Pointer to the transport structure.
+ * @param stream Stream type.
+ * @return On success address of the PCM structure is returned. If the PCM
+ *   structure can not be determined, NULL is returned. */
+static struct ba_pcm *_transport_get_pcm(struct ba_transport *t, enum pcm_stream stream) {
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
+		return &t->a2dp.pcm;
+	case TRANSPORT_TYPE_RFCOMM:
+		debug("Trying to get PCM for RFCOMM transport... that's nuts");
+		break;
+	case TRANSPORT_TYPE_SCO:
+		switch (stream) {
+		case PCM_STREAM_PLAYBACK:
+			return &t->sco.spk_pcm;
+		case PCM_STREAM_CAPTURE:
+			return &t->sco.mic_pcm;
+		case PCM_STREAM_DUPLEX:
+			break;
+		}
+	}
+	return NULL;
+}
+
+/**
  * Release transport resources acquired by the controller module. */
-static void _transport_release(struct ba_transport *t) {
+static void _transport_release(struct ba_transport *t, int client) {
 
 	/* For a source profile (where the stream is read from the PCM) an IO thread
 	 * terminates when the PCM is closed. However, it is asynchronous, so if the
 	 * client closes the connection, and then quickly tries to open it again, we
 	 * might try to acquire not yet released transport. To prevent this, we have
-	 * to make sure, that the thread is terminated. */
+	 * to make sure, that the transport is released (thread is terminated). */
 	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE) {
 		pthread_cancel(t->thread);
 		pthread_join(t->thread, NULL);
 	}
 
-	transport_release_pcm(&t->pcm);
-	t->pcm.client = -1;
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
+		transport_release_pcm(&t->a2dp.pcm);
+		t->a2dp.pcm.client = -1;
+		break;
+	case TRANSPORT_TYPE_RFCOMM:
+		break;
+	case TRANSPORT_TYPE_SCO:
+		if (t->sco.spk_pcm.client == client) {
+			transport_release_pcm(&t->sco.spk_pcm);
+			t->sco.spk_pcm.client = -1;
+		}
+		if (t->sco.mic_pcm.client == client) {
+			transport_release_pcm(&t->sco.mic_pcm);
+			t->sco.mic_pcm.client = -1;
+		}
+	}
+
 
 }
 
@@ -124,6 +167,10 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 		transport->type = PCM_TYPE_A2DP;
 		transport->stream = t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
 			PCM_STREAM_PLAYBACK : PCM_STREAM_CAPTURE;
+		transport->ch1_muted = t->a2dp.ch1_muted;
+		transport->ch1_volume = t->a2dp.ch1_volume;
+		transport->ch2_muted = t->a2dp.ch2_muted;
+		transport->ch2_volume = t->a2dp.ch2_volume;
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
 		transport->type = PCM_TYPE_NULL;
@@ -131,6 +178,10 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 	case TRANSPORT_TYPE_SCO:
 		transport->type = PCM_TYPE_SCO;
 		transport->stream = PCM_STREAM_DUPLEX;
+		transport->ch1_muted = t->sco.spk_muted;
+		transport->ch1_volume = t->sco.spk_gain;
+		transport->ch2_muted = t->sco.mic_muted;
+		transport->ch2_volume = t->sco.mic_gain;
 		break;
 	}
 
@@ -138,11 +189,6 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 
 	transport->channels = transport_get_channels(t);
 	transport->sampling = transport_get_sampling(t);
-
-	transport->ch1_muted = t->muted;
-	transport->ch1_volume = t->volume;
-	transport->ch2_muted = t->muted;
-	transport->ch2_volume = t->volume;
 
 }
 
@@ -241,8 +287,22 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 			t->profile, req->ch1_volume, req->ch2_volume,
 			req->ch1_muted ? 'M' : 'O', req->ch2_muted ? 'M' : 'O');
 
-	t->muted = req->ch1_muted * req->ch2_muted;
-	t->volume = (req->ch1_volume + req->ch2_volume) / 2;
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
+		t->a2dp.ch1_muted = req->ch1_muted;
+		t->a2dp.ch1_muted = req->ch2_muted;
+		t->a2dp.ch1_volume = req->ch1_volume;
+		t->a2dp.ch1_volume = req->ch2_volume;
+		break;
+	case TRANSPORT_TYPE_RFCOMM:
+		break;
+	case TRANSPORT_TYPE_SCO:
+		t->sco.spk_muted = req->ch1_muted;
+		t->sco.mic_muted = req->ch2_muted;
+		t->sco.spk_gain = req->ch1_volume;
+		t->sco.mic_gain = req->ch2_volume;
+		break;
+	}
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -254,6 +314,7 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct msg_pcm pcm;
 	struct ba_transport *t;
+	struct ba_pcm *t_pcm;
 	char addr[18];
 
 	ba2str(&req->addr, addr);
@@ -270,8 +331,13 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 		goto final;
 	}
 
-	if (t->pcm.fifo != NULL) {
-		debug("PCM already requested: %d", t->pcm.fd);
+	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
+		status.code = STATUS_CODE_ERROR_UNKNOWN;
+		goto final;
+	}
+
+	if (t_pcm->fifo != NULL) {
+		debug("PCM already requested: %d", t_pcm->fd);
 		status.code = STATUS_CODE_DEVICE_BUSY;
 		goto final;
 	}
@@ -298,22 +364,22 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 	 *      been created, so it is possible to open it. Source IO thread should
 	 *      not be started before the PCM open request has been made, so this
 	 *      "notification" mechanism does not apply. */
-	t->pcm.fifo = strdup(pcm.fifo);
+	t_pcm->fifo = strdup(pcm.fifo);
 
 	/* for source profile we need to open transport by ourself */
 	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
-		if (transport_acquire_bt(t) == -1) {
+		if (transport_acquire_bt_a2dp(t) == -1) {
 			status.code = STATUS_CODE_ERROR_UNKNOWN;
 			goto fail;
 		}
 
-	t->pcm.client = fd;
+	t_pcm->client = fd;
 	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
 	goto final;
 
 fail:
-	free(t->pcm.fifo);
-	t->pcm.fifo = NULL;
+	free(t_pcm->fifo);
+	t_pcm->fifo = NULL;
 	unlink(pcm.fifo);
 
 final:
@@ -325,6 +391,7 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd) {
 
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
+	struct ba_pcm *t_pcm;
 
 	debug("PCM close for %s type %d stream %d", batostr_(&req->addr), req->type, req->stream);
 
@@ -334,12 +401,16 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
-	if (t->pcm.client != fd) {
+	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
+		status.code = STATUS_CODE_ERROR_UNKNOWN;
+		goto fail;
+	}
+	if (t_pcm->client != fd) {
 		status.code = STATUS_CODE_FORBIDDEN;
 		goto fail;
 	}
 
-	_transport_release(t);
+	_transport_release(t, fd);
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -350,6 +421,7 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 
 	struct msg_status status = { STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
+	struct ba_pcm *t_pcm;
 
 	pthread_mutex_lock(&config.devices_mutex);
 
@@ -357,11 +429,15 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 		status.code = STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
 	}
-	if (t->pcm.fifo == NULL || t->pcm.client == -1) {
+	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
 		status.code = STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
-	if (t->pcm.client != fd) {
+	if (t_pcm->fifo == NULL || t_pcm->client == -1) {
+		status.code = STATUS_CODE_ERROR_UNKNOWN;
+		goto fail;
+	}
+	if (t_pcm->client != fd) {
 		status.code = STATUS_CODE_FORBIDDEN;
 		goto fail;
 	}
@@ -372,7 +448,7 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 		break;
 	case COMMAND_PCM_RESUME:
 		transport_set_state(t, TRANSPORT_ACTIVE);
-		pthread_cond_signal(&t->resume);
+		pthread_cond_signal(&t->a2dp.resume);
 		break;
 	default:
 		warn("Invalid PCM control command: %d", req->command);
@@ -436,7 +512,7 @@ static void *ctl_thread(void *arg) {
 
 					struct ba_transport *t;
 					if ((t = transport_lookup_pcm_client(config.devices, fd)) != NULL)
-						_transport_release(t);
+						_transport_release(t, fd);
 
 					config.ctl_pfds[i].fd = -1;
 					close(fd);

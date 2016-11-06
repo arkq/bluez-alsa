@@ -102,21 +102,9 @@ struct ba_transport {
 	enum bluetooth_profile profile;
 	uint8_t codec;
 
-	/* selected audio codec configuration */
-	uint8_t *cconfig;
-	size_t cconfig_size;
-
-	/* if non-zero, equivalent of volume = 0 */
-	uint8_t muted;
-	/* software audio volume in range [0, 127] */
-	uint8_t volume;
-
 	/* IO thread - actual transport layer */
 	enum ba_transport_state state;
 	pthread_t thread;
-
-	pthread_mutex_t resume_mutex;
-	pthread_cond_t resume;
 
 	/* This field stores a file descriptor (socket) associated with the BlueZ
 	 * site of the transport. The role of this socket depends on the transport
@@ -127,7 +115,53 @@ struct ba_transport {
 	size_t mtu_read;
 	size_t mtu_write;
 
-	struct ba_pcm pcm;
+	union {
+
+		struct {
+
+			/* if non-zero, equivalent of volume = 0 */
+			uint8_t ch1_muted;
+			uint8_t ch2_muted;
+			/* software audio volume in range [0, 127] */
+			uint8_t ch1_volume;
+			uint8_t ch2_volume;
+
+			struct ba_pcm pcm;
+
+			/* selected audio codec configuration */
+			uint8_t *cconfig;
+			size_t cconfig_size;
+
+			pthread_mutex_t resume_mutex;
+			pthread_cond_t resume;
+
+		} a2dp;
+
+		struct {
+
+			/* associated SCO transport */
+			struct ba_transport *sco;
+
+		} rfcomm;
+
+		struct {
+
+			/* if non-zero, equivalent of gain = 0 */
+			uint8_t spk_muted;
+			uint8_t mic_muted;
+			/* software audio gain in range [0, 15] */
+			uint8_t spk_gain;
+			uint8_t mic_gain;
+
+			/* Speaker and microphone signals should to be exposed as
+			 * a separate PCM devices. Hence, there is a requirement
+			 * for separate configurations. */
+			struct ba_pcm spk_pcm;
+			struct ba_pcm mic_pcm;
+
+		} sco;
+
+	};
 
 	/* callback function for self-management */
 	int (*release)(struct ba_transport *);
@@ -147,9 +181,20 @@ struct ba_transport *transport_new(
 		const char *dbus_owner,
 		const char *dbus_path,
 		enum bluetooth_profile profile,
+		uint8_t codec);
+struct ba_transport *transport_new_a2dp(
+		struct ba_device *device,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile,
 		uint8_t codec,
-		const uint8_t *cconfig,
-		size_t cconfig_size);
+		const uint8_t *config,
+		size_t config_size);
+struct ba_transport *transport_new_rfcomm(
+		struct ba_device *device,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile);
 void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path);
@@ -162,10 +207,14 @@ unsigned int transport_get_sampling(const struct ba_transport *t);
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
 
-int transport_acquire_bt(struct ba_transport *t);
-int transport_acquire_bt_sco(struct ba_transport *t);
-int transport_release_bt(struct ba_transport *t);
+int transport_acquire_bt_a2dp(struct ba_transport *t);
+int transport_release_bt_a2dp(struct ba_transport *t);
+
 int transport_release_bt_rfcomm(struct ba_transport *t);
+
+int transport_acquire_bt_sco(struct ba_transport *t);
+int transport_release_bt_sco(struct ba_transport *t);
+
 int transport_release_pcm(struct ba_pcm *pcm);
 
 #endif

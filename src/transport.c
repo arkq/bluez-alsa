@@ -29,6 +29,8 @@
 #include "utils.h"
 
 
+static void _transport_free(struct ba_transport *t, gboolean recursive);
+
 static int io_thread_create(struct ba_transport *t) {
 
 	void *(*routine)(void *) = NULL;
@@ -95,6 +97,10 @@ static int io_thread_create(struct ba_transport *t) {
 
 struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name) {
 
+	void transport_free(gpointer data) {
+		_transport_free((struct ba_transport *)data, FALSE);
+	}
+
 	struct ba_device *d;
 
 	if ((d = calloc(1, sizeof(*d))) == NULL)
@@ -107,7 +113,7 @@ struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *n
 	d->name[sizeof(d->name) - 1] = '\0';
 
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
-			NULL, (GDestroyNotify)transport_free);
+			NULL, transport_free);
 
 	return d;
 }
@@ -161,9 +167,7 @@ struct ba_transport *transport_new(
 		const char *dbus_owner,
 		const char *dbus_path,
 		enum bluetooth_profile profile,
-		uint8_t codec,
-		const uint8_t *cconfig,
-		size_t cconfig_size) {
+		uint8_t codec) {
 
 	struct ba_transport *t;
 
@@ -179,27 +183,96 @@ struct ba_transport *transport_new(
 
 	t->profile = profile;
 	t->codec = codec;
-	t->volume = 127;
-
-	if (cconfig_size > 0) {
-		t->cconfig = malloc(cconfig_size);
-		t->cconfig_size = cconfig_size;
-		memcpy(t->cconfig, cconfig, cconfig_size);
-	}
-
-	pthread_mutex_init(&t->resume_mutex, NULL);
-	pthread_cond_init(&t->resume, NULL);
 
 	t->state = TRANSPORT_IDLE;
 	t->thread = config.main_thread;
+
 	t->bt_fd = -1;
-	t->pcm.client = -1;
-	t->pcm.fd = -1;
 
 	return t;
 }
 
-void transport_free(struct ba_transport *t) {
+struct ba_transport *transport_new_a2dp(
+		struct ba_device *device,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile,
+		uint8_t codec,
+		const uint8_t *config,
+		size_t config_size) {
+
+	struct ba_transport *t;
+
+	if ((t = transport_new(device, TRANSPORT_TYPE_A2DP,
+					dbus_owner, dbus_path, profile, codec)) == NULL)
+		return NULL;
+
+	t->a2dp.ch1_volume = 127;
+	t->a2dp.ch2_volume = 127;
+
+	if (config_size > 0) {
+		t->a2dp.cconfig = malloc(config_size);
+		t->a2dp.cconfig_size = config_size;
+		memcpy(t->a2dp.cconfig, config, config_size);
+	}
+
+	pthread_mutex_init(&t->a2dp.resume_mutex, NULL);
+	pthread_cond_init(&t->a2dp.resume, NULL);
+
+	t->a2dp.pcm.fd = -1;
+	t->a2dp.pcm.client = -1;
+
+	return t;
+}
+
+struct ba_transport *transport_new_rfcomm(
+		struct ba_device *device,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile) {
+
+	gchar *dbus_path_sco = NULL;
+	struct ba_transport *t, *t_sco;
+
+	if ((t = transport_new(device, TRANSPORT_TYPE_RFCOMM,
+					dbus_owner, dbus_path, profile, -1)) == NULL)
+		goto fail;
+
+	dbus_path_sco = g_strdup_printf("%s/sco", dbus_path);
+	if ((t_sco = transport_new(device, TRANSPORT_TYPE_SCO,
+					dbus_owner, dbus_path_sco, profile, -1)) == NULL)
+		goto fail;
+
+	t->rfcomm.sco = t_sco;
+
+	t_sco->sco.spk_gain = 15;
+	t_sco->sco.mic_gain = 15;
+
+	t_sco->sco.spk_pcm.fd = -1;
+	t_sco->sco.spk_pcm.client = -1;
+	t_sco->sco.mic_pcm.fd = -1;
+	t_sco->sco.mic_pcm.client = -1;
+
+	transport_set_state(t_sco, TRANSPORT_ACTIVE);
+
+	return t;
+
+fail:
+	g_hash_table_remove(device->transports, dbus_path);
+	if (dbus_path_sco != NULL)
+		g_free(dbus_path_sco);
+	return NULL;
+}
+
+/**
+ * Internal transport free function.
+ *
+ * @param t Pointer to the transport structure.
+ * @param recursive Determine whether free action should perform recursive
+ *   cleanup. If this function was called on the behalf of the hash-table
+ *   destroy notification, recursive free is not possible - this parameter
+ *   has to be set to FALSE. */
+static void _transport_free(struct ba_transport *t, gboolean recursive) {
 
 	if (t == NULL)
 		return;
@@ -223,15 +296,31 @@ void transport_free(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
 
-	transport_release_pcm(&t->pcm);
-
-	pthread_mutex_destroy(&t->resume_mutex);
-	pthread_cond_destroy(&t->resume);
+	/* free type-specific resources */
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
+		transport_release_pcm(&t->a2dp.pcm);
+		pthread_mutex_destroy(&t->a2dp.resume_mutex);
+		pthread_cond_destroy(&t->a2dp.resume);
+		free(t->a2dp.cconfig);
+		break;
+	case TRANSPORT_TYPE_RFCOMM:
+		if (recursive)
+			g_hash_table_remove(t->device->transports, t->rfcomm.sco->dbus_path);
+		break;
+	case TRANSPORT_TYPE_SCO:
+		transport_release_pcm(&t->sco.spk_pcm);
+		transport_release_pcm(&t->sco.mic_pcm);
+		break;
+	}
 
 	free(t->dbus_owner);
 	free(t->dbus_path);
-	free(t->cconfig);
 	free(t);
+}
+
+void transport_free(struct ba_transport *t) {
+	_transport_free(t, TRUE);
 }
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path) {
@@ -260,9 +349,22 @@ struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client
 	g_hash_table_iter_init(&iter_d, devices);
 	while (g_hash_table_iter_next(&iter_d, &tmp, (gpointer)&d)) {
 		g_hash_table_iter_init(&iter_t, d->transports);
-		while (g_hash_table_iter_next(&iter_t, &tmp, (gpointer)&t))
-			if (t->pcm.client == client)
-				return t;
+		while (g_hash_table_iter_next(&iter_t, &tmp, (gpointer)&t)) {
+			switch (t->type) {
+			case TRANSPORT_TYPE_A2DP:
+				if (t->a2dp.pcm.client == client)
+					return t;
+				break;
+			case TRANSPORT_TYPE_RFCOMM:
+				break;
+			case TRANSPORT_TYPE_SCO:
+				if (t->sco.spk_pcm.client == client)
+					return t;
+				if (t->sco.mic_pcm.client == client)
+					return t;
+				break;
+			}
+		}
 	}
 
 	return NULL;
@@ -292,7 +394,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 	case TRANSPORT_TYPE_A2DP:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
-			switch (((a2dp_sbc_t *)t->cconfig)->channel_mode) {
+			switch (((a2dp_sbc_t *)t->a2dp.cconfig)->channel_mode) {
 			case SBC_CHANNEL_MODE_MONO:
 				return 1;
 			case SBC_CHANNEL_MODE_STEREO:
@@ -302,7 +404,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG12:
-			switch (((a2dp_mpeg_t *)t->cconfig)->channel_mode) {
+			switch (((a2dp_mpeg_t *)t->a2dp.cconfig)->channel_mode) {
 			case MPEG_CHANNEL_MODE_MONO:
 				return 1;
 			case MPEG_CHANNEL_MODE_STEREO:
@@ -312,7 +414,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG24:
-			switch (((a2dp_aac_t *)t->cconfig)->channels) {
+			switch (((a2dp_aac_t *)t->a2dp.cconfig)->channels) {
 			case AAC_CHANNELS_1:
 				return 1;
 			case AAC_CHANNELS_2:
@@ -337,7 +439,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 	case TRANSPORT_TYPE_A2DP:
 		switch (t->codec) {
 		case A2DP_CODEC_SBC:
-			switch (((a2dp_sbc_t *)t->cconfig)->frequency) {
+			switch (((a2dp_sbc_t *)t->a2dp.cconfig)->frequency) {
 			case SBC_SAMPLING_FREQ_16000:
 				return 16000;
 			case SBC_SAMPLING_FREQ_32000:
@@ -349,7 +451,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG12:
-			switch (((a2dp_mpeg_t *)t->cconfig)->frequency) {
+			switch (((a2dp_mpeg_t *)t->a2dp.cconfig)->frequency) {
 			case MPEG_SAMPLING_FREQ_16000:
 				return 16000;
 			case MPEG_SAMPLING_FREQ_22050:
@@ -365,7 +467,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 			}
 			break;
 		case A2DP_CODEC_MPEG24:
-			switch (AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->cconfig)) {
+			switch (AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.cconfig)) {
 			case AAC_SAMPLING_FREQ_8000:
 				return 8000;
 			case AAC_SAMPLING_FREQ_11025:
@@ -424,7 +526,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		}
 		break;
 	case TRANSPORT_PENDING:
-		ret = transport_acquire_bt(t);
+		ret = transport_acquire_bt_a2dp(t);
 		break;
 	case TRANSPORT_ACTIVE:
 	case TRANSPORT_PAUSED:
@@ -458,7 +560,7 @@ int transport_set_state_from_string(struct ba_transport *t, const char *state) {
 	return 0;
 }
 
-int transport_acquire_bt(struct ba_transport *t) {
+int transport_acquire_bt_a2dp(struct ba_transport *t) {
 
 	GDBusMessage *msg, *rep;
 	GUnixFDList *fd_list;
@@ -487,7 +589,7 @@ int transport_acquire_bt(struct ba_transport *t) {
 
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
 	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
-	t->release = transport_release_bt;
+	t->release = transport_release_bt_a2dp;
 	t->state = TRANSPORT_PENDING;
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
@@ -503,29 +605,7 @@ fail:
 	return t->bt_fd;
 }
 
-int transport_acquire_bt_sco(struct ba_transport *t) {
-
-	struct hci_dev_info di;
-
-	if (hci_devinfo(t->device->hci_dev_id, &di) == -1) {
-		error("Couldn't get HCI device info: %s", strerror(errno));
-		return -1;
-	}
-
-	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr)) == -1) {
-		error("Couldn't open SCO link: %s", strerror(errno));
-		return -1;
-	}
-
-	t->mtu_read = di.sco_mtu;
-	t->mtu_write = di.sco_mtu;
-
-	debug("New SCO link: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
-
-	return t->bt_fd;
-}
-
-int transport_release_bt(struct ba_transport *t) {
+int transport_release_bt_a2dp(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
@@ -602,6 +682,47 @@ int transport_release_bt_rfcomm(struct ba_transport *t) {
 	 * remove transport from the transport pool before reconnecting. */
 	if (t->state == TRANSPORT_ABORTED)
 		g_hash_table_remove(t->device->transports, t->dbus_path);
+
+	return 0;
+}
+
+int transport_acquire_bt_sco(struct ba_transport *t) {
+
+	struct hci_dev_info di;
+
+	if (t->bt_fd != -1)
+		return t->bt_fd;
+
+	if (hci_devinfo(t->device->hci_dev_id, &di) == -1) {
+		error("Couldn't get HCI device info: %s", strerror(errno));
+		return -1;
+	}
+
+	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr)) == -1) {
+		error("Couldn't open SCO link: %s", strerror(errno));
+		return -1;
+	}
+
+	t->mtu_read = di.sco_mtu;
+	t->mtu_write = di.sco_mtu;
+	t->release = transport_release_bt_sco;
+
+	debug("New SCO link: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+
+	return t->bt_fd;
+}
+
+int transport_release_bt_sco(struct ba_transport *t) {
+
+	if (t->bt_fd == -1)
+		return 0;
+
+	debug("Closing SCO: %d", t->bt_fd);
+
+	t->release = NULL;
+	shutdown(t->bt_fd, SHUT_RDWR);
+	close(t->bt_fd);
+	t->bt_fd = -1;
 
 	return 0;
 }

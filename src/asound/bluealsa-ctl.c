@@ -347,6 +347,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		return -EINVAL;
 
 	const struct ctl_elem *elem = &ctl->elems[key];
+	const struct msg_transport *transport = elem->transport;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -357,8 +358,17 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	case CTL_ELEM_TYPE_SWITCH:
 		return -EINVAL;
 	case CTL_ELEM_TYPE_VOLUME:
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			return -EINVAL;
+		case PCM_TYPE_A2DP:
+			*imax = 127;
+			break;
+		case PCM_TYPE_SCO:
+			*imax = 15;
+			break;
+		}
 		*imin = 0;
-		*imax = 127;
 		*istep = 1;
 		break;
 	}

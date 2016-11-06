@@ -402,13 +402,14 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new(d, TRANSPORT_TYPE_A2DP, sender,
-					transport, profile, codec, configuration, size)) == NULL) {
+	if ((t = transport_new_a2dp(d, sender, transport, profile, codec,
+					configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
-	t->volume = volume;
+	t->a2dp.ch1_volume = volume;
+	t->a2dp.ch2_volume = volume;
 
 	debug("%s configured for device %s",
 			bluetooth_profile_to_string(profile, codec), batostr_(&d->addr));
@@ -760,8 +761,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if ((t = transport_new(d, TRANSPORT_TYPE_RFCOMM, sender,
-					device, profile, codec, NULL, 0)) == NULL) {
+	if ((t = transport_new_rfcomm(d, sender, device, profile)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -1040,8 +1040,13 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 				goto fail;
 			}
 
+			uint16_t volume;
+
 			/* received volume is in range [0, 127]*/
-			g_variant_get(value, "q", &t->volume);
+			g_variant_get(value, "q", &volume);
+
+			t->a2dp.ch1_volume = volume;
+			t->a2dp.ch2_volume = volume;
 
 		}
 

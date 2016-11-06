@@ -29,9 +29,9 @@
 #include "../src/io.c"
 #undef io_thread_a2dp_sink_sbc
 #undef io_thread_a2dp_source_sbc
-#define transport_acquire_bt _transport_acquire_bt
+#define transport_acquire_bt_a2dp _transport_acquire_bt_a2dp
 #include "../src/transport.c"
-#undef transport_acquire_bt
+#undef transport_acquire_bt_a2dp
 #include "../src/utils.c"
 
 static const a2dp_sbc_t cconfig = {
@@ -52,7 +52,7 @@ static void test_pcm_setup_free(void) {
 	bluealsa_config_free();
 }
 
-int transport_acquire_bt(struct ba_transport *t) {
+int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	(void)t;
 	return 0;
 }
@@ -72,7 +72,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
 
-		if (io_thread_open_pcm_write(&t->pcm) == -1) {
+		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
 			if (errno != ENXIO)
 				error("Couldn't open FIFO: %s", strerror(errno));
 			usleep(10000);
@@ -88,7 +88,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			head = (int16_t *)drum_buffer;
 
 		size_t samples = head + 512 > end ? end - head : 512;
-		if (io_thread_write_pcm(&t->pcm, head, samples) == -1)
+		if (io_thread_write_pcm(&t->a2dp.pcm, head, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		head += samples;
@@ -101,7 +101,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
-	while ((t->pcm.fd = open(t->pcm.fifo, O_RDONLY)) == -1)
+	while ((t->a2dp.pcm.fd = open(t->a2dp.pcm.fifo, O_RDONLY)) == -1)
 		usleep(10000);
 
 	int16_t buffer[1024 * 2];
@@ -118,7 +118,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		const size_t in_samples = sizeof(buffer) / sizeof(int16_t);
-		if ((samples = io_thread_read_pcm(&t->pcm, buffer, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, buffer, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			break;
@@ -186,7 +186,7 @@ int main(int argc, char *argv[]) {
 
 	if (source) {
 		struct ba_transport *t_source;
-		assert((t_source = transport_new(d, TRANSPORT_TYPE_A2DP, ":test", "/source",
+		assert((t_source = transport_new_a2dp(d, ":test", "/source",
 						BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
 						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
 		t_source->state = TRANSPORT_ACTIVE;
@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
 
 	if (sink) {
 		struct ba_transport *t_sink;
-		assert((t_sink = transport_new(d, TRANSPORT_TYPE_A2DP, ":test", "/sink",
+		assert((t_sink = transport_new_a2dp(d, ":test", "/sink",
 						BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
 						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
 		assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);
