@@ -43,6 +43,7 @@ struct bluealsa_pcm {
 
 	/* requested transport */
 	struct msg_transport transport;
+	enum pcm_stream stream;
 	size_t pcm_buffer_size;
 	int pcm_fd;
 
@@ -92,8 +93,8 @@ static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
 	struct request req = {
 		.command = COMMAND_TRANSPORT_GET,
 		.addr = pcm->transport.addr,
-		.stream = pcm->transport.stream,
 		.type = pcm->transport.type,
+		.stream = pcm->stream,
 	};
 	ssize_t len;
 
@@ -129,8 +130,8 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	struct request req = {
 		.command = COMMAND_PCM_OPEN,
 		.addr = pcm->transport.addr,
-		.stream = pcm->transport.stream,
 		.type = pcm->transport.type,
+		.stream = pcm->stream,
 	};
 	struct msg_pcm res;
 	ssize_t len;
@@ -178,8 +179,8 @@ static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
 	struct request req = {
 		.command = COMMAND_PCM_CLOSE,
 		.addr = pcm->transport.addr,
-		.stream = pcm->transport.stream,
 		.type = pcm->transport.type,
+		.stream = pcm->stream,
 	};
 
 	debug("Closing PCM for %s", pcm->dev_addr);
@@ -204,8 +205,8 @@ static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, int pause) {
 	struct request req = {
 		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
 		.addr = pcm->transport.addr,
-		.stream = pcm->transport.stream,
 		.type = pcm->transport.type,
+		.stream = pcm->stream,
 	};
 
 	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", pcm->dev_addr);
@@ -597,7 +598,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	pcm->transport.stream = stream == SND_PCM_STREAM_PLAYBACK ?
+	pcm->stream = stream == SND_PCM_STREAM_PLAYBACK ?
 			PCM_STREAM_PLAYBACK : PCM_STREAM_CAPTURE;
 
 	if ((pcm->transport.type = bluealsa_parse_profile(profile)) == PCM_TYPE_NULL) {

@@ -62,7 +62,7 @@ struct ba_device {
 
 		/* headset battery level in range [0, 9] */
 		uint8_t accev_battery;
-		/* determine whatever headset is docked */
+		/* determine whether headset is docked */
 		uint8_t accev_docked;
 
 	} xapl;

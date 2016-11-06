@@ -381,14 +381,38 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		value[0] = device->battery_level;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
-		value[0] = !transport->ch1_muted;
-		if (transport->channels == 2)
-			value[1] = !transport->ch2_muted;
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			return -EINVAL;
+		case PCM_TYPE_A2DP:
+			value[0] = !transport->ch1_muted;
+			if (transport->channels == 2)
+				value[1] = !transport->ch2_muted;
+			break;
+		case PCM_TYPE_SCO:
+			if (elem->playback)
+				value[0] = !transport->ch1_muted;
+			else
+				value[0] = !transport->ch2_muted;
+			break;
+		}
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		value[0] = transport->ch1_volume;
-		if (transport->channels == 2)
-			value[1] = transport->ch2_volume;
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			return -EINVAL;
+		case PCM_TYPE_A2DP:
+			value[0] = transport->ch1_volume;
+			if (transport->channels == 2)
+				value[1] = transport->ch2_volume;
+			break;
+		case PCM_TYPE_SCO:
+			if (elem->playback)
+				value[0] = transport->ch1_volume;
+			else
+				value[0] = transport->ch2_volume;
+			break;
+		}
 		break;
 	}
 
@@ -424,14 +448,38 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		/* this element should be read-only */
 		return -EINVAL;
 	case CTL_ELEM_TYPE_SWITCH:
-		req.ch1_muted = transport->ch1_muted = !value[0];
-		if (transport->channels == 2)
-			req.ch2_muted = transport->ch2_muted = !value[1];
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			return -EINVAL;
+		case PCM_TYPE_A2DP:
+			req.ch1_muted = transport->ch1_muted = !value[0];
+			if (transport->channels == 2)
+				req.ch2_muted = transport->ch2_muted = !value[1];
+			break;
+		case PCM_TYPE_SCO:
+			if (elem->playback)
+				req.ch1_muted = transport->ch1_muted = !value[0];
+			else
+				req.ch2_muted = transport->ch2_muted = !value[0];
+			break;
+		}
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		req.ch1_volume = transport->ch1_volume = value[0];
-		if (transport->channels == 2)
-			req.ch2_volume = transport->ch2_volume = value[1];
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			return -EINVAL;
+		case PCM_TYPE_A2DP:
+			req.ch1_volume = transport->ch1_volume = value[0];
+			if (transport->channels == 2)
+				req.ch2_volume = transport->ch2_volume = value[1];
+			break;
+		case PCM_TYPE_SCO:
+			if (elem->playback)
+				req.ch1_volume = transport->ch1_volume = value[0];
+			else
+				req.ch2_volume = transport->ch2_volume = value[0];
+			break;
+		}
 		break;
 	}
 

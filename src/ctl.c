@@ -46,7 +46,7 @@
  * @param stream Looked up PCM stream direction.
  * @param t Address, where the transport structure pointer should be stored.
  * @return If the lookup succeeded, this function returns 0. Otherwise, -1 is
- *   returned and value of device and transport pointer is undefined. */
+ *   returned and value of transport pointer is undefined. */
 static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 		enum pcm_type type, enum pcm_stream stream, struct ba_transport **t) {
 
@@ -78,6 +78,8 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 					if ((*t)->profile != BLUETOOTH_PROFILE_A2DP_SINK)
 						continue;
 					break;
+				case PCM_STREAM_DUPLEX:
+					continue;
 				}
 				break;
 			case PCM_TYPE_SCO:
@@ -128,6 +130,7 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 		break;
 	case TRANSPORT_TYPE_SCO:
 		transport->type = PCM_TYPE_SCO;
+		transport->stream = PCM_STREAM_DUPLEX;
 		break;
 	}
 
@@ -234,9 +237,9 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 		goto fail;
 	}
 
-	debug("Setting volume for %s profile %d: %d/%d [%s]", batostr_(&req->addr),
+	debug("Setting volume for %s profile %d: %d<>%d [%c%c]", batostr_(&req->addr),
 			t->profile, req->ch1_volume, req->ch2_volume,
-			req->ch1_muted * req->ch2_muted ? "off" : "on");
+			req->ch1_muted ? 'M' : 'O', req->ch2_muted ? 'M' : 'O');
 
 	t->muted = req->ch1_muted * req->ch2_muted;
 	t->volume = (req->ch1_volume + req->ch2_volume) / 2;

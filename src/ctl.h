@@ -52,6 +52,11 @@ enum pcm_type {
 enum pcm_stream {
 	PCM_STREAM_PLAYBACK,
 	PCM_STREAM_CAPTURE,
+	/* Special stream type returned by the LIST_TRANSPORTS command to indicate,
+	 * that given transport can act as a playback and capture device. In order
+	 * to open PCM for such a transport, one has to provide one of PLAYBACK or
+	 * CAPTURE stream types. */
+	PCM_STREAM_DUPLEX,
 };
 
 struct __attribute__ ((packed)) request {
@@ -88,7 +93,7 @@ struct __attribute__ ((packed)) msg_device {
 	/* name obtained from the Bluetooth device itself */
 	char name[32];
 
-	/* determine whatever battery is available */
+	/* determine whether battery is available */
 	uint8_t battery:1;
 	/* device battery level in range [0, 9] */
 	uint8_t battery_level:7;
