@@ -18,6 +18,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -1057,6 +1058,104 @@ void *io_thread_rfcomm(void *arg) {
 
 	}
 
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+
+void *io_thread_sco(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	/* this buffer has to be bigger than SCO MTU */
+	const size_t buffer_size = 512;
+	int16_t *buffer = malloc(buffer_size);
+
+	pthread_cleanup_push(CANCEL_ROUTINE(free), buffer);
+
+	if (buffer == NULL) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	struct pollfd pfds[3] = {
+		{ t->event_fd, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+	};
+
+	struct io_sync io_sync = {
+		.sampling = transport_get_sampling(t),
+	};
+
+	debug("Starting IO loop: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
+	while (TRANSPORT_RUN_IO_THREAD(t)) {
+
+		pfds[1].fd = t->sco.mic_pcm.fd != -1 ? t->bt_fd : -1;
+		pfds[2].fd = t->sco.spk_pcm.fd;
+
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+			error("Transport poll error: %s", strerror(errno));
+			break;
+		}
+
+		if (pfds[0].revents & POLLIN) {
+
+			eventfd_t event = 0;
+			eventfd_read(pfds[0].fd, &event);
+
+			/* Try to open reading and/or writing PCM file descriptor. Note,
+			 * that we are not checking for errors, because we don't care. */
+			io_thread_open_pcm_read(&t->sco.spk_pcm);
+			io_thread_open_pcm_write(&t->sco.mic_pcm);
+
+			/* It is required to release SCO if we are not transferring audio,
+			 * because it will free Bluetooth bandwidth - microphone signal is
+			 * transfered even though we are not reading from it! */
+			if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) {
+				transport_release_bt_sco(t);
+				io_sync.frames = 0;
+			}
+			else
+				transport_acquire_bt_sco(t);
+
+			continue;
+		}
+
+		if (io_sync.frames == 0)
+			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
+
+		if (pfds[1].revents & POLLIN) {
+
+			ssize_t len;
+
+			if ((len = read(pfds[1].fd, buffer, buffer_size)) == -1) {
+				debug("SCO read error: %s", strerror(errno));
+				continue;
+			}
+
+			write(t->sco.mic_pcm.fd, buffer, len);
+		}
+
+		if (pfds[2].revents & POLLIN) {
+
+			ssize_t samples = t->mtu_write / sizeof(int16_t);
+
+			/* read data from the FIFO - this function will block */
+			if ((samples = io_thread_read_pcm(&t->sco.spk_pcm, buffer, samples)) <= 0) {
+				if (samples == -1)
+					error("FIFO read error: %s", strerror(errno));
+				continue;
+			}
+
+			write(t->bt_fd, buffer, samples * sizeof(int16_t));
+		}
+
+		/* keep data transfer at a constant bit rate */
+		io_thread_time_sync(&io_sync, 48 / 2);
+
+	}
+
+fail:
 	pthread_cleanup_pop(1);
 	return NULL;
 }

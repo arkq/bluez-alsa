@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -155,6 +156,8 @@ static void _transport_release(struct ba_transport *t, int client) {
 		}
 	}
 
+	/* notify thread (if any) about change */
+	eventfd_write(t->event_fd, 1);
 
 }
 
@@ -365,8 +368,12 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 	 *      not be started before the PCM open request has been made, so this
 	 *      "notification" mechanism does not apply. */
 	t_pcm->fifo = strdup(pcm.fifo);
+	eventfd_write(t->event_fd, 1);
 
-	/* for source profile we need to open transport by ourself */
+	/* A2DP source profile should be initialized (acquired) only if the audio
+	 * is about to be transfered. It is most likely, that BT headset will not
+	 * run voltage converter (power-on its circuit board) until the transport
+	 * is acquired - in order to extend battery life. */
 	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
 		if (transport_acquire_bt_a2dp(t) == -1) {
 			status.code = STATUS_CODE_ERROR_UNKNOWN;

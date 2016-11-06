@@ -115,6 +115,11 @@ struct ba_transport {
 	size_t mtu_read;
 	size_t mtu_write;
 
+	/* File descriptor used to notify thread about changes. If thread is based
+	 * on loop with an event wait syscall (e.g. poll), this file descriptor is
+	 * used to send a control event. */
+	int event_fd;
+
 	union {
 
 		struct {

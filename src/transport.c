@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/eventfd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -77,6 +78,7 @@ static int io_thread_create(struct ba_transport *t) {
 		routine = io_thread_rfcomm;
 		break;
 	case TRANSPORT_TYPE_SCO:
+		routine = io_thread_sco;
 		break;
 	}
 
@@ -189,6 +191,12 @@ struct ba_transport *transport_new(
 
 	t->bt_fd = -1;
 
+	if ((t->event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
+		error("Couldn't create event file descriptor: %s", strerror(errno));
+		_transport_free(t, TRUE);
+		return NULL;
+	}
+
 	return t;
 }
 
@@ -295,6 +303,8 @@ static void _transport_free(struct ba_transport *t, gboolean recursive) {
 
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
+	if (t->event_fd != -1)
+		close(t->event_fd);
 
 	/* free type-specific resources */
 	switch (t->type) {
@@ -706,6 +716,11 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 	t->mtu_read = di.sco_mtu;
 	t->mtu_write = di.sco_mtu;
 	t->release = transport_release_bt_sco;
+
+	/* XXX: It seems, that the MTU values returned by the HCI interface
+	 *      are incorrect (or our interpretation of them is incorrect). */
+	t->mtu_read = 48;
+	t->mtu_write = 48;
 
 	debug("New SCO link: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 
