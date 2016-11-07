@@ -151,6 +151,9 @@ struct ba_transport {
 
 		struct {
 
+			/* parent RFCOMM transport */
+			struct ba_transport *rfcomm;
+
 			/* if non-zero, equivalent of gain = 0 */
 			uint8_t spk_muted;
 			uint8_t mic_muted;

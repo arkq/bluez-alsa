@@ -30,8 +30,6 @@
 #include "utils.h"
 
 
-static void _transport_free(struct ba_transport *t, gboolean recursive);
-
 static int io_thread_create(struct ba_transport *t) {
 
 	void *(*routine)(void *) = NULL;
@@ -99,10 +97,6 @@ static int io_thread_create(struct ba_transport *t) {
 
 struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name) {
 
-	void transport_free(gpointer data) {
-		_transport_free((struct ba_transport *)data, FALSE);
-	}
-
 	struct ba_device *d;
 
 	if ((d = calloc(1, sizeof(*d))) == NULL)
@@ -115,7 +109,7 @@ struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *n
 	d->name[sizeof(d->name) - 1] = '\0';
 
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
-			NULL, transport_free);
+			NULL, (GDestroyNotify)transport_free);
 
 	return d;
 }
@@ -124,6 +118,33 @@ void device_free(struct ba_device *d) {
 
 	if (d == NULL)
 		return;
+
+	/* XXX: Modification-safe remove-all loop.
+	 *
+	 * By the usage of a standard g_hash_table_remove_all() function, one
+	 * has to comply to the license warranty, which states that anything
+	 * can happen. In our case it is true to the letter - SIGSEGV is 100%
+	 * guaranteed.
+	 *
+	 * Our transport structure holds reference to some other transport
+	 * structure within the same hash-table. Unfortunately, such a usage
+	 * is not supported. Almost every GLib-2.0 function facilitates cache,
+	 * which backfires at us if we modify hash-table from the inside of
+	 * the destroy function. However, it is possible to "iterate" over
+	 * a hash-table in a pop-like matter - reinitialize iterator after
+	 * every modification. And voila - modification-safe remove loop. */
+	for (;;) {
+
+		GHashTableIter iter;
+		struct ba_transport *t;
+		gpointer _key;
+
+		g_hash_table_iter_init(&iter, d->transports);
+		if (!g_hash_table_iter_next(&iter, &_key, (gpointer)&t))
+			break;
+
+		transport_free(t);
+	}
 
 	g_hash_table_unref(d->transports);
 	free(d);
@@ -163,6 +184,17 @@ gboolean device_remove(GHashTable *devices, const char *key) {
 	return g_hash_table_remove(devices, key);
 }
 
+/**
+ * Create new transport.
+ *
+ * @param device Pointer to the device structure.
+ * @param type Transport type.
+ * @param dbus_owner D-Bus service, which owns this transport.
+ * @param dbus_path D-Bus service path for this transport.
+ * @param profile Bluetooth profile.
+ * @return On success, the pointer to the newly allocated transport structure
+ *   is returned. If error occurs, NULL is returned and the errno variable is
+ *   set to indicated the cause of the error. */
 struct ba_transport *transport_new(
 		struct ba_device *device,
 		enum ba_transport_type type,
@@ -172,16 +204,13 @@ struct ba_transport *transport_new(
 		uint8_t codec) {
 
 	struct ba_transport *t;
+	int err;
 
 	if ((t = calloc(1, sizeof(*t))) == NULL)
-		return NULL;
+		goto fail;
 
 	t->device = device;
 	t->type = type;
-
-	t->dbus_owner = strdup(dbus_owner);
-	t->dbus_path = strdup(dbus_path);
-	g_hash_table_insert(device->transports, t->dbus_path, t);
 
 	t->profile = profile;
 	t->codec = codec;
@@ -190,14 +219,24 @@ struct ba_transport *transport_new(
 	t->thread = config.main_thread;
 
 	t->bt_fd = -1;
+	t->event_fd = -1;
 
-	if ((t->event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
-		error("Couldn't create event file descriptor: %s", strerror(errno));
-		_transport_free(t, TRUE);
-		return NULL;
-	}
+	if ((t->dbus_owner = strdup(dbus_owner)) == NULL)
+		goto fail;
+	if ((t->dbus_path = strdup(dbus_path)) == NULL)
+		goto fail;
 
+	if ((t->event_fd = eventfd(0, EFD_CLOEXEC)) == -1)
+		goto fail;
+
+	g_hash_table_insert(device->transports, t->dbus_path, t);
 	return t;
+
+fail:
+	err = errno;
+	transport_free(t);
+	errno = err;
+	return NULL;
 }
 
 struct ba_transport *transport_new_a2dp(
@@ -252,6 +291,7 @@ struct ba_transport *transport_new_rfcomm(
 		goto fail;
 
 	t->rfcomm.sco = t_sco;
+	t_sco->sco.rfcomm = t;
 
 	t_sco->sco.spk_gain = 15;
 	t_sco->sco.mic_gain = 15;
@@ -266,21 +306,13 @@ struct ba_transport *transport_new_rfcomm(
 	return t;
 
 fail:
-	g_hash_table_remove(device->transports, dbus_path);
 	if (dbus_path_sco != NULL)
 		g_free(dbus_path_sco);
+	transport_free(t);
 	return NULL;
 }
 
-/**
- * Internal transport free function.
- *
- * @param t Pointer to the transport structure.
- * @param recursive Determine whether free action should perform recursive
- *   cleanup. If this function was called on the behalf of the hash-table
- *   destroy notification, recursive free is not possible - this parameter
- *   has to be set to FALSE. */
-static void _transport_free(struct ba_transport *t, gboolean recursive) {
+void transport_free(struct ba_transport *t) {
 
 	if (t == NULL)
 		return;
@@ -315,22 +347,23 @@ static void _transport_free(struct ba_transport *t, gboolean recursive) {
 		free(t->a2dp.cconfig);
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
-		if (recursive)
-			g_hash_table_remove(t->device->transports, t->rfcomm.sco->dbus_path);
+		transport_free(t->rfcomm.sco);
 		break;
 	case TRANSPORT_TYPE_SCO:
 		transport_release_pcm(&t->sco.spk_pcm);
 		transport_release_pcm(&t->sco.mic_pcm);
+		t->sco.rfcomm->rfcomm.sco = NULL;
 		break;
 	}
+
+	/* If the free action was called on the behalf of the destroy notification,
+	 * removing a value from the hash-table shouldn't hurt - it would have been
+	 * removed anyway. */
+	g_hash_table_steal(t->device->transports, t->dbus_path);
 
 	free(t->dbus_owner);
 	free(t->dbus_path);
 	free(t);
-}
-
-void transport_free(struct ba_transport *t) {
-	_transport_free(t, TRUE);
 }
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path) {
@@ -691,7 +724,7 @@ int transport_release_bt_rfcomm(struct ba_transport *t) {
 	 * link has been lost (e.g. device power down). However, it is required to
 	 * remove transport from the transport pool before reconnecting. */
 	if (t->state == TRANSPORT_ABORTED)
-		g_hash_table_remove(t->device->transports, t->dbus_path);
+		transport_free(t);
 
 	return 0;
 }
