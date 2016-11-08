@@ -195,6 +195,43 @@ static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, si
 }
 
 /**
+ * Convenient wrapper for writing to the RFCOMM socket. */
+static ssize_t io_thread_write_rfcomm(int fd, const char *msg) {
+
+	size_t len = strlen(msg);
+	ssize_t ret;
+
+retry:
+	if ((ret = write(fd, msg, len)) == -1) {
+		if (errno == EINTR)
+			goto retry;
+		error("RFCOMM write error: %s", strerror(errno));
+	}
+
+	return ret;
+}
+
+/**
+ * Write AT command to the RFCOMM. */
+static ssize_t io_thread_write_at_command(int fd, const char *msg) {
+
+	char buffer[64];
+
+	snprintf(buffer, sizeof(buffer), "%s\r", msg);
+	return io_thread_write_rfcomm(fd, buffer);
+}
+
+/**
+ * Write AT response code to the RFCOMM. */
+static ssize_t io_thread_write_at_response(int fd, const char *msg) {
+
+	char buffer[64];
+
+	snprintf(buffer, sizeof(buffer), "\r\n%s\r\n", msg);
+	return io_thread_write_rfcomm(fd, buffer);
+}
+
+/**
  * Pause IO thread until the resume signal is received. */
 static void io_thread_pause(struct ba_transport *t) {
 	debug("Pausing IO thread: %s", bluetooth_profile_to_string(t->profile, t->codec));
@@ -959,8 +996,14 @@ void *io_thread_rfcomm(void *arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
 
-	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
+	uint8_t mic_gain = t->rfcomm.sco->sco.mic_gain;
+	uint8_t spk_gain = t->rfcomm.sco->sco.spk_gain;
 	char buffer[64];
+
+	struct pollfd pfds[] = {
+		{ t->event_fd, POLLIN, 0 },
+		{ t->bt_fd, POLLIN, 0 },
+	};
 
 	debug("Starting RFCOMM loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
@@ -969,16 +1012,39 @@ void *io_thread_rfcomm(void *arg) {
 		const char *response = "OK";
 		char command[16], value[32];
 		ssize_t ret;
-		size_t len;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		if (poll(pfds, 1, -1) == -1) {
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
 			break;
 		}
 
-		if ((ret = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+
+			eventfd_t event;
+			eventfd_read(pfds[0].fd, &event);
+
+			if (mic_gain != t->rfcomm.sco->sco.mic_gain) {
+				mic_gain = t->rfcomm.sco->sco.mic_gain;
+				debug("Setting microphone gain: %d", mic_gain);
+				sprintf(buffer, "+VGM=%d", mic_gain);
+				io_thread_write_at_response(pfds[1].fd, buffer);
+			}
+			if (spk_gain != t->rfcomm.sco->sco.spk_gain) {
+				spk_gain = t->rfcomm.sco->sco.spk_gain;
+				debug("Setting speaker gain: %d", spk_gain);
+				sprintf(buffer, "+VGS=%d", mic_gain);
+				io_thread_write_at_response(pfds[1].fd, buffer);
+			}
+
+			continue;
+		}
+
+		if ((ret = read(pfds[1].fd, buffer, sizeof(buffer))) == -1) {
 			if (errno == ECONNABORTED || errno == ECONNRESET || errno == ENOTCONN) {
 				/* exit the thread upon RFCOMM socket disconnection */
 				debug("RFCOMM socket disconnected");
@@ -988,8 +1054,6 @@ void *io_thread_rfcomm(void *arg) {
 			debug("RFCOMM read error: %s", strerror(errno));
 			continue;
 		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		/* Parse AT command received from the headset. */
 		if (sscanf(buffer, "AT%15[^=]=%30s", command, value) != 2) {
@@ -1004,9 +1068,9 @@ void *io_thread_rfcomm(void *arg) {
 		else if (strcmp(command, "+CKPD") == 0 && atoi(value) == 200) {
 		}
 		else if (strcmp(command, "+VGM") == 0)
-			t->rfcomm.sco->sco.mic_gain = atoi(value);
+			t->rfcomm.sco->sco.mic_gain = mic_gain = atoi(value);
 		else if (strcmp(command, "+VGS") == 0)
-			t->rfcomm.sco->sco.spk_gain = atoi(value);
+			t->rfcomm.sco->sco.spk_gain = spk_gain = atoi(value);
 		else if (strcmp(command, "+IPHONEACCEV") == 0) {
 
 			char *ptr = value;
@@ -1052,10 +1116,7 @@ void *io_thread_rfcomm(void *arg) {
 			response = "ERROR";
 		}
 
-		len = sprintf(buffer, "\r\n%s\r\n", response);
-		if (write(pfds[0].fd, buffer, len) == -1)
-			error("RFCOMM write error: %s", strerror(errno));
-
+		io_thread_write_at_response(pfds[1].fd, response);
 	}
 
 	pthread_cleanup_pop(1);
@@ -1076,7 +1137,7 @@ void *io_thread_sco(void *arg) {
 		goto fail;
 	}
 
-	struct pollfd pfds[3] = {
+	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 		{ -1, POLLIN, 0 },
@@ -1099,8 +1160,9 @@ void *io_thread_sco(void *arg) {
 		}
 
 		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
 
-			eventfd_t event = 0;
+			eventfd_t event;
 			eventfd_read(pfds[0].fd, &event);
 
 			/* Try to open reading and/or writing PCM file descriptor. Note,

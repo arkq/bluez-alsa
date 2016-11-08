@@ -156,9 +156,6 @@ static void _transport_release(struct ba_transport *t, int client) {
 		}
 	}
 
-	/* notify thread (if any) about change */
-	eventfd_write(t->event_fd, 1);
-
 }
 
 static void _ctl_transport(const struct ba_transport *t, struct msg_transport *transport) {
@@ -304,6 +301,7 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 		t->sco.mic_muted = req->ch2_muted;
 		t->sco.spk_gain = req->ch1_volume;
 		t->sco.mic_gain = req->ch2_volume;
+		eventfd_write(t->sco.rfcomm->event_fd, 1);
 		break;
 	}
 
@@ -418,6 +416,7 @@ static void ctl_thread_cmd_pcm_close(const struct request *req, int fd) {
 	}
 
 	_transport_release(t, fd);
+	eventfd_write(t->event_fd, 1);
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -518,8 +517,10 @@ static void *ctl_thread(void *arg) {
 						debug("Invalid request length: %zd != %zd", len, sizeof(request));
 
 					struct ba_transport *t;
-					if ((t = transport_lookup_pcm_client(config.devices, fd)) != NULL)
+					if ((t = transport_lookup_pcm_client(config.devices, fd)) != NULL) {
 						_transport_release(t, fd);
+						eventfd_write(t->event_fd, 1);
+					}
 
 					config.ctl_pfds[i].fd = -1;
 					close(fd);
