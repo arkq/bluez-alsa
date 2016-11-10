@@ -50,7 +50,10 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 
 		a2dp_sbc_t *cap = (a2dp_sbc_t *)capabilities;
 
-		if (cap->frequency & SBC_SAMPLING_FREQ_48000)
+		if (config.a2dp_force_44100 &&
+				cap->frequency & SBC_SAMPLING_FREQ_44100)
+			cap->frequency = SBC_SAMPLING_FREQ_44100;
+		else if (cap->frequency & SBC_SAMPLING_FREQ_48000)
 			cap->frequency = SBC_SAMPLING_FREQ_48000;
 		else if (cap->frequency & SBC_SAMPLING_FREQ_44100)
 			cap->frequency = SBC_SAMPLING_FREQ_44100;
@@ -63,7 +66,10 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		if (cap->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+		if (config.a2dp_force_mono &&
+				cap->channel_mode & SBC_CHANNEL_MODE_MONO)
+			cap->channel_mode = SBC_CHANNEL_MODE_MONO;
+		else if (cap->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
 			cap->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
 		else if (cap->channel_mode & SBC_CHANNEL_MODE_STEREO)
 			cap->channel_mode = SBC_CHANNEL_MODE_STEREO;
@@ -137,7 +143,10 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		}
 
 		unsigned int sampling = AAC_GET_FREQUENCY(*cap);
-		if (sampling & AAC_SAMPLING_FREQ_96000)
+		if (config.a2dp_force_44100 &&
+				sampling & AAC_SAMPLING_FREQ_44100)
+			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_44100);
+		else if (sampling & AAC_SAMPLING_FREQ_96000)
 			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_96000);
 		else if (sampling & AAC_SAMPLING_FREQ_88200)
 			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_88200);
@@ -166,7 +175,10 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		if (cap->channels & AAC_CHANNELS_2)
+		if (config.a2dp_force_mono &&
+				cap->channels & AAC_CHANNELS_1)
+			cap->channels = AAC_CHANNELS_1;
+		else if (cap->channels & AAC_CHANNELS_2)
 			cap->channels = AAC_CHANNELS_2;
 		else if (cap->channels & AAC_CHANNELS_1)
 			cap->channels = AAC_CHANNELS_1;

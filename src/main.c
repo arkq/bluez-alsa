@@ -56,6 +56,8 @@ int main(int argc, char **argv) {
 		{ "aac-afterburner", no_argument, NULL, 4 },
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
 #endif
+		{ "a2dp-force-mono", no_argument, NULL, 6 },
+		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -97,6 +99,8 @@ int main(int argc, char **argv) {
 					"  --disable-a2dp\tdisable A2DP support\n"
 					"  --disable-hsp\t\tdisable HSP support\n"
 					"  --disable-hfp\t\tdisable HFP support\n"
+					"  --a2dp-force-mono\tforce monophonic sound\n"
+					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\tenable afterburner\n"
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
@@ -157,6 +161,13 @@ int main(int argc, char **argv) {
 			}
 			break;
 #endif
+
+		case 6 /* --a2dp-force-mono */ :
+			config.a2dp_force_mono = TRUE;
+			break;
+		case 7 /* --a2dp-force-audio-cd */ :
+			config.a2dp_force_44100 = TRUE;
+			break;
 
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);

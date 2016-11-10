@@ -41,6 +41,9 @@ struct ba_config config = {
 	.aac_vbr_mode = 3,
 #endif
 
+	.a2dp_force_mono = FALSE,
+	.a2dp_force_44100 = FALSE,
+
 };
 
 int bluealsa_config_init(void) {

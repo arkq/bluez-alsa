@@ -63,6 +63,15 @@ struct ba_config {
 	uint8_t aac_vbr_mode;
 #endif
 
+	/* Support for monophonic sound in the A2DP profile is mandatory for
+	 * sink and semi-mandatory for source. So, if one wants only the bare
+	 * minimum, it would be possible - e.g. due to bandwidth limitations. */
+	gboolean a2dp_force_mono;
+	/* The sampling rates of 44.1 kHz (aka Audio CD) and 48 kHz are mandatory
+	 * for sink endpoint and semi-mandatory for source. It is then possible
+	 * to force lower sampling in order to save Bluetooth bandwidth. */
+	gboolean a2dp_force_44100;
+
 };
 
 /* Global BlueALSA configuration. */
