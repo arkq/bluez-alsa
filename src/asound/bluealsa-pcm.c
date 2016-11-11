@@ -49,7 +49,6 @@ struct bluealsa_pcm {
 
 	/* virtual hardware - ring buffer */
 	snd_pcm_uframes_t io_ptr;
-	snd_pcm_uframes_t io_buffer_size;
 	pthread_t io_thread;
 	int io_started;
 
@@ -226,7 +225,6 @@ static void *io_thread(void *arg) {
 
 	struct bluealsa_pcm *pcm = io->private_data;
 	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
-	const size_t period_size = io->period_size * pcm->frame_size;
 
 	/* In the capture mode, the PCM FIFO is opened in the non-blocking mode.
 	 * So right now, we have to synchronize write and read sides, otherwise
@@ -243,10 +241,21 @@ static void *io_thread(void *arg) {
 	debug("Starting IO loop");
 	while (pcm->io_started) {
 
-		size_t len = period_size;
 		char *buffer = areas->addr + (areas->first + areas->step * pcm->io_ptr) / 8;
+		snd_pcm_uframes_t frames = io->period_size;
 		char *head = buffer;
 		ssize_t ret;
+		size_t len;
+
+		/* If the leftover in the buffer is less than a whole period sizes,
+		 * adjust the number of frames which should be transfered. It has
+		 * turned out, that the buffer might contain fractional number of
+		 * periods - it could be an ALSA bug, though, it has to be handled. */
+		if (io->buffer_size - pcm->io_ptr < io->period_size)
+			frames = io->buffer_size - pcm->io_ptr;
+
+		/* IO operation size in bytes */
+		len = frames * pcm->frame_size;
 
 		if (io->stream == SND_PCM_STREAM_CAPTURE) {
 
@@ -284,8 +293,8 @@ static void *io_thread(void *arg) {
 
 		}
 
-		pcm->io_ptr += io->period_size;
-		pcm->io_ptr %= pcm->io_buffer_size;
+		pcm->io_ptr += frames;
+		pcm->io_ptr %= io->buffer_size;
 		eventfd_write(pcm->event_fd, 1);
 
 	}
@@ -342,7 +351,6 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	debug("Initializing HW");
 
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
-	pcm->io_buffer_size = ((int)(io->buffer_size / io->period_size)) * io->period_size;
 
 	if ((pcm->pcm_fd = bluealsa_open_transport(pcm)) == -1) {
 		debug("Couldn't open PCM FIFO: %s", strerror(errno));
@@ -360,8 +368,9 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		debug("FIFO buffer size: %zd", pcm->pcm_buffer_size);
 	}
 
-	debug("Selected HW buffer: %zd periods x %zd bytes",
-			io->buffer_size / io->period_size, pcm->frame_size * io->period_size);
+	debug("Selected HW buffer: %zd ?= %zd periods x %zd bytes",
+			io->buffer_size * pcm->frame_size, io->buffer_size / io->period_size,
+			pcm->frame_size * io->period_size);
 
 	return 0;
 }
@@ -426,7 +435,7 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	/* For playback, the ring buffer is initially filled up, which also
 	 * contributes to the audio delay. */
 	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK)
-		delay += pcm->io_buffer_size;
+		delay += io->buffer_size;
 
 	if (ioctl(pcm->pcm_fd, FIONREAD, &size) != -1)
 		delay += size / pcm->frame_size;
