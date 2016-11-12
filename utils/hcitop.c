@@ -108,18 +108,15 @@ int main(int argc, char *argv[]) {
 	noecho();
 	curs_set(0);
 
-	start_color();
-	init_pair(1, COLOR_BLACK, COLOR_WHITE);
-
 	for (ii = 1;; ii++) {
 
 		const char *template_top = "%5s %8s %8s %8s %8s";
 		const char *template_row = "%5s %8s %8s %8s %8s";
 		int i, count;
 
-		attron(COLOR_PAIR(1));
+		attron(A_REVERSE);
 		mvprintw(0, 0, template_top, "HCI", "RX", "TX", "RX/s", "TX/s");
-		attroff(COLOR_PAIR(1));
+		attroff(A_REVERSE);
 
 		count = get_devinfo(devices);
 		for (i = 0; i < HCI_MAX_DEV; i++) {
