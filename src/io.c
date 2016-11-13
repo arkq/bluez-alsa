@@ -1017,7 +1017,7 @@ void *io_thread_rfcomm(void *arg) {
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -1045,14 +1045,19 @@ void *io_thread_rfcomm(void *arg) {
 		}
 
 		if ((ret = read(pfds[1].fd, buffer, sizeof(buffer))) == -1) {
-			if (errno == ECONNABORTED || errno == ECONNRESET || errno == ENOTCONN) {
-				/* exit the thread upon RFCOMM socket disconnection */
-				debug("RFCOMM socket disconnected");
+			switch (errno) {
+			case ECONNABORTED:
+			case ECONNRESET:
+			case ENOTCONN:
+			case ETIMEDOUT:
+				/* exit the thread upon socket disconnection */
+				debug("RFCOMM disconnected: %s", strerror(errno));
 				transport_set_state(t, TRANSPORT_ABORTED);
-				break;
+				goto fail;
+			default:
+				error("RFCOMM read error: %s", strerror(errno));
+				continue;
 			}
-			debug("RFCOMM read error: %s", strerror(errno));
-			continue;
 		}
 
 		/* Parse AT command received from the headset. */
@@ -1119,6 +1124,7 @@ void *io_thread_rfcomm(void *arg) {
 		io_thread_write_at_response(pfds[1].fd, response);
 	}
 
+fail:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
