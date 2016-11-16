@@ -137,9 +137,6 @@ struct ba_transport {
 			uint8_t *cconfig;
 			size_t cconfig_size;
 
-			pthread_mutex_t resume_mutex;
-			pthread_cond_t resume;
-
 		} a2dp;
 
 		struct {

@@ -454,11 +454,12 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 		break;
 	case COMMAND_PCM_RESUME:
 		transport_set_state(t, TRANSPORT_ACTIVE);
-		pthread_cond_signal(&t->a2dp.resume);
 		break;
 	default:
 		warn("Invalid PCM control command: %d", req->command);
 	}
+
+	eventfd_write(t->event_fd, 1);
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);

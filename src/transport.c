@@ -263,9 +263,6 @@ struct ba_transport *transport_new_a2dp(
 		memcpy(t->a2dp.cconfig, config, config_size);
 	}
 
-	pthread_mutex_init(&t->a2dp.resume_mutex, NULL);
-	pthread_cond_init(&t->a2dp.resume, NULL);
-
 	t->a2dp.pcm.fd = -1;
 	t->a2dp.pcm.client = -1;
 
@@ -342,8 +339,6 @@ void transport_free(struct ba_transport *t) {
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
 		transport_release_pcm(&t->a2dp.pcm);
-		pthread_mutex_destroy(&t->a2dp.resume_mutex);
-		pthread_cond_destroy(&t->a2dp.resume);
 		free(t->a2dp.cconfig);
 		break;
 	case TRANSPORT_TYPE_RFCOMM:

@@ -232,16 +232,6 @@ static ssize_t io_thread_write_at_response(int fd, const char *msg) {
 }
 
 /**
- * Pause IO thread until the resume signal is received. */
-static void io_thread_pause(struct ba_transport *t) {
-	debug("Pausing IO thread: %s", bluetooth_profile_to_string(t->profile, t->codec));
-	pthread_mutex_lock(&t->a2dp.resume_mutex);
-	pthread_cond_wait(&t->a2dp.resume, &t->a2dp.resume_mutex);
-	pthread_mutex_unlock(&t->a2dp.resume_mutex);
-	debug("Resuming IO thread: %s", bluetooth_profile_to_string(t->profile, t->codec));
-}
-
-/**
  * Synchronize thread timing with the audio sampling frequency.
  *
  * Time synchronization relies on the frame counter being linear. This counter
@@ -327,39 +317,46 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		goto fail;
 	}
 
-	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
-
-	/* TODO: support for "out of the hat" reading MTU */
+	struct pollfd pfds[] = {
+		{ t->event_fd, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+	};
 
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t len;
 
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		/* add BT socket to the poll if transport is active */
+		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
 
-		if (t->state == TRANSPORT_PAUSED)
-			io_thread_pause(t);
-
-		if (poll(pfds, 1, -1) == -1) {
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
 			break;
 		}
 
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			eventfd_t event;
+			eventfd_read(pfds[0].fd, &event);
+			continue;
+		}
 
-		if ((len = read(pfds[0].fd, in_buffer, in_buffer_size)) == -1) {
+		if ((len = read(pfds[1].fd, in_buffer, in_buffer_size)) == -1) {
 			debug("BT read error: %s", strerror(errno));
 			continue;
 		}
 
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
 		/* it seems that zero is never returned... */
 		if (len == 0) {
-			debug("BT socket has been closed: %d", pfds[0].fd);
+			debug("BT socket has been closed: %d", pfds[1].fd);
 			/* Prevent sending the release request to the BlueZ. If the socket has
 			 * been closed, it means that BlueZ has already closed the connection. */
-			close(pfds[0].fd);
+			close(pfds[1].fd);
 			t->bt_fd = -1;
 			break;
 		}
@@ -480,6 +477,11 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	int16_t *in_buffer_head = in_buffer;
 	size_t in_samples = in_buffer_size / sizeof(int16_t);
 
+	struct pollfd pfds[] = {
+		{ t->event_fd, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+	};
+
 	struct io_sync io_sync = {
 		.sampling = transport_get_sampling(t),
 	};
@@ -487,14 +489,24 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
 
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		/* add PCM socket to the poll if transport is active */
+		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		if (t->state == TRANSPORT_PAUSED) {
-			io_thread_pause(t);
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+			error("Transport poll error: %s", strerror(errno));
+			break;
+		}
+
+		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			eventfd_t event;
+			eventfd_read(pfds[0].fd, &event);
 			io_sync.frames = 0;
+			continue;
 		}
 
 		/* read data from the FIFO - this function will block */
@@ -651,31 +663,47 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		goto fail;
 	}
 
-	struct pollfd pfds[1] = {{ t->bt_fd, POLLIN, 0 }};
+	struct pollfd pfds[] = {
+		{ t->event_fd, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+	};
 
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		CStreamInfo *aacinf;
 		ssize_t len;
 
-		if (poll(pfds, 1, -1) == -1) {
+		/* add BT socket to the poll if transport is active */
+		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
+
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
 			break;
 		}
 
-		if ((len = read(pfds[0].fd, in_buffer, in_buffer_size)) == -1) {
+		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			eventfd_t event;
+			eventfd_read(pfds[0].fd, &event);
+			continue;
+		}
+
+		if ((len = read(pfds[1].fd, in_buffer, in_buffer_size)) == -1) {
 			debug("BT read error: %s", strerror(errno));
 			continue;
 		}
 
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
 		/* it seems that zero is never returned... */
 		if (len == 0) {
-			debug("BT socket has been closed: %d", pfds[0].fd);
+			debug("BT socket has been closed: %d", pfds[1].fd);
 			/* Prevent sending the release request to the BlueZ. If the socket has
 			 * been closed, it means that BlueZ has already closed the connection. */
-			close(pfds[0].fd);
+			close(pfds[1].fd);
 			t->bt_fd = -1;
 			break;
 		}
@@ -870,6 +898,11 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	size_t in_samples = in_buffer_size / in_buffer_element_size;
 	in_buffer_head = in_buffer;
 
+	struct pollfd pfds[] = {
+		{ t->event_fd, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+	};
+
 	struct io_sync io_sync = {
 		.sampling = samplerate,
 	};
@@ -877,14 +910,24 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
 	while (TRANSPORT_RUN_IO_THREAD(t)) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
 
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		/* add PCM socket to the poll if transport is active */
+		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		if (t->state == TRANSPORT_PAUSED) {
-			io_thread_pause(t);
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+			error("Transport poll error: %s", strerror(errno));
+			break;
+		}
+
+		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			eventfd_t event;
+			eventfd_read(pfds[0].fd, &event);
 			io_sync.frames = 0;
+			continue;
 		}
 
 		/* read data from the FIFO - this function will block */
