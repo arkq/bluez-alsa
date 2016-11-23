@@ -407,6 +407,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	}
 
 fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -599,6 +600,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	}
 
 fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -741,6 +743,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	}
 
 fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 fail_init:
@@ -1023,6 +1026,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	}
 
 fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 fail_init:
@@ -1168,6 +1172,7 @@ void *io_thread_rfcomm(void *arg) {
 	}
 
 fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
