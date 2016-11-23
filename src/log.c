@@ -10,6 +10,7 @@
 
 #include "log.h"
 
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +36,14 @@ void log_open(const char *ident, int syslog) {
 
 static void vlog(int priority, const char *format, va_list ap) {
 
+	int oldstate;
+
+	/* Threads cancellation is used extensively in the BlueALSA code. In order
+	 * to prevent termination within the logging function (which might provide
+	 * important information about what has happened), the thread cancellation
+	 * has to be temporally disabled. */
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
+
 	if (_syslog)
 		vsyslog(priority, format, ap);
 
@@ -46,6 +55,8 @@ static void vlog(int priority, const char *format, va_list ap) {
 	fputs("\n", stderr);
 
 	funlockfile(stderr);
+
+	pthread_setcancelstate(oldstate, NULL);
 
 }
 
