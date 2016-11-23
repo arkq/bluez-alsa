@@ -505,6 +505,7 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 	snd_pcm_ioplug_t *io = &pcm->io;
 
 	static const snd_pcm_access_t accesses[] = {
+		SND_PCM_ACCESS_MMAP_INTERLEAVED,
 		SND_PCM_ACCESS_RW_INTERLEAVED,
 	};
 	static const unsigned int formats[] = {
