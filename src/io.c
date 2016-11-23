@@ -334,7 +334,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		if (pfds[0].revents & POLLIN) {
@@ -358,7 +358,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			 * been closed, it means that BlueZ has already closed the connection. */
 			close(pfds[1].fd);
 			t->bt_fd = -1;
-			break;
+			goto fail;
 		}
 
 		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
@@ -498,7 +498,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		if (pfds[0].revents & POLLIN) {
@@ -513,7 +513,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_head, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -681,7 +681,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		if (pfds[0].revents & POLLIN) {
@@ -705,7 +705,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			 * been closed, it means that BlueZ has already closed the connection. */
 			close(pfds[1].fd);
 			t->bt_fd = -1;
-			break;
+			goto fail;
 		}
 
 		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
@@ -919,7 +919,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		if (pfds[0].revents & POLLIN) {
@@ -934,7 +934,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_head, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -1205,7 +1205,7 @@ void *io_thread_sco(void *arg) {
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
-			break;
+			goto fail;
 		}
 
 		if (pfds[0].revents & POLLIN) {
