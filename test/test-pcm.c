@@ -52,8 +52,14 @@ static void test_pcm_setup_free(void) {
 	bluealsa_config_free();
 }
 
+static void test_pcm_setup_free_handler(int sig) {
+	(void)(sig);
+	test_pcm_setup_free();
+}
+
 int transport_acquire_bt_a2dp(struct ba_transport *t) {
-	(void)t;
+	t->state = TRANSPORT_ACTIVE;
+	assert(io_thread_create(t) == 0);
 	return 0;
 }
 
@@ -175,6 +181,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* make sure to cleanup named pipes */
+	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
+	sigaction(SIGINT, &sigact, NULL);
+	sigaction(SIGTERM, &sigact, NULL);
 	atexit(test_pcm_setup_free);
 
 	bdaddr_t addr;
@@ -189,8 +198,6 @@ int main(int argc, char *argv[]) {
 		assert((t_source = transport_new_a2dp(d, ":test", "/source",
 						BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
 						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
-		t_source->state = TRANSPORT_ACTIVE;
-		assert(io_thread_create(t_source) == 0);
 	}
 
 	if (sink) {
@@ -199,8 +206,6 @@ int main(int argc, char *argv[]) {
 						BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
 						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
 		assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);
-		t_sink->state = TRANSPORT_ACTIVE;
-		assert(io_thread_create(t_sink) == 0);
 	}
 
 	sleep(timeout);
