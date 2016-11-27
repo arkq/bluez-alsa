@@ -62,6 +62,40 @@ For more advanced ALSA configuration, consult the asoundrc on-line
 wiki page.
 
 
+Troubleshooting
+---------------
+
+1. Using BlueALSA alongside with PulseAudio.
+
+	Due to BlueZ limitations, it seems, that it is not possible to use BlueALSA and PulseAudio to
+	handle Bluetooth audio together. BlueZ can not handle more than one application which registers
+	audio profile in the Bluetooth stack. However, it is possible to run BlueALSA and PulseAudio
+	alongside, but Bluetooth support has to be disabled in the PulseAudio. Any Bluetooth related
+	module has to be unloaded - e.g. `bluetooth-discover`, `bluez5-discover`.
+
+2. ALSA thread-safe API (alsa-lib >= 1.1.2).
+
+	Starting from ALSA library 1.1.2, it is possible to enable thread-safe functions. It is a noble
+	change, but the implementation leaves a lot to be desired. This "minor" change does not affect
+	hardware audio devices (because for hardware devices, this API is disabled), but it affects A
+	LOT all software plug-ins. Random deadlocks are inevitable. My personal advice is to disable it
+	during configuration step (`./configure --disable-thread-safety`), or if it is not possible,
+	disable it via the environmental variable (`export LIBASOUND_THREAD_SAFE=0`). Take a look at
+	involved
+	[hacks](http://git.alsa-project.org/?p=alsa-lib.git;a=blob;f=src/pcm/pcm_ioplug.c;h=1dc198e7c99c933264fa25c9d7dbac5153bf0860;hb=1bf144013cffdeb41a5df3a11a8eb2596c5ea2b5#l682)
+	(just search for "to avoid deadlock" comments) and decide for yourself.
+
+3. AAC encoding.
+
+	If connected Bluetooth headset supports AAC and BlueALSA was compiled with AAC (`./configure
+	--enable-aac`) such an encoder will be used for A2DP profile. However, AAC encoding is
+	buggious - sorry for that. If the encoded packet size exceeds writing MTU, fragmentation occurs,
+	which is not handled correctly. As a workaround, it is possible to decease packet size by
+	degrading audio quality via the `--aac-vbr-mode=NB` option.
+
+	This bug is tracked via [this](https://github.com/Arkq/bluez-alsa/issues/10) issue.
+
+
 Resources
 ---------
 
