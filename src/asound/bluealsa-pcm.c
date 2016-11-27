@@ -225,6 +225,7 @@ static void *io_thread(void *arg) {
 
 	struct bluealsa_pcm *pcm = io->private_data;
 	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
+	int16_t silence = snd_pcm_format_silence_16(io->format);
 
 	/* In the capture mode, the PCM FIFO is opened in the non-blocking mode.
 	 * So right now, we have to synchronize write and read sides, otherwise
@@ -251,7 +252,7 @@ static void *io_thread(void *arg) {
 		 * adjust the number of frames which should be transfered. It has
 		 * turned out, that the buffer might contain fractional number of
 		 * periods - it could be an ALSA bug, though, it has to be handled. */
-		if (io->buffer_size - pcm->io_ptr < io->period_size)
+		if (io->buffer_size - pcm->io_ptr < frames)
 			frames = io->buffer_size - pcm->io_ptr;
 
 		/* IO operation size in bytes */
@@ -290,6 +291,12 @@ static void *io_thread(void *arg) {
 				len -= ret;
 			}
 			while (len != 0);
+
+			/* Silence processed period, so if the underrun occurs,
+			 * we will play silence instead of previous samples. */
+			snd_pcm_uframes_t i = frames * io->channels;
+			while (i--)
+				((int16_t *)buffer)[i] = silence;
 
 		}
 
