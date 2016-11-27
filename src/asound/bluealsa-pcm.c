@@ -447,27 +447,62 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	return 0;
 }
 
+static int bluealsa_poll_descriptors_count(snd_pcm_ioplug_t *io) {
+	(void)io;
+	return 2;
+}
+
+static int bluealsa_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
+		unsigned int space) {
+	struct bluealsa_pcm *pcm = io->private_data;
+
+	if (space != 2)
+		return -EINVAL;
+
+	/* PCM plug-in relies on the BlueALSA socket (critical signaling
+	 * from the server) and our internal event file descriptor. */
+	pfd[0].fd = pcm->event_fd;
+	pfd[0].events = POLLIN;
+	pfd[1].fd = pcm->fd;
+	pfd[1].events = POLLIN;
+
+	return 2;
+}
+
 static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		unsigned int nfds, unsigned short *revents) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	(void)pfd;
-	(void)nfds;
 
-	eventfd_t event;
-	eventfd_read(pcm->event_fd, &event);
+	if (nfds != 2)
+		return -EINVAL;
 
-	if (event & 0xDEAD0000) {
-		*revents = POLLERR | POLLHUP;
-		io->state = SND_PCM_STATE_DISCONNECTED;
-		return -ENODEV;
+	if (pfd[0].revents & POLLIN) {
+
+		eventfd_t event;
+		eventfd_read(pcm->event_fd, &event);
+
+		if (event & 0xDEAD0000)
+			goto fail;
+
+		/* I'm not sure if it is ALSA specific, or 3rd party applications (tested
+		 * with mpv), but for certain implementations, playback will not start if
+		 * the event is for reading. So, we have to cast out generic POLLIN event
+		 * into the event dedicated for writing. */
+		*revents = io->stream == SND_PCM_STREAM_CAPTURE ? POLLIN : POLLOUT;
+
 	}
+	else if (pfd[1].revents & POLLHUP)
+		/* server closed connection */
+		goto fail;
+	else
+		*revents = 0;
 
-	/* I'm not sure if it is ALSA specific, or 3rd party applications (tested
-	 * with mpv), but for certain implementations, playback will not start if
-	 * the event is for reading. So, we have to cast out generic POLLIN event
-	 * into the event dedicated for writing. */
-	*revents = io->stream == SND_PCM_STREAM_CAPTURE ? POLLIN : POLLOUT;
 	return 0;
+
+fail:
+	io->state = SND_PCM_STATE_DISCONNECTED;
+	*revents = POLLERR | POLLHUP;
+	return -ENODEV;
 }
 
 static const snd_pcm_ioplug_callback_t bluealsa_callback = {
@@ -485,6 +520,8 @@ static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.pause = bluealsa_pause,
 	.dump = bluealsa_dump,
 	.delay = bluealsa_delay,
+	.poll_descriptors_count = bluealsa_poll_descriptors_count,
+	.poll_descriptors = bluealsa_poll_descriptors,
 	.poll_revents = bluealsa_poll_revents,
 };
 
@@ -642,8 +679,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->io.version = SND_PCM_IOPLUG_VERSION;
 	pcm->io.name = "BlueALSA";
 	pcm->io.flags = SND_PCM_IOPLUG_FLAG_LISTED;
-	pcm->io.poll_fd = pcm->event_fd;
-	pcm->io.poll_events = POLLIN;
 	pcm->io.mmap_rw = 1;
 	pcm->io.callback = &bluealsa_callback;
 	pcm->io.private_data = pcm;
