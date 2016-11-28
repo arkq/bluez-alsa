@@ -114,17 +114,21 @@ static int io_thread_open_pcm_write(struct ba_pcm *pcm) {
 
 /**
  * Scale PCM signal according to the transport audio properties. */
-static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer, size_t size) {
+static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer,
+		size_t samples, int channels) {
 
 	/* Get a snapshot of audio properties. Please note, that mutex is not
 	 * required here, because we are not modifying these variables. */
-	const uint8_t volume = t->a2dp.ch1_volume;
-	const uint8_t muted = t->a2dp.ch1_muted;
+	uint8_t ch1_volume = t->a2dp.ch1_volume;
+	uint8_t ch2_volume = t->a2dp.ch2_volume;
 
-	if (muted || volume == 0)
-		snd_pcm_mute_s16le(buffer, size);
-	else if (volume != 127)
-		snd_pcm_scale_s16le(buffer, size, volume * 100 / 127);
+	if (t->a2dp.ch1_muted)
+		ch1_volume = 0;
+	if (t->a2dp.ch2_muted)
+		ch2_volume = 0;
+
+	snd_pcm_scale_s16le(buffer, samples, channels,
+			ch1_volume * 100 / 127, ch2_volume * 100 / 127);
 
 }
 
@@ -527,7 +531,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, in_buffer_head, samples);
+		io_thread_scale_pcm(t, in_buffer_head, samples, channels);
 
 		/* overall input buffer size */
 		samples += in_buffer_head - in_buffer;
@@ -946,7 +950,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
 		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, in_buffer_head, samples);
+		io_thread_scale_pcm(t, in_buffer_head, samples, channels);
 
 		/* overall input buffer size */
 		samples += in_buffer_head - in_buffer;

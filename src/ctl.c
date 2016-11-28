@@ -290,9 +290,9 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
 		t->a2dp.ch1_muted = req->ch1_muted;
-		t->a2dp.ch1_muted = req->ch2_muted;
+		t->a2dp.ch2_muted = req->ch2_muted;
 		t->a2dp.ch1_volume = req->ch1_volume;
-		t->a2dp.ch1_volume = req->ch2_volume;
+		t->a2dp.ch2_volume = req->ch2_volume;
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
 		break;

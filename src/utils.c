@@ -302,23 +302,31 @@ const char *batostr_(const bdaddr_t *ba) {
 }
 
 /**
- * Mute PCM signal stored in the buffer.
- *
- * @param buffer Address to the buffer where the PCM signal is stored.
- * @param size The number of samples in the buffer. */
-void snd_pcm_mute_s16le(int16_t *buffer, size_t size) {
-	memset(buffer, 0, size * sizeof(*buffer));
-}
-
-/**
  * Scale PCM signal stored in the buffer.
+ *
+ * Neutral value for scaling factor is 100. It is possible to increase
+ * signal gain by using scaling factor values greater than 100, however
+ * clipping will most certainly occur.
  *
  * @param buffer Address to the buffer where the PCM signal is stored.
  * @param size The number of samples in the buffer.
- * @param scale The scaling factor - 100 is a neutral value. */
-void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int scale) {
-	while (size--)
-		buffer[size] = buffer[size] * scale / 100;
+ * @param channels The number of channels in the buffer.
+ * @param ch1_scale The scaling factor for 1st channel.
+ * @param ch1_scale The scaling factor for 2nd channel. */
+void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
+		int ch1_scale, int ch2_scale) {
+	switch (channels) {
+	case 1:
+		while (size--)
+			buffer[size] = (int32_t)(buffer[size]) * ch1_scale / 100;
+		break;
+	case 2:
+		while (size--) {
+			int scale = size % 2 == 0 ? ch1_scale : ch2_scale;
+			buffer[size] = (int32_t)(buffer[size]) * scale / 100;
+		}
+		break;
+	}
 }
 
 /**

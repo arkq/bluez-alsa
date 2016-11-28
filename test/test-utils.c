@@ -12,35 +12,34 @@
 #include "test.inc"
 #include "../src/utils.c"
 
-int test_pcm_mute_s16le(void) {
-
-	const int16_t mute[] = { 0x0000, 0x0000, 0x0000, 0x0000 };
-	int16_t in[] = { 0x1234, 0x2345, 0x3456, 0x4567 };
-
-	snd_pcm_mute_s16le(in, sizeof(in) / sizeof(*in));
-	assert(memcmp(in, mute, sizeof(mute)) == 0);
-
-	return 0;
-}
-
 int test_pcm_scale_s16le(void) {
 
 	const int16_t mute[] = { 0x0000, 0x0000, 0x0000, 0x0000 };
 	const int16_t half[] = { 0x1234 / 2, 0x2345 / 2, (int16_t)0xBCDE / 2, (int16_t)0xCDEF / 2 };
+	const int16_t halfl[] = { 0x1234 / 2, 0x2345, (int16_t)0xBCDE / 2, 0xCDEF };
+	const int16_t halfr[] = { 0x1234, 0x2345 / 2, 0xBCDE, (int16_t)0xCDEF / 2 };
 	const int16_t in[] = { 0x1234, 0x2345, 0xBCDE, 0xCDEF };
 	int16_t tmp[sizeof(in) / sizeof(*in)];
 
-	memmove(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 0);
+	memcpy(tmp, in, sizeof(tmp));
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 0, 0);
 	assert(memcmp(tmp, mute, sizeof(mute)) == 0);
 
-	memmove(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 100);
+	memcpy(tmp, in, sizeof(tmp));
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 100, 100);
 	assert(memcmp(tmp, in, sizeof(in)) == 0);
 
-	memmove(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 50);
+	memcpy(tmp, in, sizeof(tmp));
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 50, 50);
 	assert(memcmp(tmp, half, sizeof(half)) == 0);
+
+	memcpy(tmp, in, sizeof(tmp));
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 50, 100);
+	assert(memcmp(tmp, halfl, sizeof(halfl)) == 0);
+
+	memcpy(tmp, in, sizeof(tmp));
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 100, 50);
+	assert(memcmp(tmp, halfr, sizeof(halfr)) == 0);
 
 	return 0;
 }
@@ -87,7 +86,6 @@ int test_difftimespec(void) {
 
 int main(void) {
 
-	test_run(test_pcm_mute_s16le);
 	test_run(test_pcm_scale_s16le);
 	test_run(test_difftimespec);
 
