@@ -8,6 +8,7 @@
  *
  */
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <string.h>
@@ -33,6 +34,7 @@ struct ctl_elem {
 	enum ctl_elem_type type;
 	struct msg_device *device;
 	struct msg_transport *transport;
+	char name[44 /* internal ALSA constraint */ + 1];
 	/* if true, element is a playback control */
 	bool playback;
 };
@@ -110,6 +112,87 @@ static int bluealsa_get_transports(struct bluealsa_ctl *ctl) {
 	return 0;
 }
 
+/**
+ * Get device ID number.
+ *
+ * @param ctl An address to the bluealsa ctl structure.
+ * @param device An address to the device structure.
+ * @return The device ID number, or -1 upon error. */
+static int bluealsa_get_device_id(const struct bluealsa_ctl *ctl,
+		const struct msg_device *device) {
+
+	size_t i;
+
+	for (i = 0; i < ctl->devices_count; i++)
+		if (bacmp(&ctl->devices[i].addr, &device->addr) == 0)
+			return i;
+
+	return -1;
+}
+
+/**
+ * Set element name within the element structure.
+ *
+ * @param elem An address to the element structure.
+ * @param id Device ID number. If the ID is other than -1, it will be
+ *   attached to the element name in order to prevent duplications. */
+static void bluealsa_set_elem_name(struct ctl_elem *elem, int id) {
+
+	const enum ctl_elem_type type = elem->type;
+	const struct msg_device *device = elem->device;
+	const struct msg_transport *transport = elem->transport;
+
+	int len = sizeof(elem->name) - 16 - 1;
+	char no[8] = "";
+
+	if (id != -1) {
+		sprintf(no, " #%d", id + 1);
+		len -= strlen(no);
+	}
+
+	if (type == CTL_ELEM_TYPE_BATTERY) {
+		len -= 10;
+		while (isspace(device->name[len - 1]))
+			len--;
+		sprintf(elem->name, "%.*s%s | Battery", len, device->name, no);
+	}
+	else if (transport != NULL) {
+		/* avoid name duplication by adding profile suffixes */
+		switch (transport->type) {
+		case PCM_TYPE_NULL:
+			break;
+		case PCM_TYPE_A2DP:
+			len -= 7;
+			while (isspace(device->name[len - 1]))
+				len--;
+			sprintf(elem->name, "%.*s%s - A2DP", len, device->name, no);
+			break;
+		case PCM_TYPE_SCO:
+			len -= 6;
+			while (isspace(device->name[len - 1]))
+				len--;
+			sprintf(elem->name, "%.*s%s - SCO", len, device->name, no);
+			break;
+		}
+	}
+
+	/* ALSA library determines the element type by checking it's
+	 * name suffix. This feature is not well documented, though. */
+
+	strcat(elem->name, elem->playback ? " Playback" : " Capture");
+
+	switch (type) {
+	case CTL_ELEM_TYPE_SWITCH:
+		strcat(elem->name, " Switch");
+		break;
+	case CTL_ELEM_TYPE_BATTERY:
+	case CTL_ELEM_TYPE_VOLUME:
+		strcat(elem->name, " Volume");
+		break;
+	}
+
+}
+
 static void bluealsa_close(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 	close(ctl->fd);
@@ -165,8 +248,10 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 
 		/* get device structure for given transport */
 		for (ii = 0; ii < ctl->devices_count; ii++) {
-			if (bacmp(&ctl->devices[ii].addr, &transport->addr) == 0)
+			if (bacmp(&ctl->devices[ii].addr, &transport->addr) == 0) {
 				device = &ctl->devices[ii];
+				break;
+			}
 		}
 
 		/* If the timing is right, the device list might not contain all devices.
@@ -185,12 +270,14 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
 			ctl->elems[count].playback = transport->stream == PCM_STREAM_PLAYBACK;
+			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
 			ctl->elems[count].playback = transport->stream == PCM_STREAM_PLAYBACK;
+			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			break;
@@ -201,24 +288,28 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
 			ctl->elems[count].playback = true;
+			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
 			ctl->elems[count].playback = true;
+			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
 			ctl->elems[count].playback = false;
+			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
 			ctl->elems[count].playback = false;
+			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			break;
@@ -235,8 +326,29 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			ctl->elems[count].device = &ctl->devices[i];
 			ctl->elems[count].transport = NULL;
 			ctl->elems[count].playback = true;
+			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 		}
+	}
+
+	/* Detect element name duplicates and annotate them with the consecutive
+	 * device ID number - which will make ALSA library happy. */
+	for (i = 0; i < ctl->elems_count; i++) {
+
+		bool duplicated = false;
+		size_t ii;
+
+		for (ii = i + 1; ii < ctl->elems_count; ii++)
+			if (strcmp(ctl->elems[i].name, ctl->elems[ii].name) == 0) {
+				bluealsa_set_elem_name(&ctl->elems[ii],
+						bluealsa_get_device_id(ctl, ctl->elems[ii].device));
+				duplicated = true;
+			}
+
+		if (duplicated)
+			bluealsa_set_elem_name(&ctl->elems[i],
+					bluealsa_get_device_id(ctl, ctl->elems[i].device));
+
 	}
 
 	return count;
@@ -248,51 +360,8 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 	if (offset > ctl->elems_count)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elems[offset];
-	const struct msg_device *device = elem->device;
-	const struct msg_transport *transport = elem->transport;
-	char name[44 /* internal ALSA constraint */];
-
-	strcpy(name, device->name);
-
-	if (elem->type == CTL_ELEM_TYPE_BATTERY) {
-		name[sizeof(name) - 10 - 16 - 1] = '\0';
-		strcat(name, " | Battery");
-	}
-
-	if (transport != NULL) {
-		/* avoid name duplication by adding profile suffixes */
-		switch (transport->type) {
-		case PCM_TYPE_NULL:
-			break;
-		case PCM_TYPE_A2DP:
-			name[sizeof(name) - 7 - 16 - 1] = '\0';
-			strcat(name, " - A2DP");
-			break;
-		case PCM_TYPE_SCO:
-			name[sizeof(name) - 6 - 16 - 1] = '\0';
-			strcat(name, " - SCO");
-			break;
-		}
-	}
-
-	/* XXX: It seems, that ALSA determines the element type by checking it's
-	 *      name suffix. However, this functionality is not documented! */
-
-	strcat(name, elem->playback ? " Playback" : " Capture");
-
-	switch (elem->type) {
-	case CTL_ELEM_TYPE_SWITCH:
-		strcat(name, " Switch");
-		break;
-	case CTL_ELEM_TYPE_BATTERY:
-	case CTL_ELEM_TYPE_VOLUME:
-		strcat(name, " Volume");
-		break;
-	}
-
 	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
-	snd_ctl_elem_id_set_name(id, name);
+	snd_ctl_elem_id_set_name(id, ctl->elems[offset].name);
 
 	return 0;
 }

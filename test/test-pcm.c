@@ -187,24 +187,31 @@ int main(int argc, char *argv[]) {
 	atexit(test_pcm_setup_free);
 
 	bdaddr_t addr;
-	struct ba_device *d;
+	struct ba_device *d1, *d2;
+
+	/* Connect two devices with the same name, but different MAC addresses.
+	 * This test will ensure, that it is possible to launch mixer plug-in. */
 
 	str2ba("12:34:56:78:9A:BC", &addr);
-	assert((d = device_new(1, &addr, "Test Device")) != NULL);
-	g_hash_table_insert(config.devices, g_strdup("/device"), d);
+	assert((d1 = device_new(1, &addr, "Test Device With Long Name")) != NULL);
+	g_hash_table_insert(config.devices, g_strdup("/device/1"), d1);
+
+	str2ba("12:34:56:9A:BC:DE", &addr);
+	assert((d2 = device_new(1, &addr, "Test Device With Long Name")) != NULL);
+	g_hash_table_insert(config.devices, g_strdup("/device/2"), d2);
 
 	if (source) {
-		struct ba_transport *t_source;
-		assert((t_source = transport_new_a2dp(d, ":test", "/source",
-						BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC,
-						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
+		assert(transport_new_a2dp(d1, ":test", "/source/1", BLUETOOTH_PROFILE_A2DP_SOURCE,
+					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
+		assert(transport_new_a2dp(d2, ":test", "/source/2", BLUETOOTH_PROFILE_A2DP_SOURCE,
+					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
 	}
 
 	if (sink) {
-		struct ba_transport *t_sink;
-		assert((t_sink = transport_new_a2dp(d, ":test", "/sink",
-						BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC,
-						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
+		assert(transport_new_a2dp(d1, ":test", "/sink/1", BLUETOOTH_PROFILE_A2DP_SINK,
+					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
+		assert(transport_new_a2dp(d2, ":test", "/sink/2", BLUETOOTH_PROFILE_A2DP_SINK,
+					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
 		assert(load_file(SRCDIR "/drum.raw", &drum_buffer, &drum_buffer_size) == 0);
 	}
 
