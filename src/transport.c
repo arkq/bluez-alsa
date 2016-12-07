@@ -628,7 +628,6 @@ int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
 	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
 	t->release = transport_release_bt_a2dp;
-	t->state = TRANSPORT_PENDING;
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 
