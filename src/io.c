@@ -328,7 +328,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t len;
@@ -493,7 +493,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
@@ -676,7 +676,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		CStreamInfo *aacinf;
@@ -916,7 +916,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
@@ -1058,7 +1058,7 @@ void *io_thread_rfcomm(void *arg) {
 
 	debug("Starting RFCOMM loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 
 		const char *response = "OK";
 		char command[16], value[32];
@@ -1207,7 +1207,7 @@ void *io_thread_sco(void *arg) {
 
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 
 		pfds[1].fd = t->sco.mic_pcm.fd != -1 ? t->bt_fd : -1;
 		pfds[2].fd = t->sco.spk_pcm.fd;

@@ -35,9 +35,6 @@ enum ba_transport_state {
 	TRANSPORT_ABORTED,
 };
 
-#define TRANSPORT_RUN_IO_THREAD(t) \
-	((t)->state == TRANSPORT_ACTIVE || (t)->state == TRANSPORT_PAUSED)
-
 #define DEVICE_XAPL_FEATURE_BATTERY (1 << 1)
 #define DEVICE_XAPL_FEATURE_DOCKING (1 << 2)
 #define DEVICE_XAPL_FEATURE_SIRI    (1 << 3)

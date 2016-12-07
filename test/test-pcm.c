@@ -76,7 +76,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		.sampling = transport_get_sampling(t),
 	};
 
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 
 		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
 			if (errno != ENXIO)
@@ -117,7 +117,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		.sampling = transport_get_sampling(t),
 	};
 
-	while (TRANSPORT_RUN_IO_THREAD(t)) {
+	for (;;) {
 		fprintf(stderr, ".");
 
 		if (io_sync.frames == 0)

@@ -85,6 +85,7 @@ int test_a2dp_sbc_invalid_setup(void) {
 	*test_error_msg = '\0';
 
 	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
+	assert(pthread_cancel(thread) == 0);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
 	assert(test_error_count == 3);
 	assert(strcmp(test_error_msg, "") == 0);
