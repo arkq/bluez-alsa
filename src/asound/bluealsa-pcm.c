@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
@@ -50,7 +51,7 @@ struct bluealsa_pcm {
 	/* virtual hardware - ring buffer */
 	snd_pcm_uframes_t io_ptr;
 	pthread_t io_thread;
-	int io_started;
+	bool io_started;
 
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
@@ -316,10 +317,16 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug("Starting");
 
-	pcm->io_started = 1;
+	/* If the IO thread is already started, skip thread creation. Otherwise,
+	 * we might end up with a bunch of IO threads reading or writing to the
+	 * same FIFO simultaneously. */
+	if (pcm->io_started)
+		return 0;
+
+	pcm->io_started = true;
 	if ((errno = pthread_create(&pcm->io_thread, NULL, io_thread, io)) != 0) {
 		debug("Couldn't create IO thread: %s", strerror(errno));
-		pcm->io_started = 0;
+		pcm->io_started = false;
 		return -errno;
 	}
 
@@ -331,7 +338,7 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug("Stopping");
 	if (pcm->io_started) {
-		pcm->io_started = 0;
+		pcm->io_started = false;
 		pthread_cancel(pcm->io_thread);
 		pthread_join(pcm->io_thread, NULL);
 	}
@@ -363,6 +370,12 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		debug("Couldn't open PCM FIFO: %s", strerror(errno));
 		return -errno;
 	}
+
+	/* Indicate that our PCM is ready for writing, even though is is not 100%
+	 * true - IO thread is not running yet. Some weird implementations might
+	 * require PCM to be writable before the snd_pcm_start() call. */
+	if (io->stream == SND_PCM_STREAM_PLAYBACK)
+		eventfd_write(pcm->event_fd, 1);
 
 	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
 		/* By default, the size of the pipe buffer is set to a too large value for
