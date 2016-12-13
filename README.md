@@ -25,6 +25,20 @@ Installation
 	$ ../configure --enable-aac --enable-debug
 	$ make && make install
 
+Dependencies:
+
+- [alsa-lib](http://www.alsa-project.org/)
+- [bluez](http://www.bluez.org/) >= 5.0
+- [glib](https://wiki.gnome.org/Projects/GLib) with GIO support
+- [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
+- [ortp](http://www.linphone.org/technical-corner/ortp.html) (required for compilation only)
+- [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
+
+Dependencies for `hcitop` (unless `--disable-hcitop` is specified during configuration):
+
+- [libbsd](https://libbsd.freedesktop.org/)
+- [ncurses](https://www.gnu.org/software/ncurses/)
+
 
 Configuration & Usage
 ---------------------
