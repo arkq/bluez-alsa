@@ -427,7 +427,17 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 
 static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	return bluealsa_pause_transport(pcm, enable) == -1 ? -errno : 0;
+
+	if (bluealsa_pause_transport(pcm, enable) == -1)
+		return -errno;
+
+	/* Even though PCM transport is paused, our IO thread is still running. If
+	 * the implementer relies on the PCM file descriptor readiness, we have to
+	 * bump our internal event trigger. Otherwise, client might stuck forever
+	 * in the poll/select system call. */
+	eventfd_write(pcm->event_fd, 1);
+
+	return 0;
 }
 
 static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
