@@ -241,10 +241,12 @@ static void *io_thread(void *arg) {
 	}
 
 	debug("Starting IO loop");
-	while (pcm->io_started) {
+	for (;;) {
 
-		char *buffer = areas->addr + (areas->first + areas->step * pcm->io_ptr) / 8;
+		snd_pcm_uframes_t io_ptr = pcm->io_ptr;
+		snd_pcm_uframes_t io_buffer_size = io->buffer_size;
 		snd_pcm_uframes_t frames = io->period_size;
+		char *buffer = areas->addr + (areas->first + areas->step * io_ptr) / 8;
 		char *head = buffer;
 		ssize_t ret;
 		size_t len;
@@ -253,8 +255,8 @@ static void *io_thread(void *arg) {
 		 * adjust the number of frames which should be transfered. It has
 		 * turned out, that the buffer might contain fractional number of
 		 * periods - it could be an ALSA bug, though, it has to be handled. */
-		if (io->buffer_size - pcm->io_ptr < frames)
-			frames = io->buffer_size - pcm->io_ptr;
+		if (io_buffer_size - io_ptr < frames)
+			frames = io_buffer_size - io_ptr;
 
 		/* IO operation size in bytes */
 		len = frames * pcm->frame_size;
@@ -301,8 +303,7 @@ static void *io_thread(void *arg) {
 
 		}
 
-		pcm->io_ptr += frames;
-		pcm->io_ptr %= io->buffer_size;
+		pcm->io_ptr = (io_ptr + frames) % io_buffer_size;
 		eventfd_write(pcm->event_fd, 1);
 
 	}
@@ -514,10 +515,12 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		if (event & 0xDEAD0000)
 			goto fail;
 
-		/* I'm not sure if it is ALSA specific, or 3rd party applications (tested
-		 * with mpv), but for certain implementations, playback will not start if
-		 * the event is for reading. So, we have to cast out generic POLLIN event
-		 * into the event dedicated for writing. */
+		/* If the event was triggered prematurely, wait for another one. */
+		if (!snd_pcm_avail_update(io->pcm))
+			return *revents = 0;
+
+		/* ALSA expects that the event will match stream direction, e.g.
+		 * playback will not start if the event is for reading. */
 		*revents = io->stream == SND_PCM_STREAM_CAPTURE ? POLLIN : POLLOUT;
 
 	}
