@@ -1,6 +1,7 @@
 # BlueALSA - configure.ac
 # Copyright (c) 2016 Arkadiusz Bokowy
 
+AC_PREREQ([2.59])
 AC_INIT([bluez-alsa], [1.1.0], [arkadiusz.bokowy@gmail.com])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
@@ -35,6 +36,8 @@ PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])
 PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.16])
 PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
+
+AM_CONDITIONAL([ALSA_1_1_2], [$PKG_CONFIG --atleast-version=1.1.2 alsa])
 
 AC_ARG_ENABLE([aac],
 	[AS_HELP_STRING([--enable-aac], [enable AAC support])])
@@ -84,3 +87,14 @@ AC_CONFIG_FILES([
 	utils/Makefile
 	test/Makefile])
 AC_OUTPUT
+
+# warn user that alsa-lib thread-safety makes troubles
+AM_COND_IF([ALSA_1_1_2], [
+	AC_MSG_WARN([              *** alsa-lib >= 1.1.2 ***])
+	AC_MSG_WARN([Starting from alsa-lib 1.1.2, it is possible to enable])
+	AC_MSG_WARN([thread-safe API functions. Unfortunately, this feature])
+	AC_MSG_WARN([is not mature enough - software plugins may experience])
+	AC_MSG_WARN([random deadlocks (bluez-alsa PCM plugin is affected).])
+	AC_MSG_WARN([Either compile alsa-lib without this feature or export])
+	AC_MSG_WARN([LIBASOUND_THREAD_SAFE=0 while using bluealsa PCM.])
+])
