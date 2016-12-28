@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -122,14 +123,15 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer,
 	uint8_t ch1_volume = t->a2dp.ch1_volume;
 	uint8_t ch2_volume = t->a2dp.ch2_volume;
 
-	if (t->a2dp.ch1_muted)
-		ch1_volume = 0;
-	if (t->a2dp.ch2_muted)
-		ch2_volume = 0;
+	double ch1_scale = 0;
+	double ch2_scale = 0;
 
-	snd_pcm_scale_s16le(buffer, samples, channels,
-			ch1_volume * 100 / 127, ch2_volume * 100 / 127);
+	if (!t->a2dp.ch1_muted)
+		ch1_scale = pow(10, (-64 + 64.0 * ch1_volume / 127 ) / 20);
+	if (!t->a2dp.ch2_muted)
+		ch2_scale = pow(10, (-64 + 64.0 * ch2_volume / 127 ) / 20);
 
+	snd_pcm_scale_s16le(buffer, samples, channels, ch1_scale, ch2_scale);
 }
 
 /**

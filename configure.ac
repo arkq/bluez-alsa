@@ -30,6 +30,8 @@ AC_CHECK_LIB([pthread], [pthread_create],
 	[], [AC_MSG_ERROR([pthread library not found])])
 AC_CHECK_HEADERS([ortp/rtp.h],
 	[], [AC_MSG_ERROR([ortp/rtp.h header not found])])
+AC_SEARCH_LIBS([pow], [m],
+	[], [AC_MSG_ERROR([unable to find pow() function])])
 
 PKG_CHECK_MODULES([ALSA], [alsa])
 PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])

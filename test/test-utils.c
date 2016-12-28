@@ -26,19 +26,19 @@ int test_pcm_scale_s16le(void) {
 	assert(memcmp(tmp, mute, sizeof(mute)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 100, 100);
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 1.0, 1.0);
 	assert(memcmp(tmp, in, sizeof(in)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 50, 50);
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 0.5, 0.5);
 	assert(memcmp(tmp, half, sizeof(half)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 50, 100);
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 0.5, 1.0);
 	assert(memcmp(tmp, halfl, sizeof(halfl)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 100, 50);
+	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 1.0, 0.5);
 	assert(memcmp(tmp, halfr, sizeof(halfr)) == 0);
 
 	return 0;

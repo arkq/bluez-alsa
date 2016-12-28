@@ -348,8 +348,8 @@ const char *batostr_(const bdaddr_t *ba) {
 /**
  * Scale PCM signal stored in the buffer.
  *
- * Neutral value for scaling factor is 100. It is possible to increase
- * signal gain by using scaling factor values greater than 100, however
+ * Neutral value for scaling factor is 1.0. It is possible to increase
+ * signal gain by using scaling factor values greater than 1, however
  * clipping will most certainly occur.
  *
  * @param buffer Address to the buffer where the PCM signal is stored.
@@ -358,17 +358,19 @@ const char *batostr_(const bdaddr_t *ba) {
  * @param ch1_scale The scaling factor for 1st channel.
  * @param ch1_scale The scaling factor for 2nd channel. */
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
-		int ch1_scale, int ch2_scale) {
+		double ch1_scale, double ch2_scale) {
 	switch (channels) {
 	case 1:
-		while (size--)
-			buffer[size] = (int32_t)(buffer[size]) * ch1_scale / 100;
+		if (ch1_scale != 1.0)
+			while (size--)
+				buffer[size] = buffer[size] * ch1_scale;
 		break;
 	case 2:
-		while (size--) {
-			int scale = size % 2 == 0 ? ch1_scale : ch2_scale;
-			buffer[size] = (int32_t)(buffer[size]) * scale / 100;
-		}
+		if (ch1_scale != 1.0 || ch2_scale != 1.0)
+			while (size--) {
+				double scale = size % 2 == 0 ? ch1_scale : ch2_scale;
+				buffer[size] = buffer[size] * scale;
+			}
 		break;
 	}
 }

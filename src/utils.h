@@ -42,7 +42,7 @@ gboolean g_dbus_set_property(GDBusConnection *conn, const char *name,
 		const GVariant *value);
 
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
-		int ch1_scale, int ch2_scale);
+		double ch1_scale, double ch2_scale);
 
 int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
 		struct timespec *ts);
