@@ -283,27 +283,7 @@ static void ctl_thread_cmd_transport_set_volume(const struct request *req, int f
 		goto fail;
 	}
 
-	debug("Setting volume for %s profile %d: %d<>%d [%c%c]", batostr_(&req->addr),
-			t->profile, req->ch1_volume, req->ch2_volume,
-			req->ch1_muted ? 'M' : 'O', req->ch2_muted ? 'M' : 'O');
-
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
-		t->a2dp.ch1_muted = req->ch1_muted;
-		t->a2dp.ch2_muted = req->ch2_muted;
-		t->a2dp.ch1_volume = req->ch1_volume;
-		t->a2dp.ch2_volume = req->ch2_volume;
-		break;
-	case TRANSPORT_TYPE_RFCOMM:
-		break;
-	case TRANSPORT_TYPE_SCO:
-		t->sco.spk_muted = req->ch1_muted;
-		t->sco.mic_muted = req->ch2_muted;
-		t->sco.spk_gain = req->ch1_volume;
-		t->sco.mic_gain = req->ch2_volume;
-		eventfd_write(t->sco.rfcomm->event_fd, 1);
-		break;
-	}
+	transport_set_volume(t, req->ch1_muted, req->ch2_muted, req->ch1_volume, req->ch2_volume);
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);

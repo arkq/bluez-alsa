@@ -43,6 +43,7 @@ struct ba_config config = {
 
 	.a2dp_force_mono = FALSE,
 	.a2dp_force_44100 = FALSE,
+	.a2dp_volume = FALSE,
 
 };
 

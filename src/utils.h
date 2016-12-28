@@ -34,8 +34,12 @@ const char *batostr_(const bdaddr_t *ba);
 
 enum bluetooth_profile g_dbus_object_path_to_profile(const char *path);
 int g_dbus_device_path_to_bdaddr(const char *path, bdaddr_t *addr);
+
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
 		const char *path, const char *interface, const char *property);
+gboolean g_dbus_set_property(GDBusConnection *conn, const char *name,
+		const char *path, const char *interface, const char *property,
+		const GVariant *value);
 
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 		int ch1_scale, int ch2_scale);

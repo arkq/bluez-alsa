@@ -58,6 +58,7 @@ int main(int argc, char **argv) {
 #endif
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
 		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
+		{ "a2dp-volume", no_argument, NULL, 8 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -101,6 +102,7 @@ int main(int argc, char **argv) {
 					"  --disable-hfp\t\tdisable HFP support\n"
 					"  --a2dp-force-mono\tforce monophonic sound\n"
 					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
+					"  --a2dp-volume\t\tcontrol volume natively\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\tenable afterburner\n"
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
@@ -167,6 +169,9 @@ int main(int argc, char **argv) {
 			break;
 		case 7 /* --a2dp-force-audio-cd */ :
 			config.a2dp_force_44100 = TRUE;
+			break;
+		case 8 /* --a2dp-volume */ :
+			config.a2dp_volume = TRUE;
 			break;
 
 		default:

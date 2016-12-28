@@ -71,6 +71,9 @@ struct ba_config {
 	 * for sink endpoint and semi-mandatory for source. It is then possible
 	 * to force lower sampling in order to save Bluetooth bandwidth. */
 	gboolean a2dp_force_44100;
+	/* Control audio volume natively by the connected device. The disadvantage
+	 * of this control type is a monophonic volume change. */
+	gboolean a2dp_volume;
 
 };
 

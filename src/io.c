@@ -530,8 +530,9 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
-		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, in_buffer_head, samples, channels);
+		if (!config.a2dp_volume)
+			/* scale volume or mute audio signal */
+			io_thread_scale_pcm(t, in_buffer_head, samples, channels);
 
 		/* overall input buffer size */
 		samples += in_buffer_head - in_buffer;
@@ -949,8 +950,9 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		if (io_sync.frames == 0)
 			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
 
-		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, in_buffer_head, samples, channels);
+		if (!config.a2dp_volume)
+			/* scale volume or mute audio signal */
+			io_thread_scale_pcm(t, in_buffer_head, samples, channels);
 
 		/* overall input buffer size */
 		samples += in_buffer_head - in_buffer;

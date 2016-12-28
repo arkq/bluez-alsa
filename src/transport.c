@@ -544,6 +544,48 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 	return 0;
 }
 
+int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_muted,
+		uint8_t ch1_volume, uint8_t ch2_volume) {
+
+	debug("Setting volume for %s profile %d: %d<>%d [%c%c]", batostr_(&t->device->addr),
+			t->profile, ch1_volume, ch2_volume, ch1_muted ? 'M' : 'O', ch2_muted ? 'M' : 'O');
+
+	switch (t->type) {
+	case TRANSPORT_TYPE_A2DP:
+
+		t->a2dp.ch1_muted = ch1_muted;
+		t->a2dp.ch2_muted = ch2_muted;
+		t->a2dp.ch1_volume = ch1_volume;
+		t->a2dp.ch2_volume = ch2_volume;
+
+		if (config.a2dp_volume) {
+			uint16_t volume = (ch1_muted | ch2_muted) ? 0 : MIN(ch1_volume, ch2_volume);
+			g_dbus_set_property(config.dbus, t->dbus_owner, t->dbus_path,
+					"org.bluez.MediaTransport1", "Volume", g_variant_new_uint16(volume));
+		}
+
+		break;
+
+	case TRANSPORT_TYPE_RFCOMM:
+		break;
+
+	case TRANSPORT_TYPE_SCO:
+
+		t->sco.spk_muted = ch1_muted;
+		t->sco.mic_muted = ch2_muted;
+		t->sco.spk_gain = ch1_volume;
+		t->sco.mic_gain = ch2_volume;
+
+		/* notify associated RFCOMM transport */
+		eventfd_write(t->sco.rfcomm->event_fd, 1);
+
+		break;
+
+	}
+
+	return 0;
+}
+
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	debug("State transition: %d -> %d", t->state, state);
 
