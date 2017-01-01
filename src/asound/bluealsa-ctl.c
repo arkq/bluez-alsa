@@ -520,6 +520,40 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	return 0;
 }
 
+static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+	(void)subscribe;
+	(void)ctl;
+}
+
+static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsigned int *event_mask) {
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+	(void)id;
+	(void)event_mask;
+
+	char tmp[16];
+	ssize_t ret;
+
+	while ((ret = read(ctl->fd, tmp, sizeof(tmp))) == -1 && errno == EINTR)
+		continue;
+	if (ret == -1)
+		return -errno;
+
+	/* Upon server disconnection, our socket file descriptor is in the ready for
+	 * reading state. However, there is no data to be read. In such a case, we
+	 * have to indicate, that the controller has been unplugged. Since, it is not
+	 * possible to manipulate revents - snd_mixer_poll_descriptors_revents() does
+	 * not call poll_revents() callback - we are going to close our socket, which
+	 * (at least for alsamixer) seems to do the trick. Anyhow, there is a caveat.
+	 * If some other thread opens new file descriptor... we are doomed. */
+	if (ret == 0) {
+		close(ext->poll_fd);
+		return -ENODEV;
+	}
+
+	return -EAGAIN;
+}
+
 static const snd_ctl_ext_callback_t bluealsa_snd_ctl_ext_callback = {
 	.close = bluealsa_close,
 	.elem_count = bluealsa_elem_count,
@@ -529,6 +563,8 @@ static const snd_ctl_ext_callback_t bluealsa_snd_ctl_ext_callback = {
 	.get_integer_info = bluealsa_get_integer_info,
 	.read_integer = bluealsa_read_integer,
 	.write_integer = bluealsa_write_integer,
+	.subscribe_events = bluealsa_subscribe_events,
+	.read_event = bluealsa_read_event,
 };
 
 SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
@@ -582,7 +618,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
 	ctl->ext.private_data = ctl;
-	ctl->ext.poll_fd = -1;
+	ctl->ext.poll_fd = ctl->fd;
 
 	if ((ret = snd_ctl_ext_create(&ctl->ext, name, mode)) < 0)
 		goto fail;
