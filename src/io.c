@@ -27,6 +27,8 @@
 #if ENABLE_AAC
 # include <fdk-aac/aacdecoder_lib.h>
 # include <fdk-aac/aacenc_lib.h>
+# define AACENCODER_LIB_VERSION LIB_VERSION( \
+		AACENCODER_LIB_VL0, AACENCODER_LIB_VL1, AACENCODER_LIB_VL2)
 #endif
 
 #include "a2dp-codecs.h"
@@ -789,8 +791,10 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 	switch (cconfig->object_type) {
 	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
+#if AACENCODER_LIB_VERSION <= 0x03040C00 /* 3.4.12 */
 		aot = AOT_MP2_AAC_LC;
 		break;
+#endif
 	case AAC_OBJECT_TYPE_MPEG4_AAC_LC:
 		aot = AOT_AAC_LC;
 		break;
