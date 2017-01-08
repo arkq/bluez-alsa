@@ -12,10 +12,13 @@
 #include "transport.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/eventfd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -699,6 +702,15 @@ int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
 	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
 	t->release = transport_release_bt_a2dp;
+
+	/* Minimize audio delay and increase responsiveness (seeking, stopping) by
+	 * decreasing the BT socket output buffer. We will use a tripled write MTU
+	 * value, in order to prevent tearing due to temporal heavy load. Also,
+	 * make socket IO blocking, so we won't bother about partial writes. */
+	size_t size = t->mtu_write * 3;
+	if (setsockopt(t->bt_fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) == -1)
+		warn("Couldn't set socket output buffer size: %s", strerror(errno));
+	fcntl(t->bt_fd, F_SETFL, fcntl(t->bt_fd, F_GETFL) & ~O_NONBLOCK);
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 
