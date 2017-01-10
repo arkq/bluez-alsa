@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.h
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,7 +15,9 @@
 # include "config.h"
 #endif
 
-void log_open(const char *ident, int syslog);
+#include <stdbool.h>
+
+void log_open(const char *ident, bool syslog, bool time);
 void error(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 void warn(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 void info(const char *format, ...) __attribute__ ((format(printf, 1, 2)));

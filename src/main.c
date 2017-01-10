@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 	struct hci_dev_info *hci_devs;
 	int hci_devs_num;
 
-	log_open(argv[0], 0);
+	log_open(argv[0], false, false);
 
 	if (bluealsa_config_init() != 0) {
 		error("Couldn't initialize bluealsa config");

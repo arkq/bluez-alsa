@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,21 +16,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <time.h>
 
 
 /* internal logging identifier */
 static char *_ident = NULL;
 /* if true, system logging is enabled */
-static int _syslog = 0;
+static bool _syslog = false;
+/* if true, print logging time */
+static bool _time = false;
 
 
-void log_open(const char *ident, int syslog) {
-
-	if ((_syslog = syslog) != 0)
-		openlog(ident, 0, LOG_USER);
+void log_open(const char *ident, bool syslog, bool time) {
 
 	free(_ident);
 	_ident = strdup(ident);
+
+	if ((_syslog = syslog) == true)
+		openlog(ident, 0, LOG_USER);
+
+	_time = time;
 
 }
 
@@ -51,6 +56,11 @@ static void vlog(int priority, const char *format, va_list ap) {
 
 	if (_ident != NULL)
 		fprintf(stderr, "%s: ", _ident);
+	if (_time) {
+		struct timespec ts;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
+	}
 	vfprintf(stderr, format, ap);
 	fputs("\n", stderr);
 
@@ -81,9 +91,11 @@ void info(const char *format, ...) {
 	va_end(ap);
 }
 
+#if DEBUG
 void _debug(const char *format, ...) {
 	va_list ap;
 	va_start(ap, format);
 	vlog(LOG_DEBUG, format, ap);
 	va_end(ap);
 }
+#endif
