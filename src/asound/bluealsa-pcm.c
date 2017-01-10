@@ -1,6 +1,6 @@
 /*
  * bluealsa-pcm.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -199,7 +199,7 @@ static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
  * @param pcm An address to the bluealsa pcm structure.
  * @param pause If non-zero, pause transport, otherwise resume it.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, int pause) {
+static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, bool pause) {
 
 	struct msg_status status = { 0xAB };
 	struct request req = {
@@ -324,6 +324,11 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	if (pcm->io_started)
 		return 0;
 
+	if (bluealsa_pause_transport(pcm, false) == -1) {
+		debug("Couldn't start PCM: %s", strerror(errno));
+		return -errno;
+	}
+
 	pcm->io_started = true;
 	if ((errno = pthread_create(&pcm->io_thread, NULL, io_thread, io)) != 0) {
 		debug("Couldn't create IO thread: %s", strerror(errno));
@@ -389,9 +394,10 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		debug("FIFO buffer size: %zd", pcm->pcm_buffer_size);
 	}
 
-	debug("Selected HW buffer: %zd ?= %zd periods x %zd bytes",
-			io->buffer_size * pcm->frame_size, io->buffer_size / io->period_size,
-			pcm->frame_size * io->period_size);
+	debug("Selected HW buffer: %zd periods x %zd bytes %c= %zd bytes",
+			io->buffer_size / io->period_size, pcm->frame_size * io->period_size,
+			io->period_size * (io->buffer_size / io->period_size) == io->buffer_size ? '=' : '<',
+			io->buffer_size * pcm->frame_size);
 
 	return 0;
 }

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - transport.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -590,6 +590,12 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	debug("State transition: %d -> %d", t->state, state);
 
 	if (t->state == state)
+		return 0;
+
+	/* For the A2DP sink profile, the IO thread can not be created until the
+	 * BT transport is acquired, otherwise thread initialized will fail. */
+	if (t->profile == BLUETOOTH_PROFILE_A2DP_SINK &&
+			t->state == TRANSPORT_IDLE && state != TRANSPORT_PENDING)
 		return 0;
 
 	const int created = !pthread_equal(t->thread, config.main_thread);
