@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl.h
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -31,6 +31,7 @@ enum command {
 	COMMAND_PCM_CLOSE,
 	COMMAND_PCM_PAUSE,
 	COMMAND_PCM_RESUME,
+	COMMAND_PCM_READY,
 	__COMMAND_MAX
 };
 

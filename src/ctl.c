@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -435,6 +435,8 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 	case COMMAND_PCM_RESUME:
 		transport_set_state(t, TRANSPORT_ACTIVE);
 		break;
+	case COMMAND_PCM_READY:
+		break;
 	default:
 		warn("Invalid PCM control command: %d", req->command);
 	}
@@ -459,6 +461,7 @@ static void *ctl_thread(void *arg) {
 		[COMMAND_PCM_CLOSE] = ctl_thread_cmd_pcm_close,
 		[COMMAND_PCM_PAUSE] = ctl_thread_cmd_pcm_control,
 		[COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
+		[COMMAND_PCM_READY] = ctl_thread_cmd_pcm_control,
 	};
 
 	debug("Starting controller loop");

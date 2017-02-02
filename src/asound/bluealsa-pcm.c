@@ -83,6 +83,26 @@ static int bluealsa_status_to_errno(struct msg_status *status) {
 }
 
 /**
+ * Send request to the BlueALSA server.
+ *
+ * @param fd Opened socket file descriptor.
+ * @param req An address to the request structure.
+ * @return Upon success this function returns 0. Otherwise, -1 is returned
+ *   and errno is set appropriately. */
+static int bluealsa_send_request(int fd, const struct request *req) {
+
+	struct msg_status status = { 0xAB };
+
+	if (send(fd, req, sizeof(*req), MSG_NOSIGNAL) == -1)
+		return -1;
+	if (read(fd, &status, sizeof(status)) == -1)
+		return -1;
+
+	errno = bluealsa_status_to_errno(&status);
+	return errno != 0 ? -1 : 0;
+}
+
+/**
  * Get PCM transport.
  *
  * @param pcm An address to the bluealsa pcm structure.
@@ -165,6 +185,16 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
 	if (pcm->io.stream == SND_PCM_STREAM_CAPTURE)
 		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
 
+	/* In the capture mode it is required to signal the server, that the PCM
+	 * opening process has been finished. This requirement comes from the fact,
+	 * that the writing side of the FIFO will not be opened before the reading
+	 * side is (if the write-only non-blocking mode is used). This "PCM ready"
+	 * signal will help to synchronize FIFO opening process. */
+	if (pcm->io.stream == SND_PCM_STREAM_CAPTURE) {
+		req.command = COMMAND_PCM_READY;
+		bluealsa_send_request(pcm->fd, &req);
+	}
+
 	return fd;
 }
 
@@ -175,7 +205,6 @@ static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
 static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
 
-	struct msg_status status = { 0xAB };
 	struct request req = {
 		.command = COMMAND_PCM_CLOSE,
 		.addr = pcm->transport.addr,
@@ -184,13 +213,7 @@ static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
 	};
 
 	debug("Closing PCM for %s", pcm->dev_addr);
-	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
-		return -1;
-	if (read(pcm->fd, &status, sizeof(status)) == -1)
-		return -1;
-
-	errno = bluealsa_status_to_errno(&status);
-	return errno != 0 ? -1 : 0;
+	return bluealsa_send_request(pcm->fd, &req);
 }
 
 /**
@@ -201,7 +224,6 @@ static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
 static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, bool pause) {
 
-	struct msg_status status = { 0xAB };
 	struct request req = {
 		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
 		.addr = pcm->transport.addr,
@@ -210,13 +232,7 @@ static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, bool pause) {
 	};
 
 	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", pcm->dev_addr);
-	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
-		return -1;
-	if (read(pcm->fd, &status, sizeof(status)) == -1)
-		return -1;
-
-	errno = bluealsa_status_to_errno(&status);
-	return errno != 0 ? -1 : 0;
+	return bluealsa_send_request(pcm->fd, &req);
 }
 
 /**

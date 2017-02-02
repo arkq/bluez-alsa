@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -94,9 +94,10 @@ static int io_thread_open_pcm_write(struct ba_pcm *pcm) {
 	if (pcm->fd == -1) {
 
 		debug("Opening FIFO for writing: %s", pcm->fifo);
-		if ((pcm->fd = open(pcm->fifo, O_WRONLY | O_NONBLOCK)) == -1)
-			/* FIFO endpoint is not connected yet */
+		if ((pcm->fd = open(pcm->fifo, O_WRONLY | O_NONBLOCK)) == -1) {
+			debug("FIFO reading endpoint is not connected yet");
 			return -1;
+		}
 
 		/* Restore the blocking mode of our FIFO. Non-blocking mode was required
 		 * only for the opening process - we do not want to block if the reading
