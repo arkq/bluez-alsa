@@ -719,6 +719,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
+	debug("Connecting to socket: %s", saddr.sun_path);
 	if (connect(pcm->fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
 		SNDERR("BlueALSA connection failed: %s", strerror(errno));
 		ret = -errno;
