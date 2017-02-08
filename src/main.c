@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 	struct hci_dev_info *hci_devs;
 	int hci_devs_num;
 
-	log_open(argv[0], false, false);
+	log_open(argv[0], false, BLUEALSA_LOGTIME);
 
 	if (bluealsa_config_init() != 0) {
 		error("Couldn't initialize bluealsa config");

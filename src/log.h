@@ -17,6 +17,12 @@
 
 #include <stdbool.h>
 
+#if DEBUG_TIME
+# define BLUEALSA_LOGTIME true
+#else
+# define BLUEALSA_LOGTIME false
+#endif
+
 void log_open(const char *ident, bool syslog, bool time);
 void error(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 void warn(const char *format, ...) __attribute__ ((format(printf, 1, 2)));

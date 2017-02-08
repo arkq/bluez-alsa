@@ -24,7 +24,7 @@ static char *_ident = NULL;
 /* if true, system logging is enabled */
 static bool _syslog = false;
 /* if true, print logging time */
-static bool _time = false;
+static bool _time = BLUEALSA_LOGTIME;
 
 
 void log_open(const char *ident, bool syslog, bool time) {
