@@ -537,7 +537,14 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 	case TRANSPORT_TYPE_RFCOMM:
 		break;
 	case TRANSPORT_TYPE_SCO:
-		return 8000;
+		switch (t->sco.codec) {
+			case TRANSPORT_SCO_CODEC_UNKNOWN:
+				break;
+			case TRANSPORT_SCO_CODEC_CVSD:
+				return 8000;
+			case TRANSPORT_SCO_CODEC_MSBC:
+				return 16000;
+		}
 	}
 
 	/* the sampling frequency is unspecified */
