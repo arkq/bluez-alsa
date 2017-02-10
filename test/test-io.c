@@ -13,6 +13,7 @@
 #include "inc/sine.inc"
 #include "inc/test.inc"
 #include "../src/bluealsa.c"
+#include "../src/at.c"
 #include "../src/io.c"
 #include "../src/transport.c"
 #include "../src/utils.c"

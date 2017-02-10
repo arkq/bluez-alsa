@@ -22,6 +22,7 @@
 #include "inc/test.inc"
 
 #include "../src/bluealsa.c"
+#include "../src/at.c"
 #include "../src/ctl.c"
 #include "../src/io.h"
 #define io_thread_a2dp_sink_sbc _io_thread_a2dp_sink_sbc

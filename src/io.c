@@ -33,6 +33,7 @@
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
+#include "at.h"
 #include "bluealsa.h"
 #include "transport.h"
 #include "utils.h"
@@ -1032,6 +1033,7 @@ void *io_thread_rfcomm(void *arg) {
 
 	uint8_t mic_gain = t->rfcomm.sco->sco.mic_gain;
 	uint8_t spk_gain = t->rfcomm.sco->sco.spk_gain;
+	struct bt_at at;
 	char buffer[64];
 
 	struct pollfd pfds[] = {
@@ -1044,7 +1046,6 @@ void *io_thread_rfcomm(void *arg) {
 	for (;;) {
 
 		const char *response = "OK";
-		char command[16], value[32];
 		ssize_t ret;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -1095,28 +1096,26 @@ void *io_thread_rfcomm(void *arg) {
 		}
 
 		/* Parse AT command received from the headset. */
-		if (sscanf(buffer, "AT%15[^=]=%30s", command, value) != 2) {
+		if (at_parse(buffer, &at) != 0) {
 			warn("Invalid AT command: %s", buffer);
 			continue;
 		}
 
-		debug("AT command: %s=%s", command, value);
-
-		if (strcmp(command, "RING") == 0) {
+		if (strcmp(at.command, "RING") == 0) {
 		}
-		else if (strcmp(command, "+CKPD") == 0 && atoi(value) == 200) {
+		else if (strcmp(at.command, "+CKPD") == 0 && atoi(at.value) == 200) {
 		}
-		else if (strcmp(command, "+VGM") == 0) {
-			t->rfcomm.sco->sco.mic_gain = mic_gain = atoi(value);
+		else if (strcmp(at.command, "+VGM") == 0) {
+			t->rfcomm.sco->sco.mic_gain = mic_gain = atoi(at.value);
 			bluealsa_event();
 		}
-		else if (strcmp(command, "+VGS") == 0) {
-			t->rfcomm.sco->sco.spk_gain = spk_gain = atoi(value);
+		else if (strcmp(at.command, "+VGS") == 0) {
+			t->rfcomm.sco->sco.spk_gain = spk_gain = atoi(at.value);
 			bluealsa_event();
 		}
-		else if (strcmp(command, "+IPHONEACCEV") == 0) {
+		else if (strcmp(at.command, "+IPHONEACCEV") == 0) {
 
-			char *ptr = value;
+			char *ptr = at.value;
 			size_t count = atoi(strsep(&ptr, ","));
 			char tmp;
 
@@ -1137,12 +1136,12 @@ void *io_thread_rfcomm(void *arg) {
 				}
 
 		}
-		else if (strcmp(command, "+XAPL") == 0) {
+		else if (strcmp(at.command, "+XAPL") == 0) {
 
 			unsigned int vendor, product;
 			unsigned int version, features;
 
-			if (sscanf(value, "%x-%x-%u,%u", &vendor, &product, &version, &features) == 4) {
+			if (sscanf(at.value, "%x-%x-%u,%u", &vendor, &product, &version, &features) == 4) {
 				t->device->xapl.vendor_id = vendor;
 				t->device->xapl.product_id = product;
 				t->device->xapl.version = version;
@@ -1150,13 +1149,13 @@ void *io_thread_rfcomm(void *arg) {
 				response = "+XAPL=BlueALSA,0";
 			}
 			else {
-				warn("Invalid XAPL value: %s", value);
+				warn("Invalid XAPL value: %s", at.value);
 				response = "ERROR";
 			}
 
 		}
 		else {
-			warn("Unsupported AT command: %s=%s", command, value);
+			warn("Unsupported AT command: %s=%s", at.command, at.value);
 			response = "ERROR";
 		}
 
