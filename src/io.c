@@ -33,7 +33,9 @@
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
+#include "at.h"
 #include "bluealsa.h"
+#include "hfp.h"
 #include "transport.h"
 #include "utils.h"
 #include "shared/log.h"
@@ -241,9 +243,10 @@ static ssize_t io_thread_write_at_command(int fd, const char *msg) {
  * Write AT response code to the RFCOMM. */
 static ssize_t io_thread_write_at_response(int fd, const char *msg) {
 
-	char buffer[64];
+	char buffer[256];
 
 	snprintf(buffer, sizeof(buffer), "\r\n%s\r\n", msg);
+	debug("Sending AT response: %s", buffer);
 	return io_thread_write_rfcomm(fd, buffer);
 }
 
@@ -261,6 +264,9 @@ static int io_thread_time_sync(struct io_sync *io_sync, uint32_t frames) {
 	struct timespec ts_audio;
 	struct timespec ts_clock;
 	struct timespec ts;
+
+	if (sampling == 0)
+		return 0;
 
 	/* calculate the playback duration of given frames */
 	unsigned int sec = frames / sampling;
@@ -1079,6 +1085,7 @@ void *io_thread_rfcomm(void *arg) {
 	uint8_t mic_gain = t->rfcomm.sco->sco.mic_gain;
 	uint8_t spk_gain = t->rfcomm.sco->sco.spk_gain;
 	char buffer[64];
+	struct at_command at;
 
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
@@ -1090,7 +1097,6 @@ void *io_thread_rfcomm(void *arg) {
 	for (;;) {
 
 		const char *response = "OK";
-		char command[16], value[32];
 		ssize_t ret;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -1141,24 +1147,24 @@ void *io_thread_rfcomm(void *arg) {
 		}
 
 		/* Parse AT command received from the headset. */
-		if (sscanf(buffer, "AT%15[^=]=%30s", command, value) != 2) {
+		if (at_parse(buffer, &at)) {
 			warn("Invalid AT command: %s", buffer);
 			continue;
 		}
 
-		debug("AT command: %s=%s", command, value);
+		debug("AT command: %s=%s", at.command, at.value);
 
-		if (strcmp(command, "RING") == 0) {
+		if (strcmp(at.command, "RING") == 0) {
 		}
-		else if (strcmp(command, "+CKPD") == 0 && atoi(value) == 200) {
+		else if (strcmp(at.command, "+CKPD") == 0 && atoi(at.value) == 200) {
 		}
-		else if (strcmp(command, "+VGM") == 0)
-			t->rfcomm.sco->sco.mic_gain = mic_gain = atoi(value);
-		else if (strcmp(command, "+VGS") == 0)
-			t->rfcomm.sco->sco.spk_gain = spk_gain = atoi(value);
-		else if (strcmp(command, "+IPHONEACCEV") == 0) {
+		else if (strcmp(at.command, "+VGM") == 0)
+			t->rfcomm.sco->sco.mic_gain = mic_gain = atoi(at.value);
+		else if (strcmp(at.command, "+VGS") == 0)
+			t->rfcomm.sco->sco.spk_gain = spk_gain = atoi(at.value);
+		else if (strcmp(at.command, "+IPHONEACCEV") == 0) {
 
-			char *ptr = value;
+			char *ptr = at.value;
 			size_t count = atoi(strsep(&ptr, ","));
 			char tmp;
 
@@ -1178,12 +1184,12 @@ void *io_thread_rfcomm(void *arg) {
 				}
 
 		}
-		else if (strcmp(command, "+XAPL") == 0) {
+		else if (strcmp(at.command, "+XAPL") == 0) {
 
 			unsigned int vendor, product;
 			unsigned int version, features;
 
-			if (sscanf(value, "%x-%x-%u,%u", &vendor, &product, &version, &features) == 4) {
+			if (sscanf(at.value, "%x-%x-%u,%u", &vendor, &product, &version, &features) == 4) {
 				t->device->xapl.vendor_id = vendor;
 				t->device->xapl.product_id = product;
 				t->device->xapl.version = version;
@@ -1191,13 +1197,111 @@ void *io_thread_rfcomm(void *arg) {
 				response = "+XAPL=BlueALSA,0";
 			}
 			else {
-				warn("Invalid XAPL value: %s", value);
+				warn("Invalid XAPL value: %s", at.value);
 				response = "ERROR";
 			}
 
 		}
+		else if (strcmp(at.command, "+BRSF") == 0) {
+
+			uint32_t hf_features = strtoul(at.value, NULL, 10);
+			debug("Got HFP HF features: 0x%x", hf_features);
+
+			uint32_t ag_features = HFP_AG_FEATURES;
+#if ENABLE_MSBC
+			if (hf_features & HFP_HF_FEAT_CODEC) {
+				ag_features |= HFP_AG_FEAT_CODEC;
+			}
+#endif
+			if ((ag_features & HFP_AG_FEAT_CODEC) == 0) {
+				/* Codec negotiation is not supported,
+				   hence no wideband audio support.
+				   AT+BAC is not sent
+				   */
+				t->rfcomm.sco->sco.codec = TRANSPORT_SCO_CODEC_CVSD;
+			}
+
+			t->rfcomm.sco->sco.hf_features = hf_features;
+
+			snprintf(buffer, sizeof(buffer), "+BRSF: %u", ag_features);
+			io_thread_write_at_response(pfds[1].fd, buffer);
+
+		}
+		else if (strcmp(at.command, "+BAC") == 0 && at.type == AT_CMD_TYPE_SET) {
+
+			debug("Supported codecs: %s", at.value);
+			/* In case some headsets send BAC even if we don't
+			 * advertise support for it, just OK and ignore
+			 */
+#if ENABLE_MSBC
+			/* Split codecs string */
+			gchar **codecs = g_strsplit(at.value, ",", 0);
+			for (int i = 0; codecs[i]; i++) {
+				gchar *codec = codecs[i];
+				uint32_t codec_value = strtoul(codec, NULL, 10);
+				if (codec_value == HFP_CODEC_MSBC) {
+					t->rfcomm.sco->sco.codec = TRANSPORT_SCO_CODEC_MSBC;
+				}
+			}
+			g_strfreev(codecs);
+#endif
+			/* Default to CVSD if no other was found */
+			if (t->rfcomm.sco->sco.codec == TRANSPORT_SCO_CODEC_UNKNOWN)
+				t->rfcomm.sco->sco.codec = TRANSPORT_SCO_CODEC_CVSD;
+
+		}
+		else if (strcmp(at.command, "+CIND") == 0) {
+
+			if ( at.type == AT_CMD_TYPE_GET) {
+				io_thread_write_at_response(pfds[1].fd,
+					"+CIND: 0,0,1,4,0,4,0");
+			}
+			else if(at.type == AT_CMD_TYPE_TEST) {
+				io_thread_write_at_response(pfds[1].fd,
+					"+CIND: "
+					"(\"call\",(0,1))"
+					",(\"callsetup\",(0-3))"
+					",(\"service\",(0-1))"
+					",(\"signal\",(0-5))"
+					",(\"roam\",(0,1))"
+					",(\"battchg\",(0-5))"
+					",(\"callheld\",(0-2))"
+					);
+			}
+
+		}
+		else if (strcmp(at.command, "+CMER") == 0 && at.type == AT_CMD_TYPE_SET) {
+
+			/* +CMER is the last step of the "Service Level
+			   Connection establishment" procedure */
+
+			/* Send OK */
+			io_thread_write_at_response(pfds[1].fd, response);
+
+			/* Send codec select if anything besides CVSD was found */
+			if (t->rfcomm.sco->sco.codec > TRANSPORT_SCO_CODEC_CVSD) {
+				snprintf(buffer, sizeof(buffer), "+BCS: %u", t->rfcomm.sco->sco.codec);
+				io_thread_write_at_response(pfds[1].fd, buffer);
+			}
+			continue;
+
+		}
+		else if (strcmp(at.command, "+BCS") == 0 && at.type == AT_CMD_TYPE_SET) {
+			debug("Got codec selected: %d", atoi(at.value));
+		}
+		else if (strcmp(at.command, "+BTRH") == 0 && at.type == AT_CMD_TYPE_GET) {
+		}
+		else if (strcmp(at.command, "+NREC") == 0 && at.type == AT_CMD_TYPE_SET) {
+		}
+		else if (strcmp(at.command, "+CCWA") == 0 && at.type == AT_CMD_TYPE_SET) {
+		}
+		else if (strcmp(at.command, "+BIA") == 0 && at.type == AT_CMD_TYPE_SET) {
+		}
+		else if (strcmp(at.command, "+CHLD") == 0 && at.type == AT_CMD_TYPE_TEST) {
+			io_thread_write_at_response(pfds[1].fd, "+CHLD: (0,1,2,3)");
+		}
 		else {
-			warn("Unsupported AT command: %s=%s", command, value);
+			warn("Unsupported AT command: %s=%s", at.command, at.value);
 			response = "ERROR";
 		}
 
@@ -1231,7 +1335,7 @@ void *io_thread_sco(void *arg) {
 	};
 
 	struct io_sync io_sync = {
-		.sampling = transport_get_sampling(t),
+		.frames = 0,
 	};
 
 	debug("Starting IO loop: %s",
@@ -1267,6 +1371,7 @@ void *io_thread_sco(void *arg) {
 			else
 				transport_acquire_bt_sco(t);
 
+			io_sync.sampling = transport_get_sampling(t);
 			continue;
 		}
 
