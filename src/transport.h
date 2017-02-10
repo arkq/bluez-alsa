@@ -168,6 +168,9 @@ struct ba_transport {
 			struct ba_pcm spk_pcm;
 			struct ba_pcm mic_pcm;
 
+			/* HF feature flags */
+			uint32_t hf_features;
+
 		} sco;
 
 	};

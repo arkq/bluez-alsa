@@ -25,6 +25,7 @@
 
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
+#include "hfp.h"
 #include "io.h"
 #include "utils.h"
 #include "shared/log.h"
@@ -192,6 +193,7 @@ gboolean device_remove(GHashTable *devices, const char *key) {
  * @param dbus_owner D-Bus service, which owns this transport.
  * @param dbus_path D-Bus service path for this transport.
  * @param profile Bluetooth profile.
+ * @param codec Used audio codec.
  * @return On success, the pointer to the newly allocated transport structure
  *   is returned. If error occurs, NULL is returned and the errno variable is
  *   set to indicated the cause of the error. */
@@ -214,6 +216,10 @@ struct ba_transport *transport_new(
 
 	t->profile = profile;
 	t->codec = codec;
+
+	/* HSP supports CVSD only */
+	if (profile == BLUETOOTH_PROFILE_HSP_HS || profile == BLUETOOTH_PROFILE_HSP_AG)
+		t->codec = HFP_CODEC_CVSD;
 
 	t->state = TRANSPORT_IDLE;
 	t->thread = config.main_thread;
@@ -284,7 +290,7 @@ struct ba_transport *transport_new_rfcomm(
 
 	dbus_path_sco = g_strdup_printf("%s/sco", dbus_path);
 	if ((t_sco = transport_new(device, TRANSPORT_TYPE_SCO,
-					dbus_owner, dbus_path_sco, profile, -1)) == NULL)
+					dbus_owner, dbus_path_sco, profile, HFP_CODEC_UNDEFINED)) == NULL)
 		goto fail;
 
 	t->rfcomm.sco = t_sco;
@@ -537,7 +543,12 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 	case TRANSPORT_TYPE_RFCOMM:
 		break;
 	case TRANSPORT_TYPE_SCO:
-		return 8000;
+		switch (t->codec) {
+			case HFP_CODEC_CVSD:
+				return 8000;
+			case HFP_CODEC_MSBC:
+				return 16000;
+		}
 	}
 
 	/* the sampling frequency is unspecified */

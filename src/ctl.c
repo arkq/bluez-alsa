@@ -29,6 +29,7 @@
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
 #include "bluez.h"
+#include "hfp.h"
 #include "transport.h"
 #include "utils.h"
 #include "shared/ctl-proto.h"
@@ -86,6 +87,9 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 				break;
 			case PCM_TYPE_SCO:
 				if ((*t)->type != TRANSPORT_TYPE_SCO)
+					continue;
+				/* ignore SCO transport if codec is not selected yet */
+				if ((*t)->codec == HFP_CODEC_UNDEFINED)
 					continue;
 				break;
 			}
