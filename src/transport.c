@@ -790,7 +790,7 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 		return -1;
 	}
 
-	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr)) == -1) {
+	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr, t->sco.codec == TRANSPORT_SCO_CODEC_MSBC)) == -1) {
 		error("Couldn't open SCO link: %s", strerror(errno));
 		return -1;
 	}
