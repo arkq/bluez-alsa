@@ -40,6 +40,7 @@
 #include "utils.h"
 #include "shared/log.h"
 #include "shared/rt.h"
+#include "io-msbc.h"
 
 
 struct io_sync {
@@ -1319,6 +1320,7 @@ void *io_thread_sco(void *arg) {
 
 	/* this buffer has to be bigger than SCO MTU */
 	const size_t buffer_size = 512;
+	struct sbc_state sbc;
 	int16_t *buffer = malloc(buffer_size);
 
 	pthread_cleanup_push(CANCEL_ROUTINE(free), buffer);
@@ -1342,7 +1344,11 @@ void *io_thread_sco(void *arg) {
 			bluetooth_profile_to_string(t->profile, t->codec));
 	for (;;) {
 
-		pfds[1].fd = t->sco.mic_pcm.fd != -1 ? t->bt_fd : -1;
+		if (t->sco.codec == TRANSPORT_SCO_CODEC_MSBC) {
+			pfds[1].fd = t->bt_fd;
+		} else {
+			pfds[1].fd = t->sco.mic_pcm.fd != -1 ? t->bt_fd : -1;
+		}
 		pfds[2].fd = t->sco.spk_pcm.fd;
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
@@ -1368,8 +1374,16 @@ void *io_thread_sco(void *arg) {
 				transport_release_bt_sco(t);
 				io_sync.frames = 0;
 			}
-			else
+			else {
 				transport_acquire_bt_sco(t);
+#if ENABLE_MSBC
+				/* This can be called again, make sure it is "reentrant" */
+				if (t->sco.codec == TRANSPORT_SCO_CODEC_MSBC) {
+					if (!iothread_initialize_msbc(&sbc))
+						goto fail;
+				}
+#endif
+			}
 
 			io_sync.sampling = transport_get_sampling(t);
 			continue;
@@ -1382,33 +1396,57 @@ void *io_thread_sco(void *arg) {
 
 		if (pfds[1].revents & POLLIN) {
 
-			ssize_t len;
-
-			if ((len = read(pfds[1].fd, buffer, buffer_size)) == -1) {
-				debug("SCO read error: %s", strerror(errno));
-				continue;
+#if ENABLE_MSBC
+			if (t->sco.codec ==TRANSPORT_SCO_CODEC_MSBC) {
+				if (iothread_handle_incoming_msbc(t, &sbc))
+					pfds[2].events = POLLIN; /* There is space,
+								    kick off the producer */
 			}
+			else
+#endif
+			{
+				ssize_t len;
 
-			write(t->sco.mic_pcm.fd, buffer, len);
+				if ((len = read(pfds[1].fd, buffer, buffer_size)) == -1) {
+					debug("SCO read error: %s", strerror(errno));
+					continue;
+				}
+
+				write(t->sco.mic_pcm.fd, buffer, len);
+			}
 		}
 
 		if (pfds[2].revents & POLLIN) {
 
-			ssize_t samples = t->mtu_write / sizeof(int16_t);
-
-			/* read data from the FIFO - this function will block */
-			if ((samples = io_thread_read_pcm(&t->sco.spk_pcm, buffer, samples)) <= 0) {
-				if (samples == -1)
-					error("FIFO read error: %s", strerror(errno));
-				continue;
+#if ENABLE_MSBC
+			if (t->sco.codec == TRANSPORT_SCO_CODEC_MSBC) {
+				if (iothread_handle_outgoing_msbc(t, &sbc))
+					pfds[2].events = 0; /* Stop reading until there
+							       is enough space for
+							       another frame */
 			}
+			else
+#endif
+			{
+				ssize_t samples = t->mtu_write / sizeof(int16_t);
 
-			write(t->bt_fd, buffer, samples * sizeof(int16_t));
+				/* read data from the FIFO - this function will block */
+				if ((samples = io_thread_read_pcm(&t->sco.spk_pcm, buffer, samples)) <= 0) {
+					if (samples == -1)
+						error("FIFO read error: %s", strerror(errno));
+					continue;
+				}
+
+				write(t->bt_fd, buffer, samples * sizeof(int16_t));
+			}
 		}
 
-		/* keep data transfer at a constant bit rate */
-		io_thread_time_sync(&io_sync, 48 / 2);
-		t->delay = io_sync.delay;
+		/* mSBC output is synchronized to input, no need for this */
+		if (t->sco.codec != TRANSPORT_SCO_CODEC_MSBC) {
+			/* keep data transfer at a constant bit rate */
+			io_thread_time_sync(&io_sync, 48 / 2);
+			t->delay = io_sync.delay;
+		}
 
 	}
 
