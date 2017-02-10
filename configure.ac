@@ -67,6 +67,13 @@ AM_COND_IF([ENABLE_HCITOP], [
 	PKG_CHECK_MODULES([NCURSES], [ncurses])
 ])
 
+AC_ARG_ENABLE([msbc],
+	[AS_HELP_STRING([--enable-msbc], [enable MSBC support])])
+AM_CONDITIONAL([ENABLE_MSBC], [test "x$enable_msbc" = "xyes"])
+AM_COND_IF([ENABLE_MSBC], [
+	AC_DEFINE([ENABLE_MSBC], [1], [Define to 1 if MSBC is enabled.])
+])
+
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
 	[alsaplugindir="$withval"], [alsaplugindir="$libdir/alsa-lib"])
