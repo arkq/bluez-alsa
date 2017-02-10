@@ -794,7 +794,7 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 		return -1;
 	}
 
-	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr)) == -1) {
+	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr, t->codec != HFP_CODEC_CVSD)) == -1) {
 		error("Couldn't open SCO link: %s", strerror(errno));
 		return -1;
 	}

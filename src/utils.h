@@ -16,6 +16,7 @@
 #endif
 
 #include <time.h>
+#include <stdbool.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -26,7 +27,7 @@
 int a2dp_sbc_default_bitpool(int freq, int mode);
 
 int hci_devlist(struct hci_dev_info **di, int *num);
-int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba);
+int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba, bool transparent);
 
 const char *bluetooth_profile_to_string(enum bluetooth_profile profile,
 		uint8_t codec);
