@@ -14,11 +14,11 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <sys/un.h>
 
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
+#include "shared/ctl-client.h"
 #include "shared/ctl-proto.h"
 #include "shared/log.h"
 
@@ -58,58 +58,6 @@ struct bluealsa_ctl {
 
 };
 
-
-/**
- * Get Bluetooth devices.
- *
- * @param ctl An address to the bluealsa ctl structure.
- * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-static int bluealsa_get_devices(struct bluealsa_ctl *ctl) {
-
-	const struct request req = { .command = COMMAND_LIST_DEVICES };
-	struct msg_device *devices = NULL;
-	struct msg_device device;
-	size_t i = 0;
-
-	if (send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
-		return -1;
-
-	while (recv(ctl->fd, &device, sizeof(device), 0) == sizeof(device)) {
-		devices = realloc(devices, (i + 1) * sizeof(*devices));
-		memcpy(&devices[i], &device, sizeof(*devices));
-		i++;
-	}
-
-	ctl->devices = devices;
-	ctl->devices_count = i;
-	return 0;
-}
-
-/**
- * Get PCM transports.
- *
- * @param ctl An address to the bluealsa ctl structure.
- * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-static int bluealsa_get_transports(struct bluealsa_ctl *ctl) {
-
-	const struct request req = { .command = COMMAND_LIST_TRANSPORTS };
-	struct msg_transport *transports = NULL;
-	struct msg_transport transport;
-	size_t i = 0;
-
-	if (send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
-		return -1;
-
-	while (recv(ctl->fd, &transport, sizeof(transport), 0) == sizeof(transport)) {
-		transports = realloc(transports, (i + 1) * sizeof(*transports));
-		memcpy(&transports[i], &transport, sizeof(*transports));
-		i++;
-	}
-
-	ctl->transports = transports;
-	ctl->transports_count = i;
-	return 0;
-}
 
 /**
  * Get device ID number.
@@ -205,12 +153,16 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
 	size_t count = 0;
+	ssize_t cnt;
 	size_t i;
 
-	if (bluealsa_get_devices(ctl) == -1)
+	if ((cnt = bluealsa_get_devices(ctl->fd, &ctl->devices)) == -1)
 		return -errno;
-	if (bluealsa_get_transports(ctl) == -1)
+	ctl->devices_count = cnt;
+
+	if ((cnt = bluealsa_get_transports(ctl->fd, &ctl->transports)) == -1)
 		return -errno;
+	ctl->transports_count = cnt;
 
 	for (i = 0; i < ctl->devices_count; i++) {
 		/* add additional element for battery level */
@@ -614,16 +566,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((ctl = calloc(1, sizeof(*ctl))) == NULL)
 		return -ENOMEM;
 
-	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
-	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
-			BLUEALSA_RUN_STATE_DIR "/%s", interface);
-
-	if ((ctl->fd = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)) == -1) {
-		ret = -errno;
-		goto fail;
-	}
-
-	if (connect(ctl->fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
+	if ((ctl->fd = bluealsa_open(interface)) == -1) {
 		SNDERR("BlueALSA connection failed: %s", strerror(errno));
 		ret = -errno;
 		goto fail;

@@ -10,20 +10,19 @@
 
 #define _GNU_SOURCE
 #include <errno.h>
-#include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
 
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 
+#include "shared/ctl-client.h"
 #include "shared/ctl-proto.h"
 #include "shared/log.h"
 
@@ -42,8 +41,7 @@ struct bluealsa_pcm {
 	int event_fd;
 
 	/* requested transport */
-	struct msg_transport transport;
-	enum pcm_stream stream;
+	struct msg_transport *transport;
 	size_t pcm_buffer_size;
 	int pcm_fd;
 
@@ -55,184 +53,8 @@ struct bluealsa_pcm {
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
 
-	/* BT device address used for debugging */
-	char dev_addr[18];
-
 };
 
-
-/**
- * Convert BlueALSA status message into the POSIX errno value. */
-static int bluealsa_status_to_errno(struct msg_status *status) {
-	switch (status->code) {
-	case STATUS_CODE_SUCCESS:
-		return 0;
-	case STATUS_CODE_ERROR_UNKNOWN:
-		return EIO;
-	case STATUS_CODE_DEVICE_NOT_FOUND:
-		return ENODEV;
-	case STATUS_CODE_DEVICE_BUSY:
-		return EBUSY;
-	case STATUS_CODE_FORBIDDEN:
-		return EACCES;
-	default:
-		/* some generic error code */
-		return EINVAL;
-	}
-}
-
-/**
- * Send request to the BlueALSA server.
- *
- * @param fd Opened socket file descriptor.
- * @param req An address to the request structure.
- * @return Upon success this function returns 0. Otherwise, -1 is returned
- *   and errno is set appropriately. */
-static int bluealsa_send_request(int fd, const struct request *req) {
-
-	struct msg_status status = { 0xAB };
-
-	if (send(fd, req, sizeof(*req), MSG_NOSIGNAL) == -1)
-		return -1;
-	if (read(fd, &status, sizeof(status)) == -1)
-		return -1;
-
-	errno = bluealsa_status_to_errno(&status);
-	return errno != 0 ? -1 : 0;
-}
-
-/**
- * Get PCM transport.
- *
- * @param pcm An address to the bluealsa pcm structure.
- * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-static int bluealsa_get_transport(struct bluealsa_pcm *pcm) {
-
-	struct msg_status status = { 0xAB };
-	struct request req = {
-		.command = COMMAND_TRANSPORT_GET,
-		.addr = pcm->transport.addr,
-		.type = pcm->transport.type,
-		.stream = pcm->stream,
-	};
-	ssize_t len;
-
-	ba2str(&req.addr, pcm->dev_addr);
-
-	debug("Getting transport for %s type %d", pcm->dev_addr, req.type);
-	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
-		return -1;
-	if ((len = read(pcm->fd, &pcm->transport, sizeof(pcm->transport))) == -1)
-		return -1;
-
-	/* in case of error, status message is returned */
-	if (len != sizeof(pcm->transport)) {
-		memcpy(&status, &pcm->transport, sizeof(status));
-		errno = bluealsa_status_to_errno(&status);
-		return -1;
-	}
-
-	if (read(pcm->fd, &status, sizeof(status)) == -1)
-		return -1;
-
-	return 0;
-}
-
-/**
- * Open PCM transport.
- *
- * @param pcm An address to the bluealsa pcm structure.
- * @return PCM FIFO file descriptor, or -1 on error. */
-static int bluealsa_open_transport(struct bluealsa_pcm *pcm) {
-
-	struct msg_status status = { 0xAB };
-	struct request req = {
-		.command = COMMAND_PCM_OPEN,
-		.addr = pcm->transport.addr,
-		.type = pcm->transport.type,
-		.stream = pcm->stream,
-	};
-	struct msg_pcm res;
-	ssize_t len;
-	int fd;
-
-	debug("Requesting PCM open for %s", pcm->dev_addr);
-	if (send(pcm->fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
-		return -1;
-	if ((len = read(pcm->fd, &res, sizeof(res))) == -1)
-		return -1;
-
-	/* in case of error, status message is returned */
-	if (len != sizeof(res)) {
-		memcpy(&status, &res, sizeof(status));
-		errno = bluealsa_status_to_errno(&status);
-		return -1;
-	}
-
-	if (read(pcm->fd, &status, sizeof(status)) == -1)
-		return -1;
-
-	debug("Opening PCM FIFO (mode: %s): %s",
-			pcm->io.stream == SND_PCM_STREAM_PLAYBACK ? "WR" : "RO", res.fifo);
-	if ((fd = open(res.fifo, pcm->io.stream == SND_PCM_STREAM_PLAYBACK ?
-					O_WRONLY : O_RDONLY | O_NONBLOCK)) == -1)
-		return -1;
-
-	/* Restore the blocking mode. Non-blocking mode was required only for the
-	 * opening stage - FIFO read-write sides synchronization is done in the IO
-	 * thread. */
-	if (pcm->io.stream == SND_PCM_STREAM_CAPTURE)
-		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
-
-	/* In the capture mode it is required to signal the server, that the PCM
-	 * opening process has been finished. This requirement comes from the fact,
-	 * that the writing side of the FIFO will not be opened before the reading
-	 * side is (if the write-only non-blocking mode is used). This "PCM ready"
-	 * signal will help to synchronize FIFO opening process. */
-	if (pcm->io.stream == SND_PCM_STREAM_CAPTURE) {
-		req.command = COMMAND_PCM_READY;
-		bluealsa_send_request(pcm->fd, &req);
-	}
-
-	return fd;
-}
-
-/**
- * Close PCM transport.
- *
- * @param pcm An address to the bluealsa pcm structure.
- * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-static int bluealsa_close_transport(struct bluealsa_pcm *pcm) {
-
-	struct request req = {
-		.command = COMMAND_PCM_CLOSE,
-		.addr = pcm->transport.addr,
-		.type = pcm->transport.type,
-		.stream = pcm->stream,
-	};
-
-	debug("Closing PCM for %s", pcm->dev_addr);
-	return bluealsa_send_request(pcm->fd, &req);
-}
-
-/**
- * Pause/resume PCM transport.
- *
- * @param pcm An address to the bluealsa pcm structure.
- * @param pause If non-zero, pause transport, otherwise resume it.
- * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-static int bluealsa_pause_transport(struct bluealsa_pcm *pcm, bool pause) {
-
-	struct request req = {
-		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
-		.addr = pcm->transport.addr,
-		.type = pcm->transport.type,
-		.stream = pcm->stream,
-	};
-
-	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", pcm->dev_addr);
-	return bluealsa_send_request(pcm->fd, &req);
-}
 
 /**
  * IO thread, which facilitates ring buffer. */
@@ -339,7 +161,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	if (pcm->io_started)
 		return 0;
 
-	if (bluealsa_pause_transport(pcm, false) == -1) {
+	if (bluealsa_pause_transport(pcm->fd, pcm->transport, false) == -1) {
 		debug("Couldn't start PCM: %s", strerror(errno));
 		return -errno;
 	}
@@ -376,6 +198,7 @@ static int bluealsa_close(snd_pcm_ioplug_t *io) {
 	debug("Closing plugin");
 	close(pcm->fd);
 	close(pcm->event_fd);
+	free(pcm->transport);
 	free(pcm);
 	return 0;
 }
@@ -387,7 +210,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
-	if ((pcm->pcm_fd = bluealsa_open_transport(pcm)) == -1) {
+	if ((pcm->pcm_fd = bluealsa_open_transport(pcm->fd, pcm->transport)) == -1) {
 		debug("Couldn't open PCM FIFO: %s", strerror(errno));
 		return -errno;
 	}
@@ -424,7 +247,7 @@ static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	if (pcm->pcm_fd == -1)
 		return -EBADF;
 
-	if (bluealsa_close_transport(pcm) == -1)
+	if (bluealsa_close_transport(pcm->fd, pcm->transport) == -1)
 		debug("Couldn't close PCM FIFO: %s", strerror(errno));
 
 	close(pcm->pcm_fd);
@@ -450,7 +273,7 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	if (bluealsa_pause_transport(pcm, enable) == -1)
+	if (bluealsa_pause_transport(pcm->fd, pcm->transport, enable) == -1)
 		return -errno;
 
 	/* Even though PCM transport is paused, our IO thread is still running. If
@@ -466,10 +289,10 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	char addr[18];
 
-	ba2str(&pcm->transport.addr, addr);
+	ba2str(&pcm->transport->addr, addr);
 	snd_output_printf(out, "Bluetooth device: %s\n", addr);
-	snd_output_printf(out, "Bluetooth profile: %d\n", pcm->transport.type);
-	snd_output_printf(out, "Bluetooth codec: %d\n", pcm->transport.codec);
+	snd_output_printf(out, "Bluetooth profile: %d\n", pcm->transport->type);
+	snd_output_printf(out, "Bluetooth codec: %d\n", pcm->transport->codec);
 }
 
 static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
@@ -624,11 +447,11 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_CHANNELS,
-					pcm->transport.channels, pcm->transport.channels)) < 0)
+					pcm->transport->channels, pcm->transport->channels)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_RATE,
-					pcm->transport.sampling, pcm->transport.sampling)) < 0)
+					pcm->transport->sampling, pcm->transport->sampling)) < 0)
 		return err;
 
 	return 0;
@@ -685,30 +508,27 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((pcm = calloc(1, sizeof(*pcm))) == NULL)
 		return -ENOMEM;
 
+	bdaddr_t addr;
+	enum pcm_type type;
+
+	if (device == NULL || str2ba(device, &addr) != 0) {
+		SNDERR("Invalid BT device address: %s", device);
+		ret = -errno;
+		goto fail;
+	}
+
+	if ((type = bluealsa_parse_profile(profile)) == PCM_TYPE_NULL) {
+		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
+		ret = -errno;
+		goto fail;
+	}
+
 	pcm->fd = -1;
 	pcm->event_fd = -1;
 	pcm->pcm_fd = -1;
 
-	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
-	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
-			BLUEALSA_RUN_STATE_DIR "/%s", interface);
-
-	if (device == NULL || str2ba(device, &pcm->transport.addr) != 0) {
-		SNDERR("Invalid BT device address: %s", device);
-		ret = -EINVAL;
-		goto fail;
-	}
-
-	pcm->stream = stream == SND_PCM_STREAM_PLAYBACK ?
-			PCM_STREAM_PLAYBACK : PCM_STREAM_CAPTURE;
-
-	if ((pcm->transport.type = bluealsa_parse_profile(profile)) == PCM_TYPE_NULL) {
-		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
-		ret = -EINVAL;
-		goto fail;
-	}
-
-	if ((pcm->fd = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)) == -1) {
+	if ((pcm->fd = bluealsa_open(interface)) == -1) {
+		SNDERR("BlueALSA connection failed: %s", strerror(errno));
 		ret = -errno;
 		goto fail;
 	}
@@ -718,14 +538,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	debug("Connecting to socket: %s", saddr.sun_path);
-	if (connect(pcm->fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
-		SNDERR("BlueALSA connection failed: %s", strerror(errno));
-		ret = -errno;
-		goto fail;
-	}
-
-	if (bluealsa_get_transport(pcm) == -1) {
+	enum pcm_stream _stream = stream == SND_PCM_STREAM_PLAYBACK ?
+			PCM_STREAM_PLAYBACK : PCM_STREAM_CAPTURE;
+	if ((pcm->transport = bluealsa_get_transport(pcm->fd, addr, type, _stream)) == NULL) {
 		SNDERR("Couldn't get BlueALSA transport: %s", strerror(errno));
 		ret = -errno;
 		goto fail;
@@ -737,6 +552,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->io.mmap_rw = 1;
 	pcm->io.callback = &bluealsa_callback;
 	pcm->io.private_data = pcm;
+	pcm->transport->stream = _stream;
 
 	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
 		goto fail;
@@ -754,6 +570,7 @@ fail:
 		close(pcm->fd);
 	if (pcm->event_fd != -1)
 		close(pcm->event_fd);
+	free(pcm->transport);
 	free(pcm);
 	return ret;
 }
