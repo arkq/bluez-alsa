@@ -26,8 +26,8 @@
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
 #include "io.h"
-#include "log.h"
 #include "utils.h"
+#include "shared/log.h"
 
 
 static int io_thread_create(struct ba_transport *t) {

@@ -1,16 +1,16 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016 Arkadiusz Bokowy
+# Copyright (c) 2016-2017 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
 
 bluealsa_SOURCES = \
+	shared/log.c \
 	bluealsa.c \
 	bluez.c \
 	bluez-iface.c \
 	ctl.c \
 	io.c \
-	log.c \
 	transport.c \
 	utils.c \
 	main.c

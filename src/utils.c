@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -20,7 +20,7 @@
 
 #include "a2dp-codecs.h"
 #include "bluez.h"
-#include "log.h"
+#include "shared/log.h"
 
 
 /**

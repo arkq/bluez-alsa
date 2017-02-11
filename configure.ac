@@ -1,9 +1,9 @@
 # BlueALSA - configure.ac
-# Copyright (c) 2016 Arkadiusz Bokowy
+# Copyright (c) 2016-2017 Arkadiusz Bokowy
 
 AC_PREREQ([2.59])
 AC_INIT([bluez-alsa], [1.1.0], [arkadiusz.bokowy@gmail.com])
-AM_INIT_AUTOMAKE([foreign -Wall -Werror])
+AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])

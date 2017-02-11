@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hcitop.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,6 +9,7 @@
  */
 
 #include <getopt.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 

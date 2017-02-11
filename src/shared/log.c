@@ -8,7 +8,7 @@
  *
  */
 
-#include "log.h"
+#include "shared/log.h"
 
 #include <pthread.h>
 #include <stdarg.h>

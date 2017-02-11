@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -20,9 +20,9 @@
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
 #include "bluez-iface.h"
-#include "log.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/log.h"
 
 
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {

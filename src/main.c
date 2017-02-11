@@ -24,9 +24,9 @@
 #include "bluealsa.h"
 #include "bluez.h"
 #include "ctl.h"
-#include "log.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/log.h"
 
 
 static GMainLoop *loop = NULL;

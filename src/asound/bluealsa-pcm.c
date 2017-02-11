@@ -24,9 +24,8 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 
-#include "bluez.h"
-#include "ctl.h"
-#include "log.c"
+#include "shared/ctl-proto.h"
+#include "shared/log.h"
 
 
 /* Helper macro for obtaining the size of a static array. */

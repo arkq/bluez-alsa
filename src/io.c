@@ -34,9 +34,9 @@
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
 #include "bluealsa.h"
-#include "log.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/log.h"
 
 
 struct io_sync {

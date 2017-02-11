@@ -29,9 +29,10 @@
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
 #include "bluez.h"
-#include "log.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/ctl-proto.h"
+#include "shared/log.h"
 
 
 /**

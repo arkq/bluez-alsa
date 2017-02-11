@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef BLUEALSA_LOG_H_
-#define BLUEALSA_LOG_H_
+#ifndef BLUEALSA_SHARED_LOG_H_
+#define BLUEALSA_SHARED_LOG_H_
 
 #if HAVE_CONFIG_H
 # include "config.h"

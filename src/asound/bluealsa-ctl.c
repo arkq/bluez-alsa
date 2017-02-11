@@ -1,6 +1,6 @@
 /*
  * bluealsa-ctl.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -19,9 +19,8 @@
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
-#include "bluez.h"
-#include "ctl.h"
-#include "log.c"
+#include "shared/ctl-proto.h"
+#include "shared/log.h"
 
 
 enum ctl_elem_type {
