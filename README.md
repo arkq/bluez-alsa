@@ -61,6 +61,18 @@ like this:
 	defaults.bluealsa.device "XX:XX:XX:XX:XX:XX"
 	defaults.bluealsa.profile "a2dp"
 
+BlueALSA also allows to capture audio from the connected Bluetooth device. To do so, one has to
+use the capture PCM device, e.g.:
+
+	$ arecord -D bluealsa capture.wav
+
+Using this feature, it is possible to create Bluetooth-powered speaker. It is required to forward
+audio signal from the BlueALSA capture PCM to some other playback PCM (e.g. build-id audio card).
+In order to simplify this task, there is a program called `bluealsa-aplay`, which acts as a simple
+BlueALSA player. Connect your Bluetooth device (e.g. smartphone) and do as follows:
+
+	$ bluealsa-aplay XX:XX:XX:XX:XX:XX
+
 In order to control input or output audio level, one can use provided `bluealsa` control plugin.
 This plugin allows adjusting the volume of the audio stream or simply mute/unmute it, e.g.:
 
