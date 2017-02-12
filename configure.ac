@@ -55,6 +55,10 @@ AM_COND_IF([ENABLE_AAC], [
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
+AC_ARG_ENABLE([aplay],
+	[AS_HELP_STRING([--disable-aplay], [disable building of aplay tool])])
+AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
+
 AC_ARG_ENABLE([hcitop],
 	[AS_HELP_STRING([--disable-hcitop], [disable building of hcitop tool])])
 AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" != "xno"])

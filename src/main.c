@@ -31,13 +31,11 @@
 
 static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
-	(void)(sig);
-
-	/* NOTE: Call to this handler restores the default action, so on the
-	 *       second call the program will be forcefully terminated. */
+	/* Call to this handler restores the default action, so on the
+	 * second call the program will be forcefully terminated. */
 
 	struct sigaction sigact = { .sa_handler = SIG_DFL };
-	sigaction(SIGINT, &sigact, NULL);
+	sigaction(sig, &sigact, NULL);
 
 	g_main_loop_quit(loop);
 }
