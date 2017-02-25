@@ -11,6 +11,7 @@
 #include "a2dp.inc"
 #include "test.inc"
 #include "../src/utils.c"
+#include "../src/shared/rt.c"
 
 int test_pcm_scale_s16le(void) {
 

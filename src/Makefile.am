@@ -6,6 +6,7 @@ SUBDIRS = asound
 
 bluealsa_SOURCES = \
 	shared/log.c \
+	shared/rt.c \
 	bluealsa.c \
 	bluez.c \
 	bluez-iface.c \

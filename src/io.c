@@ -37,6 +37,7 @@
 #include "transport.h"
 #include "utils.h"
 #include "shared/log.h"
+#include "shared/rt.h"
 
 
 struct io_sync {
@@ -270,7 +271,7 @@ static int io_thread_time_sync(struct io_sync *io_sync, uint32_t frames) {
 	ts_audio.tv_sec = frames / sampling;
 	ts_audio.tv_nsec = 1000000000 / sampling * (frames % sampling);
 
-	clock_gettime(CLOCK_MONOTONIC, &ts_clock);
+	gettimestamp(&ts_clock);
 	difftimespec(&io_sync->ts0, &ts_clock, &ts_clock);
 
 	/* maintain constant bit rate */
@@ -533,7 +534,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		 * In order to correctly calculate time drift, the zero time point has to
 		 * be obtained after the stream has started. */
 		if (io_sync.frames == 0)
-			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
+			gettimestamp(&io_sync.ts0);
 
 		if (!config.a2dp_volume)
 			/* scale volume or mute audio signal */
@@ -955,7 +956,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (io_sync.frames == 0)
-			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
+			gettimestamp(&io_sync.ts0);
 
 		if (!config.a2dp_volume)
 			/* scale volume or mute audio signal */
@@ -1251,7 +1252,7 @@ void *io_thread_sco(void *arg) {
 		}
 
 		if (io_sync.frames == 0)
-			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
+			gettimestamp(&io_sync.ts0);
 
 		if (pfds[1].revents & POLLIN) {
 

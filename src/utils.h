@@ -44,9 +44,6 @@ gboolean g_dbus_set_property(GDBusConnection *conn, const char *name,
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 		double ch1_scale, double ch2_scale);
 
-int difftimespec(const struct timespec *ts1, const struct timespec *ts2,
-		struct timespec *ts);
-
 #if ENABLE_AAC
 #include <fdk-aac/aacdecoder_lib.h>
 #include <fdk-aac/aacenc_lib.h>

@@ -33,6 +33,7 @@
 #include "../src/transport.c"
 #undef transport_acquire_bt_a2dp
 #include "../src/utils.c"
+#include "../src/shared/rt.c"
 
 static const a2dp_sbc_t cconfig = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
@@ -88,7 +89,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		fprintf(stderr, ".");
 
 		if (io_sync.frames == 0)
-			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
+			gettimestamp(&io_sync.ts0);
 
 		if (head == end)
 			head = (int16_t *)drum_buffer;
@@ -121,7 +122,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		fprintf(stderr, ".");
 
 		if (io_sync.frames == 0)
-			clock_gettime(CLOCK_MONOTONIC, &io_sync.ts0);
+			gettimestamp(&io_sync.ts0);
 
 		const size_t in_samples = sizeof(buffer) / sizeof(int16_t);
 		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, buffer, in_samples)) <= 0) {
@@ -172,7 +173,7 @@ int main(int argc, char *argv[]) {
 		}
 
 	/* emulate dummy test HCI device */
-	strcpy(config.hci_dev.name, "hci-test");
+	strncpy(config.hci_dev.name, "hci-xxx", sizeof(config.hci_dev.name) - 1);
 
 	assert(bluealsa_config_init() == 0);
 	if ((bluealsa_ctl_thread_init() == -1)) {

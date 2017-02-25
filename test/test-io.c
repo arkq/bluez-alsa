@@ -15,6 +15,7 @@
 #include "../src/io.c"
 #include "../src/transport.c"
 #include "../src/utils.c"
+#include "../src/shared/rt.c"
 
 struct ba_config config;
 

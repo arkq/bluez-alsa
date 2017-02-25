@@ -11,6 +11,7 @@ check_PROGRAMS = \
 	test-utils
 
 AM_CFLAGS = \
+	-I$(top_srcdir)/src \
 	-DSRCDIR=\"$(srcdir)\" \
 	@BLUEZ_CFLAGS@ \
 	@GLIB2_CFLAGS@ \

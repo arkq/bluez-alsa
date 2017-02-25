@@ -16,7 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include <time.h>
+
+#include "shared/rt.h"
 
 
 /* internal logging identifier */
@@ -58,7 +59,7 @@ static void vlog(int priority, const char *format, va_list ap) {
 		fprintf(stderr, "%s: ", _ident);
 	if (_time) {
 		struct timespec ts;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
+		gettimestamp(&ts);
 		fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
 	}
 	vfprintf(stderr, format, ap);
