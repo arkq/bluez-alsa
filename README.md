@@ -60,6 +60,7 @@ like this:
 	defaults.bluealsa.interface "hci0"
 	defaults.bluealsa.device "XX:XX:XX:XX:XX:XX"
 	defaults.bluealsa.profile "a2dp"
+	defaults.bluealsa.delay 10000
 
 BlueALSA also allows to capture audio from the connected Bluetooth device. To do so, one has to
 use the capture PCM device, e.g.:
@@ -118,7 +119,7 @@ Troubleshooting
 
 	If connected Bluetooth headset supports AAC and BlueALSA was compiled with AAC (`./configure
 	--enable-aac`) such an encoder will be used for A2DP profile. However, AAC encoding is
-	buggious - sorry for that. If the encoded packet size exceeds writing MTU, fragmentation occurs,
+	buggy - sorry for that. If the encoded packet size exceeds writing MTU, fragmentation occurs,
 	which is not handled correctly. As a workaround, it is possible to decrease packet size by
 	degrading audio quality via the `--aac-vbr-mode=NB` option.
 

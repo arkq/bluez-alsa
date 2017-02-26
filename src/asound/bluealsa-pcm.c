@@ -52,6 +52,8 @@ struct bluealsa_pcm {
 
 	/* communication and encoding/decoding delay */
 	snd_pcm_sframes_t delay;
+	/* user provided extra delay component */
+	snd_pcm_sframes_t delay_ex;
 
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
@@ -336,7 +338,7 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 
 	}
 
-	*delayp = delay + pcm->delay;
+	*delayp = delay + pcm->delay + pcm->delay_ex;
 	return 0;
 }
 
@@ -480,6 +482,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *device = NULL;
 	const char *profile = NULL;
 	struct bluealsa_pcm *pcm;
+	long delay = 0;
 	int ret;
 
 	snd_config_for_each(i, next, conf) {
@@ -515,6 +518,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			}
 			continue;
 		}
+		if (strcmp(id, "delay") == 0) {
+			if (snd_config_get_integer(n, &delay) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
 
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
@@ -541,6 +551,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->fd = -1;
 	pcm->event_fd = -1;
 	pcm->pcm_fd = -1;
+	pcm->delay_ex = delay;
 
 	if ((pcm->fd = bluealsa_open(interface)) == -1) {
 		SNDERR("BlueALSA connection failed: %s", strerror(errno));
