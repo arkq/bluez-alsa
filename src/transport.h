@@ -128,6 +128,9 @@ struct ba_transport {
 			uint8_t ch1_volume;
 			uint8_t ch2_volume;
 
+			/* delay reported by the AVDTP */
+			uint16_t delay;
+
 			struct ba_pcm pcm;
 
 			/* selected audio codec configuration */

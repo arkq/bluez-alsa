@@ -229,6 +229,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	char *device = NULL, *state = NULL;
 	uint8_t *configuration = NULL;
 	uint16_t volume = 127;
+	uint16_t delay = 150;
 	size_t size = 0;
 
 	GVariantIter *properties;
@@ -385,6 +386,15 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 		}
 		else if (strcmp(key, "Delay") == 0) {
+
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
+				error("Invalid argument type for %s: %s != %s", key,
+						g_variant_get_type_string(value), "q");
+				goto fail;
+			}
+
+			g_variant_get(value, "q", &delay);
+
 		}
 		else if (strcmp(key, "Volume") == 0) {
 
@@ -422,6 +432,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	t->a2dp.ch1_volume = volume;
 	t->a2dp.ch2_volume = volume;
+	t->a2dp.delay = delay;
 
 	debug("%s configured for device %s",
 			bluetooth_profile_to_string(profile, codec), batostr_(&d->addr));
@@ -1043,6 +1054,15 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 
 		}
 		else if (strcmp(key, "Delay") == 0) {
+
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
+				error("Invalid argument type for %s: %s != %s", key,
+						g_variant_get_type_string(value), "q");
+				goto fail;
+			}
+
+			g_variant_get(value, "q", &t->a2dp.delay);
+
 		}
 		else if (strcmp(key, "Volume") == 0) {
 
