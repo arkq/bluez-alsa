@@ -46,6 +46,12 @@ struct io_sync {
 	struct timespec ts0;
 	/* transfered frames since ts0 */
 	uint32_t frames;
+
+	/* time-stamp from the previous sync */
+	struct timespec ts;
+	/* delay in 1/10 of millisecond since ts */
+	uint16_t delay;
+
 	/* used sampling frequency */
 	uint16_t sampling;
 
@@ -272,12 +278,19 @@ static int io_thread_time_sync(struct io_sync *io_sync, uint32_t frames) {
 	ts_audio.tv_nsec = 1000000000 / sampling * (frames % sampling);
 
 	gettimestamp(&ts_clock);
-	difftimespec(&io_sync->ts0, &ts_clock, &ts_clock);
+
+	/* Calculate delay since the last sync. Note, that we are not taking whole
+	 * seconds into account, because if the delay is greater than one second,
+	 * we are screwed anyway... */
+	difftimespec(&io_sync->ts, &ts_clock, &ts);
+	io_sync->delay = ts.tv_nsec / 100000;
 
 	/* maintain constant bit rate */
+	difftimespec(&io_sync->ts0, &ts_clock, &ts_clock);
 	if (difftimespec(&ts_clock, &ts_audio, &ts) > 0)
 		nanosleep(&ts, NULL);
 
+	gettimestamp(&io_sync->ts);
 	return duration;
 }
 
@@ -533,8 +546,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		 * there might be no data for a long time - until client starts playback.
 		 * In order to correctly calculate time drift, the zero time point has to
 		 * be obtained after the stream has started. */
-		if (io_sync.frames == 0)
-			gettimestamp(&io_sync.ts0);
+		if (io_sync.frames == 0) {
+			gettimestamp(&io_sync.ts);
+			io_sync.ts0 = io_sync.ts;
+		}
 
 		if (!config.a2dp_volume)
 			/* scale volume or mute audio signal */
@@ -592,6 +607,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			/* keep data transfer at a constant bit rate, also
 			 * get a timestamp for the next RTP frame */
 			timestamp += io_thread_time_sync(&io_sync, pcm_frames);
+			t->delay = io_sync.delay;
 
 		}
 
@@ -955,8 +971,10 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-		if (io_sync.frames == 0)
-			gettimestamp(&io_sync.ts0);
+		if (io_sync.frames == 0) {
+			gettimestamp(&io_sync.ts);
+			io_sync.ts0 = io_sync.ts;
+		}
 
 		if (!config.a2dp_volume)
 			/* scale volume or mute audio signal */
@@ -1027,6 +1045,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			/* keep data transfer at a constant bit rate, also
 			 * get a timestamp for the next RTP frame */
 			timestamp += io_thread_time_sync(&io_sync, out_args.numInSamples / channels);
+			t->delay = io_sync.delay;
 
 		}
 
@@ -1251,8 +1270,10 @@ void *io_thread_sco(void *arg) {
 			continue;
 		}
 
-		if (io_sync.frames == 0)
-			gettimestamp(&io_sync.ts0);
+		if (io_sync.frames == 0) {
+			gettimestamp(&io_sync.ts);
+			io_sync.ts0 = io_sync.ts;
+		}
 
 		if (pfds[1].revents & POLLIN) {
 
@@ -1282,6 +1303,7 @@ void *io_thread_sco(void *arg) {
 
 		/* keep data transfer at a constant bit rate */
 		io_thread_time_sync(&io_sync, 48 / 2);
+		t->delay = io_sync.delay;
 
 	}
 

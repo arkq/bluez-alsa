@@ -124,6 +124,9 @@ struct __attribute__ ((packed)) msg_transport {
 	uint8_t ch2_muted:1;
 	uint8_t ch2_volume:7;
 
+	/* transport delay in 1/10 of millisecond */
+	uint16_t delay;
+
 };
 
 struct __attribute__ ((packed)) msg_pcm {

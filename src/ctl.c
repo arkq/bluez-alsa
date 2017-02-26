@@ -172,6 +172,7 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 		transport->ch1_volume = t->a2dp.ch1_volume;
 		transport->ch2_muted = t->a2dp.ch2_muted;
 		transport->ch2_volume = t->a2dp.ch2_volume;
+		transport->delay = t->a2dp.delay;
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
 		transport->type = PCM_TYPE_NULL;
@@ -183,13 +184,14 @@ static void _ctl_transport(const struct ba_transport *t, struct msg_transport *t
 		transport->ch1_volume = t->sco.spk_gain;
 		transport->ch2_muted = t->sco.mic_muted;
 		transport->ch2_volume = t->sco.mic_gain;
+		transport->delay = 10;
 		break;
 	}
 
 	transport->codec = t->codec;
-
 	transport->channels = transport_get_channels(t);
 	transport->sampling = transport_get_sampling(t);
+	transport->delay += t->delay;
 
 }
 
@@ -513,10 +515,10 @@ static void *ctl_thread(void *arg) {
 				}
 
 				/* validate and execute requested command */
-				if (request.command >= __COMMAND_MAX)
-					warn("Invalid command: %u", request.command);
-				else if (commands[request.command] != NULL)
+				if (request.command < __COMMAND_MAX && commands[request.command] != NULL)
 					commands[request.command](&request, fd);
+				else
+					warn("Invalid command: %u", request.command);
 
 			}
 

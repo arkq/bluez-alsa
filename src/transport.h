@@ -117,6 +117,10 @@ struct ba_transport {
 	 * used to send a control event. */
 	int event_fd;
 
+	/* Overall delay in 1/10 of millisecond, caused by the data transfer and
+	 * the audio encoder or decoder. */
+	unsigned int delay;
+
 	union {
 
 		struct {

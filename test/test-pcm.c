@@ -121,8 +121,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	for (;;) {
 		fprintf(stderr, ".");
 
-		if (io_sync.frames == 0)
-			gettimestamp(&io_sync.ts0);
+		if (io_sync.frames == 0) {
+			gettimestamp(&io_sync.ts);
+			io_sync.ts0 = io_sync.ts;
+		}
 
 		const size_t in_samples = sizeof(buffer) / sizeof(int16_t);
 		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, buffer, in_samples)) <= 0) {

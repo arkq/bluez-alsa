@@ -50,6 +50,9 @@ struct bluealsa_pcm {
 	pthread_t io_thread;
 	bool io_started;
 
+	/* communication and encoding/decoding delay */
+	snd_pcm_sframes_t delay;
+
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
 
@@ -161,6 +164,9 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	if (pcm->io_started)
 		return 0;
 
+	/* initialize delay calculation */
+	pcm->delay = 0;
+
 	if (bluealsa_pause_transport(pcm->fd, pcm->transport, false) == -1) {
 		debug("Couldn't start PCM: %s", strerror(errno));
 		return -errno;
@@ -270,6 +276,12 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	return 0;
 }
 
+static int bluealsa_drain(snd_pcm_ioplug_t *io) {
+	(void)io;
+	debug("Draining");
+	return 0;
+}
+
 static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
@@ -304,21 +316,27 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	 * the FIFO buffer, the time required to encode data, Bluetooth transfer
 	 * latency and the time required by the device to decode and play audio. */
 
+	static int counter = 0;
 	snd_pcm_sframes_t delay = 0;
 	unsigned int size;
 
-	/* For playback, the ring buffer is initially filled up, which also
-	 * contributes to the audio delay. */
-	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK)
-		delay += io->buffer_size;
-
+	/* bytes queued in the FIFO buffer */
 	if (ioctl(pcm->pcm_fd, FIONREAD, &size) != -1)
 		delay += size / pcm->frame_size;
 
-	/* TODO: Delay contribution from other components. */
-	delay += 10000;
+	/* data transfer (communication) and encoding/decoding */
+	if (io->state == SND_PCM_STATE_RUNNING && io->stream == SND_PCM_STREAM_PLAYBACK &&
+			(pcm->delay == 0 || ++counter % (io->rate / 10) == 0)) {
 
-	*delayp = delay;
+		int tmp;
+		if ((tmp = bluealsa_get_transport_delay(pcm->fd, pcm->transport)) != -1) {
+			pcm->delay = (io->rate / 100) * tmp / 100;
+			debug("BlueALSA delay: %.1f ms (%ld frames)", (float)tmp / 10, pcm->delay);
+		}
+
+	}
+
+	*delayp = delay + pcm->delay;
 	return 0;
 }
 
@@ -390,10 +408,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.hw_params = bluealsa_hw_params,
 	.hw_free = bluealsa_hw_free,
 	.prepare = bluealsa_prepare,
-	/* Drain callback is not required, because every data written to the PCM
-	 * FIFO will be processed regardless of the ALSA client state - playback
-	 * client can be closed immediately. */
-	.drain = NULL,
+	.drain = bluealsa_drain,
 	.pause = bluealsa_pause,
 	.dump = bluealsa_dump,
 	.delay = bluealsa_delay,

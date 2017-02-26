@@ -24,7 +24,7 @@
 
 /**
  * Convert BlueALSA status message into the POSIX errno value. */
-static int bluealsa_status_to_errno(struct msg_status *status) {
+static int bluealsa_status_to_errno(const struct msg_status *status) {
 	switch (status->code) {
 	case STATUS_CODE_SUCCESS:
 		return 0;
@@ -172,9 +172,9 @@ ssize_t bluealsa_get_transports(int fd, struct msg_transport **transports) {
  * Get PCM transport.
  *
  * @param fd Opened socket file descriptor.
- * @param addr
- * @param type
- * @param stream
+ * @param addr MAC address of the Bluetooth device.
+ * @param type PCM type to get.
+ * @param stream Stream direction to get, e.g. playback or capture.
  * @return Upon success this function returns pointer to the newly allocated
  *   transport structure, which should be freed with free(). Otherwise, NULL
  *   is returned and errno is set appropriately. */
@@ -219,13 +219,55 @@ struct msg_transport *bluealsa_get_transport(int fd, bdaddr_t addr,
 }
 
 /**
+ * Get PCM transport delay.
+ *
+ * Note:
+ * In fact, it is an alternative implementation of bluealsa_get_transport(),
+ * which does not facilitates malloc().
+ *
+ * @param fd Opened socket file descriptor.
+ * @param transport Address to the transport structure with the addr, type
+ *   and stream fields set - other fields are not used by this function.
+ * @return Upon success this function returns transport delay. Otherwise,
+ *   -1 is returned and errno is set appropriately. */
+int bluealsa_get_transport_delay(int fd, const struct msg_transport *transport) {
+
+	struct msg_status status = { 0xAB };
+	struct msg_transport _transport;
+	struct request req = {
+		.command = COMMAND_TRANSPORT_GET,
+		.addr = transport->addr,
+		.type = transport->type,
+		.stream = transport->stream,
+	};
+	ssize_t len;
+
+	if (send(fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
+		return -1;
+	if ((len = read(fd, &_transport, sizeof(_transport))) == -1)
+		return -1;
+
+	/* in case of error, status message is returned */
+	if (len != sizeof(_transport)) {
+		memcpy(&status, &_transport, sizeof(status));
+		errno = bluealsa_status_to_errno(&status);
+		return -1;
+	}
+
+	if (read(fd, &status, sizeof(status)) == -1)
+		return -1;
+
+	return _transport.delay;
+}
+
+/**
  * Open PCM transport.
  *
  * @param fd Opened socket file descriptor.
  * @param transport Address to the transport structure with the addr, type
  *   and stream fields set - other fields are not used by this function.
  * @return PCM FIFO file descriptor, or -1 on error. */
-int bluealsa_open_transport(int fd, struct msg_transport *transport) {
+int bluealsa_open_transport(int fd, const struct msg_transport *transport) {
 
 	struct msg_status status = { 0xAB };
 	struct request req = {
@@ -291,7 +333,7 @@ int bluealsa_open_transport(int fd, struct msg_transport *transport) {
  * @param transport Address to the transport structure with the addr, type
  *   and stream fields set - other fields are not used by this function.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_close_transport(int fd, struct msg_transport *transport) {
+int bluealsa_close_transport(int fd, const struct msg_transport *transport) {
 
 	struct request req = {
 		.command = COMMAND_PCM_CLOSE,
@@ -317,7 +359,7 @@ int bluealsa_close_transport(int fd, struct msg_transport *transport) {
  *   and stream fields set - other fields are not used by this function.
  * @param pause If non-zero, pause transport, otherwise resume it.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_pause_transport(int fd, struct msg_transport *transport, bool pause) {
+int bluealsa_pause_transport(int fd, const struct msg_transport *transport, bool pause) {
 
 	struct request req = {
 		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
