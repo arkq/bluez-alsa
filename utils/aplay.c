@@ -37,6 +37,8 @@ static void main_loop_stop(int sig) {
 static int set_hw_params(snd_pcm_t *pcm, int channels, int rate) {
 
 	snd_pcm_hw_params_t *params;
+	unsigned int size;
+	int dir;
 	int err;
 
 	snd_pcm_hw_params_alloca(&params);
@@ -51,7 +53,35 @@ static int set_hw_params(snd_pcm_t *pcm, int channels, int rate) {
 		return err;
 	if ((err = snd_pcm_hw_params_set_rate(pcm, params, rate, 0)) != 0)
 		return err;
+	size = 500000;
+	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, &size, &dir)) != 0)
+		return err;
+	size = 100000;
+	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, &size, &dir)) != 0)
+		return err;
 	if ((err = snd_pcm_hw_params(pcm, params)) != 0)
+		return err;
+
+	return 0;
+}
+
+static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_uframes_t period_size) {
+
+	snd_pcm_sw_params_t *params;
+	int err;
+
+	snd_pcm_sw_params_alloca(&params);
+
+	if ((err = snd_pcm_sw_params_current(pcm, params)) != 0)
+		return err;
+	/* start the transfer when the buffer is almost full */
+	snd_pcm_uframes_t threshold = (buffer_size / period_size) * period_size;
+	if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0)
+		return err;
+	/* allow the transfer when at least period_size samples can be processed */
+	if ((err = snd_pcm_sw_params_set_avail_min(pcm, params, period_size)) != 0)
+		return err;
+	if ((err = snd_pcm_sw_params(pcm, params)) != 0)
 		return err;
 
 	return 0;
@@ -144,14 +174,19 @@ usage:
 		goto fail;
 	}
 
-	if ((err = snd_pcm_prepare(pcm)) != 0) {
-		error("Couldn't prepare PCM: %s", snd_strerror(err));
-		goto fail;
-	}
-
 	snd_pcm_uframes_t buffer_size, period_size;
 	if ((err = snd_pcm_get_params(pcm, &buffer_size, &period_size)) != 0) {
 		error("Couldn't get PCM parameters: %s", snd_strerror(err));
+		goto fail;
+	}
+
+	if ((err = set_sw_params(pcm, buffer_size, period_size)) != 0) {
+		error("Couldn't set SW parameters: %s", snd_strerror(err));
+		goto fail;
+	}
+
+	if ((err = snd_pcm_prepare(pcm)) != 0) {
+		error("Couldn't prepare PCM: %s", snd_strerror(err));
 		goto fail;
 	}
 
