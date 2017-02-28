@@ -287,6 +287,10 @@ struct ba_transport *transport_new_rfcomm(
 					dbus_owner, dbus_path_sco, profile, -1)) == NULL)
 		goto fail;
 
+	/* Set SCO codec if known. HSP only supports CVSD. */
+	if (profile == BLUETOOTH_PROFILE_HSP_HS || profile == BLUETOOTH_PROFILE_HSP_AG)
+		t_sco->sco.codec = TRANSPORT_SCO_CODEC_CVSD;
+
 	t->rfcomm.sco = t_sco;
 	t_sco->sco.rfcomm = t;
 
