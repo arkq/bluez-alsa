@@ -325,6 +325,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	const size_t sbc_codesize = sbc_get_codesize(&sbc);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
+	uint16_t seq_number = -1;
 
 	const size_t in_buffer_size = t->mtu_read;
 	const size_t out_buffer_size = sbc_codesize * (in_buffer_size / sbc_frame_len + 1);
@@ -396,6 +397,13 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		if (rtp_header->paytype != 96) {
 			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
 			continue;
+		}
+
+		uint16_t _seq_number = ntohs(rtp_header->seq_number);
+		if (++seq_number != _seq_number) {
+			if (seq_number != 0)
+				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
+			seq_number = _seq_number;
 		}
 
 		const uint8_t *input = (uint8_t *)(rtp_payload + 1);
@@ -679,6 +687,8 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	}
 #endif
 
+	uint16_t seq_number = -1;
+
 	const size_t in_buffer_size = t->mtu_read;
 	const size_t out_buffer_size = 2048 * channels * sizeof(INT_PCM);
 	uint8_t *in_buffer = malloc(in_buffer_size);
@@ -750,6 +760,13 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		if (rtp_header->paytype != 96) {
 			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
 			continue;
+		}
+
+		uint16_t _seq_number = ntohs(rtp_header->seq_number);
+		if (++seq_number != _seq_number) {
+			if (seq_number != 0)
+				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
+			seq_number = _seq_number;
 		}
 
 		unsigned int data_len = rtp_latm_len;
