@@ -322,18 +322,27 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	snd_pcm_sframes_t delay = 0;
 	unsigned int size;
 
+	/* bytes queued in the PCM ring buffer */
+	delay += io->appl_ptr - io->hw_ptr;
+
 	/* bytes queued in the FIFO buffer */
 	if (ioctl(pcm->pcm_fd, FIONREAD, &size) != -1)
 		delay += size / pcm->frame_size;
 
-	/* data transfer (communication) and encoding/decoding */
-	if (io->state == SND_PCM_STATE_RUNNING && io->stream == SND_PCM_STREAM_PLAYBACK &&
-			(pcm->delay == 0 || ++counter % (io->rate / 10) == 0)) {
+	/* On the server site, the delay stat will not be available until the PCM
+	 * data transfer is started. Do not make an unnecessary call then. */
+	if ((io->state == SND_PCM_STATE_RUNNING || io->state == SND_PCM_STATE_DRAINING)) {
 
-		int tmp;
-		if ((tmp = bluealsa_get_transport_delay(pcm->fd, pcm->transport)) != -1) {
-			pcm->delay = (io->rate / 100) * tmp / 100;
-			debug("BlueALSA delay: %.1f ms (%ld frames)", (float)tmp / 10, pcm->delay);
+		/* data transfer (communication) and encoding/decoding */
+		if (io->stream == SND_PCM_STREAM_PLAYBACK &&
+				(pcm->delay == 0 || ++counter % (io->rate / 10) == 0)) {
+
+			int tmp;
+			if ((tmp = bluealsa_get_transport_delay(pcm->fd, pcm->transport)) != -1) {
+				pcm->delay = (io->rate / 100) * tmp / 100;
+				debug("BlueALSA delay: %.1f ms (%ld frames)", (float)tmp / 10, pcm->delay);
+			}
+
 		}
 
 	}
