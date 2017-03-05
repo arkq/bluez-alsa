@@ -87,6 +87,8 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 			case PCM_TYPE_SCO:
 				if ((*t)->type != TRANSPORT_TYPE_SCO)
 					continue;
+				if ((*t)->sco.codec == TRANSPORT_SCO_CODEC_UNKNOWN)
+					continue;
 				break;
 			}
 

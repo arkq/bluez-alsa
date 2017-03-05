@@ -287,6 +287,10 @@ struct ba_transport *transport_new_rfcomm(
 					dbus_owner, dbus_path_sco, profile, -1)) == NULL)
 		goto fail;
 
+	/* Set SCO codec if known. HSP only supports CVSD. */
+	if (profile == BLUETOOTH_PROFILE_HSP_HS || profile == BLUETOOTH_PROFILE_HSP_AG)
+		t_sco->sco.codec = TRANSPORT_SCO_CODEC_CVSD;
+
 	t->rfcomm.sco = t_sco;
 	t_sco->sco.rfcomm = t;
 
@@ -537,7 +541,14 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 	case TRANSPORT_TYPE_RFCOMM:
 		break;
 	case TRANSPORT_TYPE_SCO:
-		return 8000;
+		switch (t->sco.codec) {
+			case TRANSPORT_SCO_CODEC_UNKNOWN:
+				break;
+			case TRANSPORT_SCO_CODEC_CVSD:
+				return 8000;
+			case TRANSPORT_SCO_CODEC_MSBC:
+				return 16000;
+		}
 	}
 
 	/* the sampling frequency is unspecified */
@@ -783,7 +794,7 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 		return -1;
 	}
 
-	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr)) == -1) {
+	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr, t->sco.codec == TRANSPORT_SCO_CODEC_MSBC)) == -1) {
 		error("Couldn't open SCO link: %s", strerror(errno));
 		return -1;
 	}
