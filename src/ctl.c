@@ -223,7 +223,7 @@ static void ctl_thread_cmd_list_devices(const struct request *req, int fd) {
 		strncpy(device.name, d->name, sizeof(device.name) - 1);
 		device.name[sizeof(device.name) - 1] = '\0';
 
-		device.battery = d->xapl.features & DEVICE_XAPL_FEATURE_BATTERY ? 1 : 0;
+		device.battery = d->xapl.features & XAPL_FEATURE_BATTERY ? 1 : 0;
 		device.battery_level = d->xapl.accev_battery;
 
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);

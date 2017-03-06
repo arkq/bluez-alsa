@@ -35,11 +35,6 @@ enum ba_transport_state {
 	TRANSPORT_ABORTED,
 };
 
-#define DEVICE_XAPL_FEATURE_BATTERY (1 << 1)
-#define DEVICE_XAPL_FEATURE_DOCKING (1 << 2)
-#define DEVICE_XAPL_FEATURE_SIRI    (1 << 3)
-#define DEVICE_XAPL_FEATURE_DENOISE (1 << 4)
-
 struct ba_device {
 
 	/* ID of the underlying HCI device */

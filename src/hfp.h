@@ -1,6 +1,7 @@
 /*
  * BlueALSA - hfp.h
- * Copyright (c) 2017 Juha Kuikka
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
  *
@@ -24,5 +25,11 @@
 #define HFP_HF_FEAT_CODEC (1 << 7)
 
 #define HFP_AG_FEATURES HFP_AG_FEAT_ECS
+
+/* Apple's extension feature flags */
+#define XAPL_FEATURE_BATTERY (1 << 1)
+#define XAPL_FEATURE_DOCKING (1 << 2)
+#define XAPL_FEATURE_SIRI    (1 << 3)
+#define XAPL_FEATURE_DENOISE (1 << 4)
 
 #endif
