@@ -34,10 +34,10 @@ static void main_loop_stop(int sig) {
 	main_loop_on = false;
 }
 
-static int set_hw_params(snd_pcm_t *pcm, int channels, int rate) {
+static int set_hw_params(snd_pcm_t *pcm, int channels, int rate,
+		unsigned int *buffer_time, unsigned int *period_time) {
 
 	snd_pcm_hw_params_t *params;
-	unsigned int size;
 	int dir;
 	int err;
 
@@ -53,11 +53,9 @@ static int set_hw_params(snd_pcm_t *pcm, int channels, int rate) {
 		return err;
 	if ((err = snd_pcm_hw_params_set_rate(pcm, params, rate, 0)) != 0)
 		return err;
-	size = 500000;
-	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, &size, &dir)) != 0)
+	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0)
 		return err;
-	size = 100000;
-	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, &size, &dir)) != 0)
+	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0)
 		return err;
 	if ((err = snd_pcm_hw_params(pcm, params)) != 0)
 		return err;
@@ -90,18 +88,24 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hi:d:";
+	const char *opts = "hvi:d:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "verbose", no_argument, NULL, 'v' },
 		{ "hci", required_argument, NULL, 'i' },
 		{ "pcm", required_argument, NULL, 'd' },
+		{ "pcm-buffer-time", required_argument, NULL, 3 },
+		{ "pcm-period-time", required_argument, NULL, 4 },
 		{ "profile-a2dp", no_argument, NULL, 1 },
 		{ "profile-sco", no_argument, NULL, 2 },
 		{ 0, 0, 0, 0 },
 	};
 
+	unsigned int verbose = 0;
 	const char *device = "default";
 	const char *ba_interface = "hci0";
+	unsigned int pcm_buffer_time = 500000;
+	unsigned int pcm_period_time = 100000;
 	enum pcm_type ba_type = PCM_TYPE_A2DP;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
@@ -110,12 +114,19 @@ int main(int argc, char *argv[]) {
 usage:
 			printf("usage: %s [OPTION]... <BT-ADDR>\n\n"
 					"  -h, --help\t\tprint this help and exit\n"
+					"  -v, --verbose\t\tmake output more verbose\n"
 					"  -i, --hci=hciX\tHCI device to use\n"
 					"  -d, --pcm=NAME\tPCM device to use\n"
+					"  --pcm-buffer-time=INT\tPCM buffer time\n"
+					"  --pcm-period-time=INT\tPCM period time\n"
 					"  --profile-a2dp\tuse A2DP profile\n"
 					"  --profile-sco\t\tuse SCO profile\n",
 					argv[0]);
 			return EXIT_SUCCESS;
+
+		case 'v' /* --verbose */ :
+			verbose++;
+			break;
 
 		case 'i' /* --hci */ :
 			ba_interface = optarg;
@@ -131,6 +142,13 @@ usage:
 			ba_type = PCM_TYPE_SCO;
 			break;
 
+		case 3 /* --pcm-buffer-time */ :
+			pcm_buffer_time = atoi(optarg);
+			break;
+		case 4 /* --pcm-period-time */ :
+			pcm_period_time = atoi(optarg);
+			break;
+
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return EXIT_FAILURE;
@@ -138,6 +156,17 @@ usage:
 
 	if (optind + 1 != argc)
 		goto usage;
+
+	if (verbose >= 1)
+		printf("Selected configuration:\n"
+				"  HCI device: %s\n"
+				"  PCM device: %s\n"
+				"  PCM buffer time: %u us\n"
+				"  PCM period time: %u us\n"
+				"  Bluetooth device: %s\n"
+				"  Profile: %s\n",
+				ba_interface, device, pcm_buffer_time, pcm_period_time,
+				argv[optind], ba_type == PCM_TYPE_A2DP ? "A2DP" : "SCO");
 
 	struct msg_transport *transport = NULL;
 	snd_pcm_t *pcm = NULL;
@@ -169,7 +198,8 @@ usage:
 		goto fail;
 	}
 
-	if ((err = set_hw_params(pcm, transport->channels, transport->sampling)) != 0) {
+	if ((err = set_hw_params(pcm, transport->channels, transport->sampling,
+					&pcm_buffer_time, &pcm_period_time)) != 0) {
 		error("Couldn't set HW parameters: %s", snd_strerror(err));
 		goto fail;
 	}
@@ -179,6 +209,13 @@ usage:
 		error("Couldn't get PCM parameters: %s", snd_strerror(err));
 		goto fail;
 	}
+
+	if (verbose >= 2)
+		printf("Used configuration:\n"
+				"  PCM buffer time: %u us (%zu bytes)\n"
+				"  PCM period time: %u us (%zu bytes)\n",
+				pcm_buffer_time, snd_pcm_frames_to_bytes(pcm, buffer_size),
+				pcm_period_time, snd_pcm_frames_to_bytes(pcm, period_size));
 
 	if ((err = set_sw_params(pcm, buffer_size, period_size)) != 0) {
 		error("Couldn't set SW parameters: %s", snd_strerror(err));
