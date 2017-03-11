@@ -15,8 +15,8 @@
 # include "config.h"
 #endif
 
-#include <time.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>

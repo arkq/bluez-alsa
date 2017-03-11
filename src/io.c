@@ -146,10 +146,10 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer,
 
 /**
  * Read PCM signal from the transport PCM FIFO. */
-static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t size) {
+static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t samples) {
 
 	uint8_t *head = (uint8_t *)buffer;
-	size_t len = size * sizeof(int16_t);
+	size_t len = samples * sizeof(int16_t);
 	ssize_t ret;
 
 	/* This call will block until data arrives. If the passed file descriptor
@@ -169,7 +169,7 @@ static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t si
 
 	if (ret > 0)
 		/* atomic data read is guaranteed */
-		return size;
+		return samples;
 
 	if (ret == 0)
 		debug("FIFO endpoint has been closed: %d", pcm->fd);
@@ -183,10 +183,10 @@ static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t si
 
 /**
  * Write PCM signal to the transport PCM FIFO. */
-static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, size_t size) {
+static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, size_t samples) {
 
 	const uint8_t *head = (uint8_t *)buffer;
-	size_t len = size * sizeof(int16_t);
+	size_t len = samples * sizeof(int16_t);
 	ssize_t ret;
 
 	do {
@@ -207,7 +207,7 @@ static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, si
 	} while (len != 0);
 
 	/* It is guaranteed, that this function will write data atomically. */
-	return size;
+	return samples;
 }
 
 /**
@@ -325,6 +325,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	const size_t sbc_codesize = sbc_get_codesize(&sbc);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
+	const unsigned int channels = transport_get_channels(t);
 	uint16_t seq_number = -1;
 
 	const size_t in_buffer_size = t->mtu_read;
@@ -431,8 +432,9 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 		}
 
-		const size_t size = output - out_buffer;
-		if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, size) == -1)
+		const size_t samples = output - out_buffer;
+		io_thread_scale_pcm(t, out_buffer, samples, channels);
+		if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 	}
@@ -779,8 +781,9 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		else if ((aacinf = aacDecoder_GetStreamInfo(handle)) == NULL)
 			error("Couldn't get AAC stream info");
 		else {
-			const size_t size = aacinf->frameSize * aacinf->numChannels;
-			if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, size) == -1)
+			const size_t samples = aacinf->frameSize * aacinf->numChannels;
+			io_thread_scale_pcm(t, out_buffer, samples, channels);
+			if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 
