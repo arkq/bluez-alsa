@@ -255,6 +255,10 @@ usage:
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1 && errno == EINTR)
 			continue;
 
+		/* FIFO has been terminated on the writing side */
+		if (pfds[0].revents & POLLHUP)
+			break;
+
 		if ((ret = read(ba_pcm_fd, buffer_head, buffer_len)) == -1) {
 			if (errno == EINTR)
 				continue;
