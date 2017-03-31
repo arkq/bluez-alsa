@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,9 +9,9 @@
  */
 
 #define _GNU_SOURCE
-#include "a2dp.inc"
-#include "test.inc"
-#include "utils.inc"
+#include "inc/a2dp.inc"
+#include "inc/sine.inc"
+#include "inc/test.inc"
 #include "../src/io.c"
 #include "../src/transport.c"
 #include "../src/utils.c"
@@ -119,13 +119,12 @@ int test_a2dp_sbc_decoding(void) {
 	};
 
 	pthread_t thread;
-	char *buffer;
-	size_t size;
+	int16_t buffer[1024 * 2];
 
 	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
 
-	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
-	assert(a2dp_write_sbc(bt_fds[0], &config_sbc_44100_joint_stereo, buffer, size) == 0);
+	snd_pcm_sine_s16le(buffer, sizeof(buffer) / sizeof(int16_t), 2, 0, 0.01);
+	assert(a2dp_write_sbc(bt_fds[0], &config_sbc_44100_joint_stereo, buffer, sizeof(buffer)) == 0);
 
 	assert(pthread_cancel(thread) == 0);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
@@ -133,8 +132,6 @@ int test_a2dp_sbc_decoding(void) {
 
 	close(pcm_fds[1]);
 	close(bt_fds[0]);
-
-	free(buffer);
 	return 0;
 }
 
@@ -159,13 +156,12 @@ int test_a2dp_sbc_encoding(void) {
 	};
 
 	pthread_t thread;
-	char *buffer;
-	size_t size;
+	int16_t buffer[1024 * 2];
 
 	pthread_create(&thread, NULL, io_thread_a2dp_source_sbc, &transport);
 
-	assert(load_file(SRCDIR "/drum.raw", &buffer, &size) == 0);
-	assert(write(pcm_fds[0], buffer, size) == (signed)size);
+	snd_pcm_sine_s16le(buffer, sizeof(buffer) / sizeof(int16_t), 2, 0, 0.01);
+	assert(write(pcm_fds[0], buffer, sizeof(buffer)) == sizeof(buffer));
 
 	assert(pthread_cancel(thread) == 0);
 	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
@@ -173,8 +169,6 @@ int test_a2dp_sbc_encoding(void) {
 
 	close(pcm_fds[0]);
 	close(bt_fds[1]);
-
-	free(buffer);
 	return 0;
 }
 

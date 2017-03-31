@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016 Arkadiusz Bokowy
+# Copyright (c) 2016-2017 Arkadiusz Bokowy
 
 TESTS = \
 	test-io \
@@ -8,11 +8,12 @@ TESTS = \
 check_PROGRAMS = \
 	test-io \
 	test-pcm \
+	test-server \
 	test-utils
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
-	-DSRCDIR=\"$(srcdir)\" \
+	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
 	@GIO2_CFLAGS@ \
@@ -20,6 +21,7 @@ AM_CFLAGS = \
 	@SBC_CFLAGS@
 
 LDADD = \
+	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@GLIB2_LIBS@ \
 	@GIO2_LIBS@ \

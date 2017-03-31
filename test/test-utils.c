@@ -8,8 +8,7 @@
  *
  */
 
-#include "a2dp.inc"
-#include "test.inc"
+#include "inc/test.inc"
 #include "../src/utils.c"
 #include "../src/shared/rt.c"
 

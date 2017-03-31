@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +59,16 @@ struct bluealsa_pcm {
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
 
+	/* In order to see whether the PCM has reached under-run (or over-run), we
+	 * have to know the exact position of the hardware and software pointers.
+	 * To do so, we could use the HW pointer provided by the IO plug structure.
+	 * This pointer is updated by the snd_pcm_hwsync() function, which is not
+	 * thread-safe (total disaster is guaranteed). Since we can not call this
+	 * function, we are going to use our own HW pointer, which can be updated
+	 * safely in our IO thread. */
+	snd_pcm_uframes_t io_hw_boundary;
+	snd_pcm_uframes_t io_hw_ptr;
+
 };
 
 
@@ -68,7 +79,14 @@ static void *io_thread(void *arg) {
 
 	struct bluealsa_pcm *pcm = io->private_data;
 	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
-	int16_t silence = snd_pcm_format_silence_16(io->format);
+
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	sigaddset(&sigset, SIGIO);
+	if ((errno = pthread_sigmask(SIG_BLOCK, &sigset, NULL)) != 0) {
+		SNDERR("Thread signal mask error: %s", strerror(errno));
+		goto final;
+	}
 
 	/* In the capture mode, the PCM FIFO is opened in the non-blocking mode.
 	 * So right now, we have to synchronize write and read sides, otherwise
@@ -85,8 +103,21 @@ static void *io_thread(void *arg) {
 	debug("Starting IO loop");
 	for (;;) {
 
+		int tmp;
+		switch (io->state) {
+		case SND_PCM_STATE_RUNNING:
+		case SND_PCM_STATE_DRAINING:
+			break;
+		default:
+			debug("IO thread paused: %d", io->state);
+			sigwait(&sigset, &tmp);
+			debug("IO thread resumed: %d", io->state);
+		}
+
 		snd_pcm_uframes_t io_ptr = pcm->io_ptr;
 		snd_pcm_uframes_t io_buffer_size = io->buffer_size;
+		snd_pcm_uframes_t io_hw_ptr = pcm->io_hw_ptr;
+		snd_pcm_uframes_t io_hw_boundary = pcm->io_hw_boundary;
 		snd_pcm_uframes_t frames = io->period_size;
 		char *buffer = areas->addr + (areas->first + areas->step * io_ptr) / 8;
 		char *head = buffer;
@@ -102,6 +133,14 @@ static void *io_thread(void *arg) {
 
 		/* IO operation size in bytes */
 		len = frames * pcm->frame_size;
+
+		io_ptr += frames;
+		if (io_ptr >= io_buffer_size)
+			io_ptr -= io_buffer_size;
+
+		io_hw_ptr += frames;
+		if (io_hw_ptr >= io_hw_boundary)
+			io_hw_ptr -= io_hw_boundary;
 
 		if (io->stream == SND_PCM_STREAM_CAPTURE) {
 
@@ -124,6 +163,13 @@ static void *io_thread(void *arg) {
 		}
 		else {
 
+			/* check for under-run and act accordingly */
+			if (io_hw_ptr > io->appl_ptr) {
+				io->state = SND_PCM_STATE_XRUN;
+				io_ptr = -1;
+				goto sync;
+			}
+
 			/* Perform atomic write - see the explanation above. */
 			do {
 				if ((ret = write(pcm->pcm_fd, head, len)) == -1) {
@@ -137,17 +183,12 @@ static void *io_thread(void *arg) {
 			}
 			while (len != 0);
 
-			/* Silence processed period, so if the underrun occurs,
-			 * we will play silence instead of previous samples. */
-			snd_pcm_uframes_t i = frames * io->channels;
-			while (i--)
-				((int16_t *)buffer)[i] = silence;
-
 		}
 
-		pcm->io_ptr = (io_ptr + frames) % io_buffer_size;
+sync:
+		pcm->io_ptr = io_ptr;
+		pcm->io_hw_ptr = io_hw_ptr;
 		eventfd_write(pcm->event_fd, 1);
-
 	}
 
 final:
@@ -163,8 +204,11 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	/* If the IO thread is already started, skip thread creation. Otherwise,
 	 * we might end up with a bunch of IO threads reading or writing to the
 	 * same FIFO simultaneously. */
-	if (pcm->io_started)
+	if (pcm->io_started) {
+		io->state = SND_PCM_STATE_RUNNING;
+		pthread_kill(pcm->io_thread, SIGIO);
 		return 0;
+	}
 
 	/* initialize delay calculation */
 	pcm->delay = 0;
@@ -174,10 +218,18 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 		return -errno;
 	}
 
+	/* State has to be updated before the IO thread is created - if the state
+	 * does not indicate "running", the IO thread will be suspended until the
+	 * "resume" signal is delivered. This requirement is only (?) theoretical,
+	 * anyhow forewarned is forearmed. */
+	snd_pcm_state_t prev_state = io->state;
+	io->state = SND_PCM_STATE_RUNNING;
+
 	pcm->io_started = true;
 	if ((errno = pthread_create(&pcm->io_thread, NULL, io_thread, io)) != 0) {
 		debug("Couldn't create IO thread: %s", strerror(errno));
 		pcm->io_started = false;
+		io->state = prev_state;
 		return -errno;
 	}
 
@@ -264,6 +316,13 @@ static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	return 0;
 }
 
+static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params) {
+	struct bluealsa_pcm *pcm = io->private_data;
+	debug("Initializing SW");
+	snd_pcm_sw_params_get_boundary(params, &pcm->io_hw_boundary);
+	return 0;
+}
+
 static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
@@ -272,6 +331,7 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 		return -ENODEV;
 
 	/* initialize ring buffer */
+	pcm->io_hw_ptr = 0;
 	pcm->io_ptr = 0;
 
 	debug("Prepared");
@@ -289,6 +349,11 @@ static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 
 	if (bluealsa_pause_transport(pcm->fd, pcm->transport, enable) == -1)
 		return -errno;
+
+	if (enable == 0) {
+		io->state = SND_PCM_STATE_RUNNING;
+		pthread_kill(pcm->io_thread, SIGIO);
+	}
 
 	/* Even though PCM transport is paused, our IO thread is still running. If
 	 * the implementer relies on the PCM file descriptor readiness, we have to
@@ -418,6 +483,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.close = bluealsa_close,
 	.hw_params = bluealsa_hw_params,
 	.hw_free = bluealsa_hw_free,
+	.sw_params = bluealsa_sw_params,
 	.prepare = bluealsa_prepare,
 	.drain = bluealsa_drain,
 	.pause = bluealsa_pause,

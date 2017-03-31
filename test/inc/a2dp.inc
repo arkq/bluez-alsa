@@ -2,7 +2,7 @@
  * a2dp.inc
  * vim: ft=c
  *
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -21,7 +21,7 @@
  * This function encodes data from the buffer using SBC codec and writes it to
  * the file referred to by the file descriptor. Encoded data is encapsulated
  * with the standard RTP header and the appropriate SBC payload header. */
-int a2dp_write_sbc(int fd, const a2dp_sbc_t *config, const void *buffer, size_t count) {
+int a2dp_write_sbc(int fd, const a2dp_sbc_t *config, const void *buffer, size_t size) {
 
 	sbc_t sbc;
 	int ret = 0;
@@ -48,21 +48,21 @@ int a2dp_write_sbc(int fd, const a2dp_sbc_t *config, const void *buffer, size_t 
 	rtp_header->version = 2;
 	rtp_header->paytype = 96;
 
-	while (count >= sbc_codesize) {
+	while (size >= sbc_codesize) {
 
 		uint8_t *output = (uint8_t *)(rtp_payload + 1);
 		size_t output_len = wbuffer_size - (output - wbuffer);
 		size_t frames = 0;
 
-		while (count >= sbc_codesize && output_len >= sbc_frame_len) {
+		while (size >= sbc_codesize && output_len >= sbc_frame_len) {
 
 			ssize_t len;
 			ssize_t encoded;
 
-			len = sbc_encode(&sbc, buffer, count, output, output_len, &encoded);
+			len = sbc_encode(&sbc, buffer, size, output, output_len, &encoded);
 
 			buffer += len;
-			count -= len;
+			size -= len;
 			output += encoded;
 			output_len -= encoded;
 			frames++;

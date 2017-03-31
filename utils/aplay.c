@@ -72,7 +72,7 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 
 	if ((err = snd_pcm_sw_params_current(pcm, params)) != 0)
 		return err;
-	/* start the transfer when the buffer is almost full */
+	/* start the transfer when the buffer is full (or almost full) */
 	snd_pcm_uframes_t threshold = (buffer_size / period_size) * period_size;
 	if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0)
 		return err;
@@ -238,7 +238,7 @@ usage:
 	sigaction(SIGINT, &sigact, NULL);
 
 	struct pollfd pfds[] = {{ ba_pcm_fd, POLLIN, 0 }};
-	int frame_size = transport->channels * 2;
+	ssize_t frame_size = snd_pcm_frames_to_bytes(pcm, 1);
 	char *buffer = malloc(period_size * frame_size);
 	char *buffer_head = buffer;
 
