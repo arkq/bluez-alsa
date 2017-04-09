@@ -44,7 +44,7 @@ static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, snd_pcm_stream_t stream, int 
 
 fail:
 	if (conf != NULL)
-		snd_config_unref(conf);
+		snd_config_delete(conf);
 	if (input != NULL)
 		snd_input_close(input);
 	return err;
