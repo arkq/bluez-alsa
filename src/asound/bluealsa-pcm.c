@@ -26,10 +26,7 @@
 #include "shared/ctl-client.h"
 #include "shared/ctl-proto.h"
 #include "shared/log.h"
-
-
-/* Helper macro for obtaining the size of a static array. */
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#include "shared/rt.h"
 
 
 struct bluealsa_pcm {
@@ -100,6 +97,9 @@ static void *io_thread(void *arg) {
 		}
 	}
 
+	struct asrsync asrs;
+	asrsync_init(asrs, io->rate);
+
 	debug("Starting IO loop");
 	for (;;) {
 
@@ -111,6 +111,7 @@ static void *io_thread(void *arg) {
 		default:
 			debug("IO thread paused: %d", io->state);
 			sigwait(&sigset, &tmp);
+			asrsync_init(asrs, io->rate);
 			debug("IO thread resumed: %d", io->state);
 		}
 
@@ -183,6 +184,8 @@ static void *io_thread(void *arg) {
 			}
 			while (len != 0);
 
+			/* synchronize playback time */
+			asrsync_sync(&asrs, frames);
 		}
 
 sync:
@@ -523,19 +526,31 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 	debug("Setting constraints");
 
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_ACCESS,
-					ARRAY_SIZE(accesses), accesses)) < 0)
+					sizeof(accesses) / sizeof(*accesses), accesses)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_FORMAT,
-					ARRAY_SIZE(formats), formats)) < 0)
+					sizeof(formats) / sizeof(*formats), formats)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIODS,
 					2, 1024)) < 0)
 		return err;
 
+	/* In order to prevent audio tearing and minimize CPU utilization, we're
+	 * going to setup buffer size constraints. These limits are derived from
+	 * the transport sampling rate and the number of channels, so the buffer
+	 * "time" size will be constant. The minimal period size and buffer size
+	 * are respectively 10 ms and 200 ms. Upper limits are not constraint. */
+	unsigned int min_p = pcm->transport->sampling * 10 / 1000 * pcm->transport->channels * 2;
+	unsigned int min_b = pcm->transport->sampling * 200 / 1000 * pcm->transport->channels * 2;
+
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-					128, 1024 * 4)) < 0)
+					min_p, 1024 * 16)) < 0)
+		return err;
+
+	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_BUFFER_BYTES,
+					min_b, 1024 * 1024 * 16)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_CHANNELS,

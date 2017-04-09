@@ -14,6 +14,7 @@ libasound_module_ctl_bluealsa_la_SOURCES = \
 libasound_module_pcm_bluealsa_la_SOURCES = \
 	../shared/ctl-client.c \
 	../shared/log.c \
+	../shared/rt.c \
 	bluealsa-pcm.c
 
 asound_module_ctldir = @ALSA_PLUGIN_DIR@
