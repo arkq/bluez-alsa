@@ -14,6 +14,49 @@
 
 
 /**
+ * Synchronize time with the sampling rate.
+ *
+ * Notes:
+ * 1. Time synchronization relies on the frame counter being linear.
+ * 2. In order to prevent frame counter overflow (for more information see
+ *   the asrsync structure definition), this counter should be initialized
+ *   (zeroed) upon every transfer stop.
+ *
+ * @param asrs Pointer to the time synchronization structure.
+ * @param frames Number of frames since the last call to this function.
+ * @return This function returns a positive value or zero respectively for
+ *   the case, when the synchronization was required or when blocking was
+ *   not necessary. If an error has occurred, -1 is returned and errno is
+ *   set to indicate the error. */
+int asrsync_sync(struct asrsync *asrs, unsigned int frames) {
+
+	const unsigned int rate = asrs->rate;
+	struct timespec ts_rate;
+	struct timespec ts;
+	int rv = 0;
+
+	asrs->frames += frames;
+	frames = asrs->frames;
+
+	ts_rate.tv_sec = frames / rate;
+	ts_rate.tv_nsec = 1000000000 / rate * (frames % rate);
+
+	gettimestamp(&ts);
+	/* calculate delay since the last sync */
+	difftimespec(&asrs->ts, &ts, &asrs->ts_busy);
+
+	/* maintain constant rate */
+	difftimespec(&asrs->ts0, &ts, &ts);
+	if (difftimespec(&ts, &ts_rate, &asrs->ts_idle) > 0) {
+		nanosleep(&asrs->ts_idle, NULL);
+		rv = 1;
+	}
+
+	gettimestamp(&asrs->ts);
+	return rv;
+}
+
+/**
  * Calculate time difference for two time points.
  *
  * @param ts1 Address to the timespec structure providing t1 time point.

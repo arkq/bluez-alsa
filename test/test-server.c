@@ -68,10 +68,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	struct io_sync io_sync = {
-		.sampling = transport_get_sampling(t),
-	};
-
+	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
 	int x = 0;
 
@@ -86,8 +83,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 		fprintf(stderr, ".");
 
-		if (io_sync.frames == 0)
-			gettimestamp(&io_sync.ts0);
+		if (asrs.frames == 0)
+			asrsync_init(asrs, transport_get_sampling(t));
 
 		int samples = sizeof(buffer) / sizeof(int16_t);
 		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 0.01);
@@ -95,7 +92,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		if (io_thread_write_pcm(&t->a2dp.pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
-		io_thread_time_sync(&io_sync, samples / 2);
+		asrsync_sync(&asrs, samples / 2);
 	}
 
 	return NULL;
@@ -107,20 +104,15 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	while ((t->a2dp.pcm.fd = open(t->a2dp.pcm.fifo, O_RDONLY)) == -1)
 		usleep(10000);
 
+	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
 	ssize_t samples;
-
-	struct io_sync io_sync = {
-		.sampling = transport_get_sampling(t),
-	};
 
 	for (;;) {
 		fprintf(stderr, ".");
 
-		if (io_sync.frames == 0) {
-			gettimestamp(&io_sync.ts);
-			io_sync.ts0 = io_sync.ts;
-		}
+		if (asrs.frames == 0)
+			asrsync_init(asrs, transport_get_sampling(t));
 
 		const size_t in_samples = sizeof(buffer) / sizeof(int16_t);
 		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, buffer, in_samples)) <= 0) {
@@ -129,7 +121,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			break;
 		}
 
-		io_thread_time_sync(&io_sync, samples / 2);
+		asrsync_sync(&asrs, samples / 2);
 	}
 
 	return NULL;
