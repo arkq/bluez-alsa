@@ -8,6 +8,10 @@
  *
  */
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,9 +67,10 @@ static unsigned int get_average_rate(unsigned int *array, size_t size) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hd:";
+	const char *opts = "hVd:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "version", no_argument, NULL, 'V' },
 		{ "delay", required_argument, NULL, 'd' },
 		{ 0, 0, 0, 0 },
 	};
@@ -75,14 +80,19 @@ int main(int argc, char *argv[]) {
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h':
+		case 'h' /* --help */ :
 			printf("usage: %s [ -d sec ]\n"
 					"  -h, --help\t\tprint this help and exit\n"
+					"  -V, --version\t\tprint version and exit\n"
 					"  -d, --delay=SEC\tdelay time interval\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 
-		case 'd':
+		case 'V' /* --version */ :
+			printf("%s\n", PACKAGE_VERSION);
+			return EXIT_SUCCESS;
+
+		case 'd' /* --delay=SEC */ :
 			delay_sec = atoi(optarg);
 			delay_msec = (int)((atof(optarg) - delay_sec) * 10) * 100;
 			if (delay_sec < 0 || delay_msec < 0 || (delay_sec == 0 && delay_msec == 0)) {

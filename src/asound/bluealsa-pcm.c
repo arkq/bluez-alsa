@@ -397,7 +397,7 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	if (ioctl(pcm->pcm_fd, FIONREAD, &size) != -1)
 		delay += size / pcm->frame_size;
 
-	/* On the server site, the delay stat will not be available until the PCM
+	/* On the server side, the delay stat will not be available until the PCM
 	 * data transfer is started. Do not make an unnecessary call then. */
 	if ((io->state == SND_PCM_STATE_RUNNING || io->state == SND_PCM_STATE_DRAINING)) {
 

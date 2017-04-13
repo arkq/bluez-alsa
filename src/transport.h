@@ -99,7 +99,7 @@ struct ba_transport {
 	pthread_t thread;
 
 	/* This field stores a file descriptor (socket) associated with the BlueZ
-	 * site of the transport. The role of this socket depends on the transport
+	 * side of the transport. The role of this socket depends on the transport
 	 * type - it can be either A2DP, RFCOMM or SCO link. */
 	int bt_fd;
 

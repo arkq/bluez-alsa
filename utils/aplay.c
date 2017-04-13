@@ -8,6 +8,10 @@
  *
  */
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <getopt.h>
 #include <poll.h>
 #include <signal.h>
@@ -88,9 +92,10 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hvi:d:";
+	const char *opts = "hVvi:d:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "version", no_argument, NULL, 'V' },
 		{ "verbose", no_argument, NULL, 'v' },
 		{ "hci", required_argument, NULL, 'i' },
 		{ "pcm", required_argument, NULL, 'd' },
@@ -113,7 +118,9 @@ int main(int argc, char *argv[]) {
 		case 'h' /* --help */ :
 usage:
 			printf("usage: %s [OPTION]... <BT-ADDR>\n\n"
+					"options:\n"
 					"  -h, --help\t\tprint this help and exit\n"
+					"  -V, --version\t\tprint version and exit\n"
 					"  -v, --verbose\t\tmake output more verbose\n"
 					"  -i, --hci=hciX\tHCI device to use\n"
 					"  -d, --pcm=NAME\tPCM device to use\n"
@@ -122,6 +129,10 @@ usage:
 					"  --profile-a2dp\tuse A2DP profile\n"
 					"  --profile-sco\t\tuse SCO profile\n",
 					argv[0]);
+			return EXIT_SUCCESS;
+
+		case 'V' /* --version */ :
+			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
 		case 'v' /* --verbose */ :

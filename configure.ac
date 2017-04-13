@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2017 Arkadiusz Bokowy
 
 AC_PREREQ([2.59])
-AC_INIT([bluez-alsa], [1.1.0], [arkadiusz.bokowy@gmail.com])
+AC_INIT([bluez-alsa], [1.2.0], [arkadiusz.bokowy@gmail.com])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
 AC_CONFIG_HEADERS([config.h])
