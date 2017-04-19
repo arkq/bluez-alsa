@@ -23,6 +23,9 @@ Installation
 	$ autoreconf --install
 	$ mkdir build && cd build
 	$ ../configure --enable-aac --enable-debug
+or if you intend to stream audio from a Linux distribution using Pulseaudio
+        $ ../configure --enable-aac --enable-debug --disable-payloadcheck
+then
 	$ make && make install
 
 Dependencies:
