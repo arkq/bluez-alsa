@@ -42,7 +42,7 @@ Dependencies:
 - [ortp](http://www.linphone.org/technical-corner/ortp.html) (required for compilation only)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 
-Dependencies for `hcitop` (unless `--disable-hcitop` is specified during configuration):
+Dependencies for `hcitop` (when `--enable-hcitop` is specified during configuration):
 
 - [libbsd](https://libbsd.freedesktop.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)

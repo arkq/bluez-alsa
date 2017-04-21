@@ -69,8 +69,8 @@ AC_ARG_ENABLE([aplay],
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
 
 AC_ARG_ENABLE([hcitop],
-	[AS_HELP_STRING([--disable-hcitop], [disable building of hcitop tool])])
-AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" != "xno"])
+	[AS_HELP_STRING([--enable-hcitop], [enable building of hcitop tool])])
+AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" = "xyes"])
 AM_COND_IF([ENABLE_HCITOP], [
 	PKG_CHECK_MODULES([LIBBSD], [libbsd])
 	PKG_CHECK_MODULES([NCURSES], [ncurses])
