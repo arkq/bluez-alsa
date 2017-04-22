@@ -57,6 +57,13 @@ AM_COND_IF([ENABLE_AAC], [
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
+AC_ARG_ENABLE([payloadcheck],
+	[AS_HELP_STRING([--disable-payloadcheck], [disable RTP payload type check (workaround for a PulseAudio bug)])])
+AM_CONDITIONAL([ENABLE_PAYLOADCHECK], [test "x$enable_payloadcheck" != "xno"])
+AM_COND_IF([ENABLE_PAYLOADCHECK], [
+	AC_DEFINE([ENABLE_PAYLOADCHECK], [1], [Define to 1 if PAYLOADCHECK is enabled.])
+])
+
 AC_ARG_ENABLE([aplay],
 	[AS_HELP_STRING([--disable-aplay], [disable building of aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
@@ -69,8 +76,8 @@ AM_COND_IF([ENABLE_PAYLOADCHECK], [
 ])
 
 AC_ARG_ENABLE([hcitop],
-	[AS_HELP_STRING([--disable-hcitop], [disable building of hcitop tool])])
-AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" != "xno"])
+	[AS_HELP_STRING([--enable-hcitop], [enable building of hcitop tool])])
+AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" = "xyes"])
 AM_COND_IF([ENABLE_HCITOP], [
 	PKG_CHECK_MODULES([LIBBSD], [libbsd])
 	PKG_CHECK_MODULES([NCURSES], [ncurses])

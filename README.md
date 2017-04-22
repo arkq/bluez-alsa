@@ -24,7 +24,8 @@ Installation
 	$ mkdir build && cd build
 	$ ../configure --enable-aac --enable-debug
 
-or if you intend to stream audio from a Linux distribution using Pulseaudio
+or if you intend to stream audio from a Linux distribution using PulseAudio (see [this
+issue](https://github.com/Arkq/bluez-alsa/issues/13))
 
 	$ ../configure --enable-aac --enable-debug --disable-payloadcheck
 
@@ -41,7 +42,7 @@ Dependencies:
 - [ortp](http://www.linphone.org/technical-corner/ortp.html) (required for compilation only)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 
-Dependencies for `hcitop` (unless `--disable-hcitop` is specified during configuration):
+Dependencies for `hcitop` (when `--enable-hcitop` is specified during configuration):
 
 - [libbsd](https://libbsd.freedesktop.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
@@ -106,8 +107,6 @@ Troubleshooting
 	audio profile in the Bluetooth stack. However, it is possible to run BlueALSA and PulseAudio
 	alongside, but Bluetooth support has to be disabled in the PulseAudio. Any Bluetooth related
 	module has to be unloaded - e.g. `bluetooth-discover`, `bluez5-discover`.
-
-	See also [this](https://github.com/Arkq/bluez-alsa/issues/13) PulseAudio related issue.
 
 2. ALSA thread-safe API (alsa-lib >= 1.1.2).
 
