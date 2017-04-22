@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Buffer delay in us
+BUFFERDELAY=113000
+
+# Address of Bluetooth A2DP device to connect to automatically
+A2DPADDR=00:9E:C6:CE:D7:11
+
+# File with last Bluetooth A2DP address connected
+NUMFILE=/var/run/aloop.num
+
+# File to disable autoconnect 
+DISFILE=/var/run/a2dp.disconnected
