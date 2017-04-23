@@ -16,6 +16,7 @@
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #if DEBUG_TIME
 # define BLUEALSA_LOGTIME true
@@ -33,6 +34,12 @@ void _debug(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 # define debug(M, ARGS...) _debug("%s:%d: " M, __FILE__, __LINE__, ## ARGS)
 #else
 # define debug(M, ARGS...) do {} while (0)
+#endif
+
+#if DEBUG
+void hexdump(const char *label, const void *mem, size_t len);
+#else
+# define hexdump(A, M, L) do {} while (0)
 #endif
 
 #endif

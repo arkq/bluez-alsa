@@ -100,3 +100,25 @@ void _debug(const char *format, ...) {
 	va_end(ap);
 }
 #endif
+
+#if DEBUG
+/**
+ * Dump memory using hexadecimal representation.
+ *
+ * @param label Label printed before the memory block output.
+ * @param mem Address of the memory block.
+ * @param len Number of bytes which should be printed. */
+void hexdump(const char *label, const void *mem, size_t len) {
+
+	char *buf = malloc(len * 3 + 1);
+	char *p = buf;
+
+	while (len--) {
+		p += sprintf(p, " %02x", *(unsigned char *)mem & 0xFF);
+		mem += 1;
+	}
+
+	fprintf(stderr, "%s:%s\n", label, buf);
+	free(buf);
+}
+#endif
