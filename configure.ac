@@ -65,7 +65,7 @@ AM_COND_IF([ENABLE_PAYLOADCHECK], [
 ])
 
 AC_ARG_ENABLE([aplay],
-	[AS_HELP_STRING([--disable-aplay], [disable building of aplay tool])])
+	[AS_HELP_STRING([--disable-aplay], [disable building of bluealsa-aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
 
 AC_ARG_ENABLE([hcitop],
@@ -75,6 +75,12 @@ AM_COND_IF([ENABLE_HCITOP], [
 	PKG_CHECK_MODULES([LIBBSD], [libbsd])
 	PKG_CHECK_MODULES([NCURSES], [ncurses])
 ])
+
+# Since it is not possible to specify custom ALSA plugin directory, BlueALSA
+# PCM plugin has to be installed prior to this test.
+AC_ARG_ENABLE([pcm-test],
+	[AS_HELP_STRING([--enable-pcm-test], [enable PCM plugin test])])
+AM_CONDITIONAL([ENABLE_PCM_TEST], [test "x$enable_pcm_test" = "xyes"])
 
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),

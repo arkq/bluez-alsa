@@ -5,6 +5,10 @@ TESTS = \
 	test-io \
 	test-utils
 
+if ENABLE_PCM_TEST
+TESTS += test-pcm
+endif
+
 check_PROGRAMS = \
 	test-io \
 	test-pcm \
