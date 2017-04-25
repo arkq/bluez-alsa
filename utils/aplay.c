@@ -39,52 +39,90 @@ static void main_loop_stop(int sig) {
 }
 
 static int set_hw_params(snd_pcm_t *pcm, int channels, int rate,
-		unsigned int *buffer_time, unsigned int *period_time) {
+		unsigned int *buffer_time, unsigned int *period_time, char **msg) {
 
+	static char buf[256];
+	const snd_pcm_access_t access = SND_PCM_ACCESS_RW_INTERLEAVED;
+	const snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
 	snd_pcm_hw_params_t *params;
 	int dir;
 	int err;
 
+	if (msg != NULL)
+		*msg = (char *)&buf;
+
 	snd_pcm_hw_params_alloca(&params);
 
-	if ((err = snd_pcm_hw_params_any(pcm, params)) != 0)
+	if ((err = snd_pcm_hw_params_any(pcm, params)) != 0) {
+		snprintf(buf, sizeof(buf), "Set all possible ranges: %s", snd_strerror(err));
 		return err;
-	if ((err = snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED)) != 0)
+	}
+	if ((err = snd_pcm_hw_params_set_access(pcm, params, access)) != 0) {
+		snprintf(buf, sizeof(buf), "Set assess type: %s: %s", snd_strerror(err), snd_pcm_access_name(access));
 		return err;
-	if ((err = snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_S16_LE)) != 0)
+	}
+	if ((err = snd_pcm_hw_params_set_format(pcm, params, format)) != 0) {
+		snprintf(buf, sizeof(buf), "Set format: %s: %s", snd_strerror(err), snd_pcm_format_name(format));
 		return err;
-	if ((err = snd_pcm_hw_params_set_channels(pcm, params, channels)) != 0)
+	}
+	if ((err = snd_pcm_hw_params_set_channels(pcm, params, channels)) != 0) {
+		snprintf(buf, sizeof(buf), "Set channels: %s: %d", snd_strerror(err), channels);
 		return err;
-	if ((err = snd_pcm_hw_params_set_rate(pcm, params, rate, 0)) != 0)
+	}
+	if ((err = snd_pcm_hw_params_set_rate(pcm, params, rate, 0)) != 0) {
+		snprintf(buf, sizeof(buf), "Set sampling rate: %s: %d", snd_strerror(err), rate);
 		return err;
-	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0)
+	}
+	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0) {
+		snprintf(buf, sizeof(buf), "Set buffer time: %s: %u", snd_strerror(err), *buffer_time);
 		return err;
-	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0)
+	}
+	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0) {
+		snprintf(buf, sizeof(buf), "Set period time: %s: %u", snd_strerror(err), *period_time);
 		return err;
-	if ((err = snd_pcm_hw_params(pcm, params)) != 0)
+	}
+	if ((err = snd_pcm_hw_params(pcm, params)) != 0) {
+		snprintf(buf, sizeof(buf), "%s", snd_strerror(err));
 		return err;
+	}
 
 	return 0;
 }
 
-static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_uframes_t period_size) {
+static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size,
+		snd_pcm_uframes_t period_size, char **msg) {
 
+	static char buf[256];
 	snd_pcm_sw_params_t *params;
 	int err;
 
+	if (msg != NULL)
+		*msg = (char *)&buf;
+
 	snd_pcm_sw_params_alloca(&params);
 
-	if ((err = snd_pcm_sw_params_current(pcm, params)) != 0)
+	if ((err = snd_pcm_sw_params_current(pcm, params)) != 0) {
+		snprintf(buf, sizeof(buf), "Get current params: %s", snd_strerror(err));
 		return err;
+	}
+
 	/* start the transfer when the buffer is full (or almost full) */
 	snd_pcm_uframes_t threshold = (buffer_size / period_size) * period_size;
-	if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0)
+	if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0) {
+		snprintf(buf, sizeof(buf), "Set start threshold: %s: %lu", snd_strerror(err), threshold);
 		return err;
+	}
+
 	/* allow the transfer when at least period_size samples can be processed */
-	if ((err = snd_pcm_sw_params_set_avail_min(pcm, params, period_size)) != 0)
+	if ((err = snd_pcm_sw_params_set_avail_min(pcm, params, period_size)) != 0) {
+		snprintf(buf, sizeof(buf), "Set avail min: %s: %lu", snd_strerror(err), period_size);
 		return err;
-	if ((err = snd_pcm_sw_params(pcm, params)) != 0)
+	}
+
+	if ((err = snd_pcm_sw_params(pcm, params)) != 0) {
+		snprintf(buf, sizeof(buf), "%s", snd_strerror(err));
 		return err;
+	}
 
 	return 0;
 }
@@ -185,6 +223,7 @@ usage:
 	int ba_pcm_fd = -1;
 	int ba_fd = -1;
 	bdaddr_t addr;
+	char *msg;
 	int err;
 
 	log_open(argv[0], false, false);
@@ -210,8 +249,8 @@ usage:
 	}
 
 	if ((err = set_hw_params(pcm, transport->channels, transport->sampling,
-					&pcm_buffer_time, &pcm_period_time)) != 0) {
-		error("Couldn't set HW parameters: %s", snd_strerror(err));
+					&pcm_buffer_time, &pcm_period_time, &msg)) != 0) {
+		error("Couldn't set HW parameters: %s", msg);
 		goto fail;
 	}
 
@@ -228,8 +267,8 @@ usage:
 				pcm_buffer_time, snd_pcm_frames_to_bytes(pcm, buffer_size),
 				pcm_period_time, snd_pcm_frames_to_bytes(pcm, period_size));
 
-	if ((err = set_sw_params(pcm, buffer_size, period_size)) != 0) {
-		error("Couldn't set SW parameters: %s", snd_strerror(err));
+	if ((err = set_sw_params(pcm, buffer_size, period_size, &msg)) != 0) {
+		error("Couldn't set SW parameters: %s", msg);
 		goto fail;
 	}
 
