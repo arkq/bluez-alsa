@@ -17,6 +17,7 @@
 
 #include <poll.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -32,9 +33,9 @@ struct ba_config {
 	/* used HCI device */
 	struct hci_dev_info hci_dev;
 
-	gboolean enable_a2dp;
-	gboolean enable_hsp;
-	gboolean enable_hfp;
+	bool enable_a2dp;
+	bool enable_hsp;
+	bool enable_hfp;
 
 	/* established D-Bus connection */
 	GDBusConnection *dbus;
@@ -55,25 +56,25 @@ struct ba_config {
 	pthread_t ctl_thread;
 	struct pollfd ctl_pfds[1 + BLUEALSA_MAX_CLIENTS];
 
-	gboolean ctl_socket_created;
-	gboolean ctl_thread_created;
+	bool ctl_socket_created;
+	bool ctl_thread_created;
 
 #if ENABLE_AAC
-	gboolean aac_afterburner;
+	bool aac_afterburner;
 	uint8_t aac_vbr_mode;
 #endif
 
 	/* Support for monophonic sound in the A2DP profile is mandatory for
 	 * sink and semi-mandatory for source. So, if one wants only the bare
 	 * minimum, it would be possible - e.g. due to bandwidth limitations. */
-	gboolean a2dp_force_mono;
+	bool a2dp_force_mono;
 	/* The sampling rates of 44.1 kHz (aka Audio CD) and 48 kHz are mandatory
 	 * for sink endpoint and semi-mandatory for source. It is then possible
 	 * to force lower sampling in order to save Bluetooth bandwidth. */
-	gboolean a2dp_force_44100;
+	bool a2dp_force_44100;
 	/* Control audio volume natively by the connected device. The disadvantage
 	 * of this control type is a monophonic volume change. */
-	gboolean a2dp_volume;
+	bool a2dp_volume;
 
 };
 

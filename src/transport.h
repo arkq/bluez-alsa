@@ -12,6 +12,7 @@
 #define BLUEALSA_TRANSPORT_H_
 
 #include <pthread.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -180,7 +181,7 @@ void device_free(struct ba_device *d);
 
 struct ba_device *device_get(GHashTable *devices, const char *key);
 struct ba_device *device_lookup(GHashTable *devices, const char *key);
-gboolean device_remove(GHashTable *devices, const char *key);
+bool device_remove(GHashTable *devices, const char *key);
 
 struct ba_transport *transport_new(
 		struct ba_device *device,
@@ -206,7 +207,7 @@ void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path);
 struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client);
-gboolean transport_remove(GHashTable *devices, const char *dbus_path);
+bool transport_remove(GHashTable *devices, const char *dbus_path);
 
 unsigned int transport_get_channels(const struct ba_transport *t);
 unsigned int transport_get_sampling(const struct ba_transport *t);

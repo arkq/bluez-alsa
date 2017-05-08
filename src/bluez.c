@@ -886,7 +886,7 @@ static const GDBusInterfaceVTable profile_vtable = {
 int bluez_register_hfp(void) {
 
 	static const struct profile {
-		gboolean *enabled;
+		bool *enabled;
 		const char *uuid;
 		const char *endpoint;
 		uint16_t version;

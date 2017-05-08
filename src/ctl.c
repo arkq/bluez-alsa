@@ -567,7 +567,7 @@ int bluealsa_ctl_thread_init(void) {
 		goto fail;
 	if (bind(config.ctl_pfds[0].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
 		goto fail;
-	config.ctl_socket_created = 1;
+	config.ctl_socket_created = true;
 	if (chmod(saddr.sun_path, 0660) == -1)
 		goto fail;
 	if (chown(saddr.sun_path, -1, config.gid_audio) == -1)
@@ -575,9 +575,9 @@ int bluealsa_ctl_thread_init(void) {
 	if (listen(config.ctl_pfds[0].fd, 2) == -1)
 		goto fail;
 
-	config.ctl_thread_created = 1;
+	config.ctl_thread_created = true;
 	if ((errno = pthread_create(&config.ctl_thread, NULL, ctl_thread, NULL)) != 0) {
-		config.ctl_thread_created = 0;
+		config.ctl_thread_created = false;
 		goto fail;
 	}
 
@@ -596,7 +596,7 @@ void bluealsa_ctl_free(void) {
 	int created = config.ctl_thread_created;
 	size_t i;
 
-	config.ctl_thread_created = 0;
+	config.ctl_thread_created = false;
 
 	for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++)
 		if (config.ctl_pfds[i].fd != -1)
@@ -611,7 +611,7 @@ void bluealsa_ctl_free(void) {
 	if (config.ctl_socket_created) {
 		char tmp[256] = BLUEALSA_RUN_STATE_DIR "/";
 		unlink(strcat(tmp, config.hci_dev.name));
-		config.ctl_socket_created = 0;
+		config.ctl_socket_created = false;
 	}
 
 }
