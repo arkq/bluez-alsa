@@ -1071,7 +1071,7 @@ void *io_thread_rfcomm(void *arg) {
 			if (spk_gain != t->rfcomm.sco->sco.spk_gain) {
 				spk_gain = t->rfcomm.sco->sco.spk_gain;
 				debug("Setting speaker gain: %d", spk_gain);
-				sprintf(buffer, "+VGS=%d", mic_gain);
+				sprintf(buffer, "+VGS=%d", spk_gain);
 				io_thread_write_at_response(pfds[1].fd, buffer);
 			}
 
@@ -1233,6 +1233,9 @@ void *io_thread_sco(void *arg) {
 				continue;
 			}
 
+			if (t->sco.mic_muted)
+				snd_pcm_scale_s16le(buffer, len / sizeof(int16_t), 1, 0, 0);
+
 			write(t->sco.mic_pcm.fd, buffer, len);
 		}
 
@@ -1246,6 +1249,9 @@ void *io_thread_sco(void *arg) {
 					error("FIFO read error: %s", strerror(errno));
 				continue;
 			}
+
+			if (t->sco.spk_muted)
+				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
 			write(t->bt_fd, buffer, samples * sizeof(int16_t));
 		}
