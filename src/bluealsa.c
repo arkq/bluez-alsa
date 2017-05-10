@@ -11,6 +11,7 @@
 #include "bluealsa.h"
 
 #include <grp.h>
+#include <sys/eventfd.h>
 
 #include "transport.h"
 
@@ -24,8 +25,8 @@ struct ba_config config = {
 	.enable_hfp = true,
 
 	/* initialization flags */
-	.ctl_socket_created = false,
-	.ctl_thread_created = false,
+	.ctl.socket_created = false,
+	.ctl.thread_created = false,
 
 	/* omit chown if audio group is not defined */
 	.gid_audio = -1,
@@ -70,4 +71,8 @@ void bluealsa_config_free(void) {
 	pthread_mutex_destroy(&config.devices_mutex);
 	g_hash_table_unref(config.devices);
 	g_hash_table_unref(config.dbus_objects);
+}
+
+void bluealsa_event() {
+	eventfd_write(config.ctl.pfds[CTL_IDX_EVT].fd, 1);
 }

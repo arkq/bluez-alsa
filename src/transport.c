@@ -149,6 +149,8 @@ void device_free(struct ba_device *d) {
 
 	g_hash_table_unref(d->transports);
 	free(d);
+
+	bluealsa_event();
 }
 
 struct ba_device *device_get(GHashTable *devices, const char *key) {
@@ -272,6 +274,7 @@ struct ba_transport *transport_new_a2dp(
 	t->a2dp.pcm.fd = -1;
 	t->a2dp.pcm.client = -1;
 
+	bluealsa_event();
 	return t;
 }
 
@@ -306,6 +309,7 @@ struct ba_transport *transport_new_rfcomm(
 
 	transport_set_state(t_sco, TRANSPORT_ACTIVE);
 
+	bluealsa_event();
 	return t;
 
 fail:

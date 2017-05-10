@@ -23,6 +23,8 @@
 
 enum command {
 	COMMAND_PING,
+	COMMAND_SUBSCRIBE,
+	COMMAND_UNSUBSCRIBE,
 	COMMAND_LIST_DEVICES,
 	COMMAND_LIST_TRANSPORTS,
 	COMMAND_TRANSPORT_GET,
@@ -42,6 +44,10 @@ enum status_code {
 	STATUS_CODE_DEVICE_BUSY,
 	STATUS_CODE_FORBIDDEN,
 	STATUS_CODE_PONG,
+};
+
+enum event_type {
+	EVENT_TYPE_NULL = 0,
 };
 
 enum pcm_type {
@@ -85,6 +91,10 @@ struct __attribute__ ((packed)) request {
  * indicate either success or error. */
 struct __attribute__ ((packed)) msg_status {
 	uint8_t code;
+};
+
+struct __attribute__ ((packed)) msg_event {
+	enum event_type type;
 };
 
 struct __attribute__ ((packed)) msg_device {

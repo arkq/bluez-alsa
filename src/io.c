@@ -1106,10 +1106,14 @@ void *io_thread_rfcomm(void *arg) {
 		}
 		else if (strcmp(command, "+CKPD") == 0 && atoi(value) == 200) {
 		}
-		else if (strcmp(command, "+VGM") == 0)
+		else if (strcmp(command, "+VGM") == 0) {
 			t->rfcomm.sco->sco.mic_gain = mic_gain = atoi(value);
-		else if (strcmp(command, "+VGS") == 0)
+			bluealsa_event();
+		}
+		else if (strcmp(command, "+VGS") == 0) {
 			t->rfcomm.sco->sco.spk_gain = spk_gain = atoi(value);
+			bluealsa_event();
+		}
 		else if (strcmp(command, "+IPHONEACCEV") == 0) {
 
 			char *ptr = value;
@@ -1121,6 +1125,7 @@ void *io_thread_rfcomm(void *arg) {
 				case '1':
 					if (ptr != NULL)
 						t->device->xapl.accev_battery = atoi(strsep(&ptr, ","));
+						bluealsa_event();
 					break;
 				case '2':
 					if (ptr != NULL)

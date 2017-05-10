@@ -28,6 +28,11 @@
 /* Maximal number of clients connected to the controller. */
 #define BLUEALSA_MAX_CLIENTS 7
 
+/* Indexes of special file descriptors in the poll array. */
+#define CTL_IDX_SRV 0
+#define CTL_IDX_EVT 1
+#define __CTL_IDX_MAX 2
+
 struct ba_config {
 
 	/* used HCI device */
@@ -53,11 +58,17 @@ struct ba_config {
 	/* audio group ID */
 	gid_t gid_audio;
 
-	pthread_t ctl_thread;
-	struct pollfd ctl_pfds[1 + BLUEALSA_MAX_CLIENTS];
+	struct {
 
-	bool ctl_socket_created;
-	bool ctl_thread_created;
+		pthread_t thread;
+		bool socket_created;
+		bool thread_created;
+
+		struct pollfd pfds[__CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS];
+		/* clients subscribed for notifications */
+		bool subs[BLUEALSA_MAX_CLIENTS];
+
+	} ctl;
 
 #if ENABLE_AAC
 	bool aac_afterburner;
@@ -83,5 +94,7 @@ extern struct ba_config config;
 
 int bluealsa_config_init(void);
 void bluealsa_config_free(void);
+
+void bluealsa_event();
 
 #endif

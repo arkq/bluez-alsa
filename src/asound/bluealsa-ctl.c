@@ -11,6 +11,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -38,6 +39,12 @@ struct ctl_elem {
 	bool playback;
 };
 
+struct ctl_elem_update {
+	char name[sizeof(((struct ctl_elem *)0)->name)];
+	unsigned int event_mask;
+	struct ctl_elem *_elem;
+};
+
 struct bluealsa_ctl {
 	snd_ctl_ext_t ext;
 
@@ -55,6 +62,10 @@ struct bluealsa_ctl {
 	/* list of control elements */
 	struct ctl_elem *elems;
 	size_t elems_count;
+
+	/* list of control element update events */
+	struct ctl_elem_update *updates;
+	size_t updates_count;
 
 };
 
@@ -140,12 +151,75 @@ static void bluealsa_set_elem_name(struct ctl_elem *elem, int id) {
 
 }
 
+/**
+ * Compare two control element structures.
+ *
+ * @param e1 Pointer to control element structure.
+ * @param e2 Pointer to control element structure.
+ * @return It returns an integer equal to, or greater than zero if e1 is
+ *   found, respectively, to match, or be different than e2. */
+static int bluealsa_ctl_elem_cmp(const struct ctl_elem *e1, const struct ctl_elem *e2) {
+
+	const struct msg_device *d1 = e1->device;
+	const struct msg_device *d2 = e2->device;
+	const struct msg_transport *t1 = e1->transport;
+	const struct msg_transport *t2 = e2->transport;
+	bool updated = false;
+
+	switch (e1->type) {
+	case CTL_ELEM_TYPE_BATTERY:
+		updated |= d1->battery_level != d2->battery_level;
+		break;
+	case CTL_ELEM_TYPE_SWITCH:
+		switch (t1->type) {
+		case PCM_TYPE_NULL:
+			return -EINVAL;
+		case PCM_TYPE_A2DP:
+			updated |= t1->ch1_muted != t2->ch1_muted;
+			if (t1->channels == 2)
+				updated |= t1->ch2_muted != t2->ch2_muted;
+			break;
+		case PCM_TYPE_SCO:
+			if (e1->playback)
+				updated |= t1->ch1_muted != t2->ch1_muted;
+			else
+				updated |= t1->ch2_muted != t2->ch2_muted;
+			break;
+		}
+		break;
+	case CTL_ELEM_TYPE_VOLUME:
+		switch (t1->type) {
+		case PCM_TYPE_NULL:
+			return -EINVAL;
+		case PCM_TYPE_A2DP:
+			updated |= t1->ch1_volume != t2->ch1_volume;
+			if (t1->channels == 2)
+				updated |= t1->ch2_volume != t2->ch2_volume;
+			break;
+		case PCM_TYPE_SCO:
+			if (e1->playback)
+				updated |= t1->ch1_volume != t2->ch1_volume;
+			else
+				updated |= t1->ch2_volume != t2->ch2_volume;
+			break;
+		}
+		break;
+	}
+
+	return updated;
+}
+
+static int bluealsa_ctl_elem_update_cmp(const void *p1, const void *p2) {
+	return strcmp(((struct ctl_elem_update *)p1)->name, ((struct ctl_elem_update *)p2)->name);
+}
+
 static void bluealsa_close(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 	close(ctl->fd);
 	free(ctl->devices);
 	free(ctl->transports);
 	free(ctl->elems);
+	free(ctl->updates);
 	free(ctl);
 }
 
@@ -324,6 +398,13 @@ static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_el
 
 	if (numid > 0 && numid <= ctl->elems_count)
 		return numid - 1;
+
+	const char *name = snd_ctl_elem_id_get_name(id);
+	size_t i;
+
+	for (i = 0; i < ctl->elems_count; i++)
+		if (strcmp(ctl->elems[i].name, name) == 0)
+			return i;
 
 	return SND_CTL_EXT_KEY_NOT_FOUND;
 }
@@ -522,19 +603,35 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 
 static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
-	(void)subscribe;
-	(void)ctl;
+	if (bluealsa_subscribe(ctl->fd, subscribe) == -1)
+		SNDERR("BlueALSA subscription failed: %s", strerror(errno));
 }
 
 static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsigned int *event_mask) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
-	(void)id;
-	(void)event_mask;
 
-	char tmp[16];
+	if (ctl->updates_count) {
+		ctl->updates_count--;
+
+		snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
+		snd_ctl_elem_id_set_name(id, ctl->updates[ctl->updates_count].name);
+		*event_mask = ctl->updates[ctl->updates_count].event_mask;
+
+		if (ctl->updates_count == 0) {
+			free(ctl->updates);
+			ctl->updates = NULL;
+		}
+
+		return 1;
+	}
+
+	struct msg_event event;
 	ssize_t ret;
 
-	while ((ret = read(ctl->fd, tmp, sizeof(tmp))) == -1 && errno == EINTR)
+	/* This code reads events from the socket until the EAGAIN is returned.
+	 * Since EAGAIN is returned when operation would block (there is no more
+	 * data to read), we are compliant with the ALSA specification. */
+	while ((ret = recv(ctl->fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
 		continue;
 	if (ret == -1)
 		return -errno;
@@ -551,7 +648,56 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 		return -ENODEV;
 	}
 
-	return -EAGAIN;
+	/* Save current control elements for later usage. The call to the
+	 * bluealsa_elem_count() will overwrite these pointers. */
+	struct msg_device *devices = ctl->devices;
+	struct msg_transport *transports = ctl->transports;
+	struct ctl_elem *elems = ctl->elems;
+	size_t count = ctl->elems_count;
+
+	if ((ret = bluealsa_elem_count(ext)) < 0)
+		return ret;
+
+	/* This part is kinda tricky, however not very complicated. We are going
+	 * to allocate buffer, which will store references to our previous control
+	 * elements and to the new ones. Then, we are going to sort these elements
+	 * alphabetically by name - name acts as a unique identifier. Finally, we
+	 * are going to compare adjacent elements, and if names do match (the same
+	 * element), we will check if such an element should be marked for update.
+	 * Otherwise, element is added or removed. */
+
+	ctl->updates_count = count + ctl->elems_count;
+	ctl->updates = malloc(sizeof(*ctl->updates) * ctl->updates_count);
+
+	struct ctl_elem_update *_tmp = ctl->updates;
+	size_t i;
+
+	for (i = 0; i < count; i++, _tmp++) {
+		strcpy(_tmp->name, elems[i].name);
+		_tmp->event_mask = SND_CTL_EVENT_MASK_REMOVE;
+		_tmp->_elem = &elems[i];
+	}
+	for (i = 0; i < ctl->elems_count; i++, _tmp++) {
+		strcpy(_tmp->name, ctl->elems[i].name);
+		_tmp->event_mask = SND_CTL_EVENT_MASK_ADD;
+		_tmp->_elem = &ctl->elems[i];
+	}
+
+	qsort(ctl->updates, ctl->updates_count, sizeof(*ctl->updates), bluealsa_ctl_elem_update_cmp);
+
+	for (i = 0; i + 1 < ctl->updates_count; i++)
+		if (strcmp(ctl->updates[i].name, ctl->updates[i + 1].name) == 0) {
+			ctl->updates[i].event_mask = ctl->updates[i + 1].event_mask = 0;
+			if (bluealsa_ctl_elem_cmp(ctl->updates[i]._elem, ctl->updates[i + 1]._elem) != 0)
+				ctl->updates[i].event_mask = SND_CTL_EVENT_MASK_VALUE;
+			i++;
+		}
+
+	free(devices);
+	free(transports);
+	free(elems);
+
+	return bluealsa_read_event(ext, id, event_mask);
 }
 
 static const snd_ctl_ext_callback_t bluealsa_snd_ctl_ext_callback = {

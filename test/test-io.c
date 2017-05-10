@@ -12,12 +12,11 @@
 #include "inc/a2dp.inc"
 #include "inc/sine.inc"
 #include "inc/test.inc"
+#include "../src/bluealsa.c"
 #include "../src/io.c"
 #include "../src/transport.c"
 #include "../src/utils.c"
 #include "../src/shared/rt.c"
-
-struct ba_config config;
 
 static const a2dp_sbc_t config_sbc_44100_joint_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,

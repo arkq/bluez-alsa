@@ -205,6 +205,19 @@ static void ctl_thread_cmd_ping(const struct request *req, int fd) {
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
+static void ctl_thread_cmd_notifications(const struct request *req, int fd) {
+
+	static const struct msg_status status = { STATUS_CODE_SUCCESS };
+	const bool subscribe = req->command == COMMAND_SUBSCRIBE;
+	size_t i;
+
+	for (i = __CTL_IDX_MAX; i < __CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS; i++)
+		if (config.ctl.pfds[i].fd == fd)
+			config.ctl.subs[i - __CTL_IDX_MAX] = subscribe;
+
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
+}
+
 static void ctl_thread_cmd_list_devices(const struct request *req, int fd) {
 	(void)req;
 
@@ -460,6 +473,8 @@ static void *ctl_thread(void *arg) {
 
 	static void (*commands[__COMMAND_MAX])(const struct request *, int) = {
 		[COMMAND_PING] = ctl_thread_cmd_ping,
+		[COMMAND_SUBSCRIBE] = ctl_thread_cmd_notifications,
+		[COMMAND_UNSUBSCRIBE] = ctl_thread_cmd_notifications,
 		[COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
 		[COMMAND_LIST_TRANSPORTS] = ctl_thread_cmd_list_transports,
 		[COMMAND_TRANSPORT_GET] = ctl_thread_cmd_transport_get,
@@ -472,9 +487,9 @@ static void *ctl_thread(void *arg) {
 	};
 
 	debug("Starting controller loop");
-	while (config.ctl_thread_created) {
+	while (config.ctl.thread_created) {
 
-		if (poll(config.ctl_pfds, 1 + BLUEALSA_MAX_CLIENTS, -1) == -1) {
+		if (poll(config.ctl.pfds, sizeof(config.ctl.pfds) / sizeof(*config.ctl.pfds), -1) == -1) {
 			error("Controller poll error: %s", strerror(errno));
 			break;
 		}
@@ -486,15 +501,15 @@ static void *ctl_thread(void *arg) {
 		size_t i;
 
 		/* handle data transmission with connected clients */
-		for (i = 1; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
-			const int fd = config.ctl_pfds[i].fd;
+		for (i = __CTL_IDX_MAX; i < __CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS; i++) {
+			const int fd = config.ctl.pfds[i].fd;
 
 			if (fd == -1) {
-				pfd = &config.ctl_pfds[i];
+				pfd = &config.ctl.pfds[i];
 				continue;
 			}
 
-			if (config.ctl_pfds[i].revents & POLLIN) {
+			if (config.ctl.pfds[i].revents & POLLIN) {
 
 				struct request request;
 				ssize_t len;
@@ -513,7 +528,8 @@ static void *ctl_thread(void *arg) {
 						eventfd_write(t->event_fd, 1);
 					}
 
-					config.ctl_pfds[i].fd = -1;
+					config.ctl.pfds[i].fd = -1;
+					config.ctl.subs[i - __CTL_IDX_MAX] = false;
 					close(fd);
 					continue;
 				}
@@ -529,9 +545,27 @@ static void *ctl_thread(void *arg) {
 		}
 
 		/* process new connections to our controller */
-		if (config.ctl_pfds[0].revents & POLLIN && pfd != NULL) {
-			pfd->fd = accept(config.ctl_pfds[0].fd, NULL, NULL);
+		if (config.ctl.pfds[CTL_IDX_SRV].revents & POLLIN && pfd != NULL) {
+			pfd->fd = accept(config.ctl.pfds[CTL_IDX_SRV].fd, NULL, NULL);
 			debug("New client accepted: %d", pfd->fd);
+		}
+
+		/* generate notifications for subscribed clients */
+		if (config.ctl.pfds[CTL_IDX_EVT].revents & POLLIN) {
+
+			struct msg_event event = { EVENT_TYPE_NULL };
+			eventfd_t _event;
+			size_t i;
+
+			eventfd_read(config.ctl.pfds[CTL_IDX_EVT].fd, &_event);
+
+			for (i = 0; i < BLUEALSA_MAX_CLIENTS; i++)
+				if (config.ctl.subs[i] == true) {
+					const int client = config.ctl.pfds[i + __CTL_IDX_MAX].fd;
+					debug("Generating client notification: %d", client);
+					send(client, &event, sizeof(event), MSG_NOSIGNAL);
+				}
+
 		}
 
 		debug("+-+-");
@@ -543,7 +577,7 @@ static void *ctl_thread(void *arg) {
 
 int bluealsa_ctl_thread_init(void) {
 
-	if (config.ctl_thread_created) {
+	if (config.ctl.thread_created) {
 		/* thread is already created */
 		errno = EISCONN;
 		return -1;
@@ -551,9 +585,9 @@ int bluealsa_ctl_thread_init(void) {
 
 	{ /* initialize (mark as closed) all sockets */
 		size_t i;
-		for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++) {
-			config.ctl_pfds[i].events = POLLIN;
-			config.ctl_pfds[i].fd = -1;
+		for (i = 0; i < sizeof(config.ctl.pfds) / sizeof(*config.ctl.pfds); i++) {
+			config.ctl.pfds[i].events = POLLIN;
+			config.ctl.pfds[i].fd = -1;
 		}
 	}
 
@@ -563,26 +597,29 @@ int bluealsa_ctl_thread_init(void) {
 
 	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST)
 		goto fail;
-	if ((config.ctl_pfds[0].fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
+	if ((config.ctl.pfds[CTL_IDX_SRV].fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
 		goto fail;
-	if (bind(config.ctl_pfds[0].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
+	if (bind(config.ctl.pfds[CTL_IDX_SRV].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
 		goto fail;
-	config.ctl_socket_created = true;
+	config.ctl.socket_created = true;
 	if (chmod(saddr.sun_path, 0660) == -1)
 		goto fail;
 	if (chown(saddr.sun_path, -1, config.gid_audio) == -1)
 		goto fail;
-	if (listen(config.ctl_pfds[0].fd, 2) == -1)
+	if (listen(config.ctl.pfds[CTL_IDX_SRV].fd, 2) == -1)
 		goto fail;
 
-	config.ctl_thread_created = true;
-	if ((errno = pthread_create(&config.ctl_thread, NULL, ctl_thread, NULL)) != 0) {
-		config.ctl_thread_created = false;
+	if ((config.ctl.pfds[CTL_IDX_EVT].fd = eventfd(0, EFD_NONBLOCK)) == -1)
+		goto fail;
+
+	config.ctl.thread_created = true;
+	if ((errno = pthread_create(&config.ctl.thread, NULL, ctl_thread, NULL)) != 0) {
+		config.ctl.thread_created = false;
 		goto fail;
 	}
 
 	/* name controller thread - for aesthetic purposes only */
-	pthread_setname_np(config.ctl_thread, "bactl");
+	pthread_setname_np(config.ctl.thread, "bactl");
 
 	return 0;
 
@@ -593,25 +630,25 @@ fail:
 
 void bluealsa_ctl_free(void) {
 
-	int created = config.ctl_thread_created;
+	int created = config.ctl.thread_created;
 	size_t i;
 
-	config.ctl_thread_created = false;
+	config.ctl.thread_created = false;
 
-	for (i = 0; i < 1 + BLUEALSA_MAX_CLIENTS; i++)
-		if (config.ctl_pfds[i].fd != -1)
-			close(config.ctl_pfds[i].fd);
+	for (i = 0; i < sizeof(config.ctl.pfds) / sizeof(*config.ctl.pfds); i++)
+		if (config.ctl.pfds[i].fd != -1)
+			close(config.ctl.pfds[i].fd);
 
 	if (created) {
-		pthread_cancel(config.ctl_thread);
-		if ((errno = pthread_join(config.ctl_thread, NULL)) != 0)
+		pthread_cancel(config.ctl.thread);
+		if ((errno = pthread_join(config.ctl.thread, NULL)) != 0)
 			error("Couldn't join controller thread: %s", strerror(errno));
 	}
 
-	if (config.ctl_socket_created) {
+	if (config.ctl.socket_created) {
 		char tmp[256] = BLUEALSA_RUN_STATE_DIR "/";
 		unlink(strcat(tmp, config.hci_dev.name));
-		config.ctl_socket_created = false;
+		config.ctl.socket_created = false;
 	}
 
 }
