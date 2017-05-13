@@ -1,0 +1,10 @@
+[Unit]
+Description=Start the bluez-alsa service
+After=bluetooth.service
+After=systemd-remount-fs.service
+
+[Service]
+ExecStart=/usr/bin/bluealsa
+
+[Install]
+WantedBy=bluetooth.target
