@@ -97,8 +97,8 @@ int main(int argc, char **argv) {
 		switch (opt) {
 
 		case 'h' /* --help */ :
-			printf("usage: %s [OPTION]...\n\n"
-					"options:\n"
+			printf("usage: %s [OPTION]...\n"
+					"\noptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
 					"  -i, --device=hciX\tHCI device to use\n"

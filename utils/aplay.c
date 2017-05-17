@@ -14,6 +14,7 @@
 
 #include <getopt.h>
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -26,8 +27,31 @@
 #include "shared/ctl-client.h"
 #include "shared/log.h"
 
+/* Casting wrapper for the brevity's sake. */
+#define CANCEL_ROUTINE(f) ((void (*)(void *))(f))
 
-bool main_loop_on = true;
+struct pcm_worker {
+	struct msg_transport transport;
+	pthread_t thread;
+	snd_pcm_t *pcm;
+	/* file descriptor of BlueALSA */
+	int ba_fd;
+	/* file descriptor of PCM FIFO */
+	int pcm_fd;
+	/* if true, worker is marked for eviction */
+	bool eviction;
+	/* human-readable BT address */
+	char addr[18];
+};
+
+static unsigned int verbose = 0;
+static const char *device = "default";
+static const char *ba_interface = "hci0";
+static unsigned int pcm_buffer_time = 500000;
+static unsigned int pcm_period_time = 100000;
+static enum pcm_type ba_type = PCM_TYPE_A2DP;
+
+static bool main_loop_on = true;
 static void main_loop_stop(int sig) {
 	/* Call to this handler restores the default action, so on the
 	 * second call the program will be forcefully terminated. */
@@ -41,90 +65,248 @@ static void main_loop_stop(int sig) {
 static int set_hw_params(snd_pcm_t *pcm, int channels, int rate,
 		unsigned int *buffer_time, unsigned int *period_time, char **msg) {
 
-	static char buf[256];
 	const snd_pcm_access_t access = SND_PCM_ACCESS_RW_INTERLEAVED;
 	const snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
 	snd_pcm_hw_params_t *params;
+	char buf[256];
 	int dir;
 	int err;
-
-	if (msg != NULL)
-		*msg = (char *)&buf;
 
 	snd_pcm_hw_params_alloca(&params);
 
 	if ((err = snd_pcm_hw_params_any(pcm, params)) != 0) {
 		snprintf(buf, sizeof(buf), "Set all possible ranges: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_access(pcm, params, access)) != 0) {
 		snprintf(buf, sizeof(buf), "Set assess type: %s: %s", snd_strerror(err), snd_pcm_access_name(access));
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_format(pcm, params, format)) != 0) {
 		snprintf(buf, sizeof(buf), "Set format: %s: %s", snd_strerror(err), snd_pcm_format_name(format));
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_channels(pcm, params, channels)) != 0) {
 		snprintf(buf, sizeof(buf), "Set channels: %s: %d", snd_strerror(err), channels);
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_rate(pcm, params, rate, 0)) != 0) {
 		snprintf(buf, sizeof(buf), "Set sampling rate: %s: %d", snd_strerror(err), rate);
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0) {
 		snprintf(buf, sizeof(buf), "Set buffer time: %s: %u", snd_strerror(err), *buffer_time);
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0) {
 		snprintf(buf, sizeof(buf), "Set period time: %s: %u", snd_strerror(err), *period_time);
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params(pcm, params)) != 0) {
 		snprintf(buf, sizeof(buf), "%s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 
 	return 0;
+
+fail:
+	if (msg != NULL)
+		*msg = strdup(buf);
+	return err;
 }
 
 static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size,
 		snd_pcm_uframes_t period_size, char **msg) {
 
-	static char buf[256];
 	snd_pcm_sw_params_t *params;
+	char buf[256];
 	int err;
-
-	if (msg != NULL)
-		*msg = (char *)&buf;
 
 	snd_pcm_sw_params_alloca(&params);
 
 	if ((err = snd_pcm_sw_params_current(pcm, params)) != 0) {
 		snprintf(buf, sizeof(buf), "Get current params: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 
 	/* start the transfer when the buffer is full (or almost full) */
 	snd_pcm_uframes_t threshold = (buffer_size / period_size) * period_size;
 	if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0) {
 		snprintf(buf, sizeof(buf), "Set start threshold: %s: %lu", snd_strerror(err), threshold);
-		return err;
+		goto fail;
 	}
 
 	/* allow the transfer when at least period_size samples can be processed */
 	if ((err = snd_pcm_sw_params_set_avail_min(pcm, params, period_size)) != 0) {
 		snprintf(buf, sizeof(buf), "Set avail min: %s: %lu", snd_strerror(err), period_size);
-		return err;
+		goto fail;
 	}
 
 	if ((err = snd_pcm_sw_params(pcm, params)) != 0) {
 		snprintf(buf, sizeof(buf), "%s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 
 	return 0;
+
+fail:
+	if (msg != NULL)
+		*msg = strdup(buf);
+	return err;
+}
+
+static void pcm_worker_routine_exit(struct pcm_worker *worker) {
+	if (worker->pcm_fd != -1) {
+		bluealsa_close_transport(worker->ba_fd, &worker->transport);
+		close(worker->pcm_fd);
+		worker->pcm_fd = -1;
+	}
+	if (worker->ba_fd != -1) {
+		close(worker->ba_fd);
+		worker->ba_fd = -1;
+	}
+	if (worker->pcm != NULL) {
+		snd_pcm_close(worker->pcm);
+		worker->pcm = NULL;
+	}
+	worker->eviction = true;
+	debug("Exiting PCM worker %s", worker->addr);
+}
+
+static void *pcm_worker_routine(void *arg) {
+	struct pcm_worker *w = (struct pcm_worker *)arg;
+
+	unsigned int buffer_time = pcm_buffer_time;
+	unsigned int period_time = pcm_period_time;
+	char *buffer = NULL;
+	char *msg = NULL;
+	int err;
+
+	/* Cancellation should be possible only in the carefully selected place
+	 * in order to prevent memory leaks and resources not being released. */
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	pthread_cleanup_push(CANCEL_ROUTINE(pcm_worker_routine_exit), w);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), msg);
+
+	if ((err = snd_pcm_open(&w->pcm, device, SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
+		error("Couldn't open PCM: %s", snd_strerror(err));
+		goto fail;
+	}
+
+	if ((err = set_hw_params(w->pcm, w->transport.channels, w->transport.sampling,
+					&buffer_time, &period_time, &msg)) != 0) {
+		error("Couldn't set HW parameters: %s", msg);
+		goto fail;
+	}
+
+	snd_pcm_uframes_t buffer_size, period_size;
+	if ((err = snd_pcm_get_params(w->pcm, &buffer_size, &period_size)) != 0) {
+		error("Couldn't get PCM parameters: %s", snd_strerror(err));
+		goto fail;
+	}
+
+	if (verbose >= 2)
+		printf("Used configuration for %s:\n"
+				"  PCM buffer time: %u us (%zu bytes)\n"
+				"  PCM period time: %u us (%zu bytes)\n",
+				w->addr,
+				buffer_time, snd_pcm_frames_to_bytes(w->pcm, buffer_size),
+				period_time, snd_pcm_frames_to_bytes(w->pcm, period_size));
+
+	if ((err = set_sw_params(w->pcm, buffer_size, period_size, &msg)) != 0) {
+		error("Couldn't set SW parameters: %s", msg);
+		goto fail;
+	}
+
+	if ((err = snd_pcm_prepare(w->pcm)) != 0) {
+		error("Couldn't prepare PCM: %s", snd_strerror(err));
+		goto fail;
+	}
+
+	ssize_t frame_size = snd_pcm_frames_to_bytes(w->pcm, 1);
+	buffer = malloc(period_size * frame_size);
+	char *buffer_head = buffer;
+
+	if (buffer == NULL) {
+		error("Couldn't allocate PCM buffer");
+		goto fail;
+	}
+
+	if ((w->ba_fd = bluealsa_open(ba_interface)) == -1) {
+		error("Couldn't open BlueALSA: %s", strerror(errno));
+		goto fail;
+	}
+
+	w->transport.stream = PCM_STREAM_CAPTURE;
+	if ((w->pcm_fd = bluealsa_open_transport(w->ba_fd, &w->transport)) == -1) {
+		error("Couldn't open PCM FIFO: %s", strerror(errno));
+		goto fail;
+	}
+
+	struct pollfd pfds[] = {{ w->pcm_fd, POLLIN, 0 }};
+
+	debug("Starting PCM loop");
+	while (main_loop_on) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		size_t buffer_len = period_size * frame_size - (buffer_head - buffer);
+		ssize_t ret;
+
+		/* Reading from the FIFO won't block unless there is an open connection
+		 * on the writing side. However, the server does not open PCM FIFO until
+		 * a transport is created. With the A2DP, the transport is created when
+		 * some clients (BT device) requests audio transfer. */
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1 && errno == EINTR)
+			continue;
+
+		/* FIFO has been terminated on the writing side */
+		if (pfds[0].revents & POLLHUP)
+			break;
+
+		if ((ret = read(w->pcm_fd, buffer_head, buffer_len)) == -1) {
+			if (errno == EINTR)
+				continue;
+			error("PCM FIFO read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		/* calculate the overall number of frames in the buffer */
+		snd_pcm_uframes_t frames = ((buffer_head - buffer) + ret) / frame_size;
+
+		if ((err = snd_pcm_writei(w->pcm, buffer, frames)) < 0)
+			switch (-err) {
+			case EPIPE:
+				debug("An underrun has occurred");
+				snd_pcm_prepare(w->pcm);
+				usleep(50000);
+				err = 0;
+				break;
+			default:
+				error("Couldn't write to PCM: %s", snd_strerror(err));
+				goto fail;
+			}
+
+		size_t writei_len = err * frame_size;
+		buffer_head = buffer;
+
+		/* move leftovers to the beginning and reposition head */
+		if ((size_t)ret > writei_len) {
+			memmove(buffer, buffer + writei_len, ret - writei_len);
+			buffer_head += ret - writei_len;
+		}
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	return NULL;
 }
 
 int main(int argc, char *argv[]) {
@@ -144,19 +326,13 @@ int main(int argc, char *argv[]) {
 		{ 0, 0, 0, 0 },
 	};
 
-	unsigned int verbose = 0;
-	const char *device = "default";
-	const char *ba_interface = "hci0";
-	unsigned int pcm_buffer_time = 500000;
-	unsigned int pcm_period_time = 100000;
-	enum pcm_type ba_type = PCM_TYPE_A2DP;
-
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h' /* --help */ :
 usage:
-			printf("usage: %s [OPTION]... <BT-ADDR>\n\n"
-					"options:\n"
+			printf("Usage:\n"
+					"  %s [OPTION]... <BT-ADDR>...\n"
+					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
 					"  -v, --verbose\t\tmake output more verbose\n"
@@ -165,7 +341,12 @@ usage:
 					"  --pcm-buffer-time=INT\tPCM buffer time\n"
 					"  --pcm-period-time=INT\tPCM period time\n"
 					"  --profile-a2dp\tuse A2DP profile\n"
-					"  --profile-sco\t\tuse SCO profile\n",
+					"  --profile-sco\t\tuse SCO profile\n"
+					"\nNote:\n"
+					"If one wants to receive audio from more than one Bluetooth device, it is\n"
+					"possible to specify more than one MAC address. By specifying any/empty MAC\n"
+					"address (00:00:00:00:00:00), one will allow connections from any Bluetooth\n"
+					"device.\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 
@@ -203,39 +384,58 @@ usage:
 			return EXIT_FAILURE;
 		}
 
-	if (optind + 1 != argc)
+	if (optind == argc)
 		goto usage;
 
-	if (verbose >= 1)
+	log_open(argv[0], false, false);
+
+	bdaddr_t *ba_addrs = NULL;
+	size_t ba_addrs_count = 0;
+	bool ba_addr_any = false;
+
+	struct pcm_worker *workers = NULL;
+	size_t workers_count = 0;
+	size_t workers_size = 0;
+
+	int status = EXIT_SUCCESS;
+	int ba_fd = -1;
+	size_t i;
+
+	ba_addrs_count = argc - optind;
+	if ((ba_addrs = malloc(sizeof(*ba_addrs) * ba_addrs_count)) == NULL) {
+		error("Couldn't allocate memory for BT addresses");
+		goto fail;
+	}
+	for (i = 0; i < ba_addrs_count; i++) {
+		if (str2ba(argv[i + optind], &ba_addrs[i]) != 0) {
+			error("Invalid BT device address: %s", argv[i + optind]);
+			goto fail;
+		}
+		if (bacmp(&ba_addrs[i], BDADDR_ANY) == 0)
+			ba_addr_any = true;
+	}
+
+	if (verbose >= 1) {
+
+		char *ba_str = malloc(19 * ba_addrs_count + 1);
+		char *tmp = ba_str;
+		size_t i;
+
+		for (i = 0; i < ba_addrs_count; i++, tmp += 19)
+			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
+
 		printf("Selected configuration:\n"
 				"  HCI device: %s\n"
 				"  PCM device: %s\n"
 				"  PCM buffer time: %u us\n"
 				"  PCM period time: %u us\n"
-				"  Bluetooth device: %s\n"
+				"  Bluetooth device(s): %s\n"
 				"  Profile: %s\n",
 				ba_interface, device, pcm_buffer_time, pcm_period_time,
-				argv[optind], ba_type == PCM_TYPE_A2DP ? "A2DP" : "SCO");
+				ba_addr_any ? "ANY" : &ba_str[2],
+				ba_type == PCM_TYPE_A2DP ? "A2DP" : "SCO");
 
-	struct msg_transport *transport = NULL;
-	snd_pcm_t *pcm = NULL;
-	int status = EXIT_SUCCESS;
-	int ba_pcm_fd = -1;
-	int ba_fd = -1;
-	bdaddr_t addr;
-	char *msg;
-	int err;
-
-	log_open(argv[0], false, false);
-
-	if (str2ba(argv[optind], &addr) != 0) {
-		error("Invalid BT device address: %s", argv[optind]);
-		goto fail;
-	}
-
-	if ((err = snd_pcm_open(&pcm, device, SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
-		error("Couldn't open PCM: %s", snd_strerror(err));
-		goto fail;
+		free(ba_str);
 	}
 
 	if ((ba_fd = bluealsa_open(ba_interface)) == -1) {
@@ -243,43 +443,8 @@ usage:
 		goto fail;
 	}
 
-	if ((transport = bluealsa_get_transport(ba_fd, addr, ba_type, PCM_STREAM_CAPTURE)) == NULL) {
-		error("Couldn't get BlueALSA transport: %s", strerror(errno));
-		goto fail;
-	}
-
-	if ((err = set_hw_params(pcm, transport->channels, transport->sampling,
-					&pcm_buffer_time, &pcm_period_time, &msg)) != 0) {
-		error("Couldn't set HW parameters: %s", msg);
-		goto fail;
-	}
-
-	snd_pcm_uframes_t buffer_size, period_size;
-	if ((err = snd_pcm_get_params(pcm, &buffer_size, &period_size)) != 0) {
-		error("Couldn't get PCM parameters: %s", snd_strerror(err));
-		goto fail;
-	}
-
-	if (verbose >= 2)
-		printf("Used configuration:\n"
-				"  PCM buffer time: %u us (%zu bytes)\n"
-				"  PCM period time: %u us (%zu bytes)\n",
-				pcm_buffer_time, snd_pcm_frames_to_bytes(pcm, buffer_size),
-				pcm_period_time, snd_pcm_frames_to_bytes(pcm, period_size));
-
-	if ((err = set_sw_params(pcm, buffer_size, period_size, &msg)) != 0) {
-		error("Couldn't set SW parameters: %s", msg);
-		goto fail;
-	}
-
-	if ((err = snd_pcm_prepare(pcm)) != 0) {
-		error("Couldn't prepare PCM: %s", snd_strerror(err));
-		goto fail;
-	}
-
-	transport->stream = PCM_STREAM_CAPTURE;
-	if ((ba_pcm_fd = bluealsa_open_transport(ba_fd, transport)) == -1) {
-		error("Couldn't open PCM FIFO: %s", strerror(errno));
+	if (bluealsa_subscribe(ba_fd, true) == -1) {
+		error("BlueALSA subscription failed: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -287,58 +452,106 @@ usage:
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGINT, &sigact, NULL);
 
-	struct pollfd pfds[] = {{ ba_pcm_fd, POLLIN, 0 }};
-	ssize_t frame_size = snd_pcm_frames_to_bytes(pcm, 1);
-	char *buffer = malloc(period_size * frame_size);
-	char *buffer_head = buffer;
-
 	debug("Starting main loop");
+	goto init;
+
 	while (main_loop_on) {
 
-		size_t buffer_len = period_size * frame_size - (buffer_head - buffer);
+		struct msg_event event;
+		struct msg_transport *transports;
 		ssize_t ret;
+		size_t i;
 
-		/* Reading from the FIFO won't block unless there is an open connection
-		 * on the writing side. However, the server does not open PCM FIFO until
-		 * a transport is created. With the A2DP, the transport is created when
-		 * some clients (BT device) requests audio transfer. */
+		struct pollfd pfds[] = {{ ba_fd, POLLIN, 0 }};
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1 && errno == EINTR)
 			continue;
 
-		/* FIFO has been terminated on the writing side */
-		if (pfds[0].revents & POLLHUP)
-			break;
-
-		if ((ret = read(ba_pcm_fd, buffer_head, buffer_len)) == -1) {
-			if (errno == EINTR)
-				continue;
-			error("PCM FIFO read error: %s", strerror(errno));
+		while ((ret = recv(ba_fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
+			continue;
+		if (ret != sizeof(event)) {
+			error("Couldn't read event: %s", strerror(ret == -1 ? errno : EBADMSG));
 			goto fail;
 		}
 
-		/* calculate the overall number of frames in the buffer */
-		snd_pcm_uframes_t frames = ((buffer_head - buffer) + ret) / frame_size;
+init:
+		debug("Fetching available transports");
+		if ((ret = bluealsa_get_transports(ba_fd, &transports)) == -1) {
+			error("Couldn't get transports: %s", strerror(errno));
+			goto fail;
+		}
 
-		if ((err = snd_pcm_writei(pcm, buffer, frames)) < 0)
-			switch (-err) {
-			case EPIPE:
-				debug("An underrun has occurred");
-				snd_pcm_prepare(pcm);
-				usleep(50000);
-				err = 0;
-				break;
-			default:
-				error("Couldn't write to PCM: %s", snd_strerror(err));
-				goto fail;
+		for (i = 0; i < workers_count; i++)
+			workers[i].eviction = true;
+
+		for (i = 0; i < (unsigned)ret; i++) {
+
+			size_t ii;
+
+			/* filter available transports by BT address (this check is omitted if
+			 * any address can be used), transport type and stream direction */
+			if (transports[i].type != ba_type)
+				continue;
+			if (transports[i].stream != PCM_STREAM_CAPTURE && transports[i].stream != PCM_STREAM_DUPLEX)
+				continue;
+			if (!ba_addr_any) {
+				bool matched = false;
+				for (ii = 0; ii < ba_addrs_count; ii++)
+					if (bacmp(&ba_addrs[ii], &transports[i].addr) == 0) {
+						matched = true;
+						break;
+					}
+				if (!matched)
+					continue;
 			}
 
-		size_t writei_len = err * frame_size;
-		buffer_head = buffer;
+			bool matched = false;
+			for (ii = 0; ii < workers_count; ii++)
+				if (bacmp(&workers[ii].transport.addr, &transports[i].addr) == 0) {
+					workers[ii].eviction = false;
+					matched = true;
+					break;
+				}
 
-		/* move leftovers to the beginning and reposition head */
-		if ((size_t)ret > writei_len) {
-			memmove(buffer, buffer + writei_len, ret - writei_len);
-			buffer_head += ret - writei_len;
+			/* start PCM worker thread */
+			if (!matched) {
+				workers_count++;
+
+				if (workers_size < workers_count) {
+					workers_size += 4; /* coarse-grained realloc */
+					if ((workers = realloc(workers, sizeof(*workers) * workers_size)) == NULL) {
+						error("Couldn't (re)allocate memory for PCM workers");
+						goto fail;
+					}
+				}
+
+				struct pcm_worker *worker = &workers[workers_count - 1];
+				memcpy(&worker->transport, &transports[i], sizeof(worker->transport));
+				ba2str(&worker->transport.addr, worker->addr);
+				worker->eviction = false;
+				worker->pcm_fd = -1;
+				worker->ba_fd = -1;
+
+				debug("Creating PCM worker %s", worker->addr);
+
+				int ret;
+				if ((ret = pthread_create(&worker->thread, NULL, pcm_worker_routine, worker)) != 0) {
+					warn("Couldn't create PCM worker %s: %s", worker->addr, strerror(ret));
+					workers_count--;
+				}
+
+			}
+
+		}
+
+		/* stop PCM workers designated for eviction */
+		for (i = workers_count; i > 0; i--) {
+			struct pcm_worker *worker = &workers[i - 1];
+			if (worker->eviction) {
+				pthread_cancel(worker->thread);
+				pthread_join(worker->thread, NULL);
+				memcpy(worker, &workers[workers_count - 1], sizeof(*worker));
+				workers_count--;
+			}
 		}
 
 	}
@@ -349,14 +562,7 @@ fail:
 	status = EXIT_FAILURE;
 
 success:
-	if (ba_pcm_fd != -1) {
-		bluealsa_close_transport(ba_fd, transport);
-		close(ba_pcm_fd);
-	}
-	free(transport);
 	if (ba_fd != -1)
 		close(ba_fd);
-	if (pcm != NULL)
-		snd_pcm_close(pcm);
 	return status;
 }
