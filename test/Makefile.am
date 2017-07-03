@@ -2,6 +2,7 @@
 # Copyright (c) 2016-2017 Arkadiusz Bokowy
 
 TESTS = \
+	test-at \
 	test-io \
 	test-utils
 
@@ -10,6 +11,7 @@ TESTS += test-pcm
 endif
 
 check_PROGRAMS = \
+	test-at \
 	test-io \
 	test-pcm \
 	test-server \
