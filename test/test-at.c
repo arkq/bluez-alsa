@@ -15,24 +15,74 @@
 int main(void) {
 
 	struct bt_at at;
+	char buffer[256];
 
-	assert(at_parse("ABC", &at) == -1);
-	assert(at_parse("ATABC", &at) == -1);
+	/* invalid AT command lines */
+	assert(at_parse("ABC\r", &at) == NULL);
+	assert(at_parse("AT+CLCK?", &at) == NULL);
+	assert(at_parse("\r\r", &at) == NULL);
+	assert(at_parse("\r\nOK", &at) == NULL);
 
-	assert(at_parse("AT+COPS?", &at) == 0);
-	assert(at.type == AT_CMD_TYPE_GET);
+	/* parse AT plain command */
+	assert(at_parse("AT+CLCC\r", &at) != NULL);
+	assert(at.type == AT_TYPE_CMD);
+	assert(strcmp(at.command, "+CLCC") == 0);
+	assert(at.value == NULL);
+
+	/* parse AT GET command */
+	assert(at_parse("AT+COPS?\r", &at) != NULL);
+	assert(at.type == AT_TYPE_CMD_GET);
 	assert(strcmp(at.command, "+COPS") == 0);
-	assert(strcmp(at.value, "") == 0);
+	assert(at.value == NULL);
 
-	assert(at_parse("AT+CLCK=\"SC\",0,\"1234\"", &at) == 0);
-	assert(at.type == AT_CMD_TYPE_SET);
+	/* parse AT SET command */
+	assert(at_parse("AT+CLCK=\"SC\",0,\"1234\"\r", &at) != NULL);
+	assert(at.type == AT_TYPE_CMD_SET);
 	assert(strcmp(at.command, "+CLCK") == 0);
 	assert(strcmp(at.value, "\"SC\",0,\"1234\"") == 0);
 
-	assert(at_parse("AT+COPS=?", &at) == 0);
-	assert(at.type == AT_CMD_TYPE_TEST);
+	/* parse AT TEST command */
+	assert(at_parse("AT+COPS=?\r", &at) != NULL);
+	assert(at.type == AT_TYPE_CMD_TEST);
 	assert(strcmp(at.command, "+COPS") == 0);
+	assert(at.value == NULL);
+
+	/* parse response result code */
+	assert(at_parse("\r\n+CIND:0,0,1,4,0,4,0\r\n", &at) != NULL);
+	assert(at.type == AT_TYPE_RESP);
+	assert(strcmp(at.command, "+CIND") == 0);
+	assert(strcmp(at.value, "0,0,1,4,0,4,0") == 0);
+
+	/* parse response result code with empty value */
+	assert(at_parse("\r\n+CIND:\r\n", &at) != NULL);
+	assert(at.type == AT_TYPE_RESP);
+	assert(strcmp(at.command, "+CIND") == 0);
 	assert(strcmp(at.value, "") == 0);
+
+	/* parse unsolicited result code */
+	assert(at_parse("\r\nRING\r\n", &at) != NULL);
+	assert(at.type == AT_TYPE_RESP);
+	assert(strcmp(at.command, "") == 0);
+	assert(strcmp(at.value, "RING") == 0);
+
+	/* case-insensitive command and case-sensitive value */
+	assert(at_parse("aT+tEsT=VaLuE\r", &at) != NULL);
+	assert(at.type == AT_TYPE_CMD_SET);
+	assert(strcmp(at.command, "+TEST") == 0);
+	assert(strcmp(at.value, "VaLuE") == 0);
+
+	/* concatenated commands */
+	const char *cmd = "\r\nOK\r\n\r\n+COPS:1\r\n";
+	assert(at_parse(cmd, &at) == &cmd[5]);
+	assert(at.type == AT_TYPE_RESP);
+	assert(strcmp(at.command, "") == 0);
+	assert(strcmp(at.value, "OK") == 0);
+
+	/* build response result code */
+	assert(strcmp(at_build(buffer, AT_TYPE_RESP, "+CIND", ""), "\r\n+CIND:\r\n") == 0);
+
+	/* build unsolicited result code */
+	assert(strcmp(at_build(buffer, AT_TYPE_RESP, NULL, "OK"), "\r\nOK\r\n") == 0);
 
 	return EXIT_SUCCESS;
 }

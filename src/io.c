@@ -213,25 +213,12 @@ retry:
 }
 
 /**
- * Write AT command to the RFCOMM. */
-static ssize_t io_thread_write_at_command(int fd, const char *msg) {
-
-	char buffer[64];
-
-	debug("Sending AT command: %s", msg);
-	snprintf(buffer, sizeof(buffer), "AT%s\r", msg);
-	return io_thread_write_rfcomm(fd, buffer);
-}
-
-/**
- * Write AT response code to the RFCOMM. */
-static ssize_t io_thread_write_at_response(int fd, const char *msg) {
-
+ * Write AT message (command, response) to the RFCOMM. */
+static ssize_t io_thread_write_at_msg(int fd, enum bt_at_type type,
+		const char *command, const char *value) {
 	char buffer[256];
-
-	debug("Sending AT response: %s", msg);
-	snprintf(buffer, sizeof(buffer), "\r\n%s\r\n", msg);
-	return io_thread_write_rfcomm(fd, buffer);
+	debug("Sending AT message: %u: command:%s, value:%s", type, command, value);
+	return io_thread_write_rfcomm(fd, at_build(buffer, type, command, value));
 }
 
 void *io_thread_a2dp_sink_sbc(void *arg) {
@@ -1036,8 +1023,6 @@ void *io_thread_rfcomm(void *arg) {
 
 	uint8_t mic_gain = t->rfcomm.sco->sco.mic_gain;
 	uint8_t spk_gain = t->rfcomm.sco->sco.spk_gain;
-	struct bt_at at;
-	char buffer[64];
 
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
@@ -1049,7 +1034,8 @@ void *io_thread_rfcomm(void *arg) {
 	for (;;) {
 
 		const char *response = "OK";
-		ssize_t ret;
+		struct bt_at at;
+		char buffer[256];
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -1070,19 +1056,19 @@ void *io_thread_rfcomm(void *arg) {
 				mic_gain = t->rfcomm.sco->sco.mic_gain;
 				debug("Setting microphone gain: %d", mic_gain);
 				sprintf(buffer, "+VGM=%d", mic_gain);
-				io_thread_write_at_response(pfds[1].fd, buffer);
+				io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, NULL, buffer);
 			}
 			if (spk_gain != t->rfcomm.sco->sco.spk_gain) {
 				spk_gain = t->rfcomm.sco->sco.spk_gain;
 				debug("Setting speaker gain: %d", spk_gain);
 				sprintf(buffer, "+VGS=%d", spk_gain);
-				io_thread_write_at_response(pfds[1].fd, buffer);
+				io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, NULL, buffer);
 			}
 
 			continue;
 		}
 
-		if ((ret = read(pfds[1].fd, buffer, sizeof(buffer))) == -1) {
+		if (read(pfds[1].fd, buffer, sizeof(buffer)) == -1) {
 			switch (errno) {
 			case ECONNABORTED:
 			case ECONNRESET:
@@ -1099,7 +1085,7 @@ void *io_thread_rfcomm(void *arg) {
 		}
 
 		/* Parse AT command received from the headset. */
-		if (at_parse(buffer, &at) != 0) {
+		if (at_parse(buffer, &at) == NULL) {
 			warn("Invalid AT command: %s", buffer);
 			continue;
 		}
@@ -1171,11 +1157,11 @@ void *io_thread_rfcomm(void *arg) {
 
 			t->rfcomm.sco->sco.hf_features = hf_features;
 
-			snprintf(buffer, sizeof(buffer), "+BRSF: %u", ag_features);
-			io_thread_write_at_response(pfds[1].fd, buffer);
+			sprintf(buffer, "%u", ag_features);
+			io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, "+BRSF", buffer);
 
 		}
-		else if (strcmp(at.command, "+BAC") == 0 && at.type == AT_CMD_TYPE_SET) {
+		else if (strcmp(at.command, "+BAC") == 0 && at.type == AT_TYPE_CMD_SET) {
 
 			debug("Supported codecs: %s", at.value);
 			/* In case some headsets send BAC even if we don't
@@ -1188,12 +1174,10 @@ void *io_thread_rfcomm(void *arg) {
 		}
 		else if (strcmp(at.command, "+CIND") == 0) {
 
-			if (at.type == AT_CMD_TYPE_GET)
-				io_thread_write_at_response(pfds[1].fd,
-						"+CIND: 0,0,1,4,0,4,0");
-			else if(at.type == AT_CMD_TYPE_TEST)
-				io_thread_write_at_response(pfds[1].fd,
-						"+CIND: "
+			if (at.type == AT_TYPE_CMD_GET)
+				io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, "+CIND", "0,0,1,4,0,4,0");
+			else if(at.type == AT_TYPE_CMD_TEST)
+				io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, "+CIND",
 						"(\"call\",(0,1))"
 						",(\"callsetup\",(0-3))"
 						",(\"service\",(0-1))"
@@ -1203,42 +1187,43 @@ void *io_thread_rfcomm(void *arg) {
 						",(\"callheld\",(0-2))");
 
 		}
-		else if (strcmp(at.command, "+CMER") == 0 && at.type == AT_CMD_TYPE_SET) {
+		else if (strcmp(at.command, "+CMER") == 0 && at.type == AT_TYPE_CMD_SET) {
 
 			/* +CMER is the last step of the "Service Level Connection
 			 * establishment" procedure */
 
 			/* Send OK */
-			io_thread_write_at_response(pfds[1].fd, response);
+			io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, NULL, "OK");
 
 			/* Send codec select if anything besides CVSD was found */
 			if (t->rfcomm.sco->codec > HFP_CODEC_CVSD) {
-				snprintf(buffer, sizeof(buffer), "+BCS: %u", t->rfcomm.sco->codec);
-				io_thread_write_at_response(pfds[1].fd, buffer);
+				sprintf(buffer, "%u", t->rfcomm.sco->codec);
+				io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, "+BCS", buffer);
 			}
+
 			continue;
 
 		}
-		else if (strcmp(at.command, "+BCS") == 0 && at.type == AT_CMD_TYPE_SET) {
+		else if (strcmp(at.command, "+BCS") == 0 && at.type == AT_TYPE_CMD_SET) {
 			debug("Got codec selected: %d", atoi(at.value));
 		}
-		else if (strcmp(at.command, "+BTRH") == 0 && at.type == AT_CMD_TYPE_GET) {
+		else if (strcmp(at.command, "+BTRH") == 0 && at.type == AT_TYPE_CMD_GET) {
 		}
-		else if (strcmp(at.command, "+NREC") == 0 && at.type == AT_CMD_TYPE_SET) {
+		else if (strcmp(at.command, "+NREC") == 0 && at.type == AT_TYPE_CMD_SET) {
 		}
-		else if (strcmp(at.command, "+CCWA") == 0 && at.type == AT_CMD_TYPE_SET) {
+		else if (strcmp(at.command, "+CCWA") == 0 && at.type == AT_TYPE_CMD_SET) {
 		}
-		else if (strcmp(at.command, "+BIA") == 0 && at.type == AT_CMD_TYPE_SET) {
+		else if (strcmp(at.command, "+BIA") == 0 && at.type == AT_TYPE_CMD_SET) {
 		}
-		else if (strcmp(at.command, "+CHLD") == 0 && at.type == AT_CMD_TYPE_TEST) {
-			io_thread_write_at_response(pfds[1].fd, "+CHLD: (0,1,2,3)");
+		else if (strcmp(at.command, "+CHLD") == 0 && at.type == AT_TYPE_CMD_TEST) {
+			io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, "+CHLD", "(0,1,2,3)");
 		}
 		else {
 			warn("Unsupported AT command: %s=%s", at.command, at.value);
 			response = "ERROR";
 		}
 
-		io_thread_write_at_response(pfds[1].fd, response);
+		io_thread_write_at_msg(pfds[1].fd, AT_TYPE_RESP, NULL, response);
 	}
 
 fail:

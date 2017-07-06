@@ -1,6 +1,7 @@
 /*
  * BlueALSA - at.c
- * Copyright (c) 2017 Juha Kuikka
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,17 +13,23 @@
 #define BLUEALSA_AT_H_
 
 enum bt_at_type {
-	AT_CMD_TYPE_GET,
-	AT_CMD_TYPE_SET,
-	AT_CMD_TYPE_TEST,
+	AT_TYPE_CMD,
+	AT_TYPE_CMD_GET,
+	AT_TYPE_CMD_SET,
+	AT_TYPE_CMD_TEST,
+	AT_TYPE_RESP,
+	__AT_TYPE_MAX
 };
 
 struct bt_at {
 	enum bt_at_type type;
-	char command[16];
-	char value[64];
+	char command[256];
+	char *value;
 };
 
-int at_parse(const char *str, struct bt_at *at);
+char *at_build(char *buffer, enum bt_at_type type, const char *command,
+		const char *value);
+char *at_parse(const char *str, struct bt_at *at);
+const char *at_type2str(enum bt_at_type type);
 
 #endif
