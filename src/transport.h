@@ -1,6 +1,6 @@
 /*
  * BlueALSA - transport.h
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -227,5 +227,7 @@ int transport_acquire_bt_sco(struct ba_transport *t);
 int transport_release_bt_sco(struct ba_transport *t);
 
 int transport_release_pcm(struct ba_pcm *pcm);
+
+void transport_pthread_cleanup(void *arg);
 
 #endif

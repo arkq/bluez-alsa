@@ -43,21 +43,6 @@
 
 
 /**
- * Wrapper for release callback, which can be used by pthread cleanup. */
-static void io_thread_release(struct ba_transport *t) {
-
-	/* During the normal operation mode, the release callback should not
-	 * be NULL. Hence, we will relay on this callback - file descriptors
-	 * are closed in it. */
-	if (t->release != NULL)
-		t->release(t);
-
-	/* XXX: If the order of the cleanup push is right, this function will
-	 *      indicate the end of the IO thread. */
-	debug("Exiting IO thread");
-}
-
-/**
  * Open PCM for reading. */
 static int io_thread_open_pcm_read(struct ba_pcm *pcm) {
 
@@ -227,7 +212,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -382,7 +367,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
 
 	sbc_t sbc;
 
@@ -577,7 +562,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -735,7 +720,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
 
 	HANDLE_AACENCODER handle;
 	AACENC_InfoStruct aacinf;
@@ -1019,7 +1004,7 @@ void *io_thread_rfcomm(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(io_thread_release), t);
+	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
 
 	uint8_t mic_gain = t->rfcomm.sco->sco.mic_gain;
 	uint8_t spk_gain = t->rfcomm.sco->sco.spk_gain;

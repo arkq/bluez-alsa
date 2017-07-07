@@ -860,3 +860,19 @@ int transport_release_pcm(struct ba_pcm *pcm) {
 	pthread_setcancelstate(oldstate, NULL);
 	return 0;
 }
+
+/**
+ * Wrapper for release callback, which can be used by the pthread cleanup. */
+void transport_pthread_cleanup(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	/* During the normal operation mode, the release callback should not
+	 * be NULL. Hence, we will relay on this callback - file descriptors
+	 * are closed in it. */
+	if (t->release != NULL)
+		t->release(t);
+
+	/* XXX: If the order of the cleanup push is right, this function will
+	 *      indicate the end of the IO/RFCOMM thread. */
+	debug("Exiting IO thread");
+}
