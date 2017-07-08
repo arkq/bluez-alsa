@@ -27,6 +27,7 @@
 #include "bluealsa.h"
 #include "hfp.h"
 #include "io.h"
+#include "rfcomm.h"
 #include "utils.h"
 #include "shared/log.h"
 
@@ -74,7 +75,7 @@ static int io_thread_create(struct ba_transport *t) {
 			}
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
-		routine = io_thread_rfcomm;
+		routine = rfcomm_thread;
 		break;
 	case TRANSPORT_TYPE_SCO:
 		routine = io_thread_sco;

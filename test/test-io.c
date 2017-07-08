@@ -15,6 +15,7 @@
 #include "../src/bluealsa.c"
 #include "../src/at.c"
 #include "../src/io.c"
+#include "../src/rfcomm.c"
 #include "../src/transport.c"
 #include "../src/utils.c"
 #include "../src/shared/rt.c"

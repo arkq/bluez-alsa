@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.h
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -25,7 +25,6 @@ void *io_thread_a2dp_sink_aac(void *arg);
 void *io_thread_a2dp_source_aac(void *arg);
 #endif
 
-void *io_thread_rfcomm(void *arg);
 void *io_thread_sco(void *arg);
 
 #endif

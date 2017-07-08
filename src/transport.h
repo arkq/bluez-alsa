@@ -21,6 +21,7 @@
 #include <glib.h>
 
 #include "bluez.h"
+#include "hfp.h"
 
 enum ba_transport_type {
 	TRANSPORT_TYPE_A2DP,
@@ -144,6 +145,15 @@ struct ba_transport {
 			/* associated SCO transport */
 			struct ba_transport *sco;
 
+			/* service level connection state */
+			enum hfp_slc_state hfp_slcs;
+			/* AG/HF supported features bitmask */
+			uint32_t hfp_features;
+
+			/* variables used for AG<->HF sync */
+			uint8_t spk_gain;
+			uint8_t mic_gain;
+
 		} rfcomm;
 
 		struct {
@@ -163,9 +173,6 @@ struct ba_transport {
 			 * for separate configurations. */
 			struct ba_pcm spk_pcm;
 			struct ba_pcm mic_pcm;
-
-			/* HF feature flags */
-			uint32_t hf_features;
 
 		} sco;
 

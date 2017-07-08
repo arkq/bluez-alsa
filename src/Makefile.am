@@ -13,6 +13,7 @@ bluealsa_SOURCES = \
 	bluez-iface.c \
 	ctl.c \
 	io.c \
+	rfcomm.c \
 	transport.c \
 	utils.c \
 	main.c
