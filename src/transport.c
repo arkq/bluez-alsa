@@ -150,8 +150,6 @@ void device_free(struct ba_device *d) {
 
 	g_hash_table_unref(d->transports);
 	free(d);
-
-	bluealsa_event();
 }
 
 struct ba_device *device_get(GHashTable *devices, const char *key) {
@@ -353,6 +351,7 @@ void transport_free(struct ba_transport *t) {
 		free(t->a2dp.cconfig);
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
+		memset(&t->device->xapl, 0, sizeof(t->device->xapl));
 		transport_free(t->rfcomm.sco);
 		break;
 	case TRANSPORT_TYPE_SCO:
@@ -366,6 +365,8 @@ void transport_free(struct ba_transport *t) {
 	 * removing a value from the hash-table shouldn't hurt - it would have been
 	 * removed anyway. */
 	g_hash_table_steal(t->device->transports, t->dbus_path);
+
+	bluealsa_event();
 
 	free(t->dbus_owner);
 	free(t->dbus_path);
