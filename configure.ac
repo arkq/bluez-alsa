@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2017 Arkadiusz Bokowy
 
 AC_PREREQ([2.59])
-AC_INIT([bluez-alsa], [1.2.0], [arkadiusz.bokowy@gmail.com])
+AC_INIT([bluez-alsa], [1.2.0a], [arkadiusz.bokowy@gmail.com])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
 AC_CONFIG_HEADERS([config.h])
@@ -67,6 +67,13 @@ AM_COND_IF([ENABLE_PAYLOADCHECK], [
 AC_ARG_ENABLE([aplay],
 	[AS_HELP_STRING([--disable-aplay], [disable building of bluealsa-aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
+
+AC_ARG_ENABLE([payloadcheck],
+        [AS_HELP_STRING([--disable-payloadcheck], [disable payload check, useful for pulseaudio compatibility])])
+AM_CONDITIONAL([ENABLE_PAYLOADCHECK], [test "x$enable_payloadcheck" != "xno"])
+AM_COND_IF([ENABLE_PAYLOADCHECK], [
+        AC_DEFINE([ENABLE_PAYLOADCHECK], [1], [Define to 1 if PAYLOADCHECK is enabled.])
+])
 
 AC_ARG_ENABLE([hcitop],
 	[AS_HELP_STRING([--enable-hcitop], [enable building of hcitop tool])])

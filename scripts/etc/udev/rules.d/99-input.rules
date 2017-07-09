@@ -1,0 +1,1 @@
+KERNEL=="input[0-9]*", RUN+="/usr/local/sbin/a2dp-autoconnect"

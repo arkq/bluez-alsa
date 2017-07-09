@@ -1,0 +1,26 @@
+#!/bin/bash
+
+source /etc/a2dp-parameters
+
+rm ${NUMFILE}
+# rm ${DISFILE}
+
+# hciconfig hci0 up
+echo -e 'power on\nquit' | bluetoothctl
+
+echo -e "disconnect ${A2DPADDR}\nquit" | bluetoothctl
+
+while true; do
+	if [ -f "${NUMFILE}" ] 
+	then
+		NUM=`cat "${NUMFILE}"`
+#                arecord -f cd -D bluealsa:HCI=hci0,DEV=$NUM,PROFILE=a2dp | aplay -D hw:CARD=sndrpihifiberry,DEV=0 --buffer-time=${BUFFERDELAY}
+		bluealsa-aplay --hci=hci0 --pcm=hw:CARD=sndrpihifiberry,DEV=0 --pcm-buffer-time=${BUFFERDELAY} ${NUM}
+	else
+		if [ ! -f "${DISFILE}" ]
+		then
+			echo -e "connect ${A2DPADDR}\nquit" | bluetoothctl
+		fi
+		sleep 30
+	fi	
+done

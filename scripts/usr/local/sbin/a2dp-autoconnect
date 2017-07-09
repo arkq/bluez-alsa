@@ -1,0 +1,26 @@
+#!/bin/bash
+# The original script: http://blog.mrverrall.co.uk/2013/01/raspberry-pi-a2dp-bluetooth-audio.html.
+
+source /etc/a2dp-parameters
+
+BTMAC=$(echo "$NAME" | sed 's/\"//g')
+BTMACFILE=$(echo "$NAME" | sed 's/:/_/g' | sed 's/\"//g')
+
+bt-device -i $BTMAC
+
+if [ $? -eq 0 ]
+then
+	if [ "$ACTION" = "add" ]
+	then
+        	rm "${NUMFILE}"
+	        killall bluealsa-aplay
+		service squeezelite stop
+		echo $BTMAC>"${NUMFILE}"
+	elif [ "$ACTION" = "remove" ]
+	then
+		rm "${NUMFILE}"
+		killall bluealsa-aplay
+	        service squeezelite start
+	fi
+fi
+
