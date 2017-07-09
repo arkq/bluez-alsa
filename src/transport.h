@@ -146,7 +146,7 @@ struct ba_transport {
 			struct ba_transport *sco;
 
 			/* service level connection state */
-			enum hfp_slc_state hfp_slcs;
+			enum hfp_state hfp_state;
 			/* AG/HF supported features bitmask */
 			uint32_t hfp_features;
 

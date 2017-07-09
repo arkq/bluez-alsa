@@ -50,23 +50,29 @@ static ssize_t rfcomm_write_at_msg(int fd, enum bt_at_type type,
 }
 
 /**
+ * HFP set state wrapper for debugging purposes. */
+static void rfcomm_set_hfp_state(struct ba_transport *t, enum hfp_state state) {
+	debug("HFP state transition: %d -> %d", t->rfcomm.hfp_state, state);
+	t->rfcomm.hfp_state = state;
+}
+
+/**
  * Unsolicited response handler. */
 static void rfcomm_handler_resp(struct ba_transport *t, struct bt_at *at, int fd) {
-	(void)at;
 	(void)fd;
 
-	if (t->profile == BLUETOOTH_PROFILE_HFP_HF && t->rfcomm.hfp_slcs != HFP_CONNECTED)
+	if (t->profile == BLUETOOTH_PROFILE_HFP_HF && t->rfcomm.hfp_state != HFP_CONNECTED)
 		/* advance service level connection state */
 		if (strcmp(at->value, "OK") == 0)
-			t->rfcomm.hfp_slcs++;
+			rfcomm_set_hfp_state(t, t->rfcomm.hfp_state + 1);
 
 }
 
 /**
  * TEST: Standard indicator update AT command */
 static void rfcomm_handler_cind_test(struct ba_transport *t, struct bt_at *at, int fd) {
-	(void)t;
 	(void)at;
+
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, "+CIND",
 			"(\"call\",(0,1))"
 			",(\"callsetup\",(0-3))"
@@ -76,15 +82,21 @@ static void rfcomm_handler_cind_test(struct ba_transport *t, struct bt_at *at, i
 			",(\"battchg\",(0-5))"
 			",(\"callheld\",(0-2))");
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, NULL, "OK");
+
+	if (t->rfcomm.hfp_state < HFP_SLC_CIND_TEST_OK)
+		rfcomm_set_hfp_state(t, HFP_SLC_CIND_TEST_OK);
 }
 
 /**
  * GET: Standard indicator update AT command */
 static void rfcomm_handler_cind_get(struct ba_transport *t, struct bt_at *at, int fd) {
-	(void)t;
 	(void)at;
+
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, "+CIND", "0,0,1,5,0,5,0");
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, NULL, "OK");
+
+	if (t->rfcomm.hfp_state < HFP_SLC_CIND_GET_OK)
+		rfcomm_set_hfp_state(t, HFP_SLC_CIND_GET_OK);
 }
 
 /**
@@ -92,20 +104,21 @@ static void rfcomm_handler_cind_get(struct ba_transport *t, struct bt_at *at, in
 static void rfcomm_handler_cind_resp(struct ba_transport *t, struct bt_at *at, int fd) {
 	(void)at;
 	(void)fd;
-	if (t->rfcomm.hfp_slcs == HFP_SLC_CIND_TEST) {
-		t->rfcomm.hfp_slcs = HFP_SLC_CIND_TEST_OK;
-	}
-	else if (t->rfcomm.hfp_slcs == HFP_SLC_CIND_GET) {
-		t->rfcomm.hfp_slcs = HFP_SLC_CIND_GET_OK;
-	}
+	if (t->rfcomm.hfp_state < HFP_SLC_CIND_TEST)
+		rfcomm_set_hfp_state(t, HFP_SLC_CIND_TEST);
+	else if (t->rfcomm.hfp_state < HFP_SLC_CIND_GET)
+		rfcomm_set_hfp_state(t, HFP_SLC_CIND_GET);
 }
 
 /**
  * SET: Standard event reporting activation/deactivation AT command */
 static void rfcomm_handler_cmer_set(struct ba_transport *t, struct bt_at *at, int fd) {
-	(void)t;
 	(void)at;
+
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, NULL, "OK");
+
+	if (t->rfcomm.hfp_state < HFP_SLC_CMER_SET_OK)
+		rfcomm_set_hfp_state(t, HFP_SLC_CMER_SET_OK);
 }
 
 /**
@@ -122,26 +135,34 @@ static void rfcomm_handler_brsf_set(struct ba_transport *t, struct bt_at *at, in
 
 	char tmp[16];
 
-	t->rfcomm.hfp_features = strtoul(at->value, NULL, 10);
-	debug("Got HFP HF features: 0x%X", t->rfcomm.hfp_features);
+	t->rfcomm.hfp_features = atoi(at->value);
 
 	/* Codec negotiation is not supported in the HF, hence no
 	 * wideband audio support. AT+BAC will not be sent. */
-	if ((t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) == 0)
+	if (!(t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC))
 		t->rfcomm.sco->codec = HFP_CODEC_CVSD;
 
 	sprintf(tmp, "%u", BA_HFP_AG_FEATURES);
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, "+BRSF", tmp);
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, NULL, "OK");
+
+	if (t->rfcomm.hfp_state < HFP_SLC_BRSF_SET_OK)
+		rfcomm_set_hfp_state(t, HFP_SLC_BRSF_SET_OK);
 }
 
 /**
  * RESP: Bluetooth Retrieve Supported Features */
 static void rfcomm_handler_brsf_resp(struct ba_transport *t, struct bt_at *at, int fd) {
 	(void)fd;
-	t->rfcomm.hfp_slcs = HFP_SLC_BRSF_SET_OK;
-	t->rfcomm.hfp_features = strtoul(at->value, NULL, 10);
-	debug("Got HFP AG features: 0x%X", t->rfcomm.hfp_features);
+
+	t->rfcomm.hfp_features = atoi(at->value);
+
+	/* Codec negotiation is not supported in the AG. */
+	if (!(t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC))
+		t->rfcomm.sco->codec = HFP_CODEC_CVSD;
+
+	if (t->rfcomm.hfp_state < HFP_SLC_BRSF_SET)
+		rfcomm_set_hfp_state(t, HFP_SLC_BRSF_SET);
 }
 
 /**
@@ -179,19 +200,42 @@ static void rfcomm_handler_btrh_get(struct ba_transport *t, struct bt_at *at, in
 /**
  * SET: Bluetooth Codec Selection */
 static void rfcomm_handler_bcs_set(struct ba_transport *t, struct bt_at *at, int fd) {
-	(void)t;
-	debug("Selected codec: %u", atoi(at->value));
+
+	if (t->rfcomm.sco->codec != atoi(at->value)) {
+		warn("Codec not acknowledged: %d != %s", t->rfcomm.sco->codec, at->value);
+		rfcomm_write_at_msg(fd, AT_TYPE_RESP, NULL, "ERROR");
+		return;
+	}
+
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, NULL, "OK");
+
+	if (t->rfcomm.hfp_state < HFP_CC_BCS_SET_OK)
+		rfcomm_set_hfp_state(t, HFP_CC_BCS_SET_OK);
+}
+
+/**
+ * RESP: Bluetooth Codec Selection */
+static void rfcomm_handler_bcs_resp(struct ba_transport *t, struct bt_at *at, int fd) {
+
+	t->rfcomm.sco->codec = atoi(at->value);
+	rfcomm_write_at_msg(fd, AT_TYPE_CMD_SET, "+BCS", at->value);
+
+	if (t->rfcomm.hfp_state < HFP_CC_BCS_SET)
+		rfcomm_set_hfp_state(t, HFP_CC_BCS_SET);
 }
 
 /**
  * SET: Bluetooth Available Codecs */
 static void rfcomm_handler_bac_set(struct ba_transport *t, struct bt_at *at, int fd) {
-	(void)t;
+	(void)at;
+
 	/* In case some headsets send BAC even if we don't advertise
 	 * support for it. In such case, just OK and ignore. */
-	debug("Supported codecs: %s", at->value);
+
 	rfcomm_write_at_msg(fd, AT_TYPE_RESP, NULL, "OK");
+
+	if (t->rfcomm.hfp_state < HFP_SLC_BAC_SET_OK)
+		rfcomm_set_hfp_state(t, HFP_SLC_BAC_SET_OK);
 }
 
 /**
@@ -259,6 +303,7 @@ static struct {
 	{ "+VGS", AT_TYPE_CMD_SET, rfcomm_handler_vgs_set },
 	{ "+BTRH", AT_TYPE_CMD_GET, rfcomm_handler_btrh_get },
 	{ "+BCS", AT_TYPE_CMD_SET, rfcomm_handler_bcs_set },
+	{ "+BCS", AT_TYPE_RESP, rfcomm_handler_bcs_resp },
 	{ "+BAC", AT_TYPE_CMD_SET, rfcomm_handler_bac_set },
 	{ "+IPHONEACCEV", AT_TYPE_CMD_SET, rfcomm_handler_iphoneaccev_set },
 	{ "+XAPL", AT_TYPE_CMD_SET, rfcomm_handler_xapl_set },
@@ -288,12 +333,9 @@ void *rfcomm_thread(void *arg) {
 	pthread_cleanup_push(transport_pthread_cleanup, t);
 
 	/* initialize variables used for synchronization */
-	t->rfcomm.hfp_slcs = HFP_SLC_BRSF_SET;
+	t->rfcomm.hfp_state = HFP_DISCONNECTED;
 	t->rfcomm.mic_gain = t->rfcomm.sco->sco.mic_gain;
 	t->rfcomm.spk_gain = t->rfcomm.sco->sco.spk_gain;
-
-	/* XXX: Currently we do not support codec negotiation. */
-	t->rfcomm.sco->codec = HFP_CODEC_CVSD;
 
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
@@ -316,34 +358,78 @@ void *rfcomm_thread(void *arg) {
 		struct bt_at at;
 		char buffer[256];
 
-		/* HFP-HF service level connection finite-state machine. */
-		if (t->profile == BLUETOOTH_PROFILE_HFP_HF && t->rfcomm.hfp_slcs != HFP_CONNECTED) {
-			timeout = 1000;
-			switch (t->rfcomm.hfp_slcs) {
-			case HFP_SLC_BRSF_SET:
-				sprintf(buffer, "%u", BA_HFP_HF_FEATURES);
-				rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_SET, "+BRSF", buffer);
-				break;
-			case HFP_SLC_BRSF_SET_OK:
-				break;
-			case HFP_SLC_CIND_TEST:
-				rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_TEST, "+CIND", NULL);
-				break;
-			case HFP_SLC_CIND_TEST_OK:
-				break;
-			case HFP_SLC_CIND_GET:
-				rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_GET, "+CIND", NULL);
-				break;
-			case HFP_SLC_CIND_GET_OK:
-				break;
-			case HFP_SLC_CMER_SET:
-				/* Deactivate indicator events reporting. The +CMER specification is
-				 * as follows: AT+CMER=[<mode>[,<keyp>[,<disp>[,<ind>[,<bfr>]]]]] */
-				rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_SET, "+CMER", "3,0,0,0,0");
-				break;
-			case HFP_CONNECTED:
-				break;
-			}
+		if (t->rfcomm.hfp_state != HFP_CONNECTED) {
+
+			if (t->profile == BLUETOOTH_PROFILE_HFP_HF)
+				timeout = 2000;
+
+			if (t->profile == BLUETOOTH_PROFILE_HFP_HF)
+				switch (t->rfcomm.hfp_state) {
+				case HFP_DISCONNECTED:
+					sprintf(buffer, "%u", BA_HFP_HF_FEATURES);
+					rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_SET, "+BRSF", buffer);
+					break;
+				case HFP_SLC_BRSF_SET:
+					break;
+				case HFP_SLC_BRSF_SET_OK:
+					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC) {
+						rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", "1,2");
+						break;
+					}
+				case HFP_SLC_BAC_SET_OK:
+					rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_TEST, "+CIND", NULL);
+					break;
+				case HFP_SLC_CIND_TEST:
+					break;
+				case HFP_SLC_CIND_TEST_OK:
+					rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_GET, "+CIND", NULL);
+					break;
+				case HFP_SLC_CIND_GET:
+					break;
+				case HFP_SLC_CIND_GET_OK:
+					/* Deactivate indicator events reporting. The +CMER specification is
+					 * as follows: AT+CMER=[<mode>[,<keyp>[,<disp>[,<ind>[,<bfr>]]]]] */
+					rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_SET, "+CMER", "3,0,0,0,0");
+					break;
+				case HFP_SLC_CMER_SET_OK:
+					rfcomm_set_hfp_state(t, HFP_SLC_CONNECTED);
+				case HFP_SLC_CONNECTED:
+				case HFP_CC_BCS_SET:
+					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC)
+						break;
+				case HFP_CC_BCS_SET_OK:
+				case HFP_CC_CONNECTED:
+				case HFP_CONNECTED:
+					rfcomm_set_hfp_state(t, HFP_CONNECTED);
+				}
+
+			if (t->profile == BLUETOOTH_PROFILE_HFP_AG)
+				switch (t->rfcomm.hfp_state) {
+				case HFP_DISCONNECTED:
+				case HFP_SLC_BRSF_SET:
+				case HFP_SLC_BRSF_SET_OK:
+				case HFP_SLC_BAC_SET_OK:
+				case HFP_SLC_CIND_TEST:
+				case HFP_SLC_CIND_TEST_OK:
+				case HFP_SLC_CIND_GET:
+				case HFP_SLC_CIND_GET_OK:
+					break;
+				case HFP_SLC_CMER_SET_OK:
+					rfcomm_set_hfp_state(t, HFP_SLC_CONNECTED);
+				case HFP_SLC_CONNECTED:
+					if (t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
+						timeout = 1000;
+						t->rfcomm.sco->codec = HFP_CODEC_CVSD;
+						rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_RESP, "+BCS", "1");
+						break;
+					}
+				case HFP_CC_BCS_SET:
+				case HFP_CC_BCS_SET_OK:
+				case HFP_CC_CONNECTED:
+				case HFP_CONNECTED:
+					rfcomm_set_hfp_state(t, HFP_CONNECTED);
+				}
+
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);

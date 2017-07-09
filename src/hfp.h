@@ -50,15 +50,23 @@
 #define XAPL_FEATURE_DENOISE (1 << 4)
 
 /**
- * HFP Service Level Connection States */
-enum hfp_slc_state {
+ * HFP Connection States */
+enum hfp_state {
+	HFP_DISCONNECTED,
 	HFP_SLC_BRSF_SET,
 	HFP_SLC_BRSF_SET_OK,
+	HFP_SLC_BAC_SET_OK,
 	HFP_SLC_CIND_TEST,
 	HFP_SLC_CIND_TEST_OK,
 	HFP_SLC_CIND_GET,
 	HFP_SLC_CIND_GET_OK,
-	HFP_SLC_CMER_SET,
+	HFP_SLC_CMER_SET_OK,
+	/* Established Service Level Connection */
+	HFP_SLC_CONNECTED,
+	HFP_CC_BCS_SET,
+	HFP_CC_BCS_SET_OK,
+	/* Established Codec Connection */
+	HFP_CC_CONNECTED,
 	HFP_CONNECTED,
 };
 

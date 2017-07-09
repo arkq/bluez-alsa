@@ -19,13 +19,15 @@
 		HFP_AG_FEAT_REJECT |\
 		HFP_AG_FEAT_ECS |\
 		HFP_AG_FEAT_ECC |\
-		HFP_AG_FEAT_EERC)
+		HFP_AG_FEAT_EERC |\
+		HFP_AG_FEAT_CODEC)
 
 #define BA_HFP_HF_FEATURES (\
 		HFP_HF_FEAT_CLI |\
 		HFP_HF_FEAT_VOLUME |\
 		HFP_HF_FEAT_ECS |\
-		HFP_HF_FEAT_ECC)
+		HFP_HF_FEAT_ECC |\
+		HFP_HF_FEAT_CODEC)
 
 /**
  * Callback function used for RFCOMM AT message dispatching. */
