@@ -34,7 +34,8 @@ enum ba_transport_state {
 	TRANSPORT_PENDING,
 	TRANSPORT_ACTIVE,
 	TRANSPORT_PAUSED,
-	TRANSPORT_ABORTED,
+	/* transport is in the eviction state */
+	TRANSPORT_LIMBO,
 };
 
 struct ba_device {

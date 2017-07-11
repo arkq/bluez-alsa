@@ -320,9 +320,10 @@ fail:
 
 void transport_free(struct ba_transport *t) {
 
-	if (t == NULL)
+	if (t == NULL || t->state == TRANSPORT_LIMBO)
 		return;
 
+	t->state = TRANSPORT_LIMBO;
 	debug("Freeing transport: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
 
@@ -636,7 +637,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		if (!created)
 			ret = io_thread_create(t);
 		break;
-	case TRANSPORT_ABORTED:
+	case TRANSPORT_LIMBO:
 		break;
 	}
 
@@ -782,8 +783,7 @@ int transport_release_bt_rfcomm(struct ba_transport *t) {
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
 	 * link has been lost (e.g. device power down). However, it is required to
 	 * remove transport from the transport pool before reconnecting. */
-	if (t->state == TRANSPORT_ABORTED)
-		transport_free(t);
+	transport_free(t);
 
 	return 0;
 }

@@ -475,7 +475,6 @@ void *rfcomm_thread(void *arg) {
 			case ETIMEDOUT:
 				/* exit the thread upon socket disconnection */
 				debug("RFCOMM disconnected: %s", strerror(errno));
-				transport_set_state(t, TRANSPORT_ABORTED);
 				goto fail;
 			default:
 				error("RFCOMM read error: %s", strerror(errno));
