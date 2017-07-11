@@ -47,6 +47,9 @@ Dependencies for `hcitop` (when `--enable-hcitop` is specified during configurat
 - [libbsd](https://libbsd.freedesktop.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
 
+If you are using Debian-based distribution, take a look at the [.travis.yml](.travis.yml) file,
+it might give you a hint about required packages.
+
 
 Configuration & Usage
 ---------------------
