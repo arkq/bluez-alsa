@@ -357,6 +357,7 @@ void *rfcomm_thread(void *arg) {
 		rfcomm_callback *callback;
 		struct bt_at at;
 		char buffer[256];
+		ssize_t len;
 
 		if (t->rfcomm.hfp_state != HFP_CONNECTED) {
 
@@ -467,7 +468,7 @@ void *rfcomm_thread(void *arg) {
 			continue;
 		}
 
-		if (read(pfds[1].fd, buffer, sizeof(buffer)) == -1) {
+		if ((len = read(pfds[1].fd, buffer, sizeof(buffer))) == -1) {
 			switch (errno) {
 			case ECONNABORTED:
 			case ECONNRESET:
@@ -482,9 +483,16 @@ void *rfcomm_thread(void *arg) {
 			}
 		}
 
+		/* In case of reading more than one message from the RFCOMM, we have to
+		 * parse all of them before we can read from the socket once more. */
+		buffer[len] = '\0';
+		char *msg = buffer;
+		char *next;
+
+parse:
 		/* parse AT message received from the RFCOMM */
-		if (at_parse(buffer, &at) == NULL) {
-			warn("Invalid AT message: %s", buffer);
+		if ((next = at_parse(msg, &at)) == NULL) {
+			warn("Invalid AT message: %s", msg);
 			continue;
 		}
 
@@ -494,6 +502,11 @@ void *rfcomm_thread(void *arg) {
 			warn("Unsupported AT message: %s", buffer);
 			if (at.type != AT_TYPE_RESP)
 				rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_RESP, NULL, "ERROR");
+		}
+
+		if (next[0] != '\0') {
+			msg = next;
+			goto parse;
 		}
 
 	}

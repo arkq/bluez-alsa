@@ -139,6 +139,10 @@ char *at_parse(const char *str, struct bt_at *at) {
 			command[0] = command[sizeof(at->command)] = '\0';
 		}
 
+		/* consume <LF> from the end of the response */
+		if (feed[1] == '\n')
+			feed++;
+
 	}
 
 	/* In the BT specification, all AT commands are in uppercase letters.

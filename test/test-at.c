@@ -73,7 +73,7 @@ int main(void) {
 
 	/* concatenated commands */
 	const char *cmd = "\r\nOK\r\n\r\n+COPS:1\r\n";
-	assert(at_parse(cmd, &at) == &cmd[5]);
+	assert(at_parse(cmd, &at) == &cmd[6]);
 	assert(at.type == AT_TYPE_RESP);
 	assert(strcmp(at.command, "") == 0);
 	assert(strcmp(at.value, "OK") == 0);

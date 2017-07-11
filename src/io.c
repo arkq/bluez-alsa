@@ -33,9 +33,7 @@
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
-#include "at.h"
 #include "bluealsa.h"
-#include "hfp.h"
 #include "transport.h"
 #include "utils.h"
 #include "shared/log.h"
