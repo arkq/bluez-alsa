@@ -31,7 +31,7 @@
 
 /**
  * Callback function used for RFCOMM AT message dispatching. */
-typedef void rfcomm_callback(struct ba_transport *t, struct bt_at *at, int fd);
+typedef int rfcomm_callback(struct ba_transport *t, struct bt_at *at, int fd);
 
 void *rfcomm_thread(void *arg);
 
