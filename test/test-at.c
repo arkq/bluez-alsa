@@ -15,6 +15,8 @@
 int main(void) {
 
 	struct bt_at at;
+	enum hfp_ind indmap[20];
+	enum hfp_ind indmap_ok[20];
 	char buffer[256];
 
 	/* invalid AT command lines */
@@ -78,11 +80,30 @@ int main(void) {
 	assert(strcmp(at.command, "") == 0);
 	assert(strcmp(at.value, "OK") == 0);
 
+	/* build commands */
+	assert(strcmp(at_build(buffer, AT_TYPE_CMD, "+CLCC", NULL), "AT+CLCC\r") == 0);
+	assert(strcmp(at_build(buffer, AT_TYPE_CMD_GET, "+COPS", NULL), "AT+COPS?\r") == 0);
+	assert(strcmp(at_build(buffer, AT_TYPE_CMD_SET, "+BCS", "1"), "AT+BCS=1\r") == 0);
+	assert(strcmp(at_build(buffer, AT_TYPE_CMD_TEST, "+CIND", NULL), "AT+CIND=?\r") == 0);
+
 	/* build response result code */
 	assert(strcmp(at_build(buffer, AT_TYPE_RESP, "+CIND", ""), "\r\n+CIND:\r\n") == 0);
 
 	/* build unsolicited result code */
 	assert(strcmp(at_build(buffer, AT_TYPE_RESP, NULL, "OK"), "\r\nOK\r\n") == 0);
+
+	/* parse +CIND response result code */
+	assert(at_parse_cind("(\"call\",(0,1)),(\"xxx\",(0-3)),(\"signal\",(0-5))", indmap) == 0);
+	memset(indmap_ok, HFP_IND_NULL, sizeof(indmap_ok));
+	indmap_ok[0] = HFP_IND_CALL;
+	indmap_ok[2] = HFP_IND_SIGNAL;
+	assert(memcmp(indmap, indmap_ok, sizeof(indmap)) == 0);
+
+	/* parse +CIND response with white-spaces */
+	assert(at_parse_cind(" ( \"call\", ( 0, 1 ) ), ( \"signal\", ( 0-3 ) )", indmap) == 0);
+
+	/* parse +CIND invalid response */
+	assert(at_parse_cind("(incorrect,1-2)", indmap) == -1);
 
 	return EXIT_SUCCESS;
 }

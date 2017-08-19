@@ -51,7 +51,7 @@
 
 /**
  * HFP Connection States */
-enum hfp_state {
+enum __attribute__ ((packed)) hfp_state {
 	HFP_DISCONNECTED,
 	HFP_SLC_BRSF_SET,
 	HFP_SLC_BRSF_SET_OK,
@@ -69,5 +69,46 @@ enum hfp_state {
 	HFP_CC_CONNECTED,
 	HFP_CONNECTED,
 };
+
+/**
+ * HFP Indicators */
+enum __attribute__ ((packed)) hfp_ind {
+	HFP_IND_NULL = 0,
+	HFP_IND_SERVICE,
+	HFP_IND_CALL,
+	HFP_IND_CALLSETUP,
+	HFP_IND_CALLHELD,
+	HFP_IND_SIGNAL,
+	HFP_IND_ROAM,
+	HFP_IND_BATTCHG,
+	__HFP_IND_MAX
+};
+
+/* no Home/Roam network available */
+#define HFP_IND_SERVICE_NONE        0
+/* Home/Roam network available */
+#define HFP_IND_SERVICE_ACTIVE      1
+/* no calls in progress */
+#define HFP_IND_CALL_NONE           0
+/* at least one call is in progress */
+#define HFP_IND_CALL_ACTIVE         1
+/* currently not in call set up */
+#define HFP_IND_CALLSETUP_NONE      0
+/* an incoming call process ongoing */
+#define HFP_IND_CALLSETUP_IN        1
+/* an outgoing call set up is ongoing */
+#define HFP_IND_CALLSETUP_OUT       2
+/* remote party being alerted in an outgoing call */
+#define HFP_IND_CALLSETUP_OUT_ALERT 3
+/* no calls held */
+#define HFP_IND_CALLHELD_NONE       0
+/* call on hold with other active call */
+#define HFP_IND_CALLHELD_SWAP       1
+/* call on hold, no active call */
+#define HFP_IND_CALLHELD_HOLD       2
+/* roaming is not active */
+#define HFP_IND_ROAM_NONE           0
+/* a roaming is active */
+#define HFP_IND_ROAM_ACTIVE         1
 
 #endif

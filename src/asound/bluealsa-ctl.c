@@ -453,7 +453,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
 		*imin = 0;
-		*imax = 9;
+		*imax = 100;
 		*istep = 1;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:

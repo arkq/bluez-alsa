@@ -186,6 +186,12 @@ bool device_remove(GHashTable *devices, const char *key) {
 	return g_hash_table_remove(devices, key);
 }
 
+void device_set_battery_level(struct ba_device *d, uint8_t value) {
+	d->battery.enabled = true;
+	d->battery.level = value;
+	bluealsa_event();
+}
+
 /**
  * Create new transport.
  *
@@ -352,6 +358,7 @@ void transport_free(struct ba_transport *t) {
 		free(t->a2dp.cconfig);
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
+		memset(&t->device->battery, 0, sizeof(t->device->battery));
 		memset(&t->device->xapl, 0, sizeof(t->device->xapl));
 		transport_free(t->rfcomm.sco);
 		break;

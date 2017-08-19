@@ -106,7 +106,7 @@ struct __attribute__ ((packed)) msg_device {
 
 	/* determine whether battery is available */
 	uint8_t battery:1;
-	/* device battery level in range [0, 9] */
+	/* device battery level in range [0, 100] */
 	uint8_t battery_level:7;
 
 };

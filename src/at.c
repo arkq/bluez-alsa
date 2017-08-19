@@ -158,6 +158,55 @@ char *at_parse(const char *str, struct bt_at *at) {
 }
 
 /**
+ * Parse AT +CIND GET response.
+ *
+ * The maximal number of possible mappings is 20. This value is hard-coded,
+ * and is defined by the HFP specification.
+ *
+ * Mapping stored in the map array is 0-based. However, indexes returned by
+ * the +CIEV unsolicited result code are 1-based. Please, be aware of this
+ * incompatibility.
+ *
+ * @param str Response string.
+ * @param map Address where the mapping between the indicator index and the
+ *   HFP indicator type will be stored.
+ * @return On success this function returns 0, otherwise -1 is returned. */
+int at_parse_cind(const char *str, enum hfp_ind map[20]) {
+
+	static const struct {
+		const char *str;
+		enum hfp_ind ind;
+	} mapping[] = {
+		{ "service", HFP_IND_SERVICE },
+		{ "call", HFP_IND_CALL },
+		{ "callsetup", HFP_IND_CALLSETUP },
+		{ "callheld", HFP_IND_CALLHELD },
+		{ "signal", HFP_IND_SIGNAL },
+		{ "roam", HFP_IND_ROAM },
+		{ "battchg", HFP_IND_BATTCHG },
+	};
+
+	char ind[16];
+	size_t i, ii;
+
+	memset(map, HFP_IND_NULL, sizeof(*map) * 20);
+	for (i = 0; i < 20; i++) {
+		if (sscanf(str, " ( \"%15[a-z]\" , ( %*[0-9,-] ) )", ind) != 1)
+			return -1;
+		for (ii = 0; ii < sizeof(mapping) / sizeof(*mapping); ii++)
+			if (strcmp(mapping[ii].str, ind) == 0) {
+				map[i] = mapping[ii].ind;
+				break;
+			}
+		if ((str = strstr(str, "),")) == NULL)
+			break;
+		str += 2;
+	}
+
+	return 0;
+}
+
+/**
  * Convert AT type into a human-readable string.
  *
  * @param type AT message type.

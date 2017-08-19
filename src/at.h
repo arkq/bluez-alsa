@@ -12,6 +12,8 @@
 #ifndef BLUEALSA_AT_H_
 #define BLUEALSA_AT_H_
 
+#include "hfp.h"
+
 enum bt_at_type {
 	AT_TYPE_CMD,
 	AT_TYPE_CMD_GET,
@@ -30,6 +32,7 @@ struct bt_at {
 char *at_build(char *buffer, enum bt_at_type type, const char *command,
 		const char *value);
 char *at_parse(const char *str, struct bt_at *at);
+int at_parse_cind(const char *str, enum hfp_ind map[20]);
 const char *at_type2str(enum bt_at_type type);
 
 #endif

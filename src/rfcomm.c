@@ -111,13 +111,34 @@ static int rfcomm_handler_cind_get(struct ba_transport *t, struct bt_at *at, int
 /**
  * RESP: Standard indicator update AT command */
 static int rfcomm_handler_cind_resp(struct ba_transport *t, struct bt_at *at, int fd) {
-	(void)at;
 	(void)fd;
 
-	if (t->rfcomm.hfp_state < HFP_SLC_CIND_TEST)
+	/* response for the +CIND TEST command */
+	if (t->rfcomm.hfp_state < HFP_SLC_CIND_TEST) {
+		if (at_parse_cind(at->value, t->rfcomm.hfp_ind_map) == -1)
+			warn("Couldn't parse AG indicators");
 		rfcomm_set_hfp_state(t, HFP_SLC_CIND_TEST);
-	else if (t->rfcomm.hfp_state < HFP_SLC_CIND_GET)
+		return 0;
+	}
+
+	/* response for the +CIND GET command */
+	if (t->rfcomm.hfp_state < HFP_SLC_CIND_GET) {
+
+		char *tmp = at->value;
+		size_t i;
+
+		for (i = 0; i < sizeof(t->rfcomm.hfp_ind_map) / sizeof(*t->rfcomm.hfp_ind_map); i++) {
+			t->rfcomm.hfp_inds[t->rfcomm.hfp_ind_map[i]] = atoi(tmp);
+			if (t->rfcomm.hfp_ind_map[i] == HFP_IND_BATTCHG)
+				device_set_battery_level(t->device, atoi(tmp) * 100 / 5);
+			if ((tmp = strchr(tmp, ',')) == NULL)
+				break;
+			tmp += 1;
+		}
+
 		rfcomm_set_hfp_state(t, HFP_SLC_CIND_GET);
+		return 0;
+	}
 
 	return 0;
 }
@@ -132,6 +153,32 @@ static int rfcomm_handler_cmer_set(struct ba_transport *t, struct bt_at *at, int
 
 	if (t->rfcomm.hfp_state < HFP_SLC_CMER_SET_OK)
 		rfcomm_set_hfp_state(t, HFP_SLC_CMER_SET_OK);
+
+	return 0;
+}
+
+/**
+ * RESP: Standard indicator events reporting unsolicited result code */
+static int rfcomm_handler_ciev_resp(struct ba_transport *t, struct bt_at *at, int fd) {
+	(void)fd;
+
+	unsigned int index;
+	unsigned int value;
+
+	if (sscanf(at->value, "%u,%u", &index, &value) == 2) {
+		t->rfcomm.hfp_inds[t->rfcomm.hfp_ind_map[index - 1]] = value;
+		switch (t->rfcomm.hfp_ind_map[index - 1]) {
+		case HFP_IND_CALL:
+		case HFP_IND_CALLSETUP:
+			eventfd_write(t->rfcomm.sco->event_fd, 1);
+			break;
+		case HFP_IND_BATTCHG:
+			device_set_battery_level(t->device, value * 100 / 5);
+			break;
+		default:
+			break;
+		}
+	}
 
 	return 0;
 }
@@ -289,8 +336,7 @@ static int rfcomm_handler_iphoneaccev_set(struct ba_transport *t, struct bt_at *
 		switch (tmp = *strsep(&ptr, ",")) {
 		case '1':
 			if (ptr != NULL)
-				t->device->xapl.accev_battery = atoi(strsep(&ptr, ","));
-				bluealsa_event();
+				device_set_battery_level(t->device, atoi(strsep(&ptr, ",")) * 100 / 9);
 			break;
 		case '2':
 			if (ptr != NULL)
@@ -340,6 +386,7 @@ static struct {
 	{ "+CIND", AT_TYPE_CMD_GET, rfcomm_handler_cind_get },
 	{ "+CIND", AT_TYPE_RESP, rfcomm_handler_cind_resp },
 	{ "+CMER", AT_TYPE_CMD_SET, rfcomm_handler_cmer_set },
+	{ "+CIEV", AT_TYPE_RESP, rfcomm_handler_ciev_resp },
 	{ "+BRSF", AT_TYPE_CMD_SET, rfcomm_handler_brsf_set },
 	{ "+BRSF", AT_TYPE_RESP, rfcomm_handler_brsf_resp },
 	{ "+VGM", AT_TYPE_CMD_SET, rfcomm_handler_vgm_set },
@@ -435,9 +482,9 @@ void *rfcomm_thread(void *arg) {
 				case HFP_SLC_CIND_GET:
 					break;
 				case HFP_SLC_CIND_GET_OK:
-					/* Deactivate indicator events reporting. The +CMER specification is
+					/* Activate indicator events reporting. The +CMER specification is
 					 * as follows: AT+CMER=[<mode>[,<keyp>[,<disp>[,<ind>[,<bfr>]]]]] */
-					if (rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_SET, "+CMER", "3,0,0,0,0") == -1)
+					if (rfcomm_write_at_msg(pfds[1].fd, AT_TYPE_CMD_SET, "+CMER", "3,0,0,1,0") == -1)
 						goto ioerror;
 					break;
 				case HFP_SLC_CMER_SET_OK:

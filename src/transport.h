@@ -47,6 +47,12 @@ struct ba_device {
 	/* human-readable Bluetooth device name */
 	char name[HCI_MAX_NAME_LENGTH];
 
+	/* adjusted (in the range 0-100) battery level */
+	struct {
+		bool enabled;
+		uint8_t level;
+	} battery;
+
 	/* Apple's extension used with HFP profile */
 	struct {
 
@@ -55,8 +61,6 @@ struct ba_device {
 		uint16_t version;
 		uint8_t features;
 
-		/* headset battery level in range [0, 9] */
-		uint8_t accev_battery;
 		/* determine whether headset is docked */
 		uint8_t accev_docked;
 
@@ -151,6 +155,10 @@ struct ba_transport {
 			/* AG/HF supported features bitmask */
 			uint32_t hfp_features;
 
+			/* 0-based indicators index */
+			enum hfp_ind hfp_ind_map[20];
+			unsigned char hfp_inds[__HFP_IND_MAX];
+
 			/* variables used for AG<->HF sync */
 			uint8_t spk_gain;
 			uint8_t mic_gain;
@@ -162,9 +170,9 @@ struct ba_transport {
 			/* parent RFCOMM transport */
 			struct ba_transport *rfcomm;
 
-			/* if non-zero, equivalent of gain = 0 */
-			uint8_t spk_muted;
-			uint8_t mic_muted;
+			/* if true, equivalent of gain = 0 */
+			bool spk_muted;
+			bool mic_muted;
 			/* software audio gain in range [0, 15] */
 			uint8_t spk_gain;
 			uint8_t mic_gain;
@@ -190,6 +198,8 @@ void device_free(struct ba_device *d);
 struct ba_device *device_get(GHashTable *devices, const char *key);
 struct ba_device *device_lookup(GHashTable *devices, const char *key);
 bool device_remove(GHashTable *devices, const char *key);
+
+void device_set_battery_level(struct ba_device *d, uint8_t value);
 
 struct ba_transport *transport_new(
 		struct ba_device *device,
