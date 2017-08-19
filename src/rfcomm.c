@@ -448,8 +448,9 @@ void *rfcomm_thread(void *arg) {
 						break;
 				case HFP_CC_BCS_SET_OK:
 				case HFP_CC_CONNECTED:
-				case HFP_CONNECTED:
 					rfcomm_set_hfp_state(t, HFP_CONNECTED);
+				case HFP_CONNECTED:
+					bluealsa_event();
 				}
 
 			if (t->profile == BLUETOOTH_PROFILE_HFP_AG)
@@ -476,8 +477,9 @@ void *rfcomm_thread(void *arg) {
 				case HFP_CC_BCS_SET:
 				case HFP_CC_BCS_SET_OK:
 				case HFP_CC_CONNECTED:
-				case HFP_CONNECTED:
 					rfcomm_set_hfp_state(t, HFP_CONNECTED);
+				case HFP_CONNECTED:
+					bluealsa_event();
 				}
 
 		}

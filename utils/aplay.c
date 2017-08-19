@@ -210,10 +210,13 @@ static void *pcm_worker_routine(void *arg) {
 	if (verbose >= 2)
 		printf("Used configuration for %s:\n"
 				"  PCM buffer time: %u us (%zu bytes)\n"
-				"  PCM period time: %u us (%zu bytes)\n",
+				"  PCM period time: %u us (%zu bytes)\n"
+				"  Sampling rate: %u Hz\n"
+				"  Channels: %u\n",
 				w->addr,
 				buffer_time, snd_pcm_frames_to_bytes(w->pcm, buffer_size),
-				period_time, snd_pcm_frames_to_bytes(w->pcm, period_size));
+				period_time, snd_pcm_frames_to_bytes(w->pcm, period_size),
+				w->transport.sampling, w->transport.channels);
 
 	if ((err = set_sw_params(w->pcm, buffer_size, period_size, &msg)) != 0) {
 		error("Couldn't set SW parameters: %s", msg);

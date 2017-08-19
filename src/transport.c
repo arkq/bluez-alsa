@@ -555,6 +555,8 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 				return 8000;
 			case HFP_CODEC_MSBC:
 				return 16000;
+			default:
+				debug("Unsupported SCO codec: %x", t->codec);
 		}
 	}
 
