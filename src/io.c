@@ -1016,10 +1016,23 @@ void *io_thread_sco(void *arg) {
 			io_thread_open_pcm_read(&t->sco.spk_pcm);
 			io_thread_open_pcm_write(&t->sco.mic_pcm);
 
+			const enum hfp_ind *inds = t->sco.rfcomm->rfcomm.hfp_inds;
+			bool release = false;
+
 			/* It is required to release SCO if we are not transferring audio,
 			 * because it will free Bluetooth bandwidth - microphone signal is
 			 * transfered even though we are not reading from it! */
-			if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) {
+			if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1)
+				release = true;
+			/* For HFP HF we have to check if we are in the call stage or in the
+			 * call setup stage. Otherwise, it might be not possible to acquire
+			 * SCO connection. */
+			if (t->profile == BLUETOOTH_PROFILE_HFP_HF &&
+					inds[HFP_IND_CALL] == HFP_IND_CALL_NONE &&
+					inds[HFP_IND_CALLSETUP] == HFP_IND_CALLSETUP_NONE)
+				release = true;
+
+			if (release) {
 				transport_release_bt_sco(t);
 				asrs.frames = 0;
 			}
@@ -1036,15 +1049,30 @@ void *io_thread_sco(void *arg) {
 
 			ssize_t len;
 
-			if ((len = read(pfds[1].fd, buffer, buffer_size)) == -1) {
-				debug("SCO read error: %s", strerror(errno));
-				continue;
-			}
+retry_sco:
+			errno = 0;
+			if ((len = read(pfds[1].fd, buffer, buffer_size)) <= 0)
+				switch (errno) {
+				case EINTR:
+					goto retry_sco;
+				case 0:
+				case ECONNABORTED:
+				case ECONNRESET:
+					transport_release_bt_sco(t);
+					continue;
+				default:
+					error("SCO read error: %s", strerror(errno));
+					continue;
+				}
 
 			if (t->sco.mic_muted)
 				snd_pcm_scale_s16le(buffer, len / sizeof(int16_t), 1, 0, 0);
 
 			write(t->sco.mic_pcm.fd, buffer, len);
+		}
+		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
+			debug("SCO poll error status: 0x%x", pfds[1].revents);
+			transport_release_bt_sco(t);
 		}
 
 		if (pfds[2].revents & POLLIN) {
@@ -1062,6 +1090,9 @@ void *io_thread_sco(void *arg) {
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
 			write(t->bt_fd, buffer, samples * sizeof(int16_t));
+		}
+		else if (pfds[2].revents & (POLLERR | POLLHUP)) {
+			debug("PCM poll error status: 0x%x", pfds[2].revents);
 		}
 
 		/* keep data transfer at a constant bit rate */

@@ -566,10 +566,6 @@ void *rfcomm_thread(void *arg) {
 			}
 
 		}
-		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
-			errno = ECONNRESET;
-			goto ioerror;
-		}
 
 		if (pfds[1].revents & POLLIN) {
 			/* read data from the RFCOMM */

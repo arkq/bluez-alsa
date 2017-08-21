@@ -310,7 +310,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 				if (cap->allocation_method != SBC_ALLOCATION_SNR &&
 						cap->allocation_method != SBC_ALLOCATION_LOUDNESS) {
-					error("Invalid configuration: %s:", "Invalid allocation method");
+					error("Invalid configuration: %s", "Invalid allocation method");
 					goto fail;
 				}
 
@@ -763,7 +763,6 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	struct ba_device *d;
 
 	const int profile = g_dbus_object_path_to_profile(path);
-	const int codec = -1;
 
 	GVariantIter *properties;
 	GUnixFDList *fd_list;
@@ -793,7 +792,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	t->release = transport_release_bt_rfcomm;
 
 	debug("%s configured for device %s",
-			bluetooth_profile_to_string(profile, codec), batostr_(&d->addr));
+			bluetooth_profile_to_string(profile, -1), batostr_(&d->addr));
 
 	transport_set_state(t, TRANSPORT_ACTIVE);
 
