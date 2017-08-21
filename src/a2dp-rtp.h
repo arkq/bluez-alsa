@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-rtp.h
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,7 +12,28 @@
 #define BLUEALSA_A2DPRTP_H_
 
 #include <stdint.h>
-#include <ortp/rtp.h>
+
+typedef struct rtp_header {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	uint16_t cc:4;
+	uint16_t extbit:1;
+	uint16_t padbit:1;
+	uint16_t version:2;
+	uint16_t paytype:7;
+	uint16_t markbit:1;
+#else
+	uint16_t version:2;
+	uint16_t padbit:1;
+	uint16_t extbit:1;
+	uint16_t cc:4;
+	uint16_t markbit:1;
+	uint16_t paytype:7;
+#endif
+	uint16_t seq_number;
+	uint32_t timestamp;
+	uint32_t ssrc;
+	uint32_t csrc[16];
+} __attribute__ ((packed)) rtp_header_t;
 
 /**
  * Media payload header for SBC. */

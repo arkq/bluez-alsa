@@ -34,8 +34,6 @@ AM_COND_IF([ENABLE_DEBUG_TIME], [
 
 AC_CHECK_LIB([pthread], [pthread_create],
 	[], [AC_MSG_ERROR([pthread library not found])])
-AC_CHECK_HEADERS([ortp/rtp.h],
-	[], [AC_MSG_ERROR([ortp/rtp.h header not found])])
 AC_SEARCH_LIBS([clock_gettime], [rt],
 	[], [AC_MSG_ERROR([unable to find clock_gettime() function])])
 AC_SEARCH_LIBS([pow], [m],

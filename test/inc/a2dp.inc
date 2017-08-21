@@ -10,7 +10,11 @@
  *
  */
 
+#include <errno.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 #include <sbc/sbc.h>
 #include "../src/a2dp-codecs.h"
 #include "../src/a2dp-rtp.h"
