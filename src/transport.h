@@ -150,18 +150,10 @@ struct ba_transport {
 			/* associated SCO transport */
 			struct ba_transport *sco;
 
-			/* service level connection state */
-			enum hfp_state hfp_state;
 			/* AG/HF supported features bitmask */
 			uint32_t hfp_features;
-
-			/* 0-based indicators index */
-			enum hfp_ind hfp_ind_map[20];
+			/* received AG indicator values */
 			unsigned char hfp_inds[__HFP_IND_MAX];
-
-			/* variables used for AG<->HF sync */
-			uint8_t spk_gain;
-			uint8_t mic_gain;
 
 		} rfcomm;
 
