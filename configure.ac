@@ -41,7 +41,7 @@ AC_SEARCH_LIBS([pow], [m],
 
 PKG_CHECK_MODULES([ALSA], [alsa])
 PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])
-PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.16])
+PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.26])
 PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
 

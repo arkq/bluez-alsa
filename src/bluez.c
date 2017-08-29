@@ -254,7 +254,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				goto fail;
 			}
 
-			g_variant_get(value, "o", &device);
+			device = g_variant_dup_string(value, NULL);
 
 		}
 		else if (strcmp(key, "UUID") == 0) {
@@ -267,7 +267,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				goto fail;
 			}
 
-			g_variant_get(value, "y", &codec);
+			codec = g_variant_get_byte(value);
 
 		}
 		else if (strcmp(key, "Configuration") == 0) {
@@ -382,7 +382,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				goto fail;
 			}
 
-			g_variant_get(value, "s", &state);
+			state = g_variant_dup_string(value, NULL);
 
 		}
 		else if (strcmp(key, "Delay") == 0) {
@@ -393,7 +393,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				goto fail;
 			}
 
-			g_variant_get(value, "q", &delay);
+			delay = g_variant_get_uint16(value);
 
 		}
 		else if (strcmp(key, "Volume") == 0) {
@@ -405,7 +405,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			}
 
 			/* received volume is in range [0, 127]*/
-			g_variant_get(value, "q", &volume);
+			volume = g_variant_get_uint16(value);
 
 		}
 
@@ -1047,9 +1047,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 				goto fail;
 			}
 
-			const char *state;
-			g_variant_get(value, "&s", &state);
-			transport_set_state_from_string(t, state);
+			transport_set_state_from_string(t, g_variant_get_string(value, NULL));
 
 		}
 		else if (strcmp(key, "Delay") == 0) {
@@ -1060,7 +1058,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 				goto fail;
 			}
 
-			g_variant_get(value, "q", &t->a2dp.delay);
+			t->a2dp.delay = g_variant_get_uint16(value);
 
 		}
 		else if (strcmp(key, "Volume") == 0) {
@@ -1071,13 +1069,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 				goto fail;
 			}
 
-			uint16_t volume;
-
 			/* received volume is in range [0, 127]*/
-			g_variant_get(value, "q", &volume);
-
-			t->a2dp.ch1_volume = volume;
-			t->a2dp.ch2_volume = volume;
+			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
 
 		}
 
