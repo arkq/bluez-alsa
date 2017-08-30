@@ -136,7 +136,7 @@ char *at_parse(const char *str, struct bt_at *at) {
 		else {
 			/* unsolicited (with empty command) result code */
 			at->value = memmove(command + 1, command, sizeof(at->command) - 1);
-			command[0] = command[sizeof(at->command)] = '\0';
+			command[0] = command[sizeof(at->command) - 1] = '\0';
 		}
 
 		/* consume <LF> from the end of the response */
