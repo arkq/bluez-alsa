@@ -139,10 +139,9 @@ void device_free(struct ba_device *d) {
 
 		GHashTableIter iter;
 		struct ba_transport *t;
-		gpointer _key;
 
 		g_hash_table_iter_init(&iter, d->transports);
-		if (!g_hash_table_iter_next(&iter, &_key, (gpointer)&t))
+		if (!g_hash_table_iter_next(&iter, NULL, (gpointer)&t))
 			break;
 
 		transport_free(t);
@@ -386,10 +385,9 @@ struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path
 	GHashTableIter iter;
 	struct ba_device *d;
 	struct ba_transport *t;
-	gpointer _key;
 
 	g_hash_table_iter_init(&iter, devices);
-	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
 		if ((t = g_hash_table_lookup(d->transports, dbus_path)) != NULL)
 			return t;
 	}
@@ -402,12 +400,11 @@ struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client
 	GHashTableIter iter_d, iter_t;
 	struct ba_device *d;
 	struct ba_transport *t;
-	gpointer tmp;
 
 	g_hash_table_iter_init(&iter_d, devices);
-	while (g_hash_table_iter_next(&iter_d, &tmp, (gpointer)&d)) {
+	while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
 		g_hash_table_iter_init(&iter_t, d->transports);
-		while (g_hash_table_iter_next(&iter_t, &tmp, (gpointer)&t)) {
+		while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
 			switch (t->type) {
 			case TRANSPORT_TYPE_A2DP:
 				if (t->a2dp.pcm.client == client)
@@ -432,10 +429,9 @@ bool transport_remove(GHashTable *devices, const char *dbus_path) {
 
 	GHashTableIter iter;
 	struct ba_device *d;
-	gpointer _key;
 
 	g_hash_table_iter_init(&iter, devices);
-	while (g_hash_table_iter_next(&iter, &_key, (gpointer)&d)) {
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
 		if (g_hash_table_remove(d->transports, dbus_path)) {
 			if (g_hash_table_size(d->transports) == 0)
 				g_hash_table_iter_remove(&iter);
