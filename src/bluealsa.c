@@ -58,7 +58,8 @@ int bluealsa_config_init(void) {
 	config.devices = g_hash_table_new_full(g_str_hash, g_str_equal,
 			g_free, (GDestroyNotify)device_free);
 
-	config.dbus_objects = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+	config.dbus_objects = g_hash_table_new_full(g_direct_hash, g_direct_equal,
+			NULL, g_free);
 
 	/* use proper ACL group for our audio device */
 	if ((grp = getgrnam("audio")) != NULL)

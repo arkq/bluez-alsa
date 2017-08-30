@@ -135,44 +135,107 @@ fail:
 }
 
 /**
+ * Get BlueZ D-Bus object path for given profile and codec.
+ *
+ * @param profile Bluetooth profile.
+ * @param codec Bluetooth profile codec.
+ * @return This function returns BlueZ D-Bus object path. */
+const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint8_t codec) {
+	switch (profile) {
+	case BLUETOOTH_PROFILE_A2DP_SOURCE:
+		switch (codec) {
+		case A2DP_CODEC_SBC:
+			return "/A2DP/SBC/Source";
+#if ENABLE_MP3
+		case A2DP_CODEC_MPEG12:
+			return "/A2DP/MPEG12/Source";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "/A2DP/MPEG24/Source";
+#endif
+		default:
+			warn("Unsupported A2DP codec: 0x%x", codec);
+			return "/A2DP/Source";
+		}
+	case BLUETOOTH_PROFILE_A2DP_SINK:
+		switch (codec) {
+		case A2DP_CODEC_SBC:
+			return "/A2DP/SBC/Sink";
+#if ENABLE_MP3
+		case A2DP_CODEC_MPEG12:
+			return "/A2DP/MPEG12/Sink";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "/A2DP/MPEG24/Sink";
+#endif
+		default:
+			warn("Unsupported A2DP codec: 0x%x", codec);
+			return "/A2DP/Sink";
+		}
+	case BLUETOOTH_PROFILE_HSP_HS:
+		return "/HSP/Headset";
+	case BLUETOOTH_PROFILE_HSP_AG:
+		return "/HSP/AudioGateway";
+	case BLUETOOTH_PROFILE_HFP_HF:
+		return "/HFP/HandsFree";
+	case BLUETOOTH_PROFILE_HFP_AG:
+		return "/HFP/AudioGateway";
+	case BLUETOOTH_PROFILE_NULL:
+		return "/";
+	}
+}
+
+/**
  * Convert BlueZ D-Bus object path into a Bluetooth profile.
  *
  * @param path BlueZ D-Bus object path.
  * @return On success this function returns Bluetooth profile. If object
  *   path cannot be recognize, NULL profile is returned. */
 enum bluetooth_profile g_dbus_object_path_to_profile(const char *path) {
-
-	static GHashTable *profiles = NULL;
-
-	/* initialize profile hash table */
-	if (profiles == NULL) {
-
-		size_t i;
-		const struct profile_data {
-			char *endpoint;
-			enum bluetooth_profile profile;
-		} data[] = {
-			{ BLUEZ_ENDPOINT_A2DP_SBC_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_SBC_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG12_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_MPEG24_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
-			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE },
-			{ BLUEZ_ENDPOINT_A2DP_ATRAC_SINK, BLUETOOTH_PROFILE_A2DP_SINK },
-			{ BLUEZ_PROFILE_HSP_HS, BLUETOOTH_PROFILE_HSP_HS },
-			{ BLUEZ_PROFILE_HSP_AG, BLUETOOTH_PROFILE_HSP_AG },
-			{ BLUEZ_PROFILE_HFP_HF, BLUETOOTH_PROFILE_HFP_HF },
-			{ BLUEZ_PROFILE_HFP_AG, BLUETOOTH_PROFILE_HFP_AG },
-		};
-
-		profiles = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
-		for (i = 0; i < sizeof(data) / sizeof(struct profile_data); i++)
-			g_hash_table_insert(profiles, data[i].endpoint, GINT_TO_POINTER(data[i].profile));
-
+	if (strncmp(path, "/A2DP", 5) == 0) {
+		if (strstr(path + 5, "/Source") != NULL)
+			return BLUETOOTH_PROFILE_A2DP_SOURCE;
+		if (strstr(path + 5, "/Sink") != NULL)
+			return BLUETOOTH_PROFILE_A2DP_SINK;
 	}
+	if (strncmp(path, "/HSP", 4) == 0) {
+		if (strcmp(path + 4, "/Headset") == 0)
+			return BLUETOOTH_PROFILE_HSP_HS;
+		if (strcmp(path + 4, "/AudioGateway") == 0)
+			return BLUETOOTH_PROFILE_HSP_AG;
+	}
+	if (strncmp(path, "/HFP", 4) == 0) {
+		if (strcmp(path + 4, "/HandsFree") == 0)
+			return BLUETOOTH_PROFILE_HFP_HF;
+		if (strcmp(path + 4, "/AudioGateway") == 0)
+			return BLUETOOTH_PROFILE_HFP_AG;
+	}
+	return BLUETOOTH_PROFILE_NULL;
+}
 
-	return GPOINTER_TO_INT(g_hash_table_lookup(profiles, path));
+/**
+ * Convert BlueZ D-Bus object path into a A2DP codec.
+ *
+ * Prior to the usage, make sure, that the path is for the A2DP profile.
+ * To do so, use the g_dbus_object_path_to_profile() function.
+ *
+ * @param path BlueZ D-Bus object path.
+ * @return On success this function returns Bluetooth profile. If object
+ *   path cannot be recognize, vendor codec is returned. */
+unsigned char g_dbus_object_path_to_a2dp_codec(const char *path) {
+	if (strncmp(path + 5, "/SBC", 4) == 0)
+		return A2DP_CODEC_SBC;
+#if ENABLE_MP3
+	if (strncmp(path + 5, "/MPEG12", 7) == 0)
+		return A2DP_CODEC_MPEG12;
+#endif
+#if ENABLE_AAC
+	if (strncmp(path + 5, "/MPEG24", 7) == 0)
+		return A2DP_CODEC_MPEG24;
+#endif
+	return A2DP_CODEC_VENDOR;
 }
 
 /**
@@ -298,8 +361,7 @@ fail:
  * @param profile Bluetooth profile.
  * @param codec Bluetooth profile audio codec.
  * @return Human-readable string. */
-const char *bluetooth_profile_to_string(enum bluetooth_profile profile,
-		uint8_t codec) {
+const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint8_t codec) {
 	switch (profile) {
 	case BLUETOOTH_PROFILE_NULL:
 		return "N/A";
@@ -307,20 +369,28 @@ const char *bluetooth_profile_to_string(enum bluetooth_profile profile,
 		switch (codec) {
 		case A2DP_CODEC_SBC:
 			return "A2DP Source (SBC)";
+#if ENABLE_MP3
 		case A2DP_CODEC_MPEG12:
 			return "A2DP Source (MP3)";
+#endif
+#if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			return "A2DP Source (AAC)";
+#endif
 		}
 		return "A2DP Source";
 	case BLUETOOTH_PROFILE_A2DP_SINK:
 		switch (codec) {
 		case A2DP_CODEC_SBC:
 			return "A2DP Sink (SBC)";
+#if ENABLE_MP3
 		case A2DP_CODEC_MPEG12:
 			return "A2DP Sink (MP3)";
+#endif
+#if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			return "A2DP Sink (AAC)";
+#endif
 		}
 		return "A2DP Sink";
 	case BLUETOOTH_PROFILE_HSP_HS:
@@ -456,7 +526,7 @@ const char *aacdec_strerror(AAC_DECODER_ERROR err) {
 	case AAC_DEC_TOO_MANY_ANC_ELEMENTS:
 		return "Too many ancillary elements";
 	default:
-		debug("Unknown error code: %x", err);
+		debug("Unknown error code: 0x%x", err);
 		return "Unknown error";
 	}
 }
@@ -495,7 +565,7 @@ const char *aacenc_strerror(AACENC_ERROR err) {
 	case AACENC_ENCODE_EOF:
 		return "End of file";
 	default:
-		debug("Unknown error code: %x", err);
+		debug("Unknown error code: 0x%x", err);
 		return "Unknown error";
 	}
 }

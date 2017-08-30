@@ -44,7 +44,7 @@ static int io_thread_create(struct ba_transport *t) {
 			case A2DP_CODEC_SBC:
 				routine = io_thread_a2dp_source_sbc;
 				break;
-#if 0
+#if ENABLE_MP3
 			case A2DP_CODEC_MPEG12:
 				break;
 #endif
@@ -61,7 +61,7 @@ static int io_thread_create(struct ba_transport *t) {
 			case A2DP_CODEC_SBC:
 				routine = io_thread_a2dp_sink_sbc;
 				break;
-#if 0
+#if ENABLE_MP3
 			case A2DP_CODEC_MPEG12:
 				break;
 #endif
@@ -559,7 +559,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 			case HFP_CODEC_MSBC:
 				return 16000;
 			default:
-				debug("Unsupported SCO codec: %x", t->codec);
+				debug("Unsupported SCO codec: 0x%x", t->codec);
 		}
 	}
 

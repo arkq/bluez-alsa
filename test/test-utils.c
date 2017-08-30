@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,6 +11,49 @@
 #include "inc/test.inc"
 #include "../src/utils.c"
 #include "../src/shared/rt.c"
+
+int test_dbus_profile_object_path(void) {
+
+	static const struct {
+		enum bluetooth_profile profile;
+		int8_t codec;
+		const char *path;
+	} profiles[] = {
+		/* test null/invalid path */
+		{ BLUETOOTH_PROFILE_NULL, -1, "/" },
+		{ BLUETOOTH_PROFILE_NULL, -1, "/Invalid" },
+		/* test A2DP profiles */
+		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source" },
+		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source/1" },
+		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source/2" },
+		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC, "/A2DP/SBC/Sink" },
+#if ENABLE_MP3
+		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG12, "/A2DP/MPEG12/Source" },
+		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG12, "/A2DP/MPEG12/Sink" },
+#endif
+#if ENABLE_AAC
+		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG24, "/A2DP/MPEG24/Source" },
+		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG24, "/A2DP/MPEG24/Sink" },
+#endif
+		/* test HSP/HFP profiles */
+		{ BLUETOOTH_PROFILE_HSP_HS, -1, "/HSP/Headset" },
+		{ BLUETOOTH_PROFILE_HSP_AG, -1, "/HSP/AudioGateway" },
+		{ BLUETOOTH_PROFILE_HFP_HF, -1, "/HFP/HandsFree" },
+		{ BLUETOOTH_PROFILE_HFP_AG, -1, "/HFP/AudioGateway" },
+	};
+
+	size_t i;
+
+	for (i = 0; i < sizeof(profiles) / sizeof(*profiles); i++) {
+		const char *path = g_dbus_get_profile_object_path(profiles[i].profile, profiles[i].codec);
+		assert(strstr(profiles[i].path, path) == profiles[i].path);
+		assert(g_dbus_object_path_to_profile(profiles[i].path) == profiles[i].profile);
+		if (profiles[i].codec != -1)
+			assert(g_dbus_object_path_to_a2dp_codec(profiles[i].path) == profiles[i].codec);
+	}
+
+	return 0;
+}
 
 int test_pcm_scale_s16le(void) {
 
@@ -86,6 +129,7 @@ int test_difftimespec(void) {
 
 int main(void) {
 
+	test_run(test_dbus_profile_object_path);
 	test_run(test_pcm_scale_s16le);
 	test_run(test_difftimespec);
 

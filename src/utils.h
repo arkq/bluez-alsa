@@ -29,11 +29,12 @@ int a2dp_sbc_default_bitpool(int freq, int mode);
 int hci_devlist(struct hci_dev_info **di, int *num);
 int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba, bool transparent);
 
-const char *bluetooth_profile_to_string(enum bluetooth_profile profile,
-		uint8_t codec);
+const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint8_t codec);
 const char *batostr_(const bdaddr_t *ba);
 
+const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint8_t codec);
 enum bluetooth_profile g_dbus_object_path_to_profile(const char *path);
+unsigned char g_dbus_object_path_to_a2dp_codec(const char *path);
 int g_dbus_device_path_to_bdaddr(const char *path, bdaddr_t *addr);
 
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,

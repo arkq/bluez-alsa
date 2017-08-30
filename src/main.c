@@ -214,8 +214,7 @@ int main(int argc, char **argv) {
 
 	bluez_subscribe_signals();
 
-	if (config.enable_a2dp)
-		bluez_register_a2dp();
+	bluez_register_a2dp();
 	bluez_register_hfp();
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };

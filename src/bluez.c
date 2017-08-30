@@ -19,11 +19,28 @@
 
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
+#include "bluez-a2dp.h"
 #include "bluez-iface.h"
 #include "transport.h"
 #include "utils.h"
 #include "shared/log.h"
 
+
+/**
+ * Get D-Bus object reference count for given profile. */
+static int bluez_get_dbus_object_count(enum bluetooth_profile profile, unsigned char codec) {
+
+	GHashTableIter iter;
+	struct ba_dbus_object *obj;
+	int count = 0;
+
+	g_hash_table_iter_init(&iter, config.dbus_objects);
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&obj))
+		if (obj->profile == profile && obj->codec == codec && obj->connected)
+			count++;
+
+	return count;
+}
 
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
@@ -40,8 +57,8 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	capabilities = g_memdup(data, size);
 	g_variant_unref(params);
 
-	if (strcmp(path, BLUEZ_ENDPOINT_A2DP_SBC_SOURCE) == 0 ||
-			strcmp(path, BLUEZ_ENDPOINT_A2DP_SBC_SINK) == 0) {
+	switch (g_dbus_object_path_to_a2dp_codec(path)) {
+	case A2DP_CODEC_SBC: {
 
 		if (size != sizeof(a2dp_sbc_t)) {
 			error("Invalid capabilities size: %zu != %zu", size, sizeof(a2dp_sbc_t));
@@ -117,10 +134,11 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		cap->min_bitpool = MAX(MIN_BITPOOL, cap->min_bitpool);
 		cap->max_bitpool = MIN(bitpool, cap->max_bitpool);
 
+		break;
 	}
+
 #if ENABLE_AAC
-	else if (strcmp(path, BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE) == 0 ||
-			strcmp(path, BLUEZ_ENDPOINT_A2DP_MPEG24_SINK) == 0) {
+	case A2DP_CODEC_MPEG24: {
 
 		if (size != sizeof(a2dp_aac_t)) {
 			error("Invalid capabilities size: %zu != %zu", size, sizeof(a2dp_aac_t));
@@ -187,9 +205,11 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
+		break;
 	}
 #endif
-	else {
+
+	default:
 		debug("Endpoint path not supported: %s", path);
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_UNKNOWN_OBJECT, "Not supported");
@@ -213,7 +233,7 @@ final:
 	g_free(capabilities);
 }
 
-static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
+static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
 
 	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
@@ -223,7 +243,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	struct ba_device *d;
 
 	const int profile = g_dbus_object_path_to_profile(path);
-	int codec = -1;
+	const uint8_t codec = g_dbus_object_path_to_a2dp_codec(path);
 
 	const char *transport;
 	char *device = NULL, *state = NULL;
@@ -231,6 +251,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	uint16_t volume = 127;
 	uint16_t delay = 150;
 	size_t size = 0;
+	int ret = 0;
 
 	GVariantIter *properties;
 	GVariant *value = NULL;
@@ -267,7 +288,10 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				goto fail;
 			}
 
-			codec = g_variant_get_byte(value);
+			if (codec != g_variant_get_byte(value)) {
+				error("Invalid configuration: %s", "Codec mismatch");
+				goto fail;
+			}
 
 		}
 		else if (strcmp(key, "Configuration") == 0) {
@@ -283,14 +307,15 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			capabilities = g_variant_get_fixed_array(value, &size, sizeof(uint8_t));
 			configuration = g_memdup(capabilities, size);
 
-			if (codec == A2DP_CODEC_SBC) {
+			switch (codec) {
+			case A2DP_CODEC_SBC: {
 
 				if (size != sizeof(a2dp_sbc_t)) {
 					error("Invalid configuration: %s", "Invalid size");
 					goto fail;
 				}
 
-				a2dp_sbc_t *cap = (a2dp_sbc_t *)capabilities;
+				const a2dp_sbc_t *cap = (a2dp_sbc_t *)capabilities;
 
 				if (cap->frequency != SBC_SAMPLING_FREQ_16000 &&
 						cap->frequency != SBC_SAMPLING_FREQ_32000 &&
@@ -328,16 +353,18 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 					goto fail;
 				}
 
+				break;
 			}
+
 #if ENABLE_AAC
-			else if (codec == A2DP_CODEC_MPEG24) {
+			case A2DP_CODEC_MPEG24: {
 
 				if (size != sizeof(a2dp_aac_t)) {
 					error("Invalid configuration: %s", "Invalid size");
 					goto fail;
 				}
 
-				a2dp_aac_t *cap = (a2dp_aac_t *)capabilities;
+				const a2dp_aac_t *cap = (a2dp_aac_t *)capabilities;
 
 				if (cap->object_type != AAC_OBJECT_TYPE_MPEG2_AAC_LC &&
 						cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_LC &&
@@ -370,8 +397,14 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 					goto fail;
 				}
 
+				break;
 			}
 #endif
+
+			default:
+				error("Invalid configuration: %s", "Unsupported codec");
+				goto fail;
+			}
 
 		}
 		else if (strcmp(key, "State") == 0) {
@@ -447,6 +480,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 fail:
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 			G_DBUS_ERROR_INVALID_ARGS, "Unable to set configuration");
+	ret = -1;
 
 final:
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -456,6 +490,7 @@ final:
 	g_free(device);
 	g_free(configuration);
 	g_free(state);
+	return ret;
 }
 
 static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void *userdata) {
@@ -478,15 +513,14 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
 	const char *path = g_dbus_method_invocation_get_object_path(inv);
-	unsigned int hash;
-	guint id;
+	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+	struct ba_dbus_object *obj;
 
 	debug("Releasing endpoint: %s", path);
 
-	hash = g_str_hash(path);
-	if ((id = GPOINTER_TO_INT(g_hash_table_lookup(config.dbus_objects, GINT_TO_POINTER(hash)))) != 0) {
-		g_hash_table_remove(config.dbus_objects, GINT_TO_POINTER(hash));
-		g_dbus_connection_unregister_object(conn, id);
+	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
+		g_hash_table_remove(config.dbus_objects, hash);
+		g_dbus_connection_unregister_object(conn, obj->id);
 	}
 
 	g_object_unref(inv);
@@ -497,18 +531,28 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sende
 		GDBusMethodInvocation *invocation, void *userdata) {
 	(void)conn;
 	(void)sender;
-	(void)path;
 	(void)interface;
 	(void)params;
 
+	struct ba_dbus_object *obj;
+
 	debug("Endpoint method call: %s.%s()", interface, method);
+
+	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+	obj = g_hash_table_lookup(config.dbus_objects, hash);
 
 	if (strcmp(method, "SelectConfiguration") == 0)
 		bluez_endpoint_select_configuration(invocation, userdata);
-	else if (strcmp(method, "SetConfiguration") == 0)
-		bluez_endpoint_set_configuration(invocation, userdata);
-	else if (strcmp(method, "ClearConfiguration") == 0)
+	else if (strcmp(method, "SetConfiguration") == 0) {
+		if (bluez_endpoint_set_configuration(invocation, userdata) == 0) {
+			obj->connected = true;
+			bluez_register_a2dp();
+		}
+	}
+	else if (strcmp(method, "ClearConfiguration") == 0) {
 		bluez_endpoint_clear_configuration(invocation, userdata);
+		obj->connected = false;
+	}
 	else if (strcmp(method, "Release") == 0)
 		bluez_endpoint_release(invocation, userdata);
 	else
@@ -525,231 +569,115 @@ static const GDBusInterfaceVTable endpoint_vtable = {
 };
 
 /**
- * Register A2DP endpoints.
+ * Register A2DP endpoint.
  *
+ * @param uuid
+ * @param profile
+ * @param codec
+ * @param configuration
+ * @param configuration_size
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_a2dp(void) {
+static int bluez_register_a2dp_endpoint(
+		const char *uuid,
+		enum bluetooth_profile profile,
+		unsigned char codec,
+		const void *configuration,
+		size_t configuration_size) {
 
-	static const a2dp_sbc_t a2dp_sbc = {
-		.frequency =
-			SBC_SAMPLING_FREQ_16000 |
-			SBC_SAMPLING_FREQ_32000 |
-			SBC_SAMPLING_FREQ_44100 |
-			SBC_SAMPLING_FREQ_48000,
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
-		.block_length =
-			SBC_BLOCK_LENGTH_4 |
-			SBC_BLOCK_LENGTH_8 |
-			SBC_BLOCK_LENGTH_12 |
-			SBC_BLOCK_LENGTH_16,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.min_bitpool = MIN_BITPOOL,
-		.max_bitpool = MAX_BITPOOL,
-	};
+	gchar *path = g_strdup_printf("%s/%d",
+		g_dbus_get_profile_object_path(profile, codec),
+		bluez_get_dbus_object_count(profile, codec) + 1);
+	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
 
-#if 0
-	static const a2dp_mpeg_t a2dp_mpeg = {
-		.layer =
-			MPEG_LAYER_MP1 |
-			MPEG_LAYER_MP2 |
-			MPEG_LAYER_MP3,
-		.crc = 1,
-		.channel_mode =
-			MPEG_CHANNEL_MODE_MONO |
-			MPEG_CHANNEL_MODE_DUAL_CHANNEL |
-			MPEG_CHANNEL_MODE_STEREO |
-			MPEG_CHANNEL_MODE_JOINT_STEREO,
-		.mpf = 1,
-		.frequency =
-			MPEG_SAMPLING_FREQ_16000 |
-			MPEG_SAMPLING_FREQ_22050 |
-			MPEG_SAMPLING_FREQ_24000 |
-			MPEG_SAMPLING_FREQ_32000 |
-			MPEG_SAMPLING_FREQ_44100 |
-			MPEG_SAMPLING_FREQ_48000,
-		.bitrate =
-			MPEG_BIT_RATE_VBR |
-			MPEG_BIT_RATE_320000 |
-			MPEG_BIT_RATE_256000 |
-			MPEG_BIT_RATE_224000 |
-			MPEG_BIT_RATE_192000 |
-			MPEG_BIT_RATE_160000 |
-			MPEG_BIT_RATE_128000 |
-			MPEG_BIT_RATE_112000 |
-			MPEG_BIT_RATE_96000 |
-			MPEG_BIT_RATE_80000 |
-			MPEG_BIT_RATE_64000 |
-			MPEG_BIT_RATE_56000 |
-			MPEG_BIT_RATE_48000 |
-			MPEG_BIT_RATE_40000 |
-			MPEG_BIT_RATE_32000 |
-			MPEG_BIT_RATE_FREE,
-	};
-#endif
-
-#if ENABLE_AAC
-	static const a2dp_aac_t a2dp_aac = {
-		.object_type =
-			/* NOTE: AAC Long Term Prediction and AAC Scalable are
-			 *       not supported by the FDK-AAC library. */
-			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
-			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
-		AAC_INIT_FREQUENCY(
-			AAC_SAMPLING_FREQ_8000 |
-			AAC_SAMPLING_FREQ_11025 |
-			AAC_SAMPLING_FREQ_12000 |
-			AAC_SAMPLING_FREQ_16000 |
-			AAC_SAMPLING_FREQ_22050 |
-			AAC_SAMPLING_FREQ_24000 |
-			AAC_SAMPLING_FREQ_32000 |
-			AAC_SAMPLING_FREQ_44100 |
-			AAC_SAMPLING_FREQ_48000 |
-			AAC_SAMPLING_FREQ_64000 |
-			AAC_SAMPLING_FREQ_88200 |
-			AAC_SAMPLING_FREQ_96000)
-		.channels =
-			AAC_CHANNELS_1 |
-			AAC_CHANNELS_2,
-		.vbr = 1,
-		AAC_INIT_BITRATE(0xFFFF)
-	};
-#endif
-
-	static const struct endpoint {
-		const char *uuid;
-		const char *endpoint;
-		uint8_t codec;
-		const void *config;
-		size_t config_size;
-	} endpoints[] = {
-#if ENABLE_AAC
-		{
-			BLUETOOTH_UUID_A2DP_SOURCE,
-			BLUEZ_ENDPOINT_A2DP_MPEG24_SOURCE,
-			A2DP_CODEC_MPEG24,
-			&a2dp_aac,
-			sizeof(a2dp_aac),
-		},
-#endif
-#if 0
-		{
-			BLUETOOTH_UUID_A2DP_SOURCE,
-			BLUEZ_ENDPOINT_A2DP_MPEG12_SOURCE,
-			A2DP_CODEC_MPEG12,
-			&a2dp_mpeg,
-			sizeof(a2dp_mpeg),
-		},
-#endif
-		{
-			BLUETOOTH_UUID_A2DP_SOURCE,
-			BLUEZ_ENDPOINT_A2DP_SBC_SOURCE,
-			A2DP_CODEC_SBC,
-			&a2dp_sbc,
-			sizeof(a2dp_sbc),
-		},
-#if ENABLE_AAC
-		{
-			BLUETOOTH_UUID_A2DP_SINK,
-			BLUEZ_ENDPOINT_A2DP_MPEG24_SINK,
-			A2DP_CODEC_MPEG24,
-			&a2dp_aac,
-			sizeof(a2dp_aac),
-		},
-#endif
-#if 0
-		{
-			BLUETOOTH_UUID_A2DP_SINK,
-			BLUEZ_ENDPOINT_A2DP_MPEG12_SINK,
-			A2DP_CODEC_MPEG12,
-			&a2dp_mpeg,
-			sizeof(a2dp_mpeg),
-		},
-#endif
-		{
-			BLUETOOTH_UUID_A2DP_SINK,
-			BLUEZ_ENDPOINT_A2DP_SBC_SINK,
-			A2DP_CODEC_SBC,
-			&a2dp_sbc,
-			sizeof(a2dp_sbc),
-		},
-	};
-
-	GDBusConnection *conn = config.dbus;
-	char *path;
-	size_t i;
-
-	path = g_strdup_printf("/org/bluez/%s", config.hci_dev.name);
-
-	for (i = 0; i < sizeof(endpoints) / sizeof(struct endpoint); i++) {
-
-		GDBusMessage *msg = NULL, *rep = NULL;
-		GError *err = NULL;
-		unsigned int hash;
-		guint id;
-
-		debug("Registering endpoint: %s: %s", endpoints[i].uuid, endpoints[i].endpoint);
-
-		hash = g_str_hash(endpoints[i].endpoint);
-		if (g_hash_table_contains(config.dbus_objects, GINT_TO_POINTER(hash))) {
-			debug("Endpoint already registered");
-			continue;
-		}
-
-		if ((id = g_dbus_connection_register_object(conn, endpoints[i].endpoint,
-						(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
-						NULL, endpoint_free, &err)) == 0)
-			goto fail;
-
-		msg = g_dbus_message_new_method_call("org.bluez", path,
-				"org.bluez.Media1", "RegisterEndpoint");
-
-		GVariantBuilder *properties = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
-		GVariantBuilder *caps = g_variant_builder_new(G_VARIANT_TYPE("ay"));
-		size_t ii;
-
-		for (ii = 0; ii < endpoints[i].config_size; ii++)
-			g_variant_builder_add(caps, "y", ((uint8_t *)endpoints[i].config)[ii]);
-
-		g_variant_builder_add(properties, "{sv}", "UUID", g_variant_new_string(endpoints[i].uuid));
-		g_variant_builder_add(properties, "{sv}", "Codec", g_variant_new_byte(endpoints[i].codec));
-		g_variant_builder_add(properties, "{sv}", "Capabilities", g_variant_new("ay", caps));
-
-		g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", endpoints[i].endpoint, properties));
-
-		if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-			goto fail;
-
-		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-			g_dbus_message_to_gerror(rep, &err);
-			goto fail;
-		}
-
-		g_hash_table_insert(config.dbus_objects, GINT_TO_POINTER(hash), GINT_TO_POINTER(id));
-
-fail:
-		if (msg != NULL)
-			g_object_unref(msg);
-		if (rep != NULL)
-			g_object_unref(rep);
-		if (err != NULL) {
-			warn("Couldn't register endpoint: %s", err->message);
-			g_dbus_connection_unregister_object(conn, id);
-			g_error_free(err);
-		}
+	if (g_hash_table_contains(config.dbus_objects, hash)) {
+		debug("Endpoint already registered: %s", path);
+		g_free(path);
+		return 0;
 	}
 
+	GDBusConnection *conn = config.dbus;
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+	gchar *dev = NULL;
+	int ret = 0;
+	size_t i;
+
+	struct ba_dbus_object dbus_object = {
+		.profile = profile,
+		.codec = codec,
+	};
+
+	debug("Registering endpoint: %s", path);
+	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
+					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
+					NULL, endpoint_free, &err)) == 0)
+		goto fail;
+
+	dev = g_strdup_printf("/org/bluez/%s", config.hci_dev.name);
+	msg = g_dbus_message_new_method_call("org.bluez", dev,
+			"org.bluez.Media1", "RegisterEndpoint");
+
+	GVariantBuilder *properties = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+	GVariantBuilder *caps = g_variant_builder_new(G_VARIANT_TYPE("ay"));
+
+	for (i = 0; i < configuration_size; i++)
+		g_variant_builder_add(caps, "y", ((uint8_t *)configuration)[i]);
+
+	g_variant_builder_add(properties, "{sv}", "UUID", g_variant_new_string(uuid));
+	g_variant_builder_add(properties, "{sv}", "Codec", g_variant_new_byte(codec));
+	g_variant_builder_add(properties, "{sv}", "Capabilities", g_variant_new("ay", caps));
+
+	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", path, properties));
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+	g_hash_table_insert(config.dbus_objects, hash,
+			g_memdup(&dbus_object, sizeof(dbus_object)));
+
+	goto final;
+
+fail:
+	ret = -1;
+
+final:
 	g_free(path);
-	return 0;
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (dev != NULL)
+		g_free(dev);
+	if (err != NULL) {
+		warn("Couldn't register endpoint: %s", err->message);
+		g_dbus_connection_unregister_object(conn, dbus_object.id);
+		g_error_free(err);
+	}
+
+	return ret;
+}
+
+/**
+ * Register A2DP endpoints. */
+void bluez_register_a2dp(void) {
+	if (!config.enable_a2dp)
+		return;
+#if ENABLE_AAC
+	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
+			A2DP_CODEC_MPEG24, &bluez_a2dp_aac, sizeof(bluez_a2dp_aac));
+	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BLUETOOTH_PROFILE_A2DP_SINK,
+			A2DP_CODEC_MPEG24, &bluez_a2dp_aac, sizeof(bluez_a2dp_aac));
+#endif
+	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
+			A2DP_CODEC_SBC, &bluez_a2dp_sbc, sizeof(bluez_a2dp_sbc));
+	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BLUETOOTH_PROFILE_A2DP_SINK,
+			A2DP_CODEC_SBC, &bluez_a2dp_sbc, sizeof(bluez_a2dp_sbc));
 }
 
 static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userdata) {
@@ -830,15 +758,14 @@ static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
 	const char *path = g_dbus_method_invocation_get_object_path(inv);
-	unsigned int hash;
-	guint id;
+	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+	struct ba_dbus_object *obj;
 
 	debug("Releasing profile: %s", path);
 
-	hash = g_str_hash(path);
-	if ((id = GPOINTER_TO_INT(g_hash_table_lookup(config.dbus_objects, GINT_TO_POINTER(hash)))) != 0) {
-		g_hash_table_remove(config.dbus_objects, GINT_TO_POINTER(hash));
-		g_dbus_connection_unregister_object(conn, id);
+	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
+		g_hash_table_remove(config.dbus_objects, hash);
+		g_dbus_connection_unregister_object(conn, obj->id);
 	}
 
 	g_object_unref(inv);
@@ -875,112 +802,101 @@ static const GDBusInterfaceVTable profile_vtable = {
 };
 
 /**
+ * Register Bluetooth Audio Profile.
+ *
+ * @param uuid
+ * @param profile
+ * @param version
+ * @param features
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+static int bluez_register_profile(
+		const char *uuid,
+		enum bluetooth_profile profile,
+		uint16_t version,
+		uint16_t features) {
+
+	const char *path = g_dbus_get_profile_object_path(profile, -1);
+	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+
+	if (g_hash_table_contains(config.dbus_objects, hash)) {
+		debug("Profile already registered: %s", path);
+		return 0;
+	}
+
+	GDBusConnection *conn = config.dbus;
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+	int ret = 0;
+
+	struct ba_dbus_object dbus_object = {
+		.profile = profile,
+		.codec = 0,
+	};
+
+	debug("Registering profile: %s", path);
+	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
+					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
+					NULL, profile_free, &err)) == 0)
+		goto fail;
+
+	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
+			"org.bluez.ProfileManager1", "RegisterProfile");
+
+	GVariantBuilder *options = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+
+	if (version)
+		g_variant_builder_add(options, "{sv}", "Version", g_variant_new_uint16(version));
+	if (features)
+		g_variant_builder_add(options, "{sv}", "Features", g_variant_new_uint16(features));
+
+	g_dbus_message_set_body(msg, g_variant_new("(osa{sv})", path, uuid, options));
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+	g_hash_table_insert(config.dbus_objects, hash,
+			g_memdup(&dbus_object, sizeof(dbus_object)));
+
+	goto final;
+
+fail:
+	ret = -1;
+
+final:
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		warn("Couldn't register profile: %s", err->message);
+		g_dbus_connection_unregister_object(conn, dbus_object.id);
+		g_error_free(err);
+	}
+
+	return ret;
+}
+
+/**
  * Register Bluetooth Hands-Free Audio Profiles.
  *
  * This function also registers deprecated HSP profile. Profiles registration
  * is controlled by the global configuration structure - if none is enabled,
- * this function will do nothing.
- *
- * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_register_hfp(void) {
-
-	static const struct profile {
-		bool *enabled;
-		const char *uuid;
-		const char *endpoint;
-		uint16_t version;
-		uint16_t features;
-	} profiles[] = {
-		{ &config.enable_hsp,
-			BLUETOOTH_UUID_HSP_HS,
-			BLUEZ_PROFILE_HSP_HS,
-			0x0,
-			0x0,
-		},
-		{ &config.enable_hsp,
-			BLUETOOTH_UUID_HSP_AG,
-			BLUEZ_PROFILE_HSP_AG,
-			0x0,
-			0x0,
-		},
-		{ &config.enable_hfp,
-			BLUETOOTH_UUID_HFP_HF,
-			BLUEZ_PROFILE_HFP_HF,
-			0x0107,
-			0x0,
-		},
-		{ &config.enable_hfp,
-			BLUETOOTH_UUID_HFP_AG,
-			BLUEZ_PROFILE_HFP_AG,
-			0x0107,
-			0x0,
-		},
-	};
-
-	GDBusConnection *conn = config.dbus;
-	size_t i;
-
-	for (i = 0; i < sizeof(profiles) / sizeof(struct profile); i++) {
-
-		/* skip registration if profile is not enabled */
-		if (!*profiles[i].enabled)
-			continue;
-
-		GDBusMessage *msg = NULL, *rep = NULL;
-		GError *err = NULL;
-		unsigned int hash;
-		guint id;
-
-		debug("Registering profile: %s: %s", profiles[i].uuid, profiles[i].endpoint);
-
-		hash = g_str_hash(profiles[i].endpoint);
-		if (g_hash_table_contains(config.dbus_objects, GINT_TO_POINTER(hash))) {
-			debug("Profile already registered");
-			continue;
-		}
-
-		if ((id = g_dbus_connection_register_object(conn, profiles[i].endpoint,
-						(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
-						NULL, profile_free, &err)) == 0)
-			goto fail;
-
-		msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
-				"org.bluez.ProfileManager1", "RegisterProfile");
-
-		GVariantBuilder *options = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
-
-		if (profiles[i].version)
-			g_variant_builder_add(options, "{sv}", "Version", g_variant_new_uint16(profiles[i].version));
-		if (profiles[i].features)
-			g_variant_builder_add(options, "{sv}", "Features", g_variant_new_uint16(profiles[i].features));
-
-		g_dbus_message_set_body(msg, g_variant_new("(osa{sv})",
-					profiles[i].endpoint, profiles[i].uuid, options));
-
-		if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-			goto fail;
-
-		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-			g_dbus_message_to_gerror(rep, &err);
-			goto fail;
-		}
-
-		g_hash_table_insert(config.dbus_objects, GINT_TO_POINTER(hash), GINT_TO_POINTER(id));
-
-fail:
-		if (msg != NULL)
-			g_object_unref(msg);
-		if (rep != NULL)
-			g_object_unref(rep);
-		if (err != NULL) {
-			warn("Couldn't register profile: %s", err->message);
-			g_dbus_connection_unregister_object(conn, id);
-			g_error_free(err);
-		}
+ * this function will do nothing. */
+void bluez_register_hfp(void) {
+	if (config.enable_hsp) {
+		bluez_register_profile(BLUETOOTH_UUID_HSP_HS, BLUETOOTH_PROFILE_HSP_HS, 0x0, 0x0);
+		bluez_register_profile(BLUETOOTH_UUID_HSP_AG, BLUETOOTH_PROFILE_HSP_AG, 0x0, 0x0);
 	}
-
-	return 0;
+	if (config.enable_hfp) {
+		bluez_register_profile(BLUETOOTH_UUID_HFP_HF, BLUETOOTH_PROFILE_HFP_HF, 0x0107, 0x0);
+		bluez_register_profile(BLUETOOTH_UUID_HFP_AG, BLUETOOTH_PROFILE_HFP_AG, 0x0107, 0x0);
+	}
 }
 
 static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,

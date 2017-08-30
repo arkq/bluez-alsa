@@ -25,6 +25,8 @@
 #include <glib.h>
 #include <gio/gio.h>
 
+#include "bluez.h"
+
 /* Maximal number of clients connected to the controller. */
 #define BLUEALSA_MAX_CLIENTS 7
 
@@ -87,6 +89,16 @@ struct ba_config {
 	 * of this control type is a monophonic volume change. */
 	bool a2dp_volume;
 
+};
+
+/* Structure describing registered D-Bus object. */
+struct ba_dbus_object {
+	/* D-Bus object registration ID */
+	unsigned int id;
+	enum bluetooth_profile profile;
+	unsigned char codec;
+	/* determine whether profile is used */
+	bool connected;
 };
 
 /* Global BlueALSA configuration. */
