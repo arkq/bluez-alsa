@@ -975,6 +975,9 @@ fail_open:
 void *io_thread_sco(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+
 	/* this buffer has to be bigger than SCO MTU */
 	const size_t buffer_size = 512;
 	int16_t *buffer = malloc(buffer_size);
@@ -996,6 +999,7 @@ void *io_thread_sco(void *arg) {
 	debug("Starting IO loop: %s",
 			bluetooth_profile_to_string(t->profile, t->codec));
 	for (;;) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		pfds[1].fd = t->sco.mic_pcm.fd != -1 ? t->bt_fd : -1;
 		pfds[2].fd = t->sco.spk_pcm.fd;
@@ -1004,6 +1008,8 @@ void *io_thread_sco(void *arg) {
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
@@ -1102,6 +1108,8 @@ retry_sco:
 	}
 
 fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
