@@ -183,8 +183,9 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint8
 	case BLUETOOTH_PROFILE_HFP_AG:
 		return "/HFP/AudioGateway";
 	case BLUETOOTH_PROFILE_NULL:
-		return "/";
+		break;
 	}
+	return "/";
 }
 
 /**

@@ -230,7 +230,7 @@ static void *pcm_worker_routine(void *arg) {
 
 	ssize_t frame_size = snd_pcm_frames_to_bytes(w->pcm, 1);
 	buffer = malloc(period_size * frame_size);
-	char *buffer_head = buffer;
+	char *buffer_tail = buffer;
 
 	if (buffer == NULL) {
 		error("Couldn't allocate PCM buffer");
@@ -254,7 +254,7 @@ static void *pcm_worker_routine(void *arg) {
 	while (main_loop_on) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		size_t buffer_len = period_size * frame_size - (buffer_head - buffer);
+		size_t buffer_len = period_size * frame_size - (buffer_tail - buffer);
 		ssize_t ret;
 
 		/* Reading from the FIFO won't block unless there is an open connection
@@ -268,7 +268,7 @@ static void *pcm_worker_routine(void *arg) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
-		if ((ret = read(w->pcm_fd, buffer_head, buffer_len)) == -1) {
+		if ((ret = read(w->pcm_fd, buffer_tail, buffer_len)) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("PCM FIFO read error: %s", strerror(errno));
@@ -278,7 +278,7 @@ static void *pcm_worker_routine(void *arg) {
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		/* calculate the overall number of frames in the buffer */
-		snd_pcm_uframes_t frames = ((buffer_head - buffer) + ret) / frame_size;
+		snd_pcm_uframes_t frames = ((buffer_tail - buffer) + ret) / frame_size;
 
 		if ((err = snd_pcm_writei(w->pcm, buffer, frames)) < 0)
 			switch (-err) {
@@ -294,12 +294,12 @@ static void *pcm_worker_routine(void *arg) {
 			}
 
 		size_t writei_len = err * frame_size;
-		buffer_head = buffer;
+		buffer_tail = buffer;
 
-		/* move leftovers to the beginning and reposition head */
+		/* move leftovers to the beginning and reposition tail */
 		if ((size_t)ret > writei_len) {
 			memmove(buffer, buffer + writei_len, ret - writei_len);
-			buffer_head += ret - writei_len;
+			buffer_tail += ret - writei_len;
 		}
 
 	}

@@ -118,7 +118,7 @@ static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t sa
 
 	uint8_t *head = (uint8_t *)buffer;
 	size_t len = samples * sizeof(int16_t);
-	ssize_t ret;
+	ssize_t ret = 1;  /* allow "reading" zero samples */
 
 	/* This call will block until data arrives. If the passed file descriptor
 	 * is invalid (e.g. -1) is means, that other thread (the controller) has
@@ -394,8 +394,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	rtp_payload = (rtp_payload_sbc_t *)&rtp_header->csrc[rtp_header->cc];
 	memset(rtp_payload, 0, sizeof(*rtp_payload));
 
-	/* reading head position and available read length */
-	int16_t *in_buffer_head = in_buffer;
+	/* buffer tail position and available capacity */
+	int16_t *in_buffer_tail = in_buffer;
 	size_t in_samples = in_buffer_size / sizeof(int16_t);
 
 	struct asrsync asrs = { .frames = 0 };
@@ -428,7 +428,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_head, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_tail, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			goto fail;
@@ -445,10 +445,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 		if (!config.a2dp_volume)
 			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, in_buffer_head, samples, channels);
+			io_thread_scale_pcm(t, in_buffer_tail, samples, channels);
 
 		/* overall input buffer size */
-		samples += in_buffer_head - in_buffer;
+		samples += in_buffer_tail - in_buffer;
 
 		const uint8_t *input = (uint8_t *)in_buffer;
 		size_t input_len = samples * sizeof(int16_t);
@@ -513,8 +513,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		 * of our linear buffer. */
 		if (samples > 0 && (uint8_t *)in_buffer != input)
 			memmove(in_buffer, input, samples * sizeof(int16_t));
-		/* reposition our reading head */
-		in_buffer_head = in_buffer + samples;
+		/* reposition our buffer tail */
+		in_buffer_tail = in_buffer + samples;
 		in_samples = in_buffer_size / sizeof(int16_t) - samples;
 
 	}
@@ -777,14 +777,14 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	int out_buffer_identifier = OUT_BITSTREAM_DATA;
 	int in_buffer_element_size = sizeof(int16_t);
 	int out_buffer_element_size = 1;
-	int16_t *in_buffer, *in_buffer_head;
+	int16_t *in_buffer, *in_buffer_tail;
 	uint8_t *out_buffer, *out_payload;
 	int in_buffer_size;
 	int out_payload_size;
 
 	AACENC_BufDesc in_buf = {
 		.numBufs = 1,
-		.bufs = (void **)&in_buffer_head,
+		.bufs = (void **)&in_buffer_tail,
 		.bufferIdentifiers = &in_buffer_identifier,
 		.bufSizes = &in_buffer_size,
 		.bufElSizes = &in_buffer_element_size,
@@ -831,9 +831,9 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		goto fail;
 	}
 
-	/* initial input buffer head position and the available size */
+	/* initial input buffer tail and the available capacity */
 	size_t in_samples = in_buffer_size / in_buffer_element_size;
-	in_buffer_head = in_buffer;
+	in_buffer_tail = in_buffer;
 
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
@@ -865,7 +865,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_head, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_tail, in_samples)) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			goto fail;
@@ -878,12 +878,12 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 		if (!config.a2dp_volume)
 			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, in_buffer_head, samples, channels);
+			io_thread_scale_pcm(t, in_buffer_tail, samples, channels);
 
 		/* overall input buffer size */
-		samples += in_buffer_head - in_buffer;
-		/* in the encoding loop head is used for reading */
-		in_buffer_head = in_buffer;
+		samples += in_buffer_tail - in_buffer;
+		/* in the encoding loop tail is used for reading */
+		in_buffer_tail = in_buffer;
 
 		while ((in_args.numInSamples = samples) != 0) {
 
@@ -937,9 +937,9 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 			}
 
-			/* progress the head position by the number of samples consumed by the
+			/* progress the tail position by the number of samples consumed by the
 			 * encoder, also adjust the number of samples in the input buffer */
-			in_buffer_head += out_args.numInSamples;
+			in_buffer_tail += out_args.numInSamples;
 			samples -= out_args.numInSamples;
 
 			/* keep data transfer at a constant bit rate, also
@@ -952,10 +952,10 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		}
 
 		/* move leftovers to the beginning */
-		if (samples > 0 && in_buffer != in_buffer_head)
-			memmove(in_buffer, in_buffer_head, samples * in_buffer_element_size);
-		/* reposition input buffer head */
-		in_buffer_head = in_buffer + samples;
+		if (samples > 0 && in_buffer != in_buffer_tail)
+			memmove(in_buffer, in_buffer_tail, samples * in_buffer_element_size);
+		/* reposition input buffer tail */
+		in_buffer_tail = in_buffer + samples;
 		in_samples = in_buffer_size / in_buffer_element_size - samples;
 
 	}
