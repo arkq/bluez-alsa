@@ -620,23 +620,21 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		return -EINVAL;
 	}
 
-	if ((pcm = calloc(1, sizeof(*pcm))) == NULL)
-		return -ENOMEM;
-
 	bdaddr_t addr;
 	enum pcm_type type;
 
 	if (device == NULL || str2ba(device, &addr) != 0) {
 		SNDERR("Invalid BT device address: %s", device);
-		ret = -errno;
-		goto fail;
+		return -EINVAL;
 	}
 
 	if ((type = bluealsa_parse_profile(profile)) == PCM_TYPE_NULL) {
 		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
-		ret = -errno;
-		goto fail;
+		return -EINVAL;
 	}
+
+	if ((pcm = calloc(1, sizeof(*pcm))) == NULL)
+		return -ENOMEM;
 
 	pcm->fd = -1;
 	pcm->event_fd = -1;
