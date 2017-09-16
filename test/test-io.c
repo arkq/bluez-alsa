@@ -18,6 +18,7 @@
 #include "../src/rfcomm.c"
 #include "../src/transport.c"
 #include "../src/utils.c"
+#include "../src/shared/ffb.c"
 #include "../src/shared/rt.c"
 
 static const a2dp_sbc_t config_sbc_44100_joint_stereo = {
@@ -174,10 +175,8 @@ int test_a2dp_sbc_encoding(void) {
 }
 
 int main(void) {
-
 	test_run(test_a2dp_sbc_invalid_setup);
 	test_run(test_a2dp_sbc_decoding);
 	test_run(test_a2dp_sbc_encoding);
-
-	return EXIT_SUCCESS;
+	return 0;
 }

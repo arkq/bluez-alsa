@@ -36,6 +36,7 @@
 #include "bluealsa.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
 
@@ -978,22 +979,27 @@ void *io_thread_sco(void *arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
 
-	/* this buffer has to be bigger than SCO MTU */
-	const size_t buffer_size = 512;
-	int16_t *buffer = malloc(buffer_size);
+	/* buffers for transferring data to and fro SCO socket */
+	struct ffb bt_in = { 0 };
+	struct ffb bt_out = { 0 };
+	pthread_cleanup_push(CANCEL_ROUTINE(ffb_free), &bt_in);
+	pthread_cleanup_push(CANCEL_ROUTINE(ffb_free), &bt_out);
 
-	pthread_cleanup_push(CANCEL_ROUTINE(free), buffer);
-
-	if (buffer == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	/* these buffers shall be bigger than the SCO MTU */
+	if (ffb_init(&bt_in, 128) == -1 || ffb_init(&bt_out, 128) == -1) {
+		error("Couldn't create data buffer: %s", strerror(ENOMEM));
 		goto fail;
 	}
 
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
+		/* SCO socket */
 		{ -1, POLLIN, 0 },
+		{ -1, POLLOUT, 0 },
+		/* PCM FIFO */
 		{ -1, POLLIN, 0 },
+		{ -1, POLLOUT, 0 },
 	};
 
 	debug("Starting IO loop: %s",
@@ -1001,8 +1007,25 @@ void *io_thread_sco(void *arg) {
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		pfds[1].fd = t->sco.mic_pcm.fd != -1 ? t->bt_fd : -1;
-		pfds[2].fd = t->sco.spk_pcm.fd;
+		/* fresh-start for file descriptors polling */
+		pfds[1].fd = pfds[2].fd = -1;
+		pfds[3].fd = pfds[4].fd = -1;
+
+		switch (t->codec) {
+		case HFP_CODEC_CVSD:
+		default:
+			if (ffb_len_in(&bt_in) >= t->mtu_read)
+				pfds[1].fd = t->bt_fd;
+			if (ffb_len_out(&bt_out) >= t->mtu_write)
+				pfds[2].fd = t->bt_fd;
+			if (ffb_len_in(&bt_out) >= t->mtu_write)
+				pfds[3].fd = t->sco.spk_pcm.fd;
+			if (ffb_len_out(&bt_in) >= t->mtu_read)
+				pfds[4].fd = t->sco.mic_pcm.fd;
+		}
+
+		if (t->sco.mic_pcm.fd == -1)
+			pfds[1].fd = -1;
 
 		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
@@ -1052,15 +1075,25 @@ void *io_thread_sco(void *arg) {
 			asrsync_init(asrs, transport_get_sampling(t));
 
 		if (pfds[1].revents & POLLIN) {
+			/* dispatch incoming SCO data */
 
+			uint8_t *buffer;
+			size_t buffer_len;
 			ssize_t len;
 
-retry_sco:
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				buffer = bt_in.tail;
+				buffer_len = ffb_len_in(&bt_in);
+			}
+
+retry_sco_read:
 			errno = 0;
-			if ((len = read(pfds[1].fd, buffer, buffer_size)) <= 0)
+			if ((len = read(pfds[1].fd, buffer, buffer_len)) <= 0)
 				switch (errno) {
 				case EINTR:
-					goto retry_sco;
+					goto retry_sco_read;
 				case 0:
 				case ECONNABORTED:
 				case ECONNRESET:
@@ -1071,19 +1104,68 @@ retry_sco:
 					continue;
 				}
 
-			if (t->sco.mic_muted)
-				snd_pcm_scale_s16le(buffer, len / sizeof(int16_t), 1, 0, 0);
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_seek(&bt_in, len);
+			}
 
-			write(t->sco.mic_pcm.fd, buffer, len);
 		}
 		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
 			debug("SCO poll error status: 0x%x", pfds[1].revents);
 			transport_release_bt_sco(t);
 		}
 
-		if (pfds[2].revents & POLLIN) {
+		if (pfds[2].revents & POLLOUT) {
+			/* write-out SCO data */
 
-			ssize_t samples = t->mtu_write / sizeof(int16_t);
+			uint8_t *buffer;
+			size_t buffer_len;
+			ssize_t len;
+
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				buffer = bt_out.data;
+				buffer_len = t->mtu_write;
+			}
+
+retry_sco_write:
+			errno = 0;
+			if ((len = write(pfds[2].fd, buffer, buffer_len)) <= 0)
+				switch (errno) {
+				case EINTR:
+					goto retry_sco_write;
+				case 0:
+				case ECONNABORTED:
+				case ECONNRESET:
+					transport_release_bt_sco(t);
+					continue;
+				default:
+					error("SCO write error: %s", strerror(errno));
+					continue;
+				}
+
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_rewind(&bt_out, len);
+			}
+
+		}
+
+		if (pfds[3].revents & POLLIN) {
+			/* dispatch incoming PCM data */
+
+			int16_t *buffer;
+			ssize_t samples;
+
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				buffer = (int16_t *)bt_out.tail;
+				samples = ffb_len_in(&bt_out) / sizeof(int16_t);
+			}
 
 			/* read data from the FIFO - this function will block */
 			if ((samples = io_thread_read_pcm(&t->sco.spk_pcm, buffer, samples)) <= 0) {
@@ -1095,10 +1177,42 @@ retry_sco:
 			if (t->sco.spk_muted)
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
-			write(t->bt_fd, buffer, samples * sizeof(int16_t));
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_seek(&bt_out, samples * sizeof(int16_t));
+			}
+
 		}
-		else if (pfds[2].revents & (POLLERR | POLLHUP)) {
-			debug("PCM poll error status: 0x%x", pfds[2].revents);
+		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
+			debug("PCM poll error status: 0x%x", pfds[3].revents);
+		}
+
+		if (pfds[4].revents & POLLOUT) {
+			/* write-out PCM data */
+
+			int16_t *buffer;
+			ssize_t samples;
+
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				buffer = (int16_t *)bt_in.data;
+				samples = ffb_len_out(&bt_in) / sizeof(int16_t);
+			}
+
+			if (t->sco.mic_muted)
+				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
+
+			if (io_thread_write_pcm(&t->sco.mic_pcm, buffer, samples) == -1)
+				error("FIFO write error: %s", strerror(errno));
+
+			switch (t->codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_rewind(&bt_in, samples * sizeof(int16_t));
+			}
+
 		}
 
 		/* keep data transfer at a constant bit rate */
@@ -1109,6 +1223,7 @@ retry_sco:
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;

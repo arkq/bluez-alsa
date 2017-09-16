@@ -16,6 +16,7 @@
 #include <alsa/asoundlib.h>
 #include "inc/sine.inc"
 #include "inc/test.inc"
+#include "../src/shared/ffb.c"
 #include "../src/shared/log.h"
 
 

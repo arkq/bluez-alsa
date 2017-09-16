@@ -10,6 +10,7 @@
 
 #include "inc/test.inc"
 #include "../src/utils.c"
+#include "../src/shared/ffb.c"
 #include "../src/shared/rt.c"
 
 int test_dbus_profile_object_path(void) {
@@ -127,11 +128,34 @@ int test_difftimespec(void) {
 	return 0;
 }
 
-int main(void) {
+int test_fifo_buffer(void) {
 
+	struct ffb ffb = { 0 };
+
+	assert(ffb_init(&ffb, 64) == 0);
+	assert(ffb.data == ffb.tail);
+	assert(ffb.size == 64);
+
+	memcpy(ffb.data, "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", 36);
+	ffb_seek(&ffb, 36);
+
+	assert(ffb_len_in(&ffb) == 64 - 36);
+	assert(ffb_len_out(&ffb) == 36);
+	assert(ffb.tail[-1] == 'Z');
+
+	ffb_rewind(&ffb, 15);
+	assert(ffb_len_in(&ffb) == 64 - (36 - 15));
+	assert(ffb_len_out(&ffb) == 36 - 15);
+	assert(memcmp(ffb.data, "FGHIJKLMNOPQRSTUVWXYZ", ffb_len_out(&ffb)) == 0);
+	assert(ffb.tail[-1] == 'Z');
+
+	return 0;
+}
+
+int main(void) {
 	test_run(test_dbus_profile_object_path);
 	test_run(test_pcm_scale_s16le);
 	test_run(test_difftimespec);
-
-	return EXIT_SUCCESS;
+	test_run(test_fifo_buffer);
+	return 0;
 }

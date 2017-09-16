@@ -25,10 +25,11 @@ static char test_error_msg[512];
 static char test_warn_msg[512];
 static char test_info_msg[512];
 
-#define test_run(f) \
-	test_error_count = test_warn_count = test_info_count = 0; \
-	*test_error_msg = *test_warn_msg = *test_info_msg = '\0'; \
-	assert(!f())
+#define test_run(f) do { \
+		test_error_count = test_warn_count = test_info_count = 0; \
+		*test_error_msg = *test_warn_msg = *test_info_msg = '\0'; \
+		assert(!f()); \
+	} while (0)
 
 void error(const char *format, ...) {
 	va_list ap;

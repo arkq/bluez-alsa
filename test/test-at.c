@@ -8,7 +8,6 @@
  *
  */
 
-#include <stdlib.h>
 #include "inc/test.inc"
 #include "../src/at.c"
 
@@ -105,5 +104,5 @@ int main(void) {
 	/* parse +CIND invalid response */
 	assert(at_parse_cind("(incorrect,1-2)", indmap) == -1);
 
-	return EXIT_SUCCESS;
+	return 0;
 }
