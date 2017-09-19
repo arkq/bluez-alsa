@@ -412,11 +412,17 @@ static int rfcomm_handler_bcs_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 /**
  * SET: Bluetooth Available Codecs */
 static int rfcomm_handler_bac_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
-	(void)at;
-	const int fd = c->t->bt_fd;
 
-	/* In case some headsets send BAC even if we don't advertise
-	 * support for it. In such case, just OK and ignore. */
+	const int fd = c->t->bt_fd;
+	char *tmp = at->value - 1;
+
+	do {
+		tmp += 1;
+#if ENABLE_MSBC
+		if (atoi(tmp) == HFP_CODEC_MSBC)
+			c->msbc = true;
+#endif
+	} while ((tmp = strchr(tmp, ',')) != NULL);
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
@@ -622,7 +628,12 @@ void *rfcomm_thread(void *arg) {
 					break;
 				case HFP_SLC_BRSF_SET_OK:
 					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC) {
+#if ENABLE_MSBC
+						/* advertise, that we are supporting CVSD (1) and mSBC (2) */
+						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", "1,2") == -1)
+#else
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", "1") == -1)
+#endif
 							goto ioerror;
 						conn.handler = &rfcomm_handler_resp_ok;
 						break;
@@ -684,9 +695,15 @@ void *rfcomm_thread(void *arg) {
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
 					if (t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
+#if ENABLE_MSBC
+						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
+							goto ioerror;
+						t->rfcomm.sco->type.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;
+#else
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", "1") == -1)
 							goto ioerror;
 						t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
+#endif
 						conn.handler = &rfcomm_handler_bcs_set;
 						break;
 					}

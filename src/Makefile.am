@@ -22,6 +22,11 @@ bluealsa_SOURCES = \
 	utils.c \
 	main.c
 
+if ENABLE_MSBC
+bluealsa_SOURCES += \
+	msbc.c
+endif
+
 if ENABLE_OFONO
 bluealsa_SOURCES += \
 	ofono.c \

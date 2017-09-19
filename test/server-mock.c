@@ -34,6 +34,7 @@
 #define io_thread_a2dp_sink_sbc _io_thread_a2dp_sink_sbc
 #include "../src/io.c"
 #undef io_thread_a2dp_sink_sbc
+#include "../src/msbc.c"
 #include "../src/rfcomm.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"

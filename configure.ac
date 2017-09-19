@@ -86,6 +86,13 @@ AM_COND_IF([ENABLE_LDAC], [
 	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
 ])
 
+AC_ARG_ENABLE([msbc],
+	[AS_HELP_STRING([--enable-msbc], [enable mSBC support])])
+AM_CONDITIONAL([ENABLE_MSBC], [test "x$enable_msbc" = "xyes"])
+AM_COND_IF([ENABLE_MSBC], [
+	AC_DEFINE([ENABLE_MSBC], [1], [Define to 1 if mSBC is enabled.])
+])
+
 AC_ARG_ENABLE([ofono],
 	AS_HELP_STRING([--enable-ofono], [enable HFP over oFono]))
 AM_CONDITIONAL([ENABLE_OFONO], [test "x$enable_ofono" = "xyes"])

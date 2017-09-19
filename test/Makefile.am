@@ -6,6 +6,7 @@ TESTS = \
 	test-ba \
 	test-ctl \
 	test-io \
+	test-msbc \
 	test-pcm \
 	test-utils
 
@@ -15,6 +16,7 @@ check_PROGRAMS = \
 	test-ba \
 	test-ctl \
 	test-io \
+	test-msbc \
 	test-pcm \
 	test-utils
 

@@ -784,6 +784,9 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	t->mtu_read = 48;
 	t->mtu_write = 48;
 
+	if (t->type.codec == HFP_CODEC_MSBC)
+		t->mtu_read = t->mtu_write = 24;
+
 	debug("New SCO link: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 
 	return t->bt_fd;

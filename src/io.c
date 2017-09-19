@@ -43,6 +43,7 @@
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "hfp.h"
+#include "msbc.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -1548,6 +1549,11 @@ void *io_thread_sco(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_in);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_out);
 
+#if ENABLE_MSBC
+	struct esco_msbc msbc = { .init = false };
+	pthread_cleanup_push(PTHREAD_CLEANUP(msbc_finish), &msbc);
+#endif
+
 	/* these buffers shall be bigger than the SCO MTU */
 	if (ffb_init(&bt_in, 128) == NULL ||
 			ffb_init(&bt_out, 128) == NULL) {
@@ -1576,6 +1582,20 @@ void *io_thread_sco(void *arg) {
 		pfds[3].fd = pfds[4].fd = -1;
 
 		switch (t->type.codec) {
+#if ENABLE_MSBC
+		case HFP_CODEC_MSBC:
+			msbc_encode(&msbc);
+			msbc_decode(&msbc);
+			if (t->mtu_read > 0 && ffb_blen_in(&msbc.dec_data) >= t->mtu_read)
+				pfds[1].fd = t->bt_fd;
+			if (t->mtu_write > 0 && ffb_blen_out(&msbc.enc_data) >= t->mtu_write)
+				pfds[2].fd = t->bt_fd;
+			if (t->mtu_write > 0 && ffb_blen_in(&msbc.enc_pcm) >= t->mtu_write)
+				pfds[3].fd = t->sco.spk_pcm.fd;
+			if (ffb_blen_out(&msbc.dec_pcm) > 0)
+				pfds[4].fd = t->sco.mic_pcm.fd;
+			break;
+#endif
 		case HFP_CODEC_CVSD:
 		default:
 			if (t->mtu_read > 0 && ffb_len_in(&bt_in) >= t->mtu_read)
@@ -1663,8 +1683,16 @@ void *io_thread_sco(void *arg) {
 				t->release(t);
 				asrs.frames = 0;
 			}
-			else
+			else {
 				t->acquire(t);
+#if ENABLE_MSBC
+				/* this can be called again, make sure it is idempotent */
+				if (t->type.codec == HFP_CODEC_MSBC && msbc_init(&msbc) != 0) {
+					error("Couldn't initialize mSBC codec: %s", strerror(errno));
+					goto fail;
+				}
+#endif
+			}
 
 			continue;
 		}
@@ -1680,6 +1708,12 @@ void *io_thread_sco(void *arg) {
 			ssize_t len;
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				buffer = msbc.dec_data.tail;
+				buffer_len = ffb_len_in(&msbc.dec_data);
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				if (t->sco.mic_pcm.fd == -1)
@@ -1705,6 +1739,11 @@ retry_sco_read:
 				}
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				ffb_seek(&msbc.dec_data, len);
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_seek(&bt_in, len);
@@ -1724,6 +1763,12 @@ retry_sco_read:
 			ssize_t len;
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				buffer = msbc.enc_data.data;
+				buffer_len = t->mtu_write;
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = bt_out.data;
@@ -1747,6 +1792,11 @@ retry_sco_write:
 				}
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				ffb_shift(&msbc.enc_data, len);
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_shift(&bt_out, len);
@@ -1761,6 +1811,12 @@ retry_sco_write:
 			ssize_t samples;
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				buffer = msbc.enc_pcm.tail;
+				samples = ffb_len_in(&msbc.enc_pcm);
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = (int16_t *)bt_out.tail;
@@ -1779,6 +1835,11 @@ retry_sco_write:
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				ffb_seek(&msbc.enc_pcm, samples);
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_seek(&bt_out, samples * sizeof(int16_t));
@@ -1798,6 +1859,12 @@ retry_sco_write:
 			ssize_t samples;
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				buffer = msbc.dec_pcm.data;
+				samples = ffb_len_out(&msbc.dec_pcm);
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = (int16_t *)bt_in.data;
@@ -1815,6 +1882,11 @@ retry_sco_write:
 			}
 
 			switch (t->type.codec) {
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				ffb_shift(&msbc.dec_pcm, samples);
+				break;
+#endif
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_shift(&bt_in, samples * sizeof(int16_t));
@@ -1823,7 +1895,7 @@ retry_sco_write:
 		}
 
 		/* keep data transfer at a constant bit rate */
-		asrsync_sync(&asrs, 48 / 2);
+		asrsync_sync(&asrs, t->mtu_write / 2);
 		/* update busy delay (encoding overhead) */
 		t->delay = asrsync_get_busy_usec(&asrs) / 100;
 
@@ -1832,6 +1904,9 @@ retry_sco_write:
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 fail_ffb:
+#if ENABLE_MSBC
+	pthread_cleanup_pop(1);
+#endif
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
