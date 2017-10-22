@@ -519,8 +519,8 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	debug("Releasing endpoint: %s", path);
 
 	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
-		g_hash_table_remove(config.dbus_objects, hash);
 		g_dbus_connection_unregister_object(conn, obj->id);
+		g_hash_table_remove(config.dbus_objects, hash);
 	}
 
 	g_object_unref(inv);
@@ -764,8 +764,8 @@ static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 	debug("Releasing profile: %s", path);
 
 	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
-		g_hash_table_remove(config.dbus_objects, hash);
 		g_dbus_connection_unregister_object(conn, obj->id);
+		g_hash_table_remove(config.dbus_objects, hash);
 	}
 
 	g_object_unref(inv);
