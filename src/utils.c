@@ -140,7 +140,7 @@ fail:
  * @param profile Bluetooth profile.
  * @param codec Bluetooth profile codec.
  * @return This function returns BlueZ D-Bus object path. */
-const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint8_t codec) {
+const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint16_t codec) {
 	switch (profile) {
 	case BLUETOOTH_PROFILE_A2DP_SOURCE:
 		switch (codec) {
@@ -153,6 +153,10 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint8
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			return "/A2DP/MPEG24/Source";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "/A2DP/APTX/Source";
 #endif
 		default:
 			warn("Unsupported A2DP codec: 0x%x", codec);
@@ -169,6 +173,10 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint8
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			return "/A2DP/MPEG24/Sink";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "/A2DP/APTX/Sink";
 #endif
 		default:
 			warn("Unsupported A2DP codec: 0x%x", codec);
@@ -223,9 +231,9 @@ enum bluetooth_profile g_dbus_object_path_to_profile(const char *path) {
  * To do so, use the g_dbus_object_path_to_profile() function.
  *
  * @param path BlueZ D-Bus object path.
- * @return On success this function returns Bluetooth profile. If object
+ * @return On success this function returns Bluetooth audio codec. If object
  *   path cannot be recognize, vendor codec is returned. */
-unsigned char g_dbus_object_path_to_a2dp_codec(const char *path) {
+uint16_t g_dbus_object_path_to_a2dp_codec(const char *path) {
 	if (strncmp(path + 5, "/SBC", 4) == 0)
 		return A2DP_CODEC_SBC;
 #if ENABLE_MP3
@@ -235,6 +243,10 @@ unsigned char g_dbus_object_path_to_a2dp_codec(const char *path) {
 #if ENABLE_AAC
 	if (strncmp(path + 5, "/MPEG24", 7) == 0)
 		return A2DP_CODEC_MPEG24;
+#endif
+#if ENABLE_APTX
+	if (strncmp(path + 5, "/APTX", 5) == 0)
+		return A2DP_CODEC_VENDOR_APTX;
 #endif
 	return A2DP_CODEC_VENDOR;
 }
@@ -362,7 +374,7 @@ fail:
  * @param profile Bluetooth profile.
  * @param codec Bluetooth profile audio codec.
  * @return Human-readable string. */
-const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint8_t codec) {
+const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint16_t codec) {
 	switch (profile) {
 	case BLUETOOTH_PROFILE_NULL:
 		return "N/A";
@@ -378,6 +390,10 @@ const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint8_t 
 		case A2DP_CODEC_MPEG24:
 			return "A2DP Source (AAC)";
 #endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "A2DP Source (APT-X)";
+#endif
 		}
 		return "A2DP Source";
 	case BLUETOOTH_PROFILE_A2DP_SINK:
@@ -391,6 +407,10 @@ const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint8_t 
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			return "A2DP Sink (AAC)";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "A2DP Sink (APT-X)";
 #endif
 		}
 		return "A2DP Sink";

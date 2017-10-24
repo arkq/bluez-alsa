@@ -28,7 +28,7 @@
 
 /**
  * Get D-Bus object reference count for given profile. */
-static int bluez_get_dbus_object_count(enum bluetooth_profile profile, unsigned char codec) {
+static int bluez_get_dbus_object_count(enum bluetooth_profile profile, uint16_t codec) {
 
 	GHashTableIter iter;
 	struct ba_dbus_object *obj;
@@ -243,7 +243,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	struct ba_device *d;
 
 	const int profile = g_dbus_object_path_to_profile(path);
-	const uint8_t codec = g_dbus_object_path_to_a2dp_codec(path);
+	const uint16_t codec = g_dbus_object_path_to_a2dp_codec(path);
 
 	const char *transport;
 	char *device = NULL, *state = NULL;
@@ -288,7 +288,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 				goto fail;
 			}
 
-			if (codec != g_variant_get_byte(value)) {
+			if ((codec & 0xFF) != g_variant_get_byte(value)) {
 				error("Invalid configuration: %s", "Codec mismatch");
 				goto fail;
 			}
@@ -580,7 +580,7 @@ static const GDBusInterfaceVTable endpoint_vtable = {
 static int bluez_register_a2dp_endpoint(
 		const char *uuid,
 		enum bluetooth_profile profile,
-		unsigned char codec,
+		uint16_t codec,
 		const void *configuration,
 		size_t configuration_size) {
 

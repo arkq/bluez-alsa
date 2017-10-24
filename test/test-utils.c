@@ -17,7 +17,7 @@ int test_dbus_profile_object_path(void) {
 
 	static const struct {
 		enum bluetooth_profile profile;
-		int8_t codec;
+		int16_t codec;
 		const char *path;
 	} profiles[] = {
 		/* test null/invalid path */
@@ -35,6 +35,10 @@ int test_dbus_profile_object_path(void) {
 #if ENABLE_AAC
 		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG24, "/A2DP/MPEG24/Source" },
 		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG24, "/A2DP/MPEG24/Sink" },
+#endif
+#if ENABLE_APTX
+		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_APTX, "/A2DP/APTX/Source" },
+		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_APTX, "/A2DP/APTX/Sink" },
 #endif
 		/* test HSP/HFP profiles */
 		{ BLUETOOTH_PROFILE_HSP_HS, -1, "/HSP/Headset" },

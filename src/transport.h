@@ -97,9 +97,10 @@ struct ba_transport {
 	char *dbus_owner;
 	char *dbus_path;
 
-	/* selected profile and audio codec */
+	/* Selected profile and audio codec. For A2DP vendor codecs the upper byte
+	 * of the codec field contains the lowest byte of the vendor ID. */
 	enum bluetooth_profile profile;
-	uint8_t codec;
+	uint16_t codec;
 
 	/* IO thread - actual transport layer */
 	enum ba_transport_state state;
@@ -199,13 +200,13 @@ struct ba_transport *transport_new(
 		const char *dbus_owner,
 		const char *dbus_path,
 		enum bluetooth_profile profile,
-		uint8_t codec);
+		uint16_t codec);
 struct ba_transport *transport_new_a2dp(
 		struct ba_device *device,
 		const char *dbus_owner,
 		const char *dbus_path,
 		enum bluetooth_profile profile,
-		uint8_t codec,
+		uint16_t codec,
 		const uint8_t *config,
 		size_t config_size);
 struct ba_transport *transport_new_rfcomm(

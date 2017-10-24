@@ -96,7 +96,7 @@ struct ba_dbus_object {
 	/* D-Bus object registration ID */
 	unsigned int id;
 	enum bluetooth_profile profile;
-	unsigned char codec;
+	uint16_t codec;
 	/* determine whether profile is used */
 	bool connected;
 };
