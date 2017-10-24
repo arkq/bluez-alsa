@@ -55,6 +55,14 @@ AM_COND_IF([ENABLE_AAC], [
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
+AC_ARG_ENABLE([aptx],
+	[AS_HELP_STRING([--enable-aptx], [enable apt-X support])])
+AM_CONDITIONAL([ENABLE_APTX], [test "x$enable_aptx" = "xyes"])
+AM_COND_IF([ENABLE_APTX], [
+	PKG_CHECK_MODULES([APTX], [openaptx >= 1.0.0])
+	AC_DEFINE([ENABLE_APTX], [1], [Define to 1 if apt-X is enabled.])
+])
+
 AC_ARG_ENABLE([payloadcheck],
 	[AS_HELP_STRING([--disable-payloadcheck], [disable RTP payload type check (workaround for a PulseAudio bug)])])
 AM_CONDITIONAL([ENABLE_PAYLOADCHECK], [test "x$enable_payloadcheck" != "xno"])

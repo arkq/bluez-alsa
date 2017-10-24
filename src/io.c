@@ -30,6 +30,9 @@
 # define AACENCODER_LIB_VERSION LIB_VERSION( \
 		AACENCODER_LIB_VL0, AACENCODER_LIB_VL1, AACENCODER_LIB_VL2)
 #endif
+#if ENABLE_APTX
+# include <openaptx.h>
+#endif
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
@@ -968,6 +971,169 @@ fail:
 fail_init:
 	pthread_cleanup_pop(1);
 fail_open:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
+
+#if ENABLE_APTX
+void *io_thread_a2dp_source_aptx(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+
+	APTXENC handle = malloc(SizeofAptxbtenc());
+	pthread_cleanup_push(CANCEL_ROUTINE(free), handle);
+
+	if (handle == NULL || aptxbtenc_init(handle, __BYTE_ORDER == __LITTLE_ENDIAN) != 0) {
+		error("Couldn't initialize apt-X encoder: %s", strerror(errno));
+		goto fail_init;
+	}
+
+	const unsigned int channels = transport_get_channels(t);
+	const size_t aptx_pcm_samples = 4 * channels;
+	const size_t aptx_code_len = 2 * sizeof(uint16_t);
+	const size_t mtu_write = t->mtu_write;
+
+	const size_t in_buffer_size = aptx_pcm_samples * sizeof(int16_t) * (mtu_write / aptx_code_len);
+	const size_t out_buffer_size = mtu_write;
+	int16_t *in_buffer = malloc(in_buffer_size);
+	uint8_t *out_buffer = malloc(out_buffer_size);
+
+	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
+	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
+
+	if (in_buffer == NULL || out_buffer == NULL) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	if (io_thread_open_pcm_read(&t->a2dp.pcm) == -1) {
+		error("Couldn't open FIFO: %s", strerror(errno));
+		goto fail;
+	}
+
+	/* buffer tail position and available capacity */
+	int16_t *in_buffer_tail = in_buffer;
+	size_t in_samples = in_buffer_size / sizeof(int16_t);
+
+	struct asrsync asrs = { .frames = 0 };
+	struct pollfd pfds[] = {
+		{ t->event_fd, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+	};
+
+	debug("Starting IO loop: %s",
+			bluetooth_profile_to_string(t->profile, t->codec));
+	for (;;) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		ssize_t samples;
+
+		/* add PCM socket to the poll if transport is active */
+		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
+
+		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+			error("Transport poll error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			eventfd_t event;
+			eventfd_read(pfds[0].fd, &event);
+			asrs.frames = 0;
+			continue;
+		}
+
+		/* read data from the FIFO - this function will block */
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_tail, in_samples)) <= 0) {
+			if (samples == -1)
+				error("FIFO read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		if (asrs.frames == 0)
+			asrsync_init(asrs, transport_get_sampling(t));
+
+		if (!config.a2dp_volume)
+			/* scale volume or mute audio signal */
+			io_thread_scale_pcm(t, in_buffer_tail, samples, channels);
+
+		const int16_t *input = in_buffer;
+		/* overall number of input samples */
+		samples += in_buffer_tail - in_buffer;
+
+		/* encode and transfer obtained data */
+		while ((size_t)samples >= aptx_pcm_samples) {
+
+			uint8_t *output = out_buffer;
+			size_t output_len = out_buffer_size - (output - out_buffer);
+			size_t pcm_frames = 0;
+
+			/* Generate as many apt-X frames as possible to fill the output buffer
+			 * without overflowing it. The size of the output buffer is based on
+			 * the socket MTU, so such a transfer should be most efficient. */
+			while ((size_t)samples >= aptx_pcm_samples && output_len >= aptx_code_len) {
+
+				int32_t pcm_l[4];
+				int32_t pcm_r[4];
+				size_t i;
+
+				for (i = 0; i < 4; i++) {
+					pcm_l[i] = input[2 * i];
+					pcm_r[i] = input[2 * i + 1];
+				}
+
+				if (aptxbtenc_encodestereo(handle, pcm_l, pcm_r, (uint16_t *)output) != 0) {
+					error("apt-X encoding error: %s", strerror(errno));
+					break;
+				}
+
+				input += 4 * channels;
+				samples -= 4 * channels;
+				output += aptx_code_len;
+				output_len -= aptx_code_len;
+				pcm_frames += 4;
+
+			}
+
+			if (write(t->bt_fd, out_buffer, output - out_buffer) == -1) {
+				if (errno == ECONNRESET || errno == ENOTCONN) {
+					/* exit the thread upon BT socket disconnection */
+					debug("BT socket disconnected");
+					goto fail;
+				}
+				error("BT socket write error: %s", strerror(errno));
+			}
+
+			/* keep data transfer at a constant bit rate */
+			asrsync_sync(&asrs, pcm_frames);
+			t->delay = asrs.ts_busy.tv_nsec / 100000;
+
+		}
+
+		/* If the input buffer was not consumed (due to codesize limit), we
+		 * have to append new data to the existing one. Since we do not use
+		 * ring buffer, we will simply move unprocessed data to the front
+		 * of our linear buffer. */
+		if (samples > 0 && in_buffer != input)
+			memmove(in_buffer, input, samples * sizeof(int16_t));
+		/* reposition our buffer tail */
+		in_buffer_tail = in_buffer + samples;
+		in_samples = in_buffer_size / sizeof(int16_t) - samples;
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;
 }

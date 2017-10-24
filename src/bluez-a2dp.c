@@ -103,3 +103,21 @@ const a2dp_aac_t bluez_a2dp_aac = {
 	AAC_INIT_BITRATE(0xFFFF)
 };
 #endif
+
+#if ENABLE_APTX
+const a2dp_aptx_t bluez_a2dp_aptx = {
+	.info.vendor_id = APTX_VENDOR_ID,
+	.info.codec_id = APTX_CODEC_ID,
+	.channel_mode =
+		/* NOTE: Used apt-X library does not support
+		 *       single channel (mono) mode. */
+		APTX_CHANNEL_MODE_DUAL_CHANNEL |
+		APTX_CHANNEL_MODE_STEREO |
+		APTX_CHANNEL_MODE_JOINT_STEREO,
+	.frequency =
+		APTX_SAMPLING_FREQ_16000 |
+		APTX_SAMPLING_FREQ_32000 |
+		APTX_SAMPLING_FREQ_44100 |
+		APTX_SAMPLING_FREQ_48000,
+};
+#endif

@@ -24,5 +24,8 @@ const a2dp_mpeg_t bluez_a2dp_mpeg;
 #if ENABLE_AAC
 const a2dp_aac_t bluez_a2dp_aac;
 #endif
+#if ENABLE_APTX
+const a2dp_aptx_t bluez_a2dp_aptx;
+#endif
 
 #endif

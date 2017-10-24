@@ -40,6 +40,7 @@ Dependencies:
 - [glib](https://wiki.gnome.org/Projects/GLib) with GIO support
 - [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
+- [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with `--enable-aptx`)
 
 Dependencies for `hcitop` (when `--enable-hcitop` is specified during configuration):
 

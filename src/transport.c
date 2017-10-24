@@ -56,6 +56,11 @@ static int io_thread_create(struct ba_transport *t) {
 				routine = io_thread_a2dp_source_aac;
 				break;
 #endif
+#if ENABLE_APTX
+			case A2DP_CODEC_VENDOR_APTX:
+				routine = io_thread_a2dp_source_aptx;
+				break;
+#endif
 			default:
 				warn("Codec not supported: %u", t->codec);
 			}
@@ -482,6 +487,18 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			}
 			break;
 #endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			switch (((a2dp_aptx_t *)t->a2dp.cconfig)->channel_mode) {
+			case APTX_CHANNEL_MODE_MONO:
+				return 1;
+			case APTX_CHANNEL_MODE_STEREO:
+			case APTX_CHANNEL_MODE_JOINT_STEREO:
+			case APTX_CHANNEL_MODE_DUAL_CHANNEL:
+				return 2;
+			}
+			break;
+#endif
 		}
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
@@ -556,6 +573,20 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 				return 88200;
 			case AAC_SAMPLING_FREQ_96000:
 				return 96000;
+			}
+			break;
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			switch (((a2dp_aptx_t *)t->a2dp.cconfig)->frequency) {
+			case APTX_SAMPLING_FREQ_16000:
+				return 16000;
+			case APTX_SAMPLING_FREQ_32000:
+				return 32000;
+			case APTX_SAMPLING_FREQ_44100:
+				return 44100;
+			case APTX_SAMPLING_FREQ_48000:
+				return 48000;
 			}
 			break;
 #endif
