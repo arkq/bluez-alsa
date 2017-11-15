@@ -29,5 +29,6 @@ int bluealsa_get_transport_delay(int fd, const struct msg_transport *transport);
 int bluealsa_open_transport(int fd, const struct msg_transport *transport);
 int bluealsa_close_transport(int fd, const struct msg_transport *transport);
 int bluealsa_pause_transport(int fd, const struct msg_transport *transport, bool pause);
+int bluealsa_drain_transport(int fd, const struct msg_transport *transport);
 
 #endif

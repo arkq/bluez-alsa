@@ -392,3 +392,28 @@ int bluealsa_pause_transport(int fd, const struct msg_transport *transport, bool
 
 	return bluealsa_send_request(fd, &req);
 }
+
+/**
+ * Drain PCM transport.
+ *
+ * @param fd Opened socket file descriptor.
+ * @param transport Address to the transport structure with the addr, type
+ *   and stream fields set - other fields are not used by this function.
+ * @return Upon success this function returns 0. Otherwise, -1 is returned. */
+int bluealsa_drain_transport(int fd, const struct msg_transport *transport) {
+
+	struct request req = {
+		.command = COMMAND_PCM_DRAIN,
+		.addr = transport->addr,
+		.type = transport->type,
+		.stream = transport->stream,
+	};
+
+#if DEBUG
+	char addr_[18];
+	ba2str_(&req.addr, addr_);
+	debug("Requesting PCM drain for %s", addr_);
+#endif
+
+	return bluealsa_send_request(fd, &req);
+}

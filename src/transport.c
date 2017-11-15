@@ -285,6 +285,8 @@ struct ba_transport *transport_new_a2dp(
 
 	t->a2dp.pcm.fd = -1;
 	t->a2dp.pcm.client = -1;
+	pthread_cond_init(&t->a2dp.pcm.drained, NULL);
+	pthread_mutex_init(&t->a2dp.pcm.drained_mn, NULL);
 
 	bluealsa_event();
 	return t;
@@ -316,8 +318,13 @@ struct ba_transport *transport_new_rfcomm(
 
 	t_sco->sco.spk_pcm.fd = -1;
 	t_sco->sco.spk_pcm.client = -1;
+	pthread_cond_init(&t_sco->sco.spk_pcm.drained, NULL);
+	pthread_mutex_init(&t_sco->sco.spk_pcm.drained_mn, NULL);
+
 	t_sco->sco.mic_pcm.fd = -1;
 	t_sco->sco.mic_pcm.client = -1;
+	pthread_cond_init(&t_sco->sco.mic_pcm.drained, NULL);
+	pthread_mutex_init(&t_sco->sco.mic_pcm.drained_mn, NULL);
 
 	transport_set_state(t_sco, TRANSPORT_ACTIVE);
 
@@ -362,6 +369,8 @@ void transport_free(struct ba_transport *t) {
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
 		transport_release_pcm(&t->a2dp.pcm);
+		pthread_cond_destroy(&t->a2dp.pcm.drained);
+		pthread_mutex_destroy(&t->a2dp.pcm.drained_mn);
 		free(t->a2dp.cconfig);
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
@@ -371,7 +380,11 @@ void transport_free(struct ba_transport *t) {
 		break;
 	case TRANSPORT_TYPE_SCO:
 		transport_release_pcm(&t->sco.spk_pcm);
+		pthread_cond_destroy(&t->sco.spk_pcm.drained);
+		pthread_mutex_destroy(&t->sco.spk_pcm.drained_mn);
 		transport_release_pcm(&t->sco.mic_pcm);
+		pthread_cond_destroy(&t->sco.mic_pcm.drained);
+		pthread_mutex_destroy(&t->sco.mic_pcm.drained_mn);
 		t->sco.rfcomm->rfcomm.sco = NULL;
 		break;
 	}
@@ -711,20 +724,65 @@ int transport_set_state_from_string(struct ba_transport *t, const char *state) {
 	return 0;
 }
 
+int transport_drain_pcm(struct ba_transport *t) {
+
+	struct ba_pcm *pcm = NULL;
+
+	switch (t->profile) {
+	case BLUETOOTH_PROFILE_NULL:
+	case BLUETOOTH_PROFILE_A2DP_SINK:
+		break;
+	case BLUETOOTH_PROFILE_A2DP_SOURCE:
+		pcm = &t->a2dp.pcm;
+		break;
+	case BLUETOOTH_PROFILE_HSP_AG:
+	case BLUETOOTH_PROFILE_HFP_AG:
+		pcm = &t->sco.spk_pcm;
+		break;
+	case BLUETOOTH_PROFILE_HSP_HS:
+	case BLUETOOTH_PROFILE_HFP_HF:
+		break;
+	}
+
+	if (pcm == NULL || t->state != TRANSPORT_ACTIVE)
+		return 0;
+
+	pthread_mutex_lock(&pcm->drained_mn);
+
+	pcm->sync = true;
+	pthread_cond_wait(&pcm->drained, &pcm->drained_mn);
+	pcm->sync = false;
+
+	pthread_mutex_unlock(&pcm->drained_mn);
+
+	/* TODO: Asynchronous transport release.
+	 *
+	 * Unfortunately, BlueZ does not provide API for internal buffer drain.
+	 * Also, there is no specification for Bluetooth playback drain. In order
+	 * to make sure, that all samples are played out, we have to wait some
+	 * arbitrary time before releasing transport. In order to make it right,
+	 * there is a requirement for an asynchronous release mechanism, which
+	 * is not implemented - it requires a little bit of refactoring. */
+	usleep(200000);
+
+	debug("PCM drained");
+	return 0;
+}
+
 int transport_acquire_bt_a2dp(struct ba_transport *t) {
 
 	GDBusMessage *msg, *rep;
 	GUnixFDList *fd_list;
 	GError *err = NULL;
 
-	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path, "org.bluez.MediaTransport1",
-			t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
-
 	if (t->bt_fd != -1) {
 		warn("Closing dangling BT socket: %d", t->bt_fd);
 		close(t->bt_fd);
 		t->bt_fd = -1;
 	}
+
+	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path, "org.bluez.MediaTransport1",
+			t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)

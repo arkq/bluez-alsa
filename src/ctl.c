@@ -455,6 +455,9 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 	case COMMAND_PCM_RESUME:
 		transport_set_state(t, TRANSPORT_ACTIVE);
 		break;
+	case COMMAND_PCM_DRAIN:
+		transport_drain_pcm(t);
+		break;
 	case COMMAND_PCM_READY:
 		break;
 	default:
@@ -483,6 +486,7 @@ static void *ctl_thread(void *arg) {
 		[COMMAND_PCM_CLOSE] = ctl_thread_cmd_pcm_close,
 		[COMMAND_PCM_PAUSE] = ctl_thread_cmd_pcm_control,
 		[COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
+		[COMMAND_PCM_DRAIN] = ctl_thread_cmd_pcm_control,
 		[COMMAND_PCM_READY] = ctl_thread_cmd_pcm_control,
 	};
 

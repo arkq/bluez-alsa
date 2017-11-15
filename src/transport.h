@@ -81,6 +81,11 @@ struct ba_pcm {
 	 * by the PCM client lookup function - transport_lookup_pcm_client() */
 	int client;
 
+	/* variables used for PCM synchronization */
+	bool sync;
+	pthread_cond_t drained;
+	pthread_mutex_t drained_mn;
+
 };
 
 struct ba_transport {
@@ -228,6 +233,8 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
+
+int transport_drain_pcm(struct ba_transport *t);
 
 int transport_acquire_bt_a2dp(struct ba_transport *t);
 int transport_release_bt_a2dp(struct ba_transport *t);

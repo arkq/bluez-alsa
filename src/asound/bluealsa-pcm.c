@@ -342,8 +342,9 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 }
 
 static int bluealsa_drain(snd_pcm_ioplug_t *io) {
-	(void)io;
-	debug("Draining");
+	struct bluealsa_pcm *pcm = io->private_data;
+	if (bluealsa_drain_transport(pcm->fd, pcm->transport) == -1)
+		return -errno;
 	return 0;
 }
 

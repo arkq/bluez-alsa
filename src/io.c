@@ -415,7 +415,12 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		case 0:
+			if (t->a2dp.pcm.sync)
+				pthread_cond_signal(&t->a2dp.pcm.drained);
+			continue;
+		case -1:
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -852,7 +857,12 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		case 0:
+			if (t->a2dp.pcm.sync)
+				pthread_cond_signal(&t->a2dp.pcm.drained);
+			continue;
+		case -1:
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -1031,7 +1041,12 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		case 0:
+			if (t->a2dp.pcm.sync)
+				pthread_cond_signal(&t->a2dp.pcm.drained);
+			continue;
+		case -1:
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -1190,7 +1205,12 @@ void *io_thread_sco(void *arg) {
 		if (t->sco.mic_pcm.fd == -1)
 			pfds[1].fd = -1;
 
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		case 0:
+			if (t->sco.spk_pcm.sync)
+				pthread_cond_signal(&t->sco.spk_pcm.drained);
+			continue;
+		case -1:
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
