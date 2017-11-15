@@ -51,10 +51,17 @@ static int io_thread_open_pcm_read(struct ba_pcm *pcm) {
 	/* XXX: This check allows testing. During normal operation PCM FIFO
 	 *      should not be opened outside the IO thread function. */
 	if (pcm->fd == -1) {
+
 		debug("Opening FIFO for reading: %s", pcm->fifo);
 		/* this call will block until writing side is opened */
 		if ((pcm->fd = open(pcm->fifo, O_RDONLY)) == -1)
 			return -1;
+
+		/* Change FIFO reading mode to the non-blocking one. Since, our read
+		 * logic is based on poll(), non-blocking mode will allow incorporate
+		 * read timeout, which might be used for thread termination. */
+		fcntl(pcm->fd, F_SETFL, fcntl(pcm->fd, F_GETFL) | O_NONBLOCK);
+
 	}
 
 	return 0;
@@ -120,28 +127,18 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer,
  * Read PCM signal from the transport PCM FIFO. */
 static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t samples) {
 
-	uint8_t *head = (uint8_t *)buffer;
-	size_t len = samples * sizeof(int16_t);
-	ssize_t ret = 1;  /* allow "reading" zero samples */
+	ssize_t ret;
 
-	/* This call will block until data arrives. If the passed file descriptor
-	 * is invalid (e.g. -1) is means, that other thread (the controller) has
-	 * closed the connection. If the connection was closed during the blocking
-	 * part, we will still read correct data, because Linux kernel does not
-	 * decrement file descriptor reference counter until the read returns. */
-	while (len != 0 && (ret = read(pcm->fd, head, len)) != 0) {
-		if (ret == -1) {
-			if (errno == EINTR)
-				continue;
-			break;
-		}
-		head += ret;
-		len -= ret;
-	}
+	/* If the passed file descriptor is invalid (e.g. -1) is means, that other
+	 * thread (the controller) has closed the connection. If the connection was
+	 * closed during this call, we will still read correct data, because Linux
+	 * kernel does not decrement file descriptor reference counter until the
+	 * read returns. */
+	while ((ret = read(pcm->fd, buffer, samples * sizeof(int16_t))) == -1 && errno == EINTR)
+		continue;
 
 	if (ret > 0)
-		/* atomic data read is guaranteed */
-		return samples;
+		return ret / sizeof(int16_t);
 
 	if (ret == 0)
 		debug("FIFO endpoint has been closed: %d", pcm->fd);
