@@ -90,7 +90,7 @@ AM_CONDITIONAL([ENABLE_PCM_TEST], [test "x$enable_pcm_test" = "xyes"])
 
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
-	[alsaplugindir="$withval"], [alsaplugindir="$libdir/alsa-lib"])
+	[alsaplugindir="$withval"], [alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
 AC_ARG_WITH([alsadatadir],
 	AS_HELP_STRING([--with-alsadatadir=dir], [directory containing ALSA data files]),
 	[alsadatadir="$withval"], [alsadatadir="$datadir/alsa"])
