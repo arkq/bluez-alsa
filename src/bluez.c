@@ -79,7 +79,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->frequency & SBC_SAMPLING_FREQ_16000)
 			cap->frequency = SBC_SAMPLING_FREQ_16000;
 		else {
-			error("No supported sampling frequencies: 0x%x", cap->frequency);
+			error("No supported sampling frequencies: %#x", cap->frequency);
 			goto fail;
 		}
 
@@ -95,7 +95,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->channel_mode & SBC_CHANNEL_MODE_MONO)
 			cap->channel_mode = SBC_CHANNEL_MODE_MONO;
 		else {
-			error("No supported channel modes: 0x%x", cap->channel_mode);
+			error("No supported channel modes: %#x", cap->channel_mode);
 			goto fail;
 		}
 
@@ -108,7 +108,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->block_length & SBC_BLOCK_LENGTH_4)
 			cap->block_length = SBC_BLOCK_LENGTH_4;
 		else {
-			error("No supported block lengths: 0x%x", cap->block_length);
+			error("No supported block lengths: %#x", cap->block_length);
 			goto fail;
 		}
 
@@ -117,7 +117,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->subbands & SBC_SUBBANDS_4)
 			cap->subbands = SBC_SUBBANDS_4;
 		else {
-			error("No supported subbands: 0x%x", cap->subbands);
+			error("No supported subbands: %#x", cap->subbands);
 			goto fail;
 		}
 
@@ -126,7 +126,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->allocation_method & SBC_ALLOCATION_SNR)
 			cap->allocation_method = SBC_ALLOCATION_SNR;
 		else {
-			error("No supported allocation: 0x%x", cap->allocation_method);
+			error("No supported allocation: %#x", cap->allocation_method);
 			goto fail;
 		}
 
@@ -156,7 +156,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->object_type & AAC_OBJECT_TYPE_MPEG2_AAC_LC)
 			cap->object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC;
 		else {
-			error("No supported object type: 0x%x", cap->object_type);
+			error("No supported object type: %#x", cap->object_type);
 			goto fail;
 		}
 
@@ -189,7 +189,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (sampling & AAC_SAMPLING_FREQ_8000)
 			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_8000);
 		else {
-			error("No supported sampling frequencies: 0x%x", sampling);
+			error("No supported sampling frequencies: %#x", sampling);
 			goto fail;
 		}
 
@@ -201,7 +201,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->channels & AAC_CHANNELS_1)
 			cap->channels = AAC_CHANNELS_1;
 		else {
-			error("No supported channels: 0x%x", cap->channels);
+			error("No supported channels: %#x", cap->channels);
 			goto fail;
 		}
 
@@ -231,7 +231,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->frequency & APTX_SAMPLING_FREQ_16000)
 			cap->frequency = APTX_SAMPLING_FREQ_16000;
 		else {
-			error("No supported sampling frequencies: 0x%x", cap->frequency);
+			error("No supported sampling frequencies: %#x", cap->frequency);
 			goto fail;
 		}
 
@@ -242,7 +242,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->channel_mode & APTX_CHANNEL_MODE_DUAL_CHANNEL)
 			cap->channel_mode = APTX_CHANNEL_MODE_DUAL_CHANNEL;
 		else {
-			error("No supported channel modes: 0x%x", cap->channel_mode);
+			error("No supported channel modes: %#x", cap->channel_mode);
 			goto fail;
 		}
 

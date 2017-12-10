@@ -159,7 +159,7 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint1
 			return "/A2DP/APTX/Source";
 #endif
 		default:
-			warn("Unsupported A2DP codec: 0x%x", codec);
+			warn("Unsupported A2DP codec: %#x", codec);
 			return "/A2DP/Source";
 		}
 	case BLUETOOTH_PROFILE_A2DP_SINK:
@@ -179,7 +179,7 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint1
 			return "/A2DP/APTX/Sink";
 #endif
 		default:
-			warn("Unsupported A2DP codec: 0x%x", codec);
+			warn("Unsupported A2DP codec: %#x", codec);
 			return "/A2DP/Sink";
 		}
 	case BLUETOOTH_PROFILE_HSP_HS:
@@ -547,7 +547,7 @@ const char *aacdec_strerror(AAC_DECODER_ERROR err) {
 	case AAC_DEC_TOO_MANY_ANC_ELEMENTS:
 		return "Too many ancillary elements";
 	default:
-		debug("Unknown error code: 0x%x", err);
+		debug("Unknown error code: %#x", err);
 		return "Unknown error";
 	}
 }
@@ -586,7 +586,7 @@ const char *aacenc_strerror(AACENC_ERROR err) {
 	case AACENC_ENCODE_EOF:
 		return "End of file";
 	default:
-		debug("Unknown error code: 0x%x", err);
+		debug("Unknown error code: %#x", err);
 		return "Unknown error";
 	}
 }

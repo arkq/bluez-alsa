@@ -1295,7 +1295,7 @@ retry_sco_read:
 
 		}
 		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
-			debug("SCO poll error status: 0x%x", pfds[1].revents);
+			debug("SCO poll error status: %#x", pfds[1].revents);
 			transport_release_bt_sco(t);
 		}
 
@@ -1368,7 +1368,7 @@ retry_sco_write:
 
 		}
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
-			debug("PCM poll error status: 0x%x", pfds[3].revents);
+			debug("PCM poll error status: %#x", pfds[3].revents);
 		}
 
 		if (pfds[4].revents & POLLOUT) {
