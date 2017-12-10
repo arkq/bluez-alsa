@@ -19,6 +19,7 @@
 #include <sys/eventfd.h>
 
 #include "bluealsa.h"
+#include "ctl.h"
 #include "utils.h"
 #include "shared/log.h"
 
@@ -310,7 +311,7 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_event();
+	bluealsa_ctl_event(EVENT_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -324,7 +325,7 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_event();
+	bluealsa_ctl_event(EVENT_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -632,7 +633,7 @@ void *rfcomm_thread(void *arg) {
 				case HFP_CC_CONNECTED:
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 				case HFP_CONNECTED:
-					bluealsa_event();
+					bluealsa_ctl_event(EVENT_TRANSPORT_ADDED);
 				}
 
 			if (t->profile == BLUETOOTH_PROFILE_HFP_AG)
@@ -661,7 +662,7 @@ void *rfcomm_thread(void *arg) {
 				case HFP_CC_CONNECTED:
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 				case HFP_CONNECTED:
-					bluealsa_event();
+					bluealsa_ctl_event(EVENT_TRANSPORT_ADDED);
 				}
 
 			if (handler != NULL) {

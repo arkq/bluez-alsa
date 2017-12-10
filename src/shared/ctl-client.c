@@ -114,15 +114,16 @@ int bluealsa_open(const char *interface) {
  * Subscribe for notifications.
  *
  * @param fd Opened socket file descriptor.
- * @param subscribe If true, client is subscribed, otherwise subscription
- *   is canceled - client will not receive notifications any more.
+ * @param mask Bit-mask with events for which client wants to be subscribed.
+ *   In order to cancel subscription, use empty event mask.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
-int bluealsa_subscribe(int fd, bool subscribe) {
+int bluealsa_subscribe(int fd, enum event mask) {
 	const struct request req = {
-		.command = subscribe ? COMMAND_SUBSCRIBE : COMMAND_UNSUBSCRIBE,
+		.command = COMMAND_SUBSCRIBE,
+		.events = mask,
 	};
-	debug("Subscribing for notifications: %s", subscribe ? "true" : "false");
+	debug("Subscribing for events: %B", mask);
 	return bluealsa_send_request(fd, &req);
 }
 

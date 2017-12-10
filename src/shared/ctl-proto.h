@@ -24,7 +24,6 @@
 enum command {
 	COMMAND_PING,
 	COMMAND_SUBSCRIBE,
-	COMMAND_UNSUBSCRIBE,
 	COMMAND_LIST_DEVICES,
 	COMMAND_LIST_TRANSPORTS,
 	COMMAND_TRANSPORT_GET,
@@ -47,8 +46,11 @@ enum status_code {
 	STATUS_CODE_PONG,
 };
 
-enum event_type {
-	EVENT_TYPE_NULL = 0,
+enum event {
+	EVENT_TRANSPORT_ADDED   = 1 << 0,
+	EVENT_TRANSPORT_REMOVED = 1 << 1,
+	EVENT_UPDATE_BATTERY    = 1 << 2,
+	EVENT_UPDATE_VOLUME     = 1 << 3,
 };
 
 enum pcm_type {
@@ -78,6 +80,9 @@ struct __attribute__ ((packed)) request {
 	enum pcm_type type;
 	enum pcm_stream stream;
 
+	/* bit-mask with event subscriptions */
+	enum event events;
+
 	/* fields used by the SET_TRANSPORT_VOLUME command */
 	uint8_t ch1_muted:1;
 	uint8_t ch1_volume:7;
@@ -95,7 +100,8 @@ struct __attribute__ ((packed)) msg_status {
 };
 
 struct __attribute__ ((packed)) msg_event {
-	enum event_type type;
+	/* bit-mask with events */
+	enum event mask;
 };
 
 struct __attribute__ ((packed)) msg_device {

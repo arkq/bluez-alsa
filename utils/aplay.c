@@ -446,7 +446,7 @@ usage:
 		goto fail;
 	}
 
-	if (bluealsa_subscribe(ba_fd, true) == -1) {
+	if (bluealsa_subscribe(ba_fd, EVENT_TRANSPORT_ADDED | EVENT_TRANSPORT_REMOVED) == -1) {
 		error("BlueALSA subscription failed: %s", strerror(errno));
 		goto fail;
 	}

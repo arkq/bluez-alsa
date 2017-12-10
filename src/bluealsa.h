@@ -26,6 +26,7 @@
 #include <gio/gio.h>
 
 #include "bluez.h"
+#include "shared/ctl-proto.h"
 
 /* Maximal number of clients connected to the controller. */
 #define BLUEALSA_MAX_CLIENTS 7
@@ -67,8 +68,11 @@ struct ba_config {
 		bool thread_created;
 
 		struct pollfd pfds[__CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS];
-		/* clients subscribed for notifications */
-		bool subs[BLUEALSA_MAX_CLIENTS];
+		/* event subscriptions for connected clients */
+		enum event subs[BLUEALSA_MAX_CLIENTS];
+
+		/* PIPE for transferring events */
+		int evt[2];
 
 	} ctl;
 
@@ -106,7 +110,5 @@ extern struct ba_config config;
 
 int bluealsa_config_init(void);
 void bluealsa_config_free(void);
-
-void bluealsa_event();
 
 #endif

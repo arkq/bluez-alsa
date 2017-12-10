@@ -16,7 +16,7 @@
 
 int bluealsa_open(const char *interface);
 
-int bluealsa_subscribe(int fd, bool subscribe);
+int bluealsa_subscribe(int fd, enum event mask);
 
 ssize_t bluealsa_get_devices(int fd, struct msg_device **devices);
 ssize_t bluealsa_get_transports(int fd, struct msg_transport **transports);

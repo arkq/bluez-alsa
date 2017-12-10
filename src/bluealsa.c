@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2017 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,7 +11,6 @@
 #include "bluealsa.h"
 
 #include <grp.h>
-#include <sys/eventfd.h>
 
 #include "transport.h"
 
@@ -72,8 +71,4 @@ void bluealsa_config_free(void) {
 	pthread_mutex_destroy(&config.devices_mutex);
 	g_hash_table_unref(config.devices);
 	g_hash_table_unref(config.dbus_objects);
-}
-
-void bluealsa_event() {
-	eventfd_write(config.ctl.pfds[CTL_IDX_EVT].fd, 1);
 }

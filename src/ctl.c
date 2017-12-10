@@ -32,7 +32,6 @@
 #include "hfp.h"
 #include "transport.h"
 #include "utils.h"
-#include "shared/ctl-proto.h"
 #include "shared/log.h"
 
 
@@ -204,15 +203,14 @@ static void ctl_thread_cmd_ping(const struct request *req, int fd) {
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_notifications(const struct request *req, int fd) {
+static void ctl_thread_cmd_subscribe(const struct request *req, int fd) {
 
 	static const struct msg_status status = { STATUS_CODE_SUCCESS };
-	const bool subscribe = req->command == COMMAND_SUBSCRIBE;
 	size_t i;
 
 	for (i = __CTL_IDX_MAX; i < __CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS; i++)
 		if (config.ctl.pfds[i].fd == fd)
-			config.ctl.subs[i - __CTL_IDX_MAX] = subscribe;
+			config.ctl.subs[i - __CTL_IDX_MAX] = req->events;
 
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
@@ -476,8 +474,7 @@ static void *ctl_thread(void *arg) {
 
 	static void (*commands[__COMMAND_MAX])(const struct request *, int) = {
 		[COMMAND_PING] = ctl_thread_cmd_ping,
-		[COMMAND_SUBSCRIBE] = ctl_thread_cmd_notifications,
-		[COMMAND_UNSUBSCRIBE] = ctl_thread_cmd_notifications,
+		[COMMAND_SUBSCRIBE] = ctl_thread_cmd_subscribe,
 		[COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
 		[COMMAND_LIST_TRANSPORTS] = ctl_thread_cmd_list_transports,
 		[COMMAND_TRANSPORT_GET] = ctl_thread_cmd_transport_get,
@@ -533,7 +530,7 @@ static void *ctl_thread(void *arg) {
 					}
 
 					config.ctl.pfds[i].fd = -1;
-					config.ctl.subs[i - __CTL_IDX_MAX] = false;
+					config.ctl.subs[i - __CTL_IDX_MAX] = 0;
 					close(fd);
 					continue;
 				}
@@ -557,16 +554,16 @@ static void *ctl_thread(void *arg) {
 		/* generate notifications for subscribed clients */
 		if (config.ctl.pfds[CTL_IDX_EVT].revents & POLLIN) {
 
-			struct msg_event event = { EVENT_TYPE_NULL };
-			eventfd_t _event;
+			struct msg_event event = { 0 };
 			size_t i;
 
-			eventfd_read(config.ctl.pfds[CTL_IDX_EVT].fd, &_event);
+			if (read(config.ctl.pfds[CTL_IDX_EVT].fd, &event.mask, sizeof(event.mask)) == -1)
+				warn("Couldn't read controller event: %s", strerror(errno));
 
 			for (i = 0; i < BLUEALSA_MAX_CLIENTS; i++)
-				if (config.ctl.subs[i] == true) {
+				if (config.ctl.subs[i] & event.mask) {
 					const int client = config.ctl.pfds[i + __CTL_IDX_MAX].fd;
-					debug("Generating client notification: %d", client);
+					debug("Emitting notification: %B => %d", event.mask, client);
 					send(client, &event, sizeof(event), MSG_NOSIGNAL);
 				}
 
@@ -613,8 +610,9 @@ int bluealsa_ctl_thread_init(void) {
 	if (listen(config.ctl.pfds[CTL_IDX_SRV].fd, 2) == -1)
 		goto fail;
 
-	if ((config.ctl.pfds[CTL_IDX_EVT].fd = eventfd(0, EFD_NONBLOCK)) == -1)
+	if (pipe(config.ctl.evt) == -1)
 		goto fail;
+	config.ctl.pfds[CTL_IDX_EVT].fd = config.ctl.evt[0];
 
 	config.ctl.thread_created = true;
 	if ((errno = pthread_create(&config.ctl.thread, NULL, ctl_thread, NULL)) != 0) {
@@ -639,6 +637,10 @@ void bluealsa_ctl_free(void) {
 
 	config.ctl.thread_created = false;
 
+	close(config.ctl.evt[0]);
+	close(config.ctl.evt[1]);
+	config.ctl.pfds[CTL_IDX_EVT].fd = -1;
+
 	for (i = 0; i < sizeof(config.ctl.pfds) / sizeof(*config.ctl.pfds); i++)
 		if (config.ctl.pfds[i].fd != -1)
 			close(config.ctl.pfds[i].fd);
@@ -655,4 +657,8 @@ void bluealsa_ctl_free(void) {
 		config.ctl.socket_created = false;
 	}
 
+}
+
+int bluealsa_ctl_event(enum event event) {
+	return write(config.ctl.evt[1], &event, sizeof(event));
 }
