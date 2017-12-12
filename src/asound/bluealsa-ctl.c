@@ -51,6 +51,9 @@ struct bluealsa_ctl {
 	/* bluealsa socket */
 	int fd;
 
+	/* if true, show battery meter */
+	bool battery;
+
 	/* list of all BT devices */
 	struct msg_device *devices;
 	size_t devices_count;
@@ -240,7 +243,7 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 
 	for (i = 0; i < ctl->devices_count; i++) {
 		/* add additional element for battery level */
-		if (ctl->devices[i].battery)
+		if (ctl->battery && ctl->devices[i].battery)
 			count++;
 	}
 
@@ -346,7 +349,7 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 	/* construct device specific elements */
 	for (i = 0; i < ctl->devices_count; i++) {
 		/* add additional element for battery level */
-		if (ctl->devices[i].battery) {
+		if (ctl->battery && ctl->devices[i].battery) {
 			ctl->elems[count].type = CTL_ELEM_TYPE_BATTERY;
 			ctl->elems[count].device = &ctl->devices[i];
 			ctl->elems[count].transport = NULL;
@@ -718,6 +721,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	snd_config_iterator_t i, next;
 	const char *interface = "hci0";
+	const char *battery = "no";
 	struct bluealsa_ctl *ctl;
 	int ret;
 
@@ -735,6 +739,13 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 		if (strcmp(id, "interface") == 0) {
 			if (snd_config_get_string(n, &interface) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
+		if (strcmp(id, "battery") == 0) {
+			if (snd_config_get_string(n, &battery) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
@@ -761,6 +772,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	strncpy(ctl->ext.name, "BlueALSA", sizeof(ctl->ext.name) - 1);
 	strncpy(ctl->ext.longname, "Bluetooth Audio Hub Controller", sizeof(ctl->ext.longname) - 1);
 	strncpy(ctl->ext.mixername, "BlueALSA Plugin", sizeof(ctl->ext.mixername) - 1);
+	ctl->battery = strcmp(battery, "yes") == 0;
 
 	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
 	ctl->ext.private_data = ctl;
