@@ -40,6 +40,8 @@ struct pcm_worker {
 	int pcm_fd;
 	/* if true, worker is marked for eviction */
 	bool eviction;
+	/* if true, playback is active */
+	bool active;
 	/* human-readable BT address */
 	char addr[18];
 };
@@ -50,6 +52,12 @@ static const char *ba_interface = "hci0";
 static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
 static enum pcm_type ba_type = PCM_TYPE_A2DP;
+static bool pcm_mixer = true;
+
+static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
+static struct pcm_worker *workers = NULL;
+static size_t workers_count = 0;
+static size_t workers_size = 0;
 
 static bool main_loop_on = true;
 static void main_loop_stop(int sig) {
@@ -155,6 +163,24 @@ fail:
 	return err;
 }
 
+static struct pcm_worker *get_active_worker(void) {
+
+	struct pcm_worker *w = NULL;
+	size_t i;
+
+	pthread_rwlock_rdlock(&workers_lock);
+
+	for (i = 0; i < workers_count; i++)
+		if (workers[i].active) {
+			w = &workers[i];
+			break;
+		}
+
+	pthread_rwlock_unlock(&workers_lock);
+
+	return w;
+}
+
 static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 	if (worker->pcm_fd != -1) {
 		bluealsa_close_transport(worker->ba_fd, &worker->transport);
@@ -249,6 +275,7 @@ static void *pcm_worker_routine(void *arg) {
 	}
 
 	struct pollfd pfds[] = {{ w->pcm_fd, POLLIN, 0 }};
+	int timeout = -1;
 
 	debug("Starting PCM loop");
 	while (main_loop_on) {
@@ -261,8 +288,17 @@ static void *pcm_worker_routine(void *arg) {
 		 * on the writing side. However, the server does not open PCM FIFO until
 		 * a transport is created. With the A2DP, the transport is created when
 		 * some clients (BT device) requests audio transfer. */
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1 && errno == EINTR)
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), timeout)) {
+		case -1:
+			if (errno == EINTR)
+				continue;
+		case 0:
+			debug("Device marked as inactive: %s", w->addr);
+			buffer_tail = buffer;
+			w->active = false;
+			timeout = -1;
 			continue;
+		}
 
 		/* FIFO has been terminated on the writing side */
 		if (pfds[0].revents & POLLHUP)
@@ -276,6 +312,17 @@ static void *pcm_worker_routine(void *arg) {
 		}
 
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		/* If PCM mixer is disabled, check whether we should play audio. */
+		if (!pcm_mixer) {
+			struct pcm_worker *worker = get_active_worker();
+			if (worker != NULL && worker != w)
+				continue;
+		}
+
+		/* mark device as active and set timeout to 500ms */
+		w->active = true;
+		timeout = 500;
 
 		/* calculate the overall number of frames in the buffer */
 		snd_pcm_uframes_t frames = ((buffer_tail - buffer) + ret) / frame_size;
@@ -326,6 +373,7 @@ int main(int argc, char *argv[]) {
 		{ "pcm-period-time", required_argument, NULL, 4 },
 		{ "profile-a2dp", no_argument, NULL, 1 },
 		{ "profile-sco", no_argument, NULL, 2 },
+		{ "single-audio", no_argument, NULL, 5 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -345,6 +393,7 @@ usage:
 					"  --pcm-period-time=INT\tPCM period time\n"
 					"  --profile-a2dp\tuse A2DP profile\n"
 					"  --profile-sco\t\tuse SCO profile\n"
+					"  --single-audio\tsingle audio mode\n"
 					"\nNote:\n"
 					"If one wants to receive audio from more than one Bluetooth device, it is\n"
 					"possible to specify more than one MAC address. By specifying any/empty MAC\n"
@@ -382,6 +431,10 @@ usage:
 			pcm_period_time = atoi(optarg);
 			break;
 
+		case 5 /* --single-audio */ :
+			pcm_mixer = false;
+			break;
+
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return EXIT_FAILURE;
@@ -395,10 +448,6 @@ usage:
 	bdaddr_t *ba_addrs = NULL;
 	size_t ba_addrs_count = 0;
 	bool ba_addr_any = false;
-
-	struct pcm_worker *workers = NULL;
-	size_t workers_count = 0;
-	size_t workers_size = 0;
 
 	int status = EXIT_SUCCESS;
 	int ba_fd = -1;
@@ -520,17 +569,24 @@ init:
 				workers_count++;
 
 				if (workers_size < workers_count) {
+
+					pthread_rwlock_wrlock(&workers_lock);
+
 					workers_size += 4; /* coarse-grained realloc */
 					if ((workers = realloc(workers, sizeof(*workers) * workers_size)) == NULL) {
 						error("Couldn't (re)allocate memory for PCM workers");
 						goto fail;
 					}
+
+					pthread_rwlock_unlock(&workers_lock);
+
 				}
 
 				struct pcm_worker *worker = &workers[workers_count - 1];
 				memcpy(&worker->transport, &transports[i], sizeof(worker->transport));
 				ba2str(&worker->transport.addr, worker->addr);
 				worker->eviction = false;
+				worker->active = false;
 				worker->pcm_fd = -1;
 				worker->ba_fd = -1;
 
