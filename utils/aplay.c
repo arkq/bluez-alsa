@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
+#include <gio/gio.h>
 
 #include "shared/ctl-client.h"
 #include "shared/log.h"
@@ -53,6 +54,8 @@ static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
 static enum pcm_type ba_type = PCM_TYPE_A2DP;
 static bool pcm_mixer = true;
+
+static GDBusConnection *dbus = NULL;
 
 static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
 static struct pcm_worker *workers = NULL;
@@ -181,6 +184,44 @@ static struct pcm_worker *get_active_worker(void) {
 	return w;
 }
 
+static int pause_device_player(const bdaddr_t *dev) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+	char obj[64];
+	int ret = 0;
+
+	sprintf(obj, "/org/bluez/%s/dev_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X/player0",
+			ba_interface, dev->b[5], dev->b[4], dev->b[3], dev->b[2], dev->b[1], dev->b[0]);
+	msg = g_dbus_message_new_method_call("org.bluez", obj, "org.bluez.MediaPlayer1", "Pause");
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+	debug("Requested playback pause");
+	goto final;
+
+fail:
+	ret = -1;
+
+final:
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		debug("Couldn't pause player: %s", err->message);
+		g_error_free(err);
+	}
+
+	return ret;
+}
+
 static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 	if (worker->pcm_fd != -1) {
 		bluealsa_close_transport(worker->ba_fd, &worker->transport);
@@ -274,6 +315,13 @@ static void *pcm_worker_routine(void *arg) {
 		goto fail;
 	}
 
+	/* These variables determine how and when the pause command will be send
+	 * to the device player. In order not to flood BT connection with AVRCP
+	 * packets, we are going to send pause command every 0.5 second. */
+	size_t pause_threshold = snd_pcm_frames_to_bytes(w->pcm, w->transport.sampling / 2);
+	size_t pause_counter = 0;
+	size_t pause_bytes = 0;
+
 	struct pollfd pfds[] = {{ w->pcm_fd, POLLIN, 0 }};
 	int timeout = -1;
 
@@ -294,6 +342,7 @@ static void *pcm_worker_routine(void *arg) {
 				continue;
 		case 0:
 			debug("Device marked as inactive: %s", w->addr);
+			pause_counter = pause_bytes = 0;
 			buffer_tail = buffer;
 			w->active = false;
 			timeout = -1;
@@ -316,8 +365,17 @@ static void *pcm_worker_routine(void *arg) {
 		/* If PCM mixer is disabled, check whether we should play audio. */
 		if (!pcm_mixer) {
 			struct pcm_worker *worker = get_active_worker();
-			if (worker != NULL && worker != w)
+			if (worker != NULL && worker != w) {
+				if (pause_counter < 5 && (pause_bytes += ret) > pause_threshold) {
+					if (pause_device_player(&w->transport.addr) == -1)
+						/* pause command does not work, stop further requests */
+						pause_counter = 5;
+					pause_counter++;
+					pause_bytes = 0;
+					timeout = 100;
+				}
 				continue;
+			}
 		}
 
 		/* mark device as active and set timeout to 500ms */
@@ -488,6 +546,16 @@ usage:
 				ba_type == PCM_TYPE_A2DP ? "A2DP" : "SCO");
 
 		free(ba_str);
+	}
+
+	GError *err = NULL;
+	if ((dbus = g_dbus_connection_new_for_address_sync(
+					g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, NULL, NULL),
+					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
+					NULL, NULL, &err)) == NULL) {
+		error("Couldn't obtain D-Bus connection: %s", err->message);
+		goto fail;
 	}
 
 	if ((ba_fd = bluealsa_open(ba_interface)) == -1) {

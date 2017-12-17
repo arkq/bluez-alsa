@@ -12,10 +12,12 @@ bluealsa_aplay_SOURCES = \
 bluealsa_aplay_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@ALSA_CFLAGS@ \
-	@BLUEZ_CFLAGS@
+	@BLUEZ_CFLAGS@ \
+	@GIO2_CFLAGS@
 bluealsa_aplay_LDADD = \
 	@ALSA_LIBS@ \
-	@BLUEZ_LIBS@
+	@BLUEZ_LIBS@ \
+	@GIO2_LIBS@
 endif
 
 if ENABLE_HCITOP
