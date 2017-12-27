@@ -42,6 +42,9 @@ struct rfcomm_conn {
 	enum hfp_state state;
 	enum hfp_state state_prev;
 
+	/* handler used for sync response dispatching */
+	const struct rfcomm_handler *handler;
+
 	/* number of failed communication attempts */
 	int retries;
 

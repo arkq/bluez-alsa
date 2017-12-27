@@ -48,9 +48,10 @@ enum status_code {
 
 enum event {
 	EVENT_TRANSPORT_ADDED   = 1 << 0,
-	EVENT_TRANSPORT_REMOVED = 1 << 1,
-	EVENT_UPDATE_BATTERY    = 1 << 2,
-	EVENT_UPDATE_VOLUME     = 1 << 3,
+	EVENT_TRANSPORT_CHANGED = 1 << 1,
+	EVENT_TRANSPORT_REMOVED = 1 << 2,
+	EVENT_UPDATE_BATTERY    = 1 << 3,
+	EVENT_UPDATE_VOLUME     = 1 << 4,
 };
 
 enum pcm_type {

@@ -363,16 +363,30 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	return 0;
 }
 
+static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+	if (rfcomm_handler_resp_ok_cb(c, at) != 0)
+		return -1;
+	/* When codec selection is completed, notify connected clients, that
+	 * transport has been changed. Note, that this event might be emitted
+	 * for an active transport - codec switching. */
+	bluealsa_ctl_event(EVENT_TRANSPORT_CHANGED);
+	return 0;
+}
+
 /**
  * RESP: Bluetooth Codec Selection */
 static int rfcomm_handler_bcs_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
+	static const struct rfcomm_handler handler = {
+		AT_TYPE_RESP, "", rfcomm_handler_resp_bcs_ok_cb };
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
 
 	t->rfcomm.sco->codec = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
 		return -1;
+
+	c->handler = &handler;
 
 	if (c->state < HFP_CC_BCS_SET)
 		rfcomm_set_hfp_state(c, HFP_CC_BCS_SET);
@@ -562,7 +576,6 @@ void *rfcomm_thread(void *arg) {
 		 * AT command once more. */
 		int timeout = -1;
 
-		const struct rfcomm_handler *handler = NULL;
 		rfcomm_callback *callback;
 		char tmp[16];
 
@@ -588,47 +601,47 @@ void *rfcomm_thread(void *arg) {
 					sprintf(tmp, "%u", BA_HFP_HF_FEATURES);
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BRSF", tmp) == -1)
 						goto ioerror;
-					handler = &rfcomm_handler_brsf_resp;
+					conn.handler = &rfcomm_handler_brsf_resp;
 					break;
 				case HFP_SLC_BRSF_SET:
-					handler = &rfcomm_handler_resp_ok;
+					conn.handler = &rfcomm_handler_resp_ok;
 					break;
 				case HFP_SLC_BRSF_SET_OK:
 					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC) {
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", "1") == -1)
 							goto ioerror;
-						handler = &rfcomm_handler_resp_ok;
+						conn.handler = &rfcomm_handler_resp_ok;
 						break;
 					}
 				case HFP_SLC_BAC_SET_OK:
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_TEST, "+CIND", NULL) == -1)
 						goto ioerror;
-					handler = &rfcomm_handler_cind_resp_test;
+					conn.handler = &rfcomm_handler_cind_resp_test;
 					break;
 				case HFP_SLC_CIND_TEST:
-					handler = &rfcomm_handler_resp_ok;
+					conn.handler = &rfcomm_handler_resp_ok;
 					break;
 				case HFP_SLC_CIND_TEST_OK:
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_GET, "+CIND", NULL) == -1)
 						goto ioerror;
-					handler = &rfcomm_handler_cind_resp_get;
+					conn.handler = &rfcomm_handler_cind_resp_get;
 					break;
 				case HFP_SLC_CIND_GET:
-					handler = &rfcomm_handler_resp_ok;
+					conn.handler = &rfcomm_handler_resp_ok;
 					break;
 				case HFP_SLC_CIND_GET_OK:
 					/* Activate indicator events reporting. The +CMER specification is
 					 * as follows: AT+CMER=[<mode>[,<keyp>[,<disp>[,<ind>[,<bfr>]]]]] */
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+CMER", "3,0,0,1,0") == -1)
 						goto ioerror;
-					handler = &rfcomm_handler_resp_ok;
+					conn.handler = &rfcomm_handler_resp_ok;
 					break;
 				case HFP_SLC_CMER_SET_OK:
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 				case HFP_SLC_CONNECTED:
-				case HFP_CC_BCS_SET:
 					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC)
 						break;
+				case HFP_CC_BCS_SET:
 				case HFP_CC_BCS_SET_OK:
 				case HFP_CC_CONNECTED:
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
@@ -654,7 +667,7 @@ void *rfcomm_thread(void *arg) {
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", "1") == -1)
 							goto ioerror;
 						t->rfcomm.sco->codec = HFP_CODEC_CVSD;
-						handler = &rfcomm_handler_bcs_set;
+						conn.handler = &rfcomm_handler_bcs_set;
 						break;
 					}
 				case HFP_CC_BCS_SET:
@@ -665,7 +678,7 @@ void *rfcomm_thread(void *arg) {
 					bluealsa_ctl_event(EVENT_TRANSPORT_ADDED);
 				}
 
-			if (handler != NULL) {
+			if (conn.handler != NULL) {
 				timeout = RFCOMM_SLC_TIMEOUT;
 				conn.retries++;
 			}
@@ -725,9 +738,11 @@ read:
 				}
 
 			/* use predefined callback, otherwise get generic one */
-			if (handler != NULL && handler->type == reader.at.type &&
-					strcmp(handler->command, reader.at.command) == 0)
-				callback = handler->callback;
+			if (conn.handler != NULL && conn.handler->type == reader.at.type &&
+					strcmp(conn.handler->command, reader.at.command) == 0) {
+				callback = conn.handler->callback;
+				conn.handler = NULL;
+			}
 			else
 				callback = rfcomm_get_callback(&reader.at);
 
