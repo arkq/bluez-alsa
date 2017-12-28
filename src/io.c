@@ -1192,13 +1192,13 @@ void *io_thread_sco(void *arg) {
 		switch (t->codec) {
 		case HFP_CODEC_CVSD:
 		default:
-			if (ffb_len_in(&bt_in) >= t->mtu_read)
+			if (t->mtu_read > 0 && ffb_len_in(&bt_in) >= t->mtu_read)
 				pfds[1].fd = t->bt_fd;
-			if (ffb_len_out(&bt_out) >= t->mtu_write)
+			if (t->mtu_write > 0 && ffb_len_out(&bt_out) >= t->mtu_write)
 				pfds[2].fd = t->bt_fd;
-			if (ffb_len_in(&bt_out) >= t->mtu_write)
+			if (t->mtu_write > 0 && ffb_len_in(&bt_out) >= t->mtu_write)
 				pfds[3].fd = t->sco.spk_pcm.fd;
-			if (ffb_len_out(&bt_in) >= t->mtu_read)
+			if (ffb_len_out(&bt_in) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
 		}
 
