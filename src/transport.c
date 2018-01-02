@@ -691,7 +691,11 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		}
 		break;
 	case TRANSPORT_PENDING:
-		ret = transport_acquire_bt_a2dp(t);
+		/* When transport is marked as pending, try to acquire transport, but only
+		 * if we are handing A2DP sink profile. For source profile, transport has
+		 * to be acquired by our controller (during the PCM open request). */
+		if (t->profile == BLUETOOTH_PROFILE_A2DP_SINK)
+			ret = transport_acquire_bt_a2dp(t);
 		break;
 	case TRANSPORT_ACTIVE:
 	case TRANSPORT_PAUSED:
