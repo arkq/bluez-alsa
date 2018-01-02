@@ -1,6 +1,6 @@
 /*
  * BlueALSA - transport.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -451,9 +451,16 @@ bool transport_remove(GHashTable *devices, const char *dbus_path) {
 
 	GHashTableIter iter;
 	struct ba_device *d;
+	struct ba_transport *t;
 
 	g_hash_table_iter_init(&iter, devices);
 	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
+		/* Disassociate D-Bus owner before further actions. This will ensure,
+		 * that we will not generate errors by using non-existent interface. */
+		if ((t = g_hash_table_lookup(d->transports, dbus_path)) != NULL) {
+			free(t->dbus_owner);
+			t->dbus_owner = NULL;
+		}
 		if (g_hash_table_remove(d->transports, dbus_path)) {
 			if (g_hash_table_size(d->transports) == 0)
 				g_hash_table_iter_remove(&iter);
@@ -843,9 +850,9 @@ int transport_release_bt_a2dp(struct ba_transport *t) {
 			bluetooth_profile_to_string(t->profile, t->codec));
 
 	/* If the state is idle, it means that either transport was not acquired, or
-	 * was released by the Bluez. In both cases there is no point in a explicit
+	 * was released by the BlueZ. In both cases there is no point in a explicit
 	 * release request. It might even return error (e.g. not authorized). */
-	if (t->state != TRANSPORT_IDLE) {
+	if (t->state != TRANSPORT_IDLE && t->dbus_owner != NULL) {
 
 		msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
 				"org.bluez.MediaTransport1", "Release");
@@ -857,7 +864,7 @@ int transport_release_bt_a2dp(struct ba_transport *t) {
 		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
 			g_dbus_message_to_gerror(rep, &err);
 			if (err->code == G_DBUS_ERROR_NO_REPLY) {
-				/* If Bluez is already terminated (or is terminating), we won't receive
+				/* If BlueZ is already terminated (or is terminating), we won't receive
 				 * any response. Do not treat such a case as an error - omit logging. */
 				g_error_free(err);
 				err = NULL;

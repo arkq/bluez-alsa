@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -1076,7 +1076,7 @@ fail:
 }
 
 /**
- * Subscribe to Bluez related signals.
+ * Subscribe to BlueZ related signals.
  *
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int bluez_subscribe_signals(void) {
@@ -1084,7 +1084,7 @@ int bluez_subscribe_signals(void) {
 	GDBusConnection *conn = config.dbus;
 
 	/* Note, that we do not have to subscribe for the interfaces remove signal,
-	 * because prior to removal, Bluez will call appropriate Release method. */
+	 * because prior to removal, BlueZ will emit appropriate "clear" signal. */
 	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.ObjectManager",
 			"InterfacesAdded", NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE,
 			/* TODO: Use arg0 filtering, but is seems it doesn't work... */
