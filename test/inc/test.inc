@@ -2,7 +2,7 @@
  * test.inc
  * vim: ft=c
  *
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -14,8 +14,12 @@
  */
 
 #include <assert.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
+
+static int test_sigusr1_count;
+static int test_sigusr2_count;
 
 static int test_error_count;
 static int test_warn_count;
@@ -26,6 +30,7 @@ static char test_warn_msg[512];
 static char test_info_msg[512];
 
 #define test_run(f) do { \
+		test_sigusr1_count = test_sigusr2_count = 0; \
 		test_error_count = test_warn_count = test_info_count = 0; \
 		*test_error_msg = *test_warn_msg = *test_info_msg = '\0'; \
 		assert(!f()); \
@@ -73,4 +78,19 @@ void _debug(const char *format, ...) {
 	vfprintf(stderr, format, ap);
 	fputc('\n', stderr);
 	va_end(ap);
+}
+
+static void test_sigusr_handler(int sig) {
+	switch (sig) {
+	case SIGUSR1:
+		_debug("Dispatching SIGUSR1");
+		test_sigusr1_count++;
+		break;
+	case SIGUSR2:
+		_debug("Dispatching SIGUSR2");
+		test_sigusr2_count++;
+		break;
+	default:
+		error("Unsupported signal: %d", sig);
+	}
 }
