@@ -1,6 +1,6 @@
 /*
  * bluealsa-pcm.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -70,6 +70,17 @@ struct bluealsa_pcm {
 
 
 /**
+ * Helper function for closing PCM transport. */
+static int close_transport(struct bluealsa_pcm *pcm) {
+	int rv = bluealsa_close_transport(pcm->fd, pcm->transport);
+	int err = errno;
+	close(pcm->pcm_fd);
+	pcm->pcm_fd = -1;
+	errno = err;
+	return rv;
+}
+
+/**
  * IO thread, which facilitates ring buffer. */
 static void *io_thread(void *arg) {
 	snd_pcm_ioplug_t *io = (snd_pcm_ioplug_t *)arg;
@@ -79,7 +90,14 @@ static void *io_thread(void *arg) {
 
 	sigset_t sigset;
 	sigemptyset(&sigset);
+
+	/* Block signal, which will be used for pause/resume actions. */
 	sigaddset(&sigset, SIGIO);
+	/* Block SIGPIPE, so we could receive EPIPE while writing to the pipe
+	 * whose reading end has been closed. This will allow clean playback
+	 * termination. */
+	sigaddset(&sigset, SIGPIPE);
+
 	if ((errno = pthread_sigmask(SIG_BLOCK, &sigset, NULL)) != 0) {
 		SNDERR("Thread signal mask error: %s", strerror(errno));
 		goto final;
@@ -108,6 +126,8 @@ static void *io_thread(void *arg) {
 		case SND_PCM_STATE_RUNNING:
 		case SND_PCM_STATE_DRAINING:
 			break;
+		case SND_PCM_STATE_DISCONNECTED:
+			goto final;
 		default:
 			debug("IO thread paused: %d", io->state);
 			sigwait(&sigset, &tmp);
@@ -196,6 +216,7 @@ sync:
 
 final:
 	debug("Exiting IO thread");
+	close_transport(pcm);
 	eventfd_write(pcm->event_fd, 0xDEAD0000);
 	return NULL;
 }
@@ -206,7 +227,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 
 	/* If the IO thread is already started, skip thread creation. Otherwise,
 	 * we might end up with a bunch of IO threads reading or writing to the
-	 * same FIFO simultaneously. */
+	 * same FIFO simultaneously. Instead, just send resume signal. */
 	if (pcm->io_started) {
 		io->state = SND_PCM_STATE_RUNNING;
 		pthread_kill(pcm->io_thread, SIGIO);
@@ -253,6 +274,8 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 
 static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
+	if (pcm->pcm_fd == -1)
+		return -ENODEV;
 	return pcm->io_ptr;
 }
 
@@ -306,16 +329,8 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug("Freeing HW");
-
-	if (pcm->pcm_fd == -1)
-		return -EBADF;
-
-	if (bluealsa_close_transport(pcm->fd, pcm->transport) == -1)
-		debug("Couldn't close PCM FIFO: %s", strerror(errno));
-
-	close(pcm->pcm_fd);
-	pcm->pcm_fd = -1;
-
+	if (close_transport(pcm) == -1)
+		return -errno;
 	return 0;
 }
 
@@ -380,6 +395,9 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 
 static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	struct bluealsa_pcm *pcm = io->private_data;
+
+	if (pcm->pcm_fd == -1)
+		return -ENODEV;
 
 	/* Exact calculation of the PCM delay is very hard, if not impossible. For
 	 * the sake of simplicity we will make few assumptions and approximations.
@@ -449,6 +467,9 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 	if (nfds != 2)
 		return -EINVAL;
 
+	if (pcm->pcm_fd == -1)
+		return -ENODEV;
+
 	if (pfd[0].revents & POLLIN) {
 
 		eventfd_t event;
@@ -475,7 +496,6 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 	return 0;
 
 fail:
-	io->state = SND_PCM_STATE_DISCONNECTED;
 	*revents = POLLERR | POLLHUP;
 	return -ENODEV;
 }
