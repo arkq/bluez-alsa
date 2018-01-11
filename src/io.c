@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -177,6 +177,26 @@ static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, si
 
 	/* It is guaranteed, that this function will write data atomically. */
 	return samples;
+}
+
+/**
+ * Write data to the BT SEQPACKET socket. */
+static ssize_t io_thread_write_bt(int fd, const uint8_t *buffer, size_t len) {
+
+	struct pollfd pfds[] = {{ fd, POLLOUT, 0 }};
+	ssize_t ret;
+
+retry:
+	if ((ret = write(fd, buffer, len)) == -1)
+		switch (errno) {
+		case EINTR:
+			goto retry;
+		case EAGAIN:
+			poll(pfds, sizeof(pfds) / sizeof(*pfds), -1);
+			goto retry;
+		}
+
+	return ret;
 }
 
 void *io_thread_a2dp_sink_sbc(void *arg) {
@@ -493,14 +513,18 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			rtp_header->timestamp = htonl(timestamp);
 			rtp_payload->frame_count = sbc_frames;
 
-			if (write(t->bt_fd, out_buffer, output - out_buffer) == -1) {
+			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+			if (io_thread_write_bt(t->bt_fd, out_buffer, output - out_buffer) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
-					/* exit the thread upon BT socket disconnection */
-					debug("BT socket disconnected");
+					/* exit thread upon BT socket disconnection */
+					debug("BT socket disconnected: %d", t->bt_fd);
 					goto fail;
 				}
 				error("BT socket write error: %s", strerror(errno));
 			}
+
+			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 			/* keep data transfer at a constant bit rate, also
 			 * get a timestamp for the next RTP frame */
@@ -926,15 +950,19 @@ void *io_thread_a2dp_source_aac(void *arg) {
 					rtp_header->markbit = len < payload_len_max;
 					rtp_header->seq_number = htons(++seq_number);
 
-					if ((ret = write(t->bt_fd, out_buffer, rtp_header_len + len)) == -1) {
+					pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+					if ((ret = io_thread_write_bt(t->bt_fd, out_buffer, rtp_header_len + len)) == -1) {
 						if (errno == ECONNRESET || errno == ENOTCONN) {
-							/* exit the thread upon BT socket disconnection */
-							debug("BT socket disconnected");
+							/* exit thread upon BT socket disconnection */
+							debug("BT socket disconnected: %d", t->bt_fd);
 							goto fail;
 						}
 						error("BT socket write error: %s", strerror(errno));
 						break;
 					}
+
+					pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 					/* break if the last part of the payload has been written */
 					if ((payload_len -= ret - rtp_header_len) == 0)
@@ -1113,14 +1141,18 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 			}
 
-			if (write(t->bt_fd, out_buffer, output - out_buffer) == -1) {
+			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+			if (io_thread_write_bt(t->bt_fd, out_buffer, output - out_buffer) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
-					/* exit the thread upon BT socket disconnection */
-					debug("BT socket disconnected");
+					/* exit thread upon BT socket disconnection */
+					debug("BT socket disconnected: %d", t->bt_fd);
 					goto fail;
 				}
 				error("BT socket write error: %s", strerror(errno));
 			}
+
+			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&asrs, pcm_frames);
