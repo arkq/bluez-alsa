@@ -1,6 +1,6 @@
 /*
  * bluealsa-ctl.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -539,23 +539,11 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	if (key > ctl->elems_count)
 		return -EINVAL;
 
-	struct msg_status status;
 	struct ctl_elem *elem = &ctl->elems[key];
 	struct msg_transport *transport = elem->transport;
 
 	if (transport == NULL)
 		return -EINVAL;
-
-	struct request req = {
-		.command = COMMAND_TRANSPORT_SET_VOLUME,
-		.addr = transport->addr,
-		.stream = transport->stream,
-		.type = transport->type,
-		.ch1_muted = transport->ch1_muted,
-		.ch1_volume = transport->ch1_volume,
-		.ch2_muted = transport->ch2_muted,
-		.ch2_volume = transport->ch2_volume,
-	};
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -566,15 +554,15 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		case PCM_TYPE_NULL:
 			return -EINVAL;
 		case PCM_TYPE_A2DP:
-			req.ch1_muted = transport->ch1_muted = !value[0];
+			transport->ch1_muted = !value[0];
 			if (transport->channels == 2)
-				req.ch2_muted = transport->ch2_muted = !value[1];
+				transport->ch2_muted = !value[1];
 			break;
 		case PCM_TYPE_SCO:
 			if (elem->playback)
-				req.ch1_muted = transport->ch1_muted = !value[0];
+				transport->ch1_muted = !value[0];
 			else
-				req.ch2_muted = transport->ch2_muted = !value[0];
+				transport->ch2_muted = !value[0];
 			break;
 		}
 		break;
@@ -583,24 +571,24 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		case PCM_TYPE_NULL:
 			return -EINVAL;
 		case PCM_TYPE_A2DP:
-			req.ch1_volume = transport->ch1_volume = value[0];
+			transport->ch1_volume = value[0];
 			if (transport->channels == 2)
-				req.ch2_volume = transport->ch2_volume = value[1];
+				transport->ch2_volume = value[1];
 			break;
 		case PCM_TYPE_SCO:
 			if (elem->playback)
-				req.ch1_volume = transport->ch1_volume = value[0];
+				transport->ch1_volume = value[0];
 			else
-				req.ch2_volume = transport->ch2_volume = value[0];
+				transport->ch2_volume = value[0];
 			break;
 		}
 		break;
 	}
 
-	send(ctl->fd, &req, sizeof(req), MSG_NOSIGNAL);
-	if (read(ctl->fd, &status, sizeof(status)) == -1)
-		return -EIO;
-
+	if (bluealsa_set_transport_volume(ctl->fd, transport,
+				transport->ch1_muted, transport->ch1_volume,
+				transport->ch2_muted, transport->ch2_volume) == -1)
+		return -errno;
 	return 0;
 }
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl-client.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -25,6 +25,9 @@ struct msg_transport *bluealsa_get_transport(int fd, bdaddr_t addr,
 		enum pcm_type type, enum pcm_stream stream);
 
 int bluealsa_get_transport_delay(int fd, const struct msg_transport *transport);
+
+int bluealsa_set_transport_volume(int fd, const struct msg_transport *transport,
+		bool ch1_muted, int ch1_volume, bool ch2_muted, int ch2_volume);
 
 int bluealsa_open_transport(int fd, const struct msg_transport *transport);
 int bluealsa_close_transport(int fd, const struct msg_transport *transport);

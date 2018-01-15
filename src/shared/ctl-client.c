@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl-client.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -275,6 +275,35 @@ int bluealsa_get_transport_delay(int fd, const struct msg_transport *transport) 
 		return -1;
 
 	return _transport.delay;
+}
+
+/**
+ * Set PCM transport volume.
+ *
+ * @param fd Opened socket file descriptor.
+ * @param transport Address to the transport structure with the addr, type
+ *   and stream fields set - other fields are not used by this function.
+ * @param ch1_muted It true, mute channel 1.
+ * @param ch1_volume Channel 1 volume in range [0, 127].
+ * @param ch2_muted If true, mute channel 2.
+ * @param ch2_volume Channel 2 volume in range [0, 127].
+ * @return Upon success this function returns 0. Otherwise, -1 is returned
+ *   and errno is set appropriately. */
+int bluealsa_set_transport_volume(int fd, const struct msg_transport *transport,
+		bool ch1_muted, int ch1_volume, bool ch2_muted, int ch2_volume) {
+
+	struct request req = {
+		.command = COMMAND_TRANSPORT_SET_VOLUME,
+		.addr = transport->addr,
+		.type = transport->type,
+		.stream = transport->stream,
+		.ch1_muted = ch1_muted,
+		.ch1_volume = ch1_volume,
+		.ch2_muted = ch2_muted,
+		.ch2_volume = ch2_volume,
+	};
+
+	return bluealsa_send_request(fd, &req);
 }
 
 /**
