@@ -96,7 +96,7 @@ int bluealsa_open(const char *interface) {
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
 			BLUEALSA_RUN_STATE_DIR "/%s", interface);
 
-	if ((fd = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)) == -1)
+	if ((fd = socket(PF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0)) == -1)
 		return -1;
 
 	debug("Connecting to socket: %s", saddr.sun_path);
