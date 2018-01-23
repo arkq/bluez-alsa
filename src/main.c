@@ -47,10 +47,11 @@ static void main_loop_stop(int sig) {
 int main(int argc, char **argv) {
 
 	int opt;
-	const char *opts = "hVi:";
+	const char *opts = "hVSi:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
+		{ "syslog", no_argument, NULL, 'S' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "disable-a2dp", no_argument, NULL, 1 },
 		{ "disable-hsp", no_argument, NULL, 2 },
@@ -65,10 +66,21 @@ int main(int argc, char **argv) {
 		{ 0, 0, 0, 0 },
 	};
 
+	bool syslog = false;
 	struct hci_dev_info *hci_devs;
 	int hci_devs_num;
 
-	log_open(argv[0], false, BLUEALSA_LOGTIME);
+	/* Check if syslog forwarding has been enabled. This check has to be
+	 * done before anything else, so we can log early stage warnings and
+	 * errors. */
+	opterr = 0;
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		if (opt == 'S') {
+			syslog = true;
+			break;
+		}
+
+	log_open(argv[0], syslog, BLUEALSA_LOGTIME);
 
 	if (bluealsa_config_init() != 0) {
 		error("Couldn't initialize bluealsa config");
@@ -93,6 +105,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* parse options */
+	optind = 0; opterr = 1;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 
@@ -101,6 +114,7 @@ int main(int argc, char **argv) {
 					"\noptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
+					"  -S, --syslog\t\tsend output to syslog\n"
 					"  -i, --device=hciX\tHCI device to use\n"
 					"  --disable-a2dp\tdisable A2DP support\n"
 					"  --disable-hsp\t\tdisable HSP support\n"
@@ -118,6 +132,9 @@ int main(int argc, char **argv) {
 		case 'V' /* --version */ :
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
+
+		case 'S' /* --syslog */ :
+			break;
 
 		case 'i' /* --device=HCI */ : {
 
