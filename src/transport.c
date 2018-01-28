@@ -693,7 +693,6 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		if (created) {
 			pthread_cancel(t->thread);
 			ret = pthread_join(t->thread, NULL);
-			t->thread = config.main_thread;
 		}
 		break;
 	case TRANSPORT_PENDING:
@@ -996,6 +995,10 @@ void transport_pthread_cleanup(void *arg) {
 	 * are closed in it. */
 	if (t->release != NULL)
 		t->release(t);
+
+	/* Make sure, that after termination, this thread handler will not
+	 * be used anymore. */
+	t->thread = config.main_thread;
 
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the IO/RFCOMM thread. */
