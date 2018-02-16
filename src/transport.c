@@ -760,6 +760,7 @@ int transport_drain_pcm(struct ba_transport *t) {
 	pthread_mutex_lock(&pcm->drained_mn);
 
 	pcm->sync = true;
+	eventfd_write(t->event_fd, 1);
 	pthread_cond_wait(&pcm->drained, &pcm->drained_mn);
 	pcm->sync = false;
 

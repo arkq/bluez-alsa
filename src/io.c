@@ -355,6 +355,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	int16_t *in_buffer_tail = in_buffer;
 	size_t in_samples = in_buffer_size / sizeof(int16_t);
 
+	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
@@ -371,10 +372,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
 		case 0:
-			if (t->a2dp.pcm.sync)
-				pthread_cond_signal(&t->a2dp.pcm.drained);
+			pthread_cond_signal(&t->a2dp.pcm.drained);
+			poll_timeout = -1;
 			continue;
 		case -1:
 			error("Transport poll error: %s", strerror(errno));
@@ -386,6 +387,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			eventfd_t event;
 			eventfd_read(pfds[0].fd, &event);
 			asrs.frames = 0;
+			if (t->a2dp.pcm.sync)
+				poll_timeout = 100;
 			continue;
 		}
 
@@ -795,6 +798,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	size_t in_samples = in_buffer_size / in_buffer_element_size;
 	in_buffer_tail = in_buffer;
 
+	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
@@ -811,10 +815,10 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
 		case 0:
-			if (t->a2dp.pcm.sync)
-				pthread_cond_signal(&t->a2dp.pcm.drained);
+			pthread_cond_signal(&t->a2dp.pcm.drained);
+			poll_timeout = -1;
 			continue;
 		case -1:
 			error("Transport poll error: %s", strerror(errno));
@@ -826,6 +830,8 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			eventfd_t event;
 			eventfd_read(pfds[0].fd, &event);
 			asrs.frames = 0;
+			if (t->a2dp.pcm.sync)
+				poll_timeout = 100;
 			continue;
 		}
 
@@ -978,6 +984,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	int16_t *in_buffer_tail = in_buffer;
 	size_t in_samples = in_buffer_size / sizeof(int16_t);
 
+	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
@@ -994,10 +1001,10 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
 		case 0:
-			if (t->a2dp.pcm.sync)
-				pthread_cond_signal(&t->a2dp.pcm.drained);
+			pthread_cond_signal(&t->a2dp.pcm.drained);
+			poll_timeout = -1;
 			continue;
 		case -1:
 			error("Transport poll error: %s", strerror(errno));
@@ -1009,6 +1016,8 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 			eventfd_t event;
 			eventfd_read(pfds[0].fd, &event);
 			asrs.frames = 0;
+			if (t->a2dp.pcm.sync)
+				poll_timeout = 100;
 			continue;
 		}
 
@@ -1126,6 +1135,7 @@ void *io_thread_sco(void *arg) {
 		goto fail;
 	}
 
+	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
 		{ t->event_fd, POLLIN, 0 },
@@ -1162,10 +1172,10 @@ void *io_thread_sco(void *arg) {
 		if (t->sco.mic_pcm.fd == -1)
 			pfds[1].fd = -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), 100)) {
+		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
 		case 0:
-			if (t->sco.spk_pcm.sync)
-				pthread_cond_signal(&t->sco.spk_pcm.drained);
+			pthread_cond_signal(&t->sco.spk_pcm.drained);
+			poll_timeout = -1;
 			continue;
 		case -1:
 			error("Transport poll error: %s", strerror(errno));
@@ -1179,6 +1189,15 @@ void *io_thread_sco(void *arg) {
 
 			eventfd_t event;
 			eventfd_read(pfds[0].fd, &event);
+
+			/* FIXME: Drain functionality for speaker.
+			 * XXX: Right now it is not possible to drain speaker PCM (in a clean
+			 *      fashion), because poll() will not timeout if we've got incoming
+			 *      data from the microphone (BT SCO socket). In order not to hang
+			 *      forever in the transport_drain_pcm() function, we will signal
+			 *      PCM drain right now. */
+			if (t->sco.spk_pcm.sync)
+				pthread_cond_signal(&t->sco.spk_pcm.drained);
 
 			const enum hfp_ind *inds = t->sco.rfcomm->rfcomm.hfp_inds;
 			bool release = false;
@@ -1321,6 +1340,8 @@ retry_sco_write:
 		}
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
 			debug("PCM poll error status: %#x", pfds[3].revents);
+			close(t->sco.spk_pcm.fd);
+			t->sco.spk_pcm.fd = -1;
 		}
 
 		if (pfds[4].revents & POLLOUT) {
