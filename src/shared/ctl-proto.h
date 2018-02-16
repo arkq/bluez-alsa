@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl-proto.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -33,7 +33,6 @@ enum command {
 	COMMAND_PCM_PAUSE,
 	COMMAND_PCM_RESUME,
 	COMMAND_PCM_DRAIN,
-	COMMAND_PCM_READY,
 	__COMMAND_MAX
 };
 
@@ -145,11 +144,6 @@ struct __attribute__ ((packed)) msg_transport {
 	/* transport delay in 1/10 of millisecond */
 	uint16_t delay;
 
-};
-
-struct __attribute__ ((packed)) msg_pcm {
-	struct msg_transport transport;
-	char fifo[128];
 };
 
 #endif

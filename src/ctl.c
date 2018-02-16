@@ -311,17 +311,11 @@ fail:
 static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 
 	struct msg_status status = { STATUS_CODE_SUCCESS };
-	struct msg_pcm pcm;
 	struct ba_transport *t;
 	struct ba_pcm *t_pcm;
-	char addr[18];
+	int pipefd[2];
 
-	ba2str(&req->addr, addr);
-	snprintf(pcm.fifo, sizeof(pcm.fifo), BLUEALSA_RUN_STATE_DIR "/%s-%s-%u-%u",
-			config.hci_dev.name, addr, req->type, req->stream);
-	pcm.fifo[sizeof(pcm.fifo) - 1] = '\0';
-
-	debug("PCM requested for %s type %d stream %d", addr, req->type, req->stream);
+	debug("PCM requested for %s type %d stream %d", batostr_(&req->addr), req->type, req->stream);
 
 	pthread_mutex_lock(&config.devices_mutex);
 
@@ -335,35 +329,55 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 		goto final;
 	}
 
-	if (t_pcm->fifo != NULL) {
+	if (t_pcm->fd != -1) {
 		debug("PCM already requested: %d", t_pcm->fd);
 		status.code = STATUS_CODE_DEVICE_BUSY;
 		goto final;
 	}
 
-	_ctl_transport(t, &pcm.transport);
-
-	if (mkfifo(pcm.fifo, 0660) != 0) {
+	if (pipe(pipefd) == -1) {
 		error("Couldn't create FIFO: %s", strerror(errno));
 		status.code = STATUS_CODE_ERROR_UNKNOWN;
-		/* Jumping to the final section will prevent from unintentional removal
-		 * of the FIFO, which was not created by ourself. Cleanup action should
-		 * be applied to the stuff created in this function only. */
 		goto final;
 	}
 
-	/* During the mkfifo() call the FIFO mode is modified by the process umask,
-	 * so the post-creation correction is required. */
-	if (chmod(pcm.fifo, 0660) == -1)
-		goto fail;
-	if (chown(pcm.fifo, -1, config.gid_audio) == -1)
-		goto fail;
+	union {
+		char buf[CMSG_SPACE(sizeof(int))];
+		struct cmsghdr _align;
+	} control_un;
+	struct iovec io = { .iov_base = "", .iov_len = 1 };
+	struct msghdr msg = {
+		.msg_iov = &io,
+		.msg_iovlen = 1,
+		.msg_control = control_un.buf,
+		.msg_controllen = sizeof(control_un.buf),
+	};
 
-	/* XXX: This change will notify our sink IO thread, that the FIFO has just
-	 *      been created, so it is possible to open it. Source IO thread should
-	 *      not be started before the PCM open request has been made, so this
-	 *      "notification" mechanism does not apply. */
-	t_pcm->fifo = strdup(pcm.fifo);
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	int *fdptr = (int *)CMSG_DATA(cmsg);
+
+	switch (req->stream) {
+	case PCM_STREAM_PLAYBACK:
+		t_pcm->fd = pipefd[0];
+		*fdptr = pipefd[1];
+		break;
+	case PCM_STREAM_CAPTURE:
+		t_pcm->fd = pipefd[1];
+		*fdptr = pipefd[0];
+		break;
+	case PCM_STREAM_DUPLEX:
+		debug("Invalid PCM stream type: %d", req->stream);
+		status.code = STATUS_CODE_ERROR_UNKNOWN;
+		goto fail;
+	}
+
+	/* XXX: This change will notify our sink (and SCO) IO thread, that the FIFO
+	 *      has just been created. Source IO thread should not be started before
+	 *      the PCM open request has been made, so this "notification" mechanism
+	 *      does not apply. */
 	eventfd_write(t->event_fd, 1);
 
 	/* A2DP source profile should be initialized (acquired) only if the audio
@@ -376,14 +390,17 @@ static void ctl_thread_cmd_pcm_open(const struct request *req, int fd) {
 			goto fail;
 		}
 
+	if (sendmsg(fd, &msg, 0) == -1)
+		goto fail;
+
 	t_pcm->client = fd;
-	send(fd, &pcm, sizeof(pcm), MSG_NOSIGNAL);
+	close(*fdptr);
 	goto final;
 
 fail:
-	free(t_pcm->fifo);
-	t_pcm->fifo = NULL;
-	unlink(pcm.fifo);
+	close(pipefd[0]);
+	close(pipefd[1]);
+	t_pcm->fd = -1;
 
 final:
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -437,7 +454,7 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 		status.code = STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
-	if (t_pcm->fifo == NULL || t_pcm->client == -1) {
+	if (t_pcm->fd == -1 || t_pcm->client == -1) {
 		status.code = STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
@@ -455,8 +472,6 @@ static void ctl_thread_cmd_pcm_control(const struct request *req, int fd) {
 		break;
 	case COMMAND_PCM_DRAIN:
 		transport_drain_pcm(t);
-		break;
-	case COMMAND_PCM_READY:
 		break;
 	default:
 		warn("Invalid PCM control command: %d", req->command);
@@ -484,7 +499,6 @@ static void *ctl_thread(void *arg) {
 		[COMMAND_PCM_PAUSE] = ctl_thread_cmd_pcm_control,
 		[COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
 		[COMMAND_PCM_DRAIN] = ctl_thread_cmd_pcm_control,
-		[COMMAND_PCM_READY] = ctl_thread_cmd_pcm_control,
 	};
 
 	debug("Starting controller loop");

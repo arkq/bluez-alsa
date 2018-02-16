@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -234,7 +234,14 @@ int main(int argc, char **argv) {
 	bluez_register_a2dp();
 	bluez_register_hfp();
 
-	struct sigaction sigact = { .sa_handler = main_loop_stop };
+	/* In order to receive EPIPE while writing to the pipe whose reading end
+	 * is closed, the SIGPIPE signal has to be handled. For more information
+	 * see the io_thread_write_pcm() function. */
+	struct sigaction sigact = { .sa_handler = SIG_IGN };
+	sigaction(SIGPIPE, &sigact, NULL);
+
+	/* register main loop exit handler */
+	sigact.sa_handler = main_loop_stop;
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGINT, &sigact, NULL);
 

@@ -79,9 +79,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	while (test_sigusr1_count == 0) {
 
-		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
-			if (errno != ENXIO)
-				error("Couldn't open FIFO: %s", strerror(errno));
+		if (t->a2dp.pcm.fd == -1) {
 			usleep(10000);
 			continue;
 		}
@@ -107,7 +105,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
-	while ((t->a2dp.pcm.fd = open(t->a2dp.pcm.fifo, O_RDONLY)) == -1)
+	while (t->a2dp.pcm.fd == -1)
 		usleep(10000);
 
 	struct asrsync asrs = { .frames = 0 };

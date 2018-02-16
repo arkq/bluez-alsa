@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -111,10 +111,7 @@ int test_a2dp_sbc_decoding(void) {
 		.a2dp = {
 			.cconfig = (uint8_t *)&config_sbc_44100_joint_stereo,
 			.cconfig_size = sizeof(a2dp_sbc_t),
-			.pcm = {
-				.fd = pcm_fds[0],
-				.fifo = "/force-decoding",
-			},
+			.pcm = { .fd = pcm_fds[0] },
 		},
 		.state = TRANSPORT_ACTIVE,
 		.bt_fd = bt_fds[1],

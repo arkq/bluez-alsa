@@ -322,9 +322,18 @@ int bluealsa_open_transport(int fd, const struct msg_transport *transport) {
 		.type = transport->type,
 		.stream = transport->stream,
 	};
-	struct msg_pcm res;
+	char buf[256] = "";
+	struct iovec io = {
+		.iov_base = &status,
+		.iov_len = sizeof(status),
+	};
+	struct msghdr msg = {
+		.msg_iov = &io,
+		.msg_iovlen = 1,
+		.msg_control = buf,
+		.msg_controllen = sizeof(buf),
+	};
 	ssize_t len;
-	int pcm;
 
 #if DEBUG
 	char addr_[18];
@@ -334,12 +343,14 @@ int bluealsa_open_transport(int fd, const struct msg_transport *transport) {
 
 	if (send(fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
 		return -1;
-	if ((len = read(fd, &res, sizeof(res))) == -1)
+	if ((len = recvmsg(fd, &msg, MSG_CMSG_CLOEXEC)) == -1)
 		return -1;
 
-	/* in case of error, status message is returned */
-	if (len != sizeof(res)) {
-		memcpy(&status, &res, sizeof(status));
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+	if (cmsg == NULL ||
+			cmsg->cmsg_level == IPPROTO_IP ||
+			cmsg->cmsg_type == IP_TTL) {
+		/* in case of error, status message is returned */
 		errno = bluealsa_status_to_errno(&status);
 		return -1;
 	}
@@ -347,29 +358,7 @@ int bluealsa_open_transport(int fd, const struct msg_transport *transport) {
 	if (read(fd, &status, sizeof(status)) == -1)
 		return -1;
 
-	debug("Opening PCM FIFO (mode: %s): %s",
-			req.stream == PCM_STREAM_PLAYBACK ? "WR" : "RO", res.fifo);
-	if ((pcm = open(res.fifo, req.stream == PCM_STREAM_PLAYBACK ?
-					O_WRONLY : O_RDONLY | O_NONBLOCK)) == -1)
-		return -1;
-
-	/* Restore the blocking mode. Non-blocking mode was required only for the
-	 * opening stage - FIFO read-write sides synchronization is done in the IO
-	 * thread. */
-	if (req.stream == PCM_STREAM_CAPTURE)
-		fcntl(pcm, F_SETFL, fcntl(pcm, F_GETFL) & ~O_NONBLOCK);
-
-	/* In the capture mode it is required to signal the server, that the PCM
-	 * opening process has been finished. This requirement comes from the fact,
-	 * that the writing side of the FIFO will not be opened before the reading
-	 * side is (if the write-only non-blocking mode is used). This "PCM ready"
-	 * signal will help to synchronize FIFO opening process. */
-	if (req.stream == PCM_STREAM_CAPTURE) {
-		req.command = COMMAND_PCM_READY;
-		bluealsa_send_request(fd, &req);
-	}
-
-	return pcm;
+	return *((int *)CMSG_DATA(cmsg));
 }
 
 /**

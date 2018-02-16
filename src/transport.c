@@ -963,17 +963,10 @@ int transport_release_pcm(struct ba_pcm *pcm) {
 	/* Transport IO workers are managed using thread cancellation mechanism,
 	 * so we have to take into account a possibility of cancellation during the
 	 * execution. In this release function it is important to perform actions
-	 * atomically. Since unlink and close calls are cancellation points, it is
-	 * required to temporally disable cancellation. For a better understanding
-	 * of what is going on, see the io_thread_read_pcm() function. */
+	 * atomically. Since close call is a cancellation point, it is required to
+	 * temporally disable cancellation. For a better understanding of what is
+	 * going on, see the io_thread_read_pcm() function. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
-
-	if (pcm->fifo != NULL) {
-		debug("Cleaning PCM FIFO: %s", pcm->fifo);
-		unlink(pcm->fifo);
-		free(pcm->fifo);
-		pcm->fifo = NULL;
-	}
 
 	if (pcm->fd != -1) {
 		debug("Closing PCM: %d", pcm->fd);

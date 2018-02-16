@@ -45,64 +45,6 @@
 
 
 /**
- * Open PCM for reading. */
-static int io_thread_open_pcm_read(struct ba_pcm *pcm) {
-
-	/* XXX: This check allows testing. During normal operation PCM FIFO
-	 *      should not be opened outside the IO thread function. */
-	if (pcm->fd == -1) {
-
-		debug("Opening FIFO for reading: %s", pcm->fifo);
-		/* this call will block until writing side is opened */
-		if ((pcm->fd = open(pcm->fifo, O_RDONLY)) == -1)
-			return -1;
-
-		/* Change FIFO reading mode to the non-blocking one. Since, our read
-		 * logic is based on poll(), non-blocking mode will allow incorporate
-		 * read timeout, which might be used for thread termination. */
-		fcntl(pcm->fd, F_SETFL, fcntl(pcm->fd, F_GETFL) | O_NONBLOCK);
-
-	}
-
-	return 0;
-}
-
-/**
- * Open PCM for writing. */
-static int io_thread_open_pcm_write(struct ba_pcm *pcm) {
-
-	/* transport PCM FIFO has not been requested */
-	if (pcm->fifo == NULL) {
-		errno = ENXIO;
-		return -1;
-	}
-
-	if (pcm->fd == -1) {
-
-		debug("Opening FIFO for writing: %s", pcm->fifo);
-		if ((pcm->fd = open(pcm->fifo, O_WRONLY | O_NONBLOCK)) == -1) {
-			debug("FIFO reading endpoint is not connected yet");
-			return -1;
-		}
-
-		/* Restore the blocking mode of our FIFO. Non-blocking mode was required
-		 * only for the opening process - we do not want to block if the reading
-		 * endpoint is not connected yet. On the other hand, blocking upon data
-		 * write will prevent frame dropping. */
-		fcntl(pcm->fd, F_SETFL, fcntl(pcm->fd, F_GETFL) & ~O_NONBLOCK);
-
-		/* In order to receive EPIPE while writing to the pipe whose reading end
-		 * is closed, the SIGPIPE signal has to be handled. For more information
-		 * see the io_thread_write_pcm() function. */
-		const struct sigaction sigact = { .sa_handler = SIG_IGN };
-		sigaction(SIGPIPE, &sigact, NULL);
-
-	}
-
-	return 0;
-}
-
-/**
  * Scale PCM signal according to the transport audio properties. */
 static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer,
 		size_t samples, int channels) {
@@ -291,9 +233,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			goto fail;
 		}
 
-		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
-			if (errno != ENXIO)
-				error("Couldn't open FIFO: %s", strerror(errno));
+		if (t->a2dp.pcm.fd == -1) {
+			seq_number = -1;
 			continue;
 		}
 
@@ -394,11 +335,6 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
-	}
-
-	if (io_thread_open_pcm_read(&t->a2dp.pcm) == -1) {
-		error("Couldn't open FIFO: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -662,9 +598,8 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			goto fail;
 		}
 
-		if (io_thread_open_pcm_write(&t->a2dp.pcm) == -1) {
-			if (errno != ENXIO)
-				error("Couldn't open FIFO: %s", strerror(errno));
+		if (t->a2dp.pcm.fd == -1) {
+			seq_number = -1;
 			continue;
 		}
 
@@ -856,11 +791,6 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	/* helper variable used during payload fragmentation */
 	const size_t rtp_header_len = out_payload - out_buffer;
 
-	if (io_thread_open_pcm_read(&t->a2dp.pcm) == -1) {
-		error("Couldn't open FIFO: %s", strerror(errno));
-		goto fail;
-	}
-
 	/* initial input buffer tail and the available capacity */
 	size_t in_samples = in_buffer_size / in_buffer_element_size;
 	in_buffer_tail = in_buffer;
@@ -1041,11 +971,6 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
-	}
-
-	if (io_thread_open_pcm_read(&t->a2dp.pcm) == -1) {
-		error("Couldn't open FIFO: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -1254,11 +1179,6 @@ void *io_thread_sco(void *arg) {
 
 			eventfd_t event;
 			eventfd_read(pfds[0].fd, &event);
-
-			/* Try to open reading and/or writing PCM file descriptor. Note,
-			 * that we are not checking for errors, because we don't care. */
-			io_thread_open_pcm_read(&t->sco.spk_pcm);
-			io_thread_open_pcm_write(&t->sco.mic_pcm);
 
 			const enum hfp_ind *inds = t->sco.rfcomm->rfcomm.hfp_inds;
 			bool release = false;

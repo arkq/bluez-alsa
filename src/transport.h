@@ -1,6 +1,6 @@
 /*
  * BlueALSA - transport.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -74,8 +74,6 @@ struct ba_device {
 struct ba_pcm {
 
 	int fd;
-	/* named FIFO absolute file name */
-	char *fifo;
 
 	/* client identifier (most likely client socket file descriptor) used
 	 * by the PCM client lookup function - transport_lookup_pcm_client() */
