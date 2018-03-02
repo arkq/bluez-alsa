@@ -31,6 +31,7 @@ AM_CONDITIONAL([ENABLE_DEBUG_TIME], [test "x$enable_debug_time" = "xyes"])
 AM_COND_IF([ENABLE_DEBUG_TIME], [
 	AC_DEFINE([DEBUG_TIME], [1], [Define to 1 if the debug timing is enabled.])
 ])
+AC_CHECK_FUNCS([register_printf_specifier])
 
 AC_CHECK_LIB([pthread], [pthread_create],
 	[], [AC_MSG_ERROR([pthread library not found])])

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,7 +10,6 @@
 
 #include "shared/log.h"
 
-#include <printf.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -124,9 +123,11 @@ void hexdump(const char *label, const void *mem, size_t len) {
 }
 #endif
 
-#if DEBUG
+#if DEBUG && HAVE_REGISTER_PRINTF_SPECIFIER
 /* Register 'B' specifier for printf() function family, so it can
  * be used to print integer values in a binary representation. */
+
+#include <printf.h>
 
 static int printf_arginfo(const struct printf_info *info, size_t n, int *argtypes, int *size) {
 	(void)info;
