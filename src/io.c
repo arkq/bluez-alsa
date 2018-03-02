@@ -883,7 +883,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 					size_t len;
 
 					len = payload_len > payload_len_max ? payload_len_max : payload_len;
-					rtp_header->markbit = len < payload_len_max;
+					rtp_header->markbit = payload_len <= payload_len_max;
 					rtp_header->seq_number = htons(++seq_number);
 
 					pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
