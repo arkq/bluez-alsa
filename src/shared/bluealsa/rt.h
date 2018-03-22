@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_SHARED_RT_H_
 #define BLUEALSA_SHARED_RT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <time.h>
 
@@ -69,5 +73,9 @@ int difftimespec(
 		const struct timespec *ts1,
 		const struct timespec *ts2,
 		struct timespec *ts);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

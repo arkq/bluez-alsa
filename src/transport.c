@@ -32,7 +32,7 @@
 #include "io.h"
 #include "rfcomm.h"
 #include "utils.h"
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 static int io_thread_create(struct ba_transport *t) {

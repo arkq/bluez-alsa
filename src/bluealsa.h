@@ -26,7 +26,7 @@
 #include <gio/gio.h>
 
 #include "bluez.h"
-#include "shared/ctl-proto.h"
+#include "bluealsa/ctl-proto.h"
 
 /* Maximal number of clients connected to the controller. */
 #define BLUEALSA_MAX_CLIENTS 7

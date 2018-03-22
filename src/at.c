@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 /**

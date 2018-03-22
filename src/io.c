@@ -38,9 +38,9 @@
 #include "bluealsa.h"
 #include "transport.h"
 #include "utils.h"
-#include "shared/ffb.h"
-#include "shared/log.h"
-#include "shared/rt.h"
+#include "bluealsa/ffb.h"
+#include "bluealsa/log.h"
+#include "bluealsa/rt.h"
 
 
 /**

@@ -24,8 +24,8 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#include "shared/ctl-client.h"
-#include "shared/log.h"
+#include "bluealsa/ctl-client.h"
+#include "bluealsa/log.h"
 
 static char *strtrim(char *str) {
   while (isspace(*str))

@@ -23,7 +23,7 @@
 #include "bluez-iface.h"
 #include "transport.h"
 #include "utils.h"
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 /**

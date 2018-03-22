@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_SHARED_LOG_H_
 #define BLUEALSA_SHARED_LOG_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if HAVE_CONFIG_H
 # include "config.h"
 #endif
@@ -40,6 +44,10 @@ void _debug(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 void hexdump(const char *label, const void *mem, size_t len);
 #else
 # define hexdump(A, M, L) do {} while (0)
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

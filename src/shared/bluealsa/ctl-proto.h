@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_SHARED_CTLPROTO_H_
 #define BLUEALSA_SHARED_CTLPROTO_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if HAVE_CONFIG_H
 # include "config.h"
 #endif
@@ -149,5 +153,9 @@ struct __attribute__ ((packed)) ba_msg_transport {
 	uint16_t delay;
 
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

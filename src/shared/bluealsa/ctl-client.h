@@ -11,8 +11,12 @@
 #ifndef BLUEALSA_SHARED_CTLCLIENT_H_
 #define BLUEALSA_SHARED_CTLCLIENT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
-#include "shared/ctl-proto.h"
+#include "bluealsa/ctl-proto.h"
 
 int bluealsa_open(const char *interface);
 
@@ -35,5 +39,9 @@ int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, b
 int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport);
 
 int bluealsa_send_rfcomm_command(int fd, bdaddr_t addr, const char *command);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
