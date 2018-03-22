@@ -2,12 +2,11 @@
 # Copyright (c) 2016-2017 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
-SUBDIRS = asound
+# put . so current directory is built before subdirectory for dependencies
+# TODO: wouldn't be necessary with non-recursive make or meson
+SUBDIRS = . asound
 
 bluealsa_SOURCES = \
-	shared/ffb.c \
-	shared/log.c \
-	shared/rt.c \
 	at.c \
 	bluealsa.c \
 	bluez.c \
@@ -19,6 +18,24 @@ bluealsa_SOURCES = \
 	transport.c \
 	utils.c \
 	main.c
+
+lib_headers = \
+	shared/ctl-client.h \
+	shared/ctl-proto.h \
+	shared/ffb.h \
+	shared/log.h \
+	shared/rt.h
+
+lib_sources = \
+	shared/ctl-client.c \
+	shared/ffb.c \
+	shared/log.c \
+	shared/rt.c
+
+lib_LTLIBRARIES = libbluealsa.la
+libbluealsa_la_SOURCES = $(lib_headers) $(lib_sources)
+libbluealsa_la_LDFLAGS = -version-info 0:0:0
+
 
 AM_CFLAGS = \
 	@BLUEZ_CFLAGS@ \
@@ -34,4 +51,9 @@ LDADD = \
 	@GIO2_LIBS@ \
 	@AAC_LIBS@ \
 	@APTX_LIBS@ \
-	@SBC_LIBS@
+	@SBC_LIBS@ \
+	libbluealsa.la
+
+# Install headers
+bluealsaincludedir = $(includedir)/bluealsa
+bluealsainclude_HEADERS = $(lib_headers)

@@ -6,8 +6,6 @@ bin_PROGRAMS =
 if ENABLE_APLAY
 bin_PROGRAMS += bluealsa-aplay
 bluealsa_aplay_SOURCES = \
-	../src/shared/ctl-client.c \
-	../src/shared/log.c \
 	aplay.c
 bluealsa_aplay_CFLAGS = \
 	-I$(top_srcdir)/src \
@@ -17,7 +15,8 @@ bluealsa_aplay_CFLAGS = \
 bluealsa_aplay_LDADD = \
 	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
-	@GIO2_LIBS@
+	@GIO2_LIBS@ \
+	../src/libbluealsa.la
 endif
 
 if ENABLE_HCITOP
