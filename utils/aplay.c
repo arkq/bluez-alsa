@@ -25,8 +25,8 @@
 #include <alsa/asoundlib.h>
 #include <gio/gio.h>
 
-#include "shared/ctl-client.h"
-#include "shared/log.h"
+#include "bluealsa/ctl-client.h"
+#include "bluealsa/log.h"
 
 /* Casting wrapper for the brevity's sake. */
 #define CANCEL_ROUTINE(f) ((void (*)(void *))(f))

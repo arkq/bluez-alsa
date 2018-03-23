@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/ctl-client.h"
+#include "bluealsa/ctl-client.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -19,7 +19,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 /**

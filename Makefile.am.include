@@ -1,0 +1,1 @@
+LOCAL_BLUEALSA_INCLUDES = -I$(top_srcdir)/src/shared

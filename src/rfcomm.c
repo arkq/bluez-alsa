@@ -21,7 +21,7 @@
 #include "bluealsa.h"
 #include "ctl.h"
 #include "utils.h"
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 /**
