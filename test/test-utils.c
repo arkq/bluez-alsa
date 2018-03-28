@@ -10,8 +10,7 @@
 
 #include "inc/test.inc"
 #include "../src/utils.c"
-#include "../src/shared/ffb.c"
-#include "../src/shared/rt.c"
+#include "bluealsa/ffb.h"
 
 int test_dbus_profile_object_path(void) {
 

@@ -35,8 +35,6 @@
 #include "../src/transport.c"
 #undef transport_acquire_bt_a2dp
 #include "../src/utils.c"
-#include "../src/shared/ffb.c"
-#include "../src/shared/rt.c"
 
 static const a2dp_sbc_t cconfig = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
