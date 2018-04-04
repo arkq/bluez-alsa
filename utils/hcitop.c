@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hcitop.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -24,6 +24,20 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+static const struct {
+	unsigned int bit;
+	char flag;
+} hci_flags_map[] = {
+	{ HCI_UP, 'U' },
+	{ HCI_INIT, 'I' },
+	{ HCI_RUNNING, 'R' },
+	{ HCI_PSCAN, 'P' },
+	{ HCI_ISCAN, 'I' },
+	{ HCI_AUTH, 'A' },
+	{ HCI_ENCRYPT, 'E' },
+	{ HCI_INQUIRY, 'Q' },
+	{ HCI_RAW, 'X' },
+};
 
 static int get_devinfo(struct hci_dev_info di[HCI_MAX_DEV]) {
 
@@ -62,6 +76,16 @@ static unsigned int get_average_rate(unsigned int *array, size_t size) {
 	}
 
 	return x + y / size;
+}
+
+static void sprint_hci_flags(char *str, unsigned int flags) {
+
+	size_t i;
+
+	for (i = 0; i < sizeof(hci_flags_map) / sizeof(*hci_flags_map); i++)
+		str[i] = hci_test_bit(hci_flags_map[i].bit, &flags) ? hci_flags_map[i].flag : ' ';
+
+	str[i] = '\0';
 }
 
 int main(int argc, char *argv[]) {
@@ -121,12 +145,12 @@ int main(int argc, char *argv[]) {
 
 	for (ii = 1;; ii++) {
 
-		const char *template_top = "%5s %8s %8s %8s %8s";
-		const char *template_row = "%5s %8s %8s %8s %8s";
+		const char *template_top = "%5s %9s %8s %8s %8s %8s";
+		const char *template_row = "%5s %9s %8s %8s %8s %8s";
 		int i, count;
 
 		attron(A_REVERSE);
-		mvprintw(0, 0, template_top, "HCI", "RX", "TX", "RX/s", "TX/s");
+		mvprintw(0, 0, template_top, "HCI", "FLAGS", "RX", "TX", "RX/s", "TX/s");
 		attroff(A_REVERSE);
 
 		count = get_devinfo(devices);
@@ -138,6 +162,10 @@ int main(int argc, char *argv[]) {
 
 			if (i >= count)
 				continue;
+
+			char flags[sizeof(hci_flags_map) / sizeof(*hci_flags_map) + 1];
+
+			sprint_hci_flags(flags, devices[i].flags);
 
 			byte_rx[i][0] = devices[i].stat.byte_rx;
 			byte_tx[i][0] = devices[i].stat.byte_tx;
@@ -158,7 +186,7 @@ int main(int argc, char *argv[]) {
 			humanize_number(rx_rate, sizeof(rx_rate), rate_rx, "B", HN_AUTOSCALE, 0);
 			humanize_number(tx_rate, sizeof(tx_rate), rate_tx, "B", HN_AUTOSCALE, 0);
 
-			mvprintw(i + 1, 0, template_row, devices[i].name, rx, tx, rx_rate, tx_rate);
+			mvprintw(i + 1, 0, template_row, devices[i].name, flags, rx, tx, rx_rate, tx_rate);
 		}
 
 		timeout(delay_sec * 1000 + delay_msec);
