@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -18,10 +18,10 @@
 /* Initialize global configuration variable. */
 struct ba_config config = {
 
-	/* by default all profiles are enabled */
-	.enable_a2dp = true,
-	.enable_hsp = true,
-	.enable_hfp = true,
+	/* enable output profiles by default */
+	.enable.a2dp_source = true,
+	.enable.hsp_ag = true,
+	.enable.hfp_ag = true,
 
 	/* initialization flags */
 	.ctl.socket_created = false,

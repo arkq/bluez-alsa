@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa.h
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -41,9 +41,15 @@ struct ba_config {
 	/* used HCI device */
 	struct hci_dev_info hci_dev;
 
-	bool enable_a2dp;
-	bool enable_hsp;
-	bool enable_hfp;
+	/* set of enabled profiles */
+	struct {
+		bool a2dp_source;
+		bool a2dp_sink;
+		bool hsp_hs;
+		bool hsp_ag;
+		bool hfp_hf;
+		bool hfp_ag;
+	} enable;
 
 	/* established D-Bus connection */
 	GDBusConnection *dbus;

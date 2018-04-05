@@ -47,15 +47,13 @@ static void main_loop_stop(int sig) {
 int main(int argc, char **argv) {
 
 	int opt;
-	const char *opts = "hVSi:";
+	const char *opts = "hVSi:p:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "syslog", no_argument, NULL, 'S' },
 		{ "device", required_argument, NULL, 'i' },
-		{ "disable-a2dp", no_argument, NULL, 1 },
-		{ "disable-hsp", no_argument, NULL, 2 },
-		{ "disable-hfp", no_argument, NULL, 3 },
+		{ "profile", required_argument, NULL, 'p' },
 #if ENABLE_AAC
 		{ "aac-afterburner", no_argument, NULL, 4 },
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
@@ -75,8 +73,13 @@ int main(int argc, char **argv) {
 	 * errors. */
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
-		if (opt == 'S') {
+		switch (opt) {
+		case 'S':
 			syslog = true;
+			break;
+		case 'p':
+			/* reset defaults if user has specified profile option */
+			memset(&config.enable, 0, sizeof(config.enable));
 			break;
 		}
 
@@ -110,15 +113,14 @@ int main(int argc, char **argv) {
 		switch (opt) {
 
 		case 'h' /* --help */ :
-			printf("usage: %s [OPTION]...\n"
-					"\noptions:\n"
+			printf("Usage:\n"
+					"  %s [OPTION]...\n"
+					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
 					"  -S, --syslog\t\tsend output to syslog\n"
 					"  -i, --device=hciX\tHCI device to use\n"
-					"  --disable-a2dp\tdisable A2DP support\n"
-					"  --disable-hsp\t\tdisable HSP support\n"
-					"  --disable-hfp\t\tdisable HFP support\n"
+					"  -p, --profile=NAME\tenable BT profile\n"
 					"  --a2dp-force-mono\tforce monophonic sound\n"
 					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
 					"  --a2dp-volume\t\tcontrol volume natively\n"
@@ -126,7 +128,18 @@ int main(int argc, char **argv) {
 					"  --aac-afterburner\tenable afterburner\n"
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
 #endif
-					, argv[0]);
+					"\nAvailable BT profiles:\n"
+					"  - a2dp-source\tAdvanced Audio Source\n"
+					"  - a2dp-sink\tAdvanced Audio Sink\n"
+					"  - hsp-hs\tHeadset\n"
+					"  - hsp-ag\tHeadset Audio Gateway\n"
+					"  - hfp-hf\tHands-Free\n"
+					"  - hfp-ag\tHands-Free Audio Gateway\n"
+					"\n"
+					"By default only output profiles are enabled, which includes A2DP Source and\n"
+					"HSP/HFP Audio Gateways. If one wants to enable other set of profiles, it is\n"
+					"required to explicitly specify all of them using `-p NAME` options.\n",
+					argv[0]);
 			return EXIT_SUCCESS;
 
 		case 'V' /* --version */ :
@@ -167,15 +180,34 @@ int main(int argc, char **argv) {
 			break;
 		}
 
-		case 1 /* --disable-a2dp */ :
-			config.enable_a2dp = false;
+		case 'p' /* --profile=NAME */ : {
+
+			size_t i;
+			const struct {
+				char *name;
+				bool *ptr;
+			} map[] = {
+				{ "a2dp-source", &config.enable.a2dp_source },
+				{ "a2dp-sink", &config.enable.a2dp_sink },
+				{ "hsp-hs", &config.enable.hsp_hs },
+				{ "hsp-ag", &config.enable.hsp_ag },
+				{ "hfp-hf", &config.enable.hfp_hf },
+				{ "hfp-ag", &config.enable.hfp_ag },
+			};
+
+			for (i = 0; i < sizeof(map) / sizeof(*map); i++)
+				if (strcasecmp(optarg, map[i].name) == 0) {
+					*map[i].ptr = true;
+					break;
+				}
+
+			if (i == sizeof(map) / sizeof(*map)) {
+				error("Invalid BT profile name: %s", optarg);
+				return EXIT_FAILURE;
+			}
+
 			break;
-		case 2 /* --disable-hsp */ :
-			config.enable_hsp = false;
-			break;
-		case 3 /* --disable-hfp */ :
-			config.enable_hfp = false;
-			break;
+		}
 
 #if ENABLE_AAC
 		case 4 /* --aac-afterburner */ :

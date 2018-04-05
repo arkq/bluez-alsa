@@ -736,22 +736,26 @@ final:
 /**
  * Register A2DP endpoints. */
 void bluez_register_a2dp(void) {
-	if (!config.enable_a2dp)
-		return;
+	if (config.enable.a2dp_source) {
 #if ENABLE_AAC
-	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
-			A2DP_CODEC_MPEG24, &bluez_a2dp_aac, sizeof(bluez_a2dp_aac));
-	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BLUETOOTH_PROFILE_A2DP_SINK,
-			A2DP_CODEC_MPEG24, &bluez_a2dp_aac, sizeof(bluez_a2dp_aac));
+		bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
+				A2DP_CODEC_MPEG24, &bluez_a2dp_aac, sizeof(bluez_a2dp_aac));
 #endif
 #if ENABLE_APTX
-	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
-			A2DP_CODEC_VENDOR_APTX, &bluez_a2dp_aptx, sizeof(bluez_a2dp_aptx));
+		bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
+				A2DP_CODEC_VENDOR_APTX, &bluez_a2dp_aptx, sizeof(bluez_a2dp_aptx));
 #endif
-	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
-			A2DP_CODEC_SBC, &bluez_a2dp_sbc, sizeof(bluez_a2dp_sbc));
-	bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BLUETOOTH_PROFILE_A2DP_SINK,
-			A2DP_CODEC_SBC, &bluez_a2dp_sbc, sizeof(bluez_a2dp_sbc));
+		bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE,
+				A2DP_CODEC_SBC, &bluez_a2dp_sbc, sizeof(bluez_a2dp_sbc));
+	}
+	if (config.enable.a2dp_sink) {
+#if ENABLE_AAC
+		bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BLUETOOTH_PROFILE_A2DP_SINK,
+				A2DP_CODEC_MPEG24, &bluez_a2dp_aac, sizeof(bluez_a2dp_aac));
+#endif
+		bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BLUETOOTH_PROFILE_A2DP_SINK,
+				A2DP_CODEC_SBC, &bluez_a2dp_sbc, sizeof(bluez_a2dp_sbc));
+	}
 }
 
 static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userdata) {
@@ -963,14 +967,14 @@ final:
  * is controlled by the global configuration structure - if none is enabled,
  * this function will do nothing. */
 void bluez_register_hfp(void) {
-	if (config.enable_hsp) {
+	if (config.enable.hsp_hs)
 		bluez_register_profile(BLUETOOTH_UUID_HSP_HS, BLUETOOTH_PROFILE_HSP_HS, 0x0, 0x0);
+	if (config.enable.hsp_ag)
 		bluez_register_profile(BLUETOOTH_UUID_HSP_AG, BLUETOOTH_PROFILE_HSP_AG, 0x0, 0x0);
-	}
-	if (config.enable_hfp) {
+	if (config.enable.hfp_hf)
 		bluez_register_profile(BLUETOOTH_UUID_HFP_HF, BLUETOOTH_PROFILE_HFP_HF, 0x0107, 0x0);
+	if (config.enable.hfp_ag)
 		bluez_register_profile(BLUETOOTH_UUID_HFP_AG, BLUETOOTH_PROFILE_HFP_AG, 0x0107, 0x0);
-	}
 }
 
 static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,
@@ -989,7 +993,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *se
 
 	g_variant_get(params, "(&oa{sa{sv}})", &object, &interfaces);
 
-	if (config.enable_a2dp && strcmp(object, device_path) == 0)
+	if (strcmp(object, device_path) == 0)
 		bluez_register_a2dp();
 	if (strcmp(object, "/org/bluez") == 0)
 		bluez_register_hfp();
