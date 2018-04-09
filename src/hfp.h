@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hfp.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -16,6 +16,22 @@
 #define HFP_CODEC_UNDEFINED 0x00
 #define HFP_CODEC_CVSD      0x01
 #define HFP_CODEC_MSBC      0x02
+
+/* SDP AG feature flags */
+#define SDP_HFP_AG_FEAT_TWC    (1 << 0)
+#define SDP_HFP_AG_FEAT_ECNR   (1 << 1)
+#define SDP_HFP_AG_FEAT_VREC   (1 << 2)
+#define SDP_HFP_AG_FEAT_RING   (1 << 3)
+#define SDP_HFP_AG_FEAT_VTAG   (1 << 4)
+#define SDP_HFP_AG_FEAT_WBAND  (1 << 5)
+
+/* SDP HF feature flags */
+#define SDP_HFP_HF_FEAT_ECNR   (1 << 0)
+#define SDP_HFP_HF_FEAT_TWC    (1 << 1)
+#define SDP_HFP_HF_FEAT_CLI    (1 << 2)
+#define SDP_HFP_HF_FEAT_VREC   (1 << 3)
+#define SDP_HFP_HF_FEAT_VOLUME (1 << 4)
+#define SDP_HFP_HF_FEAT_WBAND  (1 << 5)
 
 /* AG feature flags */
 #define HFP_AG_FEAT_TWC    (1 << 0)

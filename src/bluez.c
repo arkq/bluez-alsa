@@ -972,9 +972,11 @@ void bluez_register_hfp(void) {
 	if (config.enable.hsp_ag)
 		bluez_register_profile(BLUETOOTH_UUID_HSP_AG, BLUETOOTH_PROFILE_HSP_AG, 0x0, 0x0);
 	if (config.enable.hfp_hf)
-		bluez_register_profile(BLUETOOTH_UUID_HFP_HF, BLUETOOTH_PROFILE_HFP_HF, 0x0107, 0x0);
+		bluez_register_profile(BLUETOOTH_UUID_HFP_HF, BLUETOOTH_PROFILE_HFP_HF,
+				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_hf);
 	if (config.enable.hfp_ag)
-		bluez_register_profile(BLUETOOTH_UUID_HFP_AG, BLUETOOTH_PROFILE_HFP_AG, 0x0107, 0x0);
+		bluez_register_profile(BLUETOOTH_UUID_HFP_AG, BLUETOOTH_PROFILE_HFP_AG,
+				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_ag);
 }
 
 static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,

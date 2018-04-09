@@ -12,6 +12,7 @@
 
 #include <grp.h>
 
+#include "hfp.h"
 #include "transport.h"
 
 
@@ -29,6 +30,23 @@ struct ba_config config = {
 
 	/* omit chown if audio group is not defined */
 	.gid_audio = -1,
+
+	.hfp.features_sdp_hf =
+		SDP_HFP_HF_FEAT_CLI |
+		SDP_HFP_HF_FEAT_VOLUME,
+	.hfp.features_sdp_ag = 0,
+	.hfp.features_rfcomm_hf =
+		HFP_HF_FEAT_CLI |
+		HFP_HF_FEAT_VOLUME |
+		HFP_HF_FEAT_ECS |
+		HFP_HF_FEAT_ECC |
+		HFP_HF_FEAT_CODEC,
+	.hfp.features_rfcomm_ag =
+		HFP_AG_FEAT_REJECT |
+		HFP_AG_FEAT_ECS |
+		HFP_AG_FEAT_ECC |
+		HFP_AG_FEAT_EERC |
+		HFP_AG_FEAT_CODEC,
 
 #if ENABLE_AAC
 	/* There are two issues with the afterburner: a) it uses a LOT of power,

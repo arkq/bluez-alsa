@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rfcomm.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -272,7 +272,7 @@ static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	if (!(t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC))
 		t->rfcomm.sco->codec = HFP_CODEC_CVSD;
 
-	sprintf(tmp, "%u", BA_HFP_AG_FEATURES);
+	sprintf(tmp, "%u", config.hfp.features_rfcomm_ag);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BRSF", tmp) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -598,7 +598,7 @@ void *rfcomm_thread(void *arg) {
 			if (t->profile == BLUETOOTH_PROFILE_HFP_HF)
 				switch (conn.state) {
 				case HFP_DISCONNECTED:
-					sprintf(tmp, "%u", BA_HFP_HF_FEATURES);
+					sprintf(tmp, "%u", config.hfp.features_rfcomm_hf);
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BRSF", tmp) == -1)
 						goto ioerror;
 					conn.handler = &rfcomm_handler_brsf_resp;

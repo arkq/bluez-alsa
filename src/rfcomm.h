@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rfcomm.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -14,20 +14,6 @@
 #include "at.h"
 #include "hfp.h"
 #include "transport.h"
-
-#define BA_HFP_AG_FEATURES (\
-		HFP_AG_FEAT_REJECT |\
-		HFP_AG_FEAT_ECS |\
-		HFP_AG_FEAT_ECC |\
-		HFP_AG_FEAT_EERC |\
-		HFP_AG_FEAT_CODEC)
-
-#define BA_HFP_HF_FEATURES (\
-		HFP_HF_FEAT_CLI |\
-		HFP_HF_FEAT_VOLUME |\
-		HFP_HF_FEAT_ECS |\
-		HFP_HF_FEAT_ECC |\
-		HFP_HF_FEAT_CODEC)
 
 /* Number of retries during the SLC stage. */
 #define RFCOMM_SLC_RETRIES 10

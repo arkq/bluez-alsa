@@ -82,6 +82,15 @@ struct ba_config {
 
 	} ctl;
 
+	struct {
+		/* set of features exposed via Service Discovery */
+		int features_sdp_hf;
+		int features_sdp_ag;
+		/* set of features exposed via RFCOMM connection */
+		int features_rfcomm_hf;
+		int features_rfcomm_ag;
+	} hfp;
+
 #if ENABLE_AAC
 	bool aac_afterburner;
 	uint8_t aac_vbr_mode;
