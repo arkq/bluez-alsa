@@ -142,7 +142,12 @@ static int rfcomm_handler_cind_test_cb(struct rfcomm_conn *c, const struct bt_at
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND",
 				"(\"call\",(0,1))"
 				",(\"callsetup\",(0-3))"
-				",(\"callheld\",(0-2))") == -1)
+				",(\"service\",(0-1))"
+				",(\"signal\",(0-5))"
+				",(\"roam\",(0-1))"
+				",(\"battchg\",(0-5))"
+				",(\"callheld\",(0-2))"
+			) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
@@ -159,7 +164,7 @@ static int rfcomm_handler_cind_get_cb(struct rfcomm_conn *c, const struct bt_at 
 	(void)at;
 	const int fd = c->t->bt_fd;
 
-	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", "0,0,0") == -1)
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", "0,0,0,0,0,0,0") == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
