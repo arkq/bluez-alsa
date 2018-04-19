@@ -80,6 +80,7 @@ int main(void) {
 	assert(strcmp(at.value, "OK") == 0);
 
 	/* build commands */
+	assert(strcmp(at_build(buffer, AT_TYPE_RAW, "\r\nRING", NULL), "\r\nRING") == 0);
 	assert(strcmp(at_build(buffer, AT_TYPE_CMD, "+CLCC", NULL), "AT+CLCC\r") == 0);
 	assert(strcmp(at_build(buffer, AT_TYPE_CMD_GET, "+COPS", NULL), "AT+COPS?\r") == 0);
 	assert(strcmp(at_build(buffer, AT_TYPE_CMD_SET, "+BCS", "1"), "AT+BCS=1\r") == 0);

@@ -99,6 +99,31 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 	return -1;
 }
 
+static int _transport_lookup_rfcomm(GHashTable *devices, const bdaddr_t *addr,
+		struct ba_transport **t) {
+
+	GHashTableIter iter_d, iter_t;
+	struct ba_device *d;
+
+	for (g_hash_table_iter_init(&iter_d, devices);
+			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); ) {
+
+		if (bacmp(&d->addr, addr) != 0)
+			continue;
+
+		for (g_hash_table_iter_init(&iter_t, d->transports);
+				g_hash_table_iter_next(&iter_t, NULL, (gpointer)t); ) {
+
+			if ((*t)->type != TRANSPORT_TYPE_RFCOMM)
+				continue;
+
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 /**
  * Get transport PCM structure.
  *
@@ -483,6 +508,25 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
+static void ctl_thread_cmd_rfcomm_send(const struct ba_request *req, int fd) {
+
+	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
+	struct ba_transport *t;
+
+	pthread_mutex_lock(&config.devices_mutex);
+
+	if (_transport_lookup_rfcomm(config.devices, &req->addr, &t) != 0) {
+		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	}
+
+	transport_send_rfcomm(t, req->rfcomm_command);
+
+fail:
+	pthread_mutex_unlock(&config.devices_mutex);
+	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
+}
+
 static void *ctl_thread(void *arg) {
 	(void)arg;
 
@@ -498,6 +542,7 @@ static void *ctl_thread(void *arg) {
 		[BA_COMMAND_PCM_PAUSE] = ctl_thread_cmd_pcm_control,
 		[BA_COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
 		[BA_COMMAND_PCM_DRAIN] = ctl_thread_cmd_pcm_control,
+		[BA_COMMAND_RFCOMM_SEND] = ctl_thread_cmd_rfcomm_send,
 	};
 
 	debug("Starting controller loop");

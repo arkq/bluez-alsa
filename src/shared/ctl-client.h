@@ -34,4 +34,6 @@ int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport);
 int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, bool pause);
 int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport);
 
+int bluealsa_send_rfcomm_command(int fd, bdaddr_t addr, const char *command);
+
 #endif

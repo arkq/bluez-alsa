@@ -728,6 +728,14 @@ void *rfcomm_thread(void *arg) {
 						goto ioerror;
 				}
 				break;
+			case TRANSPORT_SEND_RFCOMM: {
+				char cmd[32];
+				if (read(pfds[0].fd, cmd, sizeof(cmd)) != sizeof(cmd))
+					warn("Couldn't read RFCOMM command: %s", strerror(errno));
+				if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RAW, cmd, NULL) == -1)
+					goto ioerror;
+				break;
+			}
 			default:
 				break;
 			}

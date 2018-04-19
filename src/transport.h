@@ -45,6 +45,7 @@ enum ba_transport_signal {
 	TRANSPORT_PCM_RESUME,
 	TRANSPORT_PCM_SYNC,
 	TRANSPORT_SET_VOLUME,
+	TRANSPORT_SEND_RFCOMM,
 };
 
 struct ba_device {
@@ -232,6 +233,7 @@ struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client
 bool transport_remove(GHashTable *devices, const char *dbus_path);
 
 int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
+int transport_send_rfcomm(struct ba_transport *t, const char command[32]);
 
 unsigned int transport_get_channels(const struct ba_transport *t);
 unsigned int transport_get_sampling(const struct ba_transport *t);

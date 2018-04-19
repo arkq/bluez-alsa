@@ -15,6 +15,7 @@
 #include "hfp.h"
 
 enum bt_at_type {
+	AT_TYPE_RAW,
 	AT_TYPE_CMD,
 	AT_TYPE_CMD_GET,
 	AT_TYPE_CMD_SET,

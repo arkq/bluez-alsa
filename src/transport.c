@@ -477,6 +477,16 @@ int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig) 
 	return write(t->sig_fd[1], &sig, sizeof(sig));
 }
 
+int transport_send_rfcomm(struct ba_transport *t, const char command[32]) {
+
+	char msg[sizeof(enum ba_transport_signal) + 32];
+
+	((enum ba_transport_signal *)msg)[0] = TRANSPORT_SEND_RFCOMM;
+	memcpy(&msg[sizeof(enum ba_transport_signal)], command, 32);
+
+	return write(t->sig_fd[1], msg, sizeof(msg));
+}
+
 unsigned int transport_get_channels(const struct ba_transport *t) {
 
 	switch (t->type) {

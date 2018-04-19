@@ -33,6 +33,7 @@ enum ba_command {
 	BA_COMMAND_PCM_PAUSE,
 	BA_COMMAND_PCM_RESUME,
 	BA_COMMAND_PCM_DRAIN,
+	BA_COMMAND_RFCOMM_SEND,
 	__BA_COMMAND_MAX
 };
 
@@ -88,6 +89,9 @@ struct __attribute__ ((packed)) ba_request {
 	uint8_t ch1_volume:7;
 	uint8_t ch2_muted:1;
 	uint8_t ch2_volume:7;
+
+	/* RFCOMM command string to send */
+	char rfcomm_command[32];
 
 };
 

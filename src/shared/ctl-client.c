@@ -436,3 +436,29 @@ int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport) {
 
 	return bluealsa_send_request(fd, &req);
 }
+
+/**
+ * Send RFCOMM message.
+ *
+ * @param fd Opened socket file descriptor.
+ * @param addr MAC address of the Bluetooth device.
+ * @param command NULL-terminated command string.
+ * @return Upon success this function returns 0. Otherwise, -1 is returned. */
+int bluealsa_send_rfcomm_command(int fd, bdaddr_t addr, const char *command) {
+
+	struct ba_request req = {
+		.command = BA_COMMAND_RFCOMM_SEND,
+		.addr = addr,
+	};
+
+	/* snprintf() guarantees terminating NULL character */
+	snprintf(req.rfcomm_command, sizeof(req.rfcomm_command), "%s", command);
+
+#if DEBUG
+	char addr_[18];
+	ba2str_(&req.addr, addr_);
+	debug("Sending RFCOMM command to %s: %s", addr_, req.rfcomm_command);
+#endif
+
+	return bluealsa_send_request(fd, &req);
+}

@@ -33,6 +33,9 @@
 char *at_build(char *buffer, enum bt_at_type type, const char *command,
 		const char *value) {
 	switch (type) {
+	case AT_TYPE_RAW:
+		strcpy(buffer, command);
+		break;
 	case AT_TYPE_CMD:
 		sprintf(buffer, "AT%s\r", command);
 		break;
@@ -213,6 +216,7 @@ int at_parse_cind(const char *str, enum hfp_ind map[20]) {
  * @return Human-readable string. */
 const char *at_type2str(enum bt_at_type type) {
 	static const char *types[__AT_TYPE_MAX] = {
+		[AT_TYPE_RAW] = "RAW",
 		[AT_TYPE_CMD] = "CMD",
 		[AT_TYPE_CMD_GET] = "GET",
 		[AT_TYPE_CMD_SET] = "SET",
