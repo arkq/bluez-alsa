@@ -436,3 +436,19 @@ int bluealsa_drain_transport(int fd, const struct msg_transport *transport) {
 
 	return bluealsa_send_request(fd, &req);
 }
+
+int bluealsa_send_rfcomm_command(int fd, const char *device_address, const char *command_string)
+{
+	bdaddr_t addr;
+	str2ba (device_address, &addr);
+
+	struct request req = {
+		.command = COMMAND_RFCOMM_SEND,
+		.addr = addr,
+	};
+
+	/* snprintf guarantees terminating null character */
+	snprintf (req.rfcomm_command, sizeof(req.rfcomm_command), "%s", command_string);
+
+	return bluealsa_send_request(fd, &req);
+}

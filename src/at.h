@@ -20,6 +20,9 @@ enum bt_at_type {
 	AT_TYPE_CMD_SET,
 	AT_TYPE_CMD_TEST,
 	AT_TYPE_RESP,
+	/* AT_TYPE_CLIENT added to give client full flexibility to
+	   write AT command with client required format */
+	AT_TYPE_CLIENT,
 	__AT_TYPE_MAX
 };
 

@@ -51,6 +51,9 @@ char *at_build(char *buffer, enum bt_at_type type, const char *command,
 		else
 			sprintf(buffer, "\r\n%s\r\n", value);
 		break;
+	case AT_TYPE_CLIENT:
+		sprintf(buffer, "%s", command);
+		break;
 	case __AT_TYPE_MAX:
 		break;
 	}

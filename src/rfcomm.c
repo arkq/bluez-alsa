@@ -721,6 +721,25 @@ void *rfcomm_thread(void *arg) {
 					goto ioerror;
 			}
 
+			int i;
+			pthread_mutex_lock(&t->rfcomm.commands_mutex);
+			for(i = 0; i < t->rfcomm.commands->len; ++i)
+			{
+				char * command = g_ptr_array_index(t->rfcomm.commands, i);
+				int result = rfcomm_write_at(pfds[1].fd, AT_TYPE_CLIENT,
+					command, NULL);
+
+				if (result == -1)
+				{
+					pthread_mutex_unlock(&t->rfcomm.commands_mutex);
+					error("Unable to send rfcomm command: %s", command);
+					goto ioerror;
+				}
+			}
+			/* Empty the queue */
+			g_ptr_array_remove_range(t->rfcomm.commands, 0, t->rfcomm.commands->len);
+			pthread_mutex_unlock(&t->rfcomm.commands_mutex);
+
 		}
 
 		if (pfds[1].revents & POLLIN) {
