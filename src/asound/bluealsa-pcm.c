@@ -142,7 +142,7 @@ static void *io_thread(void *arg) {
 		snd_pcm_uframes_t frames = io->period_size;
 		char *buffer = areas->addr + (areas->first + areas->step * io_ptr) / 8;
 		char *head = buffer;
-		ssize_t ret;
+		ssize_t ret = 0;
 		size_t len;
 
 		/* If the leftover in the buffer is less than a whole period sizes,
