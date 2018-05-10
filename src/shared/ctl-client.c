@@ -24,17 +24,17 @@
 
 /**
  * Convert BlueALSA status message into the POSIX errno value. */
-static int bluealsa_status_to_errno(const struct msg_status *status) {
+static int bluealsa_status_to_errno(const struct ba_msg_status *status) {
 	switch (status->code) {
-	case STATUS_CODE_SUCCESS:
+	case BA_STATUS_CODE_SUCCESS:
 		return 0;
-	case STATUS_CODE_ERROR_UNKNOWN:
+	case BA_STATUS_CODE_ERROR_UNKNOWN:
 		return EIO;
-	case STATUS_CODE_DEVICE_NOT_FOUND:
+	case BA_STATUS_CODE_DEVICE_NOT_FOUND:
 		return ENODEV;
-	case STATUS_CODE_DEVICE_BUSY:
+	case BA_STATUS_CODE_DEVICE_BUSY:
 		return EBUSY;
-	case STATUS_CODE_FORBIDDEN:
+	case BA_STATUS_CODE_FORBIDDEN:
 		return EACCES;
 	default:
 		/* some generic error code */
@@ -69,9 +69,9 @@ static char *ba2str_(const bdaddr_t *ba, char str[18]) {
  * @param req An address to the request structure.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
-static int bluealsa_send_request(int fd, const struct request *req) {
+static int bluealsa_send_request(int fd, const struct ba_request *req) {
 
-	struct msg_status status = { 0xAB };
+	struct ba_msg_status status = { 0xAB };
 
 	if (send(fd, req, sizeof(*req), MSG_NOSIGNAL) == -1)
 		return -1;
@@ -118,9 +118,9 @@ int bluealsa_open(const char *interface) {
  *   In order to cancel subscription, use empty event mask.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
-int bluealsa_subscribe(int fd, enum event mask) {
-	const struct request req = {
-		.command = COMMAND_SUBSCRIBE,
+int bluealsa_subscribe(int fd, enum ba_event mask) {
+	const struct ba_request req = {
+		.command = BA_COMMAND_SUBSCRIBE,
 		.events = mask,
 	};
 	debug("Subscribing for events: %B", mask);
@@ -136,11 +136,11 @@ int bluealsa_subscribe(int fd, enum event mask) {
  *   and the `devices` address is modified to point to the devices list array,
  *   which should be freed with the free(). On error, -1 is returned and errno
  *   is set to indicate the error. */
-ssize_t bluealsa_get_devices(int fd, struct msg_device **devices) {
+ssize_t bluealsa_get_devices(int fd, struct ba_msg_device **devices) {
 
-	const struct request req = { .command = COMMAND_LIST_DEVICES };
-	struct msg_device *_devices = NULL;
-	struct msg_device device;
+	const struct ba_request req = { .command = BA_COMMAND_LIST_DEVICES };
+	struct ba_msg_device *_devices = NULL;
+	struct ba_msg_device device;
 	size_t i = 0;
 
 	if (send(fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
@@ -165,11 +165,11 @@ ssize_t bluealsa_get_devices(int fd, struct msg_device **devices) {
  *   transports and the `transports` address is modified to point to the
  *   transport list array, which should be freed with the free(). On error,
  *   -1 is returned and errno is set to indicate the error. */
-ssize_t bluealsa_get_transports(int fd, struct msg_transport **transports) {
+ssize_t bluealsa_get_transports(int fd, struct ba_msg_transport **transports) {
 
-	const struct request req = { .command = COMMAND_LIST_TRANSPORTS };
-	struct msg_transport *_transports = NULL;
-	struct msg_transport transport;
+	const struct ba_request req = { .command = BA_COMMAND_LIST_TRANSPORTS };
+	struct ba_msg_transport *_transports = NULL;
+	struct ba_msg_transport transport;
 	size_t i = 0;
 
 	if (send(fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
@@ -195,13 +195,13 @@ ssize_t bluealsa_get_transports(int fd, struct msg_transport **transports) {
  * @return Upon success this function returns pointer to the newly allocated
  *   transport structure, which should be freed with free(). Otherwise, NULL
  *   is returned and errno is set appropriately. */
-struct msg_transport *bluealsa_get_transport(int fd, bdaddr_t addr,
-		enum pcm_type type, enum pcm_stream stream) {
+struct ba_msg_transport *bluealsa_get_transport(int fd, bdaddr_t addr,
+		enum ba_pcm_type type, enum ba_pcm_stream stream) {
 
-	struct msg_transport *transport;
-	struct msg_status status = { 0xAB };
-	struct request req = {
-		.command = COMMAND_TRANSPORT_GET,
+	struct ba_msg_transport *transport;
+	struct ba_msg_status status = { 0xAB };
+	struct ba_request req = {
+		.command = BA_COMMAND_TRANSPORT_GET,
 		.addr = addr,
 		.type = type,
 		.stream = stream,
@@ -247,12 +247,12 @@ struct msg_transport *bluealsa_get_transport(int fd, bdaddr_t addr,
  *   and stream fields set - other fields are not used by this function.
  * @return Upon success this function returns transport delay. Otherwise,
  *   -1 is returned and errno is set appropriately. */
-int bluealsa_get_transport_delay(int fd, const struct msg_transport *transport) {
+int bluealsa_get_transport_delay(int fd, const struct ba_msg_transport *transport) {
 
-	struct msg_status status = { 0xAB };
-	struct msg_transport _transport;
-	struct request req = {
-		.command = COMMAND_TRANSPORT_GET,
+	struct ba_msg_status status = { 0xAB };
+	struct ba_msg_transport _transport;
+	struct ba_request req = {
+		.command = BA_COMMAND_TRANSPORT_GET,
 		.addr = transport->addr,
 		.type = transport->type,
 		.stream = transport->stream,
@@ -289,11 +289,11 @@ int bluealsa_get_transport_delay(int fd, const struct msg_transport *transport) 
  * @param ch2_volume Channel 2 volume in range [0, 127].
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
-int bluealsa_set_transport_volume(int fd, const struct msg_transport *transport,
+int bluealsa_set_transport_volume(int fd, const struct ba_msg_transport *transport,
 		bool ch1_muted, int ch1_volume, bool ch2_muted, int ch2_volume) {
 
-	struct request req = {
-		.command = COMMAND_TRANSPORT_SET_VOLUME,
+	struct ba_request req = {
+		.command = BA_COMMAND_TRANSPORT_SET_VOLUME,
 		.addr = transport->addr,
 		.type = transport->type,
 		.stream = transport->stream,
@@ -313,11 +313,11 @@ int bluealsa_set_transport_volume(int fd, const struct msg_transport *transport,
  * @param transport Address to the transport structure with the addr, type
  *   and stream fields set - other fields are not used by this function.
  * @return PCM FIFO file descriptor, or -1 on error. */
-int bluealsa_open_transport(int fd, const struct msg_transport *transport) {
+int bluealsa_open_transport(int fd, const struct ba_msg_transport *transport) {
 
-	struct msg_status status = { 0xAB };
-	struct request req = {
-		.command = COMMAND_PCM_OPEN,
+	struct ba_msg_status status = { 0xAB };
+	struct ba_request req = {
+		.command = BA_COMMAND_PCM_OPEN,
 		.addr = transport->addr,
 		.type = transport->type,
 		.stream = transport->stream,
@@ -368,10 +368,10 @@ int bluealsa_open_transport(int fd, const struct msg_transport *transport) {
  * @param transport Address to the transport structure with the addr, type
  *   and stream fields set - other fields are not used by this function.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_close_transport(int fd, const struct msg_transport *transport) {
+int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport) {
 
-	struct request req = {
-		.command = COMMAND_PCM_CLOSE,
+	struct ba_request req = {
+		.command = BA_COMMAND_PCM_CLOSE,
 		.addr = transport->addr,
 		.type = transport->type,
 		.stream = transport->stream,
@@ -394,10 +394,10 @@ int bluealsa_close_transport(int fd, const struct msg_transport *transport) {
  *   and stream fields set - other fields are not used by this function.
  * @param pause If non-zero, pause transport, otherwise resume it.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_pause_transport(int fd, const struct msg_transport *transport, bool pause) {
+int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, bool pause) {
 
-	struct request req = {
-		.command = pause ? COMMAND_PCM_PAUSE : COMMAND_PCM_RESUME,
+	struct ba_request req = {
+		.command = pause ? BA_COMMAND_PCM_PAUSE : BA_COMMAND_PCM_RESUME,
 		.addr = transport->addr,
 		.type = transport->type,
 		.stream = transport->stream,
@@ -419,10 +419,10 @@ int bluealsa_pause_transport(int fd, const struct msg_transport *transport, bool
  * @param transport Address to the transport structure with the addr, type
  *   and stream fields set - other fields are not used by this function.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_drain_transport(int fd, const struct msg_transport *transport) {
+int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport) {
 
-	struct request req = {
-		.command = COMMAND_PCM_DRAIN,
+	struct ba_request req = {
+		.command = BA_COMMAND_PCM_DRAIN,
 		.addr = transport->addr,
 		.type = transport->type,
 		.stream = transport->stream,

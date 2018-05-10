@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -32,7 +32,7 @@
 #define CANCEL_ROUTINE(f) ((void (*)(void *))(f))
 
 struct pcm_worker {
-	struct msg_transport transport;
+	struct ba_msg_transport transport;
 	pthread_t thread;
 	snd_pcm_t *pcm;
 	/* file descriptor of BlueALSA */
@@ -52,7 +52,7 @@ static const char *device = "default";
 static const char *ba_interface = "hci0";
 static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
-static enum pcm_type ba_type = PCM_TYPE_A2DP;
+static enum ba_pcm_type ba_type = BA_PCM_TYPE_A2DP;
 static bool pcm_mixer = true;
 
 static GDBusConnection *dbus = NULL;
@@ -309,7 +309,7 @@ static void *pcm_worker_routine(void *arg) {
 		goto fail;
 	}
 
-	w->transport.stream = PCM_STREAM_CAPTURE;
+	w->transport.stream = BA_PCM_STREAM_CAPTURE;
 	if ((w->pcm_fd = bluealsa_open_transport(w->ba_fd, &w->transport)) == -1) {
 		error("Couldn't open PCM FIFO: %s", strerror(errno));
 		goto fail;
@@ -476,10 +476,10 @@ usage:
 			break;
 
 		case 1 /* --profile-a2dp */ :
-			ba_type = PCM_TYPE_A2DP;
+			ba_type = BA_PCM_TYPE_A2DP;
 			break;
 		case 2 /* --profile-sco */ :
-			ba_type = PCM_TYPE_SCO;
+			ba_type = BA_PCM_TYPE_SCO;
 			break;
 
 		case 3 /* --pcm-buffer-time */ :
@@ -543,7 +543,7 @@ usage:
 				"  Profile: %s\n",
 				ba_interface, device, pcm_buffer_time, pcm_period_time,
 				ba_addr_any ? "ANY" : &ba_str[2],
-				ba_type == PCM_TYPE_A2DP ? "A2DP" : "SCO");
+				ba_type == BA_PCM_TYPE_A2DP ? "A2DP" : "SCO");
 
 		free(ba_str);
 	}
@@ -563,7 +563,7 @@ usage:
 		goto fail;
 	}
 
-	if (bluealsa_subscribe(ba_fd, EVENT_TRANSPORT_ADDED | EVENT_TRANSPORT_REMOVED) == -1) {
+	if (bluealsa_subscribe(ba_fd, BA_EVENT_TRANSPORT_ADDED | BA_EVENT_TRANSPORT_REMOVED) == -1) {
 		error("BlueALSA subscription failed: %s", strerror(errno));
 		goto fail;
 	}
@@ -577,8 +577,8 @@ usage:
 
 	while (main_loop_on) {
 
-		struct msg_event event;
-		struct msg_transport *transports;
+		struct ba_msg_event event;
+		struct ba_msg_transport *transports;
 		ssize_t ret;
 		size_t i;
 
@@ -611,7 +611,7 @@ init:
 			 * any address can be used), transport type and stream direction */
 			if (transports[i].type != ba_type)
 				continue;
-			if (transports[i].stream != PCM_STREAM_CAPTURE && transports[i].stream != PCM_STREAM_DUPLEX)
+			if (transports[i].stream != BA_PCM_STREAM_CAPTURE && transports[i].stream != BA_PCM_STREAM_DUPLEX)
 				continue;
 			if (!ba_addr_any) {
 				bool matched = false;

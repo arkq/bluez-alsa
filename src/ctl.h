@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,6 +16,6 @@
 int bluealsa_ctl_thread_init(void);
 void bluealsa_ctl_free(void);
 
-int bluealsa_ctl_event(enum event event);
+int bluealsa_ctl_event(enum ba_event event);
 
 #endif

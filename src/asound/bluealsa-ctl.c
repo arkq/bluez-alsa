@@ -32,8 +32,8 @@ enum ctl_elem_type {
 
 struct ctl_elem {
 	enum ctl_elem_type type;
-	struct msg_device *device;
-	struct msg_transport *transport;
+	struct ba_msg_device *device;
+	struct ba_msg_transport *transport;
 	char name[44 /* internal ALSA constraint */ + 1];
 	/* if true, element is a playback control */
 	bool playback;
@@ -55,11 +55,11 @@ struct bluealsa_ctl {
 	bool battery;
 
 	/* list of all BT devices */
-	struct msg_device *devices;
+	struct ba_msg_device *devices;
 	size_t devices_count;
 
 	/* list of all transports */
-	struct msg_transport *transports;
+	struct ba_msg_transport *transports;
 	size_t transports_count;
 
 	/* list of control elements */
@@ -80,7 +80,7 @@ struct bluealsa_ctl {
  * @param device An address to the device structure.
  * @return The device ID number, or -1 upon error. */
 static int bluealsa_get_device_id(const struct bluealsa_ctl *ctl,
-		const struct msg_device *device) {
+		const struct ba_msg_device *device) {
 
 	size_t i;
 
@@ -100,8 +100,8 @@ static int bluealsa_get_device_id(const struct bluealsa_ctl *ctl,
 static void bluealsa_set_elem_name(struct ctl_elem *elem, int id) {
 
 	const enum ctl_elem_type type = elem->type;
-	const struct msg_device *device = elem->device;
-	const struct msg_transport *transport = elem->transport;
+	const struct ba_msg_device *device = elem->device;
+	const struct ba_msg_transport *transport = elem->transport;
 
 	int len = sizeof(elem->name) - 16 - 1;
 	char no[8] = "";
@@ -120,15 +120,15 @@ static void bluealsa_set_elem_name(struct ctl_elem *elem, int id) {
 	else if (transport != NULL) {
 		/* avoid name duplication by adding profile suffixes */
 		switch (transport->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			break;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			len -= 7;
 			while (isspace(device->name[len - 1]))
 				len--;
 			sprintf(elem->name, "%.*s%s - A2DP", len, device->name, no);
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			len -= 6;
 			while (isspace(device->name[len - 1]))
 				len--;
@@ -163,10 +163,10 @@ static void bluealsa_set_elem_name(struct ctl_elem *elem, int id) {
  *   found, respectively, to match, or be different than e2. */
 static int bluealsa_ctl_elem_cmp(const struct ctl_elem *e1, const struct ctl_elem *e2) {
 
-	const struct msg_device *d1 = e1->device;
-	const struct msg_device *d2 = e2->device;
-	const struct msg_transport *t1 = e1->transport;
-	const struct msg_transport *t2 = e2->transport;
+	const struct ba_msg_device *d1 = e1->device;
+	const struct ba_msg_device *d2 = e2->device;
+	const struct ba_msg_transport *t1 = e1->transport;
+	const struct ba_msg_transport *t2 = e2->transport;
 	bool updated = false;
 
 	switch (e1->type) {
@@ -175,14 +175,14 @@ static int bluealsa_ctl_elem_cmp(const struct ctl_elem *e1, const struct ctl_ele
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
 		switch (t1->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			updated |= t1->ch1_muted != t2->ch1_muted;
 			if (t1->channels == 2)
 				updated |= t1->ch2_muted != t2->ch2_muted;
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			if (e1->playback)
 				updated |= t1->ch1_muted != t2->ch1_muted;
 			else
@@ -192,14 +192,14 @@ static int bluealsa_ctl_elem_cmp(const struct ctl_elem *e1, const struct ctl_ele
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
 		switch (t1->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			updated |= t1->ch1_volume != t2->ch1_volume;
 			if (t1->channels == 2)
 				updated |= t1->ch2_volume != t2->ch2_volume;
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			if (e1->playback)
 				updated |= t1->ch1_volume != t2->ch1_volume;
 			else
@@ -252,12 +252,12 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 		 * and mute switch. A2DP transport contains only one stream. However, SCO
 		 * transport represent both streams - playback and capture. */
 		switch (ctl->transports[i].type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			continue;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			count += 2;
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			count += 4;
 			break;
 		}
@@ -270,8 +270,8 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 	/* construct control elements based on received transports */
 	for (i = 0; i < ctl->transports_count; i++) {
 
-		struct msg_transport *transport = &ctl->transports[i];
-		struct msg_device *device = NULL;
+		struct ba_msg_transport *transport = &ctl->transports[i];
+		struct ba_msg_device *device = NULL;
 		size_t ii;
 
 		/* get device structure for given transport */
@@ -289,28 +289,28 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			continue;
 
 		switch (transport->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			break;
 
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = transport->stream == PCM_STREAM_PLAYBACK;
+			ctl->elems[count].playback = transport->stream == BA_PCM_STREAM_PLAYBACK;
 			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = transport->stream == PCM_STREAM_PLAYBACK;
+			ctl->elems[count].playback = transport->stream == BA_PCM_STREAM_PLAYBACK;
 			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			break;
 
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
@@ -420,7 +420,7 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		return -EINVAL;
 
 	const struct ctl_elem *elem = &ctl->elems[key];
-	const struct msg_transport *transport = elem->transport;
+	const struct ba_msg_transport *transport = elem->transport;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -451,7 +451,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		return -EINVAL;
 
 	const struct ctl_elem *elem = &ctl->elems[key];
-	const struct msg_transport *transport = elem->transport;
+	const struct ba_msg_transport *transport = elem->transport;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -463,12 +463,12 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		return -EINVAL;
 	case CTL_ELEM_TYPE_VOLUME:
 		switch (transport->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			*imax = 127;
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			*imax = 15;
 			break;
 		}
@@ -487,8 +487,8 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		return -EINVAL;
 
 	const struct ctl_elem *elem = &ctl->elems[key];
-	const struct msg_device *device = elem->device;
-	const struct msg_transport *transport = elem->transport;
+	const struct ba_msg_device *device = elem->device;
+	const struct ba_msg_transport *transport = elem->transport;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -496,14 +496,14 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
 		switch (transport->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			value[0] = !transport->ch1_muted;
 			if (transport->channels == 2)
 				value[1] = !transport->ch2_muted;
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			if (elem->playback)
 				value[0] = !transport->ch1_muted;
 			else
@@ -513,14 +513,14 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
 		switch (transport->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			value[0] = transport->ch1_volume;
 			if (transport->channels == 2)
 				value[1] = transport->ch2_volume;
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			if (elem->playback)
 				value[0] = transport->ch1_volume;
 			else
@@ -540,7 +540,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		return -EINVAL;
 
 	struct ctl_elem *elem = &ctl->elems[key];
-	struct msg_transport *transport = elem->transport;
+	struct ba_msg_transport *transport = elem->transport;
 
 	if (transport == NULL)
 		return -EINVAL;
@@ -551,14 +551,14 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		return -EINVAL;
 	case CTL_ELEM_TYPE_SWITCH:
 		switch (transport->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			transport->ch1_muted = !value[0];
 			if (transport->channels == 2)
 				transport->ch2_muted = !value[1];
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			if (elem->playback)
 				transport->ch1_muted = !value[0];
 			else
@@ -568,14 +568,14 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
 		switch (transport->type) {
-		case PCM_TYPE_NULL:
+		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
-		case PCM_TYPE_A2DP:
+		case BA_PCM_TYPE_A2DP:
 			transport->ch1_volume = value[0];
 			if (transport->channels == 2)
 				transport->ch2_volume = value[1];
 			break;
-		case PCM_TYPE_SCO:
+		case BA_PCM_TYPE_SCO:
 			if (elem->playback)
 				transport->ch1_volume = value[0];
 			else
@@ -616,7 +616,7 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 		return 1;
 	}
 
-	struct msg_event event;
+	struct ba_msg_event event;
 	ssize_t ret;
 
 	/* This code reads events from the socket until the EAGAIN is returned.
@@ -641,8 +641,8 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 
 	/* Save current control elements for later usage. The call to the
 	 * bluealsa_elem_count() will overwrite these pointers. */
-	struct msg_device *devices = ctl->devices;
-	struct msg_transport *transports = ctl->transports;
+	struct ba_msg_device *devices = ctl->devices;
+	struct ba_msg_transport *transports = ctl->transports;
 	struct ctl_elem *elems = ctl->elems;
 	size_t count = ctl->elems_count;
 

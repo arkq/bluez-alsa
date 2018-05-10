@@ -39,7 +39,7 @@ struct bluealsa_pcm {
 	int event_fd;
 
 	/* requested transport */
-	struct msg_transport *transport;
+	struct ba_msg_transport *transport;
 	size_t pcm_buffer_size;
 	int pcm_fd;
 
@@ -518,17 +518,17 @@ static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.poll_revents = bluealsa_poll_revents,
 };
 
-static enum pcm_type bluealsa_parse_profile(const char *profile) {
+static enum ba_pcm_type bluealsa_parse_profile(const char *profile) {
 
 	if (profile == NULL)
-		return PCM_TYPE_NULL;
+		return BA_PCM_TYPE_NULL;
 
 	if (strcasecmp(profile, "a2dp") == 0)
-		return PCM_TYPE_A2DP;
+		return BA_PCM_TYPE_A2DP;
 	else if (strcasecmp(profile, "sco") == 0)
-		return PCM_TYPE_SCO;
+		return BA_PCM_TYPE_SCO;
 
-	return PCM_TYPE_NULL;
+	return BA_PCM_TYPE_NULL;
 }
 
 static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
@@ -642,14 +642,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	}
 
 	bdaddr_t addr;
-	enum pcm_type type;
+	enum ba_pcm_type type;
 
 	if (device == NULL || str2ba(device, &addr) != 0) {
 		SNDERR("Invalid BT device address: %s", device);
 		return -EINVAL;
 	}
 
-	if ((type = bluealsa_parse_profile(profile)) == PCM_TYPE_NULL) {
+	if ((type = bluealsa_parse_profile(profile)) == BA_PCM_TYPE_NULL) {
 		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
 		return -EINVAL;
 	}
@@ -673,8 +673,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	enum pcm_stream _stream = stream == SND_PCM_STREAM_PLAYBACK ?
-			PCM_STREAM_PLAYBACK : PCM_STREAM_CAPTURE;
+	enum ba_pcm_stream _stream = stream == SND_PCM_STREAM_PLAYBACK ?
+			BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE;
 	if ((pcm->transport = bluealsa_get_transport(pcm->fd, addr, type, _stream)) == NULL) {
 		SNDERR("Couldn't get BlueALSA transport: %s", strerror(errno));
 		ret = -errno;

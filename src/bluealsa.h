@@ -75,7 +75,7 @@ struct ba_config {
 
 		struct pollfd pfds[__CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS];
 		/* event subscriptions for connected clients */
-		enum event subs[BLUEALSA_MAX_CLIENTS];
+		enum ba_event subs[BLUEALSA_MAX_CLIENTS];
 
 		/* PIPE for transferring events */
 		int evt[2];

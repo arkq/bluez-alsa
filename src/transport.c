@@ -196,7 +196,7 @@ bool device_remove(GHashTable *devices, const char *key) {
 void device_set_battery_level(struct ba_device *d, uint8_t value) {
 	d->battery.enabled = true;
 	d->battery.level = value;
-	bluealsa_ctl_event(EVENT_UPDATE_BATTERY);
+	bluealsa_ctl_event(BA_EVENT_UPDATE_BATTERY);
 }
 
 /**
@@ -288,7 +288,7 @@ struct ba_transport *transport_new_a2dp(
 	pthread_cond_init(&t->a2dp.pcm.drained, NULL);
 	pthread_mutex_init(&t->a2dp.pcm.drained_mn, NULL);
 
-	bluealsa_ctl_event(EVENT_TRANSPORT_ADDED);
+	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
 }
 
@@ -328,7 +328,7 @@ struct ba_transport *transport_new_rfcomm(
 
 	transport_set_state(t_sco, TRANSPORT_ACTIVE);
 
-	bluealsa_ctl_event(EVENT_TRANSPORT_ADDED);
+	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
 
 fail:
@@ -394,7 +394,7 @@ void transport_free(struct ba_transport *t) {
 	 * removed anyway. */
 	g_hash_table_steal(t->device->transports, t->dbus_path);
 
-	bluealsa_ctl_event(EVENT_TRANSPORT_REMOVED);
+	bluealsa_ctl_event(BA_EVENT_TRANSPORT_REMOVED);
 
 	free(t->dbus_owner);
 	free(t->dbus_path);

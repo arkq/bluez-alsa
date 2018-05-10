@@ -21,69 +21,69 @@
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
 
-enum command {
-	COMMAND_PING,
-	COMMAND_SUBSCRIBE,
-	COMMAND_LIST_DEVICES,
-	COMMAND_LIST_TRANSPORTS,
-	COMMAND_TRANSPORT_GET,
-	COMMAND_TRANSPORT_SET_VOLUME,
-	COMMAND_PCM_OPEN,
-	COMMAND_PCM_CLOSE,
-	COMMAND_PCM_PAUSE,
-	COMMAND_PCM_RESUME,
-	COMMAND_PCM_DRAIN,
-	__COMMAND_MAX
+enum ba_command {
+	BA_COMMAND_PING,
+	BA_COMMAND_SUBSCRIBE,
+	BA_COMMAND_LIST_DEVICES,
+	BA_COMMAND_LIST_TRANSPORTS,
+	BA_COMMAND_TRANSPORT_GET,
+	BA_COMMAND_TRANSPORT_SET_VOLUME,
+	BA_COMMAND_PCM_OPEN,
+	BA_COMMAND_PCM_CLOSE,
+	BA_COMMAND_PCM_PAUSE,
+	BA_COMMAND_PCM_RESUME,
+	BA_COMMAND_PCM_DRAIN,
+	__BA_COMMAND_MAX
 };
 
-enum status_code {
-	STATUS_CODE_SUCCESS = 0,
-	STATUS_CODE_ERROR_UNKNOWN,
-	STATUS_CODE_DEVICE_NOT_FOUND,
-	STATUS_CODE_DEVICE_BUSY,
-	STATUS_CODE_FORBIDDEN,
-	STATUS_CODE_PONG,
+enum ba_status_code {
+	BA_STATUS_CODE_SUCCESS = 0,
+	BA_STATUS_CODE_ERROR_UNKNOWN,
+	BA_STATUS_CODE_DEVICE_NOT_FOUND,
+	BA_STATUS_CODE_DEVICE_BUSY,
+	BA_STATUS_CODE_FORBIDDEN,
+	BA_STATUS_CODE_PONG,
 };
 
-enum event {
-	EVENT_TRANSPORT_ADDED   = 1 << 0,
-	EVENT_TRANSPORT_CHANGED = 1 << 1,
-	EVENT_TRANSPORT_REMOVED = 1 << 2,
-	EVENT_UPDATE_BATTERY    = 1 << 3,
-	EVENT_UPDATE_VOLUME     = 1 << 4,
+enum ba_event {
+	BA_EVENT_TRANSPORT_ADDED   = 1 << 0,
+	BA_EVENT_TRANSPORT_CHANGED = 1 << 1,
+	BA_EVENT_TRANSPORT_REMOVED = 1 << 2,
+	BA_EVENT_UPDATE_BATTERY    = 1 << 3,
+	BA_EVENT_UPDATE_VOLUME     = 1 << 4,
 };
 
-enum pcm_type {
-	PCM_TYPE_NULL = 0,
-	PCM_TYPE_A2DP,
-	PCM_TYPE_SCO,
+enum ba_pcm_type {
+	BA_PCM_TYPE_NULL = 0,
+	BA_PCM_TYPE_A2DP,
+	BA_PCM_TYPE_SCO,
 };
 
-enum pcm_stream {
-	PCM_STREAM_PLAYBACK,
-	PCM_STREAM_CAPTURE,
+enum ba_pcm_stream {
+	BA_PCM_STREAM_PLAYBACK,
+	BA_PCM_STREAM_CAPTURE,
 	/* Special stream type returned by the LIST_TRANSPORTS command to indicate,
 	 * that given transport can act as a playback and capture device. In order
 	 * to open PCM for such a transport, one has to provide one of PLAYBACK or
 	 * CAPTURE stream types. */
-	PCM_STREAM_DUPLEX,
+	BA_PCM_STREAM_DUPLEX,
 };
 
-struct __attribute__ ((packed)) request {
+struct __attribute__ ((packed)) ba_request {
 
-	enum command command;
+	enum ba_command command;
 
 	/* selected device address */
 	bdaddr_t addr;
 
 	/* requested transport type */
-	enum pcm_type type;
-	enum pcm_stream stream;
+	enum ba_pcm_type type;
+	enum ba_pcm_stream stream;
 
 	/* bit-mask with event subscriptions */
-	enum event events;
+	enum ba_event events;
 
-	/* fields used by the SET_TRANSPORT_VOLUME command */
+	/* fields used by the TRANSPORT_SET_VOLUME command */
 	uint8_t ch1_muted:1;
 	uint8_t ch1_volume:7;
 	uint8_t ch2_muted:1;
@@ -95,16 +95,16 @@ struct __attribute__ ((packed)) request {
  * Single byte status message send by the controller at the end of every
  * response. This message contains the overall request status, which could
  * indicate either success or error. */
-struct __attribute__ ((packed)) msg_status {
+struct __attribute__ ((packed)) ba_msg_status {
 	uint8_t code;
 };
 
-struct __attribute__ ((packed)) msg_event {
+struct __attribute__ ((packed)) ba_msg_event {
 	/* bit-mask with events */
-	enum event mask;
+	enum ba_event mask;
 };
 
-struct __attribute__ ((packed)) msg_device {
+struct __attribute__ ((packed)) ba_msg_device {
 
 	/* device address */
 	bdaddr_t addr;
@@ -118,14 +118,14 @@ struct __attribute__ ((packed)) msg_device {
 
 };
 
-struct __attribute__ ((packed)) msg_transport {
+struct __attribute__ ((packed)) ba_msg_transport {
 
 	/* device address for which the transport is created */
 	bdaddr_t addr;
 
 	/* selected profile and audio codec */
-	enum pcm_type type;
-	enum pcm_stream stream;
+	enum ba_pcm_type type;
+	enum ba_pcm_stream stream;
 	uint8_t codec;
 
 	/* number of audio channels */
