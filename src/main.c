@@ -30,7 +30,7 @@
 #include "ctl.h"
 #include "transport.h"
 #include "utils.h"
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 static GMainLoop *loop = NULL;

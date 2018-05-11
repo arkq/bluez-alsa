@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/ctl-client.h"
+#include "bluealsa/ctl-client.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -19,7 +19,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 /**
@@ -433,6 +433,22 @@ int bluealsa_drain_transport(int fd, const struct msg_transport *transport) {
 	ba2str_(&req.addr, addr_);
 	debug("Requesting PCM drain for %s", addr_);
 #endif
+
+	return bluealsa_send_request(fd, &req);
+}
+
+int bluealsa_send_rfcomm_command(int fd, const char *device_address, const char *command_string)
+{
+	bdaddr_t addr;
+	str2ba (device_address, &addr);
+
+	struct request req = {
+		.command = COMMAND_RFCOMM_SEND,
+		.addr = addr,
+	};
+
+	/* snprintf guarantees terminating null character */
+	snprintf (req.rfcomm_command, sizeof(req.rfcomm_command), "%s", command_string);
 
 	return bluealsa_send_request(fd, &req);
 }

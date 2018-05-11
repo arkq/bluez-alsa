@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_SHARED_CTLPROTO_H_
 #define BLUEALSA_SHARED_CTLPROTO_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if HAVE_CONFIG_H
 # include "config.h"
 #endif
@@ -33,6 +37,7 @@ enum command {
 	COMMAND_PCM_PAUSE,
 	COMMAND_PCM_RESUME,
 	COMMAND_PCM_DRAIN,
+	COMMAND_RFCOMM_SEND,
 	__COMMAND_MAX
 };
 
@@ -89,6 +94,8 @@ struct __attribute__ ((packed)) request {
 	uint8_t ch2_muted:1;
 	uint8_t ch2_volume:7;
 
+	/* RFCOMM command string to send */
+	char rfcomm_command[32];
 };
 
 /**
@@ -145,5 +152,9 @@ struct __attribute__ ((packed)) msg_transport {
 	uint16_t delay;
 
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

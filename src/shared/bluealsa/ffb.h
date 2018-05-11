@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_SHARED_FFB_H_
 #define BLUEALSA_SHARED_FFB_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <string.h>
 
@@ -36,5 +40,9 @@ void ffb_free(struct ffb *ffb);
 		memmove((p)->data, (p)->data + (len), ffb_len_out(p) - (len)); \
 		(p)->tail -= len; \
 	} while (0)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

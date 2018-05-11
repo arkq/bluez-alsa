@@ -1,6 +1,8 @@
 # BlueALSA - Makefile.am
 # Copyright (c) 2016-2017 Arkadiusz Bokowy
 
+include $(top_srcdir)/Makefile.am.include
+
 TESTS = \
 	test-at \
 	test-io \
@@ -18,14 +20,14 @@ check_PROGRAMS = \
 	test-utils
 
 AM_CFLAGS = \
-	-I$(top_srcdir)/src \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@AAC_CFLAGS@ \
 	@APTX_CFLAGS@ \
-	@SBC_CFLAGS@
+	@SBC_CFLAGS@ \
+	$(LOCAL_BLUEALSA_INCLUDES)
 
 LDADD = \
 	@ALSA_LIBS@ \
@@ -34,4 +36,5 @@ LDADD = \
 	@GIO2_LIBS@ \
 	@AAC_LIBS@ \
 	@APTX_LIBS@ \
-	@SBC_LIBS@
+	@SBC_LIBS@ \
+	../src/libbluealsa.la

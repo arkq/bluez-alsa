@@ -159,6 +159,9 @@ struct ba_transport {
 			/* received AG indicator values */
 			unsigned char hfp_inds[__HFP_IND_MAX];
 
+			pthread_mutex_t commands_mutex;
+			GPtrArray *commands;
+
 		} rfcomm;
 
 		struct {

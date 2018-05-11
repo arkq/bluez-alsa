@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 /**
@@ -50,6 +50,9 @@ char *at_build(char *buffer, enum bt_at_type type, const char *command,
 			sprintf(buffer, "\r\n%s:%s\r\n", command, value);
 		else
 			sprintf(buffer, "\r\n%s\r\n", value);
+		break;
+	case AT_TYPE_CLIENT:
+		sprintf(buffer, "%s", command);
 		break;
 	case __AT_TYPE_MAX:
 		break;

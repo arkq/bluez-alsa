@@ -32,7 +32,7 @@
 #include "io.h"
 #include "rfcomm.h"
 #include "utils.h"
-#include "shared/log.h"
+#include "bluealsa/log.h"
 
 
 static int io_thread_create(struct ba_transport *t) {
@@ -309,6 +309,9 @@ struct ba_transport *transport_new_rfcomm(
 	if ((t_sco = transport_new(device, TRANSPORT_TYPE_SCO,
 					dbus_owner, dbus_path_sco, profile, HFP_CODEC_UNDEFINED)) == NULL)
 		goto fail;
+
+	t->rfcomm.commands = g_ptr_array_new_with_free_func(free);
+	pthread_mutex_init(&t->rfcomm.commands_mutex, NULL);
 
 	t->rfcomm.sco = t_sco;
 	t_sco->sco.rfcomm = t;
@@ -902,6 +905,10 @@ int transport_release_bt_rfcomm(struct ba_transport *t) {
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
 	t->bt_fd = -1;
+
+	debug("Releasing rfcomm commands list");
+	g_ptr_array_free(t->rfcomm.commands, TRUE);
+	pthread_mutex_destroy(&t->rfcomm.commands_mutex);
 
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
 	 * link has been lost (e.g. device power down). However, it is required to

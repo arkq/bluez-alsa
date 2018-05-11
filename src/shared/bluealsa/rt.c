@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/rt.h"
+#include "bluealsa/rt.h"
 
 #include <stdlib.h>
 
