@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -378,7 +377,7 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 	 *      has just been created. Source IO thread should not be started before
 	 *      the PCM open request has been made, so this "notification" mechanism
 	 *      does not apply. */
-	eventfd_write(t->event_fd, 1);
+	transport_send_signal(t, TRANSPORT_PCM_OPEN);
 
 	/* A2DP source profile should be initialized (acquired) only if the audio
 	 * is about to be transfered. It is most likely, that BT headset will not
@@ -431,7 +430,7 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 	}
 
 	_transport_release(t, fd);
-	eventfd_write(t->event_fd, 1);
+	transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -466,9 +465,11 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 	switch (req->command) {
 	case BA_COMMAND_PCM_PAUSE:
 		transport_set_state(t, TRANSPORT_PAUSED);
+		transport_send_signal(t, TRANSPORT_PCM_PAUSE);
 		break;
 	case BA_COMMAND_PCM_RESUME:
 		transport_set_state(t, TRANSPORT_ACTIVE);
+		transport_send_signal(t, TRANSPORT_PCM_RESUME);
 		break;
 	case BA_COMMAND_PCM_DRAIN:
 		transport_drain_pcm(t);
@@ -476,8 +477,6 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 	default:
 		warn("Invalid PCM control command: %d", req->command);
 	}
-
-	eventfd_write(t->event_fd, 1);
 
 fail:
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -540,7 +539,7 @@ static void *ctl_thread(void *arg) {
 					struct ba_transport *t;
 					if ((t = transport_lookup_pcm_client(config.devices, fd)) != NULL) {
 						_transport_release(t, fd);
-						eventfd_write(t->event_fd, 1);
+						transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 					}
 
 					config.ctl.pfds[i].fd = -1;

@@ -19,7 +19,6 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -190,7 +189,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	}
 
 	struct pollfd pfds[] = {
-		{ t->event_fd, POLLIN, 0 },
+		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
 
@@ -211,8 +210,9 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			eventfd_t event;
-			eventfd_read(pfds[0].fd, &event);
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
 			continue;
 		}
 
@@ -358,7 +358,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
-		{ t->event_fd, POLLIN, 0 },
+		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
 
@@ -384,11 +384,19 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			eventfd_t event;
-			eventfd_read(pfds[0].fd, &event);
-			asrs.frames = 0;
-			if (t->a2dp.pcm.sync)
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
+			switch (sig) {
+			case TRANSPORT_PCM_RESUME:
+				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
+				break;
+			default:
+				break;
+			}
 			continue;
 		}
 
@@ -557,7 +565,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	}
 
 	struct pollfd pfds[] = {
-		{ t->event_fd, POLLIN, 0 },
+		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
 
@@ -579,8 +587,9 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			eventfd_t event;
-			eventfd_read(pfds[0].fd, &event);
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
 			continue;
 		}
 
@@ -801,7 +810,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
-		{ t->event_fd, POLLIN, 0 },
+		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
 
@@ -827,11 +836,19 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			eventfd_t event;
-			eventfd_read(pfds[0].fd, &event);
-			asrs.frames = 0;
-			if (t->a2dp.pcm.sync)
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
+			switch (sig) {
+			case TRANSPORT_PCM_RESUME:
+				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
+				break;
+			default:
+				break;
+			}
 			continue;
 		}
 
@@ -987,7 +1004,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
-		{ t->event_fd, POLLIN, 0 },
+		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
 
@@ -1013,11 +1030,19 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			eventfd_t event;
-			eventfd_read(pfds[0].fd, &event);
-			asrs.frames = 0;
-			if (t->a2dp.pcm.sync)
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
+			switch (sig) {
+			case TRANSPORT_PCM_RESUME:
+				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
+				break;
+			default:
+				break;
+			}
 			continue;
 		}
 
@@ -1138,7 +1163,7 @@ void *io_thread_sco(void *arg) {
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
-		{ t->event_fd, POLLIN, 0 },
+		{ t->sig_fd[0], POLLIN, 0 },
 		/* SCO socket */
 		{ -1, POLLIN, 0 },
 		{ -1, POLLOUT, 0 },
@@ -1187,8 +1212,9 @@ void *io_thread_sco(void *arg) {
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 
-			eventfd_t event;
-			eventfd_read(pfds[0].fd, &event);
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
 
 			/* FIXME: Drain functionality for speaker.
 			 * XXX: Right now it is not possible to drain speaker PCM (in a clean
@@ -1196,7 +1222,7 @@ void *io_thread_sco(void *arg) {
 			 *      data from the microphone (BT SCO socket). In order not to hang
 			 *      forever in the transport_drain_pcm() function, we will signal
 			 *      PCM drain right now. */
-			if (t->sco.spk_pcm.sync)
+			if (sig == TRANSPORT_PCM_SYNC)
 				pthread_cond_signal(&t->sco.spk_pcm.drained);
 
 			const enum hfp_ind *inds = t->sco.rfcomm->rfcomm.hfp_inds;

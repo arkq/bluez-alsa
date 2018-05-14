@@ -12,10 +12,10 @@
 #include "transport.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -239,14 +239,15 @@ struct ba_transport *transport_new(
 	t->thread = config.main_thread;
 
 	t->bt_fd = -1;
-	t->event_fd = -1;
+	t->sig_fd[0] = -1;
+	t->sig_fd[1] = -1;
 
 	if ((t->dbus_owner = strdup(dbus_owner)) == NULL)
 		goto fail;
 	if ((t->dbus_path = strdup(dbus_path)) == NULL)
 		goto fail;
 
-	if ((t->event_fd = eventfd(0, EFD_CLOEXEC)) == -1)
+	if (pipe(t->sig_fd) == -1)
 		goto fail;
 
 	g_hash_table_insert(device->transports, t->dbus_path, t);
@@ -362,8 +363,10 @@ void transport_free(struct ba_transport *t) {
 
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
-	if (t->event_fd != -1)
-		close(t->event_fd);
+	if (t->sig_fd[0] != -1)
+		close(t->sig_fd[0]);
+	if (t->sig_fd[1] != -1)
+		close(t->sig_fd[1]);
 
 	/* free type-specific resources */
 	switch (t->type) {
@@ -468,6 +471,10 @@ bool transport_remove(GHashTable *devices, const char *dbus_path) {
 	}
 
 	return false;
+}
+
+int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig) {
+	return write(t->sig_fd[1], &sig, sizeof(sig));
 }
 
 unsigned int transport_get_channels(const struct ba_transport *t) {
@@ -662,7 +669,7 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 		t->sco.mic_gain = ch2_volume;
 
 		/* notify associated RFCOMM transport */
-		eventfd_write(t->sco.rfcomm->event_fd, 1);
+		transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
 
 		break;
 
@@ -759,10 +766,8 @@ int transport_drain_pcm(struct ba_transport *t) {
 
 	pthread_mutex_lock(&pcm->drained_mn);
 
-	pcm->sync = true;
-	eventfd_write(t->event_fd, 1);
+	transport_send_signal(t, TRANSPORT_PCM_SYNC);
 	pthread_cond_wait(&pcm->drained, &pcm->drained_mn);
-	pcm->sync = false;
 
 	pthread_mutex_unlock(&pcm->drained_mn);
 

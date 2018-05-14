@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/eventfd.h>
 
 #include "bluealsa.h"
 #include "ctl.h"
@@ -238,7 +237,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 		switch (c->hfp_ind_map[index - 1]) {
 		case HFP_IND_CALL:
 		case HFP_IND_CALLSETUP:
-			eventfd_write(t->rfcomm.sco->event_fd, 1);
+			transport_send_signal(t->rfcomm.sco, TRANSPORT_PCM_OPEN);
 			break;
 		case HFP_IND_BATTCHG:
 			device_set_battery_level(t->device, value * 100 / 5);
@@ -565,7 +564,7 @@ void *rfcomm_thread(void *arg) {
 
 	struct at_reader reader = { .next = NULL };
 	struct pollfd pfds[] = {
-		{ t->event_fd, POLLIN, 0 },
+		{ t->sig_fd[0], POLLIN, 0 },
 		{ t->bt_fd, POLLIN, 0 },
 	};
 
@@ -706,24 +705,31 @@ void *rfcomm_thread(void *arg) {
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 
-			eventfd_t event;
-			eventfd_read(pfds[0].fd, &event);
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
 
-			char tmp[16];
-
-			if (conn.mic_gain != t->rfcomm.sco->sco.mic_gain) {
-				int gain = conn.mic_gain = t->rfcomm.sco->sco.mic_gain;
-				debug("Setting microphone gain: %d", gain);
-				sprintf(tmp, "+VGM=%d", gain);
-				if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, tmp) == -1)
-					goto ioerror;
-			}
-			if (conn.spk_gain != t->rfcomm.sco->sco.spk_gain) {
-				int gain = conn.spk_gain = t->rfcomm.sco->sco.spk_gain;
-				debug("Setting speaker gain: %d", gain);
-				sprintf(tmp, "+VGS=%d", gain);
-				if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, tmp) == -1)
-					goto ioerror;
+			switch (sig) {
+			case TRANSPORT_SET_VOLUME:
+				if (conn.mic_gain != t->rfcomm.sco->sco.mic_gain) {
+					char tmp[16];
+					int gain = conn.mic_gain = t->rfcomm.sco->sco.mic_gain;
+					debug("Setting microphone gain: %d", gain);
+					sprintf(tmp, "+VGM=%d", gain);
+					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, tmp) == -1)
+						goto ioerror;
+				}
+				if (conn.spk_gain != t->rfcomm.sco->sco.spk_gain) {
+					char tmp[16];
+					int gain = conn.spk_gain = t->rfcomm.sco->sco.spk_gain;
+					debug("Setting speaker gain: %d", gain);
+					sprintf(tmp, "+VGS=%d", gain);
+					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, tmp) == -1)
+						goto ioerror;
+				}
+				break;
+			default:
+				break;
 			}
 
 		}
