@@ -689,6 +689,10 @@ void *rfcomm_thread(void *arg) {
 
 		}
 
+		/* skip poll() since we've got unprocessed data */
+		if (reader.next != NULL)
+			goto read;
+
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), timeout)) {
@@ -776,9 +780,6 @@ read:
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 						goto ioerror;
 			}
-
-			if (reader.next != NULL)
-				goto read;
 
 		}
 		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
