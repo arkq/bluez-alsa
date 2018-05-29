@@ -28,15 +28,15 @@
 #include "shared/log.h"
 
 static char *strtrim(char *str) {
-  while (isspace(*str))
+	while (isspace(*str))
 		str++;
-  if (*str == '\0')
-    return str;
-  char *end = &str[strlen(str) - 1];
-  while (end > str && isspace(*end))
+	if (*str == '\0')
+		return str;
+	char *end = &str[strlen(str) - 1];
+	while (end > str && isspace(*end))
 		end--;
-  end[1] = '\0';
-  return str;
+	end[1] = '\0';
+	return str;
 }
 
 static char *build_rfcomm_command(const char *cmd) {

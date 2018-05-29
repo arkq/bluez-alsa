@@ -1,6 +1,8 @@
 The MIT License
 
 Copyright (c) 2016-2018 Arkadiusz Bokowy <arkadiusz.bokowy@gmail.com>
+              2018 Parthiban Nallathambi
+              2018 René Rebe
               2018 Wade Berrier
               2017 Guillaume Zin
               2017 Juha Kuikka

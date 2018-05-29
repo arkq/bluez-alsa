@@ -42,6 +42,10 @@ Dependencies:
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with `--enable-aptx`)
 
+Dependencies for `bluealsa-rfcomm` (when `--enable-rfcomm` is specified during configuration):
+
+- [readline](https://tiswww.case.edu/php/chet/readline/rltop.html)
+
 Dependencies for `hcitop` (when `--enable-hcitop` is specified during configuration):
 
 - [libbsd](https://libbsd.freedesktop.org/)

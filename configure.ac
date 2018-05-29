@@ -76,8 +76,8 @@ AC_ARG_ENABLE([aplay],
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
 
 AC_ARG_ENABLE([rfcomm],
-	[AS_HELP_STRING([--disable-rfcomm], [disable building of bluealsa-rfcomm tool])])
-AM_CONDITIONAL([ENABLE_RFCOMM], [test "x$enable_rfcomm" != "xno"])
+	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
+AM_CONDITIONAL([ENABLE_RFCOMM], [test "x$enable_rfcomm" = "xyes"])
 
 AC_ARG_ENABLE([hcitop],
 	[AS_HELP_STRING([--enable-hcitop], [enable building of hcitop tool])])
