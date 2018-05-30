@@ -25,6 +25,7 @@ AM_CFLAGS = \
 	@GIO2_CFLAGS@ \
 	@AAC_CFLAGS@ \
 	@APTX_CFLAGS@ \
+	@LDAC_CFLAGS@ \
 	@SBC_CFLAGS@
 
 LDADD = \
@@ -34,4 +35,5 @@ LDADD = \
 	@GIO2_LIBS@ \
 	@AAC_LIBS@ \
 	@APTX_LIBS@ \
+	@LDAC_LIBS@ \
 	@SBC_LIBS@

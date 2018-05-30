@@ -33,6 +33,9 @@
 #if ENABLE_APTX
 # include <openaptx.h>
 #endif
+#if ENABLE_LDAC
+# include <ldacBT.h>
+#endif
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
@@ -1156,6 +1159,189 @@ fail:
 	pthread_cleanup_pop(1);
 fail_init:
 	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
+
+#if ENABLE_LDAC
+void *io_thread_a2dp_source_ldac(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+	const a2dp_ldac_t *cconfig = (a2dp_ldac_t *)t->a2dp.cconfig;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+
+	HANDLE_LDAC_BT handle;
+
+	if ((handle = ldacBT_get_handle()) == NULL) {
+		error("Couldn't open LDAC encoder: %s", strerror(errno));
+		goto fail_open;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
+
+	const unsigned int channels = transport_get_channels(t);
+	const unsigned int samplerate = transport_get_sampling(t);
+	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
+
+	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
+				LDACBT_EQMID_MQ, cconfig->channel_mode, LDACBT_SMPL_FMT_S16, samplerate) == -1) {
+		error("Couldn't initialize LDAC encoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
+		goto fail_init;
+	}
+
+	ffb_uint8_t bt = { 0 };
+	ffb_int16_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+
+	if (ffb_init(&pcm, ldac_pcm_samples) == NULL ||
+			ffb_init(&bt, t->mtu_write) == NULL) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	rtp_header_t *rtp_header;
+	rtp_media_header_t *rtp_media_header;
+
+	/* initialize RTP headers and get anchor for payload */
+	bt.tail = io_thread_init_rtp(bt.data, &rtp_header, &rtp_media_header);
+	uint16_t seq_number = ntohs(rtp_header->seq_number);
+	uint32_t timestamp = ntohl(rtp_header->timestamp);
+	size_t ts_frames = 0;
+
+	int poll_timeout = -1;
+	struct asrsync asrs = { .frames = 0 };
+	struct pollfd pfds[] = {
+		{ t->sig_fd[0], POLLIN, 0 },
+		{ -1, POLLIN, 0 },
+	};
+
+	debug("Starting IO loop: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
+	for (;;) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		ssize_t samples;
+
+		/* add PCM socket to the poll if transport is active */
+		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
+
+		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
+		case 0:
+			pthread_cond_signal(&t->a2dp.pcm.drained);
+			poll_timeout = -1;
+			continue;
+		case -1:
+			if (errno == EINTR)
+				continue;
+			error("Transport poll error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (pfds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			enum ba_transport_signal sig = -1;
+			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
+				warn("Couldn't read signal: %s", strerror(errno));
+			switch (sig) {
+			case TRANSPORT_PCM_RESUME:
+				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_SYNC:
+				poll_timeout = 100;
+				break;
+			default:
+				break;
+			}
+			continue;
+		}
+
+		/* read data from the FIFO - this function will block */
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) <= 0) {
+			if (samples == -1)
+				error("FIFO read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		if (asrs.frames == 0)
+			asrsync_init(asrs, samplerate);
+
+		if (!config.a2dp.volume)
+			/* scale volume or mute audio signal */
+			io_thread_scale_pcm(t, pcm.tail, samples, channels);
+
+		/* get overall number of input samples */
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
+
+		int16_t *input = pcm.data;
+		size_t input_len = samples;
+
+		/* encode and transfer obtained data */
+		while (input_len >= ldac_pcm_samples) {
+
+			int len;
+			int encoded;
+			int frames;
+
+			if (ldacBT_encode(handle, input, &len, bt.tail, &encoded, &frames) != 0) {
+				error("LDAC encoding error: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
+				break;
+			}
+
+			rtp_media_header->frame_count = frames;
+
+			frames = len / sizeof(int16_t);
+			input += frames;
+			input_len -= frames;
+
+			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+			if (encoded && io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt) + encoded) == -1) {
+				if (errno == ECONNRESET || errno == ENOTCONN) {
+					/* exit thread upon BT socket disconnection */
+					debug("BT socket disconnected: %d", t->bt_fd);
+					goto fail;
+				}
+				error("BT socket write error: %s", strerror(errno));
+			}
+
+			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+			/* keep data transfer at a constant bit rate */
+			asrsync_sync(&asrs, frames / channels);
+			t->delay = asrs.ts_busy.tv_nsec / 100000;
+			ts_frames += frames;
+
+			if (encoded) {
+				timestamp += ts_frames / channels * 10000 / samplerate;
+				rtp_header->timestamp = htonl(timestamp);
+				rtp_header->seq_number = htons(++seq_number);
+				ts_frames = 0;
+			}
+
+		}
+
+		/* If the input buffer was not consumed (due to codesize limit), we
+		 * have to append new data to the existing one. Since we do not use
+		 * ring buffer, we will simply move unprocessed data to the front
+		 * of our linear buffer. */
+		ffb_shift(&pcm, samples - input_len);
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+fail_open:
 	pthread_cleanup_pop(1);
 	return NULL;
 }

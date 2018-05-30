@@ -180,6 +180,35 @@ static const struct bluez_a2dp_sampling_freq a2dp_aptx_samplings[] = {
 	{ 48000, APTX_SAMPLING_FREQ_48000 },
 };
 
+static const a2dp_ldac_t a2dp_ldac = {
+	.info.vendor_id = LDAC_VENDOR_ID,
+	.info.codec_id = LDAC_CODEC_ID,
+	.channel_mode =
+		LDAC_CHANNEL_MODE_MONO |
+		LDAC_CHANNEL_MODE_DUAL_CHANNEL |
+		LDAC_CHANNEL_MODE_STEREO,
+	.frequency =
+		/* NOTE: Used LDAC library does not support
+		 *       frequencies higher than 96 kHz. */
+		LDAC_SAMPLING_FREQ_44100 |
+		LDAC_SAMPLING_FREQ_48000 |
+		LDAC_SAMPLING_FREQ_88200 |
+		LDAC_SAMPLING_FREQ_96000,
+};
+
+static const struct bluez_a2dp_channel_mode a2dp_ldac_channels[] = {
+	{ BLUEZ_A2DP_CHM_MONO, LDAC_CHANNEL_MODE_MONO },
+	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, LDAC_CHANNEL_MODE_DUAL_CHANNEL },
+	{ BLUEZ_A2DP_CHM_STEREO, LDAC_CHANNEL_MODE_STEREO },
+};
+
+static const struct bluez_a2dp_sampling_freq a2dp_ldac_samplings[] = {
+	{ 44100, LDAC_SAMPLING_FREQ_44100 },
+	{ 48000, LDAC_SAMPLING_FREQ_48000 },
+	{ 88200, LDAC_SAMPLING_FREQ_88200 },
+	{ 96000, LDAC_SAMPLING_FREQ_96000 },
+};
+
 static const struct bluez_a2dp_codec a2dp_codec_source_sbc = {
 	.dir = BLUEZ_A2DP_SOURCE,
 	.id = A2DP_CODEC_SBC,
@@ -268,7 +297,32 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_aptx = {
 	.samplings_size = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
+static const struct bluez_a2dp_codec a2dp_codec_source_ldac = {
+	.dir = BLUEZ_A2DP_SOURCE,
+	.id = A2DP_CODEC_VENDOR_LDAC,
+	.cfg = &a2dp_ldac,
+	.cfg_size = sizeof(a2dp_ldac),
+	.channels = a2dp_ldac_channels,
+	.channels_size = ARRAYSIZE(a2dp_ldac_channels),
+	.samplings = a2dp_ldac_samplings,
+	.samplings_size = ARRAYSIZE(a2dp_ldac_samplings),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_sink_ldac = {
+	.dir = BLUEZ_A2DP_SINK,
+	.id = A2DP_CODEC_VENDOR_LDAC,
+	.cfg = &a2dp_ldac,
+	.cfg_size = sizeof(a2dp_ldac),
+	.channels = a2dp_ldac_channels,
+	.channels_size = ARRAYSIZE(a2dp_ldac_channels),
+	.samplings = a2dp_ldac_samplings,
+	.samplings_size = ARRAYSIZE(a2dp_ldac_samplings),
+};
+
 static const struct bluez_a2dp_codec *a2dp_codecs[] = {
+#if ENABLE_LDAC
+	&a2dp_codec_source_ldac,
+#endif
 #if ENABLE_APTX
 	&a2dp_codec_source_aptx,
 #endif

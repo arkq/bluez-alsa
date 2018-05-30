@@ -73,6 +73,14 @@ AM_COND_IF([ENABLE_APTX], [
 	AC_DEFINE([ENABLE_APTX], [1], [Define to 1 if apt-X is enabled.])
 ])
 
+AC_ARG_ENABLE([ldac],
+	[AS_HELP_STRING([--enable-ldac], [enable LDAC support])])
+AM_CONDITIONAL([ENABLE_LDAC], [test "x$enable_ldac" = "xyes"])
+AM_COND_IF([ENABLE_LDAC], [
+	PKG_CHECK_MODULES([LDAC], [libldacBT >= 2.0.0])
+	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
+])
+
 AC_ARG_ENABLE([payloadcheck],
 	[AS_HELP_STRING([--disable-payloadcheck], [disable RTP payload type check (workaround for a PulseAudio bug)])])
 AM_CONDITIONAL([ENABLE_PAYLOADCHECK], [test "x$enable_payloadcheck" != "xno"])

@@ -73,6 +73,11 @@ static int io_thread_create(struct ba_transport *t) {
 				routine = io_thread_a2dp_source_aptx;
 				break;
 #endif
+#if ENABLE_LDAC
+			case A2DP_CODEC_VENDOR_LDAC:
+				routine = io_thread_a2dp_source_ldac;
+				break;
+#endif
 			default:
 				warn("Codec not supported: %u", t->codec);
 			}
@@ -544,6 +549,17 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			}
 			break;
 #endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			switch (((a2dp_ldac_t *)t->a2dp.cconfig)->channel_mode) {
+			case LDAC_CHANNEL_MODE_MONO:
+				return 1;
+			case LDAC_CHANNEL_MODE_STEREO:
+			case LDAC_CHANNEL_MODE_DUAL_CHANNEL:
+				return 2;
+			}
+			break;
+#endif
 		}
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
@@ -632,6 +648,24 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 				return 44100;
 			case APTX_SAMPLING_FREQ_48000:
 				return 48000;
+			}
+			break;
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			switch (((a2dp_ldac_t *)t->a2dp.cconfig)->frequency) {
+			case LDAC_SAMPLING_FREQ_44100:
+				return 44100;
+			case LDAC_SAMPLING_FREQ_48000:
+				return 48000;
+			case LDAC_SAMPLING_FREQ_88200:
+				return 88200;
+			case LDAC_SAMPLING_FREQ_96000:
+				return 96000;
+			case LDAC_SAMPLING_FREQ_176400:
+				return 176400;
+			case LDAC_SAMPLING_FREQ_192000:
+				return 192000;
 			}
 			break;
 #endif

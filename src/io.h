@@ -24,6 +24,9 @@ void *io_thread_a2dp_source_aac(void *arg);
 #if ENABLE_APTX
 void *io_thread_a2dp_source_aptx(void *arg);
 #endif
+#if ENABLE_LDAC
+void *io_thread_a2dp_source_ldac(void *arg);
+#endif
 
 void *io_thread_sco(void *arg);
 

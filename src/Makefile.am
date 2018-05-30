@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2017 Arkadiusz Bokowy
+# Copyright (c) 2016-2018 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
@@ -26,6 +26,7 @@ AM_CFLAGS = \
 	@GIO2_CFLAGS@ \
 	@AAC_CFLAGS@ \
 	@APTX_CFLAGS@ \
+	@LDAC_CFLAGS@ \
 	@SBC_CFLAGS@
 
 LDADD = \
@@ -34,4 +35,5 @@ LDADD = \
 	@GIO2_LIBS@ \
 	@AAC_LIBS@ \
 	@APTX_LIBS@ \
+	@LDAC_LIBS@ \
 	@SBC_LIBS@

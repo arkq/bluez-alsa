@@ -41,6 +41,8 @@ Dependencies:
 - [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with `--enable-aptx`)
+- [libldac](https://android.googlesource.com/platform/external/libldac) (when LDAC support is
+		enabled with `--enable-ldac`)
 
 Dependencies for `bluealsa-rfcomm` (when `--enable-rfcomm` is specified during configuration):
 

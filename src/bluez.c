@@ -277,6 +277,27 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	}
 #endif
 
+#if ENABLE_LDAC
+	case A2DP_CODEC_VENDOR_LDAC: {
+
+		a2dp_ldac_t *cap = (a2dp_ldac_t *)capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
+
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+			error("No supported channel modes: %#x", cap_chm);
+			goto fail;
+		}
+
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+			error("No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
 	default:
 		debug("Endpoint path not supported: %s", path);
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
@@ -445,6 +466,15 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 #if ENABLE_APTX
 			case A2DP_CODEC_VENDOR_APTX: {
 				a2dp_aptx_t *cap = (a2dp_aptx_t *)capabilities;
+				cap_chm = cap->channel_mode;
+				cap_freq = cap->frequency;
+				break;
+			}
+#endif
+
+#if ENABLE_LDAC
+			case A2DP_CODEC_VENDOR_LDAC: {
+				a2dp_ldac_t *cap = (a2dp_ldac_t *)capabilities;
 				cap_chm = cap->channel_mode;
 				cap_freq = cap->frequency;
 				break;
