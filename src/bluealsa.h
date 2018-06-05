@@ -117,6 +117,10 @@ struct ba_config {
 	uint8_t aac_vbr_mode;
 #endif
 
+#if ENABLE_LDAC
+	uint8_t ldac_eqmid;
+#endif
+
 };
 
 /* Structure describing registered D-Bus object. */

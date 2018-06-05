@@ -25,6 +25,10 @@
 #include <glib.h>
 #include <gio/gio.h>
 
+#if ENABLE_LDAC
+# include <ldacBT.h>
+#endif
+
 #include "bluealsa.h"
 #include "bluez.h"
 #include "ctl.h"
@@ -78,6 +82,9 @@ int main(int argc, char **argv) {
 #if ENABLE_AAC
 		{ "aac-afterburner", no_argument, NULL, 4 },
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
+#endif
+#if ENABLE_LDAC
+		{ "ldac-eqmid", required_argument, NULL, 10 },
 #endif
 		{ 0, 0, 0, 0 },
 	};
@@ -145,6 +152,9 @@ int main(int argc, char **argv) {
 #if ENABLE_AAC
 					"  --aac-afterburner\tenable afterburner\n"
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
+#endif
+#if ENABLE_LDAC
+					"  --ldac-eqmid=NB\tset encoder quality to NB\n"
 #endif
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
@@ -248,6 +258,16 @@ int main(int argc, char **argv) {
 			config.aac_vbr_mode = atoi(optarg);
 			if (config.aac_vbr_mode > 5) {
 				error("Invalid bitrate mode [0, 5]: %s", optarg);
+				return EXIT_FAILURE;
+			}
+			break;
+#endif
+
+#if ENABLE_LDAC
+		case 10 /* --ldac-eqmid=NB */ :
+			config.ldac_eqmid = atoi(optarg);
+			if (config.ldac_eqmid >= LDACBT_EQMID_NUM) {
+				error("Invalid encoder quality index [0, %d]: %s", LDACBT_EQMID_NUM - 1, optarg);
 				return EXIT_FAILURE;
 			}
 			break;

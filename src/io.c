@@ -1186,7 +1186,7 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
 
 	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
-				LDACBT_EQMID_MQ, cconfig->channel_mode, LDACBT_SMPL_FMT_S16, samplerate) == -1) {
+				config.ldac_eqmid, cconfig->channel_mode, LDACBT_SMPL_FMT_S16, samplerate) == -1) {
 		error("Couldn't initialize LDAC encoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
 		goto fail_init;
 	}

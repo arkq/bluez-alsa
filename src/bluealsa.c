@@ -12,6 +12,10 @@
 
 #include <grp.h>
 
+#if ENABLE_LDAC
+# include <ldacBT.h>
+#endif
+
 #include "hfp.h"
 #include "transport.h"
 
@@ -58,6 +62,11 @@ struct ba_config config = {
 	 * are good enough to not enable afterburner by default. */
 	.aac_afterburner = false,
 	.aac_vbr_mode = 4,
+#endif
+
+#if ENABLE_LDAC
+	/* Use standard encoder quality as a reasonable default. */
+	.ldac_eqmid = LDACBT_EQMID_SQ,
 #endif
 
 };
