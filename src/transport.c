@@ -530,8 +530,6 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			case APTX_CHANNEL_MODE_MONO:
 				return 1;
 			case APTX_CHANNEL_MODE_STEREO:
-			case APTX_CHANNEL_MODE_JOINT_STEREO:
-			case APTX_CHANNEL_MODE_DUAL_CHANNEL:
 				return 2;
 			}
 			break;

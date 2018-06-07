@@ -235,12 +235,8 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		if (cap->channel_mode & APTX_CHANNEL_MODE_JOINT_STEREO)
-			cap->channel_mode = APTX_CHANNEL_MODE_JOINT_STEREO;
-		else if (cap->channel_mode & APTX_CHANNEL_MODE_STEREO)
+		if (cap->channel_mode & APTX_CHANNEL_MODE_STEREO)
 			cap->channel_mode = APTX_CHANNEL_MODE_STEREO;
-		else if (cap->channel_mode & APTX_CHANNEL_MODE_DUAL_CHANNEL)
-			cap->channel_mode = APTX_CHANNEL_MODE_DUAL_CHANNEL;
 		else {
 			error("No supported channel modes: %#x", cap->channel_mode);
 			goto fail;
@@ -460,9 +456,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 					goto fail;
 				}
 
-				if (cap->channel_mode != APTX_CHANNEL_MODE_DUAL_CHANNEL &&
-						cap->channel_mode != APTX_CHANNEL_MODE_STEREO &&
-						cap->channel_mode != APTX_CHANNEL_MODE_JOINT_STEREO) {
+				if (cap->channel_mode != APTX_CHANNEL_MODE_STEREO) {
 					error("Invalid configuration: %s", "Invalid channel mode");
 					goto fail;
 				}
