@@ -111,9 +111,7 @@ const a2dp_aptx_t bluez_a2dp_aptx = {
 	.channel_mode =
 		/* NOTE: Used apt-X library does not support
 		 *       single channel (mono) mode. */
-		APTX_CHANNEL_MODE_DUAL_CHANNEL |
-		APTX_CHANNEL_MODE_STEREO |
-		APTX_CHANNEL_MODE_JOINT_STEREO,
+		APTX_CHANNEL_MODE_STEREO,
 	.frequency =
 		APTX_SAMPLING_FREQ_16000 |
 		APTX_SAMPLING_FREQ_32000 |
