@@ -32,8 +32,8 @@ const a2dp_sbc_t bluez_a2dp_sbc = {
 	.allocation_method =
 		SBC_ALLOCATION_SNR |
 		SBC_ALLOCATION_LOUDNESS,
-	.min_bitpool = MIN_BITPOOL,
-	.max_bitpool = MAX_BITPOOL,
+	.min_bitpool = SBC_MIN_BITPOOL,
+	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
 #if ENABLE_MP3

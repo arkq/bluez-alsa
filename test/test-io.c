@@ -28,8 +28,8 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.block_length = SBC_BLOCK_LENGTH_16,
 	.subbands = SBC_SUBBANDS_8,
 	.allocation_method = SBC_ALLOCATION_LOUDNESS,
-	.min_bitpool = MIN_BITPOOL,
-	.max_bitpool = MAX_BITPOOL,
+	.min_bitpool = SBC_MIN_BITPOOL,
+	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
 static const a2dp_aac_t config_aac_44100_stereo = {

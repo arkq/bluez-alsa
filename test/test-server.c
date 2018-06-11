@@ -44,8 +44,8 @@ static const a2dp_sbc_t cconfig = {
 	.block_length = SBC_BLOCK_LENGTH_16,
 	.subbands = SBC_SUBBANDS_8,
 	.allocation_method = SBC_ALLOCATION_LOUDNESS,
-	.min_bitpool = MIN_BITPOOL,
-	.max_bitpool = MAX_BITPOOL,
+	.min_bitpool = SBC_MIN_BITPOOL,
+	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
 static void test_pcm_setup_free(void) {

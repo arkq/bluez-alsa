@@ -131,7 +131,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		}
 
 		int bitpool = a2dp_sbc_default_bitpool(cap->frequency, cap->channel_mode);
-		cap->min_bitpool = MAX(MIN_BITPOOL, cap->min_bitpool);
+		cap->min_bitpool = MAX(SBC_MIN_BITPOOL, cap->min_bitpool);
 		cap->max_bitpool = MIN(bitpool, cap->max_bitpool);
 
 		break;
