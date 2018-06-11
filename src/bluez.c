@@ -253,13 +253,14 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		goto final;
 	}
 
-	GVariantBuilder *caps = g_variant_builder_new(G_VARIANT_TYPE("ay"));
+	GVariantBuilder caps;
 	size_t i;
 
+	g_variant_builder_init(&caps, G_VARIANT_TYPE_BYTESTRING);
 	for (i = 0; i < size; i++)
-		g_variant_builder_add(caps, "y", capabilities[i]);
+		g_variant_builder_add(&caps, "y", capabilities[i]);
 
-	g_dbus_method_invocation_return_value(inv, g_variant_new("(ay)", caps));
+	g_dbus_method_invocation_return_value(inv, g_variant_builder_end(&caps));
 	goto final;
 
 fail:
@@ -681,17 +682,19 @@ static int bluez_register_a2dp_endpoint(
 	msg = g_dbus_message_new_method_call("org.bluez", dev,
 			"org.bluez.Media1", "RegisterEndpoint");
 
-	GVariantBuilder *properties = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
-	GVariantBuilder *caps = g_variant_builder_new(G_VARIANT_TYPE("ay"));
+	GVariantBuilder properties;
+	GVariantBuilder caps;
 
+	g_variant_builder_init(&properties, G_VARIANT_TYPE_VARDICT);
+	g_variant_builder_init(&caps, G_VARIANT_TYPE_BYTESTRING);
 	for (i = 0; i < configuration_size; i++)
-		g_variant_builder_add(caps, "y", ((uint8_t *)configuration)[i]);
+		g_variant_builder_add(&caps, "y", ((uint8_t *)configuration)[i]);
 
-	g_variant_builder_add(properties, "{sv}", "UUID", g_variant_new_string(uuid));
-	g_variant_builder_add(properties, "{sv}", "Codec", g_variant_new_byte(codec));
-	g_variant_builder_add(properties, "{sv}", "Capabilities", g_variant_new("ay", caps));
+	g_variant_builder_add(&properties, "{sv}", "UUID", g_variant_new_string(uuid));
+	g_variant_builder_add(&properties, "{sv}", "Codec", g_variant_new_byte(codec));
+	g_variant_builder_add(&properties, "{sv}", "Capabilities", g_variant_builder_end(&caps));
 
-	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", path, properties));
+	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", path, g_variant_builder_end(&properties)));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
@@ -914,14 +917,15 @@ static int bluez_register_profile(
 	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
 			"org.bluez.ProfileManager1", "RegisterProfile");
 
-	GVariantBuilder *options = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+	GVariantBuilder options;
 
+	g_variant_builder_init(&options, G_VARIANT_TYPE_VARDICT);
 	if (version)
-		g_variant_builder_add(options, "{sv}", "Version", g_variant_new_uint16(version));
+		g_variant_builder_add(&options, "{sv}", "Version", g_variant_new_uint16(version));
 	if (features)
-		g_variant_builder_add(options, "{sv}", "Features", g_variant_new_uint16(features));
+		g_variant_builder_add(&options, "{sv}", "Features", g_variant_new_uint16(features));
 
-	g_dbus_message_set_body(msg, g_variant_new("(osa{sv})", path, uuid, options));
+	g_dbus_message_set_body(msg, g_variant_new("(osa{sv})", path, uuid, g_variant_builder_end(&options)));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
