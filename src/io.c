@@ -887,13 +887,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 				/* If the size of the RTP packet exceeds writing MTU, the RTP payload
 				 * should be fragmented. According to the RFC 3016, fragmentation of
 				 * the audioMuxElement requires no extra header - the payload should
-				 * be fragmented and spread across multiple RTP packets.
-				 *
-				 * TODO: Confirm that the fragmentation logic is correct.
-				 *
-				 * This code has been tested with Jabra Move headset, however the
-				 * outcome of this test is not positive. Fragmented packets are not
-				 * recognized by the device. */
+				 * be fragmented and spread across multiple RTP packets. */
 				for (;;) {
 
 					ssize_t ret;
@@ -917,8 +911,11 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 					pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
+					/* account written payload only */
+					ret -= rtp_header_len;
+
 					/* break if the last part of the payload has been written */
-					if ((payload_len -= ret - rtp_header_len) == 0)
+					if ((payload_len -= ret) == 0)
 						break;
 
 					/* move rest of data to the beginning of the payload */

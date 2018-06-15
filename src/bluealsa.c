@@ -53,10 +53,7 @@ struct ba_config config = {
 	 * b) it generates larger payload (see VBR comment). These two reasons
 	 * are good enough to not enable afterburner by default. */
 	.aac_afterburner = false,
-	/* Low bitrate for VBR mode should ensure, that the RTP payload will not
-	 * exceed our writing MTU. It is important not to do so, because the code
-	 * responsible for fragmentation seems not to work as expected. */
-	.aac_vbr_mode = 3,
+	.aac_vbr_mode = 4,
 #endif
 
 	.a2dp_force_mono = false,
