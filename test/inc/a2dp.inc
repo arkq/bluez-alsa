@@ -38,7 +38,7 @@ int a2dp_write_sbc(int fd, const a2dp_sbc_t *config, const void *buffer, size_t 
 	const unsigned sbc_frame_duration = sbc_get_frame_duration(&sbc);
 
 	rtp_header_t *rtp_header;
-	rtp_payload_sbc_t *rtp_payload;
+	rtp_media_header_t *rtp_media_header;
 	uint16_t seq_number = 0;
 	uint32_t timestamp = 0;
 
@@ -47,14 +47,14 @@ int a2dp_write_sbc(int fd, const a2dp_sbc_t *config, const void *buffer, size_t 
 
 	rtp_header = (rtp_header_t *)wbuffer;
 	memset(rtp_header, 0, sizeof(*rtp_header));
-	rtp_payload = (rtp_payload_sbc_t *)&rtp_header->csrc[rtp_header->cc];
-	memset(rtp_payload, 0, sizeof(*rtp_payload));
+	rtp_media_header = (rtp_media_header_t *)&rtp_header->csrc[rtp_header->cc];
+	memset(rtp_media_header, 0, sizeof(*rtp_media_header));
 	rtp_header->version = 2;
 	rtp_header->paytype = 96;
 
 	while (size >= sbc_codesize) {
 
-		uint8_t *output = (uint8_t *)(rtp_payload + 1);
+		uint8_t *output = (uint8_t *)(rtp_media_header + 1);
 		size_t output_len = wbuffer_size - (output - wbuffer);
 		size_t frames = 0;
 
@@ -75,7 +75,7 @@ int a2dp_write_sbc(int fd, const a2dp_sbc_t *config, const void *buffer, size_t 
 
 		rtp_header->seq_number = htons(++seq_number);
 		rtp_header->timestamp = htonl(timestamp);
-		rtp_payload->frame_count = frames;
+		rtp_media_header->frame_count = frames;
 
 		if (write(fd, wbuffer, output - wbuffer) == -1) {
 			ret = -errno;

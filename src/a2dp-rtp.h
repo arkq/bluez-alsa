@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-rtp.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -36,8 +36,12 @@ typedef struct rtp_header {
 } __attribute__ ((packed)) rtp_header_t;
 
 /**
- * Media payload header for SBC. */
-typedef struct rtp_payload_sbc {
+ * The length of the RTP header assuming that the `cc` field is set to zero. */
+#define RTP_HEADER_LEN (sizeof(rtp_header_t) - sizeof(((rtp_header_t *)0)->csrc))
+
+/**
+ * Media payload header. */
+typedef struct rtp_media_header {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	uint8_t frame_count:4;
 	uint8_t rfa:1;
@@ -51,6 +55,6 @@ typedef struct rtp_payload_sbc {
 	uint8_t rfa:1;
 	uint8_t frame_count:4;
 #endif
-} __attribute__ ((packed)) rtp_payload_sbc_t;
+} __attribute__ ((packed)) rtp_media_header_t;
 
 #endif

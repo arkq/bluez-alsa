@@ -140,6 +140,36 @@ retry:
 	return ret;
 }
 
+/**
+ * Initialize RTP headers.
+ *
+ * @param s The memory area where the RTP headers will be initialized.
+ * @param hdr The address where the pointer to the RTP header will be stored.
+ * @param mhdr The address where the pointer to the RTP media payload header
+ *   will be stored. This parameter might be NULL in order to omit RTP media
+ *   payload header.
+ * @return This function returns the address of the RTP payload region. */
+static uint8_t *io_thread_init_rtp(void *s, rtp_header_t **hdr, rtp_media_header_t **mhdr) {
+
+	rtp_header_t *header = *hdr = (rtp_header_t *)s;
+	memset(header, 0, RTP_HEADER_LEN);
+	header->paytype = 96;
+	header->version = 2;
+	header->markbit = 1;
+	header->seq_number = random();
+	header->timestamp = random();
+
+	uint8_t *data = (uint8_t *)&header->csrc[header->cc];
+
+	if (mhdr != NULL) {
+		memset(data, 0, sizeof(rtp_media_header_t));
+		*mhdr = (rtp_media_header_t *)data;
+		data += sizeof(rtp_media_header_t);
+	}
+
+	return data;
+}
+
 void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
@@ -239,7 +269,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		}
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)in_buffer;
-		const rtp_payload_sbc_t *rtp_payload = (rtp_payload_sbc_t *)&rtp_header->csrc[rtp_header->cc];
+		const rtp_media_header_t *rtp_media = (rtp_media_header_t *)&rtp_header->csrc[rtp_header->cc];
 
 #if ENABLE_PAYLOADCHECK
 		if (rtp_header->paytype != 96) {
@@ -255,11 +285,11 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			seq_number = _seq_number;
 		}
 
-		const uint8_t *input = (uint8_t *)(rtp_payload + 1);
+		const uint8_t *input = (uint8_t *)(rtp_media + 1);
 		int16_t *output = out_buffer;
 		size_t input_len = len - (input - in_buffer);
 		size_t output_len = out_buffer_size;
-		size_t frames = rtp_payload->frame_count;
+		size_t frames = rtp_media->frame_count;
 
 		/* decode retrieved SBC frames */
 		while (frames && input_len >= sbc_frame_len) {
@@ -319,8 +349,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	 * header and at least one SBC frame. In general, there is no constraint
 	 * for the MTU value, but the speed might suffer significantly. */
 	size_t mtu_write = t->mtu_write;
-	if (mtu_write < sizeof(rtp_header_t) + sizeof(rtp_payload_sbc_t) + sbc_frame_len) {
-		mtu_write = sizeof(rtp_header_t) + sizeof(rtp_payload_sbc_t) + sbc_frame_len;
+	if (mtu_write < RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len) {
+		mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len;
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu", t->mtu_write, mtu_write);
 	}
 
@@ -338,18 +368,13 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		goto fail;
 	}
 
-	uint16_t seq_number = random();
-	uint32_t timestamp = random();
+	rtp_header_t *rtp_header;
+	rtp_media_header_t *rtp_media_header;
 
-	/* initialize RTP header (the constant part) */
-	rtp_header_t *rtp_header = (rtp_header_t *)out_buffer;
-	memset(rtp_header, 0, sizeof(*rtp_header));
-	rtp_header->version = 2;
-	rtp_header->paytype = 96;
-
-	rtp_payload_sbc_t *rtp_payload;
-	rtp_payload = (rtp_payload_sbc_t *)&rtp_header->csrc[rtp_header->cc];
-	memset(rtp_payload, 0, sizeof(*rtp_payload));
+	/* initialize RTP headers */
+	io_thread_init_rtp(out_buffer, &rtp_header, &rtp_media_header);
+	uint16_t seq_number = ntohs(rtp_header->seq_number);
+	uint32_t timestamp = ntohl(rtp_header->timestamp);
 
 	/* buffer tail position and available capacity */
 	int16_t *in_buffer_tail = in_buffer;
@@ -429,7 +454,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		/* encode and transfer obtained data */
 		while (input_len >= sbc_codesize) {
 
-			uint8_t *output = (uint8_t *)(rtp_payload + 1);
+			uint8_t *output = (uint8_t *)(rtp_media_header + 1);
 			size_t output_len = out_buffer_size - (output - out_buffer);
 			size_t pcm_frames = 0;
 			size_t sbc_frames = 0;
@@ -458,7 +483,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 			rtp_header->seq_number = htons(++seq_number);
 			rtp_header->timestamp = htonl(timestamp);
-			rtp_payload->frame_count = sbc_frames;
+			rtp_media_header->frame_count = sbc_frames;
 
 			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -779,7 +804,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	in_buffer_size = in_buffer_element_size * aacinf.inputChannels * aacinf.frameLength;
 	out_payload_size = aacinf.maxOutBufBytes;
 	in_buffer = malloc(in_buffer_size);
-	out_buffer = malloc(sizeof(rtp_header_t) + out_payload_size);
+	out_buffer = malloc(RTP_HEADER_LEN + out_payload_size);
 
 	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
 	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
@@ -789,19 +814,12 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		goto fail;
 	}
 
-	uint16_t seq_number = random();
-	uint32_t timestamp = random();
+	rtp_header_t *rtp_header;
 
-	/* initialize RTP header (the constant part) */
-	rtp_header_t *rtp_header = (rtp_header_t *)out_buffer;
-	memset(rtp_header, 0, sizeof(*rtp_header));
-	rtp_header->version = 2;
-	rtp_header->paytype = 96;
-
-	/* anchor for RTP payload - audioMuxElement (RFC 3016) */
-	out_payload = (uint8_t *)&rtp_header->csrc[rtp_header->cc];
-	/* helper variable used during payload fragmentation */
-	const size_t rtp_header_len = out_payload - out_buffer;
+	/* initialize RTP header and get anchor for payload */
+	out_payload = io_thread_init_rtp(out_buffer, &rtp_header, NULL);
+	uint16_t seq_number = ntohs(rtp_header->seq_number);
+	uint32_t timestamp = ntohl(rtp_header->timestamp);
 
 	/* initial input buffer tail and the available capacity */
 	size_t in_samples = in_buffer_size / in_buffer_element_size;
@@ -880,7 +898,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 			if (out_args.numOutBytes > 0) {
 
-				size_t payload_len_max = t->mtu_write - rtp_header_len;
+				size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN;
 				size_t payload_len = out_args.numOutBytes;
 				rtp_header->timestamp = htonl(timestamp);
 
@@ -899,7 +917,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 					pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-					if ((ret = io_thread_write_bt(t->bt_fd, out_buffer, rtp_header_len + len)) == -1) {
+					if ((ret = io_thread_write_bt(t->bt_fd, out_buffer, RTP_HEADER_LEN + len)) == -1) {
 						if (errno == ECONNRESET || errno == ENOTCONN) {
 							/* exit thread upon BT socket disconnection */
 							debug("BT socket disconnected: %d", t->bt_fd);
@@ -912,7 +930,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 					pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 					/* account written payload only */
-					ret -= rtp_header_len;
+					ret -= RTP_HEADER_LEN;
 
 					/* break if the last part of the payload has been written */
 					if ((payload_len -= ret) == 0)
