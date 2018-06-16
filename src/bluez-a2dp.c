@@ -225,6 +225,30 @@ static const struct bluez_a2dp_sampling_freq a2dp_aptx_samplings[] = {
 	{ 48000, APTX_SAMPLING_FREQ_48000 },
 };
 
+static const a2dp_aptx_hd_t a2dp_aptx_hd = {
+	.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+	.aptx.channel_mode =
+		/* NOTE: Used apt-X HD library does not support
+		 *       single channel (mono) mode. */
+		APTX_CHANNEL_MODE_STEREO,
+	.aptx.frequency =
+		APTX_SAMPLING_FREQ_16000 |
+		APTX_SAMPLING_FREQ_32000 |
+		APTX_SAMPLING_FREQ_44100 |
+		APTX_SAMPLING_FREQ_48000,
+};
+
+static const struct bluez_a2dp_channel_mode a2dp_aptx_hd_channels[] = {
+	{ BLUEZ_A2DP_CHM_STEREO, APTX_CHANNEL_MODE_STEREO },
+};
+
+static const struct bluez_a2dp_sampling_freq a2dp_aptx_hd_samplings[] = {
+	{ 16000, APTX_SAMPLING_FREQ_16000 },
+	{ 32000, APTX_SAMPLING_FREQ_32000 },
+	{ 44100, APTX_SAMPLING_FREQ_44100 },
+	{ 48000, APTX_SAMPLING_FREQ_48000 },
+};
+
 static const a2dp_ldac_t a2dp_ldac = {
 	.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 	.channel_mode =
@@ -341,6 +365,28 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_aptx = {
 	.samplings_size = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
+static const struct bluez_a2dp_codec a2dp_codec_source_aptx_hd = {
+	.dir = BLUEZ_A2DP_SOURCE,
+	.id = A2DP_CODEC_VENDOR_APTX_HD,
+	.cfg = &a2dp_aptx_hd,
+	.cfg_size = sizeof(a2dp_aptx_hd),
+	.channels = a2dp_aptx_hd_channels,
+	.channels_size = ARRAYSIZE(a2dp_aptx_hd_channels),
+	.samplings = a2dp_aptx_hd_samplings,
+	.samplings_size = ARRAYSIZE(a2dp_aptx_hd_samplings),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_sink_aptx_hd = {
+	.dir = BLUEZ_A2DP_SINK,
+	.id = A2DP_CODEC_VENDOR_APTX_HD,
+	.cfg = &a2dp_aptx_hd,
+	.cfg_size = sizeof(a2dp_aptx_hd),
+	.channels = a2dp_aptx_hd_channels,
+	.channels_size = ARRAYSIZE(a2dp_aptx_hd_channels),
+	.samplings = a2dp_aptx_hd_samplings,
+	.samplings_size = ARRAYSIZE(a2dp_aptx_hd_samplings),
+};
+
 static const struct bluez_a2dp_codec a2dp_codec_source_ldac = {
 	.dir = BLUEZ_A2DP_SOURCE,
 	.id = A2DP_CODEC_VENDOR_LDAC,
@@ -366,6 +412,9 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_ldac = {
 static const struct bluez_a2dp_codec *a2dp_codecs[] = {
 #if ENABLE_LDAC
 	&a2dp_codec_source_ldac,
+#endif
+#if ENABLE_APTX_HD
+	&a2dp_codec_source_aptx_hd,
 #endif
 #if ENABLE_APTX
 	&a2dp_codec_source_aptx,

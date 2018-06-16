@@ -40,6 +40,7 @@ endif
 AM_CFLAGS = \
 	@AAC_CFLAGS@ \
 	@APTX_CFLAGS@ \
+	@APTX_HD_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
@@ -50,6 +51,7 @@ AM_CFLAGS = \
 
 LDADD = \
 	@AAC_LIBS@ \
+	@APTX_HD_LIBS@ \
 	@APTX_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@GIO2_LIBS@ \

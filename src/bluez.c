@@ -345,6 +345,27 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	}
 #endif
 
+#if ENABLE_APTX_HD
+	case A2DP_CODEC_VENDOR_APTX_HD: {
+
+		a2dp_aptx_hd_t *cap = capabilities;
+		unsigned int cap_chm = cap->aptx.channel_mode;
+		unsigned int cap_freq = cap->aptx.frequency;
+
+		if ((cap->aptx.channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+			error("No supported channel modes: %#x", cap_chm);
+			goto fail;
+		}
+
+		if ((cap->aptx.frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+			error("No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
 #if ENABLE_LDAC
 	case A2DP_CODEC_VENDOR_LDAC: {
 
@@ -529,6 +550,15 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				a2dp_aptx_t *cap = capabilities;
 				cap_chm = cap->channel_mode;
 				cap_freq = cap->frequency;
+				break;
+			}
+#endif
+
+#if ENABLE_APTX_HD
+			case A2DP_CODEC_VENDOR_APTX_HD: {
+				a2dp_aptx_hd_t *cap = capabilities;
+				cap_chm = cap->aptx.channel_mode;
+				cap_freq = cap->aptx.frequency;
 				break;
 			}
 #endif

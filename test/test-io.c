@@ -71,6 +71,12 @@ static const a2dp_aptx_t config_aptx_44100_stereo = {
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
+static const a2dp_aptx_hd_t config_aptx_hd_44100_stereo = {
+	.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+	.aptx.frequency = APTX_SAMPLING_FREQ_44100,
+	.aptx.channel_mode = APTX_CHANNEL_MODE_STEREO,
+};
+
 static const a2dp_ldac_t config_ldac_44100_stereo = {
 	.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 	.frequency = LDAC_SAMPLING_FREQ_44100,
@@ -472,6 +478,28 @@ START_TEST(test_a2dp_aptx) {
 } END_TEST
 #endif
 
+#if ENABLE_APTX_HD
+START_TEST(test_a2dp_aptx_hd) {
+
+	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_APTX_HD };
+	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
+			&config_aptx_hd_44100_stereo, sizeof(config_aptx_hd_44100_stereo));
+	struct ba_transport *t2 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
+			&config_aptx_hd_44100_stereo, sizeof(config_aptx_hd_44100_stereo));
+
+	t1->acquire = t2->acquire = test_transport_acquire;
+	t1->release = t2->release = test_transport_release_bt_a2dp;
+
+	if (aging_duration) {
+	}
+	else {
+		t1->mtu_write = t2->mtu_read = 60;
+		test_a2dp(t1, t2, io_thread_a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
+	};
+
+} END_TEST
+#endif
+
 #if ENABLE_LDAC
 START_TEST(test_a2dp_ldac) {
 
@@ -548,11 +576,13 @@ int main(int argc, char *argv[]) {
 		{ "AAC", TEST_CODEC_AAC },
 #define TEST_CODEC_APTX (1 << 3)
 		{ "APTX", TEST_CODEC_APTX },
-#define TEST_CODEC_LDAC (1 << 4)
+#define TEST_CODEC_APTX_HD (1 << 4)
+		{ "APTXHD", TEST_CODEC_APTX_HD },
+#define TEST_CODEC_LDAC (1 << 5)
 		{ "LDAC", TEST_CODEC_LDAC },
-#define TEST_CODEC_CVSD (1 << 5)
+#define TEST_CODEC_CVSD (1 << 6)
 		{ "CVSD", TEST_CODEC_CVSD },
-#define TEST_CODEC_MSBC (1 << 6)
+#define TEST_CODEC_MSBC (1 << 7)
 		{ "mSBC", TEST_CODEC_MSBC },
 	};
 
@@ -612,6 +642,10 @@ int main(int argc, char *argv[]) {
 #if ENABLE_APTX
 	if (enabled_codecs & TEST_CODEC_APTX)
 		tcase_add_test(tc, test_a2dp_aptx);
+#endif
+#if ENABLE_APTX_HD
+	if (enabled_codecs & TEST_CODEC_APTX_HD)
+		tcase_add_test(tc, test_a2dp_aptx_hd);
 #endif
 #if ENABLE_LDAC
 	config.ldac_abr = true;
