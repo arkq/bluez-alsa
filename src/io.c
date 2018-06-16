@@ -340,30 +340,29 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		goto fail_init;
 	}
 
-	const size_t sbc_codesize = sbc_get_codesize(&sbc);
+	ffb_uint8_t bt = { 0 };
+	ffb_int16_t pcm = { 0 };
+	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &bt);
+	pthread_cleanup_push(CANCEL_ROUTINE(ffb_int16_free), &pcm);
+	pthread_cleanup_push(CANCEL_ROUTINE(sbc_finish), &sbc);
+
+	const size_t sbc_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
-	const unsigned int sbc_frame_duration = sbc_get_frame_duration(&sbc);
 	const unsigned int channels = transport_get_channels(t);
+	const unsigned int samplerate = transport_get_sampling(t);
 
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
 	 * header and at least one SBC frame. In general, there is no constraint
 	 * for the MTU value, but the speed might suffer significantly. */
-	size_t mtu_write = t->mtu_write;
-	if (mtu_write < RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len) {
-		mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len;
-		warn("Writing MTU too small for one single SBC frame: %zu < %zu", t->mtu_write, mtu_write);
+	const size_t mtu_write_payload = t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t);
+	if (mtu_write_payload < sbc_frame_len) {
+		warn("Writing MTU too small for one single SBC frame: %zu < %zu",
+				t->mtu_write, RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len);
+		t->mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len;
 	}
 
-	const size_t in_buffer_size = sbc_codesize * (mtu_write / sbc_frame_len);
-	const size_t out_buffer_size = mtu_write;
-	int16_t *in_buffer = malloc(in_buffer_size);
-	uint8_t *out_buffer = malloc(out_buffer_size);
-
-	pthread_cleanup_push(CANCEL_ROUTINE(sbc_finish), &sbc);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
-
-	if (in_buffer == NULL || out_buffer == NULL) {
+	if (ffb_init(&pcm, sbc_pcm_samples * (mtu_write_payload / sbc_frame_len)) == NULL ||
+			ffb_init(&bt, t->mtu_write) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
@@ -371,14 +370,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
 
-	/* initialize RTP headers */
-	io_thread_init_rtp(out_buffer, &rtp_header, &rtp_media_header);
+	/* initialize RTP headers and get anchor for payload */
+	uint8_t *rtp_payload = io_thread_init_rtp(bt.data, &rtp_header, &rtp_media_header);
 	uint16_t seq_number = ntohs(rtp_header->seq_number);
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
-
-	/* buffer tail position and available capacity */
-	int16_t *in_buffer_tail = in_buffer;
-	size_t in_samples = in_buffer_size / sizeof(int16_t);
 
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
@@ -426,7 +421,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_tail, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			goto fail;
@@ -439,85 +434,77 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		 * In order to correctly calculate time drift, the zero time point has to
 		 * be obtained after the stream has started. */
 		if (asrs.frames == 0)
-			asrsync_init(asrs, transport_get_sampling(t));
+			asrsync_init(asrs, samplerate);
 
 		if (!config.a2dp_volume)
 			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, in_buffer_tail, samples, channels);
+			io_thread_scale_pcm(t, pcm.tail, samples, channels);
 
-		/* overall input buffer size */
-		samples += in_buffer_tail - in_buffer;
+		/* get overall number of input samples */
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
 
-		const uint8_t *input = (uint8_t *)in_buffer;
-		size_t input_len = samples * sizeof(int16_t);
+		/* anchor for RTP payload */
+		bt.tail = rtp_payload;
 
-		/* encode and transfer obtained data */
-		while (input_len >= sbc_codesize) {
+		const int16_t *input = pcm.data;
+		size_t input_len = samples;
+		size_t output_len = ffb_len_in(&bt);
+		size_t pcm_frames = 0;
+		size_t sbc_frames = 0;
 
-			uint8_t *output = (uint8_t *)(rtp_media_header + 1);
-			size_t output_len = out_buffer_size - (output - out_buffer);
-			size_t pcm_frames = 0;
-			size_t sbc_frames = 0;
+		/* Generate as many SBC frames as possible to fill the output buffer
+		 * without overflowing it. The size of the output buffer is based on
+		 * the socket MTU, so such a transfer should be most efficient. */
+		while (input_len >= sbc_pcm_samples && output_len >= sbc_frame_len) {
 
-			/* Generate as many SBC frames as possible to fill the output buffer
-			 * without overflowing it. The size of the output buffer is based on
-			 * the socket MTU, so such a transfer should be most efficient. */
-			while (input_len >= sbc_codesize && output_len >= sbc_frame_len) {
+			ssize_t len;
+			ssize_t encoded;
 
-				ssize_t len;
-				ssize_t encoded;
-
-				if ((len = sbc_encode(&sbc, input, input_len, output, output_len, &encoded)) < 0) {
-					error("SBC encoding error: %s", strerror(-len));
-					break;
-				}
-
-				input += len;
-				input_len -= len;
-				output += encoded;
-				output_len -= encoded;
-				pcm_frames += len / channels / sizeof(int16_t);
-				sbc_frames++;
-
+			if ((len = sbc_encode(&sbc, input, input_len * sizeof(int16_t),
+							bt.tail, output_len, &encoded)) < 0) {
+				error("SBC encoding error: %s", strerror(-len));
+				break;
 			}
 
-			rtp_header->seq_number = htons(++seq_number);
-			rtp_header->timestamp = htonl(timestamp);
-			rtp_media_header->frame_count = sbc_frames;
-
-			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-			if (io_thread_write_bt(t->bt_fd, out_buffer, output - out_buffer) == -1) {
-				if (errno == ECONNRESET || errno == ENOTCONN) {
-					/* exit thread upon BT socket disconnection */
-					debug("BT socket disconnected: %d", t->bt_fd);
-					goto fail;
-				}
-				error("BT socket write error: %s", strerror(errno));
-			}
-
-			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-			/* keep data transfer at a constant bit rate, also
-			 * get a timestamp for the next RTP frame */
-			asrsync_sync(&asrs, pcm_frames);
-			timestamp += sbc_frame_duration;
-			t->delay = asrs.ts_busy.tv_nsec / 100000;
+			len = len / sizeof(int16_t);
+			input += len;
+			input_len -= len;
+			ffb_seek(&bt, encoded);
+			output_len -= encoded;
+			pcm_frames += len / channels;
+			sbc_frames++;
 
 		}
 
-		/* convert bytes length to samples length */
-		samples = input_len / sizeof(int16_t);
+		rtp_header->seq_number = htons(++seq_number);
+		rtp_header->timestamp = htonl(timestamp);
+		rtp_media_header->frame_count = sbc_frames;
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt)) == -1) {
+			if (errno == ECONNRESET || errno == ENOTCONN) {
+				/* exit thread upon BT socket disconnection */
+				debug("BT socket disconnected: %d", t->bt_fd);
+				goto fail;
+			}
+			error("BT socket write error: %s", strerror(errno));
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		/* keep data transfer at a constant bit rate, also
+		 * get a timestamp for the next RTP frame */
+		asrsync_sync(&asrs, pcm_frames);
+		timestamp += pcm_frames * 10000 / samplerate;
+		t->delay = asrs.ts_busy.tv_nsec / 100000;
 
 		/* If the input buffer was not consumed (due to codesize limit), we
 		 * have to append new data to the existing one. Since we do not use
 		 * ring buffer, we will simply move unprocessed data to the front
 		 * of our linear buffer. */
-		if (samples > 0 && (uint8_t *)in_buffer != input)
-			memmove(in_buffer, input, samples * sizeof(int16_t));
-		/* reposition our buffer tail */
-		in_buffer_tail = in_buffer + samples;
-		in_samples = in_buffer_size / sizeof(int16_t) - samples;
+		ffb_shift(&pcm, samples - input_len);
 
 	}
 
