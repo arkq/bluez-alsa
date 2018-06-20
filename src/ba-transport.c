@@ -493,9 +493,17 @@ int ba_transport_select_codec_sco(
 
 static void transport_update_format(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	}
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		switch (t->type.codec) {
+		default:
+			t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+			break;
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
+			break;
+#endif
+		}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;

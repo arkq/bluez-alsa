@@ -19,7 +19,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void audio_scale_s16le(int16_t *buffer, int channels, size_t frames, double ch1, double ch2);
-void audio_silence_s16le(int16_t *buffer, int channels, size_t frames, bool ch1, bool ch2);
+void audio_scale_s16_2le(int16_t *buffer, int channels, size_t frames, double ch1, double ch2);
+void audio_scale_s32_4le(int32_t *buffer, int channels, size_t frames, double ch1, double ch2);
+#define audio_scale_s24_4le audio_scale_s32_4le
+
+void audio_silence_s16_2le(int16_t *buffer, int channels, size_t frames, bool ch1, bool ch2);
+void audio_silence_s32_4le(int32_t *buffer, int channels, size_t frames, bool ch1, bool ch2);
+#define audio_silence_s24_4le audio_silence_s32_4le
 
 #endif

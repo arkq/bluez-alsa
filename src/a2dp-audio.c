@@ -87,8 +87,19 @@ static void ba_transport_pcm_scale(
 		/* In case of hardware volume control we will perform mute operation,
 		 * because hardware muting is an equivalent of gain=0 which with some
 		 * headsets does not entirely silence audio. */
-		audio_silence_s16le(buffer, pcm->channels, frames,
-				pcm->volume[0].muted, pcm->volume[1].muted);
+		switch (pcm->format) {
+		case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
+			audio_silence_s16_2le(buffer, pcm->channels, frames,
+					pcm->volume[0].muted, pcm->volume[1].muted);
+			break;
+		case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
+		case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
+			audio_silence_s32_4le(buffer, pcm->channels, frames,
+					pcm->volume[0].muted, pcm->volume[1].muted);
+			break;
+		default:
+			g_assert_not_reached();
+		}
 		return;
 	}
 
@@ -100,7 +111,17 @@ static void ba_transport_pcm_scale(
 	if (!pcm->volume[1].muted)
 		ch2_scale = pow(10, (-64 + 64.0 * pcm->volume[1].level / vmax) / 20);
 
-	audio_scale_s16le(buffer, pcm->channels, frames, ch1_scale, ch2_scale);
+	switch (pcm->format) {
+	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
+		audio_scale_s16_2le(buffer, pcm->channels, frames, ch1_scale, ch2_scale);
+		break;
+	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
+	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
+		audio_scale_s32_4le(buffer, pcm->channels, frames, ch1_scale, ch2_scale);
+		break;
+	default:
+		g_assert_not_reached();
+	}
 
 }
 
@@ -1682,7 +1703,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 	const size_t aptx_code_len = 2 * 3 * sizeof(uint8_t);
 	const size_t mtu_write = t->mtu_write;
 
-	if (ffb_init_int16_t(&pcm, aptx_pcm_samples * ((mtu_write - RTP_HEADER_LEN) / aptx_code_len)) == -1 ||
+	if (ffb_init_int32_t(&pcm, aptx_pcm_samples * ((mtu_write - RTP_HEADER_LEN) / aptx_code_len)) == -1 ||
 			ffb_init_uint8_t(&bt, mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -1710,7 +1731,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 			goto fail;
 		}
 
-		int16_t *input = pcm.data;
+		int32_t *input = pcm.data;
 		size_t input_len = samples;
 
 		/* encode and transfer obtained data */
@@ -1727,8 +1748,8 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 			 * the socket MTU, so such a transfer should be most efficient. */
 			while (input_len >= aptx_pcm_samples && output_len >= aptx_code_len) {
 
-				int32_t pcm_l[4] = { input[0] << 8, input[2] << 8, input[4] << 8, input[6] << 8 };
-				int32_t pcm_r[4] = { input[1] << 8, input[3] << 8, input[5] << 8, input[7] << 8 };
+				int32_t pcm_l[4] = { input[0], input[2], input[4], input[6] };
+				int32_t pcm_r[4] = { input[1], input[3], input[5], input[7] };
 				uint32_t code[2];
 
 				if (aptxhdbtenc_encodestereo(handle, pcm_l, pcm_r, code) != 0) {

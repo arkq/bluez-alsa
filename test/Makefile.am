@@ -6,6 +6,7 @@ TESTS = \
 	test-alsa-ctl \
 	test-alsa-pcm \
 	test-at \
+	test-audio \
 	test-ba \
 	test-io \
 	test-msbc \
@@ -18,6 +19,7 @@ check_PROGRAMS = \
 	test-alsa-ctl \
 	test-alsa-pcm \
 	test-at \
+	test-audio \
 	test-ba \
 	test-io \
 	test-msbc \
