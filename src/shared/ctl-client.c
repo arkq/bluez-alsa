@@ -90,6 +90,7 @@ static int bluealsa_send_request(int fd, const struct ba_request *req) {
  *   -1 is returned and errno is set to indicate the error. */
 int bluealsa_open(const char *interface) {
 
+	const uint16_t ver = BLUEALSA_CRL_PROTO_VERSION;
 	int fd, err;
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
@@ -106,6 +107,9 @@ int bluealsa_open(const char *interface) {
 		errno = err;
 		return -1;
 	}
+
+	if (send(fd, &ver, sizeof(ver), MSG_NOSIGNAL) == -1)
+		return -1;
 
 	return fd;
 }

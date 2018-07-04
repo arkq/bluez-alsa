@@ -605,8 +605,27 @@ static void *ctl_thread(void *arg) {
 
 		/* process new connections to our controller */
 		if (config.ctl.pfds[CTL_IDX_SRV].revents & POLLIN && pfd != NULL) {
-			pfd->fd = accept(config.ctl.pfds[CTL_IDX_SRV].fd, NULL, NULL);
-			debug("New client accepted: %d", pfd->fd);
+
+			uint16_t ver = 0;
+			ssize_t len;
+			int fd;
+
+			fd = accept(config.ctl.pfds[CTL_IDX_SRV].fd, NULL, NULL);
+			debug("Received new connection: %d", fd);
+
+			if ((len = recv(fd, &ver, sizeof(ver), MSG_DONTWAIT)) != sizeof(ver)) {
+				warn("Couldn't receive protocol version: %s", strerror(errno));
+				close(fd);
+			}
+			else if (ver != BLUEALSA_CRL_PROTO_VERSION) {
+				warn("Invalid protocol version: %#06x != %#06x", ver, BLUEALSA_CRL_PROTO_VERSION);
+				close(fd);
+			}
+			else {
+				debug("New client accepted: %d", fd);
+				pfd->fd = fd;
+			}
+
 		}
 
 		/* generate notifications for subscribed clients */

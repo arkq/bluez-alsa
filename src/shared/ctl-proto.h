@@ -20,6 +20,8 @@
 
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
+/* Version of the controller communication protocol. */
+#define BLUEALSA_CRL_PROTO_VERSION 0x0100
 
 enum ba_command {
 	BA_COMMAND_PING,
