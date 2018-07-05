@@ -561,17 +561,18 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	}
 #endif
 
+	ffb_uint8_t bt = { 0 };
+	ffb_uint8_t latm = { 0 };
+	ffb_int16_t pcm = { 0 };
 	uint16_t seq_number = -1;
 
-	const size_t in_buffer_size = t->mtu_read;
-	const size_t out_buffer_size = 2048 * channels * sizeof(INT_PCM);
-	uint8_t *in_buffer = malloc(in_buffer_size);
-	int16_t *out_buffer = malloc(out_buffer_size);
+	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &bt);
+	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &latm);
+	pthread_cleanup_push(CANCEL_ROUTINE(ffb_int16_free), &pcm);
 
-	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
-
-	if (in_buffer == NULL || out_buffer == NULL) {
+	if (ffb_init(&pcm, 2048 * channels) == NULL ||
+			ffb_init(&latm, t->mtu_read) == NULL ||
+			ffb_init(&bt, t->mtu_read) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
@@ -605,7 +606,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			continue;
 		}
 
-		if ((len = read(pfds[1].fd, in_buffer, in_buffer_size)) == -1) {
+		if ((len = read(pfds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
 			debug("BT read error: %s", strerror(errno));
 			continue;
 		}
@@ -627,7 +628,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			continue;
 		}
 
-		const rtp_header_t *rtp_header = (rtp_header_t *)in_buffer;
+		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
 		uint8_t *rtp_latm = (uint8_t *)&rtp_header->csrc[rtp_header->cc];
 		size_t rtp_latm_len = len - ((void *)rtp_latm - (void *)rtp_header);
 
@@ -645,26 +646,43 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			seq_number = _seq_number;
 		}
 
-		unsigned int data_len = rtp_latm_len;
-		unsigned int valid = rtp_latm_len;
+		if (ffb_len_in(&latm) < rtp_latm_len) {
+			debug("Resizing LATM buffer: %zd -> %zd", latm.size, latm.size + t->mtu_read);
+			size_t prev_len = ffb_len_out(&latm);
+			ffb_init(&latm, latm.size + t->mtu_read);
+			ffb_seek(&latm, prev_len);
+		}
 
-		if ((err = aacDecoder_Fill(handle, &rtp_latm, &data_len, &valid)) != AAC_DEC_OK)
+		memcpy(latm.tail, rtp_latm, rtp_latm_len);
+		ffb_seek(&latm, rtp_latm_len);
+
+		if (!rtp_header->markbit) {
+			debug("Fragmented RTP packet [%u]: LATM len: %zd", seq_number, rtp_latm_len);
+			continue;
+		}
+
+		unsigned int data_len = ffb_len_out(&latm);
+		unsigned int valid = ffb_len_out(&latm);
+
+		if ((err = aacDecoder_Fill(handle, &latm.data, &data_len, &valid)) != AAC_DEC_OK)
 			error("AAC buffer fill error: %s", aacdec_strerror(err));
-		else if ((err = aacDecoder_DecodeFrame(handle, out_buffer, out_buffer_size, 0)) != AAC_DEC_OK)
+		else if ((err = aacDecoder_DecodeFrame(handle, pcm.tail, ffb_blen_in(&pcm), 0)) != AAC_DEC_OK)
 			error("AAC decode frame error: %s", aacdec_strerror(err));
 		else if ((aacinf = aacDecoder_GetStreamInfo(handle)) == NULL)
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t samples = aacinf->frameSize * aacinf->numChannels;
-			io_thread_scale_pcm(t, out_buffer, samples, channels);
-			if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, samples) == -1)
+			io_thread_scale_pcm(t, pcm.data, samples, channels);
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
+			ffb_rewind(&latm);
 		}
 
 	}
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 fail_init:

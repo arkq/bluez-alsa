@@ -55,6 +55,13 @@ void ffb_int16_free(ffb_int16_t *ffb);
 #define ffb_len_out(p) ((size_t)((p)->tail - (p)->data))
 
 /**
+ * Get number of bytes available for writing. */
+#define ffb_blen_in(p) (ffb_len_in(p) * sizeof(*(p)->data))
+/**
+ * Get number of bytes available for reading. */
+#define ffb_blen_out(p) (ffb_len_out(p) * sizeof(*(p)->data))
+
+/**
  * Move the tail pointer by the given number of unite blocks. */
 #define ffb_seek(p, s) ((p)->tail += s)
 

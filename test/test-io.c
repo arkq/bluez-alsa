@@ -132,7 +132,6 @@ static int test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 	t->state = TRANSPORT_ACTIVE;
 	t->bt_fd = bt_fds[1];
 	t->a2dp.pcm.fd = pcm_fds[0];
-	t->mtu_read = 1024;
 
 	pthread_t thread;
 	pthread_create(&thread, NULL, cb, t);
@@ -213,6 +212,7 @@ int test_a2dp_sbc(void) {
 	assert(test_a2dp_encoding(&transport, io_thread_a2dp_source_sbc) == 0);
 	assert(test_warn_count == 0 && test_error_count == 0);
 
+	transport.mtu_read = transport.mtu_write;
 	assert(test_a2dp_decoding(&transport, io_thread_a2dp_sink_sbc) == 0);
 	assert(test_warn_count == 0 && test_error_count == 0);
 
@@ -233,6 +233,10 @@ int test_a2dp_aac(void) {
 
 	transport.mtu_write = 64;
 	assert(test_a2dp_encoding(&transport, io_thread_a2dp_source_aac) == 0);
+	assert(test_warn_count == 0 && test_error_count == 0);
+
+	transport.mtu_read = transport.mtu_write;
+	assert(test_a2dp_decoding(&transport, io_thread_a2dp_sink_aac) == 0);
 	assert(test_warn_count == 0 && test_error_count == 0);
 
 	return 0;
