@@ -606,24 +606,25 @@ static void *ctl_thread(void *arg) {
 		/* process new connections to our controller */
 		if (config.ctl.pfds[CTL_IDX_SRV].revents & POLLIN && pfd != NULL) {
 
+			struct pollfd fd = { -1, POLLIN, 0 };
 			uint16_t ver = 0;
-			ssize_t len;
-			int fd;
 
-			fd = accept(config.ctl.pfds[CTL_IDX_SRV].fd, NULL, NULL);
-			debug("Received new connection: %d", fd);
+			fd.fd = accept(config.ctl.pfds[CTL_IDX_SRV].fd, NULL, NULL);
+			debug("Received new connection: %d", fd.fd);
 
-			if ((len = recv(fd, &ver, sizeof(ver), MSG_DONTWAIT)) != sizeof(ver)) {
+			errno = ETIMEDOUT;
+			if (poll(&fd, 1, 500) <= 0 ||
+					recv(fd.fd, &ver, sizeof(ver), MSG_DONTWAIT) != sizeof(ver)) {
 				warn("Couldn't receive protocol version: %s", strerror(errno));
-				close(fd);
+				close(fd.fd);
 			}
 			else if (ver != BLUEALSA_CRL_PROTO_VERSION) {
 				warn("Invalid protocol version: %#06x != %#06x", ver, BLUEALSA_CRL_PROTO_VERSION);
-				close(fd);
+				close(fd.fd);
 			}
 			else {
-				debug("New client accepted: %d", fd);
-				pfd->fd = fd;
+				debug("New client accepted: %d", fd.fd);
+				pfd->fd = fd.fd;
 			}
 
 		}
