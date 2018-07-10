@@ -48,6 +48,10 @@ struct ba_config config = {
 		HFP_AG_FEAT_EERC |
 		HFP_AG_FEAT_CODEC,
 
+	.a2dp.volume = false,
+	.a2dp.force_mono = false,
+	.a2dp.force_44100 = false,
+
 #if ENABLE_AAC
 	/* There are two issues with the afterburner: a) it uses a LOT of power,
 	 * b) it generates larger payload (see VBR comment). These two reasons
@@ -55,10 +59,6 @@ struct ba_config config = {
 	.aac_afterburner = false,
 	.aac_vbr_mode = 4,
 #endif
-
-	.a2dp_force_mono = false,
-	.a2dp_force_44100 = false,
-	.a2dp_volume = false,
 
 };
 
@@ -78,6 +78,8 @@ int bluealsa_config_init(void) {
 	/* use proper ACL group for our audio device */
 	if ((grp = getgrnam("audio")) != NULL)
 		config.gid_audio = grp->gr_gid;
+
+	config.a2dp.codecs = bluez_a2dp_codecs;
 
 	return 0;
 }

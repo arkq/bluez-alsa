@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-a2dp.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,9 +8,13 @@
  *
  */
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include "bluez-a2dp.h"
 
-const a2dp_sbc_t bluez_a2dp_sbc = {
+static const a2dp_sbc_t a2dp_sbc = {
 	.frequency =
 		SBC_SAMPLING_FREQ_16000 |
 		SBC_SAMPLING_FREQ_32000 |
@@ -36,8 +40,7 @@ const a2dp_sbc_t bluez_a2dp_sbc = {
 	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
-#if ENABLE_MP3
-const a2dp_mpeg_t bluez_a2dp_mpeg = {
+static const a2dp_mpeg_t a2dp_mpeg = {
 	.layer =
 		MPEG_LAYER_MP1 |
 		MPEG_LAYER_MP2 |
@@ -74,10 +77,8 @@ const a2dp_mpeg_t bluez_a2dp_mpeg = {
 		MPEG_BIT_RATE_32000 |
 		MPEG_BIT_RATE_FREE,
 };
-#endif
 
-#if ENABLE_AAC
-const a2dp_aac_t bluez_a2dp_aac = {
+static const a2dp_aac_t a2dp_aac = {
 	.object_type =
 		/* NOTE: AAC Long Term Prediction and AAC Scalable are
 		 *       not supported by the FDK-AAC library. */
@@ -102,10 +103,8 @@ const a2dp_aac_t bluez_a2dp_aac = {
 	.vbr = 1,
 	AAC_INIT_BITRATE(0xFFFF)
 };
-#endif
 
-#if ENABLE_APTX
-const a2dp_aptx_t bluez_a2dp_aptx = {
+static const a2dp_aptx_t a2dp_aptx = {
 	.info.vendor_id = APTX_VENDOR_ID,
 	.info.codec_id = APTX_CODEC_ID,
 	.channel_mode =
@@ -118,4 +117,78 @@ const a2dp_aptx_t bluez_a2dp_aptx = {
 		APTX_SAMPLING_FREQ_44100 |
 		APTX_SAMPLING_FREQ_48000,
 };
+
+static const struct bluez_a2dp_codec a2dp_codec_source_sbc = {
+	.dir = BLUEZ_A2DP_SOURCE,
+	.id = A2DP_CODEC_SBC,
+	.cfg = &a2dp_sbc,
+	.cfg_size = sizeof(a2dp_sbc),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_sink_sbc = {
+	.dir = BLUEZ_A2DP_SINK,
+	.id = A2DP_CODEC_SBC,
+	.cfg = &a2dp_sbc,
+	.cfg_size = sizeof(a2dp_sbc),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_source_mpeg = {
+	.dir = BLUEZ_A2DP_SOURCE,
+	.id = A2DP_CODEC_MPEG12,
+	.cfg = &a2dp_mpeg,
+	.cfg_size = sizeof(a2dp_mpeg),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_sink_mpeg = {
+	.dir = BLUEZ_A2DP_SINK,
+	.id = A2DP_CODEC_MPEG12,
+	.cfg = &a2dp_mpeg,
+	.cfg_size = sizeof(a2dp_mpeg),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_source_aac = {
+	.dir = BLUEZ_A2DP_SOURCE,
+	.id = A2DP_CODEC_MPEG24,
+	.cfg = &a2dp_aac,
+	.cfg_size = sizeof(a2dp_aac),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_sink_aac = {
+	.dir = BLUEZ_A2DP_SINK,
+	.id = A2DP_CODEC_MPEG24,
+	.cfg = &a2dp_aac,
+	.cfg_size = sizeof(a2dp_aac),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_source_aptx = {
+	.dir = BLUEZ_A2DP_SOURCE,
+	.id = A2DP_CODEC_VENDOR_APTX,
+	.cfg = &a2dp_aptx,
+	.cfg_size = sizeof(a2dp_aptx),
+};
+
+static const struct bluez_a2dp_codec a2dp_codec_sink_aptx = {
+	.dir = BLUEZ_A2DP_SINK,
+	.id = A2DP_CODEC_VENDOR_APTX,
+	.cfg = &a2dp_aptx,
+	.cfg_size = sizeof(a2dp_aptx),
+};
+
+static const struct bluez_a2dp_codec *a2dp_codecs[] = {
+#if ENABLE_APTX
+	&a2dp_codec_source_aptx,
 #endif
+#if ENABLE_AAC
+	&a2dp_codec_source_aac,
+	&a2dp_codec_sink_aac,
+#endif
+#if ENABLE_MP3
+	&a2dp_codec_source_mpeg,
+	&a2dp_codec_sink_mpeg,
+#endif
+	&a2dp_codec_source_sbc,
+	&a2dp_codec_sink_sbc,
+	NULL,
+};
+
+const struct bluez_a2dp_codec **bluez_a2dp_codecs = a2dp_codecs;

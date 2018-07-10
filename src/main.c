@@ -33,6 +33,23 @@
 #include "shared/log.h"
 
 
+static char *get_a2dp_codecs(
+		const struct bluez_a2dp_codec **codecs,
+		enum bluez_a2dp_dir dir) {
+
+	const char *tmp[16] = { NULL };
+	int i = 0;
+
+	while (*codecs != NULL) {
+		const struct bluez_a2dp_codec *c = *codecs++;
+		if (c->dir != dir)
+			continue;
+		tmp[i++] = bluetooth_a2dp_codec_to_string(c->id);
+	}
+
+	return g_strjoinv(", ", (char **)tmp);
+}
+
 static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
 	/* Call to this handler restores the default action, so on the
@@ -54,13 +71,13 @@ int main(int argc, char **argv) {
 		{ "syslog", no_argument, NULL, 'S' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
+		{ "a2dp-force-mono", no_argument, NULL, 6 },
+		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
+		{ "a2dp-volume", no_argument, NULL, 8 },
 #if ENABLE_AAC
 		{ "aac-afterburner", no_argument, NULL, 4 },
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
 #endif
-		{ "a2dp-force-mono", no_argument, NULL, 6 },
-		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
-		{ "a2dp-volume", no_argument, NULL, 8 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -129,17 +146,20 @@ int main(int argc, char **argv) {
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
 #endif
 					"\nAvailable BT profiles:\n"
-					"  - a2dp-source\tAdvanced Audio Source\n"
-					"  - a2dp-sink\tAdvanced Audio Sink\n"
-					"  - hsp-hs\tHeadset\n"
-					"  - hsp-ag\tHeadset Audio Gateway\n"
-					"  - hfp-hf\tHands-Free\n"
-					"  - hfp-ag\tHands-Free Audio Gateway\n"
+					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
+					"  - a2dp-sink\tAdvanced Audio Sink (%s)\n"
+					"  - hfp-hf\tHands-Free (%s)\n"
+					"  - hfp-ag\tHands-Free Audio Gateway (%s)\n"
+					"  - hsp-hs\tHeadset (%s)\n"
+					"  - hsp-ag\tHeadset Audio Gateway (%s)\n"
 					"\n"
 					"By default only output profiles are enabled, which includes A2DP Source and\n"
 					"HSP/HFP Audio Gateways. If one wants to enable other set of profiles, it is\n"
 					"required to explicitly specify all of them using `-p NAME` options.\n",
-					argv[0]);
+					argv[0],
+					get_a2dp_codecs(config.a2dp.codecs, BLUEZ_A2DP_SOURCE),
+					get_a2dp_codecs(config.a2dp.codecs, BLUEZ_A2DP_SINK),
+					"v1.7", "v1.7", "v1.2", "v1.2");
 			return EXIT_SUCCESS;
 
 		case 'V' /* --version */ :
@@ -189,10 +209,10 @@ int main(int argc, char **argv) {
 			} map[] = {
 				{ "a2dp-source", &config.enable.a2dp_source },
 				{ "a2dp-sink", &config.enable.a2dp_sink },
-				{ "hsp-hs", &config.enable.hsp_hs },
-				{ "hsp-ag", &config.enable.hsp_ag },
 				{ "hfp-hf", &config.enable.hfp_hf },
 				{ "hfp-ag", &config.enable.hfp_ag },
+				{ "hsp-hs", &config.enable.hsp_hs },
+				{ "hsp-ag", &config.enable.hsp_ag },
 			};
 
 			for (i = 0; i < sizeof(map) / sizeof(*map); i++)
@@ -209,6 +229,16 @@ int main(int argc, char **argv) {
 			break;
 		}
 
+		case 6 /* --a2dp-force-mono */ :
+			config.a2dp.force_mono = true;
+			break;
+		case 7 /* --a2dp-force-audio-cd */ :
+			config.a2dp.force_44100 = true;
+			break;
+		case 8 /* --a2dp-volume */ :
+			config.a2dp.volume = true;
+			break;
+
 #if ENABLE_AAC
 		case 4 /* --aac-afterburner */ :
 			config.aac_afterburner = true;
@@ -221,16 +251,6 @@ int main(int argc, char **argv) {
 			}
 			break;
 #endif
-
-		case 6 /* --a2dp-force-mono */ :
-			config.a2dp_force_mono = true;
-			break;
-		case 7 /* --a2dp-force-audio-cd */ :
-			config.a2dp_force_44100 = true;
-			break;
-		case 8 /* --a2dp-volume */ :
-			config.a2dp_volume = true;
-			break;
 
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);

@@ -223,8 +223,9 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	debug("Starting IO loop: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+	debug("Starting IO loop: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -382,8 +383,9 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	debug("Starting IO loop: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+	debug("Starting IO loop: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -436,7 +438,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		if (asrs.frames == 0)
 			asrsync_init(asrs, samplerate);
 
-		if (!config.a2dp_volume)
+		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
 			io_thread_scale_pcm(t, pcm.tail, samples, channels);
 
@@ -582,8 +584,9 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	debug("Starting IO loop: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+	debug("Starting IO loop: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -837,8 +840,9 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	debug("Starting IO loop: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+	debug("Starting IO loop: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -887,7 +891,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		if (asrs.frames == 0)
 			asrsync_init(asrs, samplerate);
 
-		if (!config.a2dp_volume)
+		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
 			io_thread_scale_pcm(t, in_buffer_tail, samples, channels);
 
@@ -1022,8 +1026,9 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	debug("Starting IO loop: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+	debug("Starting IO loop: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -1072,7 +1077,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		if (asrs.frames == 0)
 			asrsync_init(asrs, transport_get_sampling(t));
 
-		if (!config.a2dp_volume)
+		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
 			io_thread_scale_pcm(t, pcm.tail, samples, channels);
 
@@ -1189,7 +1194,7 @@ void *io_thread_sco(void *arg) {
 	};
 
 	debug("Starting IO loop: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+			bluetooth_profile_to_string(t->profile));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 

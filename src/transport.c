@@ -101,7 +101,7 @@ static int io_thread_create(struct ba_transport *t) {
 
 	pthread_setname_np(t->thread, "baio");
 	debug("Created new IO thread: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+			bluetooth_profile_to_string(t->profile));
 	return 0;
 }
 
@@ -345,8 +345,9 @@ void transport_free(struct ba_transport *t) {
 		return;
 
 	t->state = TRANSPORT_LIMBO;
-	debug("Freeing transport: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+	debug("Freeing transport: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
@@ -658,7 +659,7 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 		t->a2dp.ch1_volume = ch1_volume;
 		t->a2dp.ch2_volume = ch2_volume;
 
-		if (config.a2dp_volume) {
+		if (config.a2dp.volume) {
 			uint16_t volume = (ch1_muted | ch2_muted) ? 0 : MIN(ch1_volume, ch2_volume);
 			g_dbus_set_property(config.dbus, t->dbus_owner, t->dbus_path,
 					"org.bluez.MediaTransport1", "Volume", g_variant_new_uint16(volume));
@@ -856,8 +857,9 @@ int transport_release_bt_a2dp(struct ba_transport *t) {
 	if (t->bt_fd == -1)
 		return 0;
 
-	debug("Releasing transport: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+	debug("Releasing transport: %s (%s)",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
 
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the BlueZ. In both cases there is no point in a explicit

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -372,47 +372,14 @@ fail:
  * Convert Bluetooth profile into a human-readable string.
  *
  * @param profile Bluetooth profile.
- * @param codec Bluetooth profile audio codec.
  * @return Human-readable string. */
-const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint16_t codec) {
+const char *bluetooth_profile_to_string(enum bluetooth_profile profile) {
 	switch (profile) {
 	case BLUETOOTH_PROFILE_NULL:
 		return "N/A";
 	case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		switch (codec) {
-		case A2DP_CODEC_SBC:
-			return "A2DP Source (SBC)";
-#if ENABLE_MP3
-		case A2DP_CODEC_MPEG12:
-			return "A2DP Source (MP3)";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "A2DP Source (AAC)";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Source (APT-X)";
-#endif
-		}
 		return "A2DP Source";
 	case BLUETOOTH_PROFILE_A2DP_SINK:
-		switch (codec) {
-		case A2DP_CODEC_SBC:
-			return "A2DP Sink (SBC)";
-#if ENABLE_MP3
-		case A2DP_CODEC_MPEG12:
-			return "A2DP Sink (MP3)";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "A2DP Sink (AAC)";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Sink (APT-X)";
-#endif
-		}
 		return "A2DP Sink";
 	case BLUETOOTH_PROFILE_HSP_HS:
 		return "HSP Headset";
@@ -422,6 +389,39 @@ const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint16_t
 		return "HFP Hands-Free";
 	case BLUETOOTH_PROFILE_HFP_AG:
 		return "HFP Audio Gateway";
+	}
+	return "N/A";
+}
+
+/**
+ * Convert Bluetooth A2DP codec into a human-readable string.
+ *
+ * @param codec Bluetooth A2DP audio codec.
+ * @return Human-readable string. */
+const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
+	switch (codec) {
+	case A2DP_CODEC_SBC:
+		return "SBC";
+#if ENABLE_MP3
+	case A2DP_CODEC_MPEG12:
+		return "MP3";
+#endif
+#if ENABLE_AAC
+	case A2DP_CODEC_MPEG24:
+		return "AAC";
+#endif
+#if ENABLE_APTX
+	case A2DP_CODEC_VENDOR_APTX:
+		return "APT-X";
+#endif
+#if ENABLE_APTX_HD
+	case A2DP_CODEC_VENDOR_APTX_HD:
+		return "APT-X HD";
+#endif
+#if ENABLE_LDAC
+	case A2DP_CODEC_VENDOR_LDAC:
+		return "LDAC";
+#endif
 	}
 	return "N/A";
 }

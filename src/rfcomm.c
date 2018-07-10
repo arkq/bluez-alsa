@@ -569,7 +569,7 @@ void *rfcomm_thread(void *arg) {
 	};
 
 	debug("Starting RFCOMM loop: %s",
-			bluetooth_profile_to_string(t->profile, t->codec));
+			bluetooth_profile_to_string(t->profile));
 	for (;;) {
 
 		/* During normal operation, RFCOMM should block indefinitely. However,

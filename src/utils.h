@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.h
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -29,7 +29,8 @@ int a2dp_sbc_default_bitpool(int freq, int mode);
 int hci_devlist(struct hci_dev_info **di, int *num);
 int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba, bool transparent);
 
-const char *bluetooth_profile_to_string(enum bluetooth_profile profile, uint16_t codec);
+const char *bluetooth_profile_to_string(enum bluetooth_profile profile);
+const char *bluetooth_a2dp_codec_to_string(uint16_t codec);
 const char *batostr_(const bdaddr_t *ba);
 
 const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint16_t codec);
