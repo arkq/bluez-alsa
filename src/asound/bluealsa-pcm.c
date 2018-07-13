@@ -25,6 +25,7 @@
 
 #include "shared/ctl-client.h"
 #include "shared/ctl-proto.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
 
@@ -547,11 +548,11 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 	debug("Setting constraints");
 
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_ACCESS,
-					sizeof(accesses) / sizeof(*accesses), accesses)) < 0)
+					ARRAYSIZE(accesses), accesses)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_FORMAT,
-					sizeof(formats) / sizeof(*formats), formats)) < 0)
+					ARRAYSIZE(formats), formats)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIODS,

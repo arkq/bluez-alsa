@@ -31,6 +31,7 @@
 #include "hfp.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 
@@ -548,7 +549,7 @@ static void *ctl_thread(void *arg) {
 	debug("Starting controller loop");
 	while (config.ctl.thread_created) {
 
-		if (poll(config.ctl.pfds, sizeof(config.ctl.pfds) / sizeof(*config.ctl.pfds), -1) == -1) {
+		if (poll(config.ctl.pfds, ARRAYSIZE(config.ctl.pfds), -1) == -1) {
 			error("Controller poll error: %s", strerror(errno));
 			break;
 		}
@@ -664,7 +665,7 @@ int bluealsa_ctl_thread_init(void) {
 
 	{ /* initialize (mark as closed) all sockets */
 		size_t i;
-		for (i = 0; i < sizeof(config.ctl.pfds) / sizeof(*config.ctl.pfds); i++) {
+		for (i = 0; i < ARRAYSIZE(config.ctl.pfds); i++) {
 			config.ctl.pfds[i].events = POLLIN;
 			config.ctl.pfds[i].fd = -1;
 		}
@@ -719,7 +720,7 @@ void bluealsa_ctl_free(void) {
 	close(config.ctl.evt[1]);
 	config.ctl.pfds[CTL_IDX_EVT].fd = -1;
 
-	for (i = 0; i < sizeof(config.ctl.pfds) / sizeof(*config.ctl.pfds); i++)
+	for (i = 0; i < ARRAYSIZE(config.ctl.pfds); i++)
 		if (config.ctl.pfds[i].fd != -1)
 			close(config.ctl.pfds[i].fd);
 

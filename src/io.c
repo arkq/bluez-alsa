@@ -38,6 +38,7 @@
 #include "bluealsa.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
@@ -133,7 +134,7 @@ retry:
 		case EINTR:
 			goto retry;
 		case EAGAIN:
-			poll(pfds, sizeof(pfds) / sizeof(*pfds), -1);
+			poll(pfds, ARRAYSIZE(pfds), -1);
 			goto retry;
 		}
 
@@ -176,7 +177,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -209,9 +210,9 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	uint8_t *in_buffer = malloc(in_buffer_size);
 	int16_t *out_buffer = malloc(out_buffer_size);
 
-	pthread_cleanup_push(CANCEL_ROUTINE(sbc_finish), &sbc);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), in_buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), out_buffer);
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
@@ -234,7 +235,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		/* add BT socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
 
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -332,7 +333,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	sbc_t sbc;
 
@@ -343,9 +344,9 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 	ffb_uint8_t bt = { 0 };
 	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &bt);
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_int16_free), &pcm);
-	pthread_cleanup_push(CANCEL_ROUTINE(sbc_finish), &sbc);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
 	const size_t sbc_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
@@ -394,7 +395,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
+		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.pcm.drained);
 			poll_timeout = -1;
@@ -525,7 +526,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -544,7 +545,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		goto fail_open;
 	}
 
-	pthread_cleanup_push(CANCEL_ROUTINE(aacDecoder_Close), handle);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aacDecoder_Close), handle);
 
 	const unsigned int channels = transport_get_channels(t);
 #ifdef AACDECODER_LIB_VL0
@@ -568,9 +569,9 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	ffb_int16_t pcm = { 0 };
 	uint16_t seq_number = -1;
 
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &bt);
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &latm);
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_int16_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &latm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
 	if (ffb_init(&pcm, 2048 * channels) == NULL ||
 			ffb_init(&latm, t->mtu_read) == NULL ||
@@ -596,7 +597,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		/* add BT socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
 
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1) {
+		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1) {
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -702,7 +703,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	HANDLE_AACENCODER handle;
 	AACENC_InfoStruct aacinf;
@@ -715,7 +716,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		goto fail_open;
 	}
 
-	pthread_cleanup_push(CANCEL_ROUTINE(aacEncClose), &handle);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aacEncClose), &handle);
 
 	unsigned int aot = AOT_NONE;
 	unsigned int bitrate = AAC_GET_BITRATE(*cconfig);
@@ -814,8 +815,8 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	in_buffer = malloc(in_buffer_size);
 	out_buffer = malloc(RTP_HEADER_LEN + out_payload_size);
 
-	pthread_cleanup_push(CANCEL_ROUTINE(free), in_buffer);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), out_buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), in_buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), out_buffer);
 
 	if (in_buffer == NULL || out_buffer == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
@@ -851,7 +852,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
+		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.pcm.drained);
 			poll_timeout = -1;
@@ -993,10 +994,10 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	APTXENC handle = malloc(SizeofAptxbtenc());
-	pthread_cleanup_push(CANCEL_ROUTINE(free), handle);
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
 
 	if (handle == NULL || aptxbtenc_init(handle, __BYTE_ORDER == __LITTLE_ENDIAN) != 0) {
 		error("Couldn't initialize apt-X encoder: %s", strerror(errno));
@@ -1005,8 +1006,8 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 	ffb_uint8_t bt = { 0 };
 	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &bt);
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_int16_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
 	const unsigned int channels = transport_get_channels(t);
 	const size_t aptx_pcm_samples = 4 * channels;
@@ -1037,7 +1038,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		/* add PCM socket to the poll if transport is active */
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
+		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.pcm.drained);
 			poll_timeout = -1;
@@ -1166,13 +1167,13 @@ void *io_thread_sco(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(CANCEL_ROUTINE(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	/* buffers for transferring data to and fro SCO socket */
 	ffb_uint8_t bt_in = { 0 };
 	ffb_uint8_t bt_out = { 0 };
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &bt_in);
-	pthread_cleanup_push(CANCEL_ROUTINE(ffb_uint8_free), &bt_out);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_in);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_out);
 
 	/* these buffers shall be bigger than the SCO MTU */
 	if (ffb_init(&bt_in, 128) == NULL ||
@@ -1218,7 +1219,7 @@ void *io_thread_sco(void *arg) {
 		if (t->sco.mic_pcm.fd == -1)
 			pfds[1].fd = -1;
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), poll_timeout)) {
+		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
 			pthread_cond_signal(&t->sco.spk_pcm.drained);
 			poll_timeout = -1;

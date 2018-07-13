@@ -182,7 +182,7 @@ static const struct bluez_a2dp_codec *a2dp_codecs[] = {
 	&a2dp_codec_source_aac,
 	&a2dp_codec_sink_aac,
 #endif
-#if ENABLE_MP3
+#if ENABLE_MPEG
 	&a2dp_codec_source_mpeg,
 	&a2dp_codec_sink_mpeg,
 #endif

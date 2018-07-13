@@ -47,7 +47,7 @@ static int io_thread_create(struct ba_transport *t) {
 			case A2DP_CODEC_SBC:
 				routine = io_thread_a2dp_source_sbc;
 				break;
-#if ENABLE_MP3
+#if ENABLE_MPEG
 			case A2DP_CODEC_MPEG12:
 				break;
 #endif
@@ -69,7 +69,7 @@ static int io_thread_create(struct ba_transport *t) {
 			case A2DP_CODEC_SBC:
 				routine = io_thread_a2dp_sink_sbc;
 				break;
-#if ENABLE_MP3
+#if ENABLE_MPEG
 			case A2DP_CODEC_MPEG12:
 				break;
 #endif
@@ -503,7 +503,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 				return 2;
 			}
 			break;
-#if ENABLE_MP3
+#if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 			switch (((a2dp_mpeg_t *)t->a2dp.cconfig)->channel_mode) {
 			case MPEG_CHANNEL_MODE_MONO:
@@ -564,7 +564,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 				return 48000;
 			}
 			break;
-#if ENABLE_MP3
+#if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 			switch (((a2dp_mpeg_t *)t->a2dp.cconfig)->frequency) {
 			case MPEG_SAMPLING_FREQ_16000:

@@ -30,6 +30,7 @@
 #include "ctl.h"
 #include "transport.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 
@@ -215,13 +216,13 @@ int main(int argc, char **argv) {
 				{ "hsp-ag", &config.enable.hsp_ag },
 			};
 
-			for (i = 0; i < sizeof(map) / sizeof(*map); i++)
+			for (i = 0; i < ARRAYSIZE(map); i++)
 				if (strcasecmp(optarg, map[i].name) == 0) {
 					*map[i].ptr = true;
 					break;
 				}
 
-			if (i == sizeof(map) / sizeof(*map)) {
+			if (i == ARRAYSIZE(map)) {
 				error("Invalid BT profile name: %s", optarg);
 				return EXIT_FAILURE;
 			}

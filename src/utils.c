@@ -146,7 +146,7 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint1
 		switch (codec) {
 		case A2DP_CODEC_SBC:
 			return "/A2DP/SBC/Source";
-#if ENABLE_MP3
+#if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 			return "/A2DP/MPEG12/Source";
 #endif
@@ -166,7 +166,7 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint1
 		switch (codec) {
 		case A2DP_CODEC_SBC:
 			return "/A2DP/SBC/Sink";
-#if ENABLE_MP3
+#if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 			return "/A2DP/MPEG12/Sink";
 #endif
@@ -236,7 +236,7 @@ enum bluetooth_profile g_dbus_object_path_to_profile(const char *path) {
 uint16_t g_dbus_object_path_to_a2dp_codec(const char *path) {
 	if (strncmp(path + 5, "/SBC", 4) == 0)
 		return A2DP_CODEC_SBC;
-#if ENABLE_MP3
+#if ENABLE_MPEG
 	if (strncmp(path + 5, "/MPEG12", 7) == 0)
 		return A2DP_CODEC_MPEG12;
 #endif
@@ -402,9 +402,9 @@ const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
 	switch (codec) {
 	case A2DP_CODEC_SBC:
 		return "SBC";
-#if ENABLE_MP3
+#if ENABLE_MPEG
 	case A2DP_CODEC_MPEG12:
-		return "MP3";
+		return "MPEG";
 #endif
 #if ENABLE_AAC
 	case A2DP_CODEC_MPEG24:

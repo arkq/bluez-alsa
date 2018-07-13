@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -14,9 +14,6 @@
 #if HAVE_CONFIG_H
 # include "config.h"
 #endif
-
-/* Casting wrapper for the brevity's sake. */
-#define CANCEL_ROUTINE(f) ((void (*)(void *))(f))
 
 void *io_thread_a2dp_sink_sbc(void *arg);
 void *io_thread_a2dp_source_sbc(void *arg);

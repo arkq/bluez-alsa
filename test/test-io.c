@@ -94,12 +94,12 @@ static int test_a2dp_encoding(struct ba_transport *t, void *(*cb)(void *)) {
 	assert(write(pcm_fds[0], buffer, sizeof(buffer)) == sizeof(buffer));
 
 	memset(test_a2dp_bt_data, 0, sizeof(test_a2dp_bt_data));
-	while (poll(pfds, sizeof(pfds) / sizeof(*pfds), 500) > 0) {
+	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		uint8_t *p = (uint8_t *)buffer;
 		ssize_t len = read(bt_fds[1], p, t->mtu_write);
 
-		if (i < sizeof(test_a2dp_bt_data) / sizeof(*test_a2dp_bt_data)) {
+		if (i < ARRAYSIZE(test_a2dp_bt_data)) {
 			memcpy(test_a2dp_bt_data[i].data, p, len);
 			test_a2dp_bt_data[i++].len = len;
 		}
@@ -137,7 +137,7 @@ static int test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 	pthread_create(&thread, NULL, cb, t);
 
 	size_t i;
-	for (i = 0; i < sizeof(test_a2dp_bt_data) / sizeof(*test_a2dp_bt_data); i++)
+	for (i = 0; i < ARRAYSIZE(test_a2dp_bt_data); i++)
 		if (test_a2dp_bt_data[i].len != 0)
 			assert(write(bt_fds[0], test_a2dp_bt_data[i].data, test_a2dp_bt_data[i].len) > 0);
 

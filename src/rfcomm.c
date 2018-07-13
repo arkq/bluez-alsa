@@ -20,6 +20,7 @@
 #include "bluealsa.h"
 #include "ctl.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 
@@ -194,7 +195,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct b
 	size_t i;
 
 	/* parse response for the +CIND GET command */
-	for (i = 0; i < sizeof(c->hfp_ind_map) / sizeof(*c->hfp_ind_map); i++) {
+	for (i = 0; i < ARRAYSIZE(c->hfp_ind_map); i++) {
 		t->rfcomm.hfp_inds[c->hfp_ind_map[i]] = atoi(tmp);
 		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG)
 			device_set_battery_level(t->device, atoi(tmp) * 100 / 5);
@@ -536,7 +537,7 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 
 	size_t i;
 
-	for (i = 0; i < sizeof(handlers) / sizeof(*handlers); i++) {
+	for (i = 0; i < ARRAYSIZE(handlers); i++) {
 		if (handlers[i]->type != at->type)
 			continue;
 		if (strcmp(handlers[i]->command, at->command) != 0)
@@ -695,7 +696,7 @@ void *rfcomm_thread(void *arg) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), timeout)) {
+		switch (poll(pfds, ARRAYSIZE(pfds), timeout)) {
 		case 0:
 			debug("RFCOMM poll timeout");
 			continue;

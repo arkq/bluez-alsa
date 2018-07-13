@@ -10,6 +10,7 @@
 
 #include "inc/test.inc"
 #include "../src/utils.c"
+#include "../src/shared/defs.h"
 #include "../src/shared/ffb.c"
 #include "../src/shared/rt.c"
 
@@ -28,7 +29,7 @@ int test_dbus_profile_object_path(void) {
 		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source/1" },
 		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source/2" },
 		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC, "/A2DP/SBC/Sink" },
-#if ENABLE_MP3
+#if ENABLE_MPEG
 		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG12, "/A2DP/MPEG12/Source" },
 		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG12, "/A2DP/MPEG12/Sink" },
 #endif
@@ -49,7 +50,7 @@ int test_dbus_profile_object_path(void) {
 
 	size_t i;
 
-	for (i = 0; i < sizeof(profiles) / sizeof(*profiles); i++) {
+	for (i = 0; i < ARRAYSIZE(profiles); i++) {
 		const char *path = g_dbus_get_profile_object_path(profiles[i].profile, profiles[i].codec);
 		assert(strstr(profiles[i].path, path) == profiles[i].path);
 		assert(g_dbus_object_path_to_profile(profiles[i].path) == profiles[i].profile);
@@ -67,26 +68,26 @@ int test_pcm_scale_s16le(void) {
 	const int16_t halfl[] = { 0x1234 / 2, 0x2345, (int16_t)0xBCDE / 2, 0xCDEF };
 	const int16_t halfr[] = { 0x1234, 0x2345 / 2, 0xBCDE, (int16_t)0xCDEF / 2 };
 	const int16_t in[] = { 0x1234, 0x2345, 0xBCDE, 0xCDEF };
-	int16_t tmp[sizeof(in) / sizeof(*in)];
+	int16_t tmp[ARRAYSIZE(in)];
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 0, 0);
+	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 0, 0);
 	assert(memcmp(tmp, mute, sizeof(mute)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 1.0, 1.0);
+	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 1.0, 1.0);
 	assert(memcmp(tmp, in, sizeof(in)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 1, 0.5, 0.5);
+	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 0.5, 0.5);
 	assert(memcmp(tmp, half, sizeof(half)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 0.5, 1.0);
+	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 2, 0.5, 1.0);
 	assert(memcmp(tmp, halfl, sizeof(halfl)) == 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, sizeof(tmp) / sizeof(*tmp), 2, 1.0, 0.5);
+	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 2, 1.0, 0.5);
 	assert(memcmp(tmp, halfr, sizeof(halfr)) == 0);
 
 	return 0;

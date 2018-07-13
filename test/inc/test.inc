@@ -14,6 +14,7 @@
  */
 
 #include <assert.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -36,14 +37,23 @@ static char test_info_msg[512];
 		assert(!f()); \
 	} while (0)
 
+static void vlog(const char *format, va_list ap) {
+	int oldstate;
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
+	flockfile(stderr);
+	vfprintf(stderr, format, ap);
+	fputs("\n", stderr);
+	funlockfile(stderr);
+	pthread_setcancelstate(oldstate, NULL);
+}
+
 void error(const char *format, ...) {
 	va_list ap;
 	va_start(ap, format);
 	vsprintf(test_error_msg, format, ap);
 	va_end(ap);
 	va_start(ap, format);
-	vfprintf(stderr, format, ap);
-	fputc('\n', stderr);
+	vlog(format, ap);
 	va_end(ap);
 	test_error_count++;
 }
@@ -54,8 +64,7 @@ void warn(const char *format, ...) {
 	vsprintf(test_warn_msg, format, ap);
 	va_end(ap);
 	va_start(ap, format);
-	vfprintf(stderr, format, ap);
-	fputc('\n', stderr);
+	vlog(format, ap);
 	va_end(ap);
 	test_warn_count++;
 }
@@ -66,8 +75,7 @@ void info(const char *format, ...) {
 	vsprintf(test_info_msg, format, ap);
 	va_end(ap);
 	va_start(ap, format);
-	vfprintf(stderr, format, ap);
-	fputc('\n', stderr);
+	vlog(format, ap);
 	va_end(ap);
 	test_info_count++;
 }
@@ -75,8 +83,7 @@ void info(const char *format, ...) {
 void _debug(const char *format, ...) {
 	va_list ap;
 	va_start(ap, format);
-	vfprintf(stderr, format, ap);
-	fputc('\n', stderr);
+	vlog(format, ap);
 	va_end(ap);
 }
 

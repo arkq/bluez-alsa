@@ -26,10 +26,8 @@
 #include <gio/gio.h>
 
 #include "shared/ctl-client.h"
+#include "shared/defs.h"
 #include "shared/log.h"
-
-/* Casting wrapper for the brevity's sake. */
-#define CANCEL_ROUTINE(f) ((void (*)(void *))(f))
 
 struct pcm_worker {
 	struct ba_msg_transport transport;
@@ -253,9 +251,9 @@ static void *pcm_worker_routine(void *arg) {
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-	pthread_cleanup_push(CANCEL_ROUTINE(pcm_worker_routine_exit), w);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), buffer);
-	pthread_cleanup_push(CANCEL_ROUTINE(free), msg);
+	pthread_cleanup_push(PTHREAD_CLEANUP(pcm_worker_routine_exit), w);
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), msg);
 
 	if ((err = snd_pcm_open(&w->pcm, device, SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
 		error("Couldn't open PCM: %s", snd_strerror(err));
@@ -336,7 +334,7 @@ static void *pcm_worker_routine(void *arg) {
 		 * on the writing side. However, the server does not open PCM FIFO until
 		 * a transport is created. With the A2DP, the transport is created when
 		 * some clients (BT device) requests audio transfer. */
-		switch (poll(pfds, sizeof(pfds) / sizeof(*pfds), timeout)) {
+		switch (poll(pfds, ARRAYSIZE(pfds), timeout)) {
 		case -1:
 			if (errno == EINTR)
 				continue;
@@ -583,7 +581,7 @@ usage:
 		size_t i;
 
 		struct pollfd pfds[] = {{ ba_fd, POLLIN, 0 }};
-		if (poll(pfds, sizeof(pfds) / sizeof(*pfds), -1) == -1 && errno == EINTR)
+		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1 && errno == EINTR)
 			continue;
 
 		while ((ret = recv(ba_fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
