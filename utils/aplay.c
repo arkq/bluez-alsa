@@ -27,6 +27,7 @@
 
 #include "shared/ctl-client.h"
 #include "shared/defs.h"
+#include "shared/ffb.h"
 #include "shared/log.h"
 
 struct pcm_worker {
@@ -243,7 +244,7 @@ static void *pcm_worker_routine(void *arg) {
 
 	unsigned int buffer_time = pcm_buffer_time;
 	unsigned int period_time = pcm_period_time;
-	char *buffer = NULL;
+	ffb_int16_t buffer = { 0 };
 	char *msg = NULL;
 	int err;
 
@@ -252,7 +253,7 @@ static void *pcm_worker_routine(void *arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(pcm_worker_routine_exit), w);
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &buffer);
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), msg);
 
 	if ((err = snd_pcm_open(&w->pcm, device, SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
@@ -293,12 +294,8 @@ static void *pcm_worker_routine(void *arg) {
 		goto fail;
 	}
 
-	ssize_t frame_size = snd_pcm_frames_to_bytes(w->pcm, 1);
-	buffer = malloc(period_size * frame_size);
-	char *buffer_tail = buffer;
-
-	if (buffer == NULL) {
-		error("Couldn't allocate PCM buffer");
+	if (ffb_init(&buffer, period_size * w->transport.channels) == NULL) {
+		error("Couldn't create PCM buffer: %s", strerror(ENOMEM));
 		goto fail;
 	}
 
@@ -327,7 +324,6 @@ static void *pcm_worker_routine(void *arg) {
 	while (main_loop_on) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		size_t buffer_len = period_size * frame_size - (buffer_tail - buffer);
 		ssize_t ret;
 
 		/* Reading from the FIFO won't block unless there is an open connection
@@ -341,7 +337,7 @@ static void *pcm_worker_routine(void *arg) {
 		case 0:
 			debug("Device marked as inactive: %s", w->addr);
 			pause_counter = pause_bytes = 0;
-			buffer_tail = buffer;
+			ffb_rewind(&buffer);
 			w->active = false;
 			timeout = -1;
 			continue;
@@ -351,7 +347,7 @@ static void *pcm_worker_routine(void *arg) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
-		if ((ret = read(w->pcm_fd, buffer_tail, buffer_len)) == -1) {
+		if ((ret = read(w->pcm_fd, buffer.tail, ffb_blen_in(&buffer))) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("PCM FIFO read error: %s", strerror(errno));
@@ -381,9 +377,10 @@ static void *pcm_worker_routine(void *arg) {
 		timeout = 500;
 
 		/* calculate the overall number of frames in the buffer */
-		snd_pcm_uframes_t frames = ((buffer_tail - buffer) + ret) / frame_size;
+		ffb_seek(&buffer, ret / sizeof(*buffer.data));
+		snd_pcm_uframes_t frames = ffb_len_out(&buffer) / w->transport.channels;
 
-		if ((err = snd_pcm_writei(w->pcm, buffer, frames)) < 0)
+		if ((err = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
 			switch (-err) {
 			case EPIPE:
 				debug("An underrun has occurred");
@@ -396,14 +393,8 @@ static void *pcm_worker_routine(void *arg) {
 				goto fail;
 			}
 
-		size_t writei_len = err * frame_size;
-		buffer_tail = buffer;
-
 		/* move leftovers to the beginning and reposition tail */
-		if ((size_t)ret > writei_len) {
-			memmove(buffer, buffer + writei_len, ret - writei_len);
-			buffer_tail += ret - writei_len;
-		}
+		ffb_shift(&buffer, err * w->transport.channels);
 
 	}
 
