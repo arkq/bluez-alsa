@@ -274,7 +274,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		const rtp_media_header_t *rtp_media = (rtp_media_header_t *)&rtp_header->csrc[rtp_header->cc];
 
 #if ENABLE_PAYLOADCHECK
-		if (rtp_header->paytype != 96) {
+		if (rtp_header->paytype < 96) {
 			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
 			continue;
 		}
@@ -637,7 +637,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		size_t rtp_latm_len = len - ((void *)rtp_latm - (void *)rtp_header);
 
 #if ENABLE_PAYLOADCHECK
-		if (rtp_header->paytype != 96) {
+		if (rtp_header->paytype < 96) {
 			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
 			continue;
 		}
