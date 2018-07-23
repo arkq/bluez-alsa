@@ -156,7 +156,6 @@ static uint8_t *io_thread_init_rtp(void *s, rtp_header_t **hdr, rtp_media_header
 	memset(header, 0, RTP_HEADER_LEN);
 	header->paytype = 96;
 	header->version = 2;
-	header->markbit = 1;
 	header->seq_number = random();
 	header->timestamp = random();
 
@@ -568,6 +567,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	ffb_uint8_t latm = { 0 };
 	ffb_int16_t pcm = { 0 };
 	uint16_t seq_number = -1;
+	int markbit_quirk = -3;
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &latm);
@@ -643,6 +643,18 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		}
 #endif
 
+		/* If in the first N packets mark bit is not set, it might mean, that
+		 * the mark bit will not be set at all. In such a case, activate mark
+		 * bit quirk workaround. */
+		if (markbit_quirk < 0) {
+			if (rtp_header->markbit)
+				markbit_quirk = 0;
+			else if (++markbit_quirk == 0) {
+				warn("Activating RTP mark bit quirk workaround");
+				markbit_quirk = 1;
+			}
+		}
+
 		uint16_t _seq_number = ntohs(rtp_header->seq_number);
 		if (++seq_number != _seq_number) {
 			if (seq_number != 0)
@@ -660,7 +672,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		memcpy(latm.tail, rtp_latm, rtp_latm_len);
 		ffb_seek(&latm, rtp_latm_len);
 
-		if (!rtp_header->markbit) {
+		if (markbit_quirk != 1 && !rtp_header->markbit) {
 			debug("Fragmented RTP packet [%u]: LATM len: %zd", seq_number, rtp_latm_len);
 			continue;
 		}
