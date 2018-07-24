@@ -199,21 +199,18 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		goto fail_init;
 	}
 
-	const size_t sbc_codesize = sbc_get_codesize(&sbc);
-	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 	const unsigned int channels = transport_get_channels(t);
+
+	ffb_uint8_t bt = { 0 };
+	ffb_int16_t pcm = { 0 };
 	uint16_t seq_number = -1;
 
-	const size_t in_buffer_size = t->mtu_read;
-	const size_t out_buffer_size = sbc_codesize * (in_buffer_size / sbc_frame_len + 1);
-	uint8_t *in_buffer = malloc(in_buffer_size);
-	int16_t *out_buffer = malloc(out_buffer_size);
-
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), in_buffer);
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), out_buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
-	if (in_buffer == NULL || out_buffer == NULL) {
+	if (ffb_init(&pcm, sbc_get_codesize(&sbc)) == NULL ||
+			ffb_init(&bt, t->mtu_read) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
@@ -247,7 +244,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			continue;
 		}
 
-		if ((len = read(pfds[1].fd, in_buffer, in_buffer_size)) == -1) {
+		if ((len = read(pfds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
 			debug("BT read error: %s", strerror(errno));
 			continue;
 		}
@@ -269,8 +266,10 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			continue;
 		}
 
-		const rtp_header_t *rtp_header = (rtp_header_t *)in_buffer;
-		const rtp_media_header_t *rtp_media = (rtp_media_header_t *)&rtp_header->csrc[rtp_header->cc];
+		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
+		const rtp_media_header_t *rtp_media_header = (rtp_media_header_t *)&rtp_header->csrc[rtp_header->cc];
+		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
+		size_t rtp_payload_len = len - ((void *)rtp_payload - (void *)rtp_header);
 
 #if ENABLE_PAYLOADCHECK
 		if (rtp_header->paytype < 96) {
@@ -286,35 +285,28 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			seq_number = _seq_number;
 		}
 
-		const uint8_t *input = (uint8_t *)(rtp_media + 1);
-		int16_t *output = out_buffer;
-		size_t input_len = len - (input - in_buffer);
-		size_t output_len = out_buffer_size;
-		size_t frames = rtp_media->frame_count;
-
 		/* decode retrieved SBC frames */
-		while (frames && input_len >= sbc_frame_len) {
+		size_t frames = rtp_media_header->frame_count;
+		while (frames--) {
 
 			ssize_t len;
 			size_t decoded;
 
-			if ((len = sbc_decode(&sbc, input, input_len, output, output_len, &decoded)) < 0) {
+			if ((len = sbc_decode(&sbc, rtp_payload, rtp_payload_len,
+							pcm.data, ffb_blen_in(&pcm), &decoded)) < 0) {
 				error("SBC decoding error: %s", strerror(-len));
 				break;
 			}
 
-			input += len;
-			input_len -= len;
-			output += decoded / sizeof(int16_t);
-			output_len -= decoded;
-			frames--;
+			rtp_payload += len;
+			rtp_payload_len -= len;
+
+			const size_t samples = decoded / sizeof(int16_t);
+			io_thread_scale_pcm(t, pcm.data, samples, channels);
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+				error("FIFO write error: %s", strerror(errno));
 
 		}
-
-		const size_t samples = output - out_buffer;
-		io_thread_scale_pcm(t, out_buffer, samples, channels);
-		if (io_thread_write_pcm(&t->a2dp.pcm, out_buffer, samples) == -1)
-			error("FIFO write error: %s", strerror(errno));
 
 	}
 

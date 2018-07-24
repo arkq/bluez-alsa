@@ -79,6 +79,7 @@ static int test_a2dp_encoding(struct ba_transport *t, void *(*cb)(void *)) {
 	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
 	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
 
+	t->profile = BLUETOOTH_PROFILE_A2DP_SOURCE;
 	t->state = TRANSPORT_ACTIVE;
 	t->bt_fd = bt_fds[0];
 	t->a2dp.pcm.fd = pcm_fds[1];
@@ -129,6 +130,7 @@ static int test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
 	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
 
+	t->profile = BLUETOOTH_PROFILE_A2DP_SINK;
 	t->state = TRANSPORT_ACTIVE;
 	t->bt_fd = bt_fds[1];
 	t->a2dp.pcm.fd = pcm_fds[0];
@@ -200,7 +202,6 @@ int test_a2dp_sbc_invalid_setup(void) {
 int test_a2dp_sbc(void) {
 
 	struct ba_transport transport = {
-		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC,
 		.a2dp = {
 			.cconfig = (uint8_t *)&config_sbc_44100_stereo,
@@ -223,7 +224,6 @@ int test_a2dp_sbc(void) {
 int test_a2dp_aac(void) {
 
 	struct ba_transport transport = {
-		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_MPEG24,
 		.a2dp = {
 			.cconfig = (uint8_t *)&config_aac_44100_stereo,
@@ -247,7 +247,6 @@ int test_a2dp_aac(void) {
 int test_a2dp_aptx(void) {
 
 	struct ba_transport transport = {
-		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_APTX,
 		.a2dp = {
 			.cconfig = (uint8_t *)&config_aptx_44100_stereo,
