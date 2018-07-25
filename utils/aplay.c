@@ -684,6 +684,7 @@ init:
 				worker->active = false;
 				worker->pcm_fd = -1;
 				worker->ba_fd = -1;
+				worker->pcm = NULL;
 
 				debug("Creating PCM worker %s", worker->addr);
 
