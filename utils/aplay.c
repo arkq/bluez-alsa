@@ -315,6 +315,10 @@ static void *pcm_worker_routine(void *arg) {
 		goto fail;
 	}
 
+	/* Initialize the max read length to 10 ms. Later, when the PCM device
+	 * will be opened, this value will be adjusted to one period size. */
+	size_t pcm_max_read_len = pcm_1s_samples / 100;
+
 	/* These variables determine how and when the pause command will be send
 	 * to the device player. In order not to flood BT connection with AVRCP
 	 * packets, we are going to send pause command every 0.5 second. */
@@ -342,6 +346,7 @@ static void *pcm_worker_routine(void *arg) {
 		case 0:
 			debug("Device marked as inactive: %s", w->addr);
 			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+			pcm_max_read_len = pcm_1s_samples / 100;
 			pause_counter = pause_bytes = 0;
 			snd_pcm_close(w->pcm);
 			ffb_rewind(&buffer);
@@ -355,7 +360,8 @@ static void *pcm_worker_routine(void *arg) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
-		if ((ret = read(w->pcm_fd, buffer.tail, ffb_blen_in(&buffer))) == -1) {
+		size_t _in = MIN(pcm_max_read_len, ffb_len_in(&buffer));
+		if ((ret = read(w->pcm_fd, buffer.tail, _in * sizeof(int16_t))) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("PCM FIFO read error: %s", strerror(errno));
@@ -396,8 +402,10 @@ static void *pcm_worker_routine(void *arg) {
 				continue;
 			}
 
+			snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
+			pcm_max_read_len = period_size * w->transport.channels;
+
 			if (verbose >= 2) {
-				snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
 				printf("Used configuration for %s:\n"
 						"  PCM buffer time: %u us (%zu bytes)\n"
 						"  PCM period time: %u us (%zu bytes)\n"
