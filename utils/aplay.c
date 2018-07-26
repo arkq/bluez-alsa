@@ -290,7 +290,6 @@ static void *pcm_worker_routine(void *arg) {
 
 	size_t pcm_1s_samples = w->transport.sampling * w->transport.channels;
 	ffb_int16_t buffer = { 0 };
-	int err;
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
@@ -391,9 +390,10 @@ static void *pcm_worker_routine(void *arg) {
 
 			if (pcm_open(&w->pcm, w->transport.channels, w->transport.sampling,
 						&buffer_time, &period_time, &tmp) != 0) {
-				error("Couldn't open PCM: %s", tmp);
+				warn("Couldn't open PCM: %s", tmp);
+				usleep(50000);
 				free(tmp);
-				goto fail;
+				continue;
 			}
 
 			if (verbose >= 2) {
@@ -417,23 +417,23 @@ static void *pcm_worker_routine(void *arg) {
 
 		/* calculate the overall number of frames in the buffer */
 		ffb_seek(&buffer, ret / sizeof(*buffer.data));
-		snd_pcm_uframes_t frames = ffb_len_out(&buffer) / w->transport.channels;
+		snd_pcm_sframes_t frames = ffb_len_out(&buffer) / w->transport.channels;
 
-		if ((err = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
-			switch (-err) {
+		if ((frames = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
+			switch (-frames) {
 			case EPIPE:
 				debug("An underrun has occurred");
 				snd_pcm_prepare(w->pcm);
 				usleep(50000);
-				err = 0;
+				frames = 0;
 				break;
 			default:
-				error("Couldn't write to PCM: %s", snd_strerror(err));
+				error("Couldn't write to PCM: %s", snd_strerror(frames));
 				goto fail;
 			}
 
 		/* move leftovers to the beginning and reposition tail */
-		ffb_shift(&buffer, err * w->transport.channels);
+		ffb_shift(&buffer, frames * w->transport.channels);
 
 	}
 
