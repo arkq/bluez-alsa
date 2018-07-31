@@ -318,6 +318,7 @@ static void *pcm_worker_routine(void *arg) {
 	/* Initialize the max read length to 10 ms. Later, when the PCM device
 	 * will be opened, this value will be adjusted to one period size. */
 	size_t pcm_max_read_len = pcm_1s_samples / 100;
+	size_t pcm_open_retries = 0;
 
 	/* These variables determine how and when the pause command will be send
 	 * to the device player. In order not to flood BT connection with AVRCP
@@ -394,9 +395,17 @@ static void *pcm_worker_routine(void *arg) {
 			snd_pcm_uframes_t period_size;
 			char *tmp;
 
+			/* After PCM open failure wait one second before retry. This can not be
+			 * done with a single sleep() call, because we have to drain PCM FIFO. */
+			if (pcm_open_retries++ % 20 != 0) {
+				usleep(50000);
+				continue;
+			}
+
 			if (pcm_open(&w->pcm, w->transport.channels, w->transport.sampling,
 						&buffer_time, &period_time, &tmp) != 0) {
 				warn("Couldn't open PCM: %s", tmp);
+				pcm_max_read_len = buffer.size;
 				usleep(50000);
 				free(tmp);
 				continue;
@@ -404,6 +413,7 @@ static void *pcm_worker_routine(void *arg) {
 
 			snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
 			pcm_max_read_len = period_size * w->transport.channels;
+			pcm_open_retries = 0;
 
 			if (verbose >= 2) {
 				printf("Used configuration for %s:\n"
