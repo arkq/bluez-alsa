@@ -635,6 +635,8 @@ usage:
 			continue;
 		if (ret != sizeof(event)) {
 			error("Couldn't read event: %s", strerror(ret == -1 ? errno : EBADMSG));
+			if (ret > 0)
+				continue;
 			goto fail;
 		}
 
