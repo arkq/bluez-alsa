@@ -135,27 +135,46 @@ int test_difftimespec(void) {
 
 int test_fifo_buffer(void) {
 
-	ffb_uint8_t ffb = { 0 };
+	ffb_uint8_t ffb_u8 = { 0 };
+	ffb_int16_t ffb_16 = { 0 };
 
-	assert(ffb_init(&ffb, 64) != NULL);
-	assert(ffb.data == ffb.tail);
-	assert(ffb.size == 64);
+	assert(ffb_init(&ffb_u8, 64) != NULL);
+	assert(ffb_u8.data == ffb_u8.tail);
+	assert(ffb_u8.size == 64);
 
-	memcpy(ffb.data, "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", 36);
-	ffb_seek(&ffb, 36);
+	assert(ffb_init(&ffb_16, 64) != NULL);
+	assert(ffb_16.data == ffb_16.tail);
+	assert(ffb_16.size == 64);
 
-	assert(ffb_len_in(&ffb) == 64 - 36);
-	assert(ffb_len_out(&ffb) == 36);
-	assert(ffb.tail[-1] == 'Z');
+	memcpy(ffb_u8.data, "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", 36);
+	ffb_seek(&ffb_u8, 36);
 
-	ffb_shift(&ffb, 15);
-	assert(ffb_len_in(&ffb) == 64 - (36 - 15));
-	assert(ffb_len_out(&ffb) == 36 - 15);
-	assert(memcmp(ffb.data, "FGHIJKLMNOPQRSTUVWXYZ", ffb_len_out(&ffb)) == 0);
-	assert(ffb.tail[-1] == 'Z');
+	memcpy(ffb_16.data, "11223344556677889900AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ", 36 * 2);
+	ffb_seek(&ffb_16, 36);
 
-	ffb_rewind(&ffb);
-	assert(ffb.data == ffb.tail);
+	assert(ffb_len_in(&ffb_u8) == 64 - 36);
+	assert(ffb_blen_in(&ffb_u8) == 64 - 36);
+	assert(ffb_len_out(&ffb_u8) == 36);
+	assert(ffb_blen_out(&ffb_u8) == 36);
+	assert(ffb_u8.tail[-1] == 'Z');
+
+	assert(ffb_len_in(&ffb_16) == 64 - 36);
+	assert(ffb_blen_in(&ffb_16) == (64 - 36) * 2);
+	assert(ffb_len_out(&ffb_16) == 36);
+	assert(ffb_blen_out(&ffb_16) == 36 * 2);
+	assert(ffb_16.tail[-1] == 0x5a5a);
+
+	ffb_shift(&ffb_u8, 15);
+	assert(ffb_len_in(&ffb_u8) == 64 - (36 - 15));
+	assert(ffb_len_out(&ffb_u8) == 36 - 15);
+	assert(memcmp(ffb_u8.data, "FGHIJKLMNOPQRSTUVWXYZ", ffb_len_out(&ffb_u8)) == 0);
+	assert(ffb_u8.tail[-1] == 'Z');
+
+	ffb_rewind(&ffb_u8);
+	assert(ffb_u8.data == ffb_u8.tail);
+
+	ffb_uint8_free(&ffb_u8);
+	assert(ffb_u8.data == NULL);
 
 	return 0;
 }
