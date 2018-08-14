@@ -47,11 +47,13 @@
  * @param type Looked up PCM type.
  * @param stream Looked up PCM stream direction.
  * @param t Address, where the transport structure pointer should be stored.
- * @return If the lookup succeeded, this function returns 0. Otherwise, -1 is
- *   returned and value of transport pointer is undefined. */
+ * @return If the lookup succeeded, this function returns 0. Otherwise, -1 or
+ *   -2 is returned respectively for not found device and not found stream.
+ *   Upon error value of the transport pointer is undefined. */
 static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 		enum ba_pcm_type type, enum ba_pcm_stream stream, struct ba_transport **t) {
 
+	bool device_found = false;
 	GHashTableIter iter_d, iter_t;
 	struct ba_device *d;
 
@@ -60,6 +62,8 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 
 		if (bacmp(&d->addr, addr) != 0)
 			continue;
+
+		device_found = true;
 
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, NULL, (gpointer)t); ) {
@@ -97,7 +101,7 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 
 	}
 
-	return -1;
+	return device_found ? -2 : -1;
 }
 
 static int _transport_lookup_rfcomm(GHashTable *devices, const bdaddr_t *addr,
@@ -301,8 +305,12 @@ static void ctl_thread_cmd_transport_get(const struct ba_request *req, int fd) {
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	case -2:
+		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
 		goto fail;
 	}
 
@@ -321,8 +329,12 @@ static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, in
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	case -2:
+		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
 		goto fail;
 	}
 
@@ -344,9 +356,13 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
-		goto final;
+		goto fail;
+	case -2:
+		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
+		goto fail;
 	}
 
 	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
@@ -442,8 +458,12 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	case -2:
+		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
 		goto fail;
 	}
 	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
@@ -471,8 +491,12 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	if (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t) != 0) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	case -2:
+		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
 		goto fail;
 	}
 	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
