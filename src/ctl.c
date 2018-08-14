@@ -572,6 +572,8 @@ static void *ctl_thread(void *arg) {
 	while (config.ctl.thread_created) {
 
 		if (poll(config.ctl.pfds, ARRAYSIZE(config.ctl.pfds), -1) == -1) {
+			if (errno == EINTR)
+				continue;
 			error("Controller poll error: %s", strerror(errno));
 			break;
 		}

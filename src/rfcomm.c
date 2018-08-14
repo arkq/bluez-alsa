@@ -701,6 +701,8 @@ void *rfcomm_thread(void *arg) {
 			debug("RFCOMM poll timeout");
 			continue;
 		case -1:
+			if (errno == EINTR)
+				continue;
 			error("RFCOMM poll error: %s", strerror(errno));
 			goto fail;
 		}

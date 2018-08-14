@@ -232,6 +232,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
 
 		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1) {
+			if (errno == EINTR)
+				continue;
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -392,6 +394,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			poll_timeout = -1;
 			continue;
 		case -1:
+			if (errno == EINTR)
+				continue;
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -590,6 +594,8 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		pfds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
 
 		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1) {
+			if (errno == EINTR)
+				continue;
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -862,6 +868,8 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			poll_timeout = -1;
 			continue;
 		case -1:
+			if (errno == EINTR)
+				continue;
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -1048,6 +1056,8 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 			poll_timeout = -1;
 			continue;
 		case -1:
+			if (errno == EINTR)
+				continue;
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
@@ -1229,6 +1239,8 @@ void *io_thread_sco(void *arg) {
 			poll_timeout = -1;
 			continue;
 		case -1:
+			if (errno == EINTR)
+				continue;
 			error("Transport poll error: %s", strerror(errno));
 			goto fail;
 		}
