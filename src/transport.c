@@ -353,10 +353,7 @@ void transport_free(struct ba_transport *t) {
 	 * terminate the IO thread (or at least make sure it is not running any
 	 * more). Not doing so might result in an undefined behavior or even a
 	 * race condition (closed and reused file descriptor). */
-	if (!pthread_equal(t->thread, config.main_thread)) {
-		pthread_cancel(t->thread);
-		pthread_join(t->thread, NULL);
-	}
+	transport_pthread_cancel(t->thread);
 
 	/* if possible, try to release resources gracefully */
 	if (t->release != NULL)
@@ -699,17 +696,13 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 			t->state == TRANSPORT_IDLE && state != TRANSPORT_PENDING)
 		return 0;
 
-	const int created = !pthread_equal(t->thread, config.main_thread);
 	int ret = 0;
 
 	t->state = state;
 
 	switch (state) {
 	case TRANSPORT_IDLE:
-		if (created) {
-			pthread_cancel(t->thread);
-			ret = pthread_join(t->thread, NULL);
-		}
+		transport_pthread_cancel(t->thread);
 		break;
 	case TRANSPORT_PENDING:
 		/* When transport is marked as pending, try to acquire transport, but only
@@ -720,7 +713,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		break;
 	case TRANSPORT_ACTIVE:
 	case TRANSPORT_PAUSED:
-		if (!created)
+		if (pthread_equal(t->thread, config.main_thread))
 			ret = io_thread_create(t);
 		break;
 	case TRANSPORT_LIMBO:
@@ -992,6 +985,20 @@ int transport_release_pcm(struct ba_pcm *pcm) {
 
 	pthread_setcancelstate(oldstate, NULL);
 	return 0;
+}
+
+/**
+ * Synchronous transport thread cancellation. */
+void transport_pthread_cancel(pthread_t thread) {
+
+	if (pthread_equal(thread, config.main_thread))
+		return;
+
+	int err;
+	if ((err = pthread_cancel(thread)) != 0)
+		warn("Couldn't cancel transport thread: %s", strerror(err));
+	if ((err = pthread_join(thread, NULL)) != 0)
+		warn("Couldn't join transport thread: %s", strerror(err));
 }
 
 /**

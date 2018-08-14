@@ -165,10 +165,8 @@ static void _transport_release(struct ba_transport *t, int client) {
 	 * client closes the connection, and then quickly tries to open it again, we
 	 * might try to acquire not yet released transport. To prevent this, we have
 	 * to make sure, that the transport is released (thread is terminated). */
-	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE) {
-		pthread_cancel(t->thread);
-		pthread_join(t->thread, NULL);
-	}
+	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
+		transport_pthread_cancel(t->thread);
 
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:

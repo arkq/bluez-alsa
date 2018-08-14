@@ -256,6 +256,7 @@ int transport_release_bt_sco(struct ba_transport *t);
 
 int transport_release_pcm(struct ba_pcm *pcm);
 
+void transport_pthread_cancel(pthread_t thread);
 void transport_pthread_cleanup(void *arg);
 
 #endif
