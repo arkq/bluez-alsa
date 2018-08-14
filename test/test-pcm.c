@@ -14,40 +14,14 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <alsa/asoundlib.h>
+#include "inc/server.inc"
 #include "inc/sine.inc"
 #include "inc/test.inc"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.h"
 
 
-static char *bin_path = NULL;
 static pid_t bluealsa_pid = 0;
-
-static pid_t start_bluealsa(bool source, unsigned int timeout) {
-
-	char path[256];
-	char arg_timeout[16];
-	pid_t pid;
-
-	sprintf(arg_timeout, "--timeout=%d", timeout);
-
-	char *argv[] = {
-		"test-server",
-		source ? "--source" : "--sink",
-		arg_timeout,
-		NULL,
-	};
-
-	sprintf(path, "%s/test-server", bin_path);
-	/* assert(posix_spawn(&pid, path, NULL, NULL, argv, NULL) == 0); */
-
-	/* XXX: workaround for valgrind-3.13.0 */
-	if ((pid = fork()) == 0)
-		execv(path, argv);
-
-	usleep(100000);
-	return pid;
-}
 
 static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, snd_pcm_stream_t stream, int mode) {
 
@@ -146,7 +120,7 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 
 int test_playback_hw_constraints(void) {
 
-	/* hard-coded values used in the test-server */
+	/* hard-coded values used in the server-mock */
 	const unsigned int server_channels = 2;
 	const unsigned int server_rate = 44100;
 
@@ -321,15 +295,15 @@ int test_capture(void) {
 int main(int argc, char *argv[]) {
 	(void)argc;
 
-	/* test-pcm and test-server shall be placed in the same directory */
+	/* test-pcm and server-mock shall be placed in the same directory */
 	bin_path = dirname(argv[0]);
 
-	bluealsa_pid = start_bluealsa(true, 3);
+	bluealsa_pid = spawn_bluealsa_server("hci-xxx", 3, true, false);
 	test_run(test_playback_hw_constraints);
 	test_run(test_playback);
 	waitpid(bluealsa_pid, NULL, 0);
 
-	bluealsa_pid = start_bluealsa(true, 2);
+	bluealsa_pid = spawn_bluealsa_server("hci-xxx", 2, true, false);
 	test_run(test_playback_termination);
 	waitpid(bluealsa_pid, NULL, 0);
 

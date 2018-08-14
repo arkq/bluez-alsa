@@ -1,5 +1,5 @@
 /*
- * test-server.c
+ * server-mock.c
  * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -70,9 +70,6 @@ int transport_acquire_bt_a2dp(struct ba_transport *t) {
 void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
-	struct sigaction sigact = { .sa_handler = SIG_IGN };
-	sigaction(SIGPIPE, &sigact, NULL);
-
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
 	int x = 0;
@@ -138,26 +135,31 @@ int main(int argc, char *argv[]) {
 	const char *opts = "hsit:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
-		{ "source", no_argument, NULL, 's' },
-		{ "sink", no_argument, NULL, 'i' },
+		{ "device", required_argument, NULL, 'i' },
 		{ "timeout", required_argument, NULL, 't' },
+		{ "source", no_argument, NULL, 1 },
+		{ "sink", no_argument, NULL, 2 },
 		{ 0, 0, 0, 0 },
 	};
 
-	int source = 0;
-	int sink = 0;
-	int timeout = 5;
+	const char *device = "hci-mock";
+	unsigned int timeout = 5;
+	bool source = false;
+	bool sink = false;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h':
-			printf("usage: %s [--source] [--sink] [--timeout SEC]\n", argv[0]);
+			printf("usage: %s [--source] [--sink] [--device HCI] [--timeout SEC]\n", argv[0]);
 			return EXIT_SUCCESS;
-		case 's':
-			source = 1;
+		case 1:
+			source = true;
+			break;
+		case 2:
+			sink = true;
 			break;
 		case 'i':
-			sink = 1;
+			device = optarg;
 			break;
 		case 't':
 			timeout = atoi(optarg);
@@ -168,7 +170,7 @@ int main(int argc, char *argv[]) {
 		}
 
 	/* emulate dummy test HCI device */
-	strncpy(config.hci_dev.name, "hci-xxx", sizeof(config.hci_dev.name) - 1);
+	strncpy(config.hci_dev.name, device, sizeof(config.hci_dev.name) - 1);
 
 	assert(bluealsa_config_init() == 0);
 	if ((bluealsa_ctl_thread_init() == -1)) {
@@ -181,6 +183,10 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigact, NULL);
 	sigaction(SIGTERM, &sigact, NULL);
 	atexit(test_pcm_setup_free);
+
+	/* receive EPIPE error code */
+	sigact.sa_handler = SIG_IGN;
+	sigaction(SIGPIPE, &sigact, NULL);
 
 	/* register USR signals handler */
 	sigact.sa_handler = test_sigusr_handler;

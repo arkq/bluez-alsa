@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2017 Arkadiusz Bokowy
+# Copyright (c) 2016-2018 Arkadiusz Bokowy
 
 TESTS = \
 	test-at \
@@ -11,10 +11,10 @@ TESTS += test-pcm
 endif
 
 check_PROGRAMS = \
+	server-mock \
 	test-at \
 	test-io \
 	test-pcm \
-	test-server \
 	test-utils
 
 AM_CFLAGS = \
