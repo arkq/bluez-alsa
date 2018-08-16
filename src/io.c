@@ -794,41 +794,13 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		goto fail_init;
 	}
 
-	int in_buffer_identifier = IN_AUDIO_DATA;
-	int out_buffer_identifier = OUT_BITSTREAM_DATA;
-	int in_buffer_element_size = sizeof(int16_t);
-	int out_buffer_element_size = 1;
-	int16_t *in_buffer, *in_buffer_tail;
-	uint8_t *out_buffer, *out_payload;
-	int in_buffer_size;
-	int out_payload_size;
+	ffb_uint8_t bt = { 0 };
+	ffb_int16_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
-	AACENC_BufDesc in_buf = {
-		.numBufs = 1,
-		.bufs = (void **)&in_buffer_tail,
-		.bufferIdentifiers = &in_buffer_identifier,
-		.bufSizes = &in_buffer_size,
-		.bufElSizes = &in_buffer_element_size,
-	};
-	AACENC_BufDesc out_buf = {
-		.numBufs = 1,
-		.bufs = (void **)&out_payload,
-		.bufferIdentifiers = &out_buffer_identifier,
-		.bufSizes = &out_payload_size,
-		.bufElSizes = &out_buffer_element_size,
-	};
-	AACENC_InArgs in_args = { 0 };
-	AACENC_OutArgs out_args = { 0 };
-
-	in_buffer_size = in_buffer_element_size * aacinf.inputChannels * aacinf.frameLength;
-	out_payload_size = aacinf.maxOutBufBytes;
-	in_buffer = malloc(in_buffer_size);
-	out_buffer = malloc(RTP_HEADER_LEN + out_payload_size);
-
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), in_buffer);
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), out_buffer);
-
-	if (in_buffer == NULL || out_buffer == NULL) {
+	if (ffb_init(&pcm, aacinf.inputChannels * aacinf.frameLength) == NULL ||
+			ffb_init(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
@@ -836,13 +808,33 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	rtp_header_t *rtp_header;
 
 	/* initialize RTP header and get anchor for payload */
-	out_payload = io_thread_init_rtp(out_buffer, &rtp_header, NULL);
+	uint8_t *rtp_payload = io_thread_init_rtp(bt.data, &rtp_header, NULL);
 	uint16_t seq_number = ntohs(rtp_header->seq_number);
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
 
-	/* initial input buffer tail and the available capacity */
-	size_t in_samples = in_buffer_size / in_buffer_element_size;
-	in_buffer_tail = in_buffer;
+	int in_bufferIdentifiers[] = { IN_AUDIO_DATA };
+	int out_bufferIdentifiers[] = { OUT_BITSTREAM_DATA };
+	int in_bufSizes[] = { pcm.size * sizeof(*pcm.data) };
+	int out_bufSizes[] = { aacinf.maxOutBufBytes };
+	int in_bufElSizes[] = { sizeof(*pcm.data) };
+	int out_bufElSizes[] = { sizeof(*bt.data) };
+
+	AACENC_BufDesc in_buf = {
+		.numBufs = 1,
+		.bufs = (void **)&pcm.data,
+		.bufferIdentifiers = in_bufferIdentifiers,
+		.bufSizes = in_bufSizes,
+		.bufElSizes = in_bufElSizes,
+	};
+	AACENC_BufDesc out_buf = {
+		.numBufs = 1,
+		.bufs = (void **)&rtp_payload,
+		.bufferIdentifiers = out_bufferIdentifiers,
+		.bufSizes = out_bufSizes,
+		.bufElSizes = out_bufElSizes,
+	};
+	AACENC_InArgs in_args = { 0 };
+	AACENC_OutArgs out_args = { 0 };
 
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
@@ -893,7 +885,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		}
 
 		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, in_buffer_tail, in_samples)) <= 0) {
+		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("FIFO read error: %s", strerror(errno));
 			goto fail;
@@ -906,14 +898,12 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, in_buffer_tail, samples, channels);
+			io_thread_scale_pcm(t, pcm.tail, samples, channels);
 
-		/* overall input buffer size */
-		samples += in_buffer_tail - in_buffer;
-		/* in the encoding loop tail is used for reading */
-		in_buffer_tail = in_buffer;
+		/* move tail pointer */
+		ffb_seek(&pcm, samples);
 
-		while ((in_args.numInSamples = samples) != 0) {
+		while ((in_args.numInSamples = ffb_len_out(&pcm)) > 0) {
 
 			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
 				error("AAC encoding error: %s", aacenc_strerror(err));
@@ -939,7 +929,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 					pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-					if ((ret = io_thread_write_bt(t->bt_fd, out_buffer, RTP_HEADER_LEN + len)) == -1) {
+					if ((ret = io_thread_write_bt(t->bt_fd, bt.data, RTP_HEADER_LEN + len)) == -1) {
 						if (errno == ECONNRESET || errno == ENOTCONN) {
 							/* exit thread upon BT socket disconnection */
 							debug("BT socket disconnected: %d", t->bt_fd);
@@ -960,16 +950,11 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 					/* move rest of data to the beginning of the payload */
 					debug("Payload fragmentation: extra %zd bytes", payload_len);
-					memmove(out_payload, out_payload + ret, payload_len);
+					memmove(rtp_payload, rtp_payload + ret, payload_len);
 
 				}
 
 			}
-
-			/* progress the tail position by the number of samples consumed by the
-			 * encoder, also adjust the number of samples in the input buffer */
-			in_buffer_tail += out_args.numInSamples;
-			samples -= out_args.numInSamples;
 
 			/* keep data transfer at a constant bit rate, also
 			 * get a timestamp for the next RTP frame */
@@ -978,14 +963,12 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			timestamp += frames * 10000 / samplerate;
 			t->delay = asrs.ts_busy.tv_nsec / 100000;
 
-		}
+			/* If the input buffer was not consumed, we have to append new data to
+			 * the existing one. Since we do not use ring buffer, we will simply
+			 * move unprocessed data to the front of our linear buffer. */
+			ffb_shift(&pcm, out_args.numInSamples);
 
-		/* move leftovers to the beginning */
-		if (samples > 0 && in_buffer != in_buffer_tail)
-			memmove(in_buffer, in_buffer_tail, samples * in_buffer_element_size);
-		/* reposition input buffer tail */
-		in_buffer_tail = in_buffer + samples;
-		in_samples = in_buffer_size / in_buffer_element_size - samples;
+		}
 
 	}
 
