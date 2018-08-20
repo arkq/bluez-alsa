@@ -349,10 +349,12 @@ static void *pcm_worker_routine(void *arg) {
 			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 			pcm_max_read_len = pcm_1s_samples / 100;
 			pause_counter = pause_bytes = 0;
-			snd_pcm_close(w->pcm);
 			ffb_rewind(&buffer);
+			if (w->pcm != NULL) {
+				snd_pcm_close(w->pcm);
+				w->pcm = NULL;
+			}
 			w->active = false;
-			w->pcm = NULL;
 			timeout = -1;
 			continue;
 		}
