@@ -554,6 +554,7 @@ usage:
 
 	int status = EXIT_SUCCESS;
 	int ba_fd = -1;
+	int ba_event_fd = -1;
 	size_t i;
 
 	ba_addrs_count = argc - optind;
@@ -603,12 +604,13 @@ usage:
 		goto fail;
 	}
 
-	if ((ba_fd = bluealsa_open(ba_interface)) == -1) {
+	if ((ba_fd = bluealsa_open(ba_interface)) == -1 ||
+			(ba_event_fd = bluealsa_open(ba_interface)) == -1) {
 		error("BlueALSA connection failed: %s", strerror(errno));
 		goto fail;
 	}
 
-	if (bluealsa_subscribe(ba_fd, BA_EVENT_TRANSPORT_ADDED | BA_EVENT_TRANSPORT_REMOVED) == -1) {
+	if (bluealsa_subscribe(ba_event_fd, BA_EVENT_TRANSPORT_ADDED | BA_EVENT_TRANSPORT_REMOVED) == -1) {
 		error("BlueALSA subscription failed: %s", strerror(errno));
 		goto fail;
 	}
@@ -627,11 +629,11 @@ usage:
 		ssize_t ret;
 		size_t i;
 
-		struct pollfd pfds[] = {{ ba_fd, POLLIN, 0 }};
+		struct pollfd pfds[] = {{ ba_event_fd, POLLIN, 0 }};
 		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1 && errno == EINTR)
 			continue;
 
-		while ((ret = recv(ba_fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
+		while ((ret = recv(ba_event_fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
 			continue;
 		if (ret != sizeof(event)) {
 			error("Couldn't read event: %s", strerror(ret == -1 ? errno : EBADMSG));
@@ -737,5 +739,7 @@ fail:
 success:
 	if (ba_fd != -1)
 		close(ba_fd);
+	if (ba_event_fd != -1)
+		close(ba_event_fd);
 	return status;
 }

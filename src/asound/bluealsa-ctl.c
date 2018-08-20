@@ -48,8 +48,9 @@ struct ctl_elem_update {
 struct bluealsa_ctl {
 	snd_ctl_ext_t ext;
 
-	/* bluealsa socket */
+	/* bluealsa sockets */
 	int fd;
+	int event_fd;
 
 	/* if true, show battery meter */
 	bool battery;
@@ -219,6 +220,7 @@ static int bluealsa_ctl_elem_update_cmp(const void *p1, const void *p2) {
 static void bluealsa_close(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 	close(ctl->fd);
+	close(ctl->event_fd);
 	free(ctl->devices);
 	free(ctl->transports);
 	free(ctl->elems);
@@ -594,7 +596,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 
 static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
-	if (bluealsa_subscribe(ctl->fd, subscribe ? 0xFFFF : 0) == -1)
+	if (bluealsa_subscribe(ctl->event_fd, subscribe ? 0xFFFF : 0) == -1)
 		SNDERR("BlueALSA subscription failed: %s", strerror(errno));
 }
 
@@ -622,7 +624,7 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 	/* This code reads events from the socket until the EAGAIN is returned.
 	 * Since EAGAIN is returned when operation would block (there is no more
 	 * data to read), we are compliant with the ALSA specification. */
-	while ((ret = recv(ctl->fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
+	while ((ret = recv(ctl->event_fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
 		continue;
 	if (ret == -1)
 		return -errno;
@@ -747,7 +749,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((ctl = calloc(1, sizeof(*ctl))) == NULL)
 		return -ENOMEM;
 
-	if ((ctl->fd = bluealsa_open(interface)) == -1) {
+	if ((ctl->fd = bluealsa_open(interface)) == -1 ||
+			(ctl->event_fd = bluealsa_open(interface)) == -1) {
 		SNDERR("BlueALSA connection failed: %s", strerror(errno));
 		ret = -errno;
 		goto fail;
@@ -764,7 +767,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
 	ctl->ext.private_data = ctl;
-	ctl->ext.poll_fd = ctl->fd;
+	ctl->ext.poll_fd = ctl->event_fd;
 
 	if ((ret = snd_ctl_ext_create(&ctl->ext, name, mode)) < 0)
 		goto fail;
@@ -775,6 +778,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 fail:
 	if (ctl->fd != -1)
 		close(ctl->fd);
+	if (ctl->event_fd != -1)
+		close(ctl->event_fd);
 	free(ctl);
 	return ret;
 }
