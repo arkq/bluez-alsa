@@ -136,7 +136,7 @@ static int printf_arginfo(const struct printf_info *info, size_t n, int *argtype
 	return *size = 1;
 }
 
-static int printf_output(FILE *stream, const struct printf_info *info, const void *const *args) {
+static int printf_output(FILE *stream, const struct printf_info *info, const void * const *args) {
 
 	unsigned int v = *(unsigned int *)(args[0]);
 	bool output = false;

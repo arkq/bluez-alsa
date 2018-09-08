@@ -109,8 +109,8 @@ static void *io_thread(void *arg) {
 	 * reading might return 0, which will be incorrectly recognized as FIFO
 	 * close signal, but in fact it means, that it was not opened yet. */
 	if (io->stream == SND_PCM_STREAM_CAPTURE) {
-		struct pollfd pfds[1] = {{ pcm->pcm_fd, POLLIN, 0 }};
-		if (poll(pfds, 1, -1) == -1) {
+		struct pollfd pfds[] = {{ pcm->pcm_fd, POLLIN, 0 }};
+		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1) {
 			SNDERR("PCM FIFO poll error: %s", strerror(errno));
 			goto final;
 		}
@@ -202,8 +202,7 @@ static void *io_thread(void *arg) {
 				}
 				head += ret;
 				len -= ret;
-			}
-			while (len != 0);
+			} while (len != 0);
 
 			/* synchronize playback time */
 			asrsync_sync(&asrs, frames);

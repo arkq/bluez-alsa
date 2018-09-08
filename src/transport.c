@@ -629,12 +629,12 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 		break;
 	case TRANSPORT_TYPE_SCO:
 		switch (t->codec) {
-			case HFP_CODEC_CVSD:
-				return 8000;
-			case HFP_CODEC_MSBC:
-				return 16000;
-			default:
-				debug("Unsupported SCO codec: %#x", t->codec);
+		case HFP_CODEC_CVSD:
+			return 8000;
+		case HFP_CODEC_MSBC:
+			return 16000;
+		default:
+			debug("Unsupported SCO codec: %#x", t->codec);
 		}
 	}
 

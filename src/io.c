@@ -58,9 +58,9 @@ static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer,
 	double ch2_scale = 0;
 
 	if (!t->a2dp.ch1_muted)
-		ch1_scale = pow(10, (-64 + 64.0 * ch1_volume / 127 ) / 20);
+		ch1_scale = pow(10, (-64 + 64.0 * ch1_volume / 127) / 20);
 	if (!t->a2dp.ch2_muted)
-		ch2_scale = pow(10, (-64 + 64.0 * ch2_volume / 127 ) / 20);
+		ch2_scale = pow(10, (-64 + 64.0 * ch2_volume / 127) / 20);
 
 	snd_pcm_scale_s16le(buffer, samples, channels, ch1_scale, ch2_scale);
 }
