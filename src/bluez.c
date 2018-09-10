@@ -20,7 +20,6 @@
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
 #include "bluez-a2dp.h"
-#include "bluez-iface.h"
 #include "transport.h"
 #include "utils.h"
 #include "shared/log.h"
@@ -666,17 +665,41 @@ static int bluez_register_a2dp_endpoint(
 	gchar *dev = NULL;
 	int ret = 0;
 	size_t i;
+	GDBusNodeInfo *info = NULL;
+	static const gchar bluez_iface_endpoint_introspection_xml[] =
+		"<node>"
+		"	<interface name='org.bluez.MediaEndpoint1'>"
+		"		<method name='SetConfiguration'>"
+		"			<arg type='o' name='transport' direction='in' />"
+		"			<arg type='a{sv}' name='properties' direction='in' />"
+		"		</method>"
+		"		<method name='SelectConfiguration'>"
+		"			<arg type='ay' name='capabilities' direction='in' />"
+		"			<arg type='ay' name='capabilities' direction='out' />"
+		"		</method>"
+		"		<method name='ClearConfiguration'>"
+		"			<arg type='o' name='transport' direction='in' />"
+		"		</method>"
+		"		<method name='Release'>"
+		"		</method>"
+		"	</interface>"
+		"</node>";
 
 	struct ba_dbus_object dbus_object = {
 		.profile = profile,
 		.codec = codec->id,
 	};
 
+	info = g_dbus_node_info_new_for_xml(bluez_iface_endpoint_introspection_xml, &err);
+	if (err)
+		goto fail;
+
 	debug("Registering endpoint: %s", path);
 	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
-					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
+					info->interfaces[0], &endpoint_vtable,
 					NULL, endpoint_free, &err)) == 0)
 		goto fail;
+	g_dbus_node_info_unref(info);
 
 	dev = g_strdup_printf("/org/bluez/%s", config.hci_dev.name);
 	msg = g_dbus_message_new_method_call("org.bluez", dev,
@@ -726,6 +749,7 @@ final:
 	if (err != NULL) {
 		warn("Couldn't register endpoint: %s", err->message);
 		g_dbus_connection_unregister_object(conn, dbus_object.id);
+		g_dbus_node_info_unref(info);
 		g_error_free(err);
 	}
 
@@ -901,17 +925,38 @@ static int bluez_register_profile(
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
 	int ret = 0;
+	GDBusNodeInfo *info = NULL;
+	static const gchar bluez_iface_profile_introspection_xml[] =
+		"<node>"
+		"	<interface name='org.bluez.Profile1'>"
+		"		<method name='Release'>"
+		"		</method>"
+		"		<method name='NewConnection'>"
+		"			<arg type='o' name='device' direction='in' />"
+		"			<arg type='h' name='fd' direction='in' />"
+		"			<arg type='a{sv}' name='fd_properties' direction='in' />"
+		"		</method>"
+		"		<method name='RequestDisconnection'>"
+		"			<arg type='o' name='device' direction='in' />"
+		"		</method>"
+		"	</interface>"
+		"</node>";
 
 	struct ba_dbus_object dbus_object = {
 		.profile = profile,
 		.codec = 0,
 	};
 
+	info = g_dbus_node_info_new_for_xml(bluez_iface_profile_introspection_xml, &err);
+	if (err)
+		goto fail;
+
 	debug("Registering profile: %s", path);
 	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
-					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
+					info->interfaces[0], &profile_vtable,
 					NULL, profile_free, &err)) == 0)
 		goto fail;
+	g_dbus_node_info_unref(info);
 
 	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
 			"org.bluez.ProfileManager1", "RegisterProfile");
@@ -952,6 +997,7 @@ final:
 	if (err != NULL) {
 		warn("Couldn't register profile: %s", err->message);
 		g_dbus_connection_unregister_object(conn, dbus_object.id);
+		g_dbus_node_info_unref(info);
 		g_error_free(err);
 	}
 
