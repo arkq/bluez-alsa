@@ -1029,9 +1029,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	}
 
 	g_variant_get(params, "(&sa{sv}as)", &iface, &properties, &unknown);
-	debug("Signal: %s: %s", signal, iface);
-
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
+		debug("Signal: %s: %s: %s", signal, iface, key);
 
 		if (strcmp(key, "State") == 0) {
 

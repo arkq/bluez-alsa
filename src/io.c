@@ -10,6 +10,7 @@
 
 #include "io.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -1431,3 +1432,82 @@ fail:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
+
+#if DEBUG
+/**
+ * Dump incoming BT data to a file. */
+void *io_thread_a2dp_sink_dump(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+
+	ffb_uint8_t bt = { 0 };
+	FILE *f = NULL;
+	char fname[64];
+	char *ptr;
+
+	sprintf(fname, "/tmp/ba-%s-%s.dump",
+			bluetooth_profile_to_string(t->profile),
+			bluetooth_a2dp_codec_to_string(t->codec));
+	for (ptr = fname; *ptr != '\0'; ptr++) {
+		*ptr = tolower(*ptr);
+		if (*ptr == ' ')
+			*ptr = '-';
+	}
+
+	debug("Opening BT dump file: %s", fname);
+	if ((f = fopen(fname, "wb")) == NULL) {
+		error("Couldn't create dump file: %s", strerror(errno));
+		goto fail_open;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(fclose), f);
+
+	if (ffb_init(&bt, t->mtu_read) == NULL) {
+		error("Couldn't create data buffer: %s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	struct pollfd pfds[] = {
+		{ t->sig_fd[0], POLLIN, 0 },
+		{ t->bt_fd, POLLIN, 0 },
+	};
+
+	for (;;) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		ssize_t len;
+
+		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1) {
+			if (errno == EINTR)
+				continue;
+			error("Transport poll error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (pfds[0].revents & POLLIN) {
+			if (read(pfds[0].fd, bt.data, ffb_blen_in(&bt)) == -1)
+				warn("Couldn't read signal: %s", strerror(errno));
+			continue;
+		}
+
+		if ((len = read(pfds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
+			debug("BT read error: %s", strerror(errno));
+			continue;
+		}
+
+		debug("BT read: %zd", len);
+		fwrite(bt.data, 1, len, f);
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_open:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
