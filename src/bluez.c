@@ -692,6 +692,7 @@ static int bluez_register_a2dp_endpoint(
 		g_variant_builder_add(&caps, "y", ((uint8_t *)codec->cfg)[i]);
 
 	g_variant_builder_add(&properties, "{sv}", "UUID", g_variant_new_string(uuid));
+	g_variant_builder_add(&properties, "{sv}", "DelayReporting", g_variant_new_boolean(TRUE));
 	g_variant_builder_add(&properties, "{sv}", "Codec", g_variant_new_byte(codec->id));
 	g_variant_builder_add(&properties, "{sv}", "Capabilities", g_variant_builder_end(&caps));
 
