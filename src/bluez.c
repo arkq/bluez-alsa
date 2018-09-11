@@ -21,6 +21,7 @@
 #include "bluealsa.h"
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
+#include "ctl.h"
 #include "transport.h"
 #include "utils.h"
 #include "shared/log.h"
@@ -1065,6 +1066,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 
 			/* received volume is in range [0, 127]*/
 			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
+			bluealsa_ctl_event(BA_EVENT_UPDATE_VOLUME);
 
 		}
 
