@@ -799,6 +799,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 			bluetooth_profile_to_string(profile), batostr_(&d->addr));
 
 	transport_set_state(t, TRANSPORT_ACTIVE);
+	transport_set_state(t->rfcomm.sco, TRANSPORT_ACTIVE);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

@@ -35,6 +35,18 @@
 #include "shared/log.h"
 
 
+static const char *transport_type_to_string(enum ba_transport_type type) {
+	switch (type) {
+	case TRANSPORT_TYPE_A2DP:
+		return "A2DP";
+	case TRANSPORT_TYPE_RFCOMM:
+		return "RFCOMM";
+	case TRANSPORT_TYPE_SCO:
+		return "SCO";
+	}
+	return "N/A";
+}
+
 static int io_thread_create(struct ba_transport *t) {
 
 	void *(*routine)(void *) = NULL;
@@ -100,7 +112,8 @@ static int io_thread_create(struct ba_transport *t) {
 	}
 
 	pthread_setname_np(t->thread, "baio");
-	debug("Created new IO thread: %s",
+	debug("Created new IO thread: %s: %s",
+			transport_type_to_string(t->type),
 			bluetooth_profile_to_string(t->profile));
 	return 0;
 }
@@ -327,8 +340,6 @@ struct ba_transport *transport_new_rfcomm(
 	pthread_cond_init(&t_sco->sco.mic_pcm.drained, NULL);
 	pthread_mutex_init(&t_sco->sco.mic_pcm.drained_mn, NULL);
 
-	transport_set_state(t_sco, TRANSPORT_ACTIVE);
-
 	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
 
@@ -345,7 +356,8 @@ void transport_free(struct ba_transport *t) {
 		return;
 
 	t->state = TRANSPORT_LIMBO;
-	debug("Freeing transport: %s (%s)",
+	debug("Freeing transport: %s: %s (%s)",
+			transport_type_to_string(t->type),
 			bluetooth_profile_to_string(t->profile),
 			bluetooth_a2dp_codec_to_string(t->codec));
 
@@ -991,6 +1003,8 @@ int transport_release_pcm(struct ba_pcm *pcm) {
  * Synchronous transport thread cancellation. */
 void transport_pthread_cancel(pthread_t thread) {
 
+	if (pthread_equal(thread, pthread_self()))
+		return;
 	if (pthread_equal(thread, config.main_thread))
 		return;
 
