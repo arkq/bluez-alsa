@@ -225,33 +225,6 @@ enum bluetooth_profile g_dbus_object_path_to_profile(const char *path) {
 }
 
 /**
- * Convert BlueZ D-Bus object path into a A2DP codec.
- *
- * Prior to the usage, make sure, that the path is for the A2DP profile.
- * To do so, use the g_dbus_object_path_to_profile() function.
- *
- * @param path BlueZ D-Bus object path.
- * @return On success this function returns Bluetooth audio codec. If object
- *   path cannot be recognize, vendor codec is returned. */
-uint16_t g_dbus_object_path_to_a2dp_codec(const char *path) {
-	if (strncmp(path + 5, "/SBC", 4) == 0)
-		return A2DP_CODEC_SBC;
-#if ENABLE_MPEG
-	if (strncmp(path + 5, "/MPEG12", 7) == 0)
-		return A2DP_CODEC_MPEG12;
-#endif
-#if ENABLE_AAC
-	if (strncmp(path + 5, "/MPEG24", 7) == 0)
-		return A2DP_CODEC_MPEG24;
-#endif
-#if ENABLE_APTX
-	if (strncmp(path + 5, "/APTX", 5) == 0)
-		return A2DP_CODEC_VENDOR_APTX;
-#endif
-	return A2DP_CODEC_VENDOR;
-}
-
-/**
  * Convert BlueZ D-Bus device path into a bdaddr_t structure.
  *
  * @param path BlueZ D-Bus device path.

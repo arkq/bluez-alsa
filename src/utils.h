@@ -35,7 +35,6 @@ const char *batostr_(const bdaddr_t *ba);
 
 const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint16_t codec);
 enum bluetooth_profile g_dbus_object_path_to_profile(const char *path);
-uint16_t g_dbus_object_path_to_a2dp_codec(const char *path);
 int g_dbus_device_path_to_bdaddr(const char *path, bdaddr_t *addr);
 
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,

@@ -54,8 +54,6 @@ int test_dbus_profile_object_path(void) {
 		const char *path = g_dbus_get_profile_object_path(profiles[i].profile, profiles[i].codec);
 		assert(strstr(profiles[i].path, path) == profiles[i].path);
 		assert(g_dbus_object_path_to_profile(profiles[i].path) == profiles[i].profile);
-		if (profiles[i].codec != -1)
-			assert(g_dbus_object_path_to_a2dp_codec(profiles[i].path) == profiles[i].codec);
 	}
 
 	return 0;

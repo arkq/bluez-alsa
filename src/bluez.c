@@ -29,7 +29,9 @@
 
 /**
  * Get D-Bus object reference count for given profile. */
-static int bluez_get_dbus_object_count(enum bluetooth_profile profile, uint16_t codec) {
+static int bluez_get_dbus_object_count(
+		enum bluetooth_profile profile,
+		uint16_t codec) {
 
 	GHashTableIter iter;
 	struct ba_dbus_object *obj;
@@ -43,11 +45,89 @@ static int bluez_get_dbus_object_count(enum bluetooth_profile profile, uint16_t 
 	return count;
 }
 
+/**
+ * Check whether channel mode configuration is valid. */
+static bool bluez_a2dp_codec_check_channel_mode(
+		const struct bluez_a2dp_codec *codec,
+		unsigned int capabilities) {
+
+	size_t i;
+
+	for (i = 0; i < codec->channels_size; i++)
+		if (capabilities == codec->channels[i].value)
+			return true;
+
+	return false;
+}
+
+/**
+ * Check whether sampling frequency configuration is valid. */
+static bool bluez_a2dp_codec_check_sampling_freq(
+		const struct bluez_a2dp_codec *codec,
+		unsigned int capabilities) {
+
+	size_t i;
+
+	for (i = 0; i < codec->samplings_size; i++)
+		if (capabilities == codec->samplings[i].value)
+			return true;
+
+	return false;
+}
+
+/**
+ * Select (best) channel mode configuration. */
+static unsigned int bluez_a2dp_codec_select_channel_mode(
+		const struct bluez_a2dp_codec *codec,
+		unsigned int capabilities) {
+
+	size_t i;
+
+	/* If monophonic sound has been forced, check whether given codec supports
+	 * such a channel mode. Since mono channel mode shall be stored at index 0
+	 * we can simply check for its existence with a simple index lookup. */
+	if (config.a2dp.force_mono &&
+			codec->channels[0].mode == BLUEZ_A2DP_CHM_MONO &&
+			capabilities & codec->channels[0].value)
+		return codec->channels[0].value;
+
+	/* favor higher number of channels */
+	for (i = codec->channels_size; i > 0; i--)
+		if (capabilities & codec->channels[i - 1].value)
+			return codec->channels[i - 1].value;
+
+	return 0;
+}
+
+/**
+ * Select (best) sampling frequency configuration. */
+static unsigned int bluez_a2dp_codec_select_sampling_freq(
+		const struct bluez_a2dp_codec *codec,
+		unsigned int capabilities) {
+
+	size_t i;
+
+	if (config.a2dp.force_44100)
+		for (i = 0; i < codec->samplings_size; i++)
+			if (codec->samplings[i].frequency == 44100) {
+				if (capabilities & codec->samplings[i].value)
+					return codec->samplings[i].value;
+				break;
+			}
+
+	/* favor higher sampling frequencies */
+	for (i = codec->samplings_size; i > 0; i--)
+		if (capabilities & codec->samplings[i - 1].value)
+			return codec->samplings[i - 1].value;
+
+	return 0;
+}
+
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
 
 	const char *path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	const struct bluez_a2dp_codec *codec = userdata;
 
 	const uint8_t *data;
 	uint8_t *capabilities;
@@ -58,45 +138,25 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	capabilities = g_memdup(data, size);
 	g_variant_unref(params);
 
-	switch (g_dbus_object_path_to_a2dp_codec(path)) {
+	if (size != codec->cfg_size) {
+		error("Invalid capabilities size: %zu != %zu", size, codec->cfg_size);
+		goto fail;
+	}
+
+	switch (codec->id) {
 	case A2DP_CODEC_SBC: {
 
-		if (size != sizeof(a2dp_sbc_t)) {
-			error("Invalid capabilities size: %zu != %zu", size, sizeof(a2dp_sbc_t));
-			goto fail;
-		}
-
 		a2dp_sbc_t *cap = (a2dp_sbc_t *)capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
 
-		if (config.a2dp.force_44100 &&
-				cap->frequency & SBC_SAMPLING_FREQ_44100)
-			cap->frequency = SBC_SAMPLING_FREQ_44100;
-		else if (cap->frequency & SBC_SAMPLING_FREQ_48000)
-			cap->frequency = SBC_SAMPLING_FREQ_48000;
-		else if (cap->frequency & SBC_SAMPLING_FREQ_44100)
-			cap->frequency = SBC_SAMPLING_FREQ_44100;
-		else if (cap->frequency & SBC_SAMPLING_FREQ_32000)
-			cap->frequency = SBC_SAMPLING_FREQ_32000;
-		else if (cap->frequency & SBC_SAMPLING_FREQ_16000)
-			cap->frequency = SBC_SAMPLING_FREQ_16000;
-		else {
-			error("No supported sampling frequencies: %#x", cap->frequency);
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
 
-		if (config.a2dp.force_mono &&
-				cap->channel_mode & SBC_CHANNEL_MODE_MONO)
-			cap->channel_mode = SBC_CHANNEL_MODE_MONO;
-		else if (cap->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-			cap->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-		else if (cap->channel_mode & SBC_CHANNEL_MODE_STEREO)
-			cap->channel_mode = SBC_CHANNEL_MODE_STEREO;
-		else if (cap->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-			cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-		else if (cap->channel_mode & SBC_CHANNEL_MODE_MONO)
-			cap->channel_mode = SBC_CHANNEL_MODE_MONO;
-		else {
-			error("No supported channel modes: %#x", cap->channel_mode);
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
 
@@ -138,15 +198,33 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		break;
 	}
 
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24: {
+#if ENABLE_MPEG
+	case A2DP_CODEC_MPEG12: {
 
-		if (size != sizeof(a2dp_aac_t)) {
-			error("Invalid capabilities size: %zu != %zu", size, sizeof(a2dp_aac_t));
+		a2dp_mpeg_t *cap = (a2dp_mpeg_t *)capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
+
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
 
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+			error("No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_AAC
+	case A2DP_CODEC_MPEG24: {
+
 		a2dp_aac_t *cap = (a2dp_aac_t *)capabilities;
+		unsigned int cap_chm = cap->channels;
+		unsigned int cap_freq = AAC_GET_FREQUENCY(*cap);
 
 		if (cap->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_SCA)
 			cap->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
@@ -161,48 +239,16 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		unsigned int sampling = AAC_GET_FREQUENCY(*cap);
-		if (config.a2dp.force_44100 &&
-				sampling & AAC_SAMPLING_FREQ_44100)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_44100);
-		else if (sampling & AAC_SAMPLING_FREQ_96000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_96000);
-		else if (sampling & AAC_SAMPLING_FREQ_88200)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_88200);
-		else if (sampling & AAC_SAMPLING_FREQ_64000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_64000);
-		else if (sampling & AAC_SAMPLING_FREQ_48000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_48000);
-		else if (sampling & AAC_SAMPLING_FREQ_44100)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_44100);
-		else if (sampling & AAC_SAMPLING_FREQ_32000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_32000);
-		else if (sampling & AAC_SAMPLING_FREQ_24000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_24000);
-		else if (sampling & AAC_SAMPLING_FREQ_22050)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_22050);
-		else if (sampling & AAC_SAMPLING_FREQ_16000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_16000);
-		else if (sampling & AAC_SAMPLING_FREQ_12000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_12000);
-		else if (sampling & AAC_SAMPLING_FREQ_11025)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_11025);
-		else if (sampling & AAC_SAMPLING_FREQ_8000)
-			AAC_SET_FREQUENCY(*cap, AAC_SAMPLING_FREQ_8000);
-		else {
-			error("No supported sampling frequencies: %#x", sampling);
+		if ((cap->channels = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+			error("No supported channels: %#x", cap_chm);
 			goto fail;
 		}
 
-		if (config.a2dp.force_mono &&
-				cap->channels & AAC_CHANNELS_1)
-			cap->channels = AAC_CHANNELS_1;
-		else if (cap->channels & AAC_CHANNELS_2)
-			cap->channels = AAC_CHANNELS_2;
-		else if (cap->channels & AAC_CHANNELS_1)
-			cap->channels = AAC_CHANNELS_1;
+		unsigned int freq;
+		if ((freq = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) != 0)
+			AAC_SET_FREQUENCY(*cap, freq);
 		else {
-			error("No supported channels: %#x", cap->channels);
+			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
 
@@ -213,33 +259,17 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 #if ENABLE_APTX
 	case A2DP_CODEC_VENDOR_APTX: {
 
-		if (size != sizeof(a2dp_aptx_t)) {
-			error("Invalid capabilities size: %zu != %zu", size, sizeof(a2dp_aptx_t));
-			goto fail;
-		}
-
 		a2dp_aptx_t *cap = (a2dp_aptx_t *)capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
 
-		if (config.a2dp.force_44100 &&
-				cap->frequency & APTX_SAMPLING_FREQ_44100)
-			cap->frequency = APTX_SAMPLING_FREQ_44100;
-		else if (cap->frequency & APTX_SAMPLING_FREQ_48000)
-			cap->frequency = APTX_SAMPLING_FREQ_48000;
-		else if (cap->frequency & APTX_SAMPLING_FREQ_44100)
-			cap->frequency = APTX_SAMPLING_FREQ_44100;
-		else if (cap->frequency & APTX_SAMPLING_FREQ_32000)
-			cap->frequency = APTX_SAMPLING_FREQ_32000;
-		else if (cap->frequency & APTX_SAMPLING_FREQ_16000)
-			cap->frequency = APTX_SAMPLING_FREQ_16000;
-		else {
-			error("No supported sampling frequencies: %#x", cap->frequency);
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
 
-		if (cap->channel_mode & APTX_CHANNEL_MODE_STEREO)
-			cap->channel_mode = APTX_CHANNEL_MODE_STEREO;
-		else {
-			error("No supported channel modes: %#x", cap->channel_mode);
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
 
@@ -275,16 +305,16 @@ final:
 }
 
 static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
 
 	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
 	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	const struct bluez_a2dp_codec *codec = userdata;
 	struct ba_transport *t;
 	struct ba_device *d;
 
 	const int profile = g_dbus_object_path_to_profile(path);
-	const uint16_t codec = g_dbus_object_path_to_a2dp_codec(path);
+	const uint16_t codec_id = codec->id;
 
 	const char *transport;
 	char *device = NULL, *state = NULL;
@@ -329,7 +359,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 				goto fail;
 			}
 
-			if ((codec & 0xFF) != g_variant_get_byte(value)) {
+			if ((codec_id & 0xFF) != g_variant_get_byte(value)) {
 				error("Invalid configuration: %s", "Codec mismatch");
 				goto fail;
 			}
@@ -343,36 +373,23 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 				goto fail;
 			}
 
-			const guchar *capabilities;
+			const guchar *capabilities = g_variant_get_fixed_array(value, &size, sizeof(uint8_t));
+			unsigned int cap_chm = 0;
+			unsigned int cap_freq = 0;
 
-			capabilities = g_variant_get_fixed_array(value, &size, sizeof(uint8_t));
 			configuration = g_memdup(capabilities, size);
 
-			switch (codec) {
+			if (size != codec->cfg_size) {
+				error("Invalid configuration: %s", "Invalid size");
+				goto fail;
+			}
+
+			switch (codec_id) {
 			case A2DP_CODEC_SBC: {
 
-				if (size != sizeof(a2dp_sbc_t)) {
-					error("Invalid configuration: %s", "Invalid size");
-					goto fail;
-				}
-
 				const a2dp_sbc_t *cap = (a2dp_sbc_t *)capabilities;
-
-				if (cap->frequency != SBC_SAMPLING_FREQ_16000 &&
-						cap->frequency != SBC_SAMPLING_FREQ_32000 &&
-						cap->frequency != SBC_SAMPLING_FREQ_44100 &&
-						cap->frequency != SBC_SAMPLING_FREQ_48000) {
-					error("Invalid configuration: %s", "Invalid sampling frequency");
-					goto fail;
-				}
-
-				if (cap->channel_mode != SBC_CHANNEL_MODE_MONO &&
-						cap->channel_mode != SBC_CHANNEL_MODE_DUAL_CHANNEL &&
-						cap->channel_mode != SBC_CHANNEL_MODE_STEREO &&
-						cap->channel_mode != SBC_CHANNEL_MODE_JOINT_STEREO) {
-					error("Invalid configuration: %s", "Invalid channel mode");
-					goto fail;
-				}
+				cap_chm = cap->channel_mode;
+				cap_freq = cap->frequency;
 
 				if (cap->allocation_method != SBC_ALLOCATION_SNR &&
 						cap->allocation_method != SBC_ALLOCATION_LOUDNESS) {
@@ -397,15 +414,21 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 				break;
 			}
 
+#if ENABLE_MPEG
+			case A2DP_CODEC_MPEG12: {
+				a2dp_mpeg_t *cap = (a2dp_mpeg_t *)capabilities;
+				cap_chm = cap->channel_mode;
+				cap_freq = cap->frequency;
+				break;
+			}
+#endif
+
 #if ENABLE_AAC
 			case A2DP_CODEC_MPEG24: {
 
-				if (size != sizeof(a2dp_aac_t)) {
-					error("Invalid configuration: %s", "Invalid size");
-					goto fail;
-				}
-
 				const a2dp_aac_t *cap = (a2dp_aac_t *)capabilities;
+				cap_chm = cap->channels;
+				cap_freq = AAC_GET_FREQUENCY(*cap);
 
 				if (cap->object_type != AAC_OBJECT_TYPE_MPEG2_AAC_LC &&
 						cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_LC &&
@@ -415,62 +438,31 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 					goto fail;
 				}
 
-				unsigned int sampling = AAC_GET_FREQUENCY(*cap);
-				if (sampling != AAC_SAMPLING_FREQ_8000 &&
-						sampling != AAC_SAMPLING_FREQ_11025 &&
-						sampling != AAC_SAMPLING_FREQ_12000 &&
-						sampling != AAC_SAMPLING_FREQ_16000 &&
-						sampling != AAC_SAMPLING_FREQ_22050 &&
-						sampling != AAC_SAMPLING_FREQ_24000 &&
-						sampling != AAC_SAMPLING_FREQ_32000 &&
-						sampling != AAC_SAMPLING_FREQ_44100 &&
-						sampling != AAC_SAMPLING_FREQ_48000 &&
-						sampling != AAC_SAMPLING_FREQ_64000 &&
-						sampling != AAC_SAMPLING_FREQ_88200 &&
-						sampling != AAC_SAMPLING_FREQ_96000) {
-					error("Invalid configuration: %s", "Invalid sampling frequency");
-					goto fail;
-				}
-
-				if (cap->channels != AAC_CHANNELS_1 &&
-						cap->channels != AAC_CHANNELS_2) {
-					error("Invalid configuration: %s", "Invalid channels");
-					goto fail;
-				}
-
 				break;
 			}
 #endif
 
 #if ENABLE_APTX
 			case A2DP_CODEC_VENDOR_APTX: {
-
-				if (size != sizeof(a2dp_aptx_t)) {
-					error("Invalid configuration: %s", "Invalid size");
-					goto fail;
-				}
-
 				a2dp_aptx_t *cap = (a2dp_aptx_t *)capabilities;
-
-				if (cap->frequency != APTX_SAMPLING_FREQ_16000 &&
-						cap->frequency != APTX_SAMPLING_FREQ_32000 &&
-						cap->frequency != APTX_SAMPLING_FREQ_44100 &&
-						cap->frequency != APTX_SAMPLING_FREQ_48000) {
-					error("Invalid configuration: %s", "Invalid sampling frequency");
-					goto fail;
-				}
-
-				if (cap->channel_mode != APTX_CHANNEL_MODE_STEREO) {
-					error("Invalid configuration: %s", "Invalid channel mode");
-					goto fail;
-				}
-
+				cap_chm = cap->channel_mode;
+				cap_freq = cap->frequency;
 				break;
 			}
 #endif
 
 			default:
 				error("Invalid configuration: %s", "Unsupported codec");
+				goto fail;
+			}
+
+			if (!bluez_a2dp_codec_check_channel_mode(codec, cap_chm)) {
+				error("Invalid configuration: %s", "Invalid channel mode");
+				goto fail;
+			}
+
+			if (!bluez_a2dp_codec_check_sampling_freq(codec, cap_freq)) {
+				error("Invalid configuration: %s", "Invalid sampling frequency");
 				goto fail;
 			}
 
@@ -525,7 +517,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 
 	/* Create a new transport with a human-readable name. Since the transport
 	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new_a2dp(d, sender, transport, profile, codec,
+	if ((t = transport_new_a2dp(d, sender, transport, profile, codec_id,
 					configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
@@ -537,7 +529,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 
 	debug("%s (%s) configured for device %s",
 			bluetooth_profile_to_string(profile),
-			bluetooth_a2dp_codec_to_string(codec),
+			bluetooth_a2dp_codec_to_string(codec_id),
 			batostr_(&d->addr));
 	debug("Configuration: channels: %u, sampling: %u",
 			transport_get_channels(t), transport_get_sampling(t));
@@ -676,7 +668,7 @@ static int bluez_register_a2dp_endpoint(
 	debug("Registering endpoint: %s", path);
 	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
 					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
-					NULL, endpoint_free, &err)) == 0)
+					(void *)codec, endpoint_free, &err)) == 0)
 		goto fail;
 
 	dev = g_strdup_printf("/org/bluez/%s", config.hci_dev.name);
