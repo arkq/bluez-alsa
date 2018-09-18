@@ -357,10 +357,10 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
-		goto fail;
+		goto final;
 	case -2:
 		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
-		goto fail;
+		goto final;
 	}
 
 	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {

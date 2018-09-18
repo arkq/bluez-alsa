@@ -618,6 +618,7 @@ void *rfcomm_thread(void *arg) {
 						conn.handler = &rfcomm_handler_resp_ok;
 						break;
 					}
+					/* fall-through */
 				case HFP_SLC_BAC_SET_OK:
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_TEST, "+CIND", NULL) == -1)
 						goto ioerror;
@@ -643,13 +644,16 @@ void *rfcomm_thread(void *arg) {
 					break;
 				case HFP_SLC_CMER_SET_OK:
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
+					/* fall-through */
 				case HFP_SLC_CONNECTED:
 					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC)
 						break;
+					/* fall-through */
 				case HFP_CC_BCS_SET:
 				case HFP_CC_BCS_SET_OK:
 				case HFP_CC_CONNECTED:
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
+					/* fall-through */
 				case HFP_CONNECTED:
 					bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 				}
@@ -667,6 +671,7 @@ void *rfcomm_thread(void *arg) {
 					break;
 				case HFP_SLC_CMER_SET_OK:
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
+					/* fall-through */
 				case HFP_SLC_CONNECTED:
 					if (t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", "1") == -1)
@@ -675,10 +680,12 @@ void *rfcomm_thread(void *arg) {
 						conn.handler = &rfcomm_handler_bcs_set;
 						break;
 					}
+					/* fall-through */
 				case HFP_CC_BCS_SET:
 				case HFP_CC_BCS_SET_OK:
 				case HFP_CC_CONNECTED:
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
+					/* fall-through */
 				case HFP_CONNECTED:
 					bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 				}

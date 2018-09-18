@@ -204,8 +204,6 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	ffb_uint8_t bt = { 0 };
 	ffb_int16_t pcm = { 0 };
-	uint16_t seq_number = -1;
-
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
@@ -215,6 +213,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
+
+	uint16_t seq_number = -1;
 
 	struct pollfd pfds[] = {
 		{ t->sig_fd[0], POLLIN, 0 },
@@ -563,9 +563,6 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	ffb_uint8_t bt = { 0 };
 	ffb_uint8_t latm = { 0 };
 	ffb_int16_t pcm = { 0 };
-	uint16_t seq_number = -1;
-	int markbit_quirk = -3;
-
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &latm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
@@ -576,6 +573,9 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
+
+	uint16_t seq_number = -1;
+	int markbit_quirk = -3;
 
 	struct pollfd pfds[] = {
 		{ t->sig_fd[0], POLLIN, 0 },

@@ -108,7 +108,7 @@ static void bluealsa_set_elem_name(struct ctl_elem *elem, int id) {
 	char no[8] = "";
 
 	if (id != -1) {
-		sprintf(no, " #%d", id + 1);
+		sprintf(no, " #%u", id + 1);
 		len -= strlen(no);
 	}
 

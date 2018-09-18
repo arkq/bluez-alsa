@@ -344,6 +344,8 @@ static void *pcm_worker_routine(void *arg) {
 		case -1:
 			if (errno == EINTR)
 				continue;
+			error("PCM FIFO poll error: %s", strerror(errno));
+			goto fail;
 		case 0:
 			debug("Device marked as inactive: %s", w->addr);
 			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
