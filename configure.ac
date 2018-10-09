@@ -78,6 +78,7 @@ AC_ARG_ENABLE([ldac],
 AM_CONDITIONAL([ENABLE_LDAC], [test "x$enable_ldac" = "xyes"])
 AM_COND_IF([ENABLE_LDAC], [
 	PKG_CHECK_MODULES([LDAC], [libldacBT >= 2.0.0])
+	PKG_CHECK_MODULES([LDAC_ABR], [libldacBT_abr >= 2.0.0])
 	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
 ])
 

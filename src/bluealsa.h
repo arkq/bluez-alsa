@@ -118,6 +118,7 @@ struct ba_config {
 #endif
 
 #if ENABLE_LDAC
+	bool ldac_abr;
 	uint8_t ldac_eqmid;
 #endif
 

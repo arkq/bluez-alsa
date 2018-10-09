@@ -300,6 +300,8 @@ int main(void) {
 	test_run(test_a2dp_aptx);
 #endif
 #if ENABLE_LDAC
+	config.ldac_abr = true;
+	config.ldac_eqmid = LDACBT_EQMID_HQ;
 	test_run(test_a2dp_ldac);
 #endif
 	return 0;

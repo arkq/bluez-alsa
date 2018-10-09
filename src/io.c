@@ -36,6 +36,7 @@
 #endif
 #if ENABLE_LDAC
 # include <ldacBT.h>
+# include <ldacBT_abr.h>
 #endif
 
 #include "a2dp-codecs.h"
@@ -1203,13 +1204,21 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	HANDLE_LDAC_BT handle;
+	HANDLE_LDAC_ABR handle_abr;
 
 	if ((handle = ldacBT_get_handle()) == NULL) {
 		error("Couldn't open LDAC encoder: %s", strerror(errno));
-		goto fail_open;
+		goto fail_open_ldac;
 	}
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
+
+	if ((handle_abr = ldac_ABR_get_handle()) == NULL) {
+		error("Couldn't open LDAC ABR: %s", strerror(errno));
+		goto fail_open_ldac_abr;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
 	const unsigned int channels = transport_get_channels(t);
 	const unsigned int samplerate = transport_get_sampling(t);
@@ -1218,6 +1227,15 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
 				config.ldac_eqmid, cconfig->channel_mode, LDACBT_SMPL_FMT_S16, samplerate) == -1) {
 		error("Couldn't initialize LDAC encoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
+		goto fail_init;
+	}
+
+	if (ldac_ABR_Init(handle_abr, 1000 * ldac_pcm_samples / channels / samplerate) == -1) {
+		error("Couldn't initialize LDAC ABR");
+		goto fail_init;
+	}
+	if (ldac_ABR_set_thresholds(handle_abr, 6, 4, 2) == -1) {
+		error("Couldn't set LDAC ABR thresholds");
 		goto fail_init;
 	}
 
@@ -1241,9 +1259,8 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
 	size_t ts_frames = 0;
 
-	/* array with historical data of queued bytes for BT socket */
-	int coutq_history[IO_THREAD_COUTQ_HISTORY_SIZE] = { 0 };
-	size_t coutq_i = 0;
+	/* number of queued bytes in the BT socket */
+	int coutq = 0;
 
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
@@ -1336,9 +1353,8 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 
 			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-			coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
 			if (encoded &&
-					io_thread_write_bt(t, bt.data, ffb_len_out(&bt) + encoded, &coutq_history[coutq_i]) == -1) {
+					io_thread_write_bt(t, bt.data, ffb_len_out(&bt) + encoded, &coutq) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit thread upon BT socket disconnection */
 					debug("BT socket disconnected: %d", t->bt_fd);
@@ -1346,6 +1362,9 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 				}
 				error("BT socket write error: %s", strerror(errno));
 			}
+
+			if (config.ldac_abr)
+				ldac_ABR_Proc(handle, handle_abr, coutq / t->mtu_write, 1);
 
 			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
@@ -1379,7 +1398,9 @@ fail:
 	pthread_cleanup_pop(1);
 fail_init:
 	pthread_cleanup_pop(1);
-fail_open:
+fail_open_ldac_abr:
+	pthread_cleanup_pop(1);
+fail_open_ldac:
 	pthread_cleanup_pop(1);
 	return NULL;
 }

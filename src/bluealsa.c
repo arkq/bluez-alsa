@@ -58,13 +58,14 @@ struct ba_config config = {
 
 #if ENABLE_AAC
 	/* There are two issues with the afterburner: a) it uses a LOT of power,
-	 * b) it generates larger payload (see VBR comment). These two reasons
-	 * are good enough to not enable afterburner by default. */
+	 * b) it generates larger payload. These two reasons are good enough to
+	 * not enable afterburner by default. */
 	.aac_afterburner = false,
 	.aac_vbr_mode = 4,
 #endif
 
 #if ENABLE_LDAC
+	.ldac_abr = false,
 	/* Use standard encoder quality as a reasonable default. */
 	.ldac_eqmid = LDACBT_EQMID_SQ,
 #endif

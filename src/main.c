@@ -84,7 +84,8 @@ int main(int argc, char **argv) {
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
 #endif
 #if ENABLE_LDAC
-		{ "ldac-eqmid", required_argument, NULL, 10 },
+		{ "ldac-abr", no_argument, NULL, 10 },
+		{ "ldac-eqmid", required_argument, NULL, 11 },
 #endif
 		{ 0, 0, 0, 0 },
 	};
@@ -154,6 +155,7 @@ int main(int argc, char **argv) {
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
 #endif
 #if ENABLE_LDAC
+					"  --ldac-abr\t\tenable adaptive bit rate\n"
 					"  --ldac-eqmid=NB\tset encoder quality to NB\n"
 #endif
 					"\nAvailable BT profiles:\n"
@@ -264,7 +266,10 @@ int main(int argc, char **argv) {
 #endif
 
 #if ENABLE_LDAC
-		case 10 /* --ldac-eqmid=NB */ :
+		case 10 /* --ldac-abr */ :
+			config.ldac_abr = true;
+			break;
+		case 11 /* --ldac-eqmid=NB */ :
 			config.ldac_eqmid = atoi(optarg);
 			if (config.ldac_eqmid >= LDACBT_EQMID_NUM) {
 				error("Invalid encoder quality index [0, %d]: %s", LDACBT_EQMID_NUM - 1, optarg);
