@@ -21,7 +21,7 @@
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
 /* Version of the controller communication protocol. */
-#define BLUEALSA_CRL_PROTO_VERSION 0x0200
+#define BLUEALSA_CRL_PROTO_VERSION 0x0300
 
 enum ba_command {
 	BA_COMMAND_PING,
@@ -152,7 +152,7 @@ struct __attribute__ ((packed)) ba_msg_transport {
 	/* number of audio channels */
 	uint8_t channels;
 	/* used sampling frequency */
-	uint16_t sampling;
+	uint32_t sampling;
 
 	/* Levels for channel 1 (left) and 2 (right). These fields are also
 	 * used for SCO. In such a case channel 1 and 2 is responsible for
