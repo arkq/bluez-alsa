@@ -18,6 +18,15 @@ LT_INIT
 AC_PREFIX_DEFAULT([/usr])
 AC_SUBST([runstatedir], [/var/run])
 
+# testing presence of pkg-config
+AC_MSG_CHECKING([pkg-config m4 macros])
+if test m4_ifdef([PKG_CHECK_MODULES], [yes], [no]) = "yes"; then
+	AC_MSG_RESULT([yes]);
+else
+	AC_MSG_RESULT([no]);
+	AC_MSG_ERROR([pkg-config is required. See pkg-config.freedesktop.org])
+fi
+
 # support for debugging
 AC_ARG_ENABLE([debug],
 	AS_HELP_STRING([--enable-debug], [enable debugging support]))
