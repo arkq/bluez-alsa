@@ -84,7 +84,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		fprintf(stderr, ".");
 
 		if (asrs.frames == 0)
-			asrsync_init(asrs, transport_get_sampling(t));
+			asrsync_init(&asrs, transport_get_sampling(t));
 
 		int samples = sizeof(buffer) / sizeof(int16_t);
 		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 0.01);
@@ -113,7 +113,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		fprintf(stderr, ".");
 
 		if (asrs.frames == 0)
-			asrsync_init(asrs, transport_get_sampling(t));
+			asrsync_init(&asrs, transport_get_sampling(t));
 
 		const size_t in_samples = sizeof(buffer) / sizeof(int16_t);
 		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, buffer, in_samples)) <= 0) {

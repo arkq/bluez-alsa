@@ -117,7 +117,7 @@ static void *io_thread(void *arg) {
 	}
 
 	struct asrsync asrs;
-	asrsync_init(asrs, io->rate);
+	asrsync_init(&asrs, io->rate);
 
 	debug("Starting IO loop");
 	for (;;) {
@@ -132,7 +132,7 @@ static void *io_thread(void *arg) {
 		default:
 			debug("IO thread paused: %d", io->state);
 			sigwait(&sigset, &tmp);
-			asrsync_init(asrs, io->rate);
+			asrsync_init(&asrs, io->rate);
 			debug("IO thread resumed: %d", io->state);
 		}
 

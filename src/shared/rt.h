@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rt.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -45,12 +45,21 @@ struct asrsync {
 /**
  * Start (initialize) time synchronization.
  *
- * @param asrs Time synchronization structure.
+ * @param asrs Pointer to the time synchronization structure.
  * @param sr Synchronization sampling rate. */
-#define asrsync_init(asrs, sr) do { asrs.rate = sr; asrs.frames = 0; \
-	gettimestamp(&asrs.ts0); asrs.ts = asrs.ts0; } while(0)
+#define asrsync_init(asrs, sr) do { \
+		(asrs)->rate = sr; \
+		gettimestamp(&(asrs)->ts0); \
+		(asrs)->ts = (asrs)->ts0; \
+		(asrs)->frames = 0; \
+	} while (0)
 
-int asrsync_sync(struct asrsync *asr, unsigned int frames);
+int asrsync_sync(struct asrsync *asrs, unsigned int frames);
+
+/**
+ * Get the number of microseconds spent outside of the sync function. */
+#define asrsync_get_busy_usec(asrs) \
+	((asrs)->ts_busy.tv_nsec / 1000)
 
 /**
  * Get system monotonic time-stamp.

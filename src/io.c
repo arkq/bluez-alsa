@@ -436,7 +436,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		 * In order to correctly calculate time drift, the zero time point has to
 		 * be obtained after the stream has started. */
 		if (asrs.frames == 0)
-			asrsync_init(asrs, samplerate);
+			asrsync_init(&asrs, samplerate);
 
 		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
@@ -500,7 +500,9 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		 * get a timestamp for the next RTP frame */
 		asrsync_sync(&asrs, pcm_frames);
 		timestamp += pcm_frames * 10000 / samplerate;
-		t->delay = asrs.ts_busy.tv_nsec / 100000;
+
+		/* update busy delay (encoding overhead) */
+		t->delay = asrsync_get_busy_usec(&asrs) / 100;
 
 		/* If the input buffer was not consumed (due to codesize limit), we
 		 * have to append new data to the existing one. Since we do not use
@@ -898,7 +900,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (asrs.frames == 0)
-			asrsync_init(asrs, samplerate);
+			asrsync_init(&asrs, samplerate);
 
 		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
@@ -965,7 +967,9 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			unsigned int frames = out_args.numInSamples / channels;
 			asrsync_sync(&asrs, frames);
 			timestamp += frames * 10000 / samplerate;
-			t->delay = asrs.ts_busy.tv_nsec / 100000;
+
+			/* update busy delay (encoding overhead) */
+			t->delay = asrsync_get_busy_usec(&asrs) / 100;
 
 			/* If the input buffer was not consumed, we have to append new data to
 			 * the existing one. Since we do not use ring buffer, we will simply
@@ -1077,7 +1081,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (asrs.frames == 0)
-			asrsync_init(asrs, transport_get_sampling(t));
+			asrsync_init(&asrs, transport_get_sampling(t));
 
 		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
@@ -1138,7 +1142,9 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&asrs, pcm_frames);
-			t->delay = asrs.ts_busy.tv_nsec / 100000;
+
+			/* update busy delay (encoding overhead) */
+			t->delay = asrsync_get_busy_usec(&asrs) / 100;
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
@@ -1269,7 +1275,7 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (asrs.frames == 0)
-			asrsync_init(asrs, samplerate);
+			asrsync_init(&asrs, samplerate);
 
 		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
@@ -1315,8 +1321,10 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&asrs, frames / channels);
-			t->delay = asrs.ts_busy.tv_nsec / 100000;
 			ts_frames += frames;
+
+			/* update busy delay (encoding overhead) */
+			t->delay = asrsync_get_busy_usec(&asrs) / 100;
 
 			if (encoded) {
 				timestamp += ts_frames / channels * 10000 / samplerate;
@@ -1460,7 +1468,7 @@ void *io_thread_sco(void *arg) {
 		}
 
 		if (asrs.frames == 0)
-			asrsync_init(asrs, transport_get_sampling(t));
+			asrsync_init(&asrs, transport_get_sampling(t));
 
 		if (pfds[1].revents & POLLIN) {
 			/* dispatch incoming SCO data */
@@ -1607,7 +1615,8 @@ retry_sco_write:
 
 		/* keep data transfer at a constant bit rate */
 		asrsync_sync(&asrs, 48 / 2);
-		t->delay = asrs.ts_busy.tv_nsec / 100000;
+		/* update busy delay (encoding overhead) */
+		t->delay = asrsync_get_busy_usec(&asrs) / 100;
 
 	}
 
