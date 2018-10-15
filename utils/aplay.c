@@ -85,7 +85,7 @@ static int pcm_set_hw_params(snd_pcm_t *pcm, int channels, int rate,
 
 	snd_pcm_hw_params_alloca(&params);
 
-	if ((err = snd_pcm_hw_params_any(pcm, params)) != 0) {
+	if ((err = snd_pcm_hw_params_any(pcm, params)) < 0) {
 		snprintf(buf, sizeof(buf), "Set all possible ranges: %s", snd_strerror(err));
 		goto fail;
 	}
