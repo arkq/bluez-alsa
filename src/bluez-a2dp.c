@@ -132,7 +132,7 @@ static const a2dp_aac_t a2dp_aac = {
 		AAC_CHANNELS_1 |
 		AAC_CHANNELS_2,
 	.vbr = 1,
-	AAC_INIT_BITRATE(0xFFFF)
+	AAC_INIT_BITRATE(320000)
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_aac_channels[] = {
