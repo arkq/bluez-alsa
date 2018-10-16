@@ -104,18 +104,6 @@ static void *io_thread(void *arg) {
 		goto final;
 	}
 
-	/* In the capture mode, the PCM FIFO is opened in the non-blocking mode.
-	 * So right now, we have to synchronize write and read sides, otherwise
-	 * reading might return 0, which will be incorrectly recognized as FIFO
-	 * close signal, but in fact it means, that it was not opened yet. */
-	if (io->stream == SND_PCM_STREAM_CAPTURE) {
-		struct pollfd pfds[] = {{ pcm->pcm_fd, POLLIN, 0 }};
-		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1) {
-			SNDERR("PCM FIFO poll error: %s", strerror(errno));
-			goto final;
-		}
-	}
-
 	struct asrsync asrs;
 	asrsync_init(&asrs, io->rate);
 
