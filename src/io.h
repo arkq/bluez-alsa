@@ -15,6 +15,9 @@
 # include "config.h"
 #endif
 
+/* The number of snapshots of BT socket COUTQ bytes. */
+#define IO_THREAD_COUTQ_HISTORY_SIZE 16
+
 void *io_thread_a2dp_sink_sbc(void *arg);
 void *io_thread_a2dp_source_sbc(void *arg);
 #if ENABLE_AAC

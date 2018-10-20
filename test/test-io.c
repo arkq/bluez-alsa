@@ -293,6 +293,7 @@ int main(void) {
 	test_run(test_a2dp_sbc_invalid_setup);
 	test_run(test_a2dp_sbc);
 #if ENABLE_AAC
+	config.aac_afterburner = true;
 	test_run(test_a2dp_aac);
 #endif
 #if ENABLE_APTX

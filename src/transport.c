@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -870,6 +871,9 @@ int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	size_t size = t->mtu_write * 3;
 	if (setsockopt(t->bt_fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) == -1)
 		warn("Couldn't set socket output buffer size: %s", strerror(errno));
+
+	if (ioctl(t->bt_fd, TIOCOUTQ, &t->a2dp.bt_fd_coutq_init) == -1)
+		warn("Couldn't get socket queued bytes: %s", strerror(errno));
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 

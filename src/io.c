@@ -20,6 +20,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -50,7 +51,7 @@
 
 /**
  * Scale PCM signal according to the transport audio properties. */
-static void io_thread_scale_pcm(struct ba_transport *t, int16_t *buffer,
+static void io_thread_scale_pcm(const struct ba_transport *t, int16_t *buffer,
 		size_t samples, int channels) {
 
 	/* Get a snapshot of audio properties. Please note, that mutex is not
@@ -127,18 +128,26 @@ static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, si
 
 /**
  * Write data to the BT SEQPACKET socket. */
-static ssize_t io_thread_write_bt(int fd, const uint8_t *buffer, size_t len) {
+static ssize_t io_thread_write_bt(const struct ba_transport *t,
+		const uint8_t *buffer, size_t len, int *coutq) {
 
-	struct pollfd pfds[] = {{ fd, POLLOUT, 0 }};
+	struct pollfd pfd = { t->bt_fd, POLLOUT, 0 };
 	ssize_t ret;
 
+	if (ioctl(pfd.fd, TIOCOUTQ, coutq) == -1)
+		warn("Couldn't get BT queued bytes: %s", strerror(errno));
+	else
+		*coutq = abs(t->a2dp.bt_fd_coutq_init - *coutq);
+
 retry:
-	if ((ret = write(fd, buffer, len)) == -1)
+	if ((ret = write(pfd.fd, buffer, len)) == -1)
 		switch (errno) {
 		case EINTR:
 			goto retry;
 		case EAGAIN:
-			poll(pfds, ARRAYSIZE(pfds), -1);
+			poll(&pfd, 1, -1);
+			/* set coutq to some arbitrary big value */
+			*coutq = 1024 * 16;
 			goto retry;
 		}
 
@@ -374,6 +383,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	uint16_t seq_number = ntohs(rtp_header->seq_number);
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
 
+	/* array with historical data of queued bytes for BT socket */
+	int coutq_history[IO_THREAD_COUTQ_HISTORY_SIZE] = { 0 };
+	size_t coutq_i = 0;
+
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
@@ -485,7 +498,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt)) == -1) {
+		coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
+		if (io_thread_write_bt(t, bt.data, ffb_len_out(&bt), &coutq_history[coutq_i]) == -1) {
 			if (errno == ECONNRESET || errno == ENOTCONN) {
 				/* exit thread upon BT socket disconnection */
 				debug("BT socket disconnected: %d", t->bt_fd);
@@ -842,6 +856,10 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	AACENC_InArgs in_args = { 0 };
 	AACENC_OutArgs out_args = { 0 };
 
+	/* array with historical data of queued bytes for BT socket */
+	int coutq_history[IO_THREAD_COUTQ_HISTORY_SIZE] = { 0 };
+	size_t coutq_i = 0;
+
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
@@ -935,7 +953,8 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 					pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-					if ((ret = io_thread_write_bt(t->bt_fd, bt.data, RTP_HEADER_LEN + len)) == -1) {
+					coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
+					if ((ret = io_thread_write_bt(t, bt.data, RTP_HEADER_LEN + len, &coutq_history[coutq_i])) == -1) {
 						if (errno == ECONNRESET || errno == ENOTCONN) {
 							/* exit thread upon BT socket disconnection */
 							debug("BT socket disconnected: %d", t->bt_fd);
@@ -1022,6 +1041,10 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail;
 	}
+
+	/* array with historical data of queued bytes for BT socket */
+	int coutq_history[IO_THREAD_COUTQ_HISTORY_SIZE] = { 0 };
+	size_t coutq_i = 0;
 
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
@@ -1129,7 +1152,8 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-			if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt)) == -1) {
+			coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
+			if (io_thread_write_bt(t, bt.data, ffb_len_out(&bt), &coutq_history[coutq_i]) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit thread upon BT socket disconnection */
 					debug("BT socket disconnected: %d", t->bt_fd);
@@ -1216,6 +1240,10 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	uint16_t seq_number = ntohs(rtp_header->seq_number);
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
 	size_t ts_frames = 0;
+
+	/* array with historical data of queued bytes for BT socket */
+	int coutq_history[IO_THREAD_COUTQ_HISTORY_SIZE] = { 0 };
+	size_t coutq_i = 0;
 
 	int poll_timeout = -1;
 	struct asrsync asrs = { .frames = 0 };
@@ -1308,7 +1336,9 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 
 			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-			if (encoded && io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt) + encoded) == -1) {
+			coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
+			if (encoded &&
+					io_thread_write_bt(t, bt.data, ffb_len_out(&bt) + encoded, &coutq_history[coutq_i]) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit thread upon BT socket disconnection */
 					debug("BT socket disconnected: %d", t->bt_fd);

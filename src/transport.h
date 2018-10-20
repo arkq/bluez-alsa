@@ -156,6 +156,13 @@ struct ba_transport {
 			uint8_t *cconfig;
 			size_t cconfig_size;
 
+			/* Value reported by the ioctl(TIOCOUTQ) when the output buffer is
+			 * empty. Somehow this ioctl call reports "available" buffer space.
+			 * So, in order to get the number of bytes in the queue buffer, we
+			 * have to subtract the initial value from values returned by
+			 * subsequent ioctl() calls. */
+			int bt_fd_coutq_init;
+
 		} a2dp;
 
 		struct {
