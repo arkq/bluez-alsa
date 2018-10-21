@@ -56,6 +56,7 @@ PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
 
 AM_CONDITIONAL([ALSA_1_1_2], [$PKG_CONFIG --atleast-version=1.1.2 alsa])
+AM_CONDITIONAL([ALSA_1_1_7], [$PKG_CONFIG --atleast-version=1.1.7 alsa])
 
 AC_ARG_ENABLE([aac],
 	[AS_HELP_STRING([--enable-aac], [enable AAC support])])
@@ -114,25 +115,28 @@ AM_CONDITIONAL([ENABLE_PCM_TEST], [test "x$enable_pcm_test" = "xyes"])
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
 	[alsaplugindir="$withval"], [alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
-AC_ARG_WITH([alsadatadir],
-	AS_HELP_STRING([--with-alsadatadir=dir], [directory containing ALSA data files]),
-	[alsadatadir="$withval"], [alsadatadir="$datadir/alsa"])
+AC_ARG_WITH([alsaconfdir],
+	AS_HELP_STRING([--with-alsaconfdir=dir], [directory containing ALSA add-on configuration files]),
+	[alsaconfdir="$withval"],
+	[AM_COND_IF([ALSA_1_1_7],
+		[alsaconfdir="$sysconfdir/alsa/conf.d"],
+		[alsaconfdir="$datadir/alsa/alsa.conf.d"])])
 
 test "x$prefix" = xNONE && prefix=$ac_default_prefix
 test "x$exec_prefix" = xNONE && exec_prefix=$prefix
 
 # TODO: Get rid of "ev(a|i)l" statements.
 # TIP: Wizard-level Autotconf coder is needed.
-eval alsadatadir="$alsadatadir"
-eval alsadatadir="$alsadatadir"
+eval alsaconfdir="$alsaconfdir"
+eval alsaconfdir="$alsaconfdir"
 eval alsaplugindir="$alsaplugindir"
 eval alsaplugindir="$alsaplugindir"
 
-AC_DEFINE_UNQUOTED([ALSA_DATA_DIR], "$alsadatadir", [Directory containing ALSA data files.])
+AC_DEFINE_UNQUOTED([ALSA_CONF_DIR], "$alsaconfdir", [Directory containing ALSA add-on configuration files.])
 AC_DEFINE_UNQUOTED([ALSA_PLUGIN_DIR], "$alsaplugindir", [Directory containing ALSA add-on modules.])
 AC_DEFINE_UNQUOTED([RUN_STATE_DIR], "$runstatedir", [Path where run statuses are stored.])
 
-AC_SUBST([ALSA_DATA_DIR], [$alsadatadir])
+AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
 AC_SUBST([RUN_STATE_DIR], [$runstatedir])
 
