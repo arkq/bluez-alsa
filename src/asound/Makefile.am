@@ -19,7 +19,7 @@ libasound_module_pcm_bluealsa_la_SOURCES = \
 
 asound_module_ctldir = @ALSA_PLUGIN_DIR@
 asound_module_pcmdir = @ALSA_PLUGIN_DIR@
-asound_module_datadir = @ALSA_DATA_DIR@/alsa.conf.d
+asound_module_datadir = @ALSA_CONF_DIR@/conf.d
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
