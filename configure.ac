@@ -56,6 +56,7 @@ PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
 
 AM_CONDITIONAL([ALSA_1_1_2], [$PKG_CONFIG --atleast-version=1.1.2 alsa])
+AM_CONDITIONAL([ALSA_1_1_7], [$PKG_CONFIG --atleast-version=1.1.7 alsa])
 
 AC_ARG_ENABLE([aac],
 	[AS_HELP_STRING([--enable-aac], [enable AAC support])])
@@ -115,7 +116,10 @@ AC_ARG_WITH([alsaplugindir],
 	[alsaplugindir="$withval"], [alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
 AC_ARG_WITH([alsaconfdir],
 	AS_HELP_STRING([--with-alsaconfdir=dir], [directory containing ALSA add-on configuration files]),
-	[alsaconfdir="$withval"], [alsaconfdir="$sysconfdir/alsa"])
+	[alsaconfdir="$withval"],
+	[AM_COND_IF([ALSA_1_1_7],
+		[alsaconfdir="$sysconfdir/alsa/conf.d"],
+		[alsaconfdir="$sysdatadir/alsa/alsa.conf.d"])])
 
 test "x$prefix" = xNONE && prefix=$ac_default_prefix
 test "x$exec_prefix" = xNONE && exec_prefix=$prefix
