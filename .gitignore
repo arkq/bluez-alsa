@@ -22,21 +22,5 @@
 *.x86_64
 *.hex
 
-# Autotools
-/autom4te.cache/
-/build*/
-/m4/
-/aclocal.m4
-/ar-lib
-/compile
-/config.guess
-/config.sub
-/configure
-/depcomp
-/install-sh
-/ltmain.sh
-/missing
-/test-driver
-Makefile.in
-config.h.in
-*~
+# Meson build directories
+/*build*/
