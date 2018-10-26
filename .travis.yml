@@ -1,12 +1,10 @@
 sudo: true
-dist: trusty
+dist: xenial
 
 language: c
 
 addons:
   apt:
-    sources:
-      - sourceline: 'deb http://cz.archive.ubuntu.com/ubuntu xenial main'
     packages:
       - libasound2-dev
       - libbluetooth-dev
@@ -16,11 +14,13 @@ addons:
       - libncurses5-dev
       - libreadline-dev
       - libsbc-dev
+      - python3-pip
+      - python3-setuptools
 
 before_script:
-  - mkdir -p m4
-  - autoreconf --install && mkdir build && cd build
+  - pip3 install ninja meson
 
 script:
-  - ../configure && make && make check
-  - ../configure --enable-aac && make && make check
+  - meson build
+  - ninja -C build
+  - ninja -C build test
