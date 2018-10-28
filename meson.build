@@ -1,5 +1,5 @@
 project('bluez-alsa', 'c',  version: '1.3.1', license: 'MIT',
-        meson_version: '>= 0.44.0')
+        meson_version: '>= 0.37.0')
 
 # Setup path for instalation
 ba_prefix = get_option('prefix')
@@ -79,18 +79,18 @@ subdir('test')
 subdir('utils')
 
 if get_option('aptx')
-    warning('             *** aptX encoder support ***')
-    warning('You have enabled support for aptX encoding. Note, that')
-    warning('by default bluez-alsa will use openaptx library, which')
-    warning('does NOT perform any encoding/decoding.\n')
+    message('             *** aptX encoder support ***')
+    message('You have enabled support for aptX encoding. Note, that')
+    message('by default bluez-alsa will use openaptx library, which')
+    message('does NOT perform any encoding/decoding.\n')
 endif
 
 if alsa.version() > '1.1.2'
-    warning('             *** alsa-lib >= 1.1.2 ***')
-    warning('Starting from alsa-lib 1.1.2, it is possible to enable')
-    warning('thread-safe API functions. Unfortunately, this feature')
-    warning('is not mature enough - software plugins may experience')
-    warning('random deadlocks (bluez-alsa PCM plugin is affected')
-    warning('Either compile alsa-lib without this feature or export')
-    warning('LIBASOUND_THREAD_SAFE=0 while using bluealsa PCM.\n')
+    message('             *** alsa-lib >= 1.1.2 ***')
+    message('Starting from alsa-lib 1.1.2, it is possible to enable')
+    message('thread-safe API functions. Unfortunately, this feature')
+    message('is not mature enough - software plugins may experience')
+    message('random deadlocks (bluez-alsa PCM plugin is affected')
+    message('Either compile alsa-lib without this feature or export')
+    message('LIBASOUND_THREAD_SAFE=0 while using bluealsa PCM.\n')
 endif
