@@ -17,7 +17,7 @@ In order to access the audio stream, one has to connect to the ALSA PCM device c
 The device is based on the ALSA software PCM plugin.
 
 
-Installation
+Installation for released version
 ------------
 
 	$ autoreconf --install
@@ -32,6 +32,37 @@ issue](https://github.com/Arkq/bluez-alsa/issues/13))
 then
 
 	$ make && make install
+
+
+Installation for master
+------------
+
+For bluez-alsa master the build system was changed to meson. The required meson version is 0.37.0 which is available in most distributions.
+
+Debian stretch has a new enough version and [Ubuntu (xenial)](https://help.ubuntu.com/community/UbuntuBackports#Enabling_Backports) has a recent version in the backports repositories. Fedora has recent enuugh version of meson in version 24 (updates). OpenSUSE has it in all its stable releases.
+
+If you try to use the latest version (through pip) of meson you should be aware it requires python3.5. The last version to use python3.4 is meson 0.44.1.
+
+Install pip for python3.4 or earlier python3 version
+	$ pip3 install ninja
+	$ pip3 install "meson>=0.21.0,<0.45.0"
+
+Install the latest version with
+	$ pip3 install ninja meson
+
+Building bluez-alsa
+
+	$ meson builddir -Daac=true -Dadd-debug=true
+
+If you intend to stream audio from a Linux distribution using PulseAudio (see [this
+issue](https://github.com/Arkq/bluez-alsa/issues/13))
+
+	$ meson builddir -Daac=true -Dadd-debug=true -Dpayloadcheck=false
+
+then
+
+	$ ninja -C builddir
+	$ ninja -C builddir install
 
 Dependencies:
 
