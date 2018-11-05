@@ -699,26 +699,38 @@ int bluealsa_ctl_thread_init(void) {
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
 			BLUEALSA_RUN_STATE_DIR "/%s", config.hci_dev.name);
 
-	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST)
+	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST) {
+		error("Couldn't create run-state directory: %s", strerror(errno));
 		goto fail;
-	if ((config.ctl.pfds[CTL_IDX_SRV].fd = socket(PF_UNIX, SOCK_SEQPACKET, 0)) == -1)
+	}
+	if ((config.ctl.pfds[CTL_IDX_SRV].fd = socket(PF_UNIX, SOCK_SEQPACKET, 0)) == -1) {
+		error("Couldn't create controller socket: %s", strerror(errno));
 		goto fail;
-	if (bind(config.ctl.pfds[CTL_IDX_SRV].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1)
+	}
+	if (bind(config.ctl.pfds[CTL_IDX_SRV].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
+		error("Couldn't bind controller socket: %s", strerror(errno));
 		goto fail;
+	}
 	config.ctl.socket_created = true;
-	if (chmod(saddr.sun_path, 0660) == -1)
+	if (chmod(saddr.sun_path, 0660) == -1 ||
+			chown(saddr.sun_path, -1, config.gid_audio) == -1) {
+		error("Couldn't set permission for controller socket: %s", strerror(errno));
 		goto fail;
-	if (chown(saddr.sun_path, -1, config.gid_audio) == -1)
+	}
+	if (listen(config.ctl.pfds[CTL_IDX_SRV].fd, 2) == -1) {
+		error("Couldn't listen on controller socket: %s", strerror(errno));
 		goto fail;
-	if (listen(config.ctl.pfds[CTL_IDX_SRV].fd, 2) == -1)
-		goto fail;
+	}
 
-	if (pipe(config.ctl.evt) == -1)
+	if (pipe(config.ctl.evt) == -1) {
+		error("Couldn't create controller event PIPE: %s", strerror(errno));
 		goto fail;
+	}
 	config.ctl.pfds[CTL_IDX_EVT].fd = config.ctl.evt[0];
 
 	config.ctl.thread_created = true;
 	if ((errno = pthread_create(&config.ctl.thread, NULL, ctl_thread, NULL)) != 0) {
+		error("Couldn't create controller thread: %s", strerror(errno));
 		config.ctl.thread_created = false;
 		goto fail;
 	}

@@ -124,11 +124,20 @@ Troubleshooting
 	affect hardware audio devices (because for hardware devices, this change is disabled), but it
 	affects A LOT all software plug-ins. Random deadlocks are inevitable. My personal advice is to
 	disable it during alsa-lib configuration step (`./configure --disable-thread-safety` - of
-	course, if one is compiling alsa-lib from source), or if it is not possible (instalation from a
+	course, if one is compiling alsa-lib from source), or if it is not possible (installation from a
 	package repository), disable it via an environmental variable, as follows: `export
 	LIBASOUND_THREAD_SAFE=0`. Just take a look at involved
 	[hacks](http://git.alsa-project.org/?p=alsa-lib.git;a=blob;f=src/pcm/pcm_ioplug.c;h=1dc198e7c99c933264fa25c9d7dbac5153bf0860;hb=1bf144013cffdeb41a5df3a11a8eb2596c5ea2b5#l682)
 	(search for "to avoid deadlock" comments) and decide for yourself.
+
+3. Couldn't bind controller socket: Address already in use
+
+	It is not possible to run more than one instance of the BlueALSA server per HCI device. If one
+	tries to run second instance, it fails with the `"Couldn't bind controller socket: Address
+	already in use"` error message. This error message might also appear when the previous BlueALSA
+	server has crashed unexpectedly. In order to recover from this error, one has to manually remove
+	dangling socket located in the `/var/run/bluealsa` directory (this location might be different
+	for non standard configuration).
 
 
 Resources

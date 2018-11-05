@@ -289,10 +289,8 @@ int main(int argc, char **argv) {
 	/* initialize random number generator */
 	srandom(time(NULL));
 
-	if ((bluealsa_ctl_thread_init()) == -1) {
-		error("Couldn't initialize controller thread: %s", strerror(errno));
+	if ((bluealsa_ctl_thread_init()) == -1)
 		return EXIT_FAILURE;
-	}
 
 	gchar *address;
 	GError *err;
