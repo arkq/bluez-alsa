@@ -50,8 +50,12 @@ static void vlog(int priority, const char *format, va_list ap) {
 	 * has to be temporally disabled. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
-	if (_syslog)
-		vsyslog(priority, format, ap);
+	if (_syslog) {
+		va_list ap_syslog;
+		va_copy(ap_syslog, ap);
+		vsyslog(priority, format, ap_syslog);
+		va_end(ap_syslog);
+	}
 
 	flockfile(stderr);
 
