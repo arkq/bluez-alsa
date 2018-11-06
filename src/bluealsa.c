@@ -28,12 +28,14 @@ struct ba_config config = {
 	.enable.hsp_ag = true,
 	.enable.hfp_ag = true,
 
+	/* omit chown if audio group is not defined */
+	.gid_audio = -1,
+
 	/* initialization flags */
 	.ctl.socket_created = false,
 	.ctl.thread_created = false,
 
-	/* omit chown if audio group is not defined */
-	.gid_audio = -1,
+	.ctl.evt = { -1, -1 },
 
 	.hfp.features_sdp_hf =
 		SDP_HFP_HF_FEAT_CLI |

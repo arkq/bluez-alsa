@@ -752,10 +752,12 @@ void bluealsa_ctl_free(void) {
 
 	config.ctl.thread_created = false;
 
-	close(config.ctl.evt[0]);
-	close(config.ctl.evt[1]);
-	config.ctl.pfds[CTL_IDX_EVT].fd = -1;
+	if (config.ctl.evt[0] != -1)
+		close(config.ctl.evt[0]);
+	if (config.ctl.evt[1] != -1)
+		close(config.ctl.evt[1]);
 
+	config.ctl.pfds[CTL_IDX_EVT].fd = -1;
 	for (i = 0; i < ARRAYSIZE(config.ctl.pfds); i++)
 		if (config.ctl.pfds[i].fd != -1)
 			close(config.ctl.pfds[i].fd);
