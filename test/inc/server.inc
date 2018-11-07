@@ -24,17 +24,19 @@ static char *bin_path = ".";
  * @param source Start A2DP source.
  * @param sink Start A2DP sink.
  * @return PID of the bluealsa server mock. */
-pid_t spawn_bluealsa_server(char *hci, unsigned int timeout, bool source, bool sink) {
+pid_t spawn_bluealsa_server(const char *hci, unsigned int timeout, bool source, bool sink) {
 
 	char path[256];
+	char arg_device[32];
 	char arg_timeout[16];
 	pid_t pid;
 
+	sprintf(arg_device, "--device=%s", hci);
 	sprintf(arg_timeout, "--timeout=%d", timeout);
 
 	char *argv[] = {
 		"server-mock",
-		"--device", hci,
+		arg_device,
 		arg_timeout,
 		source ? "--source" : "",
 		sink ? "--sink" : "",

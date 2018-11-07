@@ -8,13 +8,15 @@
  *
  */
 
-#include "inc/test.inc"
+#include <check.h>
+
 #include "../src/utils.c"
 #include "../src/shared/defs.h"
 #include "../src/shared/ffb.c"
+#include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
-int test_dbus_profile_object_path(void) {
+START_TEST(test_dbus_profile_object_path) {
 
 	static const struct {
 		enum bluetooth_profile profile;
@@ -56,14 +58,13 @@ int test_dbus_profile_object_path(void) {
 
 	for (i = 0; i < ARRAYSIZE(profiles); i++) {
 		const char *path = g_dbus_get_profile_object_path(profiles[i].profile, profiles[i].codec);
-		assert(strstr(profiles[i].path, path) == profiles[i].path);
-		assert(g_dbus_object_path_to_profile(profiles[i].path) == profiles[i].profile);
+		ck_assert_str_eq(strstr(profiles[i].path, path), profiles[i].path);
+		ck_assert_int_eq(g_dbus_object_path_to_profile(profiles[i].path), profiles[i].profile);
 	}
 
-	return 0;
-}
+} END_TEST
 
-int test_pcm_scale_s16le(void) {
+START_TEST(test_pcm_scale_s16le) {
 
 	const int16_t mute[] = { 0x0000, 0x0000, 0x0000, 0x0000 };
 	const int16_t half[] = { 0x1234 / 2, 0x2345 / 2, (int16_t)0xBCDE / 2, (int16_t)0xCDEF / 2 };
@@ -74,79 +75,82 @@ int test_pcm_scale_s16le(void) {
 
 	memcpy(tmp, in, sizeof(tmp));
 	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 0, 0);
-	assert(memcmp(tmp, mute, sizeof(mute)) == 0);
+	ck_assert_int_eq(memcmp(tmp, mute, sizeof(mute)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
 	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 1.0, 1.0);
-	assert(memcmp(tmp, in, sizeof(in)) == 0);
+	ck_assert_int_eq(memcmp(tmp, in, sizeof(in)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
 	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 0.5, 0.5);
-	assert(memcmp(tmp, half, sizeof(half)) == 0);
+	ck_assert_int_eq(memcmp(tmp, half, sizeof(half)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
 	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 2, 0.5, 1.0);
-	assert(memcmp(tmp, halfl, sizeof(halfl)) == 0);
+	ck_assert_int_eq(memcmp(tmp, halfl, sizeof(halfl)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
 	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 2, 1.0, 0.5);
-	assert(memcmp(tmp, halfr, sizeof(halfr)) == 0);
+	ck_assert_int_eq(memcmp(tmp, halfr, sizeof(halfr)), 0);
 
-	return 0;
-}
+} END_TEST
 
-int test_difftimespec(void) {
+START_TEST(test_difftimespec) {
 
 	struct timespec ts1, ts2, ts;
 
 	ts1.tv_sec = ts2.tv_sec = 12345;
 	ts1.tv_nsec = ts2.tv_nsec = 67890;
-	assert(difftimespec(&ts1, &ts2, &ts) == 0);
-	assert(ts.tv_sec == 0 && ts.tv_nsec == 0);
+	ck_assert_int_eq(difftimespec(&ts1, &ts2, &ts), 0);
+	ck_assert_int_eq(ts.tv_sec, 0);
+	ck_assert_int_eq(ts.tv_nsec, 0);
 
 	ts1.tv_sec = 10;
 	ts1.tv_nsec = 100000000;
 	ts2.tv_sec = 10;
 	ts2.tv_nsec = 500000000;
-	assert(difftimespec(&ts1, &ts2, &ts) > 0);
-	assert(ts.tv_sec == 0 && ts.tv_nsec == 400000000);
+	ck_assert_int_gt(difftimespec(&ts1, &ts2, &ts), 0);
+	ck_assert_int_eq(ts.tv_sec, 0);
+	ck_assert_int_eq(ts.tv_nsec, 400000000);
 
 	ts1.tv_sec = 10;
 	ts1.tv_nsec = 800000000;
 	ts2.tv_sec = 12;
 	ts2.tv_nsec = 100000000;
-	assert(difftimespec(&ts1, &ts2, &ts) > 0);
-	assert(ts.tv_sec == 1 && ts.tv_nsec == 300000000);
+	ck_assert_int_gt(difftimespec(&ts1, &ts2, &ts), 0);
+	ck_assert_int_eq(ts.tv_sec, 1);
+	ck_assert_int_eq(ts.tv_nsec, 300000000);
 
 	ts1.tv_sec = 10;
 	ts1.tv_nsec = 500000000;
 	ts2.tv_sec = 10;
 	ts2.tv_nsec = 100000000;
-	assert(difftimespec(&ts1, &ts2, &ts) < 0);
-	assert(ts.tv_sec == 0 && ts.tv_nsec == 400000000);
+	ck_assert_int_lt(difftimespec(&ts1, &ts2, &ts), 0);
+	ck_assert_int_eq(ts.tv_sec, 0);
+	ck_assert_int_eq(ts.tv_nsec, 400000000);
 
 	ts1.tv_sec = 12;
 	ts1.tv_nsec = 100000000;
 	ts2.tv_sec = 10;
 	ts2.tv_nsec = 800000000;
-	assert(difftimespec(&ts1, &ts2, &ts) < 0);
-	assert(ts.tv_sec == 1 && ts.tv_nsec == 300000000);
+	ck_assert_int_lt(difftimespec(&ts1, &ts2, &ts), 0);
+	ck_assert_int_eq(ts.tv_sec, 1);
+	ck_assert_int_eq(ts.tv_nsec, 300000000);
 
-	return 0;
-}
+} END_TEST
 
-int test_fifo_buffer(void) {
+START_TEST(test_fifo_buffer) {
 
 	ffb_uint8_t ffb_u8 = { 0 };
 	ffb_int16_t ffb_16 = { 0 };
 
-	assert(ffb_init(&ffb_u8, 64) != NULL);
-	assert(ffb_u8.data == ffb_u8.tail);
-	assert(ffb_u8.size == 64);
+	ck_assert_ptr_ne(ffb_init(&ffb_u8, 64), NULL);
+	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
+	ck_assert_int_eq(ffb_u8.size, 64);
 
-	assert(ffb_init(&ffb_16, 64) != NULL);
-	assert(ffb_16.data == ffb_16.tail);
-	assert(ffb_16.size == 64);
+	ck_assert_ptr_ne(ffb_init(&ffb_16, 64), NULL);
+	ck_assert_ptr_eq(ffb_16.data, ffb_16.tail);
+	ck_assert_int_eq(ffb_16.size, 64);
 
 	memcpy(ffb_u8.data, "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", 36);
 	ffb_seek(&ffb_u8, 36);
@@ -154,37 +158,48 @@ int test_fifo_buffer(void) {
 	memcpy(ffb_16.data, "11223344556677889900AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ", 36 * 2);
 	ffb_seek(&ffb_16, 36);
 
-	assert(ffb_len_in(&ffb_u8) == 64 - 36);
-	assert(ffb_blen_in(&ffb_u8) == 64 - 36);
-	assert(ffb_len_out(&ffb_u8) == 36);
-	assert(ffb_blen_out(&ffb_u8) == 36);
-	assert(ffb_u8.tail[-1] == 'Z');
+	ck_assert_int_eq(ffb_len_in(&ffb_u8), 64 - 36);
+	ck_assert_int_eq(ffb_blen_in(&ffb_u8), 64 - 36);
+	ck_assert_int_eq(ffb_len_out(&ffb_u8), 36);
+	ck_assert_int_eq(ffb_blen_out(&ffb_u8), 36);
+	ck_assert_int_eq(ffb_u8.tail[-1], 'Z');
 
-	assert(ffb_len_in(&ffb_16) == 64 - 36);
-	assert(ffb_blen_in(&ffb_16) == (64 - 36) * 2);
-	assert(ffb_len_out(&ffb_16) == 36);
-	assert(ffb_blen_out(&ffb_16) == 36 * 2);
-	assert(ffb_16.tail[-1] == 0x5a5a);
+	ck_assert_int_eq(ffb_len_in(&ffb_16), 64 - 36);
+	ck_assert_int_eq(ffb_blen_in(&ffb_16), (64 - 36) * 2);
+	ck_assert_int_eq(ffb_len_out(&ffb_16), 36);
+	ck_assert_int_eq(ffb_blen_out(&ffb_16), 36 * 2);
+	ck_assert_int_eq(ffb_16.tail[-1], 0x5a5a);
 
 	ffb_shift(&ffb_u8, 15);
-	assert(ffb_len_in(&ffb_u8) == 64 - (36 - 15));
-	assert(ffb_len_out(&ffb_u8) == 36 - 15);
-	assert(memcmp(ffb_u8.data, "FGHIJKLMNOPQRSTUVWXYZ", ffb_len_out(&ffb_u8)) == 0);
-	assert(ffb_u8.tail[-1] == 'Z');
+	ck_assert_int_eq(ffb_len_in(&ffb_u8), 64 - (36 - 15));
+	ck_assert_int_eq(ffb_len_out(&ffb_u8), 36 - 15);
+	ck_assert_int_eq(memcmp(ffb_u8.data, "FGHIJKLMNOPQRSTUVWXYZ", ffb_len_out(&ffb_u8)), 0);
+	ck_assert_int_eq(ffb_u8.tail[-1], 'Z');
 
 	ffb_rewind(&ffb_u8);
-	assert(ffb_u8.data == ffb_u8.tail);
+	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
 
 	ffb_uint8_free(&ffb_u8);
-	assert(ffb_u8.data == NULL);
+	ck_assert_ptr_eq(ffb_u8.data, NULL);
 
-	return 0;
-}
+} END_TEST
 
 int main(void) {
-	test_run(test_dbus_profile_object_path);
-	test_run(test_pcm_scale_s16le);
-	test_run(test_difftimespec);
-	test_run(test_fifo_buffer);
-	return 0;
+
+	Suite *s = suite_create(__FILE__);
+	TCase *tc = tcase_create(__FILE__);
+	SRunner *sr = srunner_create(s);
+
+	suite_add_tcase(s, tc);
+
+	tcase_add_test(tc, test_dbus_profile_object_path);
+	tcase_add_test(tc, test_pcm_scale_s16le);
+	tcase_add_test(tc, test_difftimespec);
+	tcase_add_test(tc, test_fifo_buffer);
+
+	srunner_run_all(sr, CK_ENV);
+	int nf = srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	return nf == 0 ? 0 : 1;
 }

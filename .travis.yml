@@ -8,6 +8,7 @@ addons:
     sources:
       - sourceline: 'deb http://cz.archive.ubuntu.com/ubuntu xenial main'
     packages:
+      - check
       - libasound2-dev
       - libbluetooth-dev
       - libbsd-dev
@@ -22,5 +23,5 @@ before_script:
   - autoreconf --install && mkdir build && cd build
 
 script:
-  - ../configure && make && make check
-  - ../configure --enable-aac && make && make check
+  - ../configure --enable-test && make && make check
+  - ../configure --enable-test --enable-aac && make && make check

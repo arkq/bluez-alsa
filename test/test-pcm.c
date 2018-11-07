@@ -13,34 +13,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+
+#include <check.h>
 #include <alsa/asoundlib.h>
+
 #include "inc/server.inc"
 #include "inc/sine.inc"
-#include "inc/test.inc"
 #include "../src/shared/ffb.c"
-#include "../src/shared/log.h"
+#include "../src/shared/log.c"
 
+static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *hci, snd_pcm_stream_t stream, int mode) {
 
-static pid_t bluealsa_pid = 0;
-
-static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, snd_pcm_stream_t stream, int mode) {
-
-	static char buffer[] =
-		"pcm.bluealsa {\n"
-		"  type bluealsa\n"
-		"  interface \"hci-xxx\"\n"
-		"  device \"12:34:56:78:9A:BC\"\n"
-		"  profile \"a2dp\"\n"
-		"  delay 0\n"
-		"}\n";
-
+	char buffer[256];
 	snd_config_t *conf = NULL;
 	snd_input_t *input = NULL;
 	int err;
 
+	sprintf(buffer,
+			"pcm.bluealsa {\n"
+			"  type bluealsa\n"
+			"  interface \"%s\"\n"
+			"  device \"12:34:56:78:9A:BC\"\n"
+			"  profile \"a2dp\"\n"
+			"  delay 0\n"
+			"}\n", hci);
+
 	if ((err = snd_config_top(&conf)) < 0)
 		goto fail;
-	if ((err = snd_input_buffer_open(&input, buffer, sizeof(buffer) - 1)) != 0)
+	if ((err = snd_input_buffer_open(&input, buffer, strlen(buffer))) != 0)
 		goto fail;
 	if ((err = snd_config_load(conf, input)) != 0)
 		goto fail;
@@ -118,7 +118,10 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 	return 0;
 }
 
-int test_playback_hw_constraints(void) {
+START_TEST(test_playback_hw_constraints) {
+
+	const char *hci = "hci-ts1";
+	pid_t pid = spawn_bluealsa_server(hci, 1, true, false);
 
 	/* hard-coded values used in the server-mock */
 	const unsigned int server_channels = 2;
@@ -128,50 +131,71 @@ int test_playback_hw_constraints(void) {
 	snd_pcm_hw_params_t *params;
 	int d;
 
-	assert(snd_pcm_open_bluealsa(&pcm, SND_PCM_STREAM_PLAYBACK, 0) == 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, hci, SND_PCM_STREAM_PLAYBACK, 0), 0);
 
 	snd_pcm_hw_params_alloca(&params);
 	snd_pcm_hw_params_any(pcm, params);
 
-	assert(snd_pcm_hw_params_test_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED) == 0);
-	assert(snd_pcm_hw_params_test_access(pcm, params, SND_PCM_ACCESS_MMAP_INTERLEAVED) == 0);
-	assert(snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED) == 0);
+	ck_assert_int_eq(snd_pcm_hw_params_test_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED), 0);
+	ck_assert_int_eq(snd_pcm_hw_params_test_access(pcm, params, SND_PCM_ACCESS_MMAP_INTERLEAVED), 0);
+	ck_assert_int_eq(snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED), 0);
 
 	snd_pcm_format_t format;
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_format_first(pcm, params, &format) == 0 && format == SND_PCM_FORMAT_S16_LE);
+	ck_assert_int_eq(snd_pcm_hw_params_set_format_first(pcm, params, &format), 0);
+	ck_assert_int_eq(format, SND_PCM_FORMAT_S16_LE);
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_format_last(pcm, params, &format) == 0 && format == SND_PCM_FORMAT_S16_LE);
+	ck_assert_int_eq(snd_pcm_hw_params_set_format_last(pcm, params, &format), 0);
+	ck_assert_int_eq(format, SND_PCM_FORMAT_S16_LE);
 
 	unsigned int channels;
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_channels_first(pcm, params, &channels) == 0 && channels == server_channels);
+	ck_assert_int_eq(snd_pcm_hw_params_set_channels_first(pcm, params, &channels), 0);
+	ck_assert_int_eq(channels, server_channels);
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_channels_last(pcm, params, &channels) == 0 && channels == server_channels);
+	ck_assert_int_eq(snd_pcm_hw_params_set_channels_last(pcm, params, &channels), 0);
+	ck_assert_int_eq(channels, server_channels);
 
 	unsigned int rate;
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_rate_first(pcm, params, &rate, &d) == 0 && rate == server_rate && d == 0);
+	ck_assert_int_eq(snd_pcm_hw_params_set_rate_first(pcm, params, &rate, &d), 0);
+	ck_assert_int_eq(rate, server_rate);
+	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_rate_last(pcm, params, &rate, &d) == 0 && rate == server_rate && d == 0);
+	ck_assert_int_eq(snd_pcm_hw_params_set_rate_last(pcm, params, &rate, &d), 0);
+	ck_assert_int_eq(rate, server_rate);
+	ck_assert_int_eq(d, 0);
 
 	unsigned int periods;
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_periods_first(pcm, params, &periods, &d) == 0 && periods == 3 && d == 0);
+	ck_assert_int_eq(snd_pcm_hw_params_set_periods_first(pcm, params, &periods, &d), 0);
+	ck_assert_int_eq(periods, 3);
+	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_periods_last(pcm, params, &periods, &d) == 0 && periods == 1024 && d == 0);
+	ck_assert_int_eq(snd_pcm_hw_params_set_periods_last(pcm, params, &periods, &d), 0);
+	ck_assert_int_eq(periods, 1024);
+	ck_assert_int_eq(d, 0);
 
 	unsigned int time;
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_buffer_time_first(pcm, params, &time, &d) == 0 && time == 200000 && d == 0);
+	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_first(pcm, params, &time, &d), 0);
+	ck_assert_int_eq(time, 200000);
+	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
-	assert(snd_pcm_hw_params_set_buffer_time_last(pcm, params, &time, &d) == 0 && time == 95108934 && d == 1);
+	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_last(pcm, params, &time, &d), 0);
+	ck_assert_int_eq(time, 95108934);
+	ck_assert_int_eq(d, 1);
 
-	assert(snd_pcm_close(pcm) == 0);
-	return 0;
-}
+	ck_assert_int_eq(snd_pcm_close(pcm), 0);
 
-int test_playback(void) {
+	waitpid(pid, NULL, 0);
+
+} END_TEST
+
+START_TEST(test_playback) {
+
+	const char *hci = "hci-ts2";
+	pid_t pid = spawn_bluealsa_server(hci, 2, true, false);
 
 	int pcm_channels = 2;
 	int pcm_sampling = 44100;
@@ -183,11 +207,11 @@ int test_playback(void) {
 	snd_pcm_uframes_t period_size;
 	snd_pcm_sframes_t delay;
 
-	assert(snd_pcm_open_bluealsa(&pcm, SND_PCM_STREAM_PLAYBACK, 0) == 0);
-	assert(set_hw_params(pcm, pcm_channels, pcm_sampling, &pcm_buffer_time, &pcm_period_time) == 0);
-	assert(snd_pcm_get_params(pcm, &buffer_size, &period_size) == 0);
-	assert(set_sw_params(pcm, buffer_size, period_size) == 0);
-	assert(snd_pcm_prepare(pcm) == 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, hci, SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_channels, pcm_sampling, &pcm_buffer_time, &pcm_period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(set_sw_params(pcm, buffer_size, period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	int16_t *period = malloc(period_size * pcm_channels * sizeof(int16_t));
 	int i, x = 0;
@@ -196,55 +220,59 @@ int test_playback(void) {
 	int buffer_period_count = (buffer_size - 10) / period_size + 1;
 	for (i = 0; i < buffer_period_count - 1; i++) {
 		x = snd_pcm_sine_s16le(period, period_size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
-		assert(snd_pcm_writei(pcm, period, period_size) > 0);
+		ck_assert_int_gt(snd_pcm_writei(pcm, period, period_size), 0);
 	}
 
 	usleep(100000);
 
 	/* check if playback was not started and if delay is correctly calculated */
-	assert(snd_pcm_state(pcm) == SND_PCM_STATE_PREPARED);
-	assert(snd_pcm_delay(pcm, &delay) == 0);
-	assert(delay == 18375);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_PREPARED);
+	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+	ck_assert_int_eq(delay, 18375);
 
 	/* start playback - start threshold will be exceeded */
 	x = snd_pcm_sine_s16le(period, period_size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
-	assert(snd_pcm_writei(pcm, period, period_size) > 0);
-	assert(snd_pcm_state(pcm) == SND_PCM_STATE_RUNNING);
+	ck_assert_int_gt(snd_pcm_writei(pcm, period, period_size), 0);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_RUNNING);
 
 	/* at this point buffer should be still almost full */
-	assert(snd_pcm_delay(pcm, &delay) == 0);
-	assert(delay > 20000);
+	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+	ck_assert_int_gt(delay, 20000);
 
 	snd_pcm_pause(pcm, 1);
-	assert(snd_pcm_state(pcm) == SND_PCM_STATE_PAUSED);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_PAUSED);
 
 	/* during pause buffer shall not be consumed */
 	usleep(100000);
-	assert(snd_pcm_delay(pcm, &delay) == 0);
-	assert(delay > 10000);
+	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+	ck_assert_int_gt(delay, 10000);
 
 	snd_pcm_pause(pcm, 0);
-	assert(snd_pcm_state(pcm) == SND_PCM_STATE_RUNNING);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_RUNNING);
 
 	/* allow under-run to occur */
 	usleep(500000);
-	assert(snd_pcm_state(pcm) == SND_PCM_STATE_XRUN);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_XRUN);
 
 	/* check successful recovery */
-	assert(snd_pcm_prepare(pcm) == 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 	for (i = 0; i < buffer_period_count * 2; i++) {
 		x = snd_pcm_sine_s16le(period, period_size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
-		assert(snd_pcm_writei(pcm, period, period_size) > 0);
+		ck_assert_int_gt(snd_pcm_writei(pcm, period, period_size), 0);
 	}
-	assert(snd_pcm_state(pcm) == SND_PCM_STATE_RUNNING);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_RUNNING);
 
-	assert(snd_pcm_close(pcm) == 0);
+	ck_assert_int_eq(snd_pcm_close(pcm), 0);
 
 	free(period);
-	return 0;
-}
+	waitpid(pid, NULL, 0);
 
-int test_playback_termination(void) {
+} END_TEST
+
+START_TEST(test_playback_termination) {
+
+	const char *hci = "hci-ts3";
+	pid_t pid = spawn_bluealsa_server(hci, 2, true, false);
 
 	int pcm_channels = 2;
 	int pcm_sampling = 44100;
@@ -255,10 +283,10 @@ int test_playback_termination(void) {
 	snd_pcm_uframes_t buffer_size;
 	snd_pcm_uframes_t period_size;
 
-	assert(snd_pcm_open_bluealsa(&pcm, SND_PCM_STREAM_PLAYBACK, 0) == 0);
-	assert(set_hw_params(pcm, pcm_channels, pcm_sampling, &pcm_buffer_time, &pcm_period_time) == 0);
-	assert(snd_pcm_get_params(pcm, &buffer_size, &period_size) == 0);
-	assert(snd_pcm_prepare(pcm) == 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, hci, SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_channels, pcm_sampling, &pcm_buffer_time, &pcm_period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	int16_t *period = malloc(period_size * pcm_channels * sizeof(int16_t));
 	snd_pcm_sframes_t frames = 0;
@@ -267,7 +295,7 @@ int test_playback_termination(void) {
 	/* write samples until server disconnects */
 	while (frames >= 0) {
 		if (i++ == 10)
-			kill(bluealsa_pid, SIGUSR2);
+			kill(pid, SIGUSR2);
 		frames = snd_pcm_writei(pcm, period, period_size);
 	}
 
@@ -276,17 +304,18 @@ int test_playback_termination(void) {
 	struct pollfd pfds[2];
 	unsigned short revents;
 
-	assert(frames == -ENODEV);
-	assert(snd_pcm_poll_descriptors_revents(pcm, pfds, 2, &revents) == -ENODEV);
-	assert(snd_pcm_writei(pcm, period, period_size) == -ENODEV);
-	assert(snd_pcm_avail_update(pcm) == -ENODEV);
-	assert(snd_pcm_delay(pcm, &frames) == -ENODEV);
-	assert(snd_pcm_prepare(pcm) == -EBADFD);
-	assert(snd_pcm_close(pcm) == -EACCES);
+	ck_assert_int_eq(frames, -ENODEV);
+	ck_assert_int_eq(snd_pcm_poll_descriptors_revents(pcm, pfds, 2, &revents), -ENODEV);
+	ck_assert_int_eq(snd_pcm_writei(pcm, period, period_size), -ENODEV);
+	ck_assert_int_eq(snd_pcm_avail_update(pcm), -ENODEV);
+	ck_assert_int_eq(snd_pcm_delay(pcm, &frames), -ENODEV);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), -EBADFD);
+	ck_assert_int_eq(snd_pcm_close(pcm), -EACCES);
 
 	free(period);
-	return 0;
-}
+	waitpid(pid, NULL, 0);
+
+} END_TEST
 
 int test_capture(void) {
 	return 0;
@@ -298,14 +327,19 @@ int main(int argc, char *argv[]) {
 	/* test-pcm and server-mock shall be placed in the same directory */
 	bin_path = dirname(argv[0]);
 
-	bluealsa_pid = spawn_bluealsa_server("hci-xxx", 3, true, false);
-	test_run(test_playback_hw_constraints);
-	test_run(test_playback);
-	waitpid(bluealsa_pid, NULL, 0);
+	Suite *s = suite_create(__FILE__);
+	TCase *tc = tcase_create(__FILE__);
+	SRunner *sr = srunner_create(s);
 
-	bluealsa_pid = spawn_bluealsa_server("hci-xxx", 2, true, false);
-	test_run(test_playback_termination);
-	waitpid(bluealsa_pid, NULL, 0);
+	suite_add_tcase(s, tc);
 
-	return EXIT_SUCCESS;
+	tcase_add_test(tc, test_playback_hw_constraints);
+	tcase_add_test(tc, test_playback);
+	tcase_add_test(tc, test_playback_termination);
+
+	srunner_run_all(sr, CK_ENV);
+	int nf = srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	return nf == 0 ? 0 : 1;
 }

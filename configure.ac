@@ -106,11 +106,18 @@ AM_COND_IF([ENABLE_HCITOP], [
 	PKG_CHECK_MODULES([NCURSES], [ncurses])
 ])
 
+AC_ARG_ENABLE([test],
+	[AS_HELP_STRING([--enable-test], [enable unit test])])
+AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
+AM_COND_IF([ENABLE_TEST], [
+	PKG_CHECK_MODULES([CHECK], [check >= 0.9.10])
+])
+
 # Since it is not possible to specify custom ALSA plugin directory, BlueALSA
 # PCM plugin has to be installed prior to this test.
-AC_ARG_ENABLE([pcm-test],
-	[AS_HELP_STRING([--enable-pcm-test], [enable PCM plugin test])])
-AM_CONDITIONAL([ENABLE_PCM_TEST], [test "x$enable_pcm_test" = "xyes"])
+AC_ARG_ENABLE([test-pcm],
+	[AS_HELP_STRING([--enable-test-pcm], [enable PCM plugin test])])
+AM_CONDITIONAL([ENABLE_TEST_PCM], [test "x$enable_test_pcm" = "xyes"])
 
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),

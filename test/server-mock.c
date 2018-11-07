@@ -8,18 +8,18 @@
  *
  * This program might be used to debug or check the functionality of ALSA
  * plug-ins. It should work exactly the same as the BlueALSA server. When
- * connecting to the bluealsa device, one should use "hci-test" interface.
+ * connecting to the bluealsa device, one should use "hci-mock" interface.
  *
  */
 
 #define _GNU_SOURCE
+#include <assert.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include "inc/sine.inc"
-#include "inc/test.inc"
 
 #include "../src/bluealsa.c"
 #include "../src/at.c"
@@ -36,6 +36,7 @@
 #undef transport_acquire_bt_a2dp
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
+#include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
 static const a2dp_sbc_t cconfig = {
@@ -60,6 +61,23 @@ static void test_pcm_setup_free_handler(int sig) {
 	test_pcm_setup_free();
 }
 
+static int sigusr1_count = 0;
+static int sigusr2_count = 0;
+static void test_sigusr_handler(int sig) {
+	switch (sig) {
+	case SIGUSR1:
+		debug("Dispatching SIGUSR1");
+		sigusr1_count++;
+		break;
+	case SIGUSR2:
+		debug("Dispatching SIGUSR2");
+		sigusr2_count++;
+		break;
+	default:
+		error("Unsupported signal: %d", sig);
+	}
+}
+
 int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	t->delay = 1; /* suppress delay check trigger */
 	t->state = TRANSPORT_ACTIVE;
@@ -69,12 +87,13 @@ int transport_acquire_bt_a2dp(struct ba_transport *t) {
 
 void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
 	int x = 0;
 
-	while (test_sigusr1_count == 0) {
+	while (sigusr1_count == 0) {
 
 		if (t->a2dp.pcm.fd == -1) {
 			usleep(10000);
@@ -95,21 +114,19 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		asrsync_sync(&asrs, samples / 2);
 	}
 
-	transport_release_pcm(&t->a2dp.pcm);
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
 void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
-
-	while (t->a2dp.pcm.fd == -1)
-		usleep(10000);
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
 	ssize_t samples;
 
-	while (test_sigusr2_count == 0) {
+	while (sigusr2_count == 0) {
 		fprintf(stderr, ".");
 
 		if (asrs.frames == 0)
@@ -125,7 +142,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		asrsync_sync(&asrs, samples / 2);
 	}
 
-	transport_release_pcm(&t->a2dp.pcm);
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
@@ -173,10 +190,7 @@ int main(int argc, char *argv[]) {
 	strncpy(config.hci_dev.name, device, sizeof(config.hci_dev.name) - 1);
 
 	assert(bluealsa_config_init() == 0);
-	if ((bluealsa_ctl_thread_init() == -1)) {
-		perror("ctl_thread_init");
-		return EXIT_FAILURE;
-	}
+	assert(bluealsa_ctl_thread_init() == 0);
 
 	/* make sure to cleanup named pipes */
 	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };

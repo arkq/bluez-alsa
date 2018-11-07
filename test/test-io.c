@@ -9,8 +9,11 @@
  */
 
 #define _GNU_SOURCE
+#include <pthread.h>
+
+#include <check.h>
+
 #include "inc/sine.inc"
-#include "inc/test.inc"
 #include "../src/at.c"
 #include "../src/bluealsa.c"
 #include "../src/ctl.c"
@@ -19,6 +22,7 @@
 #include "../src/transport.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
+#include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
@@ -78,13 +82,13 @@ static struct {
 	size_t len;
 } test_a2dp_bt_data[10];
 
-static int test_a2dp_encoding(struct ba_transport *t, void *(*cb)(void *)) {
+static void test_a2dp_encoding(struct ba_transport *t, void *(*cb)(void *)) {
 
 	int bt_fds[2];
 	int pcm_fds[2];
 
-	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
-	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds), 0);
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds), 0);
 
 	t->profile = BLUETOOTH_PROFILE_A2DP_SOURCE;
 	t->state = TRANSPORT_ACTIVE;
@@ -99,43 +103,38 @@ static int test_a2dp_encoding(struct ba_transport *t, void *(*cb)(void *)) {
 	size_t i = 0;
 
 	snd_pcm_sine_s16le(buffer, sizeof(buffer) / sizeof(int16_t), 2, 0, 0.01);
-	assert(write(pcm_fds[0], buffer, sizeof(buffer)) == sizeof(buffer));
+	ck_assert_int_eq(write(pcm_fds[0], buffer, sizeof(buffer)), sizeof(buffer));
 
 	memset(test_a2dp_bt_data, 0, sizeof(test_a2dp_bt_data));
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
-		uint8_t *p = (uint8_t *)buffer;
-		ssize_t len = read(bt_fds[1], p, t->mtu_write);
+		char label[32];
+		ssize_t len = read(bt_fds[1], buffer, t->mtu_write);
 
 		if (i < ARRAYSIZE(test_a2dp_bt_data)) {
-			memcpy(test_a2dp_bt_data[i].data, p, len);
+			memcpy(test_a2dp_bt_data[i].data, buffer, len);
 			test_a2dp_bt_data[i++].len = len;
 		}
 
-		flockfile(stderr);
-		fprintf(stderr, "BT data [len: %3zd]:", len);
-		while (len--)
-			fprintf(stderr, " %02x", *p++ & 0xFF);
-		fprintf(stderr, "\n");
-		funlockfile(stderr);
+		sprintf(label, "BT data [len: %3zd]", len);
+		hexdump(label, buffer, len);
 
 	}
 
-	assert(pthread_cancel(thread) == 0);
-	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
+	ck_assert_int_eq(pthread_cancel(thread), 0);
+	ck_assert_int_eq(pthread_timedjoin(thread, NULL, 1e6), 0);
 
 	close(pcm_fds[0]);
 	close(bt_fds[1]);
-	return 0;
 }
 
-static int test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
+static void test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 
 	int bt_fds[2];
 	int pcm_fds[2];
 
-	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
-	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds) == 0);
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds), 0);
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds), 0);
 
 	t->profile = BLUETOOTH_PROFILE_A2DP_SINK;
 	t->state = TRANSPORT_ACTIVE;
@@ -148,65 +147,17 @@ static int test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 	size_t i;
 	for (i = 0; i < ARRAYSIZE(test_a2dp_bt_data); i++)
 		if (test_a2dp_bt_data[i].len != 0)
-			assert(write(bt_fds[0], test_a2dp_bt_data[i].data, test_a2dp_bt_data[i].len) > 0);
+			ck_assert_int_gt(write(bt_fds[0], test_a2dp_bt_data[i].data, test_a2dp_bt_data[i].len), 0);
 
 	sleep(1);
-	assert(pthread_cancel(thread) == 0);
-	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
+	ck_assert_int_eq(pthread_cancel(thread), 0);
+	ck_assert_int_eq(pthread_timedjoin(thread, NULL, 1e6), 0);
 
 	close(pcm_fds[1]);
 	close(bt_fds[0]);
-	return 0;
 }
 
-int test_a2dp_sbc_invalid_setup(void) {
-
-	const uint8_t codec[] = { 0xff, 0xff, 0xff, 0xff };
-	struct ba_transport transport = {
-		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_SBC,
-		.a2dp = {
-			.cconfig = (uint8_t *)&codec,
-			.cconfig_size = sizeof(a2dp_sbc_t),
-		},
-		.state = TRANSPORT_IDLE,
-		.bt_fd = -1,
-	};
-
-	pthread_t thread;
-
-	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
-	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
-	assert(test_error_count == 1);
-	assert(strcmp(test_error_msg, "Invalid BT socket: -1") == 0);
-
-	transport.bt_fd = 0;
-
-	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
-	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
-	assert(test_error_count == 2);
-	assert(strcmp(test_error_msg, "Invalid reading MTU: 0") == 0);
-
-	transport.mtu_read = 475;
-
-	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
-	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
-	assert(test_error_count == 3);
-	assert(strcmp(test_error_msg, "Couldn't initialize SBC codec: Invalid argument") == 0);
-
-	transport.a2dp.cconfig = (uint8_t *)&config_sbc_44100_stereo;
-	*test_error_msg = '\0';
-
-	pthread_create(&thread, NULL, io_thread_a2dp_sink_sbc, &transport);
-	assert(pthread_cancel(thread) == 0);
-	assert(pthread_timedjoin(thread, NULL, 1e6) == 0);
-	assert(test_error_count == 3);
-	assert(strcmp(test_error_msg, "") == 0);
-
-	return 0;
-}
-
-int test_a2dp_sbc(void) {
+START_TEST(test_a2dp_sbc) {
 
 	struct ba_transport transport = {
 		.codec = A2DP_CODEC_SBC,
@@ -217,18 +168,15 @@ int test_a2dp_sbc(void) {
 	};
 
 	transport.mtu_write = 153 * 3,
-	assert(test_a2dp_encoding(&transport, io_thread_a2dp_source_sbc) == 0);
-	assert(test_warn_count == 0 && test_error_count == 0);
+	test_a2dp_encoding(&transport, io_thread_a2dp_source_sbc);
 
 	transport.mtu_read = transport.mtu_write;
-	assert(test_a2dp_decoding(&transport, io_thread_a2dp_sink_sbc) == 0);
-	assert(test_warn_count == 0 && test_error_count == 0);
+	test_a2dp_decoding(&transport, io_thread_a2dp_sink_sbc);
 
-	return 0;
-}
+} END_TEST
 
 #if ENABLE_AAC
-int test_a2dp_aac(void) {
+START_TEST(test_a2dp_aac) {
 
 	struct ba_transport transport = {
 		.codec = A2DP_CODEC_MPEG24,
@@ -239,19 +187,16 @@ int test_a2dp_aac(void) {
 	};
 
 	transport.mtu_write = 64;
-	assert(test_a2dp_encoding(&transport, io_thread_a2dp_source_aac) == 0);
-	assert(test_warn_count == 0 && test_error_count == 0);
+	test_a2dp_encoding(&transport, io_thread_a2dp_source_aac);
 
 	transport.mtu_read = transport.mtu_write;
-	assert(test_a2dp_decoding(&transport, io_thread_a2dp_sink_aac) == 0);
-	assert(test_warn_count == 0 && test_error_count == 0);
+	test_a2dp_decoding(&transport, io_thread_a2dp_sink_aac);
 
-	return 0;
-}
+} END_TEST
 #endif
 
 #if ENABLE_APTX
-int test_a2dp_aptx(void) {
+START_TEST(test_a2dp_aptx) {
 
 	struct ba_transport transport = {
 		.codec = A2DP_CODEC_VENDOR_APTX,
@@ -262,15 +207,13 @@ int test_a2dp_aptx(void) {
 	};
 
 	transport.mtu_write = 40;
-	assert(test_a2dp_encoding(&transport, io_thread_a2dp_source_aptx) == 0);
-	assert(test_warn_count == 0 && test_error_count == 0);
+	test_a2dp_encoding(&transport, io_thread_a2dp_source_aptx);
 
-	return 0;
-}
+} END_TEST
 #endif
 
 #if ENABLE_LDAC
-int test_a2dp_ldac(void) {
+START_TEST(test_a2dp_ldac) {
 
 	struct ba_transport transport = {
 		.profile = BLUETOOTH_PROFILE_A2DP_SOURCE,
@@ -282,27 +225,36 @@ int test_a2dp_ldac(void) {
 	};
 
 	transport.mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 679;
-	assert(test_a2dp_encoding(&transport, io_thread_a2dp_source_ldac) == 0);
-	assert(test_warn_count == 0 && test_error_count == 0);
+	test_a2dp_encoding(&transport, io_thread_a2dp_source_ldac);
 
-	return 0;
-}
+} END_TEST
 #endif
 
 int main(void) {
-	test_run(test_a2dp_sbc_invalid_setup);
-	test_run(test_a2dp_sbc);
+
+	Suite *s = suite_create(__FILE__);
+	TCase *tc = tcase_create(__FILE__);
+	SRunner *sr = srunner_create(s);
+
+	suite_add_tcase(s, tc);
+
+	tcase_add_test(tc, test_a2dp_sbc);
 #if ENABLE_AAC
 	config.aac_afterburner = true;
-	test_run(test_a2dp_aac);
+	tcase_add_test(tc, test_a2dp_aac);
 #endif
 #if ENABLE_APTX
-	test_run(test_a2dp_aptx);
+	tcase_add_test(tc, test_a2dp_aptx);
 #endif
 #if ENABLE_LDAC
 	config.ldac_abr = true;
 	config.ldac_eqmid = LDACBT_EQMID_HQ;
-	test_run(test_a2dp_ldac);
+	tcase_add_test(tc, test_a2dp_ldac);
 #endif
-	return 0;
+
+	srunner_run_all(sr, CK_ENV);
+	int nf = srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	return nf == 0 ? 0 : 1;
 }

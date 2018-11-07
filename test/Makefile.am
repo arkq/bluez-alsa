@@ -6,7 +6,7 @@ TESTS = \
 	test-io \
 	test-utils
 
-if ENABLE_PCM_TEST
+if ENABLE_TEST_PCM
 TESTS += test-pcm
 endif
 
@@ -19,23 +19,25 @@ check_PROGRAMS = \
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
-	@ALSA_CFLAGS@ \
-	@BLUEZ_CFLAGS@ \
-	@GLIB2_CFLAGS@ \
-	@GIO2_CFLAGS@ \
 	@AAC_CFLAGS@ \
+	@ALSA_CFLAGS@ \
 	@APTX_CFLAGS@ \
-	@LDAC_CFLAGS@ \
+	@BLUEZ_CFLAGS@ \
+	@CHECK_CFLAGS@ \
+	@GIO2_CFLAGS@ \
+	@GLIB2_CFLAGS@ \
 	@LDAC_ABR_CFLAGS@ \
+	@LDAC_CFLAGS@ \
 	@SBC_CFLAGS@
 
 LDADD = \
-	@ALSA_LIBS@ \
-	@BLUEZ_LIBS@ \
-	@GLIB2_LIBS@ \
-	@GIO2_LIBS@ \
 	@AAC_LIBS@ \
+	@ALSA_LIBS@ \
 	@APTX_LIBS@ \
-	@LDAC_LIBS@ \
+	@BLUEZ_LIBS@ \
+	@CHECK_LIBS@ \
+	@GIO2_LIBS@ \
+	@GLIB2_LIBS@ \
 	@LDAC_ABR_LIBS@ \
+	@LDAC_LIBS@ \
 	@SBC_LIBS@
