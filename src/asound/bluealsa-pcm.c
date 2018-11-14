@@ -434,7 +434,7 @@ static int bluealsa_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		unsigned int space) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	if (space != 2)
+	if (space < 2)
 		return -EINVAL;
 
 	/* PCM plug-in relies on the BlueALSA socket (critical signaling
@@ -451,7 +451,7 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		unsigned int nfds, unsigned short *revents) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	if (nfds != 2)
+	if (nfds < 2)
 		return -EINVAL;
 
 	if (pcm->pcm_fd == -1)

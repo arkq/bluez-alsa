@@ -8,6 +8,7 @@
  *
  */
 
+#include <getopt.h>
 #include <libgen.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -21,6 +22,9 @@
 #include "inc/sine.inc"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
+
+#define buffer_test_frames 1024
+#define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 
 static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *hci, snd_pcm_stream_t stream, int mode) {
 
@@ -269,26 +273,90 @@ START_TEST(test_playback) {
 
 } END_TEST
 
+/**
+ * Make reference test for playback termination.
+ *
+ * Values obtained with an external USB sound card:
+ * - frames = -19
+ * - snd_pcm_poll_descriptors_count(pcm) = 1
+ * - snd_pcm_poll_descriptors(pcm, pfds, 4) = 1
+ * - snd_pcm_poll_descriptors_revents(pcm, pfds, 4, &revents) = 0
+ * - snd_pcm_prepare(pcm) = -19
+ * - snd_pcm_reset(pcm) = 0
+ * - snd_pcm_start(pcm) = -19
+ * - snd_pcm_drop(pcm) = -19
+ * - snd_pcm_drain(pcm) = -19
+ * - snd_pcm_pause(pcm, 0) = -19
+ * - snd_pcm_delay(pcm, &frames) = -19
+ * - snd_pcm_resume(pcm) = -38
+ * - snd_pcm_avail(pcm) = -19
+ * - snd_pcm_avail_update(pcm) = 15081
+ * - snd_pcm_writei(pcm, buffer, buffer_test_frames) = -19
+ * - snd_pcm_wait(pcm, 10) = -19
+ * - snd_pcm_close(pcm) = 0
+ */
+void test_playback_termination_reference(const char *name) {
+
+	snd_pcm_t *pcm = NULL;
+	unsigned int pcm_buffer_time = 500000;
+	unsigned int pcm_period_time = 100000;
+	struct pollfd pfds[2];
+	unsigned short revents;
+	int err;
+
+	if ((err = snd_pcm_open(&pcm, name, SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
+		error("snd_pcm_open: %s", snd_strerror(err));
+		return;
+	}
+	if (set_hw_params(pcm, 2, 44100, &pcm_buffer_time, &pcm_period_time) != 0)
+		return;
+	if ((err = snd_pcm_prepare(pcm)) != 0) {
+		error("snd_pcm_prepare: %s", snd_strerror(err));
+		return;
+	}
+
+	int16_t buffer[buffer_test_frames * 2] = { 0 };
+	snd_pcm_sframes_t frames = 0;
+
+	fprintf(stderr, "Unplug PCM device...");
+	while (frames >= 0)
+		frames = snd_pcm_writei(pcm, buffer, buffer_test_frames);
+	fprintf(stderr, "\n");
+
+	dumprv(frames);
+	dumprv(snd_pcm_poll_descriptors_count(pcm));
+	dumprv(snd_pcm_poll_descriptors(pcm, pfds, 4));
+	dumprv(snd_pcm_poll_descriptors_revents(pcm, pfds, 4, &revents));
+	dumprv(snd_pcm_prepare(pcm));
+	dumprv(snd_pcm_reset(pcm));
+	dumprv(snd_pcm_start(pcm));
+	dumprv(snd_pcm_drop(pcm));
+	dumprv(snd_pcm_drain(pcm));
+	dumprv(snd_pcm_pause(pcm, 0));
+	dumprv(snd_pcm_delay(pcm, &frames));
+	dumprv(snd_pcm_resume(pcm));
+	dumprv(snd_pcm_avail(pcm));
+	dumprv(snd_pcm_avail_update(pcm));
+	dumprv(snd_pcm_writei(pcm, buffer, buffer_test_frames));
+	dumprv(snd_pcm_wait(pcm, 10));
+	dumprv(snd_pcm_close(pcm));
+
+}
+
 START_TEST(test_playback_termination) {
 
 	const char *hci = "hci-ts3";
 	pid_t pid = spawn_bluealsa_server(hci, 2, true, false);
 
-	int pcm_channels = 2;
-	int pcm_sampling = 44100;
+	snd_pcm_t *pcm = NULL;
 	unsigned int pcm_buffer_time = 500000;
 	unsigned int pcm_period_time = 100000;
 
-	snd_pcm_t *pcm = NULL;
-	snd_pcm_uframes_t buffer_size;
-	snd_pcm_uframes_t period_size;
-
 	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, hci, SND_PCM_STREAM_PLAYBACK, 0), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_channels, pcm_sampling, &pcm_buffer_time, &pcm_period_time), 0);
-	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(set_hw_params(pcm, 2, 44100, &pcm_buffer_time, &pcm_period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
-	int16_t *period = malloc(period_size * pcm_channels * sizeof(int16_t));
+	int16_t buffer[buffer_test_frames * 2] = { 0 };
 	snd_pcm_sframes_t frames = 0;
 	size_t i = 0;
 
@@ -296,23 +364,24 @@ START_TEST(test_playback_termination) {
 	while (frames >= 0) {
 		if (i++ == 10)
 			kill(pid, SIGUSR2);
-		frames = snd_pcm_writei(pcm, period, period_size);
+		frames = snd_pcm_writei(pcm, buffer, buffer_test_frames);
 	}
 
 	/* check if most commonly used calls will report missing device */
 
-	struct pollfd pfds[2];
+	struct pollfd pfds[4];
 	unsigned short revents;
 
 	ck_assert_int_eq(frames, -ENODEV);
-	ck_assert_int_eq(snd_pcm_poll_descriptors_revents(pcm, pfds, 2, &revents), -ENODEV);
-	ck_assert_int_eq(snd_pcm_writei(pcm, period, period_size), -ENODEV);
+	ck_assert_int_eq(snd_pcm_poll_descriptors_count(pcm), 2);
+	ck_assert_int_eq(snd_pcm_poll_descriptors(pcm, pfds, 4), 2);
+	ck_assert_int_eq(snd_pcm_poll_descriptors_revents(pcm, pfds, 4, &revents), -ENODEV);
+	ck_assert_int_eq(snd_pcm_writei(pcm, buffer, buffer_test_frames), -ENODEV);
 	ck_assert_int_eq(snd_pcm_avail_update(pcm), -ENODEV);
 	ck_assert_int_eq(snd_pcm_delay(pcm, &frames), -ENODEV);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), -EBADFD);
 	ck_assert_int_eq(snd_pcm_close(pcm), -EACCES);
 
-	free(period);
 	waitpid(pid, NULL, 0);
 
 } END_TEST
@@ -322,7 +391,27 @@ int test_capture(void) {
 }
 
 int main(int argc, char *argv[]) {
-	(void)argc;
+
+	int opt;
+	const char *opts = "h";
+	struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h' },
+		{ "pcm", required_argument, NULL, 'd' },
+		{ 0, 0, 0, 0 },
+	};
+
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h' /* --help */ :
+			printf("usage: %s [--pcm=NAME]\n", argv[0]);
+			return 0;
+		case 'd' /* --pcm */ :
+			test_playback_termination_reference(optarg);
+			return 0;
+		default:
+			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+			return 1;
+		}
 
 	/* test-pcm and server-mock shall be placed in the same directory */
 	bin_path = dirname(argv[0]);
