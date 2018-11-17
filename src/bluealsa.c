@@ -57,6 +57,7 @@ struct ba_config config = {
 	.a2dp.volume = false,
 	.a2dp.force_mono = false,
 	.a2dp.force_44100 = false,
+	.a2dp.keep_alive = 0,
 
 #if ENABLE_AAC
 	/* There are two issues with the afterburner: a) it uses a LOT of power,

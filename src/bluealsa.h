@@ -110,6 +110,11 @@ struct ba_config {
 		 * to force lower sampling in order to save Bluetooth bandwidth. */
 		bool force_44100;
 
+		/* The number of seconds for keeping A2DP transport alive after PCM has
+		 * been closed. One might set this value to negative number for infinite
+		 * time. This option applies for the source profile only. */
+		int keep_alive;
+
 	} a2dp;
 
 #if ENABLE_AAC

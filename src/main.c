@@ -78,7 +78,8 @@ int main(int argc, char **argv) {
 		{ "profile", required_argument, NULL, 'p' },
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
 		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
-		{ "a2dp-volume", no_argument, NULL, 8 },
+		{ "a2dp-keep-alive", required_argument, NULL, 8 },
+		{ "a2dp-volume", no_argument, NULL, 9 },
 #if ENABLE_AAC
 		{ "aac-afterburner", no_argument, NULL, 4 },
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
@@ -149,6 +150,7 @@ int main(int argc, char **argv) {
 					"  -p, --profile=NAME\tenable BT profile\n"
 					"  --a2dp-force-mono\tforce monophonic sound\n"
 					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
+					"  --a2dp-keep-alive=SEC\tkeep A2DP transport alive\n"
 					"  --a2dp-volume\t\tcontrol volume natively\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\tenable afterburner\n"
@@ -248,7 +250,10 @@ int main(int argc, char **argv) {
 		case 7 /* --a2dp-force-audio-cd */ :
 			config.a2dp.force_44100 = true;
 			break;
-		case 8 /* --a2dp-volume */ :
+		case 8 /* --a2dp-keep-alive=SEC */ :
+			config.a2dp.keep_alive = atoi(optarg);
+			break;
+		case 9 /* --a2dp-volume */ :
 			config.a2dp.volume = true;
 			break;
 

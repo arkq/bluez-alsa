@@ -431,6 +431,11 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.pcm.drained);
 			poll_timeout = -1;
+			locked = !transport_pthread_cleanup_lock(t);
+			if (t->a2dp.pcm.fd == -1)
+				goto final;
+			transport_pthread_cleanup_unlock(t);
+			locked = false;
 			continue;
 		case -1:
 			if (errno == EINTR)
@@ -445,8 +450,13 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
 				warn("Couldn't read signal: %s", strerror(errno));
 			switch (sig) {
+			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
+				poll_timeout = -1;
 				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_CLOSE:
+				poll_timeout = config.a2dp.keep_alive * 1000;
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
@@ -549,6 +559,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	}
 
 fail:
+final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!locked);
 fail_ffb:
@@ -922,6 +933,11 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.pcm.drained);
 			poll_timeout = -1;
+			locked = !transport_pthread_cleanup_lock(t);
+			if (t->a2dp.pcm.fd == -1)
+				goto final;
+			transport_pthread_cleanup_unlock(t);
+			locked = false;
 			continue;
 		case -1:
 			if (errno == EINTR)
@@ -936,8 +952,13 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
 				warn("Couldn't read signal: %s", strerror(errno));
 			switch (sig) {
+			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
+				poll_timeout = -1;
 				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_CLOSE:
+				poll_timeout = config.a2dp.keep_alive * 1000;
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
@@ -1040,6 +1061,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	}
 
 fail:
+final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!locked);
 fail_ffb:
@@ -1117,6 +1139,11 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.pcm.drained);
 			poll_timeout = -1;
+			locked = !transport_pthread_cleanup_lock(t);
+			if (t->a2dp.pcm.fd == -1)
+				goto final;
+			transport_pthread_cleanup_unlock(t);
+			locked = false;
 			continue;
 		case -1:
 			if (errno == EINTR)
@@ -1131,8 +1158,13 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
 				warn("Couldn't read signal: %s", strerror(errno));
 			switch (sig) {
+			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
+				poll_timeout = -1;
 				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_CLOSE:
+				poll_timeout = config.a2dp.keep_alive * 1000;
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
@@ -1233,6 +1265,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	}
 
 fail:
+final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!locked);
 fail_ffb:
@@ -1341,6 +1374,11 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.pcm.drained);
 			poll_timeout = -1;
+			locked = !transport_pthread_cleanup_lock(t);
+			if (t->a2dp.pcm.fd == -1)
+				goto final;
+			transport_pthread_cleanup_unlock(t);
+			locked = false;
 			continue;
 		case -1:
 			if (errno == EINTR)
@@ -1355,8 +1393,13 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
 				warn("Couldn't read signal: %s", strerror(errno));
 			switch (sig) {
+			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
+				poll_timeout = -1;
 				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_CLOSE:
+				poll_timeout = config.a2dp.keep_alive * 1000;
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
@@ -1450,6 +1493,7 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	}
 
 fail:
+final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!locked);
 fail_ffb:

@@ -844,10 +844,10 @@ int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	GUnixFDList *fd_list;
 	GError *err = NULL;
 
+	/* Check whether transport is already acquired - keep-alive mode. */
 	if (t->bt_fd != -1) {
-		warn("Closing dangling BT socket: %d", t->bt_fd);
-		close(t->bt_fd);
-		t->bt_fd = -1;
+		debug("Reusing transport: %d", t->bt_fd);
+		goto final;
 	}
 
 	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path, "org.bluez.MediaTransport1",
@@ -889,6 +889,8 @@ fail:
 		error("Couldn't acquire transport: %s", err->message);
 		g_error_free(err);
 	}
+
+final:
 	return t->bt_fd;
 }
 
