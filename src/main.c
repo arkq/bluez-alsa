@@ -31,6 +31,9 @@
 
 #include "bluealsa.h"
 #include "bluez.h"
+#if ENABLE_OFONO
+#include "ofono.h"
+#endif
 #include "ctl.h"
 #include "transport.h"
 #include "utils.h"
@@ -161,6 +164,9 @@ int main(int argc, char **argv) {
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
 					"  - a2dp-sink\tAdvanced Audio Sink (%s)\n"
+#if ENABLE_OFONO
+					"  - hfp-ofono\tHands-Free handled by ofono (hf & ag)\n"
+#endif
 					"  - hfp-hf\tHands-Free (%s)\n"
 					"  - hfp-ag\tHands-Free Audio Gateway (%s)\n"
 					"  - hsp-hs\tHeadset (%s)\n"
@@ -222,6 +228,9 @@ int main(int argc, char **argv) {
 			} map[] = {
 				{ "a2dp-source", &config.enable.a2dp_source },
 				{ "a2dp-sink", &config.enable.a2dp_sink },
+#if ENABLE_OFONO
+				{ "hfp-ofono", &config.enable.hfp_ofono },
+#endif
 				{ "hfp-hf", &config.enable.hfp_hf },
 				{ "hfp-ag", &config.enable.hfp_ag },
 				{ "hsp-hs", &config.enable.hsp_hs },
@@ -238,6 +247,12 @@ int main(int argc, char **argv) {
 				error("Invalid BT profile name: %s", optarg);
 				return EXIT_FAILURE;
 			}
+#if ENABLE_OFONO
+			if (config.enable.hfp_ofono) {
+				config.enable.hfp_ag = false;
+				config.enable.hfp_hf = false;
+			}
+#endif
 
 			break;
 		}
@@ -310,6 +325,10 @@ int main(int argc, char **argv) {
 	bluez_register_a2dp();
 	bluez_register_hfp();
 
+#if ENABLE_OFONO
+	ofono_register();
+#endif
+
 	/* In order to receive EPIPE while writing to the pipe whose reading end
 	 * is closed, the SIGPIPE signal has to be handled. For more information
 	 * see the io_thread_write_pcm() function. */
@@ -327,6 +346,10 @@ int main(int argc, char **argv) {
 	g_main_loop_run(loop);
 
 	debug("Exiting main loop");
+
+#if ENABLE_OFONO
+	ofono_unregister();
+#endif
 
 	/* From all of the cleanup routines, these ones cannot be omitted. We have
 	 * to unlink named sockets, otherwise service will not start any more. */

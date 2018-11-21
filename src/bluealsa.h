@@ -48,6 +48,7 @@ struct ba_config {
 		bool a2dp_sink;
 		bool hsp_hs;
 		bool hsp_ag;
+		bool hfp_ofono;
 		bool hfp_hf;
 		bool hfp_ag;
 	} enable;

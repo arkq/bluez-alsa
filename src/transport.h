@@ -23,10 +23,14 @@
 #include "bluez.h"
 #include "hfp.h"
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 enum ba_transport_type {
 	TRANSPORT_TYPE_A2DP,
 	TRANSPORT_TYPE_RFCOMM,
-	TRANSPORT_TYPE_SCO,
+	TRANSPORT_TYPE_SCO
 };
 
 enum ba_transport_state {
@@ -45,7 +49,7 @@ enum ba_transport_signal {
 	TRANSPORT_PCM_RESUME,
 	TRANSPORT_PCM_SYNC,
 	TRANSPORT_SET_VOLUME,
-	TRANSPORT_SEND_RFCOMM,
+	TRANSPORT_SEND_RFCOMM
 };
 
 struct ba_device {
@@ -195,6 +199,17 @@ struct ba_transport {
 			struct ba_pcm spk_pcm;
 			struct ba_pcm mic_pcm;
 
+			int (*release)(struct ba_transport*);
+			int (*acquire)(struct ba_transport*);
+
+			bool is_ofono;
+#if ENABLE_OFONO
+			struct ofono {
+				bool connect_pending;
+				char * card;
+			} ofono;
+#endif
+
 		} sco;
 
 	};
@@ -260,6 +275,8 @@ int transport_release_bt_rfcomm(struct ba_transport *t);
 
 int transport_acquire_bt_sco(struct ba_transport *t);
 int transport_release_bt_sco(struct ba_transport *t);
+
+void transport_sco_init(struct ba_transport *t);
 
 int transport_release_pcm(struct ba_pcm *pcm);
 

@@ -20,6 +20,12 @@ bluealsa_SOURCES = \
 	utils.c \
 	main.c
 
+if ENABLE_OFONO
+bluealsa_SOURCES += \
+	ofono.c \
+	ofono-iface.c
+endif
+
 AM_CFLAGS = \
 	@BLUEZ_CFLAGS@ \
 	@GLIB2_CFLAGS@ \

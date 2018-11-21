@@ -119,6 +119,14 @@ AC_ARG_ENABLE([test-pcm],
 	[AS_HELP_STRING([--enable-test-pcm], [enable PCM plugin test])])
 AM_CONDITIONAL([ENABLE_TEST_PCM], [test "x$enable_test_pcm" = "xyes"])
 
+# support for Ofono
+AC_ARG_ENABLE([ofono],
+	AS_HELP_STRING([--enable-ofono], [enable HFP over Ofono support]))
+AM_CONDITIONAL([ENABLE_OFONO], [test "x$enable_ofono" = "xyes"])
+AM_COND_IF([ENABLE_OFONO], [
+	AC_DEFINE([ENABLE_OFONO], [1], [Define to 1 if the support for Ofono is enabled.])
+])
+
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
 	[alsaplugindir="$withval"], [alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])

@@ -312,6 +312,27 @@ struct ba_transport *transport_new_a2dp(
 	return t;
 }
 
+void transport_sco_init(struct ba_transport * t) {
+
+	struct ba_pcm * spk_pcm = &t->sco.spk_pcm;
+	struct ba_pcm * mic_pcm = &t->sco.mic_pcm;
+
+	t->sco.spk_gain = 15;
+	t->sco.mic_gain = 15;
+
+	spk_pcm->fd = -1;
+	spk_pcm->client = -1;
+
+	pthread_cond_init(&spk_pcm->drained, NULL);
+	pthread_mutex_init(&spk_pcm->drained_mn, NULL);
+
+	mic_pcm->fd = -1;
+	mic_pcm->client = -1;
+	pthread_cond_init(&mic_pcm->drained, NULL);
+	pthread_mutex_init(&mic_pcm->drained_mn, NULL);
+
+}
+
 struct ba_transport *transport_new_rfcomm(
 		struct ba_device *device,
 		const char *dbus_owner,
@@ -332,19 +353,9 @@ struct ba_transport *transport_new_rfcomm(
 
 	t->rfcomm.sco = t_sco;
 	t_sco->sco.rfcomm = t;
+	t_sco->sco.is_ofono = false;
 
-	t_sco->sco.spk_gain = 15;
-	t_sco->sco.mic_gain = 15;
-
-	t_sco->sco.spk_pcm.fd = -1;
-	t_sco->sco.spk_pcm.client = -1;
-	pthread_cond_init(&t_sco->sco.spk_pcm.drained, NULL);
-	pthread_mutex_init(&t_sco->sco.spk_pcm.drained_mn, NULL);
-
-	t_sco->sco.mic_pcm.fd = -1;
-	t_sco->sco.mic_pcm.client = -1;
-	pthread_cond_init(&t_sco->sco.mic_pcm.drained, NULL);
-	pthread_mutex_init(&t_sco->sco.mic_pcm.drained_mn, NULL);
+	transport_sco_init(t_sco);
 
 	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
@@ -404,7 +415,8 @@ void transport_free(struct ba_transport *t) {
 		transport_release_pcm(&t->sco.mic_pcm);
 		pthread_cond_destroy(&t->sco.mic_pcm.drained);
 		pthread_mutex_destroy(&t->sco.mic_pcm.drained_mn);
-		t->sco.rfcomm->rfcomm.sco = NULL;
+		if (!t->sco.is_ofono)
+			t->sco.rfcomm->rfcomm.sco = NULL;
 		break;
 	}
 
@@ -721,8 +733,10 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 		t->sco.spk_gain = ch1_volume;
 		t->sco.mic_gain = ch2_volume;
 
-		/* notify associated RFCOMM transport */
-		transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
+		if (!t->sco.is_ofono) {
+			/* notify associated RFCOMM transport */
+			transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
+		}
 
 		break;
 
@@ -732,7 +746,7 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 }
 
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
-	debug("State transition: %d -> %d", t->state, state);
+	debug("State transition: %d -> %d for %s %s", t->state, state, t->dbus_path, t->device->name);
 
 	if (t->state == state)
 		return 0;
@@ -976,6 +990,9 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		return t->bt_fd;
 
+	if (t->sco.acquire)
+		return t->sco.acquire(t);
+
 	if (hci_devinfo(t->device->hci_dev_id, &di) == -1) {
 		error("Couldn't get HCI device info: %s", strerror(errno));
 		return -1;
@@ -1001,6 +1018,9 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 }
 
 int transport_release_bt_sco(struct ba_transport *t) {
+
+	if (t->sco.release)
+		return t->sco.release(t);
 
 	if (t->bt_fd == -1)
 		return 0;

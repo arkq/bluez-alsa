@@ -88,7 +88,7 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 				}
 				break;
 			case BA_PCM_TYPE_SCO:
-				if ((*t)->type != TRANSPORT_TYPE_SCO)
+				if ((*t)->type != TRANSPORT_TYPE_SCO )
 					continue;
 				/* ignore SCO transport if codec is not selected yet */
 				if ((*t)->codec == HFP_CODEC_UNDEFINED)
@@ -285,8 +285,11 @@ static void ctl_thread_cmd_list_transports(const struct ba_request *req, int fd)
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t); ) {
 			/* ignore SCO transport if codec is not selected yet */
-			if (t->type == TRANSPORT_TYPE_SCO && t->codec == HFP_CODEC_UNDEFINED)
+			if (t->type == TRANSPORT_TYPE_SCO &&
+				t->codec == HFP_CODEC_UNDEFINED) {
 				continue;
+			}
+
 			_ctl_transport(t, &transport);
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
@@ -666,7 +669,7 @@ static void *ctl_thread(void *arg) {
 			for (i = 0; i < BLUEALSA_MAX_CLIENTS; i++)
 				if (config.ctl.subs[i] & event.mask) {
 					const int client = config.ctl.pfds[i + __CTL_IDX_MAX].fd;
-					debug("Emitting notification: %B => %d", event.mask, client);
+					debug("Sending notification: %B => %d", event.mask, client);
 					send(client, &event, sizeof(event), MSG_NOSIGNAL);
 				}
 
@@ -707,6 +710,7 @@ int bluealsa_ctl_thread_init(void) {
 		error("Couldn't create controller socket: %s", strerror(errno));
 		goto fail;
 	}
+
 	if (bind(config.ctl.pfds[CTL_IDX_SRV].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
 		error("Couldn't bind controller socket: %s", strerror(errno));
 		goto fail;

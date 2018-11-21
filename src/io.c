@@ -1412,7 +1412,7 @@ void *io_thread_sco(void *arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
-	/* buffers for transferring data to and fro SCO socket */
+	/* buffers for transferring data to and from SCO socket */
 	ffb_uint8_t bt_in = { 0 };
 	ffb_uint8_t bt_out = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_in);
@@ -1420,7 +1420,7 @@ void *io_thread_sco(void *arg) {
 
 	/* these buffers shall be bigger than the SCO MTU */
 	if (ffb_init(&bt_in, 128) == NULL ||
-			ffb_init(&bt_out, 128) == NULL) {
+		ffb_init(&bt_out, 128) == NULL) {
 		error("Couldn't create data buffer: %s", strerror(ENOMEM));
 		goto fail;
 	}
@@ -1500,13 +1500,16 @@ void *io_thread_sco(void *arg) {
 			 * transfered even though we are not reading from it! */
 			if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1)
 				release = true;
-			/* For HFP HF we have to check if we are in the call stage or in the
-			 * call setup stage. Otherwise, it might be not possible to acquire
-			 * SCO connection. */
-			if (t->profile == BLUETOOTH_PROFILE_HFP_HF &&
-					inds[HFP_IND_CALL] == HFP_IND_CALL_NONE &&
-					inds[HFP_IND_CALLSETUP] == HFP_IND_CALLSETUP_NONE)
-				release = true;
+
+			if (!t->sco.is_ofono) {
+				/* For HFP HF we have to check if we are in the call stage or in the
+				 * call setup stage. Otherwise, it might be not possible to acquire
+				 * SCO connection. */
+				if (t->profile == BLUETOOTH_PROFILE_HFP_HF &&
+						inds[HFP_IND_CALL] == HFP_IND_CALL_NONE &&
+						inds[HFP_IND_CALLSETUP] == HFP_IND_CALLSETUP_NONE)
+					release = true;
+			}
 
 			if (release) {
 				transport_release_bt_sco(t);
