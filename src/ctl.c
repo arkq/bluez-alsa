@@ -664,7 +664,7 @@ static void *ctl_thread(void *arg) {
 			for (i = 0; i < BLUEALSA_MAX_CLIENTS; i++)
 				if (config.ctl.subs[i] & event.mask) {
 					const int client = config.ctl.pfds[i + __CTL_IDX_MAX].fd;
-					debug("Emitting notification: %B => %d", event.mask, client);
+					debug("Sending notification: %B => %d", event.mask, client);
 					send(client, &event, sizeof(event), MSG_NOSIGNAL);
 				}
 

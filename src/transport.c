@@ -443,7 +443,8 @@ void transport_free(struct ba_transport *t) {
 		transport_release_pcm(&t->sco.mic_pcm);
 		pthread_cond_destroy(&t->sco.mic_pcm.drained);
 		pthread_mutex_destroy(&t->sco.mic_pcm.drained_mn);
-		t->sco.rfcomm->rfcomm.sco = NULL;
+		if (!t->sco.ofono)
+			t->sco.rfcomm->rfcomm.sco = NULL;
 		break;
 	}
 
@@ -760,8 +761,9 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 		t->sco.spk_gain = ch1_volume;
 		t->sco.mic_gain = ch2_volume;
 
-		/* notify associated RFCOMM transport */
-		transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
+		if (!t->sco.ofono)
+			/* notify associated RFCOMM transport */
+			transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
 
 		break;
 

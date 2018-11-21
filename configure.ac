@@ -83,6 +83,13 @@ AM_COND_IF([ENABLE_LDAC], [
 	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
 ])
 
+AC_ARG_ENABLE([ofono],
+	AS_HELP_STRING([--enable-ofono], [enable HFP over oFono]))
+AM_CONDITIONAL([ENABLE_OFONO], [test "x$enable_ofono" = "xyes"])
+AM_COND_IF([ENABLE_OFONO], [
+	AC_DEFINE([ENABLE_OFONO], [1], [Define to 1 if oFono is enabled.])
+])
+
 AC_ARG_ENABLE([payloadcheck],
 	[AS_HELP_STRING([--disable-payloadcheck], [disable RTP payload type check (workaround for a PulseAudio bug)])])
 AM_CONDITIONAL([ENABLE_PAYLOADCHECK], [test "x$enable_payloadcheck" != "xno"])

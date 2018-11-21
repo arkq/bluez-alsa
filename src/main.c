@@ -32,6 +32,9 @@
 #include "bluealsa.h"
 #include "bluez.h"
 #include "ctl.h"
+#if ENABLE_OFONO
+# include "ofono.h"
+#endif
 #include "transport.h"
 #include "utils.h"
 #include "shared/defs.h"
@@ -163,6 +166,9 @@ int main(int argc, char **argv) {
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
 					"  - a2dp-sink\tAdvanced Audio Sink (%s)\n"
+#if ENABLE_OFONO
+					"  - hfp-ofono\tHands-Free handled by oFono (hf & ag)\n"
+#endif
 					"  - hfp-hf\tHands-Free (%s)\n"
 					"  - hfp-ag\tHands-Free Audio Gateway (%s)\n"
 					"  - hsp-hs\tHeadset (%s)\n"
@@ -224,6 +230,9 @@ int main(int argc, char **argv) {
 			} map[] = {
 				{ "a2dp-source", &config.enable.a2dp_source },
 				{ "a2dp-sink", &config.enable.a2dp_sink },
+#if ENABLE_OFONO
+				{ "hfp-ofono", &config.enable.hfp_ofono },
+#endif
 				{ "hfp-hf", &config.enable.hfp_hf },
 				{ "hfp-ag", &config.enable.hfp_ag },
 				{ "hsp-hs", &config.enable.hsp_hs },
@@ -288,6 +297,14 @@ int main(int argc, char **argv) {
 			return EXIT_FAILURE;
 		}
 
+#if ENABLE_OFONO
+	if (config.enable.hfp_ofono) {
+		debug("Disabling native HFP due to enabled oFono");
+		config.enable.hfp_ag = false;
+		config.enable.hfp_hf = false;
+	}
+#endif
+
 	/* device list is no longer required */
 	free(hci_devs);
 
@@ -311,9 +328,13 @@ int main(int argc, char **argv) {
 	}
 
 	bluez_subscribe_signals();
-
 	bluez_register_a2dp();
 	bluez_register_hfp();
+
+#if ENABLE_OFONO
+	ofono_subscribe_signals();
+	ofono_register();
+#endif
 
 	/* In order to receive EPIPE while writing to the pipe whose reading end
 	 * is closed, the SIGPIPE signal has to be handled. For more information

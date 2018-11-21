@@ -25,8 +25,8 @@ struct ba_config config = {
 
 	/* enable output profiles by default */
 	.enable.a2dp_source = true,
-	.enable.hsp_ag = true,
 	.enable.hfp_ag = true,
+	.enable.hsp_ag = true,
 
 	/* omit chown if audio group is not defined */
 	.gid_audio = -1,

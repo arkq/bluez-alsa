@@ -183,6 +183,9 @@ struct ba_transport {
 
 		struct {
 
+			/* if true, SCO is handled by oFono */
+			bool ofono;
+
 			/* parent RFCOMM transport */
 			struct ba_transport *rfcomm;
 
