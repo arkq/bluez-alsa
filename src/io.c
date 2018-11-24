@@ -192,6 +192,11 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
 
+	/* Lock transport during initialization stage. This lock will ensure,
+	 * that no one will modify critical section until thread state can be
+	 * known - initialization has failed or succeeded. */
+	bool locked = !transport_pthread_cleanup_lock(t);
+
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
 		goto fail_init;
@@ -224,8 +229,12 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	if (ffb_init(&pcm, sbc_get_codesize(&sbc)) == NULL ||
 			ffb_init(&bt, t->mtu_read) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
+
+	/* Lock transport during thread cancellation. This handler shall be at
+	 * the top of the cleanup stack - lastly pushed. */
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
 
 	uint16_t seq_number = -1;
 
@@ -233,6 +242,9 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
+
+	transport_pthread_cleanup_unlock(t);
+	locked = false;
 
 	debug("Starting IO loop: %s (%s)",
 			bluetooth_profile_to_string(t->profile),
@@ -328,6 +340,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!locked);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -341,6 +355,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+
+	bool locked = !transport_pthread_cleanup_lock(t);
 
 	sbc_t sbc;
 
@@ -373,8 +389,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	if (ffb_init(&pcm, sbc_pcm_samples * (mtu_write_payload / sbc_frame_len)) == NULL ||
 			ffb_init(&bt, t->mtu_write) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -394,6 +412,9 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
+
+	transport_pthread_cleanup_unlock(t);
+	locked = false;
 
 	debug("Starting IO loop: %s (%s)",
 			bluetooth_profile_to_string(t->profile),
@@ -529,6 +550,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!locked);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -543,6 +566,8 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+
+	bool locked = !transport_pthread_cleanup_lock(t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -591,8 +616,10 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			ffb_init(&latm, t->mtu_read) == NULL ||
 			ffb_init(&bt, t->mtu_read) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
 
 	uint16_t seq_number = -1;
 	int markbit_quirk = -3;
@@ -601,6 +628,9 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
+
+	transport_pthread_cleanup_unlock(t);
+	locked = false;
 
 	debug("Starting IO loop: %s (%s)",
 			bluetooth_profile_to_string(t->profile),
@@ -717,6 +747,8 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!locked);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -735,6 +767,8 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+
+	bool locked = !transport_pthread_cleanup_lock(t);
 
 	HANDLE_AACENCODER handle;
 	AACENC_InfoStruct aacinf;
@@ -823,8 +857,10 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	if (ffb_init(&pcm, aacinf.inputChannels * aacinf.frameLength) == NULL ||
 			ffb_init(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
 
 	rtp_header_t *rtp_header;
 
@@ -867,6 +903,9 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
+
+	transport_pthread_cleanup_unlock(t);
+	locked = false;
 
 	debug("Starting IO loop: %s (%s)",
 			bluetooth_profile_to_string(t->profile),
@@ -1002,6 +1041,8 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!locked);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 fail_init:
@@ -1018,6 +1059,8 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+
+	bool locked = !transport_pthread_cleanup_lock(t);
 
 	APTXENC handle = malloc(SizeofAptxbtenc());
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
@@ -1040,8 +1083,10 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	if (ffb_init(&pcm, aptx_pcm_samples * (mtu_write / aptx_code_len)) == NULL ||
 			ffb_init(&bt, mtu_write) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
 
 	/* array with historical data of queued bytes for BT socket */
 	int coutq_history[IO_THREAD_COUTQ_HISTORY_SIZE] = { 0 };
@@ -1053,6 +1098,9 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
+
+	transport_pthread_cleanup_unlock(t);
+	locked = false;
 
 	debug("Starting IO loop: %s (%s)",
 			bluetooth_profile_to_string(t->profile),
@@ -1186,6 +1234,8 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!locked);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 fail_init:
@@ -1202,6 +1252,8 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+
+	bool locked = !transport_pthread_cleanup_lock(t);
 
 	HANDLE_LDAC_BT handle;
 	HANDLE_LDAC_ABR handle_abr;
@@ -1247,8 +1299,10 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	if (ffb_init(&pcm, ldac_pcm_samples) == NULL ||
 			ffb_init(&bt, t->mtu_write) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -1268,6 +1322,9 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
+
+	transport_pthread_cleanup_unlock(t);
+	locked = false;
 
 	debug("Starting IO loop: %s (%s)",
 			bluetooth_profile_to_string(t->profile),
@@ -1394,6 +1451,8 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!locked);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 fail_init:
@@ -1422,7 +1481,7 @@ void *io_thread_sco(void *arg) {
 	if (ffb_init(&bt_in, 128) == NULL ||
 			ffb_init(&bt_out, 128) == NULL) {
 		error("Couldn't create data buffer: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
 
 	int poll_timeout = -1;
@@ -1673,6 +1732,7 @@ retry_sco_write:
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -1713,7 +1773,7 @@ void *io_thread_a2dp_sink_dump(void *arg) {
 
 	if (ffb_init(&bt, t->mtu_read) == NULL) {
 		error("Couldn't create data buffer: %s", strerror(ENOMEM));
-		goto fail;
+		goto fail_ffb;
 	}
 
 	struct pollfd pfds[] = {
@@ -1750,6 +1810,7 @@ void *io_thread_a2dp_sink_dump(void *arg) {
 
 fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 fail_open:

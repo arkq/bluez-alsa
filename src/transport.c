@@ -254,6 +254,8 @@ struct ba_transport *transport_new(
 	if (profile == BLUETOOTH_PROFILE_HSP_HS || profile == BLUETOOTH_PROFILE_HSP_AG)
 		t->codec = HFP_CODEC_CVSD;
 
+	pthread_mutex_init(&t->mutex, NULL);
+
 	t->state = TRANSPORT_IDLE;
 	t->thread = config.main_thread;
 
@@ -383,6 +385,8 @@ void transport_free(struct ba_transport *t) {
 		close(t->sig_fd[0]);
 	if (t->sig_fd[1] != -1)
 		close(t->sig_fd[1]);
+
+	pthread_mutex_destroy(&t->mutex);
 
 	/* free type-specific resources */
 	switch (t->type) {
@@ -1054,9 +1058,11 @@ void transport_pthread_cancel(pthread_t thread) {
 }
 
 /**
- * Wrapper for release callback, which can be used by the pthread cleanup. */
-void transport_pthread_cleanup(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+ * Wrapper for release callback, which can be used by the pthread cleanup.
+ *
+ * This function CAN be used with transport_pthread_cleanup_lock() in order
+ * to guard transport critical section during cleanup process. */
+void transport_pthread_cleanup(struct ba_transport *t) {
 
 	/* During the normal operation mode, the release callback should not
 	 * be NULL. Hence, we will relay on this callback - file descriptors
@@ -1068,7 +1074,22 @@ void transport_pthread_cleanup(void *arg) {
 	 * be used anymore. */
 	t->thread = config.main_thread;
 
+	transport_pthread_cleanup_unlock(t);
+
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the IO/RFCOMM thread. */
 	debug("Exiting IO thread");
+}
+
+int transport_pthread_cleanup_lock(struct ba_transport *t) {
+	int ret = pthread_mutex_lock(&t->mutex);
+	t->cleanup_lock = true;
+	return ret;
+}
+
+int transport_pthread_cleanup_unlock(struct ba_transport *t) {
+	if (!t->cleanup_lock)
+		return 0;
+	t->cleanup_lock = false;
+	return pthread_mutex_unlock(&t->mutex);
 }

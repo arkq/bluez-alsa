@@ -357,11 +357,13 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
-		goto final;
+		goto fail_lookup;
 	case -2:
 		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
-		goto final;
+		goto fail_lookup;
 	}
+
+	pthread_mutex_lock(&t->mutex);
 
 	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
 		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
@@ -442,6 +444,8 @@ fail:
 	t_pcm->fd = -1;
 
 final:
+	pthread_mutex_unlock(&t->mutex);
+fail_lookup:
 	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
@@ -459,15 +463,19 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
-		goto fail;
+		goto fail_lookup;
 	case -2:
 		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
-		goto fail;
+		goto fail_lookup;
 	}
+
+	pthread_mutex_lock(&t->mutex);
+
 	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
 		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
+
 	if (t_pcm->client != fd) {
 		status.code = BA_STATUS_CODE_FORBIDDEN;
 		goto fail;
@@ -477,6 +485,8 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 	transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 
 fail:
+	pthread_mutex_unlock(&t->mutex);
+fail_lookup:
 	pthread_mutex_unlock(&config.devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
