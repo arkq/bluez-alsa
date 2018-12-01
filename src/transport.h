@@ -240,6 +240,12 @@ struct ba_transport *transport_new_rfcomm(
 		const char *dbus_owner,
 		const char *dbus_path,
 		enum bluetooth_profile profile);
+struct ba_transport *transport_new_sco(
+		struct ba_device *device,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile,
+		uint16_t codec);
 void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path);

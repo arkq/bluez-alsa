@@ -328,25 +328,12 @@ struct ba_transport *transport_new_rfcomm(
 		goto fail;
 
 	dbus_path_sco = g_strdup_printf("%s/sco", dbus_path);
-	if ((t_sco = transport_new(device, TRANSPORT_TYPE_SCO,
-					dbus_owner, dbus_path_sco, profile, HFP_CODEC_UNDEFINED)) == NULL)
+	if ((t_sco = transport_new_sco(device, dbus_owner, dbus_path_sco,
+					profile, HFP_CODEC_UNDEFINED)) == NULL)
 		goto fail;
 
 	t->rfcomm.sco = t_sco;
 	t_sco->sco.rfcomm = t;
-
-	t_sco->sco.spk_gain = 15;
-	t_sco->sco.mic_gain = 15;
-
-	t_sco->sco.spk_pcm.fd = -1;
-	t_sco->sco.spk_pcm.client = -1;
-	pthread_cond_init(&t_sco->sco.spk_pcm.drained, NULL);
-	pthread_mutex_init(&t_sco->sco.spk_pcm.drained_mn, NULL);
-
-	t_sco->sco.mic_pcm.fd = -1;
-	t_sco->sco.mic_pcm.client = -1;
-	pthread_cond_init(&t_sco->sco.mic_pcm.drained, NULL);
-	pthread_mutex_init(&t_sco->sco.mic_pcm.drained_mn, NULL);
 
 	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
@@ -356,6 +343,36 @@ fail:
 		g_free(dbus_path_sco);
 	transport_free(t);
 	return NULL;
+}
+
+struct ba_transport *transport_new_sco(
+		struct ba_device *device,
+		const char *dbus_owner,
+		const char *dbus_path,
+		enum bluetooth_profile profile,
+		uint16_t codec) {
+
+	struct ba_transport *t;
+
+	if ((t = transport_new(device, TRANSPORT_TYPE_SCO,
+					dbus_owner, dbus_path, profile, codec)) == NULL)
+		return NULL;
+
+	t->sco.spk_gain = 15;
+	t->sco.mic_gain = 15;
+
+	t->sco.spk_pcm.fd = -1;
+	t->sco.spk_pcm.client = -1;
+	pthread_cond_init(&t->sco.spk_pcm.drained, NULL);
+	pthread_mutex_init(&t->sco.spk_pcm.drained_mn, NULL);
+
+	t->sco.mic_pcm.fd = -1;
+	t->sco.mic_pcm.client = -1;
+	pthread_cond_init(&t->sco.mic_pcm.drained, NULL);
+	pthread_mutex_init(&t->sco.mic_pcm.drained_mn, NULL);
+
+	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
+	return t;
 }
 
 void transport_free(struct ba_transport *t) {
