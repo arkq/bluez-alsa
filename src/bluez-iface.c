@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-iface.c
- * Copyright (c) 2016 Arkadiusz Bokowy
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -133,7 +133,7 @@ static const GDBusMethodInfo *bluez_iface_profile_methods[] = {
 };
 
 const GDBusInterfaceInfo bluez_iface_endpoint = {
-	-1, "org.bluez.MediaEndpoint1",
+	-1, BLUEZ_IFACE_MEDIA_ENDPOINT,
 	(GDBusMethodInfo **)bluez_iface_endpoint_methods,
 	NULL,
 	NULL,
@@ -141,7 +141,7 @@ const GDBusInterfaceInfo bluez_iface_endpoint = {
 };
 
 const GDBusInterfaceInfo bluez_iface_profile = {
-	-1, "org.bluez.Profile1",
+	-1, BLUEZ_IFACE_PROFILE,
 	(GDBusMethodInfo **)bluez_iface_profile_methods,
 	NULL,
 	NULL,

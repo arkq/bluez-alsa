@@ -1,6 +1,7 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2018 Thierry Bultel
+ * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ *               2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
  *
@@ -266,16 +267,16 @@ final:
  * Remove all oFono cards and deletes associated transports. */
 static void ofono_remove_all_cards(void) {
 
-	GHashTableIter iter_d;
+	GHashTableIter iter;
 	struct ba_device *d;
 
 	pthread_mutex_lock(&config.devices_mutex);
 
-	g_hash_table_iter_init(&iter_d, config.devices);
-	while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
+	g_hash_table_iter_init(&iter, config.devices);
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
 		if (d->hci_dev_id != OFONO_FAKE_DEV_ID)
 			continue;
-		g_hash_table_iter_remove(&iter_d);
+		g_hash_table_iter_remove(&iter);
 	}
 
 	pthread_mutex_unlock(&config.devices_mutex);
@@ -487,7 +488,7 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const gchar *sender
 }
 
 /**
- * Monitor the oFono service availability.
+ * Monitor oFono service availability.
  *
  * When oFono is properly shutdown, we are notified through the Release()
  * method. Here, we get the opportunity to perform some cleanup if oFono
@@ -507,9 +508,6 @@ static void ofono_signal_name_owner_changed(GDBusConnection *conn, const gchar *
 	const char *owner_new;
 
 	g_variant_get(params, "(&s&s&s)", &name, &owner_old, &owner_new);
-
-	if (strcmp(name, OFONO_SERVICE) != 0)
-		return;
 
 	if (owner_old != NULL && owner_old[0] != '\0') {
 		g_dbus_connection_unregister_object(conn, dbus_agent_object_id);
@@ -539,7 +537,7 @@ int ofono_subscribe_signals(void) {
 			ofono_signal_card_removed, NULL, NULL);
 
 	g_dbus_connection_signal_subscribe(conn, "org.freedesktop.DBus", "org.freedesktop.DBus",
-			"NameOwnerChanged", NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE,
+			"NameOwnerChanged", NULL, OFONO_SERVICE, G_DBUS_SIGNAL_FLAGS_NONE,
 			ofono_signal_name_owner_changed, NULL, NULL);
 
 	return 0;

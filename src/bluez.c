@@ -702,8 +702,8 @@ static int bluez_register_a2dp_endpoint(
 		goto fail;
 
 	dev = g_strdup_printf("/org/bluez/%s", config.hci_dev.name);
-	msg = g_dbus_message_new_method_call("org.bluez", dev,
-			"org.bluez.Media1", "RegisterEndpoint");
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, dev,
+			BLUEZ_IFACE_MEDIA, "RegisterEndpoint");
 
 	GVariantBuilder caps;
 	GVariantBuilder properties;
@@ -937,8 +937,8 @@ static int bluez_register_profile(
 					NULL, profile_free, &err)) == 0)
 		goto fail;
 
-	msg = g_dbus_message_new_method_call("org.bluez", "/org/bluez",
-			"org.bluez.ProfileManager1", "RegisterProfile");
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, "/org/bluez",
+			BLUEZ_IFACE_PROFILE_MANAGER, "RegisterProfile");
 
 	GVariantBuilder options;
 
@@ -1113,14 +1113,14 @@ int bluez_subscribe_signals(void) {
 
 	/* Note, that we do not have to subscribe for the interfaces remove signal,
 	 * because prior to removal, BlueZ will emit appropriate "clear" signal. */
-	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.ObjectManager",
+	g_dbus_connection_signal_subscribe(conn, BLUEZ_SERVICE, "org.freedesktop.DBus.ObjectManager",
 			"InterfacesAdded", NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE,
 			/* TODO: Use arg0 filtering, but is seems it doesn't work... */
 			/* "InterfacesAdded", NULL, "/org/bluez/hci0", G_DBUS_SIGNAL_FLAGS_NONE, */
 			bluez_signal_interfaces_added, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(conn, "org.bluez", "org.freedesktop.DBus.Properties",
-			"PropertiesChanged", NULL, "org.bluez.MediaTransport1", G_DBUS_SIGNAL_FLAGS_NONE,
+	g_dbus_connection_signal_subscribe(conn, BLUEZ_SERVICE, "org.freedesktop.DBus.Properties",
+			"PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT, G_DBUS_SIGNAL_FLAGS_NONE,
 			bluez_signal_transport_changed, NULL, NULL);
 
 	return 0;

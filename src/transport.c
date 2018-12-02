@@ -28,6 +28,7 @@
 
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
+#include "bluez-iface.h"
 #include "ctl.h"
 #include "hfp.h"
 #include "io.h"
@@ -192,8 +193,8 @@ struct ba_device *device_get(GHashTable *devices, const char *key) {
 	ba2str(&addr, name);
 
 	/* get local (user editable) Bluetooth device name */
-	if ((property = g_dbus_get_property(config.dbus, "org.bluez", key,
-					"org.bluez.Device1", "Alias")) != NULL) {
+	if ((property = g_dbus_get_property(config.dbus, BLUEZ_SERVICE, key,
+					BLUEZ_IFACE_DEVICE, "Alias")) != NULL) {
 		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
 		name[sizeof(name) - 1] = '\0';
 		g_variant_unref(property);
@@ -746,7 +747,7 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 		if (config.a2dp.volume) {
 			uint16_t volume = (ch1_muted | ch2_muted) ? 0 : MIN(ch1_volume, ch2_volume);
 			g_dbus_set_property(config.dbus, t->dbus_owner, t->dbus_path,
-					"org.bluez.MediaTransport1", "Volume", g_variant_new_uint16(volume));
+					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume));
 		}
 
 		break;
@@ -817,11 +818,11 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 
 int transport_set_state_from_string(struct ba_transport *t, const char *state) {
 
-	if (strcmp(state, "idle") == 0)
+	if (strcmp(state, BLUEZ_TRANSPORT_STATE_IDLE) == 0)
 		transport_set_state(t, TRANSPORT_IDLE);
-	else if (strcmp(state, "pending") == 0)
+	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
 		transport_set_state(t, TRANSPORT_PENDING);
-	else if (strcmp(state, "active") == 0)
+	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
 		transport_set_state(t, TRANSPORT_ACTIVE);
 	else {
 		warn("Invalid state: %s", state);
@@ -887,7 +888,7 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 		goto final;
 	}
 
-	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path, "org.bluez.MediaTransport1",
+	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
 			t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
@@ -953,7 +954,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 	if (t->state != TRANSPORT_IDLE && t->dbus_owner != NULL) {
 
 		msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
-				"org.bluez.MediaTransport1", "Release");
+				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
 
 		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
@@ -961,7 +962,8 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 
 		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
 			g_dbus_message_to_gerror(rep, &err);
-			if (err->code == G_DBUS_ERROR_NO_REPLY) {
+			if (err->code == G_DBUS_ERROR_NO_REPLY ||
+					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN) {
 				/* If BlueZ is already terminated (or is terminating), we won't receive
 				 * any response. Do not treat such a case as an error - omit logging. */
 				g_error_free(err);
