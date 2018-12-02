@@ -1612,11 +1612,11 @@ void *io_thread_sco(void *arg) {
 				release = true;
 
 			if (release) {
-				transport_release_bt_sco(t);
+				t->release(t);
 				asrs.frames = 0;
 			}
 			else
-				transport_acquire_bt_sco(t);
+				t->acquire(t);
 
 			continue;
 		}
@@ -1647,7 +1647,7 @@ retry_sco_read:
 				case 0:
 				case ECONNABORTED:
 				case ECONNRESET:
-					transport_release_bt_sco(t);
+					t->release(t);
 					continue;
 				default:
 					error("SCO read error: %s", strerror(errno));
@@ -1663,7 +1663,7 @@ retry_sco_read:
 		}
 		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
 			debug("SCO poll error status: %#x", pfds[1].revents);
-			transport_release_bt_sco(t);
+			t->release(t);
 		}
 
 		if (pfds[2].revents & POLLOUT) {
@@ -1689,7 +1689,7 @@ retry_sco_write:
 				case 0:
 				case ECONNABORTED:
 				case ECONNRESET:
-					transport_release_bt_sco(t);
+					t->release(t);
 					continue;
 				default:
 					error("SCO write error: %s", strerror(errno));

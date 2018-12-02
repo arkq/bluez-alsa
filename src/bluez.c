@@ -815,7 +815,6 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	}
 
 	t->bt_fd = fd;
-	t->release = transport_release_bt_rfcomm;
 
 	debug("%s configured for device %s",
 			bluetooth_profile_to_string(profile), batostr_(&d->addr));

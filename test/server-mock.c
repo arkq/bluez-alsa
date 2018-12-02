@@ -31,9 +31,7 @@
 #undef io_thread_a2dp_sink_sbc
 #undef io_thread_a2dp_source_sbc
 #include "../src/rfcomm.c"
-#define transport_acquire_bt_a2dp _transport_acquire_bt_a2dp
 #include "../src/transport.c"
-#undef transport_acquire_bt_a2dp
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
@@ -78,11 +76,19 @@ static void test_sigusr_handler(int sig) {
 	}
 }
 
-int transport_acquire_bt_a2dp(struct ba_transport *t) {
+int test_transport_acquire_bt_a2dp(struct ba_transport *t) {
 	t->delay = 1; /* suppress delay check trigger */
 	t->state = TRANSPORT_ACTIVE;
 	assert(io_thread_create(t) == 0);
 	return 0;
+}
+
+struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
+		const char *owner, const char *path, enum bluetooth_profile profile,
+		uint16_t codec, const uint8_t *config, size_t csize) {
+	struct ba_transport *t = transport_new_a2dp(d, owner, path, profile, codec, config, csize);
+	t->acquire = test_transport_acquire_bt_a2dp;
+	return t;
 }
 
 void *io_thread_a2dp_sink_sbc(void *arg) {
@@ -222,20 +228,20 @@ int main(int argc, char *argv[]) {
 	g_hash_table_insert(config.devices, g_strdup("/device/2"), d2);
 
 	if (source) {
-		assert(transport_new_a2dp(d1, ":test", "/source/1", BLUETOOTH_PROFILE_A2DP_SOURCE,
+		assert(test_transport_new_a2dp(d1, ":test", "/source/1", BLUETOOTH_PROFILE_A2DP_SOURCE,
 					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
-		assert(transport_new_a2dp(d2, ":test", "/source/2", BLUETOOTH_PROFILE_A2DP_SOURCE,
+		assert(test_transport_new_a2dp(d2, ":test", "/source/2", BLUETOOTH_PROFILE_A2DP_SOURCE,
 					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
 	}
 
 	if (sink) {
 		struct ba_transport *t;
-		assert((t = transport_new_a2dp(d1, ":test", "/sink/1", BLUETOOTH_PROFILE_A2DP_SINK,
+		assert((t = test_transport_new_a2dp(d1, ":test", "/sink/1", BLUETOOTH_PROFILE_A2DP_SINK,
 						A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
-		assert(transport_acquire_bt_a2dp(t) == 0);
-		assert((t = transport_new_a2dp(d2, ":test", "/sink/2", BLUETOOTH_PROFILE_A2DP_SINK,
+		assert(t->acquire(t) == 0);
+		assert((t = test_transport_new_a2dp(d2, ":test", "/sink/2", BLUETOOTH_PROFILE_A2DP_SINK,
 						A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
-		assert(transport_acquire_bt_a2dp(t) == 0);
+		assert(t->acquire(t) == 0);
 	}
 
 	while (timeout != 0 && main_loop_on)

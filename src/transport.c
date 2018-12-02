@@ -281,6 +281,16 @@ fail:
 	return NULL;
 }
 
+/* These acquire/release helper functions should be defined before the
+ * corresponding transport_new_* ones. However, git commit history is
+ * more important, so we're going to keep these functions at original
+ * locations and use forward declarations instead. */
+static int transport_acquire_bt_a2dp(struct ba_transport *t);
+static int transport_release_bt_a2dp(struct ba_transport *t);
+static int transport_release_bt_rfcomm(struct ba_transport *t);
+static int transport_acquire_bt_sco(struct ba_transport *t);
+static int transport_release_bt_sco(struct ba_transport *t);
+
 struct ba_transport *transport_new_a2dp(
 		struct ba_device *device,
 		const char *dbus_owner,
@@ -310,6 +320,9 @@ struct ba_transport *transport_new_a2dp(
 	pthread_cond_init(&t->a2dp.pcm.drained, NULL);
 	pthread_mutex_init(&t->a2dp.pcm.drained_mn, NULL);
 
+	t->acquire = transport_acquire_bt_a2dp;
+	t->release = transport_release_bt_a2dp;
+
 	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
 }
@@ -334,6 +347,8 @@ struct ba_transport *transport_new_rfcomm(
 
 	t->rfcomm.sco = t_sco;
 	t_sco->sco.rfcomm = t;
+
+	t->release = transport_release_bt_rfcomm;
 
 	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
@@ -370,6 +385,9 @@ struct ba_transport *transport_new_sco(
 	t->sco.mic_pcm.client = -1;
 	pthread_cond_init(&t->sco.mic_pcm.drained, NULL);
 	pthread_mutex_init(&t->sco.mic_pcm.drained_mn, NULL);
+
+	t->acquire = transport_acquire_bt_sco;
+	t->release = transport_release_bt_sco;
 
 	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
@@ -777,7 +795,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		 * if we are handing A2DP sink profile. For source profile, transport has
 		 * to be acquired by our controller (during the PCM open request). */
 		if (t->profile == BLUETOOTH_PROFILE_A2DP_SINK)
-			ret = transport_acquire_bt_a2dp(t);
+			ret = t->acquire(t);
 		break;
 	case TRANSPORT_ACTIVE:
 	case TRANSPORT_PAUSED:
@@ -855,7 +873,7 @@ int transport_drain_pcm(struct ba_transport *t) {
 	return 0;
 }
 
-int transport_acquire_bt_a2dp(struct ba_transport *t) {
+static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 
 	GDBusMessage *msg, *rep;
 	GUnixFDList *fd_list;
@@ -911,7 +929,7 @@ final:
 	return t->bt_fd;
 }
 
-int transport_release_bt_a2dp(struct ba_transport *t) {
+static int transport_release_bt_a2dp(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
@@ -956,7 +974,6 @@ int transport_release_bt_a2dp(struct ba_transport *t) {
 	debug("Closing BT: %d", t->bt_fd);
 
 	ret = 0;
-	t->release = NULL;
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
@@ -972,14 +989,13 @@ fail:
 	return ret;
 }
 
-int transport_release_bt_rfcomm(struct ba_transport *t) {
+static int transport_release_bt_rfcomm(struct ba_transport *t) {
 
 	if (t->bt_fd == -1)
 		return 0;
 
 	debug("Closing RFCOMM: %d", t->bt_fd);
 
-	t->release = NULL;
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
 	t->bt_fd = -1;
@@ -992,7 +1008,7 @@ int transport_release_bt_rfcomm(struct ba_transport *t) {
 	return 0;
 }
 
-int transport_acquire_bt_sco(struct ba_transport *t) {
+static int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	struct hci_dev_info di;
 
@@ -1023,14 +1039,13 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 	return t->bt_fd;
 }
 
-int transport_release_bt_sco(struct ba_transport *t) {
+static int transport_release_bt_sco(struct ba_transport *t) {
 
 	if (t->bt_fd == -1)
 		return 0;
 
 	debug("Closing SCO: %d", t->bt_fd);
 
-	t->release = NULL;
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
 	t->bt_fd = -1;

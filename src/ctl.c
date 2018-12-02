@@ -414,7 +414,7 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 	 * run voltage converter (power-on its circuit board) until the transport
 	 * is acquired - in order to extend battery life. */
 	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
-		if (transport_acquire_bt_a2dp(t) == -1) {
+		if (t->acquire(t) == -1) {
 			status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
 			goto fail;
 		}

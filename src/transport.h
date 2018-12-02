@@ -206,7 +206,8 @@ struct ba_transport {
 	/* indicates cleanup lock */
 	bool cleanup_lock;
 
-	/* callback function for self-management */
+	/* callback functions for self-management */
+	int (*acquire)(struct ba_transport *);
 	int (*release)(struct ba_transport *);
 
 };
@@ -265,15 +266,6 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 int transport_set_state_from_string(struct ba_transport *t, const char *state);
 
 int transport_drain_pcm(struct ba_transport *t);
-
-int transport_acquire_bt_a2dp(struct ba_transport *t);
-int transport_release_bt_a2dp(struct ba_transport *t);
-
-int transport_release_bt_rfcomm(struct ba_transport *t);
-
-int transport_acquire_bt_sco(struct ba_transport *t);
-int transport_release_bt_sco(struct ba_transport *t);
-
 int transport_release_pcm(struct ba_pcm *pcm);
 
 void transport_pthread_cancel(pthread_t thread);
