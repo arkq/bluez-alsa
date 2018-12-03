@@ -46,6 +46,34 @@ static int bluez_get_dbus_object_count(
 }
 
 /**
+ * Get device associated with given D-Bus object path. */
+struct ba_device *bluez_get_device(const char *path) {
+
+	struct ba_device *d;
+	char name[sizeof(d->name)];
+	GVariant *property;
+	bdaddr_t addr;
+
+	if ((d = bluealsa_device_lookup(path)) != NULL)
+		return d;
+
+	g_dbus_device_path_to_bdaddr(path, &addr);
+	ba2str(&addr, name);
+
+	/* get local (user editable) Bluetooth device name */
+	if ((property = g_dbus_get_property(config.dbus, BLUEZ_SERVICE, path,
+					BLUEZ_IFACE_DEVICE, "Alias")) != NULL) {
+		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
+		name[sizeof(name) - 1] = '\0';
+		g_variant_unref(property);
+	}
+
+	d = device_new(config.hci_dev.dev_id, &addr, name);
+	bluealsa_device_insert(path, d);
+	return d;
+}
+
+/**
  * Check whether channel mode configuration is valid. */
 static bool bluez_a2dp_codec_check_channel_mode(
 		const struct bluez_a2dp_codec *codec,
@@ -331,6 +359,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	const struct bluez_a2dp_codec *codec = userdata;
+	bool devpool_mutex_locked = false;
 	struct ba_transport *t;
 	struct ba_device *d;
 
@@ -537,10 +566,11 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	}
 
 	/* we are going to modify the devices hash-map */
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
+	devpool_mutex_locked = true;
 
 	/* get the device structure for obtained device path */
-	if ((d = device_get(config.devices, device)) == NULL) {
+	if ((d = bluez_get_device(device)) == NULL) {
 		error("Couldn't get device: %s", strerror(errno));
 		goto fail;
 	}
@@ -575,7 +605,8 @@ fail:
 	ret = -1;
 
 final:
-	pthread_mutex_unlock(&config.devices_mutex);
+	if (devpool_mutex_locked)
+		bluealsa_devpool_mutex_unlock();
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);
@@ -591,12 +622,12 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	const char *transport;
 
-	pthread_mutex_lock(&config.devices_mutex);
-
 	g_variant_get(params, "(&o)", &transport);
-	transport_remove(config.devices, transport);
 
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
+	transport_remove(config.devices, transport);
+	bluealsa_devpool_mutex_unlock();
+
 	g_object_unref(inv);
 }
 
@@ -785,6 +816,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
 	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	bool devpool_mutex_locked = false;
 	struct ba_transport *t;
 	struct ba_device *d;
 
@@ -804,7 +836,11 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if ((d = device_get(config.devices, device)) == NULL) {
+	/* we are going to modify the devices hash-map */
+	bluealsa_devpool_mutex_lock();
+	devpool_mutex_locked = true;
+
+	if ((d = bluez_get_device(device)) == NULL) {
 		error("Couldn't get device: %s", strerror(errno));
 		goto fail;
 	}
@@ -830,6 +866,8 @@ fail:
 			G_DBUS_ERROR_INVALID_ARGS, "Unable to connect profile");
 
 final:
+	if (devpool_mutex_locked)
+		bluealsa_devpool_mutex_unlock();
 	g_variant_iter_free(properties);
 	if (err != NULL)
 		g_error_free(err);
@@ -841,12 +879,11 @@ static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	const char *device;
 
-	pthread_mutex_lock(&config.devices_mutex);
-
 	g_variant_get(params, "(&o)", &device);
-	transport_remove(config.devices, device);
 
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
+	transport_remove(config.devices, device);
+	bluealsa_devpool_mutex_unlock();
 
 	g_object_unref(inv);
 }
@@ -891,10 +928,6 @@ static void bluez_profile_method_call(GDBusConnection *conn, const gchar *sender
 
 }
 
-void profile_free(gpointer data) {
-	(void)data;
-}
-
 static const GDBusInterfaceVTable profile_vtable = {
 	.method_call = bluez_profile_method_call,
 };
@@ -934,7 +967,7 @@ static int bluez_register_profile(
 	debug("Registering profile: %s", path);
 	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
 					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
-					NULL, profile_free, &err)) == 0)
+					NULL, NULL, &err)) == 0)
 		goto fail;
 
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, "/org/bluez",

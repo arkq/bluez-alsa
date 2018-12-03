@@ -240,7 +240,7 @@ static void ctl_thread_cmd_list_devices(const struct ba_request *req, int fd) {
 	GHashTableIter iter_d;
 	struct ba_device *d;
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	for (g_hash_table_iter_init(&iter_d, config.devices);
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); ) {
@@ -255,7 +255,7 @@ static void ctl_thread_cmd_list_devices(const struct ba_request *req, int fd) {
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);
 	}
 
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -268,7 +268,7 @@ static void ctl_thread_cmd_list_transports(const struct ba_request *req, int fd)
 	struct ba_device *d;
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	for (g_hash_table_iter_init(&iter_d, config.devices);
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); )
@@ -281,7 +281,7 @@ static void ctl_thread_cmd_list_transports(const struct ba_request *req, int fd)
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
 
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -291,7 +291,7 @@ static void ctl_thread_cmd_transport_get(const struct ba_request *req, int fd) {
 	struct ba_msg_transport transport;
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
@@ -306,7 +306,7 @@ static void ctl_thread_cmd_transport_get(const struct ba_request *req, int fd) {
 	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 
 fail:
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -315,7 +315,7 @@ static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, in
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
@@ -329,7 +329,7 @@ static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, in
 	transport_set_volume(t, req->ch1_muted, req->ch2_muted, req->ch1_volume, req->ch2_volume);
 
 fail:
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -342,7 +342,7 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 
 	debug("PCM requested for %s type %d stream %d", batostr_(&req->addr), req->type, req->stream);
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
@@ -434,7 +434,7 @@ fail:
 final:
 	pthread_mutex_unlock(&t->mutex);
 fail_lookup:
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -446,7 +446,7 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 
 	debug("PCM close for %s type %d stream %d", batostr_(&req->addr), req->type, req->stream);
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
@@ -475,7 +475,7 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 fail:
 	pthread_mutex_unlock(&t->mutex);
 fail_lookup:
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -485,7 +485,7 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 	struct ba_transport *t;
 	struct ba_pcm *t_pcm;
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
 	case -1:
@@ -525,7 +525,7 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 	}
 
 fail:
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -534,7 +534,7 @@ static void ctl_thread_cmd_rfcomm_send(const struct ba_request *req, int fd) {
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	if (_transport_lookup_rfcomm(config.devices, &req->addr, &t) != 0) {
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
@@ -544,7 +544,7 @@ static void ctl_thread_cmd_rfcomm_send(const struct ba_request *req, int fd) {
 	transport_send_rfcomm(t, req->rfcomm_command);
 
 fail:
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 

@@ -179,40 +179,6 @@ void device_free(struct ba_device *d) {
 	free(d);
 }
 
-struct ba_device *device_get(GHashTable *devices, const char *key) {
-
-	struct ba_device *d;
-	char name[sizeof(d->name)];
-	GVariant *property;
-	bdaddr_t addr;
-
-	if ((d = g_hash_table_lookup(devices, key)) != NULL)
-		return d;
-
-	g_dbus_device_path_to_bdaddr(key, &addr);
-	ba2str(&addr, name);
-
-	/* get local (user editable) Bluetooth device name */
-	if ((property = g_dbus_get_property(config.dbus, BLUEZ_SERVICE, key,
-					BLUEZ_IFACE_DEVICE, "Alias")) != NULL) {
-		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
-		name[sizeof(name) - 1] = '\0';
-		g_variant_unref(property);
-	}
-
-	d = device_new(config.hci_dev.dev_id, &addr, name);
-	g_hash_table_insert(devices, g_strdup(key), d);
-	return d;
-}
-
-struct ba_device *device_lookup(GHashTable *devices, const char *key) {
-	return g_hash_table_lookup(devices, key);
-}
-
-bool device_remove(GHashTable *devices, const char *key) {
-	return g_hash_table_remove(devices, key);
-}
-
 void device_set_battery_level(struct ba_device *d, uint8_t value) {
 	d->battery.enabled = true;
 	d->battery.level = value;

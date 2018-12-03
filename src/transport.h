@@ -218,10 +218,6 @@ struct ba_transport {
 struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name);
 void device_free(struct ba_device *d);
 
-struct ba_device *device_get(GHashTable *devices, const char *key);
-struct ba_device *device_lookup(GHashTable *devices, const char *key);
-bool device_remove(GHashTable *devices, const char *key);
-
 void device_set_battery_level(struct ba_device *d, uint8_t value);
 
 struct ba_transport *transport_new(

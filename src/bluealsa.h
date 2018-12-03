@@ -27,6 +27,7 @@
 
 #include "bluez.h"
 #include "bluez-a2dp.h"
+#include "transport.h"
 #include "shared/ctl-proto.h"
 
 /* Maximal number of clients connected to the controller. */
@@ -145,5 +146,17 @@ extern struct ba_config config;
 
 int bluealsa_config_init(void);
 void bluealsa_config_free(void);
+
+#define bluealsa_devpool_mutex_lock() \
+	pthread_mutex_lock(&config.devices_mutex)
+#define bluealsa_devpool_mutex_unlock() \
+	pthread_mutex_unlock(&config.devices_mutex)
+
+#define bluealsa_device_insert(key, device) \
+	g_hash_table_insert(config.devices, g_strdup(key), device)
+#define bluealsa_device_lookup(key) \
+	((struct ba_device *)g_hash_table_lookup(config.devices, key))
+#define bluealsa_device_remove(key) \
+	g_hash_table_remove(config.devices, key)
 
 #endif

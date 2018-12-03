@@ -156,6 +156,9 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	GVariant *value = NULL;
 	gchar *path = g_strdup_printf("/ofono%s", card);
 	enum bluetooth_profile profile = BLUETOOTH_PROFILE_HFP_HF;
+	bool devpool_mutex_locked = false;
+	struct ba_transport *t;
+	struct ba_device *d;
 	bdaddr_t addr;
 
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
@@ -178,17 +181,15 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	debug("Adding new oFono card: %s", card);
 
-	struct ba_device *d = NULL;
-	struct ba_transport *t = NULL;
-
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
+	devpool_mutex_locked = true;
 
 	if ((d = device_new(OFONO_FAKE_DEV_ID, &addr, card)) == NULL) {
 		error("Couldn't create device: %s", strerror(errno));
 		goto fail;
 	}
 
-	g_hash_table_insert(config.devices, g_strdup(card), d);
+	bluealsa_device_insert(card, d);
 
 	if ((t = ofono_transport_new(d, dbus_sender, path, profile)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
@@ -198,19 +199,11 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	transport_set_state(t, TRANSPORT_ACTIVE);
 
 fail:
-	pthread_mutex_unlock(&config.devices_mutex);
+	if (devpool_mutex_locked)
+		bluealsa_devpool_mutex_unlock();
 	if (value != NULL)
 		g_variant_unref(value);
 	g_free(path);
-}
-
-/**
- * Remove oFono card (phone) and free associated transport. */
-static void ofono_card_remove(const char *card) {
-	debug("Removing oFono card: %s", card);
-	pthread_mutex_lock(&config.devices_mutex);
-	device_remove(config.devices, card);
-	pthread_mutex_unlock(&config.devices_mutex);
 }
 
 /**
@@ -270,7 +263,7 @@ static void ofono_remove_all_cards(void) {
 	GHashTableIter iter;
 	struct ba_device *d;
 
-	pthread_mutex_lock(&config.devices_mutex);
+	bluealsa_devpool_mutex_lock();
 
 	g_hash_table_iter_init(&iter, config.devices);
 	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
@@ -279,7 +272,7 @@ static void ofono_remove_all_cards(void) {
 		g_hash_table_iter_remove(&iter);
 	}
 
-	pthread_mutex_unlock(&config.devices_mutex);
+	bluealsa_devpool_mutex_unlock();
 }
 
 static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdata) {
@@ -287,9 +280,10 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	bool devpool_mutex_locked = false;
+	struct ba_transport *t;
 	GError *err = NULL;
 	gchar *path = NULL;
-	struct ba_transport *t;
 	GUnixFDList *fd_list;
 	const char *card;
 	uint8_t codec;
@@ -302,6 +296,9 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 		error("Couldn't obtain SCO socket: %s", err->message);
 		goto fail;
 	}
+
+	bluealsa_devpool_mutex_lock();
+	devpool_mutex_locked = true;
 
 	path = g_strdup_printf("/ofono%s", card);
 	if ((t = transport_lookup(config.devices, path)) == NULL) {
@@ -333,6 +330,8 @@ fail:
 		G_DBUS_ERROR_INVALID_ARGS, "Unable to get connection");
 
 final:
+	if (devpool_mutex_locked)
+		bluealsa_devpool_mutex_unlock();
 	if (path != NULL)
 		g_free(path);
 	if (err != NULL)
@@ -483,7 +482,12 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const gchar *sender
 	}
 
 	g_variant_get(params, "(&o)", &card);
-	ofono_card_remove(card);
+
+	debug("Removing oFono card: %s", card);
+
+	bluealsa_devpool_mutex_lock();
+	bluealsa_device_remove(card);
+	bluealsa_devpool_mutex_unlock();
 
 }
 
