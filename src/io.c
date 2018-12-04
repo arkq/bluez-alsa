@@ -1562,7 +1562,10 @@ void *io_thread_sco(void *arg) {
 				pfds[4].fd = t->sco.mic_pcm.fd;
 		}
 
-		if (t->sco.mic_pcm.fd == -1)
+		/* In order not to run this this loop unnecessarily, do not poll SCO for
+		 * reading if microphone (capture) PCM is not connected. For oFono this
+		 * rule does not apply, because we will use read error for SCO release. */
+		if (!t->sco.ofono && t->sco.mic_pcm.fd == -1)
 			pfds[1].fd = -1;
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
@@ -1586,14 +1589,32 @@ void *io_thread_sco(void *arg) {
 			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
 				warn("Couldn't read signal: %s", strerror(errno));
 
-			/* FIXME: Drain functionality for speaker.
-			 * XXX: Right now it is not possible to drain speaker PCM (in a clean
-			 *      fashion), because poll() will not timeout if we've got incoming
-			 *      data from the microphone (BT SCO socket). In order not to hang
-			 *      forever in the transport_drain_pcm() function, we will signal
-			 *      PCM drain right now. */
-			if (sig == TRANSPORT_PCM_SYNC)
+			switch (sig) {
+			case TRANSPORT_BT_OPEN:
+			case TRANSPORT_PCM_OPEN:
+			case TRANSPORT_PCM_RESUME:
+				poll_timeout = -1;
+				asrs.frames = 0;
+				break;
+			case TRANSPORT_PCM_CLOSE:
+				poll_timeout = config.a2dp.keep_alive * 1000;
+				break;
+			case TRANSPORT_PCM_SYNC:
+				/* FIXME: Drain functionality for speaker.
+				 * XXX: Right now it is not possible to drain speaker PCM (in a clean
+				 *      fashion), because poll() will not timeout if we've got incoming
+				 *      data from the microphone (BT SCO socket). In order not to hang
+				 *      forever in the transport_drain_pcm() function, we will signal
+				 *      PCM drain right now. */
 				pthread_cond_signal(&t->sco.spk_pcm.drained);
+				break;
+			default:
+				break;
+			}
+
+			/* connection is managed by oFono */
+			if (t->sco.ofono)
+				continue;
 
 			const enum hfp_ind *inds = t->sco.rfcomm->rfcomm.hfp_inds;
 			bool release = false;
@@ -1607,8 +1628,7 @@ void *io_thread_sco(void *arg) {
 			/* For HFP HF we have to check if we are in the call stage or in the
 			 * call setup stage. Otherwise, it might be not possible to acquire
 			 * SCO connection. */
-			if (!t->sco.ofono &&
-					t->profile == BLUETOOTH_PROFILE_HFP_HF &&
+			if (t->profile == BLUETOOTH_PROFILE_HFP_HF &&
 					inds[HFP_IND_CALL] == HFP_IND_CALL_NONE &&
 					inds[HFP_IND_CALLSETUP] == HFP_IND_CALLSETUP_NONE)
 				release = true;
@@ -1636,6 +1656,8 @@ void *io_thread_sco(void *arg) {
 			switch (t->codec) {
 			case HFP_CODEC_CVSD:
 			default:
+				if (t->sco.mic_pcm.fd == -1)
+					ffb_rewind(&bt_in);
 				buffer = bt_in.tail;
 				buffer_len = ffb_len_in(&bt_in);
 			}

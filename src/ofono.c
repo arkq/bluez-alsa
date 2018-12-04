@@ -319,8 +319,8 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	t->mtu_read = 48;
 	t->mtu_write = 48;
 
+	transport_send_signal(t, TRANSPORT_BT_OPEN);
 	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
-	transport_send_signal(t, TRANSPORT_PCM_OPEN);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

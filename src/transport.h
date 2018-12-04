@@ -39,6 +39,7 @@ enum ba_transport_state {
 };
 
 enum ba_transport_signal {
+	TRANSPORT_BT_OPEN,
 	TRANSPORT_PCM_OPEN,
 	TRANSPORT_PCM_CLOSE,
 	TRANSPORT_PCM_PAUSE,

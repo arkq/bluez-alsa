@@ -238,7 +238,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 		switch (c->hfp_ind_map[index - 1]) {
 		case HFP_IND_CALL:
 		case HFP_IND_CALLSETUP:
-			transport_send_signal(t->rfcomm.sco, TRANSPORT_PCM_OPEN);
+			transport_send_signal(t->rfcomm.sco, TRANSPORT_BT_OPEN);
 			break;
 		case HFP_IND_BATTCHG:
 			device_set_battery_level(t->device, value * 100 / 5);
