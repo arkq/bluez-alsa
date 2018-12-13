@@ -309,7 +309,7 @@ static void *pcm_worker_routine(void *arg) {
 		goto fail;
 	}
 
-	w->transport.stream = BA_PCM_STREAM_CAPTURE;
+	w->transport.type = BA_PCM_TYPE(w->transport.type) | BA_PCM_STREAM_CAPTURE;
 	if ((w->pcm_fd = bluealsa_open_transport(w->ba_fd, &w->transport)) == -1) {
 		error("Couldn't open PCM FIFO: %s", strerror(errno));
 		goto fail;
@@ -660,9 +660,9 @@ init:
 
 			/* filter available transports by BT address (this check is omitted if
 			 * any address can be used), transport type and stream direction */
-			if (transports[i].type != ba_type)
+			if (BA_PCM_TYPE(transports[i].type) != ba_type)
 				continue;
-			if (transports[i].stream != BA_PCM_STREAM_CAPTURE && transports[i].stream != BA_PCM_STREAM_DUPLEX)
+			if (!(transports[i].type & BA_PCM_STREAM_CAPTURE))
 				continue;
 			if (!ba_addr_any) {
 				bool matched = false;

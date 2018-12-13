@@ -21,7 +21,7 @@
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
 /* Version of the controller communication protocol. */
-#define BLUEALSA_CRL_PROTO_VERSION 0x0300
+#define BLUEALSA_CRL_PROTO_VERSION 0x0400
 
 enum ba_command {
 	BA_COMMAND_PING,
@@ -45,17 +45,17 @@ enum ba_status_code {
 	BA_STATUS_CODE_ERROR_UNKNOWN,
 	BA_STATUS_CODE_DEVICE_NOT_FOUND,
 	BA_STATUS_CODE_STREAM_NOT_FOUND,
+	BA_STATUS_CODE_CODEC_NOT_SELECTED,
 	BA_STATUS_CODE_DEVICE_BUSY,
 	BA_STATUS_CODE_FORBIDDEN,
-	BA_STATUS_CODE_PONG,
 };
 
 enum ba_event {
 	BA_EVENT_TRANSPORT_ADDED   = 1 << 0,
 	BA_EVENT_TRANSPORT_CHANGED = 1 << 1,
 	BA_EVENT_TRANSPORT_REMOVED = 1 << 2,
-	BA_EVENT_UPDATE_BATTERY    = 1 << 3,
-	BA_EVENT_UPDATE_VOLUME     = 1 << 4,
+	BA_EVENT_VOLUME_CHANGED    = 1 << 3,
+	BA_EVENT_BATTERY           = 1 << 4,
 };
 
 enum ba_pcm_type {
@@ -64,15 +64,17 @@ enum ba_pcm_type {
 	BA_PCM_TYPE_SCO,
 };
 
-enum ba_pcm_stream {
-	BA_PCM_STREAM_PLAYBACK,
-	BA_PCM_STREAM_CAPTURE,
-	/* Special stream type returned by the LIST_TRANSPORTS command to indicate,
-	 * that given transport can act as a playback and capture device. In order
-	 * to open PCM for such a transport, one has to provide one of PLAYBACK or
-	 * CAPTURE stream types. */
-	BA_PCM_STREAM_DUPLEX,
-};
+#define BA_PCM_STREAM_PLAYBACK (1 << 6)
+#define BA_PCM_STREAM_CAPTURE  (1 << 7)
+
+/**
+ * Bit mask for extracting actual PCM type enum value from the
+ * transport type field defined in the message structures. */
+#define BA_PCM_TYPE_MASK 0x3F
+
+/**
+ * Extract PCM type enum from the given value. */
+#define BA_PCM_TYPE(v) ((v) & BA_PCM_TYPE_MASK)
 
 struct __attribute__ ((packed)) ba_request {
 
@@ -80,10 +82,8 @@ struct __attribute__ ((packed)) ba_request {
 
 	/* selected device address */
 	bdaddr_t addr;
-
-	/* requested transport type */
-	enum ba_pcm_type type;
-	enum ba_pcm_stream stream;
+	/* selected transport type */
+	uint8_t type;
 
 	union {
 
@@ -122,7 +122,11 @@ struct __attribute__ ((packed)) ba_msg_status {
 
 struct __attribute__ ((packed)) ba_msg_event {
 	/* bit-mask with events */
-	enum ba_event mask;
+	uint8_t events;
+	/* device address for which event occurred */
+	bdaddr_t addr;
+	/* transport type for which event occurred */
+	uint8_t type;
 };
 
 struct __attribute__ ((packed)) ba_msg_device {
@@ -141,13 +145,12 @@ struct __attribute__ ((packed)) ba_msg_device {
 
 struct __attribute__ ((packed)) ba_msg_transport {
 
-	/* device address for which the transport is created */
+	/* device address */
 	bdaddr_t addr;
-
-	/* selected profile and audio codec */
-	enum ba_pcm_type type;
-	enum ba_pcm_stream stream;
-	uint8_t codec;
+	/* transport type */
+	uint8_t type;
+	/* selected audio codec */
+	uint16_t codec;
 
 	/* number of audio channels */
 	uint8_t channels;

@@ -182,7 +182,7 @@ void device_free(struct ba_device *d) {
 void device_set_battery_level(struct ba_device *d, uint8_t value) {
 	d->battery.enabled = true;
 	d->battery.level = value;
-	bluealsa_ctl_event(BA_EVENT_UPDATE_BATTERY);
+	bluealsa_ctl_send_event(BA_EVENT_BATTERY, &d->addr, 0);
 }
 
 /**
@@ -216,10 +216,6 @@ struct ba_transport *transport_new(
 
 	t->profile = profile;
 	t->codec = codec;
-
-	/* HSP supports CVSD only */
-	if (profile == BLUETOOTH_PROFILE_HSP_HS || profile == BLUETOOTH_PROFILE_HSP_AG)
-		t->codec = HFP_CODEC_CVSD;
 
 	pthread_mutex_init(&t->mutex, NULL);
 
@@ -290,7 +286,10 @@ struct ba_transport *transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
+	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_ADDED, &device->addr,
+			BA_PCM_TYPE_A2DP | (profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
+
 	return t;
 }
 
@@ -317,7 +316,6 @@ struct ba_transport *transport_new_rfcomm(
 
 	t->release = transport_release_bt_rfcomm;
 
-	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
 	return t;
 
 fail:
@@ -335,6 +333,11 @@ struct ba_transport *transport_new_sco(
 		uint16_t codec) {
 
 	struct ba_transport *t;
+
+	/* HSP supports CVSD only */
+	if (profile == BLUETOOTH_PROFILE_HSP_HS ||
+			profile == BLUETOOTH_PROFILE_HSP_AG)
+		codec = HFP_CODEC_CVSD;
 
 	if ((t = transport_new(device, TRANSPORT_TYPE_SCO,
 					dbus_owner, dbus_path, profile, codec)) == NULL)
@@ -356,7 +359,9 @@ struct ba_transport *transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
+	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_ADDED, &device->addr,
+			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
+
 	return t;
 }
 
@@ -390,9 +395,13 @@ void transport_free(struct ba_transport *t) {
 
 	pthread_mutex_destroy(&t->mutex);
 
+	unsigned int pcm_type = BA_PCM_TYPE_NULL;
+
 	/* free type-specific resources */
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
+		pcm_type = BA_PCM_TYPE_A2DP | (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
 		transport_release_pcm(&t->a2dp.pcm);
 		pthread_cond_destroy(&t->a2dp.pcm.drained);
 		pthread_mutex_destroy(&t->a2dp.pcm.drained_mn);
@@ -404,6 +413,7 @@ void transport_free(struct ba_transport *t) {
 		transport_free(t->rfcomm.sco);
 		break;
 	case TRANSPORT_TYPE_SCO:
+		pcm_type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		transport_release_pcm(&t->sco.spk_pcm);
 		pthread_cond_destroy(&t->sco.spk_pcm.drained);
 		pthread_mutex_destroy(&t->sco.spk_pcm.drained_mn);
@@ -420,7 +430,8 @@ void transport_free(struct ba_transport *t) {
 	 * removed anyway. */
 	g_hash_table_steal(t->device->transports, t->dbus_path);
 
-	bluealsa_ctl_event(BA_EVENT_TRANSPORT_REMOVED);
+	if (pcm_type != BA_PCM_TYPE_NULL)
+		bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_REMOVED, &t->device->addr, pcm_type);
 
 	free(t->dbus_owner);
 	free(t->dbus_path);
@@ -683,6 +694,8 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 		break;
 	case TRANSPORT_TYPE_SCO:
 		switch (t->codec) {
+		case HFP_CODEC_UNDEFINED:
+			break;
 		case HFP_CODEC_CVSD:
 			return 8000;
 		case HFP_CODEC_MSBC:

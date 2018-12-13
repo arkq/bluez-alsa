@@ -34,6 +34,8 @@ static int bluealsa_status_to_errno(const struct ba_msg_status *status) {
 		return ENODEV;
 	case BA_STATUS_CODE_STREAM_NOT_FOUND:
 		return ENXIO;
+	case BA_STATUS_CODE_CODEC_NOT_SELECTED:
+		return ENOENT;
 	case BA_STATUS_CODE_DEVICE_BUSY:
 		return EBUSY;
 	case BA_STATUS_CODE_FORBIDDEN:
@@ -196,27 +198,25 @@ ssize_t bluealsa_get_transports(int fd, struct ba_msg_transport **transports) {
  *
  * @param fd Opened socket file descriptor.
  * @param addr MAC address of the Bluetooth device.
- * @param type PCM type to get.
- * @param stream Stream direction to get, e.g. playback or capture.
+ * @param type PCM type (with stream direction) to get.
  * @param transport An address where the transport will be stored.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
-int bluealsa_get_transport(int fd, bdaddr_t addr, enum ba_pcm_type type,
-		enum ba_pcm_stream stream, struct ba_msg_transport *transport) {
+int bluealsa_get_transport(int fd, bdaddr_t addr, uint8_t type,
+		struct ba_msg_transport *transport) {
 
 	struct ba_msg_status status = { 0xAB };
 	struct ba_request req = {
 		.command = BA_COMMAND_TRANSPORT_GET,
 		.addr = addr,
 		.type = type,
-		.stream = stream,
 	};
 	ssize_t len;
 
 #if DEBUG
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
-	debug("Getting transport for %s type %d", addr_, type);
+	debug("Getting transport for %s type %#x", addr_, type);
 #endif
 
 	if (send(fd, &req, sizeof(req), MSG_NOSIGNAL) == -1)
@@ -234,6 +234,12 @@ int bluealsa_get_transport(int fd, bdaddr_t addr, enum ba_pcm_type type,
 	if (read(fd, &status, sizeof(status)) == -1)
 		return -1;
 
+	/* For SCO transport, server will report that both streaming directions are
+	 * possible. Then, when one will use such a transport structure for opening
+	 * PCM, it will be ambiguous which PCM to open. In order to prevent such a
+	 * scenario, update transport type with the requested one. */
+	transport->type = type;
+
 	return 0;
 }
 
@@ -241,8 +247,8 @@ int bluealsa_get_transport(int fd, bdaddr_t addr, enum ba_pcm_type type,
  * Get PCM transport delay.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @param delay An address where the transport delay will be stored.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
@@ -253,7 +259,7 @@ int bluealsa_get_transport_delay(int fd, const struct ba_msg_transport *transpor
 	int ret;
 
 	if ((ret = bluealsa_get_transport(fd, transport->addr,
-					transport->type, transport->stream, &t)) == 0)
+					transport->type, &t)) == 0)
 		*delay = t.delay;
 
 	return ret;
@@ -263,8 +269,8 @@ int bluealsa_get_transport_delay(int fd, const struct ba_msg_transport *transpor
  * Set PCM transport delay.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @param delay Transport delay.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
@@ -275,7 +281,6 @@ int bluealsa_set_transport_delay(int fd, const struct ba_msg_transport *transpor
 		.command = BA_COMMAND_TRANSPORT_SET_DELAY,
 		.addr = transport->addr,
 		.type = transport->type,
-		.stream = transport->stream,
 		.delay = delay,
 	};
 
@@ -286,8 +291,8 @@ int bluealsa_set_transport_delay(int fd, const struct ba_msg_transport *transpor
  * Get PCM transport volume.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @param ch1_muted An address where the mute of channel 1 will be stored.
  * @param ch1_volume An address where the volume of channel 1 will be stored.
  * @param ch2_muted An address where the mute of channel 2 will be stored.
@@ -301,7 +306,7 @@ int bluealsa_get_transport_volume(int fd, const struct ba_msg_transport *transpo
 	int ret;
 
 	if ((ret = bluealsa_get_transport(fd, transport->addr,
-					transport->type, transport->stream, &t)) == 0) {
+					transport->type, &t)) == 0) {
 		*ch1_muted = t.ch1_muted;
 		*ch1_volume = t.ch1_volume;
 		*ch2_muted = t.ch2_muted;
@@ -315,8 +320,8 @@ int bluealsa_get_transport_volume(int fd, const struct ba_msg_transport *transpo
  * Set PCM transport volume.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @param ch1_muted If true, mute channel 1.
  * @param ch1_volume Channel 1 volume in range [0, 127].
  * @param ch2_muted If true, mute channel 2.
@@ -330,7 +335,6 @@ int bluealsa_set_transport_volume(int fd, const struct ba_msg_transport *transpo
 		.command = BA_COMMAND_TRANSPORT_SET_VOLUME,
 		.addr = transport->addr,
 		.type = transport->type,
-		.stream = transport->stream,
 		.ch1_muted = ch1_muted,
 		.ch1_volume = ch1_volume,
 		.ch2_muted = ch2_muted,
@@ -344,8 +348,8 @@ int bluealsa_set_transport_volume(int fd, const struct ba_msg_transport *transpo
  * Open PCM transport.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @return PCM FIFO file descriptor, or -1 on error. */
 int bluealsa_open_transport(int fd, const struct ba_msg_transport *transport) {
 
@@ -354,7 +358,6 @@ int bluealsa_open_transport(int fd, const struct ba_msg_transport *transport) {
 		.command = BA_COMMAND_PCM_OPEN,
 		.addr = transport->addr,
 		.type = transport->type,
-		.stream = transport->stream,
 	};
 	char buf[256] = "";
 	struct iovec io = {
@@ -399,8 +402,8 @@ int bluealsa_open_transport(int fd, const struct ba_msg_transport *transport) {
  * Close PCM transport.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
 int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport) {
 
@@ -408,7 +411,6 @@ int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport) {
 		.command = BA_COMMAND_PCM_CLOSE,
 		.addr = transport->addr,
 		.type = transport->type,
-		.stream = transport->stream,
 	};
 
 #if DEBUG
@@ -424,8 +426,8 @@ int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport) {
  * Pause/resume PCM transport.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @param pause If non-zero, pause transport, otherwise resume it.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
 int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, bool pause) {
@@ -434,7 +436,6 @@ int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, b
 		.command = pause ? BA_COMMAND_PCM_PAUSE : BA_COMMAND_PCM_RESUME,
 		.addr = transport->addr,
 		.type = transport->type,
-		.stream = transport->stream,
 	};
 
 #if DEBUG
@@ -450,8 +451,8 @@ int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, b
  * Drain PCM transport.
  *
  * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr, type
- *   and stream fields set - other fields are not used by this function.
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
 int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport) {
 
@@ -459,7 +460,6 @@ int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport) {
 		.command = BA_COMMAND_PCM_DRAIN,
 		.addr = transport->addr,
 		.type = transport->type,
-		.stream = transport->stream,
 	};
 
 #if DEBUG
@@ -485,8 +485,8 @@ int bluealsa_send_rfcomm_command(int fd, bdaddr_t addr, const char *command) {
 		.addr = addr,
 	};
 
-	/* snprintf() guarantees terminating NULL character */
-	snprintf(req.rfcomm_command, sizeof(req.rfcomm_command), "%s", command);
+	strncpy(req.rfcomm_command, command, sizeof(req.rfcomm_command));
+	req.rfcomm_command[sizeof(req.rfcomm_command) - 1] = '\0';
 
 #if DEBUG
 	char addr_[18];

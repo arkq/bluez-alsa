@@ -16,6 +16,6 @@
 int bluealsa_ctl_thread_init(void);
 void bluealsa_ctl_free(void);
 
-int bluealsa_ctl_event(enum ba_event event);
+int bluealsa_ctl_send_event(enum ba_event event, const bdaddr_t *addr, uint8_t type);
 
 #endif

@@ -316,7 +316,8 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_ctl_event(BA_EVENT_UPDATE_VOLUME);
+	bluealsa_ctl_send_event(BA_EVENT_VOLUME_CHANGED, &t->device->addr,
+			BA_PCM_TYPE_SCO | BA_PCM_STREAM_CAPTURE);
 	return 0;
 }
 
@@ -330,7 +331,8 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_ctl_event(BA_EVENT_UPDATE_VOLUME);
+	bluealsa_ctl_send_event(BA_EVENT_VOLUME_CHANGED, &t->device->addr,
+			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK);
 	return 0;
 }
 
@@ -374,7 +376,8 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	/* When codec selection is completed, notify connected clients, that
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - codec switching. */
-	bluealsa_ctl_event(BA_EVENT_TRANSPORT_CHANGED);
+	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &c->t->device->addr,
+			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 	return 0;
 }
 
@@ -655,7 +658,8 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
+					bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 
 			if (t->profile == BLUETOOTH_PROFILE_HFP_AG)
@@ -687,7 +691,8 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_event(BA_EVENT_TRANSPORT_ADDED);
+					bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 
 			if (conn.handler != NULL) {

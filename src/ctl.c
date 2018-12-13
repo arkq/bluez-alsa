@@ -44,14 +44,13 @@
  *
  * @param devices Address of the hash-table with connected devices.
  * @param addr Address to the structure with the looked up BT address.
- * @param type Looked up PCM type.
- * @param stream Looked up PCM stream direction.
+ * @param type Looked up PCM type with stream mask.
  * @param t Address, where the transport structure pointer should be stored.
  * @return If the lookup succeeded, this function returns 0. Otherwise, -1 or
  *   -2 is returned respectively for not found device and not found stream.
  *   Upon error value of the transport pointer is undefined. */
 static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
-		enum ba_pcm_type type, enum ba_pcm_stream stream, struct ba_transport **t) {
+		uint8_t type, struct ba_transport **t) {
 
 	bool device_found = false;
 	GHashTableIter iter_d, iter_t;
@@ -66,38 +65,28 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 		device_found = true;
 
 		for (g_hash_table_iter_init(&iter_t, d->transports);
-				g_hash_table_iter_next(&iter_t, NULL, (gpointer)t); ) {
-
-			switch (type) {
+				g_hash_table_iter_next(&iter_t, NULL, (gpointer)t); )
+			switch (BA_PCM_TYPE(type)) {
 			case BA_PCM_TYPE_NULL:
 				continue;
 			case BA_PCM_TYPE_A2DP:
 				if ((*t)->type != TRANSPORT_TYPE_A2DP)
 					continue;
-				switch (stream) {
-				case BA_PCM_STREAM_PLAYBACK:
-					if ((*t)->profile != BLUETOOTH_PROFILE_A2DP_SOURCE)
-						continue;
-					break;
-				case BA_PCM_STREAM_CAPTURE:
-					if ((*t)->profile != BLUETOOTH_PROFILE_A2DP_SINK)
-						continue;
-					break;
-				case BA_PCM_STREAM_DUPLEX:
-					continue;
-				}
-				break;
+				if (type & BA_PCM_STREAM_PLAYBACK &&
+						(*t)->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
+					return 0;
+				if (type & BA_PCM_STREAM_CAPTURE &&
+						(*t)->profile == BLUETOOTH_PROFILE_A2DP_SINK)
+					return 0;
+				continue;
 			case BA_PCM_TYPE_SCO:
 				if ((*t)->type != TRANSPORT_TYPE_SCO)
 					continue;
 				/* ignore SCO transport if codec is not selected yet */
 				if ((*t)->codec == HFP_CODEC_UNDEFINED)
 					continue;
-				break;
+				return 0;
 			}
-
-			return 0;
-		}
 
 	}
 
@@ -117,13 +106,10 @@ static int _transport_lookup_rfcomm(GHashTable *devices, const bdaddr_t *addr,
 			continue;
 
 		for (g_hash_table_iter_init(&iter_t, d->transports);
-				g_hash_table_iter_next(&iter_t, NULL, (gpointer)t); ) {
+				g_hash_table_iter_next(&iter_t, NULL, (gpointer)t); )
+			if ((*t)->type == TRANSPORT_TYPE_RFCOMM)
+				return 0;
 
-			if ((*t)->type != TRANSPORT_TYPE_RFCOMM)
-				continue;
-
-			return 0;
-		}
 	}
 
 	return -1;
@@ -133,10 +119,10 @@ static int _transport_lookup_rfcomm(GHashTable *devices, const bdaddr_t *addr,
  * Get transport PCM structure.
  *
  * @param t Pointer to the transport structure.
- * @param stream Stream type.
+ * @param type PCM type with stream mask.
  * @return On success address of the PCM structure is returned. If the PCM
  *   structure can not be determined, NULL is returned. */
-static struct ba_pcm *_transport_get_pcm(struct ba_transport *t, enum ba_pcm_stream stream) {
+static struct ba_pcm *_transport_get_pcm(struct ba_transport *t, uint8_t type) {
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
 		return &t->a2dp.pcm;
@@ -144,14 +130,10 @@ static struct ba_pcm *_transport_get_pcm(struct ba_transport *t, enum ba_pcm_str
 		debug("Trying to get PCM for RFCOMM transport... that's nuts");
 		break;
 	case TRANSPORT_TYPE_SCO:
-		switch (stream) {
-		case BA_PCM_STREAM_PLAYBACK:
+		if (type & BA_PCM_STREAM_PLAYBACK)
 			return &t->sco.spk_pcm;
-		case BA_PCM_STREAM_CAPTURE:
+		if (type & BA_PCM_STREAM_CAPTURE)
 			return &t->sco.mic_pcm;
-		case BA_PCM_STREAM_DUPLEX:
-			break;
-		}
 	}
 	return NULL;
 }
@@ -184,9 +166,8 @@ static void _ctl_transport(const struct ba_transport *t, struct ba_msg_transport
 
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
-		transport->type = BA_PCM_TYPE_A2DP;
-		transport->stream = t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
-			BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE;
+		transport->type = BA_PCM_TYPE_A2DP | (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
 		transport->ch1_muted = t->a2dp.ch1_muted;
 		transport->ch1_volume = t->a2dp.ch1_volume;
 		transport->ch2_muted = t->a2dp.ch2_muted;
@@ -197,8 +178,7 @@ static void _ctl_transport(const struct ba_transport *t, struct ba_msg_transport
 		transport->type = BA_PCM_TYPE_NULL;
 		break;
 	case TRANSPORT_TYPE_SCO:
-		transport->type = BA_PCM_TYPE_SCO;
-		transport->stream = BA_PCM_STREAM_DUPLEX;
+		transport->type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		transport->ch1_muted = t->sco.spk_muted;
 		transport->ch1_volume = t->sco.spk_gain;
 		transport->ch2_muted = t->sco.mic_muted;
@@ -216,7 +196,7 @@ static void _ctl_transport(const struct ba_transport *t, struct ba_msg_transport
 
 static void ctl_thread_cmd_ping(const struct ba_request *req, int fd) {
 	(void)req;
-	static const struct ba_msg_status status = { BA_STATUS_CODE_PONG };
+	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -293,7 +273,7 @@ static void ctl_thread_cmd_transport_get(const struct ba_request *req, int fd) {
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -317,7 +297,7 @@ static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, in
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -340,11 +320,11 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 	struct ba_pcm *t_pcm;
 	int pipefd[2];
 
-	debug("PCM requested for %s type %d stream %d", batostr_(&req->addr), req->type, req->stream);
+	debug("PCM requested for %s type %#x", batostr_(&req->addr), req->type);
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail_lookup;
@@ -355,7 +335,12 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 
 	pthread_mutex_lock(&t->mutex);
 
-	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
+	if (t->type == TRANSPORT_TYPE_SCO && t->codec == HFP_CODEC_UNDEFINED) {
+		status.code = BA_STATUS_CODE_CODEC_NOT_SELECTED;
+		goto final;
+	}
+
+	if ((t_pcm = _transport_get_pcm(t, req->type)) == NULL) {
 		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
 		goto final;
 	}
@@ -390,19 +375,13 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
 	int *fdptr = (int *)CMSG_DATA(cmsg);
 
-	switch (req->stream) {
-	case BA_PCM_STREAM_PLAYBACK:
+	if (req->type & BA_PCM_STREAM_PLAYBACK) {
 		t_pcm->fd = pipefd[0];
 		*fdptr = pipefd[1];
-		break;
-	case BA_PCM_STREAM_CAPTURE:
+	}
+	else {
 		t_pcm->fd = pipefd[1];
 		*fdptr = pipefd[0];
-		break;
-	case BA_PCM_STREAM_DUPLEX:
-		debug("Invalid PCM stream type: %d", req->stream);
-		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
-		goto fail;
 	}
 
 	/* Notify our IO thread, that the FIFO has just been created - it may be
@@ -444,11 +423,11 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 	struct ba_transport *t;
 	struct ba_pcm *t_pcm;
 
-	debug("PCM close for %s type %d stream %d", batostr_(&req->addr), req->type, req->stream);
+	debug("PCM close for %s type %#x", batostr_(&req->addr), req->type);
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail_lookup;
@@ -459,7 +438,7 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 
 	pthread_mutex_lock(&t->mutex);
 
-	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
+	if ((t_pcm = _transport_get_pcm(t, req->type)) == NULL) {
 		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
@@ -487,7 +466,7 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, req->stream, &t)) {
+	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -495,7 +474,7 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
 		goto fail;
 	}
-	if ((t_pcm = _transport_get_pcm(t, req->stream)) == NULL) {
+	if ((t_pcm = _transport_get_pcm(t, req->type)) == NULL) {
 		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
 	}
@@ -655,17 +634,17 @@ static void *ctl_thread(void *arg) {
 		/* generate notifications for subscribed clients */
 		if (config.ctl.pfds[CTL_IDX_EVT].revents & POLLIN) {
 
-			struct ba_msg_event event = { 0 };
+			struct ba_msg_event ev;
 			size_t i;
 
-			if (read(config.ctl.pfds[CTL_IDX_EVT].fd, &event.mask, sizeof(event.mask)) == -1)
+			if (read(config.ctl.pfds[CTL_IDX_EVT].fd, &ev, sizeof(ev)) == -1)
 				warn("Couldn't read controller event: %s", strerror(errno));
 
 			for (i = 0; i < BLUEALSA_MAX_CLIENTS; i++)
-				if (config.ctl.subs[i] & event.mask) {
+				if (config.ctl.subs[i] & ev.events) {
 					const int client = config.ctl.pfds[i + __CTL_IDX_MAX].fd;
-					debug("Sending notification: %B => %d", event.mask, client);
-					send(client, &event, sizeof(event), MSG_NOSIGNAL);
+					debug("Sending notification: %B => %d", ev.events, client);
+					send(client, &ev, sizeof(ev), MSG_NOSIGNAL);
 				}
 
 		}
@@ -774,6 +753,9 @@ void bluealsa_ctl_free(void) {
 
 }
 
-int bluealsa_ctl_event(enum ba_event event) {
-	return write(config.ctl.evt[1], &event, sizeof(event));
+/**
+ * Send notification event to subscribed clients. */
+int bluealsa_ctl_send_event(enum ba_event event, const bdaddr_t *addr, uint8_t type) {
+	struct ba_msg_event ev = { .events = event, .addr = *addr, .type = type };
+	return write(config.ctl.evt[1], &ev, sizeof(ev));
 }

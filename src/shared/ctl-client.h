@@ -21,8 +21,8 @@ int bluealsa_subscribe(int fd, enum ba_event mask);
 ssize_t bluealsa_get_devices(int fd, struct ba_msg_device **devices);
 ssize_t bluealsa_get_transports(int fd, struct ba_msg_transport **transports);
 
-int bluealsa_get_transport(int fd, bdaddr_t addr, enum ba_pcm_type type,
-		enum ba_pcm_stream stream, struct ba_msg_transport *transport);
+int bluealsa_get_transport(int fd, bdaddr_t addr, uint8_t type,
+		struct ba_msg_transport *transport);
 
 int bluealsa_get_transport_delay(int fd, const struct ba_msg_transport *transport,
 		unsigned int *delay);

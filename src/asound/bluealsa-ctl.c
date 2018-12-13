@@ -120,7 +120,7 @@ static void bluealsa_set_elem_name(struct ctl_elem *elem, int id) {
 	}
 	else if (transport != NULL) {
 		/* avoid name duplication by adding profile suffixes */
-		switch (transport->type) {
+		switch (BA_PCM_TYPE(transport->type)) {
 		case BA_PCM_TYPE_NULL:
 			break;
 		case BA_PCM_TYPE_A2DP:
@@ -175,7 +175,7 @@ static int bluealsa_ctl_elem_cmp(const struct ctl_elem *e1, const struct ctl_ele
 		updated |= d1->battery_level != d2->battery_level;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
-		switch (t1->type) {
+		switch (BA_PCM_TYPE(t1->type)) {
 		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
 		case BA_PCM_TYPE_A2DP:
@@ -192,7 +192,7 @@ static int bluealsa_ctl_elem_cmp(const struct ctl_elem *e1, const struct ctl_ele
 		}
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		switch (t1->type) {
+		switch (BA_PCM_TYPE(t1->type)) {
 		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
 		case BA_PCM_TYPE_A2DP:
@@ -253,7 +253,7 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 		/* Every stream has two controls associated to itself - volume adjustment
 		 * and mute switch. A2DP transport contains only one stream. However, SCO
 		 * transport represent both streams - playback and capture. */
-		switch (ctl->transports[i].type) {
+		switch (BA_PCM_TYPE(ctl->transports[i].type)) {
 		case BA_PCM_TYPE_NULL:
 			continue;
 		case BA_PCM_TYPE_A2DP:
@@ -277,12 +277,11 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 		size_t ii;
 
 		/* get device structure for given transport */
-		for (ii = 0; ii < ctl->devices_count; ii++) {
+		for (ii = 0; ii < ctl->devices_count; ii++)
 			if (bacmp(&ctl->devices[ii].addr, &transport->addr) == 0) {
 				device = &ctl->devices[ii];
 				break;
 			}
-		}
 
 		/* If the timing is right, the device list might not contain all devices.
 		 * It will happen, when between the get devices and get transports calls
@@ -290,7 +289,7 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 		if (device == NULL)
 			continue;
 
-		switch (transport->type) {
+		switch (BA_PCM_TYPE(transport->type)) {
 		case BA_PCM_TYPE_NULL:
 			break;
 
@@ -299,14 +298,14 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = transport->stream == BA_PCM_STREAM_PLAYBACK;
+			ctl->elems[count].playback = transport->type & BA_PCM_STREAM_PLAYBACK;
 			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_SWITCH;
 			ctl->elems[count].device = device;
 			ctl->elems[count].transport = transport;
-			ctl->elems[count].playback = transport->stream == BA_PCM_STREAM_PLAYBACK;
+			ctl->elems[count].playback = transport->type & BA_PCM_STREAM_PLAYBACK;
 			bluealsa_set_elem_name(&ctl->elems[count], -1);
 			count++;
 
@@ -464,7 +463,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	case CTL_ELEM_TYPE_SWITCH:
 		return -EINVAL;
 	case CTL_ELEM_TYPE_VOLUME:
-		switch (transport->type) {
+		switch (BA_PCM_TYPE(transport->type)) {
 		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
 		case BA_PCM_TYPE_A2DP:
@@ -497,7 +496,7 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		value[0] = device->battery_level;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
-		switch (transport->type) {
+		switch (BA_PCM_TYPE(transport->type)) {
 		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
 		case BA_PCM_TYPE_A2DP:
@@ -514,7 +513,7 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		}
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		switch (transport->type) {
+		switch (BA_PCM_TYPE(transport->type)) {
 		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
 		case BA_PCM_TYPE_A2DP:
@@ -552,7 +551,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		/* this element should be read-only */
 		return -EINVAL;
 	case CTL_ELEM_TYPE_SWITCH:
-		switch (transport->type) {
+		switch (BA_PCM_TYPE(transport->type)) {
 		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
 		case BA_PCM_TYPE_A2DP:
@@ -569,7 +568,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		}
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		switch (transport->type) {
+		switch (BA_PCM_TYPE(transport->type)) {
 		case BA_PCM_TYPE_NULL:
 			return -EINVAL;
 		case BA_PCM_TYPE_A2DP:

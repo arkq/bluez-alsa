@@ -376,8 +376,8 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 
 	ba2str(&pcm->transport.addr, addr);
 	snd_output_printf(out, "Bluetooth device: %s\n", addr);
-	snd_output_printf(out, "Bluetooth profile: %d\n", pcm->transport.type);
-	snd_output_printf(out, "Bluetooth codec: %d\n", pcm->transport.codec);
+	snd_output_printf(out, "Bluetooth profile: %#x\n", pcm->transport.type);
+	snd_output_printf(out, "Bluetooth codec: %#x\n", pcm->transport.codec);
 }
 
 static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
@@ -660,9 +660,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	enum ba_pcm_stream _stream = stream == SND_PCM_STREAM_PLAYBACK ?
-			BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE;
-	if (bluealsa_get_transport(pcm->fd, addr, type, _stream, &pcm->transport) == -1) {
+	type |= stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE;
+	if (bluealsa_get_transport(pcm->fd, addr, type, &pcm->transport) == -1) {
 		SNDERR("Couldn't get BlueALSA transport: %s", strerror(errno));
 		ret = -errno;
 		goto fail;
@@ -674,7 +673,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->io.mmap_rw = 1;
 	pcm->io.callback = &bluealsa_callback;
 	pcm->io.private_data = pcm;
-	pcm->transport.stream = _stream;
 
 	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
 		goto fail;
