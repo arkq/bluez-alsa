@@ -595,7 +595,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 
 static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
-	if (bluealsa_subscribe(ctl->event_fd, subscribe ? 0xFFFF : 0) == -1)
+	if (bluealsa_event_subscribe(ctl->event_fd, subscribe ? 0xFFFF : 0) == -1)
 		SNDERR("BlueALSA subscription failed: %s", strerror(errno));
 }
 

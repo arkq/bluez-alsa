@@ -126,13 +126,31 @@ int bluealsa_open(const char *interface) {
  *   In order to cancel subscription, use empty event mask.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
-int bluealsa_subscribe(int fd, enum ba_event mask) {
+int bluealsa_event_subscribe(int fd, uint8_t mask) {
 	const struct ba_request req = {
 		.command = BA_COMMAND_SUBSCRIBE,
 		.events = mask,
 	};
 	debug("Subscribing for events: %B", mask);
 	return bluealsa_send_request(fd, &req);
+}
+
+/**
+ * Check whether event matches given transport.
+ *
+ * @param transport Address to the transport structure with the addr and
+ *   type fields set - other fields are not used by this function.
+ * @parem event Address to the event structure.
+ * @return This function returns 0 when event matches given transport,
+ *   and any other value otherwise. */
+int bluealsa_event_match(const struct ba_msg_transport *transport,
+		const struct ba_msg_event *event) {
+	int ret;
+	if ((ret = bacmp(&transport->addr, &event->addr)) != 0)
+		return ret;
+	if ((ret = BA_PCM_TYPE(transport->type) - BA_PCM_TYPE(event->type)) != 0)
+		return ret;
+	return transport->type - (transport->type & event->type);
 }
 
 /**
@@ -197,18 +215,18 @@ ssize_t bluealsa_get_transports(int fd, struct ba_msg_transport **transports) {
  * Get PCM transport.
  *
  * @param fd Opened socket file descriptor.
- * @param addr MAC address of the Bluetooth device.
+ * @param addr Pointer to the Bluetooth address structure.
  * @param type PCM type (with stream direction) to get.
  * @param transport An address where the transport will be stored.
  * @return Upon success this function returns 0. Otherwise, -1 is returned
  *   and errno is set appropriately. */
-int bluealsa_get_transport(int fd, bdaddr_t addr, uint8_t type,
+int bluealsa_get_transport(int fd, const bdaddr_t *addr, uint8_t type,
 		struct ba_msg_transport *transport) {
 
 	struct ba_msg_status status = { 0xAB };
 	struct ba_request req = {
 		.command = BA_COMMAND_TRANSPORT_GET,
-		.addr = addr,
+		.addr = *addr,
 		.type = type,
 	};
 	ssize_t len;
@@ -258,7 +276,7 @@ int bluealsa_get_transport_delay(int fd, const struct ba_msg_transport *transpor
 	struct ba_msg_transport t;
 	int ret;
 
-	if ((ret = bluealsa_get_transport(fd, transport->addr,
+	if ((ret = bluealsa_get_transport(fd, &transport->addr,
 					transport->type, &t)) == 0)
 		*delay = t.delay;
 
@@ -305,7 +323,7 @@ int bluealsa_get_transport_volume(int fd, const struct ba_msg_transport *transpo
 	struct ba_msg_transport t;
 	int ret;
 
-	if ((ret = bluealsa_get_transport(fd, transport->addr,
+	if ((ret = bluealsa_get_transport(fd, &transport->addr,
 					transport->type, &t)) == 0) {
 		*ch1_muted = t.ch1_muted;
 		*ch1_volume = t.ch1_volume;
@@ -475,14 +493,14 @@ int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport) {
  * Send RFCOMM message.
  *
  * @param fd Opened socket file descriptor.
- * @param addr MAC address of the Bluetooth device.
+ * @param addr Pointer to the Bluetooth address structure.
  * @param command NULL-terminated command string.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_send_rfcomm_command(int fd, bdaddr_t addr, const char *command) {
+int bluealsa_send_rfcomm_command(int fd, const bdaddr_t *addr, const char *command) {
 
 	struct ba_request req = {
 		.command = BA_COMMAND_RFCOMM_SEND,
-		.addr = addr,
+		.addr = *addr,
 	};
 
 	strncpy(req.rfcomm_command, command, sizeof(req.rfcomm_command));

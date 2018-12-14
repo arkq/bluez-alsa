@@ -16,12 +16,14 @@
 
 int bluealsa_open(const char *interface);
 
-int bluealsa_subscribe(int fd, enum ba_event mask);
+int bluealsa_event_subscribe(int fd, uint8_t mask);
+int bluealsa_event_match(const struct ba_msg_transport *transport,
+		const struct ba_msg_event *event);
 
 ssize_t bluealsa_get_devices(int fd, struct ba_msg_device **devices);
 ssize_t bluealsa_get_transports(int fd, struct ba_msg_transport **transports);
 
-int bluealsa_get_transport(int fd, bdaddr_t addr, uint8_t type,
+int bluealsa_get_transport(int fd, const bdaddr_t *addr, uint8_t type,
 		struct ba_msg_transport *transport);
 
 int bluealsa_get_transport_delay(int fd, const struct ba_msg_transport *transport,
@@ -39,6 +41,6 @@ int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport);
 int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, bool pause);
 int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport);
 
-int bluealsa_send_rfcomm_command(int fd, bdaddr_t addr, const char *command);
+int bluealsa_send_rfcomm_command(int fd, const bdaddr_t *addr, const char *command);
 
 #endif

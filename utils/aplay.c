@@ -39,8 +39,6 @@ struct pcm_worker {
 	int pcm_fd;
 	/* opened playback PCM device */
 	snd_pcm_t *pcm;
-	/* if true, worker is marked for eviction */
-	bool eviction;
 	/* if true, playback is active */
 	bool active;
 	/* human-readable BT address */
@@ -50,9 +48,12 @@ struct pcm_worker {
 static unsigned int verbose = 0;
 static const char *device = "default";
 static const char *ba_interface = "hci0";
+static enum ba_pcm_type ba_type = BA_PCM_TYPE_A2DP;
+static bool ba_addr_any = false;
+static bdaddr_t *ba_addrs = NULL;
+static size_t ba_addrs_count = 0;
 static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
-static enum ba_pcm_type ba_type = BA_PCM_TYPE_A2DP;
 static bool pcm_mixer = true;
 
 static GDBusConnection *dbus = NULL;
@@ -71,6 +72,25 @@ static void main_loop_stop(int sig) {
 	sigaction(sig, &sigact, NULL);
 
 	main_loop_on = false;
+}
+
+/**
+ * Validate given device address and transport type. */
+static bool validate_transport(const bdaddr_t *addr, uint8_t type) {
+
+	if (BA_PCM_TYPE(type) != ba_type ||
+			!(type & BA_PCM_STREAM_CAPTURE))
+		return false;
+
+	if (ba_addr_any)
+		return true;
+
+	size_t i;
+	for (i = 0; i < ba_addrs_count; i++)
+		if (bacmp(&ba_addrs[i], addr) == 0)
+			return true;
+
+	return false;
 }
 
 static int pcm_set_hw_params(snd_pcm_t *pcm, int channels, int rate,
@@ -281,7 +301,6 @@ static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 		snd_pcm_close(worker->pcm);
 		worker->pcm = NULL;
 	}
-	worker->eviction = true;
 	debug("Exiting PCM worker %s", worker->addr);
 }
 
@@ -466,6 +485,65 @@ fail:
 	return NULL;
 }
 
+static int start_pcm_worker_routine(struct ba_msg_transport *transport) {
+
+	/* check whether SCO has selected codec */
+	if (BA_PCM_TYPE(transport->type) == BA_PCM_TYPE_SCO &&
+			transport->codec == 0) {
+		debug("Skipping SCO with codec not selected");
+		return 0;
+	}
+
+	pthread_rwlock_wrlock(&workers_lock);
+
+	workers_count++;
+	if (workers_size < workers_count) {
+		workers_size += 4;  /* coarse-grained realloc */
+		if ((workers = realloc(workers, sizeof(*workers) * workers_size)) == NULL) {
+			error("Couldn't (re)allocate memory for PCM workers: %s", strerror(ENOMEM));
+			pthread_rwlock_unlock(&workers_lock);
+			return -1;
+		}
+	}
+
+	struct pcm_worker *worker = &workers[workers_count - 1];
+	memcpy(&worker->transport, transport, sizeof(worker->transport));
+	ba2str(&worker->transport.addr, worker->addr);
+	worker->active = false;
+	worker->pcm_fd = -1;
+	worker->ba_fd = -1;
+	worker->pcm = NULL;
+
+	pthread_rwlock_unlock(&workers_lock);
+
+	debug("Creating PCM worker %s", worker->addr);
+
+	if ((errno = pthread_create(&worker->thread, NULL, pcm_worker_routine, worker)) != 0) {
+		error("Couldn't create PCM worker %s: %s", worker->addr, strerror(errno));
+		workers_count--;
+		return -1;
+	}
+
+	return 0;
+}
+
+static int start_available_transports(int ba_fd) {
+
+	struct ba_msg_transport *transports;
+	ssize_t len;
+	ssize_t i;
+
+	if ((len = bluealsa_get_transports(ba_fd, &transports)) == -1)
+		return -1;
+
+	for (i = 0; i < len; i++)
+		if (validate_transport(&transports[i].addr, transports[i].type))
+			start_pcm_worker_routine(&transports[i]);
+
+	free(transports);
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 
 	int opt;
@@ -552,10 +630,6 @@ usage:
 
 	log_open(argv[0], false, false);
 
-	bdaddr_t *ba_addrs = NULL;
-	size_t ba_addrs_count = 0;
-	bool ba_addr_any = false;
-
 	int status = EXIT_SUCCESS;
 	int ba_fd = -1;
 	int ba_event_fd = -1;
@@ -614,8 +688,16 @@ usage:
 		goto fail;
 	}
 
-	if (bluealsa_subscribe(ba_event_fd, BA_EVENT_TRANSPORT_ADDED | BA_EVENT_TRANSPORT_REMOVED) == -1) {
+	if (bluealsa_event_subscribe(ba_event_fd,
+				BA_EVENT_TRANSPORT_ADDED |
+				BA_EVENT_TRANSPORT_CHANGED |
+				BA_EVENT_TRANSPORT_REMOVED) == -1) {
 		error("BlueALSA subscription failed: %s", strerror(errno));
+		goto fail;
+	}
+
+	if (start_available_transports(ba_fd) == -1) {
+		error("Couldn't start available transports: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -624,12 +706,9 @@ usage:
 	sigaction(SIGINT, &sigact, NULL);
 
 	debug("Starting main loop");
-	goto init;
-
 	while (main_loop_on) {
 
-		struct ba_msg_event event;
-		struct ba_msg_transport *transports;
+		struct ba_msg_event ev;
 		ssize_t ret;
 		size_t i;
 
@@ -637,99 +716,42 @@ usage:
 		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1 && errno == EINTR)
 			continue;
 
-		while ((ret = recv(ba_event_fd, &event, sizeof(event), MSG_DONTWAIT)) == -1 && errno == EINTR)
+		while ((ret = recv(ba_event_fd, &ev, sizeof(ev), MSG_DONTWAIT)) == -1 &&
+				errno == EINTR)
 			continue;
-		if (ret != sizeof(event)) {
+		if (ret != sizeof(ev)) {
 			error("Couldn't read event: %s", strerror(ret == -1 ? errno : EBADMSG));
 			goto fail;
 		}
 
-init:
-		debug("Fetching available transports");
-		if ((ret = bluealsa_get_transports(ba_fd, &transports)) == -1) {
-			error("Couldn't get transports: %s", strerror(errno));
-			goto fail;
-		}
+		if (!validate_transport(&ev.addr, ev.type))
+			continue;
 
-		for (i = 0; i < workers_count; i++)
-			workers[i].eviction = true;
+		/* for simplicity's sake, treat change event as "remove & add" */
+		if (ev.events & BA_EVENT_TRANSPORT_CHANGED)
+			ev.events = BA_EVENT_TRANSPORT_ADDED | BA_EVENT_TRANSPORT_REMOVED;
 
-		for (i = 0; i < (unsigned)ret; i++) {
-
-			size_t ii;
-
-			/* filter available transports by BT address (this check is omitted if
-			 * any address can be used), transport type and stream direction */
-			if (BA_PCM_TYPE(transports[i].type) != ba_type)
-				continue;
-			if (!(transports[i].type & BA_PCM_STREAM_CAPTURE))
-				continue;
-			if (!ba_addr_any) {
-				bool matched = false;
-				for (ii = 0; ii < ba_addrs_count; ii++)
-					if (bacmp(&ba_addrs[ii], &transports[i].addr) == 0) {
-						matched = true;
-						break;
-					}
-				if (!matched)
-					continue;
-			}
-
-			bool matched = false;
-			for (ii = 0; ii < workers_count; ii++)
-				if (bacmp(&workers[ii].transport.addr, &transports[i].addr) == 0) {
-					workers[ii].eviction = false;
-					matched = true;
+		if (ev.events & BA_EVENT_TRANSPORT_REMOVED)
+			for (i = 0; i < workers_count; i++) {
+				struct pcm_worker *worker = &workers[i];
+				if (bluealsa_event_match(&worker->transport, &ev) == 0) {
+					pthread_cancel(worker->thread);
+					pthread_join(worker->thread, NULL);
+					memcpy(worker, &workers[workers_count - 1], sizeof(*worker));
+					workers_count--;
 					break;
 				}
-
-			/* start PCM worker thread */
-			if (!matched) {
-				workers_count++;
-
-				if (workers_size < workers_count) {
-
-					pthread_rwlock_wrlock(&workers_lock);
-
-					workers_size += 4; /* coarse-grained realloc */
-					if ((workers = realloc(workers, sizeof(*workers) * workers_size)) == NULL) {
-						error("Couldn't (re)allocate memory for PCM workers");
-						goto fail;
-					}
-
-					pthread_rwlock_unlock(&workers_lock);
-
-				}
-
-				struct pcm_worker *worker = &workers[workers_count - 1];
-				memcpy(&worker->transport, &transports[i], sizeof(worker->transport));
-				ba2str(&worker->transport.addr, worker->addr);
-				worker->eviction = false;
-				worker->active = false;
-				worker->pcm_fd = -1;
-				worker->ba_fd = -1;
-				worker->pcm = NULL;
-
-				debug("Creating PCM worker %s", worker->addr);
-
-				int ret;
-				if ((ret = pthread_create(&worker->thread, NULL, pcm_worker_routine, worker)) != 0) {
-					warn("Couldn't create PCM worker %s: %s", worker->addr, strerror(ret));
-					workers_count--;
-				}
-
 			}
 
-		}
-
-		/* stop PCM workers designated for eviction */
-		for (i = workers_count; i > 0; i--) {
-			struct pcm_worker *worker = &workers[i - 1];
-			if (worker->eviction) {
-				pthread_cancel(worker->thread);
-				pthread_join(worker->thread, NULL);
-				memcpy(worker, &workers[workers_count - 1], sizeof(*worker));
-				workers_count--;
+		if (ev.events & BA_EVENT_TRANSPORT_ADDED) {
+			struct ba_msg_transport transport;
+			if (bluealsa_get_transport(ba_fd, &ev.addr, ev.type, &transport) == -1) {
+				error("Couldn't get transport: %s", strerror(errno));
+				goto fail;
+			}
+			if (start_pcm_worker_routine(&transport) == -1) {
+				error("Couldn't start PCM worker: %s", strerror(errno));
+				goto fail;
 			}
 		}
 

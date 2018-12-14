@@ -661,7 +661,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	}
 
 	type |= stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE;
-	if (bluealsa_get_transport(pcm->fd, addr, type, &pcm->transport) == -1) {
+	if (bluealsa_get_transport(pcm->fd, &addr, type, &pcm->transport) == -1) {
 		SNDERR("Couldn't get BlueALSA transport: %s", strerror(errno));
 		ret = -errno;
 		goto fail;
