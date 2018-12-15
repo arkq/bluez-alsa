@@ -186,7 +186,10 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	bluealsa_devpool_mutex_lock();
 	devpool_mutex_locked = true;
 
-	if ((d = device_new(OFONO_FAKE_DEV_ID, &addr, card)) == NULL) {
+	char name[sizeof(d->name)];
+	ba2str(&addr, name);
+
+	if ((d = device_new(OFONO_FAKE_DEV_ID, &addr, name)) == NULL) {
 		error("Couldn't create device: %s", strerror(errno));
 		goto fail;
 	}
