@@ -80,12 +80,9 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 					return 0;
 				continue;
 			case BA_PCM_TYPE_SCO:
-				if ((*t)->type != TRANSPORT_TYPE_SCO)
-					continue;
-				/* ignore SCO transport if codec is not selected yet */
-				if ((*t)->codec == HFP_CODEC_UNDEFINED)
-					continue;
-				return 0;
+				if ((*t)->type == TRANSPORT_TYPE_SCO)
+					return 0;
+				continue;
 			}
 
 	}
@@ -254,9 +251,6 @@ static void ctl_thread_cmd_list_transports(const struct ba_request *req, int fd)
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); )
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t); ) {
-			/* ignore SCO transport if codec is not selected yet */
-			if (t->type == TRANSPORT_TYPE_SCO && t->codec == HFP_CODEC_UNDEFINED)
-				continue;
 			_ctl_transport(t, &transport);
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}

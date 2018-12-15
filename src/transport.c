@@ -420,7 +420,7 @@ void transport_free(struct ba_transport *t) {
 		transport_release_pcm(&t->sco.mic_pcm);
 		pthread_cond_destroy(&t->sco.mic_pcm.drained);
 		pthread_mutex_destroy(&t->sco.mic_pcm.drained_mn);
-		if (!t->sco.ofono)
+		if (t->sco.rfcomm != NULL)
 			t->sco.rfcomm->rfcomm.sco = NULL;
 		break;
 	}
@@ -741,7 +741,7 @@ int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_
 		t->sco.spk_gain = ch1_volume;
 		t->sco.mic_gain = ch2_volume;
 
-		if (!t->sco.ofono)
+		if (t->sco.rfcomm != NULL)
 			/* notify associated RFCOMM transport */
 			transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
 
@@ -884,7 +884,6 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
 	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
-	t->release = transport_release_bt_a2dp;
 
 	/* Minimize audio delay and increase responsiveness (seeking, stopping) by
 	 * decreasing the BT socket output buffer. We will use a tripled write MTU
@@ -1010,7 +1009,6 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	t->mtu_read = di.sco_mtu;
 	t->mtu_write = di.sco_mtu;
-	t->release = transport_release_bt_sco;
 
 	/* XXX: It seems, that the MTU values returned by the HCI interface
 	 *      are incorrect (or our interpretation of them is incorrect). */

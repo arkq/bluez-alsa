@@ -260,7 +260,8 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			count += 2;
 			break;
 		case BA_PCM_TYPE_SCO:
-			count += 4;
+			if (ctl->transports[i].codec != 0)
+				count += 4;
 			break;
 		}
 	}
@@ -312,6 +313,9 @@ static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
 			break;
 
 		case BA_PCM_TYPE_SCO:
+
+			if (ctl->transports[i].codec == 0)
+				break;
 
 			ctl->elems[count].type = CTL_ELEM_TYPE_VOLUME;
 			ctl->elems[count].device = device;
