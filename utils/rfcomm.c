@@ -124,7 +124,7 @@ usage:
 		while ((line = readline(prompt)) != NULL) {
 			char *tmp = strtrim(line);
 			if (strlen(tmp) > 0) {
-				if (bluealsa_send_rfcomm_command(ba_fd, ba_addr, build_rfcomm_command(tmp)) == -1)
+				if (bluealsa_send_rfcomm_command(ba_fd, &ba_addr, build_rfcomm_command(tmp)) == -1)
 					warn("Couldn't send RFCOMM command: %s", strerror(errno));
 				add_history(tmp);
 			}
@@ -146,7 +146,7 @@ usage:
 					sleep(duration);
 					continue;
 				}
-				if (bluealsa_send_rfcomm_command(ba_fd, ba_addr, build_rfcomm_command(tmp)) == -1)
+				if (bluealsa_send_rfcomm_command(ba_fd, &ba_addr, build_rfcomm_command(tmp)) == -1)
 					warn("Couldn't send RFCOMM command: %s", strerror(errno));
 			}
 		}
