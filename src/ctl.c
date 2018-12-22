@@ -34,6 +34,8 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
+#define ctl_pfds_idx(i) g_array_index(config.ctl.pfds, struct pollfd, i)
+#define ctl_subs_idx(i) g_array_index(config.ctl.subs, enum ba_event, i)
 
 /**
  * Looks up a transport matching BT address and profile.
@@ -202,9 +204,9 @@ static void ctl_thread_cmd_subscribe(const struct ba_request *req, int fd) {
 	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	size_t i;
 
-	for (i = __CTL_IDX_MAX; i < __CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS; i++)
-		if (config.ctl.pfds[i].fd == fd)
-			config.ctl.subs[i - __CTL_IDX_MAX] = req->events;
+	for (i = __CTL_IDX_MAX; i < config.ctl.pfds->len; i++)
+		if (ctl_pfds_idx(i).fd == fd)
+			ctl_subs_idx(i - __CTL_IDX_MAX) = req->events;
 
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
@@ -542,30 +544,20 @@ static void *ctl_thread(void *arg) {
 	debug("Starting controller loop");
 	while (config.ctl.thread_created) {
 
-		if (poll(config.ctl.pfds, ARRAYSIZE(config.ctl.pfds), -1) == -1) {
+		if (poll((struct pollfd *)config.ctl.pfds->data, config.ctl.pfds->len, -1) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("Controller poll error: %s", strerror(errno));
 			break;
 		}
 
-		/* Clients handling loop will update this variable to point to the
-		 * first available client structure, which might be later used by
-		 * the connection handling loop. */
-		struct pollfd *pfd = NULL;
 		size_t i;
 
 		/* handle data transmission with connected clients */
-		for (i = __CTL_IDX_MAX; i < __CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS; i++) {
-			const int fd = config.ctl.pfds[i].fd;
+		for (i = __CTL_IDX_MAX; i < config.ctl.pfds->len; i++)
+			if (ctl_pfds_idx(i).revents & POLLIN) {
 
-			if (fd == -1) {
-				pfd = &config.ctl.pfds[i];
-				continue;
-			}
-
-			if (config.ctl.pfds[i].revents & POLLIN) {
-
+				const int fd = ctl_pfds_idx(i).fd;
 				struct ba_request request;
 				ssize_t len;
 
@@ -583,8 +575,8 @@ static void *ctl_thread(void *arg) {
 						transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 					}
 
-					config.ctl.pfds[i].fd = -1;
-					config.ctl.subs[i - __CTL_IDX_MAX] = 0;
+					g_array_remove_index_fast(config.ctl.pfds, i);
+					g_array_remove_index_fast(config.ctl.subs, i - __CTL_IDX_MAX);
 					close(fd);
 					continue;
 				}
@@ -597,15 +589,13 @@ static void *ctl_thread(void *arg) {
 
 			}
 
-		}
-
 		/* process new connections to our controller */
-		if (config.ctl.pfds[CTL_IDX_SRV].revents & POLLIN && pfd != NULL) {
+		if (ctl_pfds_idx(CTL_IDX_SRV).revents & POLLIN) {
 
 			struct pollfd fd = { -1, POLLIN, 0 };
 			uint16_t ver = 0;
 
-			fd.fd = accept(config.ctl.pfds[CTL_IDX_SRV].fd, NULL, NULL);
+			fd.fd = accept(ctl_pfds_idx(CTL_IDX_SRV).fd, NULL, NULL);
 			debug("Received new connection: %d", fd.fd);
 
 			errno = ETIMEDOUT;
@@ -620,23 +610,24 @@ static void *ctl_thread(void *arg) {
 			}
 			else {
 				debug("New client accepted: %d", fd.fd);
-				pfd->fd = fd.fd;
+				g_array_append_val(config.ctl.pfds, fd);
+				g_array_set_size(config.ctl.subs, config.ctl.subs->len + 1);
 			}
 
 		}
 
 		/* generate notifications for subscribed clients */
-		if (config.ctl.pfds[CTL_IDX_EVT].revents & POLLIN) {
+		if (ctl_pfds_idx(CTL_IDX_EVT).revents & POLLIN) {
 
 			struct ba_msg_event ev;
 			size_t i;
 
-			if (read(config.ctl.pfds[CTL_IDX_EVT].fd, &ev, sizeof(ev)) == -1)
+			if (read(ctl_pfds_idx(CTL_IDX_EVT).fd, &ev, sizeof(ev)) == -1)
 				warn("Couldn't read controller event: %s", strerror(errno));
 
-			for (i = 0; i < BLUEALSA_MAX_CLIENTS; i++)
-				if (config.ctl.subs[i] & ev.events) {
-					const int client = config.ctl.pfds[i + __CTL_IDX_MAX].fd;
+			for (i = 0; i < config.ctl.subs->len; i++)
+				if (ctl_subs_idx(i) & ev.events) {
+					const int client = ctl_pfds_idx(i + __CTL_IDX_MAX).fd;
 					debug("Sending notification: %B => %d", ev.events, client);
 					send(client, &ev, sizeof(ev), MSG_NOSIGNAL);
 				}
@@ -658,13 +649,7 @@ int bluealsa_ctl_thread_init(void) {
 		return -1;
 	}
 
-	{ /* initialize (mark as closed) all sockets */
-		size_t i;
-		for (i = 0; i < ARRAYSIZE(config.ctl.pfds); i++) {
-			config.ctl.pfds[i].events = POLLIN;
-			config.ctl.pfds[i].fd = -1;
-		}
-	}
+	struct pollfd pfd = { .events = POLLIN };
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
@@ -674,11 +659,13 @@ int bluealsa_ctl_thread_init(void) {
 		error("Couldn't create run-state directory: %s", strerror(errno));
 		goto fail;
 	}
-	if ((config.ctl.pfds[CTL_IDX_SRV].fd = socket(PF_UNIX, SOCK_SEQPACKET, 0)) == -1) {
+
+	if ((pfd.fd = socket(PF_UNIX, SOCK_SEQPACKET, 0)) == -1) {
 		error("Couldn't create controller socket: %s", strerror(errno));
 		goto fail;
 	}
-	if (bind(config.ctl.pfds[CTL_IDX_SRV].fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
+	g_array_append_val(config.ctl.pfds, pfd);
+	if (bind(pfd.fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
 		error("Couldn't bind controller socket: %s", strerror(errno));
 		goto fail;
 	}
@@ -688,7 +675,7 @@ int bluealsa_ctl_thread_init(void) {
 		error("Couldn't set permission for controller socket: %s", strerror(errno));
 		goto fail;
 	}
-	if (listen(config.ctl.pfds[CTL_IDX_SRV].fd, 2) == -1) {
+	if (listen(pfd.fd, 2) == -1) {
 		error("Couldn't listen on controller socket: %s", strerror(errno));
 		goto fail;
 	}
@@ -697,7 +684,9 @@ int bluealsa_ctl_thread_init(void) {
 		error("Couldn't create controller event PIPE: %s", strerror(errno));
 		goto fail;
 	}
-	config.ctl.pfds[CTL_IDX_EVT].fd = config.ctl.evt[0];
+
+	pfd.fd = config.ctl.evt[0];
+	g_array_append_val(config.ctl.pfds, pfd);
 
 	config.ctl.thread_created = true;
 	if ((errno = pthread_create(&config.ctl.thread, NULL, ctl_thread, NULL)) != 0) {
@@ -723,15 +712,10 @@ void bluealsa_ctl_free(void) {
 
 	config.ctl.thread_created = false;
 
-	if (config.ctl.evt[0] != -1)
-		close(config.ctl.evt[0]);
+	for (i = 0; i < config.ctl.pfds->len; i++)
+		close(ctl_pfds_idx(i).fd);
 	if (config.ctl.evt[1] != -1)
 		close(config.ctl.evt[1]);
-
-	config.ctl.pfds[CTL_IDX_EVT].fd = -1;
-	for (i = 0; i < ARRAYSIZE(config.ctl.pfds); i++)
-		if (config.ctl.pfds[i].fd != -1)
-			close(config.ctl.pfds[i].fd);
 
 	if (created) {
 		pthread_cancel(config.ctl.thread);

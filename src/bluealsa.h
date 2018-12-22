@@ -15,7 +15,6 @@
 # include "config.h"
 #endif
 
-#include <poll.h>
 #include <pthread.h>
 #include <stdbool.h>
 
@@ -29,14 +28,6 @@
 #include "bluez-a2dp.h"
 #include "transport.h"
 #include "shared/ctl-proto.h"
-
-/* Maximal number of clients connected to the controller. */
-#define BLUEALSA_MAX_CLIENTS 7
-
-/* Indexes of special file descriptors in the poll array. */
-#define CTL_IDX_SRV 0
-#define CTL_IDX_EVT 1
-#define __CTL_IDX_MAX 2
 
 struct ba_config {
 
@@ -76,9 +67,10 @@ struct ba_config {
 		bool socket_created;
 		bool thread_created;
 
-		struct pollfd pfds[__CTL_IDX_MAX + BLUEALSA_MAX_CLIENTS];
+		/* special file descriptors + connected clients */
+		GArray *pfds;
 		/* event subscriptions for connected clients */
-		enum ba_event subs[BLUEALSA_MAX_CLIENTS];
+		GArray *subs;
 
 		/* PIPE for transferring events */
 		int evt[2];

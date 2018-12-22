@@ -11,11 +11,13 @@
 #include "bluealsa.h"
 
 #include <grp.h>
+#include <poll.h>
 
 #if ENABLE_LDAC
 # include <ldacBT.h>
 #endif
 
+#include "ctl.h"
 #include "hfp.h"
 #include "transport.h"
 
@@ -92,6 +94,13 @@ int bluealsa_config_init(void) {
 	if ((grp = getgrnam("audio")) != NULL)
 		config.gid_audio = grp->gr_gid;
 
+	/* Create arrays for handling connected clients. Note, that it is not
+	 * necessary to clear pfds array, because we have to initialize pollfd
+	 * struct by ourself anyway. Also, make sure to reserve some space, so
+	 * for most cases reallocation will not be required. */
+	config.ctl.pfds = g_array_sized_new(FALSE, FALSE, sizeof(struct pollfd), __CTL_IDX_MAX + 16);
+	config.ctl.subs = g_array_sized_new(FALSE, TRUE, sizeof(enum ba_event), 16);
+
 	config.a2dp.codecs = bluez_a2dp_codecs;
 
 	return 0;
@@ -101,4 +110,6 @@ void bluealsa_config_free(void) {
 	pthread_mutex_destroy(&config.devices_mutex);
 	g_hash_table_unref(config.devices);
 	g_hash_table_unref(config.dbus_objects);
+	g_array_free(config.ctl.pfds, TRUE);
+	g_array_free(config.ctl.subs, TRUE);
 }

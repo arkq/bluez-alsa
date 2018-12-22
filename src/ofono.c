@@ -19,6 +19,7 @@
 #include "ofono.h"
 
 #include <errno.h>
+#include <poll.h>
 
 #include <gio/gunixfdlist.h>
 
