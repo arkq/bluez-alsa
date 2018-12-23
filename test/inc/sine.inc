@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <math.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 /**
  * Generate sine PCM signal.
