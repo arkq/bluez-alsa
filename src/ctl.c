@@ -27,6 +27,7 @@
 
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
+#include "bluez-iface.h"
 #include "bluez.h"
 #include "hfp.h"
 #include "transport.h"
@@ -302,7 +303,42 @@ static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, in
 		goto fail;
 	}
 
-	transport_set_volume(t, req->ch1_muted, req->ch2_muted, req->ch1_volume, req->ch2_volume);
+	debug("Setting volume for %s type %#x: %d<>%d [%c%c]",
+			batostr_(&req->addr), req->type, req->ch1_volume, req->ch2_volume,
+			req->ch1_muted ? 'M' : 'O', req->ch2_muted ? 'M' : 'O');
+
+	switch (BA_PCM_TYPE(req->type)) {
+	case BA_PCM_TYPE_A2DP:
+
+		t->a2dp.ch1_muted = req->ch1_muted;
+		t->a2dp.ch2_muted = req->ch2_muted;
+		t->a2dp.ch1_volume = req->ch1_volume;
+		t->a2dp.ch2_volume = req->ch2_volume;
+
+		if (config.a2dp.volume) {
+			uint16_t volume = (req->ch1_muted | req->ch2_muted) ? 0 : MIN(req->ch1_volume, req->ch2_volume);
+			g_dbus_set_property(config.dbus, t->dbus_owner, t->dbus_path,
+					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume));
+		}
+
+		break;
+
+	case BA_PCM_TYPE_SCO:
+
+		t->sco.spk_muted = req->ch1_muted;
+		t->sco.mic_muted = req->ch2_muted;
+		t->sco.spk_gain = req->ch1_volume;
+		t->sco.mic_gain = req->ch2_volume;
+
+		if (t->sco.rfcomm != NULL)
+			/* notify associated RFCOMM transport */
+			transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
+
+		break;
+	}
+
+	/* notify connected clients (including requester) */
+	bluealsa_ctl_send_event(BA_EVENT_VOLUME_CHANGED, &req->addr, req->type);
 
 fail:
 	bluealsa_devpool_mutex_unlock();

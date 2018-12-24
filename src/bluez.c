@@ -151,6 +151,23 @@ static unsigned int bluez_a2dp_codec_select_sampling_freq(
 	return 0;
 }
 
+/**
+ * Set transport state using BlueZ state string. */
+static int bluez_a2dp_set_transport_state(
+		struct ba_transport *t,
+		const char *state) {
+
+	if (strcmp(state, BLUEZ_TRANSPORT_STATE_IDLE) == 0)
+		return transport_set_state(t, TRANSPORT_IDLE);
+	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
+		return transport_set_state(t, TRANSPORT_PENDING);
+	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
+		return transport_set_state(t, TRANSPORT_ACTIVE);
+
+	warn("Invalid state: %s", state);
+	return -1;
+}
+
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	const char *path = g_dbus_method_invocation_get_object_path(inv);
@@ -594,7 +611,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	debug("Configuration: channels: %u, sampling: %u",
 			transport_get_channels(t), transport_get_sampling(t));
 
-	transport_set_state_from_string(t, state);
+	bluez_a2dp_set_transport_state(t, state);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;
@@ -657,23 +674,23 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sende
 	(void)interface;
 	(void)params;
 
-	struct ba_dbus_object *obj;
-
 	debug("Endpoint method call: %s.%s()", interface, method);
 
 	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
-	obj = g_hash_table_lookup(config.dbus_objects, hash);
+	struct ba_dbus_object *obj;
 
 	if (strcmp(method, "SelectConfiguration") == 0)
 		bluez_endpoint_select_configuration(invocation, userdata);
 	else if (strcmp(method, "SetConfiguration") == 0) {
 		if (bluez_endpoint_set_configuration(invocation, userdata) == 0) {
+			obj = g_hash_table_lookup(config.dbus_objects, hash);
 			obj->connected = true;
 			bluez_register_a2dp();
 		}
 	}
 	else if (strcmp(method, "ClearConfiguration") == 0) {
 		bluez_endpoint_clear_configuration(invocation, userdata);
+		obj = g_hash_table_lookup(config.dbus_objects, hash);
 		obj->connected = false;
 	}
 	else if (strcmp(method, "Release") == 0)
@@ -1068,6 +1085,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	(void)userdata;
 
 	const gchar *signature = g_variant_get_type_string(params);
+	bool devpool_mutex_locked = false;
 	GVariantIter *properties = NULL;
 	GVariantIter *unknown = NULL;
 	GVariant *value = NULL;
@@ -1079,6 +1097,9 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
 		goto fail;
 	}
+
+	bluealsa_devpool_mutex_lock();
+	devpool_mutex_locked = true;
 
 	if ((t = transport_lookup(config.devices, path)) == NULL) {
 		error("Transport not available: %s", path);
@@ -1097,7 +1118,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 				goto fail;
 			}
 
-			transport_set_state_from_string(t, g_variant_get_string(value, NULL));
+			bluez_a2dp_set_transport_state(t, g_variant_get_string(value, NULL));
 
 		}
 		else if (strcmp(key, "Delay") == 0) {
@@ -1133,6 +1154,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	}
 
 fail:
+	if (devpool_mutex_locked)
+		bluealsa_devpool_mutex_unlock();
 	if (properties != NULL)
 		g_variant_iter_free(properties);
 	if (value != NULL)

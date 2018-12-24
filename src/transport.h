@@ -259,11 +259,7 @@ int transport_send_rfcomm(struct ba_transport *t, const char command[32]);
 unsigned int transport_get_channels(const struct ba_transport *t);
 unsigned int transport_get_sampling(const struct ba_transport *t);
 
-int transport_set_volume(struct ba_transport *t, uint8_t ch1_muted, uint8_t ch2_muted,
-		uint8_t ch1_volume, uint8_t ch2_volume);
-
 int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
-int transport_set_state_from_string(struct ba_transport *t, const char *state);
 
 int transport_drain_pcm(struct ba_transport *t);
 int transport_release_pcm(struct ba_pcm *pcm);
