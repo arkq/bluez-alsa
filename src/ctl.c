@@ -707,10 +707,8 @@ int bluealsa_ctl_thread_init(void) {
 	}
 	config.ctl.socket_created = true;
 	if (chmod(saddr.sun_path, 0660) == -1 ||
-			chown(saddr.sun_path, -1, config.gid_audio) == -1) {
-		error("Couldn't set permission for controller socket: %s", strerror(errno));
-		goto fail;
-	}
+			chown(saddr.sun_path, -1, config.gid_audio) == -1)
+		warn("Couldn't set permission for controller socket: %s", strerror(errno));
 	if (listen(pfd.fd, 2) == -1) {
 		error("Couldn't listen on controller socket: %s", strerror(errno));
 		goto fail;
