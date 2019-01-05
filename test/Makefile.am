@@ -1,14 +1,11 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2018 Arkadiusz Bokowy
+# Copyright (c) 2016-2019 Arkadiusz Bokowy
 
 TESTS = \
 	test-at \
 	test-io \
+	test-pcm \
 	test-utils
-
-if ENABLE_TEST_PCM
-TESTS += test-pcm
-endif
 
 check_PROGRAMS = \
 	server-mock \
@@ -16,6 +13,13 @@ check_PROGRAMS = \
 	test-io \
 	test-pcm \
 	test-utils
+
+check_LTLIBRARIES = \
+	aloader.la
+aloader_la_LDFLAGS = \
+	-rpath /nowhere \
+	-avoid-version \
+	-shared -module
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \

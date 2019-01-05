@@ -1,5 +1,5 @@
 # BlueALSA - configure.ac
-# Copyright (c) 2016-2018 Arkadiusz Bokowy
+# Copyright (c) 2016-2019 Arkadiusz Bokowy
 
 AC_PREREQ([2.59])
 AC_INIT([bluez-alsa], [1.3.1], [arkadiusz.bokowy@gmail.com])
@@ -119,12 +119,6 @@ AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
 AM_COND_IF([ENABLE_TEST], [
 	PKG_CHECK_MODULES([CHECK], [check >= 0.9.10])
 ])
-
-# Since it is not possible to specify custom ALSA plugin directory, BlueALSA
-# PCM plugin has to be installed prior to this test.
-AC_ARG_ENABLE([test-pcm],
-	[AS_HELP_STRING([--enable-test-pcm], [enable PCM plugin test])])
-AM_CONDITIONAL([ENABLE_TEST_PCM], [test "x$enable_test_pcm" = "xyes"])
 
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
