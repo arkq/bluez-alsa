@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -35,11 +35,14 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
+/* Special PCM type for internal usage only. */
+#define BA_PCM_TYPE_RFCOMM 0x1F
+
 #define ctl_pfds_idx(i) g_array_index(config.ctl.pfds, struct pollfd, i)
 #define ctl_subs_idx(i) g_array_index(config.ctl.subs, enum ba_event, i)
 
 /**
- * Looks up a transport matching BT address and profile.
+ * Lookup a transport matching BT address and profile.
  *
  * This function is not thread-safe. It returns references to objects managed
  * by the devices hash-table. If the devices hash-table is modified in some
@@ -52,7 +55,7 @@
  * @return If the lookup succeeded, this function returns 0. Otherwise, -1 or
  *   -2 is returned respectively for not found device and not found stream.
  *   Upon error value of the transport pointer is undefined. */
-static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
+static int ctl_lookup_transport(GHashTable *devices, const bdaddr_t *addr,
 		uint8_t type, struct ba_transport **t) {
 
 	bool device_found = false;
@@ -86,6 +89,10 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 				if ((*t)->type == TRANSPORT_TYPE_SCO)
 					return 0;
 				continue;
+			case BA_PCM_TYPE_RFCOMM:
+				if ((*t)->type == TRANSPORT_TYPE_RFCOMM)
+					return 0;
+				continue;
 			}
 
 	}
@@ -93,54 +100,38 @@ static int _transport_lookup(GHashTable *devices, const bdaddr_t *addr,
 	return device_found ? -2 : -1;
 }
 
-static int _transport_lookup_rfcomm(GHashTable *devices, const bdaddr_t *addr,
-		struct ba_transport **t) {
-
-	GHashTableIter iter_d, iter_t;
-	struct ba_device *d;
-
-	for (g_hash_table_iter_init(&iter_d, devices);
-			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); ) {
-
-		if (bacmp(&d->addr, addr) != 0)
-			continue;
-
-		for (g_hash_table_iter_init(&iter_t, d->transports);
-				g_hash_table_iter_next(&iter_t, NULL, (gpointer)t); )
-			if ((*t)->type == TRANSPORT_TYPE_RFCOMM)
-				return 0;
-
-	}
-
-	return -1;
-}
-
 /**
- * Get transport PCM structure.
+ * Lookup PCM structure associated with given client.
  *
  * @param t Pointer to the transport structure.
  * @param type PCM type with stream mask.
+ * @param client Client file descriptor.
  * @return On success address of the PCM structure is returned. If the PCM
  *   structure can not be determined, NULL is returned. */
-static struct ba_pcm *_transport_get_pcm(struct ba_transport *t, uint8_t type) {
+static struct ba_pcm *ctl_lookup_pcm(struct ba_transport *t, uint8_t type, int client) {
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
-		return &t->a2dp.pcm;
+		if (t->a2dp.pcm.client == client)
+			return &t->a2dp.pcm;
+		break;
 	case TRANSPORT_TYPE_RFCOMM:
 		debug("Trying to get PCM for RFCOMM transport... that's nuts");
 		break;
 	case TRANSPORT_TYPE_SCO:
 		if (type & BA_PCM_STREAM_PLAYBACK)
-			return &t->sco.spk_pcm;
+			if (t->sco.spk_pcm.client == client)
+				return &t->sco.spk_pcm;
 		if (type & BA_PCM_STREAM_CAPTURE)
-			return &t->sco.mic_pcm;
+			if (t->sco.mic_pcm.client == client)
+				return &t->sco.mic_pcm;
+		break;
 	}
 	return NULL;
 }
 
 /**
  * Release transport resources acquired by the controller module. */
-static void _transport_release_pcm(struct ba_transport *t, int client) {
+static void ctl_release_pcm(struct ba_transport *t, int client) {
 	switch (t->type) {
 	case TRANSPORT_TYPE_A2DP:
 		transport_release_pcm(&t->a2dp.pcm);
@@ -160,7 +151,8 @@ static void _transport_release_pcm(struct ba_transport *t, int client) {
 	}
 }
 
-static void _ctl_transport(const struct ba_transport *t, struct ba_msg_transport *transport) {
+static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
+		struct ba_msg_transport *transport) {
 
 	bacpy(&transport->addr, &t->device->addr);
 
@@ -192,6 +184,7 @@ static void _ctl_transport(const struct ba_transport *t, struct ba_msg_transport
 	transport->sampling = transport_get_sampling(t);
 	transport->delay += t->delay;
 
+	return transport;
 }
 
 static void ctl_thread_cmd_ping(const struct ba_request *req, int fd) {
@@ -254,7 +247,7 @@ static void ctl_thread_cmd_list_transports(const struct ba_request *req, int fd)
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); )
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t); ) {
-			_ctl_transport(t, &transport);
+			ctl_transport(t, &transport);
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
 
@@ -270,7 +263,7 @@ static void ctl_thread_cmd_transport_get(const struct ba_request *req, int fd) {
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -279,7 +272,7 @@ static void ctl_thread_cmd_transport_get(const struct ba_request *req, int fd) {
 		goto fail;
 	}
 
-	_ctl_transport(t, &transport);
+	ctl_transport(t, &transport);
 	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 
 fail:
@@ -294,7 +287,7 @@ static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, in
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -356,7 +349,7 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail_lookup;
@@ -372,13 +365,7 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 		goto final;
 	}
 
-	if ((t_pcm = _transport_get_pcm(t, req->type)) == NULL) {
-		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
-		goto final;
-	}
-
-	if (t_pcm->fd != -1) {
-		debug("PCM already requested: %d", t_pcm->fd);
+	if ((t_pcm = ctl_lookup_pcm(t, req->type, -1)) == NULL) {
 		status.code = BA_STATUS_CODE_DEVICE_BUSY;
 		goto final;
 	}
@@ -459,7 +446,7 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail_lookup;
@@ -470,17 +457,12 @@ static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
 
 	pthread_mutex_lock(&t->mutex);
 
-	if ((t_pcm = _transport_get_pcm(t, req->type)) == NULL) {
-		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
-		goto fail;
-	}
-
-	if (t_pcm->client != fd) {
+	if ((t_pcm = ctl_lookup_pcm(t, req->type, fd)) == NULL) {
 		status.code = BA_STATUS_CODE_FORBIDDEN;
 		goto fail;
 	}
 
-	_transport_release_pcm(t, fd);
+	ctl_release_pcm(t, fd);
 	transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 
 fail:
@@ -498,7 +480,7 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 
 	bluealsa_devpool_mutex_lock();
 
-	switch (_transport_lookup(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -506,15 +488,7 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
 		goto fail;
 	}
-	if ((t_pcm = _transport_get_pcm(t, req->type)) == NULL) {
-		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
-		goto fail;
-	}
-	if (t_pcm->fd == -1 || t_pcm->client == -1) {
-		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
-		goto fail;
-	}
-	if (t_pcm->client != fd) {
+	if ((t_pcm = ctl_lookup_pcm(t, req->type, fd)) == NULL) {
 		status.code = BA_STATUS_CODE_FORBIDDEN;
 		goto fail;
 	}
@@ -547,8 +521,12 @@ static void ctl_thread_cmd_rfcomm_send(const struct ba_request *req, int fd) {
 
 	bluealsa_devpool_mutex_lock();
 
-	if (_transport_lookup_rfcomm(config.devices, &req->addr, &t) != 0) {
+	switch (ctl_lookup_transport(config.devices, &req->addr, BA_PCM_TYPE_RFCOMM, &t)) {
+	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
+		goto fail;
+	case -2:
+		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
 		goto fail;
 	}
 
@@ -605,11 +583,40 @@ static void *ctl_thread(void *arg) {
 					else
 						debug("Invalid request length: %zd != %zd", len, sizeof(request));
 
+					GHashTableIter iter_d, iter_t;
+					struct ba_device *d;
 					struct ba_transport *t;
-					if ((t = transport_lookup_pcm_client(config.devices, fd)) != NULL) {
-						_transport_release_pcm(t, fd);
-						transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+
+					bluealsa_devpool_mutex_lock();
+
+					/* release PCMs associated with disconnected client */
+					g_hash_table_iter_init(&iter_d, config.devices);
+					while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
+						g_hash_table_iter_init(&iter_t, d->transports);
+						while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
+
+							switch (t->type) {
+							case TRANSPORT_TYPE_RFCOMM:
+								continue;
+							case TRANSPORT_TYPE_A2DP:
+								if (t->a2dp.pcm.client == fd)
+									break;
+								continue;
+							case TRANSPORT_TYPE_SCO:
+								if (t->sco.spk_pcm.client == fd)
+									break;
+								if (t->sco.mic_pcm.client == fd)
+									break;
+								continue;
+							}
+
+							ctl_release_pcm(t, fd);
+							transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+
+						}
 					}
+
+					bluealsa_devpool_mutex_unlock();
 
 					g_array_remove_index_fast(config.ctl.pfds, i);
 					g_array_remove_index_fast(config.ctl.subs, i - __CTL_IDX_MAX);

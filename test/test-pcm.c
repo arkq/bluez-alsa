@@ -125,7 +125,7 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 
 START_TEST(test_playback_hw_constraints) {
 
-	const char *hci = "hci-ts1";
+	const char *hci = "hci-tp1";
 	pid_t pid = spawn_bluealsa_server(hci, 1, true, false);
 
 	/* hard-coded values used in the server-mock */
@@ -199,7 +199,7 @@ START_TEST(test_playback_hw_constraints) {
 
 START_TEST(test_playback) {
 
-	const char *hci = "hci-ts2";
+	const char *hci = "hci-tp2";
 	pid_t pid = spawn_bluealsa_server(hci, 2, true, false);
 
 	int pcm_channels = 2;
@@ -346,7 +346,7 @@ void test_playback_termination_reference(const char *name) {
 
 START_TEST(test_playback_termination) {
 
-	const char *hci = "hci-ts3";
+	const char *hci = "hci-tp3";
 	pid_t pid = spawn_bluealsa_server(hci, 2, true, false);
 
 	snd_pcm_t *pcm = NULL;

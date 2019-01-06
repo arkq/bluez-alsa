@@ -83,13 +83,10 @@ struct ba_device {
 };
 
 struct ba_pcm {
-
+	/* FIFO file descriptor */
 	int fd;
-
-	/* client identifier (most likely client socket file descriptor) used
-	 * by the PCM client lookup function - transport_lookup_pcm_client() */
+	/* associated client */
 	int client;
-
 };
 
 struct ba_transport {
@@ -254,7 +251,6 @@ struct ba_transport *transport_new_sco(
 void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path);
-struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client);
 bool transport_remove(GHashTable *devices, const char *dbus_path);
 
 int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);

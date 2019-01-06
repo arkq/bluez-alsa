@@ -450,36 +450,6 @@ struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path
 	return NULL;
 }
 
-struct ba_transport *transport_lookup_pcm_client(GHashTable *devices, int client) {
-
-	GHashTableIter iter_d, iter_t;
-	struct ba_device *d;
-	struct ba_transport *t;
-
-	g_hash_table_iter_init(&iter_d, devices);
-	while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
-		g_hash_table_iter_init(&iter_t, d->transports);
-		while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
-			switch (t->type) {
-			case TRANSPORT_TYPE_A2DP:
-				if (t->a2dp.pcm.client == client)
-					return t;
-				break;
-			case TRANSPORT_TYPE_RFCOMM:
-				break;
-			case TRANSPORT_TYPE_SCO:
-				if (t->sco.spk_pcm.client == client)
-					return t;
-				if (t->sco.mic_pcm.client == client)
-					return t;
-				break;
-			}
-		}
-	}
-
-	return NULL;
-}
-
 bool transport_remove(GHashTable *devices, const char *dbus_path) {
 
 	GHashTableIter iter;

@@ -3,6 +3,7 @@
 
 TESTS = \
 	test-at \
+	test-ctl \
 	test-io \
 	test-pcm \
 	test-utils
@@ -10,6 +11,7 @@ TESTS = \
 check_PROGRAMS = \
 	server-mock \
 	test-at \
+	test-ctl \
 	test-io \
 	test-pcm \
 	test-utils
