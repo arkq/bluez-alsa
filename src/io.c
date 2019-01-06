@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -424,7 +424,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
-			pthread_cond_signal(&t->a2dp.pcm.drained);
+			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
 			locked = !transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
@@ -926,7 +926,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
-			pthread_cond_signal(&t->a2dp.pcm.drained);
+			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
 			locked = !transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
@@ -1132,7 +1132,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
-			pthread_cond_signal(&t->a2dp.pcm.drained);
+			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
 			locked = !transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
@@ -1367,7 +1367,7 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
-			pthread_cond_signal(&t->a2dp.pcm.drained);
+			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
 			locked = !transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
@@ -1565,7 +1565,7 @@ void *io_thread_sco(void *arg) {
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
-			pthread_cond_signal(&t->sco.spk_pcm.drained);
+			pthread_cond_signal(&t->sco.spk_drained);
 			poll_timeout = -1;
 			continue;
 		case -1:
@@ -1601,7 +1601,7 @@ void *io_thread_sco(void *arg) {
 				 *      data from the microphone (BT SCO socket). In order not to hang
 				 *      forever in the transport_drain_pcm() function, we will signal
 				 *      PCM drain right now. */
-				pthread_cond_signal(&t->sco.spk_pcm.drained);
+				pthread_cond_signal(&t->sco.spk_drained);
 				break;
 			default:
 				break;

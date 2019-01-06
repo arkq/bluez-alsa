@@ -1,6 +1,6 @@
 /*
  * BlueALSA - transport.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -280,8 +280,8 @@ struct ba_transport *transport_new_a2dp(
 
 	t->a2dp.pcm.fd = -1;
 	t->a2dp.pcm.client = -1;
-	pthread_cond_init(&t->a2dp.pcm.drained, NULL);
-	pthread_mutex_init(&t->a2dp.pcm.drained_mn, NULL);
+	pthread_mutex_init(&t->a2dp.drained_mtx, NULL);
+	pthread_cond_init(&t->a2dp.drained, NULL);
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -348,13 +348,12 @@ struct ba_transport *transport_new_sco(
 
 	t->sco.spk_pcm.fd = -1;
 	t->sco.spk_pcm.client = -1;
-	pthread_cond_init(&t->sco.spk_pcm.drained, NULL);
-	pthread_mutex_init(&t->sco.spk_pcm.drained_mn, NULL);
 
 	t->sco.mic_pcm.fd = -1;
 	t->sco.mic_pcm.client = -1;
-	pthread_cond_init(&t->sco.mic_pcm.drained, NULL);
-	pthread_mutex_init(&t->sco.mic_pcm.drained_mn, NULL);
+
+	pthread_mutex_init(&t->sco.spk_drained_mtx, NULL);
+	pthread_cond_init(&t->sco.spk_drained, NULL);
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
@@ -403,8 +402,8 @@ void transport_free(struct ba_transport *t) {
 		pcm_type = BA_PCM_TYPE_A2DP | (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
 				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
 		transport_release_pcm(&t->a2dp.pcm);
-		pthread_cond_destroy(&t->a2dp.pcm.drained);
-		pthread_mutex_destroy(&t->a2dp.pcm.drained_mn);
+		pthread_mutex_destroy(&t->a2dp.drained_mtx);
+		pthread_cond_destroy(&t->a2dp.drained);
 		free(t->a2dp.cconfig);
 		break;
 	case TRANSPORT_TYPE_RFCOMM:
@@ -414,12 +413,10 @@ void transport_free(struct ba_transport *t) {
 		break;
 	case TRANSPORT_TYPE_SCO:
 		pcm_type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
+		pthread_mutex_destroy(&t->sco.spk_drained_mtx);
+		pthread_cond_destroy(&t->sco.spk_drained);
 		transport_release_pcm(&t->sco.spk_pcm);
-		pthread_cond_destroy(&t->sco.spk_pcm.drained);
-		pthread_mutex_destroy(&t->sco.spk_pcm.drained_mn);
 		transport_release_pcm(&t->sco.mic_pcm);
-		pthread_cond_destroy(&t->sco.mic_pcm.drained);
-		pthread_mutex_destroy(&t->sco.mic_pcm.drained_mn);
 		if (t->sco.rfcomm != NULL)
 			t->sco.rfcomm->rfcomm.sco = NULL;
 		break;
@@ -754,33 +751,36 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 
 int transport_drain_pcm(struct ba_transport *t) {
 
-	struct ba_pcm *pcm = NULL;
+	pthread_mutex_t *mutex = NULL;
+	pthread_cond_t *drained = NULL;
 
 	switch (t->profile) {
 	case BLUETOOTH_PROFILE_NULL:
 	case BLUETOOTH_PROFILE_A2DP_SINK:
 		break;
 	case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		pcm = &t->a2dp.pcm;
+		mutex = &t->a2dp.drained_mtx;
+		drained = &t->a2dp.drained;
 		break;
 	case BLUETOOTH_PROFILE_HSP_AG:
 	case BLUETOOTH_PROFILE_HFP_AG:
-		pcm = &t->sco.spk_pcm;
+		mutex = &t->sco.spk_drained_mtx;
+		drained = &t->sco.spk_drained;
 		break;
 	case BLUETOOTH_PROFILE_HSP_HS:
 	case BLUETOOTH_PROFILE_HFP_HF:
 		break;
 	}
 
-	if (pcm == NULL || t->state != TRANSPORT_ACTIVE)
+	if (mutex == NULL || t->state != TRANSPORT_ACTIVE)
 		return 0;
 
-	pthread_mutex_lock(&pcm->drained_mn);
+	pthread_mutex_lock(mutex);
 
 	transport_send_signal(t, TRANSPORT_PCM_SYNC);
-	pthread_cond_wait(&pcm->drained, &pcm->drained_mn);
+	pthread_cond_wait(drained, mutex);
 
-	pthread_mutex_unlock(&pcm->drained_mn);
+	pthread_mutex_unlock(mutex);
 
 	/* TODO: Asynchronous transport release.
 	 *

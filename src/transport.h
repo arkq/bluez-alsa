@@ -1,6 +1,6 @@
 /*
  * BlueALSA - transport.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -90,10 +90,6 @@ struct ba_pcm {
 	 * by the PCM client lookup function - transport_lookup_pcm_client() */
 	int client;
 
-	/* variables used for PCM synchronization */
-	pthread_cond_t drained;
-	pthread_mutex_t drained_mn;
-
 };
 
 struct ba_transport {
@@ -168,6 +164,10 @@ struct ba_transport {
 			 * subsequent ioctl() calls. */
 			int bt_fd_coutq_init;
 
+			/* playback synchronization */
+			pthread_mutex_t drained_mtx;
+			pthread_cond_t drained;
+
 		} a2dp;
 
 		struct {
@@ -202,6 +202,10 @@ struct ba_transport {
 			 * for separate configurations. */
 			struct ba_pcm spk_pcm;
 			struct ba_pcm mic_pcm;
+
+			/* playback synchronization */
+			pthread_mutex_t spk_drained_mtx;
+			pthread_cond_t spk_drained;
 
 		} sco;
 
