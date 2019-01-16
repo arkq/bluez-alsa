@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -48,6 +48,11 @@ static int bluez_get_dbus_object_count(
 /**
  * Get device associated with given D-Bus object path. */
 struct ba_device *bluez_get_device(const char *path) {
+
+#if DEBUG
+	/* make sure that the device mutex is acquired */
+	assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
+#endif
 
 	struct ba_device *d;
 	char name[sizeof(d->name)];
@@ -383,7 +388,6 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	const int profile = g_dbus_object_path_to_profile(path);
 	const uint16_t codec_id = codec->id;
 
-	const char *transport;
 	char *device = NULL, *state = NULL;
 	uint8_t *configuration = NULL;
 	uint16_t volume = 127;
@@ -391,18 +395,12 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	size_t size = 0;
 	int ret = 0;
 
+	const char *transport;
 	GVariantIter *properties;
 	GVariant *value = NULL;
 	const char *key;
 
 	g_variant_get(params, "(&oa{sv})", &transport, &properties);
-
-	if (transport_lookup(config.devices, transport) != NULL) {
-		error("Transport already configured: %s", transport);
-		goto fail;
-	}
-
-	/* read transport properties */
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
 
 		if (strcmp(key, "Device") == 0) {
@@ -585,6 +583,11 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	/* we are going to modify the devices hash-map */
 	bluealsa_devpool_mutex_lock();
 	devpool_mutex_locked = true;
+
+	if (transport_lookup(config.devices, transport) != NULL) {
+		error("Transport already configured: %s", transport);
+		goto fail;
+	}
 
 	/* get the device structure for obtained device path */
 	if ((d = bluez_get_device(device)) == NULL) {

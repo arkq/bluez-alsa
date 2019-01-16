@@ -20,10 +20,50 @@
 static bdaddr_t addr0;
 static bdaddr_t addr1;
 
-START_TEST(test_query) {
+START_TEST(test_open) {
+
+	const char *hci = "hci-tc0";
+
+	ck_assert_int_eq(bluealsa_open(hci), -1);
+	ck_assert_int_eq(errno, ENOENT);
+
+	pid_t pid = spawn_bluealsa_server(hci, 1, false, false, false);
+	ck_assert_int_ne(bluealsa_open(hci), -1);
+
+	waitpid(pid, NULL, 0);
+
+} END_TEST
+
+START_TEST(test_subscribe) {
 
 	const char *hci = "hci-tc1";
-	pid_t pid = spawn_bluealsa_server(hci, 1, true, true);
+	pid_t pid = spawn_bluealsa_server(hci, 1, true, true, false);
+
+	int fd = -1;
+	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
+
+	ck_assert_int_ne(bluealsa_event_subscribe(fd, BA_EVENT_TRANSPORT_ADDED), -1);
+
+	struct ba_msg_event ev0, ev1;
+	ck_assert_int_eq(read(fd, &ev0, sizeof(ev0)), sizeof(ev0));
+	ck_assert_int_eq(read(fd, &ev1, sizeof(ev1)), sizeof(ev1));
+
+	struct ba_msg_transport t0, t1;
+	ck_assert_int_ne(bluealsa_get_transport(fd, &addr0, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_PLAYBACK, &t0), -1);
+	ck_assert_int_ne(bluealsa_get_transport(fd, &addr1, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_PLAYBACK, &t1), -1);
+
+	ck_assert_int_eq(bluealsa_event_match(&t0, &ev0), 0);
+	ck_assert_int_eq(bluealsa_event_match(&t1, &ev1), 0);
+
+	close(fd);
+	waitpid(pid, NULL, 0);
+
+} END_TEST
+
+START_TEST(test_get_devices) {
+
+	const char *hci = "hci-tc2";
+	pid_t pid = spawn_bluealsa_server(hci, 1, false, true, true);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
@@ -32,9 +72,9 @@ START_TEST(test_query) {
 	ck_assert_int_eq(bluealsa_get_devices(fd, &devices), 2);
 
 	ck_assert_int_eq(bacmp(&devices[0].addr, &addr0), 0);
-	ck_assert_int_eq(strcmp(devices[0].name, "Test Device With Long Name"), 0);
+	ck_assert_str_eq(devices[0].name, "Test Device With Long Name");
 	ck_assert_int_eq(bacmp(&devices[1].addr, &addr1), 0);
-	ck_assert_int_eq(strcmp(devices[1].name, "Test Device With Long Name"), 0);
+	ck_assert_str_eq(devices[1].name, "Test Device With Long Name");
 
 	struct ba_msg_transport *transports;
 	ck_assert_int_eq(bluealsa_get_transports(fd, &transports), 4);
@@ -64,8 +104,8 @@ START_TEST(test_query) {
 
 START_TEST(test_get_transport) {
 
-	const char *hci = "hci-tc2";
-	pid_t pid = spawn_bluealsa_server(hci, 1, true, false);
+	const char *hci = "hci-tc3";
+	pid_t pid = spawn_bluealsa_server(hci, 1, false, true, false);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
@@ -91,10 +131,10 @@ START_TEST(test_get_transport) {
 
 } END_TEST
 
-START_TEST(test_get_transport_pcm) {
+START_TEST(test_open_transport) {
 
-	const char *hci = "hci-tc3";
-	pid_t pid = spawn_bluealsa_server(hci, 1, true, false);
+	const char *hci = "hci-tc4";
+	pid_t pid = spawn_bluealsa_server(hci, 1, false, true, false);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
@@ -117,6 +157,14 @@ START_TEST(test_get_transport_pcm) {
 	ck_assert_int_ne(bluealsa_open_transport(fd, &t0), -1);
 	ck_assert_int_ne(bluealsa_open_transport(fd, &t1), -1);
 
+	ck_assert_int_ne(bluealsa_pause_transport(fd, &t0, true), -1);
+	ck_assert_int_ne(bluealsa_pause_transport(fd, &t0, false), -1);
+
+	ck_assert_int_ne(bluealsa_drain_transport(fd, &t0), -1);
+
+	ck_assert_int_ne(bluealsa_close_transport(fd, &t0), -1);
+	ck_assert_int_ne(bluealsa_close_transport(fd, &t1), -1);
+
 	close(fd);
 	waitpid(pid, NULL, 0);
 
@@ -137,9 +185,14 @@ int main(int argc, char *argv[]) {
 
 	suite_add_tcase(s, tc);
 
-	tcase_add_test(tc, test_query);
+	/* test_subscribe requires at least 5s */
+	tcase_set_timeout(tc, 10);
+
+	tcase_add_test(tc, test_open);
+	tcase_add_test(tc, test_subscribe);
+	tcase_add_test(tc, test_get_devices);
 	tcase_add_test(tc, test_get_transport);
-	tcase_add_test(tc, test_get_transport_pcm);
+	tcase_add_test(tc, test_open_transport);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

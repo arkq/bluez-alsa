@@ -2,7 +2,7 @@
  * server.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -21,10 +21,11 @@ static char *bin_path = ".";
  *
  * @param hci HCI device name.
  * @param timeout Timeout passed to the server-mock.
+ * @param fuzzing Enable fuzzing - delayed startup.
  * @param source Start A2DP source.
  * @param sink Start A2DP sink.
  * @return PID of the bluealsa server mock. */
-pid_t spawn_bluealsa_server(const char *hci, unsigned int timeout, bool source, bool sink) {
+pid_t spawn_bluealsa_server(const char *hci, unsigned int timeout, bool fuzzing, bool source, bool sink) {
 
 	char path[256];
 	char arg_device[32];
@@ -38,6 +39,7 @@ pid_t spawn_bluealsa_server(const char *hci, unsigned int timeout, bool source, 
 		"server-mock",
 		arg_device,
 		arg_timeout,
+		fuzzing ? "--fuzzing" : "",
 		source ? "--source" : "",
 		sink ? "--sink" : "",
 		NULL,

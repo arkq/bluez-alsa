@@ -1,6 +1,6 @@
 /*
  * test-at.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -143,6 +143,11 @@ START_TEST(test_at_parse_cind) {
 
 } END_TEST
 
+START_TEST(test_at_type2str) {
+	ck_assert_str_eq(at_type2str(AT_TYPE_RAW), "RAW");
+	ck_assert_str_eq(at_type2str(AT_TYPE_RESP), "RESP");
+} END_TEST
+
 int main(void) {
 
 	Suite *s = suite_create(__FILE__);
@@ -163,6 +168,7 @@ int main(void) {
 	tcase_add_test(tc, test_at_parse_case_sensitivity);
 	tcase_add_test(tc, test_at_parse_multiple_cmds);
 	tcase_add_test(tc, test_at_parse_cind);
+	tcase_add_test(tc, test_at_type2str);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

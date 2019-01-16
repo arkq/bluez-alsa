@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -64,13 +64,23 @@ START_TEST(test_dbus_profile_object_path) {
 
 } END_TEST
 
-START_TEST(test_pcm_scale_s16le) {
+START_TEST(test_batostr_) {
+
+	const bdaddr_t ba = {{ 1, 2, 3, 4, 5, 6 }};
+	char tmp[18];
+
+	ba2str(&ba, tmp);
+	ck_assert_str_eq(batostr_(&ba), tmp);
+
+} END_TEST
+
+START_TEST(test_snd_pcm_scale_s16le) {
 
 	const int16_t mute[] = { 0x0000, 0x0000, 0x0000, 0x0000 };
 	const int16_t half[] = { 0x1234 / 2, 0x2345 / 2, (int16_t)0xBCDE / 2, (int16_t)0xCDEF / 2 };
-	const int16_t halfl[] = { 0x1234 / 2, 0x2345, (int16_t)0xBCDE / 2, 0xCDEF };
-	const int16_t halfr[] = { 0x1234, 0x2345 / 2, 0xBCDE, (int16_t)0xCDEF / 2 };
-	const int16_t in[] = { 0x1234, 0x2345, 0xBCDE, 0xCDEF };
+	const int16_t halfl[] = { 0x1234 / 2, 0x2345, (int16_t)0xBCDE / 2, (int16_t)0xCDEF };
+	const int16_t halfr[] = { 0x1234, 0x2345 / 2, (int16_t)0xBCDE, (int16_t)0xCDEF / 2 };
+	const int16_t in[] = { 0x1234, 0x2345, (int16_t)0xBCDE, (int16_t)0xCDEF };
 	int16_t tmp[ARRAYSIZE(in)];
 
 	memcpy(tmp, in, sizeof(tmp));
@@ -114,6 +124,14 @@ START_TEST(test_difftimespec) {
 	ck_assert_int_eq(ts.tv_nsec, 400000000);
 
 	ts1.tv_sec = 10;
+	ts1.tv_nsec = 100000000;
+	ts2.tv_sec = 11;
+	ts2.tv_nsec = 500000000;
+	ck_assert_int_gt(difftimespec(&ts1, &ts2, &ts), 0);
+	ck_assert_int_eq(ts.tv_sec, 1);
+	ck_assert_int_eq(ts.tv_nsec, 400000000);
+
+	ts1.tv_sec = 10;
 	ts1.tv_nsec = 800000000;
 	ts2.tv_sec = 12;
 	ts2.tv_nsec = 100000000;
@@ -137,12 +155,24 @@ START_TEST(test_difftimespec) {
 	ck_assert_int_eq(ts.tv_sec, 1);
 	ck_assert_int_eq(ts.tv_nsec, 300000000);
 
+	ts1.tv_sec = 12;
+	ts1.tv_nsec = 500000000;
+	ts2.tv_sec = 10;
+	ts2.tv_nsec = 500000000;
+	ck_assert_int_lt(difftimespec(&ts1, &ts2, &ts), 0);
+	ck_assert_int_eq(ts.tv_sec, 2);
+	ck_assert_int_eq(ts.tv_nsec, 0);
+
 } END_TEST
 
 START_TEST(test_fifo_buffer) {
 
 	ffb_uint8_t ffb_u8 = { 0 };
 	ffb_int16_t ffb_16 = { 0 };
+
+	/* allow free before allocation */
+	ffb_uint8_free(&ffb_u8);
+	ffb_int16_free(&ffb_16);
 
 	ck_assert_ptr_ne(ffb_init(&ffb_u8, 64), NULL);
 	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
@@ -182,6 +212,9 @@ START_TEST(test_fifo_buffer) {
 	ffb_uint8_free(&ffb_u8);
 	ck_assert_ptr_eq(ffb_u8.data, NULL);
 
+	ffb_int16_free(&ffb_16);
+	ck_assert_ptr_eq(ffb_16.data, NULL);
+
 } END_TEST
 
 int main(void) {
@@ -193,7 +226,8 @@ int main(void) {
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_dbus_profile_object_path);
-	tcase_add_test(tc, test_pcm_scale_s16le);
+	tcase_add_test(tc, test_batostr_);
+	tcase_add_test(tc, test_snd_pcm_scale_s16le);
 	tcase_add_test(tc, test_difftimespec);
 	tcase_add_test(tc, test_fifo_buffer);
 

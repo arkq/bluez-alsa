@@ -1,6 +1,6 @@
 /*
  * server-mock.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -26,10 +26,8 @@
 #include "../src/ctl.c"
 #include "../src/io.h"
 #define io_thread_a2dp_sink_sbc _io_thread_a2dp_sink_sbc
-#define io_thread_a2dp_source_sbc _io_thread_a2dp_source_sbc
 #include "../src/io.c"
 #undef io_thread_a2dp_sink_sbc
-#undef io_thread_a2dp_source_sbc
 #include "../src/rfcomm.c"
 #include "../src/transport.c"
 #include "../src/utils.c"
@@ -84,9 +82,24 @@ static void test_sigusr_handler(int sig) {
 }
 
 int test_transport_acquire(struct ba_transport *t) {
-	t->delay = 1; /* suppress delay check trigger */
+
+	int bt_fds[2];
+	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
+
+	t->bt_fd = bt_fds[0];
+	t->mtu_read = 256;
+	t->mtu_write = 256;
+
 	t->state = TRANSPORT_ACTIVE;
 	assert(io_thread_create(t) == 0);
+
+	return 0;
+}
+
+int test_transport_release(struct ba_transport *t) {
+	if (t->bt_fd != -1)
+		close(t->bt_fd);
+	t->bt_fd = -1;
 	return 0;
 }
 
@@ -97,6 +110,7 @@ struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
 		sleep(1);
 	struct ba_transport *t = transport_new_a2dp(d, owner, path, profile, codec, config, csize);
 	t->acquire = test_transport_acquire;
+	t->release = test_transport_release;
 	return t;
 }
 
@@ -107,6 +121,7 @@ struct ba_transport *test_transport_new_sco(struct ba_device *d,
 		sleep(1);
 	struct ba_transport *t = transport_new_sco(d, owner, path, profile, codec);
 	t->acquire = test_transport_acquire;
+	t->release = test_transport_release;
 	return t;
 }
 
@@ -135,34 +150,6 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 		if (io_thread_write_pcm(&t->a2dp.pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
-
-		asrsync_sync(&asrs, samples / 2);
-	}
-
-	pthread_cleanup_pop(1);
-	return NULL;
-}
-
-void *io_thread_a2dp_source_sbc(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
-
-	struct asrsync asrs = { .frames = 0 };
-	int16_t buffer[1024 * 2];
-	ssize_t samples;
-
-	while (sigusr2_count == 0) {
-		fprintf(stderr, ".");
-
-		if (asrs.frames == 0)
-			asrsync_init(&asrs, transport_get_sampling(t));
-
-		const size_t in_samples = sizeof(buffer) / sizeof(int16_t);
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, buffer, in_samples)) <= 0) {
-			if (samples == -1)
-				error("FIFO read error: %s", strerror(errno));
-			break;
-		}
 
 		asrsync_sync(&asrs, samples / 2);
 	}
