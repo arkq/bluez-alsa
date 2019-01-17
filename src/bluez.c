@@ -51,7 +51,7 @@ struct ba_device *bluez_get_device(const char *path) {
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
-	assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
+	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
 #endif
 
 	struct ba_device *d;

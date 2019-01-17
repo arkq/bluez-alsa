@@ -24,5 +24,7 @@ before_script:
 script:
   - ../configure --enable-test && make && make check
   - cat test/*.log
+  - ../configure --enable-test --enable-debug && make && make check
+  - cat test/*.log
   - ../configure --enable-test --enable-aac && make && make check
   - cat test/*.log

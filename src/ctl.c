@@ -60,7 +60,7 @@ static int ctl_lookup_transport(GHashTable *devices, const bdaddr_t *addr,
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
-	assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
+	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
 #endif
 
 	bool device_found = false;

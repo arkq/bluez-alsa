@@ -439,7 +439,7 @@ struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
-	assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
+	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
 #endif
 
 	GHashTableIter iter;
@@ -459,7 +459,7 @@ bool transport_remove(GHashTable *devices, const char *dbus_path) {
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
-	assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
+	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
 #endif
 
 	GHashTableIter iter;
