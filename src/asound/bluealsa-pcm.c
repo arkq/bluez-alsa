@@ -1,6 +1,6 @@
 /*
  * bluealsa-pcm.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,7 +8,10 @@
  *
  */
 
-#define _GNU_SOURCE
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>

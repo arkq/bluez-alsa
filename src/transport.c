@@ -8,7 +8,6 @@
  *
  */
 
-#define _GNU_SOURCE
 #include "transport.h"
 
 #include <errno.h>

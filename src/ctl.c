@@ -8,7 +8,6 @@
  *
  */
 
-#define _GNU_SOURCE
 #include "ctl.h"
 
 #include <errno.h>

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,7 +9,7 @@
  */
 
 #if HAVE_CONFIG_H
-# include "config.h"
+# include <config.h>
 #endif
 
 #include <errno.h>

@@ -1,15 +1,15 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *               2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
  *
  * This project is licensed under the terms of the MIT license.
  *
- * When oFono is running on a system, it registers itself to Bluez as an HFP
+ * When oFono is running on a system, it registers itself to BlueZ as an HFP
  * profile, which conflicts with our internal "--hfp-ag" and "--hpf-hf" ones.
- * This file is an implementation of the oFono backed for bluez-alsa.
+ * This file is an implementation of the oFono back-end for bluez-alsa.
  *
  * For more details, see:
  * https://github.com/rilmodem/ofono/blob/master/doc/handsfree-audio-api.txt

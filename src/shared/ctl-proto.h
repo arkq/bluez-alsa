@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl-proto.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,7 +12,7 @@
 #define BLUEALSA_SHARED_CTLPROTO_H_
 
 #if HAVE_CONFIG_H
-# include "config.h"
+# include <config.h>
 #endif
 
 #include <stdint.h>

@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,8 +8,9 @@
  *
  */
 
-#define _GNU_SOURCE
-#include <pthread.h>
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <check.h>
 

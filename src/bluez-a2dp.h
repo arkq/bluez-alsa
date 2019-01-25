@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-a2dp.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,6 +10,10 @@
 
 #ifndef BLUEALSA_BLUEZA2DP_H_
 #define BLUEALSA_BLUEZA2DP_H_
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <stddef.h>
 

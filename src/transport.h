@@ -11,6 +11,10 @@
 #ifndef BLUEALSA_TRANSPORT_H_
 #define BLUEALSA_TRANSPORT_H_
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>

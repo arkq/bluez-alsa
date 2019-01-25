@@ -1,16 +1,12 @@
 /*
  * BlueALSA - bluez-a2dp.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
  * This project is licensed under the terms of the MIT license.
  *
  */
-
-#if HAVE_CONFIG_H
-# include "config.h"
-#endif
 
 #include "bluez-a2dp.h"
 #include "shared/defs.h"
