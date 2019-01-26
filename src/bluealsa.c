@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,6 +10,7 @@
 
 #include "bluealsa.h"
 
+#include <fcntl.h>
 #include <grp.h>
 #include <poll.h>
 
@@ -29,6 +30,8 @@ struct ba_config config = {
 	.enable.a2dp_source = true,
 	.enable.hfp_ag = true,
 	.enable.hsp_ag = true,
+
+	.null_fd = -1,
 
 	/* omit chown if audio group is not defined */
 	.gid_audio = -1,
@@ -90,6 +93,8 @@ int bluealsa_config_init(void) {
 	config.dbus_objects = g_hash_table_new_full(g_direct_hash, g_direct_equal,
 			NULL, g_free);
 
+	config.null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK);
+
 	/* use proper ACL group for our audio device */
 	if ((grp = getgrnam("audio")) != NULL)
 		config.gid_audio = grp->gr_gid;
@@ -104,12 +109,4 @@ int bluealsa_config_init(void) {
 	config.a2dp.codecs = bluez_a2dp_codecs;
 
 	return 0;
-}
-
-void bluealsa_config_free(void) {
-	pthread_mutex_destroy(&config.devices_mutex);
-	g_hash_table_unref(config.devices);
-	g_hash_table_unref(config.dbus_objects);
-	g_array_free(config.ctl.pfds, TRUE);
-	g_array_free(config.ctl.subs, TRUE);
 }

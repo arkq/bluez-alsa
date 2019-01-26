@@ -58,6 +58,9 @@ struct ba_config {
 	/* registered D-Bus objects */
 	GHashTable *dbus_objects;
 
+	/* opened null device */
+	int null_fd;
+
 	/* audio group ID */
 	gid_t gid_audio;
 
@@ -137,7 +140,6 @@ struct ba_dbus_object {
 extern struct ba_config config;
 
 int bluealsa_config_init(void);
-void bluealsa_config_free(void);
 
 #define bluealsa_devpool_mutex_lock() \
 	pthread_mutex_lock(&config.devices_mutex)

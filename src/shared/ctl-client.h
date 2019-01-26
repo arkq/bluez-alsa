@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl-client.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -37,9 +37,7 @@ int bluealsa_set_transport_volume(int fd, const struct ba_msg_transport *transpo
 		bool ch1_muted, int ch1_volume, bool ch2_muted, int ch2_volume);
 
 int bluealsa_open_transport(int fd, const struct ba_msg_transport *transport);
-int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport);
-int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, bool pause);
-int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport);
+int bluealsa_control_transport(int fd, const struct ba_msg_transport *transport, enum ba_command cmd);
 
 int bluealsa_send_rfcomm_command(int fd, const bdaddr_t *addr, const char *command);
 

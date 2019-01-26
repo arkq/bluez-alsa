@@ -354,10 +354,9 @@ int main(int argc, char **argv) {
 
 	debug("Exiting main loop");
 
-	/* From all of the cleanup routines, these ones cannot be omitted. We have
-	 * to unlink named sockets, otherwise service will not start any more. */
+	/* From all of the cleanup routines, this one cannot be omitted. We have
+	 * to unlink named socket, otherwise service will not start any more. */
 	bluealsa_ctl_free();
-	bluealsa_config_free();
 
 	return EXIT_SUCCESS;
 }

@@ -57,7 +57,6 @@ static bool sco = false;
 
 static void test_pcm_setup_free(void) {
 	bluealsa_ctl_free();
-	bluealsa_config_free();
 }
 
 static bool main_loop_on = true;

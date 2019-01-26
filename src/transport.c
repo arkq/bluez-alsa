@@ -956,6 +956,9 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 
 int transport_release_pcm(struct ba_pcm *pcm) {
 
+	if (pcm->fd == -1)
+		return 0;
+
 	int oldstate;
 
 	/* Transport IO workers are managed using thread cancellation mechanism,
@@ -966,11 +969,10 @@ int transport_release_pcm(struct ba_pcm *pcm) {
 	 * going on, see the io_thread_read_pcm() function. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
-	if (pcm->fd != -1) {
-		debug("Closing PCM: %d", pcm->fd);
-		close(pcm->fd);
-		pcm->fd = -1;
-	}
+	debug("Closing PCM: %d", pcm->fd);
+	close(pcm->fd);
+	pcm->fd = -1;
+	pcm->client = -1;
 
 	pthread_setcancelstate(oldstate, NULL);
 	return 0;

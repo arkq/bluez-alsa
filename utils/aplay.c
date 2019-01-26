@@ -289,7 +289,6 @@ final:
 
 static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 	if (worker->pcm_fd != -1) {
-		bluealsa_close_transport(worker->ba_fd, &worker->transport);
 		close(worker->pcm_fd);
 		worker->pcm_fd = -1;
 	}

@@ -78,11 +78,8 @@ struct bluealsa_pcm {
 static int close_transport(struct bluealsa_pcm *pcm) {
 	if (pcm->pcm_fd == -1)
 		return 0;
-	int rv = bluealsa_close_transport(pcm->fd, &pcm->transport);
-	int err = errno;
-	close(pcm->pcm_fd);
+	int rv = close(pcm->pcm_fd);
 	pcm->pcm_fd = -1;
-	errno = err;
 	return rv;
 }
 
@@ -239,7 +236,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	/* initialize delay calculation */
 	pcm->delay = 0;
 
-	if (bluealsa_pause_transport(pcm->fd, &pcm->transport, false) == -1) {
+	if (bluealsa_control_transport(pcm->fd, &pcm->transport, BA_COMMAND_PCM_RESUME) == -1) {
 		debug("Couldn't start PCM: %s", strerror(errno));
 		return -errno;
 	}
@@ -271,6 +268,8 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 		pthread_cancel(pcm->io_thread);
 		pthread_join(pcm->io_thread, NULL);
 	}
+	if (bluealsa_control_transport(pcm->fd, &pcm->transport, BA_COMMAND_PCM_DROP) == -1)
+		return -errno;
 	return 0;
 }
 
@@ -359,7 +358,7 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 
 static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	if (bluealsa_drain_transport(pcm->fd, &pcm->transport) == -1)
+	if (bluealsa_control_transport(pcm->fd, &pcm->transport, BA_COMMAND_PCM_DRAIN) == -1)
 		return -errno;
 	return 0;
 }
@@ -367,7 +366,8 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	if (bluealsa_pause_transport(pcm->fd, &pcm->transport, enable) == -1)
+	if (bluealsa_control_transport(pcm->fd, &pcm->transport,
+				enable ? BA_COMMAND_PCM_PAUSE : BA_COMMAND_PCM_RESUME) == -1)
 		return -errno;
 
 	if (enable == 0) {

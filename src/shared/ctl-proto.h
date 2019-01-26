@@ -21,7 +21,7 @@
 /* Location where the control socket and pipes are stored. */
 #define BLUEALSA_RUN_STATE_DIR RUN_STATE_DIR "/bluealsa"
 /* Version of the controller communication protocol. */
-#define BLUEALSA_CRL_PROTO_VERSION 0x0400
+#define BLUEALSA_CRL_PROTO_VERSION 0x0500
 
 enum ba_command {
 	BA_COMMAND_PING,
@@ -32,10 +32,10 @@ enum ba_command {
 	BA_COMMAND_TRANSPORT_SET_DELAY,
 	BA_COMMAND_TRANSPORT_SET_VOLUME,
 	BA_COMMAND_PCM_OPEN,
-	BA_COMMAND_PCM_CLOSE,
 	BA_COMMAND_PCM_PAUSE,
 	BA_COMMAND_PCM_RESUME,
 	BA_COMMAND_PCM_DRAIN,
+	BA_COMMAND_PCM_DROP,
 	BA_COMMAND_RFCOMM_SEND,
 	__BA_COMMAND_MAX
 };

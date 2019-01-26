@@ -77,14 +77,15 @@ static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t sa
 	 * closed during this call, we will still read correct data, because Linux
 	 * kernel does not decrement file descriptor reference counter until the
 	 * read returns. */
-	while ((ret = read(pcm->fd, buffer, samples * sizeof(int16_t))) == -1 && errno == EINTR)
+	while ((ret = read(pcm->fd, buffer, samples * sizeof(int16_t))) == -1 &&
+			errno == EINTR)
 		continue;
 
 	if (ret > 0)
 		return ret / sizeof(int16_t);
 
 	if (ret == 0)
-		debug("FIFO endpoint has been closed: %d", pcm->fd);
+		debug("PCM has been closed: %d", pcm->fd);
 	if (errno == EBADF)
 		ret = 0;
 	if (ret == 0)
@@ -94,21 +95,36 @@ static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t sa
 }
 
 /**
+ * Flush read buffer of the transport PCM FIFO. */
+static ssize_t io_thread_read_pcm_flush(struct ba_pcm *pcm) {
+	ssize_t rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
+	if (rv == -1 && errno == EAGAIN)
+		rv = 0;
+	debug("PCM read buffer flushed: %zd", rv >= 0 ? (int)(rv / sizeof(int16_t)) : rv);
+	return rv;
+}
+
+/**
  * Write PCM signal to the transport PCM FIFO. */
 static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, size_t samples) {
 
+	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
 	const uint8_t *head = (uint8_t *)buffer;
 	size_t len = samples * sizeof(int16_t);
 	ssize_t ret;
 
 	do {
 		if ((ret = write(pcm->fd, head, len)) == -1) {
-			if (errno == EINTR)
+			switch (errno) {
+			case EINTR:
 				continue;
-			if (errno == EPIPE) {
+			case EAGAIN:
+				poll(&pfd, 1, -1);
+				continue;
+			case EPIPE:
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
-				debug("FIFO endpoint has been closed: %d", pcm->fd);
+				debug("PCM has been closed: %d", pcm->fd);
 				transport_release_pcm(pcm);
 				return 0;
 			}
@@ -449,23 +465,30 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 			case TRANSPORT_PCM_RESUME:
 				poll_timeout = -1;
 				asrs.frames = 0;
-				break;
+				continue;
 			case TRANSPORT_PCM_CLOSE:
-				poll_timeout = config.a2dp.keep_alive * 1000;
+				/* reuse PCM read disconnection logic */
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
-				break;
+				continue;
+			case TRANSPORT_PCM_DROP:
+				io_thread_read_pcm_flush(&t->a2dp.pcm);
+				continue;
 			default:
-				break;
+				continue;
 			}
-			continue;
 		}
 
-		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("FIFO read error: %s", strerror(errno));
+		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
+		case 0:
+			poll_timeout = config.a2dp.keep_alive * 1000;
+			debug("Keep-alive polling: %d", poll_timeout);
+			continue;
+		case -1:
+			if (errno == EAGAIN)
+				continue;
+			error("PCM read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -951,23 +974,30 @@ void *io_thread_a2dp_source_aac(void *arg) {
 			case TRANSPORT_PCM_RESUME:
 				poll_timeout = -1;
 				asrs.frames = 0;
-				break;
+				continue;
 			case TRANSPORT_PCM_CLOSE:
-				poll_timeout = config.a2dp.keep_alive * 1000;
+				/* reuse PCM read disconnection logic */
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
-				break;
+				continue;
+			case TRANSPORT_PCM_DROP:
+				io_thread_read_pcm_flush(&t->a2dp.pcm);
+				continue;
 			default:
-				break;
+				continue;
 			}
-			continue;
 		}
 
-		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("FIFO read error: %s", strerror(errno));
+		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
+		case 0:
+			poll_timeout = config.a2dp.keep_alive * 1000;
+			debug("Keep-alive polling: %d", poll_timeout);
+			continue;
+		case -1:
+			if (errno == EAGAIN)
+				continue;
+			error("PCM read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -1157,23 +1187,30 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 			case TRANSPORT_PCM_RESUME:
 				poll_timeout = -1;
 				asrs.frames = 0;
-				break;
+				continue;
 			case TRANSPORT_PCM_CLOSE:
-				poll_timeout = config.a2dp.keep_alive * 1000;
+				/* reuse PCM read disconnection logic */
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
-				break;
+				continue;
+			case TRANSPORT_PCM_DROP:
+				io_thread_read_pcm_flush(&t->a2dp.pcm);
+				continue;
 			default:
-				break;
+				continue;
 			}
-			continue;
 		}
 
-		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("FIFO read error: %s", strerror(errno));
+		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
+		case 0:
+			poll_timeout = config.a2dp.keep_alive * 1000;
+			debug("Keep-alive polling: %d", poll_timeout);
+			continue;
+		case -1:
+			if (errno == EAGAIN)
+				continue;
+			error("PCM read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -1392,23 +1429,30 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 			case TRANSPORT_PCM_RESUME:
 				poll_timeout = -1;
 				asrs.frames = 0;
-				break;
+				continue;
 			case TRANSPORT_PCM_CLOSE:
-				poll_timeout = config.a2dp.keep_alive * 1000;
+				/* reuse PCM read disconnection logic */
 				break;
 			case TRANSPORT_PCM_SYNC:
 				poll_timeout = 100;
-				break;
+				continue;
+			case TRANSPORT_PCM_DROP:
+				io_thread_read_pcm_flush(&t->a2dp.pcm);
+				continue;
 			default:
-				break;
+				continue;
 			}
-			continue;
 		}
 
-		/* read data from the FIFO - this function will block */
-		if ((samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("FIFO read error: %s", strerror(errno));
+		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
+		case 0:
+			poll_timeout = config.a2dp.keep_alive * 1000;
+			debug("Keep-alive polling: %d", poll_timeout);
+			continue;
+		case -1:
+			if (errno == EAGAIN)
+				continue;
+			error("PCM read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -1591,9 +1635,6 @@ void *io_thread_sco(void *arg) {
 				poll_timeout = -1;
 				asrs.frames = 0;
 				break;
-			case TRANSPORT_PCM_CLOSE:
-				poll_timeout = config.a2dp.keep_alive * 1000;
-				break;
 			case TRANSPORT_PCM_SYNC:
 				/* FIXME: Drain functionality for speaker.
 				 * XXX: Right now it is not possible to drain speaker PCM (in a clean
@@ -1603,6 +1644,9 @@ void *io_thread_sco(void *arg) {
 				 *      PCM drain right now. */
 				pthread_cond_signal(&t->sco.spk_drained);
 				break;
+			case TRANSPORT_PCM_DROP:
+				io_thread_read_pcm_flush(&t->sco.spk_pcm);
+				continue;
 			default:
 				break;
 			}
@@ -1736,10 +1780,9 @@ retry_sco_write:
 				samples = ffb_len_in(&bt_out) / sizeof(int16_t);
 			}
 
-			/* read data from the FIFO - this function will block */
 			if ((samples = io_thread_read_pcm(&t->sco.spk_pcm, buffer, samples)) <= 0) {
-				if (samples == -1)
-					error("FIFO read error: %s", strerror(errno));
+				if (samples == -1 && errno != EAGAIN)
+					error("PCM read error: %s", strerror(errno));
 				continue;
 			}
 
@@ -1755,8 +1798,7 @@ retry_sco_write:
 		}
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
 			debug("PCM poll error status: %#x", pfds[3].revents);
-			close(t->sco.spk_pcm.fd);
-			t->sco.spk_pcm.fd = -1;
+			transport_release_pcm(&t->sco.spk_pcm);
 		}
 
 		if (pfds[4].revents & POLLOUT) {

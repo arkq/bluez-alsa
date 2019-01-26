@@ -134,7 +134,7 @@ START_TEST(test_get_transport) {
 START_TEST(test_open_transport) {
 
 	const char *hci = "hci-tc4";
-	pid_t pid = spawn_bluealsa_server(hci, 1, false, true, false);
+	pid_t pid = spawn_bluealsa_server(hci, 2, false, true, false);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
@@ -154,16 +154,26 @@ START_TEST(test_open_transport) {
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
 	ck_assert_int_ne(bluealsa_get_transport(fd, &addr0, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_PLAYBACK, &t0), -1);
 	ck_assert_int_ne(bluealsa_get_transport(fd, &addr1, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_PLAYBACK, &t1), -1);
-	ck_assert_int_ne(bluealsa_open_transport(fd, &t0), -1);
-	ck_assert_int_ne(bluealsa_open_transport(fd, &t1), -1);
+	ck_assert_int_ne(pcm_fd0 = bluealsa_open_transport(fd, &t0), -1);
+	ck_assert_int_ne(pcm_fd1 = bluealsa_open_transport(fd, &t1), -1);
 
-	ck_assert_int_ne(bluealsa_pause_transport(fd, &t0, true), -1);
-	ck_assert_int_ne(bluealsa_pause_transport(fd, &t0, false), -1);
+	ck_assert_int_ne(bluealsa_control_transport(fd, &t0, BA_COMMAND_PCM_PAUSE), -1);
+	ck_assert_int_ne(bluealsa_control_transport(fd, &t0, BA_COMMAND_PCM_RESUME), -1);
+	ck_assert_int_ne(bluealsa_control_transport(fd, &t0, BA_COMMAND_PCM_DRAIN), -1);
+	ck_assert_int_ne(bluealsa_control_transport(fd, &t0, BA_COMMAND_PCM_DROP), -1);
 
-	ck_assert_int_ne(bluealsa_drain_transport(fd, &t0), -1);
+	ck_assert_int_ne(close(pcm_fd0), -1);
+	ck_assert_int_ne(close(pcm_fd1), -1);
 
-	ck_assert_int_ne(bluealsa_close_transport(fd, &t0), -1);
-	ck_assert_int_ne(bluealsa_close_transport(fd, &t1), -1);
+	/* XXX: PCM closing is an asynchronous call. It is possible, that the
+	 *      server will not process close() action right away. Right now it
+	 *      is not possible to open PCM more then once. So, in order to pass
+	 *      this test we will have to wait some time before reconnection. */
+	sleep(1);
+
+	/* ensure that we can reopen closed PCM */
+	ck_assert_int_ne(pcm_fd0 = bluealsa_open_transport(fd, &t0), -1);
+	ck_assert_int_ne(close(pcm_fd0), -1);
 
 	close(fd);
 	waitpid(pid, NULL, 0);

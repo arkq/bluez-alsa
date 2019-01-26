@@ -49,6 +49,8 @@ AC_SEARCH_LIBS([clock_gettime], [rt],
 	[], [AC_MSG_ERROR([unable to find clock_gettime() function])])
 AC_SEARCH_LIBS([pow], [m],
 	[], [AC_MSG_ERROR([unable to find pow() function])])
+AC_CHECK_FUNCS([splice],
+	[], [AC_MSG_ERROR([unable to find splice() function])])
 
 PKG_CHECK_MODULES([ALSA], [alsa])
 PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])

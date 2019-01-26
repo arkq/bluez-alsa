@@ -11,6 +11,7 @@
 #include "ctl.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -131,28 +132,6 @@ static struct ba_pcm *ctl_lookup_pcm(struct ba_transport *t, uint8_t type, int c
 		break;
 	}
 	return NULL;
-}
-
-/**
- * Release transport resources acquired by the controller module. */
-static void ctl_release_pcm(struct ba_transport *t, int client) {
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
-		transport_release_pcm(&t->a2dp.pcm);
-		t->a2dp.pcm.client = -1;
-		break;
-	case TRANSPORT_TYPE_RFCOMM:
-		break;
-	case TRANSPORT_TYPE_SCO:
-		if (t->sco.spk_pcm.client == client) {
-			transport_release_pcm(&t->sco.spk_pcm);
-			t->sco.spk_pcm.client = -1;
-		}
-		if (t->sco.mic_pcm.client == client) {
-			transport_release_pcm(&t->sco.mic_pcm);
-			t->sco.mic_pcm.client = -1;
-		}
-	}
 }
 
 static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
@@ -407,6 +386,12 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 		*fdptr = pipefd[0];
 	}
 
+	/* Set our internal FIFO endpoint as non-blocking. */
+	if (fcntl(t_pcm->fd, F_SETFL, O_NONBLOCK) == -1) {
+		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
+		goto fail;
+	}
+
 	/* Notify our IO thread, that the FIFO has just been created - it may be
 	 * used for poll() right away. */
 	transport_send_signal(t, TRANSPORT_PCM_OPEN);
@@ -421,8 +406,10 @@ static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
 			goto fail;
 		}
 
-	if (sendmsg(fd, &msg, 0) == -1)
+	if (sendmsg(fd, &msg, 0) == -1) {
+		status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
 		goto fail;
+	}
 
 	t_pcm->client = fd;
 	close(*fdptr);
@@ -434,42 +421,6 @@ fail:
 	t_pcm->fd = -1;
 
 final:
-	pthread_mutex_unlock(&t->mutex);
-fail_lookup:
-	bluealsa_devpool_mutex_unlock();
-	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
-}
-
-static void ctl_thread_cmd_pcm_close(const struct ba_request *req, int fd) {
-
-	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
-	struct ba_transport *t;
-	struct ba_pcm *t_pcm;
-
-	debug("PCM close for %s type %#x", batostr_(&req->addr), req->type);
-
-	bluealsa_devpool_mutex_lock();
-
-	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
-	case -1:
-		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
-		goto fail_lookup;
-	case -2:
-		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
-		goto fail_lookup;
-	}
-
-	pthread_mutex_lock(&t->mutex);
-
-	if ((t_pcm = ctl_lookup_pcm(t, req->type, fd)) == NULL) {
-		status.code = BA_STATUS_CODE_FORBIDDEN;
-		goto fail;
-	}
-
-	ctl_release_pcm(t, fd);
-	transport_send_signal(t, TRANSPORT_PCM_CLOSE);
-
-fail:
 	pthread_mutex_unlock(&t->mutex);
 fail_lookup:
 	bluealsa_devpool_mutex_unlock();
@@ -508,6 +459,9 @@ static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
 		break;
 	case BA_COMMAND_PCM_DRAIN:
 		transport_drain_pcm(t);
+		break;
+	case BA_COMMAND_PCM_DROP:
+		transport_send_signal(t, TRANSPORT_PCM_DROP);
 		break;
 	default:
 		warn("Invalid PCM control command: %d", req->command);
@@ -552,10 +506,10 @@ static void *ctl_thread(void *arg) {
 		[BA_COMMAND_TRANSPORT_GET] = ctl_thread_cmd_transport_get,
 		[BA_COMMAND_TRANSPORT_SET_VOLUME] = ctl_thread_cmd_transport_set_volume,
 		[BA_COMMAND_PCM_OPEN] = ctl_thread_cmd_pcm_open,
-		[BA_COMMAND_PCM_CLOSE] = ctl_thread_cmd_pcm_close,
 		[BA_COMMAND_PCM_PAUSE] = ctl_thread_cmd_pcm_control,
 		[BA_COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
 		[BA_COMMAND_PCM_DRAIN] = ctl_thread_cmd_pcm_control,
+		[BA_COMMAND_PCM_DROP] = ctl_thread_cmd_pcm_control,
 		[BA_COMMAND_RFCOMM_SEND] = ctl_thread_cmd_rfcomm_send,
 	};
 
@@ -597,27 +551,26 @@ static void *ctl_thread(void *arg) {
 					g_hash_table_iter_init(&iter_d, config.devices);
 					while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
 						g_hash_table_iter_init(&iter_t, d->transports);
-						while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
-
+						while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t))
 							switch (t->type) {
 							case TRANSPORT_TYPE_RFCOMM:
 								continue;
 							case TRANSPORT_TYPE_A2DP:
-								if (t->a2dp.pcm.client == fd)
-									break;
+								if (t->a2dp.pcm.client == fd) {
+									transport_release_pcm(&t->a2dp.pcm);
+									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+								}
 								continue;
 							case TRANSPORT_TYPE_SCO:
-								if (t->sco.spk_pcm.client == fd)
-									break;
-								if (t->sco.mic_pcm.client == fd)
-									break;
-								continue;
+								if (t->sco.spk_pcm.client == fd) {
+									transport_release_pcm(&t->sco.spk_pcm);
+									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+								}
+								if (t->sco.mic_pcm.client == fd) {
+									transport_release_pcm(&t->sco.mic_pcm);
+									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+								}
 							}
-
-							ctl_release_pcm(t, fd);
-							transport_send_signal(t, TRANSPORT_PCM_CLOSE);
-
-						}
 					}
 
 					bluealsa_devpool_mutex_unlock();

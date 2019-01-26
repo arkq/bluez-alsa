@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ctl-client.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -417,73 +417,30 @@ int bluealsa_open_transport(int fd, const struct ba_msg_transport *transport) {
 }
 
 /**
- * Close PCM transport.
+ * Control opened PCM transport.
  *
  * @param fd Opened socket file descriptor.
  * @param transport Address to the transport structure with the addr and
  *   type fields set - other fields are not used by this function.
+ * @param cmd PCM control command, one of: PAUSE, RESUME, DRAIN, DROP.
  * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_close_transport(int fd, const struct ba_msg_transport *transport) {
+int bluealsa_control_transport(int fd, const struct ba_msg_transport *transport, enum ba_command cmd) {
 
 	struct ba_request req = {
-		.command = BA_COMMAND_PCM_CLOSE,
+		.command = cmd,
 		.addr = transport->addr,
 		.type = transport->type,
 	};
 
 #if DEBUG
+	static const char *desc[] = {
+		[BA_COMMAND_PCM_PAUSE] = "pause",
+		[BA_COMMAND_PCM_RESUME] = "resume",
+		[BA_COMMAND_PCM_DRAIN] = "drain",
+		[BA_COMMAND_PCM_DROP] = "drop" };
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
-	debug("Closing PCM for %s", addr_);
-#endif
-
-	return bluealsa_send_request(fd, &req);
-}
-
-/**
- * Pause/resume PCM transport.
- *
- * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr and
- *   type fields set - other fields are not used by this function.
- * @param pause If non-zero, pause transport, otherwise resume it.
- * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_pause_transport(int fd, const struct ba_msg_transport *transport, bool pause) {
-
-	struct ba_request req = {
-		.command = pause ? BA_COMMAND_PCM_PAUSE : BA_COMMAND_PCM_RESUME,
-		.addr = transport->addr,
-		.type = transport->type,
-	};
-
-#if DEBUG
-	char addr_[18];
-	ba2str_(&req.addr, addr_);
-	debug("Requesting PCM %s for %s", pause ? "pause" : "resume", addr_);
-#endif
-
-	return bluealsa_send_request(fd, &req);
-}
-
-/**
- * Drain PCM transport.
- *
- * @param fd Opened socket file descriptor.
- * @param transport Address to the transport structure with the addr and
- *   type fields set - other fields are not used by this function.
- * @return Upon success this function returns 0. Otherwise, -1 is returned. */
-int bluealsa_drain_transport(int fd, const struct ba_msg_transport *transport) {
-
-	struct ba_request req = {
-		.command = BA_COMMAND_PCM_DRAIN,
-		.addr = transport->addr,
-		.type = transport->type,
-	};
-
-#if DEBUG
-	char addr_[18];
-	ba2str_(&req.addr, addr_);
-	debug("Requesting PCM drain for %s", addr_);
+	debug("Requesting PCM %s for %s", desc[cmd], addr_);
 #endif
 
 	return bluealsa_send_request(fd, &req);
