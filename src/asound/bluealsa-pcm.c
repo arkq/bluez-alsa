@@ -353,6 +353,12 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	pcm->io_ptr = 0;
 
 	debug("Prepared: %d", pcm->fd);
+
+	/* When the sound application calls poll just after snd_pcm_prepare,
+	 * it would block forever unless the internal trigger is bumped
+	 * */
+	eventfd_write(pcm->event_fd, 1);
+
 	return 0;
 }
 
