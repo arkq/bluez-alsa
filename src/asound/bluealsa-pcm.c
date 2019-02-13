@@ -182,7 +182,6 @@ static void *io_thread(void *arg) {
 
 		}
 		else {
-
 			/* check for under-run and act accordingly */
 			if (io_hw_ptr > io->appl_ptr) {
 				io->state = SND_PCM_STATE_XRUN;
@@ -301,12 +300,6 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		return -errno;
 	}
 
-	/* Indicate that our PCM is ready for writing, even though is is not 100%
-	 * true - IO thread is not running yet. Some weird implementations might
-	 * require PCM to be writable before the snd_pcm_start() call. */
-	if (io->stream == SND_PCM_STREAM_PLAYBACK)
-		eventfd_write(pcm->event_fd, 1);
-
 	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
 		/* By default, the size of the pipe buffer is set to a too large value for
 		 * our purpose. On modern Linux system it is 65536 bytes. Large buffer in
@@ -338,6 +331,7 @@ static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug("Initializing SW: %d", pcm->fd);
 	snd_pcm_sw_params_get_boundary(params, &pcm->io_hw_boundary);
+
 	return 0;
 }
 
@@ -351,6 +345,12 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	/* initialize ring buffer */
 	pcm->io_hw_ptr = 0;
 	pcm->io_ptr = 0;
+
+	/* Indicate that our PCM is ready for i/o, even though is is not 100%
+	 * true - the IO thread is not running yet. Applications using
+	 * snd_pcm_sw_params_set_start_threshold() require PCM to be usable
+	 * as soon as it has been prepared. */
+	eventfd_write(pcm->event_fd, 1);
 
 	debug("Prepared: %d", pcm->fd);
 	return 0;
@@ -479,6 +479,13 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		if (event & 0xDEAD0000)
 			goto fail;
 
+		/* Return POLLERR if pcm is suspended or xrun has occurred */
+		if (io->state == SND_PCM_STATE_SUSPENDED ||
+		                                    io->state == SND_PCM_STATE_XRUN) {
+			*revents = POLLERR;
+			return 0;
+		}
+
 		/* If the event was triggered prematurely, wait for another one. */
 		if (!snd_pcm_avail_update(io->pcm))
 			return *revents = 0;
@@ -486,6 +493,17 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		/* ALSA expects that the event will match stream direction, e.g.
 		 * playback will not start if the event is for reading. */
 		*revents = io->stream == SND_PCM_STREAM_CAPTURE ? POLLIN : POLLOUT;
+
+		/* If the io thread is not yet started, or is paused afer an xrun,
+		 * a playback application may write less than start_threshold frames on
+		 * its first write and then wait in poll() forever because the event_fd
+		 * never gets written to again.
+		 * To prevent this possibility, we bump the internal trigger:
+		 */
+		if (snd_pcm_stream(io->pcm) == SND_PCM_STREAM_PLAYBACK)
+			if (!pcm->io_started || (io->state != SND_PCM_STATE_RUNNING &&
+		                                  io->state != SND_PCM_STATE_DRAINING))
+			eventfd_write(pcm->event_fd, 1);
 
 	}
 	else if (pfd[1].revents & POLLHUP)
