@@ -26,6 +26,7 @@
 
 #include "bluez.h"
 #include "bluez-a2dp.h"
+#include "ctl.h"
 #include "transport.h"
 #include "shared/ctl-proto.h"
 
@@ -64,21 +65,8 @@ struct ba_config {
 	/* audio group ID */
 	gid_t gid_audio;
 
-	struct {
-
-		pthread_t thread;
-		bool socket_created;
-		bool thread_created;
-
-		/* special file descriptors + connected clients */
-		GArray *pfds;
-		/* event subscriptions for connected clients */
-		GArray *subs;
-
-		/* PIPE for transferring events */
-		int evt[2];
-
-	} ctl;
+	/* global controller */
+	struct ba_ctl *ctl;
 
 	struct {
 		/* set of features exposed via Service Discovery */

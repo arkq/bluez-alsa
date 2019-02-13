@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rfcomm.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -316,7 +316,7 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_ctl_send_event(BA_EVENT_VOLUME_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_CAPTURE);
 	return 0;
 }
@@ -331,7 +331,7 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_ctl_send_event(BA_EVENT_VOLUME_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK);
 	return 0;
 }
@@ -376,7 +376,7 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	/* When codec selection is completed, notify connected clients, that
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - codec switching. */
-	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &c->t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &c->t->device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 	return 0;
 }
@@ -658,7 +658,7 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+					bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
 							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 
@@ -691,7 +691,7 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+					bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
 							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 

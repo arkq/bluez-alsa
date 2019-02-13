@@ -116,7 +116,7 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	t->bt_fd = -1;
 	t->codec = HFP_CODEC_UNDEFINED;
 
-	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 
 	return 0;
@@ -325,7 +325,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	t->mtu_read = 48;
 	t->mtu_write = 48;
 
-	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 	transport_send_signal(t, TRANSPORT_BT_OPEN);
 

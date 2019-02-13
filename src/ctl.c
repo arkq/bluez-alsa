@@ -38,8 +38,13 @@
 /* Special PCM type for internal usage only. */
 #define BA_PCM_TYPE_RFCOMM 0x1F
 
-#define ctl_pfds_idx(i) g_array_index(config.ctl.pfds, struct pollfd, i)
-#define ctl_subs_idx(i) g_array_index(config.ctl.subs, enum ba_event, i)
+/* Indexes of special file descriptors in the poll array. */
+#define CTL_PFDS_IDX_SRV   0
+#define CTL_PFDS_IDX_EVT   1
+#define __CTL_PFDS_IDX_MAX 2
+
+#define ctl_pfds_idx(i) g_array_index(ctl->pfds, struct pollfd, i)
+#define ctl_subs_idx(i) g_array_index(ctl->subs, enum ba_event, i)
 
 /**
  * Lookup a transport matching BT address and profile.
@@ -170,25 +175,27 @@ static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
 	return transport;
 }
 
-static void ctl_thread_cmd_ping(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_ping(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 	(void)req;
 	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_subscribe(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_subscribe(struct ba_ctl *ctl, struct ba_request *req, int fd) {
 
 	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	size_t i;
 
-	for (i = __CTL_IDX_MAX; i < config.ctl.pfds->len; i++)
+	for (i = __CTL_PFDS_IDX_MAX; i < ctl->pfds->len; i++)
 		if (ctl_pfds_idx(i).fd == fd)
-			ctl_subs_idx(i - __CTL_IDX_MAX) = req->events;
+			ctl_subs_idx(i - __CTL_PFDS_IDX_MAX) = req->events;
 
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_list_devices(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_list_devices(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 	(void)req;
 
 	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
@@ -215,7 +222,8 @@ static void ctl_thread_cmd_list_devices(const struct ba_request *req, int fd) {
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_list_transports(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_list_transports(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 	(void)req;
 
 	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
@@ -238,7 +246,8 @@ static void ctl_thread_cmd_list_transports(const struct ba_request *req, int fd)
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_transport_get(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_transport_get(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_msg_transport transport;
@@ -263,7 +272,8 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_transport_set_volume(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
@@ -314,14 +324,15 @@ static void ctl_thread_cmd_transport_set_volume(const struct ba_request *req, in
 	}
 
 	/* notify connected clients (including requester) */
-	bluealsa_ctl_send_event(BA_EVENT_VOLUME_CHANGED, &req->addr, req->type);
+	bluealsa_ctl_send_event(ctl, BA_EVENT_VOLUME_CHANGED, &req->addr, req->type);
 
 fail:
 	bluealsa_devpool_mutex_unlock();
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_pcm_open(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_pcm_open(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
@@ -427,7 +438,8 @@ fail_lookup:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_pcm_control(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_pcm_control(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
@@ -472,7 +484,8 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_rfcomm_send(const struct ba_request *req, int fd) {
+static void ctl_thread_cmd_rfcomm_send(struct ba_ctl *ctl, struct ba_request *req, int fd) {
+	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
@@ -496,9 +509,9 @@ fail:
 }
 
 static void *ctl_thread(void *arg) {
-	(void)arg;
+	struct ba_ctl *ctl = (struct ba_ctl *)arg;
 
-	static void (*commands[__BA_COMMAND_MAX])(const struct ba_request *, int) = {
+	static void (*commands[__BA_COMMAND_MAX])(struct ba_ctl *, struct ba_request *, int) = {
 		[BA_COMMAND_PING] = ctl_thread_cmd_ping,
 		[BA_COMMAND_SUBSCRIBE] = ctl_thread_cmd_subscribe,
 		[BA_COMMAND_LIST_DEVICES] = ctl_thread_cmd_list_devices,
@@ -513,10 +526,10 @@ static void *ctl_thread(void *arg) {
 		[BA_COMMAND_RFCOMM_SEND] = ctl_thread_cmd_rfcomm_send,
 	};
 
-	debug("Starting controller loop");
-	while (config.ctl.thread_created) {
+	debug("Starting controller loop: %s", ctl->hci);
+	for (;;) {
 
-		if (poll((struct pollfd *)config.ctl.pfds->data, config.ctl.pfds->len, -1) == -1) {
+		if (poll((struct pollfd *)ctl->pfds->data, ctl->pfds->len, -1) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("Controller poll error: %s", strerror(errno));
@@ -526,7 +539,7 @@ static void *ctl_thread(void *arg) {
 		size_t i;
 
 		/* handle data transmission with connected clients */
-		for (i = __CTL_IDX_MAX; i < config.ctl.pfds->len; i++)
+		for (i = __CTL_PFDS_IDX_MAX; i < ctl->pfds->len; i++)
 			if (ctl_pfds_idx(i).revents & POLLIN) {
 
 				const int fd = ctl_pfds_idx(i).fd;
@@ -575,27 +588,27 @@ static void *ctl_thread(void *arg) {
 
 					bluealsa_devpool_mutex_unlock();
 
-					g_array_remove_index_fast(config.ctl.pfds, i);
-					g_array_remove_index_fast(config.ctl.subs, i - __CTL_IDX_MAX);
+					g_array_remove_index_fast(ctl->pfds, i);
+					g_array_remove_index_fast(ctl->subs, i - __CTL_PFDS_IDX_MAX);
 					close(fd);
 					continue;
 				}
 
 				/* validate and execute requested command */
 				if (request.command < __BA_COMMAND_MAX && commands[request.command] != NULL)
-					commands[request.command](&request, fd);
+					commands[request.command](ctl, &request, fd);
 				else
 					warn("Invalid command: %u", request.command);
 
 			}
 
 		/* process new connections to our controller */
-		if (ctl_pfds_idx(CTL_IDX_SRV).revents & POLLIN) {
+		if (ctl_pfds_idx(CTL_PFDS_IDX_SRV).revents & POLLIN) {
 
 			struct pollfd fd = { -1, POLLIN, 0 };
 			uint16_t ver = 0;
 
-			fd.fd = accept(ctl_pfds_idx(CTL_IDX_SRV).fd, NULL, NULL);
+			fd.fd = accept(ctl_pfds_idx(CTL_PFDS_IDX_SRV).fd, NULL, NULL);
 			debug("Received new connection: %d", fd.fd);
 
 			errno = ETIMEDOUT;
@@ -610,24 +623,24 @@ static void *ctl_thread(void *arg) {
 			}
 			else {
 				debug("New client accepted: %d", fd.fd);
-				g_array_append_val(config.ctl.pfds, fd);
-				g_array_set_size(config.ctl.subs, config.ctl.subs->len + 1);
+				g_array_append_val(ctl->pfds, fd);
+				g_array_set_size(ctl->subs, ctl->subs->len + 1);
 			}
 
 		}
 
 		/* generate notifications for subscribed clients */
-		if (ctl_pfds_idx(CTL_IDX_EVT).revents & POLLIN) {
+		if (ctl_pfds_idx(CTL_PFDS_IDX_EVT).revents & POLLIN) {
 
 			struct ba_msg_event ev;
 			size_t i;
 
-			if (read(ctl_pfds_idx(CTL_IDX_EVT).fd, &ev, sizeof(ev)) == -1)
+			if (read(ctl_pfds_idx(CTL_PFDS_IDX_EVT).fd, &ev, sizeof(ev)) == -1)
 				warn("Couldn't read controller event: %s", strerror(errno));
 
-			for (i = 0; i < config.ctl.subs->len; i++)
+			for (i = 0; i < ctl->subs->len; i++)
 				if (ctl_subs_idx(i) & ev.events) {
-					const int client = ctl_pfds_idx(i + __CTL_IDX_MAX).fd;
+					const int client = ctl_pfds_idx(i + __CTL_PFDS_IDX_MAX).fd;
 					debug("Sending notification: %B => %d", ev.events, client);
 					send(client, &ev, sizeof(ev), MSG_NOSIGNAL);
 				}
@@ -637,23 +650,37 @@ static void *ctl_thread(void *arg) {
 		debug("+-+-");
 	}
 
-	debug("Exiting controller thread");
+	debug("Exiting controller: %s", ctl->hci);
 	return NULL;
 }
 
-int bluealsa_ctl_thread_init(void) {
-
-	if (config.ctl.thread_created) {
-		/* thread is already created */
-		errno = EISCONN;
-		return -1;
-	}
+struct ba_ctl *bluealsa_ctl_init(const char *hci) {
 
 	struct pollfd pfd = { .events = POLLIN };
+	struct ba_ctl *ctl;
+
+	if ((ctl = malloc(sizeof(*ctl))) == NULL)
+		return NULL;
+
+	ctl->socket_created = false;
+	ctl->thread_created = false;
+
+	strncpy(ctl->hci, hci, sizeof(ctl->hci));
+	ctl->hci[sizeof(ctl->hci) - 1] = '\0';
+
+	ctl->evt[0] = -1;
+	ctl->evt[1] = -1;
+
+	/* Create arrays for handling connected clients. Note, that it is not
+	 * necessary to clear pfds array, because we have to initialize pollfd
+	 * struct by ourself anyway. Also, make sure to reserve some space, so
+	 * for most cases reallocation will not be required. */
+	ctl->pfds = g_array_sized_new(FALSE, FALSE, sizeof(struct pollfd), __CTL_PFDS_IDX_MAX + 16);
+	ctl->subs = g_array_sized_new(FALSE, TRUE, sizeof(enum ba_event), 16);
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
-			BLUEALSA_RUN_STATE_DIR "/%s", config.hci_dev.name);
+			BLUEALSA_RUN_STATE_DIR "/%s", ctl->hci);
 
 	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST) {
 		error("Couldn't create run-state directory: %s", strerror(errno));
@@ -664,12 +691,12 @@ int bluealsa_ctl_thread_init(void) {
 		error("Couldn't create controller socket: %s", strerror(errno));
 		goto fail;
 	}
-	g_array_append_val(config.ctl.pfds, pfd);
+	g_array_append_val(ctl->pfds, pfd);
 	if (bind(pfd.fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
 		error("Couldn't bind controller socket: %s", strerror(errno));
 		goto fail;
 	}
-	config.ctl.socket_created = true;
+	ctl->socket_created = true;
 	if (chmod(saddr.sun_path, 0660) == -1 ||
 			chown(saddr.sun_path, -1, config.gid_audio) == -1)
 		warn("Couldn't set permission for controller socket: %s", strerror(errno));
@@ -678,60 +705,70 @@ int bluealsa_ctl_thread_init(void) {
 		goto fail;
 	}
 
-	if (pipe(config.ctl.evt) == -1) {
+	if (pipe(ctl->evt) == -1) {
 		error("Couldn't create controller event PIPE: %s", strerror(errno));
 		goto fail;
 	}
 
-	pfd.fd = config.ctl.evt[0];
-	g_array_append_val(config.ctl.pfds, pfd);
+	pfd.fd = ctl->evt[0];
+	g_array_append_val(ctl->pfds, pfd);
 
-	config.ctl.thread_created = true;
-	if ((errno = pthread_create(&config.ctl.thread, NULL, ctl_thread, NULL)) != 0) {
+	ctl->thread_created = true;
+	if ((errno = pthread_create(&ctl->thread, NULL, ctl_thread, ctl)) != 0) {
 		error("Couldn't create controller thread: %s", strerror(errno));
-		config.ctl.thread_created = false;
+		ctl->thread_created = false;
 		goto fail;
 	}
 
-	/* name controller thread - for aesthetic purposes only */
-	pthread_setname_np(config.ctl.thread, "bactl");
+	/* set thread name (for easier debugging) */
+	char name[16] = "ba-ctl-";
+	pthread_setname_np(ctl->thread, strcat(name, ctl->hci));
 
-	return 0;
+	return ctl;
 
 fail:
-	bluealsa_ctl_free();
-	return -1;
+	bluealsa_ctl_free(ctl);
+	return NULL;
 }
 
-void bluealsa_ctl_free(void) {
+void bluealsa_ctl_free(struct ba_ctl *ctl) {
 
-	int created = config.ctl.thread_created;
 	size_t i;
 
-	config.ctl.thread_created = false;
-
-	for (i = 0; i < config.ctl.pfds->len; i++)
+	for (i = 0; i < ctl->pfds->len; i++)
 		close(ctl_pfds_idx(i).fd);
-	if (config.ctl.evt[1] != -1)
-		close(config.ctl.evt[1]);
+	if (ctl->evt[1] != -1)
+		close(ctl->evt[1]);
 
-	if (created) {
-		pthread_cancel(config.ctl.thread);
-		if ((errno = pthread_join(config.ctl.thread, NULL)) != 0)
+	if (ctl->thread_created) {
+		pthread_cancel(ctl->thread);
+		if ((errno = pthread_join(ctl->thread, NULL)) != 0)
 			error("Couldn't join controller thread: %s", strerror(errno));
+		ctl->thread_created = false;
 	}
 
-	if (config.ctl.socket_created) {
+	if (ctl->socket_created) {
 		char tmp[256] = BLUEALSA_RUN_STATE_DIR "/";
-		unlink(strcat(tmp, config.hci_dev.name));
-		config.ctl.socket_created = false;
+		unlink(strcat(tmp, ctl->hci));
+		ctl->socket_created = false;
 	}
+
+	if (ctl->pfds != NULL)
+		g_array_free(ctl->pfds, TRUE);
+	if (ctl->subs != NULL)
+		g_array_free(ctl->subs, TRUE);
+
+	free(ctl);
 
 }
 
 /**
  * Send notification event to subscribed clients. */
-int bluealsa_ctl_send_event(enum ba_event event, const bdaddr_t *addr, uint8_t type) {
+int bluealsa_ctl_send_event(
+		struct ba_ctl *ctl,
+		enum ba_event event,
+		const bdaddr_t *addr,
+		uint8_t type) {
 	struct ba_msg_event ev = { .events = event, .addr = *addr, .type = type };
-	return write(config.ctl.evt[1], &ev, sizeof(ev));
+	return write(ctl->evt[1], &ev, sizeof(ev));
 }

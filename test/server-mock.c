@@ -56,7 +56,7 @@ static bool sink = false;
 static bool sco = false;
 
 static void test_pcm_setup_free(void) {
-	bluealsa_ctl_free();
+	bluealsa_ctl_free(config.ctl);
 }
 
 static bool main_loop_on = true;
@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
 	strncpy(config.hci_dev.name, device, sizeof(config.hci_dev.name) - 1);
 
 	assert(bluealsa_config_init() == 0);
-	assert(bluealsa_ctl_thread_init() == 0);
+	assert((config.ctl = bluealsa_ctl_init(device)) != NULL);
 
 	/* make sure to cleanup named pipes */
 	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
@@ -263,7 +263,7 @@ int main(int argc, char *argv[]) {
 						HFP_CODEC_UNDEFINED)) != NULL);
 		if (fuzzing) {
 			t->codec = HFP_CODEC_CVSD;
-			bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+			bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
 					BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 		}
 	}

@@ -240,8 +240,8 @@ struct ba_transport *transport_new_a2dp(
 		const char *dbus_path,
 		enum bluetooth_profile profile,
 		uint16_t codec,
-		const uint8_t *config,
-		size_t config_size);
+		const uint8_t *cconfig,
+		size_t cconfig_size);
 struct ba_transport *transport_new_rfcomm(
 		struct ba_device *device,
 		const char *dbus_owner,

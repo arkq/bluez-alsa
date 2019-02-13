@@ -181,7 +181,7 @@ void device_free(struct ba_device *d) {
 void device_set_battery_level(struct ba_device *d, uint8_t value) {
 	d->battery.enabled = true;
 	d->battery.level = value;
-	bluealsa_ctl_send_event(BA_EVENT_BATTERY, &d->addr, 0);
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_BATTERY, &d->addr, 0);
 }
 
 /**
@@ -259,8 +259,8 @@ struct ba_transport *transport_new_a2dp(
 		const char *dbus_path,
 		enum bluetooth_profile profile,
 		uint16_t codec,
-		const uint8_t *config,
-		size_t config_size) {
+		const uint8_t *cconfig,
+		size_t cconfig_size) {
 
 	struct ba_transport *t;
 
@@ -271,10 +271,10 @@ struct ba_transport *transport_new_a2dp(
 	t->a2dp.ch1_volume = 127;
 	t->a2dp.ch2_volume = 127;
 
-	if (config_size > 0) {
-		t->a2dp.cconfig = malloc(config_size);
-		t->a2dp.cconfig_size = config_size;
-		memcpy(t->a2dp.cconfig, config, config_size);
+	if (cconfig_size > 0) {
+		t->a2dp.cconfig = malloc(cconfig_size);
+		t->a2dp.cconfig_size = cconfig_size;
+		memcpy(t->a2dp.cconfig, cconfig, cconfig_size);
 	}
 
 	t->a2dp.pcm.fd = -1;
@@ -285,7 +285,7 @@ struct ba_transport *transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_ADDED, &device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_A2DP | (profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
 				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
 
@@ -357,7 +357,7 @@ struct ba_transport *transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_ADDED, &device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 
 	return t;
@@ -427,7 +427,7 @@ void transport_free(struct ba_transport *t) {
 	g_hash_table_steal(t->device->transports, t->dbus_path);
 
 	if (pcm_type != BA_PCM_TYPE_NULL)
-		bluealsa_ctl_send_event(BA_EVENT_TRANSPORT_REMOVED, &t->device->addr, pcm_type);
+		bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_REMOVED, &t->device->addr, pcm_type);
 
 	free(t->dbus_owner);
 	free(t->dbus_path);

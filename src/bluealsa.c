@@ -18,7 +18,6 @@
 # include <ldacBT.h>
 #endif
 
-#include "ctl.h"
 #include "hfp.h"
 #include "transport.h"
 
@@ -35,12 +34,6 @@ struct ba_config config = {
 
 	/* omit chown if audio group is not defined */
 	.gid_audio = -1,
-
-	/* initialization flags */
-	.ctl.socket_created = false,
-	.ctl.thread_created = false,
-
-	.ctl.evt = { -1, -1 },
 
 	.hfp.features_sdp_hf =
 		SDP_HFP_HF_FEAT_CLI |
@@ -98,13 +91,6 @@ int bluealsa_config_init(void) {
 	/* use proper ACL group for our audio device */
 	if ((grp = getgrnam("audio")) != NULL)
 		config.gid_audio = grp->gr_gid;
-
-	/* Create arrays for handling connected clients. Note, that it is not
-	 * necessary to clear pfds array, because we have to initialize pollfd
-	 * struct by ourself anyway. Also, make sure to reserve some space, so
-	 * for most cases reallocation will not be required. */
-	config.ctl.pfds = g_array_sized_new(FALSE, FALSE, sizeof(struct pollfd), __CTL_IDX_MAX + 16);
-	config.ctl.subs = g_array_sized_new(FALSE, TRUE, sizeof(enum ba_event), 16);
 
 	config.a2dp.codecs = bluez_a2dp_codecs;
 

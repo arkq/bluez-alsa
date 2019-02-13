@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
 	/* initialize random number generator */
 	srandom(time(NULL));
 
-	if ((bluealsa_ctl_thread_init()) == -1)
+	if ((config.ctl = bluealsa_ctl_init(config.hci_dev.name)) == NULL)
 		return EXIT_FAILURE;
 
 	gchar *address;
@@ -356,7 +356,7 @@ int main(int argc, char **argv) {
 
 	/* From all of the cleanup routines, this one cannot be omitted. We have
 	 * to unlink named socket, otherwise service will not start any more. */
-	bluealsa_ctl_free();
+	bluealsa_ctl_free(config.ctl);
 
 	return EXIT_SUCCESS;
 }
