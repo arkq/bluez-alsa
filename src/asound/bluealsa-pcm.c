@@ -263,13 +263,22 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug("Stopping: %d", pcm->fd);
+
 	if (pcm->io_started) {
 		pcm->io_started = false;
 		pthread_cancel(pcm->io_thread);
 		pthread_join(pcm->io_thread, NULL);
 	}
+
 	if (bluealsa_control_transport(pcm->fd, &pcm->transport, BA_COMMAND_PCM_DROP) == -1)
 		return -errno;
+
+	/* Although the pcm stream is now stopped, it is still prepared and
+	 * therefore an application that uses start_threshold may try to restart it
+	 * by simply performing an I/O operation. If such an application now calls
+	 * poll() it may be blocked forever unless we generate an event here. */
+	eventfd_write(pcm->event_fd, 1);
+
 	return 0;
 }
 
@@ -351,6 +360,12 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	/* initialize ring buffer */
 	pcm->io_hw_ptr = 0;
 	pcm->io_ptr = 0;
+
+	/* Indicate that our PCM is ready for i/o, even though is is not 100%
+	 * true - the IO thread is not running yet. Applications using
+	 * snd_pcm_sw_params_set_start_threshold() require PCM to be usable
+	 * as soon as it has been prepared. */
+	eventfd_write(pcm->event_fd, 1);
 
 	debug("Prepared: %d", pcm->fd);
 	return 0;
@@ -479,6 +494,13 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		if (event & 0xDEAD0000)
 			goto fail;
 
+		/* Return POLLERR if PCM is suspended or xrun has occurred. */
+		if (io->state == SND_PCM_STATE_SUSPENDED ||
+				io->state == SND_PCM_STATE_XRUN) {
+			*revents = POLLERR;
+			return 0;
+		}
+
 		/* If the event was triggered prematurely, wait for another one. */
 		if (!snd_pcm_avail_update(io->pcm))
 			return *revents = 0;
@@ -486,6 +508,16 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		/* ALSA expects that the event will match stream direction, e.g.
 		 * playback will not start if the event is for reading. */
 		*revents = io->stream == SND_PCM_STREAM_CAPTURE ? POLLIN : POLLOUT;
+
+		/* If the IO thread is not yet started, or is paused after an xrun,
+		 * a playback application may write less than start_threshold frames on
+		 * its first write and then wait in poll() forever because the event_fd
+		 * never gets written to again.
+		 * To prevent this possibility, we bump the internal trigger. */
+		if (snd_pcm_stream(io->pcm) == SND_PCM_STREAM_PLAYBACK && (
+					!pcm->io_started || (io->state != SND_PCM_STATE_RUNNING &&
+						io->state != SND_PCM_STATE_DRAINING)))
+			eventfd_write(pcm->event_fd, 1);
 
 	}
 	else if (pfd[1].revents & POLLHUP)
