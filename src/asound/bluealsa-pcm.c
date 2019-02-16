@@ -269,6 +269,13 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	}
 	if (bluealsa_control_transport(pcm->fd, &pcm->transport, BA_COMMAND_PCM_DROP) == -1)
 		return -errno;
+
+	/* Although the pcm stream is now stopped, it is still prepared and
+	 * therefore an application that uses start_threshold may try to restart it
+	 * by simply performing an I/O operation. If such an application now calls
+	 * poll() it may be blocked forever unless we generate an event here:
+	 */
+	eventfd_write(pcm->event_fd, 1);
 	return 0;
 }
 
@@ -299,6 +306,12 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		debug("Couldn't open PCM FIFO: %s", strerror(errno));
 		return -errno;
 	}
+
+	/* Indicate that our PCM is ready for writing, even though is is not 100%
+	 * true - IO thread is not running yet. Some weird implementations might
+	 * require PCM to be writable before the snd_pcm_start() call. */
+	if (io->stream == SND_PCM_STREAM_PLAYBACK)
+		eventfd_write(pcm->event_fd, 1);
 
 	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
 		/* By default, the size of the pipe buffer is set to a too large value for
