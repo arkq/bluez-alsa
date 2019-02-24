@@ -114,7 +114,7 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	close(t->bt_fd);
 
 	t->bt_fd = -1;
-	t->codec = HFP_CODEC_UNDEFINED;
+	t->type.codec = HFP_CODEC_UNDEFINED;
 
 	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
@@ -133,14 +133,13 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
  *   set to indicated the cause of the error. */
 static struct ba_transport *ofono_transport_new(
 		struct ba_device *device,
+		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path,
-		enum bluetooth_profile profile) {
+		const char *dbus_path) {
 
 	struct ba_transport *t;
 
-	if ((t = transport_new_sco(device, dbus_owner, dbus_path,
-					profile, HFP_CODEC_UNDEFINED)) == NULL)
+	if ((t = transport_new_sco(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	t->sco.ofono = true;
@@ -158,11 +157,15 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	const char *key = NULL;
 	GVariant *value = NULL;
 	gchar *path = g_strdup_printf("/ofono%s", card);
-	enum bluetooth_profile profile = BLUETOOTH_PROFILE_HFP_HF;
 	bool devpool_mutex_locked = false;
 	struct ba_transport *t;
 	struct ba_device *d;
 	bdaddr_t addr;
+
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_HFP_HF,
+		.codec = HFP_CODEC_UNDEFINED,
+	};
 
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
 		if (strcmp(key, "RemoteAddress") == 0)
@@ -170,9 +173,9 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 		else if (strcmp(key, "Type") == 0) {
 			const char *type = g_variant_get_string(value, NULL);
 			if (strcmp(type, OFONO_AUDIO_CARD_TYPE_AG) == 0)
-				profile = BLUETOOTH_PROFILE_HFP_AG;
+				ttype.profile = BA_TRANSPORT_PROFILE_HFP_AG;
 			else if (strcmp(type, OFONO_AUDIO_CARD_TYPE_HF) == 0)
-				profile = BLUETOOTH_PROFILE_HFP_HF;
+				ttype.profile = BA_TRANSPORT_PROFILE_HFP_HF;
 			else {
 				error("Unsupported profile type: %s", type);
 				goto fail;
@@ -197,7 +200,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	bluealsa_device_insert(card, d);
 
-	if ((t = ofono_transport_new(d, dbus_sender, path, profile)) == NULL) {
+	if ((t = ofono_transport_new(d, ttype, dbus_sender, path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -320,7 +323,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	debug("New oFono SCO connection (codec: %#x): %d", codec, fd);
 
 	t->bt_fd = fd;
-	t->codec = codec;
+	t->type.codec = codec;
 
 	t->mtu_read = 48;
 	t->mtu_write = 48;

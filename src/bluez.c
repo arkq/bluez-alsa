@@ -28,10 +28,8 @@
 
 
 /**
- * Get D-Bus object reference count for given profile. */
-static int bluez_get_dbus_object_count(
-		enum bluetooth_profile profile,
-		uint16_t codec) {
+ * Get D-Bus object reference count for given transport type. */
+static int bluez_get_dbus_object_count(struct ba_transport_type ttype) {
 
 	GHashTableIter iter;
 	struct ba_dbus_object *obj;
@@ -39,7 +37,8 @@ static int bluez_get_dbus_object_count(
 
 	g_hash_table_iter_init(&iter, config.dbus_objects);
 	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&obj))
-		if (obj->profile == profile && obj->codec == codec && obj->connected)
+		if (obj->ttype.profile == ttype.profile &&
+				obj->ttype.codec == ttype.codec && obj->connected)
 			count++;
 
 	return count;
@@ -62,7 +61,7 @@ struct ba_device *bluez_get_device(const char *path) {
 	if ((d = bluealsa_device_lookup(path)) != NULL)
 		return d;
 
-	g_dbus_device_path_to_bdaddr(path, &addr);
+	g_dbus_bluez_object_path_to_bdaddr(path, &addr);
 	ba2str(&addr, name);
 
 	/* get local (user editable) Bluetooth device name */
@@ -385,7 +384,6 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	struct ba_transport *t;
 	struct ba_device *d;
 
-	const int profile = g_dbus_object_path_to_profile(path);
 	const uint16_t codec_id = codec->id;
 
 	char *device = NULL, *state = NULL;
@@ -595,10 +593,8 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 		goto fail;
 	}
 
-	/* Create a new transport with a human-readable name. Since the transport
-	 * name can not be obtained from the client, we will use a fall-back one. */
-	if ((t = transport_new_a2dp(d, sender, transport, profile, codec_id,
-					configuration, size)) == NULL) {
+	if ((t = transport_new_a2dp(d, g_dbus_bluez_object_path_to_transport_type(path),
+					sender, transport, configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -607,9 +603,8 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	t->a2dp.ch2_volume = volume;
 	t->a2dp.delay = delay;
 
-	debug("%s (%s) configured for device %s",
-			bluetooth_profile_to_string(profile),
-			bluetooth_a2dp_codec_to_string(codec_id),
+	debug("%s configured for device %s",
+			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
 	debug("Configuration: channels: %u, sampling: %u",
 			transport_get_channels(t), transport_get_sampling(t));
@@ -720,12 +715,14 @@ static const GDBusInterfaceVTable endpoint_vtable = {
  * @return On success this function returns 0. Otherwise -1 is returned. */
 static int bluez_register_a2dp_endpoint(
 		const char *uuid,
-		enum bluetooth_profile profile,
+		uint32_t profile,
 		const struct bluez_a2dp_codec *codec) {
 
+	struct ba_transport_type ttype = {
+		.profile = profile, .codec = codec->id };
 	gchar *path = g_strdup_printf("%s/%d",
-		g_dbus_get_profile_object_path(profile, codec->id),
-		bluez_get_dbus_object_count(profile, codec->id) + 1);
+		g_dbus_transport_type_to_bluez_object_path(ttype),
+		bluez_get_dbus_object_count(ttype) + 1);
 	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
 
 	if (g_hash_table_contains(config.dbus_objects, hash)) {
@@ -742,8 +739,7 @@ static int bluez_register_a2dp_endpoint(
 	size_t i;
 
 	struct ba_dbus_object dbus_object = {
-		.profile = profile,
-		.codec = codec->id,
+		.ttype = ttype,
 	};
 
 	debug("Registering endpoint: %s", path);
@@ -818,11 +814,11 @@ void bluez_register_a2dp(void) {
 		switch (c->dir) {
 		case BLUEZ_A2DP_SOURCE:
 			if (config.enable.a2dp_source)
-				bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BLUETOOTH_PROFILE_A2DP_SOURCE, c);
+				bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BA_TRANSPORT_PROFILE_A2DP_SOURCE, c);
 			break;
 		case BLUEZ_A2DP_SINK:
 			if (config.enable.a2dp_sink)
-				bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BLUETOOTH_PROFILE_A2DP_SINK, c);
+				bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BA_TRANSPORT_PROFILE_A2DP_SINK, c);
 			break;
 		}
 	}
@@ -839,8 +835,6 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	bool devpool_mutex_locked = false;
 	struct ba_transport *t;
 	struct ba_device *d;
-
-	const int profile = g_dbus_object_path_to_profile(path);
 
 	GVariantIter *properties;
 	GUnixFDList *fd_list;
@@ -865,7 +859,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if ((t = transport_new_rfcomm(d, sender, device, profile)) == NULL) {
+	if ((t = transport_new_rfcomm(d, g_dbus_bluez_object_path_to_transport_type(path),
+					sender, device)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -873,7 +868,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	t->bt_fd = fd;
 
 	debug("%s configured for device %s",
-			bluetooth_profile_to_string(profile), batostr_(&d->addr));
+			ba_transport_type_to_string(t->type),
+			batostr_(&d->addr));
 
 	transport_set_state(t, TRANSPORT_ACTIVE);
 	transport_set_state(t->rfcomm.sco, TRANSPORT_ACTIVE);
@@ -962,11 +958,12 @@ static const GDBusInterfaceVTable profile_vtable = {
  * @return On success this function returns 0. Otherwise -1 is returned. */
 static int bluez_register_profile(
 		const char *uuid,
-		enum bluetooth_profile profile,
+		uint32_t profile,
 		uint16_t version,
 		uint16_t features) {
 
-	const char *path = g_dbus_get_profile_object_path(profile, -1);
+	const struct ba_transport_type ttype = { .profile = profile };
+	const char *path = g_dbus_transport_type_to_bluez_object_path(ttype);
 	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
 
 	if (g_hash_table_contains(config.dbus_objects, hash)) {
@@ -980,8 +977,7 @@ static int bluez_register_profile(
 	int ret = 0;
 
 	struct ba_dbus_object dbus_object = {
-		.profile = profile,
-		.codec = 0,
+		.ttype = ttype,
 	};
 
 	debug("Registering profile: %s", path);
@@ -1043,14 +1039,14 @@ final:
  * this function will do nothing. */
 void bluez_register_hfp(void) {
 	if (config.enable.hsp_hs)
-		bluez_register_profile(BLUETOOTH_UUID_HSP_HS, BLUETOOTH_PROFILE_HSP_HS, 0x0, 0x0);
+		bluez_register_profile(BLUETOOTH_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS, 0x0, 0x0);
 	if (config.enable.hsp_ag)
-		bluez_register_profile(BLUETOOTH_UUID_HSP_AG, BLUETOOTH_PROFILE_HSP_AG, 0x0, 0x0);
+		bluez_register_profile(BLUETOOTH_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG, 0x0, 0x0);
 	if (config.enable.hfp_hf)
-		bluez_register_profile(BLUETOOTH_UUID_HFP_HF, BLUETOOTH_PROFILE_HFP_HF,
+		bluez_register_profile(BLUETOOTH_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_hf);
 	if (config.enable.hfp_ag)
-		bluez_register_profile(BLUETOOTH_UUID_HFP_AG, BLUETOOTH_PROFILE_HFP_AG,
+		bluez_register_profile(BLUETOOTH_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_ag);
 }
 
@@ -1147,7 +1143,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
 
 			bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->device->addr,
-					BA_PCM_TYPE_A2DP | (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+					BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 						BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
 
 		}

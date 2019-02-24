@@ -257,9 +257,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	transport_pthread_cleanup_unlock(t);
 	locked = false;
 
-	debug("Starting IO loop: %s (%s)",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -308,7 +306,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
 		const rtp_media_header_t *rtp_media_header = (rtp_media_header_t *)&rtp_header->csrc[rtp_header->cc];
 		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
-		size_t rtp_payload_len = len - ((void *)rtp_payload - (void *)rtp_header);
+		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)rtp_header);
 
 #if ENABLE_PAYLOADCHECK
 		if (rtp_header->paytype < 96) {
@@ -427,9 +425,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	transport_pthread_cleanup_unlock(t);
 	locked = false;
 
-	debug("Starting IO loop: %s (%s)",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -661,9 +657,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	transport_pthread_cleanup_unlock(t);
 	locked = false;
 
-	debug("Starting IO loop: %s (%s)",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -712,7 +706,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
 		uint8_t *rtp_latm = (uint8_t *)&rtp_header->csrc[rtp_header->cc];
-		size_t rtp_latm_len = len - ((void *)rtp_latm - (void *)rtp_header);
+		size_t rtp_latm_len = len - (rtp_latm - (uint8_t *)rtp_header);
 
 #if ENABLE_PAYLOADCHECK
 		if (rtp_header->paytype < 96) {
@@ -936,9 +930,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	transport_pthread_cleanup_unlock(t);
 	locked = false;
 
-	debug("Starting IO loop: %s (%s)",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -1149,9 +1141,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	transport_pthread_cleanup_unlock(t);
 	locked = false;
 
-	debug("Starting IO loop: %s (%s)",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -1391,9 +1381,7 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	transport_pthread_cleanup_unlock(t);
 	locked = false;
 
-	debug("Starting IO loop: %s (%s)",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -1579,8 +1567,7 @@ void *io_thread_sco(void *arg) {
 		{ -1, POLLOUT, 0 },
 	};
 
-	debug("Starting IO loop: %s",
-			bluetooth_profile_to_string(t->profile));
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -1588,7 +1575,7 @@ void *io_thread_sco(void *arg) {
 		pfds[1].fd = pfds[2].fd = -1;
 		pfds[3].fd = pfds[4].fd = -1;
 
-		switch (t->codec) {
+		switch (t->type.codec) {
 		case HFP_CODEC_CVSD:
 		default:
 			if (t->mtu_read > 0 && ffb_len_in(&bt_in) >= t->mtu_read)
@@ -1667,7 +1654,7 @@ void *io_thread_sco(void *arg) {
 			/* For HFP HF we have to check if we are in the call stage or in the
 			 * call setup stage. Otherwise, it might be not possible to acquire
 			 * SCO connection. */
-			if (t->profile == BLUETOOTH_PROFILE_HFP_HF &&
+			if (t->type.profile == BA_TRANSPORT_PROFILE_HFP_HF &&
 					inds[HFP_IND_CALL] == HFP_IND_CALL_NONE &&
 					inds[HFP_IND_CALLSETUP] == HFP_IND_CALLSETUP_NONE)
 				release = true;
@@ -1692,7 +1679,7 @@ void *io_thread_sco(void *arg) {
 			size_t buffer_len;
 			ssize_t len;
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				if (t->sco.mic_pcm.fd == -1)
@@ -1717,7 +1704,7 @@ retry_sco_read:
 					continue;
 				}
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_seek(&bt_in, len);
@@ -1736,7 +1723,7 @@ retry_sco_read:
 			size_t buffer_len;
 			ssize_t len;
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = bt_out.data;
@@ -1759,7 +1746,7 @@ retry_sco_write:
 					continue;
 				}
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_shift(&bt_out, len);
@@ -1773,7 +1760,7 @@ retry_sco_write:
 			int16_t *buffer;
 			ssize_t samples;
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = (int16_t *)bt_out.tail;
@@ -1789,7 +1776,7 @@ retry_sco_write:
 			if (t->sco.spk_muted)
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_seek(&bt_out, samples * sizeof(int16_t));
@@ -1807,7 +1794,7 @@ retry_sco_write:
 			int16_t *buffer;
 			ssize_t samples;
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = (int16_t *)bt_in.data;
@@ -1820,7 +1807,7 @@ retry_sco_write:
 			if (io_thread_write_pcm(&t->sco.mic_pcm, buffer, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
-			switch (t->codec) {
+			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_shift(&bt_in, samples * sizeof(int16_t));
@@ -1858,12 +1845,10 @@ void *io_thread_a2dp_sink_dump(void *arg) {
 	char fname[64];
 	char *ptr;
 
-	sprintf(fname, "/tmp/ba-%s-%s.dump",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	sprintf(fname, "/tmp/ba-%s.dump", ba_transport_type_to_string(t->type));
 	for (ptr = fname; *ptr != '\0'; ptr++) {
 		*ptr = tolower(*ptr);
-		if (*ptr == ' ')
+		if (*ptr == ' ' || *ptr == '(' || *ptr == ')')
 			*ptr = '-';
 	}
 

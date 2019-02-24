@@ -36,27 +36,14 @@
 #include "shared/log.h"
 
 
-static const char *transport_type_to_string(enum ba_transport_type type) {
-	switch (type) {
-	case TRANSPORT_TYPE_A2DP:
-		return "A2DP";
-	case TRANSPORT_TYPE_RFCOMM:
-		return "RFCOMM";
-	case TRANSPORT_TYPE_SCO:
-		return "SCO";
-	}
-	return "N/A";
-}
-
 static int io_thread_create(struct ba_transport *t) {
 
 	void *(*routine)(void *) = NULL;
 	int ret;
 
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
-		if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
-			switch (t->codec) {
+	switch (t->type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+			switch (t->type.codec) {
 			case A2DP_CODEC_SBC:
 				routine = io_thread_a2dp_source_sbc;
 				break;
@@ -80,10 +67,11 @@ static int io_thread_create(struct ba_transport *t) {
 				break;
 #endif
 			default:
-				warn("Codec not supported: %u", t->codec);
+				warn("Codec not supported: %u", t->type.codec);
 			}
-		if (t->profile == BLUETOOTH_PROFILE_A2DP_SINK)
-			switch (t->codec) {
+		break;
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+			switch (t->type.codec) {
 			case A2DP_CODEC_SBC:
 				routine = io_thread_a2dp_sink_sbc;
 				break;
@@ -97,14 +85,17 @@ static int io_thread_create(struct ba_transport *t) {
 				break;
 #endif
 			default:
-				warn("Codec not supported: %u", t->codec);
+				warn("Codec not supported: %u", t->type.codec);
 			}
 		break;
-	case TRANSPORT_TYPE_RFCOMM:
-		routine = rfcomm_thread;
-		break;
-	case TRANSPORT_TYPE_SCO:
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+	case BA_TRANSPORT_PROFILE_HSP_AG:
 		routine = io_thread_sco;
+		break;
+	case BA_TRANSPORT_PROFILE_RFCOMM:
+		routine = rfcomm_thread;
 		break;
 	}
 
@@ -118,9 +109,8 @@ static int io_thread_create(struct ba_transport *t) {
 	}
 
 	pthread_setname_np(t->thread, "baio");
-	debug("Created new IO thread: %s: %s",
-			transport_type_to_string(t->type),
-			bluetooth_profile_to_string(t->profile));
+	debug("Created new IO thread: %s", ba_transport_type_to_string(t->type));
+
 	return 0;
 }
 
@@ -192,17 +182,14 @@ void device_set_battery_level(struct ba_device *d, uint8_t value) {
  * @param dbus_owner D-Bus service, which owns this transport.
  * @param dbus_path D-Bus service path for this transport.
  * @param profile Bluetooth profile.
- * @param codec Used audio codec.
  * @return On success, the pointer to the newly allocated transport structure
  *   is returned. If error occurs, NULL is returned and the errno variable is
  *   set to indicated the cause of the error. */
 struct ba_transport *transport_new(
 		struct ba_device *device,
-		enum ba_transport_type type,
+		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path,
-		enum bluetooth_profile profile,
-		uint16_t codec) {
+		const char *dbus_path) {
 
 	struct ba_transport *t;
 	int err;
@@ -212,9 +199,6 @@ struct ba_transport *transport_new(
 
 	t->device = device;
 	t->type = type;
-
-	t->profile = profile;
-	t->codec = codec;
 
 	pthread_mutex_init(&t->mutex, NULL);
 
@@ -255,17 +239,15 @@ static int transport_release_bt_sco(struct ba_transport *t);
 
 struct ba_transport *transport_new_a2dp(
 		struct ba_device *device,
+		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		enum bluetooth_profile profile,
-		uint16_t codec,
 		const uint8_t *cconfig,
 		size_t cconfig_size) {
 
 	struct ba_transport *t;
 
-	if ((t = transport_new(device, TRANSPORT_TYPE_A2DP,
-					dbus_owner, dbus_path, profile, codec)) == NULL)
+	if ((t = transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	t->a2dp.ch1_volume = 127;
@@ -286,7 +268,7 @@ struct ba_transport *transport_new_a2dp(
 	t->release = transport_release_bt_a2dp;
 
 	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
-			BA_PCM_TYPE_A2DP | (profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+			BA_PCM_TYPE_A2DP | (type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
 
 	return t;
@@ -294,20 +276,19 @@ struct ba_transport *transport_new_a2dp(
 
 struct ba_transport *transport_new_rfcomm(
 		struct ba_device *device,
+		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path,
-		enum bluetooth_profile profile) {
+		const char *dbus_path) {
 
 	gchar *dbus_path_sco = NULL;
 	struct ba_transport *t, *t_sco;
 
-	if ((t = transport_new(device, TRANSPORT_TYPE_RFCOMM,
-					dbus_owner, dbus_path, profile, -1)) == NULL)
+	struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_RFCOMM };
+	if ((t = transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
 		goto fail;
 
 	dbus_path_sco = g_strdup_printf("%s/sco", dbus_path);
-	if ((t_sco = transport_new_sco(device, dbus_owner, dbus_path_sco,
-					profile, HFP_CODEC_UNDEFINED)) == NULL)
+	if ((t_sco = transport_new_sco(device, type, dbus_owner, dbus_path_sco)) == NULL)
 		goto fail;
 
 	t->rfcomm.sco = t_sco;
@@ -326,20 +307,17 @@ fail:
 
 struct ba_transport *transport_new_sco(
 		struct ba_device *device,
+		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path,
-		enum bluetooth_profile profile,
-		uint16_t codec) {
+		const char *dbus_path) {
 
 	struct ba_transport *t;
 
 	/* HSP supports CVSD only */
-	if (profile == BLUETOOTH_PROFILE_HSP_HS ||
-			profile == BLUETOOTH_PROFILE_HSP_AG)
-		codec = HFP_CODEC_CVSD;
+	if (type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
+		type.codec = HFP_CODEC_CVSD;
 
-	if ((t = transport_new(device, TRANSPORT_TYPE_SCO,
-					dbus_owner, dbus_path, profile, codec)) == NULL)
+	if ((t = transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	t->sco.spk_gain = 15;
@@ -369,10 +347,7 @@ void transport_free(struct ba_transport *t) {
 		return;
 
 	t->state = TRANSPORT_LIMBO;
-	debug("Freeing transport: %s: %s (%s)",
-			transport_type_to_string(t->type),
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Freeing transport: %s:", ba_transport_type_to_string(t->type));
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
@@ -396,21 +371,25 @@ void transport_free(struct ba_transport *t) {
 	unsigned int pcm_type = BA_PCM_TYPE_NULL;
 
 	/* free type-specific resources */
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
-		pcm_type = BA_PCM_TYPE_A2DP | (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+	switch (t->type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		pcm_type = BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
 		transport_release_pcm(&t->a2dp.pcm);
 		pthread_mutex_destroy(&t->a2dp.drained_mtx);
 		pthread_cond_destroy(&t->a2dp.drained);
 		free(t->a2dp.cconfig);
 		break;
-	case TRANSPORT_TYPE_RFCOMM:
+	case BA_TRANSPORT_PROFILE_RFCOMM:
 		memset(&t->device->battery, 0, sizeof(t->device->battery));
 		memset(&t->device->xapl, 0, sizeof(t->device->xapl));
 		transport_free(t->rfcomm.sco);
 		break;
-	case TRANSPORT_TYPE_SCO:
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+	case BA_TRANSPORT_PROFILE_HSP_AG:
 		pcm_type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		pthread_mutex_destroy(&t->sco.spk_drained_mtx);
 		pthread_cond_destroy(&t->sco.spk_drained);
@@ -499,9 +478,8 @@ int transport_send_rfcomm(struct ba_transport *t, const char command[32]) {
 
 unsigned int transport_get_channels(const struct ba_transport *t) {
 
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
-		switch (t->codec) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
 			switch (((a2dp_sbc_t *)t->a2dp.cconfig)->channel_mode) {
 			case SBC_CHANNEL_MODE_MONO:
@@ -556,12 +534,9 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 			break;
 #endif
 		}
-		break;
-	case TRANSPORT_TYPE_RFCOMM:
-		break;
-	case TRANSPORT_TYPE_SCO:
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		return 1;
-	}
 
 	/* the number of channels is unspecified */
 	return 0;
@@ -569,9 +544,8 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 
 unsigned int transport_get_sampling(const struct ba_transport *t) {
 
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
-		switch (t->codec) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
 			switch (((a2dp_sbc_t *)t->a2dp.cconfig)->frequency) {
 			case SBC_SAMPLING_FREQ_16000:
@@ -665,11 +639,9 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 			break;
 #endif
 		}
-		break;
-	case TRANSPORT_TYPE_RFCOMM:
-		break;
-	case TRANSPORT_TYPE_SCO:
-		switch (t->codec) {
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		switch (t->type.codec) {
 		case HFP_CODEC_UNDEFINED:
 			break;
 		case HFP_CODEC_CVSD:
@@ -677,9 +649,8 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 		case HFP_CODEC_MSBC:
 			return 16000;
 		default:
-			debug("Unsupported SCO codec: %#x", t->codec);
+			debug("Unsupported SCO codec: %#x", t->type.codec);
 		}
-	}
 
 	/* the sampling frequency is unspecified */
 	return 0;
@@ -693,7 +664,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 
 	/* For the A2DP sink profile, the IO thread can not be created until the
 	 * BT transport is acquired, otherwise thread initialized will fail. */
-	if (t->profile == BLUETOOTH_PROFILE_A2DP_SINK &&
+	if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK &&
 			t->state == TRANSPORT_IDLE && state != TRANSPORT_PENDING)
 		return 0;
 
@@ -709,7 +680,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 		/* When transport is marked as pending, try to acquire transport, but only
 		 * if we are handing A2DP sink profile. For source profile, transport has
 		 * to be acquired by our controller (during the PCM open request). */
-		if (t->profile == BLUETOOTH_PROFILE_A2DP_SINK)
+		if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 			ret = t->acquire(t);
 		break;
 	case TRANSPORT_ACTIVE:
@@ -733,21 +704,15 @@ int transport_drain_pcm(struct ba_transport *t) {
 	pthread_mutex_t *mutex = NULL;
 	pthread_cond_t *drained = NULL;
 
-	switch (t->profile) {
-	case BLUETOOTH_PROFILE_NULL:
-	case BLUETOOTH_PROFILE_A2DP_SINK:
-		break;
-	case BLUETOOTH_PROFILE_A2DP_SOURCE:
+	switch (t->type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		mutex = &t->a2dp.drained_mtx;
 		drained = &t->a2dp.drained;
 		break;
-	case BLUETOOTH_PROFILE_HSP_AG:
-	case BLUETOOTH_PROFILE_HFP_AG:
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+	case BA_TRANSPORT_PROFILE_HSP_AG:
 		mutex = &t->sco.spk_drained_mtx;
 		drained = &t->sco.spk_drained;
-		break;
-	case BLUETOOTH_PROFILE_HSP_HS:
-	case BLUETOOTH_PROFILE_HFP_HF:
 		break;
 	}
 
@@ -842,9 +807,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 	if (t->bt_fd == -1)
 		return 0;
 
-	debug("Releasing transport: %s (%s)",
-			bluetooth_profile_to_string(t->profile),
-			bluetooth_a2dp_codec_to_string(t->codec));
+	debug("Releasing transport: %s", ba_transport_type_to_string(t->type));
 
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the BlueZ. In both cases there is no point in a explicit
@@ -922,7 +885,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 		return -1;
 	}
 
-	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr, t->codec != HFP_CODEC_CVSD)) == -1) {
+	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
 		error("Couldn't open SCO link: %s", strerror(errno));
 		return -1;
 	}

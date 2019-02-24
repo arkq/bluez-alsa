@@ -27,10 +27,28 @@
 #include "bluez.h"
 #include "hfp.h"
 
-enum ba_transport_type {
-	TRANSPORT_TYPE_A2DP,
-	TRANSPORT_TYPE_RFCOMM,
-	TRANSPORT_TYPE_SCO,
+#define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)
+#define BA_TRANSPORT_PROFILE_A2DP_SINK   (2 << 0)
+#define BA_TRANSPORT_PROFILE_HFP_HF      (1 << 2)
+#define BA_TRANSPORT_PROFILE_HFP_AG      (2 << 2)
+#define BA_TRANSPORT_PROFILE_HSP_HS      (1 << 4)
+#define BA_TRANSPORT_PROFILE_HSP_AG      (2 << 4)
+#define BA_TRANSPORT_PROFILE_RFCOMM      (1 << 6)
+
+#define BA_TRANSPORT_PROFILE_MASK_A2DP (\
+		BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK)
+#define BA_TRANSPORT_PROFILE_MASK_HFP (\
+		BA_TRANSPORT_PROFILE_HFP_HF | BA_TRANSPORT_PROFILE_HFP_AG)
+#define BA_TRANSPORT_PROFILE_MASK_HSP (\
+		BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HSP_AG)
+#define BA_TRANSPORT_PROFILE_MASK_SCO (\
+		BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP)
+
+struct ba_transport_type {
+	/* Selected profile and audio codec. For A2DP vendor codecs the upper byte
+	 * of the codec field contains the lowest byte of the vendor ID. */
+	uint16_t profile;
+	uint16_t codec;
 };
 
 enum ba_transport_state {
@@ -102,16 +120,11 @@ struct ba_transport {
 	/* Transport structure covers all transports supported by BlueALSA. However,
 	 * every transport requires specific handling - link acquisition, transport
 	 * specific configuration, freeing resources, etc. */
-	enum ba_transport_type type;
+	struct ba_transport_type type;
 
 	/* data required for D-Bus management */
 	char *dbus_owner;
 	char *dbus_path;
-
-	/* Selected profile and audio codec. For A2DP vendor codecs the upper byte
-	 * of the codec field contains the lowest byte of the vendor ID. */
-	enum bluetooth_profile profile;
-	uint16_t codec;
 
 	/* This mutex shall guard modifications of the critical sections in this
 	 * transport structure, e.g. thread creation/termination. */
@@ -229,30 +242,26 @@ void device_set_battery_level(struct ba_device *d, uint8_t value);
 
 struct ba_transport *transport_new(
 		struct ba_device *device,
-		enum ba_transport_type type,
+		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path,
-		enum bluetooth_profile profile,
-		uint16_t codec);
+		const char *dbus_path);
 struct ba_transport *transport_new_a2dp(
 		struct ba_device *device,
+		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		enum bluetooth_profile profile,
-		uint16_t codec,
 		const uint8_t *cconfig,
 		size_t cconfig_size);
 struct ba_transport *transport_new_rfcomm(
 		struct ba_device *device,
+		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path,
-		enum bluetooth_profile profile);
+		const char *dbus_path);
 struct ba_transport *transport_new_sco(
 		struct ba_device *device,
+		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path,
-		enum bluetooth_profile profile,
-		uint16_t codec);
+		const char *dbus_path);
 void transport_free(struct ba_transport *t);
 
 struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path);

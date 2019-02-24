@@ -275,7 +275,7 @@ static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	/* Codec negotiation is not supported in the HF, hence no
 	 * wideband audio support. AT+BAC will not be sent. */
 	if (!(t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC))
-		t->rfcomm.sco->codec = HFP_CODEC_CVSD;
+		t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
 
 	sprintf(tmp, "%u", config.hfp.features_rfcomm_ag);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BRSF", tmp) == -1)
@@ -298,7 +298,7 @@ static int rfcomm_handler_brsf_resp_cb(struct rfcomm_conn *c, const struct bt_at
 
 	/* codec negotiation is not supported in the AG */
 	if (!(t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC))
-		t->rfcomm.sco->codec = HFP_CODEC_CVSD;
+		t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
 
 	if (c->state < HFP_SLC_BRSF_SET)
 		rfcomm_set_hfp_state(c, HFP_SLC_BRSF_SET);
@@ -354,8 +354,8 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
 
-	if (t->rfcomm.sco->codec != atoi(at->value)) {
-		warn("Codec not acknowledged: %d != %s", t->rfcomm.sco->codec, at->value);
+	if (t->rfcomm.sco->type.codec != atoi(at->value)) {
+		warn("Codec not acknowledged: %d != %s", t->rfcomm.sco->type.codec, at->value);
 		if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 			return -1;
 		return 0;
@@ -390,7 +390,7 @@ static int rfcomm_handler_bcs_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
 
-	t->rfcomm.sco->codec = atoi(at->value);
+	t->rfcomm.sco->type.codec = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
 		return -1;
 
@@ -572,8 +572,7 @@ void *rfcomm_thread(void *arg) {
 		{ t->bt_fd, POLLIN, 0 },
 	};
 
-	debug("Starting RFCOMM loop: %s",
-			bluetooth_profile_to_string(t->profile));
+	debug("Starting loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 
 		/* During normal operation, RFCOMM should block indefinitely. However,
@@ -603,7 +602,7 @@ void *rfcomm_thread(void *arg) {
 				goto ioerror;
 			}
 
-			if (t->profile == BLUETOOTH_PROFILE_HFP_HF)
+			if (t->type.profile == BA_TRANSPORT_PROFILE_HFP_HF)
 				switch (conn.state) {
 				case HFP_DISCONNECTED:
 					sprintf(tmp, "%u", config.hfp.features_rfcomm_hf);
@@ -662,7 +661,7 @@ void *rfcomm_thread(void *arg) {
 							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 
-			if (t->profile == BLUETOOTH_PROFILE_HFP_AG)
+			if (t->type.profile == BA_TRANSPORT_PROFILE_HFP_AG)
 				switch (conn.state) {
 				case HFP_DISCONNECTED:
 				case HFP_SLC_BRSF_SET:
@@ -680,7 +679,7 @@ void *rfcomm_thread(void *arg) {
 					if (t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", "1") == -1)
 							goto ioerror;
-						t->rfcomm.sco->codec = HFP_CODEC_CVSD;
+						t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
 						conn.handler = &rfcomm_handler_bcs_set;
 						break;
 					}

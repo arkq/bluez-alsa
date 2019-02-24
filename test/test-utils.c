@@ -16,50 +16,73 @@
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
+START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
+
+	bdaddr_t addr_ok = {{ 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12 }};
+	bdaddr_t addr;
+
+	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr(
+				"/org/bluez/hci0/dev_12_34_56_78_9A_BC", &addr), &addr);
+	ck_assert_int_eq(bacmp(&addr, &addr_ok), 0);
+
+	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr(
+				"/org/bluez/dev_12_34_56_78_9A_BC/fd1", &addr), &addr);
+	ck_assert_int_eq(bacmp(&addr, &addr_ok), 0);
+
+	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr(
+				"/org/bluez/dev_12_34_56_78_9A_XX", &addr), NULL);
+
+} END_TEST
+
 START_TEST(test_dbus_profile_object_path) {
 
 	static const struct {
-		enum bluetooth_profile profile;
-		int16_t codec;
+		struct ba_transport_type ttype;
 		const char *path;
 	} profiles[] = {
 		/* test null/invalid path */
-		{ BLUETOOTH_PROFILE_NULL, -1, "/" },
-		{ BLUETOOTH_PROFILE_NULL, -1, "/Invalid" },
+		{ { 0, -1 }, "/" },
+		{ { 0, -1 }, "/Invalid" },
 		/* test A2DP profiles */
-		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source" },
-		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source/1" },
-		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC, "/A2DP/SBC/Source/2" },
-		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_SBC, "/A2DP/SBC/Sink" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC }, "/A2DP/SBC/Source" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC }, "/A2DP/SBC/Source/1" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC }, "/A2DP/SBC/Source/2" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_SBC }, "/A2DP/SBC/Sink" },
 #if ENABLE_MPEG
-		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG12, "/A2DP/MPEG12/Source" },
-		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG12, "/A2DP/MPEG12/Sink" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG12 }, "/A2DP/MPEG12/Source" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG12 }, "/A2DP/MPEG12/Sink" },
 #endif
 #if ENABLE_AAC
-		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG24, "/A2DP/MPEG24/Source" },
-		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG24, "/A2DP/MPEG24/Sink" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG24 }, "/A2DP/MPEG24/Source" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG24 }, "/A2DP/MPEG24/Sink" },
 #endif
 #if ENABLE_APTX
-		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_APTX, "/A2DP/APTX/Source" },
-		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_APTX, "/A2DP/APTX/Sink" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_APTX }, "/A2DP/APTX/Source" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_APTX }, "/A2DP/APTX/Sink" },
+#endif
+#if ENABLE_APTX_HD
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_APTX_HD }, "/A2DP/APTXHD/Source" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_APTX_HD }, "/A2DP/APTXHD/Sink" },
 #endif
 #if ENABLE_LDAC
-		{ BLUETOOTH_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_LDAC, "/A2DP/LDAC/Source" },
-		{ BLUETOOTH_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_LDAC, "/A2DP/LDAC/Sink" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_LDAC }, "/A2DP/LDAC/Source" },
+		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_LDAC }, "/A2DP/LDAC/Sink" },
 #endif
 		/* test HSP/HFP profiles */
-		{ BLUETOOTH_PROFILE_HSP_HS, -1, "/HSP/Headset" },
-		{ BLUETOOTH_PROFILE_HSP_AG, -1, "/HSP/AudioGateway" },
-		{ BLUETOOTH_PROFILE_HFP_HF, -1, "/HFP/HandsFree" },
-		{ BLUETOOTH_PROFILE_HFP_AG, -1, "/HFP/AudioGateway" },
+		{ { BA_TRANSPORT_PROFILE_HSP_HS, HFP_CODEC_CVSD }, "/HSP/Headset" },
+		{ { BA_TRANSPORT_PROFILE_HSP_AG, HFP_CODEC_CVSD }, "/HSP/AudioGateway" },
+		{ { BA_TRANSPORT_PROFILE_HFP_HF, HFP_CODEC_UNDEFINED }, "/HFP/HandsFree" },
+		{ { BA_TRANSPORT_PROFILE_HFP_AG, HFP_CODEC_UNDEFINED }, "/HFP/AudioGateway" },
 	};
 
 	size_t i;
 
 	for (i = 0; i < ARRAYSIZE(profiles); i++) {
-		const char *path = g_dbus_get_profile_object_path(profiles[i].profile, profiles[i].codec);
+		const char *path = g_dbus_transport_type_to_bluez_object_path(profiles[i].ttype);
+		struct ba_transport_type ttype = g_dbus_bluez_object_path_to_transport_type(profiles[i].path);
 		ck_assert_str_eq(strstr(profiles[i].path, path), profiles[i].path);
-		ck_assert_int_eq(g_dbus_object_path_to_profile(profiles[i].path), profiles[i].profile);
+		ck_assert_int_eq(ttype.profile, profiles[i].ttype.profile);
+		ck_assert_int_eq(ttype.codec, profiles[i].ttype.codec);
 	}
 
 } END_TEST
@@ -225,6 +248,7 @@ int main(void) {
 
 	suite_add_tcase(s, tc);
 
+	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_bdaddr);
 	tcase_add_test(tc, test_dbus_profile_object_path);
 	tcase_add_test(tc, test_batostr_);
 	tcase_add_test(tc, test_snd_pcm_scale_s16le);

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -139,15 +139,103 @@ fail:
 }
 
 /**
- * Get BlueZ D-Bus object path for given profile and codec.
+ * Extract BT address from the BlueZ D-Bus object path.
  *
- * @param profile Bluetooth profile.
- * @param codec Bluetooth profile codec.
+ * @param path BlueZ D-Bus object path.
+ * @param addr Address where the parsed BT address will be stored.
+ * @return On success this function returns pointer to the BT address. On
+ *   error, NULL is returned. */
+bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
+
+	char *tmp, *p;
+
+	if ((path = strstr(path, "/dev_")) == NULL)
+		return NULL;
+	if ((tmp = strdup(path + 5)) == NULL)
+		return NULL;
+
+	for (p = tmp; *p != '\0'; p++)
+		if (*p == '_')
+			*p = ':';
+		else if (*p == '/')
+			*p = '\0';
+
+	if (str2ba(tmp, addr) == -1)
+		addr = NULL;
+
+	free(tmp);
+	return addr;
+}
+
+/**
+ * Extract transport type from the BlueZ D-Bus object path.
+ *
+ * @param path BlueZ D-Bus object path.
+ * @return On success this function returns extracted transport type. */
+struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *path) {
+
+	struct ba_transport_type type = { 0, -1 };
+
+	if (strncmp(path, "/A2DP", 5) == 0) {
+
+		if (strstr(path + 5, "/Source") != NULL)
+			type.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE;
+		else if (strstr(path + 5, "/Sink") != NULL)
+			type.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
+
+		if (strncmp(path + 5, "/SBC", 4) == 0)
+			type.codec = A2DP_CODEC_SBC;
+#if ENABLE_MPEG
+		else if (strncmp(path + 5, "/MPEG12", 7) == 0)
+			type.codec = A2DP_CODEC_MPEG12;
+#endif
+#if ENABLE_AAC
+		else if (strncmp(path + 5, "/MPEG24", 7) == 0)
+			type.codec = A2DP_CODEC_MPEG24;
+#endif
+#if ENABLE_APTX
+		else if (strncmp(path + 5, "/APTX", 5) == 0)
+			type.codec = A2DP_CODEC_VENDOR_APTX;
+#endif
+#if ENABLE_APTX_HD
+		else if (strncmp(path + 5, "/APTXHD", 7) == 0)
+			type.codec = A2DP_CODEC_VENDOR_APTX_HD;
+#endif
+#if ENABLE_LDAC
+		else if (strncmp(path + 5, "/LDAC", 5) == 0)
+			type.codec = A2DP_CODEC_VENDOR_LDAC;
+#endif
+
+	}
+
+	if (strncmp(path, "/HFP", 4) == 0) {
+		if (strcmp(path + 4, "/HandsFree") == 0)
+			type.profile = BA_TRANSPORT_PROFILE_HFP_HF;
+		else if (strcmp(path + 4, "/AudioGateway") == 0)
+			type.profile = BA_TRANSPORT_PROFILE_HFP_AG;
+		type.codec = HFP_CODEC_UNDEFINED;
+	}
+
+	if (strncmp(path, "/HSP", 4) == 0) {
+		if (strcmp(path + 4, "/Headset") == 0)
+			type.profile = BA_TRANSPORT_PROFILE_HSP_HS;
+		else if (strcmp(path + 4, "/AudioGateway") == 0)
+			type.profile = BA_TRANSPORT_PROFILE_HSP_AG;
+		type.codec = HFP_CODEC_CVSD;
+	}
+
+	return type;
+}
+
+/**
+ * Get BlueZ D-Bus object path for given transport type.
+ *
+ * @param type Transport type structure.
  * @return This function returns BlueZ D-Bus object path. */
-const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint16_t codec) {
-	switch (profile) {
-	case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		switch (codec) {
+const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type) {
+	switch (type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		switch (type.codec) {
 		case A2DP_CODEC_SBC:
 			return "/A2DP/SBC/Source";
 #if ENABLE_MPEG
@@ -162,16 +250,20 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint1
 		case A2DP_CODEC_VENDOR_APTX:
 			return "/A2DP/APTX/Source";
 #endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "/A2DP/APTXHD/Source";
+#endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "/A2DP/LDAC/Source";
 #endif
 		default:
-			warn("Unsupported A2DP codec: %#x", codec);
+			warn("Unsupported A2DP codec: %#x", type.codec);
 			return "/A2DP/Source";
 		}
-	case BLUETOOTH_PROFILE_A2DP_SINK:
-		switch (codec) {
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		switch (type.codec) {
 		case A2DP_CODEC_SBC:
 			return "/A2DP/SBC/Sink";
 #if ENABLE_MPEG
@@ -186,82 +278,28 @@ const char *g_dbus_get_profile_object_path(enum bluetooth_profile profile, uint1
 		case A2DP_CODEC_VENDOR_APTX:
 			return "/A2DP/APTX/Sink";
 #endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "/A2DP/APTXHD/Sink";
+#endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "/A2DP/LDAC/Sink";
 #endif
 		default:
-			warn("Unsupported A2DP codec: %#x", codec);
+			warn("Unsupported A2DP codec: %#x", type.codec);
 			return "/A2DP/Sink";
 		}
-	case BLUETOOTH_PROFILE_HSP_HS:
-		return "/HSP/Headset";
-	case BLUETOOTH_PROFILE_HSP_AG:
-		return "/HSP/AudioGateway";
-	case BLUETOOTH_PROFILE_HFP_HF:
+	case BA_TRANSPORT_PROFILE_HFP_HF:
 		return "/HFP/HandsFree";
-	case BLUETOOTH_PROFILE_HFP_AG:
+	case BA_TRANSPORT_PROFILE_HFP_AG:
 		return "/HFP/AudioGateway";
-	case BLUETOOTH_PROFILE_NULL:
-		break;
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		return "/HSP/Headset";
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		return "/HSP/AudioGateway";
 	}
 	return "/";
-}
-
-/**
- * Convert BlueZ D-Bus object path into a Bluetooth profile.
- *
- * @param path BlueZ D-Bus object path.
- * @return On success this function returns Bluetooth profile. If object
- *   path cannot be recognize, NULL profile is returned. */
-enum bluetooth_profile g_dbus_object_path_to_profile(const char *path) {
-	if (strncmp(path, "/A2DP", 5) == 0) {
-		if (strstr(path + 5, "/Source") != NULL)
-			return BLUETOOTH_PROFILE_A2DP_SOURCE;
-		if (strstr(path + 5, "/Sink") != NULL)
-			return BLUETOOTH_PROFILE_A2DP_SINK;
-	}
-	if (strncmp(path, "/HSP", 4) == 0) {
-		if (strcmp(path + 4, "/Headset") == 0)
-			return BLUETOOTH_PROFILE_HSP_HS;
-		if (strcmp(path + 4, "/AudioGateway") == 0)
-			return BLUETOOTH_PROFILE_HSP_AG;
-	}
-	if (strncmp(path, "/HFP", 4) == 0) {
-		if (strcmp(path + 4, "/HandsFree") == 0)
-			return BLUETOOTH_PROFILE_HFP_HF;
-		if (strcmp(path + 4, "/AudioGateway") == 0)
-			return BLUETOOTH_PROFILE_HFP_AG;
-	}
-	return BLUETOOTH_PROFILE_NULL;
-}
-
-/**
- * Convert BlueZ D-Bus device path into a bdaddr_t structure.
- *
- * @param path BlueZ D-Bus device path.
- * @param addr Address where the parsed address will be stored.
- * @return On success this function returns 0. Otherwise, -1 is returned. */
-int g_dbus_device_path_to_bdaddr(const char *path, bdaddr_t *addr) {
-
-	char *tmp, *p;
-	int ret;
-
-	if ((path = strrchr(path, '/')) == NULL)
-		return -1;
-	if ((path = strstr(path, "dev_")) == NULL)
-		return -1;
-	if ((tmp = strdup(path + 4)) == NULL)
-		return -1;
-
-	for (p = tmp; *p != '\0'; p++)
-		if (*p == '_')
-			*p = ':';
-
-	ret = str2ba(tmp, addr);
-
-	free(tmp);
-	return ret;
 }
 
 /**
@@ -354,64 +392,6 @@ fail:
 }
 
 /**
- * Convert Bluetooth profile into a human-readable string.
- *
- * @param profile Bluetooth profile.
- * @return Human-readable string. */
-const char *bluetooth_profile_to_string(enum bluetooth_profile profile) {
-	switch (profile) {
-	case BLUETOOTH_PROFILE_NULL:
-		return "N/A";
-	case BLUETOOTH_PROFILE_A2DP_SOURCE:
-		return "A2DP Source";
-	case BLUETOOTH_PROFILE_A2DP_SINK:
-		return "A2DP Sink";
-	case BLUETOOTH_PROFILE_HSP_HS:
-		return "HSP Headset";
-	case BLUETOOTH_PROFILE_HSP_AG:
-		return "HSP Audio Gateway";
-	case BLUETOOTH_PROFILE_HFP_HF:
-		return "HFP Hands-Free";
-	case BLUETOOTH_PROFILE_HFP_AG:
-		return "HFP Audio Gateway";
-	}
-	return "N/A";
-}
-
-/**
- * Convert Bluetooth A2DP codec into a human-readable string.
- *
- * @param codec Bluetooth A2DP audio codec.
- * @return Human-readable string. */
-const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
-	switch (codec) {
-	case A2DP_CODEC_SBC:
-		return "SBC";
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12:
-		return "MPEG";
-#endif
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24:
-		return "AAC";
-#endif
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX:
-		return "APT-X";
-#endif
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		return "APT-X HD";
-#endif
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		return "LDAC";
-#endif
-	}
-	return "N/A";
-}
-
-/**
  * Convert Bluetooth address into a human-readable string.
  *
  * This function returns statically allocated buffer. It is not by any means
@@ -459,6 +439,112 @@ void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 			}
 		break;
 	}
+}
+
+/**
+ * Convert Bluetooth A2DP codec into a human-readable string.
+ *
+ * @param codec Bluetooth A2DP audio codec.
+ * @return Human-readable string. */
+const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
+	switch (codec) {
+	case A2DP_CODEC_SBC:
+		return "SBC";
+#if ENABLE_MPEG
+	case A2DP_CODEC_MPEG12:
+		return "MPEG";
+#endif
+#if ENABLE_AAC
+	case A2DP_CODEC_MPEG24:
+		return "AAC";
+#endif
+#if ENABLE_APTX
+	case A2DP_CODEC_VENDOR_APTX:
+		return "APT-X";
+#endif
+#if ENABLE_APTX_HD
+	case A2DP_CODEC_VENDOR_APTX_HD:
+		return "APT-X HD";
+#endif
+#if ENABLE_LDAC
+	case A2DP_CODEC_VENDOR_LDAC:
+		return "LDAC";
+#endif
+	}
+	return "N/A";
+}
+
+/**
+ * Convert BlueALSA transport type into a human-readable string.
+ *
+ * @param type Transport type structure.
+ * @return Human-readable string. */
+const char *ba_transport_type_to_string(struct ba_transport_type type) {
+	switch (type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		switch (type.codec) {
+		case A2DP_CODEC_SBC:
+			return "A2DP Source (SBC)";
+#if ENABLE_MPEG
+		case A2DP_CODEC_MPEG12:
+			return "A2DP Source (MPEG)";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "A2DP Source (AAC)";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "A2DP Source (APT-X)";
+#endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "A2DP Source (APT-X HD)";
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			return "A2DP Source (LDAC)";
+#endif
+		}
+		return "A2DP Source";
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		switch (type.codec) {
+		case A2DP_CODEC_SBC:
+			return "A2DP Sink (SBC)";
+#if ENABLE_MPEG
+		case A2DP_CODEC_MPEG12:
+			return "A2DP Sink (MPEG)";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "A2DP Sink (AAC)";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "A2DP Sink (APT-X)";
+#endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "A2DP Sink (APT-X HD)";
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			return "A2DP Sink (LDAC)";
+#endif
+		}
+		return "A2DP Sink";
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+		return "HFP Hands-Free";
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+		return "HFP Audio Gateway";
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		return "HSP Headset";
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		return "HSP Audio Gateway";
+	case BA_TRANSPORT_PROFILE_RFCOMM:
+		return "RFCOMM";
+	}
+	return "N/A";
 }
 
 #if ENABLE_AAC

@@ -106,22 +106,21 @@ int test_transport_release(struct ba_transport *t) {
 }
 
 struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
-		const char *owner, const char *path, enum bluetooth_profile profile,
-		uint16_t codec, const uint8_t *config, size_t csize) {
+		struct ba_transport_type type, const char *owner, const char *path,
+		const uint8_t *cconfig, size_t csize) {
 	if (fuzzing)
 		sleep(1);
-	struct ba_transport *t = transport_new_a2dp(d, owner, path, profile, codec, config, csize);
+	struct ba_transport *t = transport_new_a2dp(d, type, owner, path, cconfig, csize);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release;
 	return t;
 }
 
 struct ba_transport *test_transport_new_sco(struct ba_device *d,
-		const char *owner, const char *path, enum bluetooth_profile profile,
-		uint16_t codec) {
+		struct ba_transport_type type, const char *owner, const char *path) {
 	if (fuzzing)
 		sleep(1);
-	struct ba_transport *t = transport_new_sco(d, owner, path, profile, codec);
+	struct ba_transport *t = transport_new_sco(d, type, owner, path);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release;
 	return t;
@@ -239,30 +238,36 @@ int main(int argc, char *argv[]) {
 	bluealsa_device_insert("/device/2", d2);
 
 	if (source) {
-		assert(test_transport_new_a2dp(d1, ":test", "/source/1", BLUETOOTH_PROFILE_A2DP_SOURCE,
-					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
-		assert(test_transport_new_a2dp(d2, ":test", "/source/2", BLUETOOTH_PROFILE_A2DP_SOURCE,
-					A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
+		struct ba_transport_type ttype = {
+			.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+			.codec = A2DP_CODEC_SBC };
+		assert(test_transport_new_a2dp(d1, ttype, ":test", "/source/1",
+					(uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
+		assert(test_transport_new_a2dp(d2, ttype, ":test", "/source/2",
+					(uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
 	}
 
 	if (sink) {
 		struct ba_transport *t;
-		assert((t = test_transport_new_a2dp(d1, ":test", "/sink/1", BLUETOOTH_PROFILE_A2DP_SINK,
-						A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
+		struct ba_transport_type ttype = {
+			.profile = BA_TRANSPORT_PROFILE_A2DP_SINK,
+			.codec = A2DP_CODEC_SBC };
+		assert((t = test_transport_new_a2dp(d1, ttype, ":test", "/sink/1",
+						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
 		assert(t->acquire(t) == 0);
-		assert((t = test_transport_new_a2dp(d2, ":test", "/sink/2", BLUETOOTH_PROFILE_A2DP_SINK,
-						A2DP_CODEC_SBC, (uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
+		assert((t = test_transport_new_a2dp(d2, ttype, ":test", "/sink/2",
+						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
 		assert(t->acquire(t) == 0);
 	}
 
 	if (sco) {
 		struct ba_transport *t;
-		assert((t = test_transport_new_sco(d1, ":test", "/sco/1", BLUETOOTH_PROFILE_HSP_AG,
-						HFP_CODEC_UNDEFINED)) != NULL);
-		assert((t = test_transport_new_sco(d2, ":test", "/sco/2", BLUETOOTH_PROFILE_HFP_AG,
-						HFP_CODEC_UNDEFINED)) != NULL);
+		struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_HSP_AG };
+		assert((t = test_transport_new_sco(d1, ttype, ":test", "/sco/1")) != NULL);
+		ttype.profile = BA_TRANSPORT_PROFILE_HFP_AG;
+		assert((t = test_transport_new_sco(d2, ttype, ":test", "/sco/2")) != NULL);
 		if (fuzzing) {
-			t->codec = HFP_CODEC_CVSD;
+			t->type.codec = HFP_CODEC_CVSD;
 			bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
 					BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 		}

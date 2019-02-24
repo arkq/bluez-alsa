@@ -118,8 +118,7 @@ struct ba_config {
 struct ba_dbus_object {
 	/* D-Bus object registration ID */
 	unsigned int id;
-	enum bluetooth_profile profile;
-	uint16_t codec;
+	struct ba_transport_type ttype;
 	/* determine whether profile is used */
 	bool connected;
 };

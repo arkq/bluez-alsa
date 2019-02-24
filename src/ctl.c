@@ -28,7 +28,6 @@
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
 #include "bluez-iface.h"
-#include "bluez.h"
 #include "hfp.h"
 #include "transport.h"
 #include "utils.h"
@@ -86,21 +85,19 @@ static int ctl_lookup_transport(GHashTable *devices, const bdaddr_t *addr,
 			case BA_PCM_TYPE_NULL:
 				continue;
 			case BA_PCM_TYPE_A2DP:
-				if ((*t)->type != TRANSPORT_TYPE_A2DP)
-					continue;
 				if (type & BA_PCM_STREAM_PLAYBACK &&
-						(*t)->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
+						(*t)->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 					return 0;
 				if (type & BA_PCM_STREAM_CAPTURE &&
-						(*t)->profile == BLUETOOTH_PROFILE_A2DP_SINK)
+						(*t)->type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 					return 0;
 				continue;
 			case BA_PCM_TYPE_SCO:
-				if ((*t)->type == TRANSPORT_TYPE_SCO)
+				if ((*t)->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 					return 0;
 				continue;
 			case BA_PCM_TYPE_RFCOMM:
-				if ((*t)->type == TRANSPORT_TYPE_RFCOMM)
+				if ((*t)->type.profile == BA_TRANSPORT_PROFILE_RFCOMM)
 					return 0;
 				continue;
 			}
@@ -119,22 +116,16 @@ static int ctl_lookup_transport(GHashTable *devices, const bdaddr_t *addr,
  * @return On success address of the PCM structure is returned. If the PCM
  *   structure can not be determined, NULL is returned. */
 static struct ba_pcm *ctl_lookup_pcm(struct ba_transport *t, uint8_t type, int client) {
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		if (t->a2dp.pcm.client == client)
 			return &t->a2dp.pcm;
-		break;
-	case TRANSPORT_TYPE_RFCOMM:
-		debug("Trying to get PCM for RFCOMM transport... that's nuts");
-		break;
-	case TRANSPORT_TYPE_SCO:
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (type & BA_PCM_STREAM_PLAYBACK)
 			if (t->sco.spk_pcm.client == client)
 				return &t->sco.spk_pcm;
 		if (type & BA_PCM_STREAM_CAPTURE)
 			if (t->sco.mic_pcm.client == client)
 				return &t->sco.mic_pcm;
-		break;
 	}
 	return NULL;
 }
@@ -143,34 +134,30 @@ static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
 		struct ba_msg_transport *transport) {
 
 	bacpy(&transport->addr, &t->device->addr);
+	transport->type = BA_PCM_TYPE_NULL;
+	transport->codec = t->type.codec;
+	transport->channels = transport_get_channels(t);
+	transport->sampling = transport_get_sampling(t);
+	transport->delay += t->delay;
 
-	switch (t->type) {
-	case TRANSPORT_TYPE_A2DP:
-		transport->type = BA_PCM_TYPE_A2DP | (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE ?
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		transport->type = BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
 		transport->ch1_muted = t->a2dp.ch1_muted;
 		transport->ch1_volume = t->a2dp.ch1_volume;
 		transport->ch2_muted = t->a2dp.ch2_muted;
 		transport->ch2_volume = t->a2dp.ch2_volume;
 		transport->delay = t->a2dp.delay;
-		break;
-	case TRANSPORT_TYPE_RFCOMM:
-		transport->type = BA_PCM_TYPE_NULL;
-		break;
-	case TRANSPORT_TYPE_SCO:
+	}
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		transport->type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		transport->ch1_muted = t->sco.spk_muted;
 		transport->ch1_volume = t->sco.spk_gain;
 		transport->ch2_muted = t->sco.mic_muted;
 		transport->ch2_volume = t->sco.mic_gain;
 		transport->delay = 10;
-		break;
 	}
-
-	transport->codec = t->codec;
-	transport->channels = transport_get_channels(t);
-	transport->sampling = transport_get_sampling(t);
-	transport->delay += t->delay;
 
 	return transport;
 }
@@ -354,7 +341,8 @@ static void ctl_thread_cmd_pcm_open(struct ba_ctl *ctl, struct ba_request *req, 
 
 	pthread_mutex_lock(&t->mutex);
 
-	if (t->type == TRANSPORT_TYPE_SCO && t->codec == HFP_CODEC_UNDEFINED) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+			t->type.codec == HFP_CODEC_UNDEFINED) {
 		status.code = BA_STATUS_CODE_CODEC_NOT_SELECTED;
 		goto final;
 	}
@@ -411,7 +399,7 @@ static void ctl_thread_cmd_pcm_open(struct ba_ctl *ctl, struct ba_request *req, 
 	 * is about to be transfered. It is most likely, that BT headset will not
 	 * run voltage converter (power-on its circuit board) until the transport
 	 * is acquired - in order to extend battery life. */
-	if (t->profile == BLUETOOTH_PROFILE_A2DP_SOURCE)
+	if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		if (t->acquire(t) == -1) {
 			status.code = BA_STATUS_CODE_ERROR_UNKNOWN;
 			goto fail;
@@ -564,17 +552,14 @@ static void *ctl_thread(void *arg) {
 					g_hash_table_iter_init(&iter_d, config.devices);
 					while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
 						g_hash_table_iter_init(&iter_t, d->transports);
-						while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t))
-							switch (t->type) {
-							case TRANSPORT_TYPE_RFCOMM:
-								continue;
-							case TRANSPORT_TYPE_A2DP:
+						while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
+							if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 								if (t->a2dp.pcm.client == fd) {
 									transport_release_pcm(&t->a2dp.pcm);
 									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 								}
-								continue;
-							case TRANSPORT_TYPE_SCO:
+							}
+							if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 								if (t->sco.spk_pcm.client == fd) {
 									transport_release_pcm(&t->sco.spk_pcm);
 									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
@@ -584,6 +569,7 @@ static void *ctl_thread(void *arg) {
 									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 								}
 							}
+						}
 					}
 
 					bluealsa_devpool_mutex_unlock();
