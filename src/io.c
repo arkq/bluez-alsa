@@ -1770,6 +1770,8 @@ retry_sco_write:
 			if ((samples = io_thread_read_pcm(&t->sco.spk_pcm, buffer, samples)) <= 0) {
 				if (samples == -1 && errno != EAGAIN)
 					error("PCM read error: %s", strerror(errno));
+				if (samples == 0)
+					transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 				continue;
 			}
 
@@ -1786,6 +1788,7 @@ retry_sco_write:
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
 			debug("PCM poll error status: %#x", pfds[3].revents);
 			transport_release_pcm(&t->sco.spk_pcm);
+			transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 		}
 
 		if (pfds[4].revents & POLLOUT) {
@@ -1804,8 +1807,12 @@ retry_sco_write:
 			if (t->sco.mic_muted)
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
-			if (io_thread_write_pcm(&t->sco.mic_pcm, buffer, samples) == -1)
-				error("FIFO write error: %s", strerror(errno));
+			if ((samples = io_thread_write_pcm(&t->sco.mic_pcm, buffer, samples)) <= 0) {
+				if (samples == -1)
+					error("FIFO write error: %s", strerror(errno));
+				if (samples == 0)
+					transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+			}
 
 			switch (t->type.codec) {
 			case HFP_CODEC_CVSD:
