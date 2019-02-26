@@ -18,8 +18,8 @@
 # include <ldacBT.h>
 #endif
 
+#include "ba-device.h"
 #include "hfp.h"
-#include "transport.h"
 
 
 /* Initialize global configuration variable. */
@@ -81,7 +81,7 @@ int bluealsa_config_init(void) {
 
 	pthread_mutex_init(&config.devices_mutex, NULL);
 	config.devices = g_hash_table_new_full(g_str_hash, g_str_equal,
-			g_free, (GDestroyNotify)device_free);
+			g_free, (GDestroyNotify)ba_device_free);
 
 	config.dbus_objects = g_hash_table_new_full(g_direct_hash, g_direct_equal,
 			NULL, g_free);

@@ -41,8 +41,8 @@
 
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
+#include "ba-transport.h"
 #include "bluealsa.h"
-#include "transport.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"

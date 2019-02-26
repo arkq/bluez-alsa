@@ -29,13 +29,13 @@
 # include <ldacBT.h>
 #endif
 
+#include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluez.h"
 #include "ctl.h"
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
-#include "transport.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"

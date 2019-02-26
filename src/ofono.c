@@ -23,10 +23,10 @@
 
 #include <gio/gunixfdlist.h>
 
+#include "ba-transport.h"
 #include "bluealsa.h"
 #include "ctl.h"
 #include "ofono-iface.h"
-#include "transport.h"
 #include "shared/log.h"
 
 #define OFONO_FAKE_DEV_ID 0xffff
@@ -64,9 +64,9 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	GError *err = NULL;
 	int ret = 0;
 
-	debug("Requesting new oFono SCO connection: %s", t->device->name);
+	debug("Requesting new oFono SCO connection: %s", t->d->name);
 
-	msg = g_dbus_message_new_method_call(OFONO_SERVICE, t->device->name,
+	msg = g_dbus_message_new_method_call(OFONO_SERVICE, t->d->name,
 			OFONO_IFACE_HF_AUDIO_CARD, "Connect");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -116,7 +116,7 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	t->bt_fd = -1;
 	t->type.codec = HFP_CODEC_UNDEFINED;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 
 	return 0;
@@ -193,7 +193,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	char name[sizeof(d->name)];
 	ba2str(&addr, name);
 
-	if ((d = device_new(OFONO_FAKE_DEV_ID, &addr, name)) == NULL) {
+	if ((d = ba_device_new(OFONO_FAKE_DEV_ID, &addr, name)) == NULL) {
 		error("Couldn't create device: %s", strerror(errno));
 		goto fail;
 	}
@@ -328,7 +328,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	t->mtu_read = 48;
 	t->mtu_write = 48;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 	transport_send_signal(t, TRANSPORT_BT_OPEN);
 

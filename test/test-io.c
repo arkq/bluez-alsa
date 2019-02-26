@@ -16,11 +16,12 @@
 
 #include "inc/sine.inc"
 #include "../src/at.c"
+#include "../src/ba-device.c"
+#include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
 #include "../src/ctl.c"
 #include "../src/io.c"
 #include "../src/rfcomm.c"
-#include "../src/transport.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"

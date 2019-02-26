@@ -198,7 +198,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct b
 	for (i = 0; i < ARRAYSIZE(c->hfp_ind_map); i++) {
 		t->rfcomm.hfp_inds[c->hfp_ind_map[i]] = atoi(tmp);
 		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG)
-			device_set_battery_level(t->device, atoi(tmp) * 100 / 5);
+			ba_device_set_battery_level(t->d, atoi(tmp) * 100 / 5);
 		if ((tmp = strchr(tmp, ',')) == NULL)
 			break;
 		tmp += 1;
@@ -241,7 +241,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 			transport_send_signal(t->rfcomm.sco, TRANSPORT_BT_OPEN);
 			break;
 		case HFP_IND_BATTCHG:
-			device_set_battery_level(t->device, value * 100 / 5);
+			ba_device_set_battery_level(t->d, value * 100 / 5);
 			break;
 		default:
 			break;
@@ -316,7 +316,7 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_CAPTURE);
 	return 0;
 }
@@ -331,7 +331,7 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK);
 	return 0;
 }
@@ -376,7 +376,7 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	/* When codec selection is completed, notify connected clients, that
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - codec switching. */
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &c->t->device->addr,
+	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &c->t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 	return 0;
 }
@@ -425,7 +425,7 @@ static int rfcomm_handler_bac_set_cb(struct rfcomm_conn *c, const struct bt_at *
 static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
-	struct ba_device * const d = t->device;
+	struct ba_device * const d = t->d;
 	const int fd = t->bt_fd;
 
 	char *ptr = at->value;
@@ -436,7 +436,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct
 		switch (tmp = *strsep(&ptr, ",")) {
 		case '1':
 			if (ptr != NULL)
-				device_set_battery_level(d, atoi(strsep(&ptr, ",")) * 100 / 9);
+				ba_device_set_battery_level(d, atoi(strsep(&ptr, ",")) * 100 / 9);
 			break;
 		case '2':
 			if (ptr != NULL)
@@ -457,7 +457,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct
 static int rfcomm_handler_xapl_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
-	struct ba_device * const d = t->device;
+	struct ba_device * const d = t->d;
 	const int fd = t->bt_fd;
 
 	const char *resp = "+XAPL=BlueALSA,0";
@@ -657,7 +657,7 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+					bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
 							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 
@@ -690,7 +690,7 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+					bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
 							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 

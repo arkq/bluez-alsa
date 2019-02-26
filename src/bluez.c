@@ -18,11 +18,11 @@
 #include <gio/gunixfdlist.h>
 
 #include "a2dp-codecs.h"
+#include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
 #include "ctl.h"
-#include "transport.h"
 #include "utils.h"
 #include "shared/log.h"
 
@@ -72,7 +72,7 @@ struct ba_device *bluez_get_device(const char *path) {
 		g_variant_unref(property);
 	}
 
-	d = device_new(config.hci_dev.dev_id, &addr, name);
+	d = ba_device_new(config.hci_dev.dev_id, &addr, name);
 	bluealsa_device_insert(path, d);
 	return d;
 }
@@ -1142,7 +1142,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 			/* received volume is in range [0, 127]*/
 			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
 
-			bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->device->addr,
+			bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
 					BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 						BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
 

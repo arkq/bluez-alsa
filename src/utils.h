@@ -22,7 +22,7 @@
 #include <bluetooth/hci.h>
 #include <gio/gio.h>
 
-#include "transport.h"
+#include "ba-transport.h"
 
 int a2dp_sbc_default_bitpool(int freq, int mode);
 

@@ -26,10 +26,10 @@
 #include <glib.h>
 
 #include "a2dp-codecs.h"
+#include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluez-iface.h"
 #include "hfp.h"
-#include "transport.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -133,7 +133,7 @@ static struct ba_pcm *ctl_lookup_pcm(struct ba_transport *t, uint8_t type, int c
 static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
 		struct ba_msg_transport *transport) {
 
-	bacpy(&transport->addr, &t->device->addr);
+	bacpy(&transport->addr, &t->d->addr);
 	transport->type = BA_PCM_TYPE_NULL;
 	transport->codec = t->type.codec;
 	transport->channels = transport_get_channels(t);

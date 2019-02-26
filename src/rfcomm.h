@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rfcomm.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,8 +12,8 @@
 #define BLUEALSA_RFCOMM_H_
 
 #include "at.h"
+#include "ba-transport.h"
 #include "hfp.h"
-#include "transport.h"
 
 /* Number of retries during the SLC stage. */
 #define RFCOMM_SLC_RETRIES 10

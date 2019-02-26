@@ -1,5 +1,5 @@
 /*
- * BlueALSA - transport.h
+ * BlueALSA - ba-transport.h
  * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef BLUEALSA_TRANSPORT_H_
-#define BLUEALSA_TRANSPORT_H_
+#ifndef BLUEALSA_BATRANSPORT_H_
+#define BLUEALSA_BATRANSPORT_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -24,6 +24,7 @@
 #include <bluetooth/hci.h>
 #include <glib.h>
 
+#include "ba-device.h"
 #include "bluez.h"
 #include "hfp.h"
 
@@ -72,39 +73,6 @@ enum ba_transport_signal {
 	TRANSPORT_SEND_RFCOMM,
 };
 
-struct ba_device {
-
-	/* ID of the underlying HCI device */
-	int hci_dev_id;
-	/* address of the Bluetooth device */
-	bdaddr_t addr;
-	/* human-readable Bluetooth device name */
-	char name[HCI_MAX_NAME_LENGTH];
-
-	/* adjusted (in the range 0-100) battery level */
-	struct {
-		bool enabled;
-		uint8_t level;
-	} battery;
-
-	/* Apple's extension used with HFP profile */
-	struct {
-
-		uint16_t vendor_id;
-		uint16_t product_id;
-		uint16_t version;
-		uint8_t features;
-
-		/* determine whether headset is docked */
-		uint8_t accev_docked;
-
-	} xapl;
-
-	/* hash-map with connected transports */
-	GHashTable *transports;
-
-};
-
 struct ba_pcm {
 	/* FIFO file descriptor */
 	int fd;
@@ -114,8 +82,8 @@ struct ba_pcm {
 
 struct ba_transport {
 
-	/* backward reference to the owner */
-	struct ba_device *device;
+	/* backward reference to device */
+	struct ba_device *d;
 
 	/* Transport structure covers all transports supported by BlueALSA. However,
 	 * every transport requires specific handling - link acquisition, transport
@@ -234,11 +202,6 @@ struct ba_transport {
 	int (*release)(struct ba_transport *);
 
 };
-
-struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name);
-void device_free(struct ba_device *d);
-
-void device_set_battery_level(struct ba_device *d, uint8_t value);
 
 struct ba_transport *transport_new(
 		struct ba_device *device,

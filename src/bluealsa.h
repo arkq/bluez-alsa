@@ -24,10 +24,10 @@
 #include <glib.h>
 #include <gio/gio.h>
 
+#include "ba-transport.h"
 #include "bluez.h"
 #include "bluez-a2dp.h"
 #include "ctl.h"
-#include "transport.h"
 #include "shared/ctl-proto.h"
 
 struct ba_config {

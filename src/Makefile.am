@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2018 Arkadiusz Bokowy
+# Copyright (c) 2016-2019 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
@@ -9,6 +9,8 @@ bluealsa_SOURCES = \
 	shared/log.c \
 	shared/rt.c \
 	at.c \
+	ba-device.c \
+	ba-transport.c \
 	bluealsa.c \
 	bluez.c \
 	bluez-a2dp.c \
@@ -16,7 +18,6 @@ bluealsa_SOURCES = \
 	ctl.c \
 	io.c \
 	rfcomm.c \
-	transport.c \
 	utils.c \
 	main.c
 

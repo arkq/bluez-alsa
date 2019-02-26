@@ -1,5 +1,5 @@
 /*
- * BlueALSA - transport.c
+ * BlueALSA - ba-transport.c
  * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -8,7 +8,7 @@
  *
  */
 
-#include "transport.h"
+#include "ba-transport.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -34,7 +34,6 @@
 #include "rfcomm.h"
 #include "utils.h"
 #include "shared/log.h"
-
 
 static int io_thread_create(struct ba_transport *t) {
 
@@ -114,66 +113,6 @@ static int io_thread_create(struct ba_transport *t) {
 	return 0;
 }
 
-struct ba_device *device_new(int hci_dev_id, const bdaddr_t *addr, const char *name) {
-
-	struct ba_device *d;
-
-	if ((d = calloc(1, sizeof(*d))) == NULL)
-		return NULL;
-
-	d->hci_dev_id = hci_dev_id;
-	bacpy(&d->addr, addr);
-
-	strncpy(d->name, name, sizeof(d->name));
-	d->name[sizeof(d->name) - 1] = '\0';
-
-	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
-			NULL, (GDestroyNotify)transport_free);
-
-	return d;
-}
-
-void device_free(struct ba_device *d) {
-
-	if (d == NULL)
-		return;
-
-	/* XXX: Modification-safe remove-all loop.
-	 *
-	 * By the usage of a standard g_hash_table_remove_all() function, one
-	 * has to comply to the license warranty, which states that anything
-	 * can happen. In our case it is true to the letter - SIGSEGV is 100%
-	 * guaranteed.
-	 *
-	 * Our transport structure holds reference to some other transport
-	 * structure within the same hash-table. Unfortunately, such a usage
-	 * is not supported. Almost every GLib-2.0 function facilitates cache,
-	 * which backfires at us if we modify hash-table from the inside of
-	 * the destroy function. However, it is possible to "iterate" over
-	 * a hash-table in a pop-like matter - reinitialize iterator after
-	 * every modification. And voila - modification-safe remove loop. */
-	for (;;) {
-
-		GHashTableIter iter;
-		struct ba_transport *t;
-
-		g_hash_table_iter_init(&iter, d->transports);
-		if (!g_hash_table_iter_next(&iter, NULL, (gpointer)&t))
-			break;
-
-		transport_free(t);
-	}
-
-	g_hash_table_unref(d->transports);
-	free(d);
-}
-
-void device_set_battery_level(struct ba_device *d, uint8_t value) {
-	d->battery.enabled = true;
-	d->battery.level = value;
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_BATTERY, &d->addr, 0);
-}
-
 /**
  * Create new transport.
  *
@@ -197,7 +136,7 @@ struct ba_transport *transport_new(
 	if ((t = calloc(1, sizeof(*t))) == NULL)
 		goto fail;
 
-	t->device = device;
+	t->d = device;
 	t->type = type;
 
 	pthread_mutex_init(&t->mutex, NULL);
@@ -347,7 +286,7 @@ void transport_free(struct ba_transport *t) {
 		return;
 
 	t->state = TRANSPORT_LIMBO;
-	debug("Freeing transport: %s:", ba_transport_type_to_string(t->type));
+	debug("Freeing transport: %s", ba_transport_type_to_string(t->type));
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
@@ -382,8 +321,8 @@ void transport_free(struct ba_transport *t) {
 		free(t->a2dp.cconfig);
 		break;
 	case BA_TRANSPORT_PROFILE_RFCOMM:
-		memset(&t->device->battery, 0, sizeof(t->device->battery));
-		memset(&t->device->xapl, 0, sizeof(t->device->xapl));
+		memset(&t->d->battery, 0, sizeof(t->d->battery));
+		memset(&t->d->xapl, 0, sizeof(t->d->xapl));
 		transport_free(t->rfcomm.sco);
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
@@ -403,10 +342,10 @@ void transport_free(struct ba_transport *t) {
 	/* If the free action was called on the behalf of the destroy notification,
 	 * removing a value from the hash-table shouldn't hurt - it would have been
 	 * removed anyway. */
-	g_hash_table_steal(t->device->transports, t->dbus_path);
+	g_hash_table_steal(t->d->transports, t->dbus_path);
 
 	if (pcm_type != BA_PCM_TYPE_NULL)
-		bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_REMOVED, &t->device->addr, pcm_type);
+		bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_REMOVED, &t->d->addr, pcm_type);
 
 	free(t->dbus_owner);
 	free(t->dbus_path);
@@ -880,12 +819,12 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		return t->bt_fd;
 
-	if (hci_devinfo(t->device->hci_dev_id, &di) == -1) {
+	if (hci_devinfo(t->d->hci_dev_id, &di) == -1) {
 		error("Couldn't get HCI device info: %s", strerror(errno));
 		return -1;
 	}
 
-	if ((t->bt_fd = hci_open_sco(&di, &t->device->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
+	if ((t->bt_fd = hci_open_sco(&di, &t->d->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
 		error("Couldn't open SCO link: %s", strerror(errno));
 		return -1;
 	}
@@ -978,7 +917,7 @@ void transport_pthread_cleanup(struct ba_transport *t) {
 
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the IO/RFCOMM thread. */
-	debug("Exiting IO thread");
+	debug("Exiting IO thread: %s", ba_transport_type_to_string(t->type));
 }
 
 int transport_pthread_cleanup_lock(struct ba_transport *t) {

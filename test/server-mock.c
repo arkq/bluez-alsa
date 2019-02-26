@@ -26,13 +26,14 @@
 
 #include "../src/bluealsa.c"
 #include "../src/at.c"
+#include "../src/ba-device.c"
+#include "../src/ba-transport.c"
 #include "../src/ctl.c"
 #include "../src/io.h"
 #define io_thread_a2dp_sink_sbc _io_thread_a2dp_sink_sbc
 #include "../src/io.c"
 #undef io_thread_a2dp_sink_sbc
 #include "../src/rfcomm.c"
-#include "../src/transport.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
@@ -230,11 +231,11 @@ int main(int argc, char *argv[]) {
 	 * This test will ensure, that it is possible to launch mixer plug-in. */
 
 	str2ba("12:34:56:78:9A:BC", &addr);
-	assert((d1 = device_new(1, &addr, "Test Device With Long Name")) != NULL);
+	assert((d1 = ba_device_new(1, &addr, "Test Device With Long Name")) != NULL);
 	bluealsa_device_insert("/device/1", d1);
 
 	str2ba("12:34:56:9A:BC:DE", &addr);
-	assert((d2 = device_new(1, &addr, "Test Device With Long Name")) != NULL);
+	assert((d2 = ba_device_new(1, &addr, "Test Device With Long Name")) != NULL);
 	bluealsa_device_insert("/device/2", d2);
 
 	if (source) {
@@ -268,7 +269,7 @@ int main(int argc, char *argv[]) {
 		assert((t = test_transport_new_sco(d2, ttype, ":test", "/sco/2")) != NULL);
 		if (fuzzing) {
 			t->type.codec = HFP_CODEC_CVSD;
-			bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->device->addr,
+			bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
 					BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 		}
 	}
