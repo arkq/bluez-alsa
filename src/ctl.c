@@ -673,23 +673,28 @@ struct ba_ctl *bluealsa_ctl_init(const char *hci) {
 		goto fail;
 	}
 
-	if ((pfd.fd = socket(PF_UNIX, SOCK_SEQPACKET, 0)) == -1) {
-		error("Couldn't create controller socket: %s", strerror(errno));
-		goto fail;
+	char *listen_fds = getenv("LISTEN_FDS");
+	if (listen_fds && atoi(listen_fds) > 0) {
+		pfd.fd = 3;
+	} else {
+		if ((pfd.fd = socket(PF_UNIX, SOCK_SEQPACKET, 0)) == -1) {
+			error("Couldn't create controller socket: %s", strerror(errno));
+			goto fail;
+		}
+		if (bind(pfd.fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
+			error("Couldn't bind controller socket: %s", strerror(errno));
+			goto fail;
+		}
+		ctl->socket_created = true;
+		if (chmod(saddr.sun_path, 0660) == -1 ||
+				chown(saddr.sun_path, -1, config.gid_audio) == -1)
+			warn("Couldn't set permission for controller socket: %s", strerror(errno));
+		if (listen(pfd.fd, 2) == -1) {
+			error("Couldn't listen on controller socket: %s", strerror(errno));
+			goto fail;
+		}
 	}
 	g_array_append_val(ctl->pfds, pfd);
-	if (bind(pfd.fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
-		error("Couldn't bind controller socket: %s", strerror(errno));
-		goto fail;
-	}
-	ctl->socket_created = true;
-	if (chmod(saddr.sun_path, 0660) == -1 ||
-			chown(saddr.sun_path, -1, config.gid_audio) == -1)
-		warn("Couldn't set permission for controller socket: %s", strerror(errno));
-	if (listen(pfd.fd, 2) == -1) {
-		error("Couldn't listen on controller socket: %s", strerror(errno));
-		goto fail;
-	}
 
 	if (pipe(ctl->evt) == -1) {
 		error("Couldn't create controller event PIPE: %s", strerror(errno));
