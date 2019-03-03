@@ -339,7 +339,9 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 			rtp_payload_len -= len;
 
 			const size_t samples = decoded / sizeof(int16_t);
-			io_thread_scale_pcm(t, pcm.data, samples, channels);
+			if (!config.a2dp.volume)
+				io_thread_scale_pcm(t, pcm.data, samples, channels);
+
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
@@ -760,7 +762,8 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t samples = aacinf->frameSize * aacinf->numChannels;
-			io_thread_scale_pcm(t, pcm.data, samples, channels);
+			if (!config.a2dp.volume)
+				io_thread_scale_pcm(t, pcm.data, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 			ffb_rewind(&latm);
