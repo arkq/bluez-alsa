@@ -21,6 +21,9 @@
 #include <errno.h>
 #include <poll.h>
 
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
 #include <gio/gunixfdlist.h>
 
 #include "ba-transport.h"
@@ -29,8 +32,15 @@
 #include "ofono-iface.h"
 #include "shared/log.h"
 
-#define OFONO_FAKE_DEV_ID 0xffff
+/**
+ * Lookup data associated with oFono card. */
+struct ofono_card_data {
+	int hci_dev_id;
+	bdaddr_t bt_addr;
+	char transport_path[32];
+};
 
+static GHashTable *ofono_card_data_map = NULL;
 static unsigned int dbus_agent_object_id = 0;
 
 /**
@@ -154,13 +164,15 @@ static struct ba_transport *ofono_transport_new(
 static void ofono_card_add(const char *dbus_sender, const char *card,
 		GVariantIter *properties) {
 
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
+
 	const char *key = NULL;
 	GVariant *value = NULL;
-	gchar *path = g_strdup_printf("/ofono%s", card);
-	bool devpool_mutex_locked = false;
-	struct ba_transport *t;
-	struct ba_device *d;
-	bdaddr_t addr;
+	bdaddr_t addr_dev = { 0 };
+	bdaddr_t addr_hci = { 0 };
+	int hci_dev_id = -1;
 
 	struct ba_transport_type ttype = {
 		.profile = BA_TRANSPORT_PROFILE_HFP_HF,
@@ -169,7 +181,11 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
 		if (strcmp(key, "RemoteAddress") == 0)
-			str2ba(g_variant_get_string(value, NULL), &addr);
+			str2ba(g_variant_get_string(value, NULL), &addr_dev);
+		else if (strcmp(key, "LocalAddress") == 0) {
+			str2ba(g_variant_get_string(value, NULL), &addr_hci);
+			hci_dev_id = hci_get_route(&addr_hci);
+		}
 		else if (strcmp(key, "Type") == 0) {
 			const char *type = g_variant_get_string(value, NULL);
 			if (strcmp(type, OFONO_AUDIO_CARD_TYPE_AG) == 0)
@@ -187,32 +203,44 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	debug("Adding new oFono card: %s", card);
 
-	bluealsa_devpool_mutex_lock();
-	devpool_mutex_locked = true;
-
-	char name[sizeof(d->name)];
-	ba2str(&addr, name);
-
-	if ((d = ba_device_new(OFONO_FAKE_DEV_ID, &addr, name)) == NULL) {
-		error("Couldn't create device: %s", strerror(errno));
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL &&
+			(a = ba_adapter_new(hci_dev_id, NULL)) == NULL) {
+		error("Couldn't create new adapter: %s", strerror(errno));
 		goto fail;
 	}
 
-	bluealsa_device_insert(card, d);
+	pthread_mutex_lock(&a->devices_mutex);
 
-	if ((t = ofono_transport_new(d, ttype, dbus_sender, path)) == NULL) {
+	char name[sizeof(d->name)];
+	ba2str(&addr_dev, name);
+
+	if ((d = ba_device_lookup(a, &addr_dev)) == NULL &&
+			(d = ba_device_new(a, &addr_dev, name)) == NULL) {
+		error("Couldn't create new device: %s", strerror(errno));
+		goto fail;
+	}
+
+	struct ofono_card_data ocd = {
+		.hci_dev_id = hci_dev_id,
+		.bt_addr = addr_dev,
+	};
+
+	snprintf(ocd.transport_path, sizeof(ocd.transport_path), "/ofono%s", card);
+	if ((t = ofono_transport_new(d, ttype, dbus_sender, ocd.transport_path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
+	g_hash_table_insert(ofono_card_data_map, g_strdup(card),
+			g_memdup(&ocd, sizeof(ocd)));
+
 	transport_set_state(t, TRANSPORT_ACTIVE);
 
 fail:
-	if (devpool_mutex_locked)
-		bluealsa_devpool_mutex_unlock();
+	if (a != NULL)
+		pthread_mutex_unlock(&a->devices_mutex);
 	if (value != NULL)
 		g_variant_unref(value);
-	g_free(path);
 }
 
 /**
@@ -270,18 +298,30 @@ final:
 static void ofono_remove_all_cards(void) {
 
 	GHashTableIter iter;
-	struct ba_device *d;
+	struct ofono_card_data *ocd;
 
-	bluealsa_devpool_mutex_lock();
+	g_hash_table_iter_init(&iter, ofono_card_data_map);
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&ocd)) {
 
-	g_hash_table_iter_init(&iter, config.devices);
-	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
-		if (d->hci_dev_id != OFONO_FAKE_DEV_ID)
-			continue;
-		g_hash_table_iter_remove(&iter);
+		struct ba_adapter *a;
+		struct ba_device *d;
+		struct ba_transport *t;
+
+		if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
+			goto fail;
+		pthread_mutex_lock(&a->devices_mutex);
+		if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
+			goto fail;
+		if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
+			goto fail;
+
+		ba_transport_free(t);
+
+fail:
+		if (a != NULL)
+			pthread_mutex_unlock(&a->devices_mutex);
 	}
 
-	bluealsa_devpool_mutex_unlock();
 }
 
 static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdata) {
@@ -289,10 +329,12 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	bool devpool_mutex_locked = false;
-	struct ba_transport *t;
+
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
+
 	GError *err = NULL;
-	gchar *path = NULL;
 	GUnixFDList *fd_list;
 	const char *card;
 	uint8_t codec;
@@ -306,14 +348,19 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 		goto fail;
 	}
 
-	bluealsa_devpool_mutex_lock();
-	devpool_mutex_locked = true;
-
-	path = g_strdup_printf("/ofono%s", card);
-	if ((t = transport_lookup(config.devices, path)) == NULL) {
-		error("Transport not available: %s", path);
+	struct ofono_card_data *ocd;
+	if ((ocd = g_hash_table_lookup(ofono_card_data_map, card)) == NULL) {
+		error("Card data not available: %s", card);
 		goto fail;
 	}
+
+	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
+		goto fail;
+	pthread_mutex_lock(&a->devices_mutex);
+	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
+		goto fail;
+	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
+		goto fail;
 
 	if (ofono_sco_socket_authorize(fd) == -1) {
 		error("Couldn't authorize SCO connection: %s", strerror(errno));
@@ -338,12 +385,12 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 fail:
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 		G_DBUS_ERROR_INVALID_ARGS, "Unable to get connection");
+	if (fd != -1)
+		close(fd);
 
 final:
-	if (devpool_mutex_locked)
-		bluealsa_devpool_mutex_unlock();
-	if (path != NULL)
-		g_free(path);
+	if (a != NULL)
+		pthread_mutex_unlock(&a->devices_mutex);
 	if (err != NULL)
 		g_error_free(err);
 }
@@ -400,7 +447,10 @@ int ofono_register(void) {
 	if (!config.enable.hfp_ofono)
 		goto final;
 
-	debug("Registering oFono audio agent");
+	if (ofono_card_data_map == NULL)
+		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+
+	debug("Registering oFono audio agent: %s", path);
 	if ((dbus_agent_object_id = g_dbus_connection_register_object(conn, path,
 					(GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent, &ofono_vtable,
 					NULL, NULL, &err)) == 0)
@@ -458,13 +508,13 @@ static void ofono_signal_card_added(GDBusConnection *conn, const gchar *sender,
 	(void)userdata;
 
 	const gchar *signature = g_variant_get_type_string(params);
-	const char *card = NULL;
-	GVariantIter *properties = NULL;
-
 	if (strcmp(signature, "(oa{sv})") != 0) {
 		error("Invalid signature for %s: %s != %s", signal, signature, "(oa{sv})");
 		return;
 	}
+
+	const char *card = NULL;
+	GVariantIter *properties = NULL;
 
 	g_variant_get(params, "(&oa{sv})", &card, &properties);
 	ofono_card_add(sender, card, properties);
@@ -484,21 +534,39 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const gchar *sender
 	(void)userdata;
 
 	const gchar *signature = g_variant_get_type_string(params);
-	const char *card = NULL;
-
 	if (strcmp(signature, "(o)") != 0) {
 		error("Invalid signature for %s: %s != %s", signal, signature, "(o)");
 		return;
 	}
 
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
+
+	const char *card = NULL;
 	g_variant_get(params, "(&o)", &card);
+
+	struct ofono_card_data *ocd;
+	if ((ocd = g_hash_table_lookup(ofono_card_data_map, card)) == NULL) {
+		error("Card data not available: %s", card);
+		goto fail;
+	}
+
+	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
+		goto fail;
+	pthread_mutex_lock(&a->devices_mutex);
+	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
+		goto fail;
+	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
+		goto fail;
 
 	debug("Removing oFono card: %s", card);
 
-	bluealsa_devpool_mutex_lock();
-	bluealsa_device_remove(card);
-	bluealsa_devpool_mutex_unlock();
+	ba_transport_free(t);
 
+fail:
+	if (a != NULL)
+		pthread_mutex_unlock(&a->devices_mutex);
 }
 
 /**

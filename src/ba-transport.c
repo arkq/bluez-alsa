@@ -161,7 +161,7 @@ struct ba_transport *transport_new(
 
 fail:
 	err = errno;
-	transport_free(t);
+	ba_transport_free(t);
 	errno = err;
 	return NULL;
 }
@@ -240,7 +240,7 @@ struct ba_transport *transport_new_rfcomm(
 fail:
 	if (dbus_path_sco != NULL)
 		g_free(dbus_path_sco);
-	transport_free(t);
+	ba_transport_free(t);
 	return NULL;
 }
 
@@ -280,7 +280,17 @@ struct ba_transport *transport_new_sco(
 	return t;
 }
 
-void transport_free(struct ba_transport *t) {
+struct ba_transport *ba_transport_lookup(
+		struct ba_device *device,
+		const char *dbus_path) {
+#if DEBUG
+	/* make sure that the device mutex is acquired */
+	g_assert(pthread_mutex_trylock(&device->a->devices_mutex) == EBUSY);
+#endif
+	return g_hash_table_lookup(device->transports, dbus_path);
+}
+
+void ba_transport_free(struct ba_transport *t) {
 
 	if (t == NULL || t->state == TRANSPORT_LIMBO)
 		return;
@@ -323,7 +333,7 @@ void transport_free(struct ba_transport *t) {
 	case BA_TRANSPORT_PROFILE_RFCOMM:
 		memset(&t->d->battery, 0, sizeof(t->d->battery));
 		memset(&t->d->xapl, 0, sizeof(t->d->xapl));
-		transport_free(t->rfcomm.sco);
+		ba_transport_free(t->rfcomm.sco);
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -339,9 +349,7 @@ void transport_free(struct ba_transport *t) {
 		break;
 	}
 
-	/* If the free action was called on the behalf of the destroy notification,
-	 * removing a value from the hash-table shouldn't hurt - it would have been
-	 * removed anyway. */
+	/* detach transport from the device */
 	g_hash_table_steal(t->d->transports, t->dbus_path);
 
 	if (pcm_type != BA_PCM_TYPE_NULL)
@@ -350,55 +358,6 @@ void transport_free(struct ba_transport *t) {
 	free(t->dbus_owner);
 	free(t->dbus_path);
 	free(t);
-}
-
-struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path) {
-
-#if DEBUG
-	/* make sure that the device mutex is acquired */
-	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
-#endif
-
-	GHashTableIter iter;
-	struct ba_device *d;
-	struct ba_transport *t;
-
-	g_hash_table_iter_init(&iter, devices);
-	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
-		if ((t = g_hash_table_lookup(d->transports, dbus_path)) != NULL)
-			return t;
-	}
-
-	return NULL;
-}
-
-bool transport_remove(GHashTable *devices, const char *dbus_path) {
-
-#if DEBUG
-	/* make sure that the device mutex is acquired */
-	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
-#endif
-
-	GHashTableIter iter;
-	struct ba_device *d;
-	struct ba_transport *t;
-
-	g_hash_table_iter_init(&iter, devices);
-	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
-		/* Disassociate D-Bus owner before further actions. This will ensure,
-		 * that we will not generate errors by using non-existent interface. */
-		if ((t = g_hash_table_lookup(d->transports, dbus_path)) != NULL) {
-			free(t->dbus_owner);
-			t->dbus_owner = NULL;
-		}
-		if (g_hash_table_remove(d->transports, dbus_path)) {
-			if (g_hash_table_size(d->transports) == 0)
-				g_hash_table_iter_remove(&iter);
-			return true;
-		}
-	}
-
-	return false;
 }
 
 int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig) {
@@ -807,7 +766,7 @@ static int transport_release_bt_rfcomm(struct ba_transport *t) {
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
 	 * link has been lost (e.g. device power down). However, it is required to
 	 * remove transport from the transport pool before reconnecting. */
-	transport_free(t);
+	ba_transport_free(t);
 
 	return 0;
 }
@@ -819,7 +778,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		return t->bt_fd;
 
-	if (hci_devinfo(t->d->hci_dev_id, &di) == -1) {
+	if (hci_devinfo(t->d->a->hci_dev_id, &di) == -1) {
 		error("Couldn't get HCI device info: %s", strerror(errno));
 		return -1;
 	}

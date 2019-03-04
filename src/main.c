@@ -29,7 +29,7 @@
 # include <ldacBT.h>
 #endif
 
-#include "ba-transport.h"
+#include "ba-adapter.h"
 #include "bluealsa.h"
 #include "bluez.h"
 #include "ctl.h"
@@ -311,7 +311,8 @@ int main(int argc, char **argv) {
 	/* initialize random number generator */
 	srandom(time(NULL));
 
-	if ((config.ctl = bluealsa_ctl_init(config.hci_dev.name)) == NULL)
+	struct ba_adapter *a = ba_adapter_new(config.hci_dev.dev_id, NULL);
+	if ((config.ctl = bluealsa_ctl_init(a)) == NULL)
 		return EXIT_FAILURE;
 
 	gchar *address;

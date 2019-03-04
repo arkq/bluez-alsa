@@ -26,6 +26,7 @@
 
 #include "../src/bluealsa.c"
 #include "../src/at.c"
+#include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/ctl.c"
@@ -203,11 +204,11 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
-	/* emulate dummy test HCI device */
-	strncpy(config.hci_dev.name, device, sizeof(config.hci_dev.name) - 1);
-
 	assert(bluealsa_config_init() == 0);
-	assert((config.ctl = bluealsa_ctl_init(device)) != NULL);
+
+	/* emulate dummy test HCI device */
+	struct ba_adapter *a = ba_adapter_new(0, device);
+	assert((config.ctl = bluealsa_ctl_init(a)) != NULL);
 
 	/* make sure to cleanup named pipes */
 	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
@@ -231,12 +232,10 @@ int main(int argc, char *argv[]) {
 	 * This test will ensure, that it is possible to launch mixer plug-in. */
 
 	str2ba("12:34:56:78:9A:BC", &addr);
-	assert((d1 = ba_device_new(1, &addr, "Test Device With Long Name")) != NULL);
-	bluealsa_device_insert("/device/1", d1);
+	assert((d1 = ba_device_new(a, &addr, "Test Device With Long Name")) != NULL);
 
 	str2ba("12:34:56:9A:BC:DE", &addr);
-	assert((d2 = ba_device_new(1, &addr, "Test Device With Long Name")) != NULL);
-	bluealsa_device_insert("/device/2", d2);
+	assert((d2 = ba_device_new(a, &addr, "Test Device With Long Name")) != NULL);
 
 	if (source) {
 		struct ba_transport_type ttype = {
@@ -278,9 +277,9 @@ int main(int argc, char *argv[]) {
 		timeout = sleep(timeout);
 
 	if (fuzzing) {
-		bluealsa_device_remove("/device/1");
+		ba_device_free(d1);
 		sleep(1);
-		bluealsa_device_remove("/device/2");
+		ba_device_free(d2);
 		sleep(1);
 	}
 

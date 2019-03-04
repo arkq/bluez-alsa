@@ -139,6 +139,18 @@ fail:
 }
 
 /**
+ * Extract HCI device ID from the BlueZ D-Bus object path.
+ *
+ * @param path BlueZ D-Bus object path.
+ * @return On success this function returns ID of the HCI device.
+ *   Otherwise, -1 is returned. */
+int g_dbus_bluez_object_path_to_hci_dev_id(const char *path) {
+	if ((path = strstr(path, "/hci")) == NULL || path[3] == '\0')
+		return -1;
+	return atoi(&path[3]);
+}
+
+/**
  * Extract BT address from the BlueZ D-Bus object path.
  *
  * @param path BlueZ D-Bus object path.

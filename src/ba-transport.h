@@ -225,10 +225,12 @@ struct ba_transport *transport_new_sco(
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path);
-void transport_free(struct ba_transport *t);
 
-struct ba_transport *transport_lookup(GHashTable *devices, const char *dbus_path);
-bool transport_remove(GHashTable *devices, const char *dbus_path);
+struct ba_transport *ba_transport_lookup(
+		struct ba_device *device,
+		const char *dbus_path);
+
+void ba_transport_free(struct ba_transport *t);
 
 int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
 int transport_send_rfcomm(struct ba_transport *t, const char command[32]);

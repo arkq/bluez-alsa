@@ -9,6 +9,7 @@ bluealsa_SOURCES = \
 	shared/log.c \
 	shared/rt.c \
 	at.c \
+	ba-adapter.c \
 	ba-device.c \
 	ba-transport.c \
 	bluealsa.c \

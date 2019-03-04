@@ -52,26 +52,26 @@
  * by the devices hash-table. If the devices hash-table is modified in some
  * other thread, it may result in an undefined behavior.
  *
- * @param devices Address of the hash-table with connected devices.
+ * @param a Address of the adapter structure with connected devices.
  * @param addr Address to the structure with the looked up BT address.
  * @param type Looked up PCM type with stream mask.
  * @param t Address, where the transport structure pointer should be stored.
  * @return If the lookup succeeded, this function returns 0. Otherwise, -1 or
  *   -2 is returned respectively for not found device and not found stream.
  *   Upon error value of the transport pointer is undefined. */
-static int ctl_lookup_transport(GHashTable *devices, const bdaddr_t *addr,
+static int ctl_lookup_transport(struct ba_adapter *a, const bdaddr_t *addr,
 		uint8_t type, struct ba_transport **t) {
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
-	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
+	g_assert(pthread_mutex_trylock(&a->devices_mutex) == EBUSY);
 #endif
 
 	bool device_found = false;
 	GHashTableIter iter_d, iter_t;
 	struct ba_device *d;
 
-	for (g_hash_table_iter_init(&iter_d, devices);
+	for (g_hash_table_iter_init(&iter_d, a->devices);
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); ) {
 
 		if (bacmp(&d->addr, addr) != 0)
@@ -182,7 +182,6 @@ static void ctl_thread_cmd_subscribe(struct ba_ctl *ctl, struct ba_request *req,
 }
 
 static void ctl_thread_cmd_list_devices(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-	(void)ctl;
 	(void)req;
 
 	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
@@ -190,9 +189,9 @@ static void ctl_thread_cmd_list_devices(struct ba_ctl *ctl, struct ba_request *r
 	GHashTableIter iter_d;
 	struct ba_device *d;
 
-	bluealsa_devpool_mutex_lock();
+	pthread_mutex_lock(&ctl->a->devices_mutex);
 
-	for (g_hash_table_iter_init(&iter_d, config.devices);
+	for (g_hash_table_iter_init(&iter_d, ctl->a->devices);
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); ) {
 
 		bacpy(&device.addr, &d->addr);
@@ -205,12 +204,11 @@ static void ctl_thread_cmd_list_devices(struct ba_ctl *ctl, struct ba_request *r
 		send(fd, &device, sizeof(device), MSG_NOSIGNAL);
 	}
 
-	bluealsa_devpool_mutex_unlock();
+	pthread_mutex_unlock(&ctl->a->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void ctl_thread_cmd_list_transports(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-	(void)ctl;
 	(void)req;
 
 	static const struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
@@ -219,9 +217,9 @@ static void ctl_thread_cmd_list_transports(struct ba_ctl *ctl, struct ba_request
 	struct ba_device *d;
 	struct ba_transport *t;
 
-	bluealsa_devpool_mutex_lock();
+	pthread_mutex_lock(&ctl->a->devices_mutex);
 
-	for (g_hash_table_iter_init(&iter_d, config.devices);
+	for (g_hash_table_iter_init(&iter_d, ctl->a->devices);
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); )
 		for (g_hash_table_iter_init(&iter_t, d->transports);
 				g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t); ) {
@@ -229,20 +227,19 @@ static void ctl_thread_cmd_list_transports(struct ba_ctl *ctl, struct ba_request
 			send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 		}
 
-	bluealsa_devpool_mutex_unlock();
+	pthread_mutex_unlock(&ctl->a->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void ctl_thread_cmd_transport_get(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_msg_transport transport;
 	struct ba_transport *t;
 
-	bluealsa_devpool_mutex_lock();
+	pthread_mutex_lock(&ctl->a->devices_mutex);
 
-	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(ctl->a, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -255,19 +252,18 @@ static void ctl_thread_cmd_transport_get(struct ba_ctl *ctl, struct ba_request *
 	send(fd, &transport, sizeof(transport), MSG_NOSIGNAL);
 
 fail:
-	bluealsa_devpool_mutex_unlock();
+	pthread_mutex_unlock(&ctl->a->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void ctl_thread_cmd_transport_set_volume(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 
-	bluealsa_devpool_mutex_lock();
+	pthread_mutex_lock(&ctl->a->devices_mutex);
 
-	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(ctl->a, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -314,12 +310,11 @@ static void ctl_thread_cmd_transport_set_volume(struct ba_ctl *ctl, struct ba_re
 	bluealsa_ctl_send_event(ctl, BA_EVENT_VOLUME_CHANGED, &req->addr, req->type);
 
 fail:
-	bluealsa_devpool_mutex_unlock();
+	pthread_mutex_unlock(&ctl->a->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void ctl_thread_cmd_pcm_open(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
@@ -328,9 +323,9 @@ static void ctl_thread_cmd_pcm_open(struct ba_ctl *ctl, struct ba_request *req, 
 
 	debug("PCM requested for %s type %#x", batostr_(&req->addr), req->type);
 
-	bluealsa_devpool_mutex_lock();
+	pthread_mutex_lock(&ctl->a->devices_mutex);
 
-	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(ctl->a, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail_lookup;
@@ -422,20 +417,19 @@ fail:
 final:
 	pthread_mutex_unlock(&t->mutex);
 fail_lookup:
-	bluealsa_devpool_mutex_unlock();
+	pthread_mutex_unlock(&ctl->a->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void ctl_thread_cmd_pcm_control(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 	struct ba_pcm *t_pcm;
 
-	bluealsa_devpool_mutex_lock();
+	pthread_mutex_lock(&ctl->a->devices_mutex);
 
-	switch (ctl_lookup_transport(config.devices, &req->addr, req->type, &t)) {
+	switch (ctl_lookup_transport(ctl->a, &req->addr, req->type, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -468,19 +462,18 @@ static void ctl_thread_cmd_pcm_control(struct ba_ctl *ctl, struct ba_request *re
 	}
 
 fail:
-	bluealsa_devpool_mutex_unlock();
+	pthread_mutex_unlock(&ctl->a->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
 static void ctl_thread_cmd_rfcomm_send(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-	(void)ctl;
 
 	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
 	struct ba_transport *t;
 
-	bluealsa_devpool_mutex_lock();
+	pthread_mutex_lock(&ctl->a->devices_mutex);
 
-	switch (ctl_lookup_transport(config.devices, &req->addr, BA_PCM_TYPE_RFCOMM, &t)) {
+	switch (ctl_lookup_transport(ctl->a, &req->addr, BA_PCM_TYPE_RFCOMM, &t)) {
 	case -1:
 		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
 		goto fail;
@@ -492,7 +485,7 @@ static void ctl_thread_cmd_rfcomm_send(struct ba_ctl *ctl, struct ba_request *re
 	transport_send_rfcomm(t, req->rfcomm_command);
 
 fail:
-	bluealsa_devpool_mutex_unlock();
+	pthread_mutex_unlock(&ctl->a->devices_mutex);
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
@@ -514,7 +507,7 @@ static void *ctl_thread(void *arg) {
 		[BA_COMMAND_RFCOMM_SEND] = ctl_thread_cmd_rfcomm_send,
 	};
 
-	debug("Starting controller loop: %s", ctl->hci);
+	debug("Starting controller loop: %s", ctl->a->hci_name);
 	for (;;) {
 
 		if (poll((struct pollfd *)ctl->pfds->data, ctl->pfds->len, -1) == -1) {
@@ -546,10 +539,10 @@ static void *ctl_thread(void *arg) {
 					struct ba_device *d;
 					struct ba_transport *t;
 
-					bluealsa_devpool_mutex_lock();
+					pthread_mutex_lock(&ctl->a->devices_mutex);
 
 					/* release PCMs associated with disconnected client */
-					g_hash_table_iter_init(&iter_d, config.devices);
+					g_hash_table_iter_init(&iter_d, ctl->a->devices);
 					while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
 						g_hash_table_iter_init(&iter_t, d->transports);
 						while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
@@ -572,7 +565,7 @@ static void *ctl_thread(void *arg) {
 						}
 					}
 
-					bluealsa_devpool_mutex_unlock();
+					pthread_mutex_unlock(&ctl->a->devices_mutex);
 
 					g_array_remove_index_fast(ctl->pfds, i);
 					g_array_remove_index_fast(ctl->subs, i - __CTL_PFDS_IDX_MAX);
@@ -636,11 +629,11 @@ static void *ctl_thread(void *arg) {
 		debug("+-+-");
 	}
 
-	debug("Exiting controller: %s", ctl->hci);
+	debug("Exiting controller: %s", ctl->a->hci_name);
 	return NULL;
 }
 
-struct ba_ctl *bluealsa_ctl_init(const char *hci) {
+struct ba_ctl *bluealsa_ctl_init(struct ba_adapter *adapter) {
 
 	struct pollfd pfd = { .events = POLLIN };
 	struct ba_ctl *ctl;
@@ -651,8 +644,7 @@ struct ba_ctl *bluealsa_ctl_init(const char *hci) {
 	ctl->socket_created = false;
 	ctl->thread_created = false;
 
-	strncpy(ctl->hci, hci, sizeof(ctl->hci));
-	ctl->hci[sizeof(ctl->hci) - 1] = '\0';
+	ctl->a = adapter;
 
 	ctl->evt[0] = -1;
 	ctl->evt[1] = -1;
@@ -666,7 +658,7 @@ struct ba_ctl *bluealsa_ctl_init(const char *hci) {
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
-			BLUEALSA_RUN_STATE_DIR "/%s", ctl->hci);
+			BLUEALSA_RUN_STATE_DIR "/%s", ctl->a->hci_name);
 
 	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST) {
 		error("Couldn't create run-state directory: %s", strerror(errno));
@@ -708,7 +700,7 @@ struct ba_ctl *bluealsa_ctl_init(const char *hci) {
 
 	/* set thread name (for easier debugging) */
 	char name[16] = "ba-ctl-";
-	pthread_setname_np(ctl->thread, strcat(name, ctl->hci));
+	pthread_setname_np(ctl->thread, strcat(name, ctl->a->hci_name));
 
 	return ctl;
 
@@ -735,7 +727,7 @@ void bluealsa_ctl_free(struct ba_ctl *ctl) {
 
 	if (ctl->socket_created) {
 		char tmp[256] = BLUEALSA_RUN_STATE_DIR "/";
-		unlink(strcat(tmp, ctl->hci));
+		unlink(strcat(tmp, ctl->a->hci_name));
 		ctl->socket_created = false;
 	}
 

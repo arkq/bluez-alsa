@@ -22,10 +22,13 @@
 #include <bluetooth/hci.h>
 #include <glib.h>
 
+#include "ba-adapter.h"
+
 struct ba_device {
 
-	/* ID of the underlying HCI device */
-	int hci_dev_id;
+	/* backward reference to adapter */
+	struct ba_adapter *a;
+
 	/* address of the Bluetooth device */
 	bdaddr_t addr;
 	/* human-readable Bluetooth device name */
@@ -56,9 +59,14 @@ struct ba_device {
 };
 
 struct ba_device *ba_device_new(
-		int hci_dev_id,
+		struct ba_adapter *adapter,
 		const bdaddr_t *addr,
 		const char *name);
+
+struct ba_device *ba_device_lookup(
+		struct ba_adapter *adapter,
+		const bdaddr_t *addr);
+
 void ba_device_free(struct ba_device *d);
 
 void ba_device_set_battery_level(struct ba_device *d, uint8_t value);

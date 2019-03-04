@@ -45,21 +45,19 @@ static int bluez_get_dbus_object_count(struct ba_transport_type ttype) {
 }
 
 /**
- * Get device associated with given D-Bus object path. */
-struct ba_device *bluez_get_device(const char *path) {
+ * Create new device using BlueZ object path. */
+struct ba_device *bluez_ba_device_new(
+		struct ba_adapter *adapter,
+		const char *path) {
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
-	g_assert(pthread_mutex_trylock(&config.devices_mutex) == EBUSY);
+	g_assert(pthread_mutex_trylock(&adapter->devices_mutex) == EBUSY);
 #endif
 
-	struct ba_device *d;
-	char name[sizeof(d->name)];
+	char name[sizeof(((struct ba_device *)0)->name)];
 	GVariant *property;
 	bdaddr_t addr;
-
-	if ((d = bluealsa_device_lookup(path)) != NULL)
-		return d;
 
 	g_dbus_bluez_object_path_to_bdaddr(path, &addr);
 	ba2str(&addr, name);
@@ -72,9 +70,7 @@ struct ba_device *bluez_get_device(const char *path) {
 		g_variant_unref(property);
 	}
 
-	d = ba_device_new(config.hci_dev.dev_id, &addr, name);
-	bluealsa_device_insert(path, d);
-	return d;
+	return ba_device_new(adapter, &addr, name);
 }
 
 /**
@@ -174,7 +170,7 @@ static int bluez_a2dp_set_transport_state(
 
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
-	const char *path = g_dbus_method_invocation_get_object_path(inv);
+	const char *endpoint_path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	const struct bluez_a2dp_codec *codec = userdata;
 
@@ -348,7 +344,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 #endif
 
 	default:
-		debug("Endpoint path not supported: %s", path);
+		debug("Endpoint path not supported: %s", endpoint_path);
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_UNKNOWN_OBJECT, "Not supported");
 		goto final;
@@ -377,14 +373,14 @@ final:
 static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
-	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
+	const gchar *endpoint_path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	const struct bluez_a2dp_codec *codec = userdata;
-	bool devpool_mutex_locked = false;
-	struct ba_transport *t;
-	struct ba_device *d;
-
 	const uint16_t codec_id = codec->id;
+
+	struct ba_adapter *a = NULL;
+	struct ba_transport *t = NULL;
+	struct ba_device *d = NULL;
 
 	char *device = NULL, *state = NULL;
 	uint8_t *configuration = NULL;
@@ -393,12 +389,12 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	size_t size = 0;
 	int ret = 0;
 
-	const char *transport;
+	const char *transport_path;
 	GVariantIter *properties;
 	GVariant *value = NULL;
 	const char *key;
 
-	g_variant_get(params, "(&oa{sv})", &transport, &properties);
+	g_variant_get(params, "(&oa{sv})", &transport_path, &properties);
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
 
 		if (strcmp(key, "Device") == 0) {
@@ -578,23 +574,31 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 		value = NULL;
 	}
 
+	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(transport_path);
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL &&
+			(a = ba_adapter_new(hci_dev_id, NULL)) == NULL) {
+		error("Couldn't create new adapter: %s", strerror(errno));
+		goto fail;
+	}
+
 	/* we are going to modify the devices hash-map */
-	bluealsa_devpool_mutex_lock();
-	devpool_mutex_locked = true;
+	pthread_mutex_lock(&a->devices_mutex);
 
-	if (transport_lookup(config.devices, transport) != NULL) {
-		error("Transport already configured: %s", transport);
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
+	if ((d = ba_device_lookup(a, &addr)) == NULL &&
+			(d = bluez_ba_device_new(a, transport_path)) == NULL) {
+		error("Couldn't create new device: %s", transport_path);
 		goto fail;
 	}
 
-	/* get the device structure for obtained device path */
-	if ((d = bluez_get_device(device)) == NULL) {
-		error("Couldn't get device: %s", strerror(errno));
+	if (ba_transport_lookup(d, transport_path) != NULL) {
+		error("Transport already configured: %s", transport_path);
 		goto fail;
 	}
 
-	if ((t = transport_new_a2dp(d, g_dbus_bluez_object_path_to_transport_type(path),
-					sender, transport, configuration, size)) == NULL) {
+	if ((t = transport_new_a2dp(d, g_dbus_bluez_object_path_to_transport_type(endpoint_path),
+					sender, transport_path, configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -620,8 +624,8 @@ fail:
 	ret = -1;
 
 final:
-	if (devpool_mutex_locked)
-		bluealsa_devpool_mutex_unlock();
+	if (a != NULL)
+		pthread_mutex_unlock(&a->devices_mutex);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);
@@ -635,14 +639,29 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 	(void)userdata;
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	const char *transport;
 
-	g_variant_get(params, "(&o)", &transport);
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
 
-	bluealsa_devpool_mutex_lock();
-	transport_remove(config.devices, transport);
-	bluealsa_devpool_mutex_unlock();
+	const char *transport_path;
+	g_variant_get(params, "(&o)", &transport_path);
 
+	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(transport_path);
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL)
+		goto fail;
+
+	pthread_mutex_lock(&a->devices_mutex);
+
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
+	if ((d = ba_device_lookup(a, &addr)) != NULL &&
+			(t = ba_transport_lookup(d, transport_path)) != NULL)
+		ba_transport_free(t);
+
+	pthread_mutex_unlock(&a->devices_mutex);
+
+fail:
 	g_object_unref(inv);
 }
 
@@ -650,11 +669,11 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
 
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
-	const char *path = g_dbus_method_invocation_get_object_path(inv);
-	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+	const char *endpoint_path = g_dbus_method_invocation_get_object_path(inv);
+	gpointer hash = GINT_TO_POINTER(g_str_hash(endpoint_path));
 	struct ba_dbus_object *obj;
 
-	debug("Releasing endpoint: %s", path);
+	debug("Releasing endpoint: %s", endpoint_path);
 
 	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
 		g_dbus_connection_unregister_object(conn, obj->id);
@@ -720,14 +739,14 @@ static int bluez_register_a2dp_endpoint(
 
 	struct ba_transport_type ttype = {
 		.profile = profile, .codec = codec->id };
-	gchar *path = g_strdup_printf("%s/%d",
+	gchar *transport_path = g_strdup_printf("%s/%d",
 		g_dbus_transport_type_to_bluez_object_path(ttype),
 		bluez_get_dbus_object_count(ttype) + 1);
-	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+	gpointer hash = GINT_TO_POINTER(g_str_hash(transport_path));
 
 	if (g_hash_table_contains(config.dbus_objects, hash)) {
-		debug("Endpoint already registered: %s", path);
-		g_free(path);
+		debug("Endpoint already registered: %s", transport_path);
+		g_free(transport_path);
 		return 0;
 	}
 
@@ -742,8 +761,8 @@ static int bluez_register_a2dp_endpoint(
 		.ttype = ttype,
 	};
 
-	debug("Registering endpoint: %s", path);
-	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
+	debug("Registering endpoint: %s", transport_path);
+	if ((dbus_object.id = g_dbus_connection_register_object(conn, transport_path,
 					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
 					(void *)codec, endpoint_free, &err)) == 0)
 		goto fail;
@@ -766,7 +785,7 @@ static int bluez_register_a2dp_endpoint(
 	g_variant_builder_add(&properties, "{sv}", "Codec", g_variant_new_byte(codec->id));
 	g_variant_builder_add(&properties, "{sv}", "Capabilities", g_variant_builder_end(&caps));
 
-	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", path, &properties));
+	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", transport_path, &properties));
 	g_variant_builder_clear(&properties);
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -787,7 +806,7 @@ fail:
 	ret = -1;
 
 final:
-	g_free(path);
+	g_free(transport_path);
 	if (msg != NULL)
 		g_object_unref(msg);
 	if (rep != NULL)
@@ -830,19 +849,20 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
-	const gchar *path = g_dbus_method_invocation_get_object_path(inv);
+	const gchar *profile_path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	bool devpool_mutex_locked = false;
-	struct ba_transport *t;
-	struct ba_device *d;
 
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
+
+	const char *device_path;
 	GVariantIter *properties;
 	GUnixFDList *fd_list;
-	const char *device;
 	GError *err = NULL;
-	int fd;
+	int fd = -1;
 
-	g_variant_get(params, "(&oha{sv})", &device, &fd, &properties);
+	g_variant_get(params, "(&oha{sv})", &device_path, &fd, &properties);
 
 	fd_list = g_dbus_message_get_unix_fd_list(msg);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1) {
@@ -850,17 +870,26 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	/* we are going to modify the devices hash-map */
-	bluealsa_devpool_mutex_lock();
-	devpool_mutex_locked = true;
-
-	if ((d = bluez_get_device(device)) == NULL) {
-		error("Couldn't get device: %s", strerror(errno));
+	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(device_path);
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL &&
+			(a = ba_adapter_new(hci_dev_id, NULL)) == NULL) {
+		error("Couldn't create new adapter: %s", strerror(errno));
 		goto fail;
 	}
 
-	if ((t = transport_new_rfcomm(d, g_dbus_bluez_object_path_to_transport_type(path),
-					sender, device)) == NULL) {
+	/* we are going to modify the devices hash-map */
+	pthread_mutex_lock(&a->devices_mutex);
+
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
+	if ((d = ba_device_lookup(a, &addr)) == NULL &&
+			(d = bluez_ba_device_new(a, device_path)) == NULL) {
+		error("Couldn't create new device: %s", strerror(errno));
+		goto fail;
+	}
+
+	if ((t = transport_new_rfcomm(d, g_dbus_bluez_object_path_to_transport_type(profile_path),
+					sender, device_path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -880,10 +909,12 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 fail:
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 			G_DBUS_ERROR_INVALID_ARGS, "Unable to connect profile");
+	if (fd != -1)
+		close(fd);
 
 final:
-	if (devpool_mutex_locked)
-		bluealsa_devpool_mutex_unlock();
+	if (a != NULL)
+		pthread_mutex_unlock(&a->devices_mutex);
 	g_variant_iter_free(properties);
 	if (err != NULL)
 		g_error_free(err);
@@ -893,14 +924,29 @@ static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void
 	(void)userdata;
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	const char *device;
 
-	g_variant_get(params, "(&o)", &device);
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
 
-	bluealsa_devpool_mutex_lock();
-	transport_remove(config.devices, device);
-	bluealsa_devpool_mutex_unlock();
+	const char *device_path;
+	g_variant_get(params, "(&o)", &device_path);
 
+	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(device_path);
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL)
+		goto fail;
+
+	pthread_mutex_lock(&a->devices_mutex);
+
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
+	if ((d = ba_device_lookup(a, &addr)) != NULL &&
+			(t = ba_transport_lookup(d, device_path)) != NULL)
+		ba_transport_free(t);
+
+	pthread_mutex_unlock(&a->devices_mutex);
+
+fail:
 	g_object_unref(inv);
 }
 
@@ -908,11 +954,11 @@ static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
 
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
-	const char *path = g_dbus_method_invocation_get_object_path(inv);
-	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+	const char *profile_path = g_dbus_method_invocation_get_object_path(inv);
+	gpointer hash = GINT_TO_POINTER(g_str_hash(profile_path));
 	struct ba_dbus_object *obj;
 
-	debug("Releasing profile: %s", path);
+	debug("Releasing profile: %s", profile_path);
 
 	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
 		g_dbus_connection_unregister_object(conn, obj->id);
@@ -963,11 +1009,11 @@ static int bluez_register_profile(
 		uint16_t features) {
 
 	const struct ba_transport_type ttype = { .profile = profile };
-	const char *path = g_dbus_transport_type_to_bluez_object_path(ttype);
-	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
+	const char *profile_path = g_dbus_transport_type_to_bluez_object_path(ttype);
+	gpointer hash = GINT_TO_POINTER(g_str_hash(profile_path));
 
 	if (g_hash_table_contains(config.dbus_objects, hash)) {
-		debug("Profile already registered: %s", path);
+		debug("Profile already registered: %s", profile_path);
 		return 0;
 	}
 
@@ -980,8 +1026,8 @@ static int bluez_register_profile(
 		.ttype = ttype,
 	};
 
-	debug("Registering profile: %s", path);
-	if ((dbus_object.id = g_dbus_connection_register_object(conn, path,
+	debug("Registering profile: %s", profile_path);
+	if ((dbus_object.id = g_dbus_connection_register_object(conn, profile_path,
 					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
 					NULL, NULL, &err)) == 0)
 		goto fail;
@@ -997,7 +1043,7 @@ static int bluez_register_profile(
 	if (features)
 		g_variant_builder_add(&options, "{sv}", "Features", g_variant_new_uint16(features));
 
-	g_dbus_message_set_body(msg, g_variant_new("(osa{sv})", path, uuid, &options));
+	g_dbus_message_set_body(msg, g_variant_new("(osa{sv})", profile_path, uuid, &options));
 	g_variant_builder_clear(&options);
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -1076,7 +1122,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *se
 }
 
 static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
+		const gchar *transport_path, const gchar *interface, const gchar *signal, GVariant *params,
 		void *userdata) {
 	(void)conn;
 	(void)sender;
@@ -1084,24 +1130,38 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	(void)userdata;
 
 	const gchar *signature = g_variant_get_type_string(params);
-	bool devpool_mutex_locked = false;
+	if (strcmp(signature, "(sa{sv}as)") != 0) {
+		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
+		return;
+	}
+
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
+
 	GVariantIter *properties = NULL;
 	GVariantIter *unknown = NULL;
 	GVariant *value = NULL;
-	struct ba_transport *t;
 	const char *iface;
 	const char *key;
 
-	if (strcmp(signature, "(sa{sv}as)") != 0) {
-		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
+	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(transport_path);
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL) {
+		error("Adapter not available: %s", transport_path);
 		goto fail;
 	}
 
-	bluealsa_devpool_mutex_lock();
-	devpool_mutex_locked = true;
+	pthread_mutex_lock(&a->devices_mutex);
 
-	if ((t = transport_lookup(config.devices, path)) == NULL) {
-		error("Transport not available: %s", path);
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
+	if ((d = ba_device_lookup(a, &addr)) == NULL) {
+		error("Device not available: %s", transport_path);
+		goto fail;
+	}
+
+	if ((t = ba_transport_lookup(d, transport_path)) == NULL) {
+		error("Transport not available: %s", transport_path);
 		goto fail;
 	}
 
@@ -1153,8 +1213,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	}
 
 fail:
-	if (devpool_mutex_locked)
-		bluealsa_devpool_mutex_unlock();
+	if (a != NULL)
+		pthread_mutex_unlock(&a->devices_mutex);
 	if (properties != NULL)
 		g_variant_iter_free(properties);
 	if (value != NULL)

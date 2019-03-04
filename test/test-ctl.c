@@ -71,21 +71,21 @@ START_TEST(test_get_devices) {
 	struct ba_msg_device *devices;
 	ck_assert_int_eq(bluealsa_get_devices(fd, &devices), 2);
 
-	ck_assert_int_eq(bacmp(&devices[0].addr, &addr0), 0);
+	ck_assert_int_eq(bacmp(&devices[0].addr, &addr1), 0);
 	ck_assert_str_eq(devices[0].name, "Test Device With Long Name");
-	ck_assert_int_eq(bacmp(&devices[1].addr, &addr1), 0);
+	ck_assert_int_eq(bacmp(&devices[1].addr, &addr0), 0);
 	ck_assert_str_eq(devices[1].name, "Test Device With Long Name");
 
 	struct ba_msg_transport *transports;
 	ck_assert_int_eq(bluealsa_get_transports(fd, &transports), 4);
 
-	ck_assert_int_eq(bacmp(&transports[0].addr, &addr0), 0);
+	ck_assert_int_eq(bacmp(&transports[0].addr, &addr1), 0);
 	ck_assert_int_eq(transports[0].type, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_PLAYBACK);
-	ck_assert_int_eq(bacmp(&transports[1].addr, &addr0), 0);
+	ck_assert_int_eq(bacmp(&transports[1].addr, &addr1), 0);
 	ck_assert_int_eq(transports[1].type, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_CAPTURE);
-	ck_assert_int_eq(bacmp(&transports[2].addr, &addr1), 0);
+	ck_assert_int_eq(bacmp(&transports[2].addr, &addr0), 0);
 	ck_assert_int_eq(transports[2].type, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_PLAYBACK);
-	ck_assert_int_eq(bacmp(&transports[3].addr, &addr1), 0);
+	ck_assert_int_eq(bacmp(&transports[3].addr, &addr0), 0);
 	ck_assert_int_eq(transports[3].type, BA_PCM_TYPE_A2DP | BA_PCM_STREAM_CAPTURE);
 
 	ck_assert_int_eq(transports[0].codec, 0);

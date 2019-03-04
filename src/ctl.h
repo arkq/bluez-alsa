@@ -19,6 +19,7 @@
 
 #include <glib.h>
 
+#include "ba-adapter.h"
 #include "shared/ctl-proto.h"
 
 struct ba_ctl {
@@ -27,8 +28,8 @@ struct ba_ctl {
 	bool socket_created;
 	bool thread_created;
 
-	/* controller's HCI name */
-	char hci[8];
+	/* associated BT adapter */
+	struct ba_adapter *a;
 
 	/* special file descriptors + connected clients */
 	GArray *pfds;
@@ -40,7 +41,7 @@ struct ba_ctl {
 
 };
 
-struct ba_ctl *bluealsa_ctl_init(const char *hci);
+struct ba_ctl *bluealsa_ctl_init(struct ba_adapter *adapter);
 void bluealsa_ctl_free(struct ba_ctl *ctl);
 
 int bluealsa_ctl_send_event(

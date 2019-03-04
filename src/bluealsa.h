@@ -24,8 +24,8 @@
 #include <glib.h>
 #include <gio/gio.h>
 
+#include "ba-adapter.h"
 #include "ba-transport.h"
-#include "bluez.h"
 #include "bluez-a2dp.h"
 #include "ctl.h"
 #include "shared/ctl-proto.h"
@@ -49,12 +49,11 @@ struct ba_config {
 	/* established D-Bus connection */
 	GDBusConnection *dbus;
 
+	/* adapters indexed by the HCI device ID */
+	struct ba_adapter *adapters[HCI_MAX_DEV];
+
 	/* used for main thread identification */
 	pthread_t main_thread;
-
-	/* collection of connected devices */
-	pthread_mutex_t devices_mutex;
-	GHashTable *devices;
 
 	/* registered D-Bus objects */
 	GHashTable *dbus_objects;
@@ -127,17 +126,5 @@ struct ba_dbus_object {
 extern struct ba_config config;
 
 int bluealsa_config_init(void);
-
-#define bluealsa_devpool_mutex_lock() \
-	pthread_mutex_lock(&config.devices_mutex)
-#define bluealsa_devpool_mutex_unlock() \
-	pthread_mutex_unlock(&config.devices_mutex)
-
-#define bluealsa_device_insert(key, device) \
-	g_hash_table_insert(config.devices, g_strdup(key), device)
-#define bluealsa_device_lookup(key) \
-	((struct ba_device *)g_hash_table_lookup(config.devices, key))
-#define bluealsa_device_remove(key) \
-	g_hash_table_remove(config.devices, key)
 
 #endif

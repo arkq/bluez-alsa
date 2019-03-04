@@ -10,6 +10,7 @@
 
 #include "ba-device.h"
 
+#include <errno.h>
 #include <stdlib.h>
 
 #include "ba-transport.h"
@@ -17,7 +18,7 @@
 #include "ctl.h"
 
 struct ba_device *ba_device_new(
-		int hci_dev_id,
+		struct ba_adapter *adapter,
 		const bdaddr_t *addr,
 		const char *name) {
 
@@ -26,20 +27,33 @@ struct ba_device *ba_device_new(
 	if ((d = calloc(1, sizeof(*d))) == NULL)
 		return NULL;
 
-	d->hci_dev_id = hci_dev_id;
+	d->a = adapter;
 	bacpy(&d->addr, addr);
 	strncpy(d->name, name, sizeof(d->name) - 1);
 
-	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal,
-			NULL, (GDestroyNotify)transport_free);
+	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
 
+	g_hash_table_insert(adapter->devices, &d->addr, d);
 	return d;
+}
+
+struct ba_device *ba_device_lookup(
+		struct ba_adapter *adapter,
+		const bdaddr_t *addr) {
+#if DEBUG
+	/* make sure that the device mutex is acquired */
+	g_assert(pthread_mutex_trylock(&adapter->devices_mutex) == EBUSY);
+#endif
+	return g_hash_table_lookup(adapter->devices, addr);
 }
 
 void ba_device_free(struct ba_device *d) {
 
 	if (d == NULL)
 		return;
+
+	/* detach device from the adapter */
+	g_hash_table_steal(d->a->devices, &d->addr);
 
 	/* XXX: Modification-safe remove-all loop.
 	 *
@@ -64,7 +78,7 @@ void ba_device_free(struct ba_device *d) {
 		if (!g_hash_table_iter_next(&iter, NULL, (gpointer)&t))
 			break;
 
-		transport_free(t);
+		ba_transport_free(t);
 	}
 
 	g_hash_table_unref(d->transports);
