@@ -602,7 +602,7 @@ void *rfcomm_thread(void *arg) {
 				goto ioerror;
 			}
 
-			if (t->type.profile == BA_TRANSPORT_PROFILE_HFP_HF)
+			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
 				switch (conn.state) {
 				case HFP_DISCONNECTED:
 					sprintf(tmp, "%u", config.hfp.features_rfcomm_hf);
@@ -661,7 +661,7 @@ void *rfcomm_thread(void *arg) {
 							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 				}
 
-			if (t->type.profile == BA_TRANSPORT_PROFILE_HFP_AG)
+			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
 				switch (conn.state) {
 				case HFP_DISCONNECTED:
 				case HFP_SLC_BRSF_SET:

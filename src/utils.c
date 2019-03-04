@@ -553,8 +553,14 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 		return "HSP Headset";
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return "HSP Audio Gateway";
-	case BA_TRANSPORT_PROFILE_RFCOMM:
-		return "RFCOMM";
+	case BA_TRANSPORT_PROFILE_RFCOMM | BA_TRANSPORT_PROFILE_HFP_HF:
+		return "RFCOMM: HFP Hands-Free";
+	case BA_TRANSPORT_PROFILE_RFCOMM | BA_TRANSPORT_PROFILE_HFP_AG:
+		return "RFCOMM: HFP Audio Gateway";
+	case BA_TRANSPORT_PROFILE_RFCOMM | BA_TRANSPORT_PROFILE_HSP_HS:
+		return "RFCOMM: HSP Headset";
+	case BA_TRANSPORT_PROFILE_RFCOMM | BA_TRANSPORT_PROFILE_HSP_AG:
+		return "RFCOMM: HSP Audio Gateway";
 	}
 	return "N/A";
 }

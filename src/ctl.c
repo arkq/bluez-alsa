@@ -93,11 +93,11 @@ static int ctl_lookup_transport(struct ba_adapter *a, const bdaddr_t *addr,
 					return 0;
 				continue;
 			case BA_PCM_TYPE_SCO:
-				if ((*t)->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+				if (IS_BA_TRANSPORT_PROFILE_SCO((*t)->type.profile))
 					return 0;
 				continue;
 			case BA_PCM_TYPE_RFCOMM:
-				if ((*t)->type.profile == BA_TRANSPORT_PROFILE_RFCOMM)
+				if ((*t)->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
 					return 0;
 				continue;
 			}
@@ -119,7 +119,7 @@ static struct ba_pcm *ctl_lookup_pcm(struct ba_transport *t, uint8_t type, int c
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		if (t->a2dp.pcm.client == client)
 			return &t->a2dp.pcm;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
 		if (type & BA_PCM_STREAM_PLAYBACK)
 			if (t->sco.spk_pcm.client == client)
 				return &t->sco.spk_pcm;
@@ -150,7 +150,7 @@ static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
 		transport->delay = t->a2dp.delay;
 	}
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
 		transport->type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		transport->ch1_muted = t->sco.spk_muted;
 		transport->ch1_volume = t->sco.spk_gain;
@@ -336,7 +336,7 @@ static void ctl_thread_cmd_pcm_open(struct ba_ctl *ctl, struct ba_request *req, 
 
 	pthread_mutex_lock(&t->mutex);
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile) &&
 			t->type.codec == HFP_CODEC_UNDEFINED) {
 		status.code = BA_STATUS_CODE_CODEC_NOT_SELECTED;
 		goto final;
@@ -552,7 +552,7 @@ static void *ctl_thread(void *arg) {
 									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 								}
 							}
-							if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+							if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
 								if (t->sco.spk_pcm.client == fd) {
 									transport_release_pcm(&t->sco.spk_pcm);
 									transport_send_signal(t, TRANSPORT_PCM_CLOSE);

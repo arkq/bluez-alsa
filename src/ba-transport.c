@@ -40,63 +40,54 @@ static int io_thread_create(struct ba_transport *t) {
 	void *(*routine)(void *) = NULL;
 	int ret;
 
-	switch (t->type.profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-			switch (t->type.codec) {
-			case A2DP_CODEC_SBC:
-				routine = io_thread_a2dp_source_sbc;
-				break;
+	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
+		routine = rfcomm_thread;
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		routine = io_thread_sco;
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+		switch (t->type.codec) {
+		case A2DP_CODEC_SBC:
+			routine = io_thread_a2dp_source_sbc;
+			break;
 #if ENABLE_MPEG
-			case A2DP_CODEC_MPEG12:
-				break;
+		case A2DP_CODEC_MPEG12:
+			break;
 #endif
 #if ENABLE_AAC
-			case A2DP_CODEC_MPEG24:
-				routine = io_thread_a2dp_source_aac;
-				break;
+		case A2DP_CODEC_MPEG24:
+			routine = io_thread_a2dp_source_aac;
+			break;
 #endif
 #if ENABLE_APTX
-			case A2DP_CODEC_VENDOR_APTX:
-				routine = io_thread_a2dp_source_aptx;
-				break;
+		case A2DP_CODEC_VENDOR_APTX:
+			routine = io_thread_a2dp_source_aptx;
+			break;
 #endif
 #if ENABLE_LDAC
-			case A2DP_CODEC_VENDOR_LDAC:
-				routine = io_thread_a2dp_source_ldac;
-				break;
+		case A2DP_CODEC_VENDOR_LDAC:
+			routine = io_thread_a2dp_source_ldac;
+			break;
 #endif
-			default:
-				warn("Codec not supported: %u", t->type.codec);
-			}
-		break;
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-			switch (t->type.codec) {
-			case A2DP_CODEC_SBC:
-				routine = io_thread_a2dp_sink_sbc;
-				break;
+		default:
+			warn("Codec not supported: %u", t->type.codec);
+		}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
+		switch (t->type.codec) {
+		case A2DP_CODEC_SBC:
+			routine = io_thread_a2dp_sink_sbc;
+			break;
 #if ENABLE_MPEG
-			case A2DP_CODEC_MPEG12:
-				break;
+		case A2DP_CODEC_MPEG12:
+			break;
 #endif
 #if ENABLE_AAC
-			case A2DP_CODEC_MPEG24:
-				routine = io_thread_a2dp_sink_aac;
-				break;
+		case A2DP_CODEC_MPEG24:
+			routine = io_thread_a2dp_sink_aac;
+			break;
 #endif
-			default:
-				warn("Codec not supported: %u", t->type.codec);
-			}
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		routine = io_thread_sco;
-		break;
-	case BA_TRANSPORT_PROFILE_RFCOMM:
-		routine = rfcomm_thread;
-		break;
-	}
+		default:
+			warn("Codec not supported: %u", t->type.codec);
+		}
 
 	if (routine == NULL)
 		return -1;
@@ -222,7 +213,8 @@ struct ba_transport *transport_new_rfcomm(
 	gchar *dbus_path_sco = NULL;
 	struct ba_transport *t, *t_sco;
 
-	struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_RFCOMM };
+	struct ba_transport_type ttype = {
+		.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM };
 	if ((t = transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
 		goto fail;
 
@@ -319,26 +311,13 @@ void ba_transport_free(struct ba_transport *t) {
 
 	unsigned int pcm_type = BA_PCM_TYPE_NULL;
 
-	/* free type-specific resources */
-	switch (t->type.profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		pcm_type = BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
-				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
-		transport_release_pcm(&t->a2dp.pcm);
-		pthread_mutex_destroy(&t->a2dp.drained_mtx);
-		pthread_cond_destroy(&t->a2dp.drained);
-		free(t->a2dp.cconfig);
-		break;
-	case BA_TRANSPORT_PROFILE_RFCOMM:
+	/* free profile-specific resources */
+	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
 		memset(&t->d->battery, 0, sizeof(t->d->battery));
 		memset(&t->d->xapl, 0, sizeof(t->d->xapl));
 		ba_transport_free(t->rfcomm.sco);
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		pcm_type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		pthread_mutex_destroy(&t->sco.spk_drained_mtx);
 		pthread_cond_destroy(&t->sco.spk_drained);
@@ -346,7 +325,14 @@ void ba_transport_free(struct ba_transport *t) {
 		transport_release_pcm(&t->sco.mic_pcm);
 		if (t->sco.rfcomm != NULL)
 			t->sco.rfcomm->rfcomm.sco = NULL;
-		break;
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		pcm_type = BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
+				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
+		transport_release_pcm(&t->a2dp.pcm);
+		pthread_mutex_destroy(&t->a2dp.drained_mtx);
+		pthread_cond_destroy(&t->a2dp.drained);
+		free(t->a2dp.cconfig);
 	}
 
 	/* detach transport from the device */
@@ -433,7 +419,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 #endif
 		}
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
 		return 1;
 
 	/* the number of channels is unspecified */
@@ -538,7 +524,7 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 #endif
 		}
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
 		switch (t->type.codec) {
 		case HFP_CODEC_UNDEFINED:
 			break;
