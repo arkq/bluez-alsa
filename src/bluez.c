@@ -1225,7 +1225,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 			/* received volume is in range [0, 127]*/
 			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
 
-			bluealsa_ctl_send_event(config.ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
+			bluealsa_ctl_send_event(a->ctl, BA_EVENT_VOLUME_CHANGED, &d->addr,
 					BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 						BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
 

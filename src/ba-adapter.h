@@ -19,7 +19,7 @@
 
 #include <glib.h>
 
-#include "ba-device.h"
+#include "ctl.h"
 
 /* Data associated with BT adapter. */
 struct ba_adapter {
@@ -30,6 +30,9 @@ struct ba_adapter {
 	/* collection of connected devices */
 	pthread_mutex_t devices_mutex;
 	GHashTable *devices;
+
+	/* associated controller */
+	struct ba_ctl *ctl;
 
 };
 

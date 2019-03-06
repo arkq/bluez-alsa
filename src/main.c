@@ -32,7 +32,6 @@
 #include "ba-adapter.h"
 #include "bluealsa.h"
 #include "bluez.h"
-#include "ctl.h"
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
@@ -311,8 +310,8 @@ int main(int argc, char **argv) {
 	/* initialize random number generator */
 	srandom(time(NULL));
 
-	struct ba_adapter *a = ba_adapter_new(config.hci_dev.dev_id, NULL);
-	if ((config.ctl = bluealsa_ctl_init(a)) == NULL)
+	struct ba_adapter *a;
+	if ((a = ba_adapter_new(config.hci_dev.dev_id, NULL)) == NULL)
 		return EXIT_FAILURE;
 
 	gchar *address;
@@ -356,7 +355,7 @@ int main(int argc, char **argv) {
 
 	/* From all of the cleanup routines, this one cannot be omitted. We have
 	 * to unlink named socket, otherwise service will not start any more. */
-	bluealsa_ctl_free(config.ctl);
+	ba_adapter_free(a);
 
 	return EXIT_SUCCESS;
 }

@@ -27,7 +27,6 @@
 #include "ba-adapter.h"
 #include "ba-transport.h"
 #include "bluez-a2dp.h"
-#include "ctl.h"
 #include "shared/ctl-proto.h"
 
 struct ba_config {
@@ -60,9 +59,6 @@ struct ba_config {
 
 	/* audio group ID */
 	gid_t gid_audio;
-
-	/* global controller */
-	struct ba_ctl *ctl;
 
 	struct {
 		/* set of features exposed via Service Discovery */

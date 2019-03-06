@@ -126,7 +126,7 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	t->bt_fd = -1;
 	t->type.codec = HFP_CODEC_UNDEFINED;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
+	bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 
 	return 0;
@@ -375,7 +375,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	t->mtu_read = 48;
 	t->mtu_write = 48;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
+	bluealsa_ctl_send_event(a->ctl, BA_EVENT_TRANSPORT_CHANGED, &d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 	transport_send_signal(t, TRANSPORT_BT_OPEN);
 
@@ -609,18 +609,16 @@ int ofono_subscribe_signals(void) {
 	if (!config.enable.hfp_ofono)
 		return 0;
 
-	GDBusConnection *conn = config.dbus;
+	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
+			OFONO_IFACE_HF_AUDIO_MANAGER, "CardAdded", NULL, NULL,
+			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_card_added, NULL, NULL);
+	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
+			OFONO_IFACE_HF_AUDIO_MANAGER, "CardRemoved", NULL, NULL,
+			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_card_removed, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(conn, OFONO_SERVICE, OFONO_IFACE_HF_AUDIO_MANAGER,
-			"CardAdded", NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE,
-			ofono_signal_card_added, NULL, NULL);
-	g_dbus_connection_signal_subscribe(conn, OFONO_SERVICE, OFONO_IFACE_HF_AUDIO_MANAGER,
-			"CardRemoved", NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE,
-			ofono_signal_card_removed, NULL, NULL);
-
-	g_dbus_connection_signal_subscribe(conn, "org.freedesktop.DBus", "org.freedesktop.DBus",
-			"NameOwnerChanged", NULL, OFONO_SERVICE, G_DBUS_SIGNAL_FLAGS_NONE,
-			ofono_signal_name_owner_changed, NULL, NULL);
+	g_dbus_connection_signal_subscribe(config.dbus, "org.freedesktop.DBus",
+			"org.freedesktop.DBus", "NameOwnerChanged", NULL, OFONO_SERVICE,
+			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_name_owner_changed, NULL, NULL);
 
 	return 0;
 }

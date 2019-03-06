@@ -197,7 +197,7 @@ struct ba_transport *transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
+	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_A2DP | (type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
 
@@ -264,7 +264,7 @@ struct ba_transport *transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
+	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 
 	return t;
@@ -338,7 +338,7 @@ void ba_transport_free(struct ba_transport *t) {
 	g_hash_table_steal(d->transports, t->dbus_path);
 
 	if (pcm_type != BA_PCM_TYPE_NULL)
-		bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_REMOVED, &d->addr, pcm_type);
+		bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_TRANSPORT_REMOVED, &d->addr, pcm_type);
 
 	free(t->dbus_owner);
 	free(t->dbus_path);

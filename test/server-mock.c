@@ -50,6 +50,7 @@ static const a2dp_sbc_t cconfig = {
 	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
+static struct ba_adapter *a = NULL;
 static const char *device = "hci-mock";
 static unsigned int timeout = 5;
 static bool fuzzing = false;
@@ -58,7 +59,7 @@ static bool sink = false;
 static bool sco = false;
 
 static void test_pcm_setup_free(void) {
-	bluealsa_ctl_free(config.ctl);
+	ba_adapter_free(a);
 }
 
 static bool main_loop_on = true;
@@ -207,8 +208,7 @@ int main(int argc, char *argv[]) {
 	assert(bluealsa_config_init() == 0);
 
 	/* emulate dummy test HCI device */
-	struct ba_adapter *a = ba_adapter_new(0, device);
-	assert((config.ctl = bluealsa_ctl_init(a)) != NULL);
+	assert((a = ba_adapter_new(0, device)) != NULL);
 
 	/* make sure to cleanup named pipes */
 	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
@@ -268,7 +268,7 @@ int main(int argc, char *argv[]) {
 		assert((t = test_transport_new_sco(d2, ttype, ":test", "/sco/2")) != NULL);
 		if (fuzzing) {
 			t->type.codec = HFP_CODEC_CVSD;
-			bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
+			bluealsa_ctl_send_event(a->ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
 					BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
 		}
 	}

@@ -48,8 +48,15 @@ struct ba_adapter *ba_adapter_new(int dev_id, const char *name) {
 	pthread_mutex_init(&a->devices_mutex, NULL);
 	a->devices = g_hash_table_new_full(g_bdaddr_hash, g_bdaddr_equal, NULL, NULL);
 
+	if ((a->ctl = bluealsa_ctl_init(a)) == NULL)
+		goto fail;
+
 	config.adapters[a->hci_dev_id] = a;
 	return a;
+
+fail:
+	ba_adapter_free(a);
+	return NULL;
 }
 
 struct ba_adapter *ba_adapter_lookup(int dev_id) {
@@ -68,12 +75,24 @@ void ba_adapter_free(struct ba_adapter *a) {
 		GHashTableIter iter;
 		struct ba_device *d;
 
-		g_hash_table_iter_init(&iter, a->devices);
-		while (g_hash_table_iter_next(&iter, NULL, (gpointer)&d))
+		/* XXX: Modification-safe remove-all loop.
+		 *
+		 * The ba_device_free() function steals given device structure from
+		 * the device pool over which we are iterating. Since, the iterator
+		 * uses an internal cache, we have to reinitialize it after every
+		 * modification - modification-safe remove loop. */
+		for (;;) {
+			g_hash_table_iter_init(&iter, a->devices);
+			if (!g_hash_table_iter_next(&iter, NULL, (gpointer)&d))
+				break;
 			ba_device_free(d);
+		}
 
 		g_hash_table_unref(a->devices);
 	}
+
+	if (a->ctl != NULL)
+		bluealsa_ctl_free(a->ctl);
 
 	pthread_mutex_destroy(&a->devices_mutex);
 
