@@ -95,17 +95,16 @@ int hci_devlist(struct hci_dev_info **di, int *num) {
 /**
  * Open SCO link for given Bluetooth device.
  *
- * @param di The address to the HCI device info structure for which the SCO
- *   link should be established.
+ * @param dev_id The ID of the HCI device for which the SCO link should be
+ *   established.
  * @param ba Pointer to the Bluetooth address structure for a target device.
  * @param transparent Use transparent mode for voice transmission.
  * @return On success this function returns socket file descriptor. Otherwise,
  *   -1 is returned and errno is set to indicate the error. */
-int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba, bool transparent) {
+int hci_open_sco(int dev_id, const bdaddr_t *ba, bool transparent) {
 
 	struct sockaddr_sco addr_hci = {
 		.sco_family = AF_BLUETOOTH,
-		.sco_bdaddr = di->bdaddr,
 	};
 	struct sockaddr_sco addr_dev = {
 		.sco_family = AF_BLUETOOTH,
@@ -113,6 +112,8 @@ int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba, bool transpa
 	};
 	int dd, err;
 
+	if (hci_devba(dev_id, &addr_hci.sco_bdaddr) == -1)
+		return -1;
 	if ((dd = socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)) == -1)
 		return -1;
 	if (bind(dd, (struct sockaddr *)&addr_hci, sizeof(addr_hci)) == -1)
@@ -145,9 +146,9 @@ fail:
  * @return On success this function returns ID of the HCI device.
  *   Otherwise, -1 is returned. */
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path) {
-	if ((path = strstr(path, "/hci")) == NULL || path[3] == '\0')
+	if ((path = strstr(path, "/hci")) == NULL || path[4] == '\0')
 		return -1;
-	return atoi(&path[3]);
+	return atoi(&path[4]);
 }
 
 /**

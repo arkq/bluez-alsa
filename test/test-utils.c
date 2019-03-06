@@ -16,6 +16,14 @@
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
+START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
+
+	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez"), -1);
+	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci0"), 0);
+	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci5"), 5);
+
+} END_TEST
+
 START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
 
 	bdaddr_t addr_ok = {{ 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12 }};
@@ -248,6 +256,7 @@ int main(void) {
 
 	suite_add_tcase(s, tc);
 
+	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_hci_dev_id);
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_bdaddr);
 	tcase_add_test(tc, test_dbus_profile_object_path);
 	tcase_add_test(tc, test_batostr_);

@@ -27,7 +27,7 @@
 int a2dp_sbc_default_bitpool(int freq, int mode);
 
 int hci_devlist(struct hci_dev_info **di, int *num);
-int hci_open_sco(const struct hci_dev_info *di, const bdaddr_t *ba, bool transparent);
+int hci_open_sco(int dev_id, const bdaddr_t *ba, bool transparent);
 const char *batostr_(const bdaddr_t *ba);
 
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);

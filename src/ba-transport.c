@@ -210,15 +210,15 @@ struct ba_transport *transport_new_rfcomm(
 		const char *dbus_owner,
 		const char *dbus_path) {
 
-	gchar *dbus_path_sco = NULL;
 	struct ba_transport *t, *t_sco;
+	char dbus_path_sco[64];
 
 	struct ba_transport_type ttype = {
 		.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM };
 	if ((t = transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
 		goto fail;
 
-	dbus_path_sco = g_strdup_printf("%s/sco", dbus_path);
+	snprintf(dbus_path_sco, sizeof(dbus_path_sco), "%s/sco", dbus_path);
 	if ((t_sco = transport_new_sco(device, type, dbus_owner, dbus_path_sco)) == NULL)
 		goto fail;
 
@@ -230,8 +230,6 @@ struct ba_transport *transport_new_rfcomm(
 	return t;
 
 fail:
-	if (dbus_path_sco != NULL)
-		g_free(dbus_path_sco);
 	ba_transport_free(t);
 	return NULL;
 }
@@ -310,11 +308,12 @@ void ba_transport_free(struct ba_transport *t) {
 	pthread_mutex_destroy(&t->mutex);
 
 	unsigned int pcm_type = BA_PCM_TYPE_NULL;
+	struct ba_device *d = t->d;
 
 	/* free profile-specific resources */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
-		memset(&t->d->battery, 0, sizeof(t->d->battery));
-		memset(&t->d->xapl, 0, sizeof(t->d->xapl));
+		memset(&d->battery, 0, sizeof(d->battery));
+		memset(&d->xapl, 0, sizeof(d->xapl));
 		ba_transport_free(t->rfcomm.sco);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
@@ -336,10 +335,10 @@ void ba_transport_free(struct ba_transport *t) {
 	}
 
 	/* detach transport from the device */
-	g_hash_table_steal(t->d->transports, t->dbus_path);
+	g_hash_table_steal(d->transports, t->dbus_path);
 
 	if (pcm_type != BA_PCM_TYPE_NULL)
-		bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_REMOVED, &t->d->addr, pcm_type);
+		bluealsa_ctl_send_event(config.ctl, BA_EVENT_TRANSPORT_REMOVED, &d->addr, pcm_type);
 
 	free(t->dbus_owner);
 	free(t->dbus_path);
@@ -769,7 +768,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 		return -1;
 	}
 
-	if ((t->bt_fd = hci_open_sco(&di, &t->d->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
+	if ((t->bt_fd = hci_open_sco(di.dev_id, &t->d->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
 		error("Couldn't open SCO link: %s", strerror(errno));
 		return -1;
 	}
