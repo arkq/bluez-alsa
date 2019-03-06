@@ -36,10 +36,11 @@ struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *
 const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type);
 
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
-		const char *path, const char *interface, const char *property);
-gboolean g_dbus_set_property(GDBusConnection *conn, const char *name,
 		const char *path, const char *interface, const char *property,
-		const GVariant *value);
+		GError **error);
+bool g_dbus_set_property(GDBusConnection *conn, const char *name,
+		const char *path, const char *interface, const char *property,
+		const GVariant *value, GError **error);
 
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 		double ch1_scale, double ch2_scale);

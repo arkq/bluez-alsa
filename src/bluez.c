@@ -56,18 +56,25 @@ struct ba_device *bluez_ba_device_new(
 #endif
 
 	char name[sizeof(((struct ba_device *)0)->name)];
-	GVariant *property;
 	bdaddr_t addr;
 
 	g_dbus_bluez_object_path_to_bdaddr(path, &addr);
 	ba2str(&addr, name);
 
+	GVariant *property;
+	GError *err = NULL;
+
 	/* get local (user editable) Bluetooth device name */
 	if ((property = g_dbus_get_property(config.dbus, BLUEZ_SERVICE, path,
-					BLUEZ_IFACE_DEVICE, "Alias")) != NULL) {
+					BLUEZ_IFACE_DEVICE, "Alias", &err)) != NULL) {
 		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
 		name[sizeof(name) - 1] = '\0';
 		g_variant_unref(property);
+	}
+
+	if (err != NULL) {
+		warn("Couldn't get BT device name: %s", err->message);
+		g_error_free(err);
 	}
 
 	return ba_device_new(adapter, &addr, name);

@@ -285,9 +285,14 @@ static void ctl_thread_cmd_transport_set_volume(struct ba_ctl *ctl, struct ba_re
 		t->a2dp.ch2_volume = req->ch2_volume;
 
 		if (config.a2dp.volume) {
+			GError *err = NULL;
 			uint16_t volume = (req->ch1_muted | req->ch2_muted) ? 0 : MIN(req->ch1_volume, req->ch2_volume);
 			g_dbus_set_property(config.dbus, t->dbus_owner, t->dbus_path,
-					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume));
+					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
+			if (err != NULL) {
+				warn("Couldn't set BT device volume: %s", err->message);
+				g_error_free(err);
+			}
 		}
 
 		break;
@@ -658,10 +663,11 @@ struct ba_ctl *bluealsa_ctl_init(struct ba_adapter *adapter) {
 
 	struct sockaddr_un saddr = { .sun_family = AF_UNIX };
 	snprintf(saddr.sun_path, sizeof(saddr.sun_path) - 1,
-			BLUEALSA_RUN_STATE_DIR "/%s", ctl->a->hci_name);
+			BLUEALSA_RUN_STATE_DIR "/%s", adapter->hci_name);
 
 	if (mkdir(BLUEALSA_RUN_STATE_DIR, 0755) == -1 && errno != EEXIST) {
-		error("Couldn't create run-state directory: %s", strerror(errno));
+		error("Couldn't create run-state directory: %s: %s",
+				BLUEALSA_RUN_STATE_DIR, strerror(errno));
 		goto fail;
 	}
 
@@ -671,13 +677,15 @@ struct ba_ctl *bluealsa_ctl_init(struct ba_adapter *adapter) {
 	}
 	g_array_append_val(ctl->pfds, pfd);
 	if (bind(pfd.fd, (struct sockaddr *)(&saddr), sizeof(saddr)) == -1) {
-		error("Couldn't bind controller socket: %s", strerror(errno));
+		error("Couldn't bind controller socket: %s: %s",
+				saddr.sun_path, strerror(errno));
 		goto fail;
 	}
 	ctl->socket_created = true;
 	if (chmod(saddr.sun_path, 0660) == -1 ||
 			chown(saddr.sun_path, -1, config.gid_audio) == -1)
-		warn("Couldn't set permission for controller socket: %s", strerror(errno));
+		warn("Couldn't set permission for controller socket: %s: %s",
+				saddr.sun_path, strerror(errno));
 	if (listen(pfd.fd, 2) == -1) {
 		error("Couldn't listen on controller socket: %s", strerror(errno));
 		goto fail;
@@ -700,7 +708,7 @@ struct ba_ctl *bluealsa_ctl_init(struct ba_adapter *adapter) {
 
 	/* set thread name (for easier debugging) */
 	char name[16] = "ba-ctl-";
-	pthread_setname_np(ctl->thread, strcat(name, ctl->a->hci_name));
+	pthread_setname_np(ctl->thread, strcat(name, adapter->hci_name));
 
 	return ctl;
 

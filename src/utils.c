@@ -322,24 +322,25 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
  * @param path Valid D-Bus object path.
  * @param interface Interface with the given property.
  * @param property The property name.
+ * @param error NULL GError pointer.
  * @return On success this function returns variant containing property value.
  *   Otherwise, NULL is returned. */
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
-		const char *path, const char *interface, const char *property) {
+		const char *path, const char *interface, const char *property,
+		GError **error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GVariant *value = NULL;
-	GError *err = NULL;
 
 	msg = g_dbus_message_new_method_call(name, path, "org.freedesktop.DBus.Properties", "Get");
 	g_dbus_message_set_body(msg, g_variant_new("(ss)", interface, property));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
 		goto fail;
 
 	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
+		g_dbus_message_to_gerror(rep, error);
 		goto fail;
 	}
 
@@ -351,10 +352,6 @@ fail:
 		g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
-	if (err != NULL) {
-		warn("Couldn't get property: %s", err->message);
-		g_error_free(err);
-	}
 
 	return value;
 }
@@ -368,23 +365,23 @@ fail:
  * @param interface Interface with the given property.
  * @param property The property name.
  * @param value Variant containing property value.
- * @return On success this function returns TRUE. Otherwise, FALSE. */
-gboolean g_dbus_set_property(GDBusConnection *conn, const char *name,
+ * @param error NULL GError pointer.
+ * @return On success this function returns true. */
+bool g_dbus_set_property(GDBusConnection *conn, const char *name,
 		const char *path, const char *interface, const char *property,
-		const GVariant *value) {
+		const GVariant *value, GError **error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
 
 	msg = g_dbus_message_new_method_call(name, path, "org.freedesktop.DBus.Properties", "Set");
 	g_dbus_message_set_body(msg, g_variant_new("(ssv)", interface, property, value));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
 		goto fail;
 
 	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
+		g_dbus_message_to_gerror(rep, error);
 		goto fail;
 	}
 
@@ -394,13 +391,8 @@ fail:
 		g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
-	if (err != NULL) {
-		warn("Couldn't set property: %s", err->message);
-		g_error_free(err);
-		return FALSE;
-	}
 
-	return TRUE;
+	return error == NULL;
 }
 
 /**
