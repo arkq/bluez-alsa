@@ -329,8 +329,7 @@ int main(int argc, char **argv) {
 	}
 
 	bluez_subscribe_signals();
-	bluez_register_a2dp();
-	bluez_register_hfp();
+	bluez_register();
 
 #if ENABLE_OFONO
 	ofono_subscribe_signals();

@@ -79,9 +79,6 @@ int bluealsa_config_init(void) {
 
 	config.main_thread = pthread_self();
 
-	config.dbus_objects = g_hash_table_new_full(g_direct_hash, g_direct_equal,
-			NULL, g_free);
-
 	config.null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK);
 
 	/* use proper ACL group for our audio device */

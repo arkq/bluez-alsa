@@ -55,9 +55,6 @@ struct ba_config {
 	/* used for main thread identification */
 	pthread_t main_thread;
 
-	/* registered D-Bus objects */
-	GHashTable *dbus_objects;
-
 	/* opened null device */
 	int null_fd;
 
@@ -111,15 +108,6 @@ struct ba_config {
 	uint8_t ldac_eqmid;
 #endif
 
-};
-
-/* Structure describing registered D-Bus object. */
-struct ba_dbus_object {
-	/* D-Bus object registration ID */
-	unsigned int id;
-	struct ba_transport_type ttype;
-	/* determine whether profile is used */
-	bool connected;
 };
 
 /* Global BlueALSA configuration. */

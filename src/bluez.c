@@ -26,16 +26,27 @@
 #include "utils.h"
 #include "shared/log.h"
 
+/**
+ * Structure describing registered D-Bus object. */
+struct dbus_object_data {
+	/* D-Bus object registration ID */
+	unsigned int id;
+	struct ba_transport_type ttype;
+	/* determine whether profile is used */
+	bool connected;
+};
+
+static GHashTable *dbus_object_data_map = NULL;
 
 /**
  * Get D-Bus object reference count for given transport type. */
 static int bluez_get_dbus_object_count(struct ba_transport_type ttype) {
 
 	GHashTableIter iter;
-	struct ba_dbus_object *obj;
+	struct dbus_object_data *obj;
 	int count = 0;
 
-	g_hash_table_iter_init(&iter, config.dbus_objects);
+	g_hash_table_iter_init(&iter, dbus_object_data_map);
 	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&obj))
 		if (obj->ttype.profile == ttype.profile &&
 				obj->ttype.codec == ttype.codec && obj->connected)
@@ -678,13 +689,13 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
 	const char *endpoint_path = g_dbus_method_invocation_get_object_path(inv);
 	gpointer hash = GINT_TO_POINTER(g_str_hash(endpoint_path));
-	struct ba_dbus_object *obj;
+	struct dbus_object_data *obj;
 
 	debug("Releasing endpoint: %s", endpoint_path);
 
-	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
+	if ((obj = g_hash_table_lookup(dbus_object_data_map, hash)) != NULL) {
 		g_dbus_connection_unregister_object(conn, obj->id);
-		g_hash_table_remove(config.dbus_objects, hash);
+		g_hash_table_remove(dbus_object_data_map, hash);
 	}
 
 	g_object_unref(inv);
@@ -701,20 +712,20 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sende
 	debug("Endpoint method call: %s.%s()", interface, method);
 
 	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
-	struct ba_dbus_object *obj;
+	struct dbus_object_data *obj;
 
 	if (strcmp(method, "SelectConfiguration") == 0)
 		bluez_endpoint_select_configuration(invocation, userdata);
 	else if (strcmp(method, "SetConfiguration") == 0) {
 		if (bluez_endpoint_set_configuration(invocation, userdata) == 0) {
-			obj = g_hash_table_lookup(config.dbus_objects, hash);
+			obj = g_hash_table_lookup(dbus_object_data_map, hash);
 			obj->connected = true;
 			bluez_register_a2dp();
 		}
 	}
 	else if (strcmp(method, "ClearConfiguration") == 0) {
 		bluez_endpoint_clear_configuration(invocation, userdata);
-		obj = g_hash_table_lookup(config.dbus_objects, hash);
+		obj = g_hash_table_lookup(dbus_object_data_map, hash);
 		obj->connected = false;
 	}
 	else if (strcmp(method, "Release") == 0)
@@ -751,7 +762,7 @@ static int bluez_register_a2dp_endpoint(
 		bluez_get_dbus_object_count(ttype) + 1);
 	gpointer hash = GINT_TO_POINTER(g_str_hash(transport_path));
 
-	if (g_hash_table_contains(config.dbus_objects, hash)) {
+	if (g_hash_table_contains(dbus_object_data_map, hash)) {
 		debug("Endpoint already registered: %s", transport_path);
 		g_free(transport_path);
 		return 0;
@@ -760,11 +771,10 @@ static int bluez_register_a2dp_endpoint(
 	GDBusConnection *conn = config.dbus;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
-	gchar *dev = NULL;
 	int ret = 0;
 	size_t i;
 
-	struct ba_dbus_object dbus_object = {
+	struct dbus_object_data dbus_object = {
 		.ttype = ttype,
 	};
 
@@ -774,8 +784,9 @@ static int bluez_register_a2dp_endpoint(
 					(void *)codec, endpoint_free, &err)) == 0)
 		goto fail;
 
-	dev = g_strdup_printf("/org/bluez/%s", config.hci_dev.name);
-	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, dev,
+	char adapter_path[32];
+	snprintf(adapter_path, sizeof(adapter_path), "/org/bluez/%s", config.hci_dev.name);
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter_path,
 			BLUEZ_IFACE_MEDIA, "RegisterEndpoint");
 
 	GVariantBuilder caps;
@@ -804,7 +815,7 @@ static int bluez_register_a2dp_endpoint(
 		goto fail;
 	}
 
-	g_hash_table_insert(config.dbus_objects, hash,
+	g_hash_table_insert(dbus_object_data_map, hash,
 			g_memdup(&dbus_object, sizeof(dbus_object)));
 
 	goto final;
@@ -818,8 +829,6 @@ final:
 		g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
-	if (dev != NULL)
-		g_free(dev);
 	if (err != NULL) {
 		warn("Couldn't register endpoint: %s", err->message);
 		g_dbus_connection_unregister_object(conn, dbus_object.id);
@@ -963,13 +972,13 @@ static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
 	const char *profile_path = g_dbus_method_invocation_get_object_path(inv);
 	gpointer hash = GINT_TO_POINTER(g_str_hash(profile_path));
-	struct ba_dbus_object *obj;
+	struct dbus_object_data *obj;
 
 	debug("Releasing profile: %s", profile_path);
 
-	if ((obj = g_hash_table_lookup(config.dbus_objects, hash)) != NULL) {
+	if ((obj = g_hash_table_lookup(dbus_object_data_map, hash)) != NULL) {
 		g_dbus_connection_unregister_object(conn, obj->id);
-		g_hash_table_remove(config.dbus_objects, hash);
+		g_hash_table_remove(dbus_object_data_map, hash);
 	}
 
 	g_object_unref(inv);
@@ -1019,7 +1028,7 @@ static int bluez_register_profile(
 	const char *profile_path = g_dbus_transport_type_to_bluez_object_path(ttype);
 	gpointer hash = GINT_TO_POINTER(g_str_hash(profile_path));
 
-	if (g_hash_table_contains(config.dbus_objects, hash)) {
+	if (g_hash_table_contains(dbus_object_data_map, hash)) {
 		debug("Profile already registered: %s", profile_path);
 		return 0;
 	}
@@ -1029,7 +1038,7 @@ static int bluez_register_profile(
 	GError *err = NULL;
 	int ret = 0;
 
-	struct ba_dbus_object dbus_object = {
+	struct dbus_object_data dbus_object = {
 		.ttype = ttype,
 	};
 
@@ -1062,7 +1071,7 @@ static int bluez_register_profile(
 		goto fail;
 	}
 
-	g_hash_table_insert(config.dbus_objects, hash,
+	g_hash_table_insert(dbus_object_data_map, hash,
 			g_memdup(&dbus_object, sizeof(dbus_object)));
 
 	goto final;
@@ -1103,6 +1112,12 @@ void bluez_register_hfp(void) {
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_ag);
 }
 
+void bluez_register(void) {
+	if (dbus_object_data_map == NULL)
+		dbus_object_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+	bluez_register_a2dp();
+	bluez_register_hfp();
+}
 static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,
 		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
 		void *userdata) {
