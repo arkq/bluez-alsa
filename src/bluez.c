@@ -400,7 +400,8 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	struct ba_transport *t = NULL;
 	struct ba_device *d = NULL;
 
-	char *device = NULL, *state = NULL;
+	char *state = NULL;
+	char *device_path = NULL;
 	uint8_t *configuration = NULL;
 	uint16_t volume = 127;
 	uint16_t delay = 150;
@@ -423,7 +424,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 				goto fail;
 			}
 
-			device = g_variant_dup_string(value, NULL);
+			device_path = g_variant_dup_string(value, NULL);
 
 		}
 		else if (strcmp(key, "UUID") == 0) {
@@ -603,10 +604,10 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	pthread_mutex_lock(&a->devices_mutex);
 
 	bdaddr_t addr;
-	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
+	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = bluez_ba_device_new(a, transport_path)) == NULL) {
-		error("Couldn't create new device: %s", transport_path);
+			(d = bluez_ba_device_new(a, device_path)) == NULL) {
+		error("Couldn't create new device: %s", device_path);
 		goto fail;
 	}
 
@@ -647,7 +648,7 @@ final:
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);
-	g_free(device);
+	g_free(device_path);
 	g_free(configuration);
 	g_free(state);
 	return ret;
