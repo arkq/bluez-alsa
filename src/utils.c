@@ -188,8 +188,10 @@ bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
 struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *path) {
 
 	struct ba_transport_type type = { 0, -1 };
+	const char *tmp;
 
-	if (strncmp(path, "/A2DP", 5) == 0) {
+	if ((tmp = strstr(path, "/A2DP/")) != NULL) {
+		path = tmp;
 
 		if (strstr(path + 5, "/Source") != NULL)
 			type.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE;

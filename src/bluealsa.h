@@ -51,6 +51,9 @@ struct ba_config {
 	/* adapters indexed by the HCI device ID */
 	struct ba_adapter *adapters[HCI_MAX_DEV];
 
+	/* global adapter */
+	struct ba_adapter *adapter;
+
 	/* used for main thread identification */
 	pthread_t main_thread;
 

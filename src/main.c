@@ -313,6 +313,7 @@ int main(int argc, char **argv) {
 	struct ba_adapter *a;
 	if ((a = ba_adapter_new(config.hci_dev.dev_id, NULL)) == NULL)
 		return EXIT_FAILURE;
+	config.adapter = a;
 
 	gchar *address;
 	GError *err;

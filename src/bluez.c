@@ -31,6 +31,8 @@
 struct dbus_object_data {
 	/* D-Bus object registration ID */
 	unsigned int id;
+	/* associated adapter */
+	const struct ba_adapter *adapter;
 	struct ba_transport_type ttype;
 	/* determine whether profile is used */
 	bool connected;
@@ -40,7 +42,9 @@ static GHashTable *dbus_object_data_map = NULL;
 
 /**
  * Get D-Bus object reference count for given transport type. */
-static int bluez_get_dbus_object_count(struct ba_transport_type ttype) {
+static int bluez_get_dbus_object_count(
+		const struct ba_adapter *adapter,
+		struct ba_transport_type ttype) {
 
 	GHashTableIter iter;
 	struct dbus_object_data *obj;
@@ -48,8 +52,10 @@ static int bluez_get_dbus_object_count(struct ba_transport_type ttype) {
 
 	g_hash_table_iter_init(&iter, dbus_object_data_map);
 	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&obj))
-		if (obj->ttype.profile == ttype.profile &&
-				obj->ttype.codec == ttype.codec && obj->connected)
+		if (obj->adapter == adapter &&
+				obj->ttype.profile == ttype.profile &&
+				obj->ttype.codec == ttype.codec &&
+				obj->connected)
 			count++;
 
 	return count;
@@ -702,6 +708,8 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(inv);
 }
 
+void bluez_register_a2dp(struct ba_adapter *adapter);
+
 static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sender,
 		const gchar *path, const gchar *interface, const gchar *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
@@ -721,7 +729,7 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sende
 		if (bluez_endpoint_set_configuration(invocation, userdata) == 0) {
 			obj = g_hash_table_lookup(dbus_object_data_map, hash);
 			obj->connected = true;
-			bluez_register_a2dp();
+			bluez_register_a2dp(config.adapter);
 		}
 	}
 	else if (strcmp(method, "ClearConfiguration") == 0) {
@@ -747,25 +755,35 @@ static const GDBusInterfaceVTable endpoint_vtable = {
 /**
  * Register A2DP endpoint.
  *
+ * @param adapter
  * @param uuid
  * @param profile
  * @param codec
  * @return On success this function returns 0. Otherwise -1 is returned. */
 static int bluez_register_a2dp_endpoint(
+		const struct ba_adapter *adapter,
 		const char *uuid,
 		uint32_t profile,
 		const struct bluez_a2dp_codec *codec) {
 
 	struct ba_transport_type ttype = {
-		.profile = profile, .codec = codec->id };
-	gchar *transport_path = g_strdup_printf("%s/%d",
-		g_dbus_transport_type_to_bluez_object_path(ttype),
-		bluez_get_dbus_object_count(ttype) + 1);
-	gpointer hash = GINT_TO_POINTER(g_str_hash(transport_path));
+		.profile = profile,
+		.codec = codec->id,
+	};
+	struct dbus_object_data dbus_object = {
+		.adapter = adapter,
+		.ttype = ttype,
+	};
 
+	char endpoint_path[64];
+	snprintf(endpoint_path, sizeof(endpoint_path), "/%s%s/%d",
+			adapter->hci_name,
+			g_dbus_transport_type_to_bluez_object_path(ttype),
+			bluez_get_dbus_object_count(adapter, ttype) + 1);
+
+	gpointer hash = GINT_TO_POINTER(g_str_hash(endpoint_path));
 	if (g_hash_table_contains(dbus_object_data_map, hash)) {
-		debug("Endpoint already registered: %s", transport_path);
-		g_free(transport_path);
+		debug("Endpoint already registered: %s", endpoint_path);
 		return 0;
 	}
 
@@ -775,18 +793,14 @@ static int bluez_register_a2dp_endpoint(
 	int ret = 0;
 	size_t i;
 
-	struct dbus_object_data dbus_object = {
-		.ttype = ttype,
-	};
-
-	debug("Registering endpoint: %s", transport_path);
-	if ((dbus_object.id = g_dbus_connection_register_object(conn, transport_path,
+	debug("Registering endpoint: %s", endpoint_path);
+	if ((dbus_object.id = g_dbus_connection_register_object(conn, endpoint_path,
 					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
 					(void *)codec, endpoint_free, &err)) == 0)
 		goto fail;
 
 	char adapter_path[32];
-	snprintf(adapter_path, sizeof(adapter_path), "/org/bluez/%s", config.hci_dev.name);
+	snprintf(adapter_path, sizeof(adapter_path), "/org/bluez/%s", adapter->hci_name);
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter_path,
 			BLUEZ_IFACE_MEDIA, "RegisterEndpoint");
 
@@ -804,7 +818,7 @@ static int bluez_register_a2dp_endpoint(
 	g_variant_builder_add(&properties, "{sv}", "Codec", g_variant_new_byte(codec->id));
 	g_variant_builder_add(&properties, "{sv}", "Capabilities", g_variant_builder_end(&caps));
 
-	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", transport_path, &properties));
+	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", endpoint_path, &properties));
 	g_variant_builder_clear(&properties);
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -825,7 +839,6 @@ fail:
 	ret = -1;
 
 final:
-	g_free(transport_path);
 	if (msg != NULL)
 		g_object_unref(msg);
 	if (rep != NULL)
@@ -841,7 +854,7 @@ final:
 
 /**
  * Register A2DP endpoints. */
-void bluez_register_a2dp(void) {
+void bluez_register_a2dp(struct ba_adapter *adapter) {
 
 	const struct bluez_a2dp_codec **cc = config.a2dp.codecs;
 
@@ -850,11 +863,11 @@ void bluez_register_a2dp(void) {
 		switch (c->dir) {
 		case BLUEZ_A2DP_SOURCE:
 			if (config.enable.a2dp_source)
-				bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SOURCE, BA_TRANSPORT_PROFILE_A2DP_SOURCE, c);
+				bluez_register_a2dp_endpoint(adapter, BLUETOOTH_UUID_A2DP_SOURCE, BA_TRANSPORT_PROFILE_A2DP_SOURCE, c);
 			break;
 		case BLUEZ_A2DP_SINK:
 			if (config.enable.a2dp_sink)
-				bluez_register_a2dp_endpoint(BLUETOOTH_UUID_A2DP_SINK, BA_TRANSPORT_PROFILE_A2DP_SINK, c);
+				bluez_register_a2dp_endpoint(adapter, BLUETOOTH_UUID_A2DP_SINK, BA_TRANSPORT_PROFILE_A2DP_SINK, c);
 			break;
 		}
 	}
@@ -1116,7 +1129,7 @@ void bluez_register_hfp(void) {
 void bluez_register(void) {
 	if (dbus_object_data_map == NULL)
 		dbus_object_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
-	bluez_register_a2dp();
+	bluez_register_a2dp(config.adapter);
 	bluez_register_hfp();
 }
 static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,
@@ -1136,7 +1149,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *se
 	g_variant_get(params, "(&oa{sa{sv}})", &object, &interfaces);
 
 	if (strcmp(object, device_path) == 0)
-		bluez_register_a2dp();
+		bluez_register_a2dp(config.adapter);
 	if (strcmp(object, "/org/bluez") == 0)
 		bluez_register_hfp();
 
