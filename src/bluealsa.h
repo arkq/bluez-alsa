@@ -18,9 +18,6 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-
 #include <glib.h>
 #include <gio/gio.h>
 
@@ -30,9 +27,6 @@
 #include "shared/ctl-proto.h"
 
 struct ba_config {
-
-	/* used HCI device */
-	struct hci_dev_info hci_dev;
 
 	/* set of enabled profiles */
 	struct {
@@ -51,8 +45,9 @@ struct ba_config {
 	/* adapters indexed by the HCI device ID */
 	struct ba_adapter *adapters[HCI_MAX_DEV];
 
-	/* global adapter */
-	struct ba_adapter *adapter;
+	/* List of HCI names (or BT addresses) used for adapters filtering
+	 * during profile registration. Leave it empty to use any adapter. */
+	GArray *hci_filter;
 
 	/* used for main thread identification */
 	pthread_t main_thread;

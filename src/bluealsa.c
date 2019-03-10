@@ -77,6 +77,8 @@ int bluealsa_config_init(void) {
 
 	struct group *grp;
 
+	config.hci_filter = g_array_sized_new(FALSE, FALSE, sizeof(const char *), 4);
+
 	config.main_thread = pthread_self();
 
 	config.null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK);
