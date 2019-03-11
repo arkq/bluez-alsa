@@ -440,15 +440,15 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	const char *transport_path;
 	GVariantIter *properties;
 	GVariant *value = NULL;
-	const char *key;
+	const char *property;
 
 	g_variant_get(params, "(&oa{sv})", &transport_path, &properties);
-	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 
-		if (strcmp(key, "Device") == 0) {
+		if (strcmp(property, "Device") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_OBJECT_PATH)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				error("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "o");
 				goto fail;
 			}
@@ -456,12 +456,12 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 			device_path = g_variant_dup_string(value, NULL);
 
 		}
-		else if (strcmp(key, "UUID") == 0) {
+		else if (strcmp(property, "UUID") == 0) {
 		}
-		else if (strcmp(key, "Codec") == 0) {
+		else if (strcmp(property, "Codec") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_BYTE)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				error("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "y");
 				goto fail;
 			}
@@ -472,10 +472,10 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 			}
 
 		}
-		else if (strcmp(key, "Configuration") == 0) {
+		else if (strcmp(property, "Configuration") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_BYTESTRING)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				error("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "ay");
 				goto fail;
 			}
@@ -583,10 +583,10 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 			}
 
 		}
-		else if (strcmp(key, "State") == 0) {
+		else if (strcmp(property, "State") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				error("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "s");
 				goto fail;
 			}
@@ -594,10 +594,10 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 			state = g_variant_dup_string(value, NULL);
 
 		}
-		else if (strcmp(key, "Delay") == 0) {
+		else if (strcmp(property, "Delay") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				error("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "q");
 				goto fail;
 			}
@@ -605,10 +605,10 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 			delay = g_variant_get_uint16(value);
 
 		}
-		else if (strcmp(key, "Volume") == 0) {
+		else if (strcmp(property, "Volume") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				error("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "q");
 				goto fail;
 			}
@@ -1272,12 +1272,74 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const gchar *
 
 }
 
-static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *sender,
-		const gchar *transport_path, const gchar *interface, const gchar *signal, GVariant *params,
+static void bluez_signal_device_changed(GDBusConnection *conn, const gchar *sender,
+		const gchar *device_path, const gchar *interface_, const gchar *signal, GVariant *params,
 		void *userdata) {
 	(void)conn;
 	(void)sender;
-	(void)interface;
+	(void)interface_;
+	(void)userdata;
+
+	const gchar *signature = g_variant_get_type_string(params);
+	if (strcmp(signature, "(sa{sv}as)") != 0) {
+		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
+		return;
+	}
+
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+
+	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(device_path);
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL) {
+		error("Adapter not available: %s", device_path);
+		return;
+	}
+
+	GVariantIter *properties = NULL;
+	const char *interface;
+	const char *property;
+	GVariant *value;
+
+	pthread_mutex_lock(&a->devices_mutex);
+
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
+	if ((d = ba_device_lookup(a, &addr)) == NULL)
+		/* If we can not lookup device, it might not be a fail. The properties
+		 * changed signal is emitted for every BT device, not only for devices
+		 * associated with media transport. */
+		goto final;
+
+	g_variant_get(params, "(&sa{sv}as)", &interface, &properties, NULL);
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+
+		if (strcmp(property, "Alias") == 0) {
+
+			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
+				warn("Invalid argument type for %s: %s != %s", property,
+						g_variant_get_type_string(value), "s");
+				goto fail_prop;
+			}
+
+			ba_device_set_name(d, g_variant_get_string(value, NULL));
+
+		}
+
+fail_prop:
+		g_variant_unref(value);
+	}
+	g_variant_iter_free(properties);
+
+final:
+	pthread_mutex_unlock(&a->devices_mutex);
+}
+
+static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *sender,
+		const gchar *transport_path, const gchar *interface_, const gchar *signal, GVariant *params,
+		void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)interface_;
 	(void)userdata;
 
 	const gchar *signature = g_variant_get_type_string(params);
@@ -1290,17 +1352,16 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	struct ba_device *d = NULL;
 	struct ba_transport *t = NULL;
 
-	GVariantIter *properties = NULL;
-	GVariantIter *unknown = NULL;
-	GVariant *value = NULL;
-	const char *iface;
-	const char *key;
-
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(transport_path);
 	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL) {
 		error("Adapter not available: %s", transport_path);
-		goto fail;
+		return;
 	}
+
+	GVariantIter *properties = NULL;
+	const char *interface;
+	const char *property;
+	GVariant *value;
 
 	pthread_mutex_lock(&a->devices_mutex);
 
@@ -1308,46 +1369,46 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL) {
 		error("Device not available: %s", transport_path);
-		goto fail;
+		goto final;
 	}
 
 	if ((t = ba_transport_lookup(d, transport_path)) == NULL) {
 		error("Transport not available: %s", transport_path);
-		goto fail;
+		goto final;
 	}
 
-	g_variant_get(params, "(&sa{sv}as)", &iface, &properties, &unknown);
-	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
-		debug("Signal: %s: %s: %s", signal, iface, key);
+	g_variant_get(params, "(&sa{sv}as)", &interface, &properties, NULL);
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+		debug("Signal: %s: %s: %s", signal, interface, property);
 
-		if (strcmp(key, "State") == 0) {
+		if (strcmp(property, "State") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				warn("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "s");
-				goto fail;
+				goto fail_prop;
 			}
 
 			bluez_a2dp_set_transport_state(t, g_variant_get_string(value, NULL));
 
 		}
-		else if (strcmp(key, "Delay") == 0) {
+		else if (strcmp(property, "Delay") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				warn("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "q");
-				goto fail;
+				goto fail_prop;
 			}
 
 			t->a2dp.delay = g_variant_get_uint16(value);
 
 		}
-		else if (strcmp(key, "Volume") == 0) {
+		else if (strcmp(property, "Volume") == 0) {
 
 			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				error("Invalid argument type for %s: %s != %s", key,
+				warn("Invalid argument type for %s: %s != %s", property,
 						g_variant_get_type_string(value), "q");
-				goto fail;
+				goto fail_prop;
 			}
 
 			/* received volume is in range [0, 127]*/
@@ -1359,17 +1420,13 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *s
 
 		}
 
+fail_prop:
 		g_variant_unref(value);
-		value = NULL;
 	}
+	g_variant_iter_free(properties);
 
-fail:
-	if (a != NULL)
-		pthread_mutex_unlock(&a->devices_mutex);
-	if (properties != NULL)
-		g_variant_iter_free(properties);
-	if (value != NULL)
-		g_variant_unref(value);
+final:
+	pthread_mutex_unlock(&a->devices_mutex);
 }
 
 /**
@@ -1385,6 +1442,9 @@ int bluez_subscribe_signals(void) {
 			"org.freedesktop.DBus.ObjectManager", "InterfacesRemoved", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_interfaces_removed, NULL, NULL);
 
+	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
+			"org.freedesktop.DBus.Properties", "PropertiesChanged", NULL, BLUEZ_IFACE_DEVICE,
+			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_device_changed, NULL, NULL);
 	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_transport_changed, NULL, NULL);

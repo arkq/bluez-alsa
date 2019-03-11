@@ -88,5 +88,10 @@ void ba_device_free(struct ba_device *d) {
 void ba_device_set_battery_level(struct ba_device *d, uint8_t value) {
 	d->battery.enabled = true;
 	d->battery.level = value;
-	bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY, &d->addr, 0);
+	bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
+}
+
+void ba_device_set_name(struct ba_device *d, const char *name) {
+	strncpy(d->name, name, sizeof(d->name) - 1);
+	bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_NAME_CHANGED, &d->addr, 0);
 }
