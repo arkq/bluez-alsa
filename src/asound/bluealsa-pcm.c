@@ -498,21 +498,27 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		 * playback will not start if the event is for reading. */
 		*revents = io->stream == SND_PCM_STREAM_CAPTURE ? POLLIN : POLLOUT;
 
-		/* Include POLLERR if PCM is not running or draining. */
-		if (io->state != SND_PCM_STATE_RUNNING &&
-				io->state != SND_PCM_STATE_DRAINING) {
+		/* Include POLLERR if PCM is not prepared, running or draining.
+		 * Also restore the event trigger as in this state the io thread is
+		 * not active to do it */
+		if (io->state != SND_PCM_STATE_PREPARED &&
+			 io->state != SND_PCM_STATE_RUNNING &&
+			 io->state != SND_PCM_STATE_DRAINING) {
 			*revents |= POLLERR;
-			/* a playback application may write less than start_threshold frames on
-			 * its first write and then wait in poll() forever because the event_fd
-			 * never gets written to again.
-			 * To prevent this possibility, we bump the internal trigger. */
-			if (snd_pcm_stream(io->pcm) == SND_PCM_STREAM_PLAYBACK)
-				eventfd_write(pcm->event_fd, 1);
-			return 0;
+			eventfd_write(pcm->event_fd, 1);
 		}
 
+		/* a playback application may write less than start_threshold frames on
+		 * its first write and then wait in poll() forever because the event_fd
+		 * never gets written to again.
+		 * To prevent this possibility, we bump the internal trigger. */
+		else if (snd_pcm_stream(io->pcm) == SND_PCM_STREAM_PLAYBACK &&
+			io->state == SND_PCM_STATE_PREPARED)
+			eventfd_write(pcm->event_fd, 1);
+
 		/* If the event was triggered prematurely, wait for another one. */
-		if (!snd_pcm_avail_update(io->pcm))
+		else if (!snd_pcm_avail_update(io->pcm))
+			*revents = 0;
 	}
 	else if (pfd[1].revents & POLLHUP)
 		/* server closed connection */
