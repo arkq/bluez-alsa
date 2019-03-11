@@ -85,21 +85,27 @@ static int bluez_get_dbus_object_count(
 }
 
 /**
- * Create new device using BlueZ object path. */
+ * Create new device using BlueZ.
+ *
+ * @param adapter Adapter for which new device should be added.
+ * @param addr MAC address of the Bluetooth device.
+ * @return On success, this function returns new BlueALSA device
+ *   structure. On error, NULL is returned. */
 struct ba_device *bluez_ba_device_new(
 		struct ba_adapter *adapter,
-		const char *path) {
+		const bdaddr_t *addr) {
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
 	g_assert(pthread_mutex_trylock(&adapter->devices_mutex) == EBUSY);
 #endif
 
-	char name[sizeof(((struct ba_device *)0)->name)];
-	bdaddr_t addr;
+	char path[64];
+	snprintf(path, sizeof(path), "/org/bluez/%s/dev_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X",
+			adapter->hci_name, addr->b[5], addr->b[4], addr->b[3], addr->b[2], addr->b[1], addr->b[0]);
 
-	g_dbus_bluez_object_path_to_bdaddr(path, &addr);
-	ba2str(&addr, name);
+	char name[sizeof(((struct ba_device *)0)->name)];
+	ba2str(addr, name);
 
 	GVariant *property;
 	GError *err = NULL;
@@ -117,7 +123,7 @@ struct ba_device *bluez_ba_device_new(
 		g_error_free(err);
 	}
 
-	return ba_device_new(adapter, &addr, name);
+	return ba_device_new(adapter, addr, name);
 }
 
 /**
@@ -635,7 +641,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = bluez_ba_device_new(a, device_path)) == NULL) {
+			(d = bluez_ba_device_new(a, &addr)) == NULL) {
 		error("Couldn't create new device: %s", device_path);
 		goto fail;
 	}
@@ -939,7 +945,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = bluez_ba_device_new(a, device_path)) == NULL) {
+			(d = bluez_ba_device_new(a, &addr)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
 		goto fail;
 	}
