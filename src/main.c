@@ -94,8 +94,6 @@ int main(int argc, char **argv) {
 	};
 
 	bool syslog = false;
-	struct hci_dev_info *hci_devs;
-	int hci_devs_num;
 
 	/* Check if syslog forwarding has been enabled. This check has to be
 	 * done before anything else, so we can log early stage warnings and
@@ -103,10 +101,10 @@ int main(int argc, char **argv) {
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'S':
+		case 'S' /* --syslog */ :
 			syslog = true;
 			break;
-		case 'p':
+		case 'p' /* --profile=NAME */ :
 			/* reset defaults if user has specified profile option */
 			memset(&config.enable, 0, sizeof(config.enable));
 			break;
@@ -117,23 +115,6 @@ int main(int argc, char **argv) {
 	if (bluealsa_config_init() != 0) {
 		error("Couldn't initialize bluealsa config");
 		return EXIT_FAILURE;
-	}
-
-	if (hci_devlist(&hci_devs, &hci_devs_num)) {
-		error("Couldn't enumerate HCI devices: %s", strerror(errno));
-		return EXIT_FAILURE;
-	}
-
-	if (!hci_devs_num) {
-		error("No HCI device available");
-		return EXIT_FAILURE;
-	}
-
-	{ /* try to get default device (if possible get active one) */
-		int i;
-		for (i = 0; i < hci_devs_num; i++)
-			if (i == 0 || hci_test_bit(HCI_UP, &hci_devs[i].flags))
-				memcpy(&config.hci_dev, &hci_devs[i], sizeof(config.hci_dev));
 	}
 
 	/* parse options */
@@ -189,36 +170,9 @@ int main(int argc, char **argv) {
 		case 'S' /* --syslog */ :
 			break;
 
-		case 'i' /* --device=HCI */ : {
-
-			bdaddr_t addr;
-			int i = hci_devs_num;
-			int found = 0;
-
-			if (str2ba(optarg, &addr) == 0) {
-				while (i--)
-					if (bacmp(&addr, &hci_devs[i].bdaddr) == 0) {
-						memcpy(&config.hci_dev, &hci_devs[i], sizeof(config.hci_dev));
-						found = 1;
-						break;
-					}
-			}
-			else {
-				while (i--)
-					if (strcmp(optarg, hci_devs[i].name) == 0) {
-						memcpy(&config.hci_dev, &hci_devs[i], sizeof(config.hci_dev));
-						found = 1;
-						break;
-				}
-			}
-
-			if (found == 0) {
-				error("HCI device not found: %s", optarg);
-				return EXIT_FAILURE;
-			}
-
+		case 'i' /* --device=HCI */ :
+			g_array_append_val(config.hci_filter, optarg);
 			break;
-		}
 
 		case 'p' /* --profile=NAME */ : {
 
@@ -304,15 +258,8 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	/* device list is no longer required */
-	free(hci_devs);
-
 	/* initialize random number generator */
 	srandom(time(NULL));
-
-	struct ba_adapter *a;
-	if ((a = ba_adapter_new(config.hci_dev.dev_id, NULL)) == NULL)
-		return EXIT_FAILURE;
 
 	gchar *address;
 	GError *err;
@@ -353,9 +300,11 @@ int main(int argc, char **argv) {
 
 	debug("Exiting main loop");
 
-	/* From all of the cleanup routines, this one cannot be omitted. We have
-	 * to unlink named socket, otherwise service will not start any more. */
-	ba_adapter_free(a);
+	size_t i;
+	struct ba_adapter *a;
+	for (i = 0; i < HCI_MAX_DEV; i++)
+		if ((a = ba_adapter_lookup(i)) != NULL)
+			ba_adapter_free(a);
 
 	return EXIT_SUCCESS;
 }

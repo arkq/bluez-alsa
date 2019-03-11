@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-iface.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,6 +15,7 @@
 
 #define BLUEZ_SERVICE "org.bluez"
 
+#define BLUEZ_IFACE_ADAPTER         BLUEZ_SERVICE ".Adapter1"
 #define BLUEZ_IFACE_DEVICE          BLUEZ_SERVICE ".Device1"
 #define BLUEZ_IFACE_MEDIA           BLUEZ_SERVICE ".Media1"
 #define BLUEZ_IFACE_MEDIA_ENDPOINT  BLUEZ_SERVICE ".MediaEndpoint1"

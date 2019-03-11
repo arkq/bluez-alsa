@@ -69,30 +69,6 @@ int a2dp_sbc_default_bitpool(int freq, int mode) {
 }
 
 /**
- * Get the list of all available HCI controllers.
- *
- * @param di The address to the device info structure pointer, where the list
- *	 of all available devices will be stored. Allocated memory should be freed
- *	 with the free().
- * @param num The address, where the number of initialized device structures
- *	 will be stored.
- * @return On success this function returns 0. Otherwise, -1 is returned and
- *	 errno is set to indicate the error. */
-int hci_devlist(struct hci_dev_info **di, int *num) {
-
-	int i;
-
-	if ((*di = malloc(HCI_MAX_DEV * sizeof(**di))) == NULL)
-		return -1;
-
-	for (i = *num = 0; i < HCI_MAX_DEV; i++)
-		if (hci_devinfo(i, &(*di)[*num]) == 0)
-			(*num)++;
-
-	return 0;
-}
-
-/**
  * Open SCO link for given Bluetooth device.
  *
  * @param dev_id The ID of the HCI device for which the SCO link should be
@@ -188,8 +164,10 @@ bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
 struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *path) {
 
 	struct ba_transport_type type = { 0, -1 };
+	const char *tmp;
 
-	if (strncmp(path, "/A2DP", 5) == 0) {
+	if ((tmp = strstr(path, "/A2DP/")) != NULL) {
+		path = tmp;
 
 		if (strstr(path + 5, "/Source") != NULL)
 			type.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE;
@@ -313,6 +291,38 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 		return "/HSP/AudioGateway";
 	}
 	return "/";
+}
+
+/**
+ * Get managed objects of a given D-Bus service. */
+GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
+		const char *name, const char *path, GError **error) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GVariantIter *objects = NULL;
+
+	msg = g_dbus_message_new_method_call(name, path,
+			"org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, error);
+		goto fail;
+	}
+
+	g_variant_get(g_dbus_message_get_body(rep), "(a{oa{sa{sv}}})", &objects);
+
+fail:
+
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+
+	return objects;
 }
 
 /**

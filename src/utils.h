@@ -26,7 +26,6 @@
 
 int a2dp_sbc_default_bitpool(int freq, int mode);
 
-int hci_devlist(struct hci_dev_info **di, int *num);
 int hci_open_sco(int dev_id, const bdaddr_t *ba, bool transparent);
 const char *batostr_(const bdaddr_t *ba);
 
@@ -35,6 +34,8 @@ bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);
 struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *path);
 const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type);
 
+GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
+		const char *name, const char *path, GError **error);
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
 		const char *path, const char *interface, const char *property,
 		GError **error);
