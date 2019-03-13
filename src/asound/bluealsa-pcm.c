@@ -725,7 +725,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0) {
 		snd_pcm_ioplug_delete(&pcm->io);
-		goto fail;
+		return ret;
 	}
 
 	*pcmp = pcm->io.pcm;
