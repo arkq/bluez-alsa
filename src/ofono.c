@@ -28,6 +28,7 @@
 
 #include "ba-transport.h"
 #include "bluealsa.h"
+#include "bluez.h"
 #include "ctl.h"
 #include "ofono-iface.h"
 #include "shared/log.h"
@@ -211,11 +212,8 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	pthread_mutex_lock(&a->devices_mutex);
 
-	char name[sizeof(d->name)];
-	ba2str(&addr_dev, name);
-
 	if ((d = ba_device_lookup(a, &addr_dev)) == NULL &&
-			(d = ba_device_new(a, &addr_dev, name)) == NULL) {
+			(d = bluez_ba_device_new(a, &addr_dev)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
 		goto fail;
 	}
