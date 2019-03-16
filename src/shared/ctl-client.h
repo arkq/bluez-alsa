@@ -12,6 +12,10 @@
 #define BLUEALSA_SHARED_CTLCLIENT_H_
 
 #include <stdbool.h>
+#include <stdint.h>
+
+#include <bluetooth/bluetooth.h>
+
 #include "shared/ctl-proto.h"
 
 int bluealsa_open(const char *interface);

@@ -12,18 +12,19 @@
 # include <config.h>
 #endif
 
-#include <errno.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <time.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
 
-#include <glib.h>
 #include <gio/gio.h>
+#include <glib.h>
 
 #if ENABLE_LDAC
 # include <ldacBT.h>
@@ -31,6 +32,7 @@
 
 #include "ba-adapter.h"
 #include "bluealsa.h"
+#include "bluez-a2dp.h"
 #include "bluez.h"
 #if ENABLE_OFONO
 # include "ofono.h"

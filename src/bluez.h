@@ -12,7 +12,6 @@
 #define BLUEALSA_BLUEZ_H_
 
 #include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
 
 #include "ba-adapter.h"
 

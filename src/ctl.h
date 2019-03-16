@@ -15,11 +15,14 @@
 # include <config.h>
 #endif
 
+#include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+#include <bluetooth/bluetooth.h>
 
 #include <glib.h>
 
-#include "ba-adapter.h"
 #include "shared/ctl-proto.h"
 
 struct ba_ctl {

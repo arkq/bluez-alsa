@@ -13,8 +13,14 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+
+#include "ba-device.h"
 #include "bluealsa.h"
+#include "ctl.h"
 
 static guint g_bdaddr_hash(gconstpointer v) {
 	const bdaddr_t *ba = (const bdaddr_t *)v;

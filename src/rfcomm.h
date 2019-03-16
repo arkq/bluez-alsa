@@ -11,8 +11,9 @@
 #ifndef BLUEALSA_RFCOMM_H_
 #define BLUEALSA_RFCOMM_H_
 
+#include <stdint.h>
+
 #include "at.h"
-#include "ba-transport.h"
 #include "hfp.h"
 
 /* Number of retries during the SLC stage. */

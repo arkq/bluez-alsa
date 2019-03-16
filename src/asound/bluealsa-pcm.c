@@ -13,18 +13,21 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <strings.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
+#include <bluetooth/bluetooth.h>
 
 #include "shared/ctl-client.h"
 #include "shared/ctl-proto.h"

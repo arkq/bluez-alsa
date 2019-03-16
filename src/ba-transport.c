@@ -11,21 +11,23 @@
 #include "ba-transport.h"
 
 #include <errno.h>
-#include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/types.h>
+#include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include <gio/gio.h>
 #include <gio/gunixfdlist.h>
+#include <glib.h>
 
 #include "a2dp-codecs.h"
+#include "ba-adapter.h"
 #include "bluealsa.h"
 #include "bluez-iface.h"
 #include "ctl.h"
@@ -33,6 +35,7 @@
 #include "io.h"
 #include "rfcomm.h"
 #include "utils.h"
+#include "shared/ctl-proto.h"
 #include "shared/log.h"
 
 static int io_thread_create(struct ba_transport *t) {

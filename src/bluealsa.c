@@ -12,13 +12,12 @@
 
 #include <fcntl.h>
 #include <grp.h>
-#include <poll.h>
 
 #if ENABLE_LDAC
 # include <ldacBT.h>
 #endif
 
-#include "ba-device.h"
+#include "bluez-a2dp.h"
 #include "hfp.h"
 
 

@@ -16,11 +16,13 @@
 #endif
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <time.h>
 
 #include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
+
 #include <gio/gio.h>
+#include <glib.h>
 
 #include "ba-transport.h"
 

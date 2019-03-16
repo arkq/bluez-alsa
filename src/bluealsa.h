@@ -17,14 +17,13 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <sys/types.h>
 
-#include <glib.h>
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+
 #include <gio/gio.h>
-
-#include "ba-adapter.h"
-#include "ba-transport.h"
-#include "bluez-a2dp.h"
-#include "shared/ctl-proto.h"
+#include <glib.h>
 
 struct ba_config {
 

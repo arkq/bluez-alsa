@@ -19,8 +19,6 @@
 
 #include <glib.h>
 
-#include "ctl.h"
-
 /* Data associated with BT adapter. */
 struct ba_adapter {
 

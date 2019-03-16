@@ -16,8 +16,7 @@
 #endif
 
 #include <stddef.h>
-
-#include "a2dp-codecs.h"
+#include <stdint.h>
 
 enum bluez_a2dp_dir {
 	BLUEZ_A2DP_SOURCE,

@@ -12,6 +12,7 @@
 # include <config.h>
 #endif
 
+#include <errno.h>
 #include <getopt.h>
 #include <poll.h>
 #include <pthread.h>
@@ -23,9 +24,12 @@
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
+#include <bluetooth/bluetooth.h>
 #include <gio/gio.h>
+#include <glib.h>
 
 #include "shared/ctl-client.h"
+#include "shared/ctl-proto.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"

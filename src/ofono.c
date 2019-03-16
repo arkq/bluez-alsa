@@ -20,17 +20,29 @@
 
 #include <errno.h>
 #include <poll.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
-#include <gio/gunixfdlist.h>
 
+#include <gio/gio.h>
+#include <gio/gunixfdlist.h>
+#include <glib.h>
+
+#include "ba-adapter.h"
+#include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluez.h"
 #include "ctl.h"
+#include "hfp.h"
 #include "ofono-iface.h"
+#include "shared/ctl-proto.h"
 #include "shared/log.h"
 
 /**

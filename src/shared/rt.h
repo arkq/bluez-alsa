@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rt.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,6 +12,7 @@
 #define BLUEALSA_SHARED_RT_H_
 
 #include <stdint.h>
+#include <sys/time.h>
 #include <time.h>
 
 /**

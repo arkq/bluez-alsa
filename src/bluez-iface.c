@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-iface.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,6 +10,7 @@
 
 #include "bluez-iface.h"
 
+#include <stddef.h>
 
 static const GDBusArgInfo arg_device = {
 	-1, "device", "o", NULL

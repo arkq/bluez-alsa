@@ -11,19 +11,27 @@
 #include "bluez.h"
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <unistd.h>
 
+#include <bluetooth/hci.h>
+
+#include <gio/gio.h>
 #include <gio/gunixfdlist.h>
+#include <glib.h>
 
 #include "a2dp-codecs.h"
+#include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
 #include "ctl.h"
 #include "utils.h"
+#include "shared/ctl-proto.h"
 #include "shared/log.h"
 
 /**

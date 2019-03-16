@@ -10,6 +10,7 @@
 
 #include "shared/ffb.h"
 
+#include <stdlib.h>
 
 /**
  * Free resources allocated by the ffb_uint8_init().

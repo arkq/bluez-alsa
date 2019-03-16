@@ -11,11 +11,13 @@
 #include "ba-device.h"
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ba-transport.h"
-#include "bluealsa.h"
 #include "ctl.h"
+#include "shared/ctl-proto.h"
 
 struct ba_device *ba_device_new(
 		struct ba_adapter *adapter,

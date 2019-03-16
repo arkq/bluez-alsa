@@ -17,21 +17,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/types.h>
+#include <sys/uio.h>
 #include <sys/un.h>
+#include <unistd.h>
 
 #include <glib.h>
 
-#include "a2dp-codecs.h"
+#include "ba-adapter.h"
+#include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluez-iface.h"
 #include "hfp.h"
 #include "utils.h"
-#include "shared/defs.h"
 #include "shared/log.h"
 
 /* Special PCM type for internal usage only. */

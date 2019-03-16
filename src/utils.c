@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci_lib.h>
@@ -23,7 +25,7 @@
 #endif
 
 #include "a2dp-codecs.h"
-#include "bluez.h"
+#include "hfp.h"
 #include "shared/log.h"
 
 

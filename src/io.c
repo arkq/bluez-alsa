@@ -14,15 +14,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
+#include <netinet/in.h>
 #include <poll.h>
-#include <signal.h>
+#include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/types.h>
+#include <unistd.h>
 
 #include <sbc/sbc.h>
 #if ENABLE_AAC
@@ -43,6 +42,7 @@
 #include "a2dp-rtp.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
+#include "hfp.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"

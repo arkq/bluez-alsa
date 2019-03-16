@@ -20,12 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <glib.h>
-
 #include "ba-device.h"
-#include "bluez.h"
 #include "hfp.h"
 
 #define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)

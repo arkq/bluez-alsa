@@ -11,17 +11,18 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/types.h>
+#include <unistd.h>
 
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
+#include <bluetooth/bluetooth.h>
 
 #include "shared/ctl-client.h"
 #include "shared/ctl-proto.h"
-#include "shared/log.h"
 
 
 enum ctl_elem_type {

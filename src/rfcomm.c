@@ -13,13 +13,19 @@
 
 #include <errno.h>
 #include <poll.h>
+#include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "ba-adapter.h"
+#include "ba-device.h"
+#include "ba-transport.h"
 #include "bluealsa.h"
 #include "ctl.h"
 #include "utils.h"
+#include "shared/ctl-proto.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
