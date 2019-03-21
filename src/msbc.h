@@ -1,6 +1,6 @@
 /*
  * BlueALSA - msbc.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -12,8 +12,16 @@
 #ifndef BLUEALSA_MSBC_H_
 #define BLUEALSA_MSBC_H_
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 #include <sbc/sbc.h>
+
 #include "shared/ffb.h"
 
 /* HFP uses SBC encoding with precisely defined parameters. Hence, the size

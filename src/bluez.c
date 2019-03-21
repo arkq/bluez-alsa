@@ -788,10 +788,6 @@ static void endpoint_free(gpointer data) {
 	(void)data;
 }
 
-static const GDBusInterfaceVTable endpoint_vtable = {
-	.method_call = bluez_endpoint_method_call,
-};
-
 /**
  * Register A2DP endpoint.
  *
@@ -806,6 +802,9 @@ static int bluez_register_a2dp_endpoint(
 		uint32_t profile,
 		const struct bluez_a2dp_codec *codec) {
 
+	static GDBusInterfaceVTable vtable = {
+		.method_call = bluez_endpoint_method_call,
+	};
 	struct ba_transport_type ttype = {
 		.profile = profile,
 		.codec = codec->id,
@@ -816,7 +815,7 @@ static int bluez_register_a2dp_endpoint(
 	};
 
 	char endpoint_path[64];
-	snprintf(endpoint_path, sizeof(endpoint_path), "/%s%s/%d",
+	snprintf(endpoint_path, sizeof(endpoint_path), "/org/bluez/%s%s/%d",
 			adapter->hci_name,
 			g_dbus_transport_type_to_bluez_object_path(ttype),
 			bluez_get_dbus_object_count(adapter, ttype) + 1);
@@ -835,7 +834,7 @@ static int bluez_register_a2dp_endpoint(
 
 	debug("Registering endpoint: %s", endpoint_path);
 	if ((dbus_object.id = g_dbus_connection_register_object(conn, endpoint_path,
-					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &endpoint_vtable,
+					(GDBusInterfaceInfo *)&bluez_iface_endpoint, &vtable,
 					(void *)codec, endpoint_free, &err)) == 0)
 		goto fail;
 
@@ -1060,10 +1059,6 @@ static void bluez_profile_method_call(GDBusConnection *conn, const gchar *sender
 
 }
 
-static const GDBusInterfaceVTable profile_vtable = {
-	.method_call = bluez_profile_method_call,
-};
-
 /**
  * Register Bluetooth Audio Profile.
  *
@@ -1078,10 +1073,21 @@ static int bluez_register_profile(
 		uint16_t version,
 		uint16_t features) {
 
-	const struct ba_transport_type ttype = { .profile = profile };
-	const char *profile_path = g_dbus_transport_type_to_bluez_object_path(ttype);
-	gpointer hash = GINT_TO_POINTER(g_str_hash(profile_path));
+	static GDBusInterfaceVTable vtable = {
+		.method_call = bluez_profile_method_call,
+	};
+	struct ba_transport_type ttype = {
+		.profile = profile,
+	};
+	struct dbus_object_data dbus_object = {
+		.ttype = ttype,
+	};
 
+	char profile_path[64];
+	snprintf(profile_path, sizeof(profile_path), "/org/bluez%s",
+			g_dbus_transport_type_to_bluez_object_path(ttype));
+
+	gpointer hash = GINT_TO_POINTER(g_str_hash(profile_path));
 	if (g_hash_table_contains(dbus_object_data_map, hash)) {
 		debug("Profile already registered: %s", profile_path);
 		return 0;
@@ -1092,13 +1098,9 @@ static int bluez_register_profile(
 	GError *err = NULL;
 	int ret = 0;
 
-	struct dbus_object_data dbus_object = {
-		.ttype = ttype,
-	};
-
 	debug("Registering profile: %s", profile_path);
 	if ((dbus_object.id = g_dbus_connection_register_object(conn, profile_path,
-					(GDBusInterfaceInfo *)&bluez_iface_profile, &profile_vtable,
+					(GDBusInterfaceInfo *)&bluez_iface_profile, &vtable,
 					NULL, NULL, &err)) == 0)
 		goto fail;
 
@@ -1182,6 +1184,7 @@ void bluez_register(void) {
 	}
 
 	bool adapters[HCI_MAX_DEV] = { 0 };
+	struct ba_adapter *a;
 
 	GVariantIter *interfaces;
 	GVariantIter *properties;
@@ -1208,8 +1211,9 @@ void bluez_register(void) {
 
 	size_t i;
 	for (i = 0; i < HCI_MAX_DEV; i++)
-		if (adapters[i])
-			bluez_register_a2dp(ba_adapter_new(i, NULL));
+		if (adapters[i] &&
+				(a = ba_adapter_new(i, NULL)) != NULL)
+			bluez_register_a2dp(a);
 
 	/* HFP has to be registered globally */
 	bluez_register_hfp();

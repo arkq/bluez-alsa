@@ -438,17 +438,17 @@ static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const gchar 
 
 }
 
-static const GDBusInterfaceVTable ofono_vtable = {
-	.method_call = ofono_hf_audio_agent_method_call,
-};
-
 /**
  * Register to the oFono service.
  *
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int ofono_register(void) {
 
-	const char *path = "/HandsfreeAudioAgent";
+	static GDBusInterfaceVTable vtable = {
+		.method_call = ofono_hf_audio_agent_method_call,
+	};
+
+	const char *path = "/org/bluez/HFP/oFono";
 	GDBusConnection *conn = config.dbus;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
@@ -462,7 +462,7 @@ int ofono_register(void) {
 
 	debug("Registering oFono audio agent: %s", path);
 	if ((dbus_agent_object_id = g_dbus_connection_register_object(conn, path,
-					(GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent, &ofono_vtable,
+					(GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent, &vtable,
 					NULL, NULL, &err)) == 0)
 		goto fail;
 

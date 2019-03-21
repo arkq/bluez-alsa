@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef BLUEALSA_BLUEALSA_H
-#define BLUEALSA_BLUEALSA_H
+#ifndef BLUEALSA_BLUEALSA_H_
+#define BLUEALSA_BLUEALSA_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>

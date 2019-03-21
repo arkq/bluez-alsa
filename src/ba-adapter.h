@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef BLUEALSA_BAADAPTER_H
-#define BLUEALSA_BAADAPTER_H
+#ifndef BLUEALSA_BAADAPTER_H_
+#define BLUEALSA_BAADAPTER_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
