@@ -130,11 +130,16 @@ AM_COND_IF([ENABLE_TEST], [
 	PKG_CHECK_MODULES([CHECK], [check >= 0.9.10])
 ])
 
+AC_ARG_WITH([dbusconfdir],
+	AC_HELP_STRING([--with-dbusconfdir=dir], [path to D-Bus system bus configuration files]),
+	[dbusconfdir="${withval}"],
+	[dbusconfdir=$($PKG_CONFIG --variable=sysconfdir dbus-1)/dbus-1/system.d])
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
-	[alsaplugindir="$withval"], [alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
+	[alsaplugindir="$withval"],
+	[alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
 AC_ARG_WITH([alsaconfdir],
-	AS_HELP_STRING([--with-alsaconfdir=dir], [directory containing ALSA add-on configuration files]),
+	AS_HELP_STRING([--with-alsaconfdir=dir], [path to ALSA add-on configuration files]),
 	[alsaconfdir="$withval"],
 	[AM_COND_IF([ALSA_1_1_7],
 		[alsaconfdir="$sysconfdir/alsa/conf.d"],
@@ -154,6 +159,7 @@ AC_DEFINE_UNQUOTED([ALSA_CONF_DIR], "$alsaconfdir", [Directory containing ALSA a
 AC_DEFINE_UNQUOTED([ALSA_PLUGIN_DIR], "$alsaplugindir", [Directory containing ALSA add-on modules.])
 AC_DEFINE_UNQUOTED([RUN_STATE_DIR], "$runstatedir", [Path where run statuses are stored.])
 
+AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
 AC_SUBST([RUN_STATE_DIR], [$runstatedir])

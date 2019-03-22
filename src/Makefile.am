@@ -4,6 +4,9 @@
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
 
+dbusconfdir = @DBUS_CONFDIR@
+dist_dbusconf_DATA = bluealsa.conf
+
 bluealsa_SOURCES = \
 	shared/ffb.c \
 	shared/log.c \

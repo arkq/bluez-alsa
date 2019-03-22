@@ -32,6 +32,7 @@
 
 #include "ba-adapter.h"
 #include "bluealsa.h"
+#include "bluealsa-iface.h"
 #include "bluez-a2dp.h"
 #include "bluez.h"
 #if ENABLE_OFONO
@@ -41,6 +42,8 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
+static GMainLoop *loop = NULL;
+static int retval = EXIT_SUCCESS;
 
 static char *get_a2dp_codecs(
 		const struct bluez_a2dp_codec **codecs,
@@ -59,7 +62,6 @@ static char *get_a2dp_codecs(
 	return g_strjoinv(", ", (char **)tmp);
 }
 
-static GMainLoop *loop = NULL;
 static void main_loop_stop(int sig) {
 	/* Call to this handler restores the default action, so on the
 	 * second call the program will be forcefully terminated. */
@@ -70,13 +72,22 @@ static void main_loop_stop(int sig) {
 	g_main_loop_quit(loop);
 }
 
+static void dbus_name_lost(GDBusConnection *conn, const char *name, void *userdata) {
+	(void)conn;
+	(void)userdata;
+	error("Couldn't acquire D-Bus name: %s", name);
+	g_main_loop_quit(loop);
+	retval = EXIT_FAILURE;
+}
+
 int main(int argc, char **argv) {
 
 	int opt;
-	const char *opts = "hVSi:p:";
+	const char *opts = "hVB:Si:p:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
+		{ "dbus", required_argument, NULL, 'B' },
 		{ "syslog", no_argument, NULL, 'S' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
@@ -96,6 +107,7 @@ int main(int argc, char **argv) {
 	};
 
 	bool syslog = false;
+	char dbus_service[32] = BLUEALSA_SERVICE;
 
 	/* Check if syslog forwarding has been enabled. This check has to be
 	 * done before anything else, so we can log early stage warnings and
@@ -130,6 +142,7 @@ int main(int argc, char **argv) {
 					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
+					"  -B, --dbus=NAME\tD-Bus service name suffix\n"
 					"  -S, --syslog\t\tsend output to syslog\n"
 					"  -i, --device=hciX\tHCI device to use\n"
 					"  -p, --profile=NAME\tenable BT profile\n"
@@ -168,6 +181,10 @@ int main(int argc, char **argv) {
 		case 'V' /* --version */ :
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
+
+		case 'B' /* --dbus=NAME */ :
+			snprintf(dbus_service, sizeof(dbus_service), BLUEALSA_SERVICE ".%s", optarg);
+			break;
 
 		case 'S' /* --syslog */ :
 			break;
@@ -295,6 +312,11 @@ int main(int argc, char **argv) {
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGINT, &sigact, NULL);
 
+	/* register well-known service name */
+	debug("Acquiring D-Bus service name: %s", dbus_service);
+	g_bus_own_name_on_connection(config.dbus, dbus_service,
+			G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE, NULL, dbus_name_lost, NULL, NULL);
+
 	/* main dispatching loop */
 	debug("Starting main dispatching loop");
 	loop = g_main_loop_new(NULL, FALSE);
@@ -308,5 +330,5 @@ int main(int argc, char **argv) {
 		if ((a = ba_adapter_lookup(i)) != NULL)
 			ba_adapter_free(a);
 
-	return EXIT_SUCCESS;
+	return retval;
 }

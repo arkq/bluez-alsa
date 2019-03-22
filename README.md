@@ -60,9 +60,10 @@ it might give you a hint about required packages.
 Configuration & Usage
 ---------------------
 
-The main component of the BlueALSA is a program called `bluealsa`. It should be run as a root
-during system startup (root privileges are not required per se, the only requirement is a write
-access to `/var/run/bluealsa`). This program acts as a proxy between BlueZ and ALSA.
+The main component of BlueALSA is a program called `bluealsa`. By default, this program shall be
+run as a root during system startup. It will register `org.bluealsa` service in the D-Bus system
+bus, which can be used for accessing configured audio devices. In general, BlueALSA acts as a
+proxy between BlueZ and ALSA.
 
 In order to stream audio to the e.g. Bluetooth headset, firstly one has to connect the device. The
 most straightforward method is to use BlueZ CLI utility called `bluetoothctl`. When the device is
