@@ -34,6 +34,11 @@
 #include "shared/ctl-proto.h"
 #include "shared/log.h"
 
+/* Compatibility patch for glib < 2.42. */
+#ifndef G_DBUS_ERROR_UNKNOWN_OBJECT
+# define G_DBUS_ERROR_UNKNOWN_OBJECT G_DBUS_ERROR_FAILED
+#endif
+
 /**
  * Structure describing registered D-Bus object. */
 struct dbus_object_data {
@@ -821,7 +826,7 @@ static int bluez_register_a2dp_endpoint(
 			bluez_get_dbus_object_count(adapter, ttype) + 1);
 
 	gpointer hash = GINT_TO_POINTER(g_str_hash(endpoint_path));
-	if (g_hash_table_contains(dbus_object_data_map, hash)) {
+	if (g_hash_table_lookup(dbus_object_data_map, hash) != NULL) {
 		debug("Endpoint already registered: %s", endpoint_path);
 		return 0;
 	}
@@ -1088,7 +1093,7 @@ static int bluez_register_profile(
 			g_dbus_transport_type_to_bluez_object_path(ttype));
 
 	gpointer hash = GINT_TO_POINTER(g_str_hash(profile_path));
-	if (g_hash_table_contains(dbus_object_data_map, hash)) {
+	if (g_hash_table_lookup(dbus_object_data_map, hash) != NULL) {
 		debug("Profile already registered: %s", profile_path);
 		return 0;
 	}

@@ -42,6 +42,14 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
+/* If glib does not support immediate return in case of bus
+ * name being owned by some other connection (glib < 2.54),
+ * fall back to a default behavior - enter waiting queue. */
+#ifndef G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE
+# define G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE \
+	G_BUS_NAME_OWNER_FLAGS_NONE
+#endif
+
 static GMainLoop *loop = NULL;
 static int retval = EXIT_SUCCESS;
 
