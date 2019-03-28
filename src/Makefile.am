@@ -4,7 +4,7 @@
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
 
-dbusconfdir = @DBUS_CONFDIR@
+dbusconfdir = @DBUS_CONF_DIR@
 dist_dbusconf_DATA = bluealsa.conf
 
 bluealsa_SOURCES = \
