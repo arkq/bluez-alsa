@@ -90,7 +90,7 @@ static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t sa
 	if (errno == EBADF)
 		ret = 0;
 	if (ret == 0)
-		transport_release_pcm(pcm);
+		ba_transport_release_pcm(pcm);
 
 	return ret;
 }
@@ -126,7 +126,7 @@ static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, si
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
 				debug("PCM has been closed: %d", pcm->fd);
-				transport_release_pcm(pcm);
+				ba_transport_release_pcm(pcm);
 				return 0;
 			}
 			return ret;
@@ -202,12 +202,12 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	/* Lock transport during initialization stage. This lock will ensure,
 	 * that no one will modify critical section until thread state can be
 	 * known - initialization has failed or succeeded. */
-	bool locked = !transport_pthread_cleanup_lock(t);
+	bool locked = !ba_transport_pthread_cleanup_lock(t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -230,7 +230,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		goto fail_init;
 	}
 
-	const unsigned int channels = transport_get_channels(t);
+	const unsigned int channels = ba_transport_get_channels(t);
 
 	ffb_uint8_t bt = { 0 };
 	ffb_int16_t pcm = { 0 };
@@ -246,7 +246,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	/* Lock transport during thread cancellation. This handler shall be at
 	 * the top of the cleanup stack - lastly pushed. */
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
 	uint16_t seq_number = -1;
 
@@ -255,7 +255,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	transport_pthread_cleanup_unlock(t);
+	ba_transport_pthread_cleanup_unlock(t);
 	locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -364,9 +364,9 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
-	bool locked = !transport_pthread_cleanup_lock(t);
+	bool locked = !ba_transport_pthread_cleanup_lock(t);
 
 	sbc_t sbc;
 
@@ -383,8 +383,8 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 
 	const size_t sbc_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
-	const unsigned int channels = transport_get_channels(t);
-	const unsigned int samplerate = transport_get_sampling(t);
+	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int samplerate = ba_transport_get_sampling(t);
 
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
 	 * header and at least one SBC frame. In general, there is no constraint
@@ -402,7 +402,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -423,7 +423,7 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	transport_pthread_cleanup_unlock(t);
+	ba_transport_pthread_cleanup_unlock(t);
 	locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -439,10 +439,10 @@ void *io_thread_a2dp_source_sbc(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
-			locked = !transport_pthread_cleanup_lock(t);
+			locked = !ba_transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
 				goto final;
-			transport_pthread_cleanup_unlock(t);
+			ba_transport_pthread_cleanup_unlock(t);
 			locked = false;
 			continue;
 		case -1:
@@ -591,9 +591,9 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
-	bool locked = !transport_pthread_cleanup_lock(t);
+	bool locked = !ba_transport_pthread_cleanup_lock(t);
 
 	if (t->bt_fd == -1) {
 		error("Invalid BT socket: %d", t->bt_fd);
@@ -614,7 +614,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacDecoder_Close), handle);
 
-	const unsigned int channels = transport_get_channels(t);
+	const unsigned int channels = ba_transport_get_channels(t);
 #ifdef AACDECODER_LIB_VL0
 	if ((err = aacDecoder_SetParam(handle, AAC_PCM_MIN_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
 		error("Couldn't set min output channels: %s", aacdec_strerror(err));
@@ -645,7 +645,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
 	uint16_t seq_number = -1;
 	int markbit_quirk = -3;
@@ -655,7 +655,7 @@ void *io_thread_a2dp_sink_aac(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	transport_pthread_cleanup_unlock(t);
+	ba_transport_pthread_cleanup_unlock(t);
 	locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -790,16 +790,16 @@ void *io_thread_a2dp_source_aac(void *arg) {
 	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
-	bool locked = !transport_pthread_cleanup_lock(t);
+	bool locked = !ba_transport_pthread_cleanup_lock(t);
 
 	HANDLE_AACENCODER handle;
 	AACENC_InfoStruct aacinf;
 	AACENC_ERROR err;
 
 	/* create AAC encoder without the Meta Data module */
-	const unsigned int channels = transport_get_channels(t);
+	const unsigned int channels = ba_transport_get_channels(t);
 	if ((err = aacEncOpen(&handle, 0x07, channels)) != AACENC_OK) {
 		error("Couldn't open AAC encoder: %s", aacenc_strerror(err));
 		goto fail_open;
@@ -809,7 +809,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 
 	unsigned int aot = AOT_NONE;
 	unsigned int bitrate = AAC_GET_BITRATE(*cconfig);
-	unsigned int samplerate = transport_get_sampling(t);
+	unsigned int samplerate = ba_transport_get_sampling(t);
 	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
 
 	switch (cconfig->object_type) {
@@ -884,7 +884,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
 	rtp_header_t *rtp_header;
 
@@ -928,7 +928,7 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	transport_pthread_cleanup_unlock(t);
+	ba_transport_pthread_cleanup_unlock(t);
 	locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -944,10 +944,10 @@ void *io_thread_a2dp_source_aac(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
-			locked = !transport_pthread_cleanup_lock(t);
+			locked = !ba_transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
 				goto final;
-			transport_pthread_cleanup_unlock(t);
+			ba_transport_pthread_cleanup_unlock(t);
 			locked = false;
 			continue;
 		case -1:
@@ -1098,9 +1098,9 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
-	bool locked = !transport_pthread_cleanup_lock(t);
+	bool locked = !ba_transport_pthread_cleanup_lock(t);
 
 	APTXENC handle = malloc(SizeofAptxbtenc());
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
@@ -1115,7 +1115,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
-	const unsigned int channels = transport_get_channels(t);
+	const unsigned int channels = ba_transport_get_channels(t);
 	const size_t aptx_pcm_samples = 4 * channels;
 	const size_t aptx_code_len = 2 * sizeof(uint16_t);
 	const size_t mtu_write = t->mtu_write;
@@ -1126,7 +1126,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
 	/* array with historical data of queued bytes for BT socket */
 	int coutq_history[IO_THREAD_COUTQ_HISTORY_SIZE] = { 0 };
@@ -1139,7 +1139,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	transport_pthread_cleanup_unlock(t);
+	ba_transport_pthread_cleanup_unlock(t);
 	locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1155,10 +1155,10 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
-			locked = !transport_pthread_cleanup_lock(t);
+			locked = !ba_transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
 				goto final;
-			transport_pthread_cleanup_unlock(t);
+			ba_transport_pthread_cleanup_unlock(t);
 			locked = false;
 			continue;
 		case -1:
@@ -1208,7 +1208,7 @@ void *io_thread_a2dp_source_aptx(void *arg) {
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (asrs.frames == 0)
-			asrsync_init(&asrs, transport_get_sampling(t));
+			asrsync_init(&asrs, ba_transport_get_sampling(t));
 
 		if (!config.a2dp.volume)
 			/* scale volume or mute audio signal */
@@ -1307,9 +1307,9 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 	const a2dp_ldac_t *cconfig = (a2dp_ldac_t *)t->a2dp.cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
-	bool locked = !transport_pthread_cleanup_lock(t);
+	bool locked = !ba_transport_pthread_cleanup_lock(t);
 
 	HANDLE_LDAC_BT handle;
 	HANDLE_LDAC_ABR handle_abr;
@@ -1328,8 +1328,8 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
-	const unsigned int channels = transport_get_channels(t);
-	const unsigned int samplerate = transport_get_sampling(t);
+	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int samplerate = ba_transport_get_sampling(t);
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
 
 	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
@@ -1358,7 +1358,7 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -1379,7 +1379,7 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 		{ -1, POLLIN, 0 },
 	};
 
-	transport_pthread_cleanup_unlock(t);
+	ba_transport_pthread_cleanup_unlock(t);
 	locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1395,10 +1395,10 @@ void *io_thread_a2dp_source_ldac(void *arg) {
 		case 0:
 			pthread_cond_signal(&t->a2dp.drained);
 			poll_timeout = -1;
-			locked = !transport_pthread_cleanup_lock(t);
+			locked = !ba_transport_pthread_cleanup_lock(t);
 			if (t->a2dp.pcm.fd == -1)
 				goto final;
-			transport_pthread_cleanup_unlock(t);
+			ba_transport_pthread_cleanup_unlock(t);
 			locked = false;
 			continue;
 		case -1:
@@ -1541,7 +1541,7 @@ void *io_thread_sco(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	/* buffers for transferring data to and from SCO socket */
 	ffb_uint8_t bt_in = { 0 };
@@ -1698,7 +1698,7 @@ void *io_thread_sco(void *arg) {
 		}
 
 		if (asrs.frames == 0)
-			asrsync_init(&asrs, transport_get_sampling(t));
+			asrsync_init(&asrs, ba_transport_get_sampling(t));
 
 		if (pfds[1].revents & POLLIN) {
 			/* dispatch incoming SCO data */
@@ -1827,7 +1827,7 @@ retry_sco_write:
 				if (samples == -1 && errno != EAGAIN)
 					error("PCM read error: %s", strerror(errno));
 				if (samples == 0)
-					transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+					ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 				continue;
 			}
 
@@ -1848,8 +1848,8 @@ retry_sco_write:
 		}
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
 			debug("PCM poll error status: %#x", pfds[3].revents);
-			transport_release_pcm(&t->sco.spk_pcm);
-			transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+			ba_transport_release_pcm(&t->sco.spk_pcm);
+			ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 		}
 
 		if (pfds[4].revents & POLLOUT) {
@@ -1878,7 +1878,7 @@ retry_sco_write:
 				if (samples == -1)
 					error("FIFO write error: %s", strerror(errno));
 				if (samples == 0)
-					transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+					ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 			}
 
 			switch (t->type.codec) {
@@ -1920,7 +1920,7 @@ void *io_thread_a2dp_sink_dump(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	ffb_uint8_t bt = { 0 };
 	FILE *f = NULL;

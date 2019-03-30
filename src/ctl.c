@@ -136,9 +136,9 @@ static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
 	bacpy(&transport->addr, &t->d->addr);
 	transport->type = BA_PCM_TYPE_NULL;
 	transport->codec = t->type.codec;
-	transport->channels = transport_get_channels(t);
-	transport->sampling = transport_get_sampling(t);
-	transport->delay += t->delay;
+	transport->channels = ba_transport_get_channels(t);
+	transport->sampling = ba_transport_get_sampling(t);
+	transport->delay = ba_transport_get_delay(t);
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		transport->type = BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
@@ -147,7 +147,6 @@ static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
 		transport->ch1_volume = t->a2dp.ch1_volume;
 		transport->ch2_muted = t->a2dp.ch2_muted;
 		transport->ch2_volume = t->a2dp.ch2_volume;
-		transport->delay = t->a2dp.delay;
 	}
 
 	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
@@ -156,7 +155,6 @@ static struct ba_msg_transport *ctl_transport(const struct ba_transport *t,
 		transport->ch1_volume = t->sco.spk_gain;
 		transport->ch2_muted = t->sco.mic_muted;
 		transport->ch2_volume = t->sco.mic_gain;
-		transport->delay = 10;
 	}
 
 	return transport;
@@ -306,7 +304,7 @@ static void ctl_thread_cmd_transport_set_volume(struct ba_ctl *ctl, struct ba_re
 
 		if (t->sco.rfcomm != NULL)
 			/* notify associated RFCOMM transport */
-			transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
+			ba_transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
 
 		break;
 	}
@@ -393,7 +391,7 @@ static void ctl_thread_cmd_pcm_open(struct ba_ctl *ctl, struct ba_request *req, 
 
 	/* Notify our IO thread, that the FIFO has just been created - it may be
 	 * used for poll() right away. */
-	transport_send_signal(t, TRANSPORT_PCM_OPEN);
+	ba_transport_send_signal(t, TRANSPORT_PCM_OPEN);
 
 	/* A2DP source profile should be initialized (acquired) only if the audio
 	 * is about to be transfered. It is most likely, that BT headset will not
@@ -449,18 +447,18 @@ static void ctl_thread_cmd_pcm_control(struct ba_ctl *ctl, struct ba_request *re
 
 	switch (req->command) {
 	case BA_COMMAND_PCM_PAUSE:
-		transport_set_state(t, TRANSPORT_PAUSED);
-		transport_send_signal(t, TRANSPORT_PCM_PAUSE);
+		ba_transport_set_state(t, TRANSPORT_PAUSED);
+		ba_transport_send_signal(t, TRANSPORT_PCM_PAUSE);
 		break;
 	case BA_COMMAND_PCM_RESUME:
-		transport_set_state(t, TRANSPORT_ACTIVE);
-		transport_send_signal(t, TRANSPORT_PCM_RESUME);
+		ba_transport_set_state(t, TRANSPORT_ACTIVE);
+		ba_transport_send_signal(t, TRANSPORT_PCM_RESUME);
 		break;
 	case BA_COMMAND_PCM_DRAIN:
-		transport_drain_pcm(t);
+		ba_transport_drain_pcm(t);
 		break;
 	case BA_COMMAND_PCM_DROP:
-		transport_send_signal(t, TRANSPORT_PCM_DROP);
+		ba_transport_send_signal(t, TRANSPORT_PCM_DROP);
 		break;
 	default:
 		warn("Invalid PCM control command: %d", req->command);
@@ -487,7 +485,7 @@ static void ctl_thread_cmd_rfcomm_send(struct ba_ctl *ctl, struct ba_request *re
 		goto fail;
 	}
 
-	transport_send_rfcomm(t, req->rfcomm_command);
+	ba_transport_send_rfcomm(t, req->rfcomm_command);
 
 fail:
 	pthread_mutex_unlock(&ctl->a->devices_mutex);
@@ -553,18 +551,18 @@ static void *ctl_thread(void *arg) {
 						while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
 							if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 								if (t->a2dp.pcm.client == fd) {
-									transport_release_pcm(&t->a2dp.pcm);
-									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+									ba_transport_release_pcm(&t->a2dp.pcm);
+									ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 								}
 							}
 							if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
 								if (t->sco.spk_pcm.client == fd) {
-									transport_release_pcm(&t->sco.spk_pcm);
-									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+									ba_transport_release_pcm(&t->sco.spk_pcm);
+									ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 								}
 								if (t->sco.mic_pcm.client == fd) {
-									transport_release_pcm(&t->sco.mic_pcm);
-									transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+									ba_transport_release_pcm(&t->sco.mic_pcm);
+									ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 								}
 							}
 						}

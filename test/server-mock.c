@@ -114,7 +114,7 @@ struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
 		const uint8_t *cconfig, size_t csize) {
 	if (fuzzing)
 		sleep(1);
-	struct ba_transport *t = transport_new_a2dp(d, type, owner, path, cconfig, csize);
+	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, cconfig, csize);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release;
 	return t;
@@ -124,7 +124,7 @@ struct ba_transport *test_transport_new_sco(struct ba_device *d,
 		struct ba_transport_type type, const char *owner, const char *path) {
 	if (fuzzing)
 		sleep(1);
-	struct ba_transport *t = transport_new_sco(d, type, owner, path);
+	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release;
 	return t;
@@ -132,7 +132,7 @@ struct ba_transport *test_transport_new_sco(struct ba_device *d,
 
 void *io_thread_a2dp_sink_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
@@ -148,7 +148,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		fprintf(stderr, ".");
 
 		if (asrs.frames == 0)
-			asrsync_init(&asrs, transport_get_sampling(t));
+			asrsync_init(&asrs, ba_transport_get_sampling(t));
 
 		int samples = sizeof(buffer) / sizeof(int16_t);
 		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 0.01);

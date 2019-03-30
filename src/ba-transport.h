@@ -40,7 +40,7 @@
 #define BA_TRANSPORT_PROFILE_MASK_SCO \
 	(BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP)
 #define IS_BA_TRANSPORT_PROFILE_SCO(p) \
-	(((p) & BA_TRANSPORT_PROFILE_MASK_SCO) == (p))
+	((p) && ((p) & BA_TRANSPORT_PROFILE_MASK_SCO) == (p))
 
 struct ba_transport_type {
 	/* Selected profile and audio codec. For A2DP vendor codecs the upper byte
@@ -200,24 +200,24 @@ struct ba_transport {
 
 };
 
-struct ba_transport *transport_new(
+struct ba_transport *ba_transport_new(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path);
-struct ba_transport *transport_new_a2dp(
+struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
 		const uint8_t *cconfig,
 		size_t cconfig_size);
-struct ba_transport *transport_new_rfcomm(
+struct ba_transport *ba_transport_new_rfcomm(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path);
-struct ba_transport *transport_new_sco(
+struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
@@ -229,20 +229,21 @@ struct ba_transport *ba_transport_lookup(
 
 void ba_transport_free(struct ba_transport *t);
 
-int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
-int transport_send_rfcomm(struct ba_transport *t, const char command[32]);
+int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
+int ba_transport_send_rfcomm(struct ba_transport *t, const char command[32]);
 
-unsigned int transport_get_channels(const struct ba_transport *t);
-unsigned int transport_get_sampling(const struct ba_transport *t);
+unsigned int ba_transport_get_channels(const struct ba_transport *t);
+unsigned int ba_transport_get_sampling(const struct ba_transport *t);
+uint16_t ba_transport_get_delay(const struct ba_transport *t);
 
-int transport_set_state(struct ba_transport *t, enum ba_transport_state state);
+int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 
-int transport_drain_pcm(struct ba_transport *t);
-int transport_release_pcm(struct ba_pcm *pcm);
+int ba_transport_drain_pcm(struct ba_transport *t);
+int ba_transport_release_pcm(struct ba_pcm *pcm);
 
-void transport_pthread_cancel(pthread_t thread);
-void transport_pthread_cleanup(struct ba_transport *t);
-int transport_pthread_cleanup_lock(struct ba_transport *t);
-int transport_pthread_cleanup_unlock(struct ba_transport *t);
+void ba_transport_pthread_cancel(pthread_t thread);
+void ba_transport_pthread_cleanup(struct ba_transport *t);
+int ba_transport_pthread_cleanup_lock(struct ba_transport *t);
+int ba_transport_pthread_cleanup_unlock(struct ba_transport *t);
 
 #endif

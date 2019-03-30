@@ -224,11 +224,11 @@ static int bluez_a2dp_set_transport_state(
 		const char *state) {
 
 	if (strcmp(state, BLUEZ_TRANSPORT_STATE_IDLE) == 0)
-		return transport_set_state(t, TRANSPORT_IDLE);
+		return ba_transport_set_state(t, TRANSPORT_IDLE);
 	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
-		return transport_set_state(t, TRANSPORT_PENDING);
+		return ba_transport_set_state(t, TRANSPORT_PENDING);
 	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
-		return transport_set_state(t, TRANSPORT_ACTIVE);
+		return ba_transport_set_state(t, TRANSPORT_ACTIVE);
 
 	warn("Invalid state: %s", state);
 	return -1;
@@ -664,7 +664,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 		goto fail;
 	}
 
-	if ((t = transport_new_a2dp(d, g_dbus_bluez_object_path_to_transport_type(endpoint_path),
+	if ((t = ba_transport_new_a2dp(d, g_dbus_bluez_object_path_to_transport_type(endpoint_path),
 					sender, transport_path, configuration, size)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
@@ -678,7 +678,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
 	debug("Configuration: channels: %u, sampling: %u",
-			transport_get_channels(t), transport_get_sampling(t));
+			ba_transport_get_channels(t), ba_transport_get_sampling(t));
 
 	bluez_a2dp_set_transport_state(t, state);
 
@@ -962,7 +962,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if ((t = transport_new_rfcomm(d, g_dbus_bluez_object_path_to_transport_type(profile_path),
+	if ((t = ba_transport_new_rfcomm(d, g_dbus_bluez_object_path_to_transport_type(profile_path),
 					sender, device_path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
@@ -974,8 +974,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
 
-	transport_set_state(t, TRANSPORT_ACTIVE);
-	transport_set_state(t->rfcomm.sco, TRANSPORT_ACTIVE);
+	ba_transport_set_state(t, TRANSPORT_ACTIVE);
+	ba_transport_set_state(t->rfcomm.sco, TRANSPORT_ACTIVE);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

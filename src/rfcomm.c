@@ -244,7 +244,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 		switch (c->hfp_ind_map[index - 1]) {
 		case HFP_IND_CALL:
 		case HFP_IND_CALLSETUP:
-			transport_send_signal(t->rfcomm.sco, TRANSPORT_BT_OPEN);
+			ba_transport_send_signal(t->rfcomm.sco, TRANSPORT_BT_OPEN);
 			break;
 		case HFP_IND_BATTCHG:
 			ba_device_set_battery_level(t->d, value * 100 / 5);
@@ -568,7 +568,7 @@ void *rfcomm_thread(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	/* initialize structure used for synchronization */
 	struct rfcomm_conn conn = {

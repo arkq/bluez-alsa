@@ -162,7 +162,7 @@ static struct ba_transport *ofono_transport_new(
 
 	struct ba_transport *t;
 
-	if ((t = transport_new_sco(device, type, dbus_owner, dbus_path)) == NULL)
+	if ((t = ba_transport_new_sco(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	t->sco.ofono = true;
@@ -244,7 +244,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	g_hash_table_insert(ofono_card_data_map, g_strdup(card),
 			g_memdup(&ocd, sizeof(ocd)));
 
-	transport_set_state(t, TRANSPORT_ACTIVE);
+	ba_transport_set_state(t, TRANSPORT_ACTIVE);
 
 fail:
 	if (a != NULL)
@@ -387,7 +387,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	bluealsa_ctl_send_event(a->ctl, BA_EVENT_TRANSPORT_CHANGED, &d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
-	transport_send_signal(t, TRANSPORT_BT_OPEN);
+	ba_transport_send_signal(t, TRANSPORT_BT_OPEN);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

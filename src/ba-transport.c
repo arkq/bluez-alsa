@@ -118,7 +118,7 @@ static int io_thread_create(struct ba_transport *t) {
  * @return On success, the pointer to the newly allocated transport structure
  *   is returned. If error occurs, NULL is returned and the errno variable is
  *   set to indicated the cause of the error. */
-struct ba_transport *transport_new(
+struct ba_transport *ba_transport_new(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
@@ -161,7 +161,7 @@ fail:
 }
 
 /* These acquire/release helper functions should be defined before the
- * corresponding transport_new_* ones. However, git commit history is
+ * corresponding ba_transport_new_* ones. However, git commit history is
  * more important, so we're going to keep these functions at original
  * locations and use forward declarations instead. */
 static int transport_acquire_bt_a2dp(struct ba_transport *t);
@@ -170,7 +170,7 @@ static int transport_release_bt_rfcomm(struct ba_transport *t);
 static int transport_acquire_bt_sco(struct ba_transport *t);
 static int transport_release_bt_sco(struct ba_transport *t);
 
-struct ba_transport *transport_new_a2dp(
+struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
@@ -180,7 +180,7 @@ struct ba_transport *transport_new_a2dp(
 
 	struct ba_transport *t;
 
-	if ((t = transport_new(device, type, dbus_owner, dbus_path)) == NULL)
+	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	t->a2dp.ch1_volume = 127;
@@ -207,7 +207,7 @@ struct ba_transport *transport_new_a2dp(
 	return t;
 }
 
-struct ba_transport *transport_new_rfcomm(
+struct ba_transport *ba_transport_new_rfcomm(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
@@ -218,11 +218,11 @@ struct ba_transport *transport_new_rfcomm(
 
 	struct ba_transport_type ttype = {
 		.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM };
-	if ((t = transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
+	if ((t = ba_transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
 		goto fail;
 
 	snprintf(dbus_path_sco, sizeof(dbus_path_sco), "%s/sco", dbus_path);
-	if ((t_sco = transport_new_sco(device, type, dbus_owner, dbus_path_sco)) == NULL)
+	if ((t_sco = ba_transport_new_sco(device, type, dbus_owner, dbus_path_sco)) == NULL)
 		goto fail;
 
 	t->rfcomm.sco = t_sco;
@@ -237,7 +237,7 @@ fail:
 	return NULL;
 }
 
-struct ba_transport *transport_new_sco(
+struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
@@ -249,7 +249,7 @@ struct ba_transport *transport_new_sco(
 	if (type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
 		type.codec = HFP_CODEC_CVSD;
 
-	if ((t = transport_new(device, type, dbus_owner, dbus_path)) == NULL)
+	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	t->sco.spk_gain = 15;
@@ -295,7 +295,7 @@ void ba_transport_free(struct ba_transport *t) {
 	 * terminate the IO thread (or at least make sure it is not running any
 	 * more). Not doing so might result in an undefined behavior or even a
 	 * race condition (closed and reused file descriptor). */
-	transport_pthread_cancel(t->thread);
+	ba_transport_pthread_cancel(t->thread);
 
 	/* if possible, try to release resources gracefully */
 	if (t->release != NULL)
@@ -323,15 +323,15 @@ void ba_transport_free(struct ba_transport *t) {
 		pcm_type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		pthread_mutex_destroy(&t->sco.spk_drained_mtx);
 		pthread_cond_destroy(&t->sco.spk_drained);
-		transport_release_pcm(&t->sco.spk_pcm);
-		transport_release_pcm(&t->sco.mic_pcm);
+		ba_transport_release_pcm(&t->sco.spk_pcm);
+		ba_transport_release_pcm(&t->sco.mic_pcm);
 		if (t->sco.rfcomm != NULL)
 			t->sco.rfcomm->rfcomm.sco = NULL;
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		pcm_type = BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
 				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
-		transport_release_pcm(&t->a2dp.pcm);
+		ba_transport_release_pcm(&t->a2dp.pcm);
 		pthread_mutex_destroy(&t->a2dp.drained_mtx);
 		pthread_cond_destroy(&t->a2dp.drained);
 		free(t->a2dp.cconfig);
@@ -348,11 +348,11 @@ void ba_transport_free(struct ba_transport *t) {
 	free(t);
 }
 
-int transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig) {
+int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig) {
 	return write(t->sig_fd[1], &sig, sizeof(sig));
 }
 
-int transport_send_rfcomm(struct ba_transport *t, const char command[32]) {
+int ba_transport_send_rfcomm(struct ba_transport *t, const char command[32]) {
 
 	char msg[sizeof(enum ba_transport_signal) + 32];
 
@@ -362,7 +362,7 @@ int transport_send_rfcomm(struct ba_transport *t, const char command[32]) {
 	return write(t->sig_fd[1], msg, sizeof(msg));
 }
 
-unsigned int transport_get_channels(const struct ba_transport *t) {
+unsigned int ba_transport_get_channels(const struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		switch (t->type.codec) {
@@ -428,7 +428,7 @@ unsigned int transport_get_channels(const struct ba_transport *t) {
 	return 0;
 }
 
-unsigned int transport_get_sampling(const struct ba_transport *t) {
+unsigned int ba_transport_get_sampling(const struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		switch (t->type.codec) {
@@ -542,7 +542,15 @@ unsigned int transport_get_sampling(const struct ba_transport *t) {
 	return 0;
 }
 
-int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
+uint16_t ba_transport_get_delay(const struct ba_transport *t) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return t->delay + t->a2dp.delay;
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+		return t->delay + 10;
+	return t->delay;
+}
+
+int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	debug("State transition: %d -> %d", t->state, state);
 
 	if (t->state == state)
@@ -560,7 +568,7 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 
 	switch (state) {
 	case TRANSPORT_IDLE:
-		transport_pthread_cancel(t->thread);
+		ba_transport_pthread_cancel(t->thread);
 		break;
 	case TRANSPORT_PENDING:
 		/* When transport is marked as pending, try to acquire transport, but only
@@ -580,12 +588,12 @@ int transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 
 	/* something went wrong, so go back to idle */
 	if (ret == -1)
-		return transport_set_state(t, TRANSPORT_IDLE);
+		return ba_transport_set_state(t, TRANSPORT_IDLE);
 
 	return ret;
 }
 
-int transport_drain_pcm(struct ba_transport *t) {
+int ba_transport_drain_pcm(struct ba_transport *t) {
 
 	pthread_mutex_t *mutex = NULL;
 	pthread_cond_t *drained = NULL;
@@ -607,7 +615,7 @@ int transport_drain_pcm(struct ba_transport *t) {
 
 	pthread_mutex_lock(mutex);
 
-	transport_send_signal(t, TRANSPORT_PCM_SYNC);
+	ba_transport_send_signal(t, TRANSPORT_PCM_SYNC);
 	pthread_cond_wait(drained, mutex);
 
 	pthread_mutex_unlock(mutex);
@@ -806,7 +814,7 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 	return 0;
 }
 
-int transport_release_pcm(struct ba_pcm *pcm) {
+int ba_transport_release_pcm(struct ba_pcm *pcm) {
 
 	if (pcm->fd == -1)
 		return 0;
@@ -832,7 +840,7 @@ int transport_release_pcm(struct ba_pcm *pcm) {
 
 /**
  * Synchronous transport thread cancellation. */
-void transport_pthread_cancel(pthread_t thread) {
+void ba_transport_pthread_cancel(pthread_t thread) {
 
 	if (pthread_equal(thread, pthread_self()))
 		return;
@@ -849,9 +857,9 @@ void transport_pthread_cancel(pthread_t thread) {
 /**
  * Wrapper for release callback, which can be used by the pthread cleanup.
  *
- * This function CAN be used with transport_pthread_cleanup_lock() in order
+ * This function CAN be used with ba_transport_pthread_cleanup_lock() in order
  * to guard transport critical section during cleanup process. */
-void transport_pthread_cleanup(struct ba_transport *t) {
+void ba_transport_pthread_cleanup(struct ba_transport *t) {
 
 	/* During the normal operation mode, the release callback should not
 	 * be NULL. Hence, we will relay on this callback - file descriptors
@@ -863,20 +871,20 @@ void transport_pthread_cleanup(struct ba_transport *t) {
 	 * be used anymore. */
 	t->thread = config.main_thread;
 
-	transport_pthread_cleanup_unlock(t);
+	ba_transport_pthread_cleanup_unlock(t);
 
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the IO/RFCOMM thread. */
 	debug("Exiting IO thread: %s", ba_transport_type_to_string(t->type));
 }
 
-int transport_pthread_cleanup_lock(struct ba_transport *t) {
+int ba_transport_pthread_cleanup_lock(struct ba_transport *t) {
 	int ret = pthread_mutex_lock(&t->mutex);
 	t->cleanup_lock = true;
 	return ret;
 }
 
-int transport_pthread_cleanup_unlock(struct ba_transport *t) {
+int ba_transport_pthread_cleanup_unlock(struct ba_transport *t) {
 	if (!t->cleanup_lock)
 		return 0;
 	t->cleanup_lock = false;
