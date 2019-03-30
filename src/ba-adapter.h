@@ -25,6 +25,10 @@ struct ba_adapter {
 	int hci_dev_id;
 	char hci_name[8];
 
+	/* data for D-Bus management */
+	char ba_dbus_path[32];
+	char bluez_dbus_path[32];
+
 	/* collection of connected devices */
 	pthread_mutex_t devices_mutex;
 	GHashTable *devices;

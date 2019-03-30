@@ -87,9 +87,10 @@ struct ba_transport {
 	 * specific configuration, freeing resources, etc. */
 	struct ba_transport_type type;
 
-	/* data required for D-Bus management */
-	char *dbus_owner;
-	char *dbus_path;
+	/* data for D-Bus management */
+	char *ba_dbus_path;
+	char *bluez_dbus_owner;
+	char *bluez_dbus_path;
 
 	/* This mutex shall guard modifications of the critical sections in this
 	 * transport structure, e.g. thread creation/termination. */

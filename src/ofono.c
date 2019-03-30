@@ -225,7 +225,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	pthread_mutex_lock(&a->devices_mutex);
 
 	if ((d = ba_device_lookup(a, &addr_dev)) == NULL &&
-			(d = bluez_ba_device_new(a, &addr_dev)) == NULL) {
+			(d = ba_device_new(a, &addr_dev, NULL)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
 		goto fail;
 	}

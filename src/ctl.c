@@ -285,7 +285,7 @@ static void ctl_thread_cmd_transport_set_volume(struct ba_ctl *ctl, struct ba_re
 		if (config.a2dp.volume) {
 			GError *err = NULL;
 			uint16_t volume = (req->ch1_muted | req->ch2_muted) ? 0 : MIN(req->ch1_volume, req->ch2_volume);
-			g_dbus_set_property(config.dbus, t->dbus_owner, t->dbus_path,
+			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
 					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
 			if (err != NULL) {
 				warn("Couldn't set BT device volume: %s", err->message);

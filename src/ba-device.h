@@ -34,6 +34,10 @@ struct ba_device {
 	/* human-readable Bluetooth device name */
 	char name[HCI_MAX_NAME_LENGTH];
 
+	/* data for D-Bus management */
+	char *ba_dbus_path;
+	char *bluez_dbus_path;
+
 	/* adjusted (in the range 0-100) battery level */
 	struct {
 		bool enabled;

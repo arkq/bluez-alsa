@@ -51,6 +51,9 @@ struct ba_adapter *ba_adapter_new(int dev_id, const char *name) {
 	else
 		sprintf(a->hci_name, "hci%d", dev_id);
 
+	sprintf(a->ba_dbus_path, "/org/bluealsa/%s", a->hci_name);
+	sprintf(a->bluez_dbus_path, "/org/bluez/%s", a->hci_name);
+
 	pthread_mutex_init(&a->devices_mutex, NULL);
 	a->devices = g_hash_table_new_full(g_bdaddr_hash, g_bdaddr_equal, NULL, NULL);
 

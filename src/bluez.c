@@ -17,6 +17,7 @@
 #include <strings.h>
 #include <unistd.h>
 
+#include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 
 #include <gio/gio.h>
@@ -24,6 +25,7 @@
 #include <glib.h>
 
 #include "a2dp-codecs.h"
+#include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
@@ -95,48 +97,6 @@ static int bluez_get_dbus_object_count(
 			count++;
 
 	return count;
-}
-
-/**
- * Create new device using BlueZ.
- *
- * @param adapter Adapter for which new device should be added.
- * @param addr MAC address of the Bluetooth device.
- * @return On success, this function returns new BlueALSA device
- *   structure. On error, NULL is returned. */
-struct ba_device *bluez_ba_device_new(
-		struct ba_adapter *adapter,
-		const bdaddr_t *addr) {
-
-#if DEBUG
-	/* make sure that the device mutex is acquired */
-	g_assert(pthread_mutex_trylock(&adapter->devices_mutex) == EBUSY);
-#endif
-
-	char path[64];
-	snprintf(path, sizeof(path), "/org/bluez/%s/dev_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X",
-			adapter->hci_name, addr->b[5], addr->b[4], addr->b[3], addr->b[2], addr->b[1], addr->b[0]);
-
-	char name[sizeof(((struct ba_device *)0)->name)];
-	ba2str(addr, name);
-
-	GVariant *property;
-	GError *err = NULL;
-
-	/* get local (user editable) Bluetooth device name */
-	if ((property = g_dbus_get_property(config.dbus, BLUEZ_SERVICE, path,
-					BLUEZ_IFACE_DEVICE, "Alias", &err)) != NULL) {
-		strncpy(name, g_variant_get_string(property, NULL), sizeof(name) - 1);
-		name[sizeof(name) - 1] = '\0';
-		g_variant_unref(property);
-	}
-
-	if (err != NULL) {
-		warn("Couldn't get BT device name: %s", err->message);
-		g_error_free(err);
-	}
-
-	return ba_device_new(adapter, addr, name);
 }
 
 /**
@@ -654,7 +614,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = bluez_ba_device_new(a, &addr)) == NULL) {
+			(d = ba_device_new(a, &addr, NULL)) == NULL) {
 		error("Couldn't create new device: %s", device_path);
 		goto fail;
 	}
@@ -843,9 +803,7 @@ static int bluez_register_a2dp_endpoint(
 					(void *)codec, endpoint_free, &err)) == 0)
 		goto fail;
 
-	char adapter_path[32];
-	snprintf(adapter_path, sizeof(adapter_path), "/org/bluez/%s", adapter->hci_name);
-	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter_path,
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
 			BLUEZ_IFACE_MEDIA, "RegisterEndpoint");
 
 	GVariantBuilder caps;
@@ -957,7 +915,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = bluez_ba_device_new(a, &addr)) == NULL) {
+			(d = ba_device_new(a, &addr, NULL)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
 		goto fail;
 	}

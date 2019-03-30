@@ -229,6 +229,8 @@ int main(int argc, char *argv[]) {
 	bdaddr_t addr;
 	struct ba_device *d1, *d2;
 
+	pthread_mutex_lock(&a->devices_mutex);
+
 	/* Connect two devices with the same name, but different MAC addresses.
 	 * This test will ensure, that it is possible to launch mixer plug-in. */
 
@@ -237,6 +239,8 @@ int main(int argc, char *argv[]) {
 
 	str2ba("12:34:56:9A:BC:DE", &addr);
 	assert((d2 = ba_device_new(a, &addr, "Test Device With Long Name")) != NULL);
+
+	pthread_mutex_unlock(&a->devices_mutex);
 
 	if (source) {
 		struct ba_transport_type ttype = {

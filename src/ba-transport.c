@@ -142,15 +142,15 @@ struct ba_transport *ba_transport_new(
 	t->sig_fd[0] = -1;
 	t->sig_fd[1] = -1;
 
-	if ((t->dbus_owner = strdup(dbus_owner)) == NULL)
+	if ((t->bluez_dbus_owner = strdup(dbus_owner)) == NULL)
 		goto fail;
-	if ((t->dbus_path = strdup(dbus_path)) == NULL)
+	if ((t->bluez_dbus_path = strdup(dbus_path)) == NULL)
 		goto fail;
 
 	if (pipe(t->sig_fd) == -1)
 		goto fail;
 
-	g_hash_table_insert(device->transports, t->dbus_path, t);
+	g_hash_table_insert(device->transports, t->bluez_dbus_path, t);
 	return t;
 
 fail:
@@ -199,6 +199,8 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
+
+	t->ba_dbus_path = g_strdup_printf("%s/a2dp", device->ba_dbus_path);
 
 	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_A2DP | (type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
@@ -266,6 +268,8 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
+
+	t->ba_dbus_path = g_strdup_printf("%s/sco", device->ba_dbus_path);
 
 	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
@@ -338,13 +342,15 @@ void ba_transport_free(struct ba_transport *t) {
 	}
 
 	/* detach transport from the device */
-	g_hash_table_steal(d->transports, t->dbus_path);
+	g_hash_table_steal(d->transports, t->bluez_dbus_path);
 
 	if (pcm_type != BA_PCM_TYPE_NULL)
 		bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_TRANSPORT_REMOVED, &d->addr, pcm_type);
 
-	free(t->dbus_owner);
-	free(t->dbus_path);
+	if (t->ba_dbus_path != NULL)
+		g_free(t->ba_dbus_path);
+	free(t->bluez_dbus_owner);
+	free(t->bluez_dbus_path);
 	free(t);
 }
 
@@ -646,8 +652,8 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 		goto final;
 	}
 
-	msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
-			t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
+			BLUEZ_IFACE_MEDIA_TRANSPORT, t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
@@ -706,9 +712,9 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the BlueZ. In both cases there is no point in a explicit
 	 * release request. It might even return error (e.g. not authorized). */
-	if (t->state != TRANSPORT_IDLE && t->dbus_owner != NULL) {
+	if (t->state != TRANSPORT_IDLE && t->bluez_dbus_owner != NULL) {
 
-		msg = g_dbus_message_new_method_call(t->dbus_owner, t->dbus_path,
+		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
 				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
 
 		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,

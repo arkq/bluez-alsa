@@ -16,13 +16,22 @@
 #include <string.h>
 
 #include "ba-transport.h"
+#include "bluealsa.h"
+#include "bluez-iface.h"
 #include "ctl.h"
+#include "utils.h"
 #include "shared/ctl-proto.h"
+#include "shared/log.h"
 
 struct ba_device *ba_device_new(
 		struct ba_adapter *adapter,
 		const bdaddr_t *addr,
 		const char *name) {
+
+#if DEBUG
+	/* make sure that the device mutex is acquired */
+	g_assert(pthread_mutex_trylock(&adapter->devices_mutex) == EBUSY);
+#endif
 
 	struct ba_device *d;
 
@@ -31,9 +40,38 @@ struct ba_device *ba_device_new(
 
 	d->a = adapter;
 	bacpy(&d->addr, addr);
-	strncpy(d->name, name, sizeof(d->name) - 1);
+
+	char tmp[sizeof("dev_XX:XX:XX:XX:XX:XX")];
+	sprintf(tmp, "dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X",
+			addr->b[5], addr->b[4], addr->b[3], addr->b[2], addr->b[1], addr->b[0]);
+
+	d->ba_dbus_path = g_strdup_printf("%s/%s", adapter->ba_dbus_path, tmp);
+	d->bluez_dbus_path = g_strdup_printf("%s/%s", adapter->bluez_dbus_path, tmp);
 
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+
+	if (name != NULL)
+		strncpy(d->name, name, sizeof(d->name) - 1);
+	else {
+
+		GVariant *property;
+		GError *err = NULL;
+
+		/* get local (user editable) Bluetooth device name */
+		if ((property = g_dbus_get_property(config.dbus, BLUEZ_SERVICE, d->bluez_dbus_path,
+						BLUEZ_IFACE_DEVICE, "Alias", &err)) != NULL) {
+			strncpy(d->name, g_variant_get_string(property, NULL), sizeof(d->name) - 1);
+			d->name[sizeof(d->name) - 1] = '\0';
+			g_variant_unref(property);
+		}
+
+		if (err != NULL) {
+			warn("Couldn't get BT device name: %s", err->message);
+			ba2str(addr, d->name);
+			g_error_free(err);
+		}
+
+	}
 
 	g_hash_table_insert(adapter->devices, &d->addr, d);
 	return d;
@@ -84,6 +122,8 @@ void ba_device_free(struct ba_device *d) {
 	}
 
 	g_hash_table_unref(d->transports);
+	g_free(d->bluez_dbus_path);
+	g_free(d->ba_dbus_path);
 	free(d);
 }
 
