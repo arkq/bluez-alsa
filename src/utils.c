@@ -201,7 +201,8 @@ struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *
 
 	}
 
-	if (strncmp(path, "/HFP", 4) == 0) {
+	if ((tmp = strstr(path, "/HFP/")) != NULL) {
+		path = tmp;
 		if (strcmp(path + 4, "/HandsFree") == 0)
 			type.profile = BA_TRANSPORT_PROFILE_HFP_HF;
 		else if (strcmp(path + 4, "/AudioGateway") == 0)
@@ -209,7 +210,8 @@ struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *
 		type.codec = HFP_CODEC_UNDEFINED;
 	}
 
-	if (strncmp(path, "/HSP", 4) == 0) {
+	if ((tmp = strstr(path, "/HSP/")) != NULL) {
+		path = tmp;
 		if (strcmp(path + 4, "/Headset") == 0)
 			type.profile = BA_TRANSPORT_PROFILE_HSP_HS;
 		else if (strcmp(path + 4, "/AudioGateway") == 0)
@@ -488,6 +490,7 @@ const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
 		return "LDAC";
 #endif
 	}
+	debug("Unknown codec: %#x", codec);
 	return "N/A";
 }
 
@@ -567,6 +570,7 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 	case BA_TRANSPORT_PROFILE_RFCOMM | BA_TRANSPORT_PROFILE_HSP_AG:
 		return "RFCOMM: HSP Audio Gateway";
 	}
+	debug("Unknown transport type: %#x %#x", type.profile, type.codec);
 	return "N/A";
 }
 
