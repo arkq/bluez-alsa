@@ -22,9 +22,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "inc/dbus.inc"
 #include "inc/sine.inc"
 
 #include "../src/bluealsa.c"
+#include "../src/bluealsa-iface.c"
 #include "../src/at.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
@@ -207,6 +209,7 @@ int main(int argc, char *argv[]) {
 		}
 
 	assert(bluealsa_config_init() == 0);
+	assert((config.dbus = g_test_dbus_connection_new_sync(NULL)) != NULL);
 
 	/* emulate dummy test HCI device */
 	assert((a = ba_adapter_new(0, device)) != NULL);

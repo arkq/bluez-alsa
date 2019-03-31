@@ -21,6 +21,7 @@
 #include "ba-device.h"
 #include "bluealsa.h"
 #include "ctl.h"
+#include "utils.h"
 
 static guint g_bdaddr_hash(gconstpointer v) {
 	const bdaddr_t *ba = (const bdaddr_t *)v;
@@ -52,7 +53,9 @@ struct ba_adapter *ba_adapter_new(int dev_id, const char *name) {
 		sprintf(a->hci_name, "hci%d", dev_id);
 
 	sprintf(a->ba_dbus_path, "/org/bluealsa/%s", a->hci_name);
+	g_variant_sanitize_object_path(a->ba_dbus_path);
 	sprintf(a->bluez_dbus_path, "/org/bluez/%s", a->hci_name);
+	g_variant_sanitize_object_path(a->bluez_dbus_path);
 
 	pthread_mutex_init(&a->devices_mutex, NULL);
 	a->devices = g_hash_table_new_full(g_bdaddr_hash, g_bdaddr_equal, NULL, NULL);

@@ -38,7 +38,6 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
-#include "bluez.h"
 #include "ctl.h"
 #include "hfp.h"
 #include "ofono-iface.h"

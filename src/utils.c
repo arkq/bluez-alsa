@@ -10,6 +10,7 @@
 
 #include "utils.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -408,6 +409,22 @@ fail:
 		g_object_unref(rep);
 
 	return error == NULL;
+}
+
+/**
+ * Sanitize D-Bus object path.
+ *
+ * @param path D-Bus object path.
+ * @return Pointer to the object path string. */
+char *g_variant_sanitize_object_path(char *path) {
+
+	char *tmp = path - 1;
+
+	while (*(++tmp) != '\0')
+		if (!(*tmp == '/' || isalnum(*tmp)))
+			*tmp = '_';
+
+	return path;
 }
 
 /**

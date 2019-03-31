@@ -45,6 +45,8 @@ bool g_dbus_set_property(GDBusConnection *conn, const char *name,
 		const char *path, const char *interface, const char *property,
 		const GVariant *value, GError **error);
 
+char *g_variant_sanitize_object_path(char *path);
+
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 		double ch1_scale, double ch2_scale);
 

@@ -16,6 +16,7 @@
 
 #include "inc/sine.inc"
 #include "../src/at.c"
+#include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"

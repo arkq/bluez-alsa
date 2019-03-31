@@ -14,6 +14,7 @@
 
 #include <getopt.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -298,6 +299,12 @@ int main(int argc, char **argv) {
 					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
 					NULL, NULL, &err)) == NULL) {
 		error("Couldn't obtain D-Bus connection: %s", err->message);
+		return EXIT_FAILURE;
+	}
+
+	err = NULL;
+	if (bluealsa_dbus_register_manager(&err) == 0) {
+		error("Couldn't register D-Bus manager: %s", err->message);
 		return EXIT_FAILURE;
 	}
 

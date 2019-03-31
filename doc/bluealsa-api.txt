@@ -1,0 +1,30 @@
+Manager hierarchy
+=================
+
+Service         org.bluealsa[.unique ID]
+Interface       org.bluealsa.Manager1
+Object path     [variable prefix]/
+
+Methods         array{object, dict} GetPCMs()
+
+                        Returns the array of available PCM objects and
+                        associated properties.
+
+Signals         void PCMAdded(object path, dict props)
+
+                        Signal emitted when new PCM is added. It contains
+                        the object path and associated properties.
+
+                void PCMRemoved(object path)
+
+                        Signal emitted when device has been removed. The
+                        object path is only for a reference - it has been
+                        already removed.
+
+PCM hierarchy
+=============
+
+Service         org.bluealsa[.unique ID]
+Interface       org.bluealsa.PCM1
+Object path     [variable prefix]/{hci0,hci1,...}/dev_XX_XX_XX_XX_XX_XX/a2dp
+                [variable prefix]/{hci0,hci1,...}/dev_XX_XX_XX_XX_XX_XX/sco

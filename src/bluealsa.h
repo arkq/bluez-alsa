@@ -25,6 +25,8 @@
 #include <gio/gio.h>
 #include <glib.h>
 
+#include "ba-transport.h"
+
 struct ba_config {
 
 	/* set of enabled profiles */
@@ -107,5 +109,10 @@ struct ba_config {
 extern struct ba_config config;
 
 int bluealsa_config_init(void);
+
+int bluealsa_dbus_register_manager(GError **error);
+
+int bluealsa_dbus_register_transport(struct ba_transport *transport);
+void bluealsa_dbus_unregister_transport(struct ba_transport *transport);
 
 #endif

@@ -89,6 +89,7 @@ struct ba_transport {
 
 	/* data for D-Bus management */
 	char *ba_dbus_path;
+	unsigned int ba_dbus_id;
 	char *bluez_dbus_owner;
 	char *bluez_dbus_path;
 

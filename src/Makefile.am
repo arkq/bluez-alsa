@@ -16,6 +16,7 @@ bluealsa_SOURCES = \
 	ba-device.c \
 	ba-transport.c \
 	bluealsa.c \
+	bluealsa-iface.c \
 	bluez.c \
 	bluez-a2dp.c \
 	bluez-iface.c \
