@@ -14,11 +14,11 @@ bluealsa_aplay_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
-	@GIO2_CFLAGS@
+	@DBUS1_CFLAGS@
 bluealsa_aplay_LDADD = \
 	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
-	@GIO2_LIBS@
+	@DBUS1_LIBS@
 endif
 
 if ENABLE_RFCOMM

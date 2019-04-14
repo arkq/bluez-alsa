@@ -18,15 +18,16 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
 #include <bluetooth/bluetooth.h>
-#include <gio/gio.h>
-#include <glib.h>
+#include <dbus/dbus.h>
 
 #include "shared/ctl-client.h"
 #include "shared/ctl-proto.h"
@@ -60,7 +61,7 @@ static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
 static bool pcm_mixer = true;
 
-static GDBusConnection *dbus = NULL;
+static DBusConnection *dbus = NULL;
 
 static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
 static struct pcm_worker *workers = NULL;
@@ -255,20 +256,18 @@ static struct pcm_worker *get_active_worker(void) {
 
 static int pause_device_player(const bdaddr_t *dev) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
+	DBusMessage *msg = NULL, *rep = NULL;
+	DBusError err;
 	char obj[64];
 	int ret = 0;
 
-	sprintf(obj, "/org/bluez/%s/dev_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X_%2.2X/player0",
+	sprintf(obj, "/org/bluez/%s/dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X/player0",
 			ba_interface, dev->b[5], dev->b[4], dev->b[3], dev->b[2], dev->b[1], dev->b[0]);
-	msg = g_dbus_message_new_method_call("org.bluez", obj, "org.bluez.MediaPlayer1", "Pause");
+	msg = dbus_message_new_method_call("org.bluez", obj, "org.bluez.MediaPlayer1", "Pause");
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-		goto fail;
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
+	if ((rep = dbus_connection_send_with_reply_and_block(dbus, msg,
+					DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
+		warn("Couldn't pause player: %s", err.message);
 		goto fail;
 	}
 
@@ -280,13 +279,9 @@ fail:
 
 final:
 	if (msg != NULL)
-		g_object_unref(msg);
+		dbus_message_unref(msg);
 	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
-		debug("Couldn't pause player: %s", err->message);
-		g_error_free(err);
-	}
+		dbus_message_unref(rep);
 
 	return ret;
 }
@@ -387,6 +382,7 @@ static void *pcm_worker_routine(void *arg) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
+		#define MIN(a,b) a < b ? a : b
 		size_t _in = MIN(pcm_max_read_len, ffb_len_in(&buffer));
 		if ((ret = read(w->pcm_fd, buffer.tail, _in * sizeof(int16_t))) == -1) {
 			if (errno == EINTR)
@@ -675,13 +671,9 @@ usage:
 		free(ba_str);
 	}
 
-	GError *err = NULL;
-	if ((dbus = g_dbus_connection_new_for_address_sync(
-					g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, NULL, NULL),
-					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
-					NULL, NULL, &err)) == NULL) {
-		error("Couldn't obtain D-Bus connection: %s", err->message);
+	DBusError err;
+	if ((dbus = dbus_bus_get(DBUS_BUS_SYSTEM, &err)) == NULL) {
+		error("Couldn't obtain D-Bus connection: %s", err.message);
 		goto fail;
 	}
 

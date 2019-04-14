@@ -43,6 +43,10 @@ Dependencies:
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with `--enable-aptx`)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
 
+Dependencies for client applications (e.g. `bluealsa-aplay`):
+
+- [libdbus](https://www.freedesktop.org/wiki/Software/dbus/)
+
 Dependencies for `bluealsa-rfcomm` (when `--enable-rfcomm` is specified during configuration):
 
 - [readline](https://tiswww.case.edu/php/chet/readline/rltop.html)

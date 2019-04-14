@@ -10,6 +10,7 @@ addons:
       - libasound2-dev
       - libbluetooth-dev
       - libbsd-dev
+      - libdbus-1-dev
       - libfdk-aac-dev
       - libglib2.0-dev
       - libncurses5-dev
