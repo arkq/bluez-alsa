@@ -68,7 +68,27 @@ static const GDBusSignalInfo *bluealsa_iface_manager_signals[] = {
 	NULL,
 };
 
+static const GDBusPropertyInfo bluealsa_iface_pcm_Device = {
+	-1, "Device", "o", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo bluealsa_iface_pcm_Modes = {
+	-1, "Modes", "as", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo bluealsa_iface_pcm_Channels = {
+	-1, "Channels", "y", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo bluealsa_iface_pcm_Sampling = {
+	-1, "Sampling", "u", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
+	&bluealsa_iface_pcm_Device,
+	&bluealsa_iface_pcm_Modes,
+	&bluealsa_iface_pcm_Channels,
+	&bluealsa_iface_pcm_Sampling,
 	NULL,
 };
 

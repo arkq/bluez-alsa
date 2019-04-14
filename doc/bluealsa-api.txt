@@ -28,3 +28,21 @@ Service         org.bluealsa[.unique ID]
 Interface       org.bluealsa.PCM1
 Object path     [variable prefix]/{hci0,hci1,...}/dev_XX_XX_XX_XX_XX_XX/a2dp
                 [variable prefix]/{hci0,hci1,...}/dev_XX_XX_XX_XX_XX_XX/sco
+
+Properties      object Device [readonly]
+
+                        BlueZ device object path.
+
+                array{string} Modes [readonly]
+
+                        Available operation modes.
+
+                        Possible values: "sink" or "source"
+
+                byte Channels [readonly]
+
+                        Number of audio channels.
+
+                uint32 Sampling [readonly]
+
+                        Sampling frequency.
