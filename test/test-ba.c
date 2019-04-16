@@ -18,6 +18,7 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
+#include "../src/bluealsa-dbus.c"
 #include "../src/utils.c"
 #include "../src/shared/defs.h"
 #include "../src/shared/log.c"

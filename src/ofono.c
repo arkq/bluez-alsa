@@ -273,7 +273,7 @@ static int ofono_get_all_cards(void) {
 		goto fail;
 	}
 
-	const gchar *sender = g_dbus_message_get_sender(rep);
+	const char *sender = g_dbus_message_get_sender(rep);
 	GVariant *body = g_dbus_message_get_body(rep);
 
 	GVariantIter *cards;
@@ -417,23 +417,19 @@ static void ofono_agent_release(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(inv);
 }
 
-static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface, const gchar *method, GVariant *params,
+static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
+	debug("Called: %s.%s()", interface, method);
 	(void)conn;
 	(void)sender;
 	(void)path;
-	(void)interface;
 	(void)params;
-
-	debug("oFono audio agent method call: %s.%s()", interface, method);
 
 	if (strcmp(method, "NewConnection") == 0)
 		ofono_agent_new_connection(invocation, userdata);
 	else if (strcmp(method, "Release") == 0)
 		ofono_agent_release(invocation, userdata);
-	else
-		warn("Unsupported oFono method: %s", method);
 
 }
 
@@ -508,19 +504,13 @@ final:
 
 /**
  * Callback for the CardAdded signal (emitted when phone is connected). */
-static void ofono_signal_card_added(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
+static void ofono_signal_card_added(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *signal, GVariant *params,
 		void *userdata) {
+	debug("Signal: %s.%s()", interface, signal);
 	(void)conn;
 	(void)path;
-	(void)interface;
 	(void)userdata;
-
-	const gchar *signature = g_variant_get_type_string(params);
-	if (strcmp(signature, "(oa{sv})") != 0) {
-		error("Invalid signature for %s: %s != %s", signal, signature, "(oa{sv})");
-		return;
-	}
 
 	const char *card = NULL;
 	GVariantIter *properties = NULL;
@@ -533,20 +523,14 @@ static void ofono_signal_card_added(GDBusConnection *conn, const gchar *sender,
 
 /**
  * Callback for the CardRemoved signal (emitted when phone is disconnected). */
-static void ofono_signal_card_removed(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
+static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *signal, GVariant *params,
 		void *userdata) {
+	debug("Signal: %s.%s()", interface, signal);
 	(void)conn;
 	(void)sender;
 	(void)path;
-	(void)interface;
 	(void)userdata;
-
-	const gchar *signature = g_variant_get_type_string(params);
-	if (strcmp(signature, "(o)") != 0) {
-		error("Invalid signature for %s: %s != %s", signal, signature, "(o)");
-		return;
-	}
 
 	struct ba_adapter *a = NULL;
 	struct ba_device *d = NULL;
@@ -584,8 +568,8 @@ fail:
  * When oFono is properly shutdown, we are notified through the Release()
  * method. Here, we get the opportunity to perform some cleanup if oFono
  * was killed. */
-static void ofono_signal_name_owner_changed(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface, const gchar *signal, GVariant *params,
+static void ofono_signal_name_owner_changed(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *signal, GVariant *params,
 		void *userdata) {
 	(void)conn;
 	(void)sender;

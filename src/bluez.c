@@ -398,8 +398,8 @@ final:
 
 static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
-	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
-	const gchar *endpoint_path = g_dbus_method_invocation_get_object_path(inv);
+	const char *sender = g_dbus_method_invocation_get_sender(inv);
+	const char *endpoint_path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	const struct bluez_a2dp_codec *codec = userdata;
 	const uint16_t codec_id = codec->id;
@@ -712,15 +712,13 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 
 void bluez_register_a2dp(struct ba_adapter *adapter);
 
-static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface, const gchar *method, GVariant *params,
+static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
+	debug("Called: %s.%s()", interface, method);
 	(void)conn;
 	(void)sender;
-	(void)interface;
 	(void)params;
-
-	debug("Endpoint method call: %s.%s()", interface, method);
 
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(path);
 	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
@@ -744,8 +742,6 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const gchar *sende
 	}
 	else if (strcmp(method, "Release") == 0)
 		bluez_endpoint_release(invocation, userdata);
-	else
-		warn("Unsupported endpoint method: %s", method);
 
 }
 
@@ -880,8 +876,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	(void)userdata;
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
-	const gchar *sender = g_dbus_method_invocation_get_sender(inv);
-	const gchar *profile_path = g_dbus_method_invocation_get_object_path(inv);
+	const char *sender = g_dbus_method_invocation_get_sender(inv);
+	const char *profile_path = g_dbus_method_invocation_get_object_path(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 
 	struct ba_adapter *a = NULL;
@@ -1000,16 +996,14 @@ static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(inv);
 }
 
-static void bluez_profile_method_call(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface, const gchar *method, GVariant *params,
+static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
+	debug("Called: %s.%s()", interface, method);
 	(void)conn;
 	(void)sender;
 	(void)path;
-	(void)interface;
 	(void)params;
-
-	debug("Profile method call: %s.%s()", interface, method);
 
 	if (strcmp(method, "NewConnection") == 0)
 		bluez_profile_new_connection(invocation, userdata);
@@ -1017,8 +1011,6 @@ static void bluez_profile_method_call(GDBusConnection *conn, const gchar *sender
 		bluez_profile_request_disconnection(invocation, userdata);
 	else if (strcmp(method, "Release") == 0)
 		bluez_profile_release(invocation, userdata);
-	else
-		warn("Unsupported profile method: %s", method);
 
 }
 
@@ -1183,14 +1175,13 @@ void bluez_register(void) {
 
 }
 
-static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface_, const gchar *signal, GVariant *params,
+static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
+	debug("Signal: %s.%s()", interface_, signal);
 	(void)conn;
 	(void)sender;
 	(void)path;
-	(void)interface_;
-	(void)signal;
 	(void)userdata;
 
 	struct ba_adapter *a = NULL;
@@ -1224,14 +1215,13 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const gchar *se
 
 }
 
-static void bluez_signal_interfaces_removed(GDBusConnection *conn, const gchar *sender,
-		const gchar *path, const gchar *interface_, const gchar *signal, GVariant *params,
+static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
+	debug("Signal: %s.%s()", interface_, signal);
 	(void)conn;
 	(void)sender;
 	(void)path;
-	(void)interface_;
-	(void)signal;
 	(void)userdata;
 
 	GVariantIter *interfaces;
@@ -1253,19 +1243,13 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const gchar *
 
 }
 
-static void bluez_signal_device_changed(GDBusConnection *conn, const gchar *sender,
-		const gchar *device_path, const gchar *interface_, const gchar *signal, GVariant *params,
+static void bluez_signal_device_changed(GDBusConnection *conn, const char *sender,
+		const char *device_path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
+	debug("Signal: %s.%s()", interface_, signal);
 	(void)conn;
 	(void)sender;
-	(void)interface_;
 	(void)userdata;
-
-	const gchar *signature = g_variant_get_type_string(params);
-	if (strcmp(signature, "(sa{sv}as)") != 0) {
-		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
-		return;
-	}
 
 	struct ba_adapter *a = NULL;
 	struct ba_device *d = NULL;
@@ -1315,19 +1299,13 @@ final:
 	pthread_mutex_unlock(&a->devices_mutex);
 }
 
-static void bluez_signal_transport_changed(GDBusConnection *conn, const gchar *sender,
-		const gchar *transport_path, const gchar *interface_, const gchar *signal, GVariant *params,
+static void bluez_signal_transport_changed(GDBusConnection *conn, const char *sender,
+		const char *transport_path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
+	debug("Signal: %s.%s()", interface_, signal);
 	(void)conn;
 	(void)sender;
-	(void)interface_;
 	(void)userdata;
-
-	const gchar *signature = g_variant_get_type_string(params);
-	if (strcmp(signature, "(sa{sv}as)") != 0) {
-		error("Invalid signature for %s: %s != %s", signal, signature, "(sa{sv}as)");
-		return;
-	}
 
 	struct ba_adapter *a = NULL;
 	struct ba_device *d = NULL;

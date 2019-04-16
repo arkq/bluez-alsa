@@ -29,6 +29,7 @@
 #include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "bluealsa.h"
+#include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "ctl.h"
 #include "hfp.h"

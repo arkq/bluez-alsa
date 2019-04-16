@@ -20,6 +20,7 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
+#include "../src/bluealsa-dbus.c"
 #include "../src/ctl.c"
 #include "../src/io.c"
 #include "../src/msbc.c"

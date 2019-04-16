@@ -33,6 +33,7 @@
 
 #include "ba-adapter.h"
 #include "bluealsa.h"
+#include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
 #include "bluez-a2dp.h"
 #include "bluez.h"
@@ -289,7 +290,7 @@ int main(int argc, char **argv) {
 	/* initialize random number generator */
 	srandom(time(NULL));
 
-	gchar *address;
+	char *address;
 	GError *err;
 
 	err = NULL;

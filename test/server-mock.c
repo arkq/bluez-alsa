@@ -26,6 +26,7 @@
 #include "inc/sine.inc"
 
 #include "../src/bluealsa.c"
+#include "../src/bluealsa-dbus.c"
 #include "../src/bluealsa-iface.c"
 #include "../src/at.c"
 #include "../src/ba-adapter.c"
