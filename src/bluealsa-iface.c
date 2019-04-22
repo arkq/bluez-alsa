@@ -10,6 +10,14 @@
 
 #include "bluealsa-iface.h"
 
+static const GDBusArgInfo arg_fd = {
+	-1, "fd", "h", NULL
+};
+
+static const GDBusArgInfo arg_mode = {
+	-1, "mode", "s", NULL
+};
+
 static const GDBusArgInfo arg_path = {
 	-1, "path", "o", NULL
 };
@@ -22,7 +30,7 @@ static const GDBusArgInfo arg_props = {
 	-1, "props", "a{sv}", NULL
 };
 
-static const GDBusArgInfo *out_GetPCMs[] = {
+static const GDBusArgInfo *GetPCMs_out[] = {
 	&arg_PCMs,
 	NULL,
 };
@@ -30,7 +38,7 @@ static const GDBusArgInfo *out_GetPCMs[] = {
 static const GDBusMethodInfo bluealsa_iface_manager_GetPCMs = {
 	-1, "GetPCMs",
 	NULL,
-	(GDBusArgInfo **)out_GetPCMs,
+	(GDBusArgInfo **)GetPCMs_out,
 	NULL,
 };
 
@@ -39,32 +47,55 @@ static const GDBusMethodInfo *bluealsa_iface_manager_methods[] = {
 	NULL,
 };
 
-static const GDBusArgInfo *args_PCMAdded[] = {
+static const GDBusArgInfo *PCMAdded_args[] = {
 	&arg_path,
 	&arg_props,
 	NULL,
 };
 
-static const GDBusArgInfo *args_PCMRemoved[] = {
+static const GDBusArgInfo *PCMRemoved_args[] = {
 	&arg_path,
 	NULL,
 };
 
 static const GDBusSignalInfo bluealsa_iface_manager_PCMAdded = {
 	-1, "PCMAdded",
-	(GDBusArgInfo **)args_PCMAdded,
+	(GDBusArgInfo **)PCMAdded_args,
 	NULL,
 };
 
 static const GDBusSignalInfo bluealsa_iface_manager_PCMRemoved = {
 	-1, "PCMRemoved",
-	(GDBusArgInfo **)args_PCMRemoved,
+	(GDBusArgInfo **)PCMRemoved_args,
 	NULL,
 };
 
 static const GDBusSignalInfo *bluealsa_iface_manager_signals[] = {
 	&bluealsa_iface_manager_PCMAdded,
 	&bluealsa_iface_manager_PCMRemoved,
+	NULL,
+};
+
+static const GDBusArgInfo *pcm_Open_in[] = {
+	&arg_mode,
+	NULL,
+};
+
+static const GDBusArgInfo *pcm_Open_out[] = {
+	&arg_fd,
+	&arg_fd,
+	NULL,
+};
+
+static const GDBusMethodInfo bluealsa_iface_pcm_Open = {
+	-1, "Open",
+	(GDBusArgInfo **)pcm_Open_in,
+	(GDBusArgInfo **)pcm_Open_out,
+	NULL,
+};
+
+static const GDBusMethodInfo *bluealsa_iface_pcm_methods[] = {
+	&bluealsa_iface_pcm_Open,
 	NULL,
 };
 
@@ -84,11 +115,16 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Sampling = {
 	-1, "Sampling", "u", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
+static const GDBusPropertyInfo bluealsa_iface_pcm_Codec = {
+	-1, "Codec", "q", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	&bluealsa_iface_pcm_Device,
 	&bluealsa_iface_pcm_Modes,
 	&bluealsa_iface_pcm_Channels,
 	&bluealsa_iface_pcm_Sampling,
+	&bluealsa_iface_pcm_Codec,
 	NULL,
 };
 
@@ -102,7 +138,7 @@ const GDBusInterfaceInfo bluealsa_iface_manager = {
 
 const GDBusInterfaceInfo bluealsa_iface_pcm = {
 	-1, BLUEALSA_IFACE_PCM,
-	NULL,
+	(GDBusMethodInfo **)bluealsa_iface_pcm_methods,
 	NULL,
 	(GDBusPropertyInfo **)bluealsa_iface_pcm_properties,
 	NULL,
