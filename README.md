@@ -72,13 +72,14 @@ In order to stream audio to the e.g. Bluetooth headset, firstly one has to conne
 most straightforward method is to use BlueZ CLI utility called `bluetoothctl`. When the device is
 connected one can use the `bluealsa` virtual PCM device as follows:
 
-	$ aplay -D bluealsa:HCI=hci0,DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp Bourree_in_E_minor.wav
+	$ aplay -D bluealsa:SRV=org.bluealsa,DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp Bourree_in_E_minor.wav
 
 Setup parameters of the bluealsa PCM device can be set in the local `.asoundrc` configuration file
 like this:
 
 	$ cat ~/.asoundrc
 	defaults.bluealsa.interface "hci0"
+	defaults.bluealsa.service "org.bluealsa"
 	defaults.bluealsa.device "XX:XX:XX:XX:XX:XX"
 	defaults.bluealsa.profile "a2dp"
 	defaults.bluealsa.delay 10000

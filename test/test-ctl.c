@@ -27,7 +27,7 @@ START_TEST(test_open) {
 	ck_assert_int_eq(bluealsa_open(hci), -1);
 	ck_assert_int_eq(errno, ENOENT);
 
-	pid_t pid = spawn_bluealsa_server(hci, 1, false, false, false);
+	pid_t pid = spawn_bluealsa_server(hci, NULL, 1, false, false, false);
 	ck_assert_int_ne(bluealsa_open(hci), -1);
 
 	waitpid(pid, NULL, 0);
@@ -37,7 +37,7 @@ START_TEST(test_open) {
 START_TEST(test_subscribe) {
 
 	const char *hci = "hci-tc1";
-	pid_t pid = spawn_bluealsa_server(hci, 1, true, true, false);
+	pid_t pid = spawn_bluealsa_server(hci, NULL, 1, true, true, false);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
@@ -63,7 +63,7 @@ START_TEST(test_subscribe) {
 START_TEST(test_get_devices) {
 
 	const char *hci = "hci-tc2";
-	pid_t pid = spawn_bluealsa_server(hci, 1, false, true, true);
+	pid_t pid = spawn_bluealsa_server(hci, NULL, 1, false, true, true);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
@@ -105,7 +105,7 @@ START_TEST(test_get_devices) {
 START_TEST(test_get_transport) {
 
 	const char *hci = "hci-tc3";
-	pid_t pid = spawn_bluealsa_server(hci, 1, false, true, false);
+	pid_t pid = spawn_bluealsa_server(hci, NULL, 1, false, true, false);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);
@@ -134,7 +134,7 @@ START_TEST(test_get_transport) {
 START_TEST(test_open_transport) {
 
 	const char *hci = "hci-tc4";
-	pid_t pid = spawn_bluealsa_server(hci, 2, false, true, false);
+	pid_t pid = spawn_bluealsa_server(hci, NULL, 2, false, true, false);
 
 	int fd = -1;
 	ck_assert_int_ne(fd = bluealsa_open(hci), -1);

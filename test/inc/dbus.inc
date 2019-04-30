@@ -10,6 +10,7 @@
  *
  */
 
+#include <stdio.h>
 #include <gio/gio.h>
 #include <glib.h>
 
@@ -18,6 +19,7 @@
 GDBusConnection *g_test_dbus_connection_new_sync(GError **error) {
 	GTestDBus *dbus;
 	g_test_dbus_up(dbus = g_test_dbus_new(G_TEST_DBUS_NONE));
+	fprintf(stderr, "DBUS_SYSTEM_BUS_ADDRESS=%s\n", g_test_dbus_get_bus_address(dbus));
 	return g_dbus_connection_new_for_address_sync(
 			g_test_dbus_get_bus_address(dbus),
 			G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |

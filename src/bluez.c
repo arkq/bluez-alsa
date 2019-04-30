@@ -12,6 +12,8 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -22,6 +24,7 @@
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
+#include <glib-object.h>
 #include <glib.h>
 
 #include "a2dp-codecs.h"

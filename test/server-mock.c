@@ -54,7 +54,9 @@ static const a2dp_sbc_t cconfig = {
 	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
+static GMainLoop *loop = NULL;
 static struct ba_adapter *a = NULL;
+static const char *service = "org.bluealsa";
 static const char *device = "hci-mock";
 static unsigned int timeout = 5;
 static bool fuzzing = false;
@@ -70,7 +72,7 @@ static bool main_loop_on = true;
 static void test_pcm_setup_free_handler(int sig) {
 	(void)(sig);
 	main_loop_on = false;
-	test_pcm_setup_free();
+	g_main_loop_quit(loop);
 }
 
 static int sigusr1_count = 0;
@@ -166,69 +168,8 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 	return NULL;
 }
 
-int main(int argc, char *argv[]) {
-
-	int opt;
-	const char *opts = "hsit:F";
-	struct option longopts[] = {
-		{ "help", no_argument, NULL, 'h' },
-		{ "device", required_argument, NULL, 'i' },
-		{ "timeout", required_argument, NULL, 't' },
-		{ "fuzzing", no_argument, NULL, 'F' },
-		{ "source", no_argument, NULL, 1 },
-		{ "sink", no_argument, NULL, 2 },
-		{ "sco", no_argument, NULL, 3 },
-		{ 0, 0, 0, 0 },
-	};
-
-	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
-		switch (opt) {
-		case 'h':
-			printf("usage: %s [--source] [--sink] [--sco] [--device HCI] [--timeout SEC]\n", argv[0]);
-			return EXIT_SUCCESS;
-		case 1:
-			source = true;
-			break;
-		case 2:
-			sink = true;
-			break;
-		case 3:
-			sco = true;
-			break;
-		case 'i':
-			device = optarg;
-			break;
-		case 't':
-			timeout = atoi(optarg);
-			break;
-		case 'F':
-			fuzzing = true;
-			break;
-		default:
-			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-			return EXIT_FAILURE;
-		}
-
-	assert(bluealsa_config_init() == 0);
-	assert((config.dbus = g_test_dbus_connection_new_sync(NULL)) != NULL);
-
-	/* emulate dummy test HCI device */
-	assert((a = ba_adapter_new(0, device)) != NULL);
-
-	/* make sure to cleanup named pipes */
-	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
-	sigaction(SIGINT, &sigact, NULL);
-	sigaction(SIGTERM, &sigact, NULL);
-	atexit(test_pcm_setup_free);
-
-	/* receive EPIPE error code */
-	sigact.sa_handler = SIG_IGN;
-	sigaction(SIGPIPE, &sigact, NULL);
-
-	/* register USR signals handler */
-	sigact.sa_handler = test_sigusr_handler;
-	sigaction(SIGUSR1, &sigact, NULL);
-	sigaction(SIGUSR2, &sigact, NULL);
+void *test_bt_mock(void *data) {
+	(void)data;
 
 	bdaddr_t addr;
 	struct ba_device *d1, *d2;
@@ -291,6 +232,88 @@ int main(int argc, char *argv[]) {
 		ba_device_free(d2);
 		sleep(1);
 	}
+
+	g_main_loop_quit(loop);
+	return NULL;
+}
+
+int main(int argc, char *argv[]) {
+
+	int opt;
+	const char *opts = "hb:it:F";
+	struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h' },
+		{ "dbus", required_argument, NULL, 'b' },
+		{ "device", required_argument, NULL, 'i' },
+		{ "timeout", required_argument, NULL, 't' },
+		{ "fuzzing", no_argument, NULL, 'F' },
+		{ "source", no_argument, NULL, 1 },
+		{ "sink", no_argument, NULL, 2 },
+		{ "sco", no_argument, NULL, 3 },
+		{ 0, 0, 0, 0 },
+	};
+
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h':
+			printf("usage: %s [--source] [--sink] [--sco] [--device HCI] [--timeout SEC]\n", argv[0]);
+			return EXIT_SUCCESS;
+		case 1:
+			source = true;
+			break;
+		case 2:
+			sink = true;
+			break;
+		case 3:
+			sco = true;
+			break;
+		case 'b':
+			service = optarg;
+			break;
+		case 'i':
+			device = optarg;
+			break;
+		case 't':
+			timeout = atoi(optarg);
+			break;
+		case 'F':
+			fuzzing = true;
+			break;
+		default:
+			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+			return EXIT_FAILURE;
+		}
+
+	assert(bluealsa_config_init() == 0);
+	assert((config.dbus = g_test_dbus_connection_new_sync(NULL)) != NULL);
+
+	assert(bluealsa_dbus_register_manager(NULL) != 0);
+	assert(g_bus_own_name_on_connection(config.dbus, service,
+				G_BUS_NAME_OWNER_FLAGS_NONE, NULL, NULL, NULL, NULL) != 0);
+
+	/* emulate dummy test HCI device */
+	assert((a = ba_adapter_new(0, device)) != NULL);
+
+	/* make sure to cleanup named pipes */
+	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
+	sigaction(SIGINT, &sigact, NULL);
+	sigaction(SIGTERM, &sigact, NULL);
+	atexit(test_pcm_setup_free);
+
+	/* receive EPIPE error code */
+	sigact.sa_handler = SIG_IGN;
+	sigaction(SIGPIPE, &sigact, NULL);
+
+	/* register USR signals handler */
+	sigact.sa_handler = test_sigusr_handler;
+	sigaction(SIGUSR1, &sigact, NULL);
+	sigaction(SIGUSR2, &sigact, NULL);
+
+	/* run mock thread */
+	g_thread_new(NULL, test_bt_mock, NULL);
+
+	loop = g_main_loop_new(NULL, FALSE);
+	g_main_loop_run(loop);
 
 	return EXIT_SUCCESS;
 }

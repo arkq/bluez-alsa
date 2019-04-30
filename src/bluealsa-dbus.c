@@ -60,6 +60,10 @@ static GVariant *ba_variant_new_codec(const struct ba_transport *t) {
 	return g_variant_new_uint16(t->type.codec);
 }
 
+static GVariant *ba_variant_new_delay(const struct ba_transport *t) {
+	return g_variant_new_uint16(ba_transport_get_delay(t));
+}
+
 static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
 
@@ -93,6 +97,7 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 				g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
 				g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
 				g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
+				g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
 
 				g_variant_builder_add(&pcms, "{oa{sv}}", t->ba_dbus_path, &props);
 				g_variant_builder_clear(&props);
@@ -322,6 +327,8 @@ static GVariant *bluealsa_transport_get_property(GDBusConnection *conn,
 		return ba_variant_new_sampling(t);
 	if (strcmp(property, "Codec") == 0)
 		return ba_variant_new_codec(t);
+	if (strcmp(property, "Delay") == 0)
+		return ba_variant_new_delay(t);
 
 	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
 			"No such property '%s'", property);
@@ -348,6 +355,7 @@ int bluealsa_dbus_register_transport(struct ba_transport *t) {
 	g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
 	g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
 	g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
+	g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
 
 	g_dbus_connection_emit_signal(config.dbus, NULL,
 			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMAdded",

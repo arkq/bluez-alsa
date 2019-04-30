@@ -21,6 +21,8 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -32,6 +34,7 @@
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
+#include <glib-object.h>
 #include <glib.h>
 
 #include "ba-adapter.h"

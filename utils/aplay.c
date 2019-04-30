@@ -22,26 +22,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
 
-#include "shared/ctl-client.h"
-#include "shared/ctl-proto.h"
+#include "shared/dbus-client.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
 
 struct pcm_worker {
-	struct ba_msg_transport transport;
 	pthread_t thread;
-	/* file descriptor of BlueALSA */
-	int ba_fd;
+	/* used BlueALSA PCM device */
+	struct ba_pcm ba_pcm;
 	/* file descriptor of PCM FIFO */
-	int pcm_fd;
+	int ba_pcm_fd;
+	/* file descriptor of PCM control */
+	int ba_pcm_ctrl_fd;
 	/* opened playback PCM device */
 	snd_pcm_t *pcm;
 	/* if true, playback is active */
@@ -52,8 +51,7 @@ struct pcm_worker {
 
 static unsigned int verbose = 0;
 static const char *device = "default";
-static const char *ba_interface = "hci0";
-static enum ba_pcm_type ba_type = BA_PCM_TYPE_A2DP;
+static bool ba_profile_a2dp = true;
 static bool ba_addr_any = false;
 static bdaddr_t *ba_addrs = NULL;
 static size_t ba_addrs_count = 0;
@@ -61,7 +59,11 @@ static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
 static bool pcm_mixer = true;
 
-static DBusConnection *dbus = NULL;
+static struct ba_dbus_ctx dbus_ctx;
+static char dbus_ba_service[32] = BLUEALSA_SERVICE;
+
+static struct ba_pcm *ba_pcms = NULL;
+static size_t ba_pcms_count = 0;
 
 static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
 static struct pcm_worker *workers = NULL;
@@ -80,11 +82,14 @@ static void main_loop_stop(int sig) {
 }
 
 /**
- * Validate given device address and transport type. */
-static bool validate_transport(const bdaddr_t *addr, uint8_t type) {
+ * Validate given BlueALSA PCM device. */
+static bool validate_transport(const struct ba_pcm *ba_pcm) {
 
-	if (BA_PCM_TYPE(type) != ba_type ||
-			!(type & BA_PCM_STREAM_CAPTURE))
+	if (!(ba_pcm->flags & BA_PCM_FLAG_SINK))
+		return false;
+
+	if ((ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_A2DP)) ||
+			(!ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO)))
 		return false;
 
 	if (ba_addr_any)
@@ -92,7 +97,7 @@ static bool validate_transport(const bdaddr_t *addr, uint8_t type) {
 
 	size_t i;
 	for (i = 0; i < ba_addrs_count; i++)
-		if (bacmp(&ba_addrs[i], addr) == 0)
+		if (bacmp(&ba_addrs[i], &ba_pcm->addr) == 0)
 			return true;
 
 	return false;
@@ -254,18 +259,17 @@ static struct pcm_worker *get_active_worker(void) {
 	return w;
 }
 
-static int pause_device_player(const bdaddr_t *dev) {
+static int pause_device_player(const struct ba_pcm *ba_pcm) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
-	DBusError err;
-	char obj[64];
+	DBusError err = DBUS_ERROR_INIT;
+	char path[160];
 	int ret = 0;
 
-	sprintf(obj, "/org/bluez/%s/dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X/player0",
-			ba_interface, dev->b[5], dev->b[4], dev->b[3], dev->b[2], dev->b[1], dev->b[0]);
-	msg = dbus_message_new_method_call("org.bluez", obj, "org.bluez.MediaPlayer1", "Pause");
+	snprintf(path, sizeof(path), "%s/player0", ba_pcm->device_path);
+	msg = dbus_message_new_method_call("org.bluez", path, "org.bluez.MediaPlayer1", "Pause");
 
-	if ((rep = dbus_connection_send_with_reply_and_block(dbus, msg,
+	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn, msg,
 					DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
 		warn("Couldn't pause player: %s", err.message);
 		goto fail;
@@ -287,13 +291,13 @@ final:
 }
 
 static void pcm_worker_routine_exit(struct pcm_worker *worker) {
-	if (worker->pcm_fd != -1) {
-		close(worker->pcm_fd);
-		worker->pcm_fd = -1;
+	if (worker->ba_pcm_fd != -1) {
+		close(worker->ba_pcm_fd);
+		worker->ba_pcm_fd = -1;
 	}
-	if (worker->ba_fd != -1) {
-		close(worker->ba_fd);
-		worker->ba_fd = -1;
+	if (worker->ba_pcm_ctrl_fd != -1) {
+		close(worker->ba_pcm_ctrl_fd);
+		worker->ba_pcm_ctrl_fd = -1;
 	}
 	if (worker->pcm != NULL) {
 		snd_pcm_close(worker->pcm);
@@ -305,7 +309,7 @@ static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 static void *pcm_worker_routine(void *arg) {
 	struct pcm_worker *w = (struct pcm_worker *)arg;
 
-	size_t pcm_1s_samples = w->transport.sampling * w->transport.channels;
+	size_t pcm_1s_samples = w->ba_pcm.sampling * w->ba_pcm.channels;
 	ffb_int16_t buffer = { 0 };
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -321,14 +325,11 @@ static void *pcm_worker_routine(void *arg) {
 		goto fail;
 	}
 
-	if ((w->ba_fd = bluealsa_open(ba_interface)) == -1) {
-		error("Couldn't open BlueALSA: %s", strerror(errno));
-		goto fail;
-	}
-
-	w->transport.type = BA_PCM_TYPE(w->transport.type) | BA_PCM_STREAM_CAPTURE;
-	if ((w->pcm_fd = bluealsa_open_transport(w->ba_fd, &w->transport)) == -1) {
-		error("Couldn't open PCM FIFO: %s", strerror(errno));
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_pcm_open(&dbus_ctx, &w->ba_pcm, BA_PCM_FLAG_SINK,
+				&w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
+		error("Couldn't open PCM: %s", err.message);
+		dbus_error_free(&err);
 		goto fail;
 	}
 
@@ -344,7 +345,7 @@ static void *pcm_worker_routine(void *arg) {
 	size_t pause_counter = 0;
 	size_t pause_bytes = 0;
 
-	struct pollfd pfds[] = {{ w->pcm_fd, POLLIN, 0 }};
+	struct pollfd pfds[] = {{ w->ba_pcm_fd, POLLIN, 0 }};
 	int timeout = -1;
 
 	debug("Starting PCM loop");
@@ -384,7 +385,7 @@ static void *pcm_worker_routine(void *arg) {
 
 		#define MIN(a,b) a < b ? a : b
 		size_t _in = MIN(pcm_max_read_len, ffb_len_in(&buffer));
-		if ((ret = read(w->pcm_fd, buffer.tail, _in * sizeof(int16_t))) == -1) {
+		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in * sizeof(int16_t))) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("PCM FIFO read error: %s", strerror(errno));
@@ -398,7 +399,7 @@ static void *pcm_worker_routine(void *arg) {
 			struct pcm_worker *worker = get_active_worker();
 			if (worker != NULL && worker != w) {
 				if (pause_counter < 5 && (pause_bytes += ret) > pause_threshold) {
-					if (pause_device_player(&w->transport.addr) == -1)
+					if (pause_device_player(&w->ba_pcm) == -1)
 						/* pause command does not work, stop further requests */
 						pause_counter = 5;
 					pause_counter++;
@@ -424,7 +425,7 @@ static void *pcm_worker_routine(void *arg) {
 				continue;
 			}
 
-			if (pcm_open(&w->pcm, w->transport.channels, w->transport.sampling,
+			if (pcm_open(&w->pcm, w->ba_pcm.channels, w->ba_pcm.sampling,
 						&buffer_time, &period_time, &tmp) != 0) {
 				warn("Couldn't open PCM: %s", tmp);
 				pcm_max_read_len = buffer.size;
@@ -434,7 +435,7 @@ static void *pcm_worker_routine(void *arg) {
 			}
 
 			snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
-			pcm_max_read_len = period_size * w->transport.channels;
+			pcm_max_read_len = period_size * w->ba_pcm.channels;
 			pcm_open_retries = 0;
 
 			if (verbose >= 2) {
@@ -446,7 +447,7 @@ static void *pcm_worker_routine(void *arg) {
 						w->addr,
 						buffer_time, snd_pcm_frames_to_bytes(w->pcm, buffer_size),
 						period_time, snd_pcm_frames_to_bytes(w->pcm, period_size),
-						w->transport.sampling, w->transport.channels);
+						w->ba_pcm.sampling, w->ba_pcm.channels);
 			}
 
 		}
@@ -457,7 +458,7 @@ static void *pcm_worker_routine(void *arg) {
 
 		/* calculate the overall number of frames in the buffer */
 		ffb_seek(&buffer, ret / sizeof(*buffer.data));
-		snd_pcm_sframes_t frames = ffb_len_out(&buffer) / w->transport.channels;
+		snd_pcm_sframes_t frames = ffb_len_out(&buffer) / w->ba_pcm.channels;
 
 		if ((frames = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
 			switch (-frames) {
@@ -473,7 +474,7 @@ static void *pcm_worker_routine(void *arg) {
 			}
 
 		/* move leftovers to the beginning and reposition tail */
-		ffb_shift(&buffer, frames * w->transport.channels);
+		ffb_shift(&buffer, frames * w->ba_pcm.channels);
 
 	}
 
@@ -484,11 +485,11 @@ fail:
 	return NULL;
 }
 
-static int start_pcm_worker_routine(struct ba_msg_transport *transport) {
+static int start_pcm_worker_routine(struct ba_pcm *ba_pcm) {
 
 	/* check whether SCO has selected codec */
-	if (BA_PCM_TYPE(transport->type) == BA_PCM_TYPE_SCO &&
-			transport->codec == 0) {
+	if (ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO &&
+			ba_pcm->codec == 0) {
 		debug("Skipping SCO with codec not selected");
 		return 0;
 	}
@@ -506,11 +507,11 @@ static int start_pcm_worker_routine(struct ba_msg_transport *transport) {
 	}
 
 	struct pcm_worker *worker = &workers[workers_count - 1];
-	memcpy(&worker->transport, transport, sizeof(worker->transport));
-	ba2str(&worker->transport.addr, worker->addr);
+	memcpy(&worker->ba_pcm, ba_pcm, sizeof(worker->ba_pcm));
+	ba2str(&worker->ba_pcm.addr, worker->addr);
 	worker->active = false;
-	worker->pcm_fd = -1;
-	worker->ba_fd = -1;
+	worker->ba_pcm_fd = -1;
+	worker->ba_pcm_ctrl_fd = -1;
 	worker->pcm = NULL;
 
 	pthread_rwlock_unlock(&workers_lock);
@@ -526,32 +527,70 @@ static int start_pcm_worker_routine(struct ba_msg_transport *transport) {
 	return 0;
 }
 
-static int start_available_transports(int ba_fd) {
+static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *message, void *data) {
+	(void)conn;
+	(void)data;
 
-	struct ba_msg_transport *transports;
-	ssize_t len;
-	ssize_t i;
+	const char *interface = dbus_message_get_interface(message);
+	const char *signal = dbus_message_get_member(message);
 
-	if ((len = bluealsa_get_transports(ba_fd, &transports)) == -1)
-		return -1;
+	DBusMessageIter iter;
+	const char *path;
+	size_t i;
 
-	for (i = 0; i < len; i++)
-		if (validate_transport(&transports[i].addr, transports[i].type))
-			start_pcm_worker_routine(&transports[i]);
+	if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
 
-	free(transports);
-	return 0;
+		if (strcmp(signal, "PCMAdded") == 0) {
+			if ((ba_pcms = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL) {
+				error("Couldn't add new PCM: %s", strerror(ENOMEM));
+				goto fail;
+			}
+			if (!dbus_message_iter_init(message, &iter) ||
+					!bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &ba_pcms[ba_pcms_count])) {
+				error("Couldn't add new PCM: %s", "Invalid signal signature");
+				goto fail;
+			}
+			if (validate_transport(&ba_pcms[ba_pcms_count]))
+				start_pcm_worker_routine(&ba_pcms[ba_pcms_count]);
+			ba_pcms_count++;
+			return DBUS_HANDLER_RESULT_HANDLED;
+		}
+
+		if (strcmp(signal, "PCMRemoved") == 0) {
+			if (!dbus_message_iter_init(message, &iter) ||
+					dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH) {
+				error("Couldn't remove PCM: %s", "Invalid signal signature");
+				goto fail;
+			}
+			dbus_message_iter_get_basic(&iter, &path);
+			for (i = 0; i < workers_count; i++) {
+				struct pcm_worker *worker = &workers[i];
+				if (strcmp(worker->ba_pcm.pcm_path, path) == 0) {
+					pthread_cancel(worker->thread);
+					pthread_join(worker->thread, NULL);
+					memcpy(worker, &workers[workers_count - 1], sizeof(*worker));
+					workers_count--;
+					break;
+				}
+			}
+			return DBUS_HANDLER_RESULT_HANDLED;
+		}
+
+	}
+
+fail:
+	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVvi:d:";
+	const char *opts = "hVvb:d:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "verbose", no_argument, NULL, 'v' },
-		{ "hci", required_argument, NULL, 'i' },
+		{ "dbus", required_argument, NULL, 'b' },
 		{ "pcm", required_argument, NULL, 'd' },
 		{ "pcm-buffer-time", required_argument, NULL, 3 },
 		{ "pcm-period-time", required_argument, NULL, 4 },
@@ -571,7 +610,7 @@ usage:
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
 					"  -v, --verbose\t\tmake output more verbose\n"
-					"  -i, --hci=hciX\tHCI device to use\n"
+					"  -b, --dbus=NAME\tBlueALSA service name suffix\n"
 					"  -d, --pcm=NAME\tPCM device to use\n"
 					"  --pcm-buffer-time=INT\tPCM buffer time\n"
 					"  --pcm-period-time=INT\tPCM period time\n"
@@ -594,24 +633,24 @@ usage:
 			verbose++;
 			break;
 
-		case 'i' /* --hci */ :
-			ba_interface = optarg;
+		case 'b' /* --dbus=NAME */ :
+			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
 			break;
-		case 'd' /* --pcm */ :
+		case 'd' /* --pcm=NAME */ :
 			device = optarg;
 			break;
 
 		case 1 /* --profile-a2dp */ :
-			ba_type = BA_PCM_TYPE_A2DP;
+			ba_profile_a2dp = true;
 			break;
 		case 2 /* --profile-sco */ :
-			ba_type = BA_PCM_TYPE_SCO;
+			ba_profile_a2dp = false;
 			break;
 
-		case 3 /* --pcm-buffer-time */ :
+		case 3 /* --pcm-buffer-time=INT */ :
 			pcm_buffer_time = atoi(optarg);
 			break;
-		case 4 /* --pcm-period-time */ :
+		case 4 /* --pcm-period-time=INT */ :
 			pcm_period_time = atoi(optarg);
 			break;
 
@@ -629,20 +668,17 @@ usage:
 
 	log_open(argv[0], false, false);
 
-	int status = EXIT_SUCCESS;
-	int ba_fd = -1;
-	int ba_event_fd = -1;
 	size_t i;
 
 	ba_addrs_count = argc - optind;
 	if ((ba_addrs = malloc(sizeof(*ba_addrs) * ba_addrs_count)) == NULL) {
 		error("Couldn't allocate memory for BT addresses");
-		goto fail;
+		return EXIT_FAILURE;
 	}
 	for (i = 0; i < ba_addrs_count; i++) {
 		if (str2ba(argv[i + optind], &ba_addrs[i]) != 0) {
 			error("Invalid BT device address: %s", argv[i + optind]);
-			goto fail;
+			return EXIT_FAILURE;
 		}
 		if (bacmp(&ba_addrs[i], BDADDR_ANY) == 0)
 			ba_addr_any = true;
@@ -658,43 +694,46 @@ usage:
 			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
 
 		printf("Selected configuration:\n"
-				"  HCI device: %s\n"
+				"  BlueALSA service: %s\n"
 				"  PCM device: %s\n"
 				"  PCM buffer time: %u us\n"
 				"  PCM period time: %u us\n"
 				"  Bluetooth device(s): %s\n"
 				"  Profile: %s\n",
-				ba_interface, device, pcm_buffer_time, pcm_period_time,
+				dbus_ba_service, device, pcm_buffer_time, pcm_period_time,
 				ba_addr_any ? "ANY" : &ba_str[2],
-				ba_type == BA_PCM_TYPE_A2DP ? "A2DP" : "SCO");
+				ba_profile_a2dp ? "A2DP" : "SCO");
 
 		free(ba_str);
 	}
 
-	DBusError err;
-	if ((dbus = dbus_bus_get(DBUS_BUS_SYSTEM, &err)) == NULL) {
-		error("Couldn't obtain D-Bus connection: %s", err.message);
-		goto fail;
+	dbus_threads_init_default();
+
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
+		error("Couldn't initialize D-Bus context: %s", err.message);
+		return EXIT_FAILURE;
 	}
 
-	if ((ba_fd = bluealsa_open(ba_interface)) == -1 ||
-			(ba_event_fd = bluealsa_open(ba_interface)) == -1) {
-		error("BlueALSA connection failed: %s", strerror(errno));
-		goto fail;
+	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
+	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
+	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+			dbus_ba_service, NULL, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
+			"arg0='"BLUEALSA_INTERFACE_PCM"'");
+
+	if (!dbus_connection_add_filter(dbus_ctx.conn, dbus_signal_handler, NULL, NULL)) {
+		error("Couldn't add D-Bus filter: %s", err.message);
+		return EXIT_FAILURE;
 	}
 
-	if (bluealsa_event_subscribe(ba_event_fd,
-				BA_EVENT_TRANSPORT_ADDED |
-				BA_EVENT_TRANSPORT_CHANGED |
-				BA_EVENT_TRANSPORT_REMOVED) == -1) {
-		error("BlueALSA subscription failed: %s", strerror(errno));
-		goto fail;
-	}
+	if (!bluealsa_dbus_get_pcms(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err))
+		warn("Couldn't get BlueALSA PCM list: %s", err.message);
 
-	if (start_available_transports(ba_fd) == -1) {
-		error("Couldn't start available transports: %s", strerror(errno));
-		goto fail;
-	}
+	for (i = 0; i < ba_pcms_count; i++)
+		if (validate_transport(&ba_pcms[i]))
+			start_pcm_worker_routine(&ba_pcms[i]);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);
@@ -703,64 +742,23 @@ usage:
 	debug("Starting main loop");
 	while (main_loop_on) {
 
-		struct ba_msg_event ev;
-		ssize_t ret;
-		size_t i;
+		struct pollfd pfds[10];
+		size_t pfds_len = ARRAYSIZE(pfds);
 
-		struct pollfd pfds[] = {{ ba_event_fd, POLLIN, 0 }};
-		if (poll(pfds, ARRAYSIZE(pfds), -1) == -1 && errno == EINTR)
-			continue;
+		if (!bluealsa_dbus_connection_poll_fds(&dbus_ctx, pfds, &pfds_len)) {
+			error("Couldn't get D-Bus connection file descriptors");
+			return EXIT_FAILURE;
+		}
 
-		while ((ret = recv(ba_event_fd, &ev, sizeof(ev), MSG_DONTWAIT)) == -1 &&
+		if (poll(pfds, pfds_len, -1) == -1 &&
 				errno == EINTR)
 			continue;
-		if (ret != sizeof(ev)) {
-			error("Couldn't read event: %s", strerror(ret == -1 ? errno : EBADMSG));
-			goto fail;
-		}
 
-		if (!validate_transport(&ev.addr, ev.type))
-			continue;
-
-		/* for simplicity's sake, treat change event as "remove & add" */
-		if (ev.events & BA_EVENT_TRANSPORT_CHANGED)
-			ev.events = BA_EVENT_TRANSPORT_ADDED | BA_EVENT_TRANSPORT_REMOVED;
-
-		if (ev.events & BA_EVENT_TRANSPORT_REMOVED)
-			for (i = 0; i < workers_count; i++) {
-				struct pcm_worker *worker = &workers[i];
-				if (bluealsa_event_match(&worker->transport, &ev) == 0) {
-					pthread_cancel(worker->thread);
-					pthread_join(worker->thread, NULL);
-					memcpy(worker, &workers[workers_count - 1], sizeof(*worker));
-					workers_count--;
-					break;
-				}
-			}
-
-		if (ev.events & BA_EVENT_TRANSPORT_ADDED) {
-			struct ba_msg_transport transport;
-			if (bluealsa_get_transport(ba_fd, &ev.addr, ev.type, &transport) == -1) {
-				error("Couldn't get transport: %s", strerror(errno));
-				goto fail;
-			}
-			if (start_pcm_worker_routine(&transport) == -1) {
-				error("Couldn't start PCM worker: %s", strerror(errno));
-				goto fail;
-			}
-		}
+		if (bluealsa_dbus_connection_poll_dispatch(&dbus_ctx, pfds, pfds_len))
+			while (dbus_connection_dispatch(dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
+				continue;
 
 	}
 
-	goto success;
-
-fail:
-	status = EXIT_FAILURE;
-
-success:
-	if (ba_fd != -1)
-		close(ba_fd);
-	if (ba_event_fd != -1)
-		close(ba_event_fd);
-	return status;
+	return EXIT_SUCCESS;
 }

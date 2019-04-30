@@ -31,7 +31,7 @@
 #define buffer_test_frames 1024
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 
-static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *hci, snd_pcm_stream_t stream, int mode) {
+static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *service, snd_pcm_stream_t stream, int mode) {
 
 	char buffer[256];
 	snd_config_t *conf = NULL;
@@ -41,11 +41,11 @@ static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *hci, snd_pcm_stre
 	sprintf(buffer,
 			"pcm.bluealsa {\n"
 			"  type bluealsa\n"
-			"  interface \"%s\"\n"
+			"  service \"%s\"\n"
 			"  device \"12:34:56:78:9A:BC\"\n"
 			"  profile \"a2dp\"\n"
 			"  delay 0\n"
-			"}\n", hci);
+			"}\n", service);
 
 	if ((err = snd_config_top(&conf)) < 0)
 		goto fail;
@@ -130,7 +130,8 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 START_TEST(test_playback_hw_constraints) {
 
 	const char *hci = "hci-tp1";
-	pid_t pid = spawn_bluealsa_server(hci, 1, false, true, false);
+	const char *service = "org.bluealsa";
+	pid_t pid = spawn_bluealsa_server(hci, service, 1, false, true, false);
 
 	/* hard-coded values used in the server-mock */
 	const unsigned int server_channels = 2;
@@ -140,7 +141,7 @@ START_TEST(test_playback_hw_constraints) {
 	snd_pcm_hw_params_t *params;
 	int d;
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, hci, SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
 
 	snd_pcm_hw_params_alloca(&params);
 	snd_pcm_hw_params_any(pcm, params);
@@ -204,7 +205,8 @@ START_TEST(test_playback_hw_constraints) {
 START_TEST(test_playback) {
 
 	const char *hci = "hci-tp2";
-	pid_t pid = spawn_bluealsa_server(hci, 2, false, true, false);
+	const char *service = "org.bluealsa.test";
+	pid_t pid = spawn_bluealsa_server(hci, service, 2, false, true, false);
 
 	int pcm_channels = 2;
 	int pcm_sampling = 44100;
@@ -216,7 +218,7 @@ START_TEST(test_playback) {
 	snd_pcm_uframes_t period_size;
 	snd_pcm_sframes_t delay;
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, hci, SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_channels, pcm_sampling, &pcm_buffer_time, &pcm_period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(set_sw_params(pcm, buffer_size, period_size), 0);
@@ -351,13 +353,14 @@ void test_playback_termination_reference(const char *name) {
 START_TEST(test_playback_termination) {
 
 	const char *hci = "hci-tp3";
-	pid_t pid = spawn_bluealsa_server(hci, 2, false, true, false);
+	const char *service = "org.bluealsa";
+	pid_t pid = spawn_bluealsa_server(hci, service, 2, false, true, false);
 
 	snd_pcm_t *pcm = NULL;
 	unsigned int pcm_buffer_time = 500000;
 	unsigned int pcm_period_time = 100000;
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, hci, SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(set_hw_params(pcm, 2, 44100, &pcm_buffer_time, &pcm_period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
