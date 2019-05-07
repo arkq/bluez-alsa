@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
 	}
 
 	err = NULL;
-	if (bluealsa_dbus_register_manager(&err) == 0) {
+	if (bluealsa_dbus_manager_register(&err) == 0) {
 		error("Couldn't register D-Bus manager: %s", err->message);
 		return EXIT_FAILURE;
 	}

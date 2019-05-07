@@ -24,6 +24,7 @@
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
+#include <glib-object.h>
 #include <glib.h>
 
 #include "a2dp-codecs.h"
@@ -202,7 +203,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->release = transport_release_bt_a2dp;
 
 	t->ba_dbus_path = g_strdup_printf("%s/a2dp", device->ba_dbus_path);
-	bluealsa_dbus_register_transport(t);
+	bluealsa_dbus_transport_register(t);
 
 	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_A2DP | (type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
@@ -272,7 +273,7 @@ struct ba_transport *ba_transport_new_sco(
 	t->release = transport_release_bt_sco;
 
 	t->ba_dbus_path = g_strdup_printf("%s/sco", device->ba_dbus_path);
-	bluealsa_dbus_register_transport(t);
+	bluealsa_dbus_transport_register(t);
 
 	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
@@ -348,7 +349,7 @@ void ba_transport_free(struct ba_transport *t) {
 	g_hash_table_steal(d->transports, t->bluez_dbus_path);
 
 	/* remove D-Bus interface */
-	bluealsa_dbus_unregister_transport(t);
+	bluealsa_dbus_transport_unregister(t);
 
 	if (pcm_type != BA_PCM_TYPE_NULL)
 		bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_TRANSPORT_REMOVED, &d->addr, pcm_type);

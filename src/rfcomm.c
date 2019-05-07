@@ -23,6 +23,7 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
+#include "bluealsa-dbus.h"
 #include "ctl.h"
 #include "utils.h"
 #include "shared/ctl-proto.h"
@@ -383,8 +384,8 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	/* When codec selection is completed, notify connected clients, that
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - codec switching. */
-	bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
-			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
+	bluealsa_dbus_transport_update(t->rfcomm.sco,
+			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 	return 0;
 }
 
@@ -675,8 +676,8 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
-							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
+					bluealsa_dbus_transport_update(t->rfcomm.sco,
+							BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 				}
 
 			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
@@ -714,8 +715,8 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
 					/* fall-through */
 				case HFP_CONNECTED:
-					bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
-							BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
+					bluealsa_dbus_transport_update(t->rfcomm.sco,
+							BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 				}
 
 			if (conn.handler != NULL) {

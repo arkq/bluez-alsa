@@ -703,6 +703,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->ba_pcm_ctrl_fd = -1;
 	pcm->delay_ex = delay;
 
+	dbus_threads_init_default();
+
 	DBusError err = DBUS_ERROR_INIT;
 	if (bluealsa_dbus_connection_ctx_init(&pcm->dbus_ctx, service, &err) != TRUE) {
 		SNDERR("Couldn't initialize D-Bus context: %s", err.message);

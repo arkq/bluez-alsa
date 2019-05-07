@@ -20,9 +20,16 @@
 
 #include "ba-transport.h"
 
-int bluealsa_dbus_register_manager(GError **error);
+#define BA_DBUS_TRANSPORT_UPDATE_CHANNELS (1 << 0)
+#define BA_DBUS_TRANSPORT_UPDATE_SAMPLING (1 << 1)
+#define BA_DBUS_TRANSPORT_UPDATE_CODEC    (1 << 2)
+#define BA_DBUS_TRANSPORT_UPDATE_DELAY    (1 << 3)
+#define BA_DBUS_TRANSPORT_UPDATE_VOLUME   (1 << 4)
 
-int bluealsa_dbus_register_transport(struct ba_transport *transport);
-void bluealsa_dbus_unregister_transport(struct ba_transport *transport);
+int bluealsa_dbus_manager_register(GError **error);
+
+int bluealsa_dbus_transport_register(struct ba_transport *transport);
+void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask);
+void bluealsa_dbus_transport_unregister(struct ba_transport *transport);
 
 #endif

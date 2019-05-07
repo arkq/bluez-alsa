@@ -49,16 +49,16 @@ struct ba_pcm {
 	char pcm_path[128];
 
 	/* number of audio channels */
-	unsigned int channels;
+	unsigned char channels;
 	/* PCM sampling frequency */
-	unsigned int sampling;
+	dbus_uint32_t sampling;
 
 	/* device address */
 	bdaddr_t addr;
 	/* transport codec */
-	unsigned int codec;
+	dbus_uint16_t codec;
 	/* approximate PCM delay */
-	unsigned int delay;
+	dbus_uint16_t delay;
 	/* feature flags */
 	unsigned int flags;
 
@@ -131,7 +131,18 @@ dbus_bool_t bluealsa_dbus_pcm_ctrl_send(
 #define bluealsa_dbus_pcm_ctrl_send_resume(fd, err) \
 	bluealsa_dbus_pcm_ctrl_send(fd, "Resume", err)
 
+dbus_bool_t bluealsa_dbus_message_iter_dict(
+		DBusMessageIter *iter,
+		DBusError *error,
+		dbus_bool_t (*cb)(const char *key, DBusMessageIter *val, void *data, DBusError *err),
+		void *userdata);
+
 dbus_bool_t bluealsa_dbus_message_iter_get_pcm(
+		DBusMessageIter *iter,
+		DBusError *error,
+		struct ba_pcm *pcm);
+
+dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props(
 		DBusMessageIter *iter,
 		DBusError *error,
 		struct ba_pcm *pcm);

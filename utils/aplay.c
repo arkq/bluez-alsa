@@ -81,28 +81,6 @@ static void main_loop_stop(int sig) {
 	main_loop_on = false;
 }
 
-/**
- * Validate given BlueALSA PCM device. */
-static bool validate_transport(const struct ba_pcm *ba_pcm) {
-
-	if (!(ba_pcm->flags & BA_PCM_FLAG_SINK))
-		return false;
-
-	if ((ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_A2DP)) ||
-			(!ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO)))
-		return false;
-
-	if (ba_addr_any)
-		return true;
-
-	size_t i;
-	for (i = 0; i < ba_addrs_count; i++)
-		if (bacmp(&ba_addrs[i], &ba_pcm->addr) == 0)
-			return true;
-
-	return false;
-}
-
 static int pcm_set_hw_params(snd_pcm_t *pcm, int channels, int rate,
 		unsigned int *buffer_time, unsigned int *period_time, char **msg) {
 
@@ -239,6 +217,17 @@ fail:
 	if (msg != NULL)
 		*msg = strdup(buf);
 	return err;
+}
+
+static struct ba_pcm *get_ba_pcm(const char *path) {
+
+	size_t i;
+
+	for (i = 0; i < ba_pcms_count; i++)
+		if (strcmp(ba_pcms[i].pcm_path, path) == 0)
+			return &ba_pcms[i];
+
+	return NULL;
 }
 
 static struct pcm_worker *get_active_worker(void) {
@@ -485,14 +474,12 @@ fail:
 	return NULL;
 }
 
-static int start_pcm_worker_routine(struct ba_pcm *ba_pcm) {
+static int supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
 
-	/* check whether SCO has selected codec */
-	if (ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO &&
-			ba_pcm->codec == 0) {
-		debug("Skipping SCO with codec not selected");
-		return 0;
-	}
+	size_t i;
+	for (i = 0; i < workers_count; i++)
+		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
+			return 0;
 
 	pthread_rwlock_wrlock(&workers_lock);
 
@@ -527,16 +514,64 @@ static int start_pcm_worker_routine(struct ba_pcm *ba_pcm) {
 	return 0;
 }
 
+static int supervise_pcm_worker_stop(struct ba_pcm *ba_pcm) {
+
+	size_t i;
+	for (i = 0; i < workers_count; i++)
+		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
+			pthread_rwlock_wrlock(&workers_lock);
+			pthread_cancel(workers[i].thread);
+			pthread_join(workers[i].thread, NULL);
+			memcpy(&workers[i], &workers[--workers_count], sizeof(workers[i]));
+			pthread_rwlock_unlock(&workers_lock);
+		}
+
+	return 0;
+}
+
+static int supervise_pcm_worker(struct ba_pcm *ba_pcm) {
+
+	if (ba_pcm == NULL)
+		return -1;
+
+	if (!(ba_pcm->flags & BA_PCM_FLAG_SINK))
+		goto stop;
+
+	if ((ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_A2DP)) ||
+			(!ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO)))
+		goto stop;
+
+	/* check whether SCO has selected codec */
+	if (ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO &&
+			ba_pcm->codec == 0) {
+		debug("Skipping SCO with codec not selected");
+		goto stop;
+	}
+
+	if (ba_addr_any)
+		goto start;
+
+	size_t i;
+	for (i = 0; i < ba_addrs_count; i++)
+		if (bacmp(&ba_addrs[i], &ba_pcm->addr) == 0)
+			goto start;
+
+stop:
+	return supervise_pcm_worker_stop(ba_pcm);
+start:
+	return supervise_pcm_worker_start(ba_pcm);
+}
+
 static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *message, void *data) {
 	(void)conn;
 	(void)data;
 
+	const char *path = dbus_message_get_path(message);
 	const char *interface = dbus_message_get_interface(message);
 	const char *signal = dbus_message_get_member(message);
 
 	DBusMessageIter iter;
-	const char *path;
-	size_t i;
+	struct ba_pcm *pcm;
 
 	if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
 
@@ -550,9 +585,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 				error("Couldn't add new PCM: %s", "Invalid signal signature");
 				goto fail;
 			}
-			if (validate_transport(&ba_pcms[ba_pcms_count]))
-				start_pcm_worker_routine(&ba_pcms[ba_pcms_count]);
-			ba_pcms_count++;
+			supervise_pcm_worker(&ba_pcms[ba_pcms_count++]);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 
@@ -563,19 +596,26 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 				goto fail;
 			}
 			dbus_message_iter_get_basic(&iter, &path);
-			for (i = 0; i < workers_count; i++) {
-				struct pcm_worker *worker = &workers[i];
-				if (strcmp(worker->ba_pcm.pcm_path, path) == 0) {
-					pthread_cancel(worker->thread);
-					pthread_join(worker->thread, NULL);
-					memcpy(worker, &workers[workers_count - 1], sizeof(*worker));
-					workers_count--;
-					break;
-				}
-			}
+			supervise_pcm_worker_stop(get_ba_pcm(path));
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 
+	}
+
+	if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0) {
+		if ((pcm = get_ba_pcm(path)) == NULL)
+			goto fail;
+		if (!dbus_message_iter_init(message, &iter) ||
+				dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING) {
+			error("Couldn't update PCM: %s", "Invalid signal signature");
+			goto fail;
+		}
+		dbus_message_iter_get_basic(&iter, &interface);
+		dbus_message_iter_next(&iter);
+		if (!bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm))
+			goto fail;
+		supervise_pcm_worker(pcm);
+		return DBUS_HANDLER_RESULT_HANDLED;
 	}
 
 fail:
@@ -732,8 +772,7 @@ usage:
 		warn("Couldn't get BlueALSA PCM list: %s", err.message);
 
 	for (i = 0; i < ba_pcms_count; i++)
-		if (validate_transport(&ba_pcms[i]))
-			start_pcm_worker_routine(&ba_pcms[i]);
+		supervise_pcm_worker(&ba_pcms[i]);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);

@@ -126,7 +126,7 @@ static void bluealsa_manager_method_call(GDBusConnection *conn, const char *send
 
 /**
  * Register BlueALSA D-Bus manager interface. */
-int bluealsa_dbus_register_manager(GError **error) {
+int bluealsa_dbus_manager_register(GError **error) {
 	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluealsa_manager_method_call };
 	return g_dbus_connection_register_object(config.dbus, "/org/bluealsa",
@@ -337,7 +337,7 @@ static GVariant *bluealsa_transport_get_property(GDBusConnection *conn,
 
 /**
  * Register BlueALSA D-Bus transport (PCM) interface. */
-int bluealsa_dbus_register_transport(struct ba_transport *t) {
+int bluealsa_dbus_transport_register(struct ba_transport *t) {
 
 	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluealsa_transport_method_call,
@@ -365,7 +365,28 @@ int bluealsa_dbus_register_transport(struct ba_transport *t) {
 	return t->ba_dbus_id;
 }
 
-void bluealsa_dbus_unregister_transport(struct ba_transport *t) {
+void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+	if (mask & BA_DBUS_TRANSPORT_UPDATE_CHANNELS)
+		g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
+	if (mask & BA_DBUS_TRANSPORT_UPDATE_SAMPLING)
+		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
+	if (mask & BA_DBUS_TRANSPORT_UPDATE_CODEC)
+		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
+	if (mask & BA_DBUS_TRANSPORT_UPDATE_DELAY)
+		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
+
+	g_dbus_connection_emit_signal(config.dbus, NULL, t->ba_dbus_path,
+			"org.freedesktop.DBus.Properties", "PropertiesChanged",
+			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_PCM, &props, NULL), NULL);
+
+	g_variant_builder_clear(&props);
+}
+
+void bluealsa_dbus_transport_unregister(struct ba_transport *t) {
 	if (t->ba_dbus_id != 0) {
 		g_dbus_connection_unregister_object(config.dbus, t->ba_dbus_id);
 		g_dbus_connection_emit_signal(config.dbus, NULL,

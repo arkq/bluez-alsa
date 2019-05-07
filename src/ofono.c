@@ -41,10 +41,9 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
-#include "ctl.h"
+#include "bluealsa-dbus.h"
 #include "hfp.h"
 #include "ofono-iface.h"
-#include "shared/ctl-proto.h"
 #include "shared/log.h"
 
 /**
@@ -141,8 +140,8 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	t->bt_fd = -1;
 	t->type.codec = HFP_CODEC_UNDEFINED;
 
-	bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
-			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
+	bluealsa_dbus_transport_update(t,
+			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
 	return 0;
 }
@@ -387,8 +386,9 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	t->mtu_read = 48;
 	t->mtu_write = 48;
 
-	bluealsa_ctl_send_event(a->ctl, BA_EVENT_TRANSPORT_CHANGED, &d->addr,
-			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
+	bluealsa_dbus_transport_update(t,
+			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+
 	ba_transport_send_signal(t, TRANSPORT_BT_OPEN);
 
 	g_dbus_method_invocation_return_value(inv, NULL);

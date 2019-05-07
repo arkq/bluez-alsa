@@ -218,8 +218,8 @@ void *test_bt_mock(void *data) {
 		assert((t = test_transport_new_sco(d2, ttype, ":test", "/sco/2")) != NULL);
 		if (fuzzing) {
 			t->type.codec = HFP_CODEC_CVSD;
-			bluealsa_ctl_send_event(a->ctl, BA_EVENT_TRANSPORT_CHANGED, &t->d->addr,
-					BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
+			bluealsa_dbus_transport_update(t,
+					BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 		}
 	}
 
@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
 	assert(bluealsa_config_init() == 0);
 	assert((config.dbus = g_test_dbus_connection_new_sync(NULL)) != NULL);
 
-	assert(bluealsa_dbus_register_manager(NULL) != 0);
+	assert(bluealsa_dbus_manager_register(NULL) != 0);
 	assert(g_bus_own_name_on_connection(config.dbus, service,
 				G_BUS_NAME_OWNER_FLAGS_NONE, NULL, NULL, NULL, NULL) != 0);
 
