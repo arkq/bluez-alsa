@@ -238,6 +238,9 @@ unsigned int ba_transport_get_channels(const struct ba_transport *t);
 unsigned int ba_transport_get_sampling(const struct ba_transport *t);
 uint16_t ba_transport_get_delay(const struct ba_transport *t);
 
+uint16_t ba_transport_get_volume_packed(const struct ba_transport *t);
+int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value);
+
 int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 
 int ba_transport_drain_pcm(struct ba_transport *t);

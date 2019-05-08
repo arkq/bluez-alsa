@@ -102,6 +102,53 @@ START_TEST(test_ba_transport) {
 
 } END_TEST
 
+START_TEST(test_ba_transport_volume_packed) {
+
+	struct ba_adapter *a;
+	struct ba_device *d;
+	struct ba_transport *t;
+	bdaddr_t addr = { 0 };
+	struct ba_transport_type type = { 0 };
+
+	ck_assert_ptr_ne(a = ba_adapter_new(0, NULL), NULL);
+	pthread_mutex_lock(&a->devices_mutex);
+	ck_assert_ptr_ne(d = ba_device_new(a, &addr, "Test"), NULL);
+	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
+
+	t->a2dp.ch1_muted = true;
+	t->a2dp.ch1_volume = 0x6C;
+	t->a2dp.ch2_muted = false;
+	t->a2dp.ch2_volume = 0x4F;
+	t->type.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
+	ck_assert_uint_eq(ba_transport_get_volume_packed(t), 0xEC4F);
+
+	ck_assert_int_eq(ba_transport_set_volume_packed(t, 0xB0C1), 0);
+	ck_assert_int_eq(!!t->a2dp.ch1_muted, true);
+	ck_assert_int_eq(t->a2dp.ch1_volume, 48);
+	ck_assert_int_eq(!!t->a2dp.ch2_muted, true);
+	ck_assert_int_eq(t->a2dp.ch2_volume, 65);
+
+	t->sco.spk_muted = false;
+	t->sco.spk_gain = 0x0A;
+	t->sco.mic_muted = true;
+	t->sco.mic_gain = 0x05;
+	t->type.profile = BA_TRANSPORT_PROFILE_HFP_AG;
+	ck_assert_uint_eq(ba_transport_get_volume_packed(t), 0x0A85);
+
+	ck_assert_int_eq(ba_transport_set_volume_packed(t, 0x8A0B), 0);
+	ck_assert_int_eq(!!t->sco.spk_muted, true);
+	ck_assert_int_eq(t->sco.spk_gain, 10);
+	ck_assert_int_eq(!!t->sco.mic_muted, false);
+	ck_assert_int_eq(t->sco.mic_gain, 11);
+
+	t->type.profile = 0;
+	ba_transport_free(t);
+	ba_device_free(d);
+	pthread_mutex_unlock(&a->devices_mutex);
+	ba_adapter_free(a);
+
+} END_TEST
+
 START_TEST(test_cascade_free) {
 
 	struct ba_adapter *a;
@@ -131,6 +178,7 @@ int main(void) {
 	tcase_add_test(tc, test_ba_adapter);
 	tcase_add_test(tc, test_ba_device);
 	tcase_add_test(tc, test_ba_transport);
+	tcase_add_test(tc, test_ba_transport_volume_packed);
 	tcase_add_test(tc, test_cascade_free);
 
 	srunner_run_all(sr, CK_ENV);

@@ -543,6 +543,11 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 			goto fail;
 		dbus_message_iter_get_basic(variant, &pcm->delay);
 	}
+	else if (strcmp(key, "Volume") == 0) {
+		if (type != (type_expected = DBUS_TYPE_UINT16))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &pcm->volume.raw);
+	}
 
 	return TRUE;
 

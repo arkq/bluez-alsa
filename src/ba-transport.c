@@ -563,6 +563,73 @@ uint16_t ba_transport_get_delay(const struct ba_transport *t) {
 	return t->delay;
 }
 
+/**
+ * Get transport volume encoded as a single 16-bit value. */
+uint16_t ba_transport_get_volume_packed(const struct ba_transport *t) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return ((t->a2dp.ch1_muted << 7) | t->a2dp.ch1_volume) << 8 |
+			((t->a2dp.ch2_muted << 7) | t->a2dp.ch2_volume);
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+		return ((t->sco.spk_muted << 7) | t->sco.spk_gain) << 8 |
+			((t->sco.mic_muted << 7) | t->sco.mic_gain);
+	return 0;
+}
+
+/**
+ * Set transport volume from an encoded single 16-bit value. */
+int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value) {
+
+	uint8_t ch1 = value >> 8;
+	uint8_t ch2 = value & 0xFF;
+
+	debug("Setting volume: %d<>%d [%c%c]", ch1 & 0x7F, ch2 & 0x7F,
+			ch1 & 0x80 ? 'M' : 'O', ch2 & 0x80 ? 'M' : 'O');
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+
+		t->a2dp.ch1_muted = !!(ch1 & 0x80);
+		t->a2dp.ch2_muted = !!(ch2 & 0x80);
+		t->a2dp.ch1_volume = ch1 & 0x7F;
+		t->a2dp.ch2_volume = ch2 & 0x7F;
+
+		if (config.a2dp.volume) {
+
+			uint16_t volume = 0;
+			GError *err = NULL;
+
+			if (!t->a2dp.ch1_muted && !t->a2dp.ch2_muted)
+				volume = (t->a2dp.ch1_volume + t->a2dp.ch2_volume) / 2;
+			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
+
+			if (err != NULL) {
+				warn("Couldn't set BT device volume: %s", err->message);
+				g_error_free(err);
+			}
+
+		}
+
+	}
+
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
+
+		t->sco.spk_muted = !!(ch1 & 0x80);
+		t->sco.mic_muted = !!(ch2 & 0x80);
+		t->sco.spk_gain = ch1 & 0x7F;
+		t->sco.mic_gain = ch2 & 0x7F;
+
+		if (t->sco.rfcomm != NULL)
+			/* notify associated RFCOMM transport */
+			ba_transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
+
+	}
+
+	/* notify connected clients (including requester) */
+	bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+
+	return 0;
+}
+
 int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state) {
 	debug("State transition: %d -> %d", t->state, state);
 

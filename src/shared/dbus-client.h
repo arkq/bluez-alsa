@@ -62,6 +62,17 @@ struct ba_pcm {
 	/* feature flags */
 	unsigned int flags;
 
+	/* 16-bit packed PCM volume */
+	union {
+		struct {
+			dbus_uint16_t ch2_volume:7;
+			dbus_uint16_t ch2_muted:1;
+			dbus_uint16_t ch1_volume:7;
+			dbus_uint16_t ch1_muted:1;
+		};
+		dbus_uint16_t raw;
+	} volume;
+
 };
 
 dbus_bool_t bluealsa_dbus_connection_ctx_init(

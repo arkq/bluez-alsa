@@ -32,6 +32,7 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
+#include "bluealsa-dbus.h"
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
 #include "ctl.h"
@@ -1363,6 +1364,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 			}
 
 			t->a2dp.delay = g_variant_get_uint16(value);
+			bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_DELAY);
 
 		}
 		else if (strcmp(property, "Volume") == 0) {
@@ -1375,6 +1377,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 
 			/* received volume is in range [0, 127]*/
 			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
+			bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 
 			bluealsa_ctl_send_event(a->ctl, BA_EVENT_VOLUME_CHANGED, &d->addr,
 					BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?

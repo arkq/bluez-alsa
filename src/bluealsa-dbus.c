@@ -64,6 +64,10 @@ static GVariant *ba_variant_new_delay(const struct ba_transport *t) {
 	return g_variant_new_uint16(ba_transport_get_delay(t));
 }
 
+static GVariant *ba_variant_new_volume(const struct ba_transport *t) {
+	return g_variant_new_uint16(ba_transport_get_volume_packed(t));
+}
+
 static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
 
@@ -98,6 +102,7 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 				g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
 				g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
 				g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
+				g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
 
 				g_variant_builder_add(&pcms, "{oa{sv}}", t->ba_dbus_path, &props);
 				g_variant_builder_clear(&props);
@@ -329,10 +334,32 @@ static GVariant *bluealsa_transport_get_property(GDBusConnection *conn,
 		return ba_variant_new_codec(t);
 	if (strcmp(property, "Delay") == 0)
 		return ba_variant_new_delay(t);
+	if (strcmp(property, "Volume") == 0)
+		return ba_variant_new_volume(t);
 
 	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-			"No such property '%s'", property);
+			"Property not supported '%s'", property);
 	return NULL;
+}
+
+static gboolean bluealsa_transport_set_property(GDBusConnection *conn,
+		const gchar *sender, const gchar *path, const gchar *interface,
+		const gchar *property, GVariant *value, GError **error, gpointer userdata) {
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)interface;
+
+	struct ba_transport *t = (struct ba_transport *)userdata;
+
+	if (strcmp(property, "Volume") == 0) {
+		ba_transport_set_volume_packed(t, g_variant_get_uint16(value));
+		return TRUE;
+	}
+
+	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+			"Property not supported '%s'", property);
+	return FALSE;
 }
 
 /**
@@ -342,6 +369,7 @@ int bluealsa_dbus_transport_register(struct ba_transport *t) {
 	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluealsa_transport_method_call,
 		.get_property = bluealsa_transport_get_property,
+		.set_property = bluealsa_transport_set_property,
 	};
 
 	t->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
@@ -356,6 +384,7 @@ int bluealsa_dbus_transport_register(struct ba_transport *t) {
 	g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
 	g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
 	g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
+	g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
 
 	g_dbus_connection_emit_signal(config.dbus, NULL,
 			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMAdded",
@@ -378,6 +407,8 @@ void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
 	if (mask & BA_DBUS_TRANSPORT_UPDATE_DELAY)
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
+	if (mask & BA_DBUS_TRANSPORT_UPDATE_VOLUME)
+		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
 
 	g_dbus_connection_emit_signal(config.dbus, NULL, t->ba_dbus_path,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged",

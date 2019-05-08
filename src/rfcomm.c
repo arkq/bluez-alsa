@@ -323,6 +323,7 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
+	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_CAPTURE);
 	return 0;
@@ -338,6 +339,7 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
+	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
 			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK);
 	return 0;
