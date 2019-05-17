@@ -257,7 +257,7 @@ static struct pcm_worker *get_active_worker(void) {
 static int pause_device_player(const bdaddr_t *dev) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
-	DBusError err;
+	DBusError err = DBUS_ERROR_INIT;
 	char obj[64];
 	int ret = 0;
 
@@ -671,7 +671,7 @@ usage:
 		free(ba_str);
 	}
 
-	DBusError err;
+	DBusError err = DBUS_ERROR_INIT;
 	if ((dbus = dbus_bus_get(DBUS_BUS_SYSTEM, &err)) == NULL) {
 		error("Couldn't obtain D-Bus connection: %s", err.message);
 		goto fail;
