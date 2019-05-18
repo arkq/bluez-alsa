@@ -26,8 +26,7 @@
 
 struct ba_device *ba_device_new(
 		struct ba_adapter *adapter,
-		const bdaddr_t *addr,
-		const char *name) {
+		const bdaddr_t *addr) {
 
 #if DEBUG
 	/* make sure that the device mutex is acquired */
@@ -50,29 +49,6 @@ struct ba_device *ba_device_new(
 	d->bluez_dbus_path = g_strdup_printf("%s/%s", adapter->bluez_dbus_path, tmp);
 
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
-
-	if (name != NULL)
-		strncpy(d->name, name, sizeof(d->name) - 1);
-	else {
-
-		GVariant *property;
-		GError *err = NULL;
-
-		/* get local (user editable) Bluetooth device name */
-		if ((property = g_dbus_get_property(config.dbus, BLUEZ_SERVICE, d->bluez_dbus_path,
-						BLUEZ_IFACE_DEVICE, "Alias", &err)) != NULL) {
-			strncpy(d->name, g_variant_get_string(property, NULL), sizeof(d->name) - 1);
-			d->name[sizeof(d->name) - 1] = '\0';
-			g_variant_unref(property);
-		}
-
-		if (err != NULL) {
-			warn("Couldn't get BT device name: %s", err->message);
-			ba2str(addr, d->name);
-			g_error_free(err);
-		}
-
-	}
 
 	g_hash_table_insert(adapter->devices, &d->addr, d);
 	return d;
@@ -132,9 +108,4 @@ void ba_device_set_battery_level(struct ba_device *d, uint8_t value) {
 	d->battery.enabled = true;
 	d->battery.level = value;
 	bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
-}
-
-void ba_device_set_name(struct ba_device *d, const char *name) {
-	strncpy(d->name, name, sizeof(d->name) - 1);
-	bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_NAME_CHANGED, &d->addr, 0);
 }

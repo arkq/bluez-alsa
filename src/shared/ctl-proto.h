@@ -56,7 +56,6 @@ enum ba_event {
 	BA_EVENT_TRANSPORT_REMOVED = 1 << 2,
 	BA_EVENT_VOLUME_CHANGED    = 1 << 3,
 	BA_EVENT_BATTERY_CHANGED   = 1 << 4,
-	BA_EVENT_NAME_CHANGED      = 1 << 5,
 };
 
 enum ba_pcm_type {

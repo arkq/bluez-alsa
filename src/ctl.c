@@ -193,9 +193,6 @@ static void ctl_thread_cmd_list_devices(struct ba_ctl *ctl, struct ba_request *r
 			g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d); ) {
 
 		bacpy(&device.addr, &d->addr);
-		strncpy(device.name, d->name, sizeof(device.name) - 1);
-		device.name[sizeof(device.name) - 1] = '\0';
-
 		device.battery = d->battery.enabled;
 		device.battery_level = d->battery.level;
 

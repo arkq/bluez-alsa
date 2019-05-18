@@ -38,10 +38,10 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 
 GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
 		const char *name, const char *path, GError **error);
-GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
+GVariant *g_dbus_get_property(GDBusConnection *conn, const char *service,
 		const char *path, const char *interface, const char *property,
 		GError **error);
-bool g_dbus_set_property(GDBusConnection *conn, const char *name,
+bool g_dbus_set_property(GDBusConnection *conn, const char *service,
 		const char *path, const char *interface, const char *property,
 		const GVariant *value, GError **error);
 

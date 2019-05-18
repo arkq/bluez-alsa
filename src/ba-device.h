@@ -19,7 +19,6 @@
 #include <stdint.h>
 
 #include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
 #include <glib.h>
 
 #include "ba-adapter.h"
@@ -31,8 +30,6 @@ struct ba_device {
 
 	/* address of the Bluetooth device */
 	bdaddr_t addr;
-	/* human-readable Bluetooth device name */
-	char name[HCI_MAX_NAME_LENGTH];
 
 	/* data for D-Bus management */
 	char *ba_dbus_path;
@@ -64,8 +61,7 @@ struct ba_device {
 
 struct ba_device *ba_device_new(
 		struct ba_adapter *adapter,
-		const bdaddr_t *addr,
-		const char *name);
+		const bdaddr_t *addr);
 
 struct ba_device *ba_device_lookup(
 		struct ba_adapter *adapter,
@@ -74,6 +70,5 @@ struct ba_device *ba_device_lookup(
 void ba_device_free(struct ba_device *d);
 
 void ba_device_set_battery_level(struct ba_device *d, uint8_t value);
-void ba_device_set_name(struct ba_device *d, const char *name);
 
 #endif

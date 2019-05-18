@@ -176,14 +176,11 @@ void *test_bt_mock(void *data) {
 
 	pthread_mutex_lock(&a->devices_mutex);
 
-	/* Connect two devices with the same name, but different MAC addresses.
-	 * This test will ensure, that it is possible to launch mixer plug-in. */
-
 	str2ba("12:34:56:78:9A:BC", &addr);
-	assert((d1 = ba_device_new(a, &addr, "Test Device With Long Name")) != NULL);
+	assert((d1 = ba_device_new(a, &addr)) != NULL);
 
 	str2ba("12:34:56:9A:BC:DE", &addr);
-	assert((d2 = ba_device_new(a, &addr, "Test Device With Long Name")) != NULL);
+	assert((d2 = ba_device_new(a, &addr)) != NULL);
 
 	pthread_mutex_unlock(&a->devices_mutex);
 

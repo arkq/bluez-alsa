@@ -618,7 +618,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = ba_device_new(a, &addr, NULL)) == NULL) {
+			(d = ba_device_new(a, &addr)) == NULL) {
 		error("Couldn't create new device: %s", device_path);
 		goto fail;
 	}
@@ -915,7 +915,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = ba_device_new(a, &addr, NULL)) == NULL) {
+			(d = ba_device_new(a, &addr)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
 		goto fail;
 	}
@@ -1247,62 +1247,6 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 
 }
 
-static void bluez_signal_device_changed(GDBusConnection *conn, const char *sender,
-		const char *device_path, const char *interface_, const char *signal, GVariant *params,
-		void *userdata) {
-	debug("Signal: %s.%s()", interface_, signal);
-	(void)conn;
-	(void)sender;
-	(void)userdata;
-
-	struct ba_adapter *a = NULL;
-	struct ba_device *d = NULL;
-
-	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(device_path);
-	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL) {
-		error("Adapter not available: %s", device_path);
-		return;
-	}
-
-	GVariantIter *properties = NULL;
-	const char *interface;
-	const char *property;
-	GVariant *value;
-
-	pthread_mutex_lock(&a->devices_mutex);
-
-	bdaddr_t addr;
-	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
-	if ((d = ba_device_lookup(a, &addr)) == NULL)
-		/* If we can not lookup device, it might not be a fail. The properties
-		 * changed signal is emitted for every BT device, not only for devices
-		 * associated with media transport. */
-		goto final;
-
-	g_variant_get(params, "(&sa{sv}as)", &interface, &properties, NULL);
-	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
-
-		if (strcmp(property, "Alias") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
-				warn("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "s");
-				goto fail_prop;
-			}
-
-			ba_device_set_name(d, g_variant_get_string(value, NULL));
-
-		}
-
-fail_prop:
-		g_variant_unref(value);
-	}
-	g_variant_iter_free(properties);
-
-final:
-	pthread_mutex_unlock(&a->devices_mutex);
-}
-
 static void bluez_signal_transport_changed(GDBusConnection *conn, const char *sender,
 		const char *transport_path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
@@ -1407,9 +1351,6 @@ int bluez_subscribe_signals(void) {
 			"org.freedesktop.DBus.ObjectManager", "InterfacesRemoved", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_interfaces_removed, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
-			"org.freedesktop.DBus.Properties", "PropertiesChanged", NULL, BLUEZ_IFACE_DEVICE,
-			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_device_changed, NULL, NULL);
 	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_transport_changed, NULL, NULL);

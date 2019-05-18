@@ -72,9 +72,7 @@ START_TEST(test_get_devices) {
 	ck_assert_int_eq(bluealsa_get_devices(fd, &devices), 2);
 
 	ck_assert_int_eq(bacmp(&devices[0].addr, &addr1), 0);
-	ck_assert_str_eq(devices[0].name, "Test Device With Long Name");
 	ck_assert_int_eq(bacmp(&devices[1].addr, &addr0), 0);
-	ck_assert_str_eq(devices[1].name, "Test Device With Long Name");
 
 	struct ba_msg_transport *transports;
 	ck_assert_int_eq(bluealsa_get_transports(fd, &transports), 4);

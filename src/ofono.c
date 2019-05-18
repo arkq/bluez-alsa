@@ -88,9 +88,10 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	GError *err = NULL;
 	int ret = 0;
 
-	debug("Requesting new oFono SCO connection: %s", t->d->name);
+	debug("Requesting new oFono SCO connection: %s", t->bluez_dbus_path);
 
-	msg = g_dbus_message_new_method_call(OFONO_SERVICE, t->d->name,
+	const char *ofono_dbus_path = &t->bluez_dbus_path[6];
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, ofono_dbus_path,
 			OFONO_IFACE_HF_AUDIO_CARD, "Connect");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -226,7 +227,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	pthread_mutex_lock(&a->devices_mutex);
 
 	if ((d = ba_device_lookup(a, &addr_dev)) == NULL &&
-			(d = ba_device_new(a, &addr_dev, NULL)) == NULL) {
+			(d = ba_device_new(a, &addr_dev)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
 		goto fail;
 	}

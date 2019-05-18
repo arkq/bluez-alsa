@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
 
@@ -334,21 +335,21 @@ fail:
  * Get a property of a given D-Bus interface.
  *
  * @param conn D-Bus connection handler.
- * @param name Valid D-Bus name or NULL.
+ * @param service Valid D-Bus service name.
  * @param path Valid D-Bus object path.
  * @param interface Interface with the given property.
  * @param property The property name.
  * @param error NULL GError pointer.
  * @return On success this function returns variant containing property value.
  *   Otherwise, NULL is returned. */
-GVariant *g_dbus_get_property(GDBusConnection *conn, const char *name,
+GVariant *g_dbus_get_property(GDBusConnection *conn, const char *service,
 		const char *path, const char *interface, const char *property,
 		GError **error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GVariant *value = NULL;
 
-	msg = g_dbus_message_new_method_call(name, path, "org.freedesktop.DBus.Properties", "Get");
+	msg = g_dbus_message_new_method_call(service, path, "org.freedesktop.DBus.Properties", "Get");
 	g_dbus_message_set_body(msg, g_variant_new("(ss)", interface, property));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -376,20 +377,20 @@ fail:
  * Set a property of a given D-Bus interface.
  *
  * @param conn D-Bus connection handler.
- * @param name Valid D-Bus name or NULL.
+ * @param service Valid D-Bus service name.
  * @param path Valid D-Bus object path.
  * @param interface Interface with the given property.
  * @param property The property name.
  * @param value Variant containing property value.
  * @param error NULL GError pointer.
  * @return On success this function returns true. */
-bool g_dbus_set_property(GDBusConnection *conn, const char *name,
+bool g_dbus_set_property(GDBusConnection *conn, const char *service,
 		const char *path, const char *interface, const char *property,
 		const GVariant *value, GError **error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 
-	msg = g_dbus_message_new_method_call(name, path, "org.freedesktop.DBus.Properties", "Set");
+	msg = g_dbus_message_new_method_call(service, path, "org.freedesktop.DBus.Properties", "Set");
 	g_dbus_message_set_body(msg, g_variant_new("(ssv)", interface, property, value));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
