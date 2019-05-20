@@ -219,7 +219,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	debug("Adding new oFono card: %s", card);
 
 	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL &&
-			(a = ba_adapter_new(hci_dev_id, NULL)) == NULL) {
+			(a = ba_adapter_new(hci_dev_id)) == NULL) {
 		error("Couldn't create new adapter: %s", strerror(errno));
 		goto fail;
 	}

@@ -24,9 +24,7 @@
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
-#include "ctl.h"
 #include "utils.h"
-#include "shared/ctl-proto.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -212,7 +210,6 @@ static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct b
 		t->rfcomm.hfp_inds[c->hfp_ind_map[i]] = atoi(tmp);
 		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG) {
 			d->battery_level = atoi(tmp) * 100 / 5;
-			bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
 			bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 		}
 		if ((tmp = strchr(tmp, ',')) == NULL)
@@ -259,7 +256,6 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 			break;
 		case HFP_IND_BATTCHG:
 			d->battery_level = value * 100 / 5;
-			bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
 			bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 			break;
 		default:
@@ -336,8 +332,6 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 		return -1;
 
 	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
-	bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
-			BA_PCM_TYPE_SCO | BA_PCM_STREAM_CAPTURE);
 	return 0;
 }
 
@@ -352,8 +346,6 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 		return -1;
 
 	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
-	bluealsa_ctl_send_event(t->d->a->ctl, BA_EVENT_VOLUME_CHANGED, &t->d->addr,
-			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK);
 	return 0;
 }
 
@@ -465,7 +457,6 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct
 		case '1':
 			if (ptr != NULL) {
 				d->battery_level = atoi(strsep(&ptr, ",")) * 100 / 9;
-				bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
 				bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 			}
 			break;

@@ -20,7 +20,6 @@
 
 #include "ba-device.h"
 #include "bluealsa.h"
-#include "ctl.h"
 #include "utils.h"
 
 static guint g_bdaddr_hash(gconstpointer v) {
@@ -32,7 +31,7 @@ static gboolean g_bdaddr_equal(gconstpointer v1, gconstpointer v2) {
 	return bacmp(v1, v2) == 0;
 }
 
-struct ba_adapter *ba_adapter_new(int dev_id, const char *name) {
+struct ba_adapter *ba_adapter_new(int dev_id) {
 
 	struct ba_adapter *a;
 
@@ -46,11 +45,7 @@ struct ba_adapter *ba_adapter_new(int dev_id, const char *name) {
 		return NULL;
 
 	a->hci_dev_id = dev_id;
-
-	if (name != NULL)
-		strncpy(a->hci_name, name, sizeof(a->hci_name) - 1);
-	else
-		sprintf(a->hci_name, "hci%d", dev_id);
+	sprintf(a->hci_name, "hci%d", dev_id);
 
 	sprintf(a->ba_dbus_path, "/org/bluealsa/%s", a->hci_name);
 	g_variant_sanitize_object_path(a->ba_dbus_path);
@@ -60,15 +55,8 @@ struct ba_adapter *ba_adapter_new(int dev_id, const char *name) {
 	pthread_mutex_init(&a->devices_mutex, NULL);
 	a->devices = g_hash_table_new_full(g_bdaddr_hash, g_bdaddr_equal, NULL, NULL);
 
-	if ((a->ctl = bluealsa_ctl_init(a)) == NULL)
-		goto fail;
-
 	config.adapters[a->hci_dev_id] = a;
 	return a;
-
-fail:
-	ba_adapter_free(a);
-	return NULL;
 }
 
 struct ba_adapter *ba_adapter_lookup(int dev_id) {
@@ -102,9 +90,6 @@ void ba_adapter_free(struct ba_adapter *a) {
 
 		g_hash_table_unref(a->devices);
 	}
-
-	if (a->ctl != NULL)
-		bluealsa_ctl_free(a->ctl);
 
 	pthread_mutex_destroy(&a->devices_mutex);
 

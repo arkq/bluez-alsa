@@ -34,18 +34,13 @@ static void *spawn_bluealsa_server_stderr_proxy(void *data) {
 /**
  * Spawn bluealsa server mock.
  *
- * @param hci HCI device name.
  * @param service BlueALSA D-Bus service name.
  * @param timeout Timeout passed to the server-mock.
  * @param fuzzing Enable fuzzing - delayed startup.
  * @param source Start A2DP source.
  * @param sink Start A2DP sink.
  * @return PID of the bluealsa server mock. */
-pid_t spawn_bluealsa_server(const char *hci, const char *service, unsigned int timeout, bool fuzzing, bool source, bool sink) {
-
-	char arg_device[32] = "";
-	if (hci != NULL)
-		sprintf(arg_device, "--device=%s", hci);
+pid_t spawn_bluealsa_server(const char *service, unsigned int timeout, bool fuzzing, bool source, bool sink) {
 
 	char arg_service[32] = "";
 	if (service != NULL)
@@ -56,7 +51,6 @@ pid_t spawn_bluealsa_server(const char *hci, const char *service, unsigned int t
 
 	char *argv[] = {
 		"server-mock",
-		arg_device,
 		arg_service,
 		arg_timeout,
 		fuzzing ? "--fuzzing" : "",

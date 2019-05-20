@@ -17,7 +17,6 @@ LT_INIT
 
 # configuration should match ALSA library
 AC_PREFIX_DEFAULT([/usr])
-AC_SUBST([runstatedir], [/var/run])
 
 # testing presence of pkg-config
 AC_MSG_CHECKING([pkg-config m4 macros])
@@ -158,12 +157,10 @@ eval alsaplugindir="$alsaplugindir"
 
 AC_DEFINE_UNQUOTED([ALSA_CONF_DIR], "$alsaconfdir", [Directory containing ALSA add-on configuration files.])
 AC_DEFINE_UNQUOTED([ALSA_PLUGIN_DIR], "$alsaplugindir", [Directory containing ALSA add-on modules.])
-AC_DEFINE_UNQUOTED([RUN_STATE_DIR], "$runstatedir", [Path where run statuses are stored.])
 
 AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
-AC_SUBST([RUN_STATE_DIR], [$runstatedir])
 
 AC_CONFIG_FILES([
 	Makefile

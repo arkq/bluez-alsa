@@ -134,14 +134,13 @@ Troubleshooting
 	[hacks](http://git.alsa-project.org/?p=alsa-lib.git;a=blob;f=src/pcm/pcm_ioplug.c;h=1dc198e7c99c933264fa25c9d7dbac5153bf0860;hb=1bf144013cffdeb41a5df3a11a8eb2596c5ea2b5#l682)
 	(search for "to avoid deadlock" comments) and decide for yourself.
 
-3. Couldn't bind controller socket: Address already in use
+3. Couldn't acquire D-Bus name: org.bluealsa
 
-	It is not possible to run more than one instance of the BlueALSA server per HCI device. If one
-	tries to run second instance, it fails with the `"Couldn't bind controller socket: Address
-	already in use"` error message. This error message might also appear when the previous BlueALSA
-	server has crashed unexpectedly. In order to recover from this error, one has to manually remove
-	dangling socket located in the `/var/run/bluealsa` directory (this location might be different
-	for non standard configuration).
+	It is not possible to run more than one instance of the BlueALSA server per D-Bus interface. If
+	one tries to run second instance, it will fail with the `"Couldn't acquire D-Bus name:
+	org.bluealsa"` error message. This message might also appear when D-Bus policy does not allow
+	acquiring "org.bluealsa" name for a particular user - by default only root is allowed to start
+	BlueALSA server.
 
 
 Resources

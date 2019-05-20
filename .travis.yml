@@ -19,7 +19,6 @@ addons:
 
 before_script:
   - mkdir -p m4
-  - sed -i -e 's$/var/run$.$' configure.ac
   - autoreconf --install && mkdir build && cd build
 
 script:

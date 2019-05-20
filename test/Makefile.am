@@ -4,7 +4,6 @@
 TESTS = \
 	test-at \
 	test-ba \
-	test-ctl \
 	test-io \
 	test-msbc \
 	test-pcm \
@@ -14,7 +13,6 @@ check_PROGRAMS = \
 	server-mock \
 	test-at \
 	test-ba \
-	test-ctl \
 	test-io \
 	test-msbc \
 	test-pcm \

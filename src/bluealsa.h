@@ -55,9 +55,6 @@ struct ba_config {
 	/* opened null device */
 	int null_fd;
 
-	/* audio group ID */
-	gid_t gid_audio;
-
 	struct {
 		/* set of features exposed via Service Discovery */
 		int features_sdp_hf;

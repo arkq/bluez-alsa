@@ -11,7 +11,6 @@
 #include "bluealsa.h"
 
 #include <fcntl.h>
-#include <grp.h>
 
 #if ENABLE_LDAC
 # include <ldacBT.h>
@@ -29,9 +28,6 @@ struct ba_config config = {
 	.enable.hsp_ag = true,
 
 	.null_fd = -1,
-
-	/* omit chown if audio group is not defined */
-	.gid_audio = -1,
 
 	.hfp.features_sdp_hf =
 		SDP_HFP_HF_FEAT_CLI |
@@ -89,17 +85,11 @@ struct ba_config config = {
 
 int bluealsa_config_init(void) {
 
-	struct group *grp;
-
 	config.hci_filter = g_array_sized_new(FALSE, FALSE, sizeof(const char *), 4);
 
 	config.main_thread = pthread_self();
 
 	config.null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK);
-
-	/* use proper ACL group for our audio device */
-	if ((grp = getgrnam("audio")) != NULL)
-		config.gid_audio = grp->gr_gid;
 
 	config.a2dp.codecs = bluez_a2dp_codecs;
 

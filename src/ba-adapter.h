@@ -33,12 +33,9 @@ struct ba_adapter {
 	pthread_mutex_t devices_mutex;
 	GHashTable *devices;
 
-	/* associated controller */
-	struct ba_ctl *ctl;
-
 };
 
-struct ba_adapter *ba_adapter_new(int dev_id, const char *name);
+struct ba_adapter *ba_adapter_new(int dev_id);
 struct ba_adapter *ba_adapter_lookup(int dev_id);
 void ba_adapter_free(struct ba_adapter *a);
 

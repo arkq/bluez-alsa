@@ -32,12 +32,10 @@
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
-#include "ctl.h"
 #include "hfp.h"
 #include "io.h"
 #include "rfcomm.h"
 #include "utils.h"
-#include "shared/ctl-proto.h"
 #include "shared/log.h"
 
 static int io_thread_create(struct ba_transport *t) {
@@ -205,10 +203,6 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->ba_dbus_path = g_strdup_printf("%s/a2dp", device->ba_dbus_path);
 	bluealsa_dbus_transport_register(t);
 
-	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
-			BA_PCM_TYPE_A2DP | (type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
-				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
-
 	return t;
 }
 
@@ -279,9 +273,6 @@ struct ba_transport *ba_transport_new_sco(
 	t->ba_dbus_path = g_strdup_printf("%s/sco", device->ba_dbus_path);
 	bluealsa_dbus_transport_register(t);
 
-	bluealsa_ctl_send_event(device->a->ctl, BA_EVENT_TRANSPORT_ADDED, &device->addr,
-			BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE);
-
 	return t;
 }
 
@@ -322,7 +313,6 @@ void ba_transport_free(struct ba_transport *t) {
 
 	pthread_mutex_destroy(&t->mutex);
 
-	unsigned int pcm_type = BA_PCM_TYPE_NULL;
 	struct ba_device *d = t->d;
 
 	/* free profile-specific resources */
@@ -333,7 +323,6 @@ void ba_transport_free(struct ba_transport *t) {
 		d->battery_level = -1;
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		pcm_type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
 		pthread_mutex_destroy(&t->sco.spk_drained_mtx);
 		pthread_cond_destroy(&t->sco.spk_drained);
 		ba_transport_release_pcm(&t->sco.spk_pcm);
@@ -342,8 +331,6 @@ void ba_transport_free(struct ba_transport *t) {
 			t->sco.rfcomm->rfcomm.sco = NULL;
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		pcm_type = BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
-				BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE);
 		ba_transport_release_pcm(&t->a2dp.pcm);
 		pthread_mutex_destroy(&t->a2dp.drained_mtx);
 		pthread_cond_destroy(&t->a2dp.drained);
@@ -355,9 +342,6 @@ void ba_transport_free(struct ba_transport *t) {
 
 	/* remove D-Bus interface */
 	bluealsa_dbus_transport_unregister(t);
-
-	if (pcm_type != BA_PCM_TYPE_NULL)
-		bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_TRANSPORT_REMOVED, &d->addr, pcm_type);
 
 	if (t->ba_dbus_path != NULL)
 		g_free(t->ba_dbus_path);

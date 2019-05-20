@@ -32,7 +32,6 @@
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
-#include "../src/ctl.c"
 #include "../src/io.h"
 #define io_thread_a2dp_sink_sbc _io_thread_a2dp_sink_sbc
 #include "../src/io.c"
@@ -57,7 +56,6 @@ static const a2dp_sbc_t cconfig = {
 static GMainLoop *loop = NULL;
 static struct ba_adapter *a = NULL;
 static const char *service = "org.bluealsa";
-static const char *device = "hci-mock";
 static unsigned int timeout = 5;
 static bool fuzzing = false;
 static bool source = false;
@@ -237,11 +235,10 @@ void *test_bt_mock(void *data) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hb:it:F";
+	const char *opts = "hb:t:F";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "dbus", required_argument, NULL, 'b' },
-		{ "device", required_argument, NULL, 'i' },
 		{ "timeout", required_argument, NULL, 't' },
 		{ "fuzzing", no_argument, NULL, 'F' },
 		{ "source", no_argument, NULL, 1 },
@@ -253,7 +250,7 @@ int main(int argc, char *argv[]) {
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h':
-			printf("usage: %s [--source] [--sink] [--sco] [--device HCI] [--timeout SEC]\n", argv[0]);
+			printf("usage: %s [--source] [--sink] [--sco] [--timeout SEC]\n", argv[0]);
 			return EXIT_SUCCESS;
 		case 1:
 			source = true;
@@ -266,9 +263,6 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'b':
 			service = optarg;
-			break;
-		case 'i':
-			device = optarg;
 			break;
 		case 't':
 			timeout = atoi(optarg);
@@ -289,7 +283,7 @@ int main(int argc, char *argv[]) {
 				G_BUS_NAME_OWNER_FLAGS_NONE, NULL, NULL, NULL, NULL) != 0);
 
 	/* emulate dummy test HCI device */
-	assert((a = ba_adapter_new(0, device)) != NULL);
+	assert((a = ba_adapter_new(0)) != NULL);
 
 	/* make sure to cleanup named pipes */
 	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };

@@ -35,9 +35,7 @@
 #include "bluealsa-dbus.h"
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
-#include "ctl.h"
 #include "utils.h"
-#include "shared/ctl-proto.h"
 #include "shared/log.h"
 
 /* Compatibility patch for glib < 2.42. */
@@ -607,7 +605,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(transport_path);
 	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL &&
-			(a = ba_adapter_new(hci_dev_id, NULL)) == NULL) {
+			(a = ba_adapter_new(hci_dev_id)) == NULL) {
 		error("Couldn't create new adapter: %s", strerror(errno));
 		goto fail;
 	}
@@ -904,7 +902,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(device_path);
 	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL &&
-			(a = ba_adapter_new(hci_dev_id, NULL)) == NULL) {
+			(a = ba_adapter_new(hci_dev_id)) == NULL) {
 		error("Couldn't create new adapter: %s", strerror(errno));
 		goto fail;
 	}
@@ -1171,7 +1169,7 @@ void bluez_register(void) {
 	size_t i;
 	for (i = 0; i < HCI_MAX_DEV; i++)
 		if (adapters[i] &&
-				(a = ba_adapter_new(i, NULL)) != NULL)
+				(a = ba_adapter_new(i)) != NULL)
 			bluez_register_a2dp(a);
 
 	/* HFP has to be registered globally */
@@ -1203,7 +1201,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 				if (strcmp(property, "Address") == 0 &&
 						bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL)))
-					a = ba_adapter_new(g_dbus_bluez_object_path_to_hci_dev_id(object_path), NULL);
+					a = ba_adapter_new(g_dbus_bluez_object_path_to_hci_dev_id(object_path));
 				g_variant_unref(value);
 			}
 		g_variant_iter_free(properties);
@@ -1322,10 +1320,6 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 			/* received volume is in range [0, 127]*/
 			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
 			bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
-
-			bluealsa_ctl_send_event(a->ctl, BA_EVENT_VOLUME_CHANGED, &d->addr,
-					BA_PCM_TYPE_A2DP | (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE ?
-						BA_PCM_STREAM_PLAYBACK : BA_PCM_STREAM_CAPTURE));
 
 		}
 

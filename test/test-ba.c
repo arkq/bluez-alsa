@@ -23,12 +23,6 @@
 #include "../src/shared/defs.h"
 #include "../src/shared/log.c"
 
-struct ba_ctl *bluealsa_ctl_init(struct ba_adapter *a) {
-	(void)a; return (struct ba_ctl *)0xDEAD; }
-void bluealsa_ctl_free(struct ba_ctl *ctl) { (void)ctl; }
-int bluealsa_ctl_send_event(struct ba_ctl *ctl,
-		enum ba_event ev, const bdaddr_t *addr, uint8_t type) {
-	(void)ctl; (void)ev; (void)addr; (void)type; return 0; }
 void *io_thread_a2dp_source_sbc(void *arg) { (void)arg; return NULL; }
 void *io_thread_a2dp_sink_sbc(void *arg) { (void)arg; return NULL; }
 void *io_thread_a2dp_source_aac(void *arg) { (void)arg; return NULL; }
@@ -42,13 +36,13 @@ START_TEST(test_ba_adapter) {
 
 	struct ba_adapter *a;
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0, NULL), NULL);
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_str_eq(a->hci_name, "hci0");
 	ba_adapter_free(a);
 
-	ck_assert_ptr_ne(a = ba_adapter_new(5, "test"), NULL);
+	ck_assert_ptr_ne(a = ba_adapter_new(5), NULL);
 	ck_assert_int_eq(a->hci_dev_id, 5);
-	ck_assert_str_eq(a->hci_name, "test");
+	ck_assert_str_eq(a->hci_name, "hci5");
 	ba_adapter_free(a);
 
 } END_TEST
@@ -58,7 +52,7 @@ START_TEST(test_ba_device) {
 	struct ba_adapter *a;
 	struct ba_device *d;
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0, NULL), NULL);
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	pthread_mutex_lock(&a->devices_mutex);
 
 	bdaddr_t addr = {{ 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB }};
@@ -82,7 +76,7 @@ START_TEST(test_ba_transport) {
 	struct ba_transport *t;
 	bdaddr_t addr = { 0 };
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0, NULL), NULL);
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	pthread_mutex_lock(&a->devices_mutex);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
@@ -109,7 +103,7 @@ START_TEST(test_ba_transport_volume_packed) {
 	bdaddr_t addr = { 0 };
 	struct ba_transport_type type = { 0 };
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0, NULL), NULL);
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	pthread_mutex_lock(&a->devices_mutex);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
@@ -156,7 +150,7 @@ START_TEST(test_cascade_free) {
 	struct ba_transport_type type = { 0 };
 	bdaddr_t addr = { 0 };
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0, NULL), NULL);
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	pthread_mutex_lock(&a->devices_mutex);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
