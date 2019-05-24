@@ -788,8 +788,10 @@ static void *io_thread_a2dp_sink_aac(void *arg) {
 			io_thread_scale_pcm(t, pcm.data, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
-			ffb_rewind(&latm);
 		}
+
+		/* make room for new LATM frame */
+		ffb_rewind(&latm);
 
 	}
 
