@@ -35,11 +35,8 @@ struct ba_device {
 	char *ba_dbus_path;
 	char *bluez_dbus_path;
 
-	/* adjusted (in the range 0-100) battery level */
-	struct {
-		bool enabled;
-		uint8_t level;
-	} battery;
+	/* battery level in range [0, 100] or -1 */
+	int8_t battery_level;
 
 	/* Apple's extension used with HFP profile */
 	struct {
@@ -68,7 +65,5 @@ struct ba_device *ba_device_lookup(
 		const bdaddr_t *addr);
 
 void ba_device_free(struct ba_device *d);
-
-void ba_device_set_battery_level(struct ba_device *d, uint8_t value);
 
 #endif

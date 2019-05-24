@@ -19,10 +19,7 @@
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluez-iface.h"
-#include "ctl.h"
 #include "utils.h"
-#include "shared/ctl-proto.h"
-#include "shared/log.h"
 
 struct ba_device *ba_device_new(
 		struct ba_adapter *adapter,
@@ -44,9 +41,10 @@ struct ba_device *ba_device_new(
 	char tmp[sizeof("dev_XX:XX:XX:XX:XX:XX")];
 	sprintf(tmp, "dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X",
 			addr->b[5], addr->b[4], addr->b[3], addr->b[2], addr->b[1], addr->b[0]);
-
 	d->ba_dbus_path = g_strdup_printf("%s/%s", adapter->ba_dbus_path, tmp);
 	d->bluez_dbus_path = g_strdup_printf("%s/%s", adapter->bluez_dbus_path, tmp);
+
+	d->battery_level = -1;
 
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
 
@@ -102,10 +100,4 @@ void ba_device_free(struct ba_device *d) {
 	g_free(d->bluez_dbus_path);
 	g_free(d->ba_dbus_path);
 	free(d);
-}
-
-void ba_device_set_battery_level(struct ba_device *d, uint8_t value) {
-	d->battery.enabled = true;
-	d->battery.level = value;
-	bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
 }

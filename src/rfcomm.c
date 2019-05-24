@@ -198,14 +198,17 @@ static int rfcomm_handler_cind_resp_test_cb(struct rfcomm_conn *c, const struct 
 static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_device * const d = t->d;
 	char *tmp = at->value;
 	size_t i;
 
 	/* parse response for the +CIND GET command */
 	for (i = 0; i < ARRAYSIZE(c->hfp_ind_map); i++) {
 		t->rfcomm.hfp_inds[c->hfp_ind_map[i]] = atoi(tmp);
-		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG)
-			ba_device_set_battery_level(t->d, atoi(tmp) * 100 / 5);
+		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG) {
+			d->battery_level = atoi(tmp) * 100 / 5;
+			bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
+		}
 		if ((tmp = strchr(tmp, ',')) == NULL)
 			break;
 		tmp += 1;
@@ -237,6 +240,7 @@ static int rfcomm_handler_cmer_set_cb(struct rfcomm_conn *c, const struct bt_at 
 static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_device * const d = t->d;
 	unsigned int index;
 	unsigned int value;
 
@@ -248,7 +252,8 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 			ba_transport_send_signal(t->rfcomm.sco, TRANSPORT_BT_OPEN);
 			break;
 		case HFP_IND_BATTCHG:
-			ba_device_set_battery_level(t->d, value * 100 / 5);
+			d->battery_level = value * 100 / 5;
+			bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
 			break;
 		default:
 			break;
@@ -451,8 +456,10 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct
 	while (count-- && ptr != NULL)
 		switch (tmp = *strsep(&ptr, ",")) {
 		case '1':
-			if (ptr != NULL)
-				ba_device_set_battery_level(d, atoi(strsep(&ptr, ",")) * 100 / 9);
+			if (ptr != NULL) {
+				d->battery_level = atoi(strsep(&ptr, ",")) * 100 / 9;
+				bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
+			}
 			break;
 		case '2':
 			if (ptr != NULL)

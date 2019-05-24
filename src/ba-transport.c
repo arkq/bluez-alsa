@@ -323,9 +323,8 @@ void ba_transport_free(struct ba_transport *t) {
 
 	/* free profile-specific resources */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
-		memset(&d->battery, 0, sizeof(d->battery));
-		memset(&d->xapl, 0, sizeof(d->xapl));
 		ba_transport_free(t->rfcomm.sco);
+		d->battery_level = -1;
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		pcm_type = BA_PCM_TYPE_SCO | BA_PCM_STREAM_PLAYBACK | BA_PCM_STREAM_CAPTURE;
