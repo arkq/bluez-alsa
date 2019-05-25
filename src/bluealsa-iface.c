@@ -141,6 +141,37 @@ static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	NULL,
 };
 
+static const GDBusArgInfo *rfcomm_Open_out[] = {
+	&arg_fd,
+	NULL,
+};
+
+static const GDBusMethodInfo bluealsa_iface_rfcomm_Open = {
+	-1, "Open",
+	NULL,
+	(GDBusArgInfo **)rfcomm_Open_out,
+	NULL,
+};
+
+static const GDBusMethodInfo *bluealsa_iface_rfcomm_methods[] = {
+	&bluealsa_iface_rfcomm_Open,
+	NULL,
+};
+
+static const GDBusPropertyInfo bluealsa_iface_rfcomm_Mode = {
+	-1, "Mode", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo bluealsa_iface_rfcomm_Features = {
+	-1, "Features", "u", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo *bluealsa_iface_rfcomm_properties[] = {
+	&bluealsa_iface_rfcomm_Mode,
+	&bluealsa_iface_rfcomm_Features,
+	NULL,
+};
+
 const GDBusInterfaceInfo bluealsa_iface_manager = {
 	-1, BLUEALSA_IFACE_MANAGER,
 	(GDBusMethodInfo **)bluealsa_iface_manager_methods,
@@ -154,5 +185,13 @@ const GDBusInterfaceInfo bluealsa_iface_pcm = {
 	(GDBusMethodInfo **)bluealsa_iface_pcm_methods,
 	NULL,
 	(GDBusPropertyInfo **)bluealsa_iface_pcm_properties,
+	NULL,
+};
+
+const GDBusInterfaceInfo bluealsa_iface_rfcomm = {
+	-1, BLUEALSA_IFACE_RFCOMM,
+	(GDBusMethodInfo **)bluealsa_iface_rfcomm_methods,
+	NULL,
+	(GDBusPropertyInfo **)bluealsa_iface_rfcomm_properties,
 	NULL,
 };

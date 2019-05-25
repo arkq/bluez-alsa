@@ -322,7 +322,7 @@ final:
 
 dbus_bool_t bluealsa_dbus_pcm_open(
 		struct ba_dbus_ctx *ctx,
-		const struct ba_pcm *pcm,
+		const char *pcm_path,
 		int operation_mode,
 		int *fd_pcm,
 		int *fd_pcm_ctrl,
@@ -335,7 +335,7 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 		mode = "sink";
 
 	DBusMessage *msg;
-	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm->pcm_path,
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
 					BLUEALSA_INTERFACE_PCM, "Open")) == NULL) {
 		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
@@ -358,6 +358,36 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 	rv = dbus_message_get_args(rep, error,
 			DBUS_TYPE_UNIX_FD, fd_pcm,
 			DBUS_TYPE_UNIX_FD, fd_pcm_ctrl,
+			DBUS_TYPE_INVALID);
+
+	dbus_message_unref(rep);
+	dbus_message_unref(msg);
+	return rv;
+}
+
+dbus_bool_t bluealsa_dbus_rfcomm_open(
+		struct ba_dbus_ctx *ctx,
+		const char *rfcomm_path,
+		int *fd_rfcomm,
+		DBusError *error) {
+
+	DBusMessage *msg;
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, rfcomm_path,
+					BLUEALSA_INTERFACE_RFCOMM, "Open")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		return FALSE;
+	}
+
+	DBusMessage *rep;
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL) {
+		dbus_message_unref(msg);
+		return FALSE;
+	}
+
+	dbus_bool_t rv;
+	rv = dbus_message_get_args(rep, error,
+			DBUS_TYPE_UNIX_FD, fd_rfcomm,
 			DBUS_TYPE_INVALID);
 
 	dbus_message_unref(rep);

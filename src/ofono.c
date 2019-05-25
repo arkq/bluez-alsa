@@ -164,7 +164,7 @@ static struct ba_transport *ofono_transport_new(
 
 	struct ba_transport *t;
 
-	if ((t = ba_transport_new_sco(device, type, dbus_owner, dbus_path)) == NULL)
+	if ((t = ba_transport_new_sco(device, type, dbus_owner, dbus_path, NULL)) == NULL)
 		return NULL;
 
 	t->sco.ofono = true;
@@ -390,7 +390,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	bluealsa_dbus_transport_update(t,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
-	ba_transport_send_signal(t, TRANSPORT_BT_OPEN);
+	ba_transport_send_signal(t, TRANSPORT_PING);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

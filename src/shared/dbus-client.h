@@ -18,6 +18,7 @@
 #define BLUEALSA_SERVICE           "org.bluealsa"
 #define BLUEALSA_INTERFACE_MANAGER "org.bluealsa.Manager1"
 #define BLUEALSA_INTERFACE_PCM     "org.bluealsa.PCM1"
+#define BLUEALSA_INTERFACE_RFCOMM  "org.bluealsa.RFCOMM1"
 
 #define BA_PCM_FLAG_SOURCE       (1 << 0)
 #define BA_PCM_FLAG_SINK         (1 << 1)
@@ -119,10 +120,16 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 
 dbus_bool_t bluealsa_dbus_pcm_open(
 		struct ba_dbus_ctx *ctx,
-		const struct ba_pcm *pcm,
+		const char *pcm_path,
 		int operation_mode,
 		int *fd_pcm,
 		int *fd_pcm_ctrl,
+		DBusError *error);
+
+dbus_bool_t bluealsa_dbus_rfcomm_open(
+		struct ba_dbus_ctx *ctx,
+		const char *rfcomm_path,
+		int *fd_rfcomm,
 		DBusError *error);
 
 dbus_bool_t bluealsa_dbus_pcm_ctrl_send(

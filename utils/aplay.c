@@ -315,7 +315,7 @@ static void *pcm_worker_routine(void *arg) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_pcm_open(&dbus_ctx, &w->ba_pcm, BA_PCM_FLAG_SINK,
+	if (!bluealsa_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path, BA_PCM_FLAG_SINK,
 				&w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
 		error("Couldn't open PCM: %s", err.message);
 		dbus_error_free(&err);

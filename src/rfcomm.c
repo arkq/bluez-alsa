@@ -69,6 +69,11 @@ retry:
 			return -1;
 		}
 
+		if (len == 0) {
+			errno = ECONNRESET;
+			return -1;
+		}
+
 		buffer[len] = '\0';
 		msg = buffer;
 	}
@@ -249,7 +254,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 		switch (c->hfp_ind_map[index - 1]) {
 		case HFP_IND_CALL:
 		case HFP_IND_CALLSETUP:
-			ba_transport_send_signal(t->rfcomm.sco, TRANSPORT_BT_OPEN);
+			ba_transport_send_signal(t->rfcomm.sco, TRANSPORT_PING);
 			break;
 		case HFP_IND_BATTCHG:
 			d->battery_level = value * 100 / 5;
@@ -593,6 +598,7 @@ void *rfcomm_thread(void *arg) {
 	struct pollfd pfds[] = {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ t->bt_fd, POLLIN, 0 },
+		{ -1, POLLIN, 0 },
 	};
 
 	debug("Starting loop: %s", ba_transport_type_to_string(t->type));
@@ -607,7 +613,7 @@ void *rfcomm_thread(void *arg) {
 		int timeout = -1;
 
 		rfcomm_callback *callback;
-		char tmp[16];
+		char tmp[256];
 
 		if (conn.state != HFP_CONNECTED) {
 
@@ -741,6 +747,7 @@ void *rfcomm_thread(void *arg) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
+		pfds[2].fd = t->rfcomm.handler_fd;
 		switch (poll(pfds, ARRAYSIZE(pfds), timeout)) {
 		case 0:
 			debug("RFCOMM poll timeout");
@@ -764,7 +771,6 @@ void *rfcomm_thread(void *arg) {
 			switch (sig) {
 			case TRANSPORT_SET_VOLUME:
 				if (conn.mic_gain != t->rfcomm.sco->sco.mic_gain) {
-					char tmp[16];
 					int gain = conn.mic_gain = t->rfcomm.sco->sco.mic_gain;
 					debug("Setting microphone gain: %d", gain);
 					sprintf(tmp, "+VGM=%d", gain);
@@ -772,7 +778,6 @@ void *rfcomm_thread(void *arg) {
 						goto ioerror;
 				}
 				if (conn.spk_gain != t->rfcomm.sco->sco.spk_gain) {
-					char tmp[16];
 					int gain = conn.spk_gain = t->rfcomm.sco->sco.spk_gain;
 					debug("Setting speaker gain: %d", gain);
 					sprintf(tmp, "+VGS=%d", gain);
@@ -780,14 +785,6 @@ void *rfcomm_thread(void *arg) {
 						goto ioerror;
 				}
 				break;
-			case TRANSPORT_SEND_RFCOMM: {
-				char cmd[32];
-				if (read(pfds[0].fd, cmd, sizeof(cmd)) != sizeof(cmd))
-					warn("Couldn't read RFCOMM command: %s", strerror(errno));
-				if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RAW, cmd, NULL) == -1)
-					goto ioerror;
-				break;
-			}
 			default:
 				break;
 			}
@@ -809,19 +806,27 @@ read:
 				}
 
 			/* use predefined callback, otherwise get generic one */
+			bool predefined_callback = false;
 			if (conn.handler != NULL && conn.handler->type == reader.at.type &&
 					strcmp(conn.handler->command, reader.at.command) == 0) {
 				callback = conn.handler->callback;
+				predefined_callback = true;
 				conn.handler = NULL;
 			}
 			else
 				callback = rfcomm_get_callback(&reader.at);
 
+			if (pfds[2].fd != -1 && !predefined_callback) {
+				at_build(tmp, reader.at.type, reader.at.command, reader.at.value);
+				if (write(pfds[2].fd, tmp, strlen(tmp)) == -1)
+					warn("Couldn't forward AT: %s", strerror(errno));
+			}
+
 			if (callback != NULL) {
 				if (callback(&conn, &reader.at) == -1)
 					goto ioerror;
 			}
-			else {
+			else if (pfds[2].fd == -1) {
 				warn("Unsupported AT message: %s: command:%s, value:%s",
 						at_type2str(reader.at.type), reader.at.command, reader.at.value);
 				if (reader.at.type != AT_TYPE_RESP)
@@ -835,6 +840,34 @@ read:
 			goto ioerror;
 		}
 
+		if (pfds[2].revents & POLLIN) {
+			/* read data from the external handler */
+
+			ssize_t ret;
+			while ((ret = read(pfds[2].fd, tmp, sizeof(tmp) - 1)) == -1 &&
+					errno == EINTR)
+				continue;
+
+			if (ret <= 0)
+				goto ioerror_exthandler;
+
+			tmp[ret] = '\0';
+			if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RAW, tmp, NULL) == -1)
+				goto ioerror;
+
+		}
+		else if (pfds[2].revents & (POLLERR | POLLHUP)) {
+			errno = ECONNRESET;
+			goto ioerror_exthandler;
+		}
+
+		continue;
+
+ioerror_exthandler:
+		if (errno != 0)
+			error("AT handler IO error: %s", strerror(errno));
+		close(t->rfcomm.handler_fd);
+		t->rfcomm.handler_fd = -1;
 		continue;
 
 ioerror:

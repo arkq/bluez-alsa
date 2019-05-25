@@ -1638,7 +1638,7 @@ void *io_thread_sco(void *arg) {
 				warn("Couldn't read signal: %s", strerror(errno));
 
 			switch (sig) {
-			case TRANSPORT_BT_OPEN:
+			case TRANSPORT_PING:
 			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
 				poll_timeout = -1;

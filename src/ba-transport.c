@@ -226,13 +226,14 @@ struct ba_transport *ba_transport_new_rfcomm(
 	if ((t = ba_transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
 		goto fail;
 
+	t->ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
+	t->rfcomm.handler_fd = -1;
+
 	snprintf(dbus_path_sco, sizeof(dbus_path_sco), "%s/sco", dbus_path);
-	if ((t_sco = ba_transport_new_sco(device, type, dbus_owner, dbus_path_sco)) == NULL)
+	if ((t_sco = ba_transport_new_sco(device, type, dbus_owner, dbus_path_sco, t)) == NULL)
 		goto fail;
 
 	t->rfcomm.sco = t_sco;
-	t_sco->sco.rfcomm = t;
-
 	t->release = transport_release_bt_rfcomm;
 
 	return t;
@@ -246,7 +247,8 @@ struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path) {
+		const char *dbus_path,
+		struct ba_transport *rfcomm) {
 
 	struct ba_transport *t;
 
@@ -256,6 +258,8 @@ struct ba_transport *ba_transport_new_sco(
 
 	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
+
+	t->sco.rfcomm = rfcomm;
 
 	t->sco.spk_gain = 15;
 	t->sco.mic_gain = 15;
@@ -324,6 +328,8 @@ void ba_transport_free(struct ba_transport *t) {
 	/* free profile-specific resources */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
 		ba_transport_free(t->rfcomm.sco);
+		if (t->rfcomm.handler_fd != -1)
+			close(t->rfcomm.handler_fd);
 		d->battery_level = -1;
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
@@ -362,16 +368,6 @@ void ba_transport_free(struct ba_transport *t) {
 
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig) {
 	return write(t->sig_fd[1], &sig, sizeof(sig));
-}
-
-int ba_transport_send_rfcomm(struct ba_transport *t, const char command[32]) {
-
-	char msg[sizeof(enum ba_transport_signal) + 32];
-
-	((enum ba_transport_signal *)msg)[0] = TRANSPORT_SEND_RFCOMM;
-	memcpy(&msg[sizeof(enum ba_transport_signal)], command, 32);
-
-	return write(t->sig_fd[1], msg, sizeof(msg));
 }
 
 unsigned int ba_transport_get_channels(const struct ba_transport *t) {

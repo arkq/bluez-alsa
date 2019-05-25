@@ -194,7 +194,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	return TRUE;
 }
 
-static void bluealsa_transport_open(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct ba_transport *t = (struct ba_transport *)userdata;
@@ -298,7 +298,7 @@ fail:
 			close(pcm_fds[i]);
 }
 
-static void bluealsa_transport_method_call(GDBusConnection *conn, const char *sender,
+static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
 	debug("Called: %s.%s()", interface, method);
@@ -308,11 +308,51 @@ static void bluealsa_transport_method_call(GDBusConnection *conn, const char *se
 	(void)params;
 
 	if (strcmp(method, "Open") == 0)
-		bluealsa_transport_open(invocation, userdata);
+		bluealsa_pcm_open(invocation, userdata);
 
 }
 
-static GVariant *bluealsa_transport_get_property(GDBusConnection *conn,
+static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
+
+	struct ba_transport *t = (struct ba_transport *)userdata;
+	int fds[2] = { -1, -1 };
+
+	if (t->rfcomm.handler_fd != -1) {
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+				G_DBUS_ERROR_FAILED, "%s", strerror(EBUSY));
+		return;
+	}
+
+	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+				G_DBUS_ERROR_FAILED, "Create socket: %s", strerror(errno));
+		return;
+	}
+
+	t->rfcomm.handler_fd = fds[0];
+	ba_transport_send_signal(t, TRANSPORT_PING);
+
+	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
+			g_variant_new("(h)", 0), fd_list);
+	g_object_unref(fd_list);
+}
+
+static void bluealsa_rfcomm_method_call(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *method, GVariant *params,
+		GDBusMethodInvocation *invocation, void *userdata) {
+	debug("Called: %s.%s()", interface, method);
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)params;
+
+	if (strcmp(method, "Open") == 0)
+		bluealsa_rfcomm_open(invocation, userdata);
+
+}
+
+static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 		const char *sender, const char *path, const char *interface,
 		const char *property, GError **error, void *userdata) {
 	(void)conn;
@@ -337,12 +377,40 @@ static GVariant *bluealsa_transport_get_property(GDBusConnection *conn,
 	if (strcmp(property, "Volume") == 0)
 		return ba_variant_new_volume(t);
 
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
 			"Property not supported '%s'", property);
 	return NULL;
 }
 
-static gboolean bluealsa_transport_set_property(GDBusConnection *conn,
+static GVariant *bluealsa_rfcomm_get_property(GDBusConnection *conn,
+		const char *sender, const char *path, const char *interface,
+		const char *property, GError **error, void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)interface;
+
+	struct ba_transport *t = (struct ba_transport *)userdata;
+
+	if (strcmp(property, "Mode") == 0) {
+		if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
+			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HFP_AG);
+		if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
+			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HFP_HF);
+		if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_AG)
+			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HSP_AG);
+		if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_HS)
+			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HSP_HS);
+	}
+	if (strcmp(property, "Features") == 0)
+		return g_variant_new_uint32(t->rfcomm.hfp_features);
+
+	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
+			"Property not supported '%s'", property);
+	return NULL;
+}
+
+static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 		const gchar *sender, const gchar *path, const gchar *interface,
 		const gchar *property, GVariant *value, GError **error, gpointer userdata) {
 	(void)conn;
@@ -357,7 +425,7 @@ static gboolean bluealsa_transport_set_property(GDBusConnection *conn,
 		return TRUE;
 	}
 
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
 			"Property not supported '%s'", property);
 	return FALSE;
 }
@@ -367,14 +435,29 @@ static gboolean bluealsa_transport_set_property(GDBusConnection *conn,
 int bluealsa_dbus_transport_register(struct ba_transport *t) {
 
 	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluealsa_transport_method_call,
-		.get_property = bluealsa_transport_get_property,
-		.set_property = bluealsa_transport_set_property,
+		.method_call = bluealsa_pcm_method_call,
+		.get_property = bluealsa_pcm_get_property,
+		.set_property = bluealsa_pcm_set_property,
 	};
 
 	t->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
 			t->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_pcm,
 			&vtable, t, NULL, NULL);
+
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile) &&
+			t->sco.rfcomm != NULL) {
+
+		static const GDBusInterfaceVTable vtable = {
+			.method_call = bluealsa_rfcomm_method_call,
+			.get_property = bluealsa_rfcomm_get_property,
+		};
+
+		struct ba_transport *r = t->sco.rfcomm;
+		r->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
+				r->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
+				&vtable, r, NULL, NULL);
+
+	}
 
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
@@ -418,10 +501,19 @@ void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
 }
 
 void bluealsa_dbus_transport_unregister(struct ba_transport *t) {
-	if (t->ba_dbus_id != 0) {
-		g_dbus_connection_unregister_object(config.dbus, t->ba_dbus_id);
-		g_dbus_connection_emit_signal(config.dbus, NULL,
-				"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMRemoved",
-				g_variant_new("(o)", t->ba_dbus_path), NULL);
-	}
+
+	if (t->ba_dbus_id == 0)
+		return;
+
+	g_dbus_connection_unregister_object(config.dbus, t->ba_dbus_id);
+	t->ba_dbus_id = 0;
+
+	/* do not emit "removed" signal for RFCOMM transport */
+	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
+		return;
+
+	g_dbus_connection_emit_signal(config.dbus, NULL,
+			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMRemoved",
+			g_variant_new("(o)", t->ba_dbus_path), NULL);
+
 }

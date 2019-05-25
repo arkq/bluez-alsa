@@ -79,3 +79,31 @@ Properties      object Device [readonly]
 
                         Possible A2DP values: 0-127
                         Possible SCO values: 0-15
+
+RFCOMM hierarchy
+================
+
+Service         org.bluealsa[.unique ID]
+Interface       org.bluealsa.RFCOMM1
+Object path     [variable prefix]/{hci0,hci1,...}/dev_XX_XX_XX_XX_XX_XX/rfcomm
+
+Methods         fd Open()
+
+                        Open RFCOMM socket for dispatching AT commands not
+                        handled internally by BlueALSA. This method returns
+                        a SEQPACKET socket.
+
+                        Possible Errors: dbus.Error.NotSupported
+                                         dbus.Error.Failed
+
+Properties      string Mode [readonly]
+
+                        HFP/HSP connection mode.
+
+                        Possible values: "HFP-AG", "HFP-HF", "HSP-AG" or
+                                         "HSP-HS"
+
+                uint32 Features [readonly]
+
+                        HFP feature bitmask. Note, that this value depends on
+                        the connection mode.

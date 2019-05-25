@@ -59,7 +59,7 @@ enum ba_transport_state {
 };
 
 enum ba_transport_signal {
-	TRANSPORT_BT_OPEN,
+	TRANSPORT_PING,
 	TRANSPORT_PCM_OPEN,
 	TRANSPORT_PCM_CLOSE,
 	TRANSPORT_PCM_PAUSE,
@@ -67,7 +67,6 @@ enum ba_transport_signal {
 	TRANSPORT_PCM_SYNC,
 	TRANSPORT_PCM_DROP,
 	TRANSPORT_SET_VOLUME,
-	TRANSPORT_SEND_RFCOMM,
 };
 
 struct ba_pcm {
@@ -162,6 +161,9 @@ struct ba_transport {
 			/* received AG indicator values */
 			unsigned char hfp_inds[__HFP_IND_MAX];
 
+			/* external RFCOMM handler */
+			int handler_fd;
+
 		} rfcomm;
 
 		struct {
@@ -223,7 +225,8 @@ struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
-		const char *dbus_path);
+		const char *dbus_path,
+		struct ba_transport *rfcomm);
 
 struct ba_transport *ba_transport_lookup(
 		struct ba_device *device,
@@ -232,7 +235,6 @@ struct ba_transport *ba_transport_lookup(
 void ba_transport_free(struct ba_transport *t);
 
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
-int ba_transport_send_rfcomm(struct ba_transport *t, const char command[32]);
 
 unsigned int ba_transport_get_channels(const struct ba_transport *t);
 unsigned int ba_transport_get_sampling(const struct ba_transport *t);

@@ -466,29 +466,6 @@ fail:
 	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
 }
 
-static void ctl_thread_cmd_rfcomm_send(struct ba_ctl *ctl, struct ba_request *req, int fd) {
-
-	struct ba_msg_status status = { BA_STATUS_CODE_SUCCESS };
-	struct ba_transport *t;
-
-	pthread_mutex_lock(&ctl->a->devices_mutex);
-
-	switch (ctl_lookup_transport(ctl->a, &req->addr, BA_PCM_TYPE_RFCOMM, &t)) {
-	case -1:
-		status.code = BA_STATUS_CODE_DEVICE_NOT_FOUND;
-		goto fail;
-	case -2:
-		status.code = BA_STATUS_CODE_STREAM_NOT_FOUND;
-		goto fail;
-	}
-
-	ba_transport_send_rfcomm(t, req->rfcomm_command);
-
-fail:
-	pthread_mutex_unlock(&ctl->a->devices_mutex);
-	send(fd, &status, sizeof(status), MSG_NOSIGNAL);
-}
-
 static void *ctl_thread(void *arg) {
 	struct ba_ctl *ctl = (struct ba_ctl *)arg;
 
@@ -504,7 +481,6 @@ static void *ctl_thread(void *arg) {
 		[BA_COMMAND_PCM_RESUME] = ctl_thread_cmd_pcm_control,
 		[BA_COMMAND_PCM_DRAIN] = ctl_thread_cmd_pcm_control,
 		[BA_COMMAND_PCM_DROP] = ctl_thread_cmd_pcm_control,
-		[BA_COMMAND_RFCOMM_SEND] = ctl_thread_cmd_rfcomm_send,
 	};
 
 	debug("Starting controller loop: %s", ctl->a->hci_name);
