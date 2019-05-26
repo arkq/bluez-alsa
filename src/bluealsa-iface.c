@@ -130,6 +130,10 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Volume = {
 	NULL
 };
 
+static const GDBusPropertyInfo bluealsa_iface_pcm_Battery = {
+	-1, "Battery", "y", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	&bluealsa_iface_pcm_Device,
 	&bluealsa_iface_pcm_Modes,
@@ -138,6 +142,7 @@ static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	&bluealsa_iface_pcm_Codec,
 	&bluealsa_iface_pcm_Delay,
 	&bluealsa_iface_pcm_Volume,
+	&bluealsa_iface_pcm_Battery,
 	NULL,
 };
 

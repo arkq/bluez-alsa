@@ -25,6 +25,7 @@
 #define BA_DBUS_TRANSPORT_UPDATE_CODEC    (1 << 2)
 #define BA_DBUS_TRANSPORT_UPDATE_DELAY    (1 << 3)
 #define BA_DBUS_TRANSPORT_UPDATE_VOLUME   (1 << 4)
+#define BA_DBUS_TRANSPORT_UPDATE_BATTERY  (1 << 5)
 
 int bluealsa_dbus_manager_register(GError **error);
 

@@ -213,6 +213,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct b
 		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG) {
 			d->battery_level = atoi(tmp) * 100 / 5;
 			bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
+			bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 		}
 		if ((tmp = strchr(tmp, ',')) == NULL)
 			break;
@@ -259,6 +260,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 		case HFP_IND_BATTCHG:
 			d->battery_level = value * 100 / 5;
 			bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
+			bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 			break;
 		default:
 			break;
@@ -464,6 +466,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct
 			if (ptr != NULL) {
 				d->battery_level = atoi(strsep(&ptr, ",")) * 100 / 9;
 				bluealsa_ctl_send_event(d->a->ctl, BA_EVENT_BATTERY_CHANGED, &d->addr, 0);
+				bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 			}
 			break;
 		case '2':

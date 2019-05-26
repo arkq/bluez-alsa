@@ -48,6 +48,7 @@ struct ctl_elem_update {
 struct bt_dev {
 	char device_path[sizeof(((struct ba_pcm *)0)->device_path)];
 	char name[sizeof(((struct ctl_elem *)0)->name)];
+	int battery_level;
 	int mask;
 };
 
@@ -162,6 +163,27 @@ static void bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev
 	dbus_message_unref(rep);
 }
 
+static void bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *dev,
+		const char *sco_pcm_path) {
+
+	DBusMessage *rep;
+	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, ctl->dbus_ctx.ba_service,
+					sco_pcm_path, BLUEALSA_INTERFACE_PCM, "Battery", NULL)) == NULL)
+		return;
+
+	DBusMessageIter iter;
+	DBusMessageIter iter_val;
+
+	dbus_message_iter_init(rep, &iter);
+	dbus_message_iter_recurse(&iter, &iter_val);
+
+	char battery;
+	dbus_message_iter_get_basic(&iter_val, &battery);
+	dev->battery_level = battery;
+
+	dbus_message_unref(rep);
+}
+
 /**
  * Get BT device structure.
  *
@@ -193,6 +215,7 @@ static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba
 	sprintf(dev->name, "%.2X:%.2X:%.2X:%.2X:%.2X:%.2X",
 			pcm->addr.b[5], pcm->addr.b[4], pcm->addr.b[3],
 			pcm->addr.b[2], pcm->addr.b[1], pcm->addr.b[0]);
+	dev->battery_level = -1;
 
 	/* Sort device list by an object path, so the bluealsa_dev_get_id() will
 	 * return consistent IDs ordering in case of name duplications. */
@@ -287,8 +310,13 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 		 * transport represent both streams - playback and capture. */
 		if (ctl->pcm_list[i].flags & BA_PCM_FLAG_PROFILE_A2DP)
 			count += 2;
-		if (ctl->pcm_list[i].flags & BA_PCM_FLAG_PROFILE_SCO)
+		if (ctl->pcm_list[i].flags & BA_PCM_FLAG_PROFILE_SCO) {
 			count += 4;
+			/* It is possible, that BT device battery level will be exposed via TTY
+			 * interface, so in order to account for a special "battery" element we
+			 * have to increment our element counter by one. */
+			count += 1;
+		}
 	}
 
 	struct ctl_elem *elem_list = ctl->elem_list;
@@ -308,7 +336,6 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 		struct ba_pcm *pcm = &ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
-		dev->mask = 1;
 
 		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
 
@@ -357,6 +384,19 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			elem_list[count].playback = false;
 			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 			count++;
+
+			if (ctl->battery) {
+				/* Add special "battery" elements. */
+				bluealsa_dev_fetch_battery(ctl, dev, pcm->pcm_path);
+				if (dev->battery_level != -1) {
+					elem_list[count].type = CTL_ELEM_TYPE_BATTERY;
+					elem_list[count].dev = dev;
+					elem_list[count].pcm = pcm;
+					elem_list[count].playback = true;
+					bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
+					count++;
+				}
+			}
 
 		}
 
@@ -517,9 +557,7 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
-#if 0
-		value[0] = device->battery_level;
-#endif
+		value[0] = elem->dev->battery_level;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
 		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
@@ -684,6 +722,12 @@ static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 		*stpncpy(dev->name, alias, sizeof(dev->name) - 1) = '\0';
 		dev->mask = SND_CTL_EVENT_MASK_ADD;
 	}
+	if (strcmp(key, "Battery") == 0) {
+		char battery_level;
+		dbus_message_iter_get_basic(variant, &battery_level);
+		dev->mask = dev->battery_level == -1 ? SND_CTL_EVENT_MASK_ADD : SND_CTL_EVENT_MASK_VALUE;
+		dev->battery_level = battery_level;
+	}
 
 	return TRUE;
 }
@@ -728,8 +772,18 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 			for (i = 0; i < ctl->elem_list_size; i++) {
 				struct ctl_elem *elem = &ctl->elem_list[i];
 				if (strcmp(elem->pcm->pcm_path, path) == 0) {
-					bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, elem->pcm);
-					bluealsa_event_elem_updated(ctl, elem->name);
+					if (elem->type == CTL_ELEM_TYPE_BATTERY) {
+						bluealsa_dbus_message_iter_dict(&iter, NULL,
+								bluealsa_dbus_msg_update_dev, elem->dev);
+						if (elem->dev->mask & SND_CTL_EVENT_MASK_ADD)
+							goto remove_add;
+						if (elem->dev->mask & SND_CTL_EVENT_MASK_VALUE)
+							bluealsa_event_elem_updated(ctl, ctl->elem_list[i].name);
+					}
+					else {
+						bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, elem->pcm);
+						bluealsa_event_elem_updated(ctl, elem->name);
+					}
 				}
 			}
 

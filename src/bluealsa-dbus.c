@@ -68,6 +68,10 @@ static GVariant *ba_variant_new_volume(const struct ba_transport *t) {
 	return g_variant_new_uint16(ba_transport_get_volume_packed(t));
 }
 
+static GVariant *ba_variant_new_battery(const struct ba_transport *t) {
+	return g_variant_new_byte(t->d->battery_level);
+}
+
 static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
 
@@ -376,6 +380,8 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 		return ba_variant_new_delay(t);
 	if (strcmp(property, "Volume") == 0)
 		return ba_variant_new_volume(t);
+	if (strcmp(property, "Battery") == 0)
+		return ba_variant_new_battery(t);
 
 	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
 			"Property not supported '%s'", property);
@@ -492,6 +498,8 @@ void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
 	if (mask & BA_DBUS_TRANSPORT_UPDATE_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
+	if (mask & BA_DBUS_TRANSPORT_UPDATE_BATTERY)
+		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_battery(t));
 
 	g_dbus_connection_emit_signal(config.dbus, NULL, t->ba_dbus_path,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged",
