@@ -23,14 +23,7 @@
 #include "../src/shared/defs.h"
 #include "../src/shared/log.c"
 
-void *io_thread_a2dp_source_sbc(void *arg) { (void)arg; return NULL; }
-void *io_thread_a2dp_sink_sbc(void *arg) { (void)arg; return NULL; }
-void *io_thread_a2dp_source_aac(void *arg) { (void)arg; return NULL; }
-void *io_thread_a2dp_sink_aac(void *arg) { (void)arg; return NULL; }
-void *io_thread_a2dp_source_aptx(void *arg) { (void)arg; return NULL; }
-void *io_thread_a2dp_source_ldac(void *arg) { (void)arg; return NULL; }
-void *io_thread_sco(void *arg) { (void)arg; return NULL; }
-void *rfcomm_thread(void *arg) { (void)arg; return NULL; }
+int io_thread_create(struct ba_transport *t) { (void)t; return 0; }
 
 START_TEST(test_ba_adapter) {
 

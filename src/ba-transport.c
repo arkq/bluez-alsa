@@ -34,78 +34,8 @@
 #include "bluez-iface.h"
 #include "hfp.h"
 #include "io.h"
-#include "rfcomm.h"
 #include "utils.h"
 #include "shared/log.h"
-
-static int io_thread_create(struct ba_transport *t) {
-
-	void *(*routine)(void *) = NULL;
-	int ret;
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
-		routine = rfcomm_thread;
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		routine = io_thread_sco;
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		switch (t->type.codec) {
-		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_source_sbc;
-			break;
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			break;
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_source_aac;
-			break;
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			routine = io_thread_a2dp_source_aptx;
-			break;
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			routine = io_thread_a2dp_source_ldac;
-			break;
-#endif
-		default:
-			warn("Codec not supported: %u", t->type.codec);
-		}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		switch (t->type.codec) {
-		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_sink_sbc;
-			break;
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			break;
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_sink_aac;
-			break;
-#endif
-		default:
-			warn("Codec not supported: %u", t->type.codec);
-		}
-
-	if (routine == NULL)
-		return -1;
-
-	if ((ret = pthread_create(&t->thread, NULL, routine, t)) != 0) {
-		error("Couldn't create IO thread: %s", strerror(ret));
-		t->thread = config.main_thread;
-		return -1;
-	}
-
-	pthread_setname_np(t->thread, "baio");
-	debug("Created new IO thread: %s", ba_transport_type_to_string(t->type));
-
-	return 0;
-}
 
 /**
  * Create new transport.
