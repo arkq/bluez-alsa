@@ -214,7 +214,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const uint8_t *cconfig,
+		const void *cconfig,
 		size_t cconfig_size);
 struct ba_transport *ba_transport_new_rfcomm(
 		struct ba_device *device,

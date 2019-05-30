@@ -61,6 +61,9 @@ static const a2dp_ldac_t config_ldac_44100_stereo = {
 	.channel_mode = LDAC_CHANNEL_MODE_STEREO,
 };
 
+static struct ba_adapter *adapter = NULL;
+static struct ba_device *device = NULL;
+
 /**
  * Helper function for timed thread join.
  *
@@ -163,38 +166,30 @@ static void test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 
 START_TEST(test_a2dp_sbc) {
 
-	struct ba_transport transport = {
-		.type.codec = A2DP_CODEC_SBC,
-		.a2dp = {
-			.cconfig = (uint8_t *)&config_sbc_44100_stereo,
-			.cconfig_size = sizeof(config_sbc_44100_stereo),
-		},
-	};
+	struct ba_transport_type ttype = { .codec = A2DP_CODEC_SBC };
+	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/sbc",
+			&config_sbc_44100_stereo, sizeof(config_sbc_44100_stereo));
 
-	transport.mtu_write = 153 * 3,
-	test_a2dp_encoding(&transport, io_thread_a2dp_source_sbc);
+	t->mtu_write = 153 * 3,
+	test_a2dp_encoding(t, io_thread_a2dp_source_sbc);
 
-	transport.mtu_read = transport.mtu_write;
-	test_a2dp_decoding(&transport, io_thread_a2dp_sink_sbc);
+	t->mtu_read = t->mtu_write;
+	test_a2dp_decoding(t, io_thread_a2dp_sink_sbc);
 
 } END_TEST
 
 #if ENABLE_AAC
 START_TEST(test_a2dp_aac) {
 
-	struct ba_transport transport = {
-		.type.codec = A2DP_CODEC_MPEG24,
-		.a2dp = {
-			.cconfig = (uint8_t *)&config_aac_44100_stereo,
-			.cconfig_size = sizeof(config_aac_44100_stereo),
-		},
-	};
+	struct ba_transport_type ttype = { .codec = A2DP_CODEC_MPEG24 };
+	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/aac",
+			&config_aac_44100_stereo, sizeof(config_aac_44100_stereo));
 
-	transport.mtu_write = 64;
-	test_a2dp_encoding(&transport, io_thread_a2dp_source_aac);
+	t->mtu_write = 64;
+	test_a2dp_encoding(t, io_thread_a2dp_source_aac);
 
-	transport.mtu_read = transport.mtu_write;
-	test_a2dp_decoding(&transport, io_thread_a2dp_sink_aac);
+	t->mtu_read = t->mtu_write;
+	test_a2dp_decoding(t, io_thread_a2dp_sink_aac);
 
 } END_TEST
 #endif
@@ -202,16 +197,12 @@ START_TEST(test_a2dp_aac) {
 #if ENABLE_APTX
 START_TEST(test_a2dp_aptx) {
 
-	struct ba_transport transport = {
-		.type.codec = A2DP_CODEC_VENDOR_APTX,
-		.a2dp = {
-			.cconfig = (uint8_t *)&config_aptx_44100_stereo,
-			.cconfig_size = sizeof(config_aptx_44100_stereo),
-		},
-	};
+	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_APTX };
+	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/aptx",
+			&config_aptx_44100_stereo, sizeof(config_aptx_44100_stereo));
 
-	transport.mtu_write = 40;
-	test_a2dp_encoding(&transport, io_thread_a2dp_source_aptx);
+	t->mtu_write = 40;
+	test_a2dp_encoding(t, io_thread_a2dp_source_aptx);
 
 } END_TEST
 #endif
@@ -219,21 +210,22 @@ START_TEST(test_a2dp_aptx) {
 #if ENABLE_LDAC
 START_TEST(test_a2dp_ldac) {
 
-	struct ba_transport transport = {
-		.type.codec = A2DP_CODEC_VENDOR_LDAC,
-		.a2dp = {
-			.cconfig = (uint8_t *)&config_ldac_44100_stereo,
-			.cconfig_size = sizeof(config_ldac_44100_stereo),
-		},
-	};
+	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_LDAC };
+	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/ldac",
+			&config_ldac_44100_stereo, sizeof(config_ldac_44100_stereo));
 
-	transport.mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 679;
-	test_a2dp_encoding(&transport, io_thread_a2dp_source_ldac);
+	t->mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 679;
+	test_a2dp_encoding(t, io_thread_a2dp_source_ldac);
 
 } END_TEST
 #endif
 
 int main(void) {
+
+	bdaddr_t addr = {{ 1, 2, 3, 4, 5, 6 }};
+	adapter = ba_adapter_new(0);
+	pthread_mutex_lock(&adapter->devices_mutex);
+	device = ba_device_new(adapter, &addr);
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

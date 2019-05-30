@@ -114,7 +114,7 @@ int test_transport_release(struct ba_transport *t) {
 
 struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
 		struct ba_transport_type type, const char *owner, const char *path,
-		const uint8_t *cconfig, size_t csize) {
+		const void *cconfig, size_t csize) {
 	if (fuzzing)
 		sleep(1);
 	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, cconfig, csize);
@@ -187,9 +187,9 @@ void *test_bt_mock(void *data) {
 			.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 			.codec = A2DP_CODEC_SBC };
 		assert(test_transport_new_a2dp(d1, ttype, ":test", "/source/1",
-					(uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
+					&cconfig, sizeof(cconfig)) != NULL);
 		assert(test_transport_new_a2dp(d2, ttype, ":test", "/source/2",
-					(uint8_t *)&cconfig, sizeof(cconfig)) != NULL);
+					&cconfig, sizeof(cconfig)) != NULL);
 	}
 
 	if (sink) {
@@ -198,10 +198,10 @@ void *test_bt_mock(void *data) {
 			.profile = BA_TRANSPORT_PROFILE_A2DP_SINK,
 			.codec = A2DP_CODEC_SBC };
 		assert((t = test_transport_new_a2dp(d1, ttype, ":test", "/sink/1",
-						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
+						&cconfig, sizeof(cconfig))) != NULL);
 		assert(t->acquire(t) == 0);
 		assert((t = test_transport_new_a2dp(d2, ttype, ":test", "/sink/2",
-						(uint8_t *)&cconfig, sizeof(cconfig))) != NULL);
+						&cconfig, sizeof(cconfig))) != NULL);
 		assert(t->acquire(t) == 0);
 	}
 
