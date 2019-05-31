@@ -224,8 +224,6 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 		goto fail;
 	}
 
-	pthread_mutex_lock(&a->devices_mutex);
-
 	if ((d = ba_device_lookup(a, &addr_dev)) == NULL &&
 			(d = ba_device_new(a, &addr_dev)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
@@ -250,7 +248,11 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 fail:
 	if (a != NULL)
-		pthread_mutex_unlock(&a->devices_mutex);
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
+	if (t != NULL)
+		ba_transport_unref(t);
 	if (value != NULL)
 		g_variant_unref(value);
 }
@@ -315,23 +317,24 @@ static void ofono_remove_all_cards(void) {
 	g_hash_table_iter_init(&iter, ofono_card_data_map);
 	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&ocd)) {
 
-		struct ba_adapter *a;
-		struct ba_device *d;
+		struct ba_adapter *a = NULL;
+		struct ba_device *d = NULL;
 		struct ba_transport *t;
 
 		if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
 			goto fail;
-		pthread_mutex_lock(&a->devices_mutex);
 		if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
 			goto fail;
 		if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
 			goto fail;
 
-		ba_transport_free(t);
+		ba_transport_destroy(t);
 
 fail:
 		if (a != NULL)
-			pthread_mutex_unlock(&a->devices_mutex);
+			ba_adapter_unref(a);
+		if (d != NULL)
+			ba_device_unref(d);
 	}
 
 }
@@ -368,7 +371,6 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
 		goto fail;
-	pthread_mutex_lock(&a->devices_mutex);
 	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
 		goto fail;
 	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
@@ -403,7 +405,11 @@ fail:
 
 final:
 	if (a != NULL)
-		pthread_mutex_unlock(&a->devices_mutex);
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
+	if (t != NULL)
+		ba_transport_unref(t);
 	if (err != NULL)
 		g_error_free(err);
 }
@@ -551,19 +557,19 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 
 	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
 		goto fail;
-	pthread_mutex_lock(&a->devices_mutex);
 	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
 		goto fail;
 	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
 		goto fail;
 
 	debug("Removing oFono card: %s", card);
-
-	ba_transport_free(t);
+	ba_transport_destroy(t);
 
 fail:
 	if (a != NULL)
-		pthread_mutex_unlock(&a->devices_mutex);
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
 }
 
 /**

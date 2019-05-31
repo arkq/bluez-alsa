@@ -90,8 +90,11 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 		struct ba_device *d;
 		struct ba_transport *t;
 
+		pthread_mutex_lock(&a->devices_mutex);
 		g_hash_table_iter_init(&iter_d, a->devices);
 		while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
+
+			pthread_mutex_lock(&d->transports_mutex);
 			g_hash_table_iter_init(&iter_t, d->transports);
 			while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
 
@@ -111,7 +114,12 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 				g_variant_builder_add(&pcms, "{oa{sv}}", t->ba_dbus_path, &props);
 				g_variant_builder_clear(&props);
 			}
+
+			pthread_mutex_unlock(&d->transports_mutex);
 		}
+
+		pthread_mutex_unlock(&a->devices_mutex);
+		ba_adapter_unref(a);
 
 	}
 
@@ -438,7 +446,7 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 
 /**
  * Register BlueALSA D-Bus transport (PCM) interface. */
-int bluealsa_dbus_transport_register(struct ba_transport *t) {
+int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error) {
 
 	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluealsa_pcm_method_call,
@@ -448,7 +456,7 @@ int bluealsa_dbus_transport_register(struct ba_transport *t) {
 
 	t->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
 			t->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_pcm,
-			&vtable, t, NULL, NULL);
+			&vtable, ba_transport_ref(t), NULL, error);
 
 	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile) &&
 			t->sco.rfcomm != NULL) {
@@ -461,7 +469,7 @@ int bluealsa_dbus_transport_register(struct ba_transport *t) {
 		struct ba_transport *r = t->sco.rfcomm;
 		r->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
 				r->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
-				&vtable, r, NULL, NULL);
+				&vtable, ba_transport_ref(r), NULL, NULL);
 
 	}
 
@@ -518,10 +526,12 @@ void bluealsa_dbus_transport_unregister(struct ba_transport *t) {
 
 	/* do not emit "removed" signal for RFCOMM transport */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
-		return;
+		goto final;
 
 	g_dbus_connection_emit_signal(config.dbus, NULL,
 			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMRemoved",
 			g_variant_new("(o)", t->ba_dbus_path), NULL);
 
+final:
+	ba_transport_unref(t);
 }

@@ -36,6 +36,7 @@
 #include "io.h"
 #include "utils.h"
 #include "shared/log.h"
+#include "shared/defs.h"
 
 /**
  * Create new transport.
@@ -60,8 +61,9 @@ struct ba_transport *ba_transport_new(
 	if ((t = calloc(1, sizeof(*t))) == NULL)
 		return NULL;
 
-	t->d = device;
+	t->d = ba_device_ref(device);
 	t->type = type;
+	t->ref_count = 1;
 
 	pthread_mutex_init(&t->mutex, NULL);
 
@@ -80,12 +82,15 @@ struct ba_transport *ba_transport_new(
 	if (pipe(t->sig_fd) == -1)
 		goto fail;
 
+	pthread_mutex_lock(&device->transports_mutex);
 	g_hash_table_insert(device->transports, t->bluez_dbus_path, t);
+	pthread_mutex_unlock(&device->transports_mutex);
+
 	return t;
 
 fail:
 	err = errno;
-	ba_transport_free(t);
+	ba_transport_unref(t);
 	errno = err;
 	return NULL;
 }
@@ -117,9 +122,8 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->a2dp.ch2_volume = 127;
 
 	if (cconfig_size > 0) {
-		t->a2dp.cconfig = malloc(cconfig_size);
+		t->a2dp.cconfig = g_memdup(cconfig, cconfig_size);
 		t->a2dp.cconfig_size = cconfig_size;
-		memcpy(t->a2dp.cconfig, cconfig, cconfig_size);
 	}
 
 	t->a2dp.pcm.fd = -1;
@@ -131,7 +135,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->release = transport_release_bt_a2dp;
 
 	t->ba_dbus_path = g_strdup_printf("%s/a2dp", device->ba_dbus_path);
-	bluealsa_dbus_transport_register(t);
+	bluealsa_dbus_transport_register(t, NULL);
 
 	return t;
 }
@@ -144,11 +148,12 @@ struct ba_transport *ba_transport_new_rfcomm(
 
 	struct ba_transport *t, *t_sco;
 	char dbus_path_sco[64];
+	int err;
 
 	struct ba_transport_type ttype = {
 		.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM };
 	if ((t = ba_transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
-		goto fail;
+		return NULL;
 
 	t->ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
 	t->rfcomm.handler_fd = -1;
@@ -163,7 +168,9 @@ struct ba_transport *ba_transport_new_rfcomm(
 	return t;
 
 fail:
-	ba_transport_free(t);
+	err = errno;
+	ba_transport_unref(t);
+	errno = err;
 	return NULL;
 }
 
@@ -183,7 +190,8 @@ struct ba_transport *ba_transport_new_sco(
 	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
-	t->sco.rfcomm = rfcomm;
+	if (rfcomm != NULL)
+		t->sco.rfcomm = ba_transport_ref(rfcomm);
 
 	t->sco.spk_gain = 15;
 	t->sco.mic_gain = 15;
@@ -201,7 +209,7 @@ struct ba_transport *ba_transport_new_sco(
 	t->release = transport_release_bt_sco;
 
 	t->ba_dbus_path = g_strdup_printf("%s/sco", device->ba_dbus_path);
-	bluealsa_dbus_transport_register(t);
+	bluealsa_dbus_transport_register(t, NULL);
 
 	return t;
 }
@@ -209,20 +217,30 @@ struct ba_transport *ba_transport_new_sco(
 struct ba_transport *ba_transport_lookup(
 		struct ba_device *device,
 		const char *dbus_path) {
-#if DEBUG
-	/* make sure that the device mutex is acquired */
-	g_assert(pthread_mutex_trylock(&device->a->devices_mutex) == EBUSY);
-#endif
-	return g_hash_table_lookup(device->transports, dbus_path);
+
+	struct ba_transport *t;
+
+	pthread_mutex_lock(&device->transports_mutex);
+	if ((t = g_hash_table_lookup(device->transports, dbus_path)) != NULL)
+		t->ref_count++;
+	pthread_mutex_unlock(&device->transports_mutex);
+
+	return t;
 }
 
-void ba_transport_free(struct ba_transport *t) {
+struct ba_transport *ba_transport_ref(
+		struct ba_transport *t) {
 
-	if (t == NULL || t->state == TRANSPORT_LIMBO)
-		return;
+	struct ba_device *d = t->d;
 
-	t->state = TRANSPORT_LIMBO;
-	debug("Freeing transport: %s", ba_transport_type_to_string(t->type));
+	pthread_mutex_lock(&d->transports_mutex);
+	t->ref_count++;
+	pthread_mutex_unlock(&d->transports_mutex);
+
+	return t;
+}
+
+void ba_transport_destroy(struct ba_transport *t) {
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
@@ -230,9 +248,31 @@ void ba_transport_free(struct ba_transport *t) {
 	 * race condition (closed and reused file descriptor). */
 	ba_transport_pthread_cancel(t->thread);
 
+	/* remove D-Bus interface */
+	bluealsa_dbus_transport_unregister(t);
+
 	/* if possible, try to release resources gracefully */
 	if (t->release != NULL)
 		t->release(t);
+
+	ba_transport_unref(t);
+}
+
+void ba_transport_unref(struct ba_transport *t) {
+
+	int ref_count;
+	struct ba_device *d = t->d;
+
+	pthread_mutex_lock(&d->transports_mutex);
+	if ((ref_count = --t->ref_count) == 0)
+		/* detach transport from the device */
+		g_hash_table_steal(d->transports, t->bluez_dbus_path);
+	pthread_mutex_unlock(&d->transports_mutex);
+
+	if (ref_count > 0)
+		return;
+
+	debug("Freeing transport: %s", ba_transport_type_to_string(t->type));
 
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
@@ -241,13 +281,11 @@ void ba_transport_free(struct ba_transport *t) {
 	if (t->sig_fd[1] != -1)
 		close(t->sig_fd[1]);
 
-	pthread_mutex_destroy(&t->mutex);
+	ba_device_unref(d);
 
-	struct ba_device *d = t->d;
-
-	/* free profile-specific resources */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
-		ba_transport_free(t->rfcomm.sco);
+		if (t->rfcomm.sco != NULL)
+			ba_transport_unref(t->rfcomm.sco);
 		if (t->rfcomm.handler_fd != -1)
 			close(t->rfcomm.handler_fd);
 		d->battery_level = -1;
@@ -258,7 +296,7 @@ void ba_transport_free(struct ba_transport *t) {
 		ba_transport_release_pcm(&t->sco.spk_pcm);
 		ba_transport_release_pcm(&t->sco.mic_pcm);
 		if (t->sco.rfcomm != NULL)
-			t->sco.rfcomm->rfcomm.sco = NULL;
+			ba_transport_unref(t->sco.rfcomm);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		ba_transport_release_pcm(&t->a2dp.pcm);
@@ -267,12 +305,7 @@ void ba_transport_free(struct ba_transport *t) {
 		free(t->a2dp.cconfig);
 	}
 
-	/* detach transport from the device */
-	g_hash_table_steal(d->transports, t->bluez_dbus_path);
-
-	/* remove D-Bus interface */
-	bluealsa_dbus_transport_unregister(t);
-
+	pthread_mutex_destroy(&t->mutex);
 	if (t->ba_dbus_path != NULL)
 		g_free(t->ba_dbus_path);
 	free(t->bluez_dbus_owner);
@@ -571,8 +604,6 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 		if (pthread_equal(t->thread, config.main_thread))
 			ret = io_thread_create(t);
 		break;
-	case TRANSPORT_LIMBO:
-		break;
 	}
 
 	/* something went wrong, so go back to idle */
@@ -750,8 +781,13 @@ static int transport_release_bt_rfcomm(struct ba_transport *t) {
 
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
 	 * link has been lost (e.g. device power down). However, it is required to
-	 * remove transport from the transport pool before reconnecting. */
-	ba_transport_free(t);
+	 * remove all references, otherwise resources will not be freed. */
+	bluealsa_dbus_transport_unregister(t);
+
+	if (t->rfcomm.sco != NULL) {
+		ba_transport_destroy(t->rfcomm.sco);
+		t->rfcomm.sco = NULL;
+	}
 
 	return 0;
 }
@@ -865,6 +901,9 @@ void ba_transport_pthread_cleanup(struct ba_transport *t) {
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the IO/RFCOMM thread. */
 	debug("Exiting IO thread: %s", ba_transport_type_to_string(t->type));
+
+	/* Remove reference which was taken by the io_thread_create(). */
+	ba_transport_unref(t);
 }
 
 int ba_transport_pthread_cleanup_lock(struct ba_transport *t) {

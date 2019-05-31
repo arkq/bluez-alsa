@@ -43,6 +43,7 @@ struct ba_config {
 	GDBusConnection *dbus;
 
 	/* adapters indexed by the HCI device ID */
+	pthread_mutex_t adapters_mutex;
 	struct ba_adapter *adapters[HCI_MAX_DEV];
 
 	/* List of HCI names (or BT addresses) used for adapters filtering

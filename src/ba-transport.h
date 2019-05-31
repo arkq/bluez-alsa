@@ -54,8 +54,6 @@ enum ba_transport_state {
 	TRANSPORT_PENDING,
 	TRANSPORT_ACTIVE,
 	TRANSPORT_PAUSED,
-	/* transport is in the eviction state */
-	TRANSPORT_LIMBO,
 };
 
 enum ba_transport_signal {
@@ -202,6 +200,9 @@ struct ba_transport {
 	int (*acquire)(struct ba_transport *);
 	int (*release)(struct ba_transport *);
 
+	/* memory self-management */
+	int ref_count;
+
 };
 
 struct ba_transport *ba_transport_new(
@@ -231,8 +232,11 @@ struct ba_transport *ba_transport_new_sco(
 struct ba_transport *ba_transport_lookup(
 		struct ba_device *device,
 		const char *dbus_path);
+struct ba_transport *ba_transport_ref(
+		struct ba_transport *t);
 
-void ba_transport_free(struct ba_transport *t);
+void ba_transport_destroy(struct ba_transport *t);
+void ba_transport_unref(struct ba_transport *t);
 
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
 

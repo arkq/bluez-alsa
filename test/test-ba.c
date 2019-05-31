@@ -18,12 +18,17 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
-#include "../src/bluealsa-dbus.c"
 #include "../src/utils.c"
-#include "../src/shared/defs.h"
 #include "../src/shared/log.c"
 
 int io_thread_create(struct ba_transport *t) { (void)t; return 0; }
+int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error) {
+	debug("%s: %p", __func__, t); (void)error;
+	return 0; }
+void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
+	debug("%s: %p %#x", __func__, t, mask); }
+void bluealsa_dbus_transport_unregister(struct ba_transport *t) {
+	debug("%s: %p", __func__, t); }
 
 START_TEST(test_ba_adapter) {
 
@@ -31,12 +36,12 @@ START_TEST(test_ba_adapter) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_str_eq(a->hci_name, "hci0");
-	ba_adapter_free(a);
+	ba_adapter_unref(a);
 
 	ck_assert_ptr_ne(a = ba_adapter_new(5), NULL);
 	ck_assert_int_eq(a->hci_dev_id, 5);
 	ck_assert_str_eq(a->hci_name, "hci5");
-	ba_adapter_free(a);
+	ba_adapter_unref(a);
 
 } END_TEST
 
@@ -46,19 +51,18 @@ START_TEST(test_ba_device) {
 	struct ba_device *d;
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	pthread_mutex_lock(&a->devices_mutex);
 
 	bdaddr_t addr = {{ 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB }};
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+
+	ba_adapter_unref(a);
 
 	ck_assert_ptr_eq(d->a, a);
 	ck_assert_int_eq(bacmp(&d->addr, &addr), 0);
 	ck_assert_str_eq(d->ba_dbus_path, "/org/bluealsa/hci0/dev_AB_90_78_56_34_12");
 	ck_assert_str_eq(d->bluez_dbus_path, "/org/bluez/hci0/dev_AB_90_78_56_34_12");
 
-	ba_device_free(d);
-	pthread_mutex_unlock(&a->devices_mutex);
-	ba_adapter_free(a);
+	ba_device_unref(d);
 
 } END_TEST
 
@@ -70,21 +74,20 @@ START_TEST(test_ba_transport) {
 	bdaddr_t addr = { 0 };
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	pthread_mutex_lock(&a->devices_mutex);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
 	struct ba_transport_type type = { 0 };
 	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
+
+	ba_adapter_unref(a);
+	ba_device_unref(d);
 
 	ck_assert_ptr_eq(t->d, d);
 	ck_assert_int_eq(memcmp(&t->type, &type, sizeof(type)), 0);
 	ck_assert_str_eq(t->bluez_dbus_owner, "/owner");
 	ck_assert_str_eq(t->bluez_dbus_path, "/path");
 
-	ba_transport_free(t);
-	ba_device_free(d);
-	pthread_mutex_unlock(&a->devices_mutex);
-	ba_adapter_free(a);
+	ba_transport_unref(t);
 
 } END_TEST
 
@@ -97,9 +100,11 @@ START_TEST(test_ba_transport_volume_packed) {
 	struct ba_transport_type type = { 0 };
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	pthread_mutex_lock(&a->devices_mutex);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
+
+	ba_adapter_unref(a);
+	ba_device_unref(d);
 
 	t->a2dp.ch1_muted = true;
 	t->a2dp.ch1_volume = 0x6C;
@@ -128,10 +133,7 @@ START_TEST(test_ba_transport_volume_packed) {
 	ck_assert_int_eq(t->sco.mic_gain, 11);
 
 	t->type.profile = 0;
-	ba_transport_free(t);
-	ba_device_free(d);
-	pthread_mutex_unlock(&a->devices_mutex);
-	ba_adapter_free(a);
+	ba_transport_unref(t);
 
 } END_TEST
 
@@ -144,12 +146,12 @@ START_TEST(test_cascade_free) {
 	bdaddr_t addr = { 0 };
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	pthread_mutex_lock(&a->devices_mutex);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
-	pthread_mutex_unlock(&a->devices_mutex);
+	t->release = ba_transport_unref;
 
-	ba_adapter_free(a);
+	ba_device_unref(d);
+	ba_adapter_destroy(a);
 
 } END_TEST
 

@@ -27,6 +27,8 @@ struct ba_config config = {
 	.enable.hfp_ag = true,
 	.enable.hsp_ag = true,
 
+	.adapters_mutex = PTHREAD_MUTEX_INITIALIZER,
+
 	.null_fd = -1,
 
 	.hfp.features_sdp_hf =

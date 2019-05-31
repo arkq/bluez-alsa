@@ -20,7 +20,6 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
-#include "../src/bluealsa-dbus.c"
 #include "../src/io.c"
 #include "../src/msbc.c"
 #include "../src/rfcomm.c"
@@ -28,6 +27,14 @@
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
+
+int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error) {
+	debug("%s: %p", __func__, t); (void)error;
+	return 0; }
+void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
+	debug("%s: %p %#x", __func__, t, mask); }
+void bluealsa_dbus_transport_unregister(struct ba_transport *t) {
+	debug("%s: %p", __func__, t); }
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
@@ -103,7 +110,7 @@ static void test_a2dp_encoding(struct ba_transport *t, void *(*cb)(void *)) {
 	t->a2dp.pcm.fd = pcm_fds[1];
 
 	pthread_t thread;
-	pthread_create(&thread, NULL, cb, t);
+	pthread_create(&thread, NULL, cb, ba_transport_ref(t));
 
 	struct pollfd pfds[] = {{ bt_fds[1], POLLIN, 0 }};
 	int16_t buffer[1024 * 10];
@@ -149,7 +156,7 @@ static void test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 	t->a2dp.pcm.fd = pcm_fds[0];
 
 	pthread_t thread;
-	pthread_create(&thread, NULL, cb, t);
+	pthread_create(&thread, NULL, cb, ba_transport_ref(t));
 
 	size_t i;
 	for (i = 0; i < ARRAYSIZE(test_a2dp_bt_data); i++)
@@ -169,6 +176,7 @@ START_TEST(test_a2dp_sbc) {
 	struct ba_transport_type ttype = { .codec = A2DP_CODEC_SBC };
 	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/sbc",
 			&config_sbc_44100_stereo, sizeof(config_sbc_44100_stereo));
+	t->acquire = t->release = NULL;
 
 	t->mtu_write = 153 * 3,
 	test_a2dp_encoding(t, io_thread_a2dp_source_sbc);
@@ -184,6 +192,7 @@ START_TEST(test_a2dp_aac) {
 	struct ba_transport_type ttype = { .codec = A2DP_CODEC_MPEG24 };
 	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/aac",
 			&config_aac_44100_stereo, sizeof(config_aac_44100_stereo));
+	t->acquire = t->release = NULL;
 
 	t->mtu_write = 64;
 	test_a2dp_encoding(t, io_thread_a2dp_source_aac);
@@ -200,6 +209,7 @@ START_TEST(test_a2dp_aptx) {
 	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_APTX };
 	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/aptx",
 			&config_aptx_44100_stereo, sizeof(config_aptx_44100_stereo));
+	t->acquire = t->release = NULL;
 
 	t->mtu_write = 40;
 	test_a2dp_encoding(t, io_thread_a2dp_source_aptx);
@@ -213,6 +223,7 @@ START_TEST(test_a2dp_ldac) {
 	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_LDAC };
 	struct ba_transport *t = ba_transport_new_a2dp(device, ttype, ":test", "/path/ldac",
 			&config_ldac_44100_stereo, sizeof(config_ldac_44100_stereo));
+	t->acquire = t->release = NULL;
 
 	t->mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 679;
 	test_a2dp_encoding(t, io_thread_a2dp_source_ldac);
@@ -224,7 +235,6 @@ int main(void) {
 
 	bdaddr_t addr = {{ 1, 2, 3, 4, 5, 6 }};
 	adapter = ba_adapter_new(0);
-	pthread_mutex_lock(&adapter->devices_mutex);
 	device = ba_device_new(adapter, &addr);
 
 	Suite *s = suite_create(__FILE__);

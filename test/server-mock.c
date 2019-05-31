@@ -62,10 +62,6 @@ static bool source = false;
 static bool sink = false;
 static bool sco = false;
 
-static void test_pcm_setup_free(void) {
-	ba_adapter_free(a);
-}
-
 static bool main_loop_on = true;
 static void test_pcm_setup_free_handler(int sig) {
 	(void)(sig);
@@ -171,8 +167,8 @@ void *test_bt_mock(void *data) {
 
 	bdaddr_t addr;
 	struct ba_device *d1, *d2;
-
-	pthread_mutex_lock(&a->devices_mutex);
+	struct ba_transport *t1d1 = NULL, *t2d1 = NULL, *t3d1 = NULL;
+	struct ba_transport *t1d2 = NULL, *t2d2 = NULL, *t3d2 = NULL;
 
 	str2ba("12:34:56:78:9A:BC", &addr);
 	assert((d1 = ba_device_new(a, &addr)) != NULL);
@@ -180,53 +176,65 @@ void *test_bt_mock(void *data) {
 	str2ba("12:34:56:9A:BC:DE", &addr);
 	assert((d2 = ba_device_new(a, &addr)) != NULL);
 
-	pthread_mutex_unlock(&a->devices_mutex);
-
 	if (source) {
 		struct ba_transport_type ttype = {
 			.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 			.codec = A2DP_CODEC_SBC };
-		assert(test_transport_new_a2dp(d1, ttype, ":test", "/source/1",
-					&cconfig, sizeof(cconfig)) != NULL);
-		assert(test_transport_new_a2dp(d2, ttype, ":test", "/source/2",
-					&cconfig, sizeof(cconfig)) != NULL);
+		assert((t1d1 = test_transport_new_a2dp(d1, ttype, ":test", "/source/1",
+					&cconfig, sizeof(cconfig))) != NULL);
+		assert((t1d2 = test_transport_new_a2dp(d2, ttype, ":test", "/source/2",
+					&cconfig, sizeof(cconfig))) != NULL);
 	}
 
 	if (sink) {
-		struct ba_transport *t;
 		struct ba_transport_type ttype = {
 			.profile = BA_TRANSPORT_PROFILE_A2DP_SINK,
 			.codec = A2DP_CODEC_SBC };
-		assert((t = test_transport_new_a2dp(d1, ttype, ":test", "/sink/1",
+		assert((t2d1 = test_transport_new_a2dp(d1, ttype, ":test", "/sink/1",
 						&cconfig, sizeof(cconfig))) != NULL);
-		assert(t->acquire(t) == 0);
-		assert((t = test_transport_new_a2dp(d2, ttype, ":test", "/sink/2",
+		assert(t2d1->acquire(t2d1) == 0);
+		assert((t2d2 = test_transport_new_a2dp(d2, ttype, ":test", "/sink/2",
 						&cconfig, sizeof(cconfig))) != NULL);
-		assert(t->acquire(t) == 0);
+		assert(t2d2->acquire(t2d2) == 0);
 	}
 
 	if (sco) {
-		struct ba_transport *t;
 		struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_HSP_AG };
-		assert((t = test_transport_new_sco(d1, ttype, ":test", "/sco/1")) != NULL);
+		assert((t3d1 = test_transport_new_sco(d1, ttype, ":test", "/sco/1")) != NULL);
 		ttype.profile = BA_TRANSPORT_PROFILE_HFP_AG;
-		assert((t = test_transport_new_sco(d2, ttype, ":test", "/sco/2")) != NULL);
+		assert((t3d2 = test_transport_new_sco(d2, ttype, ":test", "/sco/2")) != NULL);
 		if (fuzzing) {
-			t->type.codec = HFP_CODEC_CVSD;
-			bluealsa_dbus_transport_update(t,
+			t3d2->type.codec = HFP_CODEC_CVSD;
+			bluealsa_dbus_transport_update(t3d2,
 					BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 		}
 	}
 
+	ba_device_unref(d1);
+	ba_device_unref(d2);
+
 	while (timeout != 0 && main_loop_on)
 		timeout = sleep(timeout);
 
-	if (fuzzing) {
-		ba_device_free(d1);
+	if (t1d1 != NULL)
+		ba_transport_destroy(t1d1);
+	if (t2d1 != NULL)
+		ba_transport_destroy(t2d1);
+	if (t3d1 != NULL)
+		ba_transport_destroy(t3d1);
+
+	if (fuzzing)
 		sleep(1);
-		ba_device_free(d2);
+
+	if (t1d2 != NULL)
+		ba_transport_destroy(t1d2);
+	if (t2d2 != NULL)
+		ba_transport_destroy(t2d2);
+	if (t3d2 != NULL)
+		ba_transport_destroy(t3d2);
+
+	if (fuzzing)
 		sleep(1);
-	}
 
 	g_main_loop_quit(loop);
 	return NULL;
@@ -285,11 +293,9 @@ int main(int argc, char *argv[]) {
 	/* emulate dummy test HCI device */
 	assert((a = ba_adapter_new(0)) != NULL);
 
-	/* make sure to cleanup named pipes */
 	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
 	sigaction(SIGINT, &sigact, NULL);
 	sigaction(SIGTERM, &sigact, NULL);
-	atexit(test_pcm_setup_free);
 
 	/* receive EPIPE error code */
 	sigact.sa_handler = SIG_IGN;
@@ -306,5 +312,6 @@ int main(int argc, char *argv[]) {
 	loop = g_main_loop_new(NULL, FALSE);
 	g_main_loop_run(loop);
 
+	ba_adapter_unref(a);
 	return EXIT_SUCCESS;
 }

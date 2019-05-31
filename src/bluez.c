@@ -610,9 +610,6 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 		goto fail;
 	}
 
-	/* we are going to modify the devices hash-map */
-	pthread_mutex_lock(&a->devices_mutex);
-
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
@@ -621,7 +618,7 @@ static int bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *us
 		goto fail;
 	}
 
-	if (ba_transport_lookup(d, transport_path) != NULL) {
+	if ((t = ba_transport_lookup(d, transport_path)) != NULL) {
 		error("Transport already configured: %s", transport_path);
 		goto fail;
 	}
@@ -654,7 +651,11 @@ fail:
 
 final:
 	if (a != NULL)
-		pthread_mutex_unlock(&a->devices_mutex);
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
+	if (t != NULL)
+		ba_transport_unref(t);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);
@@ -680,17 +681,19 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL)
 		goto fail;
 
-	pthread_mutex_lock(&a->devices_mutex);
-
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
-	if ((d = ba_device_lookup(a, &addr)) != NULL &&
-			(t = ba_transport_lookup(d, transport_path)) != NULL)
-		ba_transport_free(t);
+	if ((d = ba_device_lookup(a, &addr)) == NULL)
+		goto fail;
 
-	pthread_mutex_unlock(&a->devices_mutex);
+	if ((t = ba_transport_lookup(d, transport_path)) != NULL)
+		ba_transport_destroy(t);
 
 fail:
+	if (a != NULL)
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
 	g_object_unref(inv);
 }
 
@@ -733,8 +736,10 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender
 		if (bluez_endpoint_set_configuration(invocation, userdata) == 0) {
 			obj = g_hash_table_lookup(dbus_object_data_map, hash);
 			obj->connected = true;
-			if ((a = ba_adapter_lookup(hci_dev_id)) != NULL)
+			if ((a = ba_adapter_lookup(hci_dev_id)) != NULL) {
 				bluez_register_a2dp(a);
+				ba_adapter_unref(a);
+			}
 		}
 	}
 	else if (strcmp(method, "ClearConfiguration") == 0) {
@@ -907,9 +912,6 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	/* we are going to modify the devices hash-map */
-	pthread_mutex_lock(&a->devices_mutex);
-
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
@@ -944,7 +946,11 @@ fail:
 
 final:
 	if (a != NULL)
-		pthread_mutex_unlock(&a->devices_mutex);
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
+	if (t != NULL)
+		ba_transport_unref(t);
 	g_variant_iter_free(properties);
 	if (err != NULL)
 		g_error_free(err);
@@ -966,17 +972,19 @@ static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void
 	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL)
 		goto fail;
 
-	pthread_mutex_lock(&a->devices_mutex);
-
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(device_path, &addr);
-	if ((d = ba_device_lookup(a, &addr)) != NULL &&
-			(t = ba_transport_lookup(d, device_path)) != NULL)
-		ba_transport_free(t);
+	if ((d = ba_device_lookup(a, &addr)) == NULL)
+		goto fail;
 
-	pthread_mutex_unlock(&a->devices_mutex);
+	if ((t = ba_transport_lookup(d, device_path)) != NULL)
+		ba_transport_destroy(t);
 
 fail:
+	if (a != NULL)
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
 	g_object_unref(inv);
 }
 
@@ -1169,8 +1177,10 @@ void bluez_register(void) {
 	size_t i;
 	for (i = 0; i < HCI_MAX_DEV; i++)
 		if (adapters[i] &&
-				(a = ba_adapter_new(i)) != NULL)
+				(a = ba_adapter_new(i)) != NULL) {
 			bluez_register_a2dp(a);
+			ba_adapter_unref(a);
+		}
 
 	/* HFP has to be registered globally */
 	bluez_register_hfp();
@@ -1208,8 +1218,10 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	}
 	g_variant_iter_free(interfaces);
 
-	if (a != NULL)
+	if (a != NULL) {
 		bluez_register_a2dp(a);
+		ba_adapter_unref(a);
+	}
 
 	/* HFP has to be registered globally */
 	if (strcmp(object_path, "/org/bluez") == 0)
@@ -1238,7 +1250,7 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 			struct ba_adapter *a;
 
 			if ((a = ba_adapter_lookup(hci_dev_id)) != NULL)
-				ba_adapter_free(a);
+				ba_adapter_destroy(a);
 
 		}
 	g_variant_iter_free(interfaces);
@@ -1267,8 +1279,6 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 	const char *interface;
 	const char *property;
 	GVariant *value;
-
-	pthread_mutex_lock(&a->devices_mutex);
 
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
@@ -1329,7 +1339,12 @@ fail_prop:
 	g_variant_iter_free(properties);
 
 final:
-	pthread_mutex_unlock(&a->devices_mutex);
+	if (a != NULL)
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
+	if (t != NULL)
+		ba_transport_unref(t);
 }
 
 /**

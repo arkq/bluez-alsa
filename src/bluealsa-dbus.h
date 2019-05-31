@@ -29,7 +29,7 @@
 
 int bluealsa_dbus_manager_register(GError **error);
 
-int bluealsa_dbus_transport_register(struct ba_transport *t);
+int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error);
 void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask);
 void bluealsa_dbus_transport_unregister(struct ba_transport *t);
 

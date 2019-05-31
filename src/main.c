@@ -21,9 +21,6 @@
 #include <strings.h>
 #include <time.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-
 #include <gio/gio.h>
 #include <glib.h>
 
@@ -31,7 +28,6 @@
 # include <ldacBT.h>
 #endif
 
-#include "ba-adapter.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
@@ -339,12 +335,5 @@ int main(int argc, char **argv) {
 	g_main_loop_run(loop);
 
 	debug("Exiting main loop");
-
-	size_t i;
-	struct ba_adapter *a;
-	for (i = 0; i < HCI_MAX_DEV; i++)
-		if ((a = ba_adapter_lookup(i)) != NULL)
-			ba_adapter_free(a);
-
 	return retval;
 }

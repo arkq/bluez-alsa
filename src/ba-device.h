@@ -15,6 +15,7 @@
 # include <config.h>
 #endif
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -52,7 +53,11 @@ struct ba_device {
 	} xapl;
 
 	/* hash-map with connected transports */
+	pthread_mutex_t transports_mutex;
 	GHashTable *transports;
+
+	/* memory self-management */
+	int ref_count;
 
 };
 
@@ -63,7 +68,10 @@ struct ba_device *ba_device_new(
 struct ba_device *ba_device_lookup(
 		struct ba_adapter *adapter,
 		const bdaddr_t *addr);
+struct ba_device *ba_device_ref(
+		struct ba_device *d);
 
-void ba_device_free(struct ba_device *d);
+void ba_device_destroy(struct ba_device *d);
+void ba_device_unref(struct ba_device *d);
 
 #endif

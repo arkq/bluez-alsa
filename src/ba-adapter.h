@@ -33,10 +33,15 @@ struct ba_adapter {
 	pthread_mutex_t devices_mutex;
 	GHashTable *devices;
 
+	/* memory self-management */
+	int ref_count;
+
 };
 
 struct ba_adapter *ba_adapter_new(int dev_id);
 struct ba_adapter *ba_adapter_lookup(int dev_id);
-void ba_adapter_free(struct ba_adapter *a);
+struct ba_adapter *ba_adapter_ref(struct ba_adapter *a);
+void ba_adapter_destroy(struct ba_adapter *a);
+void ba_adapter_unref(struct ba_adapter *a);
 
 #endif
