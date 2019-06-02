@@ -782,7 +782,7 @@ usage:
 	while (main_loop_on) {
 
 		struct pollfd pfds[10];
-		size_t pfds_len = ARRAYSIZE(pfds);
+		nfds_t pfds_len = ARRAYSIZE(pfds);
 
 		if (!bluealsa_dbus_connection_poll_fds(&dbus_ctx, pfds, &pfds_len)) {
 			error("Couldn't get D-Bus connection file descriptors");
