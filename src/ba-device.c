@@ -10,14 +10,10 @@
 
 #include "ba-device.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "ba-transport.h"
-#include "bluealsa.h"
-#include "bluez-iface.h"
 #include "utils.h"
 #include "shared/log.h"
 

@@ -18,7 +18,6 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/types.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>

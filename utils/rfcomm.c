@@ -17,12 +17,14 @@
 #include <getopt.h>
 #include <poll.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
+#include <dbus/dbus.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 

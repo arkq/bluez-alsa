@@ -36,7 +36,6 @@
 #include "io.h"
 #include "utils.h"
 #include "shared/log.h"
-#include "shared/defs.h"
 
 /**
  * Create new transport.

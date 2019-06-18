@@ -15,7 +15,6 @@
 # include <config.h>
 #endif
 
-#include <gio/gio.h>
 #include <glib.h>
 
 #include "ba-transport.h"

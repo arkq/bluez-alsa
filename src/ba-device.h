@@ -16,7 +16,6 @@
 #endif
 
 #include <pthread.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 #include <bluetooth/bluetooth.h>
