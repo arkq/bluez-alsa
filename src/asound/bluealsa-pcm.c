@@ -77,6 +77,12 @@ struct bluealsa_pcm {
 	snd_pcm_uframes_t io_hw_boundary;
 	snd_pcm_uframes_t io_hw_ptr;
 
+	pthread_mutex_t delay_mutex;
+	struct timespec delay_ts;
+	snd_pcm_uframes_t delay_hw_ptr;
+	unsigned int delay_pcm_nread;
+	bool delay_valid;
+
 };
 
 /**
@@ -241,6 +247,20 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 				len -= ret;
 			} while (len != 0);
 
+			struct timespec now;
+			unsigned int nread = 0;
+
+			gettimestamp(&now);
+			ioctl(pcm->ba_pcm_fd, FIONREAD, &nread);
+
+			/* stash current time and levels */
+			pthread_mutex_lock(&pcm->delay_mutex);
+			pcm->delay_ts = now;
+			pcm->delay_hw_ptr = io_hw_ptr;
+			pcm->delay_pcm_nread = nread;
+			pcm->delay_valid = true;
+			pthread_mutex_unlock(&pcm->delay_mutex);
+
 			/* synchronize playback time */
 			asrsync_sync(&asrs, frames);
 		}
@@ -274,6 +294,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 
 	/* initialize delay calculation */
 	pcm->delay = 0;
+	pcm->delay_valid = false;
 
 	if (!bluealsa_dbus_pcm_ctrl_send_resume(pcm->ba_pcm_ctrl_fd, NULL)) {
 		debug2("Couldn't start PCM: %s", strerror(errno));
@@ -309,6 +330,7 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 		pthread_cancel(pcm->io_thread);
 		pthread_join(pcm->io_thread, NULL);
 	}
+	pcm->delay_valid = false;
 
 	if (!bluealsa_dbus_pcm_ctrl_send_drop(pcm->ba_pcm_ctrl_fd, NULL))
 		return -errno;
@@ -334,6 +356,7 @@ static int bluealsa_close(snd_pcm_ioplug_t *io) {
 	debug2("Closing");
 	bluealsa_dbus_connection_ctx_free(&pcm->dbus_ctx);
 	close(pcm->event_fd);
+	pthread_mutex_destroy(&pcm->delay_mutex);
 	free(pcm);
 	return 0;
 }
@@ -462,14 +485,37 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	 * latency and the time required by the device to decode and play audio. */
 
 	snd_pcm_sframes_t delay = 0;
-	unsigned int size;
 
-	/* bytes queued in the PCM ring buffer */
-	delay += io->appl_ptr - io->hw_ptr;
+	if (!pcm->delay_valid) {
+		/* If we have never transmitted anything then the delay is just based
+		 * on the current buffer length. */
+		delay = io->appl_ptr - io->hw_ptr;
+	}
+	else {
+		/* Take the gap between the current input pointer in this thread and
+		 * the last thing transmitted in the I/O thread and adjust that by the
+		 * amount of time that has passed since something was transmitted. */
 
-	/* bytes queued in the FIFO buffer */
-	if (ioctl(pcm->ba_pcm_fd, FIONREAD, &size) != -1)
-		delay += size / pcm->frame_size;
+		struct timespec now;
+		gettimestamp(&now);
+
+		pthread_mutex_lock(&pcm->delay_mutex);
+
+		struct timespec diff;
+		difftimespec(&now, &pcm->delay_ts, &diff);
+
+		delay =  io->appl_ptr >= pcm->delay_hw_ptr ?
+			(io->appl_ptr - pcm->delay_hw_ptr) :
+			(io->appl_ptr + pcm->io_hw_boundary - pcm->delay_hw_ptr);
+		delay += pcm->delay_pcm_nread / pcm->frame_size;
+
+		unsigned int tsamples =
+			(diff.tv_sec * 1000 + diff.tv_nsec / 1000000) * io->rate / 1000;
+		/* Do not allow us to have a negative number of samples queued! */
+		delay = delay > tsamples ? delay - tsamples : 0;
+
+		pthread_mutex_unlock(&pcm->delay_mutex);
+	}
 
 	/* data transfer (communication) and encoding/decoding */
 	pcm->delay = (io->rate / 100) * pcm->ba_pcm.delay / 100;
@@ -738,6 +784,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->ba_pcm_fd = -1;
 	pcm->ba_pcm_ctrl_fd = -1;
 	pcm->delay_ex = delay;
+	pthread_mutex_init(&pcm->delay_mutex, NULL);
 
 	dbus_threads_init_default();
 
