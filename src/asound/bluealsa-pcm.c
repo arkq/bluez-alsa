@@ -467,8 +467,12 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	gettimestamp(&now);
 
 	pthread_mutex_lock(&pcm->lock);
-	if (pcm->delay_valid)
-	{
+	if (!pcm->delay_valid) {
+		/* If we have never transmitted anything then the delay is just based
+		 * on the current buffer length */
+		delay = io->appl_ptr - io->hw_ptr;
+	}
+	else {
 		/* Take the gap between the current input pointer in this thread
 		 * and the last thing transmitted in the I/O thread and asjust by the
 		 * amount of time that has passed since something was transmitted. */
