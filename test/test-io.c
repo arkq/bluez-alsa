@@ -356,7 +356,7 @@ START_TEST(test_a2dp_mp3) {
 	test_a2dp_encoding(t, io_thread_a2dp_source_mp3);
 
 	t->mtu_read = t->mtu_write;
-	test_a2dp_decoding(t, io_thread_a2dp_sink_mp3);
+	test_a2dp_decoding(t, io_thread_a2dp_sink_mpeg);
 
 } END_TEST
 #endif
@@ -373,8 +373,8 @@ START_TEST(test_a2dp_aging_mp3) {
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
-	t1->mtu_write = t2->mtu_read = 250;
-	test_a2dp_aging(t1, t2, io_thread_a2dp_source_mp3, io_thread_a2dp_sink_mp3);
+	t1->mtu_write = t2->mtu_read = 800;
+	test_a2dp_aging(t1, t2, io_thread_a2dp_source_mp3, io_thread_a2dp_sink_mpeg);
 
 } END_TEST
 #endif
@@ -575,13 +575,13 @@ int main(int argc, char *argv[]) {
 	if (aging > 0) {
 		if (enabled_codecs & TEST_CODEC_SBC)
 			tcase_add_test(tc, test_a2dp_aging_sbc);
-#if ENABLE_AAC
-		if (enabled_codecs & TEST_CODEC_AAC)
-			tcase_add_test(tc, test_a2dp_aging_aac);
-#endif
 #if ENABLE_MP3LAME
 		if (enabled_codecs & TEST_CODEC_MP3)
 			tcase_add_test(tc, test_a2dp_aging_mp3);
+#endif
+#if ENABLE_AAC
+		if (enabled_codecs & TEST_CODEC_AAC)
+			tcase_add_test(tc, test_a2dp_aging_aac);
 #endif
 	}
 

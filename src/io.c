@@ -38,6 +38,9 @@
 #if ENABLE_MP3LAME
 # include <lame/lame.h>
 #endif
+#if ENABLE_MPG123
+# include <mpg123.h>
+#endif
 #if ENABLE_LDAC
 # include <ldacBT.h>
 # include <ldacBT_abr.h>
@@ -616,8 +619,8 @@ fail_init:
 	return NULL;
 }
 
-#if ENABLE_MP3LAME
-static void *io_thread_a2dp_sink_mp3(void *arg) {
+#if ENABLE_MP3LAME || ENABLE_MPG123
+static void *io_thread_a2dp_sink_mpeg(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -638,6 +641,29 @@ static void *io_thread_a2dp_sink_mp3(void *arg) {
 		goto fail_init;
 	}
 
+#if ENABLE_MPG123
+
+	static pthread_once_t once = PTHREAD_ONCE_INIT;
+	pthread_once(&once, mpg123_init);
+
+	int err;
+	mpg123_handle *handle;
+	if ((handle = mpg123_new(NULL, &err)) == NULL) {
+		error("Couldn't initialize MPG123 decoder: %s", mpg123_plain_strerror(err));
+		goto fail_init;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(mpg123_delete), handle);
+
+	if (mpg123_open_feed(handle) != MPG123_OK) {
+		error("Couldn't open MPG123 feed: %s", mpg123_strerror(handle));
+		goto fail_open;
+	}
+
+	#define MPEG_PCM_DECODE_SAMPLES 4096
+
+#else
+
 	hip_t handle;
 	if ((handle = hip_decode_init()) == NULL) {
 		error("Couldn't initialize LAME decoder: %s", strerror(errno));
@@ -651,14 +677,16 @@ static void *io_thread_a2dp_sink_mp3(void *arg) {
 	 *       even worse, the boundary check is so fucked-up that the hard-coded
 	 *       limit can very easily overflow. In order to mitigate crash, we are
 	 *       going to provide very big buffer - let's hope it will be enough. */
-	#define MP3_PCM_DECODE_SAMPLES 4096 * 100
+	#define MPEG_PCM_DECODE_SAMPLES 4096 * 100
+
+#endif
 
 	ffb_uint8_t bt = { 0 };
 	ffb_int16_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
-	if (ffb_init(&pcm, MP3_PCM_DECODE_SAMPLES) == NULL ||
+	if (ffb_init(&pcm, MPEG_PCM_DECODE_SAMPLES) == NULL ||
 			ffb_init(&bt, t->mtu_read) == NULL) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail_ffb;
@@ -716,8 +744,8 @@ static void *io_thread_a2dp_sink_mp3(void *arg) {
 		}
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
-		uint8_t *rtp_mp3 = (uint8_t *)&rtp_header->csrc[rtp_header->cc] + sizeof(rtp_mpeg_audio_header_t);
-		size_t rtp_mp3_len = len - (rtp_mp3 - (uint8_t *)rtp_header);
+		uint8_t *rtp_mpeg = (uint8_t *)&rtp_header->csrc[rtp_header->cc] + sizeof(rtp_mpeg_audio_header_t);
+		size_t rtp_mpeg_len = len - (rtp_mpeg - (uint8_t *)rtp_header);
 
 #if ENABLE_PAYLOADCHECK
 		if (rtp_header->paytype < 96) {
@@ -733,11 +761,38 @@ static void *io_thread_a2dp_sink_mp3(void *arg) {
 			seq_number = _seq_number;
 		}
 
-		int16_t pcm_l[MP3_PCM_DECODE_SAMPLES];
-		int16_t pcm_r[MP3_PCM_DECODE_SAMPLES];
+#if ENABLE_MPG123
+
+	long rate;
+	int channels;
+	int encoding;
+
+decode:
+		switch (mpg123_decode(handle, rtp_mpeg, rtp_mpeg_len,
+					(uint8_t *)pcm.data, ffb_blen_in(&pcm), (size_t *)&len)) {
+		case MPG123_DONE:
+		case MPG123_NEED_MORE:
+		case MPG123_OK:
+			break;
+		case MPG123_NEW_FORMAT:
+			mpg123_getformat(handle, &rate, &channels, &encoding);
+			debug("MPG123 new format detected: r:%ld, ch:%d, enc:%#x", rate, channels, encoding);
+			goto decode;
+		default:
+			error("MPG123 decoding error: %s", mpg123_strerror(handle));
+			continue;
+		}
+
+		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, len / sizeof(int16_t)) == -1)
+			error("FIFO write error: %s", strerror(errno));
+
+#else
+
+		int16_t pcm_l[MPEG_PCM_DECODE_SAMPLES];
+		int16_t pcm_r[MPEG_PCM_DECODE_SAMPLES];
 		ssize_t samples;
 
-		if ((samples = hip_decode(handle, rtp_mp3, rtp_mp3_len, pcm_l, pcm_r)) < 0) {
+		if ((samples = hip_decode(handle, rtp_mpeg, rtp_mpeg_len, pcm_l, pcm_r)) < 0) {
 			error("LAME decoding error: %zd", samples);
 			continue;
 		}
@@ -759,6 +814,8 @@ static void *io_thread_a2dp_sink_mp3(void *arg) {
 
 		}
 
+#endif
+
 	}
 
 fail:
@@ -767,6 +824,9 @@ fail:
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
+#if ENABLE_MPG123
+fail_open:
+#endif
 	pthread_cleanup_pop(1);
 fail_init:
 	pthread_cleanup_pop(1);
@@ -2445,9 +2505,12 @@ int io_thread_create(struct ba_transport *t) {
 			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-#if ENABLE_MP3LAME
+#if ENABLE_MPG123
+			routine = io_thread_a2dp_sink_mpeg;
+			name = "ba-io-mpeg";
+#elif ENABLE_MP3LAME
 			if (((a2dp_mpeg_t *)t->a2dp.cconfig)->layer == MPEG_LAYER_MP3) {
-				routine = io_thread_a2dp_sink_mp3;
+				routine = io_thread_a2dp_sink_mpeg;
 				name = "ba-io-mp3";
 			}
 #endif

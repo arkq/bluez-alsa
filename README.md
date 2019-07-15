@@ -40,6 +40,7 @@ Dependencies:
 - [glib](https://wiki.gnome.org/Projects/GLib) with GIO support
 - [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
 - [mp3lame](http://lame.sourceforge.net/) (when MP3 support is enabled with `--enable-mp3lame`)
+- [mpg123](https://www.mpg123.org/) (when MPEG support is enabled with `--enable-mpg123`)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with `--enable-aptx`)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
