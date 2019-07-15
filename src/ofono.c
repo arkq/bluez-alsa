@@ -477,6 +477,9 @@ int ofono_register(void) {
 
 	g_variant_builder_init(&options, G_VARIANT_TYPE("ay"));
 	g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_CVSD);
+#if ENABLE_MSBC
+	g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_MSBC);
+#endif
 
 	g_dbus_message_set_body(msg, g_variant_new("(oay)", path, &options));
 	g_variant_builder_clear(&options);
