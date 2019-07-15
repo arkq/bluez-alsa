@@ -48,7 +48,7 @@ struct dbus_object_data {
 	/* D-Bus object registration ID */
 	unsigned int id;
 	/* associated adapter */
-	const struct ba_adapter *adapter;
+	int hci_dev_id;
 	struct ba_transport_type ttype;
 	/* determine whether profile is used */
 	bool connected;
@@ -80,21 +80,20 @@ static bool bluez_match_dbus_adapter(
 }
 
 /**
- * Get D-Bus object reference count for given transport type. */
+ * Get the number of currently used D-Bus objects. */
 static int bluez_get_dbus_object_count(
-		const struct ba_adapter *adapter,
-		struct ba_transport_type ttype) {
+		const struct dbus_object_data *obj) {
 
 	GHashTableIter iter;
-	struct dbus_object_data *obj;
+	struct dbus_object_data *tmp;
 	int count = 0;
 
 	g_hash_table_iter_init(&iter, dbus_object_data_map);
-	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&obj))
-		if (obj->adapter == adapter &&
-				obj->ttype.profile == ttype.profile &&
-				obj->ttype.codec == ttype.codec &&
-				obj->connected)
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&tmp))
+		if (tmp->hci_dev_id == obj->hci_dev_id &&
+				tmp->ttype.profile == obj->ttype.profile &&
+				tmp->ttype.codec == obj->ttype.codec &&
+				tmp->connected)
 			count++;
 
 	return count;
@@ -777,7 +776,7 @@ static int bluez_register_a2dp_endpoint(
 		.codec = codec->id,
 	};
 	struct dbus_object_data dbus_object = {
-		.adapter = adapter,
+		.hci_dev_id = adapter->hci_dev_id,
 		.ttype = ttype,
 	};
 
@@ -785,7 +784,7 @@ static int bluez_register_a2dp_endpoint(
 	snprintf(endpoint_path, sizeof(endpoint_path), "/org/bluez/%s%s/%d",
 			adapter->hci_name,
 			g_dbus_transport_type_to_bluez_object_path(ttype),
-			bluez_get_dbus_object_count(adapter, ttype) + 1);
+			bluez_get_dbus_object_count(&dbus_object) + 1);
 
 	gpointer hash = GINT_TO_POINTER(g_str_hash(endpoint_path));
 	if (g_hash_table_lookup(dbus_object_data_map, hash) != NULL) {
@@ -1044,6 +1043,7 @@ static int bluez_register_profile(
 		.profile = profile,
 	};
 	struct dbus_object_data dbus_object = {
+		.hci_dev_id = -1,
 		.ttype = ttype,
 	};
 
