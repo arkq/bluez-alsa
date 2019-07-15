@@ -55,16 +55,18 @@ static const struct bluez_a2dp_sampling_freq a2dp_sbc_samplings[] = {
 
 static const a2dp_mpeg_t a2dp_mpeg = {
 	.layer =
-		MPEG_LAYER_MP1 |
-		MPEG_LAYER_MP2 |
 		MPEG_LAYER_MP3,
 	.crc = 1,
 	.channel_mode =
+	/* NOTE: Unfortunately, LAME does not support dual-channel
+	 *       mode. What's worse, lack of this feature violates
+	 *       A2DP specification for Sink... */
 		MPEG_CHANNEL_MODE_MONO |
-		MPEG_CHANNEL_MODE_DUAL_CHANNEL |
 		MPEG_CHANNEL_MODE_STEREO |
 		MPEG_CHANNEL_MODE_JOINT_STEREO,
-	.mpf = 1,
+	/* NOTE: Since MPF-2 is not required for neither Sink
+	 *       nor Source, we are not going to support it. */
+	.mpf = 0,
 	.frequency =
 		MPEG_SAMPLING_FREQ_16000 |
 		MPEG_SAMPLING_FREQ_22050 |
@@ -72,8 +74,8 @@ static const a2dp_mpeg_t a2dp_mpeg = {
 		MPEG_SAMPLING_FREQ_32000 |
 		MPEG_SAMPLING_FREQ_44100 |
 		MPEG_SAMPLING_FREQ_48000,
-	.bitrate =
-		MPEG_BIT_RATE_VBR |
+	.vbr = 1,
+	MPEG_INIT_BITRATE(
 		MPEG_BIT_RATE_320000 |
 		MPEG_BIT_RATE_256000 |
 		MPEG_BIT_RATE_224000 |
@@ -88,7 +90,8 @@ static const a2dp_mpeg_t a2dp_mpeg = {
 		MPEG_BIT_RATE_48000 |
 		MPEG_BIT_RATE_40000 |
 		MPEG_BIT_RATE_32000 |
-		MPEG_BIT_RATE_FREE,
+		MPEG_BIT_RATE_FREE
+	)
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_mpeg_channels[] = {

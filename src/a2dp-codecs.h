@@ -2,7 +2,7 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (c) 2016-2018  Arkadiusz Bokowy
+ *  Copyright (c) 2016-2019  Arkadiusz Bokowy
  *  Copyright (C) 2006-2010  Nokia Corporation
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *
@@ -79,7 +79,6 @@
 #define MPEG_SAMPLING_FREQ_44100        (1 << 1)
 #define MPEG_SAMPLING_FREQ_48000        (1 << 0)
 
-#define MPEG_BIT_RATE_VBR               0x8000
 #define MPEG_BIT_RATE_320000            0x4000
 #define MPEG_BIT_RATE_256000            0x2000
 #define MPEG_BIT_RATE_224000            0x1000
@@ -95,6 +94,15 @@
 #define MPEG_BIT_RATE_40000             0x0004
 #define MPEG_BIT_RATE_32000             0x0002
 #define MPEG_BIT_RATE_FREE              0x0001
+
+#define MPEG_GET_BITRATE(a) ((a).bitrate1 << 8 | (a).bitrate2)
+#define MPEG_SET_BITRATE(a, b) do { \
+		(a).bitrate1 = ((b) >> 8) & 0x7f; \
+		(a).bitrate2 = (b) & 0xff; \
+	} while (0)
+#define MPEG_INIT_BITRATE(b) \
+	.bitrate1 = ((b) >> 8) & 0x7f, \
+	.bitrate2 = (b) & 0xff,
 
 #define AAC_OBJECT_TYPE_MPEG2_AAC_LC    0x80
 #define AAC_OBJECT_TYPE_MPEG4_AAC_LC    0x40
@@ -201,7 +209,9 @@ typedef struct {
 	uint8_t frequency:6;
 	uint8_t mpf:1;
 	uint8_t rfa:1;
-	uint16_t bitrate;
+	uint8_t bitrate1:7;
+	uint8_t vbr:1;
+	uint8_t bitrate2;
 } __attribute__ ((packed)) a2dp_mpeg_t;
 
 typedef struct {
@@ -256,7 +266,9 @@ typedef struct {
 	uint8_t rfa:1;
 	uint8_t mpf:1;
 	uint8_t frequency:6;
-	uint16_t bitrate;
+	uint8_t vbr:1;
+	uint8_t bitrate1:7;
+	uint8_t bitrate2;
 } __attribute__ ((packed)) a2dp_mpeg_t;
 
 typedef struct {

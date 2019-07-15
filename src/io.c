@@ -35,6 +35,9 @@
 #if ENABLE_APTX
 # include <openaptx.h>
 #endif
+#if ENABLE_MP3LAME
+# include <lame/lame.h>
+#endif
 #if ENABLE_LDAC
 # include <ldacBT.h>
 # include <ldacBT_abr.h>
@@ -612,6 +615,452 @@ fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
+
+#if ENABLE_MP3LAME
+static void *io_thread_a2dp_sink_mp3(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+
+	struct io_thread_data io = {
+		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
+		.fds[1] = { -1, POLLIN, 0 },
+		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+	};
+
+	if (t->bt_fd == -1) {
+		error("Invalid BT socket: %d", t->bt_fd);
+		goto fail_init;
+	}
+	if (t->mtu_read <= 0) {
+		error("Invalid reading MTU: %zu", t->mtu_read);
+		goto fail_init;
+	}
+
+	hip_t handle;
+	if ((handle = hip_decode_init()) == NULL) {
+		error("Couldn't initialize LAME decoder: %s", strerror(errno));
+		goto fail_init;
+	}
+
+	const unsigned int channels = ba_transport_get_channels(t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(hip_decode_exit), handle);
+
+	/* NOTE: Size of the output buffer is "hard-coded" in hip_decode(). What is
+	 *       even worse, the boundary check is so fucked-up that the hard-coded
+	 *       limit can very easily overflow. In order to mitigate crash, we are
+	 *       going to provide very big buffer - let's hope it will be enough. */
+	#define MP3_PCM_DECODE_SAMPLES 4096 * 100
+
+	ffb_uint8_t bt = { 0 };
+	ffb_int16_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+
+	if (ffb_init(&pcm, MP3_PCM_DECODE_SAMPLES) == NULL ||
+			ffb_init(&bt, t->mtu_read) == NULL) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail_ffb;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+
+	uint16_t seq_number = -1;
+
+	ba_transport_pthread_cleanup_unlock(t);
+	io.t_locked = false;
+
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
+	for (;;) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		ssize_t len;
+
+		/* add BT socket to the poll if transport is active */
+		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
+
+		if (poll(io.fds, ARRAYSIZE(io.fds), -1) == -1) {
+			if (errno == EINTR)
+				continue;
+			error("Transport poll error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (io.fds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			ba_transport_recv_signal(t);
+			continue;
+		}
+
+		if ((len = read(io.fds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
+			debug("BT read error: %s", strerror(errno));
+			continue;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		/* it seems that zero is never returned... */
+		if (len == 0) {
+			debug("BT socket has been closed: %d", io.fds[1].fd);
+			/* Prevent sending the release request to the BlueZ. If the socket has
+			 * been closed, it means that BlueZ has already closed the connection. */
+			close(io.fds[1].fd);
+			t->bt_fd = -1;
+			goto fail;
+		}
+
+		if (t->a2dp.pcm.fd == -1) {
+			seq_number = -1;
+			continue;
+		}
+
+		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
+		uint8_t *rtp_mp3 = (uint8_t *)&rtp_header->csrc[rtp_header->cc] + sizeof(rtp_mpeg_audio_header_t);
+		size_t rtp_mp3_len = len - (rtp_mp3 - (uint8_t *)rtp_header);
+
+#if ENABLE_PAYLOADCHECK
+		if (rtp_header->paytype < 96) {
+			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
+			continue;
+		}
+#endif
+
+		uint16_t _seq_number = ntohs(rtp_header->seq_number);
+		if (++seq_number != _seq_number) {
+			if (seq_number != 0)
+				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
+			seq_number = _seq_number;
+		}
+
+		int16_t pcm_l[MP3_PCM_DECODE_SAMPLES];
+		int16_t pcm_r[MP3_PCM_DECODE_SAMPLES];
+		ssize_t samples;
+
+		if ((samples = hip_decode(handle, rtp_mp3, rtp_mp3_len, pcm_l, pcm_r)) < 0) {
+			error("LAME decoding error: %zd", samples);
+			continue;
+		}
+
+		if (channels == 1) {
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm_l, samples) == -1)
+				error("FIFO write error: %s", strerror(errno));
+		}
+		else {
+
+			ssize_t i;
+			for (i = 0; i < samples; i++) {
+				pcm.data[i * 2 + 0] = pcm_l[i];
+				pcm.data[i * 2 + 1] = pcm_r[i];
+			}
+
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+				error("FIFO write error: %s", strerror(errno));
+
+		}
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!io.t_locked);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
+
+#if ENABLE_MP3LAME
+static void *io_thread_a2dp_source_mp3(void *arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+	const a2dp_mpeg_t *cconfig = (a2dp_mpeg_t *)t->a2dp.cconfig;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+
+	struct io_thread_data io = {
+		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
+		.fds[1] = { -1, POLLIN, 0 },
+		.poll_timeout = -1,
+		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+	};
+
+	lame_t handle;
+	if ((handle = lame_init()) == NULL) {
+		error("Couldn't initialize LAME encoder: %s", strerror(errno));
+		goto fail_init;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(lame_close), handle);
+
+	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int samplerate = ba_transport_get_sampling(t);
+	MPEG_mode mode = NOT_SET;
+
+	lame_set_num_channels(handle, channels);
+	lame_set_in_samplerate(handle, samplerate);
+
+	switch (cconfig->channel_mode) {
+	case MPEG_CHANNEL_MODE_MONO:
+		mode = MONO;
+		break;
+	case MPEG_CHANNEL_MODE_DUAL_CHANNEL:
+		mode = DUAL_CHANNEL;
+		break;
+	case MPEG_CHANNEL_MODE_STEREO:
+		mode = STEREO;
+		break;
+	case MPEG_CHANNEL_MODE_JOINT_STEREO:
+		mode = JOINT_STEREO;
+		break;
+	}
+
+	if (lame_set_mode(handle, mode) != 0) {
+		error("LAME: Couldn't set mode: %d", mode);
+		goto fail_setup;
+	}
+	if (lame_set_bWriteVbrTag(handle, 0) != 0) {
+		error("LAME: Couldn't disable VBR header");
+		goto fail_setup;
+	}
+	if (lame_set_error_protection(handle, cconfig->crc) != 0) {
+		error("LAME: Couldn't set CRC mode: %d", cconfig->crc);
+		goto fail_setup;
+	}
+	if (cconfig->vbr) {
+		if (lame_set_VBR(handle, vbr_default) != 0) {
+			error("LAME: Couldn't set VBR mode: %d", vbr_default);
+			goto fail_setup;
+		}
+		if (lame_set_VBR_q(handle, config.lame_vbr_quality) != 0) {
+			error("LAME: Couldn't set VBR quality: %d", config.lame_vbr_quality);
+			goto fail_setup;
+		}
+	}
+	else {
+		if (lame_set_VBR(handle, vbr_off) != 0) {
+			error("LAME: Couldn't set CBR mode");
+			goto fail_setup;
+		}
+		int mpeg_bitrate = MPEG_GET_BITRATE(*cconfig);
+		int bitrate = a2dp_mpeg1_mp3_get_max_bitrate(mpeg_bitrate);
+		if (lame_set_brate(handle, bitrate) != 0) {
+			error("LAME: Couldn't set CBR bitrate: %d", bitrate);
+			goto fail_setup;
+		}
+		if (mpeg_bitrate & MPEG_BIT_RATE_FREE &&
+				lame_set_free_format(handle, 1) != 0) {
+			error("LAME: Couldn't enable free format");
+			goto fail_setup;
+		}
+	}
+	if (lame_set_quality(handle, config.lame_quality) != 0) {
+		error("LAME: Couldn't set quality: %d", config.lame_quality);
+		goto fail_setup;
+	}
+
+	if (lame_init_params(handle) != 0) {
+		error("LAME: Couldn't setup encoder");
+		goto fail_setup;
+	}
+
+	ffb_uint8_t bt = { 0 };
+	ffb_int16_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+
+	const size_t mpeg_pcm_samples = lame_get_framesize(handle);
+	/* It is hard to tell the size of the buffer required, but
+	 * empirical test shows that 2KB should be sufficient. */
+	const size_t mpeg_frame_len = 2048;
+
+	if (ffb_init(&pcm, mpeg_pcm_samples) == NULL ||
+			ffb_init(&bt, RTP_HEADER_LEN + sizeof(rtp_mpeg_audio_header_t) + mpeg_frame_len) == NULL) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail_ffb;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+
+	rtp_header_t *rtp_header;
+	rtp_mpeg_audio_header_t *rtp_mpeg_audio_header;
+
+	/* initialize RTP headers and get anchor for payload */
+	uint8_t *rtp_payload = io_thread_init_rtp(bt.data, &rtp_header,
+			(void **)&rtp_mpeg_audio_header, sizeof(*rtp_mpeg_audio_header));
+	uint16_t seq_number = ntohs(rtp_header->seq_number);
+	uint32_t timestamp = ntohl(rtp_header->timestamp);
+
+	ba_transport_pthread_cleanup_unlock(t);
+	io.t_locked = false;
+
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
+	for (;;) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		ssize_t samples;
+
+		/* add PCM socket to the poll if transport is active */
+		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
+
+		switch (poll(io.fds, ARRAYSIZE(io.fds), io.poll_timeout)) {
+		case 0:
+			pthread_cond_signal(&t->a2dp.drained);
+			io.poll_timeout = -1;
+			io.t_locked = !ba_transport_pthread_cleanup_lock(t);
+			if (t->a2dp.pcm.fd == -1)
+				goto final;
+			ba_transport_pthread_cleanup_unlock(t);
+			io.t_locked = false;
+			continue;
+		case -1:
+			if (errno == EINTR)
+				continue;
+			error("Transport poll error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (io.fds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			switch (ba_transport_recv_signal(t)) {
+			case TRANSPORT_PCM_OPEN:
+			case TRANSPORT_PCM_RESUME:
+				io.poll_timeout = -1;
+				io.asrs.frames = 0;
+				continue;
+			case TRANSPORT_PCM_CLOSE:
+				/* reuse PCM read disconnection logic */
+				break;
+			case TRANSPORT_PCM_SYNC:
+				io.poll_timeout = 100;
+				continue;
+			case TRANSPORT_PCM_DROP:
+				io_thread_read_pcm_flush(&t->a2dp.pcm);
+				continue;
+			default:
+				continue;
+			}
+		}
+
+		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
+		case 0:
+			io.poll_timeout = config.a2dp.keep_alive * 1000;
+			debug("Keep-alive polling: %d", io.poll_timeout);
+			continue;
+		case -1:
+			if (errno == EAGAIN)
+				continue;
+			error("PCM read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		/* When the thread is created, there might be no data in the FIFO. In fact
+		 * there might be no data for a long time - until client starts playback.
+		 * In order to correctly calculate time drift, the zero time point has to
+		 * be obtained after the stream has started. */
+		if (io.asrs.frames == 0)
+			asrsync_init(&io.asrs, samplerate);
+
+		if (!config.a2dp.volume)
+			/* scale volume or mute audio signal */
+			io_thread_scale_pcm(t, pcm.tail, samples, channels);
+
+		/* get overall number of input samples */
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
+
+		/* anchor for RTP payload */
+		bt.tail = rtp_payload;
+
+		size_t pcm_frames = samples / channels;
+		ssize_t len;
+
+		if ((len = lame_encode_buffer_interleaved(handle, pcm.data,
+						pcm_frames, bt.tail, ffb_len_in(&bt))) < 0) {
+			error("LAME encoding error: %s", lame_encode_strerror(len));
+			continue;
+		}
+
+		if (len > 0) {
+
+			size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN - sizeof(*rtp_mpeg_audio_header);
+			size_t payload_len_total = len;
+			size_t payload_len = len;
+			rtp_header->timestamp = htonl(timestamp);
+
+			for (;;) {
+
+				ssize_t ret;
+				size_t len;
+
+				len = payload_len > payload_len_max ? payload_len_max : payload_len;
+				rtp_header->markbit = payload_len <= payload_len_max;
+				rtp_header->seq_number = htons(++seq_number);
+				rtp_mpeg_audio_header->offset = payload_len_total - payload_len;
+
+				io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
+				if ((ret = io_thread_write_bt(t, bt.data, RTP_HEADER_LEN +
+								sizeof(*rtp_mpeg_audio_header) + len, &io.coutq.v[io.coutq.i])) == -1) {
+					if (errno == ECONNRESET || errno == ENOTCONN) {
+						/* exit thread upon BT socket disconnection */
+						debug("BT socket disconnected: %d", t->bt_fd);
+						goto fail;
+					}
+					error("BT socket write error: %s", strerror(errno));
+					break;
+				}
+
+				/* account written payload only */
+				ret -= RTP_HEADER_LEN + sizeof(*rtp_mpeg_audio_header);
+
+				/* break if the last part of the payload has been written */
+				if ((payload_len -= ret) == 0)
+					break;
+
+				/* move rest of data to the beginning of the payload */
+				debug("Payload fragmentation: extra %zd bytes", payload_len);
+				memmove(rtp_payload, rtp_payload + ret, payload_len);
+
+			}
+
+		}
+
+		/* keep data transfer at a constant bit rate, also
+		 * get a timestamp for the next RTP frame */
+		asrsync_sync(&io.asrs, pcm_frames);
+		timestamp += pcm_frames * 10000 / samplerate;
+
+		/* update busy delay (encoding overhead) */
+		t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+
+		/* If the input buffer was not consumed (due to frame alignment), we
+		 * have to append new data to the existing one. Since we do not use
+		 * ring buffer, we will simply move unprocessed data to the front
+		 * of our linear buffer. */
+		ffb_shift(&pcm, pcm_frames * channels);
+
+	}
+
+fail:
+final:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!io.t_locked);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_setup:
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
 
 #if ENABLE_AAC
 static void *io_thread_a2dp_sink_aac(void *arg) {
@@ -1996,6 +2445,12 @@ int io_thread_create(struct ba_transport *t) {
 			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
+#if ENABLE_MP3LAME
+			if (((a2dp_mpeg_t *)t->a2dp.cconfig)->layer == MPEG_LAYER_MP3) {
+				routine = io_thread_a2dp_sink_mp3;
+				name = "ba-io-mp3";
+			}
+#endif
 			break;
 #endif
 #if ENABLE_AAC
@@ -2027,6 +2482,12 @@ int io_thread_create(struct ba_transport *t) {
 			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
+#if ENABLE_MP3LAME
+			if (((a2dp_mpeg_t *)t->a2dp.cconfig)->layer == MPEG_LAYER_MP3) {
+				routine = io_thread_a2dp_source_mp3;
+				name = "ba-io-mp3";
+			}
+#endif
 			break;
 #endif
 #if ENABLE_AAC

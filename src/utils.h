@@ -53,6 +53,11 @@ void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 const char *bluetooth_a2dp_codec_to_string(uint16_t codec);
 const char *ba_transport_type_to_string(struct ba_transport_type type);
 
+#if ENABLE_MP3LAME
+int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask);
+const char *lame_encode_strerror(int err);
+#endif
+
 #if ENABLE_AAC
 #include <fdk-aac/aacdecoder_lib.h>
 #include <fdk-aac/aacenc_lib.h>

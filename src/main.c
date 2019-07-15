@@ -109,6 +109,10 @@ int main(int argc, char **argv) {
 		{ "ldac-abr", no_argument, NULL, 10 },
 		{ "ldac-eqmid", required_argument, NULL, 11 },
 #endif
+#if ENABLE_MP3LAME
+		{ "mp3-quality", required_argument, NULL, 12 },
+		{ "mp3-vbr-quality", required_argument, NULL, 13 },
+#endif
 		{ 0, 0, 0, 0 },
 	};
 
@@ -163,6 +167,10 @@ int main(int argc, char **argv) {
 #if ENABLE_LDAC
 					"  --ldac-abr\t\tenable adaptive bit rate\n"
 					"  --ldac-eqmid=NB\tset encoder quality to NB\n"
+#endif
+#if ENABLE_MP3LAME
+					"  --mp3-quality=NB\tset encoder quality to NB\n"
+					"  --mp3-vbr-quality=NB\tset VBR quality to NB\n"
 #endif
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
@@ -265,6 +273,23 @@ int main(int argc, char **argv) {
 			config.ldac_eqmid = atoi(optarg);
 			if (config.ldac_eqmid >= LDACBT_EQMID_NUM) {
 				error("Invalid encoder quality index [0, %d]: %s", LDACBT_EQMID_NUM - 1, optarg);
+				return EXIT_FAILURE;
+			}
+			break;
+#endif
+
+#if ENABLE_MP3LAME
+		case 12 /* --mp3-quality=NB */ :
+			config.lame_quality = atoi(optarg);
+			if (config.lame_quality > 9) {
+				error("Invalid encoder quality [0, 9]: %s", optarg);
+				return EXIT_FAILURE;
+			}
+			break;
+		case 13 /* --mp3-vbr-quality=NB */ :
+			config.lame_vbr_quality = atoi(optarg);
+			if (config.lame_vbr_quality > 9) {
+				error("Invalid VBR quality [0, 9]: %s", optarg);
 				return EXIT_FAILURE;
 			}
 			break;

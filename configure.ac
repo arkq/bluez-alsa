@@ -41,14 +41,14 @@ AM_COND_IF([ENABLE_DEBUG_TIME], [
 	AC_DEFINE([DEBUG_TIME], [1], [Define to 1 if the debug timing is enabled.])
 ])
 
-AC_CHECK_LIB([pthread], [pthread_create],
-	[], [AC_MSG_ERROR([pthread library not found])])
+AC_CHECK_FUNCS([splice],
+	[], [AC_MSG_ERROR([unable to find splice() function])])
 AC_SEARCH_LIBS([clock_gettime], [rt],
 	[], [AC_MSG_ERROR([unable to find clock_gettime() function])])
 AC_SEARCH_LIBS([pow], [m],
 	[], [AC_MSG_ERROR([unable to find pow() function])])
-AC_CHECK_FUNCS([splice],
-	[], [AC_MSG_ERROR([unable to find splice() function])])
+AC_SEARCH_LIBS([pthread_create], [pthread],
+	[], [AC_MSG_ERROR([pthread library not found])])
 
 PKG_CHECK_MODULES([ALSA], [alsa])
 PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])
@@ -83,6 +83,16 @@ AM_COND_IF([ENABLE_LDAC], [
 	PKG_CHECK_MODULES([LDAC], [ldacBT-enc >= 2.0.0])
 	PKG_CHECK_MODULES([LDAC_ABR], [ldacBT-abr >= 2.0.0])
 	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
+])
+
+AC_ARG_ENABLE([mp3lame],
+	[AS_HELP_STRING([--enable-mp3lame], [enable MP3 encoding support])])
+AM_CONDITIONAL([ENABLE_MP3LAME], [test "x$enable_mp3lame" = "xyes"])
+AM_COND_IF([ENABLE_MP3LAME], [
+	AC_CHECK_LIB([mp3lame], [lame_init],
+		[AC_SUBST([MP3LAME_LIBS], [-lmp3lame])], [AC_MSG_ERROR([mp3lame library not found])])
+	AC_DEFINE([ENABLE_MPEG], [1], [Define to 1 if MPEG is enabled.])
+	AC_DEFINE([ENABLE_MP3LAME], [1], [Define to 1 if MP3LAME is enabled.])
 ])
 
 AC_ARG_ENABLE([msbc],

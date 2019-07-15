@@ -48,6 +48,14 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
+static const a2dp_mpeg_t config_mp3_44100_stereo = {
+	.layer = MPEG_LAYER_MP3,
+	.channel_mode = MPEG_CHANNEL_MODE_STEREO,
+	.frequency = MPEG_SAMPLING_FREQ_44100,
+	.vbr = 1,
+	MPEG_INIT_BITRATE(0xFFFF)
+};
+
 static const a2dp_aac_t config_aac_44100_stereo = {
 	.object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LC,
 	AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
@@ -334,6 +342,43 @@ START_TEST(test_a2dp_aging_sbc) {
 
 } END_TEST
 
+#if ENABLE_MP3LAME
+START_TEST(test_a2dp_mp3) {
+
+	struct ba_transport_type ttype = { .codec = A2DP_CODEC_MPEG12 };
+	struct ba_transport *t = ba_transport_new_a2dp(device1, ttype, ":test", "/path/mp3",
+			&config_mp3_44100_stereo, sizeof(config_mp3_44100_stereo));
+
+	t->acquire = test_transport_acquire;
+	t->release = test_transport_release_bt_a2dp;
+
+	t->mtu_write = 250,
+	test_a2dp_encoding(t, io_thread_a2dp_source_mp3);
+
+	t->mtu_read = t->mtu_write;
+	test_a2dp_decoding(t, io_thread_a2dp_sink_mp3);
+
+} END_TEST
+#endif
+
+#if ENABLE_MP3LAME
+START_TEST(test_a2dp_aging_mp3) {
+
+	struct ba_transport_type ttype = { .codec = A2DP_CODEC_MPEG12 };
+	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/mp3",
+			&config_mp3_44100_stereo, sizeof(config_mp3_44100_stereo));
+	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/mp3",
+			&config_mp3_44100_stereo, sizeof(config_mp3_44100_stereo));
+
+	t1->acquire = t2->acquire = test_transport_acquire;
+	t1->release = t2->release = test_transport_release_bt_a2dp;
+
+	t1->mtu_write = t2->mtu_read = 250;
+	test_a2dp_aging(t1, t2, io_thread_a2dp_source_mp3, io_thread_a2dp_sink_mp3);
+
+} END_TEST
+#endif
+
 #if ENABLE_AAC
 START_TEST(test_a2dp_aac) {
 
@@ -449,15 +494,17 @@ int main(int argc, char *argv[]) {
 	} codecs[] = {
 #define TEST_CODEC_SBC  (1 << 0)
 		{ "SBC", TEST_CODEC_SBC },
-#define TEST_CODEC_AAC  (1 << 1)
+#define TEST_CODEC_MP3  (1 << 1)
+		{ "MP3", TEST_CODEC_MP3 },
+#define TEST_CODEC_AAC  (1 << 2)
 		{ "AAC", TEST_CODEC_AAC },
-#define TEST_CODEC_APTX (1 << 2)
+#define TEST_CODEC_APTX (1 << 3)
 		{ "APTX", TEST_CODEC_APTX },
-#define TEST_CODEC_LDAC (1 << 3)
+#define TEST_CODEC_LDAC (1 << 4)
 		{ "LDAC", TEST_CODEC_LDAC },
-#define TEST_CODEC_CVSD (1 << 4)
+#define TEST_CODEC_CVSD (1 << 5)
 		{ "CVSD", TEST_CODEC_CVSD },
-#define TEST_CODEC_MSBC (1 << 5)
+#define TEST_CODEC_MSBC (1 << 6)
 		{ "mSBC", TEST_CODEC_MSBC },
 	};
 
@@ -499,6 +546,10 @@ int main(int argc, char *argv[]) {
 
 	if (enabled_codecs & TEST_CODEC_SBC)
 		tcase_add_test(tc, test_a2dp_sbc);
+#if ENABLE_MP3LAME
+	if (enabled_codecs & TEST_CODEC_MP3)
+		tcase_add_test(tc, test_a2dp_mp3);
+#endif
 #if ENABLE_AAC
 	config.aac_afterburner = true;
 	if (enabled_codecs & TEST_CODEC_AAC)
@@ -527,6 +578,10 @@ int main(int argc, char *argv[]) {
 #if ENABLE_AAC
 		if (enabled_codecs & TEST_CODEC_AAC)
 			tcase_add_test(tc, test_a2dp_aging_aac);
+#endif
+#if ENABLE_MP3LAME
+		if (enabled_codecs & TEST_CODEC_MP3)
+			tcase_add_test(tc, test_a2dp_aging_mp3);
 #endif
 	}
 

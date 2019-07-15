@@ -94,6 +94,11 @@ struct ba_config {
 	uint8_t aac_vbr_mode;
 #endif
 
+#if ENABLE_MP3LAME
+	uint8_t lame_quality;
+	uint8_t lame_vbr_quality;
+#endif
+
 #if ENABLE_LDAC
 	bool ldac_abr;
 	uint8_t ldac_eqmid;

@@ -77,6 +77,12 @@ struct ba_config config = {
 	.aac_vbr_mode = 4,
 #endif
 
+#if ENABLE_MP3LAME
+	.lame_quality = 5,
+	/* Use high quality for VBR mode (~190 kbps) as a default. */
+	.lame_vbr_quality = 2,
+#endif
+
 #if ENABLE_LDAC
 	.ldac_abr = false,
 	/* Use standard encoder quality as a reasonable default. */

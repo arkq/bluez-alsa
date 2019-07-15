@@ -276,6 +276,13 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		unsigned int cap_chm = cap->channel_mode;
 		unsigned int cap_freq = cap->frequency;
 
+		if (cap->layer & MPEG_LAYER_MP3)
+			cap->layer = MPEG_LAYER_MP3;
+		else {
+			error("No supported layer: %#x", cap->layer);
+			goto fail;
+		}
+
 		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
 			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
@@ -285,6 +292,11 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
+
+		/* do not waste bits for CRC protection */
+		cap->crc = 0;
+		/* do not use MPF-2 */
+		cap->mpf = 0;
 
 		break;
 	}

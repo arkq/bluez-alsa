@@ -28,6 +28,7 @@
 
 #include "a2dp-codecs.h"
 #include "hfp.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 
@@ -592,11 +593,55 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 	return "N/A";
 }
 
+#if ENABLE_MP3LAME
+/**
+ * Get maximum possible bit-rate for the given bit-rate mask.
+ *
+ * @param mask MPEG-1 layer III bit-rate mask.
+ * @return Bit-rate in kilobits per second. */
+int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask) {
+
+	static int bitrates[] = { 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32 };
+	size_t i = 0;
+
+	while (i < ARRAYSIZE(bitrates)) {
+		if (mask & (1 << (14 - i)))
+			return bitrates[i];
+		i++;
+	}
+
+	return -1;
+}
+#endif
+
+#if ENABLE_MP3LAME
+/**
+ * Get string representation of LAME error code.
+ *
+ * @param error LAME encoder error code.
+ * @return Human-readable string. */
+const char *lame_encode_strerror(int err) {
+	switch (err) {
+	case -1:
+		return "Too small output buffer";
+	case -2:
+		return "Out of memory";
+	case -3:
+		return "Params not initialized";
+	case -4:
+		return "Psycho acoustic error";
+	default:
+		debug("Unknown error code: %#x", err);
+		return "Unknown error";
+	}
+}
+#endif
+
 #if ENABLE_AAC
 /**
  * Get string representation of the FDK-AAC decoder error code.
  *
- * @param error FDK-AAC decoder error code.
+ * @param err FDK-AAC decoder error code.
  * @return Human-readable string. */
 const char *aacdec_strerror(AAC_DECODER_ERROR err) {
 	switch (err) {
@@ -673,7 +718,7 @@ const char *aacdec_strerror(AAC_DECODER_ERROR err) {
 /**
  * Get string representation of the FDK-AAC encoder error code.
  *
- * @param error FDK-AAC encoder error code.
+ * @param err FDK-AAC encoder error code.
  * @return Human-readable string. */
 const char *aacenc_strerror(AACENC_ERROR err) {
 	switch (err) {
@@ -712,7 +757,7 @@ const char *aacenc_strerror(AACENC_ERROR err) {
 /**
  * Get string representation of the LDAC error code.
  *
- * @param error LDAC error code.
+ * @param err LDAC error code.
  * @return Human-readable string. */
 const char *ldacBT_strerror(int err) {
 	switch (LDACBT_API_ERR(err)) {
