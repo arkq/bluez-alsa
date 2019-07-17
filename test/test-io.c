@@ -74,7 +74,7 @@ static struct ba_device *device = NULL;
 /**
  * Helper function for timed thread join.
  *
- * This function takes the timeout value in milliseconds. */
+ * This function takes the timeout value in microseconds. */
 static int pthread_timedjoin(pthread_t thread, void **retval, useconds_t usec) {
 
 	struct timespec ts;
@@ -151,7 +151,7 @@ static void test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 	int pcm_fds[2];
 
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds), 0);
-	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_fds), 0);
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, pcm_fds), 0);
 
 	t->type.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	t->state = TRANSPORT_ACTIVE;
@@ -161,12 +161,24 @@ static void test_a2dp_decoding(struct ba_transport *t, void *(*cb)(void *)) {
 	pthread_t thread;
 	pthread_create(&thread, NULL, cb, ba_transport_ref(t));
 
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(test_bt_data); i++)
-		if (test_bt_data[i].len != 0)
-			ck_assert_int_gt(write(bt_fds[0], test_bt_data[i].data, test_bt_data[i].len), 0);
+	struct pollfd pfds[] = {{ pcm_fds[0], POLLIN, 0 }};
+	int16_t buffer[2048];
+	size_t i = 0;
 
-	sleep(1);
+	while (
+			i < ARRAYSIZE(test_bt_data) ||
+			poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
+
+		if (i < ARRAYSIZE(test_bt_data) && test_bt_data[i].len != 0)
+			ck_assert_int_gt(write(bt_fds[0], test_bt_data[i].data, test_bt_data[i].len), 0);
+		i++;
+
+		ssize_t len;
+		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) > 0)
+			debug("Decoded samples: %zd", len / sizeof(int16_t));
+
+	}
+
 	ck_assert_int_eq(pthread_cancel(thread), 0);
 	ck_assert_int_eq(pthread_timedjoin(thread, NULL, 1e6), 0);
 
@@ -257,7 +269,7 @@ START_TEST(test_a2dp_sbc) {
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release_bt_a2dp;
 
-	t->mtu_write = 153 * 3,
+	t->mtu_write = 153 * 3;
 	test_a2dp_encoding(t, io_thread_a2dp_source_sbc);
 
 	t->mtu_read = t->mtu_write;
@@ -357,6 +369,7 @@ int main(void) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
+	tcase_set_timeout(tc, 5);
 
 	tcase_add_test(tc, test_a2dp_sbc);
 #if ENABLE_AAC
