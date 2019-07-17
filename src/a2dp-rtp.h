@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-rtp.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -56,5 +56,13 @@ typedef struct rtp_media_header {
 	uint8_t frame_count:4;
 #endif
 } __attribute__ ((packed)) rtp_media_header_t;
+
+/**
+ * MPEG audio payload header.
+ * See: https://tools.ietf.org/html/rfc2250 */
+typedef struct rtp_mpeg_audio_header {
+	uint16_t rfa;
+	uint16_t offset;
+} __attribute__ ((packed)) rtp_mpeg_audio_header_t;
 
 #endif

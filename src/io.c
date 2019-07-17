@@ -176,14 +176,15 @@ retry:
  *
  * @param s The memory area where the RTP headers will be initialized.
  * @param hdr The address where the pointer to the RTP header will be stored.
- * @param mhdr The address where the pointer to the RTP media payload header
- *   will be stored. This parameter might be NULL in order to omit RTP media
- *   payload header.
+ * @param phdr The address where the pointer to the RTP payload header will
+ *   be stored. This parameter might be NULL.
+ * @param phdr_size The size of the RTP payload header.
  * @return This function returns the address of the RTP payload region. */
-static uint8_t *io_thread_init_rtp(void *s, rtp_header_t **hdr, rtp_media_header_t **mhdr) {
+static uint8_t *io_thread_init_rtp(void *s, rtp_header_t **hdr,
+		void **phdr, size_t phdr_size) {
 
 	rtp_header_t *header = *hdr = (rtp_header_t *)s;
-	memset(header, 0, RTP_HEADER_LEN);
+	memset(header, 0, RTP_HEADER_LEN + phdr_size);
 	header->paytype = 96;
 	header->version = 2;
 	header->seq_number = random();
@@ -191,13 +192,10 @@ static uint8_t *io_thread_init_rtp(void *s, rtp_header_t **hdr, rtp_media_header
 
 	uint8_t *data = (uint8_t *)&header->csrc[header->cc];
 
-	if (mhdr != NULL) {
-		memset(data, 0, sizeof(rtp_media_header_t));
-		*mhdr = (rtp_media_header_t *)data;
-		data += sizeof(rtp_media_header_t);
-	}
+	if (phdr != NULL)
+		*phdr = data;
 
-	return data;
+	return data + phdr_size;
 }
 
 static void *io_thread_a2dp_sink_sbc(void *arg) {
@@ -414,7 +412,8 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 	rtp_media_header_t *rtp_media_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = io_thread_init_rtp(bt.data, &rtp_header, &rtp_media_header);
+	uint8_t *rtp_payload = io_thread_init_rtp(bt.data, &rtp_header,
+			(void **)&rtp_media_header, sizeof(*rtp_media_header));
 	uint16_t seq_number = ntohs(rtp_header->seq_number);
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
 
@@ -897,7 +896,7 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 	rtp_header_t *rtp_header;
 
 	/* initialize RTP header and get anchor for payload */
-	uint8_t *rtp_payload = io_thread_init_rtp(bt.data, &rtp_header, NULL);
+	uint8_t *rtp_payload = io_thread_init_rtp(bt.data, &rtp_header, NULL, 0);
 	uint16_t seq_number = ntohs(rtp_header->seq_number);
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
 
@@ -1374,7 +1373,8 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 	rtp_media_header_t *rtp_media_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	bt.tail = io_thread_init_rtp(bt.data, &rtp_header, &rtp_media_header);
+	bt.tail = io_thread_init_rtp(bt.data, &rtp_header,
+			(void **)&rtp_media_header, sizeof(*rtp_media_header));
 	uint16_t seq_number = ntohs(rtp_header->seq_number);
 	uint32_t timestamp = ntohl(rtp_header->timestamp);
 	size_t ts_frames = 0;
