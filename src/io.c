@@ -204,7 +204,6 @@ static void *io_thread_a2dp_sink_sbc(void *arg) {
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-sbc");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	/* Lock transport during initialization stage. This lock will ensure,
@@ -367,7 +366,6 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-sbc");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	bool locked = !ba_transport_pthread_cleanup_lock(t);
@@ -596,7 +594,6 @@ static void *io_thread_a2dp_sink_aac(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-aac");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	bool locked = !ba_transport_pthread_cleanup_lock(t);
@@ -796,7 +793,6 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-aac");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	bool locked = !ba_transport_pthread_cleanup_lock(t);
@@ -1105,7 +1101,6 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-aptx");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	bool locked = !ba_transport_pthread_cleanup_lock(t);
@@ -1315,7 +1310,6 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 	const a2dp_ldac_t *cconfig = (a2dp_ldac_t *)t->a2dp.cconfig;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-ldac");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	bool locked = !ba_transport_pthread_cleanup_lock(t);
@@ -1551,7 +1545,6 @@ static void *io_thread_sco(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-sco");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	/* buffers for transferring data to and from SCO socket */
@@ -1930,7 +1923,6 @@ static void *io_thread_a2dp_sink_dump(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_setname_np(pthread_self(), "ba-io-debug");
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	ffb_uint8_t bt = { 0 };
@@ -2004,16 +1996,22 @@ fail_open:
 int io_thread_create(struct ba_transport *t) {
 
 	void *(*routine)(void *) = NULL;
+	const char *name = "ba-io";
 	int ret;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
+	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
 		routine = rfcomm_thread;
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		name = "ba-rfcomm";
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		routine = io_thread_sco;
+		name = "ba-io-sco";
+	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
 			routine = io_thread_a2dp_source_sbc;
+			name = "ba-io-sbc";
 			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
@@ -2022,16 +2020,19 @@ int io_thread_create(struct ba_transport *t) {
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			routine = io_thread_a2dp_source_aac;
+			name = "ba-io-aac";
 			break;
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
 			routine = io_thread_a2dp_source_aptx;
+			name = "ba-io-aptx";
 			break;
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
 			routine = io_thread_a2dp_source_ldac;
+			name = "ba-io-ldac";
 			break;
 #endif
 		default:
@@ -2041,6 +2042,7 @@ int io_thread_create(struct ba_transport *t) {
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
 			routine = io_thread_a2dp_sink_sbc;
+			name = "ba-io-sbc";
 			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
@@ -2049,6 +2051,7 @@ int io_thread_create(struct ba_transport *t) {
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			routine = io_thread_a2dp_sink_aac;
+			name = "ba-io-aac";
 			break;
 #endif
 		default:
@@ -2066,5 +2069,7 @@ int io_thread_create(struct ba_transport *t) {
 	}
 
 	debug("Created new IO thread: %s", ba_transport_type_to_string(t->type));
+	pthread_setname_np(t->thread, name);
+
 	return 0;
 }
