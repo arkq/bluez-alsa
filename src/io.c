@@ -110,16 +110,24 @@ static ssize_t io_thread_read_pcm_flush(struct ba_pcm *pcm) {
 }
 
 /**
- * Write PCM signal to the transport PCM FIFO. */
+ * Write PCM signal to the transport PCM FIFO.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
 static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, size_t samples) {
 
 	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
 	const uint8_t *head = (uint8_t *)buffer;
 	size_t len = samples * sizeof(int16_t);
+	int oldstate;
 	ssize_t ret;
 
+	/* In order to provide a way of escaping from the infinite poll() we have
+	 * to temporally re-enable thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+
 	do {
-		if ((ret = write(pcm->fd, head, len)) == -1) {
+		if ((ret = write(pcm->fd, head, len)) == -1)
 			switch (errno) {
 			case EINTR:
 				continue;
@@ -131,25 +139,41 @@ static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, si
 				 * signal is caught, blocked or ignored. */
 				debug("PCM has been closed: %d", pcm->fd);
 				ba_transport_release_pcm(pcm);
-				return 0;
+				ret = 0;
+				/* fall-through */
+			default:
+				goto final;
 			}
-			return ret;
-		}
 		head += ret;
 		len -= ret;
 	} while (len != 0);
 
 	/* It is guaranteed, that this function will write data atomically. */
-	return samples;
+	ret = samples;
+
+final:
+	pthread_setcancelstate(oldstate, NULL);
+	return ret;
 }
 
 /**
- * Write data to the BT SEQPACKET socket. */
+ * Write data to the BT SEQPACKET socket.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
 static ssize_t io_thread_write_bt(const struct ba_transport *t,
 		const uint8_t *buffer, size_t len, int *coutq) {
 
 	struct pollfd pfd = { t->bt_fd, POLLOUT, 0 };
+	int oldstate;
 	ssize_t ret;
+
+	/* BT socket is opened in the non-blocking mode. However, this function
+	 * forcefully operates in a blocking mode - it uses poll() when writing
+	 * to the BT socket would block. Hence, it is required to provide a way
+	 * of escaping from the poll() when the IO thread termination request
+	 * has been made by re-enabling thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
 
 	if (ioctl(pfd.fd, TIOCOUTQ, coutq) == -1)
 		warn("Couldn't get BT queued bytes: %s", strerror(errno));
@@ -168,6 +192,7 @@ retry:
 			goto retry;
 		}
 
+	pthread_setcancelstate(oldstate, NULL);
 	return ret;
 }
 
@@ -546,8 +571,6 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 		rtp_header->timestamp = htonl(timestamp);
 		rtp_media_header->frame_count = sbc_frames;
 
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 		coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
 		if (io_thread_write_bt(t, bt.data, ffb_len_out(&bt), &coutq_history[coutq_i]) == -1) {
 			if (errno == ECONNRESET || errno == ENOTCONN) {
@@ -557,8 +580,6 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 			}
 			error("BT socket write error: %s", strerror(errno));
 		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		/* keep data transfer at a constant bit rate, also
 		 * get a timestamp for the next RTP frame */
@@ -1033,8 +1054,6 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 					rtp_header->markbit = payload_len <= payload_len_max;
 					rtp_header->seq_number = htons(++seq_number);
 
-					pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 					coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
 					if ((ret = io_thread_write_bt(t, bt.data, RTP_HEADER_LEN + len, &coutq_history[coutq_i])) == -1) {
 						if (errno == ECONNRESET || errno == ENOTCONN) {
@@ -1045,8 +1064,6 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 						error("BT socket write error: %s", strerror(errno));
 						break;
 					}
-
-					pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 					/* account written payload only */
 					ret -= RTP_HEADER_LEN;
@@ -1257,8 +1274,6 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 
 			}
 
-			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 			coutq_i = (coutq_i + 1) % ARRAYSIZE(coutq_history);
 			if (io_thread_write_bt(t, bt.data, ffb_len_out(&bt), &coutq_history[coutq_i]) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
@@ -1268,8 +1283,6 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 				}
 				error("BT socket write error: %s", strerror(errno));
 			}
-
-			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&asrs, pcm_frames);
@@ -1483,8 +1496,6 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 			input += frames;
 			input_len -= frames;
 
-			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 			if (encoded &&
 					io_thread_write_bt(t, bt.data, ffb_len_out(&bt) + encoded, &coutq) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
@@ -1497,8 +1508,6 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 
 			if (config.ldac_abr)
 				ldac_ABR_Proc(handle, handle_abr, coutq / t->mtu_write, 1);
-
-			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&asrs, frames / channels);
