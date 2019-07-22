@@ -422,7 +422,7 @@ int main(int argc, char *argv[]) {
 		case 'h' /* --help */ :
 			printf("usage: %s [--pcm=NAME]\n", argv[0]);
 			return 0;
-		case 'd' /* --pcm */ :
+		case 'd' /* --pcm=NAME */ :
 			test_playback_termination_reference(optarg);
 			return 0;
 		default:
