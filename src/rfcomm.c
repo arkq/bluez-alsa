@@ -756,12 +756,7 @@ void *rfcomm_thread(void *arg) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-
-			enum ba_transport_signal sig = -1;
-			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
-
-			switch (sig) {
+			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_SET_VOLUME:
 				if (conn.mic_gain != t->rfcomm.sco->sco.mic_gain) {
 					int gain = conn.mic_gain = t->rfcomm.sco->sco.mic_gain;
@@ -781,7 +776,6 @@ void *rfcomm_thread(void *arg) {
 			default:
 				break;
 			}
-
 		}
 
 		if (pfds[1].revents & POLLIN) {

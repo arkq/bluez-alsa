@@ -314,9 +314,7 @@ static void *io_thread_a2dp_sink_sbc(void *arg) {
 
 		if (io.fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			enum ba_transport_signal sig = -1;
-			if (read(io.fds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
+			ba_transport_recv_signal(t);
 			continue;
 		}
 
@@ -490,10 +488,7 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 
 		if (io.fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			enum ba_transport_signal sig = -1;
-			if (read(io.fds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
-			switch (sig) {
+			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
 				io.poll_timeout = -1;
@@ -708,9 +703,7 @@ static void *io_thread_a2dp_sink_aac(void *arg) {
 
 		if (io.fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			enum ba_transport_signal sig = -1;
-			if (read(io.fds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
+			ba_transport_recv_signal(t);
 			continue;
 		}
 
@@ -984,10 +977,7 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 
 		if (io.fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			enum ba_transport_signal sig = -1;
-			if (read(io.fds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
-			switch (sig) {
+			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
 				io.poll_timeout = -1;
@@ -1185,10 +1175,7 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 
 		if (io.fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			enum ba_transport_signal sig = -1;
-			if (read(io.fds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
-			switch (sig) {
+			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
 				io.poll_timeout = -1;
@@ -1417,10 +1404,7 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 
 		if (io.fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			enum ba_transport_signal sig = -1;
-			if (read(io.fds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
-			switch (sig) {
+			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:
 				io.poll_timeout = -1;
@@ -1634,11 +1618,7 @@ static void *io_thread_sco(void *arg) {
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 
-			enum ba_transport_signal sig = -1;
-			if (read(pfds[0].fd, &sig, sizeof(sig)) != sizeof(sig))
-				warn("Couldn't read signal: %s", strerror(errno));
-
-			switch (sig) {
+			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_PING:
 			case TRANSPORT_PCM_OPEN:
 			case TRANSPORT_PCM_RESUME:

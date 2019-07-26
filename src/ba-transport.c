@@ -316,6 +316,23 @@ int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal si
 	return write(t->sig_fd[1], &sig, sizeof(sig));
 }
 
+enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t) {
+
+	enum ba_transport_signal sig;
+	ssize_t ret;
+
+	while ((ret = read(t->sig_fd[0], &sig, sizeof(sig))) == -1 &&
+			errno == EINTR)
+		continue;
+
+	if (ret != sizeof(sig)) {
+		warn("Couldn't read transport signal: %s", strerror(errno));
+		return TRANSPORT_PING;
+	}
+
+	return sig;
+}
+
 unsigned int ba_transport_get_channels(const struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)

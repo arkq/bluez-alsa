@@ -239,6 +239,7 @@ void ba_transport_destroy(struct ba_transport *t);
 void ba_transport_unref(struct ba_transport *t);
 
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
+enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t);
 
 unsigned int ba_transport_get_channels(const struct ba_transport *t);
 unsigned int ba_transport_get_sampling(const struct ba_transport *t);
