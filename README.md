@@ -36,16 +36,16 @@ then
 Dependencies:
 
 - [alsa-lib](http://www.alsa-project.org/)
-- [bluez](http://www.bluez.org/) >= 5.0 (apt-get install bluez libbluetooth-dev)
+- [bluez](http://www.bluez.org/) >= 5.0 (`apt-get install bluez libbluetooth-dev`)
 - [glib](https://wiki.gnome.org/Projects/GLib) with GIO support 
-- [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git) (apt-get install sbc-dev)
-- [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`) (apt-get install libfdk-aac-dev)
+- [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git) (`apt-get install sbc-dev`)
+- [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`) (`apt-get install libfdk-aac-dev`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with `--enable-aptx`)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
 
 Dependencies for client applications (e.g. `bluealsa-aplay`):
 
-- [libdbus](https://www.freedesktop.org/wiki/Software/dbus/) (apt-get install libdbus-glib-1-dev)
+- [libdbus](https://www.freedesktop.org/wiki/Software/dbus/) (`apt-get install libdbus-glib-1-dev`)
 
 Dependencies for `bluealsa-rfcomm` (when `--enable-rfcomm` is specified during configuration):
 
