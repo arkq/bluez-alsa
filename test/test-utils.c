@@ -83,28 +83,11 @@ START_TEST(test_dbus_profile_object_path) {
 		{ { BA_TRANSPORT_PROFILE_HFP_AG, HFP_CODEC_UNDEFINED }, "/HFP/AudioGateway" },
 	};
 
-	struct ba_transport_type ttype;
 	size_t i;
-
 	for (i = 0; i < ARRAYSIZE(profiles); i++) {
 		const char *path = g_dbus_transport_type_to_bluez_object_path(profiles[i].ttype);
-		ttype = g_dbus_bluez_object_path_to_transport_type(profiles[i].path);
 		ck_assert_str_eq(strstr(profiles[i].path, path), profiles[i].path);
-		ck_assert_int_eq(ttype.profile, profiles[i].ttype.profile);
-		ck_assert_int_eq(ttype.codec, profiles[i].ttype.codec);
 	}
-
-	ttype = g_dbus_bluez_object_path_to_transport_type("/org/bluez/hci0/A2DP/SBC/Source");
-	ck_assert_int_eq(ttype.profile, BA_TRANSPORT_PROFILE_A2DP_SOURCE);
-	ck_assert_int_eq(ttype.codec, A2DP_CODEC_SBC);
-
-	ttype = g_dbus_bluez_object_path_to_transport_type("/org/bluez/HSP/AudioGateway");
-	ck_assert_int_eq(ttype.profile, BA_TRANSPORT_PROFILE_HSP_AG);
-	ck_assert_int_eq(ttype.codec, HFP_CODEC_CVSD);
-
-	ttype = g_dbus_bluez_object_path_to_transport_type("/org/bluez/HFP/AudioGateway");
-	ck_assert_int_eq(ttype.profile, BA_TRANSPORT_PROFILE_HFP_AG);
-	ck_assert_int_eq(ttype.codec, HFP_CODEC_UNDEFINED);
 
 } END_TEST
 

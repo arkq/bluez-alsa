@@ -33,7 +33,6 @@ const char *batostr_(const bdaddr_t *ba);
 
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);
-struct ba_transport_type g_dbus_bluez_object_path_to_transport_type(const char *path);
 const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type);
 
 GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
