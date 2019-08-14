@@ -54,6 +54,7 @@ struct ofono_card_data {
 };
 
 static GHashTable *ofono_card_data_map = NULL;
+static const char *dbus_agent_object_path = "/org/bluez/HFP/oFono";
 static unsigned int dbus_agent_object_id = 0;
 
 /**
@@ -417,12 +418,7 @@ final:
  * Callback for the Release method, called when oFono is properly shutdown. */
 static void ofono_agent_release(GDBusMethodInvocation *inv, void *userdata) {
 	(void)userdata;
-
-	GDBusConnection *conn = g_dbus_method_invocation_get_connection(inv);
-
-	g_dbus_connection_unregister_object(conn, dbus_agent_object_id);
 	ofono_remove_all_cards();
-
 	g_object_unref(inv);
 }
 
@@ -452,7 +448,6 @@ int ofono_register(void) {
 		.method_call = ofono_hf_audio_agent_method_call,
 	};
 
-	const char *path = "/org/bluez/HFP/oFono";
 	GDBusConnection *conn = config.dbus;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
@@ -461,14 +456,16 @@ int ofono_register(void) {
 	if (!config.enable.hfp_ofono)
 		goto final;
 
+	debug("Registering oFono audio agent: %s", dbus_agent_object_path);
+
 	if (ofono_card_data_map == NULL)
 		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
-	debug("Registering oFono audio agent: %s", path);
-	if ((dbus_agent_object_id = g_dbus_connection_register_object(conn, path,
-					(GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent, &vtable,
-					NULL, NULL, &err)) == 0)
-		goto fail;
+	if (dbus_agent_object_id == 0)
+		if ((dbus_agent_object_id = g_dbus_connection_register_object(conn,
+						dbus_agent_object_path, (GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent,
+						&vtable, NULL, NULL, &err)) == 0)
+			goto fail;
 
 	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
 			OFONO_IFACE_HF_AUDIO_MANAGER, "Register");
@@ -481,7 +478,7 @@ int ofono_register(void) {
 	g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_MSBC);
 #endif
 
-	g_dbus_message_set_body(msg, g_variant_new("(oay)", path, &options));
+	g_dbus_message_set_body(msg, g_variant_new("(oay)", dbus_agent_object_path, &options));
 	g_variant_builder_clear(&options);
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -507,7 +504,6 @@ final:
 		g_object_unref(rep);
 	if (err != NULL) {
 		warn("Couldn't register oFono: %s", err->message);
-		g_dbus_connection_unregister_object(conn, dbus_agent_object_id);
 		g_error_free(err);
 	}
 
@@ -596,10 +592,8 @@ static void ofono_signal_name_owner_changed(GDBusConnection *conn, const char *s
 
 	g_variant_get(params, "(&s&s&s)", &name, &owner_old, &owner_new);
 
-	if (owner_old != NULL && owner_old[0] != '\0') {
-		g_dbus_connection_unregister_object(conn, dbus_agent_object_id);
+	if (owner_old != NULL && owner_old[0] != '\0')
 		ofono_remove_all_cards();
-	}
 	if (owner_new != NULL && owner_new[0] != '\0')
 		ofono_register();
 
