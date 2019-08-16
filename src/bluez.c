@@ -1292,7 +1292,6 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 		const char *path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
 	debug("Signal: %s.%s()", interface_, signal);
-	(void)conn;
 	(void)sender;
 	(void)path;
 	(void)userdata;
@@ -1306,8 +1305,17 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
 
 			int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
-			struct ba_adapter *a;
 
+			GHashTableIter iter;
+			struct dbus_object_data *dbus_obj;
+			g_hash_table_iter_init(&iter, dbus_object_data_map);
+			while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj))
+				if (dbus_obj->hci_dev_id == hci_dev_id) {
+					g_dbus_connection_unregister_object(conn, dbus_obj->id);
+					g_hash_table_iter_remove(&iter);
+				}
+
+			struct ba_adapter *a;
 			if ((a = ba_adapter_lookup(hci_dev_id)) != NULL)
 				ba_adapter_destroy(a);
 
