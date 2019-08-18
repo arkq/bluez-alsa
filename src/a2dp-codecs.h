@@ -2,9 +2,10 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (c) 2016-2019  Arkadiusz Bokowy
  *  Copyright (C) 2006-2010  Nokia Corporation
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2018       Pali Rohár <pali.rohar@gmail.com>
+ *  Copyright (C) 2016-2019  Arkadiusz Bokowy
  *
  *
  *  This library is free software; you can redistribute it and/or
@@ -26,77 +27,142 @@
 #ifndef BLUEALSA_A2DPCODECS_H_
 #define BLUEALSA_A2DPCODECS_H_
 
+#include <endian.h>
 #include <stdint.h>
 
 #define A2DP_CODEC_SBC      0x00
 #define A2DP_CODEC_MPEG12   0x01
 #define A2DP_CODEC_MPEG24   0x02
-#define A2DP_CODEC_ATRAC    0x03
+#define A2DP_CODEC_ATRAC    0x04
 #define A2DP_CODEC_VENDOR   0xFF
 
 /* customized 16-bit vendor extension */
 #define A2DP_CODEC_VENDOR_APTX          0x4FFF
+#define A2DP_CODEC_VENDOR_APTX_LL       0xA2FF
 #define A2DP_CODEC_VENDOR_APTX_HD       0xD7FF
+#define A2DP_CODEC_VENDOR_FASTSTREAM    0xA1FF
 #define A2DP_CODEC_VENDOR_LDAC          0x2DFF
 
 #define SBC_SAMPLING_FREQ_16000         (1 << 3)
 #define SBC_SAMPLING_FREQ_32000         (1 << 2)
 #define SBC_SAMPLING_FREQ_44100         (1 << 1)
-#define SBC_SAMPLING_FREQ_48000         (1 << 0)
+#define SBC_SAMPLING_FREQ_48000         1
 
 #define SBC_CHANNEL_MODE_MONO           (1 << 3)
 #define SBC_CHANNEL_MODE_DUAL_CHANNEL   (1 << 2)
 #define SBC_CHANNEL_MODE_STEREO         (1 << 1)
-#define SBC_CHANNEL_MODE_JOINT_STEREO   (1 << 0)
+#define SBC_CHANNEL_MODE_JOINT_STEREO   1
 
 #define SBC_BLOCK_LENGTH_4              (1 << 3)
 #define SBC_BLOCK_LENGTH_8              (1 << 2)
 #define SBC_BLOCK_LENGTH_12             (1 << 1)
-#define SBC_BLOCK_LENGTH_16             (1 << 0)
+#define SBC_BLOCK_LENGTH_16             1
 
 #define SBC_SUBBANDS_4                  (1 << 1)
-#define SBC_SUBBANDS_8                  (1 << 0)
+#define SBC_SUBBANDS_8                  1
 
 #define SBC_ALLOCATION_SNR              (1 << 1)
-#define SBC_ALLOCATION_LOUDNESS         (1 << 0)
+#define SBC_ALLOCATION_LOUDNESS         1
 
-#define SBC_MAX_BITPOOL                 64
 #define SBC_MIN_BITPOOL                 2
+#define SBC_MAX_BITPOOL                 250
+
+/* Other settings:
+ * Block length = 16
+ * Allocation method = Loudness
+ * Subbands = 8
+ */
+#define SBC_BITPOOL_MQ_MONO_44100          19
+#define SBC_BITPOOL_MQ_MONO_48000          18
+#define SBC_BITPOOL_MQ_JOINT_STEREO_44100  35
+#define SBC_BITPOOL_MQ_JOINT_STEREO_48000  33
+#define SBC_BITPOOL_HQ_MONO_44100          31
+#define SBC_BITPOOL_HQ_MONO_48000          29
+#define SBC_BITPOOL_HQ_JOINT_STEREO_44100  53
+#define SBC_BITPOOL_HQ_JOINT_STEREO_48000  51
 
 #define MPEG_CHANNEL_MODE_MONO          (1 << 3)
 #define MPEG_CHANNEL_MODE_DUAL_CHANNEL  (1 << 2)
 #define MPEG_CHANNEL_MODE_STEREO        (1 << 1)
-#define MPEG_CHANNEL_MODE_JOINT_STEREO  (1 << 0)
+#define MPEG_CHANNEL_MODE_JOINT_STEREO  1
 
 #define MPEG_LAYER_MP1                  (1 << 2)
 #define MPEG_LAYER_MP2                  (1 << 1)
-#define MPEG_LAYER_MP3                  (1 << 0)
+#define MPEG_LAYER_MP3                  1
 
 #define MPEG_SAMPLING_FREQ_16000        (1 << 5)
 #define MPEG_SAMPLING_FREQ_22050        (1 << 4)
 #define MPEG_SAMPLING_FREQ_24000        (1 << 3)
 #define MPEG_SAMPLING_FREQ_32000        (1 << 2)
 #define MPEG_SAMPLING_FREQ_44100        (1 << 1)
-#define MPEG_SAMPLING_FREQ_48000        (1 << 0)
+#define MPEG_SAMPLING_FREQ_48000        1
 
-#define MPEG_BIT_RATE_320000            0x4000
-#define MPEG_BIT_RATE_256000            0x2000
-#define MPEG_BIT_RATE_224000            0x1000
-#define MPEG_BIT_RATE_192000            0x0800
-#define MPEG_BIT_RATE_160000            0x0400
-#define MPEG_BIT_RATE_128000            0x0200
-#define MPEG_BIT_RATE_112000            0x0100
-#define MPEG_BIT_RATE_96000             0x0080
-#define MPEG_BIT_RATE_80000             0x0040
-#define MPEG_BIT_RATE_64000             0x0020
-#define MPEG_BIT_RATE_56000             0x0010
-#define MPEG_BIT_RATE_48000             0x0008
-#define MPEG_BIT_RATE_40000             0x0004
-#define MPEG_BIT_RATE_32000             0x0002
-#define MPEG_BIT_RATE_FREE              0x0001
+#define MPEG_BIT_RATE_INDEX_0           (1 << 0)
+#define MPEG_BIT_RATE_INDEX_1           (1 << 1)
+#define MPEG_BIT_RATE_INDEX_2           (1 << 2)
+#define MPEG_BIT_RATE_INDEX_3           (1 << 3)
+#define MPEG_BIT_RATE_INDEX_4           (1 << 4)
+#define MPEG_BIT_RATE_INDEX_5           (1 << 5)
+#define MPEG_BIT_RATE_INDEX_6           (1 << 6)
+#define MPEG_BIT_RATE_INDEX_7           (1 << 7)
+#define MPEG_BIT_RATE_INDEX_8           (1 << 8)
+#define MPEG_BIT_RATE_INDEX_9           (1 << 9)
+#define MPEG_BIT_RATE_INDEX_10          (1 << 10)
+#define MPEG_BIT_RATE_INDEX_11          (1 << 11)
+#define MPEG_BIT_RATE_INDEX_12          (1 << 12)
+#define MPEG_BIT_RATE_INDEX_13          (1 << 13)
+#define MPEG_BIT_RATE_INDEX_14          (1 << 14)
 
-#define MPEG_GET_BITRATE(a) ((a).bitrate1 << 8 | (a).bitrate2)
-#define MPEG_SET_BITRATE(a, b) do { \
+#define MPEG_MP1_BIT_RATE_32000         MPEG_BIT_RATE_INDEX_1
+#define MPEG_MP1_BIT_RATE_64000         MPEG_BIT_RATE_INDEX_2
+#define MPEG_MP1_BIT_RATE_96000         MPEG_BIT_RATE_INDEX_3
+#define MPEG_MP1_BIT_RATE_128000        MPEG_BIT_RATE_INDEX_4
+#define MPEG_MP1_BIT_RATE_160000        MPEG_BIT_RATE_INDEX_5
+#define MPEG_MP1_BIT_RATE_192000        MPEG_BIT_RATE_INDEX_6
+#define MPEG_MP1_BIT_RATE_224000        MPEG_BIT_RATE_INDEX_7
+#define MPEG_MP1_BIT_RATE_256000        MPEG_BIT_RATE_INDEX_8
+#define MPEG_MP1_BIT_RATE_288000        MPEG_BIT_RATE_INDEX_9
+#define MPEG_MP1_BIT_RATE_320000        MPEG_BIT_RATE_INDEX_10
+#define MPEG_MP1_BIT_RATE_352000        MPEG_BIT_RATE_INDEX_11
+#define MPEG_MP1_BIT_RATE_384000        MPEG_BIT_RATE_INDEX_12
+#define MPEG_MP1_BIT_RATE_416000        MPEG_BIT_RATE_INDEX_13
+#define MPEG_MP1_BIT_RATE_448000        MPEG_BIT_RATE_INDEX_14
+
+#define MPEG_MP2_BIT_RATE_32000         MPEG_BIT_RATE_INDEX_1
+#define MPEG_MP2_BIT_RATE_48000         MPEG_BIT_RATE_INDEX_2
+#define MPEG_MP2_BIT_RATE_56000         MPEG_BIT_RATE_INDEX_3
+#define MPEG_MP2_BIT_RATE_64000         MPEG_BIT_RATE_INDEX_4
+#define MPEG_MP2_BIT_RATE_80000         MPEG_BIT_RATE_INDEX_5
+#define MPEG_MP2_BIT_RATE_96000         MPEG_BIT_RATE_INDEX_6
+#define MPEG_MP2_BIT_RATE_112000        MPEG_BIT_RATE_INDEX_7
+#define MPEG_MP2_BIT_RATE_128000        MPEG_BIT_RATE_INDEX_8
+#define MPEG_MP2_BIT_RATE_160000        MPEG_BIT_RATE_INDEX_9
+#define MPEG_MP2_BIT_RATE_192000        MPEG_BIT_RATE_INDEX_10
+#define MPEG_MP2_BIT_RATE_224000        MPEG_BIT_RATE_INDEX_11
+#define MPEG_MP2_BIT_RATE_256000        MPEG_BIT_RATE_INDEX_12
+#define MPEG_MP2_BIT_RATE_320000        MPEG_BIT_RATE_INDEX_13
+#define MPEG_MP2_BIT_RATE_384000        MPEG_BIT_RATE_INDEX_14
+
+#define MPEG_MP3_BIT_RATE_32000         MPEG_BIT_RATE_INDEX_1
+#define MPEG_MP3_BIT_RATE_40000         MPEG_BIT_RATE_INDEX_2
+#define MPEG_MP3_BIT_RATE_48000         MPEG_BIT_RATE_INDEX_3
+#define MPEG_MP3_BIT_RATE_56000         MPEG_BIT_RATE_INDEX_4
+#define MPEG_MP3_BIT_RATE_64000         MPEG_BIT_RATE_INDEX_5
+#define MPEG_MP3_BIT_RATE_80000         MPEG_BIT_RATE_INDEX_6
+#define MPEG_MP3_BIT_RATE_96000         MPEG_BIT_RATE_INDEX_7
+#define MPEG_MP3_BIT_RATE_112000        MPEG_BIT_RATE_INDEX_8
+#define MPEG_MP3_BIT_RATE_128000        MPEG_BIT_RATE_INDEX_9
+#define MPEG_MP3_BIT_RATE_160000        MPEG_BIT_RATE_INDEX_10
+#define MPEG_MP3_BIT_RATE_192000        MPEG_BIT_RATE_INDEX_11
+#define MPEG_MP3_BIT_RATE_224000        MPEG_BIT_RATE_INDEX_12
+#define MPEG_MP3_BIT_RATE_256000        MPEG_BIT_RATE_INDEX_13
+#define MPEG_MP3_BIT_RATE_320000        MPEG_BIT_RATE_INDEX_14
+
+#define MPEG_BIT_RATE_FREE              MPEG_BIT_RATE_INDEX_0
+
+#define MPEG_GET_BITRATE(a) ((uint16_t)(a).bitrate1 << 8 | (a).bitrate2)
+#define MPEG_SET_BITRATE(a, b) \
+	do { \
 		(a).bitrate1 = ((b) >> 8) & 0x7f; \
 		(a).bitrate2 = (b) & 0xff; \
 	} while (0)
@@ -152,31 +218,53 @@
 #define APTX_VENDOR_ID                  0x0000004f
 #define APTX_CODEC_ID                   0x0001
 
-#define APTX_CHANNEL_MODE_STEREO        0x02
 #define APTX_CHANNEL_MODE_MONO          0x01
+#define APTX_CHANNEL_MODE_STEREO        0x02
 
 #define APTX_SAMPLING_FREQ_16000        0x08
 #define APTX_SAMPLING_FREQ_32000        0x04
 #define APTX_SAMPLING_FREQ_44100        0x02
 #define APTX_SAMPLING_FREQ_48000        0x01
 
-#define APTX_HD_VENDOR_ID               0x000000d7
+#define FASTSTREAM_VENDOR_ID            0x0000000a
+#define FASTSTREAM_CODEC_ID             0x0001
+
+#define FASTSTREAM_DIRECTION_SINK               0x1
+#define FASTSTREAM_DIRECTION_SOURCE             0x2
+
+#define FASTSTREAM_SINK_SAMPLING_FREQ_44100     0x2
+#define FASTSTREAM_SINK_SAMPLING_FREQ_48000     0x1
+
+#define FASTSTREAM_SOURCE_SAMPLING_FREQ_16000   0x2
+
+#define APTX_LL_VENDOR_ID               0x0000000a
+#define APTX_LL_CODEC_ID                0x0002
+
+/* Default parameters for aptX Low Latency encoder */
+
+/* Target codec buffer level = 180 */
+#define APTX_LL_TARGET_LEVEL2           0xb4
+#define APTX_LL_TARGET_LEVEL1           0x00
+
+/* Initial codec buffer level = 360 */
+#define APTX_LL_INITIAL_LEVEL2          0x68
+#define APTX_LL_INITIAL_LEVEL1          0x01
+
+/* SRA max rate 0.005 * 10000 = 50 */
+#define APTX_LL_SRA_MAX_RATE            0x32
+
+/* SRA averaging time = 1s */
+#define APTX_LL_SRA_AVG_TIME            0x01
+
+/* Good working codec buffer level = 180 */
+#define APTX_LL_GOOD_WORKING_LEVEL2     0xB4
+#define APTX_LL_GOOD_WORKING_LEVEL1     0x00
+
+#define APTX_HD_VENDOR_ID               0x000000D7
 #define APTX_HD_CODEC_ID                0x0024
-
-#define APTX_HD_CHANNEL_MODE_STEREO     0x02
-#define APTX_HD_CHANNEL_MODE_MONO       0x01
-
-#define APTX_HD_SAMPLING_FREQ_16000     0x08
-#define APTX_HD_SAMPLING_FREQ_32000     0x04
-#define APTX_HD_SAMPLING_FREQ_44100     0x02
-#define APTX_HD_SAMPLING_FREQ_48000     0x01
 
 #define LDAC_VENDOR_ID                  0x0000012d
 #define LDAC_CODEC_ID                   0x00aa
-
-#define LDAC_CHANNEL_MODE_MONO          0x04
-#define LDAC_CHANNEL_MODE_DUAL_CHANNEL  0x02
-#define LDAC_CHANNEL_MODE_STEREO        0x01
 
 #define LDAC_SAMPLING_FREQ_44100        0x20
 #define LDAC_SAMPLING_FREQ_48000        0x10
@@ -185,12 +273,49 @@
 #define LDAC_SAMPLING_FREQ_176400       0x02
 #define LDAC_SAMPLING_FREQ_192000       0x01
 
+#define LDAC_CHANNEL_MODE_MONO          0x04
+#define LDAC_CHANNEL_MODE_DUAL          0x02
+#define LDAC_CHANNEL_MODE_STEREO        0x01
+
 typedef struct {
-	uint32_t vendor_id;
-	uint16_t codec_id;
+	uint8_t vendor_id4;
+	uint8_t vendor_id3;
+	uint8_t vendor_id2;
+	uint8_t vendor_id1;
+	uint8_t codec_id2;
+	uint8_t codec_id1;
 } __attribute__ ((packed)) a2dp_vendor_codec_t;
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define A2DP_GET_VENDOR_ID(a) ( \
+		(((uint32_t)(a).vendor_id4) <<  0) | \
+		(((uint32_t)(a).vendor_id3) <<  8) | \
+		(((uint32_t)(a).vendor_id2) << 16) | \
+		(((uint32_t)(a).vendor_id1) << 24) \
+	)
+#define A2DP_GET_CODEC_ID(a) ((a).codec_id2 | (((uint16_t)(a).codec_id1) << 8))
+#define A2DP_SET_VENDOR_ID_CODEC_ID(v, c) { \
+		.vendor_id4 = (((v) >>  0) & 0xff), \
+		.vendor_id3 = (((v) >>  8) & 0xff), \
+		.vendor_id2 = (((v) >> 16) & 0xff), \
+		.vendor_id1 = (((v) >> 24) & 0xff), \
+		.codec_id2 = (((c) >> 0) & 0xff), \
+		.codec_id1 = (((c) >> 8) & 0xff), \
+	}
+
+typedef struct {
+	uint8_t reserved;
+	uint8_t target_level2;
+	uint8_t target_level1;
+	uint8_t initial_level2;
+	uint8_t initial_level1;
+	uint8_t sra_max_rate;
+	uint8_t sra_avg_time;
+	uint8_t good_working_level2;
+	uint8_t good_working_level1;
+} __attribute__ ((packed)) a2dp_aptx_ll_new_caps_t;
+
+#if defined(__BYTE_ORDER) && defined(__LITTLE_ENDIAN) && \
+	__BYTE_ORDER == __LITTLE_ENDIAN
 
 typedef struct {
 	uint8_t channel_mode:4;
@@ -234,8 +359,21 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
-	uint8_t channel_mode:4;
-	uint8_t frequency:4;
+	uint8_t direction;
+	uint8_t sink_frequency:4;
+	uint8_t source_frequency:4;
+} __attribute__ ((packed)) a2dp_faststream_t;
+
+typedef struct {
+	a2dp_aptx_t aptx;
+	uint8_t bidirect_link:1;
+	uint8_t has_new_caps:1;
+	uint8_t reserved:6;
+	a2dp_aptx_ll_new_caps_t new_caps[0];
+} __attribute__ ((packed)) a2dp_aptx_ll_t;
+
+typedef struct {
+	a2dp_aptx_t aptx;
 	uint32_t rfa;
 } __attribute__ ((packed)) a2dp_aptx_hd_t;
 
@@ -247,7 +385,8 @@ typedef struct {
 	uint8_t rfa2:5;
 } __attribute__ ((packed)) a2dp_ldac_t;
 
-#elif __BYTE_ORDER == __BIG_ENDIAN
+#elif defined(__BYTE_ORDER) && defined(__BIG_ENDIAN) && \
+	__BYTE_ORDER == __BIG_ENDIAN
 
 typedef struct {
 	uint8_t frequency:4;
@@ -291,8 +430,21 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
-	uint8_t frequency:4;
-	uint8_t channel_mode:4;
+	uint8_t direction;
+	uint8_t source_frequency:4;
+	uint8_t sink_frequency:4;
+} __attribute__ ((packed)) a2dp_faststream_t;
+
+typedef struct {
+	a2dp_aptx_t aptx;
+	uint8_t reserved:6;
+	uint8_t has_new_caps:1;
+	uint8_t bidirect_link:1;
+	a2dp_aptx_ll_new_caps_t new_caps[0];
+} __attribute__ ((packed)) a2dp_aptx_ll_t;
+
+typedef struct {
+	a2dp_aptx_t aptx;
 	uint32_t rfa;
 } __attribute__ ((packed)) a2dp_aptx_hd_t;
 

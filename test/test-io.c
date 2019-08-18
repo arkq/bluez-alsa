@@ -65,15 +65,13 @@ static const a2dp_aac_t config_aac_44100_stereo = {
 };
 
 static const a2dp_aptx_t config_aptx_44100_stereo = {
-	.info.vendor_id = APTX_VENDOR_ID,
-	.info.codec_id = APTX_CODEC_ID,
+	.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.frequency = APTX_SAMPLING_FREQ_44100,
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
 static const a2dp_ldac_t config_ldac_44100_stereo = {
-	.info.vendor_id = LDAC_VENDOR_ID,
-	.info.codec_id = LDAC_CODEC_ID,
+	.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 	.frequency = LDAC_SAMPLING_FREQ_44100,
 	.channel_mode = LDAC_CHANNEL_MODE_STEREO,
 };

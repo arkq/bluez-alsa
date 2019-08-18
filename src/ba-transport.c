@@ -385,7 +385,7 @@ unsigned int ba_transport_get_channels(const struct ba_transport *t) {
 			case LDAC_CHANNEL_MODE_MONO:
 				return 1;
 			case LDAC_CHANNEL_MODE_STEREO:
-			case LDAC_CHANNEL_MODE_DUAL_CHANNEL:
+			case LDAC_CHANNEL_MODE_DUAL:
 				return 2;
 			}
 			break;
