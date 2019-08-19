@@ -19,6 +19,6 @@
 
 /**
  * Cleanup callback casting wrapper for the brevity's sake. */
-#define PTHREAD_CLEANUP(f) ((void (*)(void *))(f))
+#define PTHREAD_CLEANUP(f) ((void (*)(void *))(void (*)(void))(f))
 
 #endif

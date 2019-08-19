@@ -644,7 +644,7 @@ static void *io_thread_a2dp_sink_mpeg(void *arg) {
 #if ENABLE_MPG123
 
 	static pthread_once_t once = PTHREAD_ONCE_INIT;
-	pthread_once(&once, mpg123_init);
+	pthread_once(&once, (void (*)(void))mpg123_init);
 
 	int err;
 	mpg123_handle *handle;
