@@ -960,6 +960,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((ctl = calloc(1, sizeof(*ctl))) == NULL)
 		return -ENOMEM;
 
+	ctl->battery = strcmp(battery, "yes") == 0;
+
 	dbus_threads_init_default();
 
 	if (!bluealsa_dbus_connection_ctx_init(&ctl->dbus_ctx, service, &err)) {
@@ -993,7 +995,6 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	strncpy(ctl->ext.name, "BlueALSA", sizeof(ctl->ext.name) - 1);
 	strncpy(ctl->ext.longname, "Bluetooth Audio Hub Controller", sizeof(ctl->ext.longname) - 1);
 	strncpy(ctl->ext.mixername, "BlueALSA Plugin", sizeof(ctl->ext.mixername) - 1);
-	ctl->battery = strcmp(battery, "yes") == 0;
 
 	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
 	ctl->ext.private_data = ctl;
