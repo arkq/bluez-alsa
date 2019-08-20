@@ -480,8 +480,9 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "A2DP Source (LDAC)";
 #endif
+		default:
+			return "A2DP Source";
 		}
-		return "A2DP Source";
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		switch (type.codec) {
 		case A2DP_CODEC_SBC:
@@ -506,12 +507,27 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "A2DP Sink (LDAC)";
 #endif
+		default:
+			return "A2DP Sink";
 		}
-		return "A2DP Sink";
 	case BA_TRANSPORT_PROFILE_HFP_HF:
-		return "HFP Hands-Free";
+		switch (type.codec) {
+		case HFP_CODEC_CVSD:
+			return "HFP Hands-Free (CVSD)";
+		case HFP_CODEC_MSBC:
+			return "HFP Hands-Free (mSBC)";
+		default:
+			return "HFP Hands-Free";
+		}
 	case BA_TRANSPORT_PROFILE_HFP_AG:
-		return "HFP Audio Gateway";
+		switch (type.codec) {
+		case HFP_CODEC_CVSD:
+			return "HFP Audio Gateway (CVSD)";
+		case HFP_CODEC_MSBC:
+			return "HFP Audio Gateway (mSBC)";
+		default:
+			return "HFP Audio Gateway";
+		}
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 		return "HSP Headset";
 	case BA_TRANSPORT_PROFILE_HSP_AG:

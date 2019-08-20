@@ -186,6 +186,11 @@ struct ba_transport *ba_transport_new_sco(
 	if (type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
 		type.codec = HFP_CODEC_CVSD;
 
+#if !ENABLE_MSBC
+	/* there is no support for other codec */
+	type.codec = HFP_CODEC_CVSD;
+#endif
+
 	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
