@@ -35,12 +35,12 @@ START_TEST(test_ba_adapter) {
 	struct ba_adapter *a;
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_str_eq(a->hci_name, "hci0");
+	ck_assert_str_eq(a->hci.name, "hci0");
 	ba_adapter_unref(a);
 
 	ck_assert_ptr_ne(a = ba_adapter_new(5), NULL);
-	ck_assert_int_eq(a->hci_dev_id, 5);
-	ck_assert_str_eq(a->hci_name, "hci5");
+	ck_assert_int_eq(a->hci.dev_id, 5);
+	ck_assert_str_eq(a->hci.name, "hci5");
 	ba_adapter_unref(a);
 
 } END_TEST

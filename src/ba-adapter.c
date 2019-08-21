@@ -17,6 +17,7 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
 
 #include "ba-device.h"
 #include "bluealsa.h"
@@ -45,20 +46,26 @@ struct ba_adapter *ba_adapter_new(int dev_id) {
 	if ((a = calloc(1, sizeof(*a))) == NULL)
 		return NULL;
 
-	a->hci_dev_id = dev_id;
-	sprintf(a->hci_name, "hci%d", dev_id);
+	/* Try to query for real information describing given HCI
+	 * device. Upon failure, fill in some basic fields by hand. */
+	if (hci_devinfo(dev_id, &a->hci) == -1) {
+		warn("Couldn't get HCI device info: %s", strerror(errno));
+		snprintf(a->hci.name, sizeof(a->hci.name), "hci%d", dev_id);
+		a->hci.dev_id = dev_id;
+	}
+
 	a->ref_count = 1;
 
-	sprintf(a->ba_dbus_path, "/org/bluealsa/%s", a->hci_name);
+	sprintf(a->ba_dbus_path, "/org/bluealsa/%s", a->hci.name);
 	g_variant_sanitize_object_path(a->ba_dbus_path);
-	sprintf(a->bluez_dbus_path, "/org/bluez/%s", a->hci_name);
+	sprintf(a->bluez_dbus_path, "/org/bluez/%s", a->hci.name);
 	g_variant_sanitize_object_path(a->bluez_dbus_path);
 
 	pthread_mutex_init(&a->devices_mutex, NULL);
 	a->devices = g_hash_table_new_full(g_bdaddr_hash, g_bdaddr_equal, NULL, NULL);
 
 	pthread_mutex_lock(&config.adapters_mutex);
-	config.adapters[a->hci_dev_id] = a;
+	config.adapters[a->hci.dev_id] = a;
 	pthread_mutex_unlock(&config.adapters_mutex);
 
 	return a;
@@ -125,13 +132,13 @@ void ba_adapter_unref(struct ba_adapter *a) {
 	pthread_mutex_lock(&config.adapters_mutex);
 	if ((ref_count = --a->ref_count) == 0)
 		/* detach adapter from global configuration */
-		config.adapters[a->hci_dev_id] = NULL;
+		config.adapters[a->hci.dev_id] = NULL;
 	pthread_mutex_unlock(&config.adapters_mutex);
 
 	if (ref_count > 0)
 		return;
 
-	debug("Freeing adapter: %s", a->hci_name);
+	debug("Freeing adapter: %s", a->hci.name);
 
 	g_hash_table_unref(a->devices);
 	pthread_mutex_destroy(&a->devices_mutex);

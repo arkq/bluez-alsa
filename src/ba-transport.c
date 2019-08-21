@@ -186,6 +186,11 @@ struct ba_transport *ba_transport_new_sco(
 	if (type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
 		type.codec = HFP_CODEC_CVSD;
 
+#if !ENABLE_MSBC
+	/* there is no support for other codec */
+	type.codec = HFP_CODEC_CVSD;
+#endif
+
 	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
@@ -815,12 +820,12 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		return t->bt_fd;
 
-	if ((t->bt_fd = hci_open_sco(t->d->a->hci_dev_id, &t->d->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
+	if ((t->bt_fd = hci_open_sco(t->d->a->hci.dev_id, &t->d->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
 		error("Couldn't open SCO link: %s", strerror(errno));
 		return -1;
 	}
 
-	if (hci_devinfo(t->d->a->hci_dev_id, &di) == -1) {
+	if (hci_devinfo(t->d->a->hci.dev_id, &di) == -1) {
 		error("Couldn't get HCI device info: %s", strerror(errno));
 		transport_release_bt_sco(t);
 		return -1;

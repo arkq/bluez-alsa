@@ -286,8 +286,8 @@ static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at 
 
 	t->rfcomm.hfp_features = atoi(at->value);
 
-	/* Codec negotiation is not supported in the HF, hence no
-	 * wideband audio support. AT+BAC will not be sent. */
+	/* If codec negotiation is not supported in the HF, the AT+BAC
+	 * command will not be sent. So, we can assume default codec. */
 	if (!(t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC))
 		t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
 
@@ -703,19 +703,15 @@ void *rfcomm_thread(void *arg) {
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					if (t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
 #if ENABLE_MSBC
+					if (t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
 							goto ioerror;
 						t->rfcomm.sco->type.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;
-#else
-						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", "1") == -1)
-							goto ioerror;
-						t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
-#endif
 						conn.handler = &rfcomm_handler_bcs_set;
 						break;
 					}
+#endif
 					/* fall-through */
 				case HFP_CC_BCS_SET:
 				case HFP_CC_BCS_SET_OK:

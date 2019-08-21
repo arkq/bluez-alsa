@@ -747,7 +747,7 @@ static struct dbus_object_data *bluez_create_media_endpoint_object(
 
 	struct dbus_object_data *dbus_obj;
 	struct dbus_object_data dbus_object = {
-		.hci_dev_id = adapter->hci_dev_id,
+		.hci_dev_id = adapter->hci.dev_id,
 		.codec = codec,
 		.ttype = ttype,
 	};
@@ -850,7 +850,7 @@ static void bluez_register_a2dp(
 		GError *err = NULL;
 
 		char path[sizeof(dbus_obj->path)];
-		snprintf(path, sizeof(path), "/org/bluez/%s%s/%d", adapter->hci_name,
+		snprintf(path, sizeof(path), "/org/bluez/%s%s/%d", adapter->hci.name,
 				g_dbus_transport_type_to_bluez_object_path(ttype), ++registered);
 
 		gpointer hash = GINT_TO_POINTER(g_str_hash(path));
