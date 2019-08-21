@@ -19,11 +19,14 @@
 
 #include <glib.h>
 
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+
 /* Data associated with BT adapter. */
 struct ba_adapter {
 
-	int hci_dev_id;
-	char hci_name[8];
+	/* basic info about HCI device */
+	struct hci_dev_info hci;
 
 	/* data for D-Bus management */
 	char ba_dbus_path[32];

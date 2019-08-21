@@ -820,7 +820,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		return t->bt_fd;
 
-	if (hci_devinfo(t->d->a->hci_dev_id, &di) == -1) {
+	if (hci_devinfo(t->d->a->hci.dev_id, &di) == -1) {
 		error("Couldn't get HCI device info: %s", strerror(errno));
 		return -1;
 	}

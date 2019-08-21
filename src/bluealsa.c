@@ -50,7 +50,7 @@ struct ba_config config = {
 		HFP_HF_FEAT_ECC |
 #if ENABLE_MSBC
 		HFP_HF_FEAT_CODEC |
-		HFP_HF_FEAT_ESOC |
+		HFP_HF_FEAT_ESCO |
 #endif
 		0,
 	.hfp.features_rfcomm_ag =
@@ -60,7 +60,7 @@ struct ba_config config = {
 		HFP_AG_FEAT_EERC |
 #if ENABLE_MSBC
 		HFP_AG_FEAT_CODEC |
-		HFP_AG_FEAT_ESOC |
+		HFP_AG_FEAT_ESCO |
 #endif
 		0,
 

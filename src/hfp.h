@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hfp.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -34,9 +34,9 @@
 #define SDP_HFP_HF_FEAT_WBAND  (1 << 5)
 
 /* AG feature flags */
-#define HFP_AG_FEAT_TWC    (1 << 0)
+#define HFP_AG_FEAT_3WC    (1 << 0)
 #define HFP_AG_FEAT_ECNR   (1 << 1)
-#define HFP_AG_FEAT_VREC   (1 << 2)
+#define HFP_AG_FEAT_VOICE  (1 << 2)
 #define HFP_AG_FEAT_RING   (1 << 3)
 #define HFP_AG_FEAT_VTAG   (1 << 4)
 #define HFP_AG_FEAT_REJECT (1 << 5)
@@ -45,19 +45,19 @@
 #define HFP_AG_FEAT_EERC   (1 << 8)
 #define HFP_AG_FEAT_CODEC  (1 << 9)
 #define HFP_AG_FEAT_HFIND  (1 << 10)
-#define HFP_AG_FEAT_ESOC   (1 << 11)
+#define HFP_AG_FEAT_ESCO   (1 << 11)
 
 /* HF feature flags */
 #define HFP_HF_FEAT_ECNR   (1 << 0)
-#define HFP_HF_FEAT_TWC    (1 << 1)
+#define HFP_HF_FEAT_3WC    (1 << 1)
 #define HFP_HF_FEAT_CLI    (1 << 2)
-#define HFP_HF_FEAT_VREC   (1 << 3)
+#define HFP_HF_FEAT_VOICE  (1 << 3)
 #define HFP_HF_FEAT_VOLUME (1 << 4)
 #define HFP_HF_FEAT_ECS    (1 << 5)
 #define HFP_HF_FEAT_ECC    (1 << 6)
 #define HFP_HF_FEAT_CODEC  (1 << 7)
 #define HFP_HF_FEAT_HFIND  (1 << 8)
-#define HFP_HF_FEAT_ESOC   (1 << 9)
+#define HFP_HF_FEAT_ESCO   (1 << 9)
 
 /* Apple's extension feature flags */
 #define XAPL_FEATURE_BATTERY (1 << 1)
