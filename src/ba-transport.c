@@ -186,8 +186,12 @@ struct ba_transport *ba_transport_new_sco(
 	if (type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
 		type.codec = HFP_CODEC_CVSD;
 
-#if !ENABLE_MSBC
-	/* there is no support for other codec */
+#if ENABLE_MSBC
+	/* Check whether support for codec other than
+	 * CVSD is possible with underlying adapter. */
+	if (!BA_TEST_ESCO_SUPPORT(device->a))
+		type.codec = HFP_CODEC_CVSD;
+#else
 	type.codec = HFP_CODEC_CVSD;
 #endif
 

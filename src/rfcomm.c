@@ -291,7 +291,7 @@ static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	if (!(t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC))
 		t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
 
-	sprintf(tmp, "%u", config.hfp.features_rfcomm_ag);
+	sprintf(tmp, "%u", ba_adapter_get_hfp_features_ag(t->d->a));
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BRSF", tmp) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -627,7 +627,7 @@ void *rfcomm_thread(void *arg) {
 			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
 				switch (conn.state) {
 				case HFP_DISCONNECTED:
-					sprintf(tmp, "%u", config.hfp.features_rfcomm_hf);
+					sprintf(tmp, "%u", ba_adapter_get_hfp_features_hf(t->d->a));
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BRSF", tmp) == -1)
 						goto ioerror;
 					conn.handler = &rfcomm_handler_brsf_resp;
@@ -639,7 +639,8 @@ void *rfcomm_thread(void *arg) {
 					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC) {
 #if ENABLE_MSBC
 						/* advertise, that we are supporting CVSD (1) and mSBC (2) */
-						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", "1,2") == -1)
+						const char *value = BA_TEST_ESCO_SUPPORT(t->d->a) ? "1,2" : "1";
+						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", value) == -1)
 #else
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", "1") == -1)
 #endif
@@ -704,7 +705,8 @@ void *rfcomm_thread(void *arg) {
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
 #if ENABLE_MSBC
-					if (t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
+					if (BA_TEST_ESCO_SUPPORT(t->d->a) &&
+							t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
 							goto ioerror;
 						t->rfcomm.sco->type.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;

@@ -47,4 +47,12 @@ struct ba_adapter *ba_adapter_ref(struct ba_adapter *a);
 void ba_adapter_destroy(struct ba_adapter *a);
 void ba_adapter_unref(struct ba_adapter *a);
 
+/**
+ * Macro for testing whether eSCO is supported. */
+#define BA_TEST_ESCO_SUPPORT(a) \
+	((a)->hci.features[2] & LMP_TRSP_SCO && (a)->hci.features[3] & LMP_ESCO)
+
+int ba_adapter_get_hfp_features_hf(struct ba_adapter *a);
+int ba_adapter_get_hfp_features_ag(struct ba_adapter *a);
+
 #endif
