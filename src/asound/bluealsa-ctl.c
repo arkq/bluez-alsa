@@ -416,13 +416,13 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 		for (ii = i + 1; ii < count; ii++)
 			if (strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
-				bluealsa_elem_set_name(&elem_list[ii], strcpy(tmp, elem_list[ii].name),
+				bluealsa_elem_set_name(&elem_list[ii], strcpy(tmp, elem_list[ii].dev->name),
 						bluealsa_dev_get_id(ctl, elem_list[ii].pcm));
 				duplicated = true;
 			}
 
 		if (duplicated)
-			bluealsa_elem_set_name(&elem_list[i], strcpy(tmp, elem_list[i].name),
+			bluealsa_elem_set_name(&elem_list[i], strcpy(tmp, elem_list[i].dev->name),
 					bluealsa_dev_get_id(ctl, elem_list[i].pcm));
 
 	}
