@@ -685,11 +685,18 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	GUnixFDList *fd_list;
 	GError *err = NULL;
 
-	/* Check whether transport is already acquired - keep-alive mode. */
+	/* Check whether transport is already acquired - keep-alive mode.
+	 * We must ensure that transport release is not in progress before
+	 * testing the BT fd. Otherwise we might have the IO thread close it
+	 * after we have decided to reuse it! */
+	ba_transport_pthread_cleanup_lock(t);
 	if (t->bt_fd != -1) {
 		debug("Reusing transport: %d", t->bt_fd);
+		ba_transport_pthread_cleanup_unlock(t);
 		goto final;
 	}
+	ba_transport_pthread_cleanup_unlock(t);
+
 
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
 			BLUEZ_IFACE_MEDIA_TRANSPORT, t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
