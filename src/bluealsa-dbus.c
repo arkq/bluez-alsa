@@ -212,6 +212,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct ba_transport *t = (struct ba_transport *)userdata;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
+	bool locked = false;
 	size_t i;
 
 	const char *mode;
@@ -249,6 +250,12 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 				G_DBUS_ERROR_NOT_SUPPORTED, "Operation mode not supported");
 		goto fail;
 	}
+
+	/* We must ensure that transport release is not in progress before
+	 * accessing transport critical section. Otherwise, we might have
+	 * the IO thread close it in the middle of open procedure! */
+	ba_transport_pthread_cleanup_lock(t);
+	locked = true;
 
 	if (pcm->fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
@@ -288,6 +295,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 			goto fail;
 		}
 
+	ba_transport_pthread_cleanup_unlock(t);
+
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
 	struct bluealsa_ctrl_data cdata = { .t = t, .pcm = pcm };
 	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
@@ -305,6 +314,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	return;
 
 fail:
+	if (locked)
+		ba_transport_pthread_cleanup_unlock(t);
 	/* clean up created file descriptors */
 	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
 		if (pcm_fds[i] != -1)
