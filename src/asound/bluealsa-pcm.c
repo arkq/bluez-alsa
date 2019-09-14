@@ -279,6 +279,15 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug2("Stopping");
 
+       /* It is possible for this function to be called from an invalid state,
+        * so we need to make it a no-op in those cases. */
+       switch (io->state) {
+               case SND_PCM_STATE_OPEN:
+               case SND_PCM_STATE_SETUP:
+               case SND_PCM_STATE_DISCONNECTED:
+                       return 0;
+       }
+
 	if (pcm->io_started) {
 		pcm->io_started = false;
 		pthread_cancel(pcm->io_thread);
