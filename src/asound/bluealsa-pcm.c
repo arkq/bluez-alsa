@@ -128,6 +128,9 @@ static void *io_thread(void *arg) {
 		goto fail;
 	}
 
+	/* Block I/O until a full period of frames is available. */
+	bool started = false;
+
 	struct asrsync asrs;
 	asrsync_init(&asrs, io->rate);
 
@@ -137,10 +140,31 @@ static void *io_thread(void *arg) {
 		int tmp;
 		switch (io->state) {
 		case SND_PCM_STATE_RUNNING:
+			/* Some playback applications may start the PCM before they have
+			 * written the first full period of audio data. To match the
+			 * behavior of the ALSA hw plug-in we do not report an underrun in
+			 * this case. Instead we pause the IO thread for the estimated time
+			 * it should take for a real-time application to write the balance
+			 * of the period. */
+			if (!started && io->stream == SND_PCM_STREAM_PLAYBACK) {
+				if (io->period_size > io->appl_ptr) {
+					struct timespec ts = {
+						.tv_nsec = (io->period_size - io->appl_ptr) * 1000000000 / io->rate };
+					debug2("IO thread started with insufficient frames - pausing for %ld ms", ts.tv_nsec / 1000000);
+					sigtimedwait(&sigset, NULL, &ts);
+					asrsync_init(&asrs, io->rate);
+					continue;
+				}
+				started = true;
+			}
+			break;
 		case SND_PCM_STATE_DRAINING:
 			break;
 		case SND_PCM_STATE_DISCONNECTED:
 			goto fail;
+		case SND_PCM_STATE_XRUN:
+			started = false;
+			/* fall-through */
 		default:
 			debug2("IO thread paused: %d", io->state);
 			sigwait(&sigset, &tmp);
