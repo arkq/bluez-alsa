@@ -67,7 +67,7 @@ enum ba_transport_signal {
 	TRANSPORT_SET_VOLUME,
 };
 
-struct ba_pcm {
+struct ba_transport_pcm {
 	/* FIFO file descriptor */
 	int fd;
 	/* associated client */
@@ -130,7 +130,7 @@ struct ba_transport {
 			/* delay reported by the AVDTP */
 			uint16_t delay;
 
-			struct ba_pcm pcm;
+			struct ba_transport_pcm pcm;
 
 			/* selected audio codec configuration */
 			uint8_t *cconfig;
@@ -182,8 +182,8 @@ struct ba_transport {
 			/* Speaker and microphone signals should to be exposed as
 			 * a separate PCM devices. Hence, there is a requirement
 			 * for separate configurations. */
-			struct ba_pcm spk_pcm;
-			struct ba_pcm mic_pcm;
+			struct ba_transport_pcm spk_pcm;
+			struct ba_transport_pcm mic_pcm;
 
 			/* playback synchronization */
 			pthread_mutex_t spk_drained_mtx;
@@ -251,7 +251,7 @@ int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value);
 int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 
 int ba_transport_drain_pcm(struct ba_transport *t);
-int ba_transport_release_pcm(struct ba_pcm *pcm);
+int ba_transport_release_pcm(struct ba_transport_pcm *pcm);
 
 void ba_transport_pthread_cancel(pthread_t thread);
 void ba_transport_pthread_cleanup(struct ba_transport *t);
