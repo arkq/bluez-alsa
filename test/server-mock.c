@@ -152,7 +152,7 @@ void *io_thread_a2dp_sink_sbc(void *arg) {
 		int samples = sizeof(buffer) / sizeof(int16_t);
 		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 0.01);
 
-		if (io_thread_write_pcm(&t->a2dp.pcm, buffer, samples) == -1)
+		if (io_thread_write_pcm(&t->a2dp.pcm, buffer, sizeof(buffer), samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		asrsync_sync(&asrs, samples / 2);

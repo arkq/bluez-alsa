@@ -132,11 +132,10 @@ static ssize_t io_thread_read_pcm_flush(struct ba_transport_pcm *pcm) {
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm, const int16_t *buffer, size_t samples) {
+static ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm, const int16_t *buffer, size_t len, size_t samples) {
 
 	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
 	const uint8_t *head = (uint8_t *)buffer;
-	size_t len = samples * sizeof(int16_t);
 	int oldstate;
 	ssize_t ret;
 
@@ -383,7 +382,7 @@ static void *io_thread_a2dp_sink_sbc(void *arg) {
 
 			const size_t samples = decoded / sizeof(int16_t);
 			io_thread_scale_pcm(t, pcm.data, samples, channels);
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, decoded, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 		}
@@ -783,7 +782,7 @@ decode:
 			continue;
 		}
 
-		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, len / sizeof(int16_t)) == -1)
+		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, len, len / sizeof(int16_t)) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		if (len > 0) {
@@ -803,7 +802,7 @@ decode:
 		}
 
 		if (channels == 1) {
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm_l, samples) == -1)
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm_l, samples * sizeof(int16_t), samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 		else {
@@ -814,7 +813,7 @@ decode:
 				pcm.data[i * 2 + 1] = pcm_r[i];
 			}
 
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples * sizeof(int16_t), samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 		}
@@ -1301,7 +1300,7 @@ static void *io_thread_a2dp_sink_aac(void *arg) {
 		else {
 			const size_t samples = aacinf->frameSize * aacinf->numChannels;
 			io_thread_scale_pcm(t, pcm.data, samples, channels);
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples * sizeof(int16_t), samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 
@@ -2580,7 +2579,7 @@ retry_sco_write:
 			if (t->sco.mic_muted)
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
-			if ((samples = io_thread_write_pcm(&t->sco.mic_pcm, buffer, samples)) <= 0) {
+			if ((samples = io_thread_write_pcm(&t->sco.mic_pcm, buffer, samples * sizeof(int16_t), samples)) <= 0) {
 				if (samples == -1)
 					error("FIFO write error: %s", strerror(errno));
 				if (samples == 0)
