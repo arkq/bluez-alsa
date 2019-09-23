@@ -155,7 +155,7 @@ int bluealsa_dbus_manager_register(GError **error) {
  * Data associated with a single PCM controller session. */
 struct bluealsa_ctrl_data {
 	struct ba_transport *t;
-	struct ba_pcm *pcm;
+	struct ba_transport_pcm *pcm;
 };
 
 static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
@@ -225,7 +225,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 		goto fail;
 	}
 
-	struct ba_pcm *pcm = NULL;
+	struct ba_transport_pcm *pcm = NULL;
 	if ((is_source && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) ||
 			(!is_source && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK))
 		pcm = &t->a2dp.pcm;

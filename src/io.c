@@ -91,7 +91,7 @@ static void io_thread_scale_pcm(const struct ba_transport *t, int16_t *buffer,
 
 /**
  * Read PCM signal from the transport PCM FIFO. */
-static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t samples) {
+static ssize_t io_thread_read_pcm(struct ba_transport_pcm *pcm, int16_t *buffer, size_t samples) {
 
 	ssize_t ret;
 
@@ -119,7 +119,7 @@ static ssize_t io_thread_read_pcm(struct ba_pcm *pcm, int16_t *buffer, size_t sa
 
 /**
  * Flush read buffer of the transport PCM FIFO. */
-static ssize_t io_thread_read_pcm_flush(struct ba_pcm *pcm) {
+static ssize_t io_thread_read_pcm_flush(struct ba_transport_pcm *pcm) {
 	ssize_t rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
 	if (rv == -1 && errno == EAGAIN)
 		rv = 0;
@@ -132,7 +132,7 @@ static ssize_t io_thread_read_pcm_flush(struct ba_pcm *pcm) {
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t io_thread_write_pcm(struct ba_pcm *pcm, const int16_t *buffer, size_t samples) {
+static ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm, const int16_t *buffer, size_t samples) {
 
 	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
 	const uint8_t *head = (uint8_t *)buffer;

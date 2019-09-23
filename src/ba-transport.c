@@ -888,7 +888,7 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 	return 0;
 }
 
-int ba_transport_release_pcm(struct ba_pcm *pcm) {
+int ba_transport_release_pcm(struct ba_transport_pcm *pcm) {
 
 	if (pcm->fd == -1)
 		return 0;
