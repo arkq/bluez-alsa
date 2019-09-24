@@ -57,6 +57,10 @@ static GVariant *ba_variant_new_sampling(const struct ba_transport *t) {
 	return g_variant_new_uint32(ba_transport_get_sampling(t));
 }
 
+static GVariant *ba_variant_new_format(const struct ba_transport *t) {
+	return g_variant_new_uint16(ba_transport_get_format(t));
+}
+
 static GVariant *ba_variant_new_codec(const struct ba_transport *t) {
 	return g_variant_new_uint16(t->type.codec);
 }
@@ -108,6 +112,7 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 				g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_pcm_modes(t));
 				g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
 				g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
+				g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
 				g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
 				g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
 				g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
@@ -394,6 +399,8 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 		return ba_variant_new_channels(t);
 	if (strcmp(property, "Sampling") == 0)
 		return ba_variant_new_sampling(t);
+	if (strcmp(property, "Format") == 0)
+		return ba_variant_new_format(t);
 	if (strcmp(property, "Codec") == 0)
 		return ba_variant_new_codec(t);
 	if (strcmp(property, "Delay") == 0)
@@ -491,6 +498,7 @@ int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error) {
 	g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_pcm_modes(t));
 	g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
 	g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
+	g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
 	g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
 	g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
 	g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
@@ -512,6 +520,8 @@ void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
 	if (mask & BA_DBUS_TRANSPORT_UPDATE_SAMPLING)
 		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
+	if (mask & BA_DBUS_TRANSPORT_UPDATE_FORMAT)
+		g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
 	if (mask & BA_DBUS_TRANSPORT_UPDATE_CODEC)
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
 	if (mask & BA_DBUS_TRANSPORT_UPDATE_DELAY)

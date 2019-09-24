@@ -243,6 +243,7 @@ enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t);
 
 unsigned int ba_transport_get_channels(const struct ba_transport *t);
 unsigned int ba_transport_get_sampling(const struct ba_transport *t);
+uint16_t ba_transport_get_format(const struct ba_transport *t);
 uint16_t ba_transport_get_delay(const struct ba_transport *t);
 
 uint16_t ba_transport_get_volume_packed(const struct ba_transport *t);

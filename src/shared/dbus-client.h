@@ -53,6 +53,8 @@ struct ba_pcm {
 	unsigned char channels;
 	/* PCM sampling frequency */
 	dbus_uint32_t sampling;
+	/* PCM format */
+	dbus_uint16_t format;
 
 	/* device address */
 	bdaddr_t addr;

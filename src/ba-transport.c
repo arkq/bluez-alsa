@@ -546,6 +546,10 @@ unsigned int ba_transport_get_sampling(const struct ba_transport *t) {
 	return 0;
 }
 
+uint16_t ba_transport_get_format(const struct ba_transport *t) {
+	return g_dbus_transport_get_pcm_format(t->type);
+}
+
 uint16_t ba_transport_get_delay(const struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return t->delay + t->a2dp.delay;

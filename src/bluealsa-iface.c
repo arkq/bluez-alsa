@@ -115,6 +115,10 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Sampling = {
 	-1, "Sampling", "u", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
+static const GDBusPropertyInfo bluealsa_iface_pcm_Format = {
+	-1, "Format", "q", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo bluealsa_iface_pcm_Codec = {
 	-1, "Codec", "q", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
