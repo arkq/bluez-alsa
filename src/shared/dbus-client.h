@@ -49,6 +49,8 @@ struct ba_pcm {
 	/* BlueALSA D-Bus PCM path */
 	char pcm_path[128];
 
+	/* PCM stream format */
+	dbus_uint16_t format;
 	/* number of audio channels */
 	unsigned char channels;
 	/* PCM sampling frequency */

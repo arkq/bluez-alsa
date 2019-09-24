@@ -342,6 +342,11 @@ enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t) {
 	return sig;
 }
 
+uint16_t ba_transport_get_format(const struct ba_transport *t) {
+	(void)t;
+	return BA_TRANSPORT_FORMAT_S16LE;
+}
+
 unsigned int ba_transport_get_channels(const struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)

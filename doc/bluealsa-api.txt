@@ -52,6 +52,16 @@ Properties      object Device [readonly]
 
                         Possible values: "sink" or "source"
 
+                uint16 Format [readonly]
+
+                        Stream format identifier. The highest two bits of the
+                        16-bit identifier determine the signedness and the
+                        endianness, where the remaining bits are used to store
+                        the bit-width.
+
+                        Examples: 0x4010 - unsigned 16-bit big-endian
+                                  0x8018 - signed 24-bit little-endian
+
                 byte Channels [readonly]
 
                         Number of audio channels.

@@ -107,6 +107,10 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Modes = {
 	-1, "Modes", "as", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
+static const GDBusPropertyInfo bluealsa_iface_pcm_Format = {
+	-1, "Format", "q", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo bluealsa_iface_pcm_Channels = {
 	-1, "Channels", "y", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
@@ -137,6 +141,7 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Battery = {
 static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	&bluealsa_iface_pcm_Device,
 	&bluealsa_iface_pcm_Modes,
+	&bluealsa_iface_pcm_Format,
 	&bluealsa_iface_pcm_Channels,
 	&bluealsa_iface_pcm_Sampling,
 	&bluealsa_iface_pcm_Codec,

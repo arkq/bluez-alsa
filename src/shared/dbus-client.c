@@ -553,6 +553,11 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 				pcm->flags |= BA_PCM_FLAG_SINK;
 		}
 	}
+	else if (strcmp(key, "Format") == 0) {
+		if (type != (type_expected = DBUS_TYPE_UINT16))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &pcm->format);
+	}
 	else if (strcmp(key, "Channels") == 0) {
 		if (type != (type_expected = DBUS_TYPE_BYTE))
 			goto fail;
