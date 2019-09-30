@@ -42,7 +42,8 @@ Dependencies:
 - [mp3lame](http://lame.sourceforge.net/) (when MP3 support is enabled with `--enable-mp3lame`)
 - [mpg123](https://www.mpg123.org/) (when MPEG support is enabled with `--enable-mpg123`)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
-- [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with `--enable-aptx`)
+- [openaptx](https://github.com/Arkq/openaptx) (when apt-X encoding support is enabled with `--enable-aptx-source`)
+- [ffaptx](https://github.com/t123yh/ffaptx) (when apt-X decoding support is enabled with `--enable-aptx-sink`)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
 
 Dependencies for client applications (e.g. `bluealsa-aplay`):
