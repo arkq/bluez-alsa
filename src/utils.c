@@ -26,6 +26,7 @@
 # include "ldacBT.h"
 #endif
 
+#include "bluealsa.h"
 #include "a2dp-codecs.h"
 #include "hfp.h"
 #include "shared/defs.h"

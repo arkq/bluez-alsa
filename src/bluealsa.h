@@ -111,4 +111,10 @@ extern struct ba_config config;
 
 int bluealsa_config_init(void);
 
+#if ENABLE_APTX_SOURCE || ENABLE_APTX_SINK
+# define ENABLE_APTX 1
+#else
+# define ENABLE_APTX 0
+#endif
+
 #endif

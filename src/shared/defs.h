@@ -21,10 +21,4 @@
  * Cleanup callback casting wrapper for the brevity's sake. */
 #define PTHREAD_CLEANUP(f) ((void (*)(void *))(void (*)(void))(f))
 
-#if ENABLE_APTX_SOURCE || ENABLE_APTX_SINK
-# define ENABLE_APTX 1
-#else
-# define ENABLE_APTX 0
-#endif
-
 #endif
