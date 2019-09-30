@@ -414,7 +414,7 @@ START_TEST(test_a2dp_aging_aac) {
 } END_TEST
 #endif
 
-#if ENABLE_APTX
+#if ENABLE_APTX_SOURCE
 START_TEST(test_a2dp_aptx) {
 
 	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_APTX };

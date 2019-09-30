@@ -29,7 +29,8 @@ AM_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@AAC_CFLAGS@ \
 	@ALSA_CFLAGS@ \
-	@APTX_CFLAGS@ \
+	@OPENAPTX_CFLAGS@ \
+	@FFAPTX_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@CHECK_CFLAGS@ \
 	@GIO2_CFLAGS@ \
@@ -42,7 +43,8 @@ AM_CFLAGS = \
 LDADD = \
 	@AAC_LIBS@ \
 	@ALSA_LIBS@ \
-	@APTX_LIBS@ \
+	@FFAPTX_LIBS@ \
+	@OPENAPTX_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@CHECK_LIBS@ \
 	@GIO2_LIBS@ \

@@ -32,9 +32,14 @@
 # define AACENCODER_LIB_VERSION LIB_VERSION( \
 		AACENCODER_LIB_VL0, AACENCODER_LIB_VL1, AACENCODER_LIB_VL2)
 #endif
-#if ENABLE_APTX
+#if ENABLE_APTX_SOURCE
 # include <openaptx.h>
 #endif
+
+#if ENABLE_APTX_SINK
+# include <ffaptx.h>
+#endif
+
 #if ENABLE_MP3LAME
 # include <lame/lame.h>
 #endif
@@ -1615,7 +1620,7 @@ fail_open:
 }
 #endif
 
-#if ENABLE_APTX
+#if ENABLE_APTX_SOURCE
 static void *io_thread_a2dp_source_aptx(void *arg) {
 	struct ba_transport *t = (struct ba_transport *)arg;
 
@@ -2407,6 +2412,127 @@ fail_ffb:
 	return NULL;
 }
 
+#if ENABLE_APTX_SINK
+static void *io_thread_a2dp_sink_aptx_aptxhd(bool hd, void* arg) {
+	struct ba_transport *t = (struct ba_transport *)arg;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+
+	const unsigned int channels = ba_transport_get_channels(t);
+	if (channels != NB_CHANNELS)
+	{
+		error("Unsupported aptX channel number: %d", channels);
+		goto fail_ch;
+	}
+
+	struct io_thread_data io = {
+		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
+		.fds[1] = { t->bt_fd, POLLIN, 0 },
+		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+	};
+
+	ffb_uint8_t bt = { 0 };
+	ffb_int16_t pcm = { 0 };
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+
+	AptXContext aptx;
+	ff_aptx_init(&aptx, hd);
+
+	int32_t max_pcm_buf = NB_CHANNELS * 4 * t->mtu_read / aptx.block_size;
+	if (ffb_init(&bt, t->mtu_read) == NULL || ffb_init(&pcm, max_pcm_buf) == NULL) {
+		error("Couldn't create data buffer: %s", strerror(ENOMEM));
+		goto fail_ffb;
+	}
+
+	for (;;) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		ssize_t len;
+
+		if (poll(io.fds, ARRAYSIZE(io.fds), -1) == -1) {
+			if (errno == EINTR)
+				continue;
+			error("Transport poll error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (io.fds[0].revents & POLLIN) {
+			ba_transport_recv_signal(t);
+			continue;
+		}
+
+		if ((len = read(io.fds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
+			debug("BT read error: %s", strerror(errno));
+			continue;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		size_t payload_len;
+		const uint8_t* buf;
+		if (!hd)
+		{
+			buf = bt.data;
+			payload_len = len;
+		}
+		else
+		{
+			// TODO: figure out what we can do with RTP header. `pulseaudio-modules-bt` seems to be ignoring this header.
+			const size_t rtp_header_size = 12;
+			buf = bt.data + rtp_header_size;
+			payload_len = len - rtp_header_size;
+		}
+
+		size_t nb_samples = NB_CHANNELS * 4 * payload_len / aptx.block_size;
+		const uint8_t *bufend = buf + payload_len;
+
+		while (nb_samples > 0)
+		{
+			int32_t sample_cnt = MIN(max_pcm_buf, nb_samples);
+			nb_samples -= sample_cnt;
+			
+			int spos, opos;
+			for (opos = 0; buf < bufend && opos < sample_cnt; opos += 8)
+			{
+				int32_t samples[NB_CHANNELS][4];
+				ff_aptx_decode_samples(&aptx, buf, samples);
+				for (int s = 0; s < 4; s++)
+					for (int ch = 0; ch < NB_CHANNELS; ch++)
+					{
+						pcm.data[opos + s * NB_CHANNELS + ch] = samples[ch][s] >> 8;
+					}
+				buf += aptx.block_size;
+			}
+			buf += spos;
+
+			io_thread_scale_pcm(t, pcm.data, sample_cnt, NB_CHANNELS);
+			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, sample_cnt) == -1)
+				error("FIFO write error: %s", strerror(errno));
+		}
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_ch:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+
+static void *io_thread_a2dp_sink_aptx(void* arg) {
+	io_thread_a2dp_sink_aptx_aptxhd(false, arg);
+}
+
+static void *io_thread_a2dp_sink_aptxhd(void* arg) {
+	io_thread_a2dp_sink_aptx_aptxhd(true, arg);
+}
+#endif /* ENALBE_APTX_SINK */
+
 /**
  * Dump incoming BT data to a file. */
 static void *io_thread_a2dp_sink_dump(void *arg) {
@@ -2522,7 +2648,7 @@ int io_thread_create(struct ba_transport *t) {
 			name = "ba-io-aac";
 			break;
 #endif
-#if ENABLE_APTX
+#if ENABLE_APTX_SOURCE
 		case A2DP_CODEC_VENDOR_APTX:
 			routine = io_thread_a2dp_source_aptx;
 			name = "ba-io-aptx";
@@ -2557,6 +2683,16 @@ int io_thread_create(struct ba_transport *t) {
 		case A2DP_CODEC_MPEG24:
 			routine = io_thread_a2dp_sink_aac;
 			name = "ba-io-aac";
+			break;
+#endif
+#if ENABLE_APTX_SINK
+		case A2DP_CODEC_VENDOR_APTX:
+			routine = io_thread_a2dp_sink_aptx;
+			name = "ba-io-aptx";
+			break;
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			routine = io_thread_a2dp_sink_aptxhd;
+			name = "ba-io-aptxhd";
 			break;
 #endif
 		default:

@@ -531,6 +531,13 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				cap_freq = cap->frequency;
 				break;
 			}
+
+			case A2DP_CODEC_VENDOR_APTX_HD: {
+				a2dp_aptx_hd_t *cap = capabilities;
+				cap_chm = cap->aptx.channel_mode;
+				cap_freq = cap->aptx.frequency;
+				break;
+			}
 #endif
 
 #if ENABLE_LDAC

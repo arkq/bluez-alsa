@@ -68,12 +68,20 @@ AM_COND_IF([ENABLE_AAC], [
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
-AC_ARG_ENABLE([aptx],
-	[AS_HELP_STRING([--enable-aptx], [enable apt-X encoding support])])
-AM_CONDITIONAL([ENABLE_APTX], [test "x$enable_aptx" = "xyes"])
-AM_COND_IF([ENABLE_APTX], [
-	PKG_CHECK_MODULES([APTX], [openaptx >= 1.0.0])
-	AC_DEFINE([ENABLE_APTX], [1], [Define to 1 if apt-X is enabled.])
+AC_ARG_ENABLE([aptx-source],
+	[AS_HELP_STRING([--enable-aptx-source], [enable apt-X encoding support powered by openaptx])])
+AM_CONDITIONAL([ENABLE_APTX_SOURCE], [test "x$enable_aptx_source" = "xyes"])
+AM_COND_IF([ENABLE_APTX_SOURCE], [
+	PKG_CHECK_MODULES([OPENAPTX], [openaptx >= 1.0.0])
+	AC_DEFINE([ENABLE_APTX_SOURCE], [1], [Define to 1 if apt-X source is enabled.])
+])
+
+AC_ARG_ENABLE([aptx-sink],
+	[AS_HELP_STRING([--enable-aptx-sink], [enable apt-X decoding support powered by ffaptx])])
+AM_CONDITIONAL([ENABLE_APTX_SINK], [test "x$enable_aptx_sink" = "xyes"])
+AM_COND_IF([ENABLE_APTX_SINK], [
+	PKG_CHECK_MODULES([FFAPTX], [ffaptx >= 0.0.1])
+	AC_DEFINE([ENABLE_APTX_SINK], [1], [Define to 1 if apt-X sink is enabled.])
 ])
 
 AC_ARG_ENABLE([ldac],
@@ -200,7 +208,7 @@ AM_COND_IF([ALSA_1_1_2], [
 ])
 
 # warn user that aptX support is not an open-source feature
-AM_COND_IF([ENABLE_APTX], [
+AM_COND_IF([ENABLE_APTX_SOURCE], [
 	AC_MSG_WARN([             *** aptX encoder support ***])
 	AC_MSG_WARN([You have enabled support for aptX encoding. Note, that])
 	AC_MSG_WARN([by default bluez-alsa will use openaptx library, which])
