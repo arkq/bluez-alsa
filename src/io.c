@@ -2494,8 +2494,7 @@ static void *io_thread_a2dp_sink_aptx_aptxhd(bool hd, void* arg) {
 			int32_t sample_cnt = MIN(max_pcm_buf, nb_samples);
 			nb_samples -= sample_cnt;
 			
-			int spos, opos;
-			for (opos = 0; buf < bufend && opos < sample_cnt; opos += 8)
+			for (int opos = 0; buf < bufend && opos < sample_cnt; opos += 8)
 			{
 				int32_t samples[NB_CHANNELS][4];
 				ff_aptx_decode_samples(&aptx, buf, samples);
@@ -2506,7 +2505,6 @@ static void *io_thread_a2dp_sink_aptx_aptxhd(bool hd, void* arg) {
 					}
 				buf += aptx.block_size;
 			}
-			buf += spos;
 
 			io_thread_scale_pcm(t, pcm.data, sample_cnt, NB_CHANNELS);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, sample_cnt) == -1)
