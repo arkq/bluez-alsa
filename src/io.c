@@ -763,9 +763,9 @@ static void *io_thread_a2dp_sink_mpeg(void *arg) {
 
 #if ENABLE_MPG123
 
-	long rate;
-	int channels;
-	int encoding;
+		long rate;
+		int channels;
+		int encoding;
 
 decode:
 		switch (mpg123_decode(handle, rtp_mpeg, rtp_mpeg_len,
@@ -777,7 +777,7 @@ decode:
 		case MPG123_NEW_FORMAT:
 			mpg123_getformat(handle, &rate, &channels, &encoding);
 			debug("MPG123 new format detected: r:%ld, ch:%d, enc:%#x", rate, channels, encoding);
-			goto decode;
+			break;
 		default:
 			error("MPG123 decoding error: %s", mpg123_strerror(handle));
 			continue;
@@ -785,6 +785,11 @@ decode:
 
 		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, len / sizeof(int16_t)) == -1)
 			error("FIFO write error: %s", strerror(errno));
+
+		if (len > 0) {
+			rtp_mpeg_len = 0;
+			goto decode;
+		}
 
 #else
 
@@ -1041,8 +1046,9 @@ static void *io_thread_a2dp_source_mp3(void *arg) {
 		size_t pcm_frames = samples / channels;
 		ssize_t len;
 
-		if ((len = lame_encode_buffer_interleaved(handle, pcm.data,
-						pcm_frames, bt.tail, ffb_len_in(&bt))) < 0) {
+		if ((len = channels == 1 ?
+					lame_encode_buffer(handle, pcm.data, NULL, pcm_frames, bt.tail, ffb_len_in(&bt)) :
+					lame_encode_buffer_interleaved(handle, pcm.data, pcm_frames, bt.tail, ffb_len_in(&bt))) < 0) {
 			error("LAME encoding error: %s", lame_encode_strerror(len));
 			continue;
 		}
