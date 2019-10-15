@@ -2740,7 +2740,7 @@ int io_thread_create(struct ba_transport *t) {
 			name = "ba-io-aptx";
 			break;
 #endif
-#if ENABLE_APTX
+#if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
 			routine = io_thread_a2dp_source_aptx_hd;
 			name = "ba-io-aptx-hd";
