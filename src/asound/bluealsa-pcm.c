@@ -597,15 +597,26 @@ static int str2profile(const char *str) {
 	return 0;
 }
 
+static snd_pcm_format_t get_snd_pcm_format(uint16_t format) {
+	switch (format) {
+	case 0x0008:
+		return SND_PCM_FORMAT_U8;
+	case 0x8010:
+		return SND_PCM_FORMAT_S16_LE;
+	case 0x8018:
+		return SND_PCM_FORMAT_S24_3LE;
+	default:
+		SNDERR("Unsupported PCM format: %#x", format);
+		return SND_PCM_FORMAT_UNKNOWN;
+	}
+}
+
 static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 	snd_pcm_ioplug_t *io = &pcm->io;
 
 	static const snd_pcm_access_t accesses[] = {
 		SND_PCM_ACCESS_MMAP_INTERLEAVED,
 		SND_PCM_ACCESS_RW_INTERLEAVED,
-	};
-	static const unsigned int formats[] = {
-		SND_PCM_FORMAT_S16_LE,
 	};
 
 	int err;
@@ -616,6 +627,7 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 					ARRAYSIZE(accesses), accesses)) < 0)
 		return err;
 
+	unsigned int formats[] = { get_snd_pcm_format(pcm->ba_pcm.format) };
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_FORMAT,
 					ARRAYSIZE(formats), formats)) < 0)
 		return err;

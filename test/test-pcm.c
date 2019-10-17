@@ -63,8 +63,8 @@ fail:
 	return err;
 }
 
-static int set_hw_params(snd_pcm_t *pcm, int channels, int rate,
-		unsigned int *buffer_time, unsigned int *period_time) {
+static int set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int channels,
+		int rate, unsigned int *buffer_time, unsigned int *period_time) {
 
 	snd_pcm_hw_params_t *params;
 	int dir;
@@ -77,7 +77,7 @@ static int set_hw_params(snd_pcm_t *pcm, int channels, int rate,
 		error("snd_pcm_hw_params_set_access: %s", snd_strerror(err));
 		return err;
 	}
-	if ((err = snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_S16_LE)) != 0) {
+	if ((err = snd_pcm_hw_params_set_format(pcm, params, format)) != 0) {
 		error("snd_pcm_hw_params_set_format: %s", snd_strerror(err));
 		return err;
 	}
@@ -206,6 +206,7 @@ START_TEST(test_playback) {
 	const char *service = "org.bluealsa.test";
 	pid_t pid = spawn_bluealsa_server(service, 2, false, true, false);
 
+	snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
 	int pcm_channels = 2;
 	int pcm_sampling = 44100;
 	unsigned int pcm_buffer_time = 500000;
@@ -217,7 +218,8 @@ START_TEST(test_playback) {
 	snd_pcm_sframes_t delay;
 
 	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_channels, pcm_sampling, &pcm_buffer_time, &pcm_period_time), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&pcm_buffer_time, &pcm_period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(set_sw_params(pcm, buffer_size, period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -313,7 +315,8 @@ void test_playback_termination_reference(const char *name) {
 		error("snd_pcm_open: %s", snd_strerror(err));
 		return;
 	}
-	if (set_hw_params(pcm, 2, 44100, &pcm_buffer_time, &pcm_period_time) != 0)
+	if (set_hw_params(pcm, SND_PCM_FORMAT_S16_LE, 2, 44100,
+				&pcm_buffer_time, &pcm_period_time) != 0)
 		return;
 	if ((err = snd_pcm_prepare(pcm)) != 0) {
 		error("snd_pcm_prepare: %s", snd_strerror(err));
@@ -358,7 +361,8 @@ START_TEST(test_playback_termination) {
 	unsigned int pcm_period_time = 100000;
 
 	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
-	ck_assert_int_eq(set_hw_params(pcm, 2, 44100, &pcm_buffer_time, &pcm_period_time), 0);
+	ck_assert_int_eq(set_hw_params(pcm, SND_PCM_FORMAT_S16_LE, 2, 44100,
+				&pcm_buffer_time, &pcm_period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	int16_t buffer[buffer_test_frames * 2] = { 0 };
