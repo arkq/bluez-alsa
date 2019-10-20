@@ -11,6 +11,7 @@
 #include "io.h"
 
 #include <ctype.h>
+#include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>

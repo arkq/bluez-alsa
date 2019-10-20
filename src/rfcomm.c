@@ -19,9 +19,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
-#include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "utils.h"
 #include "shared/defs.h"

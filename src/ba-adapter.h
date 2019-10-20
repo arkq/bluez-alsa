@@ -21,12 +21,14 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
 
 /* Data associated with BT adapter. */
 struct ba_adapter {
 
 	/* basic info about HCI device */
 	struct hci_dev_info hci;
+	struct hci_version chip;
 
 	/* data for D-Bus management */
 	char ba_dbus_path[32];

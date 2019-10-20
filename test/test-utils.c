@@ -10,6 +10,7 @@
 
 #include <check.h>
 
+#include "../src/hci.c"
 #include "../src/utils.c"
 #include "../src/shared/defs.h"
 #include "../src/shared/ffb.c"

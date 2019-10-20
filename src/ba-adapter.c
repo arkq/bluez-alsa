@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -21,6 +22,8 @@
 
 #include "ba-device.h"
 #include "bluealsa.h"
+#include "hci.h"
+#include "hfp.h"
 #include "utils.h"
 #include "shared/log.h"
 
@@ -53,6 +56,11 @@ struct ba_adapter *ba_adapter_new(int dev_id) {
 		snprintf(a->hci.name, sizeof(a->hci.name), "hci%d", dev_id);
 		a->hci.dev_id = dev_id;
 	}
+
+	/* Fill in the HCI version structure, which includes manufacturer
+	 * ID. Note, that in order to get such info HCI has to be UP. */
+	if (hci_get_version(dev_id, &a->chip) == -1)
+		warn("Couldn't get HCI version: %s", strerror(errno));
 
 	a->ref_count = 1;
 

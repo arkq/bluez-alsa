@@ -12,7 +12,7 @@
 #define BLUEALSA_RFCOMM_H_
 
 #if HAVE_CONFIG_H
-# include "config.h"
+# include <config.h>
 #endif
 
 #include <stdbool.h>

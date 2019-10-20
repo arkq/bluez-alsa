@@ -34,6 +34,7 @@
 #include "bluealsa-dbus.h"
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
+#include "hci.h"
 #include "utils.h"
 #include "shared/log.h"
 

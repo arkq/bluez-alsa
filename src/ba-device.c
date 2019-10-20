@@ -14,6 +14,7 @@
 #include <stdlib.h>
 
 #include "ba-transport.h"
+#include "hci.h"
 #include "utils.h"
 #include "shared/log.h"
 

@@ -32,6 +32,7 @@
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
+#include "hci.h"
 #include "hfp.h"
 #include "io.h"
 #include "utils.h"
@@ -850,12 +851,42 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	struct hci_dev_info di;
 
-	if (t->bt_fd != -1)
+	if (t->bt_fd != -1) {
+		debug("Reusing SCO: %d", t->bt_fd);
 		return t->bt_fd;
+	}
 
 	if (hci_devinfo(t->d->a->hci.dev_id, &di) == -1) {
 		error("Couldn't get HCI device info: %s", strerror(errno));
 		return -1;
+	}
+
+	/* XXX: It is a known issue with Broadcom chips, that by default, the SCO
+	 *      packets are routed via the chip's PCM interface. However, the IO
+	 *      thread expects data to be available via the transport interface. */
+	if (t->d->a->chip.manufacturer == BT_COMPID_BROADCOM) {
+
+		int dd;
+		uint8_t routing, rate, frame, sync, clock;
+
+		debug("Checking Broadcom internal SCO routing");
+
+		if ((dd = hci_open_dev(di.dev_id)) == -1 ||
+				hci_bcm_read_sco_pcm_params(dd, &routing, &rate, &frame, &sync, &clock, 1000) == -1)
+			error("Couldn't read SCO routing params: %s", strerror(errno));
+		else {
+			debug("Current SCO interface setup: %u %u %u %u %u", routing, rate, frame, sync, clock);
+			if (routing != BT_BCM_PARAM_ROUTING_TRANSPORT) {
+				debug("Setting SCO routing via transport interface");
+				if (hci_bcm_write_sco_pcm_params(dd, BT_BCM_PARAM_ROUTING_TRANSPORT,
+						rate, frame, sync, clock, 1000) == -1)
+				error("Couldn't write SCO routing params: %s", strerror(errno));
+			}
+		}
+
+		if (dd != -1)
+			hci_close_dev(dd);
+
 	}
 
 	if ((t->bt_fd = hci_open_sco(di.dev_id, &t->d->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {

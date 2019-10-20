@@ -23,6 +23,7 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
+#include "../src/hci.c"
 #include "../src/io.c"
 #include "../src/msbc.c"
 #include "../src/rfcomm.c"
