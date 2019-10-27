@@ -126,10 +126,12 @@ static int pcm_set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int channe
 		snprintf(buf, sizeof(buf), "Set sampling rate: %s: %d", snd_strerror(err), rate);
 		goto fail;
 	}
+	dir = 0;
 	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0) {
 		snprintf(buf, sizeof(buf), "Set buffer time: %s: %u", snd_strerror(err), *buffer_time);
 		goto fail;
 	}
+	dir = 0;
 	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0) {
 		snprintf(buf, sizeof(buf), "Set period time: %s: %u", snd_strerror(err), *period_time);
 		goto fail;
@@ -324,7 +326,7 @@ static void *pcm_worker_routine(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &buffer);
 
 	/* create buffer big enough to hold 100 ms of PCM data */
-	if (ffb_init(&buffer, pcm_1s_samples / 10) == NULL) {
+	if (ffb_init(&buffer, pcm_1s_samples / 10 * pcm_format_size) == NULL) {
 		error("Couldn't create PCM buffer: %s", strerror(ENOMEM));
 		goto fail;
 	}
