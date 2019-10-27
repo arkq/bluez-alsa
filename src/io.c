@@ -799,7 +799,9 @@ decode:
 			continue;
 		}
 
-		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, len / sizeof(int16_t)) == -1)
+		const size_t samples = len / sizeof(int16_t);
+		io_thread_scale_pcm(t, pcm.data, samples, channels);
+		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		if (len > 0) {
@@ -819,6 +821,7 @@ decode:
 		}
 
 		if (channels == 1) {
+			io_thread_scale_pcm(t, pcm_l, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm_l, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
@@ -830,6 +833,7 @@ decode:
 				pcm.data[i * 2 + 1] = pcm_r[i];
 			}
 
+			io_thread_scale_pcm(t, pcm.data, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
