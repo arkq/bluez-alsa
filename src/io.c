@@ -62,10 +62,6 @@
 /**
  * Common IO thread data. */
 struct io_thread_data {
-	/* IO thread event loop file descriptors */
-	struct pollfd fds[2];
-	/* keep-alive and sync timeout */
-	int poll_timeout;
 	/* transfer bit rate synchronization */
 	struct asrsync asrs;
 	/* history of BT socket COUTQ bytes */
@@ -133,7 +129,8 @@ static ssize_t io_thread_read_pcm_flush(struct ba_transport_pcm *pcm) {
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm, const int16_t *buffer, size_t samples) {
+static ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm,
+		const int16_t *buffer, size_t samples) {
 
 	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
 	const uint8_t *head = (uint8_t *)buffer;
@@ -180,10 +177,10 @@ final:
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t io_thread_write_bt(const struct ba_transport *t,
-		const uint8_t *buffer, size_t len, int *coutq) {
+static ssize_t io_thread_write_bt(int fd, const uint8_t *buffer,
+		size_t len, int *coutq, int coutq_init) {
 
-	struct pollfd pfd = { t->bt_fd, POLLOUT, 0 };
+	struct pollfd pfd = { fd, POLLOUT, 0 };
 	int oldstate;
 	ssize_t ret;
 
@@ -197,7 +194,7 @@ static ssize_t io_thread_write_bt(const struct ba_transport *t,
 	if (ioctl(pfd.fd, TIOCOUTQ, coutq) == -1)
 		warn("Couldn't get BT queued bytes: %s", strerror(errno));
 	else
-		*coutq = abs(t->a2dp.bt_fd_coutq_init - *coutq);
+		*coutq = abs(coutq_init - *coutq);
 
 retry:
 	if ((ret = write(pfd.fd, buffer, len)) == -1)
@@ -213,6 +210,156 @@ retry:
 
 	pthread_setcancelstate(oldstate, NULL);
 	return ret;
+}
+
+/**
+ * Poll and read PCM signal from the transport PCM FIFO.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
+static ssize_t io_thread_a2dp_poll_and_read_pcm(struct ba_transport *t,
+		struct io_thread_data *io, ffb_int16_t *buffer) {
+
+	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int samplerate = ba_transport_get_sampling(t);
+
+	struct pollfd fds[2] = {
+		{ t->sig_fd[0], POLLIN, 0 },
+		{ -1, POLLIN, 0 }};
+	int timeout = -1;
+
+	/* Allow escaping from the poll() by thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+repoll:
+
+	/* Add PCM socket to the poll if transport is active. */
+	fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
+
+	/* Poll for reading with keep-alive and sync timeout. */
+	switch (poll(fds, ARRAYSIZE(fds), timeout)) {
+	case 0:
+		pthread_cond_signal(&t->a2dp.drained);
+		timeout = -1;
+		io->t_locked = !ba_transport_pthread_cleanup_lock(t);
+		if (t->a2dp.pcm.fd == -1)
+			return 0;
+		ba_transport_pthread_cleanup_unlock(t);
+		io->t_locked = false;
+		goto repoll;
+	case -1:
+		if (errno == EINTR)
+			goto repoll;
+		return -1;
+	}
+
+	if (fds[0].revents & POLLIN) {
+		/* dispatch incoming event */
+		switch (ba_transport_recv_signal(t)) {
+		case TRANSPORT_PCM_OPEN:
+		case TRANSPORT_PCM_RESUME:
+			io->asrs.frames = 0;
+			timeout = -1;
+			goto repoll;
+		case TRANSPORT_PCM_CLOSE:
+			/* reuse PCM read disconnection logic */
+			break;
+		case TRANSPORT_PCM_SYNC:
+			timeout = 100;
+			goto repoll;
+		case TRANSPORT_PCM_DROP:
+			io_thread_read_pcm_flush(&t->a2dp.pcm);
+			goto repoll;
+		default:
+			goto repoll;
+		}
+	}
+
+	ssize_t samples;
+	switch (samples = io_thread_read_pcm(&t->a2dp.pcm, buffer->tail, ffb_len_in(buffer))) {
+	case 0:
+		timeout = config.a2dp.keep_alive * 1000;
+		debug("Keep-alive polling: %d", timeout);
+		goto repoll;
+	case -1:
+		if (errno == EAGAIN)
+			goto repoll;
+		return -1;
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	/* When the thread is created, there might be no data in the FIFO. In fact
+	 * there might be no data for a long time - until client starts playback.
+	 * In order to correctly calculate time drift, the zero time point has to
+	 * be obtained after the stream has started. */
+	if (io->asrs.frames == 0)
+		asrsync_init(&io->asrs, samplerate);
+
+	if (!config.a2dp.volume)
+		/* scale volume or mute audio signal */
+		io_thread_scale_pcm(t, buffer->tail, samples, channels);
+
+	/* update PCM buffer */
+	ffb_seek(buffer, samples);
+
+	/* return overall number of samples */
+	return ffb_len_out(buffer);
+}
+
+/**
+ * Poll and read BT signal from the SEQPACKET socket.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
+static ssize_t io_thread_a2dp_poll_and_read_bt(struct ba_transport *t,
+		struct io_thread_data *io, ffb_uint8_t *buffer) {
+	(void)io;
+
+	struct pollfd fds[2] = {
+		{ t->sig_fd[0], POLLIN, 0 },
+		{ -1, POLLIN, 0 }};
+
+	/* Allow escaping from the poll() by thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+repoll:
+
+	/* Add BT socket to the poll if transport is active. */
+	fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
+
+	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
+		if (errno == EINTR)
+			goto repoll;
+		error("Transport poll error: %s", strerror(errno));
+		return -1;
+	}
+
+	if (fds[0].revents & POLLIN) {
+		/* dispatch incoming event */
+		ba_transport_recv_signal(t);
+		goto repoll;
+	}
+
+	ssize_t len;
+	if ((len = read(fds[1].fd, buffer->tail, ffb_len_in(buffer))) == -1) {
+		debug("BT read error: %s", strerror(errno));
+		goto repoll;
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	/* it seems that zero is never returned... */
+	if (len == 0) {
+		debug("BT socket has been closed: %d", fds[1].fd);
+		/* Prevent sending the release request to the BlueZ. If the socket has
+		 * been closed, it means that BlueZ has already closed the connection. */
+		close(fds[1].fd);
+		t->bt_fd = -1;
+		return 0;
+	}
+
+	return len;
 }
 
 /**
@@ -251,8 +398,6 @@ static void *io_thread_a2dp_sink_sbc(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
 		 * known - initialization has failed or succeeded. */
@@ -305,40 +450,11 @@ static void *io_thread_a2dp_sink_sbc(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t len;
-
-		/* add BT socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
-
-		if (poll(io.fds, ARRAYSIZE(io.fds), -1) == -1) {
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
-			goto fail;
-		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			ba_transport_recv_signal(t);
-			continue;
-		}
-
-		if ((len = read(io.fds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
-			debug("BT read error: %s", strerror(errno));
-			continue;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		/* it seems that zero is never returned... */
-		if (len == 0) {
-			debug("BT socket has been closed: %d", io.fds[1].fd);
-			/* Prevent sending the release request to the BlueZ. If the socket has
-			 * been closed, it means that BlueZ has already closed the connection. */
-			close(io.fds[1].fd);
-			t->bt_fd = -1;
+		if ((len = io_thread_a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -410,9 +526,6 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
-		.poll_timeout = -1,
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
 		 * known - initialization has failed or succeeded. */
@@ -469,80 +582,13 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
-
-		/* add PCM socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
-
-		switch (poll(io.fds, ARRAYSIZE(io.fds), io.poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->a2dp.drained);
-			io.poll_timeout = -1;
-			io.t_locked = !ba_transport_pthread_cleanup_lock(t);
-			if (t->a2dp.pcm.fd == -1)
-				goto final;
-			ba_transport_pthread_cleanup_unlock(t);
-			io.t_locked = false;
-			continue;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
+		if ((samples = io_thread_a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_PCM_OPEN:
-			case TRANSPORT_PCM_RESUME:
-				io.poll_timeout = -1;
-				io.asrs.frames = 0;
-				continue;
-			case TRANSPORT_PCM_CLOSE:
-				/* reuse PCM read disconnection logic */
-				break;
-			case TRANSPORT_PCM_SYNC:
-				io.poll_timeout = 100;
-				continue;
-			case TRANSPORT_PCM_DROP:
-				io_thread_read_pcm_flush(&t->a2dp.pcm);
-				continue;
-			default:
-				continue;
-			}
-		}
-
-		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
-		case 0:
-			io.poll_timeout = config.a2dp.keep_alive * 1000;
-			debug("Keep-alive polling: %d", io.poll_timeout);
-			continue;
-		case -1:
-			if (errno == EAGAIN)
-				continue;
-			error("PCM read error: %s", strerror(errno));
-			goto fail;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		/* When the thread is created, there might be no data in the FIFO. In fact
-		 * there might be no data for a long time - until client starts playback.
-		 * In order to correctly calculate time drift, the zero time point has to
-		 * be obtained after the stream has started. */
-		if (io.asrs.frames == 0)
-			asrsync_init(&io.asrs, samplerate);
-
-		if (!config.a2dp.volume)
-			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, pcm.tail, samples, channels);
-
-		/* get overall number of input samples */
-		ffb_seek(&pcm, samples);
-		samples = ffb_len_out(&pcm);
 
 		/* anchor for RTP payload */
 		bt.tail = rtp_payload;
@@ -582,7 +628,8 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 		rtp_media_header->frame_count = sbc_frames;
 
 		io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-		if (io_thread_write_bt(t, bt.data, ffb_len_out(&bt), &io.coutq.v[io.coutq.i]) == -1) {
+		if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt),
+					&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init) == -1) {
 			if (errno == ECONNRESET || errno == ENOTCONN) {
 				/* exit thread upon BT socket disconnection */
 				debug("BT socket disconnected: %d", t->bt_fd);
@@ -608,7 +655,6 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 	}
 
 fail:
-final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!io.t_locked);
 fail_ffb:
@@ -628,8 +674,6 @@ static void *io_thread_a2dp_sink_mpeg(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -702,40 +746,11 @@ static void *io_thread_a2dp_sink_mpeg(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t len;
-
-		/* add BT socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
-
-		if (poll(io.fds, ARRAYSIZE(io.fds), -1) == -1) {
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
-			goto fail;
-		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			ba_transport_recv_signal(t);
-			continue;
-		}
-
-		if ((len = read(io.fds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
-			debug("BT read error: %s", strerror(errno));
-			continue;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		/* it seems that zero is never returned... */
-		if (len == 0) {
-			debug("BT socket has been closed: %d", io.fds[1].fd);
-			/* Prevent sending the release request to the BlueZ. If the socket has
-			 * been closed, it means that BlueZ has already closed the connection. */
-			close(io.fds[1].fd);
-			t->bt_fd = -1;
+		if ((len = io_thread_a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -849,9 +864,6 @@ static void *io_thread_a2dp_source_mp3(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
-		.poll_timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -966,80 +978,13 @@ static void *io_thread_a2dp_source_mp3(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
-
-		/* add PCM socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
-
-		switch (poll(io.fds, ARRAYSIZE(io.fds), io.poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->a2dp.drained);
-			io.poll_timeout = -1;
-			io.t_locked = !ba_transport_pthread_cleanup_lock(t);
-			if (t->a2dp.pcm.fd == -1)
-				goto final;
-			ba_transport_pthread_cleanup_unlock(t);
-			io.t_locked = false;
-			continue;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
+		if ((samples = io_thread_a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_PCM_OPEN:
-			case TRANSPORT_PCM_RESUME:
-				io.poll_timeout = -1;
-				io.asrs.frames = 0;
-				continue;
-			case TRANSPORT_PCM_CLOSE:
-				/* reuse PCM read disconnection logic */
-				break;
-			case TRANSPORT_PCM_SYNC:
-				io.poll_timeout = 100;
-				continue;
-			case TRANSPORT_PCM_DROP:
-				io_thread_read_pcm_flush(&t->a2dp.pcm);
-				continue;
-			default:
-				continue;
-			}
-		}
-
-		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
-		case 0:
-			io.poll_timeout = config.a2dp.keep_alive * 1000;
-			debug("Keep-alive polling: %d", io.poll_timeout);
-			continue;
-		case -1:
-			if (errno == EAGAIN)
-				continue;
-			error("PCM read error: %s", strerror(errno));
-			goto fail;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		/* When the thread is created, there might be no data in the FIFO. In fact
-		 * there might be no data for a long time - until client starts playback.
-		 * In order to correctly calculate time drift, the zero time point has to
-		 * be obtained after the stream has started. */
-		if (io.asrs.frames == 0)
-			asrsync_init(&io.asrs, samplerate);
-
-		if (!config.a2dp.volume)
-			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, pcm.tail, samples, channels);
-
-		/* get overall number of input samples */
-		ffb_seek(&pcm, samples);
-		samples = ffb_len_out(&pcm);
 
 		/* anchor for RTP payload */
 		bt.tail = rtp_payload;
@@ -1072,8 +1017,9 @@ static void *io_thread_a2dp_source_mp3(void *arg) {
 				rtp_mpeg_audio_header->offset = payload_len_total - payload_len;
 
 				io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-				if ((ret = io_thread_write_bt(t, bt.data, RTP_HEADER_LEN +
-								sizeof(*rtp_mpeg_audio_header) + len, &io.coutq.v[io.coutq.i])) == -1) {
+				if ((ret = io_thread_write_bt(t->bt_fd, bt.data, RTP_HEADER_LEN +
+								sizeof(*rtp_mpeg_audio_header) + len, &io.coutq.v[io.coutq.i],
+								t->a2dp.bt_fd_coutq_init)) == -1) {
 					if (errno == ECONNRESET || errno == ENOTCONN) {
 						/* exit thread upon BT socket disconnection */
 						debug("BT socket disconnected: %d", t->bt_fd);
@@ -1115,7 +1061,6 @@ static void *io_thread_a2dp_source_mp3(void *arg) {
 	}
 
 fail:
-final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!io.t_locked);
 fail_ffb:
@@ -1137,8 +1082,6 @@ static void *io_thread_a2dp_sink_aac(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1202,41 +1145,11 @@ static void *io_thread_a2dp_sink_aac(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		CStreamInfo *aacinf;
 		ssize_t len;
-
-		/* add BT socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
-
-		if (poll(io.fds, ARRAYSIZE(io.fds), -1) == -1) {
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
-			goto fail;
-		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			ba_transport_recv_signal(t);
-			continue;
-		}
-
-		if ((len = read(io.fds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
-			debug("BT read error: %s", strerror(errno));
-			continue;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		/* it seems that zero is never returned... */
-		if (len == 0) {
-			debug("BT socket has been closed: %d", io.fds[1].fd);
-			/* Prevent sending the release request to the BlueZ. If the socket has
-			 * been closed, it means that BlueZ has already closed the connection. */
-			close(io.fds[1].fd);
-			t->bt_fd = -1;
+		if ((len = io_thread_a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -1292,6 +1205,7 @@ static void *io_thread_a2dp_sink_aac(void *arg) {
 
 		unsigned int data_len = ffb_len_out(&latm);
 		unsigned int valid = ffb_len_out(&latm);
+		CStreamInfo *aacinf;
 
 		if ((err = aacDecoder_Fill(handle, &latm.data, &data_len, &valid)) != AAC_DEC_OK)
 			error("AAC buffer fill error: %s", aacdec_strerror(err));
@@ -1335,9 +1249,6 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
-		.poll_timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1469,75 +1380,13 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
-
-		/* add PCM socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
-
-		switch (poll(io.fds, ARRAYSIZE(io.fds), io.poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->a2dp.drained);
-			io.poll_timeout = -1;
-			io.t_locked = !ba_transport_pthread_cleanup_lock(t);
-			if (t->a2dp.pcm.fd == -1)
-				goto final;
-			ba_transport_pthread_cleanup_unlock(t);
-			io.t_locked = false;
-			continue;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
+		if ((samples = io_thread_a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_PCM_OPEN:
-			case TRANSPORT_PCM_RESUME:
-				io.poll_timeout = -1;
-				io.asrs.frames = 0;
-				continue;
-			case TRANSPORT_PCM_CLOSE:
-				/* reuse PCM read disconnection logic */
-				break;
-			case TRANSPORT_PCM_SYNC:
-				io.poll_timeout = 100;
-				continue;
-			case TRANSPORT_PCM_DROP:
-				io_thread_read_pcm_flush(&t->a2dp.pcm);
-				continue;
-			default:
-				continue;
-			}
-		}
-
-		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
-		case 0:
-			io.poll_timeout = config.a2dp.keep_alive * 1000;
-			debug("Keep-alive polling: %d", io.poll_timeout);
-			continue;
-		case -1:
-			if (errno == EAGAIN)
-				continue;
-			error("PCM read error: %s", strerror(errno));
-			goto fail;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		if (io.asrs.frames == 0)
-			asrsync_init(&io.asrs, samplerate);
-
-		if (!config.a2dp.volume)
-			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, pcm.tail, samples, channels);
-
-		/* move tail pointer */
-		ffb_seek(&pcm, samples);
 
 		while ((in_args.numInSamples = ffb_len_out(&pcm)) > 0) {
 
@@ -1564,7 +1413,8 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 					rtp_header->seq_number = htons(++seq_number);
 
 					io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-					if ((ret = io_thread_write_bt(t, bt.data, RTP_HEADER_LEN + len, &io.coutq.v[io.coutq.i])) == -1) {
+					if ((ret = io_thread_write_bt(t->bt_fd, bt.data, RTP_HEADER_LEN + len,
+									&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init)) == -1) {
 						if (errno == ECONNRESET || errno == ENOTCONN) {
 							/* exit thread upon BT socket disconnection */
 							debug("BT socket disconnected: %d", t->bt_fd);
@@ -1608,7 +1458,6 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 	}
 
 fail:
-final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!io.t_locked);
 fail_ffb:
@@ -1630,9 +1479,6 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
-		.poll_timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1667,76 +1513,13 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
-
-		/* add PCM socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
-
-		switch (poll(io.fds, ARRAYSIZE(io.fds), io.poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->a2dp.drained);
-			io.poll_timeout = -1;
-			io.t_locked = !ba_transport_pthread_cleanup_lock(t);
-			if (t->a2dp.pcm.fd == -1)
-				goto final;
-			ba_transport_pthread_cleanup_unlock(t);
-			io.t_locked = false;
-			continue;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
+		if ((samples = io_thread_a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_PCM_OPEN:
-			case TRANSPORT_PCM_RESUME:
-				io.poll_timeout = -1;
-				io.asrs.frames = 0;
-				continue;
-			case TRANSPORT_PCM_CLOSE:
-				/* reuse PCM read disconnection logic */
-				break;
-			case TRANSPORT_PCM_SYNC:
-				io.poll_timeout = 100;
-				continue;
-			case TRANSPORT_PCM_DROP:
-				io_thread_read_pcm_flush(&t->a2dp.pcm);
-				continue;
-			default:
-				continue;
-			}
-		}
-
-		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
-		case 0:
-			io.poll_timeout = config.a2dp.keep_alive * 1000;
-			debug("Keep-alive polling: %d", io.poll_timeout);
-			continue;
-		case -1:
-			if (errno == EAGAIN)
-				continue;
-			error("PCM read error: %s", strerror(errno));
-			goto fail;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		if (io.asrs.frames == 0)
-			asrsync_init(&io.asrs, ba_transport_get_sampling(t));
-
-		if (!config.a2dp.volume)
-			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, pcm.tail, samples, channels);
-
-		/* get overall number of input samples */
-		ffb_seek(&pcm, samples);
-		samples = ffb_len_out(&pcm);
 
 		int16_t *input = pcm.data;
 		size_t input_len = samples;
@@ -1769,7 +1552,8 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 			}
 
 			io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-			if (io_thread_write_bt(t, bt.data, ffb_len_out(&bt), &io.coutq.v[io.coutq.i]) == -1) {
+			if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt),
+						&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit thread upon BT socket disconnection */
 					debug("BT socket disconnected: %d", t->bt_fd);
@@ -1798,7 +1582,6 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 	}
 
 fail:
-final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!io.t_locked);
 fail_ffb:
@@ -1819,9 +1602,6 @@ static void *io_thread_a2dp_source_aptx_hd(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
-		.poll_timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1864,76 +1644,13 @@ static void *io_thread_a2dp_source_aptx_hd(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
-
-		/* add PCM socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
-
-		switch (poll(io.fds, ARRAYSIZE(io.fds), io.poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->a2dp.drained);
-			io.poll_timeout = -1;
-			io.t_locked = !ba_transport_pthread_cleanup_lock(t);
-			if (t->a2dp.pcm.fd == -1)
-				goto final;
-			ba_transport_pthread_cleanup_unlock(t);
-			io.t_locked = false;
-			continue;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
+		if ((samples = io_thread_a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_PCM_OPEN:
-			case TRANSPORT_PCM_RESUME:
-				io.poll_timeout = -1;
-				io.asrs.frames = 0;
-				continue;
-			case TRANSPORT_PCM_CLOSE:
-				/* reuse PCM read disconnection logic */
-				break;
-			case TRANSPORT_PCM_SYNC:
-				io.poll_timeout = 100;
-				continue;
-			case TRANSPORT_PCM_DROP:
-				io_thread_read_pcm_flush(&t->a2dp.pcm);
-				continue;
-			default:
-				continue;
-			}
-		}
-
-		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
-		case 0:
-			io.poll_timeout = config.a2dp.keep_alive * 1000;
-			debug("Keep-alive polling: %d", io.poll_timeout);
-			continue;
-		case -1:
-			if (errno == EAGAIN)
-				continue;
-			error("PCM read error: %s", strerror(errno));
-			goto fail;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		if (io.asrs.frames == 0)
-			asrsync_init(&io.asrs, samplerate);
-
-		if (!config.a2dp.volume)
-			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, pcm.tail, samples, channels);
-
-		/* get overall number of input samples */
-		ffb_seek(&pcm, samples);
-		samples = ffb_len_out(&pcm);
 
 		int16_t *input = pcm.data;
 		size_t input_len = samples;
@@ -1977,7 +1694,8 @@ static void *io_thread_a2dp_source_aptx_hd(void *arg) {
 			}
 
 			io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-			if (io_thread_write_bt(t, bt.data, ffb_len_out(&bt), &io.coutq.v[io.coutq.i]) == -1) {
+			if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt),
+						&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit thread upon BT socket disconnection */
 					debug("BT socket disconnected: %d", t->bt_fd);
@@ -2010,7 +1728,6 @@ static void *io_thread_a2dp_source_aptx_hd(void *arg) {
 	}
 
 fail:
-final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!io.t_locked);
 fail_ffb:
@@ -2032,9 +1749,6 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { -1, POLLIN, 0 },
-		.poll_timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -2102,76 +1816,13 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		ssize_t samples;
-
-		/* add PCM socket to the poll if transport is active */
-		io.fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
-
-		switch (poll(io.fds, ARRAYSIZE(io.fds), io.poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->a2dp.drained);
-			io.poll_timeout = -1;
-			io.t_locked = !ba_transport_pthread_cleanup_lock(t);
-			if (t->a2dp.pcm.fd == -1)
-				goto final;
-			ba_transport_pthread_cleanup_unlock(t);
-			io.t_locked = false;
-			continue;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
+		if ((samples = io_thread_a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		if (io.fds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_PCM_OPEN:
-			case TRANSPORT_PCM_RESUME:
-				io.poll_timeout = -1;
-				io.asrs.frames = 0;
-				continue;
-			case TRANSPORT_PCM_CLOSE:
-				/* reuse PCM read disconnection logic */
-				break;
-			case TRANSPORT_PCM_SYNC:
-				io.poll_timeout = 100;
-				continue;
-			case TRANSPORT_PCM_DROP:
-				io_thread_read_pcm_flush(&t->a2dp.pcm);
-				continue;
-			default:
-				continue;
-			}
-		}
-
-		switch (samples = io_thread_read_pcm(&t->a2dp.pcm, pcm.tail, ffb_len_in(&pcm))) {
-		case 0:
-			io.poll_timeout = config.a2dp.keep_alive * 1000;
-			debug("Keep-alive polling: %d", io.poll_timeout);
-			continue;
-		case -1:
-			if (errno == EAGAIN)
-				continue;
-			error("PCM read error: %s", strerror(errno));
-			goto fail;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		if (io.asrs.frames == 0)
-			asrsync_init(&io.asrs, samplerate);
-
-		if (!config.a2dp.volume)
-			/* scale volume or mute audio signal */
-			io_thread_scale_pcm(t, pcm.tail, samples, channels);
-
-		/* get overall number of input samples */
-		ffb_seek(&pcm, samples);
-		samples = ffb_len_out(&pcm);
 
 		int16_t *input = pcm.data;
 		size_t input_len = samples;
@@ -2195,7 +1846,8 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 			input_len -= frames;
 
 			if (encoded &&
-					io_thread_write_bt(t, bt.data, ffb_len_out(&bt) + encoded, &io.coutq.v[0]) == -1) {
+					io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt) + encoded,
+						&io.coutq.v[0], t->a2dp.bt_fd_coutq_init) == -1) {
 				if (errno == ECONNRESET || errno == ENOTCONN) {
 					/* exit thread upon BT socket disconnection */
 					debug("BT socket disconnected: %d", t->bt_fd);
@@ -2232,7 +1884,6 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 	}
 
 fail:
-final:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(!io.t_locked);
 fail_ffb:
@@ -2628,11 +2279,6 @@ static void *io_thread_a2dp_sink_dump(void *arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
-	struct io_thread_data io = {
-		.fds[0] = { t->sig_fd[0], POLLIN, 0 },
-		.fds[1] = { t->bt_fd, POLLIN, 0 },
-	};
-
 	ffb_uint8_t bt = { 0 };
 	FILE *f = NULL;
 	char fname[64];
@@ -2660,28 +2306,12 @@ static void *io_thread_a2dp_sink_dump(void *arg) {
 	}
 
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 		ssize_t len;
-
-		if (poll(io.fds, ARRAYSIZE(io.fds), -1) == -1) {
-			if (errno == EINTR)
-				continue;
-			error("Transport poll error: %s", strerror(errno));
+		if ((len = io_thread_a2dp_poll_and_read_bt(t, NULL, &bt)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		if (io.fds[0].revents & POLLIN) {
-			if (read(io.fds[0].fd, bt.data, ffb_blen_in(&bt)) == -1)
-				warn("Couldn't read signal: %s", strerror(errno));
-			continue;
-		}
-
-		if ((len = read(io.fds[1].fd, bt.tail, ffb_len_in(&bt))) == -1) {
-			debug("BT read error: %s", strerror(errno));
-			continue;
-		}
-
 		debug("BT read: %zd", len);
 		fwrite(bt.data, 1, len, f);
 	}
