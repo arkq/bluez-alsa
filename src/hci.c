@@ -43,22 +43,15 @@ int hci_get_version(int dev_id, struct hci_version *ver) {
 }
 
 /**
- * Open SCO link for given Bluetooth device.
+ * Open SCO socket for given HCI device.
  *
- * @param dev_id The ID of the HCI device for which the SCO link should be
- *   established.
- * @param ba Pointer to the Bluetooth address structure for a target device.
- * @param transparent Use transparent mode for voice transmission.
+ * @param dev_id The ID of the HCI device.
  * @return On success this function returns socket file descriptor. Otherwise,
  *   -1 is returned and errno is set to indicate the error. */
-int hci_open_sco(int dev_id, const bdaddr_t *ba, bool transparent) {
+int hci_sco_open(int dev_id) {
 
 	struct sockaddr_sco addr_hci = {
 		.sco_family = AF_BLUETOOTH,
-	};
-	struct sockaddr_sco addr_dev = {
-		.sco_family = AF_BLUETOOTH,
-		.sco_bdaddr = *ba,
 	};
 	int dd, err;
 
@@ -69,17 +62,6 @@ int hci_open_sco(int dev_id, const bdaddr_t *ba, bool transparent) {
 	if (bind(dd, (struct sockaddr *)&addr_hci, sizeof(addr_hci)) == -1)
 		goto fail;
 
-	if (transparent) {
-		struct bt_voice voice = {
-			.setting = BT_VOICE_TRANSPARENT,
-		};
-		if (setsockopt(dd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1)
-			goto fail;
-	}
-
-	if (connect(dd, (struct sockaddr *)&addr_dev, sizeof(addr_dev)) == -1)
-		goto fail;
-
 	return dd;
 
 fail:
@@ -87,6 +69,31 @@ fail:
 	close(dd);
 	errno = err;
 	return -1;
+}
+
+/**
+ * Connect SCO socket with given BT device.
+ *
+ * @param sco_fd File descriptor of opened SCO socket.
+ * @param ba Pointer to the Bluetooth address structure for a target device.
+ * @param voice Bluetooth voice mode used during connection.
+ * @return On success this function returns 0. Otherwise, -1 is returned and
+ *   errno is set to indicate the error. */
+int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
+
+	struct sockaddr_sco addr_dev = {
+		.sco_family = AF_BLUETOOTH,
+		.sco_bdaddr = *ba,
+	};
+
+	struct bt_voice opt = { .setting = voice };
+	if (setsockopt(sco_fd, SOL_BLUETOOTH, BT_VOICE, &opt, sizeof(opt)) == -1)
+		return -1;
+
+	if (connect(sco_fd, (struct sockaddr *)&addr_dev, sizeof(addr_dev)) == -1)
+		return -1;
+
+	return 0;
 }
 
 /**

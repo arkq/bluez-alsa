@@ -16,9 +16,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/sco.h>
+
 #include "a2dp.h"
+#include "ba-device.h"
+#include "bluealsa.h"
+#include "hci.h"
 #include "hfp.h"
 #include "msbc.h"
 #include "utils.h"
@@ -26,6 +34,127 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
+
+/**
+ * SCO dispatcher internal data. */
+struct sco_data {
+	struct ba_adapter *a;
+	struct pollfd pfd;
+};
+
+static void sco_dispatcher_cleanup(struct sco_data *data) {
+	debug("SCO dispatcher cleanup: %s", data->a->hci.name);
+	if (data->pfd.fd != -1)
+		close(data->pfd.fd);
+	data->a->sco_dispatcher = config.main_thread;
+}
+
+static void *sco_dispatcher_thread(struct ba_adapter *a) {
+
+	struct sco_data data = { .a = a, .pfd = { -1, POLLIN, 0 } };
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(sco_dispatcher_cleanup), &data);
+
+	if ((data.pfd.fd = hci_sco_open(data.a->hci.dev_id)) == -1) {
+		error("Couldn't open SCO socket: %s", strerror(errno));
+		goto fail;
+	}
+
+	if (listen(data.pfd.fd, 10) == -1) {
+		error("Couldn't listen on SCO socket: %s", strerror(errno));
+		goto fail;
+	}
+
+	debug("Starting SCO dispatcher loop: %s", a->hci.name);
+	for (;;) {
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		if (poll(&data.pfd, 1, -1) == -1) {
+			if (errno == EINTR)
+				continue;
+			error("SCO dispatcher poll error: %s", strerror(errno));
+			goto fail;
+		}
+
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		struct sockaddr_sco addr;
+		socklen_t addrlen = sizeof(addr);
+		struct ba_device *d = NULL;
+		struct ba_transport *t = NULL;
+		char *ba_dbus_path = NULL;
+		int fd = -1;
+
+		if ((fd = accept(data.pfd.fd, (struct sockaddr *)&addr, &addrlen)) == -1) {
+			error("Couldn't accept incoming SCO link: %s", strerror(errno));
+			goto cleanup;
+		}
+
+		debug("New incoming SCO link: %s: %d", batostr_(&addr.sco_bdaddr), fd);
+
+		if ((d = ba_device_lookup(data.a, &addr.sco_bdaddr)) == NULL) {
+			error("Couldn't lookup device: %s", batostr_(&addr.sco_bdaddr));
+			goto cleanup;
+		}
+
+		ba_dbus_path = g_strdup_printf("%s/sco", d->bluez_dbus_path);
+		if ((t = ba_transport_lookup(d, ba_dbus_path)) == NULL) {
+			error("Couldn't lookup transport: %s", ba_dbus_path);
+			goto cleanup;
+		}
+
+		t->bt_fd = fd;
+		fd = -1;
+
+		t->mtu_read = 48;
+		t->mtu_write = 48;
+
+		ba_transport_send_signal(t, TRANSPORT_PING);
+
+cleanup:
+		if (d != NULL)
+			ba_device_unref(d);
+		if (t != NULL)
+			ba_transport_unref(t);
+		if (ba_dbus_path != NULL)
+			g_free(ba_dbus_path);
+		if (fd != -1)
+			close(fd);
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+
+int sco_setup_connection_dispatcher(struct ba_adapter *a) {
+
+	/* skip setup if dispatcher thread is already running */
+	if (!pthread_equal(a->sco_dispatcher, config.main_thread))
+		return 0;
+
+	int ret;
+
+	/* Please note, that during the SCO dispatcher thread creation the adapter
+	 * is not referenced. It is guaranteed that the adapter will be available
+	 * during the whole live-span of the thread, because the thread is canceled
+	 * in the adapter cleanup routine. See the ba_adapter_unref() function. */
+	if ((ret = pthread_create(&a->sco_dispatcher, NULL,
+					PTHREAD_ROUTINE(sco_dispatcher_thread), a)) != 0) {
+		error("Couldn't create SCO dispatcher: %s", strerror(ret));
+		a->sco_dispatcher = config.main_thread;
+		return -1;
+	}
+
+	pthread_setname_np(a->sco_dispatcher, "ba-sco-dispatch");
+	debug("Created SCO dispatcher [%s]: %s", "ba-sco-dispatch", a->hci.name);
+
+	return 0;
+}
 
 void *sco_thread(struct ba_transport *t) {
 
@@ -62,7 +191,7 @@ void *sco_thread(struct ba_transport *t) {
 		{ -1, POLLOUT, 0 },
 	};
 
-	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
+	debug("Starting SCO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 

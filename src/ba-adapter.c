@@ -62,6 +62,7 @@ struct ba_adapter *ba_adapter_new(int dev_id) {
 	if (hci_get_version(dev_id, &a->chip) == -1)
 		warn("Couldn't get HCI version: %s", strerror(errno));
 
+	a->sco_dispatcher = config.main_thread;
 	a->ref_count = 1;
 
 	sprintf(a->ba_dbus_path, "/org/bluealsa/%s", a->hci.name);
@@ -136,6 +137,7 @@ void ba_adapter_destroy(struct ba_adapter *a) {
 void ba_adapter_unref(struct ba_adapter *a) {
 
 	int ref_count;
+	int err;
 
 	pthread_mutex_lock(&config.adapters_mutex);
 	if ((ref_count = --a->ref_count) == 0)
@@ -147,6 +149,14 @@ void ba_adapter_unref(struct ba_adapter *a) {
 		return;
 
 	debug("Freeing adapter: %s", a->hci.name);
+
+	/* make sure that the SCO dispatcher is terminated before free() */
+	if (!pthread_equal(a->sco_dispatcher, config.main_thread)) {
+		if ((err = pthread_cancel(a->sco_dispatcher)) != 0)
+			warn("Couldn't cancel SCO dispatcher thread: %s", strerror(err));
+		if ((err = pthread_join(a->sco_dispatcher, NULL)) != 0)
+			warn("Couldn't join SCO dispatcher thread: %s", strerror(err));
+	}
 
 	g_hash_table_unref(a->devices);
 	pthread_mutex_destroy(&a->devices_mutex);

@@ -859,16 +859,9 @@ static int transport_release_bt_rfcomm(struct ba_transport *t) {
 
 static int transport_acquire_bt_sco(struct ba_transport *t) {
 
-	struct hci_dev_info di;
-
 	if (t->bt_fd != -1) {
 		debug("Reusing SCO: %d", t->bt_fd);
 		return t->bt_fd;
-	}
-
-	if (hci_devinfo(t->d->a->hci.dev_id, &di) == -1) {
-		error("Couldn't get HCI device info: %s", strerror(errno));
-		return -1;
 	}
 
 	/* XXX: It is a known issue with Broadcom chips, that by default, the SCO
@@ -881,7 +874,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 
 		debug("Checking Broadcom internal SCO routing");
 
-		if ((dd = hci_open_dev(di.dev_id)) == -1 ||
+		if ((dd = hci_open_dev(t->d->a->hci.dev_id)) == -1 ||
 				hci_bcm_read_sco_pcm_params(dd, &routing, &rate, &frame, &sync, &clock, 1000) == -1)
 			error("Couldn't read SCO routing params: %s", strerror(errno));
 		else {
@@ -899,13 +892,16 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	}
 
-	if ((t->bt_fd = hci_open_sco(di.dev_id, &t->d->addr, t->type.codec != HFP_CODEC_CVSD)) == -1) {
-		error("Couldn't open SCO link: %s", strerror(errno));
-		return -1;
+	if ((t->bt_fd = hci_sco_open(t->d->a->hci.dev_id)) == -1) {
+		error("Couldn't open SCO socket: %s", strerror(errno));
+		goto fail;
 	}
 
-	t->mtu_read = di.sco_mtu;
-	t->mtu_write = di.sco_mtu;
+	if (hci_sco_connect(t->bt_fd, &t->d->addr,
+				t->type.codec == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
+		error("Couldn't establish SCO link: %s", strerror(errno));
+		goto fail;
+	}
 
 	/* XXX: It seems, that the MTU values returned by the HCI interface
 	 *      are incorrect (or our interpretation of them is incorrect). */
@@ -915,9 +911,16 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	if (t->type.codec == HFP_CODEC_MSBC)
 		t->mtu_read = t->mtu_write = 24;
 
-	debug("New SCO link: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+	debug("New SCO link: %s: %d (MTU: R:%zu W:%zu)", batostr_(&t->d->addr),
+			t->bt_fd, t->mtu_read, t->mtu_write);
 
 	return t->bt_fd;
+
+fail:
+	if (t->bt_fd != -1)
+		close(t->bt_fd);
+	t->bt_fd = -1;
+	return -1;
 }
 
 static int transport_release_bt_sco(struct ba_transport *t) {

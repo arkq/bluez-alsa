@@ -30,6 +30,9 @@ struct ba_adapter {
 	struct hci_dev_info hci;
 	struct hci_version chip;
 
+	/* incoming SCO links dispatcher */
+	pthread_t sco_dispatcher;
+
 	/* data for D-Bus management */
 	char ba_dbus_path[32];
 	char bluez_dbus_path[32];

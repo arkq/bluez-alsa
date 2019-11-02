@@ -22,7 +22,9 @@
 #define BT_COMPID_BROADCOM 15
 
 int hci_get_version(int dev_id, struct hci_version *ver);
-int hci_open_sco(int dev_id, const bdaddr_t *ba, bool transparent);
+
+int hci_sco_open(int dev_id);
+int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice);
 
 #define BT_BCM_PARAM_ROUTING_PCM       0x0
 #define BT_BCM_PARAM_ROUTING_TRANSPORT 0x1

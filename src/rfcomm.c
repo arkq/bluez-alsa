@@ -250,10 +250,6 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 	if (sscanf(at->value, "%u,%u", &index, &value) == 2) {
 		t->rfcomm.hfp_inds[c->hfp_ind_map[index - 1]] = value;
 		switch (c->hfp_ind_map[index - 1]) {
-		case HFP_IND_CALL:
-		case HFP_IND_CALLSETUP:
-			ba_transport_send_signal(t->rfcomm.sco, TRANSPORT_PING);
-			break;
 		case HFP_IND_BATTCHG:
 			d->battery_level = value * 100 / 5;
 			bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);

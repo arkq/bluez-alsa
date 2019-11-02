@@ -35,6 +35,7 @@
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
 #include "hci.h"
+#include "sco.h"
 #include "utils.h"
 #include "shared/log.h"
 
@@ -985,6 +986,11 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	}
 
 	t->bt_fd = fd;
+
+	if (sco_setup_connection_dispatcher(a) == -1) {
+		error("Couldn't setup SCO connection dispatcher: %s", strerror(errno));
+		goto fail;
+	}
 
 	debug("%s configured for device %s",
 			ba_transport_type_to_string(t->type),
