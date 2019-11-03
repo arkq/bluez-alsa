@@ -194,8 +194,7 @@ static void test_a2dp_start_terminate_timer(unsigned int delay) {
 	pthread_detach(thread);
 }
 
-static void *test_io_thread_a2dp_dump_bt(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *test_io_thread_a2dp_dump_bt(struct ba_transport *t) {
 
 	struct pollfd pfds[] = {{ t->bt_fd, POLLIN, 0 }};
 	uint8_t buffer[1024];
@@ -222,8 +221,7 @@ static void *test_io_thread_a2dp_dump_bt(void *arg) {
 	return NULL;
 }
 
-static void *test_io_thread_a2dp_dump_pcm(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *test_io_thread_a2dp_dump_pcm(struct ba_transport *t) {
 
 	struct pollfd pfds[] = {{ t->a2dp.pcm.fd, POLLIN, 0 }};
 	size_t decoded_samples_total = 0;
@@ -266,7 +264,7 @@ static void *test_io_thread_a2dp_dump_pcm(void *arg) {
 /**
  * Drive PCM signal through A2DP source/sink loop. */
 static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
-		void *(*enc)(void *), void *(*dec)(void *)) {
+		void *(*enc)(struct ba_transport *), void *(*dec)(struct ba_transport *)) {
 
 	int bt_fds[2];
 	int pcm_fds[2];
@@ -293,16 +291,16 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 		test_a2dp_start_terminate_timer(aging_duration);
 
 	if (enc == test_io_thread_a2dp_dump_pcm) {
-		pthread_create(&thread2, NULL, dec, ba_transport_ref(t2));
+		pthread_create(&thread2, NULL, PTHREAD_ROUTINE(dec), ba_transport_ref(t2));
 		struct bt_data *bt_data_head = &bt_data;
 		for (; bt_data_head != bt_data_end; bt_data_head = bt_data_head->next)
 			ck_assert_int_eq(write(bt_fds[1], bt_data_head->data, bt_data_head->len), bt_data_head->len);
-		pthread_create(&thread1, NULL, enc, ba_transport_ref(t1));
+		pthread_create(&thread1, NULL, PTHREAD_ROUTINE(enc), ba_transport_ref(t1));
 	}
 	else {
-		pthread_create(&thread1, NULL, enc, ba_transport_ref(t1));
+		pthread_create(&thread1, NULL, PTHREAD_ROUTINE(enc), ba_transport_ref(t1));
 		write_test_pcm(pcm_fds[0], ba_transport_get_channels(t1));
-		pthread_create(&thread2, NULL, dec, ba_transport_ref(t2));
+		pthread_create(&thread2, NULL, PTHREAD_ROUTINE(dec), ba_transport_ref(t2));
 	}
 
 	pthread_mutex_lock(&test_a2dp_mutex);
@@ -317,7 +315,7 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 
 }
 
-static void test_sco(struct ba_transport *t, void *(*cb)(void *)) {
+static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport *)) {
 
 	int sco_fds[2];
 	int pcm_mic_fds[2];
@@ -334,7 +332,7 @@ static void test_sco(struct ba_transport *t, void *(*cb)(void *)) {
 	t->sco.spk_pcm.fd = pcm_spk_fds[1];
 
 	pthread_t thread;
-	pthread_create(&thread, NULL, cb, ba_transport_ref(t));
+	pthread_create(&thread, NULL, PTHREAD_ROUTINE(cb), ba_transport_ref(t));
 
 	struct pollfd pfds[] = {
 		{ sco_fds[0], POLLIN, 0 },

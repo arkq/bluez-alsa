@@ -310,8 +310,7 @@ static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 	debug("Exiting PCM worker %s", worker->addr);
 }
 
-static void *pcm_worker_routine(void *arg) {
-	struct pcm_worker *w = (struct pcm_worker *)arg;
+static void *pcm_worker_routine(struct pcm_worker *w) {
 
 	snd_pcm_format_t pcm_format = get_snd_pcm_format(w->ba_pcm.format);
 	ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
@@ -525,7 +524,8 @@ static int supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
 
 	debug("Creating PCM worker %s", worker->addr);
 
-	if ((errno = pthread_create(&worker->thread, NULL, pcm_worker_routine, worker)) != 0) {
+	if ((errno = pthread_create(&worker->thread, NULL,
+					PTHREAD_ROUTINE(pcm_worker_routine), worker)) != 0) {
 		error("Couldn't create PCM worker %s: %s", worker->addr, strerror(errno));
 		workers_count--;
 		return -1;

@@ -11,6 +11,7 @@
 #include "bluealsa.h"
 
 #include <fcntl.h>
+#include <stdbool.h>
 
 #if ENABLE_LDAC
 # include <ldacBT.h>

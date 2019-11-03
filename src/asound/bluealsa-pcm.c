@@ -108,8 +108,7 @@ static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
 
 /**
  * IO thread, which facilitates ring buffer. */
-static void *io_thread(void *arg) {
-	snd_pcm_ioplug_t *io = (snd_pcm_ioplug_t *)arg;
+static void *io_thread(snd_pcm_ioplug_t *io) {
 
 	struct bluealsa_pcm *pcm = io->private_data;
 	pthread_cleanup_push(PTHREAD_CLEANUP(io_thread_cleanup), pcm);
@@ -289,7 +288,8 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	io->state = SND_PCM_STATE_RUNNING;
 
 	pcm->io_started = true;
-	if ((errno = pthread_create(&pcm->io_thread, NULL, io_thread, io)) != 0) {
+	if ((errno = pthread_create(&pcm->io_thread, NULL,
+					PTHREAD_ROUTINE(io_thread), io)) != 0) {
 		debug2("Couldn't create IO thread: %s", strerror(errno));
 		pcm->io_started = false;
 		io->state = prev_state;

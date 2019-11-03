@@ -1,6 +1,6 @@
 /*
  * BlueALSA - defs.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -20,5 +20,9 @@
 /**
  * Cleanup callback casting wrapper for the brevity's sake. */
 #define PTHREAD_CLEANUP(f) ((void (*)(void *))(void (*)(void))(f))
+
+/**
+ * Thread routing callback casting wrapper. */
+#define PTHREAD_ROUTINE(f) ((void *(*)(void *))(f))
 
 #endif

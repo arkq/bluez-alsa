@@ -69,6 +69,6 @@ struct rfcomm_handler {
 	rfcomm_callback *callback;
 };
 
-void *rfcomm_thread(void *arg);
+void *rfcomm_thread(struct ba_transport *t);
 
 #endif

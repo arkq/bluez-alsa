@@ -390,8 +390,7 @@ static uint8_t *io_thread_init_rtp(void *s, rtp_header_t **hdr,
 	return data + phdr_size;
 }
 
-static void *io_thread_a2dp_sink_sbc(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_a2dp_sink_sbc(struct ba_transport *t) {
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
@@ -520,8 +519,7 @@ fail_init:
 	return NULL;
 }
 
-static void *io_thread_a2dp_source_sbc(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_a2dp_source_sbc(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -669,8 +667,7 @@ fail_init:
 }
 
 #if ENABLE_MP3LAME || ENABLE_MPG123
-static void *io_thread_a2dp_sink_mpeg(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_a2dp_sink_mpeg(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -862,9 +859,7 @@ fail_init:
 #endif
 
 #if ENABLE_MP3LAME
-static void *io_thread_a2dp_source_mp3(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
-	const a2dp_mpeg_t *cconfig = (a2dp_mpeg_t *)t->a2dp.cconfig;
+static void *io_thread_a2dp_source_mp3(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -882,6 +877,7 @@ static void *io_thread_a2dp_source_mp3(void *arg) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(lame_close), handle);
 
+	const a2dp_mpeg_t *cconfig = (a2dp_mpeg_t *)t->a2dp.cconfig;
 	const unsigned int channels = ba_transport_get_channels(t);
 	const unsigned int samplerate = ba_transport_get_sampling(t);
 	MPEG_mode mode = NOT_SET;
@@ -1082,8 +1078,7 @@ fail_init:
 #endif
 
 #if ENABLE_AAC
-static void *io_thread_a2dp_sink_aac(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_a2dp_sink_aac(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -1248,9 +1243,7 @@ fail_open:
 #endif
 
 #if ENABLE_AAC
-static void *io_thread_a2dp_source_aac(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
-	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
+static void *io_thread_a2dp_source_aac(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -1264,8 +1257,10 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 	AACENC_InfoStruct aacinf;
 	AACENC_ERROR err;
 
-	/* create AAC encoder without the Meta Data module */
+	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
 	const unsigned int channels = ba_transport_get_channels(t);
+
+	/* create AAC encoder without the Meta Data module */
 	if ((err = aacEncOpen(&handle, 0x07, channels)) != AACENC_OK) {
 		error("Couldn't open AAC encoder: %s", aacenc_strerror(err));
 		goto fail_open;
@@ -1480,8 +1475,7 @@ fail_open:
 #endif
 
 #if ENABLE_APTX
-static void *io_thread_a2dp_source_aptx(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_a2dp_source_aptx(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -1604,8 +1598,7 @@ fail_init:
 #endif
 
 #if ENABLE_APTX_HD
-static void *io_thread_a2dp_source_aptx_hd(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_a2dp_source_aptx_hd(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -1751,9 +1744,7 @@ fail_init:
 #endif
 
 #if ENABLE_LDAC
-static void *io_thread_a2dp_source_ldac(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
-	const a2dp_ldac_t *cconfig = (a2dp_ldac_t *)t->a2dp.cconfig;
+static void *io_thread_a2dp_source_ldac(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -1780,6 +1771,7 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
+	const a2dp_ldac_t *cconfig = (a2dp_ldac_t *)t->a2dp.cconfig;
 	const unsigned int channels = ba_transport_get_channels(t);
 	const unsigned int samplerate = ba_transport_get_sampling(t);
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
@@ -1910,8 +1902,7 @@ fail_open_ldac:
 }
 #endif
 
-static void *io_thread_sco(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_sco(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -2284,8 +2275,7 @@ fail_ffb:
 
 /**
  * Dump incoming BT data to a file. */
-static void *io_thread_a2dp_sink_dump(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+static void *io_thread_a2dp_sink_dump(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
@@ -2344,27 +2334,27 @@ int io_thread_create(struct ba_transport *t) {
 	int ret;
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
-		routine = rfcomm_thread;
+		routine = PTHREAD_ROUTINE(rfcomm_thread);
 		name = "ba-rfcomm";
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		routine = io_thread_sco;
+		routine = PTHREAD_ROUTINE(io_thread_sco);
 		name = "ba-io-sco";
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_source_sbc;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_source_sbc);
 			name = "ba-io-sbc";
 			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 #if ENABLE_MPG123
-			routine = io_thread_a2dp_sink_mpeg;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_sink_mpeg);
 			name = "ba-io-mpeg";
 #elif ENABLE_MP3LAME
 			if (((a2dp_mpeg_t *)t->a2dp.cconfig)->layer == MPEG_LAYER_MP3) {
-				routine = io_thread_a2dp_sink_mpeg;
+				routine = PTHREAD_ROUTINE(io_thread_a2dp_sink_mpeg);
 				name = "ba-io-mp3";
 			}
 #endif
@@ -2372,25 +2362,25 @@ int io_thread_create(struct ba_transport *t) {
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_source_aac;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_source_aac);
 			name = "ba-io-aac";
 			break;
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			routine = io_thread_a2dp_source_aptx;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_source_aptx);
 			name = "ba-io-aptx";
 			break;
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			routine = io_thread_a2dp_source_aptx_hd;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_source_aptx_hd);
 			name = "ba-io-aptx-hd";
 			break;
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
-			routine = io_thread_a2dp_source_ldac;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_source_ldac);
 			name = "ba-io-ldac";
 			break;
 #endif
@@ -2400,14 +2390,14 @@ int io_thread_create(struct ba_transport *t) {
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			routine = io_thread_a2dp_sink_sbc;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_sink_sbc);
 			name = "ba-io-sbc";
 			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 #if ENABLE_MP3LAME
 			if (((a2dp_mpeg_t *)t->a2dp.cconfig)->layer == MPEG_LAYER_MP3) {
-				routine = io_thread_a2dp_source_mp3;
+				routine = PTHREAD_ROUTINE(io_thread_a2dp_source_mp3);
 				name = "ba-io-mp3";
 			}
 #endif
@@ -2415,7 +2405,7 @@ int io_thread_create(struct ba_transport *t) {
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			routine = io_thread_a2dp_sink_aac;
+			routine = PTHREAD_ROUTINE(io_thread_a2dp_sink_aac);
 			name = "ba-io-aac";
 			break;
 #endif

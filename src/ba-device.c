@@ -15,7 +15,6 @@
 
 #include "ba-transport.h"
 #include "hci.h"
-#include "utils.h"
 #include "shared/log.h"
 
 struct ba_device *ba_device_new(

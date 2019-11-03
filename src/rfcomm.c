@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -572,8 +573,7 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 	return NULL;
 }
 
-void *rfcomm_thread(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+void *rfcomm_thread(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);

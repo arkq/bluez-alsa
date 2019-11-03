@@ -130,8 +130,8 @@ struct ba_transport *test_transport_new_sco(struct ba_device *d,
 	return t;
 }
 
-void *io_thread_a2dp_sink_sbc(void *arg) {
-	struct ba_transport *t = (struct ba_transport *)arg;
+void *io_thread_a2dp_sink_sbc(struct ba_transport *t) {
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct asrsync asrs = { .frames = 0 };
