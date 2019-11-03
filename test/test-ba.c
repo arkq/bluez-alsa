@@ -22,7 +22,9 @@
 #include "../src/utils.c"
 #include "../src/shared/log.c"
 
-int io_thread_create(struct ba_transport *t) { (void)t; return 0; }
+int a2dp_thread_create(struct ba_transport *t) { (void)t; return 0; }
+void *rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
+void *sco_thread(struct ba_transport *t) { (void)t; return 0; }
 int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error) {
 	debug("%s: %p", __func__, (void *)t); (void)error;
 	return 0; }

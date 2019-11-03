@@ -18,15 +18,16 @@
 #include <check.h>
 
 #include "inc/sine.inc"
+#include "../src/a2dp.c"
 #include "../src/at.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
 #include "../src/hci.c"
-#include "../src/io.c"
 #include "../src/msbc.c"
 #include "../src/rfcomm.c"
+#include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
@@ -395,12 +396,12 @@ START_TEST(test_a2dp_sbc) {
 
 	if (aging_duration) {
 		t1->mtu_write = t2->mtu_read = 153 * 3;
-		test_a2dp(t1, t2, io_thread_a2dp_source_sbc, io_thread_a2dp_sink_sbc);
+		test_a2dp(t1, t2, a2dp_source_sbc, a2dp_sink_sbc);
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = 153 * 3;
-		test_a2dp(t1, t2, io_thread_a2dp_source_sbc, test_io_thread_a2dp_dump_bt);
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, io_thread_a2dp_sink_sbc);
+		test_a2dp(t1, t2, a2dp_source_sbc, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_sbc);
 	}
 
 } END_TEST
@@ -419,12 +420,12 @@ START_TEST(test_a2dp_mp3) {
 
 	if (aging_duration) {
 		t1->mtu_write = t2->mtu_read = 1024;
-		test_a2dp(t1, t2, io_thread_a2dp_source_mp3, io_thread_a2dp_sink_mpeg);
+		test_a2dp(t1, t2, a2dp_source_mp3, a2dp_sink_mpeg);
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = 250;
-		test_a2dp(t1, t2, io_thread_a2dp_source_mp3, test_io_thread_a2dp_dump_bt);
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, io_thread_a2dp_sink_mpeg);
+		test_a2dp(t1, t2, a2dp_source_mp3, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_mpeg);
 	}
 
 } END_TEST
@@ -444,12 +445,12 @@ START_TEST(test_a2dp_aac) {
 
 	if (aging_duration) {
 		t1->mtu_write = t2->mtu_read = 450;
-		test_a2dp(t1, t2, io_thread_a2dp_source_aac, io_thread_a2dp_sink_aac);
+		test_a2dp(t1, t2, a2dp_source_aac, a2dp_sink_aac);
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = 64;
-		test_a2dp(t1, t2, io_thread_a2dp_source_aac, test_io_thread_a2dp_dump_bt);
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, io_thread_a2dp_sink_aac);
+		test_a2dp(t1, t2, a2dp_source_aac, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aac);
 	}
 
 } END_TEST
@@ -471,7 +472,7 @@ START_TEST(test_a2dp_aptx) {
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = 40;
-		test_a2dp(t1, t2, io_thread_a2dp_source_aptx, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, a2dp_source_aptx, test_io_thread_a2dp_dump_bt);
 	};
 
 } END_TEST
@@ -493,7 +494,7 @@ START_TEST(test_a2dp_aptx_hd) {
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = 60;
-		test_a2dp(t1, t2, io_thread_a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
 	};
 
 } END_TEST
@@ -515,7 +516,7 @@ START_TEST(test_a2dp_ldac) {
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 679;
-		test_a2dp(t1, t2, io_thread_a2dp_source_ldac, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, a2dp_source_ldac, test_io_thread_a2dp_dump_bt);
 	}
 
 } END_TEST
@@ -530,7 +531,7 @@ START_TEST(test_sco_cvsd) {
 	t->acquire = test_transport_acquire;
 
 	ba_transport_send_signal(t, TRANSPORT_PING);
-	test_sco(t, io_thread_sco);
+	test_sco(t, sco_thread);
 
 } END_TEST
 
@@ -546,7 +547,7 @@ START_TEST(test_sco_msbc) {
 	t->acquire = test_transport_acquire;
 
 	ba_transport_send_signal(t, TRANSPORT_PING);
-	test_sco(t, io_thread_sco);
+	test_sco(t, sco_thread);
 
 } END_TEST
 #endif

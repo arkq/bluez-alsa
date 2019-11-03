@@ -262,6 +262,11 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 int ba_transport_drain_pcm(struct ba_transport *t);
 int ba_transport_release_pcm(struct ba_transport_pcm *pcm);
 
+int ba_transport_pthread_create(
+		struct ba_transport *t,
+		void *(*routine)(struct ba_transport *),
+		const char *name);
+
 void ba_transport_pthread_cancel(pthread_t thread);
 void ba_transport_pthread_cleanup(struct ba_transport *t);
 int ba_transport_pthread_cleanup_lock(struct ba_transport *t);

@@ -28,6 +28,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include "a2dp.h"
 #include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "bluealsa.h"
@@ -35,8 +36,10 @@
 #include "bluez-iface.h"
 #include "hci.h"
 #include "hfp.h"
-#include "io.h"
+#include "rfcomm.h"
+#include "sco.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 /**
@@ -657,8 +660,14 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 		break;
 	case TRANSPORT_ACTIVE:
 	case TRANSPORT_PAUSED:
-		if (pthread_equal(t->thread, config.main_thread))
-			ret = io_thread_create(t);
+		if (pthread_equal(t->thread, config.main_thread)) {
+			if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+				ret = a2dp_thread_create(t);
+			else if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
+				ret = ba_transport_pthread_create(t, rfcomm_thread, "ba-rfcomm");
+			else
+				ret = ba_transport_pthread_create(t, sco_thread, "ba-sco");
+		}
 		break;
 	}
 
@@ -946,6 +955,29 @@ int ba_transport_release_pcm(struct ba_transport_pcm *pcm) {
 	pcm->client = -1;
 
 	pthread_setcancelstate(oldstate, NULL);
+	return 0;
+}
+
+/**
+ * Create transport thread. */
+int ba_transport_pthread_create(
+		struct ba_transport *t,
+		void *(*routine)(struct ba_transport *),
+		const char *name) {
+
+	int ret;
+
+	if ((ret = pthread_create(&t->thread, NULL,
+					PTHREAD_ROUTINE(routine), ba_transport_ref(t))) != 0) {
+		error("Couldn't create transport thread: %s", strerror(ret));
+		t->thread = config.main_thread;
+		ba_transport_unref(t);
+		return -1;
+	}
+
+	pthread_setname_np(t->thread, name);
+	debug("Created new thread [%s]: %s", name, ba_transport_type_to_string(t->type));
+
 	return 0;
 }
 

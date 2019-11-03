@@ -25,6 +25,10 @@
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
 
+#include "../src/a2dp.h"
+#define a2dp_sink_sbc _a2dp_sink_sbc
+#include "../src/a2dp.c"
+#undef a2dp_sink_sbc
 #include "../src/bluealsa.c"
 #include "../src/bluealsa-dbus.c"
 #include "../src/bluealsa-iface.c"
@@ -33,12 +37,9 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/hci.c"
-#include "../src/io.h"
-#define io_thread_a2dp_sink_sbc _io_thread_a2dp_sink_sbc
-#include "../src/io.c"
-#undef io_thread_a2dp_sink_sbc
 #include "../src/msbc.c"
 #include "../src/rfcomm.c"
+#include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
@@ -97,7 +98,11 @@ int test_transport_acquire(struct ba_transport *t) {
 	t->mtu_write = 256;
 
 	t->state = TRANSPORT_ACTIVE;
-	assert(io_thread_create(t) == 0);
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		assert(a2dp_thread_create(t) == 0);
+	else if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+		assert(ba_transport_pthread_create(t, sco_thread, "ba-sco") == 0);
 
 	return 0;
 }
@@ -130,7 +135,7 @@ struct ba_transport *test_transport_new_sco(struct ba_device *d,
 	return t;
 }
 
-void *io_thread_a2dp_sink_sbc(struct ba_transport *t) {
+void *a2dp_sink_sbc(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
