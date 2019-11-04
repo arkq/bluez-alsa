@@ -62,6 +62,8 @@
 /**
  * Common IO thread data. */
 struct io_thread_data {
+	/* keep-alive and sync timeout */
+	int timeout;
 	/* transfer bit rate synchronization */
 	struct asrsync asrs;
 	/* history of BT socket COUTQ bytes */
@@ -226,7 +228,6 @@ static ssize_t io_thread_a2dp_poll_and_read_pcm(struct ba_transport *t,
 	struct pollfd fds[2] = {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
-	int timeout = -1;
 
 	/* Allow escaping from the poll() by thread cancellation. */
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -237,10 +238,10 @@ repoll:
 	fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
 
 	/* Poll for reading with keep-alive and sync timeout. */
-	switch (poll(fds, ARRAYSIZE(fds), timeout)) {
+	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
 	case 0:
 		pthread_cond_signal(&t->a2dp.drained);
-		timeout = -1;
+		io->timeout = -1;
 		io->t_locked = !ba_transport_pthread_cleanup_lock(t);
 		if (t->a2dp.pcm.fd == -1)
 			return 0;
@@ -259,13 +260,13 @@ repoll:
 		case TRANSPORT_PCM_OPEN:
 		case TRANSPORT_PCM_RESUME:
 			io->asrs.frames = 0;
-			timeout = -1;
+			io->timeout = -1;
 			goto repoll;
 		case TRANSPORT_PCM_CLOSE:
 			/* reuse PCM read disconnection logic */
 			break;
 		case TRANSPORT_PCM_SYNC:
-			timeout = 100;
+			io->timeout = 100;
 			goto repoll;
 		case TRANSPORT_PCM_DROP:
 			io_thread_read_pcm_flush(&t->a2dp.pcm);
@@ -278,8 +279,8 @@ repoll:
 	ssize_t samples;
 	switch (samples = io_thread_read_pcm(&t->a2dp.pcm, buffer->tail, ffb_len_in(buffer))) {
 	case 0:
-		timeout = config.a2dp.keep_alive * 1000;
-		debug("Keep-alive polling: %d", timeout);
+		io->timeout = config.a2dp.keep_alive * 1000;
+		debug("Keep-alive polling: %d", io->timeout);
 		goto repoll;
 	case -1:
 		if (errno == EAGAIN)
@@ -526,6 +527,7 @@ static void *io_thread_a2dp_source_sbc(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.timeout = -1,
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
 		 * known - initialization has failed or succeeded. */
@@ -868,6 +870,7 @@ static void *io_thread_a2dp_source_mp3(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1253,6 +1256,7 @@ static void *io_thread_a2dp_source_aac(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1483,6 +1487,7 @@ static void *io_thread_a2dp_source_aptx(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1606,6 +1611,7 @@ static void *io_thread_a2dp_source_aptx_hd(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1753,6 +1759,7 @@ static void *io_thread_a2dp_source_ldac(void *arg) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.timeout = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
