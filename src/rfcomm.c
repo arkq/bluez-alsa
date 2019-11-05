@@ -120,7 +120,7 @@ retry:
 
 /**
  * HFP set state wrapper for debugging purposes. */
-static void rfcomm_set_hfp_state(struct rfcomm_conn *c, enum hfp_state state) {
+static void rfcomm_set_hfp_state(struct rfcomm_conn *c, enum hfp_slc_state state) {
 	debug("HFP state transition: %d -> %d", c->state, state);
 	c->state = state;
 }
@@ -131,9 +131,10 @@ static int rfcomm_handler_resp_ok_cb(struct rfcomm_conn *c, const struct bt_at *
 
 	/* advance service level connection state */
 	if (strcmp(at->value, "OK") == 0) {
-		rfcomm_set_hfp_state(c, c->state + 1);
+		rfcomm_set_hfp_state(c, c->handler_resp_ok_new_state);
 		return 0;
 	}
+
 	/* indicate caller that error has occurred */
 	if (strcmp(at->value, "ERROR") == 0) {
 		errno = ENOTSUP;
@@ -323,10 +324,19 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
 
-	t->rfcomm.sco->sco.mic_gain = c->mic_gain = atoi(at->value);
+	t->rfcomm.sco->sco.mic_gain = c->gain_mic = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
+	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	return 0;
+}
+
+/**
+ * RESP: Gain of Microphone */
+static int rfcomm_handler_vgm_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+	struct ba_transport * const t = c->t;
+	t->rfcomm.sco->sco.mic_gain = c->gain_mic = atoi(at->value);
 	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
@@ -337,10 +347,19 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
 
-	t->rfcomm.sco->sco.spk_gain = c->spk_gain = atoi(at->value);
+	t->rfcomm.sco->sco.spk_gain = c->gain_spk = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
+	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	return 0;
+}
+
+/**
+ * RESP: Gain of Speaker */
+static int rfcomm_handler_vgs_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+	struct ba_transport * const t = c->t;
+	t->rfcomm.sco->sco.spk_gain = c->gain_spk = atoi(at->value);
 	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
@@ -362,9 +381,10 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
+	int codec;
 
-	if (t->rfcomm.sco->type.codec != atoi(at->value)) {
-		warn("Codec not acknowledged: %d != %s", t->rfcomm.sco->type.codec, at->value);
+	if ((codec = atoi(at->value)) != c->codec) {
+		warn("Codec not acknowledged: %s != %d", at->value, c->codec);
 		if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 			return -1;
 		return 0;
@@ -373,8 +393,11 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	if (c->state < HFP_CC_BCS_SET_OK)
-		rfcomm_set_hfp_state(c, HFP_CC_BCS_SET_OK);
+	/* Codec negotiation process is complete. Update transport and
+	 * notify connected clients, that transport has been changed. */
+	t->rfcomm.sco->type.codec = codec;
+	bluealsa_dbus_transport_update(t->rfcomm.sco,
+			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
 	return 0;
 }
@@ -383,9 +406,10 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	struct ba_transport * const t = c->t;
 	if (rfcomm_handler_resp_ok_cb(c, at) != 0)
 		return -1;
-	/* When codec selection is completed, notify connected clients, that
+	/* Finalize codec selection process and notify connected clients, that
 	 * transport has been changed. Note, that this event might be emitted
-	 * for an active transport - codec switching. */
+	 * for an active transport - switching initiated by Audio Gateway. */
+	t->rfcomm.sco->type.codec = c->codec;
 	bluealsa_dbus_transport_update(t->rfcomm.sco,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 	return 0;
@@ -400,14 +424,12 @@ static int rfcomm_handler_bcs_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
 
-	t->rfcomm.sco->type.codec = atoi(at->value);
+	c->codec = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
 		return -1;
 
 	c->handler = &handler;
-
-	if (c->state < HFP_CC_BCS_SET)
-		rfcomm_set_hfp_state(c, HFP_CC_BCS_SET);
+	c->handler_resp_ok_new_state = c->state;
 
 	return 0;
 }
@@ -520,8 +542,12 @@ static const struct rfcomm_handler rfcomm_handler_brsf_resp = {
 	AT_TYPE_RESP, "+BRSF", rfcomm_handler_brsf_resp_cb };
 static const struct rfcomm_handler rfcomm_handler_vgm_set = {
 	AT_TYPE_CMD_SET, "+VGM", rfcomm_handler_vgm_set_cb };
+static const struct rfcomm_handler rfcomm_handler_vgm_resp = {
+	AT_TYPE_RESP, "+VGM", rfcomm_handler_vgm_resp_cb };
 static const struct rfcomm_handler rfcomm_handler_vgs_set = {
 	AT_TYPE_CMD_SET, "+VGS", rfcomm_handler_vgs_set_cb };
+static const struct rfcomm_handler rfcomm_handler_vgs_resp = {
+	AT_TYPE_RESP, "+VGS", rfcomm_handler_vgs_resp_cb };
 static const struct rfcomm_handler rfcomm_handler_btrh_get = {
 	AT_TYPE_CMD_GET, "+BTRH", rfcomm_handler_btrh_get_cb };
 static const struct rfcomm_handler rfcomm_handler_bcs_set = {
@@ -547,7 +573,9 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 		&rfcomm_handler_bia_set,
 		&rfcomm_handler_brsf_set,
 		&rfcomm_handler_vgm_set,
+		&rfcomm_handler_vgm_resp,
 		&rfcomm_handler_vgs_set,
+		&rfcomm_handler_vgs_resp,
 		&rfcomm_handler_btrh_get,
 		&rfcomm_handler_bcs_set,
 		&rfcomm_handler_bcs_resp,
@@ -569,6 +597,68 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 	return NULL;
 }
 
+/**
+ * Notify connected BT device about microphone volume change. */
+static int rfcomm_notify_volume_change_mic(struct rfcomm_conn *c, bool force) {
+
+	struct ba_transport * const t = c->t;
+	const int gain = t->rfcomm.sco->sco.mic_gain;
+	const int fd = t->bt_fd;
+	char tmp[16];
+
+	if (!force && c->gain_mic == gain)
+		return 0;
+
+	c->gain_mic = gain;
+	debug("Updating microphone gain: %d", gain);
+
+	/* for AG return unsolicited response code */
+	if (t->type.profile & (BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)) {
+		sprintf(tmp, "+VGM=%d", gain);
+		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
+	}
+
+	sprintf(tmp, "%d", gain);
+	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+VGM", tmp) == -1)
+		return -1;
+
+	c->handler = &rfcomm_handler_resp_ok;
+	c->handler_resp_ok_new_state = c->state;
+
+	return 0;
+}
+
+/**
+ * Notify connected BT device about speaker volume change. */
+static int rfcomm_notify_volume_change_spk(struct rfcomm_conn *c, bool force) {
+
+	struct ba_transport * const t = c->t;
+	const int gain = t->rfcomm.sco->sco.spk_gain;
+	const int fd = t->bt_fd;
+	char tmp[16];
+
+	if (!force && c->gain_spk == gain)
+		return 0;
+
+	c->gain_spk = gain;
+	debug("Updating speaker gain: %d", gain);
+
+	/* for AG return unsolicited response code */
+	if (t->type.profile & (BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)) {
+		sprintf(tmp, "+VGS=%d", gain);
+		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
+	}
+
+	sprintf(tmp, "%d", gain);
+	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+VGS", tmp) == -1)
+		return -1;
+
+	c->handler = &rfcomm_handler_resp_ok;
+	c->handler_resp_ok_new_state = c->state;
+
+	return 0;
+}
+
 void *rfcomm_thread(struct ba_transport *t) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -578,8 +668,9 @@ void *rfcomm_thread(struct ba_transport *t) {
 	struct rfcomm_conn conn = {
 		.state = HFP_DISCONNECTED,
 		.state_prev = HFP_DISCONNECTED,
-		.mic_gain = t->rfcomm.sco->sco.mic_gain,
-		.spk_gain = t->rfcomm.sco->sco.spk_gain,
+		.codec = HFP_CODEC_UNDEFINED,
+		.gain_mic = t->rfcomm.sco->sco.mic_gain,
+		.gain_spk = t->rfcomm.sco->sco.spk_gain,
 		.t = t,
 	};
 
@@ -599,12 +690,12 @@ void *rfcomm_thread(struct ba_transport *t) {
 		 * AG might not receive our message and will not send proper response.
 		 * Hence, we will incorporate timeout, after which we will send our
 		 * AT command once more. */
-		int timeout = -1;
+		int timeout = RFCOMM_TIMEOUT_IDLE;
 
 		rfcomm_callback *callback;
 		char tmp[256];
 
-		if (conn.state != HFP_CONNECTED) {
+		if (conn.state != HFP_SLC_CONNECTED) {
 
 			/* If some progress has been made in the SLC procedure, reset the
 			 * retries counter. */
@@ -616,9 +707,15 @@ void *rfcomm_thread(struct ba_transport *t) {
 			/* If the maximal number of retries has been reached, terminate the
 			 * connection. Trying indefinitely will only use up our resources. */
 			if (conn.retries > RFCOMM_SLC_RETRIES) {
+				error("Couldn't establish connection: Too many retries");
 				errno = ETIMEDOUT;
 				goto ioerror;
 			}
+
+			if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
+				/* There is not logic behind the HSP connection,
+				 * simply set status as connected. */
+				rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 
 			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
 				switch (conn.state) {
@@ -630,6 +727,7 @@ void *rfcomm_thread(struct ba_transport *t) {
 					break;
 				case HFP_SLC_BRSF_SET:
 					conn.handler = &rfcomm_handler_resp_ok;
+					conn.handler_resp_ok_new_state = HFP_SLC_BRSF_SET_OK;
 					break;
 				case HFP_SLC_BRSF_SET_OK:
 					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC) {
@@ -642,6 +740,7 @@ void *rfcomm_thread(struct ba_transport *t) {
 #endif
 							goto ioerror;
 						conn.handler = &rfcomm_handler_resp_ok;
+						conn.handler_resp_ok_new_state = HFP_SLC_BAC_SET_OK;
 						break;
 					}
 					/* fall-through */
@@ -652,6 +751,7 @@ void *rfcomm_thread(struct ba_transport *t) {
 					break;
 				case HFP_SLC_CIND_TEST:
 					conn.handler = &rfcomm_handler_resp_ok;
+					conn.handler_resp_ok_new_state = HFP_SLC_CIND_TEST_OK;
 					break;
 				case HFP_SLC_CIND_TEST_OK:
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_GET, "+CIND", NULL) == -1)
@@ -660,6 +760,7 @@ void *rfcomm_thread(struct ba_transport *t) {
 					break;
 				case HFP_SLC_CIND_GET:
 					conn.handler = &rfcomm_handler_resp_ok;
+					conn.handler_resp_ok_new_state = HFP_SLC_CIND_GET_OK;
 					break;
 				case HFP_SLC_CIND_GET_OK:
 					/* Activate indicator events reporting. The +CMER specification is
@@ -667,20 +768,12 @@ void *rfcomm_thread(struct ba_transport *t) {
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+CMER", "3,0,0,1,0") == -1)
 						goto ioerror;
 					conn.handler = &rfcomm_handler_resp_ok;
+					conn.handler_resp_ok_new_state = HFP_SLC_CMER_SET_OK;
 					break;
 				case HFP_SLC_CMER_SET_OK:
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					if (t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC)
-						break;
-					/* fall-through */
-				case HFP_CC_BCS_SET:
-				case HFP_CC_BCS_SET_OK:
-				case HFP_CC_CONNECTED:
-					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
-					/* fall-through */
-				case HFP_CONNECTED:
 					bluealsa_dbus_transport_update(t->rfcomm.sco,
 							BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 				}
@@ -700,32 +793,43 @@ void *rfcomm_thread(struct ba_transport *t) {
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-#if ENABLE_MSBC
-					if (BA_TEST_ESCO_SUPPORT(t->d->a) &&
-							t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC) {
-						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
-							goto ioerror;
-						t->rfcomm.sco->type.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;
-						conn.handler = &rfcomm_handler_bcs_set;
-						break;
-					}
-#endif
-					/* fall-through */
-				case HFP_CC_BCS_SET:
-				case HFP_CC_BCS_SET_OK:
-				case HFP_CC_CONNECTED:
-					rfcomm_set_hfp_state(&conn, HFP_CONNECTED);
-					/* fall-through */
-				case HFP_CONNECTED:
 					bluealsa_dbus_transport_update(t->rfcomm.sco,
 							BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 				}
 
-			if (conn.handler != NULL) {
-				timeout = RFCOMM_SLC_TIMEOUT;
-				conn.retries++;
+		}
+		else if ( /* notify audio gateway about our initial volume gains */
+				(!conn.setup_mic || !conn.setup_spk) &&
+				t->type.profile & (BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)) {
+			if (!conn.setup_mic) {
+				conn.setup_mic = true;
+				if (rfcomm_notify_volume_change_mic(&conn, true) == -1)
+					goto ioerror;
 			}
+			else {
+				conn.setup_spk = true;
+				if (rfcomm_notify_volume_change_spk(&conn, true) == -1)
+					goto ioerror;
+			}
+		}
+#if ENABLE_MSBC
+		else if ( /* select HFP transport codec */
+				t->rfcomm.sco->type.codec == HFP_CODEC_UNDEFINED &&
+				t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG) {
+			if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
+				goto ioerror;
+			conn.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;
+			conn.handler = &rfcomm_handler_bcs_set;
+		}
+#endif
+		else {
+			/* setup is complete, block infinitely */
+			timeout = -1;
+		}
 
+		if (conn.handler != NULL) {
+			timeout = RFCOMM_TIMEOUT_ACK;
+			conn.retries++;
 		}
 
 		/* skip poll() since we've got unprocessed data */
@@ -734,10 +838,12 @@ void *rfcomm_thread(struct ba_transport *t) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
+		conn.idle = false;
 		pfds[2].fd = t->rfcomm.handler_fd;
 		switch (poll(pfds, ARRAYSIZE(pfds), timeout)) {
 		case 0:
 			debug("RFCOMM poll timeout");
+			conn.idle = true;
 			continue;
 		case -1:
 			if (errno == EINTR)
@@ -752,20 +858,10 @@ void *rfcomm_thread(struct ba_transport *t) {
 			/* dispatch incoming event */
 			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_SET_VOLUME:
-				if (conn.mic_gain != t->rfcomm.sco->sco.mic_gain) {
-					int gain = conn.mic_gain = t->rfcomm.sco->sco.mic_gain;
-					debug("Setting microphone gain: %d", gain);
-					sprintf(tmp, "+VGM=%d", gain);
-					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, tmp) == -1)
-						goto ioerror;
-				}
-				if (conn.spk_gain != t->rfcomm.sco->sco.spk_gain) {
-					int gain = conn.spk_gain = t->rfcomm.sco->sco.spk_gain;
-					debug("Setting speaker gain: %d", gain);
-					sprintf(tmp, "+VGS=%d", gain);
-					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, tmp) == -1)
-						goto ioerror;
-				}
+				if (rfcomm_notify_volume_change_mic(&conn, false) == -1)
+					goto ioerror;
+				if (rfcomm_notify_volume_change_spk(&conn, false) == -1)
+					goto ioerror;
 				break;
 			default:
 				break;

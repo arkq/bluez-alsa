@@ -21,31 +21,44 @@
 #include "at.h"
 #include "hfp.h"
 
+/* Timeout for the command acknowledgment. */
+#define RFCOMM_TIMEOUT_ACK 1000
+/* Timeout for the connection idle state. */
+#define RFCOMM_TIMEOUT_IDLE 2500
 /* Number of retries during the SLC stage. */
 #define RFCOMM_SLC_RETRIES 10
-/* Timeout for the command acknowledgment. */
-#define RFCOMM_SLC_TIMEOUT 1000
 
 /**
  * Structure used for RFCOMM state synchronization. */
 struct rfcomm_conn {
 
 	/* service level connection state */
-	enum hfp_state state;
-	enum hfp_state state_prev;
+	enum hfp_slc_state state;
+	enum hfp_slc_state state_prev;
 
 	/* handler used for sync response dispatching */
 	const struct rfcomm_handler *handler;
+	enum hfp_slc_state handler_resp_ok_new_state;
+
+	/* determine whether connection is idle */
+	bool idle;
 
 	/* number of failed communication attempts */
 	int retries;
 
+	/* requested codec by the AG */
+	int codec;
+
 	/* 0-based indicators index */
 	enum hfp_ind hfp_ind_map[20];
 
+	/* initial notification of volume gains */
+	bool setup_mic;
+	bool setup_spk;
+
 	/* variables used for AG<->HF sync */
-	uint8_t spk_gain;
-	uint8_t mic_gain;
+	uint8_t gain_mic;
+	uint8_t gain_spk;
 
 #if ENABLE_MSBC
 	/* determine whether mSBC is available */
