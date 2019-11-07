@@ -240,7 +240,8 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 				if ((ret = write(pcm->ba_pcm_fd, head, len)) == -1) {
 					if (errno == EINTR)
 						continue;
-					SNDERR("PCM FIFO write error: %s", strerror(errno));
+					if (errno != EPIPE)
+						SNDERR("PCM FIFO write error: %s", strerror(errno));
 					goto fail;
 				}
 				head += ret;
