@@ -7,6 +7,7 @@ TESTS = \
 	test-io \
 	test-msbc \
 	test-pcm \
+	test-rfcomm \
 	test-utils
 
 check_PROGRAMS = \
@@ -16,6 +17,7 @@ check_PROGRAMS = \
 	test-io \
 	test-msbc \
 	test-pcm \
+	test-rfcomm \
 	test-utils
 
 check_LTLIBRARIES = \

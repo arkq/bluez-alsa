@@ -121,7 +121,8 @@ retry:
 /**
  * HFP set state wrapper for debugging purposes. */
 static void rfcomm_set_hfp_state(struct rfcomm_conn *c, enum hfp_slc_state state) {
-	debug("HFP state transition: %d -> %d", c->state, state);
+	debug("%s state transition: %d -> %d",
+			ba_transport_type_to_string(c->t->type), c->state, state);
 	c->state = state;
 }
 

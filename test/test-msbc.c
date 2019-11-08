@@ -14,6 +14,7 @@
 #include "../src/msbc.c"
 #include "../src/shared/defs.h"
 #include "../src/shared/ffb.c"
+#include "../src/shared/log.c"
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
