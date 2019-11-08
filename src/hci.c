@@ -19,6 +19,8 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
 
+#include "shared/log.h"
+
 /**
  * Get HCI local version (e.g. chip manufacturer).
  *
@@ -94,6 +96,38 @@ int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
 		return -1;
 
 	return 0;
+}
+
+/**
+ * Get read/write MTU for given SCO socket.
+ *
+ * @param sco_fd File descriptor of opened SCO socket.
+ * @return On success this function returns MTU value. Otherwise, 0 is returned and
+ *   errno is set to indicate the error. */
+unsigned int hci_sco_get_mtu(int sco_fd) {
+
+	struct sco_options options;
+	struct bt_voice voice;
+	socklen_t len;
+
+	len = sizeof(options);
+	if (getsockopt(sco_fd, SOL_SCO, SCO_OPTIONS, &options, &len) == -1)
+		return 0;
+
+	len = sizeof(voice);
+	if (getsockopt(sco_fd, SOL_BLUETOOTH, BT_VOICE, &voice, &len) == -1)
+		return 0;
+
+	debug("SCO link socket MTU: %d: %u", sco_fd, options.mtu);
+
+	/* XXX: It seems, that the MTU value returned by kernel
+	 *      is incorrect (or our interpretation of it). */
+
+	options.mtu = 48;
+	if (voice.setting == BT_VOICE_TRANSPARENT)
+		options.mtu = 24;
+
+	return options.mtu;
 }
 
 /**

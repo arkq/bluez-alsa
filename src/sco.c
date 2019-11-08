@@ -127,10 +127,8 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 #endif
 
 		t->bt_fd = fd;
+		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 		fd = -1;
-
-		t->mtu_read = 48;
-		t->mtu_write = 48;
 
 		ba_transport_send_signal(t, TRANSPORT_PING);
 
