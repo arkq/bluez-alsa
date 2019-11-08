@@ -61,6 +61,14 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		goto fail;
 	}
 
+#if ENABLE_MSBC
+	uint32_t defer = 1;
+	if (setsockopt(data.pfd.fd, SOL_BLUETOOTH, BT_DEFER_SETUP, &defer, sizeof(defer)) == -1) {
+		error("Couldn't set deferred connection setup: %s", strerror(errno));
+		goto fail;
+	}
+#endif
+
 	if (listen(data.pfd.fd, 10) == -1) {
 		error("Couldn't listen on SCO socket: %s", strerror(errno));
 		goto fail;
@@ -104,6 +112,19 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 			error("Couldn't lookup transport: %s", ba_dbus_path);
 			goto cleanup;
 		}
+
+#if ENABLE_MSBC
+		struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
+		if (t->type.codec == HFP_CODEC_MSBC &&
+				setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
+			error("Couldn't setup transparent voice: %s", strerror(errno));
+			goto cleanup;
+		}
+		if (read(fd, &voice, 1) == -1) {
+			error("Couldn't authorize SCO connection: %s", strerror(errno));
+			goto cleanup;
+		}
+#endif
 
 		t->bt_fd = fd;
 		fd = -1;
