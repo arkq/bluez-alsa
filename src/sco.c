@@ -156,6 +156,34 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 	if (!pthread_equal(a->sco_dispatcher, config.main_thread))
 		return 0;
 
+	/* XXX: It is a known issue with Broadcom chips, that by default, the SCO
+	 *      packets are routed via the chip's PCM interface. However, the IO
+	 *      thread expects data to be available via the transport interface. */
+	if (a->chip.manufacturer == BT_COMPID_BROADCOM) {
+
+		int dd;
+		uint8_t routing, rate, frame, sync, clock;
+
+		debug("Checking Broadcom internal SCO routing");
+
+		if ((dd = hci_open_dev(a->hci.dev_id)) == -1 ||
+				hci_bcm_read_sco_pcm_params(dd, &routing, &rate, &frame, &sync, &clock, 1000) == -1)
+			error("Couldn't read SCO routing params: %s", strerror(errno));
+		else {
+			debug("Current SCO interface setup: %u %u %u %u %u", routing, rate, frame, sync, clock);
+			if (routing != BT_BCM_PARAM_ROUTING_TRANSPORT) {
+				debug("Setting SCO routing via transport interface");
+				if (hci_bcm_write_sco_pcm_params(dd, BT_BCM_PARAM_ROUTING_TRANSPORT,
+						rate, frame, sync, clock, 1000) == -1)
+				error("Couldn't write SCO routing params: %s", strerror(errno));
+			}
+		}
+
+		if (dd != -1)
+			hci_close_dev(dd);
+
+	}
+
 	int ret;
 
 	/* Please note, that during the SCO dispatcher thread creation the adapter
