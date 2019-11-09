@@ -63,7 +63,7 @@ START_TEST(test_msbc_find_h2_header) {
 
 START_TEST(test_msbc_encode_decode) {
 
-	struct esco_msbc msbc = { .init = false };
+	struct esco_msbc msbc = { .initialized = false };
 	int16_t sine[1024];
 	size_t len;
 	size_t i;

@@ -73,14 +73,14 @@ struct esco_msbc {
 
 	/* Determine whether structure has been initialized. This field is
 	 * used for reinitialization - it makes msbc_init() idempotent. */
-	bool init;
+	bool initialized;
 
 };
 
 int msbc_init(struct esco_msbc *msbc);
 void msbc_finish(struct esco_msbc *msbc);
 
-void msbc_decode(struct esco_msbc *msbc);
-void msbc_encode(struct esco_msbc *msbc);
+int msbc_decode(struct esco_msbc *msbc);
+int msbc_encode(struct esco_msbc *msbc);
 
 #endif

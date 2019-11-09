@@ -55,7 +55,7 @@ int msbc_init(struct esco_msbc *msbc) {
 
 	int err;
 
-	if (msbc->init) {
+	if (msbc->initialized) {
 		/* Because there is no sbc_reinit_msbc(), we have to initialize encoder
 		 * and decoder once more. In order to prevent memory leaks, we have to
 		 * release previously allocated resources. */
@@ -93,7 +93,7 @@ int msbc_init(struct esco_msbc *msbc) {
 	}
 #endif
 
-	if (!msbc->init) {
+	if (!msbc->initialized) {
 		if (ffb_init(&msbc->dec_data, sizeof(esco_msbc_frame_t) * 3) == NULL)
 			goto fail;
 		if (ffb_init(&msbc->dec_pcm, MSBC_CODESAMPLES * 2) == NULL)
@@ -110,7 +110,7 @@ int msbc_init(struct esco_msbc *msbc) {
 	ffb_rewind(&msbc->enc_pcm);
 	msbc->enc_frames = 0;
 
-	msbc->init = true;
+	msbc->initialized = true;
 	return 0;
 
 fail:
@@ -135,7 +135,10 @@ void msbc_finish(struct esco_msbc *msbc) {
 
 }
 
-void msbc_decode(struct esco_msbc *msbc) {
+int msbc_decode(struct esco_msbc *msbc) {
+
+	if (!msbc->initialized)
+		return errno = EINVAL, -1;
 
 	uint8_t *input = msbc->dec_data.data;
 	size_t input_len = ffb_blen_out(&msbc->dec_data);
@@ -172,9 +175,13 @@ void msbc_decode(struct esco_msbc *msbc) {
 	/* reshuffle remaining data to the beginning of the buffer */
 	ffb_shift(&msbc->dec_data, input - msbc->dec_data.data);
 
+	return 0;
 }
 
-void msbc_encode(struct esco_msbc *msbc) {
+int msbc_encode(struct esco_msbc *msbc) {
+
+	if (!msbc->initialized)
+		return errno = EINVAL, -1;
 
 	/* pre-generated H2 headers */
 	static const uint16_t h2[] = {
@@ -214,4 +221,5 @@ void msbc_encode(struct esco_msbc *msbc) {
 	/* reshuffle remaining data to the beginning of the buffer */
 	ffb_shift(&msbc->enc_pcm, input - msbc->enc_pcm.data);
 
+	return 0;
 }

@@ -215,8 +215,9 @@ void *sco_thread(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_out);
 
 #if ENABLE_MSBC
-	struct esco_msbc msbc = { .init = false };
+	struct esco_msbc msbc = { .initialized = false };
 	pthread_cleanup_push(PTHREAD_CLEANUP(msbc_finish), &msbc);
+	bool initialize_msbc = true;
 #endif
 
 	/* these buffers shall be bigger than the SCO MTU */
@@ -240,37 +241,42 @@ void *sco_thread(struct ba_transport *t) {
 
 	debug("Starting SCO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		/* fresh-start for file descriptors polling */
 		pfds[1].fd = pfds[2].fd = -1;
 		pfds[3].fd = pfds[4].fd = -1;
 
 		switch (t->type.codec) {
+		case HFP_CODEC_CVSD:
+		default:
+			if (ffb_len_in(&bt_in) >= t->mtu_read)
+				pfds[1].fd = t->bt_fd;
+			if (ffb_len_out(&bt_out) >= t->mtu_write)
+				pfds[2].fd = t->bt_fd;
+			if (t->bt_fd != -1 && ffb_len_in(&bt_out) >= t->mtu_write)
+				pfds[3].fd = t->sco.spk_pcm.fd;
+			if (ffb_len_out(&bt_in) > 0)
+				pfds[4].fd = t->sco.mic_pcm.fd;
+			break;
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
 			msbc_encode(&msbc);
 			msbc_decode(&msbc);
-			if (t->mtu_read > 0 && ffb_blen_in(&msbc.dec_data) >= t->mtu_read)
+			if (ffb_blen_in(&msbc.dec_data) >= t->mtu_read)
 				pfds[1].fd = t->bt_fd;
-			if (t->mtu_write > 0 && ffb_blen_out(&msbc.enc_data) >= t->mtu_write)
+			if (ffb_blen_out(&msbc.enc_data) >= t->mtu_write)
 				pfds[2].fd = t->bt_fd;
-			if (t->mtu_write > 0 && ffb_blen_in(&msbc.enc_pcm) >= t->mtu_write)
+			if (t->bt_fd != -1 && ffb_blen_in(&msbc.enc_pcm) >= t->mtu_write)
 				pfds[3].fd = t->sco.spk_pcm.fd;
 			if (ffb_blen_out(&msbc.dec_pcm) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
+			/* If SCO is not opened or PCM is not connected,
+			 * mark mSBC encoder/decoder for reinitialization. */
+			if ((t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) ||
+					t->bt_fd == -1)
+				initialize_msbc = true;
 			break;
 #endif
-		case HFP_CODEC_CVSD:
-		default:
-			if (t->mtu_read > 0 && ffb_len_in(&bt_in) >= t->mtu_read)
-				pfds[1].fd = t->bt_fd;
-			if (t->mtu_write > 0 && ffb_len_out(&bt_out) >= t->mtu_write)
-				pfds[2].fd = t->bt_fd;
-			if (t->mtu_write > 0 && ffb_len_in(&bt_out) >= t->mtu_write)
-				pfds[3].fd = t->sco.spk_pcm.fd;
-			if (ffb_len_out(&bt_in) > 0)
-				pfds[4].fd = t->sco.mic_pcm.fd;
 		}
 
 		/* In order not to run this this loop unnecessarily, do not poll SCO for
@@ -278,6 +284,8 @@ void *sco_thread(struct ba_transport *t) {
 		 * rule does not apply, because we will use read error for SCO release. */
 		if (!t->sco.ofono && t->sco.mic_pcm.fd == -1)
 			pfds[1].fd = -1;
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
@@ -287,7 +295,7 @@ void *sco_thread(struct ba_transport *t) {
 		case -1:
 			if (errno == EINTR)
 				continue;
-			error("Transport poll error: %s", strerror(errno));
+			error("SCO poll error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -295,14 +303,39 @@ void *sco_thread(struct ba_transport *t) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-
 			switch (ba_transport_recv_signal(t)) {
 			case TRANSPORT_PING:
+				continue;
 			case TRANSPORT_PCM_OPEN:
+				/* Try to acquire new SCO connection only for Audio Gateway profile.
+				 * For a headset mode we will wait for an incoming connection from
+				 * some remote Audio Gateway. */
+				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG)
+					t->acquire(t);
+#if ENABLE_MSBC
+				if (t->type.codec == HFP_CODEC_MSBC) {
+					if (initialize_msbc && msbc_init(&msbc) != 0) {
+						error("Couldn't initialize mSBC codec: %s", strerror(errno));
+						goto fail;
+					}
+					initialize_msbc = false;
+				}
+#endif
+				/* fall-through */
 			case TRANSPORT_PCM_RESUME:
-				poll_timeout = -1;
 				asrs.frames = 0;
-				break;
+				continue;
+			case TRANSPORT_PCM_CLOSE:
+				/* For Audio Gateway profile it is required to release SCO if we
+				 * are not transferring audio (not sending nor receiving), because
+				 * it will free Bluetooth bandwidth - headset will send microphone
+				 * signal even though we are not reading it! */
+				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG &&
+						t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) {
+					debug("Releasing SCO due to PCM inactivity");
+					t->release(t);
+				}
+				continue;
 			case TRANSPORT_PCM_SYNC:
 				/* FIXME: Drain functionality for speaker.
 				 * XXX: Right now it is not possible to drain speaker PCM (in a clean
@@ -318,44 +351,6 @@ void *sco_thread(struct ba_transport *t) {
 			default:
 				break;
 			}
-
-			/* connection is managed by oFono */
-			if (t->sco.ofono)
-				continue;
-
-			const enum hfp_ind *inds = t->sco.rfcomm->rfcomm.hfp_inds;
-			bool release = false;
-
-			/* It is required to release SCO if we are not transferring audio,
-			 * because it will free Bluetooth bandwidth - microphone signal is
-			 * transfered even though we are not reading from it! */
-			if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1)
-				release = true;
-
-			/* For HFP HF we have to check if we are in the call stage or in the
-			 * call setup stage. Otherwise, it might be not possible to acquire
-			 * SCO connection. */
-			if (t->type.profile == BA_TRANSPORT_PROFILE_HFP_HF &&
-					inds[HFP_IND_CALL] == HFP_IND_CALL_NONE &&
-					inds[HFP_IND_CALLSETUP] == HFP_IND_CALLSETUP_NONE)
-				release = true;
-
-			if (release) {
-				t->release(t);
-				asrs.frames = 0;
-			}
-			else {
-				t->acquire(t);
-#if ENABLE_MSBC
-				/* this can be called again, make sure it is idempotent */
-				if (t->type.codec == HFP_CODEC_MSBC && msbc_init(&msbc) != 0) {
-					error("Couldn't initialize mSBC codec: %s", strerror(errno));
-					goto fail;
-				}
-#endif
-			}
-
-			continue;
 		}
 
 		if (asrs.frames == 0)
@@ -369,18 +364,19 @@ void *sco_thread(struct ba_transport *t) {
 			ssize_t len;
 
 			switch (t->type.codec) {
-#if ENABLE_MSBC
-			case HFP_CODEC_MSBC:
-				buffer = msbc.dec_data.tail;
-				buffer_len = ffb_len_in(&msbc.dec_data);
-				break;
-#endif
 			case HFP_CODEC_CVSD:
 			default:
 				if (t->sco.mic_pcm.fd == -1)
 					ffb_rewind(&bt_in);
 				buffer = bt_in.tail;
 				buffer_len = ffb_len_in(&bt_in);
+				break;
+#if ENABLE_MSBC
+			case HFP_CODEC_MSBC:
+				buffer = msbc.dec_data.tail;
+				buffer_len = ffb_len_in(&msbc.dec_data);
+				break;
+#endif
 			}
 
 retry_sco_read:
@@ -400,14 +396,15 @@ retry_sco_read:
 				}
 
 			switch (t->type.codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_seek(&bt_in, len);
+				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
 				ffb_seek(&msbc.dec_data, len);
 				break;
 #endif
-			case HFP_CODEC_CVSD:
-			default:
-				ffb_seek(&bt_in, len);
 			}
 
 		}
@@ -424,16 +421,17 @@ retry_sco_read:
 			ssize_t len;
 
 			switch (t->type.codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				buffer = bt_out.data;
+				buffer_len = t->mtu_write;
+				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
 				buffer = msbc.enc_data.data;
 				buffer_len = t->mtu_write;
 				break;
 #endif
-			case HFP_CODEC_CVSD:
-			default:
-				buffer = bt_out.data;
-				buffer_len = t->mtu_write;
 			}
 
 retry_sco_write:
@@ -453,14 +451,15 @@ retry_sco_write:
 				}
 
 			switch (t->type.codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_shift(&bt_out, len);
+				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
 				ffb_shift(&msbc.enc_data, len);
 				break;
 #endif
-			case HFP_CODEC_CVSD:
-			default:
-				ffb_shift(&bt_out, len);
 			}
 
 		}
@@ -472,16 +471,17 @@ retry_sco_write:
 			ssize_t samples;
 
 			switch (t->type.codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				buffer = (int16_t *)bt_out.tail;
+				samples = ffb_len_in(&bt_out) / sizeof(int16_t);
+				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
 				buffer = msbc.enc_pcm.tail;
 				samples = ffb_len_in(&msbc.enc_pcm);
 				break;
 #endif
-			case HFP_CODEC_CVSD:
-			default:
-				buffer = (int16_t *)bt_out.tail;
-				samples = ffb_len_in(&bt_out) / sizeof(int16_t);
 			}
 
 			if ((samples = io_thread_read_pcm(&t->sco.spk_pcm, buffer, samples)) <= 0) {
@@ -496,14 +496,15 @@ retry_sco_write:
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
 			switch (t->type.codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_seek(&bt_out, samples * sizeof(int16_t));
+				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
 				ffb_seek(&msbc.enc_pcm, samples);
 				break;
 #endif
-			case HFP_CODEC_CVSD:
-			default:
-				ffb_seek(&bt_out, samples * sizeof(int16_t));
 			}
 
 		}
@@ -520,16 +521,17 @@ retry_sco_write:
 			ssize_t samples;
 
 			switch (t->type.codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				buffer = (int16_t *)bt_in.data;
+				samples = ffb_len_out(&bt_in) / sizeof(int16_t);
+				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
 				buffer = msbc.dec_pcm.data;
 				samples = ffb_len_out(&msbc.dec_pcm);
 				break;
 #endif
-			case HFP_CODEC_CVSD:
-			default:
-				buffer = (int16_t *)bt_in.data;
-				samples = ffb_len_out(&bt_in) / sizeof(int16_t);
 			}
 
 			if (t->sco.mic_muted)
@@ -543,14 +545,15 @@ retry_sco_write:
 			}
 
 			switch (t->type.codec) {
+			case HFP_CODEC_CVSD:
+			default:
+				ffb_shift(&bt_in, samples * sizeof(int16_t));
+				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
 				ffb_shift(&msbc.dec_pcm, samples);
 				break;
 #endif
-			case HFP_CODEC_CVSD:
-			default:
-				ffb_shift(&bt_in, samples * sizeof(int16_t));
 			}
 
 		}
