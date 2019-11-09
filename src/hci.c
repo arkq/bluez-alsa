@@ -11,6 +11,7 @@
 #include "hci.h"
 
 #include <errno.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -106,17 +107,21 @@ int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
  *   errno is set to indicate the error. */
 unsigned int hci_sco_get_mtu(int sco_fd) {
 
-	struct sco_options options;
-	struct bt_voice voice;
+	struct sco_options options = { 0 };
+	struct bt_voice voice = { 0 };
 	socklen_t len;
+
+	struct pollfd pfd = { sco_fd, POLLOUT, 0 };
+	if (poll(&pfd, 1, -1) == -1)
+		warn("Couldn't wait for SCO connection: %s", strerror(errno));
 
 	len = sizeof(options);
 	if (getsockopt(sco_fd, SOL_SCO, SCO_OPTIONS, &options, &len) == -1)
-		return 0;
+		warn("Couldn't get SCO socket options: %s", strerror(errno));
 
 	len = sizeof(voice);
 	if (getsockopt(sco_fd, SOL_BLUETOOTH, BT_VOICE, &voice, &len) == -1)
-		return 0;
+		warn("Couldn't get SCO voice options: %s", strerror(errno));
 
 	debug("SCO link socket MTU: %d: %u", sco_fd, options.mtu);
 

@@ -41,6 +41,7 @@
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
+#include "hci.h"
 #include "hfp.h"
 #include "ofono-iface.h"
 #include "shared/log.h"
@@ -385,9 +386,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	t->bt_fd = fd;
 	t->type.codec = codec;
-
-	t->mtu_read = 48;
-	t->mtu_write = 48;
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 
 	bluealsa_dbus_transport_update(t,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
