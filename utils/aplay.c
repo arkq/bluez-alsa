@@ -674,7 +674,7 @@ usage:
 					"  -d, --pcm=NAME\tPCM device to use\n"
 					"  --pcm-buffer-time=INT\tPCM buffer time\n"
 					"  --pcm-period-time=INT\tPCM period time\n"
-					"  --profile-a2dp\tuse A2DP profile\n"
+					"  --profile-a2dp\tuse A2DP profile (default)\n"
 					"  --profile-sco\t\tuse SCO profile\n"
 					"  --single-audio\tsingle audio mode\n"
 					"\nNote:\n"

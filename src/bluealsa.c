@@ -54,7 +54,6 @@ struct ba_config config = {
 		HFP_AG_FEAT_REJECT |
 		HFP_AG_FEAT_ECS |
 		HFP_AG_FEAT_ECC |
-		HFP_AG_FEAT_EERC |
 		0,
 
 	.a2dp.volume = false,

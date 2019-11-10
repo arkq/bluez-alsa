@@ -162,19 +162,19 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 	if (a->chip.manufacturer == BT_COMPID_BROADCOM) {
 
 		int dd;
-		uint8_t routing, rate, frame, sync, clock;
+		uint8_t routing, clock, frame, sync, clk;
 
 		debug("Checking Broadcom internal SCO routing");
 
 		if ((dd = hci_open_dev(a->hci.dev_id)) == -1 ||
-				hci_bcm_read_sco_pcm_params(dd, &routing, &rate, &frame, &sync, &clock, 1000) == -1)
+				hci_bcm_read_sco_pcm_params(dd, &routing, &clock, &frame, &sync, &clk, 1000) == -1)
 			error("Couldn't read SCO routing params: %s", strerror(errno));
 		else {
-			debug("Current SCO interface setup: %u %u %u %u %u", routing, rate, frame, sync, clock);
+			debug("Current SCO interface setup: %u %u %u %u %u", routing, clock, frame, sync, clk);
 			if (routing != BT_BCM_PARAM_ROUTING_TRANSPORT) {
 				debug("Setting SCO routing via transport interface");
 				if (hci_bcm_write_sco_pcm_params(dd, BT_BCM_PARAM_ROUTING_TRANSPORT,
-						rate, frame, sync, clock, 1000) == -1)
+						clock, frame, sync, clk, 1000) == -1)
 				error("Couldn't write SCO routing params: %s", strerror(errno));
 			}
 		}

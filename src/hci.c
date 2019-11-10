@@ -137,8 +137,8 @@ unsigned int hci_sco_get_mtu(int sco_fd) {
 
 /**
  * Broadcom vendor HCI command for reading SCO routing configuration. */
-int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *rate,
-		uint8_t *frame, uint8_t *sync, uint8_t *clock, int to) {
+int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *clock,
+		uint8_t *frame, uint8_t *sync, uint8_t *clk, int to) {
 
 	struct __attribute__ ((packed)) {
 		uint8_t status;
@@ -166,22 +166,22 @@ int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *rate,
 
 	if (routing != NULL)
 		*routing = rp.sco_routing;
-	if (rate != NULL)
-		*rate = rp.pcm_interface_rate;
+	if (clock != NULL)
+		*clock = rp.pcm_interface_rate;
 	if (frame != NULL)
 		*frame = rp.pcm_frame_type;
 	if (sync != NULL)
 		*sync = rp.pcm_sync_mode;
-	if (clock != NULL)
-		*clock = rp.pcm_clock_mode;
+	if (clk != NULL)
+		*clk = rp.pcm_clock_mode;
 
 	return 0;
 }
 
 /**
  * Broadcom vendor HCI command for writing SCO routing configuration. */
-int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t rate,
-		uint8_t frame, uint8_t sync, uint8_t clock, int to) {
+int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t clock,
+		uint8_t frame, uint8_t sync, uint8_t clk, int to) {
 
 	struct __attribute__ ((packed)) {
 		uint8_t sco_routing;
@@ -189,7 +189,7 @@ int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t rate,
 		uint8_t pcm_frame_type;
 		uint8_t pcm_sync_mode;
 		uint8_t pcm_clock_mode;
-	} cp = { routing, rate, frame, sync, clock };
+	} cp = { routing, clock, frame, sync, clk };
 	uint8_t rp_status;
 
 	struct hci_request rq = {

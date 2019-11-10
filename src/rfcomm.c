@@ -377,6 +377,16 @@ static int rfcomm_handler_btrh_get_cb(struct rfcomm_conn *c, const struct bt_at 
 }
 
 /**
+ * SET: Bluetooth Codec Connection */
+static int rfcomm_handler_bcc_cmd_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+	(void)at;
+	/* TODO: Start Codec Connection procedure because HF wants to send audio. */
+	if (rfcomm_write_at(c->t->bt_fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
+		return -1;
+	return 0;
+}
+
+/**
  * SET: Bluetooth Codec Selection */
 static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
@@ -551,6 +561,8 @@ static const struct rfcomm_handler rfcomm_handler_vgs_resp = {
 	AT_TYPE_RESP, "+VGS", rfcomm_handler_vgs_resp_cb };
 static const struct rfcomm_handler rfcomm_handler_btrh_get = {
 	AT_TYPE_CMD_GET, "+BTRH", rfcomm_handler_btrh_get_cb };
+static const struct rfcomm_handler rfcomm_handler_bcc_cmd = {
+	AT_TYPE_CMD, "+BCC", rfcomm_handler_bcc_cmd_cb };
 static const struct rfcomm_handler rfcomm_handler_bcs_set = {
 	AT_TYPE_CMD_SET, "+BCS", rfcomm_handler_bcs_set_cb };
 static const struct rfcomm_handler rfcomm_handler_bcs_resp = {
@@ -578,6 +590,7 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 		&rfcomm_handler_vgs_set,
 		&rfcomm_handler_vgs_resp,
 		&rfcomm_handler_btrh_get,
+		&rfcomm_handler_bcc_cmd,
 		&rfcomm_handler_bcs_set,
 		&rfcomm_handler_bcs_resp,
 		&rfcomm_handler_bac_set,

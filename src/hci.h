@@ -31,11 +31,11 @@ unsigned int hci_sco_get_mtu(int sco_fd);
 #define BT_BCM_PARAM_ROUTING_TRANSPORT 0x1
 #define BT_BCM_PARAM_ROUTING_CODEC     0x2
 #define BT_BCM_PARAM_ROUTING_I2S       0x3
-#define BT_BCM_PARAM_PCM_RATE_128      0x0
-#define BT_BCM_PARAM_PCM_RATE_256      0x1
-#define BT_BCM_PARAM_PCM_RATE_512      0x2
-#define BT_BCM_PARAM_PCM_RATE_1024     0x3
-#define BT_BCM_PARAM_PCM_RATE_2048     0x4
+#define BT_BCM_PARAM_PCM_CLOCK_128     0x0
+#define BT_BCM_PARAM_PCM_CLOCK_256     0x1
+#define BT_BCM_PARAM_PCM_CLOCK_512     0x2
+#define BT_BCM_PARAM_PCM_CLOCK_1024    0x3
+#define BT_BCM_PARAM_PCM_CLOCK_2048    0x4
 #define BT_BCM_PARAM_PCM_FRAME_SHORT   0x0
 #define BT_BCM_PARAM_PCM_FRAME_LONG    0x1
 #define BT_BCM_PARAM_PCM_SYNC_SLAVE    0x0
@@ -43,10 +43,10 @@ unsigned int hci_sco_get_mtu(int sco_fd);
 #define BT_BCM_PARAM_PCM_CLK_SLAVE     0x0
 #define BT_BCM_PARAM_PCM_CLK_MASTER    0x1
 
-int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *rate,
-		uint8_t *frame, uint8_t *sync, uint8_t *clock, int to);
-int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t rate,
-		uint8_t frame, uint8_t sync, uint8_t clock, int to);
+int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *clock,
+		uint8_t *frame, uint8_t *sync, uint8_t *clk, int to);
+int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t clock,
+		uint8_t frame, uint8_t sync, uint8_t clk, int to);
 
 const char *batostr_(const bdaddr_t *ba);
 
