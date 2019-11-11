@@ -21,14 +21,12 @@
 
 #include "shared/rt.h"
 
-
 /* internal logging identifier */
 static char *_ident = NULL;
 /* if true, system logging is enabled */
 static bool _syslog = false;
 /* if true, print logging time */
 static bool _time = BLUEALSA_LOGTIME;
-
 
 void log_open(const char *ident, bool syslog, bool time) {
 
@@ -43,6 +41,17 @@ void log_open(const char *ident, bool syslog, bool time) {
 }
 
 static void vlog(int priority, const char *format, va_list ap) {
+
+	static const char *priority2str[] = {
+		[LOG_EMERG] = "X",
+		[LOG_ALERT] = "A",
+		[LOG_CRIT] = "C",
+		[LOG_ERR] = "E",
+		[LOG_WARNING] = "W",
+		[LOG_NOTICE] = "N",
+		[LOG_INFO] = "I",
+		[LOG_DEBUG] = "D",
+	};
 
 	int oldstate;
 
@@ -68,6 +77,7 @@ static void vlog(int priority, const char *format, va_list ap) {
 		gettimestamp(&ts);
 		fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
 	}
+	fprintf(stderr, "%s: ", priority2str[priority]);
 	vfprintf(stderr, format, ap);
 	fputs("\n", stderr);
 
@@ -121,7 +131,7 @@ void hexdump(const char *label, const void *mem, size_t len) {
 
 	while (len--) {
 		p += sprintf(p, " %02x", *(unsigned char *)mem & 0xFF);
-		mem += 1;
+		mem = ((unsigned char *)mem) + 1;
 	}
 
 	fprintf(stderr, "%s:%s\n", label, buf);
