@@ -1,6 +1,7 @@
 /*
  * BlueALSA - ofono-iface.h
- * Copyright (c) 2018 Thierry Bultel (thierry.bultel@iot.bzh)
+ * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ *               2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,6 +16,7 @@
 
 #define OFONO_SERVICE "org.ofono"
 
+#define OFONO_IFACE_MANAGER          OFONO_SERVICE ".Manager"
 #define OFONO_IFACE_HF_AUDIO_AGENT   OFONO_SERVICE ".HandsfreeAudioAgent"
 #define OFONO_IFACE_HF_AUDIO_CARD    OFONO_SERVICE ".HandsfreeAudioCard"
 #define OFONO_IFACE_HF_AUDIO_MANAGER OFONO_SERVICE ".HandsfreeAudioManager"

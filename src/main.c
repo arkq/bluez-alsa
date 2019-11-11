@@ -301,8 +301,8 @@ int main(int argc, char **argv) {
 		}
 
 #if ENABLE_OFONO
-	if (config.enable.hfp_ofono) {
-		debug("Disabling native HFP due to enabled oFono");
+	if ((config.enable.hfp_ag || config.enable.hfp_hf) && config.enable.hfp_ofono) {
+		info("Disabling native HFP support due to enabled oFono profile");
 		config.enable.hfp_ag = false;
 		config.enable.hfp_hf = false;
 	}
@@ -329,6 +329,16 @@ int main(int argc, char **argv) {
 		error("Couldn't register D-Bus manager: %s", err->message);
 		return EXIT_FAILURE;
 	}
+
+#if ENABLE_OFONO
+	/* Enabling native HFP support while oFono is running might interfere
+	 * with oFono, so in the end neither BlueALSA nor oFono will work. */
+	if ((config.enable.hfp_ag || config.enable.hfp_hf) && ofono_detect_service()) {
+		warn("Disabling native HFP support due to oFono service presence");
+		config.enable.hfp_ag = false;
+		config.enable.hfp_hf = false;
+	}
+#endif
 
 	bluez_subscribe_signals();
 	bluez_register();

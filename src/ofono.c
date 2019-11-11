@@ -84,7 +84,6 @@ static int ofono_sco_socket_authorize(int fd) {
  * Ask oFono to connect to a card (in return it will call NewConnection). */
 static int ofono_acquire_bt_sco(struct ba_transport *t) {
 
-	GDBusConnection *conn = config.dbus;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
 	int ret = 0;
@@ -95,7 +94,7 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, ofono_dbus_path,
 			OFONO_IFACE_HF_AUDIO_CARD, "Connect");
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
 		goto fail;
 
@@ -262,7 +261,6 @@ fail:
  * Get all oFono cards (phones). */
 static int ofono_get_all_cards(void) {
 
-	GDBusConnection *conn = config.dbus;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
 	int ret = 0;
@@ -270,7 +268,7 @@ static int ofono_get_all_cards(void) {
 	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
 			OFONO_IFACE_HF_AUDIO_MANAGER, "GetCards");
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
 		goto fail;
 
@@ -447,7 +445,6 @@ int ofono_register(void) {
 		.method_call = ofono_hf_audio_agent_method_call,
 	};
 
-	GDBusConnection *conn = config.dbus;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
 	int ret = 0;
@@ -461,7 +458,7 @@ int ofono_register(void) {
 		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
 	if (dbus_agent_object_id == 0)
-		if ((dbus_agent_object_id = g_dbus_connection_register_object(conn,
+		if ((dbus_agent_object_id = g_dbus_connection_register_object(config.dbus,
 						dbus_agent_object_path, (GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent,
 						&vtable, NULL, NULL, &err)) == 0)
 			goto fail;
@@ -480,7 +477,7 @@ int ofono_register(void) {
 	g_dbus_message_set_body(msg, g_variant_new("(oay)", dbus_agent_object_path, &options));
 	g_variant_builder_clear(&options);
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
 		goto fail;
 
@@ -619,4 +616,28 @@ int ofono_subscribe_signals(void) {
 			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_name_owner_changed, NULL, NULL);
 
 	return 0;
+}
+
+/**
+ * Check whether oFono service is running. */
+bool ofono_detect_service(void) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	bool status = true;
+
+	debug("Checking oFono service presence");
+
+	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
+			OFONO_IFACE_MANAGER, "GetModems");
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL)) == NULL ||
+			g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
+		status = false;
+
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+
+	return status;
 }
