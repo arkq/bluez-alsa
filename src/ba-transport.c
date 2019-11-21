@@ -621,7 +621,7 @@ int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value) {
 
 		if (t->sco.rfcomm != NULL)
 			/* notify associated RFCOMM transport */
-			ba_transport_send_signal(t->sco.rfcomm, TRANSPORT_SET_VOLUME);
+			ba_transport_send_signal(t->sco.rfcomm, TRANSPORT_UPDATE_VOLUME);
 
 	}
 

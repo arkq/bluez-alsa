@@ -56,6 +56,11 @@ struct ba_config config = {
 		HFP_AG_FEAT_ECC |
 		0,
 
+	/* Initially set host battery as unavailable. If UPower integration was
+	 * enabled, this value will be automatically updated via D-Bus event. */
+	.battery.available = false,
+	.battery.level = 100,
+
 	.a2dp.volume = false,
 	.a2dp.force_mono = false,
 	.a2dp.force_44100 = false,

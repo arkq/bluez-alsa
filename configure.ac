@@ -126,6 +126,13 @@ AM_COND_IF([ENABLE_OFONO], [
 	AC_DEFINE([ENABLE_OFONO], [1], [Define to 1 if oFono is enabled.])
 ])
 
+AC_ARG_ENABLE([upower],
+	AS_HELP_STRING([--enable-upower], [enable UPower integration]))
+AM_CONDITIONAL([ENABLE_UPOWER], [test "x$enable_upower" = "xyes"])
+AM_COND_IF([ENABLE_UPOWER], [
+	AC_DEFINE([ENABLE_UPOWER], [1], [Define to 1 if UPower is enabled.])
+])
+
 AC_ARG_ENABLE([payloadcheck],
 	[AS_HELP_STRING([--disable-payloadcheck], [disable RTP payload type check (workaround for a PulseAudio bug)])])
 AM_CONDITIONAL([ENABLE_PAYLOADCHECK], [test "x$enable_payloadcheck" != "xno"])

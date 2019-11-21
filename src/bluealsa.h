@@ -57,12 +57,18 @@ struct ba_config {
 
 	struct {
 		/* set of features exposed via Service Discovery */
-		int features_sdp_hf;
-		int features_sdp_ag;
+		unsigned int features_sdp_hf;
+		unsigned int features_sdp_ag;
 		/* set of features exposed via RFCOMM connection */
-		int features_rfcomm_hf;
-		int features_rfcomm_ag;
+		unsigned int features_rfcomm_hf;
+		unsigned int features_rfcomm_ag;
 	} hfp;
+
+	struct {
+		bool available;
+		/* host battery level (percentage) */
+		unsigned int level;
+	} battery;
 
 	struct {
 

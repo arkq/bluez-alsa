@@ -55,9 +55,10 @@ struct rfcomm_conn {
 	/* received event reporting setup */
 	unsigned int hfp_cmer[5];
 
-	/* initial notification of volume gains */
-	bool setup_mic;
-	bool setup_spk;
+	/* initial setup notifications */
+	bool setup_battery;
+	bool setup_gain_mic;
+	bool setup_gain_spk;
 
 	/* variables used for AG<->HF sync */
 	uint8_t gain_mic;

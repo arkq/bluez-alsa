@@ -39,6 +39,11 @@ bluealsa_SOURCES += \
 	ofono-iface.c
 endif
 
+if ENABLE_UPOWER
+bluealsa_SOURCES += \
+	upower.c
+endif
+
 AM_CFLAGS = \
 	@AAC_CFLAGS@ \
 	@APTX_CFLAGS@ \

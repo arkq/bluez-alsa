@@ -37,6 +37,9 @@
 # include "ofono.h"
 #endif
 #include "utils.h"
+#if ENABLE_UPOWER
+# include "upower.h"
+#endif
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -346,6 +349,11 @@ int main(int argc, char **argv) {
 #if ENABLE_OFONO
 	ofono_subscribe_signals();
 	ofono_register();
+#endif
+
+#if ENABLE_UPOWER
+	upower_subscribe_signals();
+	upower_initialize();
 #endif
 
 	/* In order to receive EPIPE while writing to the pipe whose reading end

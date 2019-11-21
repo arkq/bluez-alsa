@@ -24,6 +24,7 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa-dbus.h"
+#include "bluealsa.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -151,14 +152,16 @@ static int rfcomm_handler_cind_test_cb(struct rfcomm_conn *c, const struct bt_at
 	(void)at;
 	const int fd = c->t->bt_fd;
 
+	/* NOTE: The order of indicators in the CIND response message
+	 *       has to be consistent with the hfp_ind enumeration. */
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND",
-				"(\"call\",(0,1))"
+				"(\"service\",(0-1))"
+				",(\"call\",(0,1))"
 				",(\"callsetup\",(0-3))"
-				",(\"service\",(0-1))"
+				",(\"callheld\",(0-2))"
 				",(\"signal\",(0-5))"
 				",(\"roam\",(0-1))"
 				",(\"battchg\",(0-5))"
-				",(\"callheld\",(0-2))"
 			) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -174,9 +177,13 @@ static int rfcomm_handler_cind_test_cb(struct rfcomm_conn *c, const struct bt_at
  * GET: Standard indicator update AT command */
 static int rfcomm_handler_cind_get_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 	(void)at;
-	const int fd = c->t->bt_fd;
 
-	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", "0,0,0,0,0,0,0") == -1)
+	const int fd = c->t->bt_fd;
+	const int battchg = config.battery.available ? (config.battery.level + 1) / 17 : 5;
+	char tmp[32];
+
+	sprintf(tmp, "0,0,0,0,0,0,%d", battchg);
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", tmp) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
@@ -619,6 +626,32 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 }
 
 /**
+ * Notify connected BT device about host battery level change. */
+static int rfcomm_notify_battery_level_change(struct rfcomm_conn *c) {
+
+	struct ba_transport * const t = c->t;
+	const int fd = t->bt_fd;
+	char tmp[16];
+
+	/* for HFP-AG return battery level indicator if reporting is enabled */
+	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+			c->hfp_cmer[3] > 0) {
+		sprintf(tmp, "%d,%d", HFP_IND_BATTCHG, (config.battery.level + 1) / 17);
+		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", tmp);
+	}
+
+	if (t->type.profile & (BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)) {
+		sprintf(tmp, "1,1,%d", (config.battery.level + 1) / 10);
+		if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+IPHONEACCEV", tmp) == -1)
+			return -1;
+		c->handler = &rfcomm_handler_resp_ok;
+		c->handler_resp_ok_new_state = c->state;
+	}
+
+	return 0;
+}
+
+/**
  * Notify connected BT device about microphone volume change. */
 static int rfcomm_notify_volume_change_mic(struct rfcomm_conn *c, bool force) {
 
@@ -634,7 +667,7 @@ static int rfcomm_notify_volume_change_mic(struct rfcomm_conn *c, bool force) {
 	debug("Updating microphone gain: %d", gain);
 
 	/* for AG return unsolicited response code */
-	if (t->type.profile & (BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 		sprintf(tmp, "+VGM=%d", gain);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
 	}
@@ -665,7 +698,7 @@ static int rfcomm_notify_volume_change_spk(struct rfcomm_conn *c, bool force) {
 	debug("Updating speaker gain: %d", gain);
 
 	/* for AG return unsolicited response code */
-	if (t->type.profile & (BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 		sprintf(tmp, "+VGS=%d", gain);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
 	}
@@ -819,16 +852,21 @@ void *rfcomm_thread(struct ba_transport *t) {
 				}
 
 		}
-		else if ( /* notify audio gateway about our initial volume gains */
-				(!conn.setup_mic || !conn.setup_spk) &&
+		else if ( /* notify audio gateway about our initial setup */
+				(!conn.setup_gain_mic || !conn.setup_gain_spk) &&
 				t->type.profile & (BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)) {
-			if (!conn.setup_mic) {
-				conn.setup_mic = true;
+			if (config.battery.available && !conn.setup_battery) {
+				conn.setup_battery = true;
+				if (rfcomm_notify_battery_level_change(&conn) == -1)
+					goto ioerror;
+			}
+			else if (!conn.setup_gain_mic) {
+				conn.setup_gain_mic = true;
 				if (rfcomm_notify_volume_change_mic(&conn, true) == -1)
 					goto ioerror;
 			}
-			else {
-				conn.setup_spk = true;
+			else if (!conn.setup_gain_spk) {
+				conn.setup_gain_spk = true;
 				if (rfcomm_notify_volume_change_spk(&conn, true) == -1)
 					goto ioerror;
 			}
@@ -878,7 +916,11 @@ void *rfcomm_thread(struct ba_transport *t) {
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_SET_VOLUME:
+			case TRANSPORT_UPDATE_BATTERY:
+				if (rfcomm_notify_battery_level_change(&conn) == -1)
+					goto ioerror;
+				break;
+			case TRANSPORT_UPDATE_VOLUME:
 				if (rfcomm_notify_volume_change_mic(&conn, false) == -1)
 					goto ioerror;
 				if (rfcomm_notify_volume_change_spk(&conn, false) == -1)

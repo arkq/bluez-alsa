@@ -66,7 +66,8 @@ enum ba_transport_signal {
 	TRANSPORT_PCM_RESUME,
 	TRANSPORT_PCM_SYNC,
 	TRANSPORT_PCM_DROP,
-	TRANSPORT_SET_VOLUME,
+	TRANSPORT_UPDATE_BATTERY,
+	TRANSPORT_UPDATE_VOLUME,
 };
 
 /* Builder for 16-bit PCM stream format identifier. */
