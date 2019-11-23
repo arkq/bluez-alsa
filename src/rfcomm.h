@@ -52,6 +52,9 @@ struct rfcomm_conn {
 	/* 0-based indicators index */
 	enum hfp_ind hfp_ind_map[20];
 
+	/* received event reporting setup */
+	unsigned int hfp_cmer[5];
+
 	/* initial notification of volume gains */
 	bool setup_mic;
 	bool setup_spk;

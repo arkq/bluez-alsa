@@ -143,6 +143,33 @@ START_TEST(test_at_parse_cind) {
 
 } END_TEST
 
+START_TEST(test_at_parse_cmer) {
+
+	unsigned int cmer[5];
+	unsigned int cmer_ok[5] = { 3, 0, 0, 1, 0 };
+	unsigned int cmer_ok2[5] = { 2, 0, 0, 1, 0 };
+
+	/* parse +CMER value */
+	ck_assert_int_eq(at_parse_cmer("3,0,0,1,0", cmer), 0);
+	ck_assert_int_eq(memcmp(cmer, cmer_ok, sizeof(cmer)), 0);
+
+	/* parse +CMER value with white-spaces */
+	ck_assert_int_eq(at_parse_cmer("3, 0, 0 , 1 , 0", cmer), 0);
+	ck_assert_int_eq(memcmp(cmer, cmer_ok, sizeof(cmer)), 0);
+
+	/* parse +CMER value with less elements */
+	ck_assert_int_eq(at_parse_cmer("2,0", cmer), 0);
+	ck_assert_int_eq(memcmp(cmer, cmer_ok2, sizeof(cmer)), 0);
+
+	/* parse +CMER empty value */
+	ck_assert_int_eq(at_parse_cmer("", cmer), 0);
+	ck_assert_int_eq(memcmp(cmer, cmer_ok2, sizeof(cmer)), 0);
+
+	/* parse +CMER invalid value */
+	ck_assert_int_eq(at_parse_cmer("3,error", cmer), -1);
+
+} END_TEST
+
 START_TEST(test_at_type2str) {
 	ck_assert_str_eq(at_type2str(AT_TYPE_RAW), "RAW");
 	ck_assert_str_eq(at_type2str(AT_TYPE_RESP), "RESP");
@@ -168,6 +195,7 @@ int main(void) {
 	tcase_add_test(tc, test_at_parse_case_sensitivity);
 	tcase_add_test(tc, test_at_parse_multiple_cmds);
 	tcase_add_test(tc, test_at_parse_cind);
+	tcase_add_test(tc, test_at_parse_cmer);
 	tcase_add_test(tc, test_at_type2str);
 
 	srunner_run_all(sr, CK_ENV);

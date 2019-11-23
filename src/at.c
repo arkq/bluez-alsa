@@ -14,12 +14,12 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
 #include "shared/defs.h"
 #include "shared/log.h"
-
 
 /**
  * Build AT message.
@@ -206,6 +206,30 @@ int at_parse_cind(const char *str, enum hfp_ind map[20]) {
 		if ((str = strstr(str, "),")) == NULL)
 			break;
 		str += 2;
+	}
+
+	return 0;
+}
+
+/**
+ * Parse AT SET +CMER command value.
+ *
+ * @param str CMER command value string.
+ * @param map Address where the CMER values will be stored.
+ * @return On success this function returns 0, otherwise -1 is returned. */
+int at_parse_cmer(const char *str, unsigned int map[5]) {
+
+	char *tmp;
+	size_t i;
+
+	for (i = 0; i < 5; i++) {
+		while (isspace(*str) || *str == ',')
+			str++;
+		int v = strtol(str, &tmp, 10);
+		if (str == tmp)
+			return *str == '\0' ? 0 : -1;
+		map[i] = v;
+		str = tmp;
 	}
 
 	return 0;

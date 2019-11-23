@@ -229,9 +229,16 @@ static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct b
  * SET: Standard event reporting activation/deactivation AT command */
 static int rfcomm_handler_cmer_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 	(void)at;
+
+	const char *resp = "OK";
 	const int fd = c->t->bt_fd;
 
-	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
+	if (at_parse_cmer(at->value, c->hfp_cmer) == -1) {
+		warn("Couldn't parse CMER setup: %s", at->value);
+		resp = "ERROR";
+	}
+
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, resp) == -1)
 		return -1;
 
 	if (c->state < HFP_SLC_CMER_SET_OK)
