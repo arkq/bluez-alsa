@@ -1187,9 +1187,6 @@ static int bluez_register_profile(
 	GVariantBuilder options;
 
 	g_variant_builder_init(&options, G_VARIANT_TYPE("a{sv}"));
-	g_variant_builder_add(&options, "{sv}", "Name",
-			g_variant_new_string(ba_transport_type_to_string(dbus_obj->ttype)));
-	g_variant_builder_add(&options, "{sv}", "Channel", g_variant_new_uint16(0));
 	if (version)
 		g_variant_builder_add(&options, "{sv}", "Version", g_variant_new_uint16(version));
 	if (features)
@@ -1268,7 +1265,7 @@ fail:
 static void bluez_register_hfp_all(void) {
 	if (config.enable.hsp_hs)
 		bluez_register_hfp(BLUETOOTH_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS,
-				0x0102 /* HSP 1.2 */, 0x0);
+				0x0102 /* HSP 1.2 */, 0x1 /* remote audio volume control */);
 	if (config.enable.hsp_ag)
 		bluez_register_hfp(BLUETOOTH_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG,
 				0x0102 /* HSP 1.2 */, 0x0);
