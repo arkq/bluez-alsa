@@ -313,6 +313,22 @@ char *g_variant_sanitize_object_path(char *path) {
 }
 
 /**
+ * Convenience wrapper around g_variant_is_of_type().
+ *
+ * @param value Variant for validation.
+ * @param type Expected variant type.
+ * @param name Variant name for logging.
+ * @return If variant matches type, this function returns true. */
+bool g_variant_validate_value(GVariant *value, const GVariantType *type,
+		const char *name) {
+	if (g_variant_is_of_type(value, type))
+		return true;
+	warn("Invalid variant type: %s: %s != %s", name,
+			g_variant_get_type_string(value), (const char *)type);
+	return false;
+}
+
+/**
  * Scale PCM signal stored in the buffer.
  *
  * Neutral value for scaling factor is 1.0. It is possible to increase

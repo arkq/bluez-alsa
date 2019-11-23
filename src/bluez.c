@@ -443,26 +443,15 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	g_variant_get(params, "(&oa{sv})", &transport_path, &properties);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 
-		if (strcmp(property, "Device") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_OBJECT_PATH)) {
-				error("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "o");
-				goto fail;
-			}
-
+		if (strcmp(property, "Device") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_OBJECT_PATH, property)) {
 			device_path = g_variant_dup_string(value, NULL);
-
 		}
-		else if (strcmp(property, "UUID") == 0) {
+		else if (strcmp(property, "UUID") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
 		}
-		else if (strcmp(property, "Codec") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_BYTE)) {
-				error("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "y");
-				goto fail;
-			}
+		else if (strcmp(property, "Codec") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
 
 			if ((codec_id & 0xFF) != g_variant_get_byte(value)) {
 				error("Invalid configuration: %s", "Codec mismatch");
@@ -470,13 +459,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			}
 
 		}
-		else if (strcmp(property, "Configuration") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_BYTESTRING)) {
-				error("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "ay");
-				goto fail;
-			}
+		else if (strcmp(property, "Configuration") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property)) {
 
 			const void *data = g_variant_get_fixed_array(value, &size, sizeof(char));
 			unsigned int cap_chm = 0;
@@ -590,39 +574,18 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			}
 
 		}
-		else if (strcmp(property, "State") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
-				error("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "s");
-				goto fail;
-			}
-
+		else if (strcmp(property, "State") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
 			state = g_variant_dup_string(value, NULL);
-
 		}
-		else if (strcmp(property, "Delay") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				error("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "q");
-				goto fail;
-			}
-
+		else if (strcmp(property, "Delay") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			delay = g_variant_get_uint16(value);
-
 		}
-		else if (strcmp(property, "Volume") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				error("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "q");
-				goto fail;
-			}
-
+		else if (strcmp(property, "Volume") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127]*/
 			volume = g_variant_get_uint16(value);
-
 		}
 
 		g_variant_unref(value);
@@ -1405,44 +1368,22 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 		debug("Signal: %s: %s: %s", signal, interface, property);
 
-		if (strcmp(property, "State") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
-				warn("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "s");
-				goto fail_prop;
-			}
-
+		if (strcmp(property, "State") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
 			bluez_a2dp_set_transport_state(t, g_variant_get_string(value, NULL));
-
 		}
-		else if (strcmp(property, "Delay") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				warn("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "q");
-				goto fail_prop;
-			}
-
+		else if (strcmp(property, "Delay") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			t->a2dp.delay = g_variant_get_uint16(value);
 			bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_DELAY);
-
 		}
-		else if (strcmp(property, "Volume") == 0) {
-
-			if (!g_variant_is_of_type(value, G_VARIANT_TYPE_UINT16)) {
-				warn("Invalid argument type for %s: %s != %s", property,
-						g_variant_get_type_string(value), "q");
-				goto fail_prop;
-			}
-
+		else if (strcmp(property, "Volume") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127]*/
 			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
 			bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
-
 		}
 
-fail_prop:
 		g_variant_unref(value);
 	}
 	g_variant_iter_free(properties);
