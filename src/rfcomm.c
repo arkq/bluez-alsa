@@ -341,6 +341,17 @@ static int rfcomm_handler_brsf_resp_cb(struct rfcomm_conn *c, const struct bt_at
 }
 
 /**
+ * SET: Noise Reduction and Echo Canceling */
+static int rfcomm_handler_nrec_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+	(void)at;
+	/* Currently, we are not supporting Noise Reduction & Echo Canceling,
+	 * so just acknowledge this SET request with "ERROR" response code. */
+	if (rfcomm_write_at(c->t->bt_fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
+		return -1;
+	return 0;
+}
+
+/**
  * SET: Gain of Microphone */
 static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
@@ -615,6 +626,8 @@ static const struct rfcomm_handler rfcomm_handler_brsf_set = {
 	AT_TYPE_CMD_SET, "+BRSF", rfcomm_handler_brsf_set_cb };
 static const struct rfcomm_handler rfcomm_handler_brsf_resp = {
 	AT_TYPE_RESP, "+BRSF", rfcomm_handler_brsf_resp_cb };
+static const struct rfcomm_handler rfcomm_handler_nrec_set = {
+	AT_TYPE_CMD_SET, "+NREC", rfcomm_handler_nrec_set_cb };
 static const struct rfcomm_handler rfcomm_handler_vgm_set = {
 	AT_TYPE_CMD_SET, "+VGM", rfcomm_handler_vgm_set_cb };
 static const struct rfcomm_handler rfcomm_handler_vgm_resp = {
@@ -652,6 +665,7 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 		&rfcomm_handler_ciev_resp,
 		&rfcomm_handler_bia_set,
 		&rfcomm_handler_brsf_set,
+		&rfcomm_handler_nrec_set,
 		&rfcomm_handler_vgm_set,
 		&rfcomm_handler_vgm_resp,
 		&rfcomm_handler_vgs_set,
