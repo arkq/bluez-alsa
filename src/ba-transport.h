@@ -172,6 +172,8 @@ struct ba_transport {
 			uint32_t hfp_features;
 			/* received AG indicator values */
 			unsigned char hfp_inds[__HFP_IND_MAX];
+			/* indicator activation state */
+			bool hfp_inds_state[__HFP_IND_MAX];
 
 			/* external RFCOMM handler */
 			int handler_fd;

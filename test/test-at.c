@@ -123,6 +123,30 @@ START_TEST(test_at_parse_multiple_cmds) {
 	ck_assert_str_eq(at.value, "OK");
 } END_TEST
 
+START_TEST(test_at_parse_bia) {
+
+	const bool state_ok1[__HFP_IND_MAX] = { 0, true, true, true, true, true, true, true };
+	const bool state_ok2[__HFP_IND_MAX] = { 0, true, false, true, true, true, true, false };
+	const bool state_ok3[__HFP_IND_MAX] = { 0, true, false, false, false, true, true, true };
+	const bool state_ok4[__HFP_IND_MAX] = { 0, true, true, false, false, true, true, true };
+	bool state[__HFP_IND_MAX] = { 0 };
+
+	ck_assert_int_eq(at_parse_bia("1,1,1,1,1,1,1", state), 0);
+	ck_assert_int_eq(memcmp(state, state_ok1, sizeof(state)), 0);
+
+	ck_assert_int_eq(at_parse_bia("1,0,1,1,1,1,0", state), 0);
+	ck_assert_int_eq(memcmp(state, state_ok2, sizeof(state)), 0);
+
+	/* omitted values shall not be changed */
+	ck_assert_int_eq(at_parse_bia(",,0,0,,,1", state), 0);
+	ck_assert_int_eq(memcmp(state, state_ok3, sizeof(state)), 0);
+
+	/* truncated values shall not be changed */
+	ck_assert_int_eq(at_parse_bia("1,1", state), 0);
+	ck_assert_int_eq(memcmp(state, state_ok4, sizeof(state)), 0);
+
+} END_TEST
+
 START_TEST(test_at_parse_cind) {
 
 	enum hfp_ind indmap[20];
@@ -145,17 +169,17 @@ START_TEST(test_at_parse_cind) {
 
 START_TEST(test_at_parse_cmer) {
 
+	const unsigned int cmer_ok1[5] = { 3, 0, 0, 1, 0 };
+	const unsigned int cmer_ok2[5] = { 2, 0, 0, 1, 0 };
 	unsigned int cmer[5];
-	unsigned int cmer_ok[5] = { 3, 0, 0, 1, 0 };
-	unsigned int cmer_ok2[5] = { 2, 0, 0, 1, 0 };
 
 	/* parse +CMER value */
 	ck_assert_int_eq(at_parse_cmer("3,0,0,1,0", cmer), 0);
-	ck_assert_int_eq(memcmp(cmer, cmer_ok, sizeof(cmer)), 0);
+	ck_assert_int_eq(memcmp(cmer, cmer_ok1, sizeof(cmer)), 0);
 
 	/* parse +CMER value with white-spaces */
 	ck_assert_int_eq(at_parse_cmer("3, 0, 0 , 1 , 0", cmer), 0);
-	ck_assert_int_eq(memcmp(cmer, cmer_ok, sizeof(cmer)), 0);
+	ck_assert_int_eq(memcmp(cmer, cmer_ok1, sizeof(cmer)), 0);
 
 	/* parse +CMER value with less elements */
 	ck_assert_int_eq(at_parse_cmer("2,0", cmer), 0);
@@ -194,6 +218,7 @@ int main(void) {
 	tcase_add_test(tc, test_at_parse_resp_unsolicited);
 	tcase_add_test(tc, test_at_parse_case_sensitivity);
 	tcase_add_test(tc, test_at_parse_multiple_cmds);
+	tcase_add_test(tc, test_at_parse_bia);
 	tcase_add_test(tc, test_at_parse_cind);
 	tcase_add_test(tc, test_at_parse_cmer);
 	tcase_add_test(tc, test_at_type2str);

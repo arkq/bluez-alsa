@@ -163,6 +163,32 @@ char *at_parse(const char *str, struct bt_at *at) {
 }
 
 /**
+ * Parse AT +BIA SET command value.
+ *
+ * @param str Command value string.
+ * @param state Array with the state to be updated.
+ * @return On success this function returns 0, otherwise -1 is returned. */
+int at_parse_bia(const char *str, bool state[__HFP_IND_MAX]) {
+
+	enum hfp_ind ind = HFP_IND_NULL + 1;
+	while (ind < __HFP_IND_MAX && *str != '\0') {
+		switch (*str) {
+		case '0':
+			state[ind] = false;
+			break;
+		case '1':
+			state[ind] = true;
+			break;
+		case ',':
+			ind++;
+		}
+		str++;
+	}
+
+	return 0;
+}
+
+/**
  * Parse AT +CIND GET response.
  *
  * The maximal number of possible mappings is 20. This value is hard-coded,
@@ -212,7 +238,7 @@ int at_parse_cind(const char *str, enum hfp_ind map[20]) {
 }
 
 /**
- * Parse AT SET +CMER command value.
+ * Parse AT +CMER SET command value.
  *
  * @param str CMER command value string.
  * @param map Address where the CMER values will be stored.

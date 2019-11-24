@@ -280,10 +280,16 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 /**
  * SET: Bluetooth Indicators Activation */
 static int rfcomm_handler_bia_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
-	(void)at;
-	/* We are not sending any indicators to the HF, however support for the
-	 * +BIA command is mandatory for the AG, so acknowledge the message. */
-	if (rfcomm_write_at(c->t->bt_fd, AT_TYPE_RESP, NULL, "OK") == -1)
+
+	struct ba_transport * const t = c->t;
+	const char *resp = "OK";
+
+	if (at_parse_bia(at->value, t->rfcomm.hfp_inds_state) == -1) {
+		warn("Couldn't parse BIA indicators activation: %s", at->value);
+		resp = "ERROR";
+	}
+
+	if (rfcomm_write_at(t->bt_fd, AT_TYPE_RESP, NULL, resp) == -1)
 		return -1;
 	return 0;
 }
@@ -683,7 +689,7 @@ static int rfcomm_notify_battery_level_change(struct rfcomm_conn *c) {
 
 	/* for HFP-AG return battery level indicator if reporting is enabled */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-			c->hfp_cmer[3] > 0) {
+			c->hfp_cmer[3] > 0 && t->rfcomm.hfp_inds_state[HFP_IND_BATTCHG]) {
 		sprintf(tmp, "%d,%d", HFP_IND_BATTCHG, (config.battery.level + 1) / 17);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", tmp);
 	}
