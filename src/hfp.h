@@ -81,6 +81,16 @@ enum __attribute__ ((packed)) hfp_slc_state {
 };
 
 /**
+ * Initial BT accessory setup */
+enum __attribute__ ((packed)) hfp_setup {
+	HFP_SETUP_GAIN_MIC,
+	HFP_SETUP_GAIN_SPK,
+	HFP_SETUP_ACCESSORY_XAPL,
+	HFP_SETUP_ACCESSORY_BATT,
+	HFP_SETUP_COMPLETE,
+};
+
+/**
  * HFP Indicators */
 enum __attribute__ ((packed)) hfp_ind {
 	HFP_IND_NULL = 0,

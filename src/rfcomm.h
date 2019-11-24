@@ -36,9 +36,13 @@ struct rfcomm_conn {
 	enum hfp_slc_state state;
 	enum hfp_slc_state state_prev;
 
+	/* initial connection setup */
+	enum hfp_setup setup;
+
 	/* handler used for sync response dispatching */
 	const struct rfcomm_handler *handler;
 	enum hfp_slc_state handler_resp_ok_new_state;
+	bool handler_resp_ok_success;
 
 	/* determine whether connection is idle */
 	bool idle;
@@ -54,11 +58,6 @@ struct rfcomm_conn {
 
 	/* received event reporting setup */
 	unsigned int hfp_cmer[5];
-
-	/* initial setup notifications */
-	bool setup_battery;
-	bool setup_gain_mic;
-	bool setup_gain_spk;
 
 	/* variables used for AG<->HF sync */
 	uint8_t gain_mic;

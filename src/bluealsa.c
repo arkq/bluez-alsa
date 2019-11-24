@@ -55,6 +55,10 @@ struct ba_config config = {
 		HFP_AG_FEAT_ECS |
 		HFP_AG_FEAT_ECC |
 		0,
+	.hfp.features_rfcomm_xapl =
+		XAPL_FEATURE_BATTERY |
+		XAPL_FEATURE_DOCKING |
+		0,
 
 	/* Initially set host battery as unavailable. If UPower integration was
 	 * enabled, this value will be automatically updated via D-Bus event. */

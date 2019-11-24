@@ -131,17 +131,14 @@ static void rfcomm_set_hfp_state(struct rfcomm_conn *c, enum hfp_slc_state state
  * Handle AT command response code. */
 static int rfcomm_handler_resp_ok_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
-	/* advance service level connection state */
-	if (strcmp(at->value, "OK") == 0) {
-		rfcomm_set_hfp_state(c, c->handler_resp_ok_new_state);
-		return 0;
-	}
+	c->handler_resp_ok_success = strcmp(at->value, "OK") == 0;
 
-	/* indicate caller that error has occurred */
-	if (strcmp(at->value, "ERROR") == 0) {
-		errno = ENOTSUP;
-		return -1;
-	}
+	/* advance service level connection state */
+	if (c->handler_resp_ok_success && c->state != HFP_SLC_CONNECTED)
+		rfcomm_set_hfp_state(c, c->handler_resp_ok_new_state);
+
+	if (!c->handler_resp_ok_success)
+		c->handler = NULL;
 
 	return 0;
 }
@@ -199,7 +196,7 @@ static int rfcomm_handler_cind_get_cb(struct rfcomm_conn *c, const struct bt_at 
 static int rfcomm_handler_cind_resp_test_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 	/* parse response for the +CIND TEST command */
 	if (at_parse_cind(at->value, c->hfp_ind_map) == -1)
-		warn("Couldn't parse AG indicators");
+		warn("Couldn't parse AG indicators: %s", at->value);
 	if (c->state < HFP_SLC_CIND_TEST)
 		rfcomm_set_hfp_state(c, HFP_SLC_CIND_TEST);
 	return 0;
@@ -210,6 +207,7 @@ static int rfcomm_handler_cind_resp_test_cb(struct rfcomm_conn *c, const struct 
 static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	struct ba_device * const d = t->d;
 	char *tmp = at->value;
 	size_t i;
@@ -219,7 +217,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct b
 		t->rfcomm.hfp_inds[c->hfp_ind_map[i]] = atoi(tmp);
 		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG) {
 			d->battery_level = atoi(tmp) * 100 / 5;
-			bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
+			bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 		}
 		if ((tmp = strchr(tmp, ',')) == NULL)
 			break;
@@ -259,6 +257,7 @@ static int rfcomm_handler_cmer_set_cb(struct rfcomm_conn *c, const struct bt_at 
 static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	struct ba_device * const d = t->d;
 	unsigned int index;
 	unsigned int value;
@@ -268,7 +267,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 		switch (c->hfp_ind_map[index - 1]) {
 		case HFP_IND_BATTCHG:
 			d->battery_level = value * 100 / 5;
-			bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
+			bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 			break;
 		default:
 			break;
@@ -294,6 +293,7 @@ static int rfcomm_handler_bia_set_cb(struct rfcomm_conn *c, const struct bt_at *
 static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	const int fd = t->bt_fd;
 	char tmp[16];
 
@@ -302,7 +302,7 @@ static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	/* If codec negotiation is not supported in the HF, the AT+BAC
 	 * command will not be sent. So, we can assume default codec. */
 	if (!(t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC))
-		t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
+		t_sco->type.codec = HFP_CODEC_CVSD;
 
 	sprintf(tmp, "%u", ba_adapter_get_hfp_features_ag(t->d->a));
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BRSF", tmp) == -1)
@@ -321,11 +321,12 @@ static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at 
 static int rfcomm_handler_brsf_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	t->rfcomm.hfp_features = atoi(at->value);
 
 	/* codec negotiation is not supported in the AG */
 	if (!(t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC))
-		t->rfcomm.sco->type.codec = HFP_CODEC_CVSD;
+		t_sco->type.codec = HFP_CODEC_CVSD;
 
 	if (c->state < HFP_SLC_BRSF_SET)
 		rfcomm_set_hfp_state(c, HFP_SLC_BRSF_SET);
@@ -336,46 +337,56 @@ static int rfcomm_handler_brsf_resp_cb(struct rfcomm_conn *c, const struct bt_at
 /**
  * SET: Gain of Microphone */
 static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	const int fd = t->bt_fd;
 
-	t->rfcomm.sco->sco.mic_gain = c->gain_mic = atoi(at->value);
+	t_sco->sco.mic_gain = c->gain_mic = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
 
 /**
  * RESP: Gain of Microphone */
 static int rfcomm_handler_vgm_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+
 	struct ba_transport * const t = c->t;
-	t->rfcomm.sco->sco.mic_gain = c->gain_mic = atoi(at->value);
-	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	struct ba_transport * const t_sco = t->rfcomm.sco;
+
+	t_sco->sco.mic_gain = c->gain_mic = atoi(at->value);
+	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
 
 /**
  * SET: Gain of Speaker */
 static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	const int fd = t->bt_fd;
 
-	t->rfcomm.sco->sco.spk_gain = c->gain_spk = atoi(at->value);
+	t_sco->sco.spk_gain = c->gain_spk = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
 
 /**
  * RESP: Gain of Speaker */
 static int rfcomm_handler_vgs_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+
 	struct ba_transport * const t = c->t;
-	t->rfcomm.sco->sco.spk_gain = c->gain_spk = atoi(at->value);
-	bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	struct ba_transport * const t_sco = t->rfcomm.sco;
+
+	t_sco->sco.spk_gain = c->gain_spk = atoi(at->value);
+	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -405,6 +416,7 @@ static int rfcomm_handler_bcc_cmd_cb(struct rfcomm_conn *c, const struct bt_at *
 static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	const int fd = t->bt_fd;
 	int codec;
 
@@ -420,23 +432,33 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 
 	/* Codec negotiation process is complete. Update transport and
 	 * notify connected clients, that transport has been changed. */
-	t->rfcomm.sco->type.codec = codec;
-	bluealsa_dbus_transport_update(t->rfcomm.sco,
+	t_sco->type.codec = codec;
+	bluealsa_dbus_transport_update(t_sco,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
 	return 0;
 }
 
 static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+
 	struct ba_transport * const t = c->t;
-	if (rfcomm_handler_resp_ok_cb(c, at) != 0)
+	struct ba_transport * const t_sco = t->rfcomm.sco;
+
+	if (rfcomm_handler_resp_ok_cb(c, at) == -1)
 		return -1;
+
+	if (!c->handler_resp_ok_success) {
+		warn("Codec selection not finalized: %d", c->codec);
+		return 0;
+	}
+
 	/* Finalize codec selection process and notify connected clients, that
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - switching initiated by Audio Gateway. */
-	t->rfcomm.sco->type.codec = c->codec;
-	bluealsa_dbus_transport_update(t->rfcomm.sco,
+	t_sco->type.codec = c->codec;
+	bluealsa_dbus_transport_update(t_sco,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+
 	return 0;
 }
 
@@ -452,9 +474,7 @@ static int rfcomm_handler_bcs_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	c->codec = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
 		return -1;
-
 	c->handler = &handler;
-	c->handler_resp_ok_new_state = c->state;
 
 	return 0;
 }
@@ -488,6 +508,7 @@ static int rfcomm_handler_bac_set_cb(struct rfcomm_conn *c, const struct bt_at *
 static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct bt_at *at) {
 
 	struct ba_transport * const t = c->t;
+	struct ba_transport * const t_sco = t->rfcomm.sco;
 	struct ba_device * const d = t->d;
 	const int fd = t->bt_fd;
 
@@ -500,7 +521,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct
 		case '1':
 			if (ptr != NULL) {
 				d->battery_level = atoi(strsep(&ptr, ",")) * 100 / 9;
-				bluealsa_dbus_transport_update(t->rfcomm.sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
+				bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
 			}
 			break;
 		case '2':
@@ -525,23 +546,46 @@ static int rfcomm_handler_xapl_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_device * const d = t->d;
 	const int fd = t->bt_fd;
 
-	const char *resp = "+XAPL=BlueALSA,0";
 	unsigned int vendor, product;
 	unsigned int version, features;
+	char resp[32];
 
-	if (sscanf(at->value, "%x-%x-%u,%u", &vendor, &product, &version, &features) == 4) {
-		d->xapl.vendor_id = vendor;
-		d->xapl.product_id = product;
-		d->xapl.version = version;
-		d->xapl.features = features;
-	}
-	else {
-		warn("Invalid XAPL value: %s", at->value);
-		resp = "ERROR";
+	if (sscanf(at->value, "%x-%x-%u,%u", &vendor, &product, &version, &features) != 4) {
+		warn("Invalid +XAPL value: %s", at->value);
+		if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
+			return -1;
+		return 0;
 	}
 
+	d->xapl.vendor_id = vendor;
+	d->xapl.product_id = product;
+	d->xapl.version = version;
+	d->xapl.features = features;
+
+	sprintf(resp, "+XAPL=BlueALSA,%u", config.hfp.features_rfcomm_xapl);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, resp) == -1)
 		return -1;
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
+		return -1;
+	return 0;
+}
+
+/**
+ * RESP: Apple Ext: Enable custom AT commands from an accessory */
+static int rfcomm_handler_xapl_resp_cb(struct rfcomm_conn *c, const struct bt_at *at) {
+
+	static const struct rfcomm_handler handler = {
+		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb };
+	struct ba_transport * const t = c->t;
+	struct ba_device * const d = t->d;
+	char *tmp;
+
+	if ((tmp = strchr(at->value, ',')) == NULL)
+		return -1;
+
+	d->xapl.features = atoi(tmp + 1);
+	c->handler = &handler;
+
 	return 0;
 }
 
@@ -587,12 +631,15 @@ static const struct rfcomm_handler rfcomm_handler_iphoneaccev_set = {
 	AT_TYPE_CMD_SET, "+IPHONEACCEV", rfcomm_handler_iphoneaccev_set_cb };
 static const struct rfcomm_handler rfcomm_handler_xapl_set = {
 	AT_TYPE_CMD_SET, "+XAPL", rfcomm_handler_xapl_set_cb };
+static const struct rfcomm_handler rfcomm_handler_xapl_resp = {
+	AT_TYPE_RESP, "+XAPL", rfcomm_handler_xapl_resp_cb };
 
 /**
  * Get callback (if available) for given AT message. */
 static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 
 	static const struct rfcomm_handler *handlers[] = {
+		&rfcomm_handler_resp_ok,
 		&rfcomm_handler_cind_test,
 		&rfcomm_handler_cind_get,
 		&rfcomm_handler_cmer_set,
@@ -610,6 +657,7 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 		&rfcomm_handler_bac_set,
 		&rfcomm_handler_iphoneaccev_set,
 		&rfcomm_handler_xapl_set,
+		&rfcomm_handler_xapl_resp,
 	};
 
 	size_t i;
@@ -631,7 +679,7 @@ static int rfcomm_notify_battery_level_change(struct rfcomm_conn *c) {
 
 	struct ba_transport * const t = c->t;
 	const int fd = t->bt_fd;
-	char tmp[16];
+	char tmp[32];
 
 	/* for HFP-AG return battery level indicator if reporting is enabled */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
@@ -640,12 +688,12 @@ static int rfcomm_notify_battery_level_change(struct rfcomm_conn *c) {
 		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", tmp);
 	}
 
-	if (t->type.profile & (BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)) {
-		sprintf(tmp, "1,1,%d", (config.battery.level + 1) / 10);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_HF &&
+			t->d->xapl.features & (XAPL_FEATURE_BATTERY | XAPL_FEATURE_DOCKING)) {
+		sprintf(tmp, "2,1,%d,2,0", (config.battery.level + 1) / 10);
 		if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+IPHONEACCEV", tmp) == -1)
 			return -1;
 		c->handler = &rfcomm_handler_resp_ok;
-		c->handler_resp_ok_new_state = c->state;
 	}
 
 	return 0;
@@ -675,9 +723,7 @@ static int rfcomm_notify_volume_change_mic(struct rfcomm_conn *c, bool force) {
 	sprintf(tmp, "%d", gain);
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+VGM", tmp) == -1)
 		return -1;
-
 	c->handler = &rfcomm_handler_resp_ok;
-	c->handler_resp_ok_new_state = c->state;
 
 	return 0;
 }
@@ -706,9 +752,7 @@ static int rfcomm_notify_volume_change_spk(struct rfcomm_conn *c, bool force) {
 	sprintf(tmp, "%d", gain);
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+VGS", tmp) == -1)
 		return -1;
-
 	c->handler = &rfcomm_handler_resp_ok;
-	c->handler_resp_ok_new_state = c->state;
 
 	return 0;
 }
@@ -748,6 +792,9 @@ void *rfcomm_thread(struct ba_transport *t) {
 
 		rfcomm_callback *callback;
 		char tmp[256];
+
+		if (conn.handler != NULL)
+			goto process;
 
 		if (conn.state != HFP_SLC_CONNECTED) {
 
@@ -852,40 +899,65 @@ void *rfcomm_thread(struct ba_transport *t) {
 				}
 
 		}
-		else if ( /* notify audio gateway about our initial setup */
-				(!conn.setup_gain_mic || !conn.setup_gain_spk) &&
-				t->type.profile & (BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)) {
-			if (config.battery.available && !conn.setup_battery) {
-				conn.setup_battery = true;
-				if (rfcomm_notify_battery_level_change(&conn) == -1)
-					goto ioerror;
-			}
-			else if (!conn.setup_gain_mic) {
-				conn.setup_gain_mic = true;
-				if (rfcomm_notify_volume_change_mic(&conn, true) == -1)
-					goto ioerror;
-			}
-			else if (!conn.setup_gain_spk) {
-				conn.setup_gain_spk = true;
-				if (rfcomm_notify_volume_change_spk(&conn, true) == -1)
-					goto ioerror;
-			}
-		}
+		else if (conn.setup != HFP_SETUP_COMPLETE) {
+
+			if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_AG)
+				/* We are not making any initialization setup with
+				 * HSP AG. Simply mark setup as completed. */
+				conn.setup = HFP_SETUP_COMPLETE;
+
+			/* Notify audio gateway about our initial setup. This setup
+			 * is dedicated for HSP and HFP, because both profiles have
+			 * volume gain control and Apple accessory extension. */
+			if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_HF)
+				switch (conn.setup) {
+				case HFP_SETUP_GAIN_MIC:
+					if (rfcomm_notify_volume_change_mic(&conn, true) == -1)
+						goto ioerror;
+					conn.setup++;
+					break;
+				case HFP_SETUP_GAIN_SPK:
+					if (rfcomm_notify_volume_change_spk(&conn, true) == -1)
+						goto ioerror;
+					conn.setup++;
+					break;
+				case HFP_SETUP_ACCESSORY_XAPL:
+					sprintf(tmp, "%04x-%04x-%04x,%u", 0, 0, 0x0200, config.hfp.features_rfcomm_xapl);
+					if (rfcomm_write_at(t->bt_fd, AT_TYPE_CMD_SET, "+XAPL", tmp) == -1)
+						goto ioerror;
+					conn.handler = &rfcomm_handler_xapl_resp;
+					conn.setup++;
+					break;
+				case HFP_SETUP_ACCESSORY_BATT:
+					if (rfcomm_notify_battery_level_change(&conn) == -1)
+						goto ioerror;
+					conn.setup++;
+					break;
+				case HFP_SETUP_COMPLETE:
+					debug("Initial connection setup completed");
+				}
+
 #if ENABLE_MSBC
-		else if ( /* select HFP transport codec */
-				t->rfcomm.sco->type.codec == HFP_CODEC_UNDEFINED &&
-				t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG) {
-			if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
-				goto ioerror;
-			conn.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;
-			conn.handler = &rfcomm_handler_bcs_set;
-		}
+			/* Select HFP transport codec. Please note, that this setup
+			 * stage will be performed when the connection becomes idle. */
+			if (t->rfcomm.sco->type.codec == HFP_CODEC_UNDEFINED &&
+					t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+					conn.idle) {
+				if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
+					goto ioerror;
+				conn.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;
+				conn.handler = &rfcomm_handler_bcs_set;
+				conn.setup = HFP_SETUP_COMPLETE;
+			}
 #endif
+
+		}
 		else {
 			/* setup is complete, block infinitely */
 			timeout = -1;
 		}
 
+process:
 		if (conn.handler != NULL) {
 			timeout = RFCOMM_TIMEOUT_ACK;
 			conn.retries++;
@@ -1015,7 +1087,6 @@ ioerror:
 		case ECONNABORTED:
 		case ECONNRESET:
 		case ENOTCONN:
-		case ENOTSUP:
 		case ETIMEDOUT:
 			/* exit the thread upon socket disconnection */
 			debug("RFCOMM disconnected: %s", strerror(errno));
