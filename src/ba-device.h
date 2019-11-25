@@ -43,7 +43,7 @@ struct ba_device {
 
 		uint16_t vendor_id;
 		uint16_t product_id;
-		uint16_t version;
+		char software_version[8];
 		uint8_t features;
 
 		/* determine whether headset is docked */

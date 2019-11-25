@@ -564,22 +564,28 @@ static int rfcomm_handler_xapl_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	const int fd = t->bt_fd;
 
 	unsigned int vendor, product;
-	unsigned int version, features;
+	char version[8];
 	char resp[32];
+	char *tmp;
 
-	if (sscanf(at->value, "%x-%x-%u,%u", &vendor, &product, &version, &features) != 4) {
+	if ((tmp = strrchr(at->value, ',')) == NULL) {
 		warn("Invalid +XAPL value: %s", at->value);
 		if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 			return -1;
 		return 0;
 	}
 
+	d->xapl.features = atoi(tmp + 1);
+	*tmp = '\0';
+
+	if (sscanf(at->value, "%x-%x-%7s", &vendor, &product, version) != 3)
+		warn("Couldn't parse +XAPL vendor and product: %s", at->value);
+
 	d->xapl.vendor_id = vendor;
 	d->xapl.product_id = product;
-	d->xapl.version = version;
-	d->xapl.features = features;
+	strncpy(d->xapl.software_version, version, sizeof(d->xapl.software_version) - 1);
 
-	sprintf(resp, "+XAPL=BlueALSA,%u", config.hfp.features_rfcomm_xapl);
+	sprintf(resp, "+XAPL=BlueALSA,%u", config.hfp.xapl_features);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, resp) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -597,7 +603,7 @@ static int rfcomm_handler_xapl_resp_cb(struct rfcomm_conn *c, const struct bt_at
 	struct ba_device * const d = t->d;
 	char *tmp;
 
-	if ((tmp = strchr(at->value, ',')) == NULL)
+	if ((tmp = strrchr(at->value, ',')) == NULL)
 		return -1;
 
 	d->xapl.features = atoi(tmp + 1);
@@ -942,7 +948,9 @@ void *rfcomm_thread(struct ba_transport *t) {
 					conn.setup++;
 					break;
 				case HFP_SETUP_ACCESSORY_XAPL:
-					sprintf(tmp, "%04x-%04x-%04x,%u", 0, 0, 0x0200, config.hfp.features_rfcomm_xapl);
+					sprintf(tmp, "%04X-%04X-%s,%u",
+							config.hfp.xapl_vendor_id, config.hfp.xapl_product_id,
+							config.hfp.xapl_software_version, config.hfp.xapl_features);
 					if (rfcomm_write_at(t->bt_fd, AT_TYPE_CMD_SET, "+XAPL", tmp) == -1)
 						goto ioerror;
 					conn.handler = &rfcomm_handler_xapl_resp;

@@ -62,8 +62,11 @@ struct ba_config {
 		/* set of features exposed via RFCOMM connection */
 		unsigned int features_rfcomm_hf;
 		unsigned int features_rfcomm_ag;
-		/* set of features exposed via Apple AT command */
-		unsigned int features_rfcomm_xapl;
+		/* information exposed via Apple AT extension */
+		unsigned int xapl_vendor_id;
+		unsigned int xapl_product_id;
+		const char *xapl_software_version;
+		unsigned int xapl_features;
 	} hfp;
 
 	struct {
