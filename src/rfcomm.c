@@ -965,11 +965,17 @@ void *rfcomm_thread(struct ba_transport *t) {
 					debug("Initial connection setup completed");
 				}
 
+			/* If HFP transport codec is already selected (e.g. device
+			 * does not support mSBC) mark setup as completed. */
+			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+					t->rfcomm.sco->type.codec != HFP_CODEC_UNDEFINED)
+				conn.setup = HFP_SETUP_COMPLETE;
+
 #if ENABLE_MSBC
 			/* Select HFP transport codec. Please note, that this setup
 			 * stage will be performed when the connection becomes idle. */
-			if (t->rfcomm.sco->type.codec == HFP_CODEC_UNDEFINED &&
-					t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+					t->rfcomm.sco->type.codec == HFP_CODEC_UNDEFINED &&
 					conn.idle) {
 				if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
 					goto ioerror;
