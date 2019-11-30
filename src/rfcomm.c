@@ -1,7 +1,6 @@
 /*
  * BlueALSA - rfcomm.c
  * Copyright (c) 2016-2019 Arkadiusz Bokowy
- *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
  *
@@ -28,7 +27,6 @@
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
-
 
 /**
  * Structure used for buffered reading from the RFCOMM. */
@@ -699,6 +697,40 @@ static rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 	return NULL;
 }
 
+#if ENABLE_MSBC
+/**
+ * Try to setup HFP codec connection. */
+static int rfcomm_set_hfp_codec(struct rfcomm_conn *c, uint16_t codec) {
+
+	struct ba_transport * const t = c->t;
+	const int fd = t->bt_fd;
+	char tmp[16];
+
+	debug("%s setting codec: %s",
+			ba_transport_type_to_string(t->type),
+			codec == HFP_CODEC_MSBC ? "mSBC" : "CVSD");
+
+	/* Codec selection can be requested only after Service Level Connection
+	 * establishment, and make sense only if mSBC encoding is supported. */
+	if (c->state != HFP_SLC_CONNECTED || !c->msbc) {
+		return 0;
+	}
+
+	/* for AG request codec selection using unsolicited response code */
+	if (t->type.profile && BA_TRANSPORT_PROFILE_HFP_AG) {
+		sprintf(tmp, "%d", codec);
+		if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp) == -1)
+			return -1;
+		c->codec = codec;
+		c->handler = &rfcomm_handler_bcs_set;
+		return 0;
+	}
+
+	/* TODO: Send codec connection initialization request to AG. */
+	return 0;
+}
+#endif
+
 /**
  * Notify connected BT device about host battery level change. */
 static int rfcomm_notify_battery_level_change(struct rfcomm_conn *c) {
@@ -977,10 +1009,8 @@ void *rfcomm_thread(struct ba_transport *t) {
 			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
 					t->rfcomm.sco->type.codec == HFP_CODEC_UNDEFINED &&
 					conn.idle) {
-				if (rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, "+BCS", conn.msbc ? "2" : "1") == -1)
+				if (rfcomm_set_hfp_codec(&conn, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
-				conn.codec = conn.msbc ? HFP_CODEC_MSBC : HFP_CODEC_CVSD;
-				conn.handler = &rfcomm_handler_bcs_set;
 				conn.setup = HFP_SETUP_COMPLETE;
 			}
 #endif
@@ -1022,6 +1052,16 @@ process:
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 			switch (ba_transport_recv_signal(t)) {
+#if ENABLE_MSBC
+			case TRANSPORT_HFP_SET_CODEC_CVSD:
+				if (rfcomm_set_hfp_codec(&conn, HFP_CODEC_CVSD) == -1)
+					goto ioerror;
+				break;
+			case TRANSPORT_HFP_SET_CODEC_MSBC:
+				if (rfcomm_set_hfp_codec(&conn, HFP_CODEC_MSBC) == -1)
+					goto ioerror;
+				break;
+#endif
 			case TRANSPORT_UPDATE_BATTERY:
 				if (rfcomm_notify_battery_level_change(&conn) == -1)
 					goto ioerror;
