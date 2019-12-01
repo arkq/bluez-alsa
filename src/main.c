@@ -104,6 +104,7 @@ int main(int argc, char **argv) {
 		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
 		{ "a2dp-keep-alive", required_argument, NULL, 8 },
 		{ "a2dp-volume", no_argument, NULL, 9 },
+		{ "sbc-xq", no_argument, NULL, 14 },
 #if ENABLE_AAC
 		{ "aac-afterburner", no_argument, NULL, 4 },
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
@@ -163,6 +164,7 @@ int main(int argc, char **argv) {
 					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
 					"  --a2dp-keep-alive=SEC\tkeep A2DP transport alive\n"
 					"  --a2dp-volume\t\tcontrol volume natively\n"
+					"  --sbc-xq\t\tenable SBC XQ audio mode\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\tenable afterburner\n"
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
@@ -253,6 +255,11 @@ int main(int argc, char **argv) {
 			break;
 		case 9 /* --a2dp-volume */ :
 			config.a2dp.volume = true;
+			break;
+
+		case 14 /* --sbc-xq */ :
+			config.a2dp.force_44100 = true;
+			config.sbc_xq = true;
 			break;
 
 #if ENABLE_AAC

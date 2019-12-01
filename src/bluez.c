@@ -213,6 +213,13 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
+		if (config.sbc_xq) {
+			if (cap_chm & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+				cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+			else
+				warn("SBC dual channel mode not supported: %#x", cap_chm);
+		}
+
 		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
 			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
@@ -250,6 +257,9 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		}
 
 		int bitpool = a2dp_sbc_default_bitpool(cap->frequency, cap->channel_mode);
+		if (config.sbc_xq)
+			bitpool = 38;
+
 		cap->min_bitpool = MAX(SBC_MIN_BITPOOL, cap->min_bitpool);
 		cap->max_bitpool = MIN(bitpool, cap->max_bitpool);
 
