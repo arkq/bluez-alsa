@@ -42,6 +42,16 @@ Methods         fd, fd Open(string mode)
                                          dbus.Error.NotSupported
                                          dbus.Error.Failed
 
+                void SelectCodec(uint16 codec, dict props)
+
+                        Select PCM codec. This call shall be made before PCM
+                        stream opening, otherwise the ongoing stream will be
+                        terminated.
+
+                        Possible Errors: dbus.Error.InvalidArguments
+                                         dbus.Error.NotSupported
+                                         dbus.Error.Failed
+
 Properties      object Device [readonly]
 
                         BlueZ device object path.

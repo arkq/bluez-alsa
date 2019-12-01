@@ -166,6 +166,9 @@ struct ba_transport *ba_transport_new_rfcomm(
 	if ((t_sco = ba_transport_new_sco(device, type, dbus_owner, dbus_path_sco, t)) == NULL)
 		goto fail;
 
+	pthread_mutex_init(&t->rfcomm.codec_selection_completed_mtx, NULL);
+	pthread_cond_init(&t->rfcomm.codec_selection_completed, NULL);
+
 	t->rfcomm.sco = t_sco;
 	t->release = transport_release_bt_rfcomm;
 
@@ -301,6 +304,8 @@ void ba_transport_unref(struct ba_transport *t) {
 			ba_transport_unref(t->rfcomm.sco);
 		if (t->rfcomm.handler_fd != -1)
 			close(t->rfcomm.handler_fd);
+		pthread_mutex_destroy(&t->rfcomm.codec_selection_completed_mtx);
+		pthread_cond_destroy(&t->rfcomm.codec_selection_completed);
 		d->battery_level = -1;
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
@@ -345,6 +350,60 @@ enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t) {
 	}
 
 	return sig;
+}
+
+int ba_transport_select_codec(
+		struct ba_transport *t,
+		uint16_t codec) {
+
+	switch (t->type.profile) {
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+#if ENABLE_MSBC
+
+		/* codec already selected, skip switching */
+		if (t->type.codec == codec)
+			return 0;
+
+		/* we have no access to RFCOMM with oFono back-end */
+		if (t->sco.ofono)
+			return errno = ENOTSUP, -1;
+
+		struct ba_transport * const t_rfcomm = t->sco.rfcomm;
+		pthread_mutex_lock(&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+
+		/* release ongoing connection */
+		ba_transport_release_pcm(&t->sco.spk_pcm);
+		ba_transport_release_pcm(&t->sco.mic_pcm);
+		t->release(t);
+
+		switch (codec) {
+		case HFP_CODEC_CVSD:
+			ba_transport_send_signal(t_rfcomm, TRANSPORT_HFP_SET_CODEC_CVSD);
+			pthread_cond_wait(&t_rfcomm->rfcomm.codec_selection_completed,
+					&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+			break;
+		case HFP_CODEC_MSBC:
+			ba_transport_send_signal(t_rfcomm, TRANSPORT_HFP_SET_CODEC_MSBC);
+			pthread_cond_wait(&t_rfcomm->rfcomm.codec_selection_completed,
+					&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+			break;
+		}
+
+		pthread_mutex_unlock(&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+		if (t->type.codec != codec)
+			return errno = EIO, -1;
+
+		break;
+#endif
+
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+	default:
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
 }
 
 uint16_t ba_transport_get_format(const struct ba_transport *t) {

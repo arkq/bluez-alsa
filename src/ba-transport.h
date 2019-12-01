@@ -177,6 +177,10 @@ struct ba_transport {
 			/* indicator activation state */
 			bool hfp_inds_state[__HFP_IND_MAX];
 
+			/* codec selection synchronization */
+			pthread_mutex_t codec_selection_completed_mtx;
+			pthread_cond_t codec_selection_completed;
+
 			/* external RFCOMM handler */
 			int handler_fd;
 
@@ -258,6 +262,10 @@ void ba_transport_unref(struct ba_transport *t);
 
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
 enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t);
+
+int ba_transport_select_codec(
+		struct ba_transport *t,
+		uint16_t codec);
 
 uint16_t ba_transport_get_format(const struct ba_transport *t);
 unsigned int ba_transport_get_channels(const struct ba_transport *t);

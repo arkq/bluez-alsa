@@ -10,6 +10,10 @@
 
 #include "bluealsa-iface.h"
 
+static const GDBusArgInfo arg_codec = {
+	-1, "codec", "q", NULL
+};
+
 static const GDBusArgInfo arg_fd = {
 	-1, "fd", "h", NULL
 };
@@ -87,6 +91,12 @@ static const GDBusArgInfo *pcm_Open_out[] = {
 	NULL,
 };
 
+static const GDBusArgInfo *pcm_SelectCodec_in[] = {
+	&arg_codec,
+	&arg_props,
+	NULL,
+};
+
 static const GDBusMethodInfo bluealsa_iface_pcm_Open = {
 	-1, "Open",
 	(GDBusArgInfo **)pcm_Open_in,
@@ -94,8 +104,16 @@ static const GDBusMethodInfo bluealsa_iface_pcm_Open = {
 	NULL,
 };
 
+static const GDBusMethodInfo bluealsa_iface_pcm_SelectCodec = {
+	-1, "SelectCodec",
+	(GDBusArgInfo **)pcm_SelectCodec_in,
+	NULL,
+	NULL,
+};
+
 static const GDBusMethodInfo *bluealsa_iface_pcm_methods[] = {
 	&bluealsa_iface_pcm_Open,
+	&bluealsa_iface_pcm_SelectCodec,
 	NULL,
 };
 

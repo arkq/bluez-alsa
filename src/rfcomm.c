@@ -439,7 +439,7 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 		warn("Codec not acknowledged: %s != %d", at->value, c->codec);
 		if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 			return -1;
-		return 0;
+		goto final;
 	}
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -451,6 +451,8 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	bluealsa_dbus_transport_update(t_sco,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
+final:
+	pthread_cond_signal(&t->rfcomm.codec_selection_completed);
 	return 0;
 }
 
@@ -464,7 +466,7 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 
 	if (!c->handler_resp_ok_success) {
 		warn("Codec selection not finalized: %d", c->codec);
-		return 0;
+		goto final;
 	}
 
 	/* Finalize codec selection process and notify connected clients, that
@@ -474,6 +476,8 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	bluealsa_dbus_transport_update(t_sco,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
+final:
+	pthread_cond_signal(&t->rfcomm.codec_selection_completed);
 	return 0;
 }
 
@@ -713,6 +717,10 @@ static int rfcomm_set_hfp_codec(struct rfcomm_conn *c, uint16_t codec) {
 	/* Codec selection can be requested only after Service Level Connection
 	 * establishment, and make sense only if mSBC encoding is supported. */
 	if (c->state != HFP_SLC_CONNECTED || !c->msbc) {
+		/* If codec selection was requested by some other thread by calling the
+		 * ba_transport_select_codec(), we have to signal it that the selection
+		 * procedure has been completed. */
+		pthread_cond_signal(&t->rfcomm.codec_selection_completed);
 		return 0;
 	}
 
@@ -727,6 +735,7 @@ static int rfcomm_set_hfp_codec(struct rfcomm_conn *c, uint16_t codec) {
 	}
 
 	/* TODO: Send codec connection initialization request to AG. */
+	pthread_cond_signal(&t->rfcomm.codec_selection_completed);
 	return 0;
 }
 #endif

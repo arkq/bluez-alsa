@@ -327,6 +327,44 @@ fail:
 			close(pcm_fds[i]);
 }
 
+static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata) {
+
+	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	struct ba_transport *t = (struct ba_transport *)userdata;
+	GVariantIter *properties;
+	GVariant *value = NULL;
+	const char *property;
+	uint16_t codec;
+
+	g_variant_get(params, "(qa{sv})", &codec, &properties);
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+		g_variant_unref(value);
+		value = NULL;
+	}
+
+	/* Lock transport before codec selection, so we will have
+	 * an exclusive access to the transport critical section. */
+	ba_transport_pthread_cleanup_lock(t);
+
+	if (ba_transport_select_codec(t, codec) == -1) {
+		error("Couldn't select codec: %#x: %s", codec, strerror(errno));
+		goto fail;
+	}
+
+	g_dbus_method_invocation_return_value(inv, NULL);
+	goto final;
+
+fail:
+	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+			G_DBUS_ERROR_FAILED, "%s", strerror(errno));
+
+final:
+	ba_transport_pthread_cleanup_unlock(t);
+	g_variant_iter_free(properties);
+	if (value != NULL)
+		g_variant_unref(value);
+}
+
 static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
@@ -338,6 +376,8 @@ static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 
 	if (strcmp(method, "Open") == 0)
 		bluealsa_pcm_open(invocation, userdata);
+	else if (strcmp(method, "SelectCodec") == 0)
+		bluealsa_pcm_select_codec(invocation, userdata);
 
 }
 
