@@ -998,7 +998,8 @@ void *rfcomm_thread(struct ba_transport *t) {
 					conn.setup++;
 					break;
 				case HFP_SETUP_ACCESSORY_BATT:
-					if (rfcomm_notify_battery_level_change(&conn) == -1)
+					if (config.battery.available &&
+							rfcomm_notify_battery_level_change(&conn) == -1)
 						goto ioerror;
 					conn.setup++;
 					break;
