@@ -24,7 +24,7 @@ Installation
 	$ mkdir build && cd build
 	$ ../configure --enable-aac --enable-ofono --enable-debug
 
-or if you intend to stream audio from a Linux distribution using PulseAudio (see [this
+or if you intend to stream audio from a Linux distribution using PulseAudio < 13.0 (see [this
 issue](https://github.com/Arkq/bluez-alsa/issues/13))
 
 	$ ../configure --enable-aac --enable-ofono --enable-debug --disable-payloadcheck
@@ -60,8 +60,11 @@ Dependencies for `hcitop` (when `--enable-hcitop` is specified during configurat
 - [libbsd](https://libbsd.freedesktop.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
 
-If you are using Debian-based distribution, take a look at the [.travis.yml](.travis.yml) file,
-it might give you a hint about required packages.
+For a comprehensive installation guide, please look at the [Installation from
+source](https://github.com/Arkq/bluez-alsa/wiki/Installation-from-source) bluez-alsa wiki page. If
+you've found something missing or incorrect, fill free to make a wiki contribution. Alternatively,
+if you are using Debian-based distribution, take a look at the [.travis.yml](.travis.yml) file, it
+might give you a hint about required packages.
 
 
 Configuration & Usage
