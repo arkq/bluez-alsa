@@ -256,16 +256,37 @@ struct ba_transport *ba_transport_ref(
 	return t;
 }
 
+/**
+ * Synchronous transport thread cancellation. */
+static void ba_transport_pthread_cancel(struct ba_transport *t) {
+
+	if (pthread_equal(t->thread, config.main_thread) ||
+			pthread_equal(t->thread, pthread_self()))
+		return;
+
+	int err;
+	if ((err = pthread_cancel(t->thread)) != 0 && err != ESRCH)
+		warn("Couldn't cancel transport thread: %s", strerror(err));
+	if ((err = pthread_join(t->thread, NULL)) != 0)
+		warn("Couldn't join transport thread: %s", strerror(err));
+
+	/* Indicate that the thread has been successfully terminated. Also, make sure,
+	 * that after termination, this thread handler will not be used anymore. */
+	t->thread = config.main_thread;
+
+}
+
 void ba_transport_destroy(struct ba_transport *t) {
+
+	/* Remove D-Bus interface, so no one will access
+	 * this transport during the destroy procedure. */
+	bluealsa_dbus_transport_unregister(t);
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
 	 * more). Not doing so might result in an undefined behavior or even a
 	 * race condition (closed and reused file descriptor). */
-	ba_transport_pthread_cancel(t->thread);
-
-	/* remove D-Bus interface */
-	bluealsa_dbus_transport_unregister(t);
+	ba_transport_pthread_cancel(t);
 
 	/* if possible, try to release resources gracefully */
 	if (t->release != NULL)
@@ -708,7 +729,7 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 
 	switch (state) {
 	case TRANSPORT_IDLE:
-		ba_transport_pthread_cancel(t->thread);
+		ba_transport_pthread_cancel(t);
 		break;
 	case TRANSPORT_PENDING:
 		/* When transport is marked as pending, try to acquire transport, but only
@@ -1009,22 +1030,6 @@ int ba_transport_pthread_create(
 }
 
 /**
- * Synchronous transport thread cancellation. */
-void ba_transport_pthread_cancel(pthread_t thread) {
-
-	if (pthread_equal(thread, pthread_self()))
-		return;
-	if (pthread_equal(thread, config.main_thread))
-		return;
-
-	int err;
-	if ((err = pthread_cancel(thread)) != 0)
-		warn("Couldn't cancel transport thread: %s", strerror(err));
-	if ((err = pthread_join(thread, NULL)) != 0)
-		warn("Couldn't join transport thread: %s", strerror(err));
-}
-
-/**
  * Wrapper for release callback, which can be used by the pthread cleanup.
  *
  * This function CAN be used with ba_transport_pthread_cleanup_lock() in order
@@ -1036,10 +1041,6 @@ void ba_transport_pthread_cleanup(struct ba_transport *t) {
 	 * are closed in it. */
 	if (t->release != NULL)
 		t->release(t);
-
-	/* Make sure, that after termination, this thread handler will not
-	 * be used anymore. */
-	t->thread = config.main_thread;
 
 	ba_transport_pthread_cleanup_unlock(t);
 

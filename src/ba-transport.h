@@ -285,7 +285,6 @@ int ba_transport_pthread_create(
 		void *(*routine)(struct ba_transport *),
 		const char *name);
 
-void ba_transport_pthread_cancel(pthread_t thread);
 void ba_transport_pthread_cleanup(struct ba_transport *t);
 int ba_transport_pthread_cleanup_lock(struct ba_transport *t);
 int ba_transport_pthread_cleanup_unlock(struct ba_transport *t);

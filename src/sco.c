@@ -46,7 +46,6 @@ static void sco_dispatcher_cleanup(struct sco_data *data) {
 	debug("SCO dispatcher cleanup: %s", data->a->hci.name);
 	if (data->pfd.fd != -1)
 		close(data->pfd.fd);
-	data->a->sco_dispatcher = config.main_thread;
 }
 
 static void *sco_dispatcher_thread(struct ba_adapter *a) {
