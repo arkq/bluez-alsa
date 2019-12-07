@@ -15,7 +15,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
-#include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -472,7 +471,7 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 		}
 #endif
 
-		uint16_t _seq_number = ntohs(rtp_header->seq_number);
+		uint16_t _seq_number = be16toh(rtp_header->seq_number);
 		if (++seq_number != _seq_number) {
 			if (seq_number != 0)
 				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
@@ -571,8 +570,8 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 	/* initialize RTP headers and get anchor for payload */
 	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header,
 			(void **)&rtp_media_header, sizeof(*rtp_media_header));
-	uint16_t seq_number = ntohs(rtp_header->seq_number);
-	uint32_t timestamp = ntohl(rtp_header->timestamp);
+	uint16_t seq_number = be16toh(rtp_header->seq_number);
+	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
 	ba_transport_pthread_cleanup_unlock(t);
 	io.t_locked = false;
@@ -620,8 +619,8 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 
 		}
 
-		rtp_header->seq_number = htons(++seq_number);
-		rtp_header->timestamp = htonl(timestamp);
+		rtp_header->seq_number = htobe16(++seq_number);
+		rtp_header->timestamp = htobe32(timestamp);
 		rtp_media_header->frame_count = sbc_frames;
 
 		io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
@@ -766,7 +765,7 @@ static void *a2dp_sink_mpeg(struct ba_transport *t) {
 		}
 #endif
 
-		uint16_t _seq_number = ntohs(rtp_header->seq_number);
+		uint16_t _seq_number = be16toh(rtp_header->seq_number);
 		if (++seq_number != _seq_number) {
 			if (seq_number != 0)
 				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
@@ -970,8 +969,8 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 	/* initialize RTP headers and get anchor for payload */
 	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header,
 			(void **)&rtp_mpeg_audio_header, sizeof(*rtp_mpeg_audio_header));
-	uint16_t seq_number = ntohs(rtp_header->seq_number);
-	uint32_t timestamp = ntohl(rtp_header->timestamp);
+	uint16_t seq_number = be16toh(rtp_header->seq_number);
+	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
 	ba_transport_pthread_cleanup_unlock(t);
 	io.t_locked = false;
@@ -1004,7 +1003,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 			size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN - sizeof(*rtp_mpeg_audio_header);
 			size_t payload_len_total = len;
 			size_t payload_len = len;
-			rtp_header->timestamp = htonl(timestamp);
+			rtp_header->timestamp = htobe32(timestamp);
 
 			for (;;) {
 
@@ -1013,7 +1012,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 
 				len = payload_len > payload_len_max ? payload_len_max : payload_len;
 				rtp_header->markbit = payload_len <= payload_len_max;
-				rtp_header->seq_number = htons(++seq_number);
+				rtp_header->seq_number = htobe16(++seq_number);
 				rtp_mpeg_audio_header->offset = payload_len_total - payload_len;
 
 				io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
@@ -1180,7 +1179,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 			}
 		}
 
-		uint16_t _seq_number = ntohs(rtp_header->seq_number);
+		uint16_t _seq_number = be16toh(rtp_header->seq_number);
 		if (++seq_number != _seq_number) {
 			if (seq_number != 0)
 				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
@@ -1348,8 +1347,8 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 
 	/* initialize RTP header and get anchor for payload */
 	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header, NULL, 0);
-	uint16_t seq_number = ntohs(rtp_header->seq_number);
-	uint32_t timestamp = ntohl(rtp_header->timestamp);
+	uint16_t seq_number = be16toh(rtp_header->seq_number);
+	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
 	int in_bufferIdentifiers[] = { IN_AUDIO_DATA };
 	int out_bufferIdentifiers[] = { OUT_BITSTREAM_DATA };
@@ -1397,7 +1396,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 
 				size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN;
 				size_t payload_len = out_args.numOutBytes;
-				rtp_header->timestamp = htonl(timestamp);
+				rtp_header->timestamp = htobe32(timestamp);
 
 				/* If the size of the RTP packet exceeds writing MTU, the RTP payload
 				 * should be fragmented. According to the RFC 3016, fragmentation of
@@ -1410,7 +1409,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 
 					len = payload_len > payload_len_max ? payload_len_max : payload_len;
 					rtp_header->markbit = payload_len <= payload_len_max;
-					rtp_header->seq_number = htons(++seq_number);
+					rtp_header->seq_number = htobe16(++seq_number);
 
 					io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
 					if ((ret = io_thread_write_bt(t->bt_fd, bt.data, RTP_HEADER_LEN + len,
@@ -1636,8 +1635,8 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 
 	/* initialize RTP header and get anchor for payload */
 	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header, NULL, 0);
-	uint16_t seq_number = ntohs(rtp_header->seq_number);
-	uint32_t timestamp = ntohl(rtp_header->timestamp);
+	uint16_t seq_number = be16toh(rtp_header->seq_number);
+	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
 	ba_transport_pthread_cleanup_unlock(t);
 	io.t_locked = false;
@@ -1711,8 +1710,8 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 			/* update busy delay (encoding overhead) */
 			t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
-			rtp_header->seq_number = htons(++seq_number);
-			rtp_header->timestamp = htonl(timestamp);
+			rtp_header->seq_number = htobe16(++seq_number);
+			rtp_header->timestamp = htobe32(timestamp);
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
@@ -1807,8 +1806,8 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	/* initialize RTP headers and get anchor for payload */
 	bt.tail = a2dp_init_rtp(bt.data, &rtp_header,
 			(void **)&rtp_media_header, sizeof(*rtp_media_header));
-	uint16_t seq_number = ntohs(rtp_header->seq_number);
-	uint32_t timestamp = ntohl(rtp_header->timestamp);
+	uint16_t seq_number = be16toh(rtp_header->seq_number);
+	uint32_t timestamp = be32toh(rtp_header->timestamp);
 	size_t ts_frames = 0;
 
 	ba_transport_pthread_cleanup_unlock(t);
@@ -1868,8 +1867,8 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 
 			if (encoded) {
 				timestamp += ts_frames / channels * 10000 / samplerate;
-				rtp_header->timestamp = htonl(timestamp);
-				rtp_header->seq_number = htons(++seq_number);
+				rtp_header->seq_number = htobe16(++seq_number);
+				rtp_header->timestamp = htobe32(timestamp);
 				ts_frames = 0;
 			}
 
