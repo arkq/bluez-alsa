@@ -197,44 +197,38 @@ int msbc_decode(struct esco_msbc *msbc) {
 	return 0;
 }
 
+/**
+ * Encode single eSCO mSBC frame. */
 int msbc_encode(struct esco_msbc *msbc) {
 
 	if (!msbc->initialized)
 		return errno = EINVAL, -1;
 
-	int16_t *input = msbc->enc_pcm.data;
-	size_t input_len = ffb_blen_out(&msbc->enc_pcm);
+	const int16_t *input = msbc->enc_pcm.data;
+	const size_t input_len = ffb_blen_out(&msbc->enc_pcm);
 	esco_msbc_frame_t *frame = (esco_msbc_frame_t *)msbc->enc_data.tail;
 	size_t output_len = ffb_blen_in(&msbc->enc_data);
 
-	while (input_len >= MSBC_CODESIZE &&
-			output_len >= sizeof(*frame)) {
+	/* Skip encoding if there is not enough PCM samples or the output
+	 * buffer is not big enough to hold whole eSCO mSBC frame.*/
+	if (input_len < MSBC_CODESIZE ||
+			output_len < sizeof(*frame))
+		return 0;
 
-		ssize_t len;
+	ssize_t len;
+	if ((len = sbc_encode(&msbc->enc_sbc, input, input_len,
+					frame->payload, sizeof(frame->payload), NULL)) < 0)
+		return errno = -len, -1;
 
-		if ((len = sbc_encode(&msbc->enc_sbc, input, input_len,
-						frame->payload, sizeof(frame->payload), NULL)) > 0) {
+	const uint8_t n = msbc->enc_seq_number++;
+	frame->header = htole16(ESCO_H2_PACK(sn[n][0], sn[n][1]));
+	frame->padding = 0;
 
-			const uint8_t n = msbc->enc_seq_number++;
-			frame->header = htole16(ESCO_H2_PACK(sn[n][0], sn[n][1]));
-			frame->padding = 0;
+	/* Reshuffle remaining PCM data to the beginning of the buffer. */
+	ffb_shift(&msbc->enc_pcm, input + MSBC_CODESAMPLES - msbc->enc_pcm.data);
 
-			frame++;
-			output_len -= sizeof(*frame);
-			ffb_seek(&msbc->enc_data, sizeof(*frame));
-			msbc->enc_frames++;
-
-		}
-		else
-			warn("mSBC encoding error: %s", strerror(-len));
-
-		input += MSBC_CODESAMPLES;
-		input_len -= MSBC_CODESIZE;
-
-	}
-
-	/* reshuffle remaining data to the beginning of the buffer */
-	ffb_shift(&msbc->enc_pcm, input - msbc->enc_pcm.data);
+	ffb_seek(&msbc->enc_data, sizeof(*frame));
+	msbc->enc_frames++;
 
 	return 0;
 }

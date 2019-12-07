@@ -245,6 +245,16 @@ void *sco_thread(struct ba_transport *t) {
 		pfds[1].fd = pfds[2].fd = -1;
 		pfds[3].fd = pfds[4].fd = -1;
 
+#if ENABLE_MSBC
+		if (initialize_msbc && t->type.codec == HFP_CODEC_MSBC) {
+			initialize_msbc = false;
+			if (msbc_init(&msbc) != 0) {
+				error("Couldn't initialize mSBC codec: %s", strerror(errno));
+				goto fail;
+			}
+		}
+#endif
+
 		switch (t->type.codec) {
 		case HFP_CODEC_CVSD:
 		default:
@@ -259,7 +269,8 @@ void *sco_thread(struct ba_transport *t) {
 			break;
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
-			msbc_encode(&msbc);
+			if (msbc_encode(&msbc) == -1)
+				warn("mSBC encoding error: %s", strerror(errno));
 			msbc_decode(&msbc);
 			if (ffb_blen_in(&msbc.dec_data) >= t->mtu_read)
 				pfds[1].fd = t->bt_fd;
@@ -311,15 +322,6 @@ void *sco_thread(struct ba_transport *t) {
 				 * some remote Audio Gateway. */
 				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG)
 					t->acquire(t);
-#if ENABLE_MSBC
-				if (t->type.codec == HFP_CODEC_MSBC) {
-					if (initialize_msbc && msbc_init(&msbc) != 0) {
-						error("Couldn't initialize mSBC codec: %s", strerror(errno));
-						goto fail;
-					}
-					initialize_msbc = false;
-				}
-#endif
 				/* fall-through */
 			case TRANSPORT_PCM_RESUME:
 				asrs.frames = 0;
@@ -558,7 +560,20 @@ retry_sco_write:
 		}
 
 		/* keep data transfer at a constant bit rate */
-		asrsync_sync(&asrs, t->mtu_write / 2);
+		switch (t->type.codec) {
+		case HFP_CODEC_CVSD:
+		default:
+			asrsync_sync(&asrs, t->mtu_write / sizeof(int16_t));
+			break;
+#if ENABLE_MSBC
+		case HFP_CODEC_MSBC:
+			if (msbc.enc_frames > 0) {
+				asrsync_sync(&asrs, msbc.enc_frames * MSBC_CODESAMPLES);
+				msbc.enc_frames = 0;
+			}
+#endif
+		}
+
 		/* update busy delay (encoding overhead) */
 		t->delay = asrsync_get_busy_usec(&asrs) / 100;
 
