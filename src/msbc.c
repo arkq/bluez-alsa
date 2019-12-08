@@ -145,6 +145,8 @@ void msbc_finish(struct esco_msbc *msbc) {
 
 }
 
+/**
+ * Find and decode single eSCO mSBC frame. */
 int msbc_decode(struct esco_msbc *msbc) {
 
 	if (!msbc->initialized)
@@ -154,47 +156,46 @@ int msbc_decode(struct esco_msbc *msbc) {
 	size_t input_len = ffb_blen_out(&msbc->dec_data);
 	int16_t *output = msbc->dec_pcm.tail;
 	size_t output_len = ffb_blen_in(&msbc->dec_pcm);
+	int rv = 0;
 
-	for (;;) {
+	const size_t tmp = input_len;
+	const esco_h2_header_t *_h2 = msbc_find_h2_header(input, &input_len);
+	const esco_msbc_frame_t *frame = (esco_msbc_frame_t *)_h2;
+	input += tmp - input_len;
 
-		size_t tmp = input_len;
-		const esco_h2_header_t *h2 = msbc_find_h2_header(input, &input_len);
-		const esco_msbc_frame_t *frame = (esco_msbc_frame_t *)h2;
-		ssize_t len;
+	/* Skip decoding if there is not enough input data or the output
+	 * buffer is not big enough to hold decoded PCM samples.*/
+	if (input_len < sizeof(*frame) ||
+			output_len < MSBC_CODESIZE)
+		goto final;
 
-		input += tmp - input_len;
-		if (h2 == NULL || input_len < sizeof(*frame) || output_len < MSBC_CODESIZE)
-			break;
-
-		/* TODO: Check SEQ, implement PLC. */
-		uint8_t _seq = (ESCO_H2_GET_SN1(*h2) & 2) | (ESCO_H2_GET_SN0(*h2) & 1);
-		if (!msbc->dec_seq_initialized) {
-			msbc->dec_seq_initialized = true;
-			msbc->dec_seq_number = _seq;
-		}
-		else if (_seq != ++msbc->dec_seq_number) {
-			warn("Missing mSBC packet: %u != %u", _seq, msbc->dec_seq_number);
-			msbc->dec_seq_number = _seq;
-		}
-
-		if ((len = sbc_decode(&msbc->dec_sbc, frame->payload, sizeof(frame->payload),
-						output, output_len, NULL)) > 0) {
-			output += MSBC_CODESAMPLES;
-			output_len -= MSBC_CODESIZE;
-			ffb_seek(&msbc->dec_pcm, MSBC_CODESAMPLES);
-		}
-		else
-			warn("mSBC decoding error: %s", strerror(-len));
-
-		input += sizeof(*frame);
-		input_len -= sizeof(*frame);
-
+	const uint16_t h2 = le16toh(*_h2);
+	uint8_t _seq = (ESCO_H2_GET_SN1(h2) & 2) | (ESCO_H2_GET_SN0(h2) & 1);
+	if (!msbc->dec_seq_initialized) {
+		msbc->dec_seq_initialized = true;
+		msbc->dec_seq_number = _seq;
+	}
+	else if (_seq != ++msbc->dec_seq_number) {
+		warn("Missing mSBC packet: %u != %u", _seq, msbc->dec_seq_number);
+		msbc->dec_seq_number = _seq;
+		/* TODO: Implement PLC. */
 	}
 
-	/* reshuffle remaining data to the beginning of the buffer */
-	ffb_shift(&msbc->dec_data, input - msbc->dec_data.data);
+	ssize_t len;
+	if ((len = sbc_decode(&msbc->dec_sbc, frame->payload, sizeof(frame->payload),
+					output, output_len, NULL)) < 0) {
+		errno = -len, rv = -1;
+		goto final;
+	}
 
-	return 0;
+	ffb_seek(&msbc->dec_pcm, MSBC_CODESAMPLES);
+	input += sizeof(*frame);
+	rv = 1;
+
+final:
+	/* Reshuffle remaining data to the beginning of the buffer. */
+	ffb_shift(&msbc->dec_data, input - msbc->dec_data.data);
+	return rv;
 }
 
 /**
@@ -224,11 +225,11 @@ int msbc_encode(struct esco_msbc *msbc) {
 	frame->header = htole16(ESCO_H2_PACK(sn[n][0], sn[n][1]));
 	frame->padding = 0;
 
-	/* Reshuffle remaining PCM data to the beginning of the buffer. */
-	ffb_shift(&msbc->enc_pcm, input + MSBC_CODESAMPLES - msbc->enc_pcm.data);
-
 	ffb_seek(&msbc->enc_data, sizeof(*frame));
 	msbc->enc_frames++;
 
-	return 0;
+	/* Reshuffle remaining PCM data to the beginning of the buffer. */
+	ffb_shift(&msbc->enc_pcm, input + MSBC_CODESAMPLES - msbc->enc_pcm.data);
+
+	return 1;
 }

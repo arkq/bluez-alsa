@@ -270,8 +270,9 @@ void *sco_thread(struct ba_transport *t) {
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
 			if (msbc_encode(&msbc) == -1)
-				warn("mSBC encoding error: %s", strerror(errno));
-			msbc_decode(&msbc);
+				warn("Couldn't encode mSBC: %s", strerror(errno));
+			if (msbc_decode(&msbc) == -1)
+				warn("Couldn't decode mSBC: %s", strerror(errno));
 			if (ffb_blen_in(&msbc.dec_data) >= t->mtu_read)
 				pfds[1].fd = t->bt_fd;
 			if (ffb_blen_out(&msbc.enc_data) >= t->mtu_write)

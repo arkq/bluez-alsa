@@ -566,7 +566,7 @@ static int rfcomm_handler_xapl_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	const int fd = t->bt_fd;
 
 	unsigned int vendor, product;
-	char version[8];
+	char version[sizeof(d->xapl.software_version)];
 	char resp[32];
 	char *tmp;
 
@@ -585,7 +585,7 @@ static int rfcomm_handler_xapl_set_cb(struct rfcomm_conn *c, const struct bt_at 
 
 	d->xapl.vendor_id = vendor;
 	d->xapl.product_id = product;
-	strncpy(d->xapl.software_version, version, sizeof(d->xapl.software_version) - 1);
+	strcpy(d->xapl.software_version, version);
 
 	sprintf(resp, "+XAPL=BlueALSA,%u", config.hfp.xapl_features);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, resp) == -1)
