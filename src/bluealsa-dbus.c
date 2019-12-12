@@ -167,7 +167,9 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		void *userdata) {
 	(void)condition;
 
-	struct bluealsa_ctrl_data *cdata = (struct bluealsa_ctrl_data *)userdata;
+	struct ba_transport *t = ((struct bluealsa_ctrl_data *)userdata)->t;
+	struct ba_transport_pcm *pcm = ((struct bluealsa_ctrl_data *)userdata)->pcm;
+	bool is_sco = IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile);
 	char command[32];
 	size_t len;
 
@@ -177,21 +179,23 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		return TRUE;
 	case G_IO_STATUS_NORMAL:
 		if (strncmp(command, BLUEALSA_PCM_CTRL_DRAIN, len) == 0) {
-			ba_transport_drain_pcm(cdata->t);
+			if (!is_sco || (is_sco && pcm == &t->sco.spk_pcm))
+				ba_transport_drain_pcm(t);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_DROP, len) == 0) {
-			ba_transport_send_signal(cdata->t, TRANSPORT_PCM_DROP);
+			if (!is_sco || (is_sco && pcm == &t->sco.spk_pcm))
+				ba_transport_send_signal(t, TRANSPORT_PCM_DROP);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_PAUSE, len) == 0) {
-			ba_transport_set_state(cdata->t, TRANSPORT_PAUSED);
-			ba_transport_send_signal(cdata->t, TRANSPORT_PCM_PAUSE);
+			ba_transport_set_state(t, TRANSPORT_PAUSED);
+			ba_transport_send_signal(t, TRANSPORT_PCM_PAUSE);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_RESUME, len) == 0) {
-			ba_transport_set_state(cdata->t, TRANSPORT_ACTIVE);
-			ba_transport_send_signal(cdata->t, TRANSPORT_PCM_RESUME);
+			ba_transport_set_state(t, TRANSPORT_ACTIVE);
+			ba_transport_send_signal(t, TRANSPORT_PCM_RESUME);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else {
@@ -203,8 +207,8 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	case G_IO_STATUS_AGAIN:
 		return TRUE;
 	case G_IO_STATUS_EOF:
-		ba_transport_release_pcm(cdata->pcm);
-		ba_transport_send_signal(cdata->t, TRANSPORT_PCM_CLOSE);
+		ba_transport_release_pcm(pcm);
+		ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
 		/* remove channel from watch */
 		return FALSE;
 	}

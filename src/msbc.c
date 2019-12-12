@@ -185,6 +185,7 @@ int msbc_decode(struct esco_msbc *msbc) {
 	if ((len = sbc_decode(&msbc->dec_sbc, frame->payload, sizeof(frame->payload),
 					output, output_len, NULL)) < 0) {
 		errno = -len, rv = -1;
+		input += 1;
 		goto final;
 	}
 
