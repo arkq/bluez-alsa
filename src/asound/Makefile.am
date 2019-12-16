@@ -23,6 +23,7 @@ asound_module_confdir = @ALSA_CONF_DIR@
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@ALSA_CFLAGS@ \
+	@BLUEZ_CFLAGS@ \
 	@DBUS1_CFLAGS@
 
 AM_LDFLAGS = -module -avoid-version
