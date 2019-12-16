@@ -20,8 +20,10 @@ asound_module_ctldir = @ALSA_PLUGIN_DIR@
 asound_module_pcmdir = @ALSA_PLUGIN_DIR@
 asound_module_confdir = @ALSA_CONF_DIR@
 
+# bluetooth.h is included, for example by bluealsa-pcm.c, so BLUEZ_CFLAGS needs to be included below
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
+	@BLUEZ_CFLAGS@ \
 	@ALSA_CFLAGS@ \
 	@DBUS1_CFLAGS@
 
