@@ -64,6 +64,10 @@ struct dbus_object_data {
 static GHashTable *dbus_object_data_map = NULL;
 
 /**
+ * List of adapters created by BlueZ integration. */
+static struct ba_adapter *bluez_adapters[HCI_MAX_DEV] = { NULL };
+
+/**
  * Check whether D-Bus adapter matches our configuration. */
 static bool bluez_match_dbus_adapter(
 		const char *adapter_path,
@@ -602,9 +606,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		value = NULL;
 	}
 
-	if ((a = ba_adapter_lookup(dbus_obj->hci_dev_id)) == NULL &&
-			(a = ba_adapter_new(dbus_obj->hci_dev_id)) == NULL) {
-		error("Couldn't create new adapter: %s", strerror(errno));
+	if ((a = ba_adapter_lookup(dbus_obj->hci_dev_id)) == NULL) {
+		error("Couldn't lookup adapter: hci%d: %s", dbus_obj->hci_dev_id, strerror(errno));
 		goto fail;
 	}
 
@@ -938,9 +941,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	}
 
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(device_path);
-	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL &&
-			(a = ba_adapter_new(hci_dev_id)) == NULL) {
-		error("Couldn't create new adapter: %s", strerror(errno));
+	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL) {
+		error("Couldn't lookup adapter: hci%d: %s", hci_dev_id, strerror(errno));
 		goto fail;
 	}
 
@@ -1223,7 +1225,6 @@ void bluez_register(void) {
 	}
 
 	bool adapters[HCI_MAX_DEV] = { 0 };
-	struct ba_adapter *a;
 
 	GVariantIter *interfaces;
 	GVariantIter *properties;
@@ -1249,11 +1250,12 @@ void bluez_register(void) {
 	g_variant_iter_free(objects);
 
 	size_t i;
+	struct ba_adapter *a;
 	for (i = 0; i < HCI_MAX_DEV; i++)
 		if (adapters[i] &&
 				(a = ba_adapter_new(i)) != NULL) {
+			bluez_adapters[a->hci.dev_id] = a;
 			bluez_register_a2dp_all(a);
-			ba_adapter_unref(a);
 		}
 
 	/* HFP has to be registered globally */
@@ -1270,14 +1272,13 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	(void)path;
 	(void)userdata;
 
-	struct ba_adapter *a = NULL;
-
 	GVariantIter *interfaces;
 	GVariantIter *properties;
 	GVariant *value;
 	const char *object_path;
 	const char *interface;
 	const char *property;
+	int hci_dev_id = -1;
 
 	g_variant_get(params, "(&oa{sa{sv}})", &object_path, &interfaces);
 	while (g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
@@ -1285,16 +1286,18 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 				if (strcmp(property, "Address") == 0 &&
 						bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL)))
-					a = ba_adapter_new(g_dbus_bluez_object_path_to_hci_dev_id(object_path));
+					hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 				g_variant_unref(value);
 			}
 		g_variant_iter_free(properties);
 	}
 	g_variant_iter_free(interfaces);
 
-	if (a != NULL) {
+	struct ba_adapter *a;
+	if (hci_dev_id != -1 &&
+			(a = ba_adapter_new(hci_dev_id)) != NULL) {
+		bluez_adapters[a->hci.dev_id] = a;
 		bluez_register_a2dp_all(a);
-		ba_adapter_unref(a);
 	}
 
 	/* HFP has to be registered globally */
@@ -1331,8 +1334,11 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 				}
 
 			struct ba_adapter *a;
-			if ((a = ba_adapter_lookup(hci_dev_id)) != NULL)
+			if ((a = ba_adapter_lookup(hci_dev_id)) != NULL) {
+				ba_adapter_unref(bluez_adapters[a->hci.dev_id]);
+				bluez_adapters[a->hci.dev_id] = NULL;
 				ba_adapter_destroy(a);
+			}
 
 		}
 	g_variant_iter_free(interfaces);
