@@ -37,6 +37,7 @@
 #include "hci.h"
 #include "sco.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 /* Compatibility patch for glib < 2.42. */
@@ -1251,7 +1252,7 @@ void bluez_register(void) {
 
 	size_t i;
 	struct ba_adapter *a;
-	for (i = 0; i < HCI_MAX_DEV; i++)
+	for (i = 0; i < ARRAYSIZE(adapters); i++)
 		if (adapters[i] &&
 				(a = ba_adapter_new(i)) != NULL) {
 			bluez_adapters[a->hci.dev_id] = a;
@@ -1414,7 +1415,49 @@ final:
 }
 
 /**
- * Subscribe to BlueZ related signals.
+ * Monitor BlueZ service availability.
+ *
+ * When BlueZ is properly shutdown, we are notified about adapter removal via
+ * the InterfacesRemoved signal. Here, we get the opportunity to perform some
+ * cleanup if BlueZ service was killed. */
+static void bluez_signal_name_owner_changed(GDBusConnection *conn, const char *sender,
+		const char *path, const char *interface, const char *signal, GVariant *params,
+		void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)interface;
+	(void)signal;
+	(void)userdata;
+
+	const char *name;
+	const char *owner_old;
+	const char *owner_new;
+
+	g_variant_get(params, "(&s&s&s)", &name, &owner_old, &owner_new);
+	if (owner_old != NULL && owner_old[0] != '\0') {
+
+		GHashTableIter iter;
+		struct dbus_object_data *dbus_obj;
+		g_hash_table_iter_init(&iter, dbus_object_data_map);
+		while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj)) {
+			g_dbus_connection_unregister_object(conn, dbus_obj->id);
+			g_hash_table_iter_remove(&iter);
+		}
+
+		size_t i;
+		for (i = 0; i < ARRAYSIZE(bluez_adapters); i++)
+			if (bluez_adapters[i] != NULL) {
+				ba_adapter_destroy(bluez_adapters[i]);
+				bluez_adapters[i] = NULL;
+			}
+
+	}
+
+}
+
+/**
+ * Subscribe to BlueZ signals.
  *
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int bluez_subscribe_signals(void) {
@@ -1429,6 +1472,10 @@ int bluez_subscribe_signals(void) {
 	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_transport_changed, NULL, NULL);
+
+	g_dbus_connection_signal_subscribe(config.dbus, "org.freedesktop.DBus",
+			"org.freedesktop.DBus", "NameOwnerChanged", NULL, BLUEZ_SERVICE,
+			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_name_owner_changed, NULL, NULL);
 
 	return 0;
 }
