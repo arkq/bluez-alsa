@@ -18,8 +18,20 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-#define BT_COMPID_INTEL    2
-#define BT_COMPID_BROADCOM 15
+/**
+ * List of all Bluetooth member companies:
+ * https://www.bluetooth.com/specifications/assigned-numbers/company-identifiers */
+
+#define BT_COMPID_INTEL              0x0002
+#define BT_COMPID_QUALCOMM_TECH_INTL 0x000A
+#define BT_COMPID_BROADCOM           0x000F
+#define BT_COMPID_APPLE              0x004C
+#define BT_COMPID_APT                0x004F
+#define BT_COMPID_SAMSUNG_ELEC       0x0075
+#define BT_COMPID_QUALCOMM_TECH      0x00D7
+#define BT_COMPID_SONY               0x012D
+#define BT_COMPID_CYPRESS            0x0131
+#define BT_COMPID_SAVITECH           0x053A
 
 int hci_get_version(int dev_id, struct hci_version *ver);
 

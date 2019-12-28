@@ -30,6 +30,8 @@
 #include <endian.h>
 #include <stdint.h>
 
+#include "hci.h"
+
 #define A2DP_CODEC_SBC      0x00
 #define A2DP_CODEC_MPEG12   0x01
 #define A2DP_CODEC_MPEG24   0x02
@@ -215,7 +217,7 @@
 	.frequency1 = ((f) >> 4) & 0xff, \
 	.frequency2 = (f) & 0x0f,
 
-#define APTX_VENDOR_ID                  0x0000004f
+#define APTX_VENDOR_ID                  BT_COMPID_APT
 #define APTX_CODEC_ID                   0x0001
 
 #define APTX_CHANNEL_MODE_MONO          0x01
@@ -226,7 +228,7 @@
 #define APTX_SAMPLING_FREQ_44100        0x02
 #define APTX_SAMPLING_FREQ_48000        0x01
 
-#define FASTSTREAM_VENDOR_ID            0x0000000a
+#define FASTSTREAM_VENDOR_ID            BT_COMPID_QUALCOMM_TECH_INTL
 #define FASTSTREAM_CODEC_ID             0x0001
 
 #define FASTSTREAM_DIRECTION_SINK               0x1
@@ -237,7 +239,7 @@
 
 #define FASTSTREAM_SOURCE_SAMPLING_FREQ_16000   0x2
 
-#define APTX_LL_VENDOR_ID               0x0000000a
+#define APTX_LL_VENDOR_ID               BT_COMPID_QUALCOMM_TECH_INTL
 #define APTX_LL_CODEC_ID                0x0002
 
 /* Default parameters for aptX Low Latency encoder */
@@ -260,10 +262,10 @@
 #define APTX_LL_GOOD_WORKING_LEVEL2     0xB4
 #define APTX_LL_GOOD_WORKING_LEVEL1     0x00
 
-#define APTX_HD_VENDOR_ID               0x000000D7
+#define APTX_HD_VENDOR_ID               BT_COMPID_QUALCOMM_TECH
 #define APTX_HD_CODEC_ID                0x0024
 
-#define LDAC_VENDOR_ID                  0x0000012d
+#define LDAC_VENDOR_ID                  BT_COMPID_SONY
 #define LDAC_CODEC_ID                   0x00aa
 
 #define LDAC_SAMPLING_FREQ_44100        0x20
