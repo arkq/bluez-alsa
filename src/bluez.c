@@ -773,9 +773,7 @@ static struct dbus_object_data *bluez_create_media_endpoint_object(
 		return NULL;
 	}
 
-	gpointer hash = GINT_TO_POINTER(g_str_hash(dbus_object.path));
-	g_hash_table_insert(dbus_object_data_map, hash, dbus_obj);
-
+	g_hash_table_insert(dbus_object_data_map, dbus_obj->path, dbus_obj);
 	return dbus_obj;
 }
 
@@ -862,8 +860,7 @@ static void bluez_register_a2dp(
 		snprintf(path, sizeof(path), "/org/bluez/%s%s/%d", adapter->hci.name,
 				g_dbus_transport_type_to_bluez_object_path(ttype), ++registered);
 
-		gpointer hash = GINT_TO_POINTER(g_str_hash(path));
-		dbus_obj = g_hash_table_lookup(dbus_object_data_map, hash);
+		dbus_obj = g_hash_table_lookup(dbus_object_data_map, path);
 
 		// End registration loop if all previously created media endpoints are
 		// registered in BlueZ and we've got at least N not connected endpoints.
@@ -1090,9 +1087,7 @@ static struct dbus_object_data *bluez_create_profile_object(
 		return NULL;
 	}
 
-	gpointer hash = GINT_TO_POINTER(g_str_hash(dbus_object.path));
-	g_hash_table_insert(dbus_object_data_map, hash, dbus_obj);
-
+	g_hash_table_insert(dbus_object_data_map, dbus_obj->path, dbus_obj);
 	return dbus_obj;
 }
 
@@ -1169,8 +1164,7 @@ static void bluez_register_hfp(
 	snprintf(path, sizeof(path), "/org/bluez%s",
 			g_dbus_transport_type_to_bluez_object_path(ttype));
 
-	gpointer hash = GINT_TO_POINTER(g_str_hash(path));
-	if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, hash)) == NULL &&
+	if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL &&
 			(dbus_obj = bluez_create_profile_object(ttype, path, &err)) == NULL)
 		goto fail;
 
@@ -1215,7 +1209,7 @@ static void bluez_register_hfp_all(void) {
 void bluez_register(void) {
 
 	if (dbus_object_data_map == NULL)
-		dbus_object_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+		dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
 
 	GError *err = NULL;
 	GVariantIter *objects = NULL;
