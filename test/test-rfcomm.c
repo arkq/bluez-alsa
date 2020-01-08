@@ -13,6 +13,7 @@
 #endif
 
 #include <pthread.h>
+#include <signal.h>
 
 #include <check.h>
 
@@ -154,6 +155,9 @@ START_TEST(test_rfcomm_esco) {
 } END_TEST
 
 int main(void) {
+
+	struct sigaction sigact = { .sa_handler = SIG_IGN };
+	sigaction(SIGPIPE, &sigact, NULL);
 
 	bdaddr_t addr = {{ 1, 2, 3, 4, 5, 6 }};
 	adapter = ba_adapter_new(0);

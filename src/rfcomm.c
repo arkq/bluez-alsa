@@ -1172,6 +1172,7 @@ ioerror:
 		case ECONNRESET:
 		case ENOTCONN:
 		case ETIMEDOUT:
+		case EPIPE:
 			/* exit the thread upon socket disconnection */
 			debug("RFCOMM disconnected: %s", strerror(errno));
 			goto fail;
