@@ -23,6 +23,7 @@
 #include "ba-device.h"
 #include "hfp.h"
 
+#define BA_TRANSPORT_PROFILE_NONE        (0)
 #define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)
 #define BA_TRANSPORT_PROFILE_A2DP_SINK   (2 << 0)
 #define BA_TRANSPORT_PROFILE_HFP_HF      (1 << 2)
@@ -229,7 +230,6 @@ struct ba_transport {
 
 struct ba_transport *ba_transport_new(
 		struct ba_device *device,
-		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path);
 struct ba_transport *ba_transport_new_a2dp(

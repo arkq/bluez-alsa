@@ -79,14 +79,13 @@ START_TEST(test_ba_transport) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	struct ba_transport_type type = { 0 };
-	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
+	ck_assert_ptr_ne(t = ba_transport_new(d, "/owner", "/path"), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
 	ck_assert_ptr_eq(t->d, d);
-	ck_assert_int_eq(memcmp(&t->type, &type, sizeof(type)), 0);
+	ck_assert_int_eq(t->type.profile, BA_TRANSPORT_PROFILE_NONE);
 	ck_assert_str_eq(t->bluez_dbus_owner, "/owner");
 	ck_assert_str_eq(t->bluez_dbus_path, "/path");
 
@@ -100,11 +99,10 @@ START_TEST(test_ba_transport_volume_packed) {
 	struct ba_device *d;
 	struct ba_transport *t;
 	bdaddr_t addr = { 0 };
-	struct ba_transport_type type = { 0 };
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
-	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
+	ck_assert_ptr_ne(t = ba_transport_new(d, "/owner", "/path"), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -149,12 +147,11 @@ START_TEST(test_cascade_free) {
 	struct ba_adapter *a;
 	struct ba_device *d;
 	struct ba_transport *t;
-	struct ba_transport_type type = { 0 };
 	bdaddr_t addr = { 0 };
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
-	ck_assert_ptr_ne(t = ba_transport_new(d, type, "/owner", "/path"), NULL);
+	ck_assert_ptr_ne(t = ba_transport_new(d, "/owner", "/path"), NULL);
 	t->release = test_cascade_free_transport_unref;
 
 	ba_device_unref(d);

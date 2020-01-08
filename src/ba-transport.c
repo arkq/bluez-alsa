@@ -46,16 +46,13 @@
  * Create new transport.
  *
  * @param device Pointer to the device structure.
- * @param type Transport type.
  * @param dbus_owner D-Bus service, which owns this transport.
  * @param dbus_path D-Bus service path for this transport.
- * @param profile Bluetooth profile.
  * @return On success, the pointer to the newly allocated transport structure
  *   is returned. If error occurs, NULL is returned and the errno variable is
  *   set to indicated the cause of the error. */
 struct ba_transport *ba_transport_new(
 		struct ba_device *device,
-		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path) {
 
@@ -66,7 +63,7 @@ struct ba_transport *ba_transport_new(
 		return NULL;
 
 	t->d = ba_device_ref(device);
-	t->type = type;
+	t->type.profile = BA_TRANSPORT_PROFILE_NONE;
 	t->ref_count = 1;
 
 	pthread_mutex_init(&t->mutex, NULL);
@@ -119,8 +116,10 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	struct ba_transport *t;
 
-	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
+	if ((t = ba_transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
+
+	t->type = type;
 
 	t->a2dp.ch1_volume = 127;
 	t->a2dp.ch2_volume = 127;
@@ -154,11 +153,10 @@ struct ba_transport *ba_transport_new_rfcomm(
 	char dbus_path_sco[64];
 	int err;
 
-	struct ba_transport_type ttype = {
-		.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM };
-	if ((t = ba_transport_new(device, ttype, dbus_owner, dbus_path)) == NULL)
+	if ((t = ba_transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
+	t->type.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM;
 	t->ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
 	t->rfcomm.handler_fd = -1;
 
@@ -190,6 +188,9 @@ struct ba_transport *ba_transport_new_sco(
 
 	struct ba_transport *t;
 
+	if ((t = ba_transport_new(device, dbus_owner, dbus_path)) == NULL)
+		return NULL;
+
 	/* HSP supports CVSD only */
 	if (type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
 		type.codec = HFP_CODEC_CVSD;
@@ -203,8 +204,7 @@ struct ba_transport *ba_transport_new_sco(
 	type.codec = HFP_CODEC_CVSD;
 #endif
 
-	if ((t = ba_transport_new(device, type, dbus_owner, dbus_path)) == NULL)
-		return NULL;
+	t->type = type;
 
 	if (rfcomm != NULL)
 		t->sco.rfcomm = ba_transport_ref(rfcomm);
