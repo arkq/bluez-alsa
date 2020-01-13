@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -69,17 +69,17 @@ struct io_thread_data {
 };
 
 /**
- * Scale PCM signal according to the transport audio properties. */
-static void io_thread_scale_pcm(const struct ba_transport *t, int16_t *buffer,
-		size_t samples, int channels) {
+ * Scale PCM signal according to the volume configuration. */
+static void io_thread_scale_pcm(const struct ba_transport_pcm *pcm,
+		int16_t *buffer, size_t samples, int channels) {
 
 	double ch1_scale = 0;
 	double ch2_scale = 0;
 
-	if (!t->a2dp.ch1_muted)
-		ch1_scale = pow(10, (-64 + 64.0 * t->a2dp.ch1_volume / 127) / 20);
-	if (!t->a2dp.ch2_muted)
-		ch2_scale = pow(10, (-64 + 64.0 * t->a2dp.ch2_volume / 127) / 20);
+	if (!pcm->volume[0].muted)
+		ch1_scale = pow(10, (-64 + 64.0 * pcm->volume[0].level / 127) / 20);
+	if (!pcm->volume[1].muted)
+		ch2_scale = pow(10, (-64 + 64.0 * pcm->volume[1].level / 127) / 20);
 
 	snd_pcm_scale_s16le(buffer, samples, channels, ch1_scale, ch2_scale);
 }
@@ -295,7 +295,7 @@ repoll:
 
 	if (!config.a2dp.volume)
 		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(t, buffer->tail, samples, channels);
+		io_thread_scale_pcm(&t->a2dp.pcm, buffer->tail, samples, channels);
 
 	/* update PCM buffer */
 	ffb_seek(buffer, samples);
@@ -495,7 +495,7 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 			rtp_payload_len -= len;
 
 			const size_t samples = decoded / sizeof(int16_t);
-			io_thread_scale_pcm(t, pcm.data, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
@@ -795,7 +795,7 @@ decode:
 		}
 
 		const size_t samples = len / sizeof(int16_t);
-		io_thread_scale_pcm(t, pcm.data, samples, channels);
+		io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
 		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
@@ -816,7 +816,7 @@ decode:
 		}
 
 		if (channels == 1) {
-			io_thread_scale_pcm(t, pcm_l, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm_l, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm_l, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
@@ -828,7 +828,7 @@ decode:
 				pcm.data[i * 2 + 1] = pcm_r[i];
 			}
 
-			io_thread_scale_pcm(t, pcm.data, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
@@ -1213,7 +1213,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t samples = aacinf->frameSize * aacinf->numChannels;
-			io_thread_scale_pcm(t, pcm.data, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}

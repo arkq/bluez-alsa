@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -121,8 +121,8 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	t->type = type;
 
-	t->a2dp.ch1_volume = 127;
-	t->a2dp.ch2_volume = 127;
+	t->a2dp.pcm.volume[0].level = 127;
+	t->a2dp.pcm.volume[1].level = 127;
 
 	if (cconfig_size > 0) {
 		t->a2dp.cconfig = g_memdup(cconfig, cconfig_size);
@@ -209,8 +209,8 @@ struct ba_transport *ba_transport_new_sco(
 	if (rfcomm != NULL)
 		t->sco.rfcomm = ba_transport_ref(rfcomm);
 
-	t->sco.spk_gain = 15;
-	t->sco.mic_gain = 15;
+	t->sco.spk_pcm.volume[0].level = 15;
+	t->sco.mic_pcm.volume[0].level = 15;
 
 	t->sco.spk_pcm.fd = -1;
 	t->sco.spk_pcm.client = -1;
@@ -648,11 +648,13 @@ uint16_t ba_transport_get_delay(const struct ba_transport *t) {
  * Get transport volume encoded as a single 16-bit value. */
 uint16_t ba_transport_get_volume_packed(const struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return ((t->a2dp.ch1_muted << 7) | t->a2dp.ch1_volume) << 8 |
-			((t->a2dp.ch2_muted << 7) | t->a2dp.ch2_volume);
+		return
+			((t->a2dp.pcm.volume[0].muted << 7) | t->a2dp.pcm.volume[0].level) << 8 |
+			((t->a2dp.pcm.volume[1].muted << 7) | t->a2dp.pcm.volume[1].level);
 	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
-		return ((t->sco.spk_muted << 7) | t->sco.spk_gain) << 8 |
-			((t->sco.mic_muted << 7) | t->sco.mic_gain);
+		return
+			((t->sco.spk_pcm.volume[0].muted << 7) | t->sco.spk_pcm.volume[0].level) << 8 |
+			((t->sco.mic_pcm.volume[0].muted << 7) | t->sco.mic_pcm.volume[0].level);
 	return 0;
 }
 
@@ -668,18 +670,18 @@ int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-		t->a2dp.ch1_muted = !!(ch1 & 0x80);
-		t->a2dp.ch2_muted = !!(ch2 & 0x80);
-		t->a2dp.ch1_volume = ch1 & 0x7F;
-		t->a2dp.ch2_volume = ch2 & 0x7F;
+		t->a2dp.pcm.volume[0].muted = !!(ch1 & 0x80);
+		t->a2dp.pcm.volume[1].muted = !!(ch2 & 0x80);
+		t->a2dp.pcm.volume[0].level = ch1 & 0x7F;
+		t->a2dp.pcm.volume[1].level = ch2 & 0x7F;
 
 		if (config.a2dp.volume) {
 
 			uint16_t volume = 0;
-			GError *err = NULL;
+			if (!t->a2dp.pcm.volume[0].muted && !t->a2dp.pcm.volume[1].muted)
+				volume = (t->a2dp.pcm.volume[0].level + t->a2dp.pcm.volume[1].level) / 2;
 
-			if (!t->a2dp.ch1_muted && !t->a2dp.ch2_muted)
-				volume = (t->a2dp.ch1_volume + t->a2dp.ch2_volume) / 2;
+			GError *err = NULL;
 			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
 					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
 
@@ -694,10 +696,10 @@ int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value) {
 
 	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
 
-		t->sco.spk_muted = !!(ch1 & 0x80);
-		t->sco.mic_muted = !!(ch2 & 0x80);
-		t->sco.spk_gain = ch1 & 0x7F;
-		t->sco.mic_gain = ch2 & 0x7F;
+		t->sco.spk_pcm.volume[0].muted = !!(ch1 & 0x80);
+		t->sco.mic_pcm.volume[0].muted = !!(ch2 & 0x80);
+		t->sco.spk_pcm.volume[0].level = ch1 & 0x7F;
+		t->sco.mic_pcm.volume[0].level = ch2 & 0x7F;
 
 		if (t->sco.rfcomm != NULL)
 			/* notify associated RFCOMM transport */

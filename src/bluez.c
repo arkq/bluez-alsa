@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -599,7 +599,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		}
 		else if (strcmp(property, "Volume") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
-			/* received volume is in range [0, 127]*/
+			/* received volume is in range [0, 127] */
 			volume = g_variant_get_uint16(value);
 		}
 
@@ -631,8 +631,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		goto fail;
 	}
 
-	t->a2dp.ch1_volume = volume;
-	t->a2dp.ch2_volume = volume;
+	t->a2dp.pcm.volume[0].level = volume;
+	t->a2dp.pcm.volume[1].level = volume;
 	t->a2dp.delay = delay;
 
 	debug("%s configured for device %s",
@@ -1390,8 +1390,9 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 		}
 		else if (strcmp(property, "Volume") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
-			/* received volume is in range [0, 127]*/
-			t->a2dp.ch1_volume = t->a2dp.ch2_volume = g_variant_get_uint16(value);
+			/* received volume is in range [0, 127] */
+			const uint16_t volume = g_variant_get_uint16(value);
+			t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = volume;
 			bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 		}
 

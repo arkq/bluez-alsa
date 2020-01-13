@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -85,10 +85,21 @@ enum ba_transport_signal {
 #define BA_TRANSPORT_FORMAT_S24LE BA_TRANSPORT_FORMAT(1, 24, 0)
 
 struct ba_transport_pcm {
+
 	/* FIFO file descriptor */
 	int fd;
 	/* associated client */
 	int client;
+
+	/* Volume configuration for channel left [0] and right [1]. In case of
+	 * a monophonic sound, left [0] channel shall be used. Also note, that
+	 * A2DP and SCO profiles use different volume level ranges:
+	 * A2DP - [0, 127], SCO - [0, 15]. */
+	struct {
+		unsigned int level;
+		bool muted;
+	} volume[2];
+
 };
 
 struct ba_transport {
@@ -136,13 +147,6 @@ struct ba_transport {
 	union {
 
 		struct {
-
-			/* if non-zero, equivalent of volume = 0 */
-			uint8_t ch1_muted;
-			uint8_t ch2_muted;
-			/* software audio volume in range [0, 127] */
-			uint8_t ch1_volume;
-			uint8_t ch2_volume;
 
 			/* delay reported by the AVDTP */
 			uint16_t delay;
@@ -194,13 +198,6 @@ struct ba_transport {
 
 			/* parent RFCOMM transport */
 			struct ba_transport *rfcomm;
-
-			/* if true, equivalent of gain = 0 */
-			bool spk_muted;
-			bool mic_muted;
-			/* software audio gain in range [0, 15] */
-			uint8_t spk_gain;
-			uint8_t mic_gain;
 
 			/* Speaker and microphone signals should to be exposed as
 			 * a separate PCM devices. Hence, there is a requirement

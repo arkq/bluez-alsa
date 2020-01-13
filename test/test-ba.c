@@ -1,6 +1,6 @@
 /*
  * test-ba.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -97,44 +97,47 @@ START_TEST(test_ba_transport_volume_packed) {
 
 	struct ba_adapter *a;
 	struct ba_device *d;
-	struct ba_transport *t;
+	struct ba_transport *t_a2dp;
+	struct ba_transport *t_sco;
 	bdaddr_t addr = { 0 };
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
-	ck_assert_ptr_ne(t = ba_transport_new(d, "/owner", "/path"), NULL);
+
+	struct ba_transport_type ttype_a2dp = { .profile = BA_TRANSPORT_PROFILE_A2DP_SINK };
+	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d, ttype_a2dp, "/owner", "/path", NULL, 0), NULL);
+	struct ba_transport_type ttype_sco = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
+	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path", NULL), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
-	t->a2dp.ch1_muted = true;
-	t->a2dp.ch1_volume = 0x6C;
-	t->a2dp.ch2_muted = false;
-	t->a2dp.ch2_volume = 0x4F;
-	t->type.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	ck_assert_uint_eq(ba_transport_get_volume_packed(t), 0xEC4F);
+	t_a2dp->a2dp.pcm.volume[0].muted = true;
+	t_a2dp->a2dp.pcm.volume[0].level = 0x6C;
+	t_a2dp->a2dp.pcm.volume[1].muted = false;
+	t_a2dp->a2dp.pcm.volume[1].level = 0x4F;
+	ck_assert_uint_eq(ba_transport_get_volume_packed(t_a2dp), 0xEC4F);
 
-	ck_assert_int_eq(ba_transport_set_volume_packed(t, 0xB0C1), 0);
-	ck_assert_int_eq(!!t->a2dp.ch1_muted, true);
-	ck_assert_int_eq(t->a2dp.ch1_volume, 48);
-	ck_assert_int_eq(!!t->a2dp.ch2_muted, true);
-	ck_assert_int_eq(t->a2dp.ch2_volume, 65);
+	ck_assert_int_eq(ba_transport_set_volume_packed(t_a2dp, 0xB0C1), 0);
+	ck_assert_int_eq(!!t_a2dp->a2dp.pcm.volume[0].muted, true);
+	ck_assert_int_eq(t_a2dp->a2dp.pcm.volume[0].level, 48);
+	ck_assert_int_eq(!!t_a2dp->a2dp.pcm.volume[1].muted, true);
+	ck_assert_int_eq(t_a2dp->a2dp.pcm.volume[1].level, 65);
 
-	t->sco.spk_muted = false;
-	t->sco.spk_gain = 0x0A;
-	t->sco.mic_muted = true;
-	t->sco.mic_gain = 0x05;
-	t->type.profile = BA_TRANSPORT_PROFILE_HFP_AG;
-	ck_assert_uint_eq(ba_transport_get_volume_packed(t), 0x0A85);
+	t_sco->sco.spk_pcm.volume[0].muted = false;
+	t_sco->sco.spk_pcm.volume[0].level = 0x0A;
+	t_sco->sco.mic_pcm.volume[0].muted = true;
+	t_sco->sco.mic_pcm.volume[0].level = 0x05;
+	ck_assert_uint_eq(ba_transport_get_volume_packed(t_sco), 0x0A85);
 
-	ck_assert_int_eq(ba_transport_set_volume_packed(t, 0x8A0B), 0);
-	ck_assert_int_eq(!!t->sco.spk_muted, true);
-	ck_assert_int_eq(t->sco.spk_gain, 10);
-	ck_assert_int_eq(!!t->sco.mic_muted, false);
-	ck_assert_int_eq(t->sco.mic_gain, 11);
+	ck_assert_int_eq(ba_transport_set_volume_packed(t_sco, 0x8A0B), 0);
+	ck_assert_int_eq(!!t_sco->sco.spk_pcm.volume[0].muted, true);
+	ck_assert_int_eq(t_sco->sco.spk_pcm.volume[0].level, 10);
+	ck_assert_int_eq(!!t_sco->sco.mic_pcm.volume[0].muted, false);
+	ck_assert_int_eq(t_sco->sco.mic_pcm.volume[0].level, 11);
 
-	t->type.profile = 0;
-	ba_transport_unref(t);
+	ba_transport_unref(t_a2dp);
+	ba_transport_unref(t_sco);
 
 } END_TEST
 

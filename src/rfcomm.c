@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rfcomm.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -357,7 +357,7 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 	const int fd = t->bt_fd;
 
-	t_sco->sco.mic_gain = c->gain_mic = atoi(at->value);
+	t_sco->sco.mic_pcm.volume[0].level = c->gain_mic = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
@@ -372,7 +372,7 @@ static int rfcomm_handler_vgm_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t = c->t;
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 
-	t_sco->sco.mic_gain = c->gain_mic = atoi(at->value);
+	t_sco->sco.mic_pcm.volume[0].level = c->gain_mic = atoi(at->value);
 	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
@@ -385,7 +385,7 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 	const int fd = t->bt_fd;
 
-	t_sco->sco.spk_gain = c->gain_spk = atoi(at->value);
+	t_sco->sco.spk_pcm.volume[0].level = c->gain_spk = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
@@ -400,7 +400,7 @@ static int rfcomm_handler_vgs_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t = c->t;
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 
-	t_sco->sco.spk_gain = c->gain_spk = atoi(at->value);
+	t_sco->sco.spk_pcm.volume[0].level = c->gain_spk = atoi(at->value);
 	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
 	return 0;
 }
@@ -771,7 +771,7 @@ static int rfcomm_notify_battery_level_change(struct rfcomm_conn *c) {
 static int rfcomm_notify_volume_change_mic(struct rfcomm_conn *c, bool force) {
 
 	struct ba_transport * const t = c->t;
-	const int gain = t->rfcomm.sco->sco.mic_gain;
+	const int gain = t->rfcomm.sco->sco.mic_pcm.volume[0].level;
 	const int fd = t->bt_fd;
 	char tmp[16];
 
@@ -800,7 +800,7 @@ static int rfcomm_notify_volume_change_mic(struct rfcomm_conn *c, bool force) {
 static int rfcomm_notify_volume_change_spk(struct rfcomm_conn *c, bool force) {
 
 	struct ba_transport * const t = c->t;
-	const int gain = t->rfcomm.sco->sco.spk_gain;
+	const int gain = t->rfcomm.sco->sco.spk_pcm.volume[0].level;
 	const int fd = t->bt_fd;
 	char tmp[16];
 
@@ -834,8 +834,8 @@ void *rfcomm_thread(struct ba_transport *t) {
 		.state = HFP_DISCONNECTED,
 		.state_prev = HFP_DISCONNECTED,
 		.codec = HFP_CODEC_UNDEFINED,
-		.gain_mic = t->rfcomm.sco->sco.mic_gain,
-		.gain_spk = t->rfcomm.sco->sco.spk_gain,
+		.gain_mic = t->rfcomm.sco->sco.mic_pcm.volume[0].level,
+		.gain_spk = t->rfcomm.sco->sco.spk_pcm.volume[0].level,
 		.t = t,
 	};
 
