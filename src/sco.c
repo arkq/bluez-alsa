@@ -356,7 +356,7 @@ void *sco_thread(struct ba_transport *t) {
 		}
 
 		if (asrs.frames == 0)
-			asrsync_init(&asrs, ba_transport_get_sampling(t));
+			asrsync_init(&asrs, t->sco.spk_pcm.sampling);
 
 		if (pfds[1].revents & POLLIN) {
 			/* dispatch incoming SCO data */
@@ -576,7 +576,8 @@ retry_sco_write:
 		}
 
 		/* update busy delay (encoding overhead) */
-		t->delay = asrsync_get_busy_usec(&asrs) / 100;
+		const unsigned int delay = asrsync_get_busy_usec(&asrs) / 100;
+		t->sco.spk_pcm.delay = t->sco.mic_pcm.delay = delay;
 
 	}
 

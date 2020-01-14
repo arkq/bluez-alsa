@@ -77,12 +77,12 @@ enum ba_transport_signal {
 };
 
 /* Builder for 16-bit PCM stream format identifier. */
-#define BA_TRANSPORT_FORMAT(sign, width, byteorder) \
+#define BA_TRANSPORT_PCM_FORMAT(sign, width, byteorder) \
 	(((sign & 1) << 15) | ((byteorder & 1) << 14) | ((width) & 0x3F))
 
-#define BA_TRANSPORT_FORMAT_U8    BA_TRANSPORT_FORMAT(0, 8, 0)
-#define BA_TRANSPORT_FORMAT_S16LE BA_TRANSPORT_FORMAT(1, 16, 0)
-#define BA_TRANSPORT_FORMAT_S24LE BA_TRANSPORT_FORMAT(1, 24, 0)
+#define BA_TRANSPORT_PCM_FORMAT_U8    BA_TRANSPORT_PCM_FORMAT(0, 8, 0)
+#define BA_TRANSPORT_PCM_FORMAT_S16LE BA_TRANSPORT_PCM_FORMAT(1, 16, 0)
+#define BA_TRANSPORT_PCM_FORMAT_S24LE BA_TRANSPORT_PCM_FORMAT(1, 24, 0)
 
 struct ba_transport_pcm {
 
@@ -90,6 +90,17 @@ struct ba_transport_pcm {
 	int fd;
 	/* associated client */
 	int client;
+
+	/* 16-bit stream format identifier */
+	uint16_t format;
+	/* number of audio channels */
+	unsigned int channels;
+	/* PCM sampling frequency */
+	unsigned int sampling;
+
+	/* Overall PCM delay in 1/10 of millisecond, caused by
+	 * audio encoding or decoding and data transfer. */
+	unsigned int delay;
 
 	/* Volume configuration for channel left [0] and right [1]. In case of
 	 * a monophonic sound, left [0] channel shall be used. Also note, that
@@ -139,10 +150,6 @@ struct ba_transport {
 	 * an event wait syscall (e.g. poll), this file descriptor is used to send a
 	 * control event. */
 	int sig_fd[2];
-
-	/* Overall delay in 1/10 of millisecond, caused by the data transfer and
-	 * the audio encoder or decoder. */
-	unsigned int delay;
 
 	union {
 
@@ -263,10 +270,10 @@ enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t);
 int ba_transport_select_codec(
 		struct ba_transport *t,
 		uint16_t codec);
+void ba_transport_update_codec(
+		struct ba_transport *t,
+		uint16_t codec);
 
-uint16_t ba_transport_get_format(const struct ba_transport *t);
-unsigned int ba_transport_get_channels(const struct ba_transport *t);
-unsigned int ba_transport_get_sampling(const struct ba_transport *t);
 uint16_t ba_transport_get_delay(const struct ba_transport *t);
 
 uint16_t ba_transport_get_volume_packed(const struct ba_transport *t);

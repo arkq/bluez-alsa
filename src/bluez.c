@@ -639,7 +639,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
 	debug("Configuration: channels: %u, sampling: %u",
-			ba_transport_get_channels(t), ba_transport_get_sampling(t));
+			t->a2dp.pcm.channels, t->a2dp.pcm.sampling);
 
 	bluez_a2dp_set_transport_state(t, state);
 	dbus_obj->connected = true;

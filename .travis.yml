@@ -13,6 +13,8 @@ addons:
       - libdbus-1-dev
       - libfdk-aac-dev
       - libglib2.0-dev
+      - libmp3lame-dev
+      - libmpg123-dev
       - libncurses5-dev
       - libreadline-dev
       - libsbc-dev
@@ -27,4 +29,8 @@ script:
   - ../configure --enable-test --enable-debug && make && make check
   - cat test/*.log
   - ../configure --enable-test --enable-aac --enable-msbc && make && make check
+  - cat test/*.log
+  - ../configure --enable-mp3lame --enable-mpg123 --enable-ofono && make
+  - cat test/*.log
+  - ../configure --enable-mp3lame --enable-ofono --enable-upower && make
   - cat test/*.log

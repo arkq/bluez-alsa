@@ -50,15 +50,27 @@ static GVariant *ba_variant_new_pcm_modes(const struct ba_transport *t) {
 }
 
 static GVariant *ba_variant_new_format(const struct ba_transport *t) {
-	return g_variant_new_uint16(ba_transport_get_format(t));
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return g_variant_new_uint16(t->a2dp.pcm.format);
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+		return g_variant_new_uint16(t->sco.spk_pcm.format);
+	return g_variant_new_uint16(0);
 }
 
 static GVariant *ba_variant_new_channels(const struct ba_transport *t) {
-	return g_variant_new_byte(ba_transport_get_channels(t));
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return g_variant_new_byte(t->a2dp.pcm.channels);
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+		return g_variant_new_byte(t->sco.spk_pcm.channels);
+	return g_variant_new_byte(0);
 }
 
 static GVariant *ba_variant_new_sampling(const struct ba_transport *t) {
-	return g_variant_new_uint32(ba_transport_get_sampling(t));
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return g_variant_new_uint32(t->a2dp.pcm.sampling);
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+		return g_variant_new_uint32(t->sco.spk_pcm.sampling);
+	return g_variant_new_uint32(0);
 }
 
 static GVariant *ba_variant_new_codec(const struct ba_transport *t) {

@@ -300,7 +300,7 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 	}
 	else {
 		pthread_create(&thread1, NULL, PTHREAD_ROUTINE(enc), ba_transport_ref(t1));
-		write_test_pcm(pcm_fds[0], ba_transport_get_channels(t1));
+		write_test_pcm(pcm_fds[0], t1->a2dp.pcm.channels);
 		pthread_create(&thread2, NULL, PTHREAD_ROUTINE(dec), ba_transport_ref(t2));
 	}
 
@@ -325,7 +325,7 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport *))
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sco_fds), 0);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_mic_fds), 0);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_spk_fds), 0);
-	write_test_pcm(pcm_spk_fds[0], ba_transport_get_channels(t));
+	write_test_pcm(pcm_spk_fds[0], t->sco.spk_pcm.channels);
 
 	t->state = TRANSPORT_ACTIVE;
 	t->bt_fd = sco_fds[1];
@@ -385,7 +385,9 @@ static int test_transport_release_bt_a2dp(struct ba_transport *t) {
 
 START_TEST(test_a2dp_sbc) {
 
-	struct ba_transport_type ttype = { .codec = A2DP_CODEC_SBC };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_SBC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/sbc",
 			&config_sbc_44100_stereo, sizeof(config_sbc_44100_stereo));
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/sbc",
@@ -409,7 +411,9 @@ START_TEST(test_a2dp_sbc) {
 #if ENABLE_MP3LAME
 START_TEST(test_a2dp_mp3) {
 
-	struct ba_transport_type ttype = { .codec = A2DP_CODEC_MPEG12 };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_MPEG12 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/mp3",
 			&config_mp3_44100_stereo, sizeof(config_mp3_44100_stereo));
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/mp3",
@@ -434,7 +438,9 @@ START_TEST(test_a2dp_mp3) {
 #if ENABLE_AAC
 START_TEST(test_a2dp_aac) {
 
-	struct ba_transport_type ttype = { .codec = A2DP_CODEC_MPEG24 };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_MPEG24 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aac",
 			&config_aac_44100_stereo, sizeof(config_aac_44100_stereo));
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aac",
@@ -459,7 +465,9 @@ START_TEST(test_a2dp_aac) {
 #if ENABLE_APTX
 START_TEST(test_a2dp_aptx) {
 
-	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_APTX };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_VENDOR_APTX };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptx",
 			&config_aptx_44100_stereo, sizeof(config_aptx_44100_stereo));
 	struct ba_transport *t2 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptx",
@@ -481,7 +489,9 @@ START_TEST(test_a2dp_aptx) {
 #if ENABLE_APTX_HD
 START_TEST(test_a2dp_aptx_hd) {
 
-	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_APTX_HD };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_VENDOR_APTX_HD };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
 			&config_aptx_hd_44100_stereo, sizeof(config_aptx_hd_44100_stereo));
 	struct ba_transport *t2 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
@@ -503,7 +513,9 @@ START_TEST(test_a2dp_aptx_hd) {
 #if ENABLE_LDAC
 START_TEST(test_a2dp_ldac) {
 
-	struct ba_transport_type ttype = { .codec = A2DP_CODEC_VENDOR_LDAC };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_VENDOR_LDAC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/ldac",
 			&config_ldac_44100_stereo, sizeof(config_ldac_44100_stereo));
 	struct ba_transport *t2 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/ldac",

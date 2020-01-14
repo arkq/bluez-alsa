@@ -71,7 +71,7 @@ struct io_thread_data {
 /**
  * Scale PCM signal according to the volume configuration. */
 static void io_thread_scale_pcm(const struct ba_transport_pcm *pcm,
-		int16_t *buffer, size_t samples, int channels) {
+		int16_t *buffer, size_t samples) {
 
 	double ch1_scale = 0;
 	double ch2_scale = 0;
@@ -81,7 +81,7 @@ static void io_thread_scale_pcm(const struct ba_transport_pcm *pcm,
 	if (!pcm->volume[1].muted)
 		ch2_scale = pow(10, (-64 + 64.0 * pcm->volume[1].level / 127) / 20);
 
-	snd_pcm_scale_s16le(buffer, samples, channels, ch1_scale, ch2_scale);
+	snd_pcm_scale_s16le(buffer, samples, pcm->channels, ch1_scale, ch2_scale);
 }
 
 /**
@@ -218,9 +218,6 @@ retry:
 static ssize_t a2dp_poll_and_read_pcm(struct ba_transport *t,
 		struct io_thread_data *io, ffb_int16_t *buffer) {
 
-	const unsigned int channels = ba_transport_get_channels(t);
-	const unsigned int samplerate = ba_transport_get_sampling(t);
-
 	struct pollfd fds[2] = {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
@@ -291,11 +288,11 @@ repoll:
 	 * In order to correctly calculate time drift, the zero time point has to
 	 * be obtained after the stream has started. */
 	if (io->asrs.frames == 0)
-		asrsync_init(&io->asrs, samplerate);
+		asrsync_init(&io->asrs, t->a2dp.pcm.sampling);
 
 	if (!config.a2dp.volume)
 		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(&t->a2dp.pcm, buffer->tail, samples, channels);
+		io_thread_scale_pcm(&t->a2dp.pcm, buffer->tail, samples);
 
 	/* update PCM buffer */
 	ffb_seek(buffer, samples);
@@ -421,8 +418,6 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	const unsigned int channels = ba_transport_get_channels(t);
-
 	ffb_uint8_t bt = { 0 };
 	ffb_int16_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
@@ -495,7 +490,7 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 			rtp_payload_len -= len;
 
 			const size_t samples = decoded / sizeof(int16_t);
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
@@ -543,8 +538,8 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 
 	const size_t sbc_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
-	const unsigned int channels = ba_transport_get_channels(t);
-	const unsigned int samplerate = ba_transport_get_sampling(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
 
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
 	 * header and at least one SBC frame. In general, there is no constraint
@@ -640,7 +635,7 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 		timestamp += pcm_frames * 10000 / samplerate;
 
 		/* update busy delay (encoding overhead) */
-		t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		/* If the input buffer was not consumed (due to codesize limit), we
 		 * have to append new data to the existing one. Since we do not use
@@ -710,7 +705,7 @@ static void *a2dp_sink_mpeg(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
 	pthread_cleanup_push(PTHREAD_CLEANUP(hip_decode_exit), handle);
 
 	/* NOTE: Size of the output buffer is "hard-coded" in hip_decode(). What is
@@ -795,7 +790,7 @@ decode:
 		}
 
 		const size_t samples = len / sizeof(int16_t);
-		io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
+		io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
 		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
@@ -816,7 +811,7 @@ decode:
 		}
 
 		if (channels == 1) {
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm_l, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm_l, samples);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm_l, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
@@ -828,7 +823,7 @@ decode:
 				pcm.data[i * 2 + 1] = pcm_r[i];
 			}
 
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
@@ -874,8 +869,8 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(lame_close), handle);
 
 	const a2dp_mpeg_t *cconfig = (a2dp_mpeg_t *)t->a2dp.cconfig;
-	const unsigned int channels = ba_transport_get_channels(t);
-	const unsigned int samplerate = ba_transport_get_sampling(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	MPEG_mode mode = NOT_SET;
 
 	lame_set_num_channels(handle, channels);
@@ -1049,7 +1044,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 		timestamp += pcm_frames * 10000 / samplerate;
 
 		/* update busy delay (encoding overhead) */
-		t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		/* If the input buffer was not consumed (due to frame alignment), we
 		 * have to append new data to the existing one. Since we do not use
@@ -1102,7 +1097,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacDecoder_Close), handle);
 
-	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
 #ifdef AACDECODER_LIB_VL0
 	if ((err = aacDecoder_SetParam(handle, AAC_PCM_MIN_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
 		error("Couldn't set min output channels: %s", aacdec_strerror(err));
@@ -1213,7 +1208,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t samples = aacinf->frameSize * aacinf->numChannels;
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples, channels);
+			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
 			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
@@ -1254,7 +1249,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	AACENC_ERROR err;
 
 	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
-	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
 
 	/* create AAC encoder without the Meta Data module */
 	if ((err = aacEncOpen(&handle, 0x07, channels)) != AACENC_OK) {
@@ -1266,7 +1261,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 
 	unsigned int aot = AOT_NONE;
 	unsigned int bitrate = AAC_GET_BITRATE(*cconfig);
-	unsigned int samplerate = ba_transport_get_sampling(t);
+	unsigned int samplerate = t->a2dp.pcm.sampling;
 	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
 
 	switch (cconfig->object_type) {
@@ -1445,7 +1440,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 			timestamp += pcm_frames * 10000 / samplerate;
 
 			/* update busy delay (encoding overhead) */
-			t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed, we have to append new data to
 			 * the existing one. Since we do not use ring buffer, we will simply
@@ -1494,7 +1489,7 @@ static void *a2dp_source_aptx(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
-	const unsigned int channels = ba_transport_get_channels(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
 	const size_t aptx_pcm_samples = 4 * channels;
 	const size_t aptx_code_len = 2 * sizeof(uint16_t);
 	const size_t mtu_write = t->mtu_write;
@@ -1565,7 +1560,7 @@ static void *a2dp_source_aptx(struct ba_transport *t) {
 			asrsync_sync(&io.asrs, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
@@ -1617,8 +1612,8 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 
-	const unsigned int channels = ba_transport_get_channels(t);
-	const unsigned int samplerate = ba_transport_get_sampling(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	const size_t aptx_pcm_samples = 4 * channels;
 	const size_t aptx_code_len = 2 * 3 * sizeof(uint8_t);
 	const size_t mtu_write = t->mtu_write;
@@ -1708,7 +1703,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 			timestamp += pcm_frames * 10000 / samplerate;
 
 			/* update busy delay (encoding overhead) */
-			t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			rtp_header->seq_number = htobe16(++seq_number);
 			rtp_header->timestamp = htobe32(timestamp);
@@ -1768,8 +1763,8 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
 	const a2dp_ldac_t *cconfig = (a2dp_ldac_t *)t->a2dp.cconfig;
-	const unsigned int channels = ba_transport_get_channels(t);
-	const unsigned int samplerate = ba_transport_get_sampling(t);
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
 
 	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
@@ -1863,7 +1858,7 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 			ts_frames += frames;
 
 			/* update busy delay (encoding overhead) */
-			t->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			if (encoded) {
 				timestamp += ts_frames / channels * 10000 / samplerate;

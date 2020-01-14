@@ -153,7 +153,7 @@ void *a2dp_sink_sbc(struct ba_transport *t) {
 		fprintf(stderr, ".");
 
 		if (asrs.frames == 0)
-			asrsync_init(&asrs, ba_transport_get_sampling(t));
+			asrsync_init(&asrs, t->a2dp.pcm.sampling);
 
 		int samples = sizeof(buffer) / sizeof(int16_t);
 		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 1.0 / 128);

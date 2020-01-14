@@ -306,7 +306,7 @@ static int rfcomm_handler_brsf_set_cb(struct rfcomm_conn *c, const struct bt_at 
 	/* If codec negotiation is not supported in the HF, the AT+BAC
 	 * command will not be sent. So, we can assume default codec. */
 	if (!(t->rfcomm.hfp_features & HFP_HF_FEAT_CODEC))
-		t_sco->type.codec = HFP_CODEC_CVSD;
+		ba_transport_update_codec(t_sco, HFP_CODEC_CVSD);
 
 	sprintf(tmp, "%u", ba_adapter_get_hfp_features_ag(t->d->a));
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BRSF", tmp) == -1)
@@ -330,7 +330,7 @@ static int rfcomm_handler_brsf_resp_cb(struct rfcomm_conn *c, const struct bt_at
 
 	/* codec negotiation is not supported in the AG */
 	if (!(t->rfcomm.hfp_features & HFP_AG_FEAT_CODEC))
-		t_sco->type.codec = HFP_CODEC_CVSD;
+		ba_transport_update_codec(t_sco, HFP_CODEC_CVSD);
 
 	if (c->state < HFP_SLC_BRSF_SET)
 		rfcomm_set_hfp_state(c, HFP_SLC_BRSF_SET);
@@ -447,7 +447,7 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 
 	/* Codec negotiation process is complete. Update transport and
 	 * notify connected clients, that transport has been changed. */
-	t_sco->type.codec = codec;
+	ba_transport_update_codec(t_sco, codec);
 	bluealsa_dbus_transport_update(t_sco,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
@@ -472,7 +472,7 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	/* Finalize codec selection process and notify connected clients, that
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - switching initiated by Audio Gateway. */
-	t_sco->type.codec = c->codec;
+	ba_transport_update_codec(t_sco, c->codec);
 	bluealsa_dbus_transport_update(t_sco,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
