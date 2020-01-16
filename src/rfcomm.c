@@ -260,9 +260,10 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 	unsigned int index;
 	unsigned int value;
 
-	if (sscanf(at->value, "%u,%u", &index, &value) == 2) {
-		t->rfcomm.hfp_inds[c->hfp_ind_map[index - 1]] = value;
-		switch (c->hfp_ind_map[index - 1]) {
+	if (sscanf(at->value, "%u,%u", &index, &value) == 2 &&
+			--index < ARRAYSIZE(c->hfp_ind_map)) {
+		t->rfcomm.hfp_inds[c->hfp_ind_map[index]] = value;
+		switch (c->hfp_ind_map[index]) {
 		case HFP_IND_BATTCHG:
 			d->battery_level = value * 100 / 5;
 			bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
