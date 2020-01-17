@@ -125,6 +125,9 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		}
 #endif
 
+		/* make sure, we are not leaking file descriptor */
+		t->release(t);
+
 		t->bt_fd = fd;
 		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 		fd = -1;
@@ -290,12 +293,6 @@ void *sco_thread(struct ba_transport *t) {
 #endif
 		}
 
-		/* In order not to run this this loop unnecessarily, do not poll SCO for
-		 * reading if microphone (capture) PCM is not connected. For oFono this
-		 * rule does not apply, because we will use read error for SCO release. */
-		if (!t->sco.ofono && t->sco.mic_pcm.fd == -1)
-			pfds[1].fd = -1;
-
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
@@ -397,17 +394,22 @@ retry_sco_read:
 					continue;
 				}
 
-			switch (t->type.codec) {
-			case HFP_CODEC_CVSD:
-			default:
-				ffb_seek(&bt_in, len);
-				break;
+			/* If microphone (capture) PCM is not connected ignore incoming data. In
+			 * the worst case scenario, we might lose few milliseconds of data (one
+			 * mSBC frame which is 7.5 ms), but we will be sure, that the microphone
+			 * latency will not build up. */
+			if (t->sco.mic_pcm.fd != -1)
+				switch (t->type.codec) {
+				case HFP_CODEC_CVSD:
+				default:
+					ffb_seek(&bt_in, len);
+					break;
 #if ENABLE_MSBC
-			case HFP_CODEC_MSBC:
-				ffb_seek(&msbc.dec_data, len);
-				break;
+				case HFP_CODEC_MSBC:
+					ffb_seek(&msbc.dec_data, len);
+					break;
 #endif
-			}
+				}
 
 		}
 		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
