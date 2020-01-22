@@ -176,11 +176,11 @@ static int bluez_a2dp_set_transport_state(
 		const char *state) {
 
 	if (strcmp(state, BLUEZ_TRANSPORT_STATE_IDLE) == 0)
-		return ba_transport_set_state(t, TRANSPORT_IDLE);
+		return ba_transport_set_state(t, BA_TRANSPORT_STATE_IDLE);
 	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
-		return ba_transport_set_state(t, TRANSPORT_PENDING);
+		return ba_transport_set_state(t, BA_TRANSPORT_STATE_PENDING);
 	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
-		return ba_transport_set_state(t, TRANSPORT_ACTIVE);
+		return ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
 
 	warn("Invalid state: %s", state);
 	return -1;
@@ -862,8 +862,8 @@ static void bluez_register_a2dp(
 
 		dbus_obj = g_hash_table_lookup(dbus_object_data_map, path);
 
-		// End registration loop if all previously created media endpoints are
-		// registered in BlueZ and we've got at least N not connected endpoints.
+		/* End the registration loop if all previously created media endpoints are
+		 * registered in BlueZ and we've got at least N not connected endpoints. */
 		if (dbus_obj == NULL && registered > connected + 2)
 			break;
 
@@ -969,8 +969,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
 
-	ba_transport_set_state(t, TRANSPORT_ACTIVE);
-	ba_transport_set_state(t->rfcomm.sco, TRANSPORT_ACTIVE);
+	ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
+	ba_transport_set_state(t->rfcomm.sco, BA_TRANSPORT_STATE_ACTIVE);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);

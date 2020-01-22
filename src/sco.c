@@ -132,7 +132,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 		fd = -1;
 
-		ba_transport_send_signal(t, TRANSPORT_PING);
+		ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
 
 cleanup:
 		if (d != NULL)
@@ -312,19 +312,19 @@ void *sco_thread(struct ba_transport *t) {
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 			switch (ba_transport_recv_signal(t)) {
-			case TRANSPORT_PING:
+			case BA_TRANSPORT_SIGNAL_PING:
 				continue;
-			case TRANSPORT_PCM_OPEN:
+			case BA_TRANSPORT_SIGNAL_PCM_OPEN:
 				/* Try to acquire new SCO connection only for Audio Gateway profile.
 				 * For a headset mode we will wait for an incoming connection from
 				 * some remote Audio Gateway. */
 				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG)
 					t->acquire(t);
 				/* fall-through */
-			case TRANSPORT_PCM_RESUME:
+			case BA_TRANSPORT_SIGNAL_PCM_RESUME:
 				asrs.frames = 0;
 				continue;
-			case TRANSPORT_PCM_CLOSE:
+			case BA_TRANSPORT_SIGNAL_PCM_CLOSE:
 				/* For Audio Gateway profile it is required to release SCO if we
 				 * are not transferring audio (not sending nor receiving), because
 				 * it will free Bluetooth bandwidth - headset will send microphone
@@ -335,7 +335,7 @@ void *sco_thread(struct ba_transport *t) {
 					t->release(t);
 				}
 				continue;
-			case TRANSPORT_PCM_SYNC:
+			case BA_TRANSPORT_SIGNAL_PCM_SYNC:
 				/* FIXME: Drain functionality for speaker.
 				 * XXX: Right now it is not possible to drain speaker PCM (in a clean
 				 *      fashion), because poll() will not timeout if we've got incoming
@@ -344,7 +344,7 @@ void *sco_thread(struct ba_transport *t) {
 				 *      PCM drain right now. */
 				pthread_cond_signal(&t->sco.spk_drained);
 				break;
-			case TRANSPORT_PCM_DROP:
+			case BA_TRANSPORT_SIGNAL_PCM_DROP:
 				io_thread_read_pcm_flush(&t->sco.spk_pcm);
 				continue;
 			default:
@@ -492,7 +492,7 @@ retry_sco_write:
 				if (samples == -1 && errno != EAGAIN)
 					error("PCM read error: %s", strerror(errno));
 				if (samples == 0)
-					ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+					ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 				continue;
 			}
 
@@ -515,7 +515,7 @@ retry_sco_write:
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
 			debug("PCM poll error status: %#x", pfds[3].revents);
 			ba_transport_release_pcm(&t->sco.spk_pcm);
-			ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+			ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 		}
 
 		if (pfds[4].revents & POLLOUT) {
@@ -545,7 +545,7 @@ retry_sco_write:
 				if (samples == -1)
 					error("FIFO write error: %s", strerror(errno));
 				if (samples == 0)
-					ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+					ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 			}
 
 			switch (t->type.codec) {

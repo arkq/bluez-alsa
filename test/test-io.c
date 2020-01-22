@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -278,8 +278,8 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 
 	t1->type.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE;
 	t2->type.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	t1->state = TRANSPORT_ACTIVE;
-	t2->state = TRANSPORT_ACTIVE;
+	t1->state = BA_TRANSPORT_STATE_ACTIVE;
+	t2->state = BA_TRANSPORT_STATE_ACTIVE;
 	t1->bt_fd = bt_fds[1];
 	t2->bt_fd = bt_fds[0];
 	t1->a2dp.pcm.fd = pcm_fds[1];
@@ -327,7 +327,7 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport *))
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_spk_fds), 0);
 	write_test_pcm(pcm_spk_fds[0], t->sco.spk_pcm.channels);
 
-	t->state = TRANSPORT_ACTIVE;
+	t->state = BA_TRANSPORT_STATE_ACTIVE;
 	t->bt_fd = sco_fds[1];
 	t->sco.mic_pcm.fd = pcm_mic_fds[1];
 	t->sco.spk_pcm.fd = pcm_spk_fds[1];
@@ -542,7 +542,7 @@ START_TEST(test_sco_cvsd) {
 	t->mtu_read = t->mtu_write = 48;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_send_signal(t, TRANSPORT_PING);
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
 	test_sco(t, sco_thread);
 
 } END_TEST
@@ -558,7 +558,7 @@ START_TEST(test_sco_msbc) {
 	t->mtu_read = t->mtu_write = 24;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_send_signal(t, TRANSPORT_PING);
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
 	test_sco(t, sco_thread);
 
 } END_TEST

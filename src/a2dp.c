@@ -228,7 +228,7 @@ static ssize_t a2dp_poll_and_read_pcm(struct ba_transport *t,
 repoll:
 
 	/* Add PCM socket to the poll if transport is active. */
-	fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->a2dp.pcm.fd : -1;
+	fds[1].fd = t->state == BA_TRANSPORT_STATE_ACTIVE ? t->a2dp.pcm.fd : -1;
 
 	/* Poll for reading with keep-alive and sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
@@ -250,18 +250,18 @@ repoll:
 	if (fds[0].revents & POLLIN) {
 		/* dispatch incoming event */
 		switch (ba_transport_recv_signal(t)) {
-		case TRANSPORT_PCM_OPEN:
-		case TRANSPORT_PCM_RESUME:
+		case BA_TRANSPORT_SIGNAL_PCM_OPEN:
+		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
 			io->asrs.frames = 0;
 			io->timeout = -1;
 			goto repoll;
-		case TRANSPORT_PCM_CLOSE:
+		case BA_TRANSPORT_SIGNAL_PCM_CLOSE:
 			/* reuse PCM read disconnection logic */
 			break;
-		case TRANSPORT_PCM_SYNC:
+		case BA_TRANSPORT_SIGNAL_PCM_SYNC:
 			io->timeout = 100;
 			goto repoll;
-		case TRANSPORT_PCM_DROP:
+		case BA_TRANSPORT_SIGNAL_PCM_DROP:
 			io_thread_read_pcm_flush(&t->a2dp.pcm);
 			goto repoll;
 		default:
@@ -320,7 +320,7 @@ static ssize_t a2dp_poll_and_read_bt(struct ba_transport *t,
 repoll:
 
 	/* Add BT socket to the poll if transport is active. */
-	fds[1].fd = t->state == TRANSPORT_ACTIVE ? t->bt_fd : -1;
+	fds[1].fd = t->state == BA_TRANSPORT_STATE_ACTIVE ? t->bt_fd : -1;
 
 	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
 		if (errno == EINTR)

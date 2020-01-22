@@ -1,6 +1,6 @@
 /*
  * BlueALSA - upower.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -102,7 +102,7 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 				g_hash_table_iter_init(&iter_t, d->transports);
 				while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t))
 					if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
-						ba_transport_send_signal(t, TRANSPORT_UPDATE_BATTERY);
+						ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_UPDATE_BATTERY);
 				pthread_mutex_unlock(&d->transports_mutex);
 			}
 			pthread_mutex_unlock(&a->devices_mutex);

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *               2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -243,7 +243,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	g_hash_table_insert(ofono_card_data_map, g_strdup(card),
 			g_memdup(&ocd, sizeof(ocd)));
 
-	ba_transport_set_state(t, TRANSPORT_ACTIVE);
+	ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
 
 fail:
 	if (a != NULL)
@@ -388,7 +388,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	bluealsa_dbus_transport_update(t,
 			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
 
-	ba_transport_send_signal(t, TRANSPORT_PING);
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

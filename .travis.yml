@@ -31,6 +31,4 @@ script:
   - ../configure --enable-test --enable-aac --enable-msbc && make && make check
   - cat test/*.log
   - ../configure --enable-mp3lame --enable-mpg123 --enable-ofono && make
-  - cat test/*.log
   - ../configure --enable-mp3lame --enable-ofono --enable-upower && make
-  - cat test/*.log

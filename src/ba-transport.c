@@ -68,7 +68,7 @@ struct ba_transport *ba_transport_new(
 
 	pthread_mutex_init(&t->mutex, NULL);
 
-	t->state = TRANSPORT_IDLE;
+	t->state = BA_TRANSPORT_STATE_IDLE;
 	t->thread = config.main_thread;
 
 	t->bt_fd = -1;
@@ -129,8 +129,14 @@ struct ba_transport *ba_transport_new_a2dp(
 		t->a2dp.cconfig_size = cconfig_size;
 	}
 
+	t->a2dp.pcm.t = t;
 	t->a2dp.pcm.fd = -1;
 	t->a2dp.pcm.client = -1;
+
+	t->a2dp.pcm.mode = BA_TRANSPORT_PCM_MODE_SOURCE;
+	if (type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+		t->a2dp.pcm.mode = BA_TRANSPORT_PCM_MODE_SINK;
+
 	pthread_mutex_init(&t->a2dp.drained_mtx, NULL);
 	pthread_cond_init(&t->a2dp.drained, NULL);
 
@@ -214,11 +220,15 @@ struct ba_transport *ba_transport_new_sco(
 	t->sco.spk_pcm.volume[0].level = 15;
 	t->sco.mic_pcm.volume[0].level = 15;
 
+	t->sco.spk_pcm.t = t;
 	t->sco.spk_pcm.fd = -1;
 	t->sco.spk_pcm.client = -1;
+	t->sco.spk_pcm.mode = BA_TRANSPORT_PCM_MODE_SINK;
 
+	t->sco.mic_pcm.t = t;
 	t->sco.mic_pcm.fd = -1;
 	t->sco.mic_pcm.client = -1;
+	t->sco.spk_pcm.mode = BA_TRANSPORT_PCM_MODE_SOURCE;
 
 	pthread_mutex_init(&t->sco.spk_drained_mtx, NULL);
 	pthread_cond_init(&t->sco.spk_drained, NULL);
@@ -282,7 +292,7 @@ static void ba_transport_pthread_cancel(struct ba_transport *t) {
 
 void ba_transport_destroy(struct ba_transport *t) {
 
-	/* Remove D-Bus interface, so no one will access
+	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
 	bluealsa_dbus_transport_unregister(t);
 
@@ -371,7 +381,7 @@ enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t) {
 
 	if (ret != sizeof(sig)) {
 		warn("Couldn't read transport signal: %s", strerror(errno));
-		return TRANSPORT_PING;
+		return BA_TRANSPORT_SIGNAL_PING;
 	}
 
 	return sig;
@@ -404,12 +414,12 @@ int ba_transport_select_codec(
 
 		switch (codec) {
 		case HFP_CODEC_CVSD:
-			ba_transport_send_signal(t_rfcomm, TRANSPORT_HFP_SET_CODEC_CVSD);
+			ba_transport_send_signal(t_rfcomm, BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_CVSD);
 			pthread_cond_wait(&t_rfcomm->rfcomm.codec_selection_completed,
 					&t_rfcomm->rfcomm.codec_selection_completed_mtx);
 			break;
 		case HFP_CODEC_MSBC:
-			ba_transport_send_signal(t_rfcomm, TRANSPORT_HFP_SET_CODEC_MSBC);
+			ba_transport_send_signal(t_rfcomm, BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_MSBC);
 			pthread_cond_wait(&t_rfcomm->rfcomm.codec_selection_completed,
 					&t_rfcomm->rfcomm.codec_selection_completed_mtx);
 			break;
@@ -835,7 +845,7 @@ int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value) {
 
 		if (t->sco.rfcomm != NULL)
 			/* notify associated RFCOMM transport */
-			ba_transport_send_signal(t->sco.rfcomm, TRANSPORT_UPDATE_VOLUME);
+			ba_transport_send_signal(t->sco.rfcomm, BA_TRANSPORT_SIGNAL_UPDATE_VOLUME);
 
 	}
 
@@ -854,7 +864,8 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 	/* For the A2DP sink profile, the IO thread can not be created until the
 	 * BT transport is acquired, otherwise thread initialized will fail. */
 	if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK &&
-			t->state == TRANSPORT_IDLE && state != TRANSPORT_PENDING)
+			t->state == BA_TRANSPORT_STATE_IDLE &&
+			state != BA_TRANSPORT_STATE_PENDING)
 		return 0;
 
 	int ret = 0;
@@ -862,18 +873,18 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 	t->state = state;
 
 	switch (state) {
-	case TRANSPORT_IDLE:
+	case BA_TRANSPORT_STATE_IDLE:
 		ba_transport_pthread_cancel(t);
 		break;
-	case TRANSPORT_PENDING:
+	case BA_TRANSPORT_STATE_PENDING:
 		/* When transport is marked as pending, try to acquire transport, but only
 		 * if we are handing A2DP sink profile. For source profile, transport has
 		 * to be acquired by our controller (during the PCM open request). */
 		if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 			ret = t->acquire(t);
 		break;
-	case TRANSPORT_ACTIVE:
-	case TRANSPORT_PAUSED:
+	case BA_TRANSPORT_STATE_ACTIVE:
+	case BA_TRANSPORT_STATE_PAUSED:
 		if (pthread_equal(t->thread, config.main_thread)) {
 			if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 				ret = a2dp_thread_create(t);
@@ -887,7 +898,7 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 
 	/* something went wrong, so go back to idle */
 	if (ret == -1)
-		return ba_transport_set_state(t, TRANSPORT_IDLE);
+		return ba_transport_set_state(t, BA_TRANSPORT_STATE_IDLE);
 
 	return ret;
 }
@@ -909,12 +920,12 @@ int ba_transport_drain_pcm(struct ba_transport *t) {
 		break;
 	}
 
-	if (mutex == NULL || t->state != TRANSPORT_ACTIVE)
+	if (mutex == NULL || t->state != BA_TRANSPORT_STATE_ACTIVE)
 		return 0;
 
 	pthread_mutex_lock(mutex);
 
-	ba_transport_send_signal(t, TRANSPORT_PCM_SYNC);
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_SYNC);
 	pthread_cond_wait(drained, mutex);
 
 	pthread_mutex_unlock(mutex);
@@ -945,8 +956,9 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 		goto final;
 	}
 
-	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
-			BLUEZ_IFACE_MEDIA_TRANSPORT, t->state == TRANSPORT_PENDING ? "TryAcquire" : "Acquire");
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
+			t->bluez_dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
+			t->state == BA_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
@@ -1005,7 +1017,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the BlueZ. In both cases there is no point in a explicit
 	 * release request. It might even return error (e.g. not authorized). */
-	if (t->state != TRANSPORT_IDLE && t->bluez_dbus_owner != NULL) {
+	if (t->state != BA_TRANSPORT_STATE_IDLE && t->bluez_dbus_owner != NULL) {
 
 		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
 				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");

@@ -1064,20 +1064,20 @@ process:
 			/* dispatch incoming event */
 			switch (ba_transport_recv_signal(t)) {
 #if ENABLE_MSBC
-			case TRANSPORT_HFP_SET_CODEC_CVSD:
+			case BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_CVSD:
 				if (rfcomm_set_hfp_codec(&conn, HFP_CODEC_CVSD) == -1)
 					goto ioerror;
 				break;
-			case TRANSPORT_HFP_SET_CODEC_MSBC:
+			case BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_MSBC:
 				if (rfcomm_set_hfp_codec(&conn, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
 				break;
 #endif
-			case TRANSPORT_UPDATE_BATTERY:
+			case BA_TRANSPORT_SIGNAL_UPDATE_BATTERY:
 				if (rfcomm_notify_battery_level_change(&conn) == -1)
 					goto ioerror;
 				break;
-			case TRANSPORT_UPDATE_VOLUME:
+			case BA_TRANSPORT_SIGNAL_UPDATE_VOLUME:
 				if (rfcomm_notify_volume_change_mic(&conn, false) == -1)
 					goto ioerror;
 				if (rfcomm_notify_volume_change_spk(&conn, false) == -1)

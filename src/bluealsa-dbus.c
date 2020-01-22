@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -37,7 +37,7 @@ static GVariant *ba_variant_new_device_path(const struct ba_transport *t) {
 	return g_variant_new_object_path(t->d->bluez_dbus_path);
 }
 
-static GVariant *ba_variant_new_pcm_modes(const struct ba_transport *t) {
+static GVariant *ba_variant_new_modes(const struct ba_transport *t) {
 	static const char *modes[] = {
 		BLUEALSA_PCM_MODE_SOURCE, BLUEALSA_PCM_MODE_SINK };
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
@@ -121,7 +121,7 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 				GVariantBuilder props;
 				g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 				g_variant_builder_add(&props, "{sv}", "Device", ba_variant_new_device_path(t));
-				g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_pcm_modes(t));
+				g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_modes(t));
 				g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
 				g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
 				g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
@@ -168,20 +168,12 @@ int bluealsa_dbus_manager_register(GError **error) {
 			(GDBusInterfaceInfo *)&bluealsa_iface_manager, &vtable, NULL, NULL, error);
 }
 
-/**
- * Data associated with a single PCM controller session. */
-struct bluealsa_ctrl_data {
-	struct ba_transport *t;
-	struct ba_transport_pcm *pcm;
-};
-
 static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		void *userdata) {
 	(void)condition;
 
-	struct ba_transport *t = ((struct bluealsa_ctrl_data *)userdata)->t;
-	struct ba_transport_pcm *pcm = ((struct bluealsa_ctrl_data *)userdata)->pcm;
-	bool is_sco = IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile);
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport *t = pcm->t;
 	char command[32];
 	size_t len;
 
@@ -191,23 +183,23 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		return TRUE;
 	case G_IO_STATUS_NORMAL:
 		if (strncmp(command, BLUEALSA_PCM_CTRL_DRAIN, len) == 0) {
-			if (!is_sco || (is_sco && pcm == &t->sco.spk_pcm))
+			if (pcm->mode == BA_TRANSPORT_PCM_MODE_SINK)
 				ba_transport_drain_pcm(t);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_DROP, len) == 0) {
-			if (!is_sco || (is_sco && pcm == &t->sco.spk_pcm))
-				ba_transport_send_signal(t, TRANSPORT_PCM_DROP);
+			if (pcm->mode == BA_TRANSPORT_PCM_MODE_SINK)
+				ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_DROP);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_PAUSE, len) == 0) {
-			ba_transport_set_state(t, TRANSPORT_PAUSED);
-			ba_transport_send_signal(t, TRANSPORT_PCM_PAUSE);
+			ba_transport_set_state(t, BA_TRANSPORT_STATE_PAUSED);
+			ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_PAUSE);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_RESUME, len) == 0) {
-			ba_transport_set_state(t, TRANSPORT_ACTIVE);
-			ba_transport_send_signal(t, TRANSPORT_PCM_RESUME);
+			ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
+			ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_RESUME);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else {
@@ -220,7 +212,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		return TRUE;
 	case G_IO_STATUS_EOF:
 		ba_transport_release_pcm(pcm);
-		ba_transport_send_signal(t, TRANSPORT_PCM_CLOSE);
+		ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 		/* remove channel from watch */
 		return FALSE;
 	}
@@ -303,7 +295,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	}
 
 	/* notify our IO thread that the FIFO has been created */
-	ba_transport_send_signal(t, TRANSPORT_PCM_OPEN);
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_OPEN);
 
 	/* A2DP source profile should be initialized (acquired) only if the audio
 	 * is about to be transferred. It is most likely, that BT headset will not
@@ -319,9 +311,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	ba_transport_pthread_cleanup_unlock(t);
 
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
-	struct bluealsa_ctrl_data cdata = { .t = t, .pcm = pcm };
 	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
-			bluealsa_pcm_controller, g_memdup(&cdata, sizeof(cdata)), g_free);
+			bluealsa_pcm_controller, pcm, NULL);
 	g_io_channel_set_close_on_unref(ch, TRUE);
 	g_io_channel_set_encoding(ch, NULL, NULL);
 	g_io_channel_unref(ch);
@@ -415,7 +406,7 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 	}
 
 	t->rfcomm.handler_fd = fds[0];
-	ba_transport_send_signal(t, TRANSPORT_PING);
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
 
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
 	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
@@ -450,7 +441,7 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 	if (strcmp(property, "Device") == 0)
 		return ba_variant_new_device_path(t);
 	if (strcmp(property, "Modes") == 0)
-		return ba_variant_new_pcm_modes(t);
+		return ba_variant_new_modes(t);
 	if (strcmp(property, "Format") == 0)
 		return ba_variant_new_format(t);
 	if (strcmp(property, "Channels") == 0)
@@ -551,7 +542,7 @@ int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error) {
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(&props, "{sv}", "Device", ba_variant_new_device_path(t));
-	g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_pcm_modes(t));
+	g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_modes(t));
 	g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
 	g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
 	g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));

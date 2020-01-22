@@ -1,6 +1,6 @@
 /*
  * test-rfcomm.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -70,8 +70,8 @@ START_TEST(test_rfcomm) {
 	pthread_mutex_lock(&transport_codec_updated_mtx);
 	transport_codec_updated_cnt = 0;
 
-	ck_assert_int_eq(ba_transport_set_state(ag, TRANSPORT_ACTIVE), 0);
-	ck_assert_int_eq(ba_transport_set_state(hf, TRANSPORT_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(ag, BA_TRANSPORT_STATE_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(hf, BA_TRANSPORT_STATE_ACTIVE), 0);
 
 	/* wait for SLC established signals */
 	while (transport_codec_updated_cnt < 1)
@@ -119,8 +119,8 @@ START_TEST(test_rfcomm_esco) {
 	pthread_mutex_lock(&transport_codec_updated_mtx);
 	transport_codec_updated_cnt = 0;
 
-	ck_assert_int_eq(ba_transport_set_state(ag, TRANSPORT_ACTIVE), 0);
-	ck_assert_int_eq(ba_transport_set_state(hf, TRANSPORT_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(ag, BA_TRANSPORT_STATE_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(hf, BA_TRANSPORT_STATE_ACTIVE), 0);
 
 	/* wait for SLC established signals */
 	while (transport_codec_updated_cnt < 1)

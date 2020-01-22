@@ -48,35 +48,46 @@
 #define IS_BA_TRANSPORT_PROFILE_SCO(p) \
 	((p) && ((p) & BA_TRANSPORT_PROFILE_MASK_SCO) == (p))
 
+/**
+ * Selected profile and audio codec.
+ *
+ * For A2DP vendor codecs the upper byte of the codec field
+ * contains the lowest byte of the vendor ID. */
 struct ba_transport_type {
-	/* Selected profile and audio codec. For A2DP vendor codecs the upper byte
-	 * of the codec field contains the lowest byte of the vendor ID. */
 	uint16_t profile;
 	uint16_t codec;
 };
 
 enum ba_transport_state {
-	TRANSPORT_IDLE,
-	TRANSPORT_PENDING,
-	TRANSPORT_ACTIVE,
-	TRANSPORT_PAUSED,
+	BA_TRANSPORT_STATE_IDLE,
+	BA_TRANSPORT_STATE_PENDING,
+	BA_TRANSPORT_STATE_ACTIVE,
+	BA_TRANSPORT_STATE_PAUSED,
 };
 
 enum ba_transport_signal {
-	TRANSPORT_PING,
-	TRANSPORT_PCM_OPEN,
-	TRANSPORT_PCM_CLOSE,
-	TRANSPORT_PCM_PAUSE,
-	TRANSPORT_PCM_RESUME,
-	TRANSPORT_PCM_SYNC,
-	TRANSPORT_PCM_DROP,
-	TRANSPORT_HFP_SET_CODEC_CVSD,
-	TRANSPORT_HFP_SET_CODEC_MSBC,
-	TRANSPORT_UPDATE_BATTERY,
-	TRANSPORT_UPDATE_VOLUME,
+	BA_TRANSPORT_SIGNAL_PING,
+	BA_TRANSPORT_SIGNAL_PCM_OPEN,
+	BA_TRANSPORT_SIGNAL_PCM_CLOSE,
+	BA_TRANSPORT_SIGNAL_PCM_PAUSE,
+	BA_TRANSPORT_SIGNAL_PCM_RESUME,
+	BA_TRANSPORT_SIGNAL_PCM_SYNC,
+	BA_TRANSPORT_SIGNAL_PCM_DROP,
+	BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_CVSD,
+	BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_MSBC,
+	BA_TRANSPORT_SIGNAL_UPDATE_BATTERY,
+	BA_TRANSPORT_SIGNAL_UPDATE_VOLUME,
 };
 
-/* Builder for 16-bit PCM stream format identifier. */
+enum ba_transport_pcm_mode {
+	/* PCM used for capturing audio */
+	BA_TRANSPORT_PCM_MODE_SOURCE,
+	/* PCM used for playing audio */
+	BA_TRANSPORT_PCM_MODE_SINK,
+};
+
+/**
+ * Builder for 16-bit PCM stream format identifier. */
 #define BA_TRANSPORT_PCM_FORMAT(sign, width, byteorder) \
 	(((sign & 1) << 15) | ((byteorder & 1) << 14) | ((width) & 0x3F))
 
@@ -86,10 +97,16 @@ enum ba_transport_signal {
 
 struct ba_transport_pcm {
 
+	/* backward reference to transport */
+	struct ba_transport *t;
+
 	/* FIFO file descriptor */
 	int fd;
 	/* associated client */
 	int client;
+
+	/* PCM stream operation mode */
+	enum ba_transport_pcm_mode mode;
 
 	/* 16-bit stream format identifier */
 	uint16_t format;

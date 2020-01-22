@@ -1,6 +1,6 @@
 /*
  * server-mock.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -97,7 +97,7 @@ int test_transport_acquire(struct ba_transport *t) {
 	t->mtu_read = 256;
 	t->mtu_write = 256;
 
-	t->state = TRANSPORT_ACTIVE;
+	t->state = BA_TRANSPORT_STATE_ACTIVE;
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		assert(a2dp_thread_create(t) == 0);
