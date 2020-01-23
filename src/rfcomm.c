@@ -215,7 +215,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct rfcomm_conn *c, const struct b
 		t->rfcomm.hfp_inds[c->hfp_ind_map[i]] = atoi(tmp);
 		if (c->hfp_ind_map[i] == HFP_IND_BATTCHG) {
 			d->battery_level = atoi(tmp) * 100 / 5;
-			bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
+			bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_BATTERY);
 		}
 		if ((tmp = strchr(tmp, ',')) == NULL)
 			break;
@@ -266,7 +266,7 @@ static int rfcomm_handler_ciev_resp_cb(struct rfcomm_conn *c, const struct bt_at
 		switch (c->hfp_ind_map[index]) {
 		case HFP_IND_BATTCHG:
 			d->battery_level = value * 100 / 5;
-			bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
+			bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_BATTERY);
 			break;
 		default:
 			break;
@@ -362,7 +362,7 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -374,7 +374,7 @@ static int rfcomm_handler_vgm_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 
 	t_sco->sco.mic_pcm.volume[0].level = c->gain_mic = atoi(at->value);
-	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -390,7 +390,7 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -402,7 +402,7 @@ static int rfcomm_handler_vgs_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 
 	t_sco->sco.spk_pcm.volume[0].level = c->gain_spk = atoi(at->value);
-	bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -449,8 +449,8 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	/* Codec negotiation process is complete. Update transport and
 	 * notify connected clients, that transport has been changed. */
 	ba_transport_update_codec(t_sco, codec);
-	bluealsa_dbus_transport_update(t_sco,
-			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+	bluealsa_dbus_pcm_update(t_sco,
+			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 final:
 	pthread_cond_signal(&t->rfcomm.codec_selection_completed);
@@ -474,8 +474,8 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - switching initiated by Audio Gateway. */
 	ba_transport_update_codec(t_sco, c->codec);
-	bluealsa_dbus_transport_update(t_sco,
-			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+	bluealsa_dbus_pcm_update(t_sco,
+			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 final:
 	pthread_cond_signal(&t->rfcomm.codec_selection_completed);
@@ -541,7 +541,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct rfcomm_conn *c, const struct
 		case '1':
 			if (ptr != NULL) {
 				d->battery_level = atoi(strsep(&ptr, ",")) * 100 / 9;
-				bluealsa_dbus_transport_update(t_sco, BA_DBUS_TRANSPORT_UPDATE_BATTERY);
+				bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_BATTERY);
 			}
 			break;
 		case '2':
@@ -943,8 +943,8 @@ void *rfcomm_thread(struct ba_transport *t) {
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					bluealsa_dbus_transport_update(t->rfcomm.sco,
-							BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+					bluealsa_dbus_pcm_update(t->rfcomm.sco,
+							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 				}
 
 			if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
@@ -962,8 +962,8 @@ void *rfcomm_thread(struct ba_transport *t) {
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					bluealsa_dbus_transport_update(t->rfcomm.sco,
-							BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+					bluealsa_dbus_pcm_update(t->rfcomm.sco,
+							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 				}
 
 		}

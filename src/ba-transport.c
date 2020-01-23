@@ -146,7 +146,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	ba_transport_update_codec(t, type.codec);
 
 	t->ba_dbus_path = g_strdup_printf("%s/a2dp", device->ba_dbus_path);
-	bluealsa_dbus_transport_register(t, NULL);
+	bluealsa_dbus_pcm_register(t, NULL);
 
 	return t;
 }
@@ -165,7 +165,6 @@ struct ba_transport *ba_transport_new_rfcomm(
 		return NULL;
 
 	t->type.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM;
-	t->ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
 	t->rfcomm.handler_fd = -1;
 
 	snprintf(dbus_path_sco, sizeof(dbus_path_sco), "%s/sco", dbus_path);
@@ -177,6 +176,9 @@ struct ba_transport *ba_transport_new_rfcomm(
 
 	t->rfcomm.sco = t_sco;
 	t->release = transport_release_bt_rfcomm;
+
+	t->ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
+	bluealsa_dbus_rfcomm_register(t, NULL);
 
 	return t;
 
@@ -239,7 +241,7 @@ struct ba_transport *ba_transport_new_sco(
 	ba_transport_update_codec(t, type.codec);
 
 	t->ba_dbus_path = g_strdup_printf("%s/sco", device->ba_dbus_path);
-	bluealsa_dbus_transport_register(t, NULL);
+	bluealsa_dbus_pcm_register(t, NULL);
 
 	return t;
 }
@@ -294,7 +296,10 @@ void ba_transport_destroy(struct ba_transport *t) {
 
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
-	bluealsa_dbus_transport_unregister(t);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
+		bluealsa_dbus_rfcomm_unregister(t);
+	else
+		bluealsa_dbus_pcm_unregister(t);
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
@@ -850,7 +855,7 @@ int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value) {
 	}
 
 	/* notify connected clients (including requester) */
-	bluealsa_dbus_transport_update(t, BA_DBUS_TRANSPORT_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(t, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	return 0;
 }
@@ -1073,7 +1078,7 @@ static int transport_release_bt_rfcomm(struct ba_transport *t) {
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
 	 * link has been lost (e.g. device power down). However, it is required to
 	 * remove all references, otherwise resources will not be freed. */
-	bluealsa_dbus_transport_unregister(t);
+	bluealsa_dbus_rfcomm_unregister(t);
 
 	if (t->rfcomm.sco != NULL) {
 		ba_transport_destroy(t->rfcomm.sco);

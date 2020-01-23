@@ -34,17 +34,20 @@ static pthread_mutex_t transport_codec_updated_mtx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t transport_codec_updated = PTHREAD_COND_INITIALIZER;
 static unsigned int transport_codec_updated_cnt = 0;
 
-int bluealsa_dbus_transport_register(struct ba_transport *t, GError **error) {
-	debug("%s: %p", __func__, (void *)t); (void)error;
-	return 0; }
-void bluealsa_dbus_transport_update(struct ba_transport *t, unsigned int mask) {
+unsigned int bluealsa_dbus_pcm_register(struct ba_transport *t, GError **error) {
+	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
+void bluealsa_dbus_pcm_update(struct ba_transport *t, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)t, mask);
-	if (mask & BA_DBUS_TRANSPORT_UPDATE_CODEC) {
+	if (mask & BA_DBUS_PCM_UPDATE_CODEC) {
 		pthread_mutex_lock(&transport_codec_updated_mtx);
 		transport_codec_updated_cnt++;
 		pthread_cond_signal(&transport_codec_updated);
 		pthread_mutex_unlock(&transport_codec_updated_mtx); }}
-void bluealsa_dbus_transport_unregister(struct ba_transport *t) {
+void bluealsa_dbus_pcm_unregister(struct ba_transport *t) {
+	debug("%s: %p", __func__, (void *)t); }
+unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error) {
+	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
+void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
 	debug("%s: %p", __func__, (void *)t); }
 int a2dp_thread_create(struct ba_transport *t) { (void)t; return -1; }
 void *sco_thread(struct ba_transport *t) { return sleep(3600), t; }

@@ -141,8 +141,8 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	t->bt_fd = -1;
 	t->type.codec = HFP_CODEC_UNDEFINED;
 
-	bluealsa_dbus_transport_update(t,
-			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+	bluealsa_dbus_pcm_update(t,
+			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 	return 0;
 }
@@ -385,8 +385,8 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	t->type.codec = codec;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 
-	bluealsa_dbus_transport_update(t,
-			BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+	bluealsa_dbus_pcm_update(t,
+			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
 

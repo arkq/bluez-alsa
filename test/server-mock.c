@@ -211,8 +211,8 @@ void *test_bt_mock(void *data) {
 		assert((t3d2 = test_transport_new_sco(d2, ttype, ":test", "/sco/2")) != NULL);
 		if (fuzzing) {
 			t3d2->type.codec = HFP_CODEC_CVSD;
-			bluealsa_dbus_transport_update(t3d2,
-					BA_DBUS_TRANSPORT_UPDATE_SAMPLING | BA_DBUS_TRANSPORT_UPDATE_CODEC);
+			bluealsa_dbus_pcm_update(t3d2,
+					BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 		}
 	}
 
