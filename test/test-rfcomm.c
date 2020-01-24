@@ -47,6 +47,8 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport *t) {
 	debug("%s: %p", __func__, (void *)t); }
 unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error) {
 	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
+void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
+	debug("%s: %p %#x", __func__, (void *)t, mask); }
 void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
 	debug("%s: %p", __func__, (void *)t); }
 int a2dp_thread_create(struct ba_transport *t) { (void)t; return -1; }

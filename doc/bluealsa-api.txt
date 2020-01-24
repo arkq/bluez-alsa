@@ -127,3 +127,9 @@ Properties      string Mode [readonly]
 
                         HFP feature bitmask. Note, that this value depends on
                         the connection mode.
+
+                byte Battery [readonly]
+
+                        Remote device battery level.
+
+                        Possible values: 0-100 or -1

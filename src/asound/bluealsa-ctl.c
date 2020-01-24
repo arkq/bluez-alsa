@@ -1,6 +1,6 @@
 /*
  * bluealsa-ctl.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -48,6 +48,7 @@ struct ctl_elem_update {
 
 struct bt_dev {
 	char device_path[sizeof(((struct ba_pcm *)0)->device_path)];
+	char rfcomm_path[sizeof(((struct ba_pcm *)0)->device_path)];
 	char name[sizeof(((struct ctl_elem *)0)->name)];
 	int battery_level;
 	int mask;
@@ -164,12 +165,11 @@ static void bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev
 	dbus_message_unref(rep);
 }
 
-static void bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *dev,
-		const char *sco_pcm_path) {
+static void bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
 
 	DBusMessage *rep;
 	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, ctl->dbus_ctx.ba_service,
-					sco_pcm_path, BLUEALSA_INTERFACE_PCM, "Battery", NULL)) == NULL)
+					dev->rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, "Battery", NULL)) == NULL)
 		return;
 
 	DBusMessageIter iter;
@@ -213,6 +213,7 @@ static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba
 	ctl->dev_list_size++;
 
 	strcpy(dev->device_path, pcm->device_path);
+	sprintf(dev->rfcomm_path, "/org/bluealsa%.64s/rfcomm", &dev->device_path[10]);
 	sprintf(dev->name, "%.2X:%.2X:%.2X:%.2X:%.2X:%.2X",
 			pcm->addr.b[5], pcm->addr.b[4], pcm->addr.b[3],
 			pcm->addr.b[2], pcm->addr.b[1], pcm->addr.b[0]);
@@ -388,7 +389,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 			if (ctl->battery) {
 				/* Add special "battery" elements. */
-				bluealsa_dev_fetch_battery(ctl, dev, pcm->pcm_path);
+				bluealsa_dev_fetch_battery(ctl, dev);
 				if (dev->battery_level != -1) {
 					elem_list[count].type = CTL_ELEM_TYPE_BATTERY;
 					elem_list[count].dev = dev;
@@ -678,6 +679,8 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 				BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_PCM"'");
+		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
+				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_RFCOMM"'");
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, "org.bluez", NULL,
 				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='org.bluez.Device1'");
 	}
@@ -757,7 +760,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 		dbus_message_iter_get_basic(&iter, &updated_interface);
 		dbus_message_iter_next(&iter);
 
-		/* handle BT device properties update */
+		/* handle BlueZ device properties update */
 		if (strcmp(updated_interface, "org.bluez.Device1") == 0)
 			for (i = 0; i < ctl->elem_list_size; i++) {
 				struct bt_dev *dev = ctl->elem_list[i].dev;
@@ -766,6 +769,20 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 							bluealsa_dbus_msg_update_dev, dev);
 				if (dev->mask & SND_CTL_EVENT_MASK_ADD)
 					goto remove_add;
+			}
+
+		/* handle BlueALSA RFCOMM properties update */
+		if (strcmp(updated_interface, BLUEALSA_INTERFACE_RFCOMM) == 0)
+			for (i = 0; i < ctl->elem_list_size; i++) {
+				struct bt_dev *dev = ctl->elem_list[i].dev;
+				if (strcmp(dev->rfcomm_path, path) == 0) {
+					bluealsa_dbus_message_iter_dict(&iter, NULL,
+							bluealsa_dbus_msg_update_dev, dev);
+					if (dev->mask & SND_CTL_EVENT_MASK_ADD)
+						goto remove_add;
+					if (dev->mask & SND_CTL_EVENT_MASK_VALUE)
+						bluealsa_event_elem_updated(ctl, ctl->elem_list[i].name);
+				}
 			}
 
 		/* handle BlueALSA PCM properties update */

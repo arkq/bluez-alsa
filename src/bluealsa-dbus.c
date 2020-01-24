@@ -41,6 +41,10 @@ static GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
 	return g_variant_new_byte(d->battery_level);
 }
 
+static GVariant *ba_variant_new_rfcomm_features(const struct ba_transport *t) {
+	return g_variant_new_uint32(t->rfcomm.hfp_features);
+}
+
 static GVariant *ba_variant_new_modes(const struct ba_transport *t) {
 	static const char *modes[] = {
 		BLUEALSA_PCM_MODE_SOURCE, BLUEALSA_PCM_MODE_SINK };
@@ -441,8 +445,6 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 
 	if (strcmp(property, "Device") == 0)
 		return ba_variant_new_device_path(d);
-	if (strcmp(property, "Battery") == 0)
-		return ba_variant_new_device_battery(d);
 	if (strcmp(property, "Modes") == 0)
 		return ba_variant_new_modes(t);
 	if (strcmp(property, "Format") == 0)
@@ -472,6 +474,7 @@ static GVariant *bluealsa_rfcomm_get_property(GDBusConnection *conn,
 	(void)interface;
 
 	struct ba_transport *t = (struct ba_transport *)userdata;
+	struct ba_device *d = t->d;
 
 	if (strcmp(property, "Mode") == 0) {
 		if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
@@ -484,7 +487,9 @@ static GVariant *bluealsa_rfcomm_get_property(GDBusConnection *conn,
 			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HSP_HS);
 	}
 	if (strcmp(property, "Features") == 0)
-		return g_variant_new_uint32(t->rfcomm.hfp_features);
+		return ba_variant_new_rfcomm_features(t);
+	if (strcmp(property, "Battery") == 0)
+		return ba_variant_new_device_battery(d);
 
 	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
 			"Property not supported '%s'", property);
@@ -553,8 +558,6 @@ void bluealsa_dbus_pcm_update(struct ba_transport *t, unsigned int mask) {
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 
-	if (mask & BA_DBUS_PCM_UPDATE_BATTERY)
-		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(t->d));
 	if (mask & BA_DBUS_PCM_UPDATE_FORMAT)
 		g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
 	if (mask & BA_DBUS_PCM_UPDATE_CHANNELS)
@@ -605,6 +608,23 @@ unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **erro
 		ba_transport_ref(t);
 
 	return t->ba_dbus_id;
+}
+
+void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+	if (mask & BA_DBUS_RFCOMM_UPDATE_FEATURES)
+		g_variant_builder_add(&props, "{sv}", "Features", ba_variant_new_rfcomm_features(t));
+	if (mask & BA_DBUS_RFCOMM_UPDATE_BATTERY)
+		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(t->d));
+
+	g_dbus_connection_emit_signal(config.dbus, NULL, t->ba_dbus_path,
+			"org.freedesktop.DBus.Properties", "PropertiesChanged",
+			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_RFCOMM, &props, NULL), NULL);
+
+	g_variant_builder_clear(&props);
 }
 
 void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
