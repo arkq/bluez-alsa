@@ -102,6 +102,13 @@ BlueALSA player. Connect your Bluetooth device (e.g. smartphone) and do as follo
 
 	$ bluealsa-aplay XX:XX:XX:XX:XX:XX
 
+In addition to A2DP profile, used for high quality audio, BlueALSA also allows to use phone audio
+connection via SCO link. One can use either build-in HSP/HFP support, which implements only audio
+related part of the specification, or use [oFono](https://01.org/ofono) service as a back-end. In
+order to open SCO audio connection one shall switch to `sco` profile like follows:
+
+	$ aplay -D bluealsa:SRV=org.bluealsa,DEV=XX:XX:XX:XX:XX:XX,PROFILE=sco Bourree_in_E_minor.wav
+
 In order to control input or output audio level, one can use provided `bluealsa` control plugin.
 This plugin allows adjusting the volume of the audio stream or simply mute/unmute it, e.g.:
 
