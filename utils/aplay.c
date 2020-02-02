@@ -127,13 +127,13 @@ static int pcm_set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int channe
 		goto fail;
 	}
 	dir = 0;
-	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0) {
-		snprintf(buf, sizeof(buf), "Set buffer time: %s: %u", snd_strerror(err), *buffer_time);
+	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0) {
+		snprintf(buf, sizeof(buf), "Set period time: %s: %u", snd_strerror(err), *period_time);
 		goto fail;
 	}
 	dir = 0;
-	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0) {
-		snprintf(buf, sizeof(buf), "Set period time: %s: %u", snd_strerror(err), *period_time);
+	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0) {
+		snprintf(buf, sizeof(buf), "Set buffer time: %s: %u", snd_strerror(err), *buffer_time);
 		goto fail;
 	}
 	if ((err = snd_pcm_hw_params(pcm, params)) != 0) {
