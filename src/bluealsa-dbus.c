@@ -50,9 +50,9 @@ static GVariant *ba_variant_new_modes(const struct ba_transport *t) {
 	static const char *modes[] = {
 		BLUEALSA_PCM_MODE_SOURCE, BLUEALSA_PCM_MODE_SINK };
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return g_variant_new_strv(&modes[0], 1);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
 		return g_variant_new_strv(&modes[1], 1);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
+		return g_variant_new_strv(&modes[0], 1);
 	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
 		return g_variant_new_strv(modes, 2);
 	return g_variant_new_strv(modes, 0);
@@ -236,20 +236,20 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	const char *mode;
 	g_variant_get(params, "(&s)", &mode);
 
-	bool is_source = strcmp(mode, BLUEALSA_PCM_MODE_SOURCE) == 0;
-	if (!is_source && strcmp(mode, BLUEALSA_PCM_MODE_SINK) != 0) {
+	bool is_sink = strcmp(mode, BLUEALSA_PCM_MODE_SINK) == 0;
+	if (!is_sink && strcmp(mode, BLUEALSA_PCM_MODE_SOURCE) != 0) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_INVALID_ARGS, "Invalid operation mode: %s", mode);
 		goto fail;
 	}
 
 	struct ba_transport_pcm *pcm = NULL;
-	if ((is_source && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) ||
-			(!is_source && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK))
+	if ((is_sink && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) ||
+			(!is_sink && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK))
 		pcm = &t->a2dp.pcm;
 	else if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
 
-		if (is_source)
+		if (is_sink)
 			pcm = &t->sco.spk_pcm;
 		else
 			pcm = &t->sco.mic_pcm;
@@ -290,7 +290,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	}
 
 	/* get correct PIPE endpoint - PIPE is unidirectional */
-	pcm->fd = pcm_fds[is_source ? 0 : 1];
+	pcm->fd = pcm_fds[is_sink ? 0 : 1];
 
 	/* set our internal endpoint as non-blocking. */
 	if (fcntl(pcm->fd, F_SETFL, O_NONBLOCK) == -1) {
@@ -322,7 +322,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	g_io_channel_set_encoding(ch, NULL, NULL);
 	g_io_channel_unref(ch);
 
-	int fds[2] = { pcm_fds[is_source ? 1 : 0], pcm_fds[3] };
+	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);
 	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
 			g_variant_new("(hh)", 0, 1), fd_list);

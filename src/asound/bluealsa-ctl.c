@@ -344,14 +344,14 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
 			elem_list[count].dev = dev;
 			elem_list[count].pcm = pcm;
-			elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SOURCE;
+			elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
 			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 			count++;
 
 			elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
 			elem_list[count].dev = dev;
 			elem_list[count].pcm = pcm;
-			elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SOURCE;
+			elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
 			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 			count++;
 

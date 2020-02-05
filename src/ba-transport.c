@@ -230,7 +230,7 @@ struct ba_transport *ba_transport_new_sco(
 	t->sco.mic_pcm.t = t;
 	t->sco.mic_pcm.fd = -1;
 	t->sco.mic_pcm.client = -1;
-	t->sco.spk_pcm.mode = BA_TRANSPORT_PCM_MODE_SOURCE;
+	t->sco.mic_pcm.mode = BA_TRANSPORT_PCM_MODE_SOURCE;
 
 	pthread_mutex_init(&t->sco.spk_drained_mtx, NULL);
 	pthread_cond_init(&t->sco.spk_drained, NULL);

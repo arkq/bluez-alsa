@@ -1,6 +1,6 @@
 /*
  * bluealsa-pcm.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -347,7 +347,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_open(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
-				io->stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_FLAG_SOURCE : BA_PCM_FLAG_SINK,
+				io->stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_FLAG_SINK : BA_PCM_FLAG_SOURCE,
 				&pcm->ba_pcm_fd, &pcm->ba_pcm_ctrl_fd, &err)) {
 		debug2("Couldn't open PCM: %s", err.message);
 		dbus_error_free(&err);
@@ -750,7 +750,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	}
 
 	int flags = ba_profile | (
-			stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_FLAG_SOURCE : BA_PCM_FLAG_SINK);
+			stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_FLAG_SINK : BA_PCM_FLAG_SOURCE);
 	if (!bluealsa_dbus_get_pcm(&pcm->dbus_ctx, &ba_addr, flags, &pcm->ba_pcm, &err)) {
 		SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
 		ret = -ENODEV;

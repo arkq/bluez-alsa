@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -331,7 +331,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path, BA_PCM_FLAG_SINK,
+	if (!bluealsa_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path, BA_PCM_FLAG_SOURCE,
 				&w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
 		error("Couldn't open PCM: %s", err.message);
 		dbus_error_free(&err);
@@ -554,7 +554,7 @@ static int supervise_pcm_worker(struct ba_pcm *ba_pcm) {
 	if (ba_pcm == NULL)
 		return -1;
 
-	if (!(ba_pcm->flags & BA_PCM_FLAG_SINK))
+	if (!(ba_pcm->flags & BA_PCM_FLAG_SOURCE))
 		goto stop;
 
 	if ((ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_A2DP)) ||
