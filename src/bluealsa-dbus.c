@@ -46,52 +46,46 @@ static GVariant *ba_variant_new_rfcomm_features(const struct ba_transport *t) {
 	return g_variant_new_uint32(t->rfcomm.hfp_features);
 }
 
-static GVariant *ba_variant_new_modes(const struct ba_transport *t) {
-	static const char *modes[] = {
-		BLUEALSA_PCM_MODE_SOURCE, BLUEALSA_PCM_MODE_SINK };
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return g_variant_new_strv(&modes[1], 1);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		return g_variant_new_strv(&modes[0], 1);
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
-		return g_variant_new_strv(modes, 2);
-	return g_variant_new_strv(modes, 0);
+static GVariant *ba_variant_new_pcm_mode(const struct ba_transport_pcm *pcm) {
+	if (pcm->mode == BA_TRANSPORT_PCM_MODE_SOURCE)
+		return g_variant_new_string(BLUEALSA_PCM_MODE_SOURCE);
+	return g_variant_new_string(BLUEALSA_PCM_MODE_SINK);
 }
 
-static GVariant *ba_variant_new_format(const struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return g_variant_new_uint16(t->a2dp.pcm.format);
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
-		return g_variant_new_uint16(t->sco.spk_pcm.format);
-	return g_variant_new_uint16(0);
+static GVariant *ba_variant_new_pcm_format(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_uint16(pcm->format);
 }
 
-static GVariant *ba_variant_new_channels(const struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return g_variant_new_byte(t->a2dp.pcm.channels);
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
-		return g_variant_new_byte(t->sco.spk_pcm.channels);
-	return g_variant_new_byte(0);
+static GVariant *ba_variant_new_pcm_channels(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_byte(pcm->channels);
 }
 
-static GVariant *ba_variant_new_sampling(const struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return g_variant_new_uint32(t->a2dp.pcm.sampling);
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
-		return g_variant_new_uint32(t->sco.spk_pcm.sampling);
-	return g_variant_new_uint32(0);
+static GVariant *ba_variant_new_pcm_sampling(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_uint32(pcm->sampling);
 }
 
-static GVariant *ba_variant_new_codec(const struct ba_transport *t) {
-	return g_variant_new_uint16(t->type.codec);
+static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_uint16(pcm->t->type.codec);
 }
 
-static GVariant *ba_variant_new_delay(const struct ba_transport *t) {
-	return g_variant_new_uint16(ba_transport_get_delay(t));
+static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_uint16(ba_transport_get_delay(pcm->t));
 }
 
-static GVariant *ba_variant_new_volume(const struct ba_transport *t) {
-	return g_variant_new_uint16(ba_transport_get_volume_packed(t));
+static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_uint16(ba_transport_pcm_get_volume_packed(pcm));
+}
+
+static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
+	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_add(props, "{sv}", "Device", ba_variant_new_device_path(pcm->t->d));
+	g_variant_builder_add(props, "{sv}", "Mode", ba_variant_new_pcm_mode(pcm));
+	g_variant_builder_add(props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
+	g_variant_builder_add(props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
+	g_variant_builder_add(props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
+	g_variant_builder_add(props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
+	g_variant_builder_add(props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
+	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 }
 
 static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata) {
@@ -109,6 +103,7 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 			continue;
 
 		GHashTableIter iter_d, iter_t;
+		GVariantBuilder props;
 		struct ba_device *d;
 		struct ba_transport *t;
 
@@ -120,22 +115,25 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 			g_hash_table_iter_init(&iter_t, d->transports);
 			while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
 
-				if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
-					continue;
+				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-				GVariantBuilder props;
-				g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
-				g_variant_builder_add(&props, "{sv}", "Device", ba_variant_new_device_path(t->d));
-				g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_modes(t));
-				g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
-				g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
-				g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
-				g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
-				g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
-				g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
+					ba_variant_populate_pcm(&props, &t->a2dp.pcm);
+					g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm.ba_dbus_path, &props);
+					g_variant_builder_clear(&props);
 
-				g_variant_builder_add(&pcms, "{oa{sv}}", t->ba_dbus_path, &props);
-				g_variant_builder_clear(&props);
+				}
+				else if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
+
+					ba_variant_populate_pcm(&props, &t->sco.spk_pcm);
+					g_variant_builder_add(&pcms, "{oa{sv}}", t->sco.spk_pcm.ba_dbus_path, &props);
+					g_variant_builder_clear(&props);
+
+					ba_variant_populate_pcm(&props, &t->sco.mic_pcm);
+					g_variant_builder_add(&pcms, "{oa{sv}}", t->sco.mic_pcm.ba_dbus_path, &props);
+					g_variant_builder_clear(&props);
+
+				}
+
 			}
 
 			pthread_mutex_unlock(&d->transports_mutex);
@@ -227,45 +225,17 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 
 static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
-	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct ba_transport *t = (struct ba_transport *)userdata;
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
 	bool locked = false;
 	size_t i;
 
-	const char *mode;
-	g_variant_get(params, "(&s)", &mode);
-
-	bool is_sink = strcmp(mode, BLUEALSA_PCM_MODE_SINK) == 0;
-	if (!is_sink && strcmp(mode, BLUEALSA_PCM_MODE_SOURCE) != 0) {
+	/* preliminary check whether HFP codes is selected */
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile) &&
+			t->type.codec == HFP_CODEC_UNDEFINED) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_INVALID_ARGS, "Invalid operation mode: %s", mode);
-		goto fail;
-	}
-
-	struct ba_transport_pcm *pcm = NULL;
-	if ((is_sink && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) ||
-			(!is_sink && t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK))
-		pcm = &t->a2dp.pcm;
-	else if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
-
-		if (is_sink)
-			pcm = &t->sco.spk_pcm;
-		else
-			pcm = &t->sco.mic_pcm;
-
-		/* preliminary check whether HFP codes is selected */
-		if (t->type.codec == HFP_CODEC_UNDEFINED) {
-			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-					G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
-			goto fail;
-		}
-
-	}
-
-	if (pcm == NULL) {
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_NOT_SUPPORTED, "Operation mode not supported");
+				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
 		goto fail;
 	}
 
@@ -290,6 +260,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	}
 
 	/* get correct PIPE endpoint - PIPE is unidirectional */
+	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
 	pcm->fd = pcm_fds[is_sink ? 0 : 1];
 
 	/* set our internal endpoint as non-blocking. */
@@ -342,7 +313,8 @@ fail:
 static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct ba_transport *t = (struct ba_transport *)userdata;
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport *t = pcm->t;
 	GVariantIter *properties;
 	GVariant *value = NULL;
 	const char *property;
@@ -441,25 +413,25 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 	(void)path;
 	(void)interface;
 
-	struct ba_transport *t = (struct ba_transport *)userdata;
-	struct ba_device *d = t->d;
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_device *d = pcm->t->d;
 
 	if (strcmp(property, "Device") == 0)
 		return ba_variant_new_device_path(d);
-	if (strcmp(property, "Modes") == 0)
-		return ba_variant_new_modes(t);
+	if (strcmp(property, "Mode") == 0)
+		return ba_variant_new_pcm_mode(pcm);
 	if (strcmp(property, "Format") == 0)
-		return ba_variant_new_format(t);
+		return ba_variant_new_pcm_format(pcm);
 	if (strcmp(property, "Channels") == 0)
-		return ba_variant_new_channels(t);
+		return ba_variant_new_pcm_channels(pcm);
 	if (strcmp(property, "Sampling") == 0)
-		return ba_variant_new_sampling(t);
+		return ba_variant_new_pcm_sampling(pcm);
 	if (strcmp(property, "Codec") == 0)
-		return ba_variant_new_codec(t);
+		return ba_variant_new_pcm_codec(pcm);
 	if (strcmp(property, "Delay") == 0)
-		return ba_variant_new_delay(t);
+		return ba_variant_new_pcm_delay(pcm);
 	if (strcmp(property, "Volume") == 0)
-		return ba_variant_new_volume(t);
+		return ba_variant_new_pcm_volume(pcm);
 
 	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
 			"Property not supported '%s'", property);
@@ -505,10 +477,10 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 	(void)path;
 	(void)interface;
 
-	struct ba_transport *t = (struct ba_transport *)userdata;
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 
 	if (strcmp(property, "Volume") == 0) {
-		ba_transport_set_volume_packed(t, g_variant_get_uint16(value));
+		ba_transport_pcm_set_volume_packed(pcm, g_variant_get_uint16(value));
 		return TRUE;
 	}
 
@@ -519,7 +491,7 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 
 /**
  * Register BlueALSA D-Bus PCM interface. */
-unsigned int bluealsa_dbus_pcm_register(struct ba_transport *t, GError **error) {
+unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 
 	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluealsa_pcm_method_call,
@@ -527,71 +499,64 @@ unsigned int bluealsa_dbus_pcm_register(struct ba_transport *t, GError **error) 
 		.set_property = bluealsa_pcm_set_property,
 	};
 
-	if ((t->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
-					t->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_pcm,
-					&vtable, t, NULL, error)) != 0) {
+	if ((pcm->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
+					pcm->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_pcm,
+					&vtable, pcm, NULL, error)) != 0) {
 
-		ba_transport_ref(t);
+		ba_transport_ref(pcm->t);
 
 		GVariantBuilder props;
-		g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
-		g_variant_builder_add(&props, "{sv}", "Device", ba_variant_new_device_path(t->d));
-		g_variant_builder_add(&props, "{sv}", "Modes", ba_variant_new_modes(t));
-		g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
-		g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
-		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
-		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
-		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
-		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
+		ba_variant_populate_pcm(&props, pcm);
 
 		g_dbus_connection_emit_signal(config.dbus, NULL,
 				"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMAdded",
-				g_variant_new("(oa{sv})", t->ba_dbus_path, &props), NULL);
+				g_variant_new("(oa{sv})", pcm->ba_dbus_path, &props), NULL);
 		g_variant_builder_clear(&props);
 
 	}
 
-	return t->ba_dbus_id;
+	return pcm->ba_dbus_id;
 }
 
-void bluealsa_dbus_pcm_update(struct ba_transport *t, unsigned int mask) {
+void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 
 	if (mask & BA_DBUS_PCM_UPDATE_FORMAT)
-		g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_format(t));
+		g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CHANNELS)
-		g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_channels(t));
+		g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_SAMPLING)
-		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_sampling(t));
+		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC)
-		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_codec(t));
+		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_DELAY)
-		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_delay(t));
+		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)
-		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_volume(t));
+		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 
-	g_dbus_connection_emit_signal(config.dbus, NULL, t->ba_dbus_path,
+	g_dbus_connection_emit_signal(config.dbus, NULL, pcm->ba_dbus_path,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged",
 			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_PCM, &props, NULL), NULL);
 
 	g_variant_builder_clear(&props);
 }
 
-void bluealsa_dbus_pcm_unregister(struct ba_transport *t) {
+void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 
-	if (t->ba_dbus_id == 0)
+	if (pcm->ba_dbus_id == 0)
 		return;
 
-	g_dbus_connection_unregister_object(config.dbus, t->ba_dbus_id);
-	t->ba_dbus_id = 0;
+	g_dbus_connection_unregister_object(config.dbus, pcm->ba_dbus_id);
+	pcm->ba_dbus_id = 0;
 
 	g_dbus_connection_emit_signal(config.dbus, NULL,
 			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMRemoved",
-			g_variant_new("(o)", t->ba_dbus_path), NULL);
+			g_variant_new("(o)", pcm->ba_dbus_path), NULL);
 
-	ba_transport_unref(t);
+	ba_transport_unref(pcm->t);
+
 }
 
 /**
@@ -603,12 +568,12 @@ unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **erro
 		.get_property = bluealsa_rfcomm_get_property,
 	};
 
-	if ((t->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
-					t->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
+	if ((t->rfcomm.ba_dbus_id = g_dbus_connection_register_object(config.dbus,
+					t->rfcomm.ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
 					&vtable, t, NULL, error)) != 0)
 		ba_transport_ref(t);
 
-	return t->ba_dbus_id;
+	return t->rfcomm.ba_dbus_id;
 }
 
 void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
@@ -621,7 +586,7 @@ void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
 	if (mask & BA_DBUS_RFCOMM_UPDATE_BATTERY)
 		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(t->d));
 
-	g_dbus_connection_emit_signal(config.dbus, NULL, t->ba_dbus_path,
+	g_dbus_connection_emit_signal(config.dbus, NULL, t->rfcomm.ba_dbus_path,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged",
 			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_RFCOMM, &props, NULL), NULL);
 
@@ -630,11 +595,12 @@ void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
 
 void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
 
-	if (t->ba_dbus_id == 0)
+	if (t->rfcomm.ba_dbus_id == 0)
 		return;
 
-	g_dbus_connection_unregister_object(config.dbus, t->ba_dbus_id);
-	t->ba_dbus_id = 0;
+	g_dbus_connection_unregister_object(config.dbus, t->rfcomm.ba_dbus_id);
+	t->rfcomm.ba_dbus_id = 0;
 
 	ba_transport_unref(t);
+
 }

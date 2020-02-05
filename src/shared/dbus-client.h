@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -123,7 +123,6 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 dbus_bool_t bluealsa_dbus_pcm_open(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
-		int operation_mode,
 		int *fd_pcm,
 		int *fd_pcm_ctrl,
 		DBusError *error);

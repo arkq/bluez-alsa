@@ -145,8 +145,9 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	ba_transport_update_codec(t, type.codec);
 
-	t->ba_dbus_path = g_strdup_printf("%s/a2dp", device->ba_dbus_path);
-	bluealsa_dbus_pcm_register(t, NULL);
+	t->a2dp.pcm.ba_dbus_path = g_strdup_printf("%s/a2dp/%s", device->ba_dbus_path,
+			t->a2dp.pcm.mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
+	bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
 
 	return t;
 }
@@ -177,7 +178,7 @@ struct ba_transport *ba_transport_new_rfcomm(
 	t->rfcomm.sco = t_sco;
 	t->release = transport_release_bt_rfcomm;
 
-	t->ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
+	t->rfcomm.ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
 	bluealsa_dbus_rfcomm_register(t, NULL);
 
 	return t;
@@ -240,8 +241,11 @@ struct ba_transport *ba_transport_new_sco(
 
 	ba_transport_update_codec(t, type.codec);
 
-	t->ba_dbus_path = g_strdup_printf("%s/sco", device->ba_dbus_path);
-	bluealsa_dbus_pcm_register(t, NULL);
+	t->sco.spk_pcm.ba_dbus_path = g_strdup_printf("%s/sco/sink", device->ba_dbus_path);
+	bluealsa_dbus_pcm_register(&t->sco.spk_pcm, NULL);
+
+	t->sco.mic_pcm.ba_dbus_path = g_strdup_printf("%s/sco/source", device->ba_dbus_path);
+	bluealsa_dbus_pcm_register(&t->sco.mic_pcm, NULL);
 
 	return t;
 }
@@ -298,8 +302,12 @@ void ba_transport_destroy(struct ba_transport *t) {
 	 * this transport during the destroy procedure. */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
 		bluealsa_dbus_rfcomm_unregister(t);
-	else
-		bluealsa_dbus_pcm_unregister(t);
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
+		bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
+	}
 
 	/* If the transport is active, prior to releasing resources, we have to
 	 * terminate the IO thread (or at least make sure it is not running any
@@ -344,6 +352,8 @@ void ba_transport_unref(struct ba_transport *t) {
 			ba_transport_unref(t->rfcomm.sco);
 		if (t->rfcomm.handler_fd != -1)
 			close(t->rfcomm.handler_fd);
+		if (t->rfcomm.ba_dbus_path != NULL)
+			g_free(t->rfcomm.ba_dbus_path);
 		pthread_mutex_destroy(&t->rfcomm.codec_selection_completed_mtx);
 		pthread_cond_destroy(&t->rfcomm.codec_selection_completed);
 		d->battery_level = -1;
@@ -355,17 +365,21 @@ void ba_transport_unref(struct ba_transport *t) {
 		ba_transport_release_pcm(&t->sco.mic_pcm);
 		if (t->sco.rfcomm != NULL)
 			ba_transport_unref(t->sco.rfcomm);
+		if (t->sco.spk_pcm.ba_dbus_path != NULL)
+			g_free(t->sco.spk_pcm.ba_dbus_path);
+		if (t->sco.mic_pcm.ba_dbus_path != NULL)
+			g_free(t->sco.mic_pcm.ba_dbus_path);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		ba_transport_release_pcm(&t->a2dp.pcm);
 		pthread_mutex_destroy(&t->a2dp.drained_mtx);
 		pthread_cond_destroy(&t->a2dp.drained);
+		if (t->a2dp.pcm.ba_dbus_path != NULL)
+			g_free(t->a2dp.pcm.ba_dbus_path);
 		free(t->a2dp.cconfig);
 	}
 
 	pthread_mutex_destroy(&t->mutex);
-	if (t->ba_dbus_path != NULL)
-		g_free(t->ba_dbus_path);
 	free(t->bluez_dbus_owner);
 	free(t->bluez_dbus_path);
 	free(t);
@@ -792,70 +806,55 @@ uint16_t ba_transport_get_delay(const struct ba_transport *t) {
 }
 
 /**
- * Get transport volume encoded as a single 16-bit value. */
-uint16_t ba_transport_get_volume_packed(const struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return
-			((t->a2dp.pcm.volume[0].muted << 7) | t->a2dp.pcm.volume[0].level) << 8 |
-			((t->a2dp.pcm.volume[1].muted << 7) | t->a2dp.pcm.volume[1].level);
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
-		return
-			((t->sco.spk_pcm.volume[0].muted << 7) | t->sco.spk_pcm.volume[0].level) << 8 |
-			((t->sco.mic_pcm.volume[0].muted << 7) | t->sco.mic_pcm.volume[0].level);
-	return 0;
+ * Get transport PCM volume encoded as a single 16-bit value. */
+uint16_t ba_transport_pcm_get_volume_packed(const struct ba_transport_pcm *pcm) {
+	return
+		((pcm->volume[0].muted << 7) | pcm->volume[0].level) << 8 |
+		((pcm->volume[1].muted << 7) | pcm->volume[1].level);
 }
 
 /**
- * Set transport volume from an encoded single 16-bit value. */
-int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value) {
+ * Set transport PCM volume from an encoded single 16-bit value. */
+int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t value) {
 
+	const struct ba_transport *t = pcm->t;
 	uint8_t ch1 = value >> 8;
 	uint8_t ch2 = value & 0xFF;
 
 	debug("Setting volume: %d<>%d [%c%c]", ch1 & 0x7F, ch2 & 0x7F,
 			ch1 & 0x80 ? 'M' : 'O', ch2 & 0x80 ? 'M' : 'O');
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	pcm->volume[0].muted = !!(ch1 & 0x80);
+	pcm->volume[1].muted = !!(ch2 & 0x80);
+	pcm->volume[0].level = ch1 & 0x7F;
+	pcm->volume[1].level = ch2 & 0x7F;
 
-		t->a2dp.pcm.volume[0].muted = !!(ch1 & 0x80);
-		t->a2dp.pcm.volume[1].muted = !!(ch2 & 0x80);
-		t->a2dp.pcm.volume[0].level = ch1 & 0x7F;
-		t->a2dp.pcm.volume[1].level = ch2 & 0x7F;
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
+			config.a2dp.volume) {
 
-		if (config.a2dp.volume) {
+		uint16_t volume = 0;
+		if (!t->a2dp.pcm.volume[0].muted && !t->a2dp.pcm.volume[1].muted)
+			volume = (t->a2dp.pcm.volume[0].level + t->a2dp.pcm.volume[1].level) / 2;
 
-			uint16_t volume = 0;
-			if (!t->a2dp.pcm.volume[0].muted && !t->a2dp.pcm.volume[1].muted)
-				volume = (t->a2dp.pcm.volume[0].level + t->a2dp.pcm.volume[1].level) / 2;
+		GError *err = NULL;
+		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+				BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
 
-			GError *err = NULL;
-			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
-					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
-
-			if (err != NULL) {
-				warn("Couldn't set BT device volume: %s", err->message);
-				g_error_free(err);
-			}
-
+		if (err != NULL) {
+			warn("Couldn't set BT device volume: %s", err->message);
+			g_error_free(err);
 		}
 
 	}
 
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
-
-		t->sco.spk_pcm.volume[0].muted = !!(ch1 & 0x80);
-		t->sco.mic_pcm.volume[0].muted = !!(ch2 & 0x80);
-		t->sco.spk_pcm.volume[0].level = ch1 & 0x7F;
-		t->sco.mic_pcm.volume[0].level = ch2 & 0x7F;
-
-		if (t->sco.rfcomm != NULL)
-			/* notify associated RFCOMM transport */
-			ba_transport_send_signal(t->sco.rfcomm, BA_TRANSPORT_SIGNAL_UPDATE_VOLUME);
-
+	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile) &&
+			t->sco.rfcomm != NULL) {
+		/* notify associated RFCOMM transport */
+		ba_transport_send_signal(t->sco.rfcomm, BA_TRANSPORT_SIGNAL_UPDATE_VOLUME);
 	}
 
 	/* notify connected clients (including requester) */
-	bluealsa_dbus_pcm_update(t, BA_DBUS_PCM_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	return 0;
 }

@@ -26,14 +26,14 @@ PCM hierarchy
 
 Service         org.bluealsa[.unique ID]
 Interface       org.bluealsa.PCM1
-Object path     [variable prefix]/{hci0,hci1,...}/dev_XX_XX_XX_XX_XX_XX/a2dp
-                [variable prefix]/{hci0,hci1,...}/dev_XX_XX_XX_XX_XX_XX/sco
+Object path     [variable prefix]/{hci0,...}/dev_XX_XX_XX_XX_XX_XX/a2dp/[mode]
+                [variable prefix]/{hci0,...}/dev_XX_XX_XX_XX_XX_XX/sco/[mode]
 
-Methods         fd, fd Open(string mode)
+Methods         fd, fd Open()
 
-                        Open PCM stream in a given operation mode. This method
-                        returns two file descriptors, respectively PCM stream
-                        PIPE and PCM controller SEQPACKET socket.
+                        Open BlueALSA PCM stream. This method returns two file
+                        descriptors, respectively PCM stream PIPE and PCM
+                        controller SEQPACKET socket.
 
                         Controller socket commands: "Drain", "Drop", "Pause",
                                                     "Resume"
@@ -45,8 +45,8 @@ Methods         fd, fd Open(string mode)
                 void SelectCodec(uint16 codec, dict props)
 
                         Select PCM codec. This call shall be made before PCM
-                        stream opening, otherwise the ongoing stream will be
-                        terminated.
+                        stream opening, otherwise the ongoing stream (or PCM
+                        counterpart: sink, source) will be terminated.
 
                         Possible Errors: dbus.Error.InvalidArguments
                                          dbus.Error.NotSupported
@@ -56,9 +56,9 @@ Properties      object Device [readonly]
 
                         BlueZ device object path.
 
-                array{string} Modes [readonly]
+                string Mode [readonly]
 
-                        Available operation modes.
+                        Stream operation mode.
 
                         Possible values: "sink" or "source"
 
@@ -91,10 +91,9 @@ Properties      object Device [readonly]
                 uint16 Volume [readwrite]
 
                         This property holds PCM volume and mute information
-                        for channel 1 (left) and 2 (right) or playback and
-                        capture for SCO. Data for channel 1 and playback is
-                        stored in the upper byte, while channel 2 and capture
-                        is stored in the lower byte. The highest bit of both
+                        for channel 1 (left) and 2 (right). Data for channel
+                        1 is stored in the upper byte, while channel 2 is
+                        stored in the lower byte. The highest bit of both
                         bytes determines whether channel is muted.
 
                         Possible A2DP values: 0-127

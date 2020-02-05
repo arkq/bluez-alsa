@@ -128,6 +128,10 @@ struct ba_transport_pcm {
 		bool muted;
 	} volume[2];
 
+	/* exported PCM D-Bus API */
+	char *ba_dbus_path;
+	unsigned int ba_dbus_id;
+
 };
 
 struct ba_transport {
@@ -141,8 +145,6 @@ struct ba_transport {
 	struct ba_transport_type type;
 
 	/* data for D-Bus management */
-	char *ba_dbus_path;
-	unsigned int ba_dbus_id;
 	char *bluez_dbus_owner;
 	char *bluez_dbus_path;
 
@@ -209,6 +211,10 @@ struct ba_transport {
 			/* codec selection synchronization */
 			pthread_mutex_t codec_selection_completed_mtx;
 			pthread_cond_t codec_selection_completed;
+
+			/* exported RFCOMM D-Bus API */
+			char *ba_dbus_path;
+			unsigned int ba_dbus_id;
 
 			/* external RFCOMM handler */
 			int handler_fd;
@@ -293,8 +299,8 @@ void ba_transport_update_codec(
 
 uint16_t ba_transport_get_delay(const struct ba_transport *t);
 
-uint16_t ba_transport_get_volume_packed(const struct ba_transport *t);
-int ba_transport_set_volume_packed(struct ba_transport *t, uint16_t value);
+uint16_t ba_transport_pcm_get_volume_packed(const struct ba_transport_pcm *pcm);
+int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t value);
 
 int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 

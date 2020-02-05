@@ -25,12 +25,12 @@
 int a2dp_thread_create(struct ba_transport *t) { (void)t; return 0; }
 void *rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 void *sco_thread(struct ba_transport *t) { (void)t; return 0; }
-unsigned int bluealsa_dbus_pcm_register(struct ba_transport *t, GError **error) {
-	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
-void bluealsa_dbus_pcm_update(struct ba_transport *t, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)t, mask); }
-void bluealsa_dbus_pcm_unregister(struct ba_transport *t) {
-	debug("%s: %p", __func__, (void *)t); }
+unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
+	debug("%s: %p", __func__, (void *)pcm); (void)error; return 0; }
+void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
+	debug("%s: %p %#x", __func__, (void *)pcm, mask); }
+void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
+	debug("%s: %p", __func__, (void *)pcm); }
 unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error) {
 	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
 void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
@@ -124,9 +124,9 @@ START_TEST(test_ba_transport_volume_packed) {
 	t_a2dp->a2dp.pcm.volume[0].level = 0x6C;
 	t_a2dp->a2dp.pcm.volume[1].muted = false;
 	t_a2dp->a2dp.pcm.volume[1].level = 0x4F;
-	ck_assert_uint_eq(ba_transport_get_volume_packed(t_a2dp), 0xEC4F);
+	ck_assert_uint_eq(ba_transport_pcm_get_volume_packed(&t_a2dp->a2dp.pcm), 0xEC4F);
 
-	ck_assert_int_eq(ba_transport_set_volume_packed(t_a2dp, 0xB0C1), 0);
+	ck_assert_int_eq(ba_transport_pcm_set_volume_packed(&t_a2dp->a2dp.pcm, 0xB0C1), 0);
 	ck_assert_int_eq(!!t_a2dp->a2dp.pcm.volume[0].muted, true);
 	ck_assert_int_eq(t_a2dp->a2dp.pcm.volume[0].level, 48);
 	ck_assert_int_eq(!!t_a2dp->a2dp.pcm.volume[1].muted, true);
@@ -136,9 +136,11 @@ START_TEST(test_ba_transport_volume_packed) {
 	t_sco->sco.spk_pcm.volume[0].level = 0x0A;
 	t_sco->sco.mic_pcm.volume[0].muted = true;
 	t_sco->sco.mic_pcm.volume[0].level = 0x05;
-	ck_assert_uint_eq(ba_transport_get_volume_packed(t_sco), 0x0A85);
+	ck_assert_uint_eq(ba_transport_pcm_get_volume_packed(&t_sco->sco.spk_pcm), 0x0A00);
+	ck_assert_uint_eq(ba_transport_pcm_get_volume_packed(&t_sco->sco.mic_pcm), 0x8500);
 
-	ck_assert_int_eq(ba_transport_set_volume_packed(t_sco, 0x8A0B), 0);
+	ck_assert_int_eq(ba_transport_pcm_set_volume_packed(&t_sco->sco.spk_pcm, 0x8A00), 0);
+	ck_assert_int_eq(ba_transport_pcm_set_volume_packed(&t_sco->sco.mic_pcm, 0x0B00), 0);
 	ck_assert_int_eq(!!t_sco->sco.spk_pcm.volume[0].muted, true);
 	ck_assert_int_eq(t_sco->sco.spk_pcm.volume[0].level, 10);
 	ck_assert_int_eq(!!t_sco->sco.mic_pcm.volume[0].muted, false);

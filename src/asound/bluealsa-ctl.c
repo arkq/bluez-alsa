@@ -141,7 +141,7 @@ static int bluealsa_dev_get_id(struct bluealsa_ctl *ctl, const struct ba_pcm *pc
 	return -1;
 }
 
-static void bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
+static int bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
 
 	DBusMessage *rep;
 	DBusError err = DBUS_ERROR_INIT;
@@ -149,7 +149,7 @@ static void bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev
 					dev->device_path, "org.bluez.Device1", "Alias", &err)) == NULL) {
 		SNDERR("Couldn't get device name: %s", err.message);
 		dbus_error_free(&err);
-		return;
+		return -1;
 	}
 
 	DBusMessageIter iter;
@@ -163,14 +163,15 @@ static void bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev
 	*stpncpy(dev->name, name, sizeof(dev->name) - 1) = '\0';
 
 	dbus_message_unref(rep);
+	return 0;
 }
 
-static void bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
+static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
 
 	DBusMessage *rep;
 	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, ctl->dbus_ctx.ba_service,
 					dev->rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, "Battery", NULL)) == NULL)
-		return;
+		return -1;
 
 	DBusMessageIter iter;
 	DBusMessageIter iter_val;
@@ -183,6 +184,7 @@ static void bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *
 	dev->battery_level = battery;
 
 	dbus_message_unref(rep);
+	return battery;
 }
 
 /**
@@ -307,18 +309,13 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	size_t i;
 
 	for (i = 0; i < ctl->pcm_list_size; i++) {
-		/* Every stream has two controls associated to itself - volume adjustment
-		 * and mute switch. A2DP transport contains only one stream. However, SCO
-		 * transport represent both streams - playback and capture. */
-		if (ctl->pcm_list[i].flags & BA_PCM_FLAG_PROFILE_A2DP)
-			count += 2;
-		if (ctl->pcm_list[i].flags & BA_PCM_FLAG_PROFILE_SCO) {
-			count += 4;
-			/* It is possible, that BT device battery level will be exposed via TTY
-			 * interface, so in order to account for a special "battery" element we
-			 * have to increment our element counter by one. */
-			count += 1;
-		}
+		/* Every stream has two controls associated to
+		 * itself - volume adjustment and mute switch. */
+		count += 2;
+		/* It is possible, that BT device battery level will be exposed via
+		 * RFCOMM interface, so in order to account for a special "battery"
+		 * element we have to increment our element counter by one. */
+		count += 1;
 	}
 
 	struct ctl_elem *elem_list = ctl->elem_list;
@@ -339,67 +336,29 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 		struct ba_pcm *pcm = &ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
 
-		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
+		elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
+		elem_list[count].dev = dev;
+		elem_list[count].pcm = pcm;
+		elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
+		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
+		count++;
 
-			elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
-			elem_list[count].dev = dev;
-			elem_list[count].pcm = pcm;
-			elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
-			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
-			count++;
+		elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
+		elem_list[count].dev = dev;
+		elem_list[count].pcm = pcm;
+		elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
+		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
+		count++;
 
-			elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
-			elem_list[count].dev = dev;
-			elem_list[count].pcm = pcm;
-			elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
-			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
-			count++;
-
-		}
-
-		if (pcm->flags & BA_PCM_FLAG_PROFILE_SCO) {
-
-			elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
+		/* Try to add special "battery" element. */
+		if (ctl->battery && dev->battery_level == -1 &&
+				bluealsa_dev_fetch_battery(ctl, dev) != -1) {
+			elem_list[count].type = CTL_ELEM_TYPE_BATTERY;
 			elem_list[count].dev = dev;
 			elem_list[count].pcm = pcm;
 			elem_list[count].playback = true;
 			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 			count++;
-
-			elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
-			elem_list[count].dev = dev;
-			elem_list[count].pcm = pcm;
-			elem_list[count].playback = true;
-			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
-			count++;
-
-			elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
-			elem_list[count].dev = dev;
-			elem_list[count].pcm = pcm;
-			elem_list[count].playback = false;
-			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
-			count++;
-
-			elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
-			elem_list[count].dev = dev;
-			elem_list[count].pcm = pcm;
-			elem_list[count].playback = false;
-			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
-			count++;
-
-			if (ctl->battery) {
-				/* Add special "battery" elements. */
-				bluealsa_dev_fetch_battery(ctl, dev);
-				if (dev->battery_level != -1) {
-					elem_list[count].type = CTL_ELEM_TYPE_BATTERY;
-					elem_list[count].dev = dev;
-					elem_list[count].pcm = pcm;
-					elem_list[count].playback = true;
-					bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
-					count++;
-				}
-			}
-
 		}
 
 	}
@@ -562,34 +521,14 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		value[0] = elem->dev->battery_level;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
-		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
-			value[0] = !pcm->volume.ch1_muted;
-			if (pcm->channels == 2)
-				value[1] = !pcm->volume.ch2_muted;
-		}
-		else if (pcm->flags & BA_PCM_FLAG_PROFILE_SCO) {
-			if (elem->playback)
-				value[0] = !pcm->volume.ch1_muted;
-			else
-				value[0] = !pcm->volume.ch2_muted;
-		}
-		else
-			return -EINVAL;
+		value[0] = !pcm->volume.ch1_muted;
+		if (pcm->channels == 2)
+			value[1] = !pcm->volume.ch2_muted;
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
-			value[0] = pcm->volume.ch1_volume;
-			if (pcm->channels == 2)
-				value[1] = pcm->volume.ch2_volume;
-		}
-		else if (pcm->flags & BA_PCM_FLAG_PROFILE_SCO) {
-			if (elem->playback)
-				value[0] = pcm->volume.ch1_volume;
-			else
-				value[0] = pcm->volume.ch2_volume;
-		}
-		else
-			return -EINVAL;
+		value[0] = pcm->volume.ch1_volume;
+		if (pcm->channels == 2)
+			value[1] = pcm->volume.ch2_volume;
 		break;
 	}
 
@@ -611,34 +550,14 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		/* this element should be read-only */
 		return -EINVAL;
 	case CTL_ELEM_TYPE_SWITCH:
-		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
-			pcm->volume.ch1_muted = !value[0];
-			if (pcm->channels == 2)
-				pcm->volume.ch2_muted = !value[1];
-		}
-		else if (pcm->flags & BA_PCM_FLAG_PROFILE_SCO) {
-			if (elem->playback)
-				pcm->volume.ch1_muted = !value[0];
-			else
-				pcm->volume.ch2_muted = !value[0];
-		}
-		else
-			return -EINVAL;
+		pcm->volume.ch1_muted = !value[0];
+		if (pcm->channels == 2)
+			pcm->volume.ch2_muted = !value[1];
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
-			pcm->volume.ch1_volume = value[0];
-			if (pcm->channels == 2)
-				pcm->volume.ch2_volume = value[1];
-		}
-		else if (pcm->flags & BA_PCM_FLAG_PROFILE_SCO) {
-			if (elem->playback)
-				pcm->volume.ch1_volume = value[0];
-			else
-				pcm->volume.ch2_volume = value[0];
-		}
-		else
-			return -EINVAL;
+		pcm->volume.ch1_volume = value[0];
+		if (pcm->channels == 2)
+			pcm->volume.ch2_volume = value[1];
 		break;
 	}
 

@@ -360,7 +360,7 @@ static int rfcomm_handler_vgm_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -372,7 +372,7 @@ static int rfcomm_handler_vgm_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 
 	t_sco->sco.mic_pcm.volume[0].level = c->gain_mic = atoi(at->value);
-	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -388,7 +388,7 @@ static int rfcomm_handler_vgs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -400,7 +400,7 @@ static int rfcomm_handler_vgs_resp_cb(struct rfcomm_conn *c, const struct bt_at 
 	struct ba_transport * const t_sco = t->rfcomm.sco;
 
 	t_sco->sco.spk_pcm.volume[0].level = c->gain_spk = atoi(at->value);
-	bluealsa_dbus_pcm_update(t_sco, BA_DBUS_PCM_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -447,7 +447,9 @@ static int rfcomm_handler_bcs_set_cb(struct rfcomm_conn *c, const struct bt_at *
 	/* Codec negotiation process is complete. Update transport and
 	 * notify connected clients, that transport has been changed. */
 	ba_transport_update_codec(t_sco, codec);
-	bluealsa_dbus_pcm_update(t_sco,
+	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
+			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 final:
@@ -472,7 +474,9 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct rfcomm_conn *c, const struct bt_
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - switching initiated by Audio Gateway. */
 	ba_transport_update_codec(t_sco, c->codec);
-	bluealsa_dbus_pcm_update(t_sco,
+	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
+			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 final:
@@ -940,7 +944,9 @@ void *rfcomm_thread(struct ba_transport *t) {
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					bluealsa_dbus_pcm_update(t->rfcomm.sco,
+					bluealsa_dbus_pcm_update(&t->rfcomm.sco->sco.spk_pcm,
+							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+					bluealsa_dbus_pcm_update(&t->rfcomm.sco->sco.mic_pcm,
 							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 				}
 
@@ -959,7 +965,9 @@ void *rfcomm_thread(struct ba_transport *t) {
 					rfcomm_set_hfp_state(&conn, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					bluealsa_dbus_pcm_update(t->rfcomm.sco,
+					bluealsa_dbus_pcm_update(&t->rfcomm.sco->sco.spk_pcm,
+							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+					bluealsa_dbus_pcm_update(&t->rfcomm.sco->sco.mic_pcm,
 							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 				}
 

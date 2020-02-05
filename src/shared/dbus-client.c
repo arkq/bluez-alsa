@@ -323,27 +323,14 @@ final:
 dbus_bool_t bluealsa_dbus_pcm_open(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
-		int operation_mode,
 		int *fd_pcm,
 		int *fd_pcm_ctrl,
 		DBusError *error) {
-
-	const char *mode = NULL;
-	if (operation_mode == BA_PCM_FLAG_SOURCE)
-		mode = "source";
-	else if (operation_mode == BA_PCM_FLAG_SINK)
-		mode = "sink";
 
 	DBusMessage *msg;
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
 					BLUEALSA_INTERFACE_PCM, "Open")) == NULL) {
 		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-		return FALSE;
-	}
-
-	if (!dbus_message_append_args(msg, DBUS_TYPE_STRING, &mode, DBUS_TYPE_INVALID)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-		dbus_message_unref(msg);
 		return FALSE;
 	}
 
@@ -534,24 +521,14 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		strncpy(pcm->device_path, tmp, sizeof(pcm->device_path) - 1);
 		path2ba(tmp, &pcm->addr);
 	}
-	else if (strcmp(key, "Modes") == 0) {
-		if (type != DBUS_TYPE_ARRAY &&
-				dbus_message_iter_get_element_type(variant) != DBUS_TYPE_STRING) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-					"Incorrect variant for '%s': %c%c != as", key,
-					type, dbus_message_iter_get_element_type(variant));
-			return FALSE;
-		}
-		DBusMessageIter iter_props_modes;
-		for (dbus_message_iter_recurse(variant, &iter_props_modes);
-				dbus_message_iter_get_arg_type(&iter_props_modes) != DBUS_TYPE_INVALID;
-				dbus_message_iter_next(&iter_props_modes)) {
-			dbus_message_iter_get_basic(&iter_props_modes, &tmp);
-			if (strcmp(tmp, "source") == 0)
-				pcm->flags |= BA_PCM_FLAG_SOURCE;
-			else if (strcmp(tmp, "sink") == 0)
-				pcm->flags |= BA_PCM_FLAG_SINK;
-		}
+	else if (strcmp(key, "Mode") == 0) {
+		if (type != (type_expected = DBUS_TYPE_STRING))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &tmp);
+		if (strcmp(tmp, "source") == 0)
+			pcm->flags |= BA_PCM_FLAG_SOURCE;
+		else if (strcmp(tmp, "sink") == 0)
+			pcm->flags |= BA_PCM_FLAG_SINK;
 	}
 	else if (strcmp(key, "Format") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))

@@ -1386,14 +1386,14 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			t->a2dp.delay = g_variant_get_uint16(value);
-			bluealsa_dbus_pcm_update(t, BA_DBUS_PCM_UPDATE_DELAY);
+			bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_DELAY);
 		}
 		else if (strcmp(property, "Volume") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127] */
 			const uint16_t volume = g_variant_get_uint16(value);
 			t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = volume;
-			bluealsa_dbus_pcm_update(t, BA_DBUS_PCM_UPDATE_VOLUME);
+			bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 		}
 
 		g_variant_unref(value);
