@@ -1,6 +1,6 @@
 /*
- * test-pcm.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * test-alsa-pcm.c
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -434,7 +434,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-	/* test-pcm and server-mock shall be placed in the same directory */
+	/* test-alsa-pcm and server-mock shall be placed in the same directory */
 	bin_path = dirname(argv[0]);
 
 	Suite *s = suite_create(__FILE__);

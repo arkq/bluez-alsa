@@ -1,22 +1,24 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2019 Arkadiusz Bokowy
+# Copyright (c) 2016-2020 Arkadiusz Bokowy
 
 TESTS = \
+	test-alsa-ctl \
+	test-alsa-pcm \
 	test-at \
 	test-ba \
 	test-io \
 	test-msbc \
-	test-pcm \
 	test-rfcomm \
 	test-utils
 
 check_PROGRAMS = \
 	server-mock \
+	test-alsa-ctl \
+	test-alsa-pcm \
 	test-at \
 	test-ba \
 	test-io \
 	test-msbc \
-	test-pcm \
 	test-rfcomm \
 	test-utils
 

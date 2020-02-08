@@ -106,6 +106,25 @@ static int transport_release_bt_rfcomm(struct ba_transport *t);
 static int transport_acquire_bt_sco(struct ba_transport *t);
 static int transport_release_bt_sco(struct ba_transport *t);
 
+static const char *transport_get_dbus_path_type(struct ba_transport *t) {
+	switch (t->type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		return "a2dpsrc";
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		return "a2dpsnk";
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+		return "hfphf";
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+		return "hfpag";
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		return "hsphs";
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		return "hspag";
+	default:
+		return NULL;
+	}
+}
+
 struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
 		struct ba_transport_type type,
@@ -145,7 +164,8 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	ba_transport_update_codec(t, type.codec);
 
-	t->a2dp.pcm.ba_dbus_path = g_strdup_printf("%s/a2dp/%s", device->ba_dbus_path,
+	t->a2dp.pcm.ba_dbus_path = g_strdup_printf("%s/%s/%s",
+			device->ba_dbus_path, transport_get_dbus_path_type(t),
 			t->a2dp.pcm.mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
 	bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
 
@@ -241,10 +261,12 @@ struct ba_transport *ba_transport_new_sco(
 
 	ba_transport_update_codec(t, type.codec);
 
-	t->sco.spk_pcm.ba_dbus_path = g_strdup_printf("%s/sco/sink", device->ba_dbus_path);
+	t->sco.spk_pcm.ba_dbus_path = g_strdup_printf("%s/%s/sink",
+			device->ba_dbus_path, transport_get_dbus_path_type(t));
 	bluealsa_dbus_pcm_register(&t->sco.spk_pcm, NULL);
 
-	t->sco.mic_pcm.ba_dbus_path = g_strdup_printf("%s/sco/source", device->ba_dbus_path);
+	t->sco.mic_pcm.ba_dbus_path = g_strdup_printf("%s/%s/source",
+			device->ba_dbus_path, transport_get_dbus_path_type(t));
 	bluealsa_dbus_pcm_register(&t->sco.mic_pcm, NULL);
 
 	return t;

@@ -26,8 +26,7 @@ PCM hierarchy
 
 Service         org.bluealsa[.unique ID]
 Interface       org.bluealsa.PCM1
-Object path     [variable prefix]/{hci0,...}/dev_XX_XX_XX_XX_XX_XX/a2dp/[mode]
-                [variable prefix]/{hci0,...}/dev_XX_XX_XX_XX_XX_XX/sco/[mode]
+Object path     [variable prefix]/{hci0,...}/dev_XX_XX_XX_XX_XX_XX/[type]/[mode]
 
 Methods         fd, fd Open()
 
@@ -45,8 +44,9 @@ Methods         fd, fd Open()
                 void SelectCodec(uint16 codec, dict props)
 
                         Select PCM codec. This call shall be made before PCM
-                        stream opening, otherwise the ongoing stream (or PCM
-                        counterpart: sink, source) will be terminated.
+                        stream opening for given transport type, otherwise the
+                        ongoing stream (or PCM counterpart: sink, source) will
+                        be terminated.
 
                         Possible Errors: dbus.Error.InvalidArguments
                                          dbus.Error.NotSupported
@@ -56,9 +56,16 @@ Properties      object Device [readonly]
 
                         BlueZ device object path.
 
+                string Transport [readonly]
+
+                        Underlying Bluetooth transport type.
+
+                        Possible values: "A2DP-sink", "A2DP-source", "HFP-AG",
+                                         "HFP-HF", "HSP-AG" or "HSP-HS"
+
                 string Mode [readonly]
 
-                        Stream operation mode.
+                        PCM stream operation mode (direction).
 
                         Possible values: "sink" or "source"
 
@@ -82,7 +89,8 @@ Properties      object Device [readonly]
 
                 uint16 Codec [readonly]
 
-                        Bluetooth transport codec.
+                        Bluetooth transport codec. The meaning of this value
+                        depends on the Bluetooth transport type.
 
                 uint16 Delay [readonly]
 
@@ -115,9 +123,9 @@ Methods         fd Open()
                         Possible Errors: dbus.Error.NotSupported
                                          dbus.Error.Failed
 
-Properties      string Mode [readonly]
+Properties      string Transport [readonly]
 
-                        HFP/HSP connection mode.
+                        HFP/HSP transport type.
 
                         Possible values: "HFP-AG", "HFP-HF", "HSP-AG" or
                                          "HSP-HS"

@@ -42,6 +42,23 @@ static GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
 	return g_variant_new_byte(d->battery_level);
 }
 
+static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
+		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_A2DP_SINK);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
+		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HFP_AG);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
+		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HFP_HF);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_AG)
+		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_AG);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_HS)
+		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_HS);
+	warn("Unsupported transport type: %#x", t->type.profile);
+	return g_variant_new_string("<none>");
+}
+
 static GVariant *ba_variant_new_rfcomm_features(const struct ba_transport *t) {
 	return g_variant_new_uint32(t->rfcomm.hfp_features);
 }
@@ -79,6 +96,7 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
 	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(props, "{sv}", "Device", ba_variant_new_device_path(pcm->t->d));
+	g_variant_builder_add(props, "{sv}", "Transport", ba_variant_new_transport_type(pcm->t));
 	g_variant_builder_add(props, "{sv}", "Mode", ba_variant_new_pcm_mode(pcm));
 	g_variant_builder_add(props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
 	g_variant_builder_add(props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
@@ -418,6 +436,8 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 
 	if (strcmp(property, "Device") == 0)
 		return ba_variant_new_device_path(d);
+	if (strcmp(property, "Transport") == 0)
+		return ba_variant_new_transport_type(pcm->t);
 	if (strcmp(property, "Mode") == 0)
 		return ba_variant_new_pcm_mode(pcm);
 	if (strcmp(property, "Format") == 0)
@@ -449,16 +469,8 @@ static GVariant *bluealsa_rfcomm_get_property(GDBusConnection *conn,
 	struct ba_transport *t = (struct ba_transport *)userdata;
 	struct ba_device *d = t->d;
 
-	if (strcmp(property, "Mode") == 0) {
-		if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
-			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HFP_AG);
-		if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
-			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HFP_HF);
-		if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_AG)
-			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HSP_AG);
-		if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_HS)
-			return g_variant_new_string(BLUEALSA_RFCOMM_MODE_HSP_HS);
-	}
+	if (strcmp(property, "Transport") == 0)
+		return ba_variant_new_transport_type(t);
 	if (strcmp(property, "Features") == 0)
 		return ba_variant_new_rfcomm_features(t);
 	if (strcmp(property, "Battery") == 0)

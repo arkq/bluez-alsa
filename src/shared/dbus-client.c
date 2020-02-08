@@ -479,11 +479,6 @@ dbus_bool_t bluealsa_dbus_message_iter_get_pcm(
 	dbus_message_iter_get_basic(iter, &path);
 	strncpy(pcm->pcm_path, path, sizeof(pcm->pcm_path) - 1);
 
-	if (strstr(path, "/a2dp") != NULL)
-		pcm->flags |= BA_PCM_FLAG_PROFILE_A2DP;
-	if (strstr(path, "/sco") != NULL)
-		pcm->flags |= BA_PCM_FLAG_PROFILE_SCO;
-
 	if (!dbus_message_iter_next(iter))
 		goto fail;
 
@@ -520,6 +515,15 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		dbus_message_iter_get_basic(variant, &tmp);
 		strncpy(pcm->device_path, tmp, sizeof(pcm->device_path) - 1);
 		path2ba(tmp, &pcm->addr);
+	}
+	else if (strcmp(key, "Transport") == 0) {
+		if (type != (type_expected = DBUS_TYPE_STRING))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &tmp);
+		if (strstr(tmp, "A2DP") != NULL)
+			pcm->flags |= BA_PCM_FLAG_PROFILE_A2DP;
+		else
+			pcm->flags |= BA_PCM_FLAG_PROFILE_SCO;
 	}
 	else if (strcmp(key, "Mode") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
