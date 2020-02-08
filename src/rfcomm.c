@@ -723,7 +723,7 @@ static int rfcomm_set_hfp_codec(struct rfcomm_conn *c, uint16_t codec) {
 	}
 
 	/* for AG request codec selection using unsolicited response code */
-	if (t->type.profile && BA_TRANSPORT_PROFILE_HFP_AG) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG) {
 		sprintf(tmp, "%d", codec);
 		if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp) == -1)
 			return -1;

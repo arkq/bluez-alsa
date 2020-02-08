@@ -21,7 +21,10 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
+
+#include <glib.h>
 
 #include "a2dp.h"
 #include "ba-device.h"

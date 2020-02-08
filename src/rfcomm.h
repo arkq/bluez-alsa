@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "at.h"
+#include "ba-transport.h"
 #include "hfp.h"
 
 /* Timeout for the command acknowledgment. */

@@ -15,6 +15,9 @@
 # include <config.h>
 #endif
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "ba-transport.h"
 
 ssize_t io_thread_read_pcm(struct ba_transport_pcm *pcm, int16_t *buffer, size_t samples);
