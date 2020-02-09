@@ -34,8 +34,8 @@
 #define BLUEALSA_PCM_MODE_SINK   "sink"
 #define BLUEALSA_PCM_MODE_SOURCE "source"
 
-const GDBusInterfaceInfo bluealsa_iface_manager;
-const GDBusInterfaceInfo bluealsa_iface_pcm;
-const GDBusInterfaceInfo bluealsa_iface_rfcomm;
+extern const GDBusInterfaceInfo bluealsa_iface_manager;
+extern const GDBusInterfaceInfo bluealsa_iface_pcm;
+extern const GDBusInterfaceInfo bluealsa_iface_rfcomm;
 
 #endif

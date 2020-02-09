@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-a2dp.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -58,6 +58,6 @@ struct bluez_a2dp_codec {
 };
 
 /* NULL-terminated list of available A2DP codecs */
-const struct bluez_a2dp_codec **bluez_a2dp_codecs;
+extern const struct bluez_a2dp_codec **bluez_a2dp_codecs;
 
 #endif

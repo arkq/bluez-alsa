@@ -22,6 +22,7 @@
 #include "../src/utils.c"
 #include "../src/shared/log.c"
 
+const struct bluez_a2dp_codec **bluez_a2dp_codecs = NULL;
 int a2dp_thread_create(struct ba_transport *t) { (void)t; return 0; }
 void *rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 void *sco_thread(struct ba_transport *t) { (void)t; return 0; }

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono-iface.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *               2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -27,6 +27,6 @@
 #define OFONO_AUDIO_CODEC_CVSD 0x01
 #define OFONO_AUDIO_CODEC_MSBC 0x02
 
-const GDBusInterfaceInfo ofono_iface_hf_audio_agent;
+extern const GDBusInterfaceInfo ofono_iface_hf_audio_agent;
 
 #endif

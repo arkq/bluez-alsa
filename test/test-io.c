@@ -33,6 +33,7 @@
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
+const struct bluez_a2dp_codec **bluez_a2dp_codecs = NULL;
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 	debug("%s: %p", __func__, (void *)pcm); (void)error; return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-iface.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -27,7 +27,7 @@
 #define BLUEZ_TRANSPORT_STATE_PENDING "pending"
 #define BLUEZ_TRANSPORT_STATE_ACTIVE  "active"
 
-const GDBusInterfaceInfo bluez_iface_endpoint;
-const GDBusInterfaceInfo bluez_iface_profile;
+extern const GDBusInterfaceInfo bluez_iface_endpoint;
+extern const GDBusInterfaceInfo bluez_iface_profile;
 
 #endif
