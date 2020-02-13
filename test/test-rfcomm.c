@@ -19,11 +19,11 @@
 
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
+#include "../src/ba-rfcomm.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
 #include "../src/at.c"
 #include "../src/hci.c"
-#include "../src/rfcomm.c"
 #include "../src/utils.c"
 #include "../src/shared/log.c"
 
@@ -49,8 +49,8 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); }
 unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error) {
 	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
-void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)t, mask); }
+void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
+	debug("%s: %p %#x", __func__, (void *)r, mask); }
 void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
 	debug("%s: %p", __func__, (void *)t); }
 int a2dp_thread_create(struct ba_transport *t) { (void)t; return -1; }

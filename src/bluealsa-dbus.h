@@ -17,6 +17,7 @@
 
 #include <glib.h>
 
+#include "ba-rfcomm.h"
 #include "ba-transport.h"
 
 #define BA_DBUS_PCM_UPDATE_FORMAT   (1 << 0)
@@ -36,7 +37,7 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask);
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm);
 
 unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error);
-void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask);
+void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask);
 void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t);
 
 #endif

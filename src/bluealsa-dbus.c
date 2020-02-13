@@ -59,8 +59,8 @@ static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
 	return g_variant_new_string("<none>");
 }
 
-static GVariant *ba_variant_new_rfcomm_features(const struct ba_transport *t) {
-	return g_variant_new_uint32(t->rfcomm.hfp_features);
+static GVariant *ba_variant_new_rfcomm_features(const struct ba_rfcomm *r) {
+	return g_variant_new_uint32(r->hfp_features);
 }
 
 static GVariant *ba_variant_new_pcm_mode(const struct ba_transport_pcm *pcm) {
@@ -385,10 +385,10 @@ static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 
 static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 
-	struct ba_transport *t = (struct ba_transport *)userdata;
+	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
 	int fds[2] = { -1, -1 };
 
-	if (t->rfcomm.handler_fd != -1) {
+	if (r->handler_fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "%s", strerror(EBUSY));
 		return;
@@ -400,8 +400,8 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 		return;
 	}
 
-	t->rfcomm.handler_fd = fds[0];
-	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
+	r->handler_fd = fds[0];
+	ba_transport_send_signal(r->sco->sco.rfcomm, BA_TRANSPORT_SIGNAL_PING);
 
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
 	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
@@ -466,13 +466,14 @@ static GVariant *bluealsa_rfcomm_get_property(GDBusConnection *conn,
 	(void)path;
 	(void)interface;
 
-	struct ba_transport *t = (struct ba_transport *)userdata;
+	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
+	struct ba_transport *t = r->sco;
 	struct ba_device *d = t->d;
 
 	if (strcmp(property, "Transport") == 0)
 		return ba_variant_new_transport_type(t);
 	if (strcmp(property, "Features") == 0)
-		return ba_variant_new_rfcomm_features(t);
+		return ba_variant_new_rfcomm_features(r);
 	if (strcmp(property, "Battery") == 0)
 		return ba_variant_new_device_battery(d);
 
@@ -582,23 +583,23 @@ unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **erro
 
 	if ((t->rfcomm.ba_dbus_id = g_dbus_connection_register_object(config.dbus,
 					t->rfcomm.ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
-					&vtable, t, NULL, error)) != 0)
+					&vtable, &t->rfcomm, NULL, error)) != 0)
 		ba_transport_ref(t);
 
 	return t->rfcomm.ba_dbus_id;
 }
 
-void bluealsa_dbus_rfcomm_update(struct ba_transport *t, unsigned int mask) {
+void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 
 	if (mask & BA_DBUS_RFCOMM_UPDATE_FEATURES)
-		g_variant_builder_add(&props, "{sv}", "Features", ba_variant_new_rfcomm_features(t));
+		g_variant_builder_add(&props, "{sv}", "Features", ba_variant_new_rfcomm_features(r));
 	if (mask & BA_DBUS_RFCOMM_UPDATE_BATTERY)
-		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(t->d));
+		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(r->sco->d));
 
-	g_dbus_connection_emit_signal(config.dbus, NULL, t->rfcomm.ba_dbus_path,
+	g_dbus_connection_emit_signal(config.dbus, NULL, r->ba_dbus_path,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged",
 			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_RFCOMM, &props, NULL), NULL);
 

@@ -1,6 +1,6 @@
 /*
- * BlueALSA - rfcomm.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * BlueALSA - ba-rfcomm.h
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,30 +8,33 @@
  *
  */
 
-#ifndef BLUEALSA_RFCOMM_H_
-#define BLUEALSA_RFCOMM_H_
+#ifndef BLUEALSA_BARFCOMM_H_
+#define BLUEALSA_BARFCOMM_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
 #endif
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "at.h"
-#include "ba-transport.h"
 #include "hfp.h"
 
 /* Timeout for the command acknowledgment. */
-#define RFCOMM_TIMEOUT_ACK 1000
+#define BA_RFCOMM_TIMEOUT_ACK 1000
 /* Timeout for the connection idle state. */
-#define RFCOMM_TIMEOUT_IDLE 2500
+#define BA_RFCOMM_TIMEOUT_IDLE 2500
 /* Number of retries during the SLC stage. */
-#define RFCOMM_SLC_RETRIES 10
+#define BA_RFCOMM_SLC_RETRIES 10
 
 /**
- * Structure used for RFCOMM state synchronization. */
-struct rfcomm_conn {
+ * Data associated with RFCOMM communication. */
+struct ba_rfcomm {
+
+	/* associated SCO transport */
+	struct ba_transport *sco;
 
 	/* service level connection state */
 	enum hfp_slc_state state;
@@ -41,9 +44,12 @@ struct rfcomm_conn {
 	enum hfp_setup setup;
 
 	/* handler used for sync response dispatching */
-	const struct rfcomm_handler *handler;
+	const struct ba_rfcomm_handler *handler;
 	enum hfp_slc_state handler_resp_ok_new_state;
 	bool handler_resp_ok_success;
+
+	/* external RFCOMM handler */
+	int handler_fd;
 
 	/* determine whether connection is idle */
 	bool idle;
@@ -51,9 +57,20 @@ struct rfcomm_conn {
 	/* number of failed communication attempts */
 	int retries;
 
+	/* AG/HF supported features bitmask */
+	uint32_t hfp_features;
+
+	/* codec selection synchronization */
+	pthread_mutex_t codec_selection_completed_mtx;
+	pthread_cond_t codec_selection_completed;
+
 	/* requested codec by the AG */
 	int codec;
 
+	/* received AG indicator values */
+	unsigned char hfp_ind[__HFP_IND_MAX];
+	/* indicator activation state */
+	bool hfp_ind_state[__HFP_IND_MAX];
 	/* 0-based indicators index */
 	enum hfp_ind hfp_ind_map[20];
 
@@ -69,23 +86,24 @@ struct rfcomm_conn {
 	bool msbc;
 #endif
 
-	/* associated transport */
-	struct ba_transport *t;
+	/* exported RFCOMM D-Bus API */
+	char *ba_dbus_path;
+	unsigned int ba_dbus_id;
 
 };
 
 /**
  * Callback function used for RFCOMM AT message dispatching. */
-typedef int rfcomm_callback(struct rfcomm_conn *c, const struct bt_at *at);
+typedef int ba_rfcomm_callback(struct ba_rfcomm *r, const struct bt_at *at);
 
 /**
  * AT message dispatching handler. */
-struct rfcomm_handler {
+struct ba_rfcomm_handler {
 	enum bt_at_type type;
 	const char *command;
-	rfcomm_callback *callback;
+	ba_rfcomm_callback *callback;
 };
 
-void *rfcomm_thread(struct ba_transport *t);
+void *ba_rfcomm_thread(struct ba_transport *t);
 
 #endif

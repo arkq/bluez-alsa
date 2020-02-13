@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "ba-device.h"
+#include "ba-rfcomm.h"
 #include "hfp.h"
 
 #define BA_TRANSPORT_PROFILE_NONE        (0)
@@ -196,30 +197,7 @@ struct ba_transport {
 
 		} a2dp;
 
-		struct {
-
-			/* associated SCO transport */
-			struct ba_transport *sco;
-
-			/* AG/HF supported features bitmask */
-			uint32_t hfp_features;
-			/* received AG indicator values */
-			unsigned char hfp_inds[__HFP_IND_MAX];
-			/* indicator activation state */
-			bool hfp_inds_state[__HFP_IND_MAX];
-
-			/* codec selection synchronization */
-			pthread_mutex_t codec_selection_completed_mtx;
-			pthread_cond_t codec_selection_completed;
-
-			/* exported RFCOMM D-Bus API */
-			char *ba_dbus_path;
-			unsigned int ba_dbus_id;
-
-			/* external RFCOMM handler */
-			int handler_fd;
-
-		} rfcomm;
+		struct ba_rfcomm rfcomm;
 
 		struct {
 

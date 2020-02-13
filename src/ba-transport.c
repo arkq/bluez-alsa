@@ -31,12 +31,12 @@
 #include "a2dp.h"
 #include "a2dp-codecs.h"
 #include "ba-adapter.h"
+#include "ba-rfcomm.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "hci.h"
 #include "hfp.h"
-#include "rfcomm.h"
 #include "sco.h"
 #include "utils.h"
 #include "shared/defs.h"
@@ -915,7 +915,7 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 			if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 				ret = a2dp_thread_create(t);
 			else if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
-				ret = ba_transport_pthread_create(t, rfcomm_thread, "ba-rfcomm");
+				ret = ba_transport_pthread_create(t, ba_rfcomm_thread, "ba-rfcomm");
 			else
 				ret = ba_transport_pthread_create(t, sco_thread, "ba-sco");
 		}
