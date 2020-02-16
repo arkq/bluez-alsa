@@ -244,17 +244,12 @@ struct ba_transport *ba_transport_new_a2dp(
 		const char *dbus_path,
 		const void *cconfig,
 		size_t cconfig_size);
-struct ba_transport *ba_transport_new_rfcomm(
-		struct ba_device *device,
-		struct ba_transport_type type,
-		const char *dbus_owner,
-		const char *dbus_path);
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		struct ba_transport *rfcomm);
+		int rfcomm_fd);
 
 struct ba_transport *ba_transport_lookup(
 		struct ba_device *device,

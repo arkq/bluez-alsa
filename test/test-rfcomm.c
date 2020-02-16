@@ -60,25 +60,22 @@ START_TEST(test_rfcomm) {
 
 	memset(adapter->hci.features, 0, sizeof(adapter->hci.features));
 
-	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_rfcomm(device, ttype_ag, ":test", "/rfcomm/ag");
-	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_rfcomm(device, ttype_hf, ":test", "/rfcomm/hf");
-
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
-	ag->bt_fd = fds[0];
-	hf->bt_fd = fds[1];
+	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
+	struct ba_transport *ag = ba_transport_new_sco(device, ttype_ag, ":test", "/sco/ag", fds[0]);
+	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
+	struct ba_transport *hf = ba_transport_new_sco(device, ttype_hf, ":test", "/sco/hf", fds[1]);
 
-	ck_assert_int_eq(ag->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
-	ck_assert_int_eq(hf->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
 	transport_codec_updated_cnt = 0;
 
-	ck_assert_int_eq(ba_transport_set_state(ag, BA_TRANSPORT_STATE_ACTIVE), 0);
-	ck_assert_int_eq(ba_transport_set_state(hf, BA_TRANSPORT_STATE_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(ag->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(hf->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
 
 	/* wait for SLC established signals */
 	while (transport_codec_updated_cnt < 2)
@@ -88,11 +85,16 @@ START_TEST(test_rfcomm) {
 
 	ck_assert_int_eq(device->ref_count, 1 + 4);
 
-	ck_assert_int_eq(ag->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
-	ck_assert_int_eq(hf->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 
 	ba_transport_destroy(ag);
-	ba_transport_destroy(hf);
+	/* The hf transport shall be destroyed by the "link lost" quirk. However,
+	 * we have to wait "some" time before reference counter check, because
+	 * this action is asynchronous from our point of view. */
+	ba_transport_unref(hf);
+	usleep(100000);
+
 	ck_assert_int_eq(device->ref_count, 1);
 
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
@@ -104,30 +106,30 @@ START_TEST(test_rfcomm_esco) {
 	adapter->hci.features[2] = LMP_TRSP_SCO;
 	adapter->hci.features[3] = LMP_ESCO;
 
-	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_rfcomm(device, ttype_ag, ":test", "/rfcomm/ag");
-	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_rfcomm(device, ttype_hf, ":test", "/rfcomm/hf");
-
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
-	ag->bt_fd = fds[0];
-	hf->bt_fd = fds[1];
+	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
+	struct ba_transport *ag = ba_transport_new_sco(device, ttype_ag, ":test", "/sco/ag", fds[0]);
+	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
+	struct ba_transport *hf = ba_transport_new_sco(device, ttype_hf, ":test", "/sco/hf", fds[1]);
+
+	ag->sco.rfcomm->rfcomm.link_lost_quirk = false;
+	hf->sco.rfcomm->rfcomm.link_lost_quirk = false;
 
 #if ENABLE_MSBC
-	ck_assert_int_eq(ag->rfcomm.sco->type.codec, HFP_CODEC_UNDEFINED);
-	ck_assert_int_eq(hf->rfcomm.sco->type.codec, HFP_CODEC_UNDEFINED);
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_UNDEFINED);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_UNDEFINED);
 #else
-	ck_assert_int_eq(ag->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
-	ck_assert_int_eq(hf->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 #endif
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
 	transport_codec_updated_cnt = 0;
 
-	ck_assert_int_eq(ba_transport_set_state(ag, BA_TRANSPORT_STATE_ACTIVE), 0);
-	ck_assert_int_eq(ba_transport_set_state(hf, BA_TRANSPORT_STATE_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(ag->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
+	ck_assert_int_eq(ba_transport_set_state(hf->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
 
 	/* wait for SLC established signals */
 	while (transport_codec_updated_cnt < 2)
@@ -146,15 +148,16 @@ START_TEST(test_rfcomm_esco) {
 #endif
 
 #if ENABLE_MSBC
-	ck_assert_int_eq(ag->rfcomm.sco->type.codec, HFP_CODEC_MSBC);
-	ck_assert_int_eq(hf->rfcomm.sco->type.codec, HFP_CODEC_MSBC);
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_MSBC);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_MSBC);
 #else
-	ck_assert_int_eq(ag->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
-	ck_assert_int_eq(hf->rfcomm.sco->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 #endif
 
 	ba_transport_destroy(ag);
 	ba_transport_destroy(hf);
+
 	ck_assert_int_eq(device->ref_count, 1);
 
 	pthread_mutex_unlock(&transport_codec_updated_mtx);

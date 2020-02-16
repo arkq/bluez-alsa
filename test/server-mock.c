@@ -130,7 +130,7 @@ struct ba_transport *test_transport_new_sco(struct ba_device *d,
 		struct ba_transport_type type, const char *owner, const char *path) {
 	if (fuzzing)
 		sleep(1);
-	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, NULL);
+	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, -1);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release;
 	return t;

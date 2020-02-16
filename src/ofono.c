@@ -166,7 +166,7 @@ static struct ba_transport *ofono_transport_new(
 
 	struct ba_transport *t;
 
-	if ((t = ba_transport_new_sco(device, type, dbus_owner, dbus_path, NULL)) == NULL)
+	if ((t = ba_transport_new_sco(device, type, dbus_owner, dbus_path, -1)) == NULL)
 		return NULL;
 
 	t->sco.ofono = true;

@@ -172,42 +172,33 @@ struct ba_transport *ba_transport_new_a2dp(
 	return t;
 }
 
-struct ba_transport *ba_transport_new_rfcomm(
-		struct ba_device *device,
-		struct ba_transport_type type,
-		const char *dbus_owner,
-		const char *dbus_path) {
+static struct ba_transport *ba_transport_new_rfcomm(
+		struct ba_transport *sco,
+		int rfcomm_fd) {
 
-	struct ba_transport *t, *t_sco;
-	char dbus_path_sco[64];
-	int err;
+	struct ba_device *d = sco->d;
+	struct ba_transport *t;
+	char dbus_path[64];
 
-	if ((t = ba_transport_new(device, dbus_owner, dbus_path)) == NULL)
+	snprintf(dbus_path, sizeof(dbus_path), "%s/rfcomm", sco->bluez_dbus_path);
+	if ((t = ba_transport_new(d, sco->bluez_dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
-	t->type.profile = type.profile | BA_TRANSPORT_PROFILE_RFCOMM;
+	t->type.profile = sco->type.profile | BA_TRANSPORT_PROFILE_RFCOMM;
 	t->rfcomm.handler_fd = -1;
-
-	snprintf(dbus_path_sco, sizeof(dbus_path_sco), "%s/sco", dbus_path);
-	if ((t_sco = ba_transport_new_sco(device, type, dbus_owner, dbus_path_sco, t)) == NULL)
-		goto fail;
 
 	pthread_mutex_init(&t->rfcomm.codec_selection_completed_mtx, NULL);
 	pthread_cond_init(&t->rfcomm.codec_selection_completed, NULL);
 
-	t->rfcomm.sco = t_sco;
+	t->bt_fd = rfcomm_fd;
+	t->rfcomm.sco = ba_transport_ref(sco);
 	t->release = transport_release_bt_rfcomm;
+	t->rfcomm.link_lost_quirk = true;
 
-	t->rfcomm.ba_dbus_path = g_strdup_printf("%s/rfcomm", device->ba_dbus_path);
+	t->rfcomm.ba_dbus_path = g_strdup_printf("%s/rfcomm", d->ba_dbus_path);
 	bluealsa_dbus_rfcomm_register(t, NULL);
 
 	return t;
-
-fail:
-	err = errno;
-	ba_transport_unref(t);
-	errno = err;
-	return NULL;
 }
 
 struct ba_transport *ba_transport_new_sco(
@@ -215,9 +206,10 @@ struct ba_transport *ba_transport_new_sco(
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		struct ba_transport *rfcomm) {
+		int rfcomm_fd) {
 
 	struct ba_transport *t;
+	int err;
 
 	if ((t = ba_transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
@@ -237,27 +229,28 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->type = type;
 
-	if (rfcomm != NULL)
-		t->sco.rfcomm = ba_transport_ref(rfcomm);
-
-	t->sco.spk_pcm.volume[0].level = 15;
-	t->sco.mic_pcm.volume[0].level = 15;
-
 	t->sco.spk_pcm.t = t;
 	t->sco.spk_pcm.fd = -1;
 	t->sco.spk_pcm.client = -1;
 	t->sco.spk_pcm.mode = BA_TRANSPORT_PCM_MODE_SINK;
+	t->sco.spk_pcm.volume[0].level = 15;
 
 	t->sco.mic_pcm.t = t;
 	t->sco.mic_pcm.fd = -1;
 	t->sco.mic_pcm.client = -1;
 	t->sco.mic_pcm.mode = BA_TRANSPORT_PCM_MODE_SOURCE;
+	t->sco.mic_pcm.volume[0].level = 15;
 
 	pthread_mutex_init(&t->sco.spk_drained_mtx, NULL);
 	pthread_cond_init(&t->sco.spk_drained, NULL);
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
+
+	if (rfcomm_fd != -1) {
+		if ((t->sco.rfcomm = ba_transport_new_rfcomm(t, rfcomm_fd)) == NULL)
+			goto fail;
+	}
 
 	ba_transport_update_codec(t, type.codec);
 
@@ -270,6 +263,12 @@ struct ba_transport *ba_transport_new_sco(
 	bluealsa_dbus_pcm_register(&t->sco.mic_pcm, NULL);
 
 	return t;
+
+fail:
+	err = errno;
+	ba_transport_unref(t);
+	errno = err;
+	return NULL;
 }
 
 struct ba_transport *ba_transport_lookup(
@@ -322,13 +321,17 @@ void ba_transport_destroy(struct ba_transport *t) {
 
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
+	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
+		t->rfcomm.link_lost_quirk = false;
 		bluealsa_dbus_rfcomm_unregister(t);
+	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
 		bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
+		ba_transport_destroy(t->sco.rfcomm);
+		t->sco.rfcomm = NULL;
 	}
 
 	/* If the transport is active, prior to releasing resources, we have to
@@ -1096,13 +1099,11 @@ static int transport_release_bt_rfcomm(struct ba_transport *t) {
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
-	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
-	 * link has been lost (e.g. device power down). However, it is required to
-	 * remove all references, otherwise resources will not be freed. */
-	bluealsa_dbus_rfcomm_unregister(t);
-
 	if (t->rfcomm.sco != NULL) {
-		ba_transport_destroy(t->rfcomm.sco);
+		if (t->rfcomm.link_lost_quirk)
+			ba_transport_destroy(t->rfcomm.sco);
+		else
+			ba_transport_unref(t->rfcomm.sco);
 		t->rfcomm.sco = NULL;
 	}
 

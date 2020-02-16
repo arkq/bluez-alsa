@@ -543,7 +543,7 @@ START_TEST(test_a2dp_ldac) {
 START_TEST(test_sco_cvsd) {
 
 	struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_HSP_AG };
-	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/cvsd", NULL);
+	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/cvsd", -1);
 
 	t->mtu_read = t->mtu_write = 48;
 	t->acquire = test_transport_acquire;
@@ -559,7 +559,7 @@ START_TEST(test_sco_msbc) {
 	struct ba_transport_type ttype = {
 		.profile = BA_TRANSPORT_PROFILE_HFP_AG,
 		.codec = HFP_CODEC_MSBC };
-	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/msbc", NULL);
+	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/msbc", -1);
 
 	t->mtu_read = t->mtu_write = 24;
 	t->acquire = test_transport_acquire;

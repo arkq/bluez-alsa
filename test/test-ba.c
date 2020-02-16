@@ -116,7 +116,7 @@ START_TEST(test_ba_transport_volume_packed) {
 				"/owner", "/path", &cconfig, sizeof(cconfig)), NULL);
 
 	struct ba_transport_type ttype_sco = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path", NULL), NULL);
+	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path", -1), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);

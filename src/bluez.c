@@ -952,13 +952,11 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if ((t = ba_transport_new_rfcomm(d, dbus_obj->ttype,
-					sender, device_path)) == NULL) {
+	if ((t = ba_transport_new_sco(d, dbus_obj->ttype,
+					sender, device_path, fd)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
-
-	t->bt_fd = fd;
 
 	if (sco_setup_connection_dispatcher(a) == -1) {
 		error("Couldn't setup SCO connection dispatcher: %s", strerror(errno));
@@ -970,7 +968,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 			batostr_(&d->addr));
 
 	ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
-	ba_transport_set_state(t->rfcomm.sco, BA_TRANSPORT_STATE_ACTIVE);
+	ba_transport_set_state(t->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);

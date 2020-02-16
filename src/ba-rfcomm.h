@@ -90,6 +90,13 @@ struct ba_rfcomm {
 	char *ba_dbus_path;
 	unsigned int ba_dbus_id;
 
+	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
+	 * link has been lost (e.g. device power down). However, it is required to
+	 * remove all references, otherwise resources will not be freed. If this
+	 * quirk workaround is enabled, RFCOMM link lost will trigger SCO transport
+	 * destroy rather than a simple unreferencing. */
+	bool link_lost_quirk;
+
 };
 
 /**
