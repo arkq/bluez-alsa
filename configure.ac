@@ -171,6 +171,15 @@ AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
 	[alsaplugindir="$withval"],
 	[alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
+
+# Unfortunately, for ALSA >= 1.1.7 the directory for add-on configuration files
+# is hard-coded as /etc/alsa/conf.d (unless the distribution has patched the
+# source codes). So, we will use that value as a default, unless (for backwards
+# compatibility) the user overrides it with --prefix or --sysconfdir option.
+if test "$sysconfdir" = "\${prefix}/etc"; then
+	test "x$prefix" = xNONE && sysconfdir=/etc
+fi
+
 AC_ARG_WITH([alsaconfdir],
 	AS_HELP_STRING([--with-alsaconfdir=dir], [path to ALSA add-on configuration files]),
 	[alsaconfdir="$withval"],
