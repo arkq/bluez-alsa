@@ -1,6 +1,8 @@
 unreleased
 ==========
 
+- optional support for Android 13 A2DP Opus codec
+
 bluez-alsa v4.2.0 (2024-05-11)
 ==========
 

@@ -48,6 +48,8 @@ Dependencies:
   `--enable-mpg123`)
 - [openaptx](https://github.com/arkq/openaptx) (when apt-X support is enabled
   with `--enable-aptx` and/or `--enable-aptx-hd`)
+- [opus](https://opus-codec.org/) (when Opus support is enabled with
+  `--enable-opus`)
 - [spandsp](https://www.soft-switch.org) (when mSBC support is enabled with
   `--enable-msbc`)
 

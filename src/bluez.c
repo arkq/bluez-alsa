@@ -387,6 +387,10 @@ static const char *bluez_get_media_endpoint_object_path(
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "/A2DP/LDAC/source";
 #endif
+#if ENABLE_OPUS
+		case A2DP_CODEC_VENDOR_OPUS:
+			return "/A2DP/Opus/source";
+#endif
 		default:
 			error("Unsupported A2DP codec: %#x", codec_id);
 			g_assert_not_reached();
@@ -422,6 +426,10 @@ static const char *bluez_get_media_endpoint_object_path(
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "/A2DP/LDAC/sink";
+#endif
+#if ENABLE_OPUS
+		case A2DP_CODEC_VENDOR_OPUS:
+			return "/A2DP/Opus/sink";
 #endif
 		default:
 			error("Unsupported A2DP codec: %#x", codec_id);

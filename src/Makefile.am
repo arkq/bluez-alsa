@@ -109,6 +109,11 @@ bluealsa_SOURCES += \
 	sco-msbc.c
 endif
 
+if ENABLE_OPUS
+bluealsa_SOURCES += \
+	a2dp-opus.c
+endif
+
 if ENABLE_OFONO
 bluealsa_SOURCES += \
 	ofono.c \
@@ -136,6 +141,7 @@ AM_CFLAGS = \
 	@LIBUNWIND_CFLAGS@ \
 	@MP3LAME_CFLAGS@ \
 	@MPG123_CFLAGS@ \
+	@OPUS_CFLAGS@ \
 	@SBC_CFLAGS@ \
 	@SPANDSP_CFLAGS@
 
@@ -155,6 +161,7 @@ LDADD = \
 	@LIBUNWIND_LIBS@ \
 	@MP3LAME_LIBS@ \
 	@MPG123_LIBS@ \
+	@OPUS_LIBS@ \
 	@SBC_LIBS@ \
 	@SPANDSP_LIBS@
 

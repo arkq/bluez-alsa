@@ -60,6 +60,9 @@
 #if ENABLE_MPEG
 # include "a2dp-mpeg.h"
 #endif
+#if ENABLE_OPUS
+# include "a2dp-opus.h"
+#endif
 #include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-config.h"
@@ -108,6 +111,8 @@ void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_sbc_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm);
 void *sco_dec_thread(struct ba_transport_pcm *t_pcm);
@@ -201,6 +206,13 @@ static const a2dp_ldac_t config_ldac_44100_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 	.frequency = LDAC_SAMPLING_FREQ_44100,
 	.channel_mode = LDAC_CHANNEL_MODE_STEREO,
+};
+
+__attribute__ ((unused))
+static const a2dp_opus_t config_opus_48000_stereo = {
+	.frequency = OPUS_SAMPLING_FREQ_48000,
+	.frame_duration = OPUS_FRAME_DURATION_100,
+	.channel_mode = OPUS_CHANNEL_MODE_STEREO,
 };
 
 static struct ba_adapter *adapter = NULL;
@@ -1190,6 +1202,32 @@ CK_START_TEST(test_a2dp_ldac) {
 } CK_END_TEST
 #endif
 
+#if ENABLE_OPUS
+CK_START_TEST(test_a2dp_opus) {
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/opus", &a2dp_opus_source,
+			&config_opus_48000_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/opus", &a2dp_opus_source,
+			&config_opus_48000_stereo);
+
+	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+
+	if (aging_duration) {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
+		test_io(t1_pcm, t2_pcm, a2dp_opus_enc_thread, a2dp_opus_dec_thread, 4 * 1024);
+	}
+	else {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
+		test_io(t1_pcm, t2_pcm, a2dp_opus_enc_thread, test_io_thread_dump_bt, 2 * 1024);
+		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_opus_dec_thread, 2 * 1024);
+	}
+
+} CK_END_TEST
+#endif
+
 CK_START_TEST(test_sco_cvsd) {
 
 	struct ba_transport *t1 = test_transport_new_sco(device1,
@@ -1298,6 +1336,9 @@ int main(int argc, char *argv[]) {
 #endif
 #if ENABLE_LDAC
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), test_a2dp_ldac },
+#endif
+#if ENABLE_OPUS
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_OPUS), test_a2dp_opus },
 #endif
 		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), test_sco_cvsd },
 #if ENABLE_MSBC

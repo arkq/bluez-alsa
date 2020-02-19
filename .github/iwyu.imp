@@ -39,6 +39,8 @@
 
 	{ include: [ '<fmt123.h>', private, '<mpg123.h>', public ] },
 
+	{ include: [ '"opus_defines.h"', private, '<opus.h>', public ] },
+
 	{ include: [ '<spandsp/plc.h>', private, '<spandsp.h>', public ] },
 
 ]

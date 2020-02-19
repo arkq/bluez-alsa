@@ -38,6 +38,9 @@
 #if ENABLE_MPEG
 # include "a2dp-mpeg.h"
 #endif
+#if ENABLE_OPUS
+# include "a2dp-opus.h"
+#endif
 #include "a2dp-sbc.h"
 #include "ba-config.h"
 #include "ba-transport.h"
@@ -45,6 +48,10 @@
 #include "shared/log.h"
 
 struct a2dp_codec * const a2dp_codecs[] = {
+#if ENABLE_OPUS
+	&a2dp_opus_source,
+	&a2dp_opus_sink,
+#endif
 #if ENABLE_LC3PLUS
 	&a2dp_lc3plus_source,
 	&a2dp_lc3plus_sink,

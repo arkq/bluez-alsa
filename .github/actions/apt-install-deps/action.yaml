@@ -26,6 +26,7 @@ runs:
           libmpg123-dev
           libncurses5-dev
           libopenaptx-dev
+          libopus-dev
           libreadline-dev
           libsbc-dev
           libspandsp-dev

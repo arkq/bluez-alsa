@@ -66,6 +66,7 @@ bluealsa_mock_CFLAGS = \
 	@LIBUNWIND_CFLAGS@ \
 	@MP3LAME_CFLAGS@ \
 	@MPG123_CFLAGS@ \
+	@OPUS_CFLAGS@ \
 	@SBC_CFLAGS@ \
 	@SPANDSP_CFLAGS@
 
@@ -85,6 +86,7 @@ bluealsa_mock_LDADD = \
 	@LIBUNWIND_LIBS@ \
 	@MP3LAME_LIBS@ \
 	@MPG123_LIBS@ \
+	@OPUS_LIBS@ \
 	@SBC_LIBS@ \
 	@SPANDSP_LIBS@
 
@@ -137,6 +139,10 @@ if ENABLE_MSBC
 bluealsa_mock_SOURCES += \
 	../../src/codec-msbc.c \
 	../../src/sco-msbc.c
+endif
+
+if ENABLE_OPUS
+bluealsa_mock_SOURCES += ../../src/a2dp-opus.c
 endif
 
 if ENABLE_UPOWER

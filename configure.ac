@@ -263,6 +263,14 @@ AM_COND_IF([ENABLE_MSBC], [
 	AC_DEFINE([ENABLE_MSBC], [1], [Define to 1 if mSBC is enabled.])
 ])
 
+AC_ARG_ENABLE([opus],
+	AS_HELP_STRING([--enable-opus], [enable Opus support]))
+AM_CONDITIONAL([ENABLE_OPUS], [test "x$enable_opus" = "xyes"])
+AM_COND_IF([ENABLE_OPUS], [
+	PKG_CHECK_MODULES([OPUS], [opus >= 1.0.0])
+	AC_DEFINE([ENABLE_OPUS], [1], [Define to 1 if Opus is enabled.])
+])
+
 AC_ARG_ENABLE([ofono],
 	AS_HELP_STRING([--enable-ofono], [enable HFP over oFono]))
 AM_CONDITIONAL([ENABLE_OFONO], [test "x$enable_ofono" = "xyes"])
