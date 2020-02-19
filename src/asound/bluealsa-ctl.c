@@ -305,6 +305,9 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 
 static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
+	if (ctl->pcm_list_size == 0)
+		return 0;
+
 	size_t count = 0;
 	size_t i;
 
@@ -319,8 +322,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	}
 
 	struct ctl_elem *elem_list = ctl->elem_list;
-	if ((elem_list = realloc(elem_list, count * sizeof(*elem_list))) == NULL &&
-			count > 0)
+	if ((elem_list = realloc(elem_list, count * sizeof(*elem_list))) == NULL)
 		return -1;
 
 	/* Clear device mask, so we can distinguish currently used and unused (old)
