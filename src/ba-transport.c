@@ -330,7 +330,8 @@ void ba_transport_destroy(struct ba_transport *t) {
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
 		bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
-		ba_transport_destroy(t->sco.rfcomm);
+		if (t->sco.rfcomm != NULL)
+			ba_transport_destroy(t->sco.rfcomm);
 		t->sco.rfcomm = NULL;
 	}
 
@@ -444,8 +445,8 @@ int ba_transport_select_codec(
 		if (t->type.codec == codec)
 			return 0;
 
-		/* we have no access to RFCOMM with oFono back-end */
-		if (t->sco.ofono)
+		/* with oFono back-end we have no access to RFCOMM */
+		if (t->sco.rfcomm == NULL)
 			return errno = ENOTSUP, -1;
 
 		struct ba_transport * const t_rfcomm = t->sco.rfcomm;

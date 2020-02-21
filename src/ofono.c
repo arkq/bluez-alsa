@@ -137,14 +137,7 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
-
 	t->bt_fd = -1;
-	t->type.codec = HFP_CODEC_UNDEFINED;
-
-	bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 	return 0;
 }
@@ -169,7 +162,6 @@ static struct ba_transport *ofono_transport_new(
 	if ((t = ba_transport_new_sco(device, type, dbus_owner, dbus_path, -1)) == NULL)
 		return NULL;
 
-	t->sco.ofono = true;
 	t->acquire = ofono_acquire_bt_sco;
 	t->release = ofono_release_bt_sco;
 
@@ -384,9 +376,9 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	debug("New oFono SCO connection (codec: %#x): %d", codec, fd);
 
 	t->bt_fd = fd;
-	t->type.codec = codec;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 
+	ba_transport_update_codec(t, codec);
 	bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 	bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
