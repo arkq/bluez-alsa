@@ -94,6 +94,10 @@ int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
 	if (setsockopt(sco_fd, SOL_BLUETOOTH, BT_VOICE, &opt, sizeof(opt)) == -1)
 		return -1;
 
+	struct timeval tv = { .tv_sec = 5 };
+	if (setsockopt(sco_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) == -1)
+		warn("Couldn't set SCO connection timeout: %s", strerror(errno));
+
 	if (connect(sco_fd, (struct sockaddr *)&addr_dev, sizeof(addr_dev)) == -1)
 		return -1;
 
