@@ -102,7 +102,6 @@ fail:
  * locations and use forward declarations instead. */
 static int transport_acquire_bt_a2dp(struct ba_transport *t);
 static int transport_release_bt_a2dp(struct ba_transport *t);
-static int transport_release_bt_rfcomm(struct ba_transport *t);
 static int transport_acquire_bt_sco(struct ba_transport *t);
 static int transport_release_bt_sco(struct ba_transport *t);
 
@@ -172,35 +171,6 @@ struct ba_transport *ba_transport_new_a2dp(
 	return t;
 }
 
-static struct ba_transport *ba_transport_new_rfcomm(
-		struct ba_transport *sco,
-		int rfcomm_fd) {
-
-	struct ba_device *d = sco->d;
-	struct ba_transport *t;
-	char dbus_path[64];
-
-	snprintf(dbus_path, sizeof(dbus_path), "%s/rfcomm", sco->bluez_dbus_path);
-	if ((t = ba_transport_new(d, sco->bluez_dbus_owner, dbus_path)) == NULL)
-		return NULL;
-
-	t->type.profile = sco->type.profile | BA_TRANSPORT_PROFILE_RFCOMM;
-	t->rfcomm.handler_fd = -1;
-
-	pthread_mutex_init(&t->rfcomm.codec_selection_completed_mtx, NULL);
-	pthread_cond_init(&t->rfcomm.codec_selection_completed, NULL);
-
-	t->bt_fd = rfcomm_fd;
-	t->rfcomm.sco = ba_transport_ref(sco);
-	t->release = transport_release_bt_rfcomm;
-	t->rfcomm.link_lost_quirk = true;
-
-	t->rfcomm.ba_dbus_path = g_strdup_printf("%s/rfcomm", d->ba_dbus_path);
-	bluealsa_dbus_rfcomm_register(t, NULL);
-
-	return t;
-}
-
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
 		struct ba_transport_type type,
@@ -248,7 +218,7 @@ struct ba_transport *ba_transport_new_sco(
 	t->release = transport_release_bt_sco;
 
 	if (rfcomm_fd != -1) {
-		if ((t->sco.rfcomm = ba_transport_new_rfcomm(t, rfcomm_fd)) == NULL)
+		if ((t->sco.rfcomm = ba_rfcomm_new(t, rfcomm_fd)) == NULL)
 			goto fail;
 	}
 
@@ -321,17 +291,13 @@ void ba_transport_destroy(struct ba_transport *t) {
 
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
-		t->rfcomm.link_lost_quirk = false;
-		bluealsa_dbus_rfcomm_unregister(t);
-	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
 		bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
 		if (t->sco.rfcomm != NULL)
-			ba_transport_destroy(t->sco.rfcomm);
+			ba_rfcomm_destroy(t->sco.rfcomm);
 		t->sco.rfcomm = NULL;
 	}
 
@@ -373,24 +339,13 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	ba_device_unref(d);
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM) {
-		if (t->rfcomm.sco != NULL)
-			ba_transport_unref(t->rfcomm.sco);
-		if (t->rfcomm.handler_fd != -1)
-			close(t->rfcomm.handler_fd);
-		if (t->rfcomm.ba_dbus_path != NULL)
-			g_free(t->rfcomm.ba_dbus_path);
-		pthread_mutex_destroy(&t->rfcomm.codec_selection_completed_mtx);
-		pthread_cond_destroy(&t->rfcomm.codec_selection_completed);
-		d->battery_level = -1;
-	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		pthread_mutex_destroy(&t->sco.spk_drained_mtx);
 		pthread_cond_destroy(&t->sco.spk_drained);
 		ba_transport_release_pcm(&t->sco.spk_pcm);
 		ba_transport_release_pcm(&t->sco.mic_pcm);
 		if (t->sco.rfcomm != NULL)
-			ba_transport_unref(t->sco.rfcomm);
+			ba_rfcomm_destroy(t->sco.rfcomm);
 		if (t->sco.spk_pcm.ba_dbus_path != NULL)
 			g_free(t->sco.spk_pcm.ba_dbus_path);
 		if (t->sco.mic_pcm.ba_dbus_path != NULL)
@@ -424,12 +379,11 @@ enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t) {
 			errno == EINTR)
 		continue;
 
-	if (ret != sizeof(sig)) {
-		warn("Couldn't read transport signal: %s", strerror(errno));
-		return BA_TRANSPORT_SIGNAL_PING;
-	}
+	if (ret == sizeof(sig))
+		return sig;
 
-	return sig;
+	warn("Couldn't read transport signal: %s", strerror(errno));
+	return BA_TRANSPORT_SIGNAL_PING;
 }
 
 int ba_transport_select_codec(
@@ -449,8 +403,8 @@ int ba_transport_select_codec(
 		if (t->sco.rfcomm == NULL)
 			return errno = ENOTSUP, -1;
 
-		struct ba_transport * const t_rfcomm = t->sco.rfcomm;
-		pthread_mutex_lock(&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+		struct ba_rfcomm * const r = t->sco.rfcomm;
+		pthread_mutex_lock(&r->codec_selection_completed_mtx);
 
 		/* release ongoing connection */
 		ba_transport_release_pcm(&t->sco.spk_pcm);
@@ -459,18 +413,16 @@ int ba_transport_select_codec(
 
 		switch (codec) {
 		case HFP_CODEC_CVSD:
-			ba_transport_send_signal(t_rfcomm, BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_CVSD);
-			pthread_cond_wait(&t_rfcomm->rfcomm.codec_selection_completed,
-					&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+			ba_rfcomm_send_signal(r, BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD);
+			pthread_cond_wait(&r->codec_selection_completed, &r->codec_selection_completed_mtx);
 			break;
 		case HFP_CODEC_MSBC:
-			ba_transport_send_signal(t_rfcomm, BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_MSBC);
-			pthread_cond_wait(&t_rfcomm->rfcomm.codec_selection_completed,
-					&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+			ba_rfcomm_send_signal(r, BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC);
+			pthread_cond_wait(&r->codec_selection_completed, &r->codec_selection_completed_mtx);
 			break;
 		}
 
-		pthread_mutex_unlock(&t_rfcomm->rfcomm.codec_selection_completed_mtx);
+		pthread_mutex_unlock(&r->codec_selection_completed_mtx);
 		if (t->type.codec != codec)
 			return errno = EIO, -1;
 
@@ -492,7 +444,7 @@ static void transport_update_format(struct ba_transport *t) {
 		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16LE;
 	}
 
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16LE;
 		t->sco.mic_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16LE;
 	}
@@ -608,7 +560,7 @@ static void transport_update_channels(struct ba_transport *t) {
 			return;
 		}
 
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		t->sco.spk_pcm.channels = 1;
 		t->sco.mic_pcm.channels = 1;
 	}
@@ -791,7 +743,7 @@ static void transport_update_sampling(struct ba_transport *t) {
 			return;
 		}
 
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		switch (t->type.codec) {
 		case HFP_CODEC_CVSD:
 			t->sco.spk_pcm.sampling = 8000;
@@ -826,7 +778,7 @@ void ba_transport_update_codec(
 uint16_t ba_transport_get_delay(const struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return t->a2dp.delay + t->a2dp.pcm.delay;
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		return t->sco.spk_pcm.delay + 10;
 	return 0;
 }
@@ -873,10 +825,10 @@ int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t va
 
 	}
 
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile) &&
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 			t->sco.rfcomm != NULL) {
 		/* notify associated RFCOMM transport */
-		ba_transport_send_signal(t->sco.rfcomm, BA_TRANSPORT_SIGNAL_UPDATE_VOLUME);
+		ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
 	}
 
 	/* notify connected clients (including requester) */
@@ -918,8 +870,6 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 		if (pthread_equal(t->thread, config.main_thread)) {
 			if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 				ret = a2dp_thread_create(t);
-			else if (t->type.profile & BA_TRANSPORT_PROFILE_RFCOMM)
-				ret = ba_transport_pthread_create(t, ba_rfcomm_thread, "ba-rfcomm");
 			else
 				ret = ba_transport_pthread_create(t, sco_thread, "ba-sco");
 		}
@@ -1087,28 +1037,6 @@ fail:
 		g_error_free(err);
 	}
 	return ret;
-}
-
-static int transport_release_bt_rfcomm(struct ba_transport *t) {
-
-	if (t->bt_fd == -1)
-		return 0;
-
-	debug("Closing RFCOMM: %d", t->bt_fd);
-
-	shutdown(t->bt_fd, SHUT_RDWR);
-	close(t->bt_fd);
-	t->bt_fd = -1;
-
-	if (t->rfcomm.sco != NULL) {
-		if (t->rfcomm.link_lost_quirk)
-			ba_transport_destroy(t->rfcomm.sco);
-		else
-			ba_transport_unref(t->rfcomm.sco);
-		t->rfcomm.sco = NULL;
-	}
-
-	return 0;
 }
 
 static int transport_acquire_bt_sco(struct ba_transport *t) {

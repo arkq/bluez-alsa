@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "at.h"
+#include "ba-transport.h"
 #include "hfp.h"
 
 /* Timeout for the command acknowledgment. */
@@ -29,12 +30,28 @@
 /* Number of retries during the SLC stage. */
 #define BA_RFCOMM_SLC_RETRIES 10
 
+enum ba_rfcomm_signal {
+	BA_RFCOMM_SIGNAL_PING,
+	BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD,
+	BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC,
+	BA_RFCOMM_SIGNAL_UPDATE_BATTERY,
+	BA_RFCOMM_SIGNAL_UPDATE_VOLUME,
+};
+
 /**
  * Data associated with RFCOMM communication. */
 struct ba_rfcomm {
 
 	/* associated SCO transport */
 	struct ba_transport *sco;
+
+	/* RFCOMM socket */
+	int fd;
+
+	pthread_t thread;
+
+	/* thread notification PIPE */
+	int sig_fd[2];
 
 	/* service level connection state */
 	enum hfp_slc_state state;
@@ -111,6 +128,9 @@ struct ba_rfcomm_handler {
 	ba_rfcomm_callback *callback;
 };
 
-void *ba_rfcomm_thread(struct ba_transport *t);
+struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd);
+void ba_rfcomm_destroy(struct ba_rfcomm *r);
+
+int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig);
 
 #endif

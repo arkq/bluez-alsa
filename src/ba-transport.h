@@ -31,7 +31,6 @@
 #define BA_TRANSPORT_PROFILE_HFP_AG      (2 << 2)
 #define BA_TRANSPORT_PROFILE_HSP_HS      (1 << 4)
 #define BA_TRANSPORT_PROFILE_HSP_AG      (2 << 4)
-#define BA_TRANSPORT_PROFILE_RFCOMM      (1 << 6)
 
 #define BA_TRANSPORT_PROFILE_MASK_A2DP \
 	(BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK)
@@ -45,9 +44,6 @@
 	(BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)
 #define BA_TRANSPORT_PROFILE_MASK_HF \
 	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)
-
-#define IS_BA_TRANSPORT_PROFILE_SCO(p) \
-	((p) && ((p) & BA_TRANSPORT_PROFILE_MASK_SCO) == (p))
 
 /**
  * Selected profile and audio codec.
@@ -74,10 +70,6 @@ enum ba_transport_signal {
 	BA_TRANSPORT_SIGNAL_PCM_RESUME,
 	BA_TRANSPORT_SIGNAL_PCM_SYNC,
 	BA_TRANSPORT_SIGNAL_PCM_DROP,
-	BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_CVSD,
-	BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_MSBC,
-	BA_TRANSPORT_SIGNAL_UPDATE_BATTERY,
-	BA_TRANSPORT_SIGNAL_UPDATE_VOLUME,
 };
 
 enum ba_transport_pcm_mode {
@@ -159,7 +151,7 @@ struct ba_transport {
 
 	/* This field stores a file descriptor (socket) associated with the BlueZ
 	 * side of the transport. The role of this socket depends on the transport
-	 * type - it can be either A2DP, RFCOMM or SCO link. */
+	 * type - it can be either A2DP or SCO link. */
 	int bt_fd;
 
 	/* max transfer unit values for bt_fd */
@@ -197,12 +189,10 @@ struct ba_transport {
 
 		} a2dp;
 
-		struct ba_rfcomm rfcomm;
-
 		struct {
 
-			/* associated RFCOMM transport */
-			struct ba_transport *rfcomm;
+			/* associated RFCOMM thread */
+			struct ba_rfcomm *rfcomm;
 
 			/* Speaker and microphone signals should to be exposed as
 			 * a separate PCM devices. Hence, there is a requirement

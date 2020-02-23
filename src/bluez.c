@@ -968,7 +968,6 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 			batostr_(&d->addr));
 
 	ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
-	ba_transport_set_state(t->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);

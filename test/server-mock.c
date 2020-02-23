@@ -102,7 +102,7 @@ int test_transport_acquire(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		assert(a2dp_thread_create(t) == 0);
-	else if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile))
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		assert(ba_transport_pthread_create(t, sco_thread, "ba-sco") == 0);
 
 	return 0;

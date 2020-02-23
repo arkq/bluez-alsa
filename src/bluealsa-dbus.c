@@ -140,7 +140,7 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 					g_variant_builder_clear(&props);
 
 				}
-				else if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile)) {
+				else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 
 					ba_variant_populate_pcm(&props, &t->sco.spk_pcm);
 					g_variant_builder_add(&pcms, "{oa{sv}}", t->sco.spk_pcm.ba_dbus_path, &props);
@@ -250,7 +250,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	size_t i;
 
 	/* preliminary check whether HFP codes is selected */
-	if (IS_BA_TRANSPORT_PROFILE_SCO(t->type.profile) &&
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 			t->type.codec == HFP_CODEC_UNDEFINED) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
@@ -401,7 +401,7 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 	}
 
 	r->handler_fd = fds[0];
-	ba_transport_send_signal(r->sco->sco.rfcomm, BA_TRANSPORT_SIGNAL_PING);
+	ba_rfcomm_send_signal(r, BA_RFCOMM_SIGNAL_PING);
 
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
 	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
@@ -574,19 +574,18 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 
 /**
  * Register BlueALSA D-Bus RFCOMM interface. */
-unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error) {
+unsigned int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r, GError **error) {
 
 	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluealsa_rfcomm_method_call,
 		.get_property = bluealsa_rfcomm_get_property,
 	};
 
-	if ((t->rfcomm.ba_dbus_id = g_dbus_connection_register_object(config.dbus,
-					t->rfcomm.ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
-					&vtable, &t->rfcomm, NULL, error)) != 0)
-		ba_transport_ref(t);
+	r->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
+			r->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
+			&vtable, r, NULL, error);
 
-	return t->rfcomm.ba_dbus_id;
+	return r->ba_dbus_id;
 }
 
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
@@ -606,14 +605,9 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	g_variant_builder_clear(&props);
 }
 
-void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
-
-	if (t->rfcomm.ba_dbus_id == 0)
+void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
+	if (r->ba_dbus_id == 0)
 		return;
-
-	g_dbus_connection_unregister_object(config.dbus, t->rfcomm.ba_dbus_id);
-	t->rfcomm.ba_dbus_id = 0;
-
-	ba_transport_unref(t);
-
+	g_dbus_connection_unregister_object(config.dbus, r->ba_dbus_id);
+	r->ba_dbus_id = 0;
 }

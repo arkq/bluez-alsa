@@ -36,8 +36,8 @@ unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **e
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask);
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm);
 
-unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error);
+unsigned int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r, GError **error);
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask);
-void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t);
+void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r);
 
 #endif

@@ -32,12 +32,12 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask); }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); }
-unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error) {
-	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
-void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)r, mask); }
-void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
-	debug("%s: %p", __func__, (void *)t); }
+struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
+	debug("%s: %p", __func__, (void *)sco); (void)fd; return NULL; }
+void ba_rfcomm_destroy(struct ba_rfcomm *r) {
+	debug("%s: %p", __func__, (void *)r); }
+int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
+	debug("%s: %p: %#x", __func__, (void *)r, sig); return 0; }
 
 START_TEST(test_ba_adapter) {
 

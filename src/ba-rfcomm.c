@@ -146,7 +146,7 @@ static int rfcomm_handler_resp_ok_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_cind_test_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
 
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 
 	/* NOTE: The order of indicators in the CIND response message
 	 *       has to be consistent with the hfp_ind enumeration. */
@@ -174,7 +174,7 @@ static int rfcomm_handler_cind_test_cb(struct ba_rfcomm *r, const struct bt_at *
 static int rfcomm_handler_cind_get_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
 
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	const int battchg = config.battery.available ? (config.battery.level + 1) / 17 : 5;
 	char tmp[32];
 
@@ -232,7 +232,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm *r, const struct bt_
 static int rfcomm_handler_cmer_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
 
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	const char *resp = "OK";
 
 	if (at_parse_cmer(at->value, r->hfp_cmer) == -1) {
@@ -277,7 +277,7 @@ static int rfcomm_handler_ciev_resp_cb(struct ba_rfcomm *r, const struct bt_at *
  * SET: Bluetooth Indicators Activation */
 static int rfcomm_handler_bia_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	const char *resp = "OK";
 
 	if (at_parse_bia(at->value, r->hfp_ind_state) == -1) {
@@ -295,7 +295,7 @@ static int rfcomm_handler_bia_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	char tmp[16];
 
 	r->hfp_features = atoi(at->value);
@@ -338,7 +338,7 @@ static int rfcomm_handler_brsf_resp_cb(struct ba_rfcomm *r, const struct bt_at *
  * SET: Noise Reduction and Echo Canceling */
 static int rfcomm_handler_nrec_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	/* Currently, we are not supporting Noise Reduction & Echo Canceling,
 	 * so just acknowledge this SET request with "ERROR" response code. */
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
@@ -351,7 +351,7 @@ static int rfcomm_handler_nrec_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 
 	t_sco->sco.mic_pcm.volume[0].level = r->gain_mic = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -377,7 +377,7 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 
 	t_sco->sco.spk_pcm.volume[0].level = r->gain_spk = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -402,7 +402,7 @@ static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
  * SET: Bluetooth Response and Hold Feature */
 static int rfcomm_handler_btrh_get_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	/* Currently, we are not supporting Respond & Hold feature, so just
 	 * acknowledge this GET request without reporting +BTRH status. */
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -414,7 +414,7 @@ static int rfcomm_handler_btrh_get_cb(struct ba_rfcomm *r, const struct bt_at *a
  * SET: Bluetooth Codec Connection */
 static int rfcomm_handler_bcc_cmd_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	/* TODO: Start Codec Connection procedure because HF wants to send audio. */
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 		return -1;
@@ -426,7 +426,7 @@ static int rfcomm_handler_bcc_cmd_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_bcs_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	int codec;
 
 	if ((codec = atoi(at->value)) != r->codec) {
@@ -484,7 +484,7 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	static const struct ba_rfcomm_handler handler = {
 		AT_TYPE_RESP, "", rfcomm_handler_resp_bcs_ok_cb };
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 
 	r->codec = atoi(at->value);
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
@@ -498,7 +498,7 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
  * SET: Bluetooth Available Codecs */
 static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	char *tmp = at->value - 1;
 
 	do {
@@ -523,7 +523,7 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_device * const d = r->sco->d;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 
 	char *ptr = at->value;
 	size_t count = atoi(strsep(&ptr, ","));
@@ -556,7 +556,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const struct b
 static int rfcomm_handler_xapl_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_device * const d = r->sco->d;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 
 	unsigned int vendor, product;
 	char version[sizeof(d->xapl.software_version)];
@@ -693,13 +693,29 @@ static ba_rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 	return NULL;
 }
 
+static enum ba_rfcomm_signal rfcomm_recv_signal(struct ba_rfcomm *r) {
+
+	enum ba_rfcomm_signal sig;
+	ssize_t ret;
+
+	while ((ret = read(r->sig_fd[0], &sig, sizeof(sig))) == -1 &&
+			errno == EINTR)
+		continue;
+
+	if (ret == sizeof(sig))
+		return sig;
+
+	warn("Couldn't read RFCOMM signal: %s", strerror(errno));
+	return BA_RFCOMM_SIGNAL_PING;
+}
+
 #if ENABLE_MSBC
 /**
  * Try to setup HFP codec connection. */
 static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	char tmp[16];
 
 	debug("RFCOMM: %s setting codec: %s",
@@ -737,7 +753,7 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	char tmp[32];
 
 	/* for HFP-AG return battery level indicator if reporting is enabled */
@@ -764,7 +780,7 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int gain = t_sco->sco.mic_pcm.volume[0].level;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	char tmp[16];
 
 	if (!force && r->gain_mic == gain)
@@ -793,7 +809,7 @@ static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int gain = t_sco->sco.spk_pcm.volume[0].level;
-	const int fd = r->sco->sco.rfcomm->bt_fd;
+	const int fd = r->fd;
 	char tmp[16];
 
 	if (!force && r->gain_spk == gain)
@@ -816,25 +832,43 @@ static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 	return 0;
 }
 
-void *ba_rfcomm_thread(struct ba_transport *t) {
+static void rfcomm_thread_cleanup(struct ba_rfcomm *r) {
 
-	struct ba_rfcomm *r = &t->rfcomm;
-	struct ba_transport * const t_sco = r->sco;
+	if (r->fd == -1)
+		return;
+
+	debug("Closing RFCOMM: %d", r->fd);
+
+	shutdown(r->fd, SHUT_RDWR);
+	close(r->fd);
+	r->fd = -1;
+
+	if (r->sco != NULL) {
+
+		if (r->link_lost_quirk) {
+			debug("RFCOMM link lost quirk: Destroying SCO transport");
+			r->sco->sco.rfcomm = NULL;
+			ba_transport_ref(r->sco);
+			ba_transport_destroy(r->sco);
+		}
+
+		ba_transport_unref(r->sco);
+		r->sco = NULL;
+
+	}
+
+}
+
+static void *rfcomm_thread(struct ba_rfcomm *r) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(rfcomm_thread_cleanup), r);
 
-	/* initialize structure used for synchronization */
-	r->state = HFP_DISCONNECTED;
-	r->state_prev = HFP_DISCONNECTED;
-	r->codec = HFP_CODEC_UNDEFINED;
-	r->gain_mic = r->sco->sco.mic_pcm.volume[0].level;
-	r->gain_spk = r->sco->sco.spk_pcm.volume[0].level;
-
+	struct ba_transport * const t_sco = r->sco;
 	struct at_reader reader = { .next = NULL };
 	struct pollfd pfds[] = {
-		{ t->sig_fd[0], POLLIN, 0 },
-		{ t->bt_fd, POLLIN, 0 },
+		{ r->sig_fd[0], POLLIN, 0 },
+		{ r->fd, POLLIN, 0 },
 		{ -1, POLLIN, 0 },
 	};
 
@@ -988,7 +1022,7 @@ void *ba_rfcomm_thread(struct ba_transport *t) {
 					sprintf(tmp, "%04X-%04X-%s,%u",
 							config.hfp.xapl_vendor_id, config.hfp.xapl_product_id,
 							config.hfp.xapl_software_version, config.hfp.xapl_features);
-					if (rfcomm_write_at(t->bt_fd, AT_TYPE_CMD_SET, "+XAPL", tmp) == -1)
+					if (rfcomm_write_at(r->fd, AT_TYPE_CMD_SET, "+XAPL", tmp) == -1)
 						goto ioerror;
 					r->handler = &rfcomm_handler_xapl_resp;
 					r->setup++;
@@ -1057,22 +1091,22 @@ process:
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
+			switch (rfcomm_recv_signal(r)) {
 #if ENABLE_MSBC
-			case BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_CVSD:
+			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD:
 				if (rfcomm_set_hfp_codec(r, HFP_CODEC_CVSD) == -1)
 					goto ioerror;
 				break;
-			case BA_TRANSPORT_SIGNAL_HFP_SET_CODEC_MSBC:
+			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC:
 				if (rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
 				break;
 #endif
-			case BA_TRANSPORT_SIGNAL_UPDATE_BATTERY:
+			case BA_RFCOMM_SIGNAL_UPDATE_BATTERY:
 				if (rfcomm_notify_battery_level_change(r) == -1)
 					goto ioerror;
 				break;
-			case BA_TRANSPORT_SIGNAL_UPDATE_VOLUME:
+			case BA_RFCOMM_SIGNAL_UPDATE_VOLUME:
 				if (rfcomm_notify_volume_change_mic(r, false) == -1)
 					goto ioerror;
 				if (rfcomm_notify_volume_change_spk(r, false) == -1)
@@ -1181,4 +1215,102 @@ fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	return NULL;
+}
+
+struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
+
+	struct ba_rfcomm *r;
+	int err;
+
+	if ((r = calloc(1, sizeof(*r))) == NULL)
+		return NULL;
+
+	r->fd = fd;
+	r->sig_fd[0] = -1;
+	r->sig_fd[1] = -1;
+	r->handler_fd = -1;
+	r->thread = config.main_thread;
+	r->state = HFP_DISCONNECTED;
+	r->state_prev = HFP_DISCONNECTED;
+	r->codec = HFP_CODEC_UNDEFINED;
+	r->sco = ba_transport_ref(sco);
+	r->link_lost_quirk = true;
+
+	/* initialize data used for synchronization */
+	r->gain_mic = r->sco->sco.mic_pcm.volume[0].level;
+	r->gain_spk = r->sco->sco.spk_pcm.volume[0].level;
+
+	if (pipe(r->sig_fd) == -1)
+		goto fail;
+
+	pthread_mutex_init(&r->codec_selection_completed_mtx, NULL);
+	pthread_cond_init(&r->codec_selection_completed, NULL);
+
+	if ((err = pthread_create(&r->thread, NULL, PTHREAD_ROUTINE(rfcomm_thread), r)) != 0) {
+		error("Couldn't create RFCOMM thread: %s", strerror(err));
+		r->thread = config.main_thread;
+		goto fail;
+	}
+
+	const char *name = "ba-rfcomm";
+	pthread_setname_np(r->thread, name);
+	debug("Created new RFCOMM thread [%s]: %s",
+			name, ba_transport_type_to_string(sco->type));
+
+	r->ba_dbus_path = g_strdup_printf("%s/rfcomm", sco->d->ba_dbus_path);
+	bluealsa_dbus_rfcomm_register(r, NULL);
+
+	return r;
+
+fail:
+	err = errno;
+	ba_rfcomm_destroy(r);
+	errno = err;
+	return NULL;
+}
+
+void ba_rfcomm_destroy(struct ba_rfcomm *r) {
+
+	int err;
+
+	/* Disable link lost quirk, because we don't want
+	 * any interference during the destroy procedure. */
+	r->link_lost_quirk = false;
+
+	/* Remove D-Bus interfaces, so no one will access
+	 * RFCOMM thread during the destroy procedure. */
+	bluealsa_dbus_rfcomm_unregister(r);
+
+	if (!pthread_equal(r->thread, config.main_thread) &&
+			!pthread_equal(r->thread, pthread_self())) {
+		if ((err = pthread_cancel(r->thread)) != 0 && err != ESRCH)
+			warn("Couldn't cancel RFCOMM thread: %s", strerror(err));
+		if ((err = pthread_join(r->thread, NULL)) != 0)
+			warn("Couldn't join RFCOMM thread: %s", strerror(err));
+	}
+
+	if (r->handler_fd != -1)
+		close(r->handler_fd);
+
+	if (r->sco != NULL) {
+		r->sco->d->battery_level = -1;
+		ba_transport_unref(r->sco);
+	}
+
+	if (r->sig_fd[0] != -1)
+		close(r->sig_fd[0]);
+	if (r->sig_fd[1] != -1)
+		close(r->sig_fd[1]);
+
+	if (r->ba_dbus_path != NULL)
+		g_free(r->ba_dbus_path);
+
+	pthread_mutex_destroy(&r->codec_selection_completed_mtx);
+	pthread_cond_destroy(&r->codec_selection_completed);
+
+	free(r);
+}
+
+int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
+	return write(r->sig_fd[1], &sig, sizeof(sig));
 }

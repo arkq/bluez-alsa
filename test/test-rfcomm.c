@@ -47,17 +47,18 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		pthread_mutex_unlock(&transport_codec_updated_mtx); }}
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); }
-unsigned int bluealsa_dbus_rfcomm_register(struct ba_transport *t, GError **error) {
-	debug("%s: %p", __func__, (void *)t); (void)error; return 0; }
+unsigned int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r, GError **error) {
+	debug("%s: %p", __func__, (void *)r); (void)error; return 0; }
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)r, mask); }
-void bluealsa_dbus_rfcomm_unregister(struct ba_transport *t) {
-	debug("%s: %p", __func__, (void *)t); }
+void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
+	debug("%s: %p", __func__, (void *)r); }
 int a2dp_thread_create(struct ba_transport *t) { (void)t; return -1; }
 void *sco_thread(struct ba_transport *t) { return sleep(3600), t; }
 
 START_TEST(test_rfcomm) {
 
+	transport_codec_updated_cnt = 0;
 	memset(adapter->hci.features, 0, sizeof(adapter->hci.features));
 
 	int fds[2];
@@ -72,10 +73,6 @@ START_TEST(test_rfcomm) {
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
-	transport_codec_updated_cnt = 0;
-
-	ck_assert_int_eq(ba_transport_set_state(ag->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
-	ck_assert_int_eq(ba_transport_set_state(hf->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
 
 	/* wait for SLC established signals */
 	while (transport_codec_updated_cnt < 2)
@@ -83,16 +80,19 @@ START_TEST(test_rfcomm) {
 	while (transport_codec_updated_cnt < 4)
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 
-	ck_assert_int_eq(device->ref_count, 1 + 4);
+	ck_assert_int_eq(device->ref_count, 1 + 2);
 
 	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 
+	debug("Audio gateway destroying");
 	ba_transport_destroy(ag);
 	/* The hf transport shall be destroyed by the "link lost" quirk. However,
 	 * we have to wait "some" time before reference counter check, because
 	 * this action is asynchronous from our point of view. */
+	debug("Hands Free unreferencing");
 	ba_transport_unref(hf);
+	debug("Wait for asynchronous free");
 	usleep(100000);
 
 	ck_assert_int_eq(device->ref_count, 1);
@@ -103,6 +103,7 @@ START_TEST(test_rfcomm) {
 
 START_TEST(test_rfcomm_esco) {
 
+	transport_codec_updated_cnt = 0;
 	adapter->hci.features[2] = LMP_TRSP_SCO;
 	adapter->hci.features[3] = LMP_ESCO;
 
@@ -114,8 +115,8 @@ START_TEST(test_rfcomm_esco) {
 	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
 	struct ba_transport *hf = ba_transport_new_sco(device, ttype_hf, ":test", "/sco/hf", fds[1]);
 
-	ag->sco.rfcomm->rfcomm.link_lost_quirk = false;
-	hf->sco.rfcomm->rfcomm.link_lost_quirk = false;
+	ag->sco.rfcomm->link_lost_quirk = false;
+	hf->sco.rfcomm->link_lost_quirk = false;
 
 #if ENABLE_MSBC
 	ck_assert_int_eq(ag->type.codec, HFP_CODEC_UNDEFINED);
@@ -126,10 +127,6 @@ START_TEST(test_rfcomm_esco) {
 #endif
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
-	transport_codec_updated_cnt = 0;
-
-	ck_assert_int_eq(ba_transport_set_state(ag->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
-	ck_assert_int_eq(ba_transport_set_state(hf->sco.rfcomm, BA_TRANSPORT_STATE_ACTIVE), 0);
 
 	/* wait for SLC established signals */
 	while (transport_codec_updated_cnt < 2)
@@ -137,7 +134,7 @@ START_TEST(test_rfcomm_esco) {
 	while (transport_codec_updated_cnt < 4)
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 
-	ck_assert_int_eq(device->ref_count, 1 + 4);
+	ck_assert_int_eq(device->ref_count, 1 + 2);
 
 #if ENABLE_MSBC
 	/* wait for codec selection signals */
@@ -155,7 +152,9 @@ START_TEST(test_rfcomm_esco) {
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 #endif
 
+	debug("Audio gateway destroying");
 	ba_transport_destroy(ag);
+	debug("Hands Free destroying");
 	ba_transport_destroy(hf);
 
 	ck_assert_int_eq(device->ref_count, 1);
