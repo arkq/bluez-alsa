@@ -816,6 +816,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->io.callback = &bluealsa_callback;
 	pcm->io.private_data = pcm;
 
+#if SND_LIB_VERSION >= 0x010102
+	/* ALSA library thread-safe API functionality does not play well with ALSA
+	 * IO-plug plug-ins. It causes deadlocks which often make our PCM plug-in
+	 * unusable. As a workaround we are going to disable this functionality. */
+	if (setenv("LIBASOUND_THREAD_SAFE", "0", 0) == -1)
+		SNDERR("Couldn't disable ALSA thread-safe API: %s", strerror(errno));
+#endif
+
 	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
 		goto fail;
 
