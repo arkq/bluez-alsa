@@ -193,8 +193,8 @@ static int pcm_open(snd_pcm_t **pcm, snd_pcm_format_t format, int channels,
 		int rate, unsigned int *buffer_time, unsigned int *period_time, char **msg) {
 
 	snd_pcm_t *_pcm = NULL;
+	char *tmp = NULL;
 	char buf[256];
-	char *tmp;
 	int err;
 
 	if ((err = snd_pcm_open(&_pcm, device, SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
@@ -231,6 +231,8 @@ fail:
 		snd_pcm_close(_pcm);
 	if (msg != NULL)
 		*msg = strdup(buf);
+	if (tmp != NULL)
+		free(tmp);
 	return err;
 }
 

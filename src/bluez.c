@@ -79,8 +79,10 @@ static bool bluez_match_dbus_adapter(
 		return true;
 
 	/* get the last component of the path */
-	if ((adapter_path = strrchr(adapter_path, '/')) != NULL)
-		adapter_path++;
+	if ((adapter_path = strrchr(adapter_path, '/')) == NULL)
+		return false;
+
+	adapter_path++;
 
 	size_t i;
 	for (i = 0; i < config.hci_filter->len; i++)
@@ -605,6 +607,11 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 		g_variant_unref(value);
 		value = NULL;
+	}
+
+	if (state == NULL) {
+		error("Invalid configuration: %s", "Missing state");
+		goto fail;
 	}
 
 	if ((a = ba_adapter_lookup(dbus_obj->hci_dev_id)) == NULL) {
