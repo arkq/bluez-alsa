@@ -5,7 +5,7 @@
  *  Copyright (C) 2006-2010  Nokia Corporation
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *  Copyright (C) 2018       Pali Rohár <pali.rohar@gmail.com>
- *  Copyright (C) 2016-2019  Arkadiusz Bokowy
+ *  Copyright (C) 2016-2020  Arkadiusz Bokowy
  *
  *
  *  This library is free software; you can redistribute it and/or
@@ -231,13 +231,13 @@
 #define FASTSTREAM_VENDOR_ID            BT_COMPID_QUALCOMM_TECH_INTL
 #define FASTSTREAM_CODEC_ID             0x0001
 
-#define FASTSTREAM_DIRECTION_SINK               0x1
-#define FASTSTREAM_DIRECTION_SOURCE             0x2
+#define FASTSTREAM_DIRECTION_VOICE      0x2
+#define FASTSTREAM_DIRECTION_MUSIC      0x1
 
-#define FASTSTREAM_SINK_SAMPLING_FREQ_44100     0x2
-#define FASTSTREAM_SINK_SAMPLING_FREQ_48000     0x1
+#define FASTSTREAM_SAMPLING_FREQ_MUSIC_44100  0x2
+#define FASTSTREAM_SAMPLING_FREQ_MUSIC_48000  0x1
 
-#define FASTSTREAM_SOURCE_SAMPLING_FREQ_16000   0x2
+#define FASTSTREAM_SAMPLING_FREQ_VOICE_16000  0x2
 
 #define APTX_LL_VENDOR_ID               BT_COMPID_QUALCOMM_TECH_INTL
 #define APTX_LL_CODEC_ID                0x0002
@@ -362,8 +362,8 @@ typedef struct {
 typedef struct {
 	a2dp_vendor_codec_t info;
 	uint8_t direction;
-	uint8_t sink_frequency:4;
-	uint8_t source_frequency:4;
+	uint8_t frequency_music:4;
+	uint8_t frequency_voice:4;
 } __attribute__ ((packed)) a2dp_faststream_t;
 
 typedef struct {
@@ -433,8 +433,8 @@ typedef struct {
 typedef struct {
 	a2dp_vendor_codec_t info;
 	uint8_t direction;
-	uint8_t source_frequency:4;
-	uint8_t sink_frequency:4;
+	uint8_t frequency_voice:4;
+	uint8_t frequency_music:4;
 } __attribute__ ((packed)) a2dp_faststream_t;
 
 typedef struct {

@@ -97,12 +97,17 @@ static bool bluez_match_dbus_adapter(
  * Check whether channel mode configuration is valid. */
 static bool bluez_a2dp_codec_check_channel_mode(
 		const struct bluez_a2dp_codec *codec,
-		unsigned int capabilities) {
+		unsigned int capabilities,
+		bool backchannel) {
 
+	const size_t slot = backchannel ? 1 : 0;
 	size_t i;
 
-	for (i = 0; i < codec->channels_size; i++)
-		if (capabilities == codec->channels[i].value)
+	if (codec->channels_size[slot] == 0)
+		return true;
+
+	for (i = 0; i < codec->channels_size[slot]; i++)
+		if (capabilities == codec->channels[slot][i].value)
 			return true;
 
 	return false;
@@ -112,12 +117,17 @@ static bool bluez_a2dp_codec_check_channel_mode(
  * Check whether sampling frequency configuration is valid. */
 static bool bluez_a2dp_codec_check_sampling_freq(
 		const struct bluez_a2dp_codec *codec,
-		unsigned int capabilities) {
+		unsigned int capabilities,
+		bool backchannel) {
 
+	const size_t slot = backchannel ? 1 : 0;
 	size_t i;
 
-	for (i = 0; i < codec->samplings_size; i++)
-		if (capabilities == codec->samplings[i].value)
+	if (codec->samplings_size[slot] == 0)
+		return true;
+
+	for (i = 0; i < codec->samplings_size[slot]; i++)
+		if (capabilities == codec->samplings[slot][i].value)
 			return true;
 
 	return false;
@@ -127,22 +137,24 @@ static bool bluez_a2dp_codec_check_sampling_freq(
  * Select (best) channel mode configuration. */
 static unsigned int bluez_a2dp_codec_select_channel_mode(
 		const struct bluez_a2dp_codec *codec,
-		unsigned int capabilities) {
+		unsigned int capabilities,
+		bool backchannel) {
 
+	const size_t slot = backchannel ? 1 : 0;
 	size_t i;
 
 	/* If monophonic sound has been forced, check whether given codec supports
 	 * such a channel mode. Since mono channel mode shall be stored at index 0
 	 * we can simply check for its existence with a simple index lookup. */
 	if (config.a2dp.force_mono &&
-			codec->channels[0].mode == BLUEZ_A2DP_CHM_MONO &&
-			capabilities & codec->channels[0].value)
-		return codec->channels[0].value;
+			codec->channels[slot][0].mode == BLUEZ_A2DP_CHM_MONO &&
+			capabilities & codec->channels[slot][0].value)
+		return codec->channels[slot][0].value;
 
 	/* favor higher number of channels */
-	for (i = codec->channels_size; i > 0; i--)
-		if (capabilities & codec->channels[i - 1].value)
-			return codec->channels[i - 1].value;
+	for (i = codec->channels_size[slot]; i > 0; i--)
+		if (capabilities & codec->channels[slot][i - 1].value)
+			return codec->channels[slot][i - 1].value;
 
 	return 0;
 }
@@ -151,22 +163,24 @@ static unsigned int bluez_a2dp_codec_select_channel_mode(
  * Select (best) sampling frequency configuration. */
 static unsigned int bluez_a2dp_codec_select_sampling_freq(
 		const struct bluez_a2dp_codec *codec,
-		unsigned int capabilities) {
+		unsigned int capabilities,
+		bool backchannel) {
 
+	const size_t slot = backchannel ? 1 : 0;
 	size_t i;
 
 	if (config.a2dp.force_44100)
-		for (i = 0; i < codec->samplings_size; i++)
-			if (codec->samplings[i].frequency == 44100) {
-				if (capabilities & codec->samplings[i].value)
-					return codec->samplings[i].value;
+		for (i = 0; i < codec->samplings_size[slot]; i++)
+			if (codec->samplings[slot][i].frequency == 44100) {
+				if (capabilities & codec->samplings[slot][i].value)
+					return codec->samplings[slot][i].value;
 				break;
 			}
 
 	/* favor higher sampling frequencies */
-	for (i = codec->samplings_size; i > 0; i--)
-		if (capabilities & codec->samplings[i - 1].value)
-			return codec->samplings[i - 1].value;
+	for (i = codec->samplings_size[slot]; i > 0; i--)
+		if (capabilities & codec->samplings[slot][i - 1].value)
+			return codec->samplings[slot][i - 1].value;
 
 	return 0;
 }
@@ -215,7 +229,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		unsigned int cap_chm = cap->channel_mode;
 		unsigned int cap_freq = cap->frequency;
 
-		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
 			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
@@ -227,7 +241,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 				warn("SBC dual channel mode not supported: %#x", cap_chm);
 		}
 
-		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
 			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
@@ -287,12 +301,12 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
 			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
 
-		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
 			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
@@ -326,13 +340,13 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		if ((cap->channels = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+		if ((cap->channels = bluez_a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
 			error("No supported channels: %#x", cap_chm);
 			goto fail;
 		}
 
 		unsigned int freq;
-		if ((freq = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) != 0)
+		if ((freq = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq, false)) != 0)
 			AAC_SET_FREQUENCY(*cap, freq);
 		else {
 			error("No supported sampling frequencies: %#x", cap_freq);
@@ -350,13 +364,34 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		unsigned int cap_chm = cap->channel_mode;
 		unsigned int cap_freq = cap->frequency;
 
-		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
 			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
 
-		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
 			error("No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM: {
+
+		a2dp_faststream_t *cap = capabilities;
+		unsigned int cap_freq = cap->frequency_music;
+		unsigned int cap_freq_bc = cap->frequency_voice;
+
+		if ((cap->frequency_music = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		if ((cap->frequency_voice = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq_bc, true)) == 0) {
+			error("No supported back-channel sampling frequencies: %#x", cap_freq_bc);
 			goto fail;
 		}
 
@@ -371,12 +406,12 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		unsigned int cap_chm = cap->aptx.channel_mode;
 		unsigned int cap_freq = cap->aptx.frequency;
 
-		if ((cap->aptx.channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+		if ((cap->aptx.channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
 			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
 
-		if ((cap->aptx.frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+		if ((cap->aptx.frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
 			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
@@ -392,12 +427,12 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		unsigned int cap_chm = cap->channel_mode;
 		unsigned int cap_freq = cap->frequency;
 
-		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm)) == 0) {
+		if ((cap->channel_mode = bluez_a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
 			error("No supported channel modes: %#x", cap_chm);
 			goto fail;
 		}
 
-		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq)) == 0) {
+		if ((cap->frequency = bluez_a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
 			error("No supported sampling frequencies: %#x", cap_freq);
 			goto fail;
 		}
@@ -480,8 +515,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property)) {
 
 			const void *data = g_variant_get_fixed_array(value, &size, sizeof(char));
-			unsigned int cap_chm = 0;
-			unsigned int cap_freq = 0;
+			unsigned int cap_chm = 0, cap_chm_bc = 0;
+			unsigned int cap_freq = 0, cap_freq_bc = 0;
 
 			capabilities = g_memdup(data, size);
 
@@ -557,6 +592,15 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			}
 #endif
 
+#if ENABLE_FASTSTREAM
+			case A2DP_CODEC_VENDOR_FASTSTREAM: {
+				a2dp_faststream_t *cap = capabilities;
+				cap_freq = cap->frequency_music;
+				cap_freq_bc = cap->frequency_voice;
+				break;
+			}
+#endif
+
 #if ENABLE_APTX_HD
 			case A2DP_CODEC_VENDOR_APTX_HD: {
 				a2dp_aptx_hd_t *cap = capabilities;
@@ -580,13 +624,23 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 				goto fail;
 			}
 
-			if (!bluez_a2dp_codec_check_channel_mode(codec, cap_chm)) {
+			if (!bluez_a2dp_codec_check_channel_mode(codec, cap_chm, false)) {
 				error("Invalid configuration: %s", "Invalid channel mode");
 				goto fail;
 			}
 
-			if (!bluez_a2dp_codec_check_sampling_freq(codec, cap_freq)) {
+			if (!bluez_a2dp_codec_check_channel_mode(codec, cap_chm_bc, true)) {
+				error("Invalid configuration: %s", "Invalid back-channel channel mode");
+				goto fail;
+			}
+
+			if (!bluez_a2dp_codec_check_sampling_freq(codec, cap_freq, false)) {
 				error("Invalid configuration: %s", "Invalid sampling frequency");
+				goto fail;
+			}
+
+			if (!bluez_a2dp_codec_check_sampling_freq(codec, cap_freq_bc, true)) {
+				error("Invalid configuration: %s", "Invalid back-channel sampling frequency");
 				goto fail;
 			}
 

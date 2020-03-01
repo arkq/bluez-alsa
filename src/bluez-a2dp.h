@@ -50,11 +50,11 @@ struct bluez_a2dp_codec {
 	const void *cfg;
 	size_t cfg_size;
 	/* list of supported channel modes */
-	const struct bluez_a2dp_channel_mode *channels;
-	size_t channels_size;
+	const struct bluez_a2dp_channel_mode *channels[2];
+	size_t channels_size[2];
 	/* list of supported sampling frequencies */
-	const struct bluez_a2dp_sampling_freq *samplings;
-	size_t samplings_size;
+	const struct bluez_a2dp_sampling_freq *samplings[2];
+	size_t samplings_size[2];
 };
 
 /* NULL-terminated list of available A2DP codecs */

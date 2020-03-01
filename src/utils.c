@@ -122,19 +122,23 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 			return "/A2DP/SBC/Source";
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG12/Source";
+			return "/A2DP/MPEG/Source";
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return "/A2DP/MPEG24/Source";
+			return "/A2DP/AAC/Source";
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/APTX/Source";
+			return "/A2DP/aptX/Source";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "/A2DP/FastStream/Source";
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/APTXHD/Source";
+			return "/A2DP/aptXHD/Source";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
@@ -150,19 +154,23 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 			return "/A2DP/SBC/Sink";
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG12/Sink";
+			return "/A2DP/MPEG/Sink";
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return "/A2DP/MPEG24/Sink";
+			return "/A2DP/AAC/Sink";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "/A2DP/FastStream/Sink";
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/APTX/Sink";
+			return "/A2DP/aptX/Sink";
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/APTXHD/Sink";
+			return "/A2DP/aptXHD/Sink";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
@@ -370,7 +378,7 @@ const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
 		return "SBC";
 #if ENABLE_MPEG
 	case A2DP_CODEC_MPEG12:
-		return "MPEG";
+		return "MP3";
 #endif
 #if ENABLE_AAC
 	case A2DP_CODEC_MPEG24:
@@ -378,11 +386,15 @@ const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
 #endif
 #if ENABLE_APTX
 	case A2DP_CODEC_VENDOR_APTX:
-		return "APT-X";
+		return "aptX";
+#endif
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM:
+		return "FastStream";
 #endif
 #if ENABLE_APTX_HD
 	case A2DP_CODEC_VENDOR_APTX_HD:
-		return "APT-X HD";
+		return "aptX HD";
 #endif
 #if ENABLE_LDAC
 	case A2DP_CODEC_VENDOR_LDAC:
@@ -406,7 +418,7 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 			return "A2DP Source (SBC)";
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			return "A2DP Source (MPEG)";
+			return "A2DP Source (MP3)";
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
@@ -414,11 +426,15 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Source (APT-X)";
+			return "A2DP Source (aptX)";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "A2DP Source (FastStream)";
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "A2DP Source (APT-X HD)";
+			return "A2DP Source (aptX HD)";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
@@ -433,7 +449,7 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 			return "A2DP Sink (SBC)";
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			return "A2DP Sink (MPEG)";
+			return "A2DP Sink (MP3)";
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
@@ -441,11 +457,15 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Sink (APT-X)";
+			return "A2DP Sink (aptX)";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "A2DP Sink (FastStream)";
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "A2DP Sink (APT-X HD)";
+			return "A2DP Sink (aptX HD)";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
