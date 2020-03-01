@@ -85,7 +85,7 @@ START_TEST(test_ba_transport) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	ck_assert_ptr_ne(t = ba_transport_new(d, "/owner", "/path"), NULL);
+	ck_assert_ptr_ne(t = transport_new(d, "/owner", "/path"), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -165,7 +165,7 @@ START_TEST(test_cascade_free) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
-	ck_assert_ptr_ne(t = ba_transport_new(d, "/owner", "/path"), NULL);
+	ck_assert_ptr_ne(t = transport_new(d, "/owner", "/path"), NULL);
 	t->release = test_cascade_free_transport_unref;
 
 	ba_device_unref(d);

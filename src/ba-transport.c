@@ -42,6 +42,59 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
+static const char *transport_get_dbus_path_type(
+		struct ba_transport_type type) {
+	switch (type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		return "a2dpsrc";
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		return "a2dpsnk";
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+		return "hfphf";
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+		return "hfpag";
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		return "hsphs";
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		return "hspag";
+	default:
+		return NULL;
+	}
+}
+
+static int transport_pcm_init(
+		struct ba_transport_pcm *pcm,
+		struct ba_transport *t,
+		enum ba_transport_pcm_mode mode) {
+
+	pcm->t = t;
+	pcm->mode = mode;
+	pcm->fd = -1;
+	pcm->client = -1;
+
+	pthread_mutex_init(&pcm->synced_mtx, NULL);
+	pthread_cond_init(&pcm->synced, NULL);
+
+	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
+			t->d->ba_dbus_path, transport_get_dbus_path_type(t->type),
+			mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
+
+	return 0;
+}
+
+static void transport_pcm_destroy(
+		struct ba_transport_pcm *pcm) {
+
+	ba_transport_release_pcm(pcm);
+
+	pthread_mutex_destroy(&pcm->synced_mtx);
+	pthread_cond_destroy(&pcm->synced);
+
+	if (pcm->ba_dbus_path != NULL)
+		g_free(pcm->ba_dbus_path);
+
+}
+
 /**
  * Create new transport.
  *
@@ -51,7 +104,7 @@
  * @return On success, the pointer to the newly allocated transport structure
  *   is returned. If error occurs, NULL is returned and the errno variable is
  *   set to indicated the cause of the error. */
-struct ba_transport *ba_transport_new(
+static struct ba_transport *transport_new(
 		struct ba_device *device,
 		const char *dbus_owner,
 		const char *dbus_path) {
@@ -105,25 +158,6 @@ static int transport_release_bt_a2dp(struct ba_transport *t);
 static int transport_acquire_bt_sco(struct ba_transport *t);
 static int transport_release_bt_sco(struct ba_transport *t);
 
-static const char *transport_get_dbus_path_type(struct ba_transport *t) {
-	switch (t->type.profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		return "a2dpsrc";
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		return "a2dpsnk";
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-		return "hfphf";
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-		return "hfpag";
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		return "hsphs";
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		return "hspag";
-	default:
-		return NULL;
-	}
-}
-
 struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
 		struct ba_transport_type type,
@@ -134,10 +168,13 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	struct ba_transport *t;
 
-	if ((t = ba_transport_new(device, dbus_owner, dbus_path)) == NULL)
+	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	t->type = type;
+
+	transport_pcm_init(&t->a2dp.pcm, t, type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK ?
+			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 
 	t->a2dp.pcm.volume[0].level = 127;
 	t->a2dp.pcm.volume[1].level = 127;
@@ -147,25 +184,11 @@ struct ba_transport *ba_transport_new_a2dp(
 		t->a2dp.cconfig_size = cconfig_size;
 	}
 
-	t->a2dp.pcm.t = t;
-	t->a2dp.pcm.fd = -1;
-	t->a2dp.pcm.client = -1;
-
-	t->a2dp.pcm.mode = BA_TRANSPORT_PCM_MODE_SOURCE;
-	if (type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		t->a2dp.pcm.mode = BA_TRANSPORT_PCM_MODE_SINK;
-
-	pthread_mutex_init(&t->a2dp.drained_mtx, NULL);
-	pthread_cond_init(&t->a2dp.drained, NULL);
-
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
 	ba_transport_update_codec(t, type.codec);
 
-	t->a2dp.pcm.ba_dbus_path = g_strdup_printf("%s/%s/%s",
-			device->ba_dbus_path, transport_get_dbus_path_type(t),
-			t->a2dp.pcm.mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
 	bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
 
 	return t;
@@ -181,7 +204,7 @@ struct ba_transport *ba_transport_new_sco(
 	struct ba_transport *t;
 	int err;
 
-	if ((t = ba_transport_new(device, dbus_owner, dbus_path)) == NULL)
+	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
 	/* HSP supports CVSD only */
@@ -199,20 +222,11 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->type = type;
 
-	t->sco.spk_pcm.t = t;
-	t->sco.spk_pcm.fd = -1;
-	t->sco.spk_pcm.client = -1;
-	t->sco.spk_pcm.mode = BA_TRANSPORT_PCM_MODE_SINK;
+	transport_pcm_init(&t->sco.spk_pcm, t, BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.spk_pcm.volume[0].level = 15;
 
-	t->sco.mic_pcm.t = t;
-	t->sco.mic_pcm.fd = -1;
-	t->sco.mic_pcm.client = -1;
-	t->sco.mic_pcm.mode = BA_TRANSPORT_PCM_MODE_SOURCE;
+	transport_pcm_init(&t->sco.mic_pcm, t, BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->sco.mic_pcm.volume[0].level = 15;
-
-	pthread_mutex_init(&t->sco.spk_drained_mtx, NULL);
-	pthread_cond_init(&t->sco.spk_drained, NULL);
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
@@ -224,12 +238,7 @@ struct ba_transport *ba_transport_new_sco(
 
 	ba_transport_update_codec(t, type.codec);
 
-	t->sco.spk_pcm.ba_dbus_path = g_strdup_printf("%s/%s/sink",
-			device->ba_dbus_path, transport_get_dbus_path_type(t));
 	bluealsa_dbus_pcm_register(&t->sco.spk_pcm, NULL);
-
-	t->sco.mic_pcm.ba_dbus_path = g_strdup_printf("%s/%s/source",
-			device->ba_dbus_path, transport_get_dbus_path_type(t));
 	bluealsa_dbus_pcm_register(&t->sco.mic_pcm, NULL);
 
 	return t;
@@ -339,25 +348,15 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	ba_device_unref(d);
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		pthread_mutex_destroy(&t->sco.spk_drained_mtx);
-		pthread_cond_destroy(&t->sco.spk_drained);
-		ba_transport_release_pcm(&t->sco.spk_pcm);
-		ba_transport_release_pcm(&t->sco.mic_pcm);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		transport_pcm_destroy(&t->a2dp.pcm);
+		free(t->a2dp.cconfig);
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
 			ba_rfcomm_destroy(t->sco.rfcomm);
-		if (t->sco.spk_pcm.ba_dbus_path != NULL)
-			g_free(t->sco.spk_pcm.ba_dbus_path);
-		if (t->sco.mic_pcm.ba_dbus_path != NULL)
-			g_free(t->sco.mic_pcm.ba_dbus_path);
-	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		ba_transport_release_pcm(&t->a2dp.pcm);
-		pthread_mutex_destroy(&t->a2dp.drained_mtx);
-		pthread_cond_destroy(&t->a2dp.drained);
-		if (t->a2dp.pcm.ba_dbus_path != NULL)
-			g_free(t->a2dp.pcm.ba_dbus_path);
-		free(t->a2dp.cconfig);
+		transport_pcm_destroy(&t->sco.spk_pcm);
+		transport_pcm_destroy(&t->sco.mic_pcm);
 	}
 
 	pthread_mutex_destroy(&t->mutex);
@@ -811,8 +810,8 @@ int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t va
 			config.a2dp.volume) {
 
 		uint16_t volume = 0;
-		if (!t->a2dp.pcm.volume[0].muted && !t->a2dp.pcm.volume[1].muted)
-			volume = (t->a2dp.pcm.volume[0].level + t->a2dp.pcm.volume[1].level) / 2;
+		if (!pcm->volume[0].muted && !pcm->volume[1].muted)
+			volume = (pcm->volume[0].level + pcm->volume[1].level) / 2;
 
 		GError *err = NULL;
 		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
@@ -883,32 +882,18 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 	return ret;
 }
 
-int ba_transport_drain_pcm(struct ba_transport *t) {
+int ba_transport_drain_pcm(struct ba_transport_pcm *pcm) {
 
-	pthread_mutex_t *mutex = NULL;
-	pthread_cond_t *drained = NULL;
-
-	switch (t->type.profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		mutex = &t->a2dp.drained_mtx;
-		drained = &t->a2dp.drained;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		mutex = &t->sco.spk_drained_mtx;
-		drained = &t->sco.spk_drained;
-		break;
-	}
-
-	if (mutex == NULL || t->state != BA_TRANSPORT_STATE_ACTIVE)
+	struct ba_transport *t = pcm->t;
+	if (t->state != BA_TRANSPORT_STATE_ACTIVE)
 		return 0;
 
-	pthread_mutex_lock(mutex);
+	pthread_mutex_lock(&pcm->synced_mtx);
 
 	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_SYNC);
-	pthread_cond_wait(drained, mutex);
+	pthread_cond_wait(&pcm->synced, &pcm->synced_mtx);
 
-	pthread_mutex_unlock(mutex);
+	pthread_mutex_unlock(&pcm->synced_mtx);
 
 	/* TODO: Asynchronous transport release.
 	 *

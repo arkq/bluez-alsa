@@ -233,7 +233,7 @@ repoll:
 	/* Poll for reading with keep-alive and sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
 	case 0:
-		pthread_cond_signal(&t->a2dp.drained);
+		pthread_cond_signal(&t->a2dp.pcm.synced);
 		io->timeout = -1;
 		io->t_locked = !ba_transport_pthread_cleanup_lock(t);
 		if (t->a2dp.pcm.fd == -1)

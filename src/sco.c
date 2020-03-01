@@ -300,7 +300,7 @@ void *sco_thread(struct ba_transport *t) {
 
 		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
 		case 0:
-			pthread_cond_signal(&t->sco.spk_drained);
+			pthread_cond_signal(&t->sco.spk_pcm.synced);
 			poll_timeout = -1;
 			continue;
 		case -1:
@@ -345,7 +345,7 @@ void *sco_thread(struct ba_transport *t) {
 				 *      data from the microphone (BT SCO socket). In order not to hang
 				 *      forever in the transport_drain_pcm() function, we will signal
 				 *      PCM drain right now. */
-				pthread_cond_signal(&t->sco.spk_drained);
+				pthread_cond_signal(&t->sco.spk_pcm.synced);
 				break;
 			case BA_TRANSPORT_SIGNAL_PCM_DROP:
 				io_thread_read_pcm_flush(&t->sco.spk_pcm);

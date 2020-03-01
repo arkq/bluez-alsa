@@ -93,13 +93,13 @@ struct ba_transport_pcm {
 	/* backward reference to transport */
 	struct ba_transport *t;
 
+	/* PCM stream operation mode */
+	enum ba_transport_pcm_mode mode;
+
 	/* FIFO file descriptor */
 	int fd;
 	/* associated client */
 	int client;
-
-	/* PCM stream operation mode */
-	enum ba_transport_pcm_mode mode;
 
 	/* 16-bit stream format identifier */
 	uint16_t format;
@@ -120,6 +120,10 @@ struct ba_transport_pcm {
 		unsigned int level;
 		bool muted;
 	} volume[2];
+
+	/* data synchronization */
+	pthread_mutex_t synced_mtx;
+	pthread_cond_t synced;
 
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
@@ -183,10 +187,6 @@ struct ba_transport {
 			 * subsequent ioctl() calls. */
 			int bt_fd_coutq_init;
 
-			/* playback synchronization */
-			pthread_mutex_t drained_mtx;
-			pthread_cond_t drained;
-
 		} a2dp;
 
 		struct {
@@ -199,10 +199,6 @@ struct ba_transport {
 			 * for separate configurations. */
 			struct ba_transport_pcm spk_pcm;
 			struct ba_transport_pcm mic_pcm;
-
-			/* playback synchronization */
-			pthread_mutex_t spk_drained_mtx;
-			pthread_cond_t spk_drained;
 
 		} sco;
 
@@ -220,10 +216,6 @@ struct ba_transport {
 
 };
 
-struct ba_transport *ba_transport_new(
-		struct ba_device *device,
-		const char *dbus_owner,
-		const char *dbus_path);
 struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
 		struct ba_transport_type type,
@@ -264,7 +256,7 @@ int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t va
 
 int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state);
 
-int ba_transport_drain_pcm(struct ba_transport *t);
+int ba_transport_drain_pcm(struct ba_transport_pcm *pcm);
 int ba_transport_release_pcm(struct ba_transport_pcm *pcm);
 
 int ba_transport_pthread_create(

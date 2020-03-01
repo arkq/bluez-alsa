@@ -205,7 +205,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	case G_IO_STATUS_NORMAL:
 		if (strncmp(command, BLUEALSA_PCM_CTRL_DRAIN, len) == 0) {
 			if (pcm->mode == BA_TRANSPORT_PCM_MODE_SINK)
-				ba_transport_drain_pcm(t);
+				ba_transport_drain_pcm(pcm);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_DROP, len) == 0) {
