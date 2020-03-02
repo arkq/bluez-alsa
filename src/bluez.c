@@ -482,10 +482,9 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	char *state = NULL;
 	char *device_path = NULL;
-	void *capabilities = NULL;
+	void *configuration = NULL;
 	uint16_t volume = 127;
 	uint16_t delay = 150;
-	size_t size = 0;
 
 	const char *transport_path;
 	GVariantIter *properties;
@@ -514,21 +513,22 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		else if (strcmp(property, "Configuration") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property)) {
 
+			size_t size = 0;
 			const void *data = g_variant_get_fixed_array(value, &size, sizeof(char));
-			unsigned int cap_chm = 0, cap_chm_bc = 0;
-			unsigned int cap_freq = 0, cap_freq_bc = 0;
-
-			capabilities = g_memdup(data, size);
 
 			if (size != codec->cfg_size) {
 				error("Invalid configuration: %s", "Invalid size");
 				goto fail;
 			}
 
+			unsigned int cap_chm = 0, cap_chm_bc = 0;
+			unsigned int cap_freq = 0, cap_freq_bc = 0;
+			configuration = g_memdup(data, size);
+
 			switch (codec_id) {
 			case A2DP_CODEC_SBC: {
 
-				const a2dp_sbc_t *cap = capabilities;
+				const a2dp_sbc_t *cap = configuration;
 				cap_chm = cap->channel_mode;
 				cap_freq = cap->frequency;
 
@@ -557,7 +557,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 #if ENABLE_MPEG
 			case A2DP_CODEC_MPEG12: {
-				a2dp_mpeg_t *cap = capabilities;
+				a2dp_mpeg_t *cap = configuration;
 				cap_chm = cap->channel_mode;
 				cap_freq = cap->frequency;
 				break;
@@ -567,7 +567,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 #if ENABLE_AAC
 			case A2DP_CODEC_MPEG24: {
 
-				const a2dp_aac_t *cap = capabilities;
+				const a2dp_aac_t *cap = configuration;
 				cap_chm = cap->channels;
 				cap_freq = AAC_GET_FREQUENCY(*cap);
 
@@ -585,7 +585,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 #if ENABLE_APTX
 			case A2DP_CODEC_VENDOR_APTX: {
-				a2dp_aptx_t *cap = capabilities;
+				a2dp_aptx_t *cap = configuration;
 				cap_chm = cap->channel_mode;
 				cap_freq = cap->frequency;
 				break;
@@ -594,7 +594,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 #if ENABLE_FASTSTREAM
 			case A2DP_CODEC_VENDOR_FASTSTREAM: {
-				a2dp_faststream_t *cap = capabilities;
+				a2dp_faststream_t *cap = configuration;
 				cap_freq = cap->frequency_music;
 				cap_freq_bc = cap->frequency_voice;
 				break;
@@ -603,7 +603,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 #if ENABLE_APTX_HD
 			case A2DP_CODEC_VENDOR_APTX_HD: {
-				a2dp_aptx_hd_t *cap = capabilities;
+				a2dp_aptx_hd_t *cap = configuration;
 				cap_chm = cap->aptx.channel_mode;
 				cap_freq = cap->aptx.frequency;
 				break;
@@ -612,7 +612,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 #if ENABLE_LDAC
 			case A2DP_CODEC_VENDOR_LDAC: {
-				a2dp_ldac_t *cap = capabilities;
+				a2dp_ldac_t *cap = configuration;
 				cap_chm = cap->channel_mode;
 				cap_freq = cap->frequency;
 				break;
@@ -687,7 +687,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	}
 
 	if ((t = ba_transport_new_a2dp(d, dbus_obj->ttype,
-					sender, transport_path, capabilities, size)) == NULL) {
+					sender, transport_path, codec, configuration)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -723,7 +723,7 @@ final:
 	if (value != NULL)
 		g_variant_unref(value);
 	g_free(device_path);
-	g_free(capabilities);
+	g_free(configuration);
 	g_free(state);
 }
 

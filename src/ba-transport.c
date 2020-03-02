@@ -163,8 +163,8 @@ struct ba_transport *ba_transport_new_a2dp(
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const void *cconfig,
-		size_t cconfig_size) {
+		const struct bluez_a2dp_codec *codec,
+		const void *configuration) {
 
 	struct ba_transport *t;
 
@@ -173,16 +173,14 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	t->type = type;
 
+	t->a2dp.codec = codec;
+	t->a2dp.configuration = g_memdup(configuration, codec->cfg_size);
+
 	transport_pcm_init(&t->a2dp.pcm, t, type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK ?
 			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 
 	t->a2dp.pcm.volume[0].level = 127;
 	t->a2dp.pcm.volume[1].level = 127;
-
-	if (cconfig_size > 0) {
-		t->a2dp.cconfig = g_memdup(cconfig, cconfig_size);
-		t->a2dp.cconfig_size = cconfig_size;
-	}
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -350,7 +348,7 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		transport_pcm_destroy(&t->a2dp.pcm);
-		free(t->a2dp.cconfig);
+		free(t->a2dp.configuration);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
@@ -452,112 +450,59 @@ static void transport_update_format(struct ba_transport *t) {
 
 static void transport_update_channels(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+
+		const struct bluez_a2dp_codec *codec = t->a2dp.codec;
+		uint16_t cfg_value = 0;
+		bool found = false;
+		size_t i;
+
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			switch (((a2dp_sbc_t *)t->a2dp.cconfig)->channel_mode) {
-			case SBC_CHANNEL_MODE_MONO:
-				t->a2dp.pcm.channels = 1;
-				return;
-			case SBC_CHANNEL_MODE_STEREO:
-			case SBC_CHANNEL_MODE_JOINT_STEREO:
-			case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-				t->a2dp.pcm.channels = 2;
-				return;
-			default:
-				debug("Invalid channel mode: %#x",
-						((a2dp_sbc_t *)t->a2dp.cconfig)->channel_mode);
-				t->a2dp.pcm.channels = 0;
-				return;
-			}
+			cfg_value = ((a2dp_sbc_t *)t->a2dp.configuration)->channel_mode;
+			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			switch (((a2dp_mpeg_t *)t->a2dp.cconfig)->channel_mode) {
-			case MPEG_CHANNEL_MODE_MONO:
-				t->a2dp.pcm.channels = 1;
-				return;
-			case MPEG_CHANNEL_MODE_STEREO:
-			case MPEG_CHANNEL_MODE_JOINT_STEREO:
-			case MPEG_CHANNEL_MODE_DUAL_CHANNEL:
-				t->a2dp.pcm.channels = 2;
-				return;
-			default:
-				debug("Invalid channel mode: %#x",
-						((a2dp_mpeg_t *)t->a2dp.cconfig)->channel_mode);
-				t->a2dp.pcm.channels = 0;
-				return;
-			}
+			cfg_value = ((a2dp_mpeg_t *)t->a2dp.configuration)->channel_mode;
+			break;
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			switch (((a2dp_aac_t *)t->a2dp.cconfig)->channels) {
-			case AAC_CHANNELS_1:
-				t->a2dp.pcm.channels = 1;
-				return;
-			case AAC_CHANNELS_2:
-				t->a2dp.pcm.channels = 2;
-				return;
-			default:
-				debug("Invalid channel mode: %#x",
-						((a2dp_aac_t *)t->a2dp.cconfig)->channels);
-				t->a2dp.pcm.channels = 0;
-				return;
-			}
+			cfg_value = ((a2dp_aac_t *)t->a2dp.configuration)->channels;
+			break;
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			switch (((a2dp_aptx_t *)t->a2dp.cconfig)->channel_mode) {
-			case APTX_CHANNEL_MODE_MONO:
-				t->a2dp.pcm.channels = 1;
-				return;
-			case APTX_CHANNEL_MODE_STEREO:
-				t->a2dp.pcm.channels = 2;
-				return;
-			default:
-				debug("Invalid channel mode: %#x",
-						((a2dp_aptx_t *)t->a2dp.cconfig)->channel_mode);
-				t->a2dp.pcm.channels = 0;
-				return;
-			}
+			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->channel_mode;
+			break;
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			switch (((a2dp_aptx_hd_t *)t->a2dp.cconfig)->aptx.channel_mode) {
-			case APTX_CHANNEL_MODE_MONO:
-				t->a2dp.pcm.channels = 1;
-				return;
-			case APTX_CHANNEL_MODE_STEREO:
-				t->a2dp.pcm.channels = 2;
-				return;
-			default:
-				debug("Invalid channel mode: %#x",
-						((a2dp_aptx_hd_t *)t->a2dp.cconfig)->aptx.channel_mode);
-				t->a2dp.pcm.channels = 0;
-				return;
-			}
+			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.channel_mode;
+			break;
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
-			switch (((a2dp_ldac_t *)t->a2dp.cconfig)->channel_mode) {
-			case LDAC_CHANNEL_MODE_MONO:
-				t->a2dp.pcm.channels = 1;
-				return;
-			case LDAC_CHANNEL_MODE_STEREO:
-			case LDAC_CHANNEL_MODE_DUAL:
-				t->a2dp.pcm.channels = 2;
-				return;
-			default:
-				debug("Invalid channel mode: %#x",
-						((a2dp_ldac_t *)t->a2dp.cconfig)->channel_mode);
-				t->a2dp.pcm.channels = 0;
-				return;
-			}
+			cfg_value = ((a2dp_ldac_t *)t->a2dp.configuration)->channel_mode;
+			break;
 #endif
 		default:
 			warn("Unsupported A2DP codec: %#x", t->type.codec);
-			t->a2dp.pcm.channels = 0;
-			return;
 		}
+
+		for (i = 0; i < codec->channels_size[0]; i++)
+			if (cfg_value == codec->channels[0][i].value) {
+				t->a2dp.pcm.channels = codec->channels[0][i].channels;
+				found = true;
+				break;
+			}
+
+		if (!found && codec->samplings_size[0] != 0) {
+			debug("Invalid channel mode configuration: %#x", cfg_value);
+			t->a2dp.pcm.channels = 0;
+		}
+
+	}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		t->sco.spk_pcm.channels = 1;
@@ -568,179 +513,59 @@ static void transport_update_channels(struct ba_transport *t) {
 
 static void transport_update_sampling(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+
+		const struct bluez_a2dp_codec *codec = t->a2dp.codec;
+		uint16_t cfg_value = 0;
+		bool found = false;
+		size_t i;
+
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			switch (((a2dp_sbc_t *)t->a2dp.cconfig)->frequency) {
-			case SBC_SAMPLING_FREQ_16000:
-				t->a2dp.pcm.sampling = 16000;
-				return;
-			case SBC_SAMPLING_FREQ_32000:
-				t->a2dp.pcm.sampling = 32000;
-				return;
-			case SBC_SAMPLING_FREQ_44100:
-				t->a2dp.pcm.sampling = 44100;
-				return;
-			case SBC_SAMPLING_FREQ_48000:
-				t->a2dp.pcm.sampling = 48000;
-				return;
-			default:
-				debug("Invalid sampling frequency: %#x",
-						((a2dp_sbc_t *)t->a2dp.cconfig)->frequency);
-				t->a2dp.pcm.sampling = 0;
-				return;
-			}
+			cfg_value = ((a2dp_sbc_t *)t->a2dp.configuration)->frequency;
+			break;
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			switch (((a2dp_mpeg_t *)t->a2dp.cconfig)->frequency) {
-			case MPEG_SAMPLING_FREQ_16000:
-				t->a2dp.pcm.sampling = 16000;
-				return;
-			case MPEG_SAMPLING_FREQ_22050:
-				t->a2dp.pcm.sampling = 22050;
-				return;
-			case MPEG_SAMPLING_FREQ_24000:
-				t->a2dp.pcm.sampling = 24000;
-				return;
-			case MPEG_SAMPLING_FREQ_32000:
-				t->a2dp.pcm.sampling = 32000;
-				return;
-			case MPEG_SAMPLING_FREQ_44100:
-				t->a2dp.pcm.sampling = 44100;
-				return;
-			case MPEG_SAMPLING_FREQ_48000:
-				t->a2dp.pcm.sampling = 48000;
-				return;
-			default:
-				debug("Invalid sampling frequency: %#x",
-						((a2dp_mpeg_t *)t->a2dp.cconfig)->frequency);
-				t->a2dp.pcm.sampling = 0;
-				return;
-			}
+			cfg_value = ((a2dp_mpeg_t *)t->a2dp.configuration)->frequency;
+			break;
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			switch (AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.cconfig)) {
-			case AAC_SAMPLING_FREQ_8000:
-				t->a2dp.pcm.sampling = 8000;
-				return;
-			case AAC_SAMPLING_FREQ_11025:
-				t->a2dp.pcm.sampling = 11025;
-				return;
-			case AAC_SAMPLING_FREQ_12000:
-				t->a2dp.pcm.sampling = 12000;
-				return;
-			case AAC_SAMPLING_FREQ_16000:
-				t->a2dp.pcm.sampling = 16000;
-				return;
-			case AAC_SAMPLING_FREQ_22050:
-				t->a2dp.pcm.sampling = 22050;
-				return;
-			case AAC_SAMPLING_FREQ_24000:
-				t->a2dp.pcm.sampling = 24000;
-				return;
-			case AAC_SAMPLING_FREQ_32000:
-				t->a2dp.pcm.sampling = 32000;
-				return;
-			case AAC_SAMPLING_FREQ_44100:
-				t->a2dp.pcm.sampling = 44100;
-				return;
-			case AAC_SAMPLING_FREQ_48000:
-				t->a2dp.pcm.sampling = 48000;
-				return;
-			case AAC_SAMPLING_FREQ_64000:
-				t->a2dp.pcm.sampling = 64000;
-				return;
-			case AAC_SAMPLING_FREQ_88200:
-				t->a2dp.pcm.sampling = 88200;
-				return;
-			case AAC_SAMPLING_FREQ_96000:
-				t->a2dp.pcm.sampling = 96000;
-				return;
-			default:
-				debug("Invalid sampling frequency: %#x",
-						AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.cconfig));
-				t->a2dp.pcm.sampling = 0;
-				return;
-			}
+			cfg_value = AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.configuration);
+			break;
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			switch (((a2dp_aptx_t *)t->a2dp.cconfig)->frequency) {
-			case APTX_SAMPLING_FREQ_16000:
-				t->a2dp.pcm.sampling = 16000;
-				return;
-			case APTX_SAMPLING_FREQ_32000:
-				t->a2dp.pcm.sampling = 32000;
-				return;
-			case APTX_SAMPLING_FREQ_44100:
-				t->a2dp.pcm.sampling = 44100;
-				return;
-			case APTX_SAMPLING_FREQ_48000:
-				t->a2dp.pcm.sampling = 48000;
-				return;
-			default:
-				debug("Invalid sampling frequency: %#x",
-						((a2dp_aptx_t *)t->a2dp.cconfig)->frequency);
-				t->a2dp.pcm.sampling = 0;
-				return;
-			}
+			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->frequency;
+			break;
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			switch (((a2dp_aptx_hd_t *)t->a2dp.cconfig)->aptx.frequency) {
-			case APTX_SAMPLING_FREQ_16000:
-				t->a2dp.pcm.sampling = 16000;
-				return;
-			case APTX_SAMPLING_FREQ_32000:
-				t->a2dp.pcm.sampling = 32000;
-				return;
-			case APTX_SAMPLING_FREQ_44100:
-				t->a2dp.pcm.sampling = 44100;
-				return;
-			case APTX_SAMPLING_FREQ_48000:
-				t->a2dp.pcm.sampling = 48000;
-				return;
-			default:
-				debug("Invalid sampling frequency: %#x",
-						((a2dp_aptx_hd_t *)t->a2dp.cconfig)->aptx.frequency);
-				t->a2dp.pcm.sampling = 0;
-				return;
-			}
+			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.frequency;
+			break;
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
-			switch (((a2dp_ldac_t *)t->a2dp.cconfig)->frequency) {
-			case LDAC_SAMPLING_FREQ_44100:
-				t->a2dp.pcm.sampling = 44100;
-				return;
-			case LDAC_SAMPLING_FREQ_48000:
-				t->a2dp.pcm.sampling = 48000;
-				return;
-			case LDAC_SAMPLING_FREQ_88200:
-				t->a2dp.pcm.sampling = 88200;
-				return;
-			case LDAC_SAMPLING_FREQ_96000:
-				t->a2dp.pcm.sampling = 96000;
-				return;
-			case LDAC_SAMPLING_FREQ_176400:
-				t->a2dp.pcm.sampling = 176400;
-				return;
-			case LDAC_SAMPLING_FREQ_192000:
-				t->a2dp.pcm.sampling = 192000;
-				return;
-			default:
-				debug("Invalid sampling frequency: %#x",
-						((a2dp_ldac_t *)t->a2dp.cconfig)->frequency);
-				t->a2dp.pcm.sampling = 0;
-				return;
-			}
+			cfg_value = ((a2dp_ldac_t *)t->a2dp.configuration)->frequency;
+			break;
 #endif
 		default:
 			warn("Unsupported A2DP codec: %#x", t->type.codec);
-			t->a2dp.pcm.sampling = 0;
-			return;
 		}
+
+		for (i = 0; i < codec->samplings_size[0]; i++)
+			if (cfg_value == codec->samplings[0][i].value) {
+				t->a2dp.pcm.sampling = codec->samplings[0][i].frequency;
+				found = true;
+				break;
+			}
+
+		if (!found && codec->samplings_size[0] != 0) {
+			debug("Invalid sampling frequency configuration: %#x", cfg_value);
+			t->a2dp.pcm.sampling = 0;
+		}
+
+	}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		switch (t->type.codec) {

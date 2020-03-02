@@ -423,7 +423,7 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.cconfig, t->a2dp.cconfig_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration, t->a2dp.codec->cfg_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -535,7 +535,7 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.cconfig, t->a2dp.cconfig_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration, t->a2dp.codec->cfg_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -872,7 +872,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(lame_close), handle);
 
-	const a2dp_mpeg_t *cconfig = (a2dp_mpeg_t *)t->a2dp.cconfig;
+	const a2dp_mpeg_t *configuration = (a2dp_mpeg_t *)t->a2dp.configuration;
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	MPEG_mode mode = NOT_SET;
@@ -880,7 +880,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 	lame_set_num_channels(handle, channels);
 	lame_set_in_samplerate(handle, samplerate);
 
-	switch (cconfig->channel_mode) {
+	switch (configuration->channel_mode) {
 	case MPEG_CHANNEL_MODE_MONO:
 		mode = MONO;
 		break;
@@ -903,11 +903,11 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 		error("LAME: Couldn't disable VBR header");
 		goto fail_setup;
 	}
-	if (lame_set_error_protection(handle, cconfig->crc) != 0) {
-		error("LAME: Couldn't set CRC mode: %d", cconfig->crc);
+	if (lame_set_error_protection(handle, configuration->crc) != 0) {
+		error("LAME: Couldn't set CRC mode: %d", configuration->crc);
 		goto fail_setup;
 	}
-	if (cconfig->vbr) {
+	if (configuration->vbr) {
 		if (lame_set_VBR(handle, vbr_default) != 0) {
 			error("LAME: Couldn't set VBR mode: %d", vbr_default);
 			goto fail_setup;
@@ -922,7 +922,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 			error("LAME: Couldn't set CBR mode");
 			goto fail_setup;
 		}
-		int mpeg_bitrate = MPEG_GET_BITRATE(*cconfig);
+		int mpeg_bitrate = MPEG_GET_BITRATE(*configuration);
 		int bitrate = a2dp_mpeg1_mp3_get_max_bitrate(mpeg_bitrate);
 		if (lame_set_brate(handle, bitrate) != 0) {
 			error("LAME: Couldn't set CBR bitrate: %d", bitrate);
@@ -1246,7 +1246,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	AACENC_InfoStruct aacinf;
 	AACENC_ERROR err;
 
-	const a2dp_aac_t *cconfig = (a2dp_aac_t *)t->a2dp.cconfig;
+	const a2dp_aac_t *configuration = (a2dp_aac_t *)t->a2dp.configuration;
 	const unsigned int channels = t->a2dp.pcm.channels;
 
 	/* create AAC encoder without the Meta Data module */
@@ -1258,11 +1258,11 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacEncClose), &handle);
 
 	unsigned int aot = AOT_NONE;
-	unsigned int bitrate = AAC_GET_BITRATE(*cconfig);
+	unsigned int bitrate = AAC_GET_BITRATE(*configuration);
 	unsigned int samplerate = t->a2dp.pcm.sampling;
 	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
 
-	switch (cconfig->object_type) {
+	switch (configuration->object_type) {
 	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
 #if AACENCODER_LIB_VERSION <= 0x03040C00 /* 3.4.12 */
 		aot = AOT_MP2_AAC_LC;
@@ -1295,7 +1295,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 		error("Couldn't set channel mode: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
-	if (cconfig->vbr) {
+	if (configuration->vbr) {
 		if ((err = aacEncoder_SetParam(handle, AACENC_BITRATEMODE, config.aac_vbr_mode)) != AACENC_OK) {
 			error("Couldn't set VBR bitrate mode %u: %s", config.aac_vbr_mode, aacenc_strerror(err));
 			goto fail_init;
@@ -1760,13 +1760,13 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
-	const a2dp_ldac_t *cconfig = (a2dp_ldac_t *)t->a2dp.cconfig;
+	const a2dp_ldac_t *configuration = (a2dp_ldac_t *)t->a2dp.configuration;
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
 
 	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
-				config.ldac_eqmid, cconfig->channel_mode, LDACBT_SMPL_FMT_S16, samplerate) == -1) {
+				config.ldac_eqmid, configuration->channel_mode, LDACBT_SMPL_FMT_S16, samplerate) == -1) {
 		error("Couldn't initialize LDAC encoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
 		goto fail_init;
 	}
@@ -1954,7 +1954,7 @@ int a2dp_thread_create(struct ba_transport *t) {
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 #if ENABLE_MP3LAME
-			if (((a2dp_mpeg_t *)t->a2dp.cconfig)->layer == MPEG_LAYER_MP3)
+			if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
 				return ba_transport_pthread_create(t, a2dp_source_mp3, "ba-a2dp-mp3");
 #endif
 			break;
@@ -1985,7 +1985,7 @@ int a2dp_thread_create(struct ba_transport *t) {
 #if ENABLE_MPG123
 			return ba_transport_pthread_create(t, a2dp_sink_mpeg, "ba-a2dp-mpeg");
 #elif ENABLE_MP3LAME
-			if (((a2dp_mpeg_t *)t->a2dp.cconfig)->layer == MPEG_LAYER_MP3)
+			if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
 				return ba_transport_pthread_create(t, a2dp_sink_mpeg, "ba-a2dp-mp3");
 #endif
 			break;

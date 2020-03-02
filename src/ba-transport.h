@@ -22,6 +22,7 @@
 
 #include "ba-device.h"
 #include "ba-rfcomm.h"
+#include "bluez-a2dp.h"
 #include "hfp.h"
 
 #define BA_TRANSPORT_PROFILE_NONE        (0)
@@ -171,14 +172,15 @@ struct ba_transport {
 
 		struct {
 
+			/* audio codec configuration capabilities */
+			const struct bluez_a2dp_codec *codec;
+			/* selected audio codec configuration */
+			uint8_t *configuration;
+
 			/* delay reported by the AVDTP */
 			uint16_t delay;
 
 			struct ba_transport_pcm pcm;
-
-			/* selected audio codec configuration */
-			uint8_t *cconfig;
-			size_t cconfig_size;
 
 			/* Value reported by the ioctl(TIOCOUTQ) when the output buffer is
 			 * empty. Somehow this ioctl call reports "available" buffer space.
@@ -221,8 +223,8 @@ struct ba_transport *ba_transport_new_a2dp(
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const void *cconfig,
-		size_t cconfig_size);
+		const struct bluez_a2dp_codec *codec,
+		const void *configuration);
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
 		struct ba_transport_type type,

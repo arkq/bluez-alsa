@@ -29,14 +29,14 @@
 #define a2dp_sink_sbc _a2dp_sink_sbc
 #include "../src/a2dp.c"
 #undef a2dp_sink_sbc
-#include "../src/bluealsa.c"
-#include "../src/bluealsa-dbus.c"
-#include "../src/bluealsa-iface.c"
 #include "../src/at.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-rfcomm.c"
 #include "../src/ba-transport.c"
+#include "../src/bluealsa-dbus.c"
+#include "../src/bluealsa-iface.c"
+#include "../src/bluealsa.c"
 #include "../src/bluez-a2dp.c"
 #include "../src/hci.c"
 #include "../src/msbc.c"
@@ -46,7 +46,7 @@
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
-static const a2dp_sbc_t cconfig = {
+static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,
 	.block_length = SBC_BLOCK_LENGTH_16,
@@ -117,10 +117,10 @@ int test_transport_release(struct ba_transport *t) {
 
 struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
 		struct ba_transport_type type, const char *owner, const char *path,
-		const void *cconfig, size_t csize) {
+		const struct bluez_a2dp_codec *codec, const void *configuration) {
 	if (fuzzing)
 		sleep(1);
-	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, cconfig, csize);
+	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, codec, configuration);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release;
 	return t;
@@ -188,9 +188,9 @@ void *test_bt_mock(void *data) {
 			.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 			.codec = A2DP_CODEC_SBC };
 		assert((t1d1 = test_transport_new_a2dp(d1, ttype, ":test", "/source/1",
-					&cconfig, sizeof(cconfig))) != NULL);
+					&a2dp_codec_source_sbc, &config_sbc_44100_stereo)) != NULL);
 		assert((t1d2 = test_transport_new_a2dp(d2, ttype, ":test", "/source/2",
-					&cconfig, sizeof(cconfig))) != NULL);
+					&a2dp_codec_source_sbc, &config_sbc_44100_stereo)) != NULL);
 	}
 
 	if (sink) {
@@ -198,10 +198,10 @@ void *test_bt_mock(void *data) {
 			.profile = BA_TRANSPORT_PROFILE_A2DP_SINK,
 			.codec = A2DP_CODEC_SBC };
 		assert((t2d1 = test_transport_new_a2dp(d1, ttype, ":test", "/sink/1",
-						&cconfig, sizeof(cconfig))) != NULL);
+						&a2dp_codec_sink_sbc, &config_sbc_44100_stereo)) != NULL);
 		assert(t2d1->acquire(t2d1) == 0);
 		assert((t2d2 = test_transport_new_a2dp(d2, ttype, ":test", "/sink/2",
-						&cconfig, sizeof(cconfig))) != NULL);
+						&a2dp_codec_sink_sbc, &config_sbc_44100_stereo)) != NULL);
 		assert(t2d2->acquire(t2d2) == 0);
 	}
 

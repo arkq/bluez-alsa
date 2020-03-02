@@ -35,11 +35,12 @@ enum bluez_a2dp_chm {
 
 struct bluez_a2dp_channel_mode {
 	enum bluez_a2dp_chm mode;
+	unsigned int channels;
 	uint16_t value;
 };
 
 struct bluez_a2dp_sampling_freq {
-	int frequency;
+	unsigned int frequency;
 	uint16_t value;
 };
 

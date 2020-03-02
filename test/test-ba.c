@@ -18,11 +18,11 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
+#include "../src/bluez-a2dp.c"
 #include "../src/hci.c"
 #include "../src/utils.c"
 #include "../src/shared/log.c"
 
-const struct bluez_a2dp_codec **bluez_a2dp_codecs = NULL;
 int a2dp_thread_create(struct ba_transport *t) { (void)t; return 0; }
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 void *sco_thread(struct ba_transport *t) { (void)t; return 0; }
@@ -111,9 +111,9 @@ START_TEST(test_ba_transport_volume_packed) {
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
 	struct ba_transport_type ttype_a2dp = { .profile = BA_TRANSPORT_PROFILE_A2DP_SINK };
-	a2dp_sbc_t cconfig = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
+	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d, ttype_a2dp,
-				"/owner", "/path", &cconfig, sizeof(cconfig)), NULL);
+				"/owner", "/path", &a2dp_codec_sink_sbc, &configuration), NULL);
 
 	struct ba_transport_type ttype_sco = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
 	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path", -1), NULL);

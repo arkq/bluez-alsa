@@ -40,10 +40,10 @@ static const a2dp_sbc_t a2dp_sbc = {
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_sbc_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, SBC_CHANNEL_MODE_MONO },
-	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, SBC_CHANNEL_MODE_DUAL_CHANNEL },
-	{ BLUEZ_A2DP_CHM_STEREO, SBC_CHANNEL_MODE_STEREO },
-	{ BLUEZ_A2DP_CHM_JOINT_STEREO, SBC_CHANNEL_MODE_JOINT_STEREO },
+	{ BLUEZ_A2DP_CHM_MONO, 1, SBC_CHANNEL_MODE_MONO },
+	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
+	{ BLUEZ_A2DP_CHM_STEREO, 2, SBC_CHANNEL_MODE_STEREO },
+	{ BLUEZ_A2DP_CHM_JOINT_STEREO, 2, SBC_CHANNEL_MODE_JOINT_STEREO },
 };
 
 static const struct bluez_a2dp_sampling_freq a2dp_sbc_samplings[] = {
@@ -140,10 +140,10 @@ static const a2dp_mpeg_t a2dp_mpeg_sink = {
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_mpeg_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, MPEG_CHANNEL_MODE_MONO },
-	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
-	{ BLUEZ_A2DP_CHM_STEREO, MPEG_CHANNEL_MODE_STEREO },
-	{ BLUEZ_A2DP_CHM_JOINT_STEREO, MPEG_CHANNEL_MODE_JOINT_STEREO },
+	{ BLUEZ_A2DP_CHM_MONO, 1, MPEG_CHANNEL_MODE_MONO },
+	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
+	{ BLUEZ_A2DP_CHM_STEREO, 2, MPEG_CHANNEL_MODE_STEREO },
+	{ BLUEZ_A2DP_CHM_JOINT_STEREO, 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
 };
 
 static const struct bluez_a2dp_sampling_freq a2dp_mpeg_samplings[] = {
@@ -182,8 +182,8 @@ static const a2dp_aac_t a2dp_aac = {
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_aac_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, AAC_CHANNELS_1 },
-	{ BLUEZ_A2DP_CHM_STEREO, AAC_CHANNELS_2 },
+	{ BLUEZ_A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
+	{ BLUEZ_A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
 };
 
 static const struct bluez_a2dp_sampling_freq a2dp_aac_samplings[] = {
@@ -215,7 +215,7 @@ static const a2dp_aptx_t a2dp_aptx = {
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_aptx_channels[] = {
-	{ BLUEZ_A2DP_CHM_STEREO, APTX_CHANNEL_MODE_STEREO },
+	{ BLUEZ_A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
 };
 
 static const struct bluez_a2dp_sampling_freq a2dp_aptx_samplings[] = {
@@ -258,7 +258,7 @@ static const a2dp_aptx_hd_t a2dp_aptx_hd = {
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_aptx_hd_channels[] = {
-	{ BLUEZ_A2DP_CHM_STEREO, APTX_CHANNEL_MODE_STEREO },
+	{ BLUEZ_A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
 };
 
 static const struct bluez_a2dp_sampling_freq a2dp_aptx_hd_samplings[] = {
@@ -284,9 +284,9 @@ static const a2dp_ldac_t a2dp_ldac = {
 };
 
 static const struct bluez_a2dp_channel_mode a2dp_ldac_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, LDAC_CHANNEL_MODE_MONO },
-	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, LDAC_CHANNEL_MODE_DUAL },
-	{ BLUEZ_A2DP_CHM_STEREO, LDAC_CHANNEL_MODE_STEREO },
+	{ BLUEZ_A2DP_CHM_MONO, 1, LDAC_CHANNEL_MODE_MONO },
+	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, 2, LDAC_CHANNEL_MODE_DUAL },
+	{ BLUEZ_A2DP_CHM_STEREO, 2, LDAC_CHANNEL_MODE_STEREO },
 };
 
 static const struct bluez_a2dp_sampling_freq a2dp_ldac_samplings[] = {

@@ -24,6 +24,7 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
+#include "../src/bluez-a2dp.c"
 #include "../src/hci.c"
 #include "../src/msbc.c"
 #include "../src/sco.c"
@@ -32,7 +33,6 @@
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
 
-const struct bluez_a2dp_codec **bluez_a2dp_codecs = NULL;
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 	debug("%s: %p", __func__, (void *)pcm); (void)error; return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
@@ -394,9 +394,9 @@ START_TEST(test_a2dp_sbc) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/sbc",
-			&config_sbc_44100_stereo, sizeof(config_sbc_44100_stereo));
+			&a2dp_codec_source_sbc, &config_sbc_44100_stereo);
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/sbc",
-			&config_sbc_44100_stereo, sizeof(config_sbc_44100_stereo));
+			&a2dp_codec_sink_sbc, &config_sbc_44100_stereo);
 
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
@@ -420,9 +420,9 @@ START_TEST(test_a2dp_mp3) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_MPEG12 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/mp3",
-			&config_mp3_44100_stereo, sizeof(config_mp3_44100_stereo));
+			&a2dp_codec_source_mpeg, &config_mp3_44100_stereo);
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/mp3",
-			&config_mp3_44100_stereo, sizeof(config_mp3_44100_stereo));
+			&a2dp_codec_sink_mpeg, &config_mp3_44100_stereo);
 
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
@@ -447,9 +447,9 @@ START_TEST(test_a2dp_aac) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_MPEG24 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aac",
-			&config_aac_44100_stereo, sizeof(config_aac_44100_stereo));
+			&a2dp_codec_source_aac, &config_aac_44100_stereo);
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aac",
-			&config_aac_44100_stereo, sizeof(config_aac_44100_stereo));
+			&a2dp_codec_sink_aac, &config_aac_44100_stereo);
 
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
@@ -474,9 +474,9 @@ START_TEST(test_a2dp_aptx) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_APTX };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptx",
-			&config_aptx_44100_stereo, sizeof(config_aptx_44100_stereo));
+			&a2dp_codec_source_aptx, &config_aptx_44100_stereo);
 	struct ba_transport *t2 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptx",
-			&config_aptx_44100_stereo, sizeof(config_aptx_44100_stereo));
+			&a2dp_codec_sink_aptx, &config_aptx_44100_stereo);
 
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
@@ -498,9 +498,9 @@ START_TEST(test_a2dp_aptx_hd) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_APTX_HD };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
-			&config_aptx_hd_44100_stereo, sizeof(config_aptx_hd_44100_stereo));
+			&a2dp_codec_source_aptx_hd, &config_aptx_hd_44100_stereo);
 	struct ba_transport *t2 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
-			&config_aptx_hd_44100_stereo, sizeof(config_aptx_hd_44100_stereo));
+			&a2dp_codec_sink_aptx_hd, &config_aptx_hd_44100_stereo);
 
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
@@ -522,9 +522,9 @@ START_TEST(test_a2dp_ldac) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_LDAC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/ldac",
-			&config_ldac_44100_stereo, sizeof(config_ldac_44100_stereo));
+			&a2dp_codec_source_ldac, &config_ldac_44100_stereo);
 	struct ba_transport *t2 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/ldac",
-			&config_ldac_44100_stereo, sizeof(config_ldac_44100_stereo));
+			&a2dp_codec_sink_ldac, &config_ldac_44100_stereo);
 
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
