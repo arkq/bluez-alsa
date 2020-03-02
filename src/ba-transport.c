@@ -12,7 +12,6 @@
 
 #include <errno.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -166,6 +165,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		const struct bluez_a2dp_codec *codec,
 		const void *configuration) {
 
+	const bool is_sink = type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t;
 
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
@@ -176,11 +176,15 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->a2dp.codec = codec;
 	t->a2dp.configuration = g_memdup(configuration, codec->cfg_size);
 
-	transport_pcm_init(&t->a2dp.pcm, t, type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK ?
+	transport_pcm_init(&t->a2dp.pcm, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
-
 	t->a2dp.pcm.volume[0].level = 127;
 	t->a2dp.pcm.volume[1].level = 127;
+
+	transport_pcm_init(&t->a2dp.pcm_bc, t, is_sink ?
+			BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
+	t->a2dp.pcm_bc.volume[0].level = 127;
+	t->a2dp.pcm_bc.volume[1].level = 127;
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -188,6 +192,8 @@ struct ba_transport *ba_transport_new_a2dp(
 	ba_transport_update_codec(t, type.codec);
 
 	bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
+	if (codec->backchannel)
+		bluealsa_dbus_pcm_register(&t->a2dp.pcm_bc, NULL);
 
 	return t;
 }
@@ -298,8 +304,10 @@ void ba_transport_destroy(struct ba_transport *t) {
 
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
+		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm_bc);
+	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
 		bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
@@ -348,6 +356,7 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		transport_pcm_destroy(&t->a2dp.pcm);
+		transport_pcm_destroy(&t->a2dp.pcm_bc);
 		free(t->a2dp.configuration);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
@@ -476,6 +485,12 @@ static void transport_update_channels(struct ba_transport *t) {
 			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->channel_mode;
 			break;
 #endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			t->a2dp.pcm.channels = 2;
+			t->a2dp.pcm_bc.channels = 1;
+			break;
+#endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
 			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.channel_mode;
@@ -516,8 +531,8 @@ static void transport_update_sampling(struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		const struct bluez_a2dp_codec *codec = t->a2dp.codec;
-		uint16_t cfg_value = 0;
-		bool found = false;
+		uint16_t cfg_value = 0, cfg_value_bc = 0;
+		bool found = false, found_bc = false;
 		size_t i;
 
 		switch (t->type.codec) {
@@ -537,6 +552,12 @@ static void transport_update_sampling(struct ba_transport *t) {
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
 			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->frequency;
+			break;
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			cfg_value = ((a2dp_faststream_t *)t->a2dp.configuration)->frequency_music;
+			cfg_value_bc = ((a2dp_faststream_t *)t->a2dp.configuration)->frequency_voice;
 			break;
 #endif
 #if ENABLE_APTX_HD
@@ -560,9 +581,21 @@ static void transport_update_sampling(struct ba_transport *t) {
 				break;
 			}
 
+		for (i = 0; i < codec->samplings_size[1]; i++)
+			if (cfg_value_bc == codec->samplings[1][i].value) {
+				t->a2dp.pcm_bc.sampling = codec->samplings[1][i].frequency;
+				found_bc = true;
+				break;
+			}
+
 		if (!found && codec->samplings_size[0] != 0) {
 			debug("Invalid sampling frequency configuration: %#x", cfg_value);
 			t->a2dp.pcm.sampling = 0;
+		}
+
+		if (!found_bc && codec->samplings_size[1] != 0) {
+			debug("Invalid back-channel sampling frequency configuration: %#x", cfg_value_bc);
+			t->a2dp.pcm_bc.sampling = 0;
 		}
 
 	}

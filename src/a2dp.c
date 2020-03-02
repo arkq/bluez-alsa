@@ -49,6 +49,7 @@
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
 #include "bluealsa.h"
+#include "bluez-a2dp.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"

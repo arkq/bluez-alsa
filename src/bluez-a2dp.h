@@ -15,6 +15,7 @@
 # include <config.h>
 #endif
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -47,6 +48,8 @@ struct bluez_a2dp_sampling_freq {
 struct bluez_a2dp_codec {
 	enum bluez_a2dp_dir dir;
 	uint16_t id;
+	/* support for A2DP back-channel */
+	bool backchannel;
 	/* capabilities configuration element */
 	const void *cfg;
 	size_t cfg_size;

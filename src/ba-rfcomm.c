@@ -17,7 +17,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
+
+#include <glib.h>
 
 #include "ba-adapter.h"
 #include "ba-device.h"

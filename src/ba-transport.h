@@ -23,7 +23,6 @@
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "bluez-a2dp.h"
-#include "hfp.h"
 
 #define BA_TRANSPORT_PROFILE_NONE        (0)
 #define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)
@@ -181,6 +180,8 @@ struct ba_transport {
 			uint16_t delay;
 
 			struct ba_transport_pcm pcm;
+			/* PCM for back-channel stream */
+			struct ba_transport_pcm pcm_bc;
 
 			/* Value reported by the ioctl(TIOCOUTQ) when the output buffer is
 			 * empty. Somehow this ioctl call reports "available" buffer space.
