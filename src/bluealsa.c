@@ -19,6 +19,7 @@
 
 #include "bluez-a2dp.h"
 #include "hfp.h"
+#include "sbc.h"
 
 /* Initialize global configuration variable. */
 struct ba_config config = {
@@ -74,6 +75,9 @@ struct ba_config config = {
 	.a2dp.force_mono = false,
 	.a2dp.force_44100 = false,
 	.a2dp.keep_alive = 0,
+
+	/* Try to use high SBC encoding quality as a default. */
+	.sbc_quality = SBC_QUALITY_HIGH,
 
 #if ENABLE_AAC
 	/* There are two issues with the afterburner: a) it uses a LOT of power,

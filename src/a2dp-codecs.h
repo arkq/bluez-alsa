@@ -69,11 +69,17 @@
 #define SBC_MIN_BITPOOL                 2
 #define SBC_MAX_BITPOOL                 250
 
-/* Other settings:
- * Block length = 16
- * Allocation method = Loudness
- * Subbands = 8
- */
+/**
+ * Predefined SBC bit-pool values.
+ *
+ * Other settings:
+ *  - block length = 16
+ *  - allocation method = Loudness
+ *  - sub-bands = 8 */
+#define SBC_BITPOOL_LQ_MONO_44100          15
+#define SBC_BITPOOL_LQ_MONO_48000          15
+#define SBC_BITPOOL_LQ_JOINT_STEREO_44100  29
+#define SBC_BITPOOL_LQ_JOINT_STEREO_48000  29
 #define SBC_BITPOOL_MQ_MONO_44100          19
 #define SBC_BITPOOL_MQ_MONO_48000          18
 #define SBC_BITPOOL_MQ_JOINT_STEREO_44100  35

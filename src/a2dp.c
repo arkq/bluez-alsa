@@ -50,6 +50,7 @@
 #include "a2dp-rtp.h"
 #include "bluealsa.h"
 #include "bluez-a2dp.h"
+#include "sbc.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -446,6 +447,9 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
 	uint16_t seq_number = -1;
+#if DEBUG
+	uint16_t sbc_bitpool = 0;
+#endif
 
 	ba_transport_pthread_cleanup_unlock(t);
 	io.t_locked = false;
@@ -497,6 +501,13 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 				break;
 			}
 
+#if DEBUG
+			if (sbc_bitpool != sbc.bitpool) {
+				sbc_bitpool = sbc.bitpool;
+				sbc_print_internals(&sbc);
+			}
+#endif
+
 			rtp_payload += len;
 			rtp_payload_len -= len;
 
@@ -547,20 +558,27 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
+	const a2dp_sbc_t *configuration = (a2dp_sbc_t *)t->a2dp.configuration;
 	const size_t sbc_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
-	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
+
+	/* initialize SBC encoder bit-pool */
+	sbc.bitpool = sbc_a2dp_get_bitpool(configuration, config.sbc_quality);
+
+#if DEBUG
+	sbc_print_internals(&sbc);
+#endif
 
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
 	 * header and at least one SBC frame. In general, there is no constraint
 	 * for the MTU value, but the speed might suffer significantly. */
 	const size_t mtu_write_payload = t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t);
-	if (mtu_write_payload < sbc_frame_len) {
+	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
+
+	if (mtu_write_payload < sbc_frame_len)
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu",
 				t->mtu_write, RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len);
-		t->mtu_write = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len;
-	}
 
 	if (ffb_init(&pcm, sbc_pcm_samples * (mtu_write_payload / sbc_frame_len)) == NULL ||
 			ffb_init(&bt, t->mtu_write) == NULL) {
@@ -601,10 +619,12 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 		size_t pcm_frames = 0;
 		size_t sbc_frames = 0;
 
-		/* Generate as many SBC frames as possible to fill the output buffer
-		 * without overflowing it. The size of the output buffer is based on
-		 * the socket MTU, so such a transfer should be most efficient. */
-		while (input_len >= sbc_pcm_samples && output_len >= sbc_frame_len) {
+		/* Generate as many SBC frames as possible, but less than a 4-bit media
+		 * header frame counter can contain. The size of the output buffer is
+		 * based on the socket MTU, so such transfer should be most efficient. */
+		while (input_len >= sbc_pcm_samples &&
+				output_len >= sbc_frame_len &&
+				sbc_frames < ((1 << 4) - 1)) {
 
 			ssize_t len;
 			ssize_t encoded;

@@ -40,6 +40,7 @@
 #include "../src/bluez-a2dp.c"
 #include "../src/hci.c"
 #include "../src/msbc.c"
+#include "../src/sbc.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
@@ -298,6 +299,9 @@ int main(int argc, char *argv[]) {
 	assert(bluealsa_dbus_manager_register(NULL) != 0);
 	assert(g_bus_own_name_on_connection(config.dbus, service,
 				G_BUS_NAME_OWNER_FLAGS_NONE, NULL, NULL, NULL, NULL) != 0);
+
+	/* do not generate lots of data */
+	config.sbc_quality = SBC_QUALITY_LOW;
 
 	/* emulate dummy test HCI device */
 	assert((a = ba_adapter_new(0)) != NULL);

@@ -27,6 +27,7 @@
 #include "../src/bluez-a2dp.c"
 #include "../src/hci.c"
 #include "../src/msbc.c"
+#include "../src/sbc.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"

@@ -35,6 +35,7 @@
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
 #include "hci.h"
+#include "sbc.h"
 #include "sco.h"
 #include "utils.h"
 #include "shared/defs.h"
@@ -234,7 +235,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		if (config.sbc_xq) {
+		if (config.sbc_quality == SBC_QUALITY_XQ) {
 			if (cap_chm & SBC_CHANNEL_MODE_DUAL_CHANNEL)
 				cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 			else
@@ -264,7 +265,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		else if (cap->subbands & SBC_SUBBANDS_4)
 			cap->subbands = SBC_SUBBANDS_4;
 		else {
-			error("No supported subbands: %#x", cap->subbands);
+			error("No supported sub-bands: %#x", cap->subbands);
 			goto fail;
 		}
 
@@ -277,12 +278,8 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
-		int bitpool = a2dp_sbc_default_bitpool(cap->frequency, cap->channel_mode);
-		if (config.sbc_xq)
-			bitpool = 38;
-
 		cap->min_bitpool = MAX(SBC_MIN_BITPOOL, cap->min_bitpool);
-		cap->max_bitpool = MIN(bitpool, cap->max_bitpool);
+		cap->max_bitpool = MIN(SBC_MAX_BITPOOL, cap->max_bitpool);
 
 		break;
 	}
@@ -540,7 +537,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 				if (cap->subbands != SBC_SUBBANDS_4 &&
 						cap->subbands != SBC_SUBBANDS_8) {
-					error("Invalid configuration: %s", "Invalid SBC subbands");
+					error("Invalid configuration: %s", "Invalid SBC sub-bands");
 					goto fail;
 				}
 
@@ -551,6 +548,9 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 					error("Invalid configuration: %s", "Invalid block length");
 					goto fail;
 				}
+
+				debug("Configuration: Selected A2DP SBC bit-pool range: [%u, %u]",
+						cap->min_bitpool, cap->max_bitpool);
 
 				break;
 			}

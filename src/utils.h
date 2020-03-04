@@ -26,8 +26,6 @@
 
 #include "ba-transport.h"
 
-int a2dp_sbc_default_bitpool(int freq, int mode);
-
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);
 const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type);

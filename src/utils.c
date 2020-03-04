@@ -26,48 +26,6 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
-
-/**
- * Calculate the optimum bitpool for given parameters.
- *
- * @param freq Sampling frequency.
- * @param model Channel mode.
- * @return Coded SBC bitpool. */
-int a2dp_sbc_default_bitpool(int freq, int mode) {
-	switch (freq) {
-	case SBC_SAMPLING_FREQ_16000:
-	case SBC_SAMPLING_FREQ_32000:
-		return 53;
-	case SBC_SAMPLING_FREQ_44100:
-		switch (mode) {
-		case SBC_CHANNEL_MODE_MONO:
-		case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-			return 31;
-		case SBC_CHANNEL_MODE_STEREO:
-		case SBC_CHANNEL_MODE_JOINT_STEREO:
-			return 53;
-		default:
-			warn("Invalid channel mode: %u", mode);
-			return 53;
-		}
-	case SBC_SAMPLING_FREQ_48000:
-		switch (mode) {
-		case SBC_CHANNEL_MODE_MONO:
-		case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-			return 29;
-		case SBC_CHANNEL_MODE_STEREO:
-		case SBC_CHANNEL_MODE_JOINT_STEREO:
-			return 51;
-		default:
-			warn("Invalid channel mode: %u", mode);
-			return 51;
-		}
-	default:
-		warn("Invalid sampling freq: %u", freq);
-		return 53;
-	}
-}
-
 /**
  * Extract HCI device ID from the BlueZ D-Bus object path.
  *

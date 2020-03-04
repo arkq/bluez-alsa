@@ -24,6 +24,7 @@ bluealsa_SOURCES = \
 	bluez-a2dp.c \
 	bluez-iface.c \
 	hci.c \
+	sbc.c \
 	sco.c \
 	utils.c \
 	main.c
