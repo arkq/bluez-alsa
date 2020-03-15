@@ -350,6 +350,9 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 			goto fail;
 		}
 
+		if (AAC_GET_BITRATE(*cap) == 0)
+			AAC_SET_BITRATE(*cap, AAC_GET_BITRATE(*(a2dp_aac_t *)codec->cfg));
+
 		break;
 	}
 #endif
