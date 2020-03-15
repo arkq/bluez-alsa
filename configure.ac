@@ -2,9 +2,12 @@
 # Copyright (c) 2016-2020 Arkadiusz Bokowy
 
 AC_PREREQ([2.60])
-AC_INIT([bluez-alsa], [2.1.0], [arkadiusz.bokowy@gmail.com])
+AC_INIT([BlueALSA],
+	[m4_normalize(esyscmd([test -d .git && git describe || echo v2.1.0]))],
+	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/Arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
+AC_CONFIG_SRCDIR([src/bluealsa.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
