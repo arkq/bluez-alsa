@@ -1268,7 +1268,9 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	AACENC_ERROR err;
 
 	const a2dp_aac_t *configuration = (a2dp_aac_t *)t->a2dp.configuration;
+	const unsigned int bitrate = AAC_GET_BITRATE(*configuration);
 	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
 
 	/* create AAC encoder without the Meta Data module */
 	if ((err = aacEncOpen(&handle, 0x07, channels)) != AACENC_OK) {
@@ -1279,13 +1281,12 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacEncClose), &handle);
 
 	unsigned int aot = AOT_NONE;
-	unsigned int bitrate = AAC_GET_BITRATE(*configuration);
-	unsigned int samplerate = t->a2dp.pcm.sampling;
 	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
 
 	switch (configuration->object_type) {
 	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
-#if AACENCODER_LIB_VERSION <= 0x03040C00 /* 3.4.12 */
+#if AACENCODER_LIB_VERSION <= 0x03040C00 /* 3.4.12 */ || \
+		AACENCODER_LIB_VERSION >= 0x04000000 /* 4.0.0 */
 		aot = AOT_MP2_AAC_LC;
 		break;
 #endif
@@ -1334,6 +1335,12 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 		error("Couldn't set LATM header period: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
+#if AACENCODER_LIB_VERSION >= 0x03041600 /* 3.4.22 */
+	if ((err = aacEncoder_SetParam(handle, AACENC_AUDIOMUXVER, config.aac_latm_version)) != AACENC_OK) {
+		error("Couldn't set LATM version: %s", aacenc_strerror(err));
+		goto fail_init;
+	}
+#endif
 
 	if ((err = aacEncEncode(handle, NULL, NULL, NULL, NULL)) != AACENC_OK) {
 		error("Couldn't initialize AAC encoder: %s", aacenc_strerror(err));

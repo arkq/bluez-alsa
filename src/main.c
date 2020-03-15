@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -108,6 +108,7 @@ int main(int argc, char **argv) {
 		{ "sbc-quality", required_argument, NULL, 14 },
 #if ENABLE_AAC
 		{ "aac-afterburner", no_argument, NULL, 4 },
+		{ "aac-latm-version", required_argument, NULL, 15 },
 		{ "aac-vbr-mode", required_argument, NULL, 5 },
 #endif
 #if ENABLE_LDAC
@@ -168,6 +169,7 @@ int main(int argc, char **argv) {
 					"  --sbc-quality=NB\tset SBC quality to NB\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\tenable afterburner\n"
+					"  --aac-latm-version=NB\tset LATM syntax version\n"
 					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
 #endif
 #if ENABLE_LDAC
@@ -273,6 +275,13 @@ int main(int argc, char **argv) {
 #if ENABLE_AAC
 		case 4 /* --aac-afterburner */ :
 			config.aac_afterburner = true;
+			break;
+		case 15 /* --aac-latm-version=NB */ :
+			config.aac_latm_version = atoi(optarg);
+			if (config.aac_vbr_mode > 2) {
+				error("Invalid LATM version [0, 2]: %s", optarg);
+				return EXIT_FAILURE;
+			}
 			break;
 		case 5 /* --aac-vbr-mode=NB */ :
 			config.aac_vbr_mode = atoi(optarg);

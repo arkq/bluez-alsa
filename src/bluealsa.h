@@ -108,6 +108,7 @@ struct ba_config {
 
 #if ENABLE_AAC
 	bool aac_afterburner;
+	uint8_t aac_latm_version;
 	uint8_t aac_vbr_mode;
 #endif
 

@@ -84,6 +84,10 @@ struct ba_config config = {
 	 * b) it generates larger payload. These two reasons are good enough to
 	 * not enable afterburner by default. */
 	.aac_afterburner = false,
+	/* Use newer LATM syntax by default. Please note, that some older BT
+	 * devices might not understand this syntax, so for them it might be
+	 * required to use LATM version 0 (ISO-IEC 14496-3 (2001)). */
+	.aac_latm_version = 1,
 	.aac_vbr_mode = 4,
 #endif
 

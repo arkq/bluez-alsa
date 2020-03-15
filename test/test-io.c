@@ -66,7 +66,7 @@ static const a2dp_mpeg_t config_mp3_44100_stereo = {
 };
 
 static const a2dp_aac_t config_aac_44100_stereo = {
-	.object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LC,
+	.object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC,
 	AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
 	.channels = AAC_CHANNELS_2,
 	.vbr = 1,
