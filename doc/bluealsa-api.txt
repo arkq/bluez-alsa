@@ -96,6 +96,13 @@ Properties      object Device [readonly]
 
                         Approximate PCM delay in 1/10 of millisecond.
 
+                boolean SoftVolume [readwrite]
+
+                        This property determines whether BlueALSA will make
+                        volume control internally or will delegate this task
+                        to PCM client or BT device respectively for PCM sink
+                        and PCM source.
+
                 uint16 Volume [readwrite]
 
                         This property holds PCM volume and mute information

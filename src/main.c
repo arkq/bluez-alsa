@@ -160,25 +160,25 @@ int main(int argc, char **argv) {
 					"  -V, --version\t\tprint version and exit\n"
 					"  -B, --dbus=NAME\tD-Bus service name suffix\n"
 					"  -S, --syslog\t\tsend output to syslog\n"
-					"  -i, --device=hciX\tHCI device to use\n"
+					"  -i, --device=hciX\tHCI device(s) to use\n"
 					"  -p, --profile=NAME\tenable BT profile\n"
 					"  --a2dp-force-mono\tforce monophonic sound\n"
 					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
 					"  --a2dp-keep-alive=SEC\tkeep A2DP transport alive\n"
-					"  --a2dp-volume\t\tcontrol volume natively\n"
-					"  --sbc-quality=NB\tset SBC quality to NB\n"
+					"  --a2dp-volume\t\tnative volume control by default\n"
+					"  --sbc-quality=NB\tset SBC encoder quality\n"
 #if ENABLE_AAC
-					"  --aac-afterburner\tenable afterburner\n"
-					"  --aac-latm-version=NB\tset LATM syntax version\n"
-					"  --aac-vbr-mode=NB\tset VBR mode to NB\n"
+					"  --aac-afterburner\tenable FDK AAC afterburner\n"
+					"  --aac-latm-version=NB\tselect LATM syntax version\n"
+					"  --aac-vbr-mode=NB\tselect FDK AAC encoder VBR mode\n"
 #endif
 #if ENABLE_LDAC
-					"  --ldac-abr\t\tenable adaptive bit rate\n"
-					"  --ldac-eqmid=NB\tset encoder quality to NB\n"
+					"  --ldac-abr\t\tenable LDAC adaptive bit rate\n"
+					"  --ldac-eqmid=NB\tset LDAC encoder quality\n"
 #endif
 #if ENABLE_MP3LAME
-					"  --mp3-quality=NB\tset encoder quality to NB\n"
-					"  --mp3-vbr-quality=NB\tset VBR quality to NB\n"
+					"  --mp3-quality=NB\tselect LAME encoder algorithm\n"
+					"  --mp3-vbr-quality=NB\tset LAME encoder VBR quality\n"
 #endif
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"

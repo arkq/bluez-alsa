@@ -70,6 +70,7 @@ static int transport_pcm_init(
 	pcm->mode = mode;
 	pcm->fd = -1;
 	pcm->client = -1;
+	pcm->soft_volume = true;
 
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
 	pthread_cond_init(&pcm->synced, NULL);
@@ -178,11 +179,13 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	transport_pcm_init(&t->a2dp.pcm, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
+	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm.volume[0].level = 127;
 	t->a2dp.pcm.volume[1].level = 127;
 
 	transport_pcm_init(&t->a2dp.pcm_bc, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
+	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm_bc.volume[0].level = 127;
 	t->a2dp.pcm_bc.volume[1].level = 127;
 
@@ -665,7 +668,7 @@ int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t va
 	pcm->volume[1].level = ch2 & 0x7F;
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
-			config.a2dp.volume) {
+			!pcm->soft_volume) {
 
 		uint16_t volume = 0;
 		if (!pcm->volume[0].muted && !pcm->volume[1].muted)

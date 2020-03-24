@@ -75,6 +75,9 @@ struct io_thread_data {
 static void io_thread_scale_pcm(const struct ba_transport_pcm *pcm,
 		int16_t *buffer, size_t samples) {
 
+	if (!pcm->soft_volume)
+		return;
+
 	double ch1_scale = 0;
 	double ch2_scale = 0;
 
@@ -292,9 +295,8 @@ repoll:
 	if (io->asrs.frames == 0)
 		asrsync_init(&io->asrs, t->a2dp.pcm.sampling);
 
-	if (!config.a2dp.volume)
-		/* scale volume or mute audio signal */
-		io_thread_scale_pcm(&t->a2dp.pcm, buffer->tail, samples);
+	/* scale volume or mute audio signal */
+	io_thread_scale_pcm(&t->a2dp.pcm, buffer->tail, samples);
 
 	/* update PCM buffer */
 	ffb_seek(buffer, samples);

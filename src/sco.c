@@ -499,7 +499,7 @@ retry_sco_write:
 				continue;
 			}
 
-			if (t->sco.spk_pcm.volume[0].muted)
+			if (t->sco.spk_pcm.soft_volume && t->sco.spk_pcm.volume[0].muted)
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
 			switch (t->type.codec) {
@@ -541,7 +541,7 @@ retry_sco_write:
 #endif
 			}
 
-			if (t->sco.mic_pcm.volume[0].muted)
+			if (t->sco.mic_pcm.soft_volume && t->sco.mic_pcm.volume[0].muted)
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
 			if ((samples = io_thread_write_pcm(&t->sco.mic_pcm, buffer, samples)) <= 0) {

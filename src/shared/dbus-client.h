@@ -43,6 +43,7 @@ struct ba_dbus_ctx {
 /**
  * BlueALSA PCM object property. */
 enum ba_pcm_property {
+	BLUEALSA_PCM_SOFT_VOLUME,
 	BLUEALSA_PCM_VOLUME,
 };
 
@@ -68,6 +69,8 @@ struct ba_pcm {
 	dbus_uint16_t codec;
 	/* approximate PCM delay */
 	dbus_uint16_t delay;
+	/* software volume */
+	dbus_bool_t soft_volume;
 	/* feature flags */
 	unsigned int flags;
 

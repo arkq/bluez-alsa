@@ -89,6 +89,10 @@ static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16(ba_transport_get_delay(pcm->t));
 }
 
+static GVariant *ba_variant_new_pcm_soft_volume(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_boolean(pcm->soft_volume);
+}
+
 static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16(ba_transport_pcm_get_volume_packed(pcm));
 }
@@ -103,6 +107,7 @@ static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_tran
 	g_variant_builder_add(props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
 	g_variant_builder_add(props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
 	g_variant_builder_add(props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
+	g_variant_builder_add(props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 }
 
@@ -450,6 +455,8 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 		return ba_variant_new_pcm_codec(pcm);
 	if (strcmp(property, "Delay") == 0)
 		return ba_variant_new_pcm_delay(pcm);
+	if (strcmp(property, "SoftVolume") == 0)
+		return ba_variant_new_pcm_soft_volume(pcm);
 	if (strcmp(property, "Volume") == 0)
 		return ba_variant_new_pcm_volume(pcm);
 
@@ -492,6 +499,11 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 
+	if (strcmp(property, "SoftVolume") == 0) {
+		pcm->soft_volume = g_variant_get_boolean(value);
+		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_SOFT_VOLUME);
+		return TRUE;
+	}
 	if (strcmp(property, "Volume") == 0) {
 		ba_transport_pcm_set_volume_packed(pcm, g_variant_get_uint16(value));
 		return TRUE;
@@ -546,6 +558,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_DELAY)
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_SOFT_VOLUME)
+		g_variant_builder_add(&props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 

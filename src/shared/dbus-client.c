@@ -401,6 +401,12 @@ dbus_bool_t bluealsa_dbus_pcm_update(
 	int type = -1;
 
 	switch (property) {
+	case BLUEALSA_PCM_SOFT_VOLUME:
+		_property = "SoftVolume";
+		variant = DBUS_TYPE_BOOLEAN_AS_STRING;
+		value = &pcm->soft_volume;
+		type = DBUS_TYPE_BOOLEAN;
+		break;
 	case BLUEALSA_PCM_VOLUME:
 		_property = "Volume";
 		variant = DBUS_TYPE_UINT16_AS_STRING;
@@ -616,6 +622,11 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
 		dbus_message_iter_get_basic(variant, &pcm->delay);
+	}
+	else if (strcmp(key, "SoftVolume") == 0) {
+		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &pcm->soft_volume);
 	}
 	else if (strcmp(key, "Volume") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))

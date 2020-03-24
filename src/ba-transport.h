@@ -112,6 +112,9 @@ struct ba_transport_pcm {
 	 * audio encoding or decoding and data transfer. */
 	unsigned int delay;
 
+	/* internal software volume control */
+	bool soft_volume;
+
 	/* Volume configuration for channel left [0] and right [1]. In case of
 	 * a monophonic sound, left [0] channel shall be used. Also note, that
 	 * A2DP and SCO profiles use different volume level ranges:
