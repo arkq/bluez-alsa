@@ -563,30 +563,13 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		break;
 	}
 
-	/* check whether update was performed */
+	/* check whether update is required */
 	if (pcm->volume.raw == old)
 		return 0;
 
-	DBusMessage *msg;
-	if ((msg = dbus_message_new_method_call(ctl->dbus_ctx.ba_service,
-					pcm->pcm_path, DBUS_INTERFACE_PROPERTIES, "Set")) == NULL)
+	if (!bluealsa_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_VOLUME, NULL))
 		return -ENOMEM;
 
-	static const char *interface = BLUEALSA_INTERFACE_PCM;
-	static const char *property = "Volume";
-
-	DBusMessageIter iter;
-	DBusMessageIter iter_val;
-
-	dbus_message_iter_init_append(msg, &iter);
-	dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface);
-	dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &property);
-	dbus_message_iter_open_container(&iter, DBUS_TYPE_VARIANT, DBUS_TYPE_UINT16_AS_STRING, &iter_val);
-	dbus_message_iter_append_basic(&iter_val, DBUS_TYPE_UINT16, &pcm->volume.raw);
-	dbus_message_iter_close_container(&iter, &iter_val);
-
-	dbus_connection_send(ctl->dbus_ctx.conn, msg, NULL);
-	dbus_message_unref(msg);
 	return 1;
 }
 

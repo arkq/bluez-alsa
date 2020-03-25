@@ -41,6 +41,12 @@ struct ba_dbus_ctx {
 };
 
 /**
+ * BlueALSA PCM object property. */
+enum ba_pcm_property {
+	BLUEALSA_PCM_VOLUME,
+};
+
+/**
  * BlueALSA PCM object. */
 struct ba_pcm {
 
@@ -120,17 +126,23 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 		struct ba_pcm *pcm,
 		DBusError *error);
 
-dbus_bool_t bluealsa_dbus_pcm_open(
+dbus_bool_t bluealsa_dbus_open_pcm(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
 		int *fd_pcm,
 		int *fd_pcm_ctrl,
 		DBusError *error);
 
-dbus_bool_t bluealsa_dbus_rfcomm_open(
+dbus_bool_t bluealsa_dbus_open_rfcomm(
 		struct ba_dbus_ctx *ctx,
 		const char *rfcomm_path,
 		int *fd_rfcomm,
+		DBusError *error);
+
+dbus_bool_t bluealsa_dbus_pcm_update(
+		struct ba_dbus_ctx *ctx,
+		const struct ba_pcm *pcm,
+		enum ba_pcm_property property,
 		DBusError *error);
 
 dbus_bool_t bluealsa_dbus_pcm_ctrl_send(

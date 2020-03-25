@@ -170,7 +170,7 @@ usage:
 	char rfcomm_path[128];
 	sprintf(rfcomm_path, "/org/bluealsa/hci%d/dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X/rfcomm",
 			hci_dev_id, addr.b[5], addr.b[4], addr.b[3], addr.b[2], addr.b[1], addr.b[0]);
-	if (!bluealsa_dbus_rfcomm_open(&dbus_ctx, rfcomm_path, &rfcomm_fd, &err)) {
+	if (!bluealsa_dbus_open_rfcomm(&dbus_ctx, rfcomm_path, &rfcomm_fd, &err)) {
 		error("Couldn't open RFCOMM: %s", err.message);
 		return EXIT_FAILURE;
 	}

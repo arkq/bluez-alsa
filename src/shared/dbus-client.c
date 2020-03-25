@@ -320,7 +320,9 @@ final:
 	return rv;
 }
 
-dbus_bool_t bluealsa_dbus_pcm_open(
+/**
+ * Open BlueALSA PCM stream. */
+dbus_bool_t bluealsa_dbus_open_pcm(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
 		int *fd_pcm,
@@ -352,7 +354,9 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 	return rv;
 }
 
-dbus_bool_t bluealsa_dbus_rfcomm_open(
+/**
+ * Open BlueALSA RFCOMM socket for dispatching AT commands. */
+dbus_bool_t bluealsa_dbus_open_rfcomm(
 		struct ba_dbus_ctx *ctx,
 		const char *rfcomm_path,
 		int *fd_rfcomm,
@@ -382,6 +386,60 @@ dbus_bool_t bluealsa_dbus_rfcomm_open(
 	return rv;
 }
 
+/**
+ * Update BlueALSA PCM property. */
+dbus_bool_t bluealsa_dbus_pcm_update(
+		struct ba_dbus_ctx *ctx,
+		const struct ba_pcm *pcm,
+		enum ba_pcm_property property,
+		DBusError *error) {
+
+	static const char *interface = BLUEALSA_INTERFACE_PCM;
+	const char *_property = NULL;
+	const char *variant = NULL;
+	const void *value = NULL;
+	int type = -1;
+
+	switch (property) {
+	case BLUEALSA_PCM_VOLUME:
+		_property = "Volume";
+		variant = DBUS_TYPE_UINT16_AS_STRING;
+		value = &pcm->volume.raw;
+		type = DBUS_TYPE_UINT16;
+		break;
+	}
+
+	DBusMessage *msg;
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm->pcm_path,
+					DBUS_INTERFACE_PROPERTIES, "Set")) == NULL)
+		goto fail;
+
+	DBusMessageIter iter;
+	DBusMessageIter iter_val;
+
+	dbus_message_iter_init_append(msg, &iter);
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface) ||
+			!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &_property) ||
+			!dbus_message_iter_open_container(&iter, DBUS_TYPE_VARIANT, variant, &iter_val) ||
+			!dbus_message_iter_append_basic(&iter_val, type, value) ||
+			!dbus_message_iter_close_container(&iter, &iter_val))
+		goto fail;
+
+	if (!dbus_connection_send(ctx->conn, msg, NULL))
+		goto fail;
+
+	dbus_message_unref(msg);
+	return TRUE;
+
+fail:
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+	return FALSE;
+}
+
+/**
+ * Send command to the BlueALSA PCM controller socket. */
 dbus_bool_t bluealsa_dbus_pcm_ctrl_send(
 		int fd_pcm_ctrl,
 		const char *command,

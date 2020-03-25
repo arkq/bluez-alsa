@@ -370,7 +370,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_pcm_open(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
+	if (!bluealsa_dbus_open_pcm(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				&pcm->ba_pcm_fd, &pcm->ba_pcm_ctrl_fd, &err)) {
 		debug2("Couldn't open PCM: %s", err.message);
 		dbus_error_free(&err);
