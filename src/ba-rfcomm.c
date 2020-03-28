@@ -853,6 +853,8 @@ static void rfcomm_thread_cleanup(struct ba_rfcomm *r) {
 			r->sco->sco.rfcomm = NULL;
 			ba_transport_ref(r->sco);
 			ba_transport_destroy(r->sco);
+			ba_rfcomm_destroy(r);
+			return;
 		}
 
 		ba_transport_unref(r->sco);
