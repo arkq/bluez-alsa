@@ -247,12 +247,15 @@ void *sco_thread(struct ba_transport *t) {
 	debug("Starting SCO loop: %s", ba_transport_type_to_string(t->type));
 	for (;;) {
 
+		/* prevent an unexpected change of the codec value */
+		const uint16_t codec = t->type.codec;
+
 		/* fresh-start for file descriptors polling */
 		pfds[1].fd = pfds[2].fd = -1;
 		pfds[3].fd = pfds[4].fd = -1;
 
 #if ENABLE_MSBC
-		if (initialize_msbc && t->type.codec == HFP_CODEC_MSBC) {
+		if (initialize_msbc && codec == HFP_CODEC_MSBC) {
 			initialize_msbc = false;
 			if (msbc_init(&msbc) != 0) {
 				error("Couldn't initialize mSBC codec: %s", strerror(errno));
@@ -261,7 +264,7 @@ void *sco_thread(struct ba_transport *t) {
 		}
 #endif
 
-		switch (t->type.codec) {
+		switch (codec) {
 		case HFP_CODEC_CVSD:
 		default:
 			if (ffb_len_in(&bt_in) >= t->mtu_read)
@@ -365,7 +368,7 @@ void *sco_thread(struct ba_transport *t) {
 			size_t buffer_len;
 			ssize_t len;
 
-			switch (t->type.codec) {
+			switch (codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				if (t->sco.mic_pcm.fd == -1)
@@ -402,7 +405,7 @@ retry_sco_read:
 			 * mSBC frame which is 7.5 ms), but we will be sure, that the microphone
 			 * latency will not build up. */
 			if (t->sco.mic_pcm.fd != -1)
-				switch (t->type.codec) {
+				switch (codec) {
 				case HFP_CODEC_CVSD:
 				default:
 					ffb_seek(&bt_in, len);
@@ -427,7 +430,7 @@ retry_sco_read:
 			size_t buffer_len;
 			ssize_t len;
 
-			switch (t->type.codec) {
+			switch (codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = bt_out.data;
@@ -457,7 +460,7 @@ retry_sco_write:
 					continue;
 				}
 
-			switch (t->type.codec) {
+			switch (codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_shift(&bt_out, len);
@@ -477,7 +480,7 @@ retry_sco_write:
 			int16_t *buffer;
 			ssize_t samples;
 
-			switch (t->type.codec) {
+			switch (codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = (int16_t *)bt_out.tail;
@@ -502,7 +505,7 @@ retry_sco_write:
 			if (t->sco.spk_pcm.soft_volume && t->sco.spk_pcm.volume[0].muted)
 				snd_pcm_scale_s16le(buffer, samples, 1, 0, 0);
 
-			switch (t->type.codec) {
+			switch (codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_seek(&bt_out, samples * sizeof(int16_t));
@@ -527,7 +530,7 @@ retry_sco_write:
 			int16_t *buffer;
 			ssize_t samples;
 
-			switch (t->type.codec) {
+			switch (codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				buffer = (int16_t *)bt_in.data;
@@ -551,7 +554,7 @@ retry_sco_write:
 					ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 			}
 
-			switch (t->type.codec) {
+			switch (codec) {
 			case HFP_CODEC_CVSD:
 			default:
 				ffb_shift(&bt_in, samples * sizeof(int16_t));
@@ -566,7 +569,7 @@ retry_sco_write:
 		}
 
 		/* keep data transfer at a constant bit rate */
-		switch (t->type.codec) {
+		switch (codec) {
 		case HFP_CODEC_CVSD:
 		default:
 			asrsync_sync(&asrs, t->mtu_write / sizeof(int16_t));
