@@ -213,6 +213,8 @@ AC_CONFIG_FILES([
 	src/Makefile
 	src/asound/Makefile
 	utils/Makefile
+	utils/aplay/Makefile
+	utils/rfcomm/Makefile
 	test/Makefile])
 AC_OUTPUT
 
