@@ -2,19 +2,23 @@ Bluetooth Audio ALSA Backend [![Build Status](https://travis-ci.org/Arkq/bluez-a
 ============================
 
 This project is a rebirth of a direct integration between [BlueZ](http://www.bluez.org/) and
-[ALSA](http://www.alsa-project.org/). Since BlueZ >= 5, the build-in integration has been removed
+[ALSA](https://www.alsa-project.org/). Since BlueZ >= 5, the build-in integration has been removed
 in favor of 3rd party audio applications. From now on, BlueZ acts as a middleware between an
 audio application, which implements Bluetooth audio profile, and a Bluetooth audio device.
 
 The current status quo is, that in order to stream audio from/to a Bluetooth device, one has to
-install PulseAudio, or use BlueZ < 5. However, BlueZ version 4 is considered to be deprecated, so
-the only reasonable way to achieve this goal is to install PulseAudio.
+install [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio), or use BlueZ < 5.
+However, BlueZ version 4 is considered to be deprecated, so the only reasonable way to achieve
+this goal is to install PulseAudio.
 
 With this application (later named as BlueALSA), one can achieve the same goal as with PulseAudio,
 but with less dependencies and more bare-metal-like. BlueALSA registers all known Bluetooth audio
 profiles in BlueZ, so in theory every Bluetooth device (with audio capabilities) can be connected.
 In order to access the audio stream, one has to connect to the ALSA PCM device called `bluealsa`.
-The device is based on the ALSA software PCM plugin.
+Please note that this PCM device is based on the [ALSA software PCM I/O
+plugin](https://www.alsa-project.org/alsa-doc/alsa-lib/pcm_external_plugins.html) - is will not be
+available in the [ALSA Kernel proc
+interface](https://www.kernel.org/doc/html/latest/sound/designs/procfile.html).
 
 
 Installation
@@ -35,11 +39,11 @@ then
 
 Dependencies:
 
-- [alsa-lib](http://www.alsa-project.org/)
+- [alsa-lib](https://www.alsa-project.org/)
 - [bluez](http://www.bluez.org/) >= 5.0
 - [glib](https://wiki.gnome.org/Projects/GLib) with GIO support
 - [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
-- [mp3lame](http://lame.sourceforge.net/) (when MP3 support is enabled with `--enable-mp3lame`)
+- [mp3lame](https://lame.sourceforge.net/) (when MP3 support is enabled with `--enable-mp3lame`)
 - [mpg123](https://www.mpg123.org/) (when MPEG decoding support is enabled with `--enable-mpg123`)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X encoding support is enabled with
@@ -109,6 +113,12 @@ order to open SCO audio connection one shall switch to `sco` profile like follow
 
 	$ aplay -D bluealsa:SRV=org.bluealsa,DEV=XX:XX:XX:XX:XX:XX,PROFILE=sco Bourree_in_E_minor.wav
 
+The list of available BlueALSA PCMs (provided by connected Bluetooth devices with audio
+capabilities) can be obtained directly from [BlueALSA D-Bus API](doc/bluealsa-api.txt) or using
+`bluealsa-aplay` as a convenient wrapper as follows:
+
+	$ bluealsa-aplay -L
+
 In order to control input or output audio level, one can use provided `bluealsa` control plugin.
 This plugin allows adjusting the volume of the audio stream or simply mute/unmute it, e.g.:
 
@@ -119,8 +129,8 @@ e.g.:
 
 	$ amixer -D bluealsa sset 'Jabra MOVE v2.3.0 - A2DP' 50%
 
-For more advanced ALSA configuration, consult the asoundrc on-line
-[documentation](http://www.alsa-project.org/main/index.php/Asoundrc) provided by the AlsaProject
+For more advanced ALSA configuration, consult the [asoundrc on-line
+documentation](https://www.alsa-project.org/main/index.php/Asoundrc) provided by the AlsaProject
 wiki page.
 
 
@@ -163,5 +173,5 @@ Resources
 1. [Bluetooth Adopted Specifications](https://www.bluetooth.com/specifications/adopted-specifications)
 2. [Bluetooth Design Guidelines](https://developer.apple.com/hardwaredrivers/BluetoothDesignGuidelines.pdf)
 3. [RTP Payload Format for MPEG-4](https://tools.ietf.org/html/rfc6416)
-4. [Coding of MPEG-4 Audio](http://www.iso.org/iso/iso_catalogue/catalogue_tc/catalogue_detail.htm?csnumber=42739)
-5. [ALSA project library reference](http://www.alsa-project.org/alsa-doc/alsa-lib/index.html)
+4. [Coding of MPEG-4 Audio](https://www.iso.org/standard/42739.html)
+5. [ALSA project library reference](https://www.alsa-project.org/alsa-doc/alsa-lib/index.html)
