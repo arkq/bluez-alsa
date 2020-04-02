@@ -25,6 +25,7 @@
 #include "../src/at.c"
 #include "../src/hci.c"
 #include "../src/utils.c"
+#include "../src/shared/bt-codecs.c"
 #include "../src/shared/log.c"
 
 static struct ba_adapter *adapter = NULL;

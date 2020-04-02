@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -323,44 +323,6 @@ void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 			}
 		break;
 	}
-}
-
-/**
- * Convert Bluetooth A2DP codec into a human-readable string.
- *
- * @param codec Bluetooth A2DP audio codec.
- * @return Human-readable string. */
-const char *bluetooth_a2dp_codec_to_string(uint16_t codec) {
-	switch (codec) {
-	case A2DP_CODEC_SBC:
-		return "SBC";
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12:
-		return "MP3";
-#endif
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24:
-		return "AAC";
-#endif
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX:
-		return "aptX";
-#endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		return "FastStream";
-#endif
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		return "aptX HD";
-#endif
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		return "LDAC";
-#endif
-	}
-	debug("Unknown codec: %#x", codec);
-	return "N/A";
 }
 
 /**
