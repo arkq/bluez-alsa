@@ -16,7 +16,7 @@ but with less dependencies and more bare-metal-like. BlueALSA registers all know
 profiles in BlueZ, so in theory every Bluetooth device (with audio capabilities) can be connected.
 In order to access the audio stream, one has to connect to the ALSA PCM device called `bluealsa`.
 Please note that this PCM device is based on the [ALSA software PCM I/O
-plugin](https://www.alsa-project.org/alsa-doc/alsa-lib/pcm_external_plugins.html) - is will not be
+plugin](https://www.alsa-project.org/alsa-doc/alsa-lib/pcm_external_plugins.html) - it will not be
 available in the [ALSA Kernel proc
 interface](https://www.kernel.org/doc/html/latest/sound/designs/procfile.html).
 

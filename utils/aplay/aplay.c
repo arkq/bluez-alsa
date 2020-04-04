@@ -53,7 +53,8 @@ struct pcm_worker {
 };
 
 static unsigned int verbose = 0;
-static unsigned int list_bt_devices = 0;
+static bool list_bt_devices = false;
+static bool list_bt_pcms = false;
 static const char *pcm_device = "default";
 static bool ba_profile_a2dp = true;
 static bool ba_addr_any = false;
@@ -125,47 +126,95 @@ static snd_pcm_format_t bluealsa_get_snd_pcm_format(const struct ba_pcm *pcm) {
 	}
 }
 
-static void print_bt_device_list(unsigned int flag) {
+static void print_bt_device_list(void) {
+
+	static const struct {
+		const char *label;
+		unsigned int flag;
+	} section[2] = {
+		{ "**** List of PLAYBACK Bluetooth Devices ****", BA_PCM_FLAG_SINK },
+		{ "**** List of CAPTURE Bluetooth Devices ****", BA_PCM_FLAG_SOURCE },
+	};
 
 	const char *tmp;
-	size_t i;
+	size_t i, ii;
 
-	for (i = 0, tmp = ""; i < ba_pcms_count; i++) {
+	for (i = 0; i < ARRAYSIZE(section); i++) {
+		printf("%s\n", section[i].label);
+		for (ii = 0, tmp = ""; ii < ba_pcms_count; ii++) {
 
-		struct ba_pcm *pcm = &ba_pcms[i];
-		struct bluez_device dev = { 0 };
+			struct ba_pcm *pcm = &ba_pcms[ii];
+			struct bluez_device dev = { 0 };
 
-		if (!(pcm->flags & flag))
-			continue;
+			if (!(pcm->flags & section[i].flag))
+				continue;
 
-		if (list_bt_devices > 0 &&
-				strcmp(pcm->device_path, tmp) != 0) {
+			if (strcmp(pcm->device_path, tmp) != 0) {
+				tmp = ba_pcms[ii].device_path;
 
-			DBusError err = DBUS_ERROR_INIT;
-			if (dbus_bluez_get_device(dbus_ctx.conn, pcm->device_path, &dev, &err) == -1) {
-				warn("Couldn't get BlueZ device properties: %s", err.message);
-				dbus_error_free(&err);
+				DBusError err = DBUS_ERROR_INIT;
+				if (dbus_bluez_get_device(dbus_ctx.conn, pcm->device_path, &dev, &err) == -1) {
+					warn("Couldn't get BlueZ device properties: %s", err.message);
+					dbus_error_free(&err);
+				}
+
+				char bt_addr[16];
+				ba2str(&dev.bt_addr, bt_addr);
+
+				printf("%s: %s [%s], %s%s\n",
+					dev.hci_name, bt_addr, dev.name,
+					dev.trusted ? "trusted ": "", dev.icon);
+
 			}
 
-			char bt_addr[16];
-			ba2str(&dev.bt_addr, bt_addr);
-
-			printf("%s: %s [%s], %s%s\n",
-				dev.hci_name, bt_addr, dev.name,
-				dev.trusted ? "trusted ": "",
-				dev.icon);
-
-			tmp = ba_pcms[i].device_path;
-		}
-
-		if (list_bt_devices > 1) {
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
 				pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "A2DP" : "SCO",
 				bluealsa_get_bt_codec_name(pcm),
 				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 				pcm->channels, pcm->channels != 1 ? "s" : "",
 				pcm->sampling);
+
 		}
+	}
+
+}
+
+static void print_bt_pcm_list(void) {
+
+	DBusError err = DBUS_ERROR_INIT;
+	struct bluez_device dev = { 0 };
+	const char *tmp = "";
+	size_t i;
+
+	for (i = 0; i < ba_pcms_count; i++) {
+		struct ba_pcm *pcm = &ba_pcms[i];
+
+		if (strcmp(pcm->device_path, tmp) != 0) {
+			tmp = ba_pcms[i].device_path;
+			if (dbus_bluez_get_device(dbus_ctx.conn, pcm->device_path, &dev, &err) == -1) {
+				warn("Couldn't get BlueZ device properties: %s", err.message);
+				dbus_error_free(&err);
+			}
+		}
+
+		char bt_addr[16];
+		ba2str(&dev.bt_addr, bt_addr);
+
+		printf(
+				"bluealsa:SRV=%s,DEV=%s,PROFILE=%s\n"
+				"    %s, %s%s, %s\n"
+				"    %s (%s): %s %d channel%s %d Hz\n",
+			dbus_ba_service,
+			bt_addr,
+			pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "a2dp" : "sco",
+			dev.name,
+			dev.trusted ? "trusted ": "", dev.icon,
+			pcm->flags & BA_PCM_FLAG_SINK ? "playback" : "capture",
+			pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "A2DP" : "SCO",
+			bluealsa_get_bt_codec_name(pcm),
+			snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
+			pcm->channels, pcm->channels != 1 ? "s" : "",
+			pcm->sampling);
 
 	}
 
@@ -589,15 +638,15 @@ fail:
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVvlLb:d:";
+	const char *opts = "hVvlLB:D:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "verbose", no_argument, NULL, 'v' },
 		{ "list-devices", no_argument, NULL, 'l' },
 		{ "list-pcms", no_argument, NULL, 'L' },
-		{ "dbus", required_argument, NULL, 'b' },
-		{ "pcm", required_argument, NULL, 'd' },
+		{ "dbus", required_argument, NULL, 'B' },
+		{ "pcm", required_argument, NULL, 'D' },
 		{ "pcm-buffer-time", required_argument, NULL, 3 },
 		{ "pcm-period-time", required_argument, NULL, 4 },
 		{ "profile-a2dp", no_argument, NULL, 1 },
@@ -618,8 +667,8 @@ usage:
 					"  -v, --verbose\t\tmake output more verbose\n"
 					"  -l, --list-devices\tlist available BT audio devices\n"
 					"  -L, --list-pcms\tlist available BT audio PCMs\n"
-					"  -b, --dbus=NAME\tBlueALSA service name suffix\n"
-					"  -d, --pcm=NAME\tplayback PCM device to use\n"
+					"  -B, --dbus=NAME\tBlueALSA service name suffix\n"
+					"  -D, --pcm=NAME\tplayback PCM device to use\n"
 					"  --pcm-buffer-time=INT\tplayback PCM buffer time\n"
 					"  --pcm-period-time=INT\tplayback PCM period time\n"
 					"  --profile-a2dp\tuse A2DP profile (default)\n"
@@ -642,16 +691,16 @@ usage:
 			break;
 
 		case 'l' /* --list-devices */ :
-			list_bt_devices = 1;
+			list_bt_devices = true;
 			break;
 		case 'L' /* --list-pcms */ :
-			list_bt_devices = 2;
+			list_bt_pcms = true;
 			break;
 
-		case 'b' /* --dbus=NAME */ :
+		case 'B' /* --dbus=NAME */ :
 			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
 			break;
-		case 'd' /* --pcm=NAME */ :
+		case 'D' /* --pcm=NAME */ :
 			pcm_device = optarg;
 			break;
 
@@ -679,7 +728,7 @@ usage:
 		}
 
 	if (optind == argc &&
-			list_bt_devices == 0)
+			!list_bt_devices && !list_bt_pcms)
 		goto usage;
 
 	log_open(argv[0], false, false);
@@ -691,13 +740,19 @@ usage:
 		return EXIT_FAILURE;
 	}
 
-	if (list_bt_devices > 0) {
-		if (!bluealsa_dbus_get_pcms(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err))
+	if (list_bt_devices || list_bt_pcms) {
+
+		if (!bluealsa_dbus_get_pcms(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err)) {
 			warn("Couldn't get BlueALSA PCM list: %s", err.message);
-		printf("**** List of PLAYBACK Bluetooth Devices ****\n");
-		print_bt_device_list(BA_PCM_FLAG_SINK);
-		printf("**** List of CAPTURE Bluetooth Devices ****\n");
-		print_bt_device_list(BA_PCM_FLAG_SOURCE);
+			return EXIT_FAILURE;
+		}
+
+		if (list_bt_pcms)
+			print_bt_pcm_list();
+
+		if (list_bt_devices)
+			print_bt_device_list();
+
 		return EXIT_SUCCESS;
 	}
 

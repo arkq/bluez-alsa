@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rfcomm.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -109,11 +109,11 @@ static void rl_callback_handler(char *line) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVb:";
+	const char *opts = "hVB:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
-		{ "dbus", required_argument, NULL, 'b' },
+		{ "dbus", required_argument, NULL, 'B' },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -130,7 +130,7 @@ usage:
 					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
-					"  -b, --dbus=NAME\tBlueALSA service name suffix\n",
+					"  -B, --dbus=NAME\tBlueALSA service name suffix\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 
@@ -138,7 +138,7 @@ usage:
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
-		case 'b' /* --dbus=NAME */ :
+		case 'B' /* --dbus=NAME */ :
 			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
 			break;
 
