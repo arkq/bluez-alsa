@@ -45,6 +45,8 @@
 #define A2DP_CODEC_VENDOR_FASTSTREAM    0xA1FF
 #define A2DP_CODEC_VENDOR_LDAC          0x2DFF
 
+uint16_t a2dp_get_bluealsa_vendor_codec(void *capabilities, size_t size);
+
 #define SBC_SAMPLING_FREQ_16000         (1 << 3)
 #define SBC_SAMPLING_FREQ_32000         (1 << 2)
 #define SBC_SAMPLING_FREQ_44100         (1 << 1)

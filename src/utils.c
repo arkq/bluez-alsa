@@ -296,6 +296,26 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
 }
 
 /**
+ * Convert a pointer to BT address to a hash value.
+ *
+ * @param v A pointer to bdaddr_t structure.
+ * @return Hash value compatible with GHashTable. */
+unsigned int g_bdaddr_hash(const void *v) {
+	const bdaddr_t *ba = (const bdaddr_t *)v;
+	return ((uint32_t *)ba->b)[0] * ((uint16_t *)ba->b)[2];
+}
+
+/**
+ * Compare two BT addresses.
+ *
+ * @param v1 A pointer to first bdaddr_t structure.
+ * @param v2 A pointer to second bdaddr_t structure.
+ * @return Comparision value compatible with GHashTable. */
+gboolean g_bdaddr_equal(const void *v1, const void *v2) {
+	return bacmp(v1, v2) == 0;
+}
+
+/**
  * Scale PCM signal stored in the buffer.
  *
  * Neutral value for scaling factor is 1.0. It is possible to increase

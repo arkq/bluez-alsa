@@ -175,7 +175,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->type = type;
 
 	t->a2dp.codec = codec;
-	t->a2dp.configuration = g_memdup(configuration, codec->cfg_size);
+	t->a2dp.configuration = g_memdup(configuration, codec->capabilities_size);
 
 	transport_pcm_init(&t->a2dp.pcm, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);

@@ -67,7 +67,17 @@ static GHashTable *dbus_object_data_map = NULL;
 
 /**
  * List of adapters created by BlueZ integration. */
-static struct ba_adapter *bluez_adapters[HCI_MAX_DEV] = { NULL };
+static struct bluez_adapter {
+	/* reference to the adapter structure */
+	struct ba_adapter *adapter;
+	/* array of end-points for connected devices */
+	GHashTable *device_sep_map;
+} bluez_adapters[HCI_MAX_DEV] = { NULL };
+
+#define bluez_adapters_device_lookup(hci_dev_id, addr) \
+	g_hash_table_lookup(bluez_adapters[hci_dev_id].device_sep_map, addr)
+#define bluez_adapters_device_get_sep(seps, i) \
+	g_array_index(seps, struct bluez_a2dp_sep, i)
 
 /**
  * Check whether D-Bus adapter matches our configuration. */
@@ -218,12 +228,12 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	capabilities = g_memdup(data, size);
 	g_variant_unref(params);
 
-	if (size != codec->cfg_size) {
-		error("Invalid capabilities size: %zu != %zu", size, codec->cfg_size);
+	if (size != codec->capabilities_size) {
+		error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
 		goto fail;
 	}
 
-	switch (codec->id) {
+	switch (codec->codec_id) {
 	case A2DP_CODEC_SBC: {
 
 		a2dp_sbc_t *cap = capabilities;
@@ -351,7 +361,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 		}
 
 		if (AAC_GET_BITRATE(*cap) == 0)
-			AAC_SET_BITRATE(*cap, AAC_GET_BITRATE(*(a2dp_aac_t *)codec->cfg));
+			AAC_SET_BITRATE(*cap, AAC_GET_BITRATE(*(a2dp_aac_t *)codec->capabilities));
 
 		break;
 	}
@@ -474,7 +484,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct dbus_object_data *dbus_obj = userdata;
 	const struct bluez_a2dp_codec *codec = dbus_obj->codec;
-	const uint16_t codec_id = codec->id;
+	const uint16_t codec_id = codec->codec_id;
 
 	struct ba_adapter *a = NULL;
 	struct ba_transport *t = NULL;
@@ -516,7 +526,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			size_t size = 0;
 			const void *data = g_variant_get_fixed_array(value, &size, sizeof(char));
 
-			if (size != codec->cfg_size) {
+			if (size != codec->capabilities_size) {
 				error("Invalid configuration: %s", "Invalid size");
 				goto fail;
 			}
@@ -684,7 +694,10 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		goto fail;
 	}
 
-	if ((t = ba_transport_lookup(d, transport_path)) != NULL) {
+	if (d->seps == NULL)
+		d->seps = bluez_adapters_device_lookup(a->hci.dev_id, &addr);
+
+	if (ba_transport_lookup(d, transport_path) != NULL) {
 		error("Transport already configured: %s", transport_path);
 		goto fail;
 	}
@@ -784,6 +797,7 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender
 	(void)conn;
 	(void)sender;
 	(void)path;
+	(void)interface;
 	(void)params;
 
 	struct dbus_object_data *dbus_obj = userdata;
@@ -865,12 +879,12 @@ static int bluez_register_media_endpoint(
 	g_variant_builder_init(&caps, G_VARIANT_TYPE("ay"));
 	g_variant_builder_init(&properties, G_VARIANT_TYPE("a{sv}"));
 
-	for (i = 0; i < codec->cfg_size; i++)
-		g_variant_builder_add(&caps, "y", ((uint8_t *)codec->cfg)[i]);
+	for (i = 0; i < codec->capabilities_size; i++)
+		g_variant_builder_add(&caps, "y", ((uint8_t *)codec->capabilities)[i]);
 
 	g_variant_builder_add(&properties, "{sv}", "UUID", g_variant_new_string(uuid));
 	g_variant_builder_add(&properties, "{sv}", "DelayReporting", g_variant_new_boolean(TRUE));
-	g_variant_builder_add(&properties, "{sv}", "Codec", g_variant_new_byte(codec->id));
+	g_variant_builder_add(&properties, "{sv}", "Codec", g_variant_new_byte(codec->codec_id));
 	g_variant_builder_add(&properties, "{sv}", "Capabilities", g_variant_builder_end(&caps));
 
 	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", dbus_obj->path, &properties));
@@ -909,7 +923,7 @@ static void bluez_register_a2dp(
 	struct ba_transport_type ttype = {
 		.profile = codec->dir == BLUEZ_A2DP_SOURCE ?
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE : BA_TRANSPORT_PROFILE_A2DP_SINK,
-		.codec = codec->id,
+		.codec = codec->codec_id,
 	};
 
 	int registered = 0;
@@ -1108,6 +1122,7 @@ static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
 	(void)conn;
 	(void)sender;
 	(void)path;
+	(void)interface;
 	(void)params;
 
 	if (strcmp(method, "NewConnection") == 0)
@@ -1265,6 +1280,13 @@ static void bluez_register_hfp_all(void) {
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_ag);
 }
 
+static void bluez_sep_array_free(GArray *seps) {
+	size_t i;
+	for (i = 0; i < seps->len; i++)
+		g_free(bluez_adapters_device_get_sep(seps, i).capabilities);
+	g_array_unref(seps);
+}
+
 /**
  * Register to the BlueZ service. */
 void bluez_register(void) {
@@ -1310,7 +1332,9 @@ void bluez_register(void) {
 	for (i = 0; i < ARRAYSIZE(adapters); i++)
 		if (adapters[i] &&
 				(a = ba_adapter_new(i)) != NULL) {
-			bluez_adapters[a->hci.dev_id] = a;
+			bluez_adapters[a->hci.dev_id].adapter = a;
+			bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
+					g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)bluez_sep_array_free);
 			bluez_register_a2dp_all(a);
 		}
 
@@ -1326,6 +1350,8 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	(void)conn;
 	(void)sender;
 	(void)path;
+	(void)interface_;
+	(void)signal;
 	(void)userdata;
 
 	GVariantIter *interfaces;
@@ -1334,7 +1360,12 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	const char *object_path;
 	const char *interface;
 	const char *property;
+
 	int hci_dev_id = -1;
+	struct bluez_a2dp_sep sep = {
+		.dir = BLUEZ_A2DP_SOURCE,
+		.codec_id = 0xFFFF,
+	};
 
 	g_variant_get(params, "(&oa{sa{sv}})", &object_path, &interfaces);
 	while (g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
@@ -1345,6 +1376,22 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 					hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 				g_variant_unref(value);
 			}
+		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0)
+			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+				if (strcmp(property, "UUID") == 0) {
+					const char *uuid = g_variant_get_string(value, NULL);
+					if (strcasecmp(uuid, BLUETOOTH_UUID_A2DP_SINK) == 0)
+						sep.dir = BLUEZ_A2DP_SINK;
+				}
+				else if (strcmp(property, "Codec") == 0)
+					sep.codec_id = g_variant_get_byte(value);
+				else if (strcmp(property, "Capabilities") == 0) {
+					const void *data = g_variant_get_fixed_array(value,
+							&sep.capabilities_size, sizeof(char));
+					sep.capabilities = g_memdup(data, sep.capabilities_size);
+				}
+				g_variant_unref(value);
+			}
 		g_variant_iter_free(properties);
 	}
 	g_variant_iter_free(interfaces);
@@ -1352,13 +1399,36 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	struct ba_adapter *a;
 	if (hci_dev_id != -1 &&
 			(a = ba_adapter_new(hci_dev_id)) != NULL) {
-		bluez_adapters[a->hci.dev_id] = a;
+		bluez_adapters[a->hci.dev_id].adapter = a;
+		bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
+				g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)bluez_sep_array_free);
 		bluez_register_a2dp_all(a);
 	}
 
 	/* HFP has to be registered globally */
 	if (strcmp(object_path, "/org/bluez") == 0)
 		bluez_register_hfp_all();
+
+	if (sep.codec_id != 0xFFFF) {
+
+		bdaddr_t addr;
+		g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
+		int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
+
+		GArray *seps;
+		if ((seps = bluez_adapters_device_lookup(hci_dev_id, &addr)) == NULL)
+			g_hash_table_insert(bluez_adapters[hci_dev_id].device_sep_map,
+					g_memdup(&addr, sizeof(addr)), seps = g_array_new(FALSE, FALSE, sizeof(sep)));
+
+		strncpy(sep.bluez_dbus_path, object_path, sizeof(sep.bluez_dbus_path) - 1);
+		if (sep.codec_id == A2DP_CODEC_VENDOR)
+			sep.codec_id = a2dp_get_bluealsa_vendor_codec(sep.capabilities, sep.capabilities_size);
+
+		debug("Adding new Stream End-Point: %s: %s", batostr_(&addr),
+				ba_transport_codecs_a2dp_to_string(sep.codec_id));
+		g_array_append_val(seps, sep);
+
+	}
 
 }
 
@@ -1368,17 +1438,20 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 	debug("Signal: %s.%s()", interface_, signal);
 	(void)sender;
 	(void)path;
+	(void)interface_;
+	(void)signal;
 	(void)userdata;
 
 	GVariantIter *interfaces;
 	const char *object_path;
 	const char *interface;
+	int hci_dev_id;
 
 	g_variant_get(params, "(&oas)", &object_path, &interfaces);
+	hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
+
 	while (g_variant_iter_next(interfaces, "&s", &interface))
 		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
-
-			int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 
 			GHashTableIter iter;
 			struct dbus_object_data *dbus_obj;
@@ -1389,12 +1462,25 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 					g_hash_table_iter_remove(&iter);
 				}
 
-			struct ba_adapter *a;
-			if ((a = ba_adapter_lookup(hci_dev_id)) != NULL) {
-				ba_adapter_unref(bluez_adapters[a->hci.dev_id]);
-				bluez_adapters[a->hci.dev_id] = NULL;
-				ba_adapter_destroy(a);
+			if (bluez_adapters[hci_dev_id].adapter != NULL) {
+				ba_adapter_destroy(bluez_adapters[hci_dev_id].adapter);
+				bluez_adapters[hci_dev_id].adapter = NULL;
+				g_hash_table_destroy(bluez_adapters[hci_dev_id].device_sep_map);
+				bluez_adapters[hci_dev_id].device_sep_map = NULL;
 			}
+
+		}
+		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0) {
+
+			GArray *seps;
+			bdaddr_t addr;
+			size_t i;
+
+			g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
+			if ((seps = bluez_adapters_device_lookup(hci_dev_id, &addr)) != NULL)
+				for (i = 0; i < seps->len; i++)
+					if (strcmp(bluez_adapters_device_get_sep(seps, i).bluez_dbus_path, object_path) == 0)
+						g_array_remove_index_fast(seps, i);
 
 		}
 	g_variant_iter_free(interfaces);
@@ -1407,6 +1493,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 	debug("Signal: %s.%s()", interface_, signal);
 	(void)conn;
 	(void)sender;
+	(void)interface_;
+	(void)signal;
 	(void)userdata;
 
 	struct ba_adapter *a = NULL;
@@ -1503,9 +1591,11 @@ static void bluez_signal_name_owner_changed(GDBusConnection *conn, const char *s
 
 		size_t i;
 		for (i = 0; i < ARRAYSIZE(bluez_adapters); i++)
-			if (bluez_adapters[i] != NULL) {
-				ba_adapter_destroy(bluez_adapters[i]);
-				bluez_adapters[i] = NULL;
+			if (bluez_adapters[i].adapter != NULL) {
+				ba_adapter_destroy(bluez_adapters[i].adapter);
+				bluez_adapters[i].adapter = NULL;
+				g_hash_table_destroy(bluez_adapters[i].device_sep_map);
+				bluez_adapters[i].device_sep_map = NULL;
 			}
 
 	}

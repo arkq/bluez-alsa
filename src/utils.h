@@ -43,6 +43,9 @@ char *g_variant_sanitize_object_path(char *path);
 bool g_variant_validate_value(GVariant *value, const GVariantType *type,
 		const char *name);
 
+unsigned int g_bdaddr_hash(const void *v);
+gboolean g_bdaddr_equal(const void *v1, const void *v2);
+
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 		double ch1_scale, double ch2_scale);
 

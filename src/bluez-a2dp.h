@@ -47,18 +47,30 @@ struct bluez_a2dp_sampling_freq {
 
 struct bluez_a2dp_codec {
 	enum bluez_a2dp_dir dir;
-	uint16_t id;
+	uint16_t codec_id;
 	/* support for A2DP back-channel */
 	bool backchannel;
 	/* capabilities configuration element */
-	const void *cfg;
-	size_t cfg_size;
+	const void *capabilities;
+	size_t capabilities_size;
 	/* list of supported channel modes */
 	const struct bluez_a2dp_channel_mode *channels[2];
 	size_t channels_size[2];
 	/* list of supported sampling frequencies */
 	const struct bluez_a2dp_sampling_freq *samplings[2];
 	size_t samplings_size[2];
+};
+
+/**
+ * A2DP Stream End-Point. */
+struct bluez_a2dp_sep {
+	enum bluez_a2dp_dir dir;
+	uint16_t codec_id;
+	/* exposed capabilities */
+	void *capabilities;
+	size_t capabilities_size;
+	/* stream end-point path */
+	char bluez_dbus_path[64];
 };
 
 /* NULL-terminated list of available A2DP codecs */

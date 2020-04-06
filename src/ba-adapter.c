@@ -27,15 +27,6 @@
 #include "utils.h"
 #include "shared/log.h"
 
-static guint g_bdaddr_hash(gconstpointer v) {
-	const bdaddr_t *ba = (const bdaddr_t *)v;
-	return ((uint32_t *)ba->b)[0] * ((uint16_t *)ba->b)[2];
-}
-
-static gboolean g_bdaddr_equal(gconstpointer v1, gconstpointer v2) {
-	return bacmp(v1, v2) == 0;
-}
-
 struct ba_adapter *ba_adapter_new(int dev_id) {
 
 	struct ba_adapter *a;

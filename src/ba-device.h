@@ -51,6 +51,9 @@ struct ba_device {
 
 	} xapl;
 
+	/* read-only list of available SEPs */
+	const GArray *seps;
+
 	/* hash-map with connected transports */
 	pthread_mutex_t transports_mutex;
 	GHashTable *transports;

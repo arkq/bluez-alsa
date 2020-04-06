@@ -427,7 +427,8 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration, t->a2dp.codec->cfg_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration,
+					t->a2dp.codec->capabilities_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -549,7 +550,8 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 
 	sbc_t sbc;
 
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration, t->a2dp.codec->cfg_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration,
+					t->a2dp.codec->capabilities_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}

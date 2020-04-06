@@ -66,7 +66,7 @@ static char *get_a2dp_codecs(
 		const struct bluez_a2dp_codec *c = *codecs++;
 		if (c->dir != dir)
 			continue;
-		if ((tmp[i] = ba_transport_codecs_a2dp_to_string(c->id)) == NULL)
+		if ((tmp[i] = ba_transport_codecs_a2dp_to_string(c->codec_id)) == NULL)
 			tmp[i] = "N/A";
 		i++;
 	}
