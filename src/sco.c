@@ -325,7 +325,14 @@ void *sco_thread(struct ba_transport *t) {
 				 * For a headset mode we will wait for an incoming connection from
 				 * some remote Audio Gateway. */
 				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG)
-					t->acquire(t);
+					if (t->acquire(t) == -1) {
+						/* without an acquired transport, it is impossible
+						 * to send or receive audio from the bt device.
+						 * So we close the client pcm to prevent clients
+						 * becoming blocked indefinitely */
+						ba_transport_release_pcm(&t->sco.mic_pcm);
+						ba_transport_release_pcm(&t->sco.spk_pcm);
+					}
 				/* fall-through */
 			case BA_TRANSPORT_SIGNAL_PCM_RESUME:
 				asrs.frames = 0;
