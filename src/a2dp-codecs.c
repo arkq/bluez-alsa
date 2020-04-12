@@ -37,10 +37,20 @@ uint16_t a2dp_get_bluealsa_vendor_codec(void *capabilities, size_t size) {
 		case APTX_LL_CODEC_ID:
 			return A2DP_CODEC_VENDOR_APTX_LL;
 		} break;
+	case BT_COMPID_APPLE:
+		switch (codec_id) {
+		} break;
 	case BT_COMPID_APT:
 		switch (codec_id) {
 		case APTX_CODEC_ID:
 			return A2DP_CODEC_VENDOR_APTX;
+		} break;
+	case BT_COMPID_SAMSUNG_ELEC:
+		switch (codec_id) {
+		case SAMSUNG_HD_CODEC_ID:
+			return A2DP_CODEC_VENDOR_SAMSUNG_HD;
+		case SAMSUNG_SC_CODEC_ID:
+			return A2DP_CODEC_VENDOR_SAMSUNG_SC;
 		} break;
 	case BT_COMPID_QUALCOMM_TECH:
 		switch (codec_id) {
@@ -51,6 +61,15 @@ uint16_t a2dp_get_bluealsa_vendor_codec(void *capabilities, size_t size) {
 		switch (codec_id) {
 		case LDAC_CODEC_ID:
 			return A2DP_CODEC_VENDOR_LDAC;
+		} break;
+	case BT_COMPID_SAVITECH:
+		switch (codec_id) {
+		case LHDC_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC;
+		case LHDC_V1_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC_V1;
+		case LLAC_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LLAC;
 		} break;
 	}
 

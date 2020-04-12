@@ -28,6 +28,7 @@
 #define BLUEALSA_A2DPCODECS_H_
 
 #include <endian.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "hci.h"
@@ -38,12 +39,17 @@
 #define A2DP_CODEC_ATRAC    0x04
 #define A2DP_CODEC_VENDOR   0xFF
 
-/* customized 16-bit vendor extension */
+/* Customized (BlueALSA) 16-bit vendor extension. */
 #define A2DP_CODEC_VENDOR_APTX          0x4FFF
 #define A2DP_CODEC_VENDOR_APTX_LL       0xA2FF
 #define A2DP_CODEC_VENDOR_APTX_HD       0xD7FF
 #define A2DP_CODEC_VENDOR_FASTSTREAM    0xA1FF
 #define A2DP_CODEC_VENDOR_LDAC          0x2DFF
+#define A2DP_CODEC_VENDOR_LHDC          0x4CFF
+#define A2DP_CODEC_VENDOR_LHDC_V1       0x48FF
+#define A2DP_CODEC_VENDOR_LLAC          0x44FF
+#define A2DP_CODEC_VENDOR_SAMSUNG_HD    0x52FF
+#define A2DP_CODEC_VENDOR_SAMSUNG_SC    0x53FF
 
 uint16_t a2dp_get_bluealsa_vendor_codec(void *capabilities, size_t size);
 
@@ -286,6 +292,21 @@ uint16_t a2dp_get_bluealsa_vendor_codec(void *capabilities, size_t size);
 #define LDAC_CHANNEL_MODE_MONO          0x04
 #define LDAC_CHANNEL_MODE_DUAL          0x02
 #define LDAC_CHANNEL_MODE_STEREO        0x01
+
+#define LHDC_VENDOR_ID                  BT_COMPID_SAVITECH
+#define LHDC_CODEC_ID                   0x4C32
+
+#define LHDC_V1_VENDOR_ID               BT_COMPID_SAVITECH
+#define LHDC_V1_CODEC_ID                0x484C
+
+#define LLAC_VENDOR_ID                  BT_COMPID_SAVITECH
+#define LLAC_CODEC_ID                   0x4C4C
+
+#define SAMSUNG_HD_VENDOR_ID            BT_COMPID_SAMSUNG_ELEC
+#define SAMSUNG_HD_CODEC_ID             0x0102
+
+#define SAMSUNG_SC_VENDOR_ID            BT_COMPID_SAMSUNG_ELEC
+#define SAMSUNG_SC_CODEC_ID             0x0103
 
 typedef struct {
 	uint8_t vendor_id4;

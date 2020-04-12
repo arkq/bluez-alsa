@@ -370,6 +370,16 @@ const char *ba_transport_codecs_a2dp_to_string(uint16_t codec) {
 		return "aptX-HD";
 	case A2DP_CODEC_VENDOR_LDAC:
 		return "LDAC";
+	case A2DP_CODEC_VENDOR_LHDC:
+		return "LHDC";
+	case A2DP_CODEC_VENDOR_LHDC_V1:
+		return "LHDCv1";
+	case A2DP_CODEC_VENDOR_LLAC:
+		return "LLAC";
+	case A2DP_CODEC_VENDOR_SAMSUNG_HD:
+		return "samsung-HD";
+	case A2DP_CODEC_VENDOR_SAMSUNG_SC:
+		return "samsung-SC";
 	default:
 		return NULL;
 	}
