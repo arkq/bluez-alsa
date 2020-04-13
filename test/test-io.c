@@ -30,7 +30,6 @@
 #include "../src/sbc.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
-#include "../src/shared/bt-codecs.c"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
@@ -239,7 +238,7 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport *t) {
 	FILE *f = NULL;
 
 	if (dump_data) {
-		sprintf(fname, "decoded-%s.pcm", bt_codecs_a2dp_to_string(t->type.codec));
+		sprintf(fname, "decoded-%s.pcm", ba_transport_codecs_a2dp_to_string(t->type.codec));
 		ck_assert_ptr_ne(f = fopen(fname, "w"), NULL);
 	}
 
@@ -588,21 +587,21 @@ int main(int argc, char *argv[]) {
 		unsigned int flag;
 	} codecs[] = {
 #define TEST_CODEC_SBC  (1 << 0)
-		{ bt_codecs_a2dp_to_string(A2DP_CODEC_SBC), TEST_CODEC_SBC },
+		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_SBC), TEST_CODEC_SBC },
 #define TEST_CODEC_MP3  (1 << 1)
-		{ bt_codecs_a2dp_to_string(A2DP_CODEC_MPEG12), TEST_CODEC_MP3 },
+		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_MPEG12), TEST_CODEC_MP3 },
 #define TEST_CODEC_AAC  (1 << 2)
-		{ bt_codecs_a2dp_to_string(A2DP_CODEC_MPEG24), TEST_CODEC_AAC },
+		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_MPEG24), TEST_CODEC_AAC },
 #define TEST_CODEC_APTX (1 << 3)
-		{ bt_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_APTX), TEST_CODEC_APTX },
+		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_APTX), TEST_CODEC_APTX },
 #define TEST_CODEC_APTX_HD (1 << 4)
-		{ bt_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_APTX_HD), TEST_CODEC_APTX_HD },
+		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_APTX_HD), TEST_CODEC_APTX_HD },
 #define TEST_CODEC_LDAC (1 << 5)
-		{ bt_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_LDAC), TEST_CODEC_LDAC },
+		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_LDAC), TEST_CODEC_LDAC },
 #define TEST_CODEC_CVSD (1 << 6)
-		{ bt_codecs_hfp_to_string(HFP_CODEC_CVSD), TEST_CODEC_CVSD },
+		{ ba_transport_codecs_hfp_to_string(HFP_CODEC_CVSD), TEST_CODEC_CVSD },
 #define TEST_CODEC_MSBC (1 << 7)
-		{ bt_codecs_hfp_to_string(HFP_CODEC_MSBC), TEST_CODEC_MSBC },
+		{ ba_transport_codecs_hfp_to_string(HFP_CODEC_MSBC), TEST_CODEC_MSBC },
 	};
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)

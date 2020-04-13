@@ -11,7 +11,7 @@
 #include "bluealsa-iface.h"
 
 static const GDBusArgInfo arg_codec = {
-	-1, "codec", "q", NULL
+	-1, "codec", "s", NULL
 };
 
 static const GDBusArgInfo arg_fd = {
@@ -133,7 +133,7 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Sampling = {
 };
 
 static const GDBusPropertyInfo bluealsa_iface_pcm_Codec = {
-	-1, "Codec", "q", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+	-1, "Codec", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
 static const GDBusPropertyInfo bluealsa_iface_pcm_Delay = {

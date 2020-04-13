@@ -46,6 +46,9 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 		double ch1_scale, double ch2_scale);
 
+const char *ba_transport_codecs_a2dp_to_string(uint16_t codec);
+const char *ba_transport_codecs_hfp_to_string(uint16_t codec);
+
 const char *ba_transport_type_to_string(struct ba_transport_type type);
 
 #if ENABLE_MP3LAME

@@ -66,7 +66,7 @@ struct ba_pcm {
 	/* device address */
 	bdaddr_t addr;
 	/* transport codec */
-	dbus_uint16_t codec;
+	char codec[16];
 	/* approximate PCM delay */
 	dbus_uint16_t delay;
 	/* software volume */

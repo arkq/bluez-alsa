@@ -31,6 +31,7 @@
 #include "bluealsa-iface.h"
 #include "bluealsa.h"
 #include "hfp.h"
+#include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -56,7 +57,7 @@ static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_HS)
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_HS);
 	warn("Unsupported transport type: %#x", t->type.profile);
-	return g_variant_new_string("<none>");
+	return g_variant_new_string("<null>");
 }
 
 static GVariant *ba_variant_new_rfcomm_features(const struct ba_rfcomm *r) {
@@ -82,7 +83,15 @@ static GVariant *ba_variant_new_pcm_sampling(const struct ba_transport_pcm *pcm)
 }
 
 static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_uint16(pcm->t->type.codec);
+	const struct ba_transport *t = pcm->t;
+	const char *codec = NULL;
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		codec = ba_transport_codecs_a2dp_to_string(t->type.codec);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		codec = ba_transport_codecs_hfp_to_string(t->type.codec);
+	if (codec != NULL)
+		return g_variant_new_string(codec);
+	return g_variant_new_string("<null>");
 }
 
 static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {

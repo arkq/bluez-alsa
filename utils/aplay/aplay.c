@@ -28,7 +28,6 @@
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
 
-#include "shared/bt-codecs.h"
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -103,15 +102,6 @@ static int parse_bt_addresses(char *argv[], size_t count) {
 	return 0;
 }
 
-static const char *bluealsa_get_bt_codec_name(const struct ba_pcm *pcm) {
-	const char *name = NULL;
-	if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP)
-		name = bt_codecs_a2dp_to_string(pcm->codec);
-	if (pcm->flags & BA_PCM_FLAG_PROFILE_SCO)
-		name = bt_codecs_hfp_to_string(pcm->codec);
-	return name != NULL ? name : "N/A";
-}
-
 static snd_pcm_format_t bluealsa_get_snd_pcm_format(const struct ba_pcm *pcm) {
 	switch (pcm->format) {
 	case 0x0008:
@@ -169,7 +159,7 @@ static void print_bt_device_list(void) {
 
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
 				pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "A2DP" : "SCO",
-				bluealsa_get_bt_codec_name(pcm),
+				pcm->codec,
 				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 				pcm->channels, pcm->channels != 1 ? "s" : "",
 				pcm->sampling);
@@ -211,7 +201,7 @@ static void print_bt_pcm_list(void) {
 			dev.trusted ? "trusted ": "", dev.icon,
 			pcm->flags & BA_PCM_FLAG_SINK ? "playback" : "capture",
 			pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "A2DP" : "SCO",
-			bluealsa_get_bt_codec_name(pcm),
+			pcm->codec,
 			snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 			pcm->channels, pcm->channels != 1 ? "s" : "",
 			pcm->sampling);

@@ -28,7 +28,6 @@
 #include "bluealsa-dbus.h"
 #include "bluealsa.h"
 #include "utils.h"
-#include "shared/bt-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -724,7 +723,7 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 
 	debug("RFCOMM: %s setting codec: %s",
 			ba_transport_type_to_string(t_sco->type),
-			bt_codecs_hfp_to_string(codec));
+			ba_transport_codecs_hfp_to_string(codec));
 
 	/* Codec selection can be requested only after Service Level Connection
 	 * establishment, and make sense only if mSBC encoding is supported. */

@@ -614,9 +614,10 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		dbus_message_iter_get_basic(variant, &pcm->sampling);
 	}
 	else if (strcmp(key, "Codec") == 0) {
-		if (type != (type_expected = DBUS_TYPE_UINT16))
+		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->codec);
+		dbus_message_iter_get_basic(variant, &tmp);
+		strncpy(pcm->codec, tmp, sizeof(pcm->codec) - 1);
 	}
 	else if (strcmp(key, "Delay") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))

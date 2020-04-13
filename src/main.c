@@ -41,7 +41,6 @@
 #if ENABLE_UPOWER
 # include "upower.h"
 #endif
-#include "shared/bt-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -67,7 +66,7 @@ static char *get_a2dp_codecs(
 		const struct bluez_a2dp_codec *c = *codecs++;
 		if (c->dir != dir)
 			continue;
-		if ((tmp[i] = bt_codecs_a2dp_to_string(c->id)) == NULL)
+		if ((tmp[i] = ba_transport_codecs_a2dp_to_string(c->id)) == NULL)
 			tmp[i] = "N/A";
 		i++;
 	}

@@ -43,7 +43,6 @@
 #include "../src/sbc.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
-#include "../src/shared/bt-codecs.c"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
 #include "../src/shared/rt.c"
