@@ -94,7 +94,6 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		socklen_t addrlen = sizeof(addr);
 		struct ba_device *d = NULL;
 		struct ba_transport *t = NULL;
-		char *ba_dbus_path = NULL;
 		int fd = -1;
 
 		if ((fd = accept(data.pfd.fd, (struct sockaddr *)&addr, &addrlen)) == -1) {
@@ -109,9 +108,8 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 			goto cleanup;
 		}
 
-		ba_dbus_path = g_strdup_printf("%s/sco", d->bluez_dbus_path);
-		if ((t = ba_transport_lookup(d, ba_dbus_path)) == NULL) {
-			error("Couldn't lookup transport: %s", ba_dbus_path);
+		if ((t = ba_transport_lookup(d, d->bluez_dbus_path)) == NULL) {
+			error("Couldn't lookup transport: %s", d->bluez_dbus_path);
 			goto cleanup;
 		}
 
@@ -142,8 +140,6 @@ cleanup:
 			ba_device_unref(d);
 		if (t != NULL)
 			ba_transport_unref(t);
-		if (ba_dbus_path != NULL)
-			g_free(ba_dbus_path);
 		if (fd != -1)
 			close(fd);
 
