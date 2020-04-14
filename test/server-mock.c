@@ -25,10 +25,7 @@
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
 
-#include "../src/a2dp.h"
-#define a2dp_sink_sbc _a2dp_sink_sbc
 #include "../src/a2dp.c"
-#undef a2dp_sink_sbc
 #include "../src/at.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
@@ -90,54 +87,7 @@ static void test_sigusr_handler(int sig) {
 	}
 }
 
-int test_transport_acquire(struct ba_transport *t) {
-
-	int bt_fds[2];
-	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
-
-	t->bt_fd = bt_fds[0];
-	t->mtu_read = 256;
-	t->mtu_write = 256;
-
-	t->state = BA_TRANSPORT_STATE_ACTIVE;
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		assert(a2dp_thread_create(t) == 0);
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		assert(ba_transport_pthread_create(t, sco_thread, "ba-sco") == 0);
-
-	return 0;
-}
-
-int test_transport_release(struct ba_transport *t) {
-	if (t->bt_fd != -1)
-		close(t->bt_fd);
-	t->bt_fd = -1;
-	return 0;
-}
-
-struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
-		struct ba_transport_type type, const char *owner, const char *path,
-		const struct bluez_a2dp_codec *codec, const void *configuration) {
-	if (fuzzing)
-		sleep(1);
-	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, codec, configuration);
-	t->acquire = test_transport_acquire;
-	t->release = test_transport_release;
-	return t;
-}
-
-struct ba_transport *test_transport_new_sco(struct ba_device *d,
-		struct ba_transport_type type, const char *owner, const char *path) {
-	if (fuzzing)
-		sleep(1);
-	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, -1);
-	t->acquire = test_transport_acquire;
-	t->release = test_transport_release;
-	return t;
-}
-
-void *a2dp_sink_sbc(struct ba_transport *t) {
+static void *test_a2dp_sink_sbc(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
@@ -168,6 +118,55 @@ void *a2dp_sink_sbc(struct ba_transport *t) {
 
 	pthread_cleanup_pop(1);
 	return NULL;
+}
+
+static int test_transport_acquire(struct ba_transport *t) {
+
+	int bt_fds[2];
+	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
+
+	t->bt_fd = bt_fds[0];
+	t->mtu_read = 256;
+	t->mtu_write = 256;
+
+	t->state = BA_TRANSPORT_STATE_ACTIVE;
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+		assert(ba_transport_pthread_create(t, a2dp_source_sbc, "ba-a2dp") == 0);
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
+		assert(ba_transport_pthread_create(t, test_a2dp_sink_sbc, "ba-a2dp") == 0);
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		assert(ba_transport_pthread_create(t, sco_thread, "ba-sco") == 0);
+
+	return 0;
+}
+
+static int test_transport_release(struct ba_transport *t) {
+	if (t->bt_fd != -1)
+		close(t->bt_fd);
+	t->bt_fd = -1;
+	return 0;
+}
+
+static struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
+		struct ba_transport_type type, const char *owner, const char *path,
+		const struct bluez_a2dp_codec *codec, const void *configuration) {
+	if (fuzzing)
+		sleep(1);
+	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, codec, configuration);
+	t->acquire = test_transport_acquire;
+	t->release = test_transport_release;
+	return t;
+}
+
+static struct ba_transport *test_transport_new_sco(struct ba_device *d,
+		struct ba_transport_type type, const char *owner, const char *path) {
+	if (fuzzing)
+		sleep(1);
+	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, -1);
+	t->acquire = test_transport_acquire;
+	t->release = test_transport_release;
+	return t;
 }
 
 void *test_bt_mock(void *data) {
