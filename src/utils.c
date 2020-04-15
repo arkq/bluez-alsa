@@ -346,6 +346,41 @@ void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 }
 
 /**
+ * Get BlueALSA A2DP codec from string representation.
+ *
+ * @param codec String representation of BlueALSA audio codec.
+ * @return BlueALSA audio codec or 0xFFFF for not supported value. */
+uint16_t ba_transport_codecs_a2dp_from_string(const char *str) {
+	if (strcmp(str, "SBC") == 0)
+		return A2DP_CODEC_SBC;
+#if ENABLE_MPEG
+	if (strcmp(str, "MP3") == 0)
+		return A2DP_CODEC_SBC;
+#endif
+#if ENABLE_AAC
+	if (strcmp(str, "AAC") == 0)
+		return A2DP_CODEC_SBC;
+#endif
+#if ENABLE_APTX
+	if (strcmp(str, "aptX") == 0)
+		return A2DP_CODEC_VENDOR_APTX;
+#endif
+#if ENABLE_FASTSTREAM
+	if (strcmp(str, "FastStream") == 0)
+		return A2DP_CODEC_VENDOR_FASTSTREAM;
+#endif
+#if ENABLE_APTX_HD
+	if (strcmp(str, "aptX-HD") == 0)
+		return A2DP_CODEC_VENDOR_APTX_HD;
+#endif
+#if ENABLE_LDAC
+	if (strcmp(str, "LDAC") == 0)
+		return A2DP_CODEC_VENDOR_LDAC;
+#endif
+	return 0xFFFF;
+}
+
+/**
  * Convert BlueALSA A2DP codec into a human-readable string.
  *
  * @param codec BlueALSA A2DP audio codec.
@@ -383,6 +418,21 @@ const char *ba_transport_codecs_a2dp_to_string(uint16_t codec) {
 	default:
 		return NULL;
 	}
+}
+
+/**
+ * Get BlueALSA HFP codec from string representation.
+ *
+ * @param codec String representation of BlueALSA audio codec.
+ * @return BlueALSA audio codec or 0xFFFF for not supported value. */
+uint16_t ba_transport_codecs_hfp_from_string(const char *str) {
+	if (strcmp(str, "CVSD") == 0)
+		return HFP_CODEC_CVSD;
+#if ENABLE_MSBC
+	if (strcmp(str, "mSBC") == 0)
+		return HFP_CODEC_MSBC;
+#endif
+	return 0xFFFF;
 }
 
 /**

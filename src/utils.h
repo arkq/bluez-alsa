@@ -49,7 +49,9 @@ gboolean g_bdaddr_equal(const void *v1, const void *v2);
 void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
 		double ch1_scale, double ch2_scale);
 
+uint16_t ba_transport_codecs_a2dp_from_string(const char *str);
 const char *ba_transport_codecs_a2dp_to_string(uint16_t codec);
+uint16_t ba_transport_codecs_hfp_from_string(const char *str);
 const char *ba_transport_codecs_hfp_to_string(uint16_t codec);
 
 const char *ba_transport_type_to_string(struct ba_transport_type type);

@@ -350,20 +350,24 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	GVariantIter *properties;
 	GVariant *value = NULL;
 	const char *property;
-	uint16_t codec;
+	const char *codec;
 
-	g_variant_get(params, "(qa{sv})", &codec, &properties);
+	g_variant_get(params, "(sa{sv})", &codec, &properties);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 		g_variant_unref(value);
 		value = NULL;
 	}
 
+	uint16_t codec_id = ba_transport_codecs_hfp_from_string(codec);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		codec_id = ba_transport_codecs_a2dp_from_string(codec);
+
 	/* Lock transport before codec selection, so we will have
 	 * an exclusive access to the transport critical section. */
 	ba_transport_pthread_cleanup_lock(t);
 
-	if (ba_transport_select_codec(t, codec) == -1) {
-		error("Couldn't select codec: %#x: %s", codec, strerror(errno));
+	if (ba_transport_select_codec(t, codec_id) == -1) {
+		error("Couldn't select codec: %s: %s", codec, strerror(errno));
 		goto fail;
 	}
 
