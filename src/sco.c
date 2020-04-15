@@ -317,12 +317,6 @@ void *sco_thread(struct ba_transport *t) {
 			case BA_TRANSPORT_SIGNAL_PING:
 				continue;
 			case BA_TRANSPORT_SIGNAL_PCM_OPEN:
-				/* Try to acquire new SCO connection only for Audio Gateway profile.
-				 * For a headset mode we will wait for an incoming connection from
-				 * some remote Audio Gateway. */
-				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG)
-					t->acquire(t);
-				/* fall-through */
 			case BA_TRANSPORT_SIGNAL_PCM_RESUME:
 				asrs.frames = 0;
 				continue;

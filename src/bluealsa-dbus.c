@@ -258,6 +258,8 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	/* get correct PIPE endpoint - PIPE is unidirectional */
+	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
 	bool locked = false;
@@ -291,30 +293,29 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 		goto fail;
 	}
 
-	/* get correct PIPE endpoint - PIPE is unidirectional */
-	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
-	pcm->fd = pcm_fds[is_sink ? 0 : 1];
-
 	/* set our internal endpoint as non-blocking. */
-	if (fcntl(pcm->fd, F_SETFL, O_NONBLOCK) == -1) {
+	if (fcntl(pcm_fds[is_sink ? 0 : 1], F_SETFL, O_NONBLOCK) == -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "Setup PIPE: %s", strerror(errno));
 		goto fail;
 	}
 
-	/* notify our IO thread that the FIFO has been created */
-	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_OPEN);
-
-	/* A2DP source profile should be initialized (acquired) only if the audio
-	 * is about to be transferred. It is most likely, that BT headset will not
-	 * run voltage converter (power-on its circuit board) until the transport
-	 * is acquired - in order to extend battery life. */
-	if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+	/* Source profiles (A2DP Source and SCO Audio Gateway) should be initialized
+	 * only if the audio is about to be transferred. It is most likely, that BT
+	 * headset will not run voltage converter (power-on its circuit board) until
+	 * the transport is acquired in order to extend battery life. For profiles
+	 * like A2DP Sink and HFP headset, we will wait for incoming connection. */
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
+			t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG)
 		if (t->acquire(t) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 					G_DBUS_ERROR_FAILED, "Acquire transport: %s", strerror(errno));
 			goto fail;
 		}
+
+	/* Setup PCM and notify our IO thread that the FIFO is ready. */
+	pcm->fd = pcm_fds[is_sink ? 0 : 1];
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_OPEN);
 
 	ba_transport_pthread_cleanup_unlock(t);
 
