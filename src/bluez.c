@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
@@ -811,22 +812,24 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv) {
 static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
-	debug("Called: %s.%s()", interface, method);
 	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
 	(void)params;
 	(void)userdata;
 
-	if (strcmp(method, "SelectConfiguration") == 0)
-		bluez_endpoint_select_configuration(invocation);
-	else if (strcmp(method, "SetConfiguration") == 0)
-		bluez_endpoint_set_configuration(invocation);
-	else if (strcmp(method, "ClearConfiguration") == 0)
-		bluez_endpoint_clear_configuration(invocation);
-	else if (strcmp(method, "Release") == 0)
-		bluez_endpoint_release(invocation);
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "SelectConfiguration",
+			.handler = bluez_endpoint_select_configuration },
+		{ .method = "SetConfiguration",
+			.handler = bluez_endpoint_set_configuration },
+		{ .method = "ClearConfiguration",
+			.handler = bluez_endpoint_clear_configuration },
+		{ .method = "Release",
+			.handler = bluez_endpoint_release },
+		{ NULL },
+	};
+
+	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
 
@@ -1121,20 +1124,22 @@ static void bluez_profile_release(GDBusMethodInvocation *inv) {
 static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
-	debug("Called: %s.%s()", interface, method);
 	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
 	(void)params;
 	(void)userdata;
 
-	if (strcmp(method, "NewConnection") == 0)
-		bluez_profile_new_connection(invocation);
-	else if (strcmp(method, "RequestDisconnection") == 0)
-		bluez_profile_request_disconnection(invocation);
-	else if (strcmp(method, "Release") == 0)
-		bluez_profile_release(invocation);
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "NewConnection",
+			.handler = bluez_profile_new_connection },
+		{ .method = "RequestDisconnection",
+			.handler = bluez_profile_request_disconnection },
+		{ .method = "Release",
+			.handler = bluez_profile_release },
+		{ NULL },
+	};
+
+	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
 

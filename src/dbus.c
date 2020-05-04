@@ -10,8 +10,83 @@
 
 #include "dbus.h"
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <string.h>
+
+#include "shared/defs.h"
+#include "shared/log.h"
+
+struct dispatch_method_caller_data {
+	void (*handler)(GDBusMethodInvocation *);
+	GDBusMethodInvocation *invocation;
+};
+
+static void *dispatch_method_caller(struct dispatch_method_caller_data *data) {
+	data->handler(data->invocation);
+	g_free(data);
+	return NULL;
+}
+
+/**
+ * Dispatch incoming D-Bus method call.
+ *
+ * @param dispatchers NULL-terminated array of dispatchers.
+ * @param sender Name of the D-Bus message sender.
+ * @param path D-Bus path on which call was made.
+ * @param interface D-Bus interface on which call was made.
+ * @param method Name of the called D-Bus method.
+ * @param invocation D-Bus method invocation structure.
+ * @return On success this function returns true. */
+bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
+		const char *sender, const char *path, const char *interface,
+		const char *method, GDBusMethodInvocation *invocation) {
+
+	const GDBusMethodCallDispatcher *dispatcher;
+	for (dispatcher = dispatchers; dispatcher->handler != NULL; dispatcher++) {
+
+		if (dispatcher->sender != NULL && strcmp(dispatcher->sender, sender) != 0)
+			continue;
+		if (dispatcher->path != NULL && strcmp(dispatcher->path, path) != 0)
+			continue;
+		if (dispatcher->interface != NULL && strcmp(dispatcher->interface, interface) != 0)
+			continue;
+		if (dispatcher->method != NULL && strcmp(dispatcher->method, method) != 0)
+			continue;
+
+		debug("Called: %s.%s() on %s", interface, method, path);
+
+		if (!dispatcher->asynchronous_call)
+			dispatcher->handler(invocation);
+		else {
+
+			struct dispatch_method_caller_data data = {
+				.handler = dispatcher->handler,
+				.invocation = invocation,
+			};
+
+			pthread_t thread;
+			int ret;
+
+			void *userdata = g_memdup(&data, sizeof(data));
+			if ((ret = pthread_create(&thread, NULL,
+							PTHREAD_ROUTINE(dispatch_method_caller), userdata)) != 0) {
+				error("Couldn't create D-Bus call dispatcher: %s", strerror(ret));
+				return false;
+			}
+
+			if ((ret = pthread_detach(thread)) != 0) {
+				error("Couldn't detach D-Bus call dispatcher: %s", strerror(ret));
+				return false;
+			}
+
+		}
+
+		return true;
+	}
+
+	return false;
+}
 
 /**
  * Get managed objects of a given D-Bus service.

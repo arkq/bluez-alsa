@@ -183,15 +183,18 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv) {
 static void bluealsa_manager_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
-	debug("Called: %s.%s()", interface, method);
 	(void)conn;
-	(void)sender;
-	(void)path;
 	(void)params;
 	(void)userdata;
 
-	if (strcmp(method, "GetPCMs") == 0)
-		bluealsa_manager_get_pcms(invocation);
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "GetPCMs",
+			.handler = bluealsa_manager_get_pcms },
+		{ NULL },
+	};
+
+	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
 
@@ -327,7 +330,9 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 
 	/* notify our IO thread that the FIFO is ready */
 	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_OPEN);
+
 	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_pcm_unref(pcm);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);
@@ -340,6 +345,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 fail:
 	if (locked)
 		ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_pcm_unref(pcm);
 	/* clean up created file descriptors */
 	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
 		if (pcm_fds[i] != -1)
@@ -385,6 +391,7 @@ fail:
 
 final:
 	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_pcm_unref(pcm);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);
@@ -393,17 +400,26 @@ final:
 static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
-	debug("Called: %s.%s()", interface, method);
 	(void)conn;
-	(void)sender;
-	(void)path;
 	(void)params;
-	(void)userdata;
 
-	if (strcmp(method, "Open") == 0)
-		bluealsa_pcm_open(invocation);
-	else if (strcmp(method, "SelectCodec") == 0)
-		bluealsa_pcm_select_codec(invocation);
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "Open",
+			.handler = bluealsa_pcm_open,
+			.asynchronous_call = true },
+		{ .method = "SelectCodec",
+			.handler = bluealsa_pcm_select_codec,
+			.asynchronous_call = true },
+		{ NULL },
+	};
+
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	ba_transport_pcm_ref(pcm);
+
+	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation)) {
+		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
+		ba_transport_pcm_unref(pcm);
+	}
 
 }
 
@@ -437,15 +453,18 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv) {
 static void bluealsa_rfcomm_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
-	debug("Called: %s.%s()", interface, method);
 	(void)conn;
-	(void)sender;
-	(void)path;
 	(void)params;
 	(void)userdata;
 
-	if (strcmp(method, "Open") == 0)
-		bluealsa_rfcomm_open(invocation);
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "Open",
+			.handler = bluealsa_rfcomm_open },
+		{ NULL },
+	};
+
+	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
 

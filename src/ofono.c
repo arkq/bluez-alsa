@@ -434,17 +434,20 @@ static void ofono_agent_release(GDBusMethodInvocation *inv) {
 static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
-	debug("Called: %s.%s()", interface, method);
 	(void)conn;
-	(void)sender;
-	(void)path;
 	(void)params;
 	(void)userdata;
 
-	if (strcmp(method, "NewConnection") == 0)
-		ofono_agent_new_connection(invocation);
-	else if (strcmp(method, "Release") == 0)
-		ofono_agent_release(invocation);
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "NewConnection",
+			.handler = ofono_agent_new_connection },
+		{ .method = "Release",
+			.handler = ofono_agent_release },
+		{ NULL },
+	};
+
+	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
 

@@ -22,6 +22,22 @@
 #define DBUS_IFACE_OBJECT_MANAGER   DBUS_SERVICE ".ObjectManager"
 #define DBUS_IFACE_PROPERTIES       DBUS_SERVICE ".Properties"
 
+/**
+ * Definition of a D-Bus method call dispatcher. */
+typedef struct _GDBusMethodCallDispatcher {
+	const char *sender;
+	const char *path;
+	const char *interface;
+	const char *method;
+	void (*handler)(GDBusMethodInvocation *);
+	/* if true, handler will be called in a separate thread */
+	bool asynchronous_call;
+} GDBusMethodCallDispatcher;
+
+bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
+		const char *sender, const char *path, const char *interface,
+		const char *method, GDBusMethodInvocation *invocation);
+
 GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
 		const char *name, const char *path, GError **error);
 
