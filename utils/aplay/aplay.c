@@ -541,7 +541,7 @@ static int supervise_pcm_worker(struct ba_pcm *ba_pcm) {
 
 	/* check whether SCO has selected codec */
 	if (ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO &&
-			ba_pcm->codec == 0) {
+			ba_pcm->sampling == 0) {
 		debug("Skipping SCO with codec not selected");
 		goto stop;
 	}
