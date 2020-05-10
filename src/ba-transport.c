@@ -855,9 +855,12 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
 			g_dbus_message_to_gerror(rep, &err);
 			if (err->code == G_DBUS_ERROR_NO_REPLY ||
-					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN) {
-				/* If BlueZ is already terminated (or is terminating), we won't receive
-				 * any response. Do not treat such a case as an error - omit logging. */
+					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN ||
+					err->code == G_DBUS_ERROR_UNKNOWN_OBJECT) {
+				/* If BlueZ is already terminated (or is terminating) or BlueZ
+				 * transport interface was already removed (ClearConfiguration
+				 * call), we won't receive success response. Do not treat such
+				 * a case as an error - omit logging. */
 				g_error_free(err);
 				err = NULL;
 			}
