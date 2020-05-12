@@ -169,6 +169,39 @@ static struct ba_transport *ofono_transport_new(
 }
 
 /**
+ * Lookup a transport associated with oFono card.
+ *
+ * @param card A path associated with oFono card.
+ * @return On success this function returns a transport associated with
+ *   a given oFono card path. Otherwise, NULL is returned. */
+static struct ba_transport *ofono_transport_lookup(const char *card) {
+
+	struct ba_adapter *a = NULL;
+	struct ba_device *d = NULL;
+	struct ba_transport *t = NULL;
+
+	struct ofono_card_data *ocd;
+	if ((ocd = g_hash_table_lookup(ofono_card_data_map, card)) == NULL) {
+		error("Couldn't lookup oFono card data: %s", card);
+		goto fail;
+	}
+
+	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
+		goto fail;
+	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
+		goto fail;
+	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
+		goto fail;
+
+fail:
+	if (a != NULL)
+		ba_adapter_unref(a);
+	if (d != NULL)
+		ba_device_unref(d);
+	return t;
+}
+
+/**
  * Add new oFono card (phone). */
 static void ofono_card_add(const char *dbus_sender, const char *card,
 		GVariantIter *properties) {
@@ -331,16 +364,12 @@ fail:
 
 }
 
-static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
+static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 
-	struct ba_adapter *a = NULL;
-	struct ba_device *d = NULL;
 	struct ba_transport *t = NULL;
-
 	GError *err = NULL;
 	GUnixFDList *fd_list;
 	const char *card;
@@ -355,18 +384,10 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 		goto fail;
 	}
 
-	struct ofono_card_data *ocd;
-	if ((ocd = g_hash_table_lookup(ofono_card_data_map, card)) == NULL) {
-		error("Card data not available: %s", card);
+	if ((t = ofono_transport_lookup(card)) == NULL) {
+		error("Couldn't lookup transport: %s: %s", card, strerror(errno));
 		goto fail;
 	}
-
-	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
-		goto fail;
-	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
-		goto fail;
-	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
-		goto fail;
 
 	if (ofono_sco_socket_authorize(fd) == -1) {
 		error("Couldn't authorize SCO connection: %s", strerror(errno));
@@ -396,10 +417,6 @@ fail:
 		close(fd);
 
 final:
-	if (a != NULL)
-		ba_adapter_unref(a);
-	if (d != NULL)
-		ba_device_unref(d);
 	if (t != NULL)
 		ba_transport_unref(t);
 	if (err != NULL)
@@ -408,8 +425,7 @@ final:
 
 /**
  * Callback for the Release method, called when oFono is properly shutdown. */
-static void ofono_agent_release(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
+static void ofono_agent_release(GDBusMethodInvocation *inv) {
 	ofono_remove_all_cards();
 	g_object_unref(inv);
 }
@@ -422,11 +438,12 @@ static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *
 	(void)sender;
 	(void)path;
 	(void)params;
+	(void)userdata;
 
 	if (strcmp(method, "NewConnection") == 0)
-		ofono_agent_new_connection(invocation, userdata);
+		ofono_agent_new_connection(invocation);
 	else if (strcmp(method, "Release") == 0)
-		ofono_agent_release(invocation, userdata);
+		ofono_agent_release(invocation);
 
 }
 
@@ -436,7 +453,7 @@ static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int ofono_register(void) {
 
-	static GDBusInterfaceVTable vtable = {
+	static const GDBusInterfaceVTable vtable = {
 		.method_call = ofono_hf_audio_agent_method_call,
 	};
 
@@ -531,34 +548,18 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 	(void)path;
 	(void)userdata;
 
-	struct ba_adapter *a = NULL;
-	struct ba_device *d = NULL;
-	struct ba_transport *t = NULL;
-
 	const char *card = NULL;
 	g_variant_get(params, "(&o)", &card);
 
-	struct ofono_card_data *ocd;
-	if ((ocd = g_hash_table_lookup(ofono_card_data_map, card)) == NULL) {
-		error("Card data not available: %s", card);
-		goto fail;
+	struct ba_transport *t = NULL;
+	if ((t = ofono_transport_lookup(card)) == NULL) {
+		error("Couldn't lookup transport: %s: %s", card, strerror(errno));
+		return;
 	}
-
-	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
-		goto fail;
-	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
-		goto fail;
-	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
-		goto fail;
 
 	debug("Removing oFono card: %s", card);
 	ba_transport_destroy(t);
 
-fail:
-	if (a != NULL)
-		ba_adapter_unref(a);
-	if (d != NULL)
-		ba_device_unref(d);
 }
 
 /**
