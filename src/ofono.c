@@ -41,6 +41,7 @@
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
+#include "dbus.h"
 #include "hci.h"
 #include "hfp.h"
 #include "ofono-iface.h"
@@ -607,8 +608,8 @@ int ofono_subscribe_signals(void) {
 			OFONO_IFACE_HF_AUDIO_MANAGER, "CardRemoved", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_card_removed, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(config.dbus, "org.freedesktop.DBus",
-			"org.freedesktop.DBus", "NameOwnerChanged", NULL, OFONO_SERVICE,
+	g_dbus_connection_signal_subscribe(config.dbus, DBUS_SERVICE,
+			DBUS_IFACE_DBUS, "NameOwnerChanged", NULL, OFONO_SERVICE,
 			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_name_owner_changed, NULL, NULL);
 
 	return 0;

@@ -22,6 +22,7 @@
 #include "../src/ba-rfcomm.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
+#include "../src/dbus.c"
 #include "../src/at.c"
 #include "../src/hci.c"
 #include "../src/utils.c"

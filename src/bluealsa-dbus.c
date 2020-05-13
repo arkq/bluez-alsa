@@ -30,6 +30,7 @@
 #include "ba-device.h"
 #include "bluealsa-iface.h"
 #include "bluealsa.h"
+#include "dbus.h"
 #include "hfp.h"
 #include "utils.h"
 #include "shared/defs.h"
@@ -120,8 +121,7 @@ static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_tran
 	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 }
 
-static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
+static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv) {
 
 	GVariantBuilder pcms;
 	g_variant_builder_init(&pcms, G_VARIANT_TYPE("a{oa{sv}}"));
@@ -188,9 +188,10 @@ static void bluealsa_manager_method_call(GDBusConnection *conn, const char *send
 	(void)sender;
 	(void)path;
 	(void)params;
+	(void)userdata;
 
 	if (strcmp(method, "GetPCMs") == 0)
-		bluealsa_manager_get_pcms(invocation, userdata);
+		bluealsa_manager_get_pcms(invocation);
 
 }
 
@@ -578,7 +579,7 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 
 	g_dbus_connection_emit_signal(config.dbus, NULL, pcm->ba_dbus_path,
-			"org.freedesktop.DBus.Properties", "PropertiesChanged",
+			DBUS_IFACE_PROPERTIES, "PropertiesChanged",
 			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_PCM, &props, NULL), NULL);
 
 	g_variant_builder_clear(&props);
@@ -627,7 +628,7 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(r->sco->d));
 
 	g_dbus_connection_emit_signal(config.dbus, NULL, r->ba_dbus_path,
-			"org.freedesktop.DBus.Properties", "PropertiesChanged",
+			DBUS_IFACE_PROPERTIES, "PropertiesChanged",
 			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_RFCOMM, &props, NULL), NULL);
 
 	g_variant_builder_clear(&props);

@@ -11,6 +11,7 @@
 #include "dbus.h"
 
 #include <stdbool.h>
+#include <string.h>
 
 static bool dbus_message_iter_get_basic_boolean(DBusMessageIter *iter) {
 	dbus_bool_t tmp = FALSE;

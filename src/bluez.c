@@ -34,6 +34,7 @@
 #include "bluealsa-dbus.h"
 #include "bluez-a2dp.h"
 #include "bluez-iface.h"
+#include "dbus.h"
 #include "hci.h"
 #include "sbc.h"
 #include "sco.h"
@@ -478,6 +479,8 @@ final:
 	g_free(capabilities);
 }
 
+static void bluez_register_a2dp_all(struct ba_adapter *adapter);
+
 static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	const char *sender = g_dbus_method_invocation_get_sender(inv);
@@ -722,6 +725,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);
+	bluez_register_a2dp_all(a);
 	goto final;
 
 fail:
@@ -788,8 +792,6 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(inv);
 }
 
-static void bluez_register_a2dp_all(struct ba_adapter *adapter);
-
 static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *method, GVariant *params,
 		GDBusMethodInvocation *invocation, void *userdata) {
@@ -800,18 +802,10 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender
 	(void)interface;
 	(void)params;
 
-	struct dbus_object_data *dbus_obj = userdata;
-	struct ba_adapter *a;
-
 	if (strcmp(method, "SelectConfiguration") == 0)
 		bluez_endpoint_select_configuration(invocation, userdata);
-	else if (strcmp(method, "SetConfiguration") == 0) {
+	else if (strcmp(method, "SetConfiguration") == 0)
 		bluez_endpoint_set_configuration(invocation, userdata);
-		if ((a = ba_adapter_lookup(dbus_obj->hci_dev_id)) != NULL) {
-			bluez_register_a2dp_all(a);
-			ba_adapter_unref(a);
-		}
-	}
 	else if (strcmp(method, "ClearConfiguration") == 0)
 		bluez_endpoint_clear_configuration(invocation, userdata);
 	else if (strcmp(method, "Release") == 0)
@@ -828,7 +822,7 @@ static struct dbus_object_data *bluez_create_media_endpoint_object(
 		const char *path,
 		GError **error) {
 
-	static GDBusInterfaceVTable vtable = {
+	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluez_endpoint_method_call,
 	};
 
@@ -1141,7 +1135,7 @@ static struct dbus_object_data *bluez_create_profile_object(
 		const char *path,
 		GError **error) {
 
-	static GDBusInterfaceVTable vtable = {
+	static const GDBusInterfaceVTable vtable = {
 		.method_call = bluez_profile_method_call,
 	};
 
@@ -1606,18 +1600,18 @@ static void bluez_signal_name_owner_changed(GDBusConnection *conn, const char *s
 int bluez_subscribe_signals(void) {
 
 	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
-			"org.freedesktop.DBus.ObjectManager", "InterfacesAdded", NULL, NULL,
+			DBUS_IFACE_OBJECT_MANAGER, "InterfacesAdded", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_interfaces_added, NULL, NULL);
 	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
-			"org.freedesktop.DBus.ObjectManager", "InterfacesRemoved", NULL, NULL,
+			DBUS_IFACE_OBJECT_MANAGER, "InterfacesRemoved", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_interfaces_removed, NULL, NULL);
 
 	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
-			"org.freedesktop.DBus.Properties", "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
+			DBUS_IFACE_PROPERTIES, "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_transport_changed, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(config.dbus, "org.freedesktop.DBus",
-			"org.freedesktop.DBus", "NameOwnerChanged", NULL, BLUEZ_SERVICE,
+	g_dbus_connection_signal_subscribe(config.dbus, DBUS_SERVICE,
+			DBUS_IFACE_DBUS, "NameOwnerChanged", NULL, BLUEZ_SERVICE,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_name_owner_changed, NULL, NULL);
 
 	return 0;

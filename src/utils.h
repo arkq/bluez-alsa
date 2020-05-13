@@ -21,7 +21,6 @@
 
 #include <bluetooth/bluetooth.h>
 
-#include <gio/gio.h>
 #include <glib.h>
 
 #include "ba-transport.h"
@@ -29,15 +28,6 @@
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);
 const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type);
-
-GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
-		const char *name, const char *path, GError **error);
-GVariant *g_dbus_get_property(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, const char *property,
-		GError **error);
-bool g_dbus_set_property(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, const char *property,
-		const GVariant *value, GError **error);
 
 char *g_variant_sanitize_object_path(char *path);
 bool g_variant_validate_value(GVariant *value, const GVariantType *type,

@@ -25,6 +25,7 @@
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
+#include "dbus.h"
 #include "utils.h"
 #include "shared/log.h"
 
@@ -123,7 +124,7 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 int upower_subscribe_signals(void) {
 
 	g_dbus_connection_signal_subscribe(config.dbus, UPOWER_SERVICE,
-			"org.freedesktop.DBus.Properties", "PropertiesChanged", UPOWER_PATH_DISPLAY_DEVICE,
+			DBUS_IFACE_PROPERTIES, "PropertiesChanged", UPOWER_PATH_DISPLAY_DEVICE,
 			NULL, G_DBUS_SIGNAL_FLAGS_NONE, upower_signal_display_device_changed, NULL, NULL);
 
 	return 0;

@@ -35,6 +35,7 @@
 #include "../src/bluealsa-iface.c"
 #include "../src/bluealsa.c"
 #include "../src/bluez-a2dp.c"
+#include "../src/dbus.c"
 #include "../src/hci.c"
 #include "../src/msbc.c"
 #include "../src/sbc.c"
