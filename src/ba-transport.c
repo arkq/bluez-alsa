@@ -376,6 +376,15 @@ void ba_transport_unref(struct ba_transport *t) {
 	free(t);
 }
 
+struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm) {
+	ba_transport_ref(pcm->t);
+	return pcm;
+}
+
+void ba_transport_pcm_unref(struct ba_transport_pcm *pcm) {
+	ba_transport_unref(pcm->t);
+}
+
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig) {
 	return write(t->sig_fd[1], &sig, sizeof(sig));
 }

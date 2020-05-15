@@ -245,6 +245,9 @@ struct ba_transport *ba_transport_ref(
 void ba_transport_destroy(struct ba_transport *t);
 void ba_transport_unref(struct ba_transport *t);
 
+struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm);
+void ba_transport_pcm_unref(struct ba_transport_pcm *pcm);
+
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
 enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t);
 

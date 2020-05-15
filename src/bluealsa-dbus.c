@@ -545,10 +545,10 @@ unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **e
 	};
 
 	if ((pcm->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
-					pcm->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_pcm,
-					&vtable, pcm, NULL, error)) != 0) {
+					pcm->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_pcm, &vtable,
+					pcm, (GDestroyNotify)ba_transport_pcm_unref, error)) != 0) {
 
-		ba_transport_ref(pcm->t);
+		ba_transport_pcm_ref(pcm);
 
 		GVariantBuilder props;
 		ba_variant_populate_pcm(&props, pcm);
@@ -601,8 +601,6 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	g_dbus_connection_emit_signal(config.dbus, NULL,
 			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMRemoved",
 			g_variant_new("(o)", pcm->ba_dbus_path), NULL);
-
-	ba_transport_unref(pcm->t);
 
 }
 
