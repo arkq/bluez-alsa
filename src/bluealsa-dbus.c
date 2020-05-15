@@ -256,8 +256,9 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	return TRUE;
 }
 
-static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	/* get correct PIPE endpoint - PIPE is unidirectional */
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
@@ -344,9 +345,10 @@ fail:
 			close(pcm_fds[i]);
 }
 
-static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	struct ba_transport *t = pcm->t;
 	GVariantIter *properties;
@@ -395,16 +397,18 @@ static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 	(void)sender;
 	(void)path;
 	(void)params;
+	(void)userdata;
 
 	if (strcmp(method, "Open") == 0)
-		bluealsa_pcm_open(invocation, userdata);
+		bluealsa_pcm_open(invocation);
 	else if (strcmp(method, "SelectCodec") == 0)
-		bluealsa_pcm_select_codec(invocation, userdata);
+		bluealsa_pcm_select_codec(invocation);
 
 }
 
-static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv) {
 
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
 	int fds[2] = { -1, -1 };
 
@@ -437,9 +441,10 @@ static void bluealsa_rfcomm_method_call(GDBusConnection *conn, const char *sende
 	(void)sender;
 	(void)path;
 	(void)params;
+	(void)userdata;
 
 	if (strcmp(method, "Open") == 0)
-		bluealsa_rfcomm_open(invocation, userdata);
+		bluealsa_rfcomm_open(invocation);
 
 }
 

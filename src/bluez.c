@@ -48,37 +48,53 @@
 #endif
 
 /**
- * Structure describing registered D-Bus object. */
-struct dbus_object_data {
+ * Data associated with registered D-Bus object. */
+struct bluez_dbus_object_data {
 	/* D-Bus object registration ID */
 	unsigned int id;
 	/* D-Bus object registration path */
 	char path[64];
 	/* associated adapter */
-	const int hci_dev_id;
+	int hci_dev_id;
 	const struct bluez_a2dp_codec *codec;
-	const struct ba_transport_type ttype;
+	struct ba_transport_type ttype;
 	/* determine whether object is registered in BlueZ */
 	bool registered;
 	/* determine whether object is used */
 	bool connected;
+	/* memory self-management */
+	int ref_count;
 };
 
-static GHashTable *dbus_object_data_map = NULL;
-
 /**
- * List of adapters created by BlueZ integration. */
-static struct bluez_adapter {
+ * BlueALSA copy of BlueZ adapter data. */
+struct bluez_adapter {
 	/* reference to the adapter structure */
 	struct ba_adapter *adapter;
 	/* array of end-points for connected devices */
 	GHashTable *device_sep_map;
-} bluez_adapters[HCI_MAX_DEV] = { NULL };
+};
+
+static GHashTable *dbus_object_data_map = NULL;
+static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { NULL };
 
 #define bluez_adapters_device_lookup(hci_dev_id, addr) \
 	g_hash_table_lookup(bluez_adapters[hci_dev_id].device_sep_map, addr)
 #define bluez_adapters_device_get_sep(seps, i) \
 	g_array_index(seps, struct bluez_a2dp_sep, i)
+
+static struct bluez_dbus_object_data *bluez_dbus_object_data_ref(
+		struct bluez_dbus_object_data *obj) {
+	obj->ref_count++;
+	return obj;
+}
+
+static void bluez_dbus_object_data_unref(
+		struct bluez_dbus_object_data *obj) {
+	if (--obj->ref_count != 0)
+		return;
+	free(obj);
+}
 
 /**
  * Check whether D-Bus adapter matches our configuration. */
@@ -214,10 +230,11 @@ static int bluez_a2dp_set_transport_state(
 	return -1;
 }
 
-static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
+static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	const struct dbus_object_data *dbus_obj = userdata;
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct bluez_dbus_object_data *dbus_obj = userdata;
 	const struct bluez_a2dp_codec *codec = dbus_obj->codec;
 
 	const void *data;
@@ -453,10 +470,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 #endif
 
 	default:
-		debug("Endpoint path not supported: %s", dbus_obj->path);
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_UNKNOWN_OBJECT, "Not supported");
-		goto final;
+		g_assert_not_reached();
 	}
 
 	GVariantBuilder caps;
@@ -481,11 +495,12 @@ final:
 
 static void bluez_register_a2dp_all(struct ba_adapter *adapter);
 
-static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
+static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 
 	const char *sender = g_dbus_method_invocation_get_sender(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct dbus_object_data *dbus_obj = userdata;
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct bluez_dbus_object_data *dbus_obj = userdata;
 	const struct bluez_a2dp_codec *codec = dbus_obj->codec;
 	const uint16_t codec_id = codec->codec_id;
 
@@ -636,8 +651,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 #endif
 
 			default:
-				error("Invalid configuration: %s", "Unsupported codec");
-				goto fail;
+				g_assert_not_reached();
 			}
 
 			if (!bluez_a2dp_codec_check_channel_mode(codec, cap_chm, false)) {
@@ -747,10 +761,11 @@ final:
 	g_free(state);
 }
 
-static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void *userdata) {
+static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct dbus_object_data *dbus_obj = userdata;
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	struct ba_adapter *a = NULL;
 	struct ba_device *d = NULL;
@@ -781,9 +796,10 @@ fail:
 	g_object_unref(inv);
 }
 
-static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
+static void bluez_endpoint_release(GDBusMethodInvocation *inv) {
 
-	struct dbus_object_data *dbus_obj = userdata;
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	debug("Releasing media endpoint: %s", dbus_obj->path);
 	dbus_obj->connected = false;
@@ -801,59 +817,24 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender
 	(void)path;
 	(void)interface;
 	(void)params;
+	(void)userdata;
 
 	if (strcmp(method, "SelectConfiguration") == 0)
-		bluez_endpoint_select_configuration(invocation, userdata);
+		bluez_endpoint_select_configuration(invocation);
 	else if (strcmp(method, "SetConfiguration") == 0)
-		bluez_endpoint_set_configuration(invocation, userdata);
+		bluez_endpoint_set_configuration(invocation);
 	else if (strcmp(method, "ClearConfiguration") == 0)
-		bluez_endpoint_clear_configuration(invocation, userdata);
+		bluez_endpoint_clear_configuration(invocation);
 	else if (strcmp(method, "Release") == 0)
-		bluez_endpoint_release(invocation, userdata);
+		bluez_endpoint_release(invocation);
 
-}
-
-/**
- * Register media endpoint object in D-Bus. */
-static struct dbus_object_data *bluez_create_media_endpoint_object(
-		const struct ba_adapter *adapter,
-		const struct ba_transport_type ttype,
-		const struct bluez_a2dp_codec *codec,
-		const char *path,
-		GError **error) {
-
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluez_endpoint_method_call,
-	};
-
-	struct dbus_object_data *dbus_obj;
-	struct dbus_object_data dbus_object = {
-		.hci_dev_id = adapter->hci.dev_id,
-		.codec = codec,
-		.ttype = ttype,
-	};
-
-	debug("Creating media endpoint object: %s", path);
-
-	strncpy(dbus_object.path, path, sizeof(dbus_object.path));
-	dbus_obj = g_memdup(&dbus_object, sizeof(dbus_object));
-
-	if ((dbus_obj->id = g_dbus_connection_register_object(config.dbus,
-					dbus_object.path, (GDBusInterfaceInfo *)&bluez_iface_endpoint,
-					&vtable, dbus_obj, NULL, error)) == 0) {
-		g_free(dbus_obj);
-		return NULL;
-	}
-
-	g_hash_table_insert(dbus_object_data_map, dbus_obj->path, dbus_obj);
-	return dbus_obj;
 }
 
 /**
  * Register media endpoint in BlueZ. */
 static int bluez_register_media_endpoint(
 		const struct ba_adapter *adapter,
-		const struct dbus_object_data *dbus_obj,
+		const struct bluez_dbus_object_data *dbus_obj,
 		const char *uuid,
 		GError **error) {
 
@@ -914,6 +895,10 @@ static void bluez_register_a2dp(
 		const struct bluez_a2dp_codec *codec,
 		const char *uuid) {
 
+	static const GDBusInterfaceVTable vtable = {
+		.method_call = bluez_endpoint_method_call,
+	};
+
 	struct ba_transport_type ttype = {
 		.profile = codec->dir == BLUEZ_A2DP_SOURCE ?
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE : BA_TRANSPORT_PROFILE_A2DP_SINK,
@@ -925,23 +910,44 @@ static void bluez_register_a2dp(
 
 	for (;;) {
 
-		struct dbus_object_data *dbus_obj;
+		struct bluez_dbus_object_data *dbus_obj;
 		GError *err = NULL;
 
 		char path[sizeof(dbus_obj->path)];
 		snprintf(path, sizeof(path), "/org/bluez/%s%s/%d", adapter->hci.name,
 				g_dbus_transport_type_to_bluez_object_path(ttype), ++registered);
 
-		dbus_obj = g_hash_table_lookup(dbus_object_data_map, path);
+		if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
 
-		/* End the registration loop if all previously created media endpoints are
-		 * registered in BlueZ and we've got at least N not connected endpoints. */
-		if (dbus_obj == NULL && registered > connected + 2)
-			break;
+			/* End the registration loop if all previously created media
+			 * endpoints are registered in BlueZ and we've got at least N
+			 * not connected endpoints. */
+			if (registered > connected + 2)
+				break;
 
-		if (dbus_obj == NULL && (dbus_obj = bluez_create_media_endpoint_object(adapter,
-						ttype, codec, path, &err)) == NULL)
-			goto fail;
+			debug("Creating media endpoint object: %s", path);
+
+			if ((dbus_obj = calloc(1, sizeof(*dbus_obj))) == NULL) {
+				warn("Couldn't register media endpoint: %s", strerror(errno));
+				goto fail;
+			}
+
+			strncpy(dbus_obj->path, path, sizeof(dbus_obj->path));
+			dbus_obj->hci_dev_id = adapter->hci.dev_id;
+			dbus_obj->codec = codec;
+			dbus_obj->ttype = ttype;
+			dbus_obj->ref_count = 2;
+
+			if ((dbus_obj->id = g_dbus_connection_register_object(config.dbus,
+							path, (GDBusInterfaceInfo *)&bluez_iface_endpoint, &vtable,
+							dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref, &err)) == 0) {
+				free(dbus_obj);
+				goto fail;
+			}
+
+			g_hash_table_insert(dbus_object_data_map, dbus_obj->path, dbus_obj);
+
+		}
 
 		if (!dbus_obj->registered) {
 			if (bluez_register_media_endpoint(adapter, dbus_obj, uuid, &err) == -1)
@@ -985,12 +991,13 @@ static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
 
 }
 
-static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userdata) {
+static void bluez_profile_new_connection(GDBusMethodInvocation *inv) {
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	const char *sender = g_dbus_method_invocation_get_sender(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct dbus_object_data *dbus_obj = userdata;
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	struct ba_adapter *a = NULL;
 	struct ba_device *d = NULL;
@@ -1063,10 +1070,11 @@ final:
 		g_error_free(err);
 }
 
-static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void *userdata) {
+static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct dbus_object_data *dbus_obj = userdata;
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	debug("Disconnecting hands-free profile: %s", dbus_obj->path);
 	dbus_obj->connected = false;
@@ -1098,9 +1106,10 @@ fail:
 	g_object_unref(inv);
 }
 
-static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
+static void bluez_profile_release(GDBusMethodInvocation *inv) {
 
-	struct dbus_object_data *dbus_obj = userdata;
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	debug("Releasing hands-free profile: %s", dbus_obj->path);
 	dbus_obj->connected = false;
@@ -1118,53 +1127,21 @@ static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
 	(void)path;
 	(void)interface;
 	(void)params;
+	(void)userdata;
 
 	if (strcmp(method, "NewConnection") == 0)
-		bluez_profile_new_connection(invocation, userdata);
+		bluez_profile_new_connection(invocation);
 	else if (strcmp(method, "RequestDisconnection") == 0)
-		bluez_profile_request_disconnection(invocation, userdata);
+		bluez_profile_request_disconnection(invocation);
 	else if (strcmp(method, "Release") == 0)
-		bluez_profile_release(invocation, userdata);
+		bluez_profile_release(invocation);
 
-}
-
-/**
- * Register hands-free profile object in D-Bus. */
-static struct dbus_object_data *bluez_create_profile_object(
-		const struct ba_transport_type ttype,
-		const char *path,
-		GError **error) {
-
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluez_profile_method_call,
-	};
-
-	struct dbus_object_data *dbus_obj;
-	struct dbus_object_data dbus_object = {
-		.hci_dev_id = -1,
-		.ttype = ttype,
-	};
-
-	debug("Creating hands-free profile object: %s", path);
-
-	strncpy(dbus_object.path, path, sizeof(dbus_object.path));
-	dbus_obj = g_memdup(&dbus_object, sizeof(dbus_object));
-
-	if ((dbus_obj->id = g_dbus_connection_register_object(config.dbus,
-					dbus_object.path, (GDBusInterfaceInfo *)&bluez_iface_profile,
-					&vtable, dbus_obj, NULL, error)) == 0) {
-		g_free(dbus_obj);
-		return NULL;
-	}
-
-	g_hash_table_insert(dbus_object_data_map, dbus_obj->path, dbus_obj);
-	return dbus_obj;
 }
 
 /**
  * Register hands-free profile in BlueZ. */
 static int bluez_register_profile(
-		const struct dbus_object_data *dbus_obj,
+		const struct bluez_dbus_object_data *dbus_obj,
 		const char *uuid,
 		uint16_t version,
 		uint16_t features,
@@ -1220,20 +1197,45 @@ static void bluez_register_hfp(
 		uint16_t version,
 		uint16_t features) {
 
+	static const GDBusInterfaceVTable vtable = {
+		.method_call = bluez_profile_method_call,
+	};
+
 	struct ba_transport_type ttype = {
 		.profile = profile,
 	};
 
-	struct dbus_object_data *dbus_obj;
+	struct bluez_dbus_object_data *dbus_obj;
 	GError *err = NULL;
 
 	char path[sizeof(dbus_obj->path)];
 	snprintf(path, sizeof(path), "/org/bluez%s",
 			g_dbus_transport_type_to_bluez_object_path(ttype));
 
-	if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL &&
-			(dbus_obj = bluez_create_profile_object(ttype, path, &err)) == NULL)
-		goto fail;
+	if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
+
+		debug("Creating hands-free profile object: %s", path);
+
+		if ((dbus_obj = calloc(1, sizeof(*dbus_obj))) == NULL) {
+			warn("Couldn't register hands-free profile: %s", strerror(errno));
+			goto fail;
+		}
+
+		strncpy(dbus_obj->path, path, sizeof(dbus_obj->path));
+		dbus_obj->hci_dev_id = -1;
+		dbus_obj->ttype = ttype;
+		dbus_obj->ref_count = 2;
+
+		if ((dbus_obj->id = g_dbus_connection_register_object(config.dbus,
+						path, (GDBusInterfaceInfo *)&bluez_iface_profile, &vtable,
+						dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref, &err)) == 0) {
+			free(dbus_obj);
+			goto fail;
+		}
+
+		g_hash_table_insert(dbus_object_data_map, dbus_obj->path, dbus_obj);
+
+	}
 
 	if (!dbus_obj->registered) {
 		if (bluez_register_profile(dbus_obj, uuid, version, features, &err) == -1)
@@ -1283,7 +1285,8 @@ static void bluez_sep_array_free(GArray *seps) {
 void bluez_register(void) {
 
 	if (dbus_object_data_map == NULL)
-		dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
+		dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal,
+				NULL, (GDestroyNotify)bluez_dbus_object_data_unref);
 
 	GError *err = NULL;
 	GVariantIter *objects = NULL;
@@ -1445,7 +1448,7 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
 
 			GHashTableIter iter;
-			struct dbus_object_data *dbus_obj;
+			struct bluez_dbus_object_data *dbus_obj;
 			g_hash_table_iter_init(&iter, dbus_object_data_map);
 			while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj))
 				if (dbus_obj->hci_dev_id == hci_dev_id) {
@@ -1573,7 +1576,7 @@ static void bluez_signal_name_owner_changed(GDBusConnection *conn, const char *s
 	if (owner_old != NULL && owner_old[0] != '\0') {
 
 		GHashTableIter iter;
-		struct dbus_object_data *dbus_obj;
+		struct bluez_dbus_object_data *dbus_obj;
 		g_hash_table_iter_init(&iter, dbus_object_data_map);
 		while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj)) {
 			g_dbus_connection_unregister_object(conn, dbus_obj->id);
