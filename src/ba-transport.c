@@ -348,6 +348,7 @@ void ba_transport_unref(struct ba_transport *t) {
 		return;
 
 	debug("Freeing transport: %s", ba_transport_type_to_string(t->type));
+	g_assert_cmpint(ref_count, ==, 0);
 
 	if (t->bt_fd != -1)
 		close(t->bt_fd);

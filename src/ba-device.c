@@ -129,6 +129,7 @@ void ba_device_unref(struct ba_device *d) {
 		return;
 
 	debug("Freeing device: %s", batostr_(&d->addr));
+	g_assert_cmpint(ref_count, ==, 0);
 
 	ba_adapter_unref(a);
 	g_hash_table_unref(d->transports);

@@ -17,11 +17,13 @@ bluealsa_aplay_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
-	@DBUS1_CFLAGS@
+	@DBUS1_CFLAGS@ \
+	@LIBUNWIND_CFLAGS@
 
 bluealsa_aplay_LDADD = \
 	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
-	@DBUS1_LIBS@
+	@DBUS1_LIBS@ \
+	@LIBUNWIND_LIBS@
 
 endif

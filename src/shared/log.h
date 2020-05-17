@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -34,6 +34,12 @@ void _debug(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 # define debug(M, ...) _debug("%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
 #else
 # define debug(M, ...) do {} while (0)
+#endif
+
+#if DEBUG
+void callstackdump(const char *label);
+#else
+# define callstackdump(M) do {} while (0)
 #endif
 
 #if DEBUG

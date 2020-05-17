@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,6 +10,7 @@
 
 #include "shared/log.h"
 
+#include <execinfo.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -19,6 +20,12 @@
 #include <syslog.h>
 #include <time.h>
 
+#if ENABLE_LIBUNWIND
+# define UNW_LOCAL_ONLY
+# include <libunwind.h>
+#endif
+
+#include "shared/defs.h"
 #include "shared/rt.h"
 
 /* internal logging identifier */
@@ -119,6 +126,53 @@ void _debug(const char *format, ...) {
 
 #if DEBUG
 /**
+ * Dump current thread's call stack. */
+void callstackdump(const char *label) {
+
+	char buffer[1024 * 2];
+	char *ptr = buffer;
+
+#if ENABLE_LIBUNWIND
+
+	unw_cursor_t cursor;
+	unw_context_t context;
+	unw_word_t off;
+
+	unw_getcontext(&context);
+	unw_init_local(&cursor, &context);
+
+	unw_step(&cursor);
+	while (unw_step(&cursor)) {
+		char symbol[256] = "";
+		unw_get_proc_name(&cursor, symbol, sizeof(symbol), &off);
+		ptr += snprintf(ptr, sizeof(buffer) + buffer - ptr, "%s+%#zx < ",
+				symbol, off);
+	}
+
+	ptr[-3] = '\0';
+
+#else
+
+	void *frames[32];
+	size_t n = backtrace(frames, ARRAYSIZE(frames));
+	char **symbols = backtrace_symbols(frames, n);
+
+	size_t i;
+	for (i = 1; i < n; i++)
+		ptr += snprintf(ptr, sizeof(buffer) + buffer - ptr, "%s%s",
+				symbols[i], (i + 1 < n) ? " < " : "");
+
+	free(symbols);
+
+#endif
+
+	_debug("%s: %s", label, buffer);
+
+}
+#endif
+
+#if DEBUG
+/**
  * Dump memory using hexadecimal representation.
  *
  * @param label Label printed before the memory block output.
@@ -134,7 +188,7 @@ void hexdump(const char *label, const void *mem, size_t len) {
 		mem = ((unsigned char *)mem) + 1;
 	}
 
-	fprintf(stderr, "%s:%s\n", label, buf);
+	_debug("%s:%s", label, buf);
 	free(buf);
 }
 #endif

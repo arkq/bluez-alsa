@@ -44,6 +44,13 @@ AM_CONDITIONAL([ENABLE_DEBUG_TIME], [test "x$enable_debug_time" = "xyes"])
 AM_COND_IF([ENABLE_DEBUG_TIME], [
 	AC_DEFINE([DEBUG_TIME], [1], [Define to 1 if the debug timing is enabled.])
 ])
+AC_ARG_WITH([libunwind],
+	AS_HELP_STRING([--with-libunwind], [use libunwind for call-stack unwinding]))
+AM_CONDITIONAL([WITH_LIBUNWIND], [test "x$with_libunwind" = "xyes"])
+AM_COND_IF([WITH_LIBUNWIND], [
+	PKG_CHECK_MODULES([LIBUNWIND], [libunwind >= 1.1])
+	AC_DEFINE([ENABLE_LIBUNWIND], [1], [Define to 1 if libunwind shall be used.])
+])
 
 AC_CHECK_FUNCS([splice],
 	[], [AC_MSG_ERROR([unable to find splice() function])])

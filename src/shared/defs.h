@@ -1,6 +1,6 @@
 /*
  * BlueALSA - defs.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -24,5 +24,10 @@
 /**
  * Thread routing callback casting wrapper. */
 #define PTHREAD_ROUTINE(f) ((void *(*)(void *))(f))
+
+/**
+ * Convert macro value to string. */
+#define STRINGIZE(x) STRINGIZE_(x)
+#define STRINGIZE_(x) #x
 
 #endif

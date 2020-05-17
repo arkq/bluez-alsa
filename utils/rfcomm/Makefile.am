@@ -13,10 +13,12 @@ bluealsa_rfcomm_SOURCES = \
 bluealsa_rfcomm_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@BLUEZ_CFLAGS@ \
-	@DBUS1_CFLAGS@
+	@DBUS1_CFLAGS@ \
+	@LIBUNWIND_CFLAGS@
 
 bluealsa_rfcomm_LDADD = \
 	@DBUS1_LIBS@ \
+	@LIBUNWIND_LIBS@ \
 	-lreadline
 
 endif
