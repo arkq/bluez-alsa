@@ -260,7 +260,6 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 
 	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
-	/* get correct PIPE endpoint - PIPE is unidirectional */
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
@@ -315,18 +314,20 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 			goto fail;
 		}
 
-	/* Setup PCM and notify our IO thread that the FIFO is ready. */
+	/* get correct PIPE endpoint - PIPE is unidirectional */
 	pcm->fd = pcm_fds[is_sink ? 0 : 1];
-	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_OPEN);
-
-	ba_transport_pthread_cleanup_unlock(t);
 
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
 	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
-			bluealsa_pcm_controller, pcm, NULL);
+			bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
+			(GDestroyNotify)ba_transport_pcm_unref);
 	g_io_channel_set_close_on_unref(ch, TRUE);
 	g_io_channel_set_encoding(ch, NULL, NULL);
 	g_io_channel_unref(ch);
+
+	/* notify our IO thread that the FIFO is ready */
+	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_OPEN);
+	ba_transport_pthread_cleanup_unlock(t);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);

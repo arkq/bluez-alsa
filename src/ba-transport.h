@@ -98,8 +98,6 @@ struct ba_transport_pcm {
 
 	/* FIFO file descriptor */
 	int fd;
-	/* associated client */
-	int client;
 
 	/* 16-bit stream format identifier */
 	uint16_t format;

@@ -70,7 +70,6 @@ static int transport_pcm_init(
 	pcm->t = t;
 	pcm->mode = mode;
 	pcm->fd = -1;
-	pcm->client = -1;
 	pcm->soft_volume = true;
 
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
@@ -325,6 +324,16 @@ void ba_transport_destroy(struct ba_transport *t) {
 	 * more). Not doing so might result in an undefined behavior or even a
 	 * race condition (closed and reused file descriptor). */
 	ba_transport_pthread_cancel(t);
+
+	/* terminate on-going PCM connections - exit PCM controllers */
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		ba_transport_release_pcm(&t->a2dp.pcm);
+		ba_transport_release_pcm(&t->a2dp.pcm_bc);
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		ba_transport_release_pcm(&t->sco.spk_pcm);
+		ba_transport_release_pcm(&t->sco.mic_pcm);
+	}
 
 	/* if possible, try to release resources gracefully */
 	if (t->release != NULL)
@@ -962,7 +971,6 @@ int ba_transport_release_pcm(struct ba_transport_pcm *pcm) {
 	debug("Closing PCM: %d", pcm->fd);
 	close(pcm->fd);
 	pcm->fd = -1;
-	pcm->client = -1;
 
 	pthread_setcancelstate(oldstate, NULL);
 	return 0;
