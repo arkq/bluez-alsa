@@ -1,0 +1,87 @@
+unreleased
+==========
+
+- separate D-Bus paths for PCM sink and source (API breakage)
+- fix SBC encoder bit-pool selection (support SBC XQ quality)
+- allow to disable software volume scaling via D-Bus API
+- improve PCM I/O plug-in delay heuristic (fix VLC playback)
+- bluealsa-aplay: list connected BT devices and available PCMs
+
+bluez-alsa v2.1.0 (2020-01-25)
+==============================
+
+- support HSP/HFP headset mode (connect phone without oFono)
+- optional integration with UPower for battery level reporting
+- initial (HFP only) support for audio codec selection
+- auto-detect BlueZ D-Bus service appearance/disappearance
+- lots of improvements for SCO connection robustness
+- route SCO data via transport interface in Broadcom chips
+- lots of fixes for ALSA plug-ins and BlueALSA server
+
+bluez-alsa v2.0.0 (2019-10-15)
+==============================
+
+- BlueALSA server as a D-Bus service with public API
+- optional support for A2DP Sink and Source with MP3 codec
+- optional support for A2DP Source with apt-X HD codec
+- optional support for mSBC codec in HFP profile
+- manage internal BlueALSA memory by reference counting
+- lots of fixes for ALSA plug-ins and BlueALSA server
+
+bluez-alsa v1.4.0 (2019-03-16)
+==============================
+
+- optional support for A2DP Source with LDAC codec
+- optional support for HFP-AG and HFP-HF over oFono
+- keep-alive timeout for closed A2DP connections
+- volume update notification for connected ALSA mixers
+- HCI selection by MAC address on multi-HCI hosts
+- lots of fixes for ALSA plug-ins and BlueALSA server
+
+bluez-alsa v1.3.1 (2018-09-08)
+==============================
+
+- bluealsa-aplay: release playback PCM when there is no data
+- workaround for RTP mark bit quirk (fix audio from Android)
+- stability fixes for ALSA plug-ins and BlueALSA server
+
+bluez-alsa v1.3.0 (2018-07-23)
+==============================
+
+- initial support for Hands-Free Profile (HFP-HF)
+- optional support for A2DP Source with apt-X codec
+- multiple A2DP connections (allow to connect many headsets)
+- report missing device in ALSA after BT disconnection
+- selective profile selection via command line arguments
+- optional logging to system logger (e.g. syslog)
+- PCM FIFO file descriptor sharing via domain socket
+- configuration option for PulseAudio compatibility
+- bluealsa-rfcomm tool for handling custom RFCOMM commands
+- lots of fixes for ALSA plug-ins and BlueALSA server
+
+bluez-alsa v1.2.0 (2017-04-13)
+==============================
+
+- optional A2DP Sink and Source with AAC codec
+- initial support for HSP and HFP Audio Gateway
+- support remote device volume change for A2DP Sink
+- display remote BT device battery level in ALSA mixer
+- allow to force 44100 Hz and/or mono audio for A2DP
+- software volume control separately for left/right channel
+- account for PCM delay reported by remote BT headset
+- randomize RTP timestamp and sequence number (RFC 3016)
+- bluealsa-aplay tool for playing audio from BT device
+- lots of fixes for ALSA plug-ins and BlueALSA server
+
+bluez-alsa v1.1.0 (2016-09-19)
+==============================
+
+- support for PCM pause, resume and delay reporting
+- lots of fixes for ALSA plug-ins and BlueALSA server
+
+bluez-alsa v1.0.0 (2016-08-27)
+==============================
+
+- A2DP Sink and Source with mandatory SBC codec
+- PCM I/O and control plug-ins for ALSA integration
+- hcitop tool for displaying HCI bandwidth
