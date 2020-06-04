@@ -27,7 +27,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include "a2dp.h"
+#include "a2dp-audio.h"
 #include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
@@ -749,7 +749,7 @@ int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state
 	case BA_TRANSPORT_STATE_PAUSED:
 		if (pthread_equal(t->thread, config.main_thread)) {
 			if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-				ret = a2dp_thread_create(t);
+				ret = a2dp_audio_thread_create(t);
 			else
 				ret = ba_transport_pthread_create(t, sco_thread, "ba-sco");
 		}

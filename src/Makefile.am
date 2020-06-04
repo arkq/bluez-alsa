@@ -11,7 +11,7 @@ bluealsa_SOURCES = \
 	shared/ffb.c \
 	shared/log.c \
 	shared/rt.c \
-	a2dp.c \
+	a2dp-audio.c \
 	a2dp-codecs.c \
 	at.c \
 	ba-adapter.c \

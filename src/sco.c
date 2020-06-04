@@ -24,7 +24,7 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
 
-#include "a2dp.h"
+#include "a2dp-audio.h"
 #include "ba-device.h"
 #include "bluealsa.h"
 #include "hci.h"

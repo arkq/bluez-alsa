@@ -1,5 +1,5 @@
 /*
- * BlueALSA - a2dp.c
+ * BlueALSA - a2dp-audio.c
  * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -8,7 +8,7 @@
  *
  */
 
-#include "a2dp.h"
+#include "a2dp-audio.h"
 
 #include <ctype.h>
 #include <endian.h>
@@ -1977,7 +1977,7 @@ fail_open:
 	return NULL;
 }
 
-int a2dp_thread_create(struct ba_transport *t) {
+int a2dp_audio_thread_create(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		switch (t->type.codec) {

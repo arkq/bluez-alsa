@@ -24,7 +24,7 @@
 #include "../src/utils.c"
 #include "../src/shared/log.c"
 
-int a2dp_thread_create(struct ba_transport *t) { (void)t; return 0; }
+int a2dp_audio_thread_create(struct ba_transport *t) { (void)t; return 0; }
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 void *sco_thread(struct ba_transport *t) { (void)t; return 0; }
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
