@@ -55,8 +55,15 @@ struct bluealsa_pcm {
 	int event_fd;
 
 	/* virtual hardware - ring buffer */
-	snd_pcm_sframes_t io_ptr;
 	char *io_hw_buffer;
+	/* The IO thread is responsible for maintaining the hardware pointer
+	 * (pcm->io_hw_ptr), the application is responsible for the application
+	 * pointer (io->appl_ptr). These are both volatile as they are both
+	 * written in one thread and read in the other. */
+	volatile snd_pcm_sframes_t io_hw_ptr;
+	snd_pcm_uframes_t io_hw_boundary;
+	/* Permit the application to modify the frequency of poll() events. */
+	volatile snd_pcm_uframes_t io_avail_min;
 	pthread_t io_thread;
 	bool io_started;
 
@@ -65,19 +72,6 @@ struct bluealsa_pcm {
 
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
-
-	/* In order to see whether the PCM has reached under-run (or over-run), we
-	 * have to know the exact position of the hardware and software pointers.
-	 * To do so, we could use the HW pointer provided by the IO plug structure.
-	 * This pointer is updated by the snd_pcm_hwsync() function, which is not
-	 * thread-safe (total disaster is guaranteed). Since we can not call this
-	 * function, we are going to use our own HW pointer, which can be updated
-	 * safely in our IO thread. */
-	snd_pcm_uframes_t io_hw_boundary;
-	snd_pcm_uframes_t io_hw_ptr;
-
-	/* permit the application to modify the frequency of poll() events */
-	volatile snd_pcm_uframes_t io_avail_min;
 
 	pthread_mutex_t delay_mutex;
 	struct timespec delay_ts;
@@ -189,11 +183,11 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	for (;;) {
 
 		if (io->state == SND_PCM_STATE_PAUSED ||
-				pcm->io_ptr == -1) {
+				pcm->io_hw_ptr == -1) {
 			int tmp;
 			debug2("IO thread paused: %d", io->state);
 			sigwait(&sigset, &tmp);
-			if (pcm->io_ptr == -1)
+			if (pcm->io_hw_ptr == -1)
 				continue;
 			if (pcm->ba_pcm_fd == -1)
 				goto fail;
@@ -208,21 +202,21 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		if (io->state == SND_PCM_STATE_DISCONNECTED)
 			goto fail;
 
-		snd_pcm_sframes_t io_ptr = pcm->io_ptr;
-		snd_pcm_uframes_t io_buffer_size = io->buffer_size;
+		/* We update pcm->io_hw_ptr (i.e. the value seen by ioplug) only when
+		 * a transfer has been completed. We use a temporary copy during the
+		 * transfer procedure. */
 		snd_pcm_uframes_t io_hw_ptr = pcm->io_hw_ptr;
-		snd_pcm_uframes_t io_hw_boundary = pcm->io_hw_boundary;
+
+		snd_pcm_uframes_t offset = io_hw_ptr % io->buffer_size;
 		snd_pcm_uframes_t frames = pcm->io_avail_min;
-		char *head = pcm->io_hw_buffer + io_ptr * pcm->frame_size;
-		ssize_t ret = 0;
-		size_t len;
+		char *head = pcm->io_hw_buffer + offset * pcm->frame_size;
 
 		/* If the leftover in the buffer is less than a whole period sizes,
 		 * adjust the number of frames which should be transfered. It has
 		 * turned out, that the buffer might contain fractional number of
 		 * periods - it could be an ALSA bug, though, it has to be handled. */
-		if (io_buffer_size - io_ptr < frames)
-			frames = io_buffer_size - io_ptr;
+		if (io->buffer_size - offset < frames)
+			frames = io->buffer_size - offset;
 
 		/* Do not try to transfer more frames than are available in the ring
 		 * buffer! */
@@ -234,22 +228,20 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		 * zero: xrun or drained final samples; we set the HW pointer to
 		 * -1 to indicate we have no work to do. */
 		if (frames == 0) {
-			io_ptr = -1;
 			io_hw_ptr = -1;
 			goto sync;
 		}
 
 		/* IO operation size in bytes */
-		len = frames * pcm->frame_size;
+		size_t len = frames * pcm->frame_size;
 
-		io_ptr += frames;
-		if (io_ptr >= (snd_pcm_sframes_t)io_buffer_size)
-			io_ptr -= io_buffer_size;
-
+		/* Increment the HW pointer (with boundary wrap) ready for the next
+		 * iteration. */
 		io_hw_ptr += frames;
-		if (io_hw_ptr >= io_hw_boundary)
-			io_hw_ptr -= io_hw_boundary;
+		if (io_hw_ptr >= pcm->io_hw_boundary)
+			io_hw_ptr -= pcm->io_hw_boundary;
 
+		ssize_t ret = 0;
 		if (io->stream == SND_PCM_STREAM_CAPTURE) {
 
 			/* Read the whole period "atomically". This will assure, that frames
@@ -303,8 +295,10 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		}
 
 sync:
-		pcm->io_ptr = io_ptr;
+		/* Make the new HW pointer value visible to the ioplug. */
 		pcm->io_hw_ptr = io_hw_ptr;
+		/* Generate poll() event so application is made aware of
+		 * the HW pointer change. */
 		eventfd_write(pcm->event_fd, 1);
 	}
 
@@ -336,6 +330,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 		return -errno;
 	}
 
+	/* start the IO thread */
 	pcm->io_started = true;
 	if ((errno = pthread_create(&pcm->io_thread, NULL,
 					PTHREAD_ROUTINE(io_thread), io)) != 0) {
@@ -362,10 +357,8 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	if (!bluealsa_dbus_pcm_ctrl_send_drop(pcm->ba_pcm_ctrl_fd, NULL))
 		return -errno;
 
-	/* Although the pcm stream is now stopped, it is still prepared and
-	 * therefore an application that uses start_threshold may try to restart it
-	 * by simply performing an I/O operation. If such an application now calls
-	 * poll() it may be blocked forever unless we generate an event here. */
+	/* Applications that call poll() after snd_pcm_drain() will be blocked
+	 * forever unless we generate a poll() event here. */
 	eventfd_write(pcm->event_fd, 1);
 
 	return 0;
@@ -375,7 +368,11 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	if (pcm->ba_pcm_fd == -1)
 		return -ENODEV;
-	return pcm->io_ptr;
+#ifndef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
+	if (pcm->io_hw_ptr != -1)
+		return pcm->io_hw_ptr % io->buffer_size;
+#endif
+	return pcm->io_hw_ptr;
 }
 
 static int bluealsa_close(snd_pcm_ioplug_t *io) {
@@ -402,12 +399,6 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		dbus_error_free(&err);
 		return -EBUSY;
 	}
-
-	/* Indicate that our PCM is ready for writing, even though is is not 100%
-	 * true - IO thread is not running yet. Some weird implementations might
-	 * require PCM to be writable before the snd_pcm_start() call. */
-	if (io->stream == SND_PCM_STREAM_PLAYBACK)
-		eventfd_write(pcm->event_fd, 1);
 
 	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
 		/* By default, the size of the pipe buffer is set to a too large value for
@@ -466,7 +457,6 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 
 	/* initialize ring buffer */
 	pcm->io_hw_ptr = 0;
-	pcm->io_ptr = 0;
 
 	/* The ioplug allocates and configures its channel area buffer when the
 	 * HW parameters are fixed, but after calling bluealsa_hw_params(). So,
@@ -476,8 +466,8 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	pcm->io_hw_buffer = (char *)areas->addr + areas->first / 8;
 
 	/* Indicate that our PCM is ready for IO, even though is is not 100%
-	 * true - the IO thread is not running yet. Applications using
-	 * snd_pcm_sw_params_set_start_threshold() require PCM to be usable
+	 * true - the IO thread may not be running yet. Applications using
+	 * snd_pcm_sw_params_set_start_threshold() require the PCM to be usable
 	 * as soon as it has been prepared. */
 	eventfd_write(pcm->event_fd, 1);
 
@@ -868,6 +858,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->io.version = SND_PCM_IOPLUG_VERSION;
 	pcm->io.name = "BlueALSA";
 	pcm->io.flags = SND_PCM_IOPLUG_FLAG_LISTED;
+#ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
+	pcm->io.flags |= SND_PCM_IOPLUG_FLAG_BOUNDARY_WA;
+#endif
 	pcm->io.mmap_rw = 1;
 	pcm->io.callback = &bluealsa_callback;
 	pcm->io.private_data = pcm;
