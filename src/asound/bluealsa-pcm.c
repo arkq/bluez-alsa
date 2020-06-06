@@ -224,6 +224,21 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		if (io_buffer_size - io_ptr < frames)
 			frames = io_buffer_size - io_ptr;
 
+		/* Do not try to transfer more frames than are available in the ring
+		 * buffer! */
+		snd_pcm_uframes_t hw_avail;
+		if ((hw_avail = snd_pcm_ioplug_hw_avail(io, io_hw_ptr, io->appl_ptr)) < frames)
+			frames = hw_avail;
+
+		/* There are 2 reasons why the number of available frames may be
+		 * zero: xrun or drained final samples; we set the HW pointer to
+		 * -1 to indicate we have no work to do. */
+		if (frames == 0) {
+			io_ptr = -1;
+			io_hw_ptr = -1;
+			goto sync;
+		}
+
 		/* IO operation size in bytes */
 		len = frames * pcm->frame_size;
 
@@ -255,12 +270,6 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 		}
 		else {
-
-			/* check for under-run and act accordingly */
-			if (io_hw_ptr > io->appl_ptr) {
-				io_ptr = -1;
-				goto sync;
-			}
 
 			/* Perform atomic write - see the explanation above. */
 			do {
