@@ -59,8 +59,6 @@ struct bluealsa_pcm {
 	pthread_t io_thread;
 	bool io_started;
 
-	/* communication and encoding/decoding delay */
-	snd_pcm_sframes_t delay;
 	/* user provided extra delay component */
 	snd_pcm_sframes_t delay_ex;
 
@@ -92,6 +90,26 @@ struct bluealsa_pcm {
  * Helper debug macro for internal usage. */
 #define debug2(M, ...) \
 	debug("%s: " M, pcm->ba_pcm.pcm_path, ## __VA_ARGS__)
+
+#if SND_LIB_VERSION < 0x010106
+/**
+ * Get the available frames.
+ *
+ * This function is available in alsa-lib since version 1.1.6. For older
+ * alsa-lib versions we need to provide our own implementation. */
+static snd_pcm_uframes_t snd_pcm_ioplug_hw_avail(const snd_pcm_ioplug_t * const io,
+		const snd_pcm_uframes_t hw_ptr, const snd_pcm_uframes_t appl_ptr) {
+	struct bluealsa_pcm *pcm = io->private_data;
+	snd_pcm_sframes_t diff;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK)
+		diff = appl_ptr - hw_ptr;
+	else
+		diff = io->buffer_size - hw_ptr + appl_ptr;
+	if (diff < 0)
+		diff += pcm->io_hw_boundary;
+	return diff <= io->buffer_size ? (snd_pcm_uframes_t) diff : 0;
+}
+#endif
 
 /**
  * Helper function for closing PCM transport. */
@@ -297,7 +315,6 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	}
 
 	/* initialize delay calculation */
-	pcm->delay = 0;
 	pcm->delay_valid = false;
 
 	if (!bluealsa_dbus_pcm_ctrl_send_resume(pcm->ba_pcm_ctrl_fd, NULL)) {
@@ -496,6 +513,13 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	if (pcm->ba_pcm_fd == -1)
 		return -ENODEV;
 
+	/* For capture PCMs only, the delay must be reported as zero when an overrun
+	 * occurs. */
+	if (io->stream == SND_PCM_STREAM_CAPTURE && io->state == SND_PCM_STATE_XRUN) {
+		*delayp = 0;
+		return 0;
+	}
+
 	/* Exact calculation of the PCM delay is very hard, if not impossible. For
 	 * the sake of simplicity we will make few assumptions and approximations.
 	 * In general, the delay is proportional to the number of bytes queued in
@@ -505,9 +529,12 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	snd_pcm_sframes_t delay = 0;
 
 	if (!pcm->delay_valid) {
-		/* If we have never transmitted anything then the delay is just based
-		 * on the current buffer length. */
-		delay = io->appl_ptr - io->hw_ptr;
+		/* If we have never transmitted anything, the delay is just based
+		 * on the current buffer length (transfered frames or unread frames
+		 * respectively for playback or capture). */
+		delay = snd_pcm_ioplug_hw_avail(io, io->hw_ptr, io->appl_ptr);
+		if (io->stream == SND_PCM_STREAM_CAPTURE)
+			delay = io->buffer_size - delay;
 	}
 	else {
 		/* Take the gap between the current input pointer in this thread and
@@ -522,23 +549,23 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 		struct timespec diff;
 		difftimespec(&now, &pcm->delay_ts, &diff);
 
-		delay =  io->appl_ptr >= pcm->delay_hw_ptr ?
-			(io->appl_ptr - pcm->delay_hw_ptr) :
-			(io->appl_ptr + pcm->io_hw_boundary - pcm->delay_hw_ptr);
+		delay = snd_pcm_ioplug_hw_avail(io, pcm->delay_hw_ptr, io->appl_ptr);
+
 		delay += pcm->delay_pcm_nread / pcm->frame_size;
 
 		unsigned int tsamples =
 			(diff.tv_sec * 1000 + diff.tv_nsec / 1000000) * io->rate / 1000;
 		/* Do not allow us to have a negative number of samples queued! */
-		delay = delay > tsamples ? delay - tsamples : 0;
+		if ((delay = delay - tsamples) < 0)
+			delay = 0;
 
 		pthread_mutex_unlock(&pcm->delay_mutex);
 	}
 
 	/* data transfer (communication) and encoding/decoding */
-	pcm->delay = (io->rate / 100) * pcm->ba_pcm.delay / 100;
+	delay += (io->rate / 100) * pcm->ba_pcm.delay / 100;
 
-	*delayp = delay + pcm->delay + pcm->delay_ex;
+	*delayp = delay + pcm->delay_ex;
 	return 0;
 }
 
