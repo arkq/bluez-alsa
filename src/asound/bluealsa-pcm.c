@@ -56,6 +56,7 @@ struct bluealsa_pcm {
 
 	/* virtual hardware - ring buffer */
 	snd_pcm_sframes_t io_ptr;
+	char *io_hw_buffer;
 	pthread_t io_thread;
 	bool io_started;
 
@@ -212,9 +213,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		snd_pcm_uframes_t io_hw_ptr = pcm->io_hw_ptr;
 		snd_pcm_uframes_t io_hw_boundary = pcm->io_hw_boundary;
 		snd_pcm_uframes_t frames = pcm->io_avail_min;
-		const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
-		char *buffer = (char *)areas->addr + (areas->first + areas->step * io_ptr) / 8;
-		char *head = buffer;
+		char *head = pcm->io_hw_buffer + io_ptr * pcm->frame_size;
 		ssize_t ret = 0;
 		size_t len;
 
@@ -460,7 +459,14 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	pcm->io_hw_ptr = 0;
 	pcm->io_ptr = 0;
 
-	/* Indicate that our PCM is ready for i/o, even though is is not 100%
+	/* The ioplug allocates and configures its channel area buffer when the
+	 * HW parameters are fixed, but after calling bluealsa_hw_params(). So,
+	 * this is the earliest opportunity for us to safely cache the ring
+	 * buffer start address. */
+	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
+	pcm->io_hw_buffer = (char *)areas->addr + areas->first / 8;
+
+	/* Indicate that our PCM is ready for IO, even though is is not 100%
 	 * true - the IO thread is not running yet. Applications using
 	 * snd_pcm_sw_params_set_start_threshold() require PCM to be usable
 	 * as soon as it has been prepared. */
