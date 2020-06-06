@@ -816,7 +816,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->io.callback = &bluealsa_callback;
 	pcm->io.private_data = pcm;
 
-#if SND_LIB_VERSION >= 0x010102
+#if SND_LIB_VERSION >= 0x010102 && SND_LIB_VERSION <= 0x010103
 	/* ALSA library thread-safe API functionality does not play well with ALSA
 	 * IO-plug plug-ins. It causes deadlocks which often make our PCM plug-in
 	 * unusable. As a workaround we are going to disable this functionality. */
