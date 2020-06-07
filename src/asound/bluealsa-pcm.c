@@ -38,12 +38,18 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+#define BA_PAUSE_STATE_RUNNING 0
+#define BA_PAUSE_STATE_PAUSED  (1 << 0)
+#define BA_PAUSE_STATE_PENDING (1 << 1)
 
 struct bluealsa_pcm {
 	snd_pcm_ioplug_t io;
 
 	/* D-Bus connection context */
 	struct ba_dbus_ctx dbus_ctx;
+
+	/* IO thread and application thread sync */
+	pthread_mutex_t mutex;
 
 	/* requested BlueALSA PCM */
 	struct ba_pcm ba_pcm;
@@ -70,7 +76,6 @@ struct bluealsa_pcm {
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
 
-	pthread_mutex_t delay_mutex;
 	struct timespec delay_ts;
 	snd_pcm_uframes_t delay_hw_ptr;
 	unsigned int delay_pcm_nread;
@@ -80,6 +85,10 @@ struct bluealsa_pcm {
 	snd_pcm_sframes_t delay_paused;
 	/* user provided extra delay component */
 	snd_pcm_sframes_t delay_ex;
+
+	/* synchronize threads to begin/end pause */
+	pthread_cond_t pause_cond;
+	unsigned int pause_state;
 
 };
 
@@ -112,6 +121,7 @@ static snd_pcm_uframes_t snd_pcm_ioplug_hw_avail(const snd_pcm_ioplug_t * const 
  * Helper function for closing PCM transport. */
 static int close_transport(struct bluealsa_pcm *pcm) {
 	int rv = 0;
+	pthread_mutex_lock(&pcm->mutex);
 	if (pcm->ba_pcm_fd != -1) {
 		rv |= close(pcm->ba_pcm_fd);
 		pcm->ba_pcm_fd = -1;
@@ -120,6 +130,7 @@ static int close_transport(struct bluealsa_pcm *pcm) {
 		rv |= close(pcm->ba_pcm_ctrl_fd);
 		pcm->ba_pcm_ctrl_fd = -1;
 	}
+	pthread_mutex_unlock(&pcm->mutex);
 	return rv;
 }
 
@@ -183,21 +194,35 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	debug2("Starting IO loop: %d", pcm->ba_pcm_fd);
 	for (;;) {
 
-		if (io->state == SND_PCM_STATE_PAUSED ||
+		if (pcm->pause_state & BA_PAUSE_STATE_PENDING ||
 				pcm->io_hw_ptr == -1) {
+			debug2("Pausing IO thread: %ld", pcm->io_hw_ptr);
+
+			pthread_mutex_lock(&pcm->mutex);
+			pcm->pause_state = BA_PAUSE_STATE_PAUSED;
+			pthread_cond_signal(&pcm->pause_cond);
+			pthread_mutex_unlock(&pcm->mutex);
+
 			int tmp;
-			debug2("IO thread paused: %d", io->state);
 			sigwait(&sigset, &tmp);
+
+			pthread_mutex_lock(&pcm->mutex);
+			pcm->pause_state = BA_PAUSE_STATE_RUNNING;
+			pthread_mutex_unlock(&pcm->mutex);
+
+			debug2("IO thread resumed");
+
 			if (pcm->io_hw_ptr == -1)
 				continue;
 			if (pcm->ba_pcm_fd == -1)
 				goto fail;
+
 			if (io->stream == SND_PCM_STREAM_PLAYBACK) {
 				debug2("Waiting for first period of frames");
 				io_thread_wait_first_period(io);
 			}
+
 			asrsync_init(&asrs, io->rate);
-			debug2("IO thread resumed: %d", io->state);
 		}
 
 		if (io->state == SND_PCM_STATE_DISCONNECTED)
@@ -284,12 +309,12 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 			ioctl(pcm->ba_pcm_fd, FIONREAD, &nread);
 
 			/* stash current time and levels */
-			pthread_mutex_lock(&pcm->delay_mutex);
+			pthread_mutex_lock(&pcm->mutex);
 			pcm->delay_ts = now;
 			pcm->delay_hw_ptr = io_hw_ptr;
 			pcm->delay_pcm_nread = nread;
 			pcm->delay_valid = true;
-			pthread_mutex_unlock(&pcm->delay_mutex);
+			pthread_mutex_unlock(&pcm->mutex);
 
 			/* synchronize playback time */
 			asrsync_sync(&asrs, frames);
@@ -308,6 +333,7 @@ fail:
 	pthread_cleanup_pop(1);
 	close_transport(pcm);
 	eventfd_write(pcm->event_fd, 0xDEAD0000);
+	pthread_cond_signal(&pcm->pause_cond);
 	return NULL;
 }
 
@@ -385,7 +411,8 @@ static int bluealsa_close(snd_pcm_ioplug_t *io) {
 	debug2("Closing");
 	bluealsa_dbus_connection_ctx_free(&pcm->dbus_ctx);
 	close(pcm->event_fd);
-	pthread_mutex_destroy(&pcm->delay_mutex);
+	pthread_mutex_destroy(&pcm->mutex);
+	pthread_cond_destroy(&pcm->pause_cond);
 	free(pcm);
 	return 0;
 }
@@ -516,7 +543,7 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 		struct timespec now;
 		gettimestamp(&now);
 
-		pthread_mutex_lock(&pcm->delay_mutex);
+		pthread_mutex_lock(&pcm->mutex);
 
 		struct timespec diff;
 		difftimespec(&now, &pcm->delay_ts, &diff);
@@ -531,7 +558,8 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 		if ((delay = delay - tsamples) < 0)
 			delay = 0;
 
-		pthread_mutex_unlock(&pcm->delay_mutex);
+		pthread_mutex_unlock(&pcm->mutex);
+
 	}
 
 	/* data transfer (communication) and encoding/decoding */
@@ -544,6 +572,16 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 
 static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	struct bluealsa_pcm *pcm = io->private_data;
+
+	if (enable == 1) {
+		/* Synchronize the IO thread with an application thread to ensure that
+		 * the server will not be paused while we are processing a transfer. */
+		pthread_mutex_lock(&pcm->mutex);
+		pcm->pause_state |= BA_PAUSE_STATE_PENDING;
+		while (!(pcm->pause_state & BA_PAUSE_STATE_PAUSED) && pcm->ba_pcm_fd != -1)
+			pthread_cond_wait(&pcm->pause_cond, &pcm->mutex);
+		pthread_mutex_unlock(&pcm->mutex);
+	}
 
 	if (!bluealsa_dbus_pcm_ctrl_send(pcm->ba_pcm_ctrl_fd,
 				enable ? "Pause" : "Resume", NULL))
@@ -886,7 +924,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->ba_pcm_fd = -1;
 	pcm->ba_pcm_ctrl_fd = -1;
 	pcm->delay_ex = delay;
-	pthread_mutex_init(&pcm->delay_mutex, NULL);
+	pthread_mutex_init(&pcm->mutex, NULL);
+	pthread_cond_init(&pcm->pause_cond, NULL);
+	pcm->pause_state = BA_PAUSE_STATE_RUNNING;
 
 	dbus_threads_init_default();
 
