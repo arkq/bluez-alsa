@@ -80,4 +80,26 @@ uint16_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
 		size_t size);
 
+#define A2DP_CHECK_OK                    0
+#define A2DP_CHECK_ERR_SIZE              0xFFFFFFFF
+#define A2DP_CHECK_ERR_CHANNELS          (1 << 0)
+#define A2DP_CHECK_ERR_CHANNELS_BC       (1 << 1)
+#define A2DP_CHECK_ERR_SAMPLING          (1 << 2)
+#define A2DP_CHECK_ERR_SAMPLING_BC       (1 << 3)
+#define A2DP_CHECK_ERR_SBC_ALLOCATION    (1 << 4)
+#define A2DP_CHECK_ERR_SBC_SUB_BANDS     (1 << 5)
+#define A2DP_CHECK_ERR_SBC_BLOCK_LENGTH  (1 << 6)
+#define A2DP_CHECK_ERR_MPEG_LAYER        (1 << 7)
+#define A2DP_CHECK_ERR_AAC_OBJ_TYPE      (1 << 8)
+
+uint32_t a2dp_check_configuration(
+		const struct a2dp_codec *codec,
+		const void *configuration,
+		size_t size);
+
+int a2dp_select_configuration(
+		const struct a2dp_codec *codec,
+		void *capabilities,
+		size_t size);
+
 #endif

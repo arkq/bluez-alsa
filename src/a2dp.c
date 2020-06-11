@@ -13,8 +13,12 @@
 #include <errno.h>
 #include <stdbool.h>
 
+#include <glib.h>
+
 #include "a2dp-codecs.h"
+#include "bluealsa.h"
 #include "hci.h"
+#include "sbc.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -550,4 +554,491 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 
 	errno = ENOTSUP;
 	return 0xFFFF;
+}
+
+/**
+ * Check whether channel mode configuration is valid. */
+static bool a2dp_codec_check_channel_mode(
+		const struct a2dp_codec *codec,
+		unsigned int capabilities,
+		bool backchannel) {
+
+	const size_t slot = backchannel ? 1 : 0;
+	size_t i;
+
+	if (codec->channels_size[slot] == 0)
+		return true;
+
+	for (i = 0; i < codec->channels_size[slot]; i++)
+		if (capabilities == codec->channels[slot][i].value)
+			return true;
+
+	return false;
+}
+
+/**
+ * Check whether sampling frequency configuration is valid. */
+static bool a2dp_codec_check_sampling_freq(
+		const struct a2dp_codec *codec,
+		unsigned int capabilities,
+		bool backchannel) {
+
+	const size_t slot = backchannel ? 1 : 0;
+	size_t i;
+
+	if (codec->samplings_size[slot] == 0)
+		return true;
+
+	for (i = 0; i < codec->samplings_size[slot]; i++)
+		if (capabilities == codec->samplings[slot][i].value)
+			return true;
+
+	return false;
+}
+
+/**
+ * Check whether A2DP configuration is valid.
+ *
+ * @param codec A2DP codec setup.
+ * @param configuration A2DP codec configuration blob.
+ * @param size The size of the A2DP codec configuration blob.
+ * @return On success this function returns A2DP_CHECK_OK. Otherwise,
+ *   A2DP_CHECK_ERR_* error bit-mask is returned to indicate invalid
+ *   A2DP configuration blob. */
+uint32_t a2dp_check_configuration(
+		const struct a2dp_codec *codec,
+		const void *configuration,
+		size_t size) {
+
+	unsigned int cap_chm = 0, cap_chm_bc = 0;
+	unsigned int cap_freq = 0, cap_freq_bc = 0;
+	uint32_t ret = A2DP_CHECK_OK;
+
+	if (size != codec->capabilities_size)
+		return A2DP_CHECK_ERR_SIZE;
+
+	switch (codec->codec_id) {
+	case A2DP_CODEC_SBC: {
+
+		const a2dp_sbc_t *cap = configuration;
+		cap_chm = cap->channel_mode;
+		cap_freq = cap->frequency;
+
+		if (cap->allocation_method != SBC_ALLOCATION_SNR &&
+				cap->allocation_method != SBC_ALLOCATION_LOUDNESS) {
+			debug("Invalid SBC allocation method: %#x", cap->allocation_method);
+			ret |= A2DP_CHECK_ERR_SBC_ALLOCATION;
+		}
+
+		if (cap->subbands != SBC_SUBBANDS_4 &&
+				cap->subbands != SBC_SUBBANDS_8) {
+			debug("Invalid SBC sub-bands: %#x", cap->subbands);
+			ret |= A2DP_CHECK_ERR_SBC_SUB_BANDS;
+		}
+
+		if (cap->block_length != SBC_BLOCK_LENGTH_4 &&
+				cap->block_length != SBC_BLOCK_LENGTH_8 &&
+				cap->block_length != SBC_BLOCK_LENGTH_12 &&
+				cap->block_length != SBC_BLOCK_LENGTH_16) {
+			debug("Invalid SBC block length: %#x", cap->block_length);
+			ret |= A2DP_CHECK_ERR_SBC_BLOCK_LENGTH;
+		}
+
+		debug("Selected A2DP SBC bit-pool range: [%u, %u]",
+				cap->min_bitpool, cap->max_bitpool);
+
+		break;
+	}
+
+#if ENABLE_MPEG
+	case A2DP_CODEC_MPEG12: {
+
+		const a2dp_mpeg_t *cap = configuration;
+		cap_chm = cap->channel_mode;
+		cap_freq = cap->frequency;
+
+		if (cap->layer != MPEG_LAYER_MP1 &&
+				cap->layer != MPEG_LAYER_MP2 &&
+				cap->layer != MPEG_LAYER_MP3) {
+			debug("Invalid MPEG layer: %#x", cap->layer);
+			ret |= A2DP_CHECK_ERR_MPEG_LAYER;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_AAC
+	case A2DP_CODEC_MPEG24: {
+
+		const a2dp_aac_t *cap = configuration;
+		cap_chm = cap->channels;
+		cap_freq = AAC_GET_FREQUENCY(*cap);
+
+		if (cap->object_type != AAC_OBJECT_TYPE_MPEG2_AAC_LC &&
+				cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_LC &&
+				cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_LTP &&
+				cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_SCA) {
+			debug("Invalid AAC object type: %#x", cap->object_type);
+			ret |= A2DP_CHECK_ERR_AAC_OBJ_TYPE;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_APTX
+	case A2DP_CODEC_VENDOR_APTX: {
+		const a2dp_aptx_t *cap = configuration;
+		cap_chm = cap->channel_mode;
+		cap_freq = cap->frequency;
+		break;
+	}
+#endif
+
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM: {
+		const a2dp_faststream_t *cap = configuration;
+		cap_freq = cap->frequency_music;
+		cap_freq_bc = cap->frequency_voice;
+		break;
+	}
+#endif
+
+#if ENABLE_APTX_HD
+	case A2DP_CODEC_VENDOR_APTX_HD: {
+		const a2dp_aptx_hd_t *cap = configuration;
+		cap_chm = cap->aptx.channel_mode;
+		cap_freq = cap->aptx.frequency;
+		break;
+	}
+#endif
+
+#if ENABLE_LDAC
+	case A2DP_CODEC_VENDOR_LDAC: {
+		const a2dp_ldac_t *cap = configuration;
+		cap_chm = cap->channel_mode;
+		cap_freq = cap->frequency;
+		break;
+	}
+#endif
+
+	default:
+		g_assert_not_reached();
+	}
+
+	if (!a2dp_codec_check_channel_mode(codec, cap_chm, false)) {
+		debug("Invalid channel mode: %#x", cap_chm);
+		ret |= A2DP_CHECK_ERR_CHANNELS;
+	}
+
+	if (!a2dp_codec_check_channel_mode(codec, cap_chm_bc, true)) {
+		debug("Invalid back-channel channel mode: %#x", cap_chm_bc);
+		ret |= A2DP_CHECK_ERR_CHANNELS_BC;
+	}
+
+	if (!a2dp_codec_check_sampling_freq(codec, cap_freq, false)) {
+		debug("Invalid sampling frequency: %#x", cap_freq);
+		ret |= A2DP_CHECK_ERR_SAMPLING;
+	}
+
+	if (!a2dp_codec_check_sampling_freq(codec, cap_freq_bc, true)) {
+		debug("Invalid back-channel sampling frequency: %#x", cap_freq_bc);
+		ret |= A2DP_CHECK_ERR_SAMPLING_BC;
+	}
+
+	return ret;
+}
+
+/**
+ * Select (best) channel mode configuration. */
+static unsigned int a2dp_codec_select_channel_mode(
+		const struct a2dp_codec *codec,
+		unsigned int capabilities,
+		bool backchannel) {
+
+	const size_t slot = backchannel ? 1 : 0;
+	size_t i;
+
+	/* If monophonic sound has been forced, check whether given codec supports
+	 * such a channel mode. Since mono channel mode shall be stored at index 0
+	 * we can simply check for its existence with a simple index lookup. */
+	if (config.a2dp.force_mono &&
+			codec->channels[slot][0].mode == A2DP_CHM_MONO &&
+			capabilities & codec->channels[slot][0].value)
+		return codec->channels[slot][0].value;
+
+	/* favor higher number of channels */
+	for (i = codec->channels_size[slot]; i > 0; i--)
+		if (capabilities & codec->channels[slot][i - 1].value)
+			return codec->channels[slot][i - 1].value;
+
+	return 0;
+}
+
+/**
+ * Select (best) sampling frequency configuration. */
+static unsigned int a2dp_codec_select_sampling_freq(
+		const struct a2dp_codec *codec,
+		unsigned int capabilities,
+		bool backchannel) {
+
+	const size_t slot = backchannel ? 1 : 0;
+	size_t i;
+
+	if (config.a2dp.force_44100)
+		for (i = 0; i < codec->samplings_size[slot]; i++)
+			if (codec->samplings[slot][i].frequency == 44100) {
+				if (capabilities & codec->samplings[slot][i].value)
+					return codec->samplings[slot][i].value;
+				break;
+			}
+
+	/* favor higher sampling frequencies */
+	for (i = codec->samplings_size[slot]; i > 0; i--)
+		if (capabilities & codec->samplings[slot][i - 1].value)
+			return codec->samplings[slot][i - 1].value;
+
+	return 0;
+}
+
+/**
+ * Select (best) A2DP codec configuration. */
+int a2dp_select_configuration(
+		const struct a2dp_codec *codec,
+		void *capabilities,
+		size_t size) {
+
+	if (size != codec->capabilities_size) {
+		error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
+		return errno = EINVAL, -1;
+	}
+
+	switch (codec->codec_id) {
+	case A2DP_CODEC_SBC: {
+
+		a2dp_sbc_t *cap = capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
+
+		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+			error("SBC: No supported channel modes: %#x", cap_chm);
+			goto fail;
+		}
+
+		if (config.sbc_quality == SBC_QUALITY_XQ) {
+			if (cap_chm & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+				cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+			else
+				warn("SBC XQ: Dual channel mode not supported: %#x", cap_chm);
+		}
+
+		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("SBC: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		if (cap->block_length & SBC_BLOCK_LENGTH_16)
+			cap->block_length = SBC_BLOCK_LENGTH_16;
+		else if (cap->block_length & SBC_BLOCK_LENGTH_12)
+			cap->block_length = SBC_BLOCK_LENGTH_12;
+		else if (cap->block_length & SBC_BLOCK_LENGTH_8)
+			cap->block_length = SBC_BLOCK_LENGTH_8;
+		else if (cap->block_length & SBC_BLOCK_LENGTH_4)
+			cap->block_length = SBC_BLOCK_LENGTH_4;
+		else {
+			error("SBC: No supported block lengths: %#x", cap->block_length);
+			goto fail;
+		}
+
+		if (cap->subbands & SBC_SUBBANDS_8)
+			cap->subbands = SBC_SUBBANDS_8;
+		else if (cap->subbands & SBC_SUBBANDS_4)
+			cap->subbands = SBC_SUBBANDS_4;
+		else {
+			error("SBC: No supported sub-bands: %#x", cap->subbands);
+			goto fail;
+		}
+
+		if (cap->allocation_method & SBC_ALLOCATION_LOUDNESS)
+			cap->allocation_method = SBC_ALLOCATION_LOUDNESS;
+		else if (cap->allocation_method & SBC_ALLOCATION_SNR)
+			cap->allocation_method = SBC_ALLOCATION_SNR;
+		else {
+			error("SBC: No supported allocation method: %#x", cap->allocation_method);
+			goto fail;
+		}
+
+		cap->min_bitpool = MAX(SBC_MIN_BITPOOL, cap->min_bitpool);
+		cap->max_bitpool = MIN(SBC_MAX_BITPOOL, cap->max_bitpool);
+
+		break;
+	}
+
+#if ENABLE_MPEG
+	case A2DP_CODEC_MPEG12: {
+
+		a2dp_mpeg_t *cap = capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
+
+		if (cap->layer & MPEG_LAYER_MP3)
+			cap->layer = MPEG_LAYER_MP3;
+		else {
+			error("MPEG: No supported layer: %#x", cap->layer);
+			goto fail;
+		}
+
+		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+			error("MPEG: No supported channel modes: %#x", cap_chm);
+			goto fail;
+		}
+
+		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("MPEG: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		/* do not waste bits for CRC protection */
+		cap->crc = 0;
+		/* do not use MPF-2 */
+		cap->mpf = 0;
+
+		break;
+	}
+#endif
+
+#if ENABLE_AAC
+	case A2DP_CODEC_MPEG24: {
+
+		a2dp_aac_t *cap = capabilities;
+		unsigned int cap_chm = cap->channels;
+		unsigned int cap_freq = AAC_GET_FREQUENCY(*cap);
+
+		if (cap->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_SCA)
+			cap->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+		else if (cap->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LTP)
+			cap->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP;
+		else if (cap->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LC)
+			cap->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LC;
+		else if (cap->object_type & AAC_OBJECT_TYPE_MPEG2_AAC_LC)
+			cap->object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC;
+		else {
+			error("AAC: No supported object type: %#x", cap->object_type);
+			goto fail;
+		}
+
+		if ((cap->channels = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+			error("AAC: No supported channels: %#x", cap_chm);
+			goto fail;
+		}
+
+		unsigned int freq;
+		if ((freq = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) != 0)
+			AAC_SET_FREQUENCY(*cap, freq);
+		else {
+			error("AAC: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		if (AAC_GET_BITRATE(*cap) == 0)
+			AAC_SET_BITRATE(*cap, AAC_GET_BITRATE(*(a2dp_aac_t *)codec->capabilities));
+
+		break;
+	}
+#endif
+
+#if ENABLE_APTX
+	case A2DP_CODEC_VENDOR_APTX: {
+
+		a2dp_aptx_t *cap = capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
+
+		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+			error("apt-X: No supported channel modes: %#x", cap_chm);
+			goto fail;
+		}
+
+		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("apt-X: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM: {
+
+		a2dp_faststream_t *cap = capabilities;
+		unsigned int cap_freq = cap->frequency_music;
+		unsigned int cap_freq_bc = cap->frequency_voice;
+
+		if ((cap->frequency_music = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("FastStream: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		if ((cap->frequency_voice = a2dp_codec_select_sampling_freq(codec, cap_freq_bc, true)) == 0) {
+			error("FastStream: No supported back-channel sampling frequencies: %#x", cap_freq_bc);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_APTX_HD
+	case A2DP_CODEC_VENDOR_APTX_HD: {
+
+		a2dp_aptx_hd_t *cap = capabilities;
+		unsigned int cap_chm = cap->aptx.channel_mode;
+		unsigned int cap_freq = cap->aptx.frequency;
+
+		if ((cap->aptx.channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+			error("apt-X HD: No supported channel modes: %#x", cap_chm);
+			goto fail;
+		}
+
+		if ((cap->aptx.frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("apt-X HD: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_LDAC
+	case A2DP_CODEC_VENDOR_LDAC: {
+
+		a2dp_ldac_t *cap = capabilities;
+		unsigned int cap_chm = cap->channel_mode;
+		unsigned int cap_freq = cap->frequency;
+
+		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+			error("LDAC: No supported channel modes: %#x", cap_chm);
+			goto fail;
+		}
+
+		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("LDAC: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
+	default:
+		g_assert_not_reached();
+	}
+
+	return 0;
+
+fail:
+	errno = ENOTSUP;
+	return -1;
 }
