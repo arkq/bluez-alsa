@@ -11,8 +11,8 @@ bluealsa_SOURCES = \
 	shared/ffb.c \
 	shared/log.c \
 	shared/rt.c \
+	a2dp.c \
 	a2dp-audio.c \
-	a2dp-codecs.c \
 	at.c \
 	ba-adapter.c \
 	ba-device.c \
@@ -22,7 +22,6 @@ bluealsa_SOURCES = \
 	bluealsa-dbus.c \
 	bluealsa-iface.c \
 	bluez.c \
-	bluez-a2dp.c \
 	bluez-iface.c \
 	dbus.c \
 	hci.c \

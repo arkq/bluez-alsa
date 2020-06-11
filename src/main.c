@@ -28,10 +28,10 @@
 # include <ldacBT.h>
 #endif
 
+#include "a2dp.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
-#include "bluez-a2dp.h"
 #include "bluez.h"
 #if ENABLE_OFONO
 # include "ofono.h"
@@ -56,14 +56,14 @@ static GMainLoop *loop = NULL;
 static int retval = EXIT_SUCCESS;
 
 static char *get_a2dp_codecs(
-		const struct bluez_a2dp_codec **codecs,
-		enum bluez_a2dp_dir dir) {
+		const struct a2dp_codec **codecs,
+		enum a2dp_dir dir) {
 
 	const char *tmp[16] = { NULL };
 	int i = 0;
 
 	while (*codecs != NULL) {
-		const struct bluez_a2dp_codec *c = *codecs++;
+		const struct a2dp_codec *c = *codecs++;
 		if (c->dir != dir)
 			continue;
 		if ((tmp[i] = ba_transport_codecs_a2dp_to_string(c->codec_id)) == NULL)
@@ -197,8 +197,8 @@ int main(int argc, char **argv) {
 					"HSP/HFP Audio Gateways. If one wants to enable other set of profiles, it is\n"
 					"required to explicitly specify all of them using `-p NAME` options.\n",
 					argv[0],
-					get_a2dp_codecs(config.a2dp.codecs, BLUEZ_A2DP_SOURCE),
-					get_a2dp_codecs(config.a2dp.codecs, BLUEZ_A2DP_SINK),
+					get_a2dp_codecs(a2dp_codecs, A2DP_SOURCE),
+					get_a2dp_codecs(a2dp_codecs, A2DP_SINK),
 					"v1.7", "v1.7", "v1.2", "v1.2");
 			return EXIT_SUCCESS;
 

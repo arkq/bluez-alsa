@@ -20,9 +20,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "a2dp.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
-#include "bluez-a2dp.h"
 
 #define BA_TRANSPORT_PROFILE_NONE        (0)
 #define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)
@@ -173,7 +173,7 @@ struct ba_transport {
 		struct {
 
 			/* audio codec configuration capabilities */
-			const struct bluez_a2dp_codec *codec;
+			const struct a2dp_codec *codec;
 			/* selected audio codec configuration */
 			uint8_t *configuration;
 
@@ -225,7 +225,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const struct bluez_a2dp_codec *codec,
+		const struct a2dp_codec *codec,
 		const void *configuration);
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,

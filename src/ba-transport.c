@@ -163,7 +163,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		struct ba_transport_type type,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const struct bluez_a2dp_codec *codec,
+		const struct a2dp_codec *codec,
 		const void *configuration) {
 
 	const bool is_sink = type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
@@ -484,7 +484,7 @@ static void transport_update_channels(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-		const struct bluez_a2dp_codec *codec = t->a2dp.codec;
+		const struct a2dp_codec *codec = t->a2dp.codec;
 		uint16_t cfg_value = 0;
 		bool found = false;
 		size_t i;
@@ -553,7 +553,7 @@ static void transport_update_sampling(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-		const struct bluez_a2dp_codec *codec = t->a2dp.codec;
+		const struct a2dp_codec *codec = t->a2dp.codec;
 		uint16_t cfg_value = 0, cfg_value_bc = 0;
 		bool found = false, found_bc = false;
 		size_t i;

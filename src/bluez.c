@@ -27,13 +27,13 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include "a2dp.h"
 #include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
-#include "bluez-a2dp.h"
 #include "bluez-iface.h"
 #include "dbus.h"
 #include "hci.h"
@@ -57,7 +57,7 @@ struct bluez_dbus_object_data {
 	char path[64];
 	/* associated adapter */
 	int hci_dev_id;
-	const struct bluez_a2dp_codec *codec;
+	const struct a2dp_codec *codec;
 	struct ba_transport_type ttype;
 	/* determine whether object is registered in BlueZ */
 	bool registered;
@@ -82,7 +82,7 @@ static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { NULL };
 #define bluez_adapters_device_lookup(hci_dev_id, addr) \
 	g_hash_table_lookup(bluez_adapters[hci_dev_id].device_sep_map, addr)
 #define bluez_adapters_device_get_sep(seps, i) \
-	g_array_index(seps, struct bluez_a2dp_sep, i)
+	g_array_index(seps, struct a2dp_sep, i)
 
 static struct bluez_dbus_object_data *bluez_dbus_object_data_ref(
 		struct bluez_dbus_object_data *obj) {
@@ -125,7 +125,7 @@ static bool bluez_match_dbus_adapter(
 /**
  * Check whether channel mode configuration is valid. */
 static bool bluez_a2dp_codec_check_channel_mode(
-		const struct bluez_a2dp_codec *codec,
+		const struct a2dp_codec *codec,
 		unsigned int capabilities,
 		bool backchannel) {
 
@@ -145,7 +145,7 @@ static bool bluez_a2dp_codec_check_channel_mode(
 /**
  * Check whether sampling frequency configuration is valid. */
 static bool bluez_a2dp_codec_check_sampling_freq(
-		const struct bluez_a2dp_codec *codec,
+		const struct a2dp_codec *codec,
 		unsigned int capabilities,
 		bool backchannel) {
 
@@ -165,7 +165,7 @@ static bool bluez_a2dp_codec_check_sampling_freq(
 /**
  * Select (best) channel mode configuration. */
 static unsigned int bluez_a2dp_codec_select_channel_mode(
-		const struct bluez_a2dp_codec *codec,
+		const struct a2dp_codec *codec,
 		unsigned int capabilities,
 		bool backchannel) {
 
@@ -176,7 +176,7 @@ static unsigned int bluez_a2dp_codec_select_channel_mode(
 	 * such a channel mode. Since mono channel mode shall be stored at index 0
 	 * we can simply check for its existence with a simple index lookup. */
 	if (config.a2dp.force_mono &&
-			codec->channels[slot][0].mode == BLUEZ_A2DP_CHM_MONO &&
+			codec->channels[slot][0].mode == A2DP_CHM_MONO &&
 			capabilities & codec->channels[slot][0].value)
 		return codec->channels[slot][0].value;
 
@@ -191,7 +191,7 @@ static unsigned int bluez_a2dp_codec_select_channel_mode(
 /**
  * Select (best) sampling frequency configuration. */
 static unsigned int bluez_a2dp_codec_select_sampling_freq(
-		const struct bluez_a2dp_codec *codec,
+		const struct a2dp_codec *codec,
 		unsigned int capabilities,
 		bool backchannel) {
 
@@ -236,7 +236,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
-	const struct bluez_a2dp_codec *codec = dbus_obj->codec;
+	const struct a2dp_codec *codec = dbus_obj->codec;
 
 	const void *data;
 	void *capabilities;
@@ -502,7 +502,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
-	const struct bluez_a2dp_codec *codec = dbus_obj->codec;
+	const struct a2dp_codec *codec = dbus_obj->codec;
 	const uint16_t codec_id = codec->codec_id;
 
 	struct ba_adapter *a = NULL;
@@ -841,7 +841,7 @@ static int bluez_register_media_endpoint(
 		const char *uuid,
 		GError **error) {
 
-	const struct bluez_a2dp_codec *codec = dbus_obj->codec;
+	const struct a2dp_codec *codec = dbus_obj->codec;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	int ret = 0;
 	size_t i;
@@ -895,7 +895,7 @@ final:
  * Register A2DP endpoint. */
 static void bluez_register_a2dp(
 		const struct ba_adapter *adapter,
-		const struct bluez_a2dp_codec *codec,
+		const struct a2dp_codec *codec,
 		const char *uuid) {
 
 	static const GDBusInterfaceVTable vtable = {
@@ -903,7 +903,7 @@ static void bluez_register_a2dp(
 	};
 
 	struct ba_transport_type ttype = {
-		.profile = codec->dir == BLUEZ_A2DP_SOURCE ?
+		.profile = codec->dir == A2DP_SOURCE ?
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE : BA_TRANSPORT_PROFILE_A2DP_SINK,
 		.codec = codec->codec_id,
 	};
@@ -976,16 +976,16 @@ fail:
  * Register A2DP endpoints. */
 static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
 
-	const struct bluez_a2dp_codec **cc = config.a2dp.codecs;
+	const struct a2dp_codec **cc = a2dp_codecs;
 
 	while (*cc != NULL) {
-		const struct bluez_a2dp_codec *c = *cc++;
+		const struct a2dp_codec *c = *cc++;
 		switch (c->dir) {
-		case BLUEZ_A2DP_SOURCE:
+		case A2DP_SOURCE:
 			if (config.enable.a2dp_source)
 				bluez_register_a2dp(adapter, c, BLUETOOTH_UUID_A2DP_SOURCE);
 			break;
-		case BLUEZ_A2DP_SINK:
+		case A2DP_SINK:
 			if (config.enable.a2dp_sink)
 				bluez_register_a2dp(adapter, c, BLUETOOTH_UUID_A2DP_SINK);
 			break;
@@ -1361,8 +1361,8 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	const char *property;
 
 	int hci_dev_id = -1;
-	struct bluez_a2dp_sep sep = {
-		.dir = BLUEZ_A2DP_SOURCE,
+	struct a2dp_sep sep = {
+		.dir = A2DP_SOURCE,
 		.codec_id = 0xFFFF,
 	};
 
@@ -1380,7 +1380,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 				if (strcmp(property, "UUID") == 0) {
 					const char *uuid = g_variant_get_string(value, NULL);
 					if (strcasecmp(uuid, BLUETOOTH_UUID_A2DP_SINK) == 0)
-						sep.dir = BLUEZ_A2DP_SINK;
+						sep.dir = A2DP_SINK;
 				}
 				else if (strcmp(property, "Codec") == 0)
 					sep.codec_id = g_variant_get_byte(value);
@@ -1421,7 +1421,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 
 		strncpy(sep.bluez_dbus_path, object_path, sizeof(sep.bluez_dbus_path) - 1);
 		if (sep.codec_id == A2DP_CODEC_VENDOR)
-			sep.codec_id = a2dp_get_bluealsa_vendor_codec(sep.capabilities, sep.capabilities_size);
+			sep.codec_id = a2dp_get_vendor_codec_id(sep.capabilities, sep.capabilities_size);
 
 		debug("Adding new Stream End-Point: %s: %s", batostr_(&addr),
 				ba_transport_codecs_a2dp_to_string(sep.codec_id));

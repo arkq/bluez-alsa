@@ -25,6 +25,7 @@
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
 
+#include "../src/a2dp.c"
 #include "../src/a2dp-audio.c"
 #include "../src/at.c"
 #include "../src/ba-adapter.c"
@@ -34,7 +35,6 @@
 #include "../src/bluealsa-dbus.c"
 #include "../src/bluealsa-iface.c"
 #include "../src/bluealsa.c"
-#include "../src/bluez-a2dp.c"
 #include "../src/dbus.c"
 #include "../src/hci.c"
 #include "../src/msbc.c"
@@ -151,7 +151,7 @@ static int test_transport_release(struct ba_transport *t) {
 
 static struct ba_transport *test_transport_new_a2dp(struct ba_device *d,
 		struct ba_transport_type type, const char *owner, const char *path,
-		const struct bluez_a2dp_codec *codec, const void *configuration) {
+		const struct a2dp_codec *codec, const void *configuration) {
 	if (fuzzing)
 		sleep(1);
 	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, codec, configuration);

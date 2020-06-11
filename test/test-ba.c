@@ -14,11 +14,11 @@
 
 #include <check.h>
 
+#include "../src/a2dp.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
-#include "../src/bluez-a2dp.c"
 #include "../src/dbus.c"
 #include "../src/hci.c"
 #include "../src/utils.c"

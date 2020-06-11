@@ -28,7 +28,6 @@
 #define BLUEALSA_A2DPCODECS_H_
 
 #include <endian.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #include "hci.h"
@@ -50,8 +49,6 @@
 #define A2DP_CODEC_VENDOR_LLAC          0x44FF
 #define A2DP_CODEC_VENDOR_SAMSUNG_HD    0x52FF
 #define A2DP_CODEC_VENDOR_SAMSUNG_SC    0x53FF
-
-uint16_t a2dp_get_bluealsa_vendor_codec(void *capabilities, size_t size);
 
 #define SBC_SAMPLING_FREQ_16000         (1 << 3)
 #define SBC_SAMPLING_FREQ_32000         (1 << 2)

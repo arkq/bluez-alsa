@@ -46,10 +46,10 @@
 # include <ldacBT_abr.h>
 #endif
 
+#include "a2dp.h"
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
 #include "bluealsa.h"
-#include "bluez-a2dp.h"
 #include "sbc.h"
 #include "utils.h"
 #include "shared/defs.h"

@@ -1,5 +1,5 @@
 /*
- * BlueALSA - bluez-a2dp.c
+ * BlueALSA - a2dp.c
  * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -8,10 +8,15 @@
  *
  */
 
-#include "bluez-a2dp.h"
+#include "a2dp.h"
+
+#include <errno.h>
+#include <stdbool.h>
 
 #include "a2dp-codecs.h"
+#include "hci.h"
 #include "shared/defs.h"
+#include "shared/log.h"
 
 static const a2dp_sbc_t a2dp_sbc = {
 	.frequency =
@@ -39,14 +44,14 @@ static const a2dp_sbc_t a2dp_sbc = {
 	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
-static const struct bluez_a2dp_channel_mode a2dp_sbc_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, 1, SBC_CHANNEL_MODE_MONO },
-	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
-	{ BLUEZ_A2DP_CHM_STEREO, 2, SBC_CHANNEL_MODE_STEREO },
-	{ BLUEZ_A2DP_CHM_JOINT_STEREO, 2, SBC_CHANNEL_MODE_JOINT_STEREO },
+static const struct a2dp_channel_mode a2dp_sbc_channels[] = {
+	{ A2DP_CHM_MONO, 1, SBC_CHANNEL_MODE_MONO },
+	{ A2DP_CHM_DUAL_CHANNEL, 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
+	{ A2DP_CHM_STEREO, 2, SBC_CHANNEL_MODE_STEREO },
+	{ A2DP_CHM_JOINT_STEREO, 2, SBC_CHANNEL_MODE_JOINT_STEREO },
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_sbc_samplings[] = {
+static const struct a2dp_sampling_freq a2dp_sbc_samplings[] = {
 	{ 16000, SBC_SAMPLING_FREQ_16000 },
 	{ 32000, SBC_SAMPLING_FREQ_32000 },
 	{ 44100, SBC_SAMPLING_FREQ_44100 },
@@ -139,14 +144,14 @@ static const a2dp_mpeg_t a2dp_mpeg_sink = {
 	)
 };
 
-static const struct bluez_a2dp_channel_mode a2dp_mpeg_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, 1, MPEG_CHANNEL_MODE_MONO },
-	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
-	{ BLUEZ_A2DP_CHM_STEREO, 2, MPEG_CHANNEL_MODE_STEREO },
-	{ BLUEZ_A2DP_CHM_JOINT_STEREO, 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
+static const struct a2dp_channel_mode a2dp_mpeg_channels[] = {
+	{ A2DP_CHM_MONO, 1, MPEG_CHANNEL_MODE_MONO },
+	{ A2DP_CHM_DUAL_CHANNEL, 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
+	{ A2DP_CHM_STEREO, 2, MPEG_CHANNEL_MODE_STEREO },
+	{ A2DP_CHM_JOINT_STEREO, 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_mpeg_samplings[] = {
+static const struct a2dp_sampling_freq a2dp_mpeg_samplings[] = {
 	{ 16000, MPEG_SAMPLING_FREQ_16000 },
 	{ 22050, MPEG_SAMPLING_FREQ_22050 },
 	{ 24000, MPEG_SAMPLING_FREQ_24000 },
@@ -181,12 +186,12 @@ static const a2dp_aac_t a2dp_aac = {
 	AAC_INIT_BITRATE(320000)
 };
 
-static const struct bluez_a2dp_channel_mode a2dp_aac_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
-	{ BLUEZ_A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
+static const struct a2dp_channel_mode a2dp_aac_channels[] = {
+	{ A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
+	{ A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_aac_samplings[] = {
+static const struct a2dp_sampling_freq a2dp_aac_samplings[] = {
 	{ 8000, AAC_SAMPLING_FREQ_8000 },
 	{ 11025, AAC_SAMPLING_FREQ_11025 },
 	{ 12000, AAC_SAMPLING_FREQ_12000 },
@@ -214,11 +219,11 @@ static const a2dp_aptx_t a2dp_aptx = {
 		APTX_SAMPLING_FREQ_48000,
 };
 
-static const struct bluez_a2dp_channel_mode a2dp_aptx_channels[] = {
-	{ BLUEZ_A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
+static const struct a2dp_channel_mode a2dp_aptx_channels[] = {
+	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_aptx_samplings[] = {
+static const struct a2dp_sampling_freq a2dp_aptx_samplings[] = {
 	{ 16000, APTX_SAMPLING_FREQ_16000 },
 	{ 32000, APTX_SAMPLING_FREQ_32000 },
 	{ 44100, APTX_SAMPLING_FREQ_44100 },
@@ -235,12 +240,12 @@ static const a2dp_faststream_t a2dp_faststream = {
 		FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_faststream_samplings_music[] = {
+static const struct a2dp_sampling_freq a2dp_faststream_samplings_music[] = {
 	{ 44100, FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 },
 	{ 48000, FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 },
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_faststream_samplings_voice[] = {
+static const struct a2dp_sampling_freq a2dp_faststream_samplings_voice[] = {
 	{ 16000, FASTSTREAM_SAMPLING_FREQ_VOICE_16000 },
 };
 
@@ -257,11 +262,11 @@ static const a2dp_aptx_hd_t a2dp_aptx_hd = {
 		APTX_SAMPLING_FREQ_48000,
 };
 
-static const struct bluez_a2dp_channel_mode a2dp_aptx_hd_channels[] = {
-	{ BLUEZ_A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
+static const struct a2dp_channel_mode a2dp_aptx_hd_channels[] = {
+	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_aptx_hd_samplings[] = {
+static const struct a2dp_sampling_freq a2dp_aptx_hd_samplings[] = {
 	{ 16000, APTX_SAMPLING_FREQ_16000 },
 	{ 32000, APTX_SAMPLING_FREQ_32000 },
 	{ 44100, APTX_SAMPLING_FREQ_44100 },
@@ -283,21 +288,21 @@ static const a2dp_ldac_t a2dp_ldac = {
 		LDAC_SAMPLING_FREQ_96000,
 };
 
-static const struct bluez_a2dp_channel_mode a2dp_ldac_channels[] = {
-	{ BLUEZ_A2DP_CHM_MONO, 1, LDAC_CHANNEL_MODE_MONO },
-	{ BLUEZ_A2DP_CHM_DUAL_CHANNEL, 2, LDAC_CHANNEL_MODE_DUAL },
-	{ BLUEZ_A2DP_CHM_STEREO, 2, LDAC_CHANNEL_MODE_STEREO },
+static const struct a2dp_channel_mode a2dp_ldac_channels[] = {
+	{ A2DP_CHM_MONO, 1, LDAC_CHANNEL_MODE_MONO },
+	{ A2DP_CHM_DUAL_CHANNEL, 2, LDAC_CHANNEL_MODE_DUAL },
+	{ A2DP_CHM_STEREO, 2, LDAC_CHANNEL_MODE_STEREO },
 };
 
-static const struct bluez_a2dp_sampling_freq a2dp_ldac_samplings[] = {
+static const struct a2dp_sampling_freq a2dp_ldac_samplings[] = {
 	{ 44100, LDAC_SAMPLING_FREQ_44100 },
 	{ 48000, LDAC_SAMPLING_FREQ_48000 },
 	{ 88200, LDAC_SAMPLING_FREQ_88200 },
 	{ 96000, LDAC_SAMPLING_FREQ_96000 },
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_source_sbc = {
-	.dir = BLUEZ_A2DP_SOURCE,
+static const struct a2dp_codec a2dp_codec_source_sbc = {
+	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_SBC,
 	.capabilities = &a2dp_sbc,
 	.capabilities_size = sizeof(a2dp_sbc),
@@ -307,8 +312,8 @@ static const struct bluez_a2dp_codec a2dp_codec_source_sbc = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_sink_sbc = {
-	.dir = BLUEZ_A2DP_SINK,
+static const struct a2dp_codec a2dp_codec_sink_sbc = {
+	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_SBC,
 	.capabilities = &a2dp_sbc,
 	.capabilities_size = sizeof(a2dp_sbc),
@@ -318,8 +323,8 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_sbc = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_source_mpeg = {
-	.dir = BLUEZ_A2DP_SOURCE,
+static const struct a2dp_codec a2dp_codec_source_mpeg = {
+	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG12,
 	.capabilities = &a2dp_mpeg_source,
 	.capabilities_size = sizeof(a2dp_mpeg_source),
@@ -329,8 +334,8 @@ static const struct bluez_a2dp_codec a2dp_codec_source_mpeg = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_sink_mpeg = {
-	.dir = BLUEZ_A2DP_SINK,
+static const struct a2dp_codec a2dp_codec_sink_mpeg = {
+	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG12,
 	.capabilities = &a2dp_mpeg_sink,
 	.capabilities_size = sizeof(a2dp_mpeg_sink),
@@ -340,8 +345,8 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_mpeg = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_source_aac = {
-	.dir = BLUEZ_A2DP_SOURCE,
+static const struct a2dp_codec a2dp_codec_source_aac = {
+	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.capabilities = &a2dp_aac,
 	.capabilities_size = sizeof(a2dp_aac),
@@ -351,8 +356,8 @@ static const struct bluez_a2dp_codec a2dp_codec_source_aac = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_sink_aac = {
-	.dir = BLUEZ_A2DP_SINK,
+static const struct a2dp_codec a2dp_codec_sink_aac = {
+	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.capabilities = &a2dp_aac,
 	.capabilities_size = sizeof(a2dp_aac),
@@ -362,8 +367,8 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_aac = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_source_aptx = {
-	.dir = BLUEZ_A2DP_SOURCE,
+static const struct a2dp_codec a2dp_codec_source_aptx = {
+	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
 	.capabilities = &a2dp_aptx,
 	.capabilities_size = sizeof(a2dp_aptx),
@@ -373,8 +378,8 @@ static const struct bluez_a2dp_codec a2dp_codec_source_aptx = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_sink_aptx = {
-	.dir = BLUEZ_A2DP_SINK,
+static const struct a2dp_codec a2dp_codec_sink_aptx = {
+	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
 	.capabilities = &a2dp_aptx,
 	.capabilities_size = sizeof(a2dp_aptx),
@@ -384,8 +389,8 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_aptx = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_source_faststream = {
-	.dir = BLUEZ_A2DP_SOURCE,
+static const struct a2dp_codec a2dp_codec_source_faststream = {
+	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
 	.backchannel = true,
 	.capabilities = &a2dp_faststream,
@@ -396,8 +401,8 @@ static const struct bluez_a2dp_codec a2dp_codec_source_faststream = {
 	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_sink_faststream = {
-	.dir = BLUEZ_A2DP_SINK,
+static const struct a2dp_codec a2dp_codec_sink_faststream = {
+	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
 	.backchannel = true,
 	.capabilities = &a2dp_faststream,
@@ -408,8 +413,8 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_faststream = {
 	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_source_aptx_hd = {
-	.dir = BLUEZ_A2DP_SOURCE,
+static const struct a2dp_codec a2dp_codec_source_aptx_hd = {
+	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
 	.capabilities = &a2dp_aptx_hd,
 	.capabilities_size = sizeof(a2dp_aptx_hd),
@@ -419,8 +424,8 @@ static const struct bluez_a2dp_codec a2dp_codec_source_aptx_hd = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_sink_aptx_hd = {
-	.dir = BLUEZ_A2DP_SINK,
+static const struct a2dp_codec a2dp_codec_sink_aptx_hd = {
+	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
 	.capabilities = &a2dp_aptx_hd,
 	.capabilities_size = sizeof(a2dp_aptx_hd),
@@ -430,8 +435,8 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_aptx_hd = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_source_ldac = {
-	.dir = BLUEZ_A2DP_SOURCE,
+static const struct a2dp_codec a2dp_codec_source_ldac = {
+	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.capabilities = &a2dp_ldac,
 	.capabilities_size = sizeof(a2dp_ldac),
@@ -441,8 +446,8 @@ static const struct bluez_a2dp_codec a2dp_codec_source_ldac = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
 };
 
-static const struct bluez_a2dp_codec a2dp_codec_sink_ldac = {
-	.dir = BLUEZ_A2DP_SINK,
+static const struct a2dp_codec a2dp_codec_sink_ldac = {
+	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.capabilities = &a2dp_ldac,
 	.capabilities_size = sizeof(a2dp_ldac),
@@ -452,7 +457,7 @@ static const struct bluez_a2dp_codec a2dp_codec_sink_ldac = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
 };
 
-static const struct bluez_a2dp_codec *a2dp_codecs[] = {
+const struct a2dp_codec *a2dp_codecs[] = {
 #if ENABLE_LDAC
 	&a2dp_codec_source_ldac,
 #endif
@@ -483,4 +488,66 @@ static const struct bluez_a2dp_codec *a2dp_codecs[] = {
 	NULL,
 };
 
-const struct bluez_a2dp_codec **bluez_a2dp_codecs = a2dp_codecs;
+/**
+ * Get A2DP 16-bit vendor codec ID - BlueALSA extension.
+ *
+ * @param capabilities A2DP vendor codec capabilities.
+ * @param size A2DP vendor codec capabilities size.
+ * @return On success this function returns A2DP 16-bit vendor codec ID. */
+uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
+
+	if (size < sizeof(a2dp_vendor_codec_t))
+		return errno = EINVAL, 0xFFFF;
+
+	uint32_t vendor_id = A2DP_GET_VENDOR_ID(*(a2dp_vendor_codec_t *)capabilities);
+	uint16_t codec_id = A2DP_GET_CODEC_ID(*(a2dp_vendor_codec_t *)capabilities);
+
+	switch (vendor_id) {
+	case BT_COMPID_QUALCOMM_TECH_INTL:
+		switch (codec_id) {
+		case FASTSTREAM_CODEC_ID:
+			return A2DP_CODEC_VENDOR_FASTSTREAM;
+		case APTX_LL_CODEC_ID:
+			return A2DP_CODEC_VENDOR_APTX_LL;
+		} break;
+	case BT_COMPID_APPLE:
+		switch (codec_id) {
+		} break;
+	case BT_COMPID_APT:
+		switch (codec_id) {
+		case APTX_CODEC_ID:
+			return A2DP_CODEC_VENDOR_APTX;
+		} break;
+	case BT_COMPID_SAMSUNG_ELEC:
+		switch (codec_id) {
+		case SAMSUNG_HD_CODEC_ID:
+			return A2DP_CODEC_VENDOR_SAMSUNG_HD;
+		case SAMSUNG_SC_CODEC_ID:
+			return A2DP_CODEC_VENDOR_SAMSUNG_SC;
+		} break;
+	case BT_COMPID_QUALCOMM_TECH:
+		switch (codec_id) {
+		case APTX_HD_CODEC_ID:
+			return A2DP_CODEC_VENDOR_APTX_HD;
+		} break;
+	case BT_COMPID_SONY:
+		switch (codec_id) {
+		case LDAC_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LDAC;
+		} break;
+	case BT_COMPID_SAVITECH:
+		switch (codec_id) {
+		case LHDC_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC;
+		case LHDC_V1_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC_V1;
+		case LLAC_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LLAC;
+		} break;
+	}
+
+	hexdump("Unknown vendor codec", capabilities, size);
+
+	errno = ENOTSUP;
+	return 0xFFFF;
+}

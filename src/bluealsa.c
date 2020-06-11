@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,7 +17,6 @@
 # include <ldacBT.h>
 #endif
 
-#include "bluez-a2dp.h"
 #include "hfp.h"
 #include "sbc.h"
 
@@ -112,8 +111,6 @@ int bluealsa_config_init(void) {
 	config.main_thread = pthread_self();
 
 	config.null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK);
-
-	config.a2dp.codecs = bluez_a2dp_codecs;
 
 	return 0;
 }
