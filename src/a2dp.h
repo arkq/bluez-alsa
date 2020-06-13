@@ -20,8 +20,8 @@
 #include <stdint.h>
 
 enum a2dp_dir {
-	A2DP_SOURCE,
-	A2DP_SINK,
+	A2DP_SOURCE = 0,
+	A2DP_SINK = !A2DP_SOURCE,
 };
 
 enum a2dp_chm {
@@ -76,6 +76,10 @@ struct a2dp_sep {
 /* NULL-terminated list of available A2DP codecs */
 extern const struct a2dp_codec *a2dp_codecs[];
 
+const struct a2dp_codec *a2dp_codec_lookup(
+		uint16_t codec_id,
+		enum a2dp_dir dir);
+
 uint16_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
 		size_t size);
@@ -95,6 +99,11 @@ uint16_t a2dp_get_vendor_codec_id(
 uint32_t a2dp_check_configuration(
 		const struct a2dp_codec *codec,
 		const void *configuration,
+		size_t size);
+
+int a2dp_filter_capabilities(
+		const struct a2dp_codec *codec,
+		void *capabilities,
 		size_t size);
 
 int a2dp_select_configuration(

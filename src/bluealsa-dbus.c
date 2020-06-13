@@ -26,6 +26,8 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include "a2dp.h"
+#include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "bluealsa-iface.h"
@@ -119,6 +121,66 @@ static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_tran
 	g_variant_builder_add(props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	g_variant_builder_add(props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
+}
+
+static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_sep *sep) {
+
+	const struct a2dp_codec *codec;
+	if ((codec = a2dp_codec_lookup(sep->codec_id, !sep->dir)) == NULL)
+		return false;
+
+	uint8_t caps[32];
+	size_t size = MIN(sep->capabilities_size, sizeof(caps));
+	if (a2dp_filter_capabilities(codec, memcpy(caps, sep->capabilities, size), size) != 0) {
+		error("Couldn't filter %s capabilities: %s",
+				ba_transport_codecs_a2dp_to_string(sep->codec_id),
+				strerror(errno));
+		return false;
+	}
+
+	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
+
+	GVariantBuilder vcaps;
+	g_variant_builder_init(&vcaps, G_VARIANT_TYPE("ay"));
+
+	size_t i;
+	for (i = 0; i < size; i++)
+		g_variant_builder_add(&vcaps, "y", caps[i]);
+
+	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_builder_end(&vcaps));
+
+	switch (codec->codec_id) {
+	case A2DP_CODEC_SBC:
+		break;
+#if ENABLE_MPEG
+	case A2DP_CODEC_MPEG12:
+		break;
+#endif
+#if ENABLE_AAC
+	case A2DP_CODEC_MPEG24:
+		break;
+#endif
+#if ENABLE_APTX
+	case A2DP_CODEC_VENDOR_APTX:
+		break;
+#endif
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM:
+		break;
+#endif
+#if ENABLE_APTX_HD
+	case A2DP_CODEC_VENDOR_APTX_HD:
+		break;
+#endif
+#if ENABLE_LDAC
+	case A2DP_CODEC_VENDOR_LDAC:
+		break;
+#endif
+	default:
+		g_assert_not_reached();
+	}
+
+	return true;
 }
 
 static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv) {
@@ -352,6 +414,52 @@ fail:
 			close(pcm_fds[i]);
 }
 
+static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv) {
+
+	void *userdata = g_dbus_method_invocation_get_user_data(inv);
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	const struct ba_transport *t = pcm->t;
+	const GArray *seps = t->d->seps;
+
+	GVariantBuilder codecs;
+	g_variant_builder_init(&codecs, G_VARIANT_TYPE("a{sa{sv}}"));
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+
+		size_t i;
+		for (i = 0; seps != NULL && i < seps->len; i++) {
+			const struct a2dp_sep *sep = &g_array_index(seps, struct a2dp_sep, i);
+			/* match complementary PCM directions, e.g. A2DP-source with SEP-sink */
+			if (t->a2dp.codec->dir == !sep->dir) {
+				GVariantBuilder props;
+				if (ba_variant_populate_sep(&props, sep)) {
+					g_variant_builder_add(&codecs, "{sa{sv}}",
+							ba_transport_codecs_a2dp_to_string(sep->codec_id), &props);
+					g_variant_builder_clear(&props);
+				}
+			}
+		}
+
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+
+		g_variant_builder_add(&codecs, "{sa{sv}}",
+				ba_transport_codecs_hfp_to_string(HFP_CODEC_CVSD), NULL);
+
+#if ENABLE_MSBC
+		if (t->sco.rfcomm->msbc)
+			g_variant_builder_add(&codecs, "{sa{sv}}",
+					ba_transport_codecs_hfp_to_string(HFP_CODEC_MSBC), NULL);
+#endif
+
+	}
+
+	g_dbus_method_invocation_return_value(inv, g_variant_new("(a{sa{sv}})", &codecs));
+	g_variant_builder_clear(&codecs);
+
+	ba_transport_pcm_unref(pcm);
+}
+
 static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
@@ -406,6 +514,9 @@ static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "Open",
 			.handler = bluealsa_pcm_open,
+			.asynchronous_call = true },
+		{ .method = "GetCodecs",
+			.handler = bluealsa_pcm_get_codecs,
 			.asynchronous_call = true },
 		{ .method = "SelectCodec",
 			.handler = bluealsa_pcm_select_codec,

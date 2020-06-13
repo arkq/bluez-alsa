@@ -238,32 +238,34 @@ void snd_pcm_scale_s16le(int16_t *buffer, size_t size, int channels,
  * @param codec String representation of BlueALSA audio codec.
  * @return BlueALSA audio codec or 0xFFFF for not supported value. */
 uint16_t ba_transport_codecs_a2dp_from_string(const char *str) {
-	if (strcmp(str, "SBC") == 0)
-		return A2DP_CODEC_SBC;
+
+	static const uint16_t codecs[] = {
+		A2DP_CODEC_SBC,
 #if ENABLE_MPEG
-	if (strcmp(str, "MP3") == 0)
-		return A2DP_CODEC_SBC;
+		A2DP_CODEC_MPEG12,
 #endif
 #if ENABLE_AAC
-	if (strcmp(str, "AAC") == 0)
-		return A2DP_CODEC_SBC;
+		A2DP_CODEC_MPEG24,
 #endif
 #if ENABLE_APTX
-	if (strcmp(str, "aptX") == 0)
-		return A2DP_CODEC_VENDOR_APTX;
+		A2DP_CODEC_VENDOR_APTX,
 #endif
 #if ENABLE_FASTSTREAM
-	if (strcmp(str, "FastStream") == 0)
-		return A2DP_CODEC_VENDOR_FASTSTREAM;
+		A2DP_CODEC_VENDOR_FASTSTREAM,
 #endif
 #if ENABLE_APTX_HD
-	if (strcmp(str, "aptX-HD") == 0)
-		return A2DP_CODEC_VENDOR_APTX_HD;
+		A2DP_CODEC_VENDOR_APTX_HD,
 #endif
 #if ENABLE_LDAC
-	if (strcmp(str, "LDAC") == 0)
-		return A2DP_CODEC_VENDOR_LDAC;
+		A2DP_CODEC_VENDOR_LDAC,
 #endif
+	};
+
+	size_t i;
+	for (i = 0; i < ARRAYSIZE(codecs); i++)
+		if (strcmp(str, ba_transport_codecs_a2dp_to_string(codecs[i])) == 0)
+			return codecs[i];
+
 	return 0xFFFF;
 }
 
@@ -313,12 +315,19 @@ const char *ba_transport_codecs_a2dp_to_string(uint16_t codec) {
  * @param codec String representation of BlueALSA audio codec.
  * @return BlueALSA audio codec or 0xFFFF for not supported value. */
 uint16_t ba_transport_codecs_hfp_from_string(const char *str) {
-	if (strcmp(str, "CVSD") == 0)
-		return HFP_CODEC_CVSD;
+
+	static const uint16_t codecs[] = {
+		HFP_CODEC_CVSD,
 #if ENABLE_MSBC
-	if (strcmp(str, "mSBC") == 0)
-		return HFP_CODEC_MSBC;
+		HFP_CODEC_MSBC,
 #endif
+	};
+
+	size_t i;
+	for (i = 0; i < ARRAYSIZE(codecs); i++)
+		if (strcmp(str, ba_transport_codecs_hfp_to_string(codecs[i])) == 0)
+			return codecs[i];
+
 	return 0xFFFF;
 }
 

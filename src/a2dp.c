@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include <glib.h>
 
@@ -493,6 +494,22 @@ const struct a2dp_codec *a2dp_codecs[] = {
 };
 
 /**
+ * Lookup codec configuration for given stream direction.
+ *
+ * @param codec_id BlueALSA A2DP 16-bit codec ID.
+ * @param dir The A2DP stream direction.
+ * @return On success this function returns the address of the codec
+ *   configuration structure. Otherwise, NULL is returned. */
+const struct a2dp_codec *a2dp_codec_lookup(uint16_t codec_id, enum a2dp_dir dir) {
+	size_t i;
+	for (i = 0; i < ARRAYSIZE(a2dp_codecs) - 1; i++)
+		if (a2dp_codecs[i]->dir == dir &&
+				a2dp_codecs[i]->codec_id == codec_id)
+			return a2dp_codecs[i];
+	return NULL;
+}
+
+/**
  * Get A2DP 16-bit vendor codec ID - BlueALSA extension.
  *
  * @param capabilities A2DP vendor codec capabilities.
@@ -748,6 +765,69 @@ uint32_t a2dp_check_configuration(
 	}
 
 	return ret;
+}
+
+/**
+ * Narrow A2DP codec capabilities to values supported by BlueALSA. */
+int a2dp_filter_capabilities(
+		const struct a2dp_codec *codec,
+		void *capabilities,
+		size_t size) {
+
+	if (size != codec->capabilities_size) {
+		error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
+		return errno = EINVAL, -1;
+	}
+
+	uint8_t tmp[32];
+	g_assert_cmpuint(sizeof(tmp), >=, size);
+
+	size_t i;
+	for (i = 0; i < size; i++)
+		tmp[i] = ((uint8_t *)capabilities)[i] & ((uint8_t *)codec->capabilities)[i];
+
+	switch (codec->codec_id) {
+	case A2DP_CODEC_SBC:
+		((a2dp_sbc_t *)tmp)->min_bitpool = MAX(
+			((a2dp_sbc_t *)capabilities)->min_bitpool,
+			((a2dp_sbc_t *)codec->capabilities)->min_bitpool);
+		((a2dp_sbc_t *)tmp)->max_bitpool = MIN(
+			((a2dp_sbc_t *)capabilities)->max_bitpool,
+			((a2dp_sbc_t *)codec->capabilities)->max_bitpool);
+		break;
+#if ENABLE_MPEG
+	case A2DP_CODEC_MPEG12:
+		break;
+#endif
+#if ENABLE_AAC
+	case A2DP_CODEC_MPEG24:
+		AAC_SET_BITRATE(*(a2dp_aac_t *)tmp, MIN(
+					AAC_GET_BITRATE(*(a2dp_aac_t *)capabilities),
+					AAC_GET_BITRATE(*(a2dp_aac_t *)codec->capabilities)));
+		break;
+#endif
+#if ENABLE_APTX
+	case A2DP_CODEC_VENDOR_APTX:
+		break;
+#endif
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM:
+		break;
+#endif
+#if ENABLE_APTX_HD
+	case A2DP_CODEC_VENDOR_APTX_HD:
+		break;
+#endif
+#if ENABLE_LDAC
+	case A2DP_CODEC_VENDOR_LDAC:
+		break;
+#endif
+	default:
+		g_assert_not_reached();
+	}
+
+	memcpy(capabilities, tmp, size);
+	return 0;
 }
 
 /**

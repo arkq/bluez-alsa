@@ -2,6 +2,7 @@
 # Copyright (c) 2016-2020 Arkadiusz Bokowy
 
 TESTS = \
+	test-a2dp \
 	test-alsa-ctl \
 	test-alsa-pcm \
 	test-at \
@@ -13,6 +14,7 @@ TESTS = \
 
 check_PROGRAMS = \
 	server-mock \
+	test-a2dp \
 	test-alsa-ctl \
 	test-alsa-pcm \
 	test-at \

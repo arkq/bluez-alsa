@@ -41,7 +41,13 @@ Methods         fd, fd Open()
                                          dbus.Error.NotSupported
                                          dbus.Error.Failed
 
-                void SelectCodec(uint16 codec, dict props)
+                array{string, dict} GetCodecs()
+
+                        Return the array of additional PCM codecs. Client can
+                        switch to one of these codecs with the SelectCodec()
+                        D-Bus method call.
+
+                void SelectCodec(string codec, dict props)
 
                         Select PCM codec. This call shall be made before PCM
                         stream opening for given transport type, otherwise the
