@@ -215,20 +215,16 @@ static unsigned int bluez_a2dp_codec_select_sampling_freq(
 }
 
 /**
- * Set transport state using BlueZ state string. */
-static int bluez_a2dp_set_transport_state(
-		struct ba_transport *t,
-		const char *state) {
-
+ * Get transport state from BlueZ state string. */
+static enum ba_transport_state bluez_get_transport_state(const char *state) {
 	if (strcmp(state, BLUEZ_TRANSPORT_STATE_IDLE) == 0)
-		return ba_transport_set_state(t, BA_TRANSPORT_STATE_IDLE);
-	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
-		return ba_transport_set_state(t, BA_TRANSPORT_STATE_PENDING);
-	else if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
-		return ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
-
+		return BA_TRANSPORT_STATE_IDLE;
+	if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
+		return BA_TRANSPORT_STATE_PENDING;
+	if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
+		return BA_TRANSPORT_STATE_ACTIVE;
 	warn("Invalid state: %s", state);
-	return -1;
+	return 0xFFFF;
 }
 
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
@@ -509,7 +505,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	struct ba_transport *t = NULL;
 	struct ba_device *d = NULL;
 
-	char *state = NULL;
+	enum ba_transport_state state = 0xFFFF;
 	char *device_path = NULL;
 	void *configuration = NULL;
 	uint16_t volume = 127;
@@ -525,6 +521,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 
 		if (strcmp(property, "Device") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_OBJECT_PATH, property)) {
+			g_free(device_path);
 			device_path = g_variant_dup_string(value, NULL);
 		}
 		else if (strcmp(property, "UUID") == 0 &&
@@ -552,6 +549,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 
 			unsigned int cap_chm = 0, cap_chm_bc = 0;
 			unsigned int cap_freq = 0, cap_freq_bc = 0;
+
+			g_free(configuration);
 			configuration = g_memdup(data, size);
 
 			switch (codec_id) {
@@ -678,7 +677,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 		}
 		else if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
-			state = g_variant_dup_string(value, NULL);
+			state = bluez_get_transport_state(g_variant_get_string(value, NULL));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
@@ -694,7 +693,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 		value = NULL;
 	}
 
-	if (state == NULL) {
+	if (state == 0xFFFF) {
 		error("Invalid configuration: %s", "Missing state");
 		goto fail;
 	}
@@ -736,7 +735,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	debug("Configuration: channels: %u, sampling: %u",
 			t->a2dp.pcm.channels, t->a2dp.pcm.sampling);
 
-	bluez_a2dp_set_transport_state(t, state);
+	ba_transport_set_state(t, state);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);
@@ -759,7 +758,6 @@ final:
 		g_variant_unref(value);
 	g_free(device_path);
 	g_free(configuration);
-	g_free(state);
 }
 
 static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv) {
@@ -1385,9 +1383,13 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 				else if (strcmp(property, "Codec") == 0)
 					sep.codec_id = g_variant_get_byte(value);
 				else if (strcmp(property, "Capabilities") == 0) {
+
 					const void *data = g_variant_get_fixed_array(value,
 							&sep.capabilities_size, sizeof(char));
+
+					g_free(sep.capabilities);
 					sep.capabilities = g_memdup(data, sep.capabilities_size);
+
 				}
 				g_variant_unref(value);
 			}
@@ -1529,7 +1531,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 
 		if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
-			bluez_a2dp_set_transport_state(t, g_variant_get_string(value, NULL));
+			const char *state = g_variant_get_string(value, NULL);
+			ba_transport_set_state(t, bluez_get_transport_state(state));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
