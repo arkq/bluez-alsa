@@ -11,6 +11,7 @@
 #include "bluez.h"
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -76,6 +77,7 @@ struct bluez_adapter {
 	GHashTable *device_sep_map;
 };
 
+static pthread_mutex_t bluez_mutex = PTHREAD_MUTEX_INITIALIZER;
 static GHashTable *dbus_object_data_map = NULL;
 static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { NULL };
 
@@ -83,12 +85,6 @@ static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { NULL };
 	g_hash_table_lookup(bluez_adapters[hci_dev_id].device_sep_map, addr)
 #define bluez_adapters_device_get_sep(seps, i) \
 	g_array_index(seps, struct a2dp_sep, i)
-
-static struct bluez_dbus_object_data *bluez_dbus_object_data_ref(
-		struct bluez_dbus_object_data *obj) {
-	obj->ref_count++;
-	return obj;
-}
 
 static void bluez_dbus_object_data_unref(
 		struct bluez_dbus_object_data *obj) {
@@ -286,6 +282,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 		goto fail;
 	}
 
+	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
 	t->a2dp.pcm.volume[0].level = volume;
 	t->a2dp.pcm.volume[1].level = volume;
 	t->a2dp.delay = delay;
@@ -417,7 +414,7 @@ static int bluez_register_media_endpoint(
 	g_variant_builder_init(&properties, G_VARIANT_TYPE("a{sv}"));
 
 	for (i = 0; i < codec->capabilities_size; i++)
-		g_variant_builder_add(&caps, "y", ((uint8_t *)codec->capabilities)[i]);
+		g_variant_builder_add(&caps, "y", ((char *)codec->capabilities)[i]);
 
 	g_variant_builder_add(&properties, "{sv}", "UUID", g_variant_new_string(uuid));
 	g_variant_builder_add(&properties, "{sv}", "DelayReporting", g_variant_new_boolean(TRUE));
@@ -469,6 +466,8 @@ static void bluez_register_a2dp(
 
 	int registered = 0;
 	int connected = 0;
+
+	pthread_mutex_lock(&bluez_mutex);
 
 	for (;;) {
 
@@ -528,6 +527,8 @@ fail:
 			g_error_free(err);
 		}
 	}
+
+	pthread_mutex_unlock(&bluez_mutex);
 
 }
 
@@ -769,6 +770,8 @@ static void bluez_register_hfp(
 		.profile = profile,
 	};
 
+	pthread_mutex_lock(&bluez_mutex);
+
 	struct bluez_dbus_object_data *dbus_obj;
 	GError *err = NULL;
 
@@ -814,6 +817,9 @@ fail:
 		warn("Couldn't register hands-free profile: %s", err->message);
 		g_error_free(err);
 	}
+
+	pthread_mutex_unlock(&bluez_mutex);
+
 }
 
 /**
@@ -839,8 +845,10 @@ static void bluez_register_hfp_all(void) {
 
 static void bluez_sep_array_free(GArray *seps) {
 	size_t i;
-	for (i = 0; i < seps->len; i++)
+	for (i = 0; i < seps->len; i++) {
 		g_free(bluez_adapters_device_get_sep(seps, i).capabilities);
+		g_free(bluez_adapters_device_get_sep(seps, i).configuration);
+	}
 	g_array_unref(seps);
 }
 
@@ -985,6 +993,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 		strncpy(sep.bluez_dbus_path, object_path, sizeof(sep.bluez_dbus_path) - 1);
 		if (sep.codec_id == A2DP_CODEC_VENDOR)
 			sep.codec_id = a2dp_get_vendor_codec_id(sep.capabilities, sep.capabilities_size);
+		sep.configuration = g_malloc(sep.capabilities_size);
 
 		debug("Adding new Stream End-Point: %s: %s", batostr_(&addr),
 				ba_transport_codecs_a2dp_to_string(sep.codec_id));
@@ -1011,6 +1020,8 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 
 	g_variant_get(params, "(&oas)", &object_path, &interfaces);
 	hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
+
+	pthread_mutex_lock(&bluez_mutex);
 
 	while (g_variant_iter_next(interfaces, "&s", &interface))
 		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
@@ -1045,6 +1056,8 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 						g_array_remove_index_fast(seps, i);
 
 		}
+
+	pthread_mutex_unlock(&bluez_mutex);
 	g_variant_iter_free(interfaces);
 
 }
@@ -1144,6 +1157,8 @@ static void bluez_signal_name_owner_changed(GDBusConnection *conn, const char *s
 	g_variant_get(params, "(&s&s&s)", &name, &owner_old, &owner_new);
 	if (owner_old != NULL && owner_old[0] != '\0') {
 
+		pthread_mutex_lock(&bluez_mutex);
+
 		GHashTableIter iter;
 		struct bluez_dbus_object_data *dbus_obj;
 		g_hash_table_iter_init(&iter, dbus_object_data_map);
@@ -1160,6 +1175,8 @@ static void bluez_signal_name_owner_changed(GDBusConnection *conn, const char *s
 				g_hash_table_destroy(bluez_adapters[i].device_sep_map);
 				bluez_adapters[i].device_sep_map = NULL;
 			}
+
+		pthread_mutex_unlock(&bluez_mutex);
 
 	}
 
@@ -1187,4 +1204,99 @@ int bluez_subscribe_signals(void) {
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_name_owner_changed, NULL, NULL);
 
 	return 0;
+}
+
+/**
+ * Set new configuration for already connected A2DP endpoint.
+ *
+ * @param dbus_current_sep_path D-Bus SEP path of current connection.
+ * @param sep New SEP to be configured.
+ * @param error NULL GError pointer.
+ * @return On success this function returns true. */
+bool bluez_a2dp_set_configuration(
+		const char *dbus_current_sep_path,
+		const struct a2dp_sep *sep,
+		GError **error) {
+
+	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(sep->bluez_dbus_path);
+	const char *endpoint = NULL;
+	GDBusMessage *msg = NULL;
+	GDBusMessage *rep = NULL;
+	bool rv = false;
+
+	/* When requesting new A2DP configuration, BlueZ will disconnect the
+	 * existing connection and will try to establish a new one. So, when
+	 * changing configuration for already selected codec we can reuse the
+	 * endpoint path - it will be disconnected before new connection is
+	 * established. Things are more complicated when we want to select
+	 * different codec. In such case we will have to choose one of the
+	 * endpoint paths registered in BlueZ but not connected. The issue
+	 * is, that we can not avoid race condition when new BT device will
+	 * try to set configuration as well - we have to pick endpoint path
+	 * currently not-used by BlueZ... */
+
+	pthread_mutex_lock(&bluez_mutex);
+
+	GHashTableIter iter;
+	struct bluez_dbus_object_data *dbus_obj;
+	g_hash_table_iter_init(&iter, dbus_object_data_map);
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj))
+		if (dbus_obj->hci_dev_id == hci_dev_id &&
+				dbus_obj->codec->codec_id == sep->codec_id &&
+				dbus_obj->codec->dir == !sep->dir &&
+				dbus_obj->registered) {
+
+			/* reuse already selected endpoint path */
+			if (strcmp(dbus_obj->path, dbus_current_sep_path) == 0) {
+				endpoint = dbus_obj->path;
+				break;
+			}
+
+			if (!dbus_obj->connected)
+				endpoint = dbus_obj->path;
+
+		}
+
+	if (endpoint == NULL) {
+		pthread_mutex_unlock(&bluez_mutex);
+		*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
+				"Extra A2DP endpoint not available");
+		goto fail;
+	}
+
+	GVariantBuilder caps;
+	g_variant_builder_init(&caps, G_VARIANT_TYPE("ay"));
+
+	size_t i;
+	for (i = 0; i < sep->capabilities_size; i++)
+		g_variant_builder_add(&caps, "y", ((char *)sep->configuration)[i]);
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_add(&props, "{sv}", "Capabilities", g_variant_builder_end(&caps));
+
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
+			sep->bluez_dbus_path, BLUEZ_IFACE_MEDIA_ENDPOINT, "SetConfiguration");
+	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", endpoint, &props));
+	g_variant_builder_clear(&props);
+
+	pthread_mutex_unlock(&bluez_mutex);
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, error);
+		goto fail;
+	}
+
+	rv = true;
+
+fail:
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	return rv;
 }

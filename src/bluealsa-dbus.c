@@ -468,38 +468,104 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 	struct ba_transport *t = pcm->t;
 	GVariantIter *properties;
 	GVariant *value = NULL;
+	const char *errmsg = NULL;
 	const char *property;
 	const char *codec;
 
+	void *a2dp_configuration = NULL;
+	size_t a2dp_configuration_size = 0;
+
 	g_variant_get(params, "(sa{sv})", &codec, &properties);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+
+		if (strcmp(property, "Configuration") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property)) {
+
+			const void *data = g_variant_get_fixed_array(value,
+					&a2dp_configuration_size, sizeof(char));
+
+			g_free(a2dp_configuration);
+			a2dp_configuration = g_memdup(data, a2dp_configuration_size);
+
+		}
+
 		g_variant_unref(value);
 		value = NULL;
 	}
 
-	uint16_t codec_id = ba_transport_codecs_hfp_from_string(codec);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		codec_id = ba_transport_codecs_a2dp_from_string(codec);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-	/* Lock transport before codec selection, so we will have
-	 * an exclusive access to the transport critical section. */
-	ba_transport_pthread_cleanup_lock(t);
+		/* support for Stream End-Points not enabled in BlueZ */
+		if (t->d->seps == NULL) {
+			errmsg = "No BlueZ SEP support";
+			goto fail;
+		}
 
-	if (ba_transport_select_codec(t, codec_id) == -1) {
-		error("Couldn't select codec: %s: %s", codec, strerror(errno));
-		goto fail;
+		uint16_t codec_id = ba_transport_codecs_a2dp_from_string(codec);
+		enum a2dp_dir dir = !t->a2dp.codec->dir;
+		const GArray *seps = t->d->seps;
+		struct a2dp_sep *sep = NULL;
+		size_t i;
+
+		for (i = 0; i < seps->len; i++)
+			if (g_array_index(seps, struct a2dp_sep, i).dir == dir &&
+					g_array_index(seps, struct a2dp_sep, i).codec_id == codec_id) {
+				sep = &g_array_index(seps, struct a2dp_sep, i);
+				break;
+			}
+
+		/* requested codec not available */
+		if (sep == NULL) {
+			errmsg = "SEP codec not available";
+			goto fail;
+		}
+
+		const struct a2dp_codec *codec;
+		if ((codec = a2dp_codec_lookup(codec_id, !dir)) == NULL) {
+			errmsg = "SEP codec not supported";
+			goto fail;
+		}
+
+		/* setup default codec configuration */
+		memcpy(sep->configuration, sep->capabilities, sep->capabilities_size);
+		if (a2dp_select_configuration(codec, sep->configuration, sep->capabilities_size) == -1)
+			goto fail;
+
+		/* use codec configuration blob provided by user */
+		if (a2dp_configuration != NULL) {
+			if (a2dp_check_configuration(codec, a2dp_configuration,
+						a2dp_configuration_size) != A2DP_CHECK_OK) {
+				errmsg = "Invalid configuration blob";
+				goto fail;
+			}
+			memcpy(sep->configuration, a2dp_configuration, sep->capabilities_size);
+		}
+
+		if (ba_transport_select_codec_a2dp(t, sep) == -1)
+			goto fail;
+
+	}
+	else {
+
+		uint16_t codec_id = ba_transport_codecs_hfp_from_string(codec);
+		if (ba_transport_select_codec_sco(t, codec_id) == -1)
+			goto fail;
+
 	}
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;
 
 fail:
+	if (errmsg == NULL)
+		errmsg = strerror(errno);
+	error("Couldn't select codec: %s: %s", codec, errmsg);
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_FAILED, "%s", strerror(errno));
+			G_DBUS_ERROR_FAILED, "%s", errmsg);
 
 final:
-	ba_transport_pthread_cleanup_unlock(t);
 	ba_transport_pcm_unref(pcm);
+	g_free(a2dp_configuration);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);

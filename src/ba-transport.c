@@ -34,6 +34,7 @@
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
+#include "bluez.h"
 #include "dbus.h"
 #include "hci.h"
 #include "hfp.h"
@@ -192,7 +193,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	ba_transport_update_codec(t, type.codec);
+	ba_transport_set_codec(t, type.codec);
 
 	bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
 	if (codec->backchannel)
@@ -243,7 +244,7 @@ struct ba_transport *ba_transport_new_sco(
 			goto fail;
 	}
 
-	ba_transport_update_codec(t, type.codec);
+	ba_transport_set_codec(t, type.codec);
 
 	bluealsa_dbus_pcm_register(&t->sco.spk_pcm, NULL);
 	bluealsa_dbus_pcm_register(&t->sco.mic_pcm, NULL);
@@ -415,9 +416,31 @@ enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t) {
 	return BA_TRANSPORT_SIGNAL_PING;
 }
 
-int ba_transport_select_codec(
+int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
-		uint16_t codec) {
+		const struct a2dp_sep *sep) {
+
+	if (!(t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
+		return errno = ENOTSUP, -1;
+
+	/* the same codec with the same configuration already selected */
+	if (t->type.codec == sep->codec_id &&
+			memcmp(sep->configuration, t->a2dp.configuration, sep->capabilities_size) == 0)
+		return 0;
+
+	GError *err = NULL;
+	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path, sep, &err)) {
+		error("Couldn't set A2DP configuration: %s", err->message);
+		g_error_free(err);
+		return errno = EIO, -1;
+	}
+
+	return 0;
+}
+
+int ba_transport_select_codec_sco(
+		struct ba_transport *t,
+		uint16_t codec_id) {
 
 	switch (t->type.profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
@@ -425,7 +448,7 @@ int ba_transport_select_codec(
 #if ENABLE_MSBC
 
 		/* codec already selected, skip switching */
-		if (t->type.codec == codec)
+		if (t->type.codec == codec_id)
 			return 0;
 
 		/* with oFono back-end we have no access to RFCOMM */
@@ -440,7 +463,7 @@ int ba_transport_select_codec(
 		ba_transport_release_pcm(&t->sco.mic_pcm);
 		t->release(t);
 
-		switch (codec) {
+		switch (codec_id) {
 		case HFP_CODEC_CVSD:
 			ba_rfcomm_send_signal(r, BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD);
 			pthread_cond_wait(&r->codec_selection_completed, &r->codec_selection_completed_mtx);
@@ -452,7 +475,7 @@ int ba_transport_select_codec(
 		}
 
 		pthread_mutex_unlock(&r->codec_selection_completed_mtx);
-		if (t->type.codec != codec)
+		if (t->type.codec != codec_id)
 			return errno = EIO, -1;
 
 		break;
@@ -643,11 +666,11 @@ static void transport_update_sampling(struct ba_transport *t) {
 
 }
 
-void ba_transport_update_codec(
+void ba_transport_set_codec(
 		struct ba_transport *t,
-		uint16_t codec) {
+		uint16_t codec_id) {
 
-	t->type.codec = codec;
+	t->type.codec = codec_id;
 
 	transport_update_format(t);
 	transport_update_channels(t);

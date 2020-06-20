@@ -400,7 +400,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 	t->bt_fd = fd;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 
-	ba_transport_update_codec(t, codec);
+	ba_transport_set_codec(t, codec);
 	bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 	bluealsa_dbus_pcm_update(&t->sco.mic_pcm,

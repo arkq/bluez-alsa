@@ -88,6 +88,13 @@ static void test_sigusr_handler(int sig) {
 	}
 }
 
+bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
+		const struct a2dp_sep *sep, GError **error) {
+	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
+	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED, "Not supported");
+	return false;
+}
+
 static void *test_a2dp_sink_sbc(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);

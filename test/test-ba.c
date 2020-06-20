@@ -39,6 +39,10 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); }
 int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
 	debug("%s: %p: %#x", __func__, (void *)r, sig); return 0; }
+bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
+		const struct a2dp_sep *sep, GError **error) {
+	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
+	(void)error; return false; }
 
 START_TEST(test_ba_adapter) {
 

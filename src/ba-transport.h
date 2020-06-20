@@ -172,6 +172,9 @@ struct ba_transport {
 
 		struct {
 
+			/* used D-Bus endpoint path */
+			const char *bluez_dbus_sep_path;
+
 			/* audio codec configuration capabilities */
 			const struct a2dp_codec *codec;
 			/* selected audio codec configuration */
@@ -249,12 +252,16 @@ void ba_transport_pcm_unref(struct ba_transport_pcm *pcm);
 int ba_transport_send_signal(struct ba_transport *t, enum ba_transport_signal sig);
 enum ba_transport_signal ba_transport_recv_signal(struct ba_transport *t);
 
-int ba_transport_select_codec(
+int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
-		uint16_t codec);
-void ba_transport_update_codec(
+		const struct a2dp_sep *sep);
+int ba_transport_select_codec_sco(
 		struct ba_transport *t,
-		uint16_t codec);
+		uint16_t codec_id);
+
+void ba_transport_set_codec(
+		struct ba_transport *t,
+		uint16_t codec_id);
 
 uint16_t ba_transport_get_delay(const struct ba_transport *t);
 

@@ -54,6 +54,10 @@ Methods         fd, fd Open()
                         ongoing stream (or PCM counterpart: sink, source) will
                         be terminated.
 
+                        For A2DP codecs, client can override build-in logic
+                        for selecting codec configuration by providing the
+                        configuration blob via the "Configuration" property.
+
                         Possible Errors: dbus.Error.InvalidArguments
                                          dbus.Error.NotSupported
                                          dbus.Error.Failed
