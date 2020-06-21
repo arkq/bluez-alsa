@@ -228,6 +228,18 @@
 	.frequency1 = ((f) >> 4) & 0xff, \
 	.frequency2 = (f) & 0x0f,
 
+#define ATRAC_CHANNEL_MODE_MONO         0x04
+#define ATRAC_CHANNEL_MODE_DUAL_CHANNEL 0x02
+#define ATRAC_CHANNEL_MODE_JOINT_STEREO 0x01
+
+#define ATRAC_SAMPLING_FREQ_44100       0x02
+#define ATRAC_SAMPLING_FREQ_48000       0x01
+
+#define ATRAC_GET_BITRATE(a) \
+	((a).bitrate1 << 16 | (a).bitrate2 << 8 | (a).bitrate3)
+#define ATRAC_GET_MAX_SUL(a) \
+	((a).max_sul1 << 8 | (a).max_sul2)
+
 #define APTX_VENDOR_ID                  BT_COMPID_APT
 #define APTX_CODEC_ID                   0x0001
 
@@ -380,6 +392,21 @@ typedef struct {
 } __attribute__ ((packed)) a2dp_aac_t;
 
 typedef struct {
+	uint8_t rfa1:2;
+	uint8_t channel_mode:3;
+	uint8_t version:3;
+	uint8_t bitrate1:3;
+	uint8_t vbr:1;
+	uint8_t frequency:2;
+	uint8_t rfa2:2;
+	uint8_t bitrate2;
+	uint8_t bitrate3;
+	uint8_t max_sul1;
+	uint8_t max_sul2;
+	uint8_t rfa3;
+} __attribute__ ((packed)) a2dp_atrac_t;
+
+typedef struct {
 	a2dp_vendor_codec_t info;
 	uint8_t channel_mode:4;
 	uint8_t frequency:4;
@@ -449,6 +476,21 @@ typedef struct {
 	uint8_t bitrate2;
 	uint8_t bitrate3;
 } __attribute__ ((packed)) a2dp_aac_t;
+
+typedef struct {
+	uint8_t version:3;
+	uint8_t channel_mode:3;
+	uint8_t rfa1:2;
+	uint8_t rfa2:2;
+	uint8_t frequency:2;
+	uint8_t vbr:1;
+	uint8_t bitrate1:3;
+	uint8_t bitrate2;
+	uint8_t bitrate3;
+	uint8_t max_sul1;
+	uint8_t max_sul2;
+	uint8_t rfa3;
+} __attribute__ ((packed)) a2dp_atrac_t;
 
 typedef struct {
 	a2dp_vendor_codec_t info;

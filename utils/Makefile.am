@@ -5,6 +5,12 @@ SUBDIRS = aplay rfcomm
 
 bin_PROGRAMS =
 
+if ENABLE_A2DPCONF
+bin_PROGRAMS += a2dpconf
+a2dpconf_CFLAGS = \
+	-I$(top_srcdir)/src
+endif
+
 if ENABLE_HCITOP
 bin_PROGRAMS += hcitop
 hcitop_CFLAGS = \

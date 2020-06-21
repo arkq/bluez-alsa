@@ -159,6 +159,10 @@ AC_ARG_ENABLE([rfcomm],
 	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
 AM_CONDITIONAL([ENABLE_RFCOMM], [test "x$enable_rfcomm" = "xyes"])
 
+AC_ARG_ENABLE([a2dpconf],
+	[AS_HELP_STRING([--enable-a2dpconf], [enable building of a2dpconf tool])])
+AM_CONDITIONAL([ENABLE_A2DPCONF], [test "x$enable_a2dpconf" = "xyes"])
+
 AC_ARG_ENABLE([hcitop],
 	[AS_HELP_STRING([--enable-hcitop], [enable building of hcitop tool])])
 AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" = "xyes"])
