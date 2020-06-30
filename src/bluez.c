@@ -810,9 +810,8 @@ static void bluez_register_hfp(
 		dbus_obj->registered = true;
 	}
 
-	return;
-
 fail:
+
 	if (err != NULL) {
 		warn("Couldn't register hands-free profile: %s", err->message);
 		g_error_free(err);
