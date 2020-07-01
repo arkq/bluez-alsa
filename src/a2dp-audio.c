@@ -220,9 +220,10 @@ retry:
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_pcm(struct ba_transport *t,
+static ssize_t a2dp_poll_and_read_pcm(struct ba_transport_pcm *pcm,
 		struct io_thread_data *io, ffb_int16_t *buffer) {
 
+	struct ba_transport *t = pcm->t;
 	struct pollfd fds[2] = {
 		{ t->sig_fd[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
@@ -233,15 +234,15 @@ static ssize_t a2dp_poll_and_read_pcm(struct ba_transport *t,
 repoll:
 
 	/* Add PCM socket to the poll if transport is active. */
-	fds[1].fd = t->state == BA_TRANSPORT_STATE_ACTIVE ? t->a2dp.pcm.fd : -1;
+	fds[1].fd = t->state == BA_TRANSPORT_STATE_ACTIVE ? pcm->fd : -1;
 
 	/* Poll for reading with keep-alive and sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
 	case 0:
-		pthread_cond_signal(&t->a2dp.pcm.synced);
+		pthread_cond_signal(&pcm->synced);
 		io->timeout = -1;
 		io->t_locked = !ba_transport_pthread_cleanup_lock(t);
-		if (t->a2dp.pcm.fd == -1)
+		if (pcm->fd == -1)
 			return 0;
 		ba_transport_pthread_cleanup_unlock(t);
 		io->t_locked = false;
@@ -267,7 +268,7 @@ repoll:
 			io->timeout = 100;
 			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_DROP:
-			io_thread_read_pcm_flush(&t->a2dp.pcm);
+			io_thread_read_pcm_flush(pcm);
 			goto repoll;
 		default:
 			goto repoll;
@@ -275,7 +276,7 @@ repoll:
 	}
 
 	ssize_t samples;
-	switch (samples = io_thread_read_pcm(&t->a2dp.pcm, buffer->tail, ffb_len_in(buffer))) {
+	switch (samples = io_thread_read_pcm(pcm, buffer->tail, ffb_len_in(buffer))) {
 	case 0:
 		io->timeout = config.a2dp.keep_alive * 1000;
 		debug("Keep-alive polling: %d", io->timeout);
@@ -293,10 +294,10 @@ repoll:
 	 * In order to correctly calculate time drift, the zero time point has to
 	 * be obtained after the stream has started. */
 	if (io->asrs.frames == 0)
-		asrsync_init(&io->asrs, t->a2dp.pcm.sampling);
+		asrsync_init(&io->asrs, pcm->sampling);
 
 	/* scale volume or mute audio signal */
-	io_thread_scale_pcm(&t->a2dp.pcm, buffer->tail, samples);
+	io_thread_scale_pcm(pcm, buffer->tail, samples);
 
 	/* update PCM buffer */
 	ffb_seek(buffer, samples);
@@ -608,7 +609,7 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 	for (;;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1003,7 +1004,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 	for (;;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1406,7 +1407,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	for (;;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1539,7 +1540,7 @@ static void *a2dp_source_aptx(struct ba_transport *t) {
 	for (;;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1670,7 +1671,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 	for (;;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1842,7 +1843,7 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	for (;;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(t, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
