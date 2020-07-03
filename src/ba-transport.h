@@ -23,6 +23,7 @@
 #include "a2dp.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
+#include "bluez.h"
 
 #define BA_TRANSPORT_PROFILE_NONE        (0)
 #define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)
@@ -53,13 +54,6 @@
 struct ba_transport_type {
 	uint16_t profile;
 	uint16_t codec;
-};
-
-enum ba_transport_state {
-	BA_TRANSPORT_STATE_IDLE,
-	BA_TRANSPORT_STATE_PENDING,
-	BA_TRANSPORT_STATE_ACTIVE,
-	BA_TRANSPORT_STATE_PAUSED,
 };
 
 enum ba_transport_signal {
@@ -151,7 +145,6 @@ struct ba_transport {
 	pthread_mutex_t mutex;
 
 	/* IO thread - actual transport layer */
-	enum ba_transport_state state;
 	pthread_t thread;
 
 	/* This field stores a file descriptor (socket) associated with the BlueZ
@@ -174,6 +167,9 @@ struct ba_transport {
 
 			/* used D-Bus endpoint path */
 			const char *bluez_dbus_sep_path;
+
+			/* current state of the transport */
+			enum bluez_a2dp_transport_state state;
 
 			/* audio codec configuration capabilities */
 			const struct a2dp_codec *codec;
@@ -268,10 +264,18 @@ uint16_t ba_transport_get_delay(const struct ba_transport *t);
 uint16_t ba_transport_pcm_get_volume_packed(const struct ba_transport_pcm *pcm);
 int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t value);
 
-int ba_transport_set_state(struct ba_transport *t, enum ba_transport_state state);
+int ba_transport_start(struct ba_transport *t);
 
-int ba_transport_drain_pcm(struct ba_transport_pcm *pcm);
-int ba_transport_release_pcm(struct ba_transport_pcm *pcm);
+int ba_transport_set_a2dp_state(
+		struct ba_transport *t,
+		enum bluez_a2dp_transport_state state);
+
+int ba_transport_pcm_pause(struct ba_transport_pcm *pcm);
+int ba_transport_pcm_resume(struct ba_transport_pcm *pcm);
+int ba_transport_pcm_drain(struct ba_transport_pcm *pcm);
+int ba_transport_pcm_drop(struct ba_transport_pcm *pcm);
+
+int ba_transport_pcm_release(struct ba_transport_pcm *pcm);
 
 int ba_transport_pthread_create(
 		struct ba_transport *t,

@@ -68,6 +68,8 @@ struct io_thread_data {
 	struct { int v[16]; size_t i; } coutq;
 	/* determine whether transport is locked */
 	bool t_locked;
+	/* determine whether audio is paused */
+	bool t_paused;
 };
 
 /**
@@ -112,7 +114,7 @@ ssize_t io_thread_read_pcm(struct ba_transport_pcm *pcm, int16_t *buffer, size_t
 	if (errno == EBADF)
 		ret = 0;
 	if (ret == 0)
-		ba_transport_release_pcm(pcm);
+		ba_transport_pcm_release(pcm);
 
 	return ret;
 }
@@ -157,7 +159,7 @@ ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm,
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
 				debug("PCM has been closed: %d", pcm->fd);
-				ba_transport_release_pcm(pcm);
+				ba_transport_pcm_release(pcm);
 				ret = 0;
 				/* fall-through */
 			default:
@@ -234,7 +236,7 @@ static ssize_t a2dp_poll_and_read_pcm(struct ba_transport_pcm *pcm,
 repoll:
 
 	/* Add PCM socket to the poll if transport is active. */
-	fds[1].fd = t->state == BA_TRANSPORT_STATE_ACTIVE ? pcm->fd : -1;
+	fds[1].fd = io->t_paused ? -1 : pcm->fd;
 
 	/* Poll for reading with keep-alive and sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
@@ -258,12 +260,16 @@ repoll:
 		switch (ba_transport_recv_signal(t)) {
 		case BA_TRANSPORT_SIGNAL_PCM_OPEN:
 		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
+			io->t_paused = false;
 			io->asrs.frames = 0;
 			io->timeout = -1;
 			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_CLOSE:
 			/* reuse PCM read disconnection logic */
 			break;
+		case BA_TRANSPORT_SIGNAL_PCM_PAUSE:
+			io->t_paused = true;
+			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_SYNC:
 			io->timeout = 100;
 			goto repoll;
@@ -334,7 +340,6 @@ static int a2dp_validate_bt_sink(struct ba_transport *t) {
  * This function temporally re-enables thread cancellation! */
 static ssize_t a2dp_poll_and_read_bt(struct ba_transport *t,
 		struct io_thread_data *io, ffb_uint8_t *buffer) {
-	(void)io;
 
 	struct pollfd fds[2] = {
 		{ t->sig_fd[0], POLLIN, 0 },
@@ -346,7 +351,7 @@ static ssize_t a2dp_poll_and_read_bt(struct ba_transport *t,
 repoll:
 
 	/* Add BT socket to the poll if transport is active. */
-	fds[1].fd = t->state == BA_TRANSPORT_STATE_ACTIVE ? t->bt_fd : -1;
+	fds[1].fd = io->t_paused ? -1 : t->bt_fd;
 
 	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
 		if (errno == EINTR)
@@ -357,8 +362,17 @@ repoll:
 
 	if (fds[0].revents & POLLIN) {
 		/* dispatch incoming event */
-		ba_transport_recv_signal(t);
-		goto repoll;
+		switch (ba_transport_recv_signal(t)) {
+		case BA_TRANSPORT_SIGNAL_PCM_OPEN:
+		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
+			io->t_paused = false;
+			goto repoll;
+		case BA_TRANSPORT_SIGNAL_PCM_PAUSE:
+			io->t_paused = true;
+			goto repoll;
+		default:
+			goto repoll;
+		}
 	}
 
 	ssize_t len;
@@ -1931,6 +1945,7 @@ static void *a2dp_sink_dump(struct ba_transport *t) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
+	struct io_thread_data io = { 0 };
 	ffb_uint8_t bt = { 0 };
 	FILE *f = NULL;
 	char fname[64];
@@ -1959,7 +1974,7 @@ static void *a2dp_sink_dump(struct ba_transport *t) {
 
 	for (;;) {
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(t, NULL, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;

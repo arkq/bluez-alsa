@@ -137,8 +137,6 @@ static int test_transport_acquire(struct ba_transport *t) {
 	t->mtu_read = 256;
 	t->mtu_write = 256;
 
-	t->state = BA_TRANSPORT_STATE_ACTIVE;
-
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		assert(ba_transport_pthread_create(t, a2dp_source_sbc, "ba-a2dp") == 0);
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)

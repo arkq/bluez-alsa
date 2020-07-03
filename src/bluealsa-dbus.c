@@ -285,22 +285,20 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	case G_IO_STATUS_NORMAL:
 		if (strncmp(command, BLUEALSA_PCM_CTRL_DRAIN, len) == 0) {
 			if (pcm->mode == BA_TRANSPORT_PCM_MODE_SINK)
-				ba_transport_drain_pcm(pcm);
+				ba_transport_pcm_drain(pcm);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_DROP, len) == 0) {
 			if (pcm->mode == BA_TRANSPORT_PCM_MODE_SINK)
-				ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_DROP);
+				ba_transport_pcm_drop(pcm);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_PAUSE, len) == 0) {
-			ba_transport_set_state(t, BA_TRANSPORT_STATE_PAUSED);
-			ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_PAUSE);
+			ba_transport_pcm_pause(pcm);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else if (strncmp(command, BLUEALSA_PCM_CTRL_RESUME, len) == 0) {
-			ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
-			ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_RESUME);
+			ba_transport_pcm_resume(pcm);
 			g_io_channel_write_chars(ch, "OK", -1, &len, NULL);
 		}
 		else {
@@ -312,7 +310,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	case G_IO_STATUS_AGAIN:
 		return TRUE;
 	case G_IO_STATUS_EOF:
-		ba_transport_release_pcm(pcm);
+		ba_transport_pcm_release(pcm);
 		ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 		/* remove channel from watch */
 		return FALSE;

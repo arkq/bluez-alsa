@@ -120,15 +120,16 @@ static bool bluez_match_dbus_adapter(
 
 /**
  * Get transport state from BlueZ state string. */
-static enum ba_transport_state bluez_get_transport_state(const char *state) {
+static enum bluez_a2dp_transport_state bluez_a2dp_transport_state_from_string(
+		const char *state) {
 	if (strcmp(state, BLUEZ_TRANSPORT_STATE_IDLE) == 0)
-		return BA_TRANSPORT_STATE_IDLE;
+		return BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 	if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
-		return BA_TRANSPORT_STATE_PENDING;
+		return BLUEZ_A2DP_TRANSPORT_STATE_PENDING;
 	if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
-		return BA_TRANSPORT_STATE_ACTIVE;
-	warn("Invalid state: %s", state);
-	return 0xFFFF;
+		return BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE;
+	warn("Invalid A2DP transport state: %s", state);
+	return BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 }
 
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
@@ -185,7 +186,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	struct ba_transport *t = NULL;
 	struct ba_device *d = NULL;
 
-	enum ba_transport_state state = 0xFFFF;
+	enum bluez_a2dp_transport_state state = 0xFFFF;
 	char *device_path = NULL;
 	void *configuration = NULL;
 	uint16_t volume = 127;
@@ -234,7 +235,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 		}
 		else if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
-			state = bluez_get_transport_state(g_variant_get_string(value, NULL));
+			state = bluez_a2dp_transport_state_from_string(g_variant_get_string(value, NULL));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
@@ -293,7 +294,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	debug("Configuration: channels: %u, sampling: %u",
 			t->a2dp.pcm.channels, t->a2dp.pcm.sampling);
 
-	ba_transport_set_state(t, state);
+	ba_transport_set_a2dp_state(t, state);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);
@@ -609,7 +610,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv) {
 			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
 
-	ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
+	ba_transport_start(t);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);
@@ -1105,7 +1106,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 		if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
 			const char *state = g_variant_get_string(value, NULL);
-			ba_transport_set_state(t, bluez_get_transport_state(state));
+			ba_transport_set_a2dp_state(t, bluez_a2dp_transport_state_from_string(state));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {

@@ -271,7 +271,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	g_hash_table_insert(ofono_card_data_map, g_strdup(card),
 			g_memdup(&ocd, sizeof(ocd)));
 
-	ba_transport_set_state(t, BA_TRANSPORT_STATE_ACTIVE);
+	ba_transport_start(t);
 
 fail:
 	if (a != NULL)

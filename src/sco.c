@@ -508,7 +508,7 @@ retry_sco_write:
 		}
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
 			debug("PCM poll error status: %#x", pfds[3].revents);
-			ba_transport_release_pcm(&t->sco.spk_pcm);
+			ba_transport_pcm_release(&t->sco.spk_pcm);
 			ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 		}
 
