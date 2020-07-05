@@ -316,7 +316,8 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 
 	/* Initialize the max read length to 10 ms. Later, when the PCM device
 	 * will be opened, this value will be adjusted to one period size. */
-	size_t pcm_max_read_len = pcm_1s_samples / 100;
+	size_t pcm_max_read_len_init = pcm_1s_samples / 100 * pcm_format_size;
+	size_t pcm_max_read_len = pcm_max_read_len_init;
 	size_t pcm_open_retries = 0;
 
 	/* These variables determine how and when the pause command will be send
@@ -348,7 +349,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		case 0:
 			debug("Device marked as inactive: %s", w->addr);
 			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-			pcm_max_read_len = pcm_1s_samples / 100;
+			pcm_max_read_len = pcm_max_read_len_init;
 			pause_counter = pause_bytes = 0;
 			ffb_rewind(&buffer);
 			if (w->pcm != NULL) {
@@ -365,8 +366,8 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			break;
 
 		#define MIN(a,b) a < b ? a : b
-		size_t _in = MIN(pcm_max_read_len, ffb_len_in(&buffer));
-		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in * pcm_format_size)) == -1) {
+		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
+		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("PCM FIFO read error: %s", strerror(errno));
@@ -409,14 +410,14 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			if (alsa_pcm_open(&w->pcm, pcm_device, pcm_format, w->ba_pcm.channels,
 						w->ba_pcm.sampling, &buffer_time, &period_time, &tmp) != 0) {
 				warn("Couldn't open PCM: %s", tmp);
-				pcm_max_read_len = buffer.size;
+				pcm_max_read_len = pcm_max_read_len_init;
 				usleep(50000);
 				free(tmp);
 				continue;
 			}
 
 			snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
-			pcm_max_read_len = period_size * w->ba_pcm.channels;
+			pcm_max_read_len = period_size * w->ba_pcm.channels * pcm_format_size;
 			pcm_open_retries = 0;
 
 			if (verbose >= 2) {
@@ -440,9 +441,10 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		w->active = true;
 		timeout = 500;
 
+		ffb_seek(&buffer, ret);
+
 		/* calculate the overall number of frames in the buffer */
-		ffb_seek(&buffer, ret / pcm_format_size);
-		snd_pcm_sframes_t frames = ffb_len_out(&buffer) / w->ba_pcm.channels;
+		snd_pcm_sframes_t frames = ffb_blen_out(&buffer) / w->ba_pcm.channels / pcm_format_size;
 
 		if ((frames = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
 			switch (-frames) {
@@ -458,7 +460,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			}
 
 		/* move leftovers to the beginning and reposition tail */
-		ffb_shift(&buffer, frames * w->ba_pcm.channels);
+		ffb_shift(&buffer, frames * w->ba_pcm.channels * pcm_format_size);
 
 	}
 
