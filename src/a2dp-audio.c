@@ -49,6 +49,7 @@
 #include "a2dp.h"
 #include "a2dp-codecs.h"
 #include "a2dp-rtp.h"
+#include "audio.h"
 #include "bluealsa.h"
 #include "sbc.h"
 #include "utils.h"
@@ -74,26 +75,52 @@ struct io_thread_data {
 
 /**
  * Scale PCM signal according to the volume configuration. */
-static void io_thread_scale_pcm(const struct ba_transport_pcm *pcm,
-		int16_t *buffer, size_t samples) {
+static void ba_transport_pcm_scale(
+		const struct ba_transport_pcm *pcm,
+		int16_t *buffer,
+		size_t samples) {
 
-	if (!pcm->soft_volume)
+	unsigned int vmax = pcm->max_volume;
+	size_t frames = samples / pcm->channels;
+
+	if (!pcm->soft_volume) {
+		/* In case of hardware volume control we will perform mute operation,
+		 * because hardware muting is an equivalent of gain=0 which with some
+		 * headsets does not entirely silence audio. */
+		audio_silence_s16le(buffer, pcm->channels, frames,
+				pcm->volume[0].muted, pcm->volume[1].muted);
 		return;
+	}
 
 	double ch1_scale = 0;
 	double ch2_scale = 0;
 
 	if (!pcm->volume[0].muted)
-		ch1_scale = pow(10, (-64 + 64.0 * pcm->volume[0].level / 127) / 20);
+		ch1_scale = pow(10, (-64 + 64.0 * pcm->volume[0].level / vmax) / 20);
 	if (!pcm->volume[1].muted)
-		ch2_scale = pow(10, (-64 + 64.0 * pcm->volume[1].level / 127) / 20);
+		ch2_scale = pow(10, (-64 + 64.0 * pcm->volume[1].level / vmax) / 20);
 
-	snd_pcm_scale_s16le(buffer, samples, pcm->channels, ch1_scale, ch2_scale);
+	audio_scale_s16le(buffer, pcm->channels, frames, ch1_scale, ch2_scale);
+
+}
+
+/**
+ * Flush read buffer of the transport PCM FIFO. */
+ssize_t ba_transport_pcm_flush(struct ba_transport_pcm *pcm) {
+	ssize_t rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
+	if (rv == -1 && errno == EAGAIN)
+		rv = 0;
+	if (rv > 0)
+		rv /= sizeof(int16_t);
+	return rv;
 }
 
 /**
  * Read PCM signal from the transport PCM FIFO. */
-ssize_t io_thread_read_pcm(struct ba_transport_pcm *pcm, int16_t *buffer, size_t samples) {
+ssize_t ba_transport_pcm_read(
+		struct ba_transport_pcm *pcm,
+		int16_t *buffer,
+		size_t samples) {
 
 	ssize_t ret;
 
@@ -106,8 +133,11 @@ ssize_t io_thread_read_pcm(struct ba_transport_pcm *pcm, int16_t *buffer, size_t
 			errno == EINTR)
 		continue;
 
-	if (ret > 0)
-		return ret / sizeof(int16_t);
+	if (ret > 0) {
+		samples = ret / sizeof(int16_t);
+		ba_transport_pcm_scale(pcm, buffer, samples);
+		return samples;
+	}
 
 	if (ret == 0)
 		debug("PCM has been closed: %d", pcm->fd);
@@ -120,28 +150,23 @@ ssize_t io_thread_read_pcm(struct ba_transport_pcm *pcm, int16_t *buffer, size_t
 }
 
 /**
- * Flush read buffer of the transport PCM FIFO. */
-ssize_t io_thread_read_pcm_flush(struct ba_transport_pcm *pcm) {
-	ssize_t rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
-	if (rv == -1 && errno == EAGAIN)
-		rv = 0;
-	debug("PCM read buffer flushed: %zd", rv >= 0 ? (int)(rv / sizeof(int16_t)) : rv);
-	return rv;
-}
-
-/**
  * Write PCM signal to the transport PCM FIFO.
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm,
-		const int16_t *buffer, size_t samples) {
+ssize_t ba_transport_pcm_write(
+		struct ba_transport_pcm *pcm,
+		int16_t *buffer,
+		size_t samples) {
 
 	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
 	const uint8_t *head = (uint8_t *)buffer;
 	size_t len = samples * sizeof(int16_t);
 	int oldstate;
 	ssize_t ret;
+
+	/* Scale volume or mute audio signal. */
+	ba_transport_pcm_scale(pcm, buffer, samples);
 
 	/* In order to provide a way of escaping from the infinite poll() we have
 	 * to temporally re-enable thread cancellation. */
@@ -274,7 +299,7 @@ repoll:
 			io->timeout = 100;
 			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_DROP:
-			io_thread_read_pcm_flush(pcm);
+			ba_transport_pcm_flush(pcm);
 			goto repoll;
 		default:
 			goto repoll;
@@ -282,7 +307,7 @@ repoll:
 	}
 
 	ssize_t samples;
-	switch (samples = io_thread_read_pcm(pcm, buffer->tail, ffb_len_in(buffer))) {
+	switch (samples = ba_transport_pcm_read(pcm, buffer->tail, ffb_len_in(buffer))) {
 	case 0:
 		io->timeout = config.a2dp.keep_alive * 1000;
 		debug("Keep-alive polling: %d", io->timeout);
@@ -301,9 +326,6 @@ repoll:
 	 * be obtained after the stream has started. */
 	if (io->asrs.frames == 0)
 		asrsync_init(&io->asrs, pcm->sampling);
-
-	/* scale volume or mute audio signal */
-	io_thread_scale_pcm(pcm, buffer->tail, samples);
 
 	/* update PCM buffer */
 	ffb_seek(buffer, samples);
@@ -530,8 +552,7 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 			rtp_payload_len -= len;
 
 			const size_t samples = decoded / sizeof(int16_t);
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+			if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 		}
@@ -834,8 +855,7 @@ decode:
 		}
 
 		const size_t samples = len / sizeof(int16_t);
-		io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
-		if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+		if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		if (len > 0) {
@@ -855,8 +875,7 @@ decode:
 		}
 
 		if (channels == 1) {
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm_l, samples);
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm_l, samples) == -1)
+			if (ba_transport_pcm_write(&t->a2dp.pcm, pcm_l, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 		else {
@@ -867,8 +886,7 @@ decode:
 				pcm.data[i * 2 + 1] = pcm_r[i];
 			}
 
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+			if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 		}
@@ -1246,8 +1264,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 			error("Couldn't get AAC stream info");
 		else {
 			const size_t samples = aacinf->frameSize * aacinf->numChannels;
-			io_thread_scale_pcm(&t->a2dp.pcm, pcm.data, samples);
-			if (io_thread_write_pcm(&t->a2dp.pcm, pcm.data, samples) == -1)
+			if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 

@@ -10,6 +10,7 @@
 
 #include <check.h>
 
+#include "../src/audio.c"
 #include "../src/hci.c"
 #include "../src/utils.c"
 #include "../src/shared/defs.h"
@@ -112,34 +113,45 @@ START_TEST(test_batostr_) {
 
 } END_TEST
 
-START_TEST(test_snd_pcm_scale_s16le) {
+START_TEST(test_audio_scale_s16le) {
 
 	const int16_t mute[] = { 0x0000, 0x0000, 0x0000, 0x0000 };
+	const int16_t mute_l[] = { 0x0000, 0x2345, 0x0000, (int16_t)0xCDEF };
+	const int16_t mute_r[] = { 0x1234, 0x0000, (int16_t)0xBCDE, 0x0000 };
 	const int16_t half[] = { 0x1234 / 2, 0x2345 / 2, (int16_t)0xBCDE / 2, (int16_t)0xCDEF / 2 };
-	const int16_t halfl[] = { 0x1234 / 2, 0x2345, (int16_t)0xBCDE / 2, (int16_t)0xCDEF };
-	const int16_t halfr[] = { 0x1234, 0x2345 / 2, (int16_t)0xBCDE, (int16_t)0xCDEF / 2 };
+	const int16_t half_l[] = { 0x1234 / 2, 0x2345, (int16_t)0xBCDE / 2, (int16_t)0xCDEF };
+	const int16_t half_r[] = { 0x1234, 0x2345 / 2, (int16_t)0xBCDE, (int16_t)0xCDEF / 2 };
 	const int16_t in[] = { 0x1234, 0x2345, (int16_t)0xBCDE, (int16_t)0xCDEF };
 	int16_t tmp[ARRAYSIZE(in)];
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 0, 0);
+	audio_scale_s16le(tmp, 1, ARRAYSIZE(tmp), 0, 0);
 	ck_assert_int_eq(memcmp(tmp, mute, sizeof(mute)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 1.0, 1.0);
+	audio_scale_s16le(tmp, 1, ARRAYSIZE(tmp), 1.0, 0);
 	ck_assert_int_eq(memcmp(tmp, in, sizeof(in)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 1, 0.5, 0.5);
+	audio_scale_s16le(tmp, 1, ARRAYSIZE(tmp), 0.5, 0);
 	ck_assert_int_eq(memcmp(tmp, half, sizeof(half)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 2, 0.5, 1.0);
-	ck_assert_int_eq(memcmp(tmp, halfl, sizeof(halfl)), 0);
+	audio_scale_s16le(tmp, 2, ARRAYSIZE(tmp) / 2, 0, 1.0);
+	hexdump("MUTEL", tmp, sizeof(tmp));
+	ck_assert_int_eq(memcmp(tmp, mute_l, sizeof(mute_l)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	snd_pcm_scale_s16le(tmp, ARRAYSIZE(tmp), 2, 1.0, 0.5);
-	ck_assert_int_eq(memcmp(tmp, halfr, sizeof(halfr)), 0);
+	audio_scale_s16le(tmp, 2, ARRAYSIZE(tmp) / 2, 1.0, 0);
+	ck_assert_int_eq(memcmp(tmp, mute_r, sizeof(mute_r)), 0);
+
+	memcpy(tmp, in, sizeof(tmp));
+	audio_scale_s16le(tmp, 2, ARRAYSIZE(tmp) / 2, 0.5, 1.0);
+	ck_assert_int_eq(memcmp(tmp, half_l, sizeof(half_l)), 0);
+
+	memcpy(tmp, in, sizeof(tmp));
+	audio_scale_s16le(tmp, 2, ARRAYSIZE(tmp) / 2, 1.0, 0.5);
+	ck_assert_int_eq(memcmp(tmp, half_r, sizeof(half_r)), 0);
 
 } END_TEST
 
@@ -268,7 +280,7 @@ int main(void) {
 	tcase_add_test(tc, test_dbus_profile_object_path);
 	tcase_add_test(tc, test_g_variant_sanitize_object_path);
 	tcase_add_test(tc, test_batostr_);
-	tcase_add_test(tc, test_snd_pcm_scale_s16le);
+	tcase_add_test(tc, test_audio_scale_s16le);
 	tcase_add_test(tc, test_difftimespec);
 	tcase_add_test(tc, test_fifo_buffer);
 

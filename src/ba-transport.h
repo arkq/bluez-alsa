@@ -104,6 +104,9 @@ struct ba_transport_pcm {
 	 * audio encoding or decoding and data transfer. */
 	unsigned int delay;
 
+	/* maximal possible volume level */
+	unsigned int max_volume;
+
 	/* internal software volume control */
 	bool soft_volume;
 

@@ -20,9 +20,18 @@
 
 #include "ba-transport.h"
 
-ssize_t io_thread_read_pcm(struct ba_transport_pcm *pcm, int16_t *buffer, size_t samples);
-ssize_t io_thread_read_pcm_flush(struct ba_transport_pcm *pcm);
-ssize_t io_thread_write_pcm(struct ba_transport_pcm *pcm, const int16_t *buffer, size_t samples);
+ssize_t ba_transport_pcm_flush(
+		struct ba_transport_pcm *pcm);
+
+ssize_t ba_transport_pcm_read(
+		struct ba_transport_pcm *pcm,
+		int16_t *buffer,
+		size_t samples);
+
+ssize_t ba_transport_pcm_write(
+		struct ba_transport_pcm *pcm,
+		int16_t *buffer,
+		size_t samples);
 
 int a2dp_audio_thread_create(struct ba_transport *t);
 

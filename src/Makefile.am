@@ -14,6 +14,7 @@ bluealsa_SOURCES = \
 	a2dp.c \
 	a2dp-audio.c \
 	at.c \
+	audio.c \
 	ba-adapter.c \
 	ba-device.c \
 	ba-rfcomm.c \

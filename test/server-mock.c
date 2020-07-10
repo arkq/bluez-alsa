@@ -28,6 +28,7 @@
 #include "../src/a2dp.c"
 #include "../src/a2dp-audio.c"
 #include "../src/at.c"
+#include "../src/audio.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-rfcomm.c"
@@ -118,7 +119,7 @@ static void *test_a2dp_sink_sbc(struct ba_transport *t) {
 		int samples = sizeof(buffer) / sizeof(int16_t);
 		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 1.0 / 128);
 
-		if (io_thread_write_pcm(&t->a2dp.pcm, buffer, samples) == -1)
+		if (ba_transport_pcm_write(&t->a2dp.pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		asrsync_sync(&asrs, samples / 2);

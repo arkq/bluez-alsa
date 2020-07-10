@@ -71,7 +71,10 @@ static int transport_pcm_init(
 	pcm->t = t;
 	pcm->mode = mode;
 	pcm->fd = -1;
-	pcm->soft_volume = true;
+
+	pcm->max_volume = 127;
+	pcm->volume[0].level = 127;
+	pcm->volume[1].level = 127;
 
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
 	pthread_cond_init(&pcm->synced, NULL);
@@ -181,14 +184,10 @@ struct ba_transport *ba_transport_new_a2dp(
 	transport_pcm_init(&t->a2dp.pcm, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
-	t->a2dp.pcm.volume[0].level = 127;
-	t->a2dp.pcm.volume[1].level = 127;
 
 	transport_pcm_init(&t->a2dp.pcm_bc, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
-	t->a2dp.pcm_bc.volume[0].level = 127;
-	t->a2dp.pcm_bc.volume[1].level = 127;
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -231,9 +230,11 @@ struct ba_transport *ba_transport_new_sco(
 	t->type = type;
 
 	transport_pcm_init(&t->sco.spk_pcm, t, BA_TRANSPORT_PCM_MODE_SINK);
+	t->sco.spk_pcm.max_volume = 15;
 	t->sco.spk_pcm.volume[0].level = 15;
 
 	transport_pcm_init(&t->sco.mic_pcm, t, BA_TRANSPORT_PCM_MODE_SOURCE);
+	t->sco.mic_pcm.max_volume = 15;
 	t->sco.mic_pcm.volume[0].level = 15;
 
 	t->acquire = transport_acquire_bt_sco;
@@ -689,9 +690,10 @@ uint16_t ba_transport_get_delay(const struct ba_transport *t) {
 /**
  * Get transport PCM volume encoded as a single 16-bit value. */
 uint16_t ba_transport_pcm_get_volume_packed(const struct ba_transport_pcm *pcm) {
-	return
-		((pcm->volume[0].muted << 7) | pcm->volume[0].level) << 8 |
-		((pcm->volume[1].muted << 7) | pcm->volume[1].level);
+	uint16_t v = ((pcm->volume[0].muted << 7) | pcm->volume[0].level) << 8;
+	if (pcm->channels == 2)
+		v |= (pcm->volume[1].muted << 7) | pcm->volume[1].level;
+	return v;
 }
 
 /**

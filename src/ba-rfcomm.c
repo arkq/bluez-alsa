@@ -782,7 +782,7 @@ static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int gain = t_sco->sco.mic_pcm.volume[0].level;
+	const int gain = t_sco->sco.mic_pcm.volume[0].muted ? 0 : t_sco->sco.mic_pcm.volume[0].level;
 	const int fd = r->fd;
 	char tmp[16];
 
@@ -811,7 +811,7 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
-	const int gain = t_sco->sco.spk_pcm.volume[0].level;
+	const int gain = t_sco->sco.spk_pcm.volume[0].muted ? 0 : t_sco->sco.spk_pcm.volume[0].level;
 	const int fd = r->fd;
 	char tmp[16];
 
