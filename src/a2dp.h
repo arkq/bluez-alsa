@@ -82,6 +82,16 @@ const struct a2dp_codec *a2dp_codec_lookup(
 		uint16_t codec_id,
 		enum a2dp_dir dir);
 
+unsigned int a2dp_codec_lookup_channels(
+		const struct a2dp_codec *codec,
+		uint16_t capability_value,
+		bool backchannel);
+
+unsigned int a2dp_codec_lookup_frequency(
+		const struct a2dp_codec *codec,
+		uint16_t capability_value,
+		bool backchannel);
+
 uint16_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
 		size_t size);

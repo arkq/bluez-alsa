@@ -99,8 +99,8 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 			return "/A2DP/LDAC/Source";
 #endif
 		default:
-			warn("Unsupported A2DP codec: %#x", type.codec);
-			return "/A2DP/Source";
+			error("Unsupported A2DP codec: %#x", type.codec);
+			g_assert_not_reached();
 		}
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		switch (type.codec) {
@@ -131,8 +131,8 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 			return "/A2DP/LDAC/Sink";
 #endif
 		default:
-			warn("Unsupported A2DP codec: %#x", type.codec);
-			return "/A2DP/Sink";
+			error("Unsupported A2DP codec: %#x", type.codec);
+			g_assert_not_reached();
 		}
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		return "/HFP/HandsFree";

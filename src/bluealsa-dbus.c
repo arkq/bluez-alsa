@@ -219,9 +219,17 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv) {
 
 				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-					ba_variant_populate_pcm(&props, &t->a2dp.pcm);
-					g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm.ba_dbus_path, &props);
-					g_variant_builder_clear(&props);
+					if (t->a2dp.pcm.ba_dbus_id != 0) {
+						ba_variant_populate_pcm(&props, &t->a2dp.pcm);
+						g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm.ba_dbus_path, &props);
+						g_variant_builder_clear(&props);
+					}
+
+					if (t->a2dp.pcm_bc.ba_dbus_id != 0) {
+						ba_variant_populate_pcm(&props, &t->a2dp.pcm_bc);
+						g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm_bc.ba_dbus_path, &props);
+						g_variant_builder_clear(&props);
+					}
 
 				}
 				else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {

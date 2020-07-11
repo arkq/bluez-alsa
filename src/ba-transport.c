@@ -193,8 +193,9 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	ba_transport_set_codec(t, type.codec);
 
-	bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
-	if (codec->backchannel)
+	if (t->a2dp.pcm.channels > 0)
+		bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
+	if (t->a2dp.pcm_bc.channels > 0)
 		bluealsa_dbus_pcm_register(&t->a2dp.pcm_bc, NULL);
 
 	return t;
@@ -488,194 +489,124 @@ int ba_transport_select_codec_sco(
 	return 0;
 }
 
-static void transport_update_format(struct ba_transport *t) {
+static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		switch (t->type.codec) {
-		default:
-			t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-			break;
+	const struct a2dp_codec *codec = t->a2dp.codec;
+	const uint16_t codec_id = t->type.codec;
+
+	switch (codec_id) {
+	default:
+		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+		break;
 #if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
-			break;
+	case A2DP_CODEC_VENDOR_APTX_HD:
+		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
+		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
+		break;
 #endif
 #if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			/* LDAC library internally for encoding uses 31-bit, so
-			 * the best choice for PCM sample is signed 32-bit. */
-			t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
-			break;
+	case A2DP_CODEC_VENDOR_LDAC:
+		/* LDAC library internally for encoding uses 31-bit integers or
+		 * floats, so the best choice for PCM sample is signed 32-bit. */
+		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
+		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
+		break;
 #endif
-		}
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->sco.mic_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	}
 
-}
-
-static void transport_update_channels(struct ba_transport *t) {
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-
-		const struct a2dp_codec *codec = t->a2dp.codec;
-		uint16_t cfg_value = 0;
-		bool found = false;
-		size_t i;
-
-		switch (t->type.codec) {
-		case A2DP_CODEC_SBC:
-			cfg_value = ((a2dp_sbc_t *)t->a2dp.configuration)->channel_mode;
-			break;
+	switch (codec_id) {
+	case A2DP_CODEC_SBC:
+		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+				((a2dp_sbc_t *)t->a2dp.configuration)->channel_mode, false);
+		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+				((a2dp_sbc_t *)t->a2dp.configuration)->frequency, false);
+		break;
 #if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			cfg_value = ((a2dp_mpeg_t *)t->a2dp.configuration)->channel_mode;
-			break;
+	case A2DP_CODEC_MPEG12:
+		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+				((a2dp_mpeg_t *)t->a2dp.configuration)->channel_mode, false);
+		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+				((a2dp_mpeg_t *)t->a2dp.configuration)->frequency, false);
+		break;
 #endif
 #if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			cfg_value = ((a2dp_aac_t *)t->a2dp.configuration)->channels;
-			break;
+	case A2DP_CODEC_MPEG24:
+		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+				((a2dp_aac_t *)t->a2dp.configuration)->channels, false);
+		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+				AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.configuration), false);
+		break;
 #endif
 #if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->channel_mode;
-			break;
+	case A2DP_CODEC_VENDOR_APTX:
+		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+				((a2dp_aptx_t *)t->a2dp.configuration)->channel_mode, false);
+		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+				((a2dp_aptx_t *)t->a2dp.configuration)->frequency, false);
+		break;
 #endif
 #if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.channel_mode;
-			break;
+	case A2DP_CODEC_VENDOR_APTX_HD:
+		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+				((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.channel_mode, false);
+		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+				((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.frequency, false);
+		break;
 #endif
 #if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
+	case A2DP_CODEC_VENDOR_FASTSTREAM:
+		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC) {
 			t->a2dp.pcm.channels = 2;
+			t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+					((a2dp_faststream_t *)t->a2dp.configuration)->frequency_music, false);
+		}
+		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE) {
 			t->a2dp.pcm_bc.channels = 1;
-			break;
+			t->a2dp.pcm_bc.sampling = a2dp_codec_lookup_frequency(codec,
+					((a2dp_faststream_t *)t->a2dp.configuration)->frequency_voice, true);
+		}
+		break;
 #endif
 #if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			cfg_value = ((a2dp_ldac_t *)t->a2dp.configuration)->channel_mode;
-			break;
+	case A2DP_CODEC_VENDOR_LDAC:
+		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+				((a2dp_ldac_t *)t->a2dp.configuration)->channel_mode, false);
+		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+				((a2dp_ldac_t *)t->a2dp.configuration)->frequency, false);
+		break;
 #endif
-		default:
-			warn("Unsupported A2DP codec: %#x", t->type.codec);
-		}
-
-		for (i = 0; i < codec->channels_size[0]; i++)
-			if (cfg_value == codec->channels[0][i].value) {
-				t->a2dp.pcm.channels = codec->channels[0][i].channels;
-				found = true;
-				break;
-			}
-
-		if (!found && codec->samplings_size[0] != 0) {
-			debug("Invalid channel mode configuration: %#x", cfg_value);
-			t->a2dp.pcm.channels = 0;
-		}
-
-	}
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		t->sco.spk_pcm.channels = 1;
-		t->sco.mic_pcm.channels = 1;
+	default:
+		error("Unsupported A2DP codec: %#x", codec_id);
+		g_assert_not_reached();
 	}
 
 }
 
-static void transport_update_sampling(struct ba_transport *t) {
+static void ba_transport_set_codec_sco(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->sco.spk_pcm.channels = 1;
 
-		const struct a2dp_codec *codec = t->a2dp.codec;
-		uint16_t cfg_value = 0, cfg_value_bc = 0;
-		bool found = false, found_bc = false;
-		size_t i;
+	t->sco.mic_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->sco.mic_pcm.channels = 1;
 
-		switch (t->type.codec) {
-		case A2DP_CODEC_SBC:
-			cfg_value = ((a2dp_sbc_t *)t->a2dp.configuration)->frequency;
-			break;
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			cfg_value = ((a2dp_mpeg_t *)t->a2dp.configuration)->frequency;
-			break;
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			cfg_value = AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.configuration);
-			break;
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->frequency;
-			break;
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.frequency;
-			break;
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			cfg_value = ((a2dp_faststream_t *)t->a2dp.configuration)->frequency_music;
-			cfg_value_bc = ((a2dp_faststream_t *)t->a2dp.configuration)->frequency_voice;
-			break;
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			cfg_value = ((a2dp_ldac_t *)t->a2dp.configuration)->frequency;
-			break;
-#endif
-		default:
-			warn("Unsupported A2DP codec: %#x", t->type.codec);
-		}
-
-		for (i = 0; i < codec->samplings_size[0]; i++)
-			if (cfg_value == codec->samplings[0][i].value) {
-				t->a2dp.pcm.sampling = codec->samplings[0][i].frequency;
-				found = true;
-				break;
-			}
-
-		for (i = 0; i < codec->samplings_size[1]; i++)
-			if (cfg_value_bc == codec->samplings[1][i].value) {
-				t->a2dp.pcm_bc.sampling = codec->samplings[1][i].frequency;
-				found_bc = true;
-				break;
-			}
-
-		if (!found && codec->samplings_size[0] != 0) {
-			debug("Invalid sampling frequency configuration: %#x", cfg_value);
-			t->a2dp.pcm.sampling = 0;
-		}
-
-		if (!found_bc && codec->samplings_size[1] != 0) {
-			debug("Invalid back-channel sampling frequency configuration: %#x", cfg_value_bc);
-			t->a2dp.pcm_bc.sampling = 0;
-		}
-
+	switch (t->type.codec) {
+	case HFP_CODEC_CVSD:
+		t->sco.spk_pcm.sampling = 8000;
+		t->sco.mic_pcm.sampling = 8000;
+		return;
+	case HFP_CODEC_MSBC:
+		t->sco.spk_pcm.sampling = 16000;
+		t->sco.mic_pcm.sampling = 16000;
+		return;
+	default:
+		debug("Unsupported SCO codec: %#x", t->type.codec);
+		/* fall-through */
+	case HFP_CODEC_UNDEFINED:
+		t->sco.spk_pcm.sampling = 0;
+		t->sco.mic_pcm.sampling = 0;
 	}
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		switch (t->type.codec) {
-		case HFP_CODEC_CVSD:
-			t->sco.spk_pcm.sampling = 8000;
-			t->sco.mic_pcm.sampling = 8000;
-			return;
-		case HFP_CODEC_MSBC:
-			t->sco.spk_pcm.sampling = 16000;
-			t->sco.mic_pcm.sampling = 16000;
-			return;
-		default:
-			debug("Unsupported SCO codec: %#x", t->type.codec);
-			/* fall-through */
-		case HFP_CODEC_UNDEFINED:
-			t->sco.spk_pcm.sampling = 0;
-			t->sco.mic_pcm.sampling = 0;
-		}
 
 }
 
@@ -685,9 +616,11 @@ void ba_transport_set_codec(
 
 	t->type.codec = codec_id;
 
-	transport_update_format(t);
-	transport_update_channels(t);
-	transport_update_sampling(t);
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		ba_transport_set_codec_a2dp(t);
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		ba_transport_set_codec_sco(t);
 
 }
 

@@ -513,6 +513,52 @@ const struct a2dp_codec *a2dp_codec_lookup(uint16_t codec_id, enum a2dp_dir dir)
 }
 
 /**
+ * Lookup number of channels for given capability value.
+ *
+ * @param codec A2DP codec setup.
+ * @param capability_value A2DP codec channel mode configuration value.
+ * @param backchannel If true, lookup in the back-channel configuration.
+ * @return On success this function returns the number of channels. Otherwise,
+ *   if given capability value is not supported (or invalid), 0 is returned. */
+unsigned int a2dp_codec_lookup_channels(
+		const struct a2dp_codec *codec,
+		uint16_t capability_value,
+		bool backchannel) {
+
+	const size_t slot = backchannel ? 1 : 0;
+	size_t i;
+
+	for (i = 0; i < codec->channels_size[slot]; i++)
+		if (capability_value == codec->channels[slot][i].value)
+			return codec->channels[slot][i].channels;
+
+	return 0;
+}
+
+/**
+ * Lookup sampling frequency for given capability value.
+ *
+ * @param codec A2DP codec setup.
+ * @param capability_value A2DP codec sampling configuration value.
+ * @param backchannel If true, lookup in the back-channel configuration.
+ * @return On success this function returns the sampling frequency. Otherwise,
+ *   if given capability value is not supported (or invalid), 0 is returned. */
+unsigned int a2dp_codec_lookup_frequency(
+		const struct a2dp_codec *codec,
+		uint16_t capability_value,
+		bool backchannel) {
+
+	const size_t slot = backchannel ? 1 : 0;
+	size_t i;
+
+	for (i = 0; i < codec->samplings_size[slot]; i++)
+		if (capability_value == codec->samplings[slot][i].value)
+			return codec->samplings[slot][i].frequency;
+
+	return 0;
+}
+
+/**
  * Get A2DP 16-bit vendor codec ID - BlueALSA extension.
  *
  * @param capabilities A2DP vendor codec capabilities.
