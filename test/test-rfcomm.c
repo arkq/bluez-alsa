@@ -57,7 +57,7 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); }
 int a2dp_audio_thread_create(struct ba_transport *t) { (void)t; return -1; }
-void *sco_thread(struct ba_transport *t) { return sleep(3600), t; }
+void *sco_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
 	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;

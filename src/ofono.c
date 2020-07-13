@@ -406,7 +406,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 	bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
-	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
+	ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PING);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

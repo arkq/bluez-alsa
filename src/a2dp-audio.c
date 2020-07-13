@@ -275,8 +275,9 @@ static ssize_t a2dp_poll_and_read_pcm(struct ba_transport_pcm *pcm,
 		struct io_thread_data *io, ffb_t *buffer) {
 
 	struct ba_transport *t = pcm->t;
+	struct ba_transport_thread *th = &t->thread;
 	struct pollfd fds[2] = {
-		{ t->sig_fd[0], POLLIN, 0 },
+		{ th->pipe[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
 
 	/* Allow escaping from the poll() by thread cancellation. */
@@ -292,10 +293,10 @@ repoll:
 	case 0:
 		pthread_cond_signal(&pcm->synced);
 		io->timeout = -1;
-		io->t_locked = !ba_transport_pthread_cleanup_lock(t);
+		io->t_locked = !ba_transport_thread_cleanup_lock(th);
 		if (pcm->fd == -1)
 			return 0;
-		ba_transport_pthread_cleanup_unlock(t);
+		ba_transport_thread_cleanup_unlock(th);
 		io->t_locked = false;
 		goto repoll;
 	case -1:
@@ -306,7 +307,7 @@ repoll:
 
 	if (fds[0].revents & POLLIN) {
 		/* dispatch incoming event */
-		switch (ba_transport_recv_signal(t)) {
+		switch (ba_transport_thread_recv_signal(th)) {
 		case BA_TRANSPORT_SIGNAL_PCM_OPEN:
 		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
 			io->t_paused = false;
@@ -387,8 +388,9 @@ static int a2dp_validate_bt_sink(struct ba_transport *t) {
 static ssize_t a2dp_poll_and_read_bt(struct ba_transport *t,
 		struct io_thread_data *io, ffb_t *buffer) {
 
+	struct ba_transport_thread *th = &t->thread;
 	struct pollfd fds[2] = {
-		{ t->sig_fd[0], POLLIN, 0 },
+		{ th->pipe[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
 
 	/* Allow escaping from the poll() by thread cancellation. */
@@ -408,7 +410,7 @@ repoll:
 
 	if (fds[0].revents & POLLIN) {
 		/* dispatch incoming event */
-		switch (ba_transport_recv_signal(t)) {
+		switch (ba_transport_thread_recv_signal(th)) {
 		case BA_TRANSPORT_SIGNAL_PCM_OPEN:
 		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
 			io->t_paused = false;
@@ -495,19 +497,20 @@ static void *a2dp_validate_rtp(const rtp_header_t *hdr, struct io_thread_data *i
 	return (void *)&hdr->csrc[hdr->cc];
 }
 
-static void *a2dp_sink_sbc(struct ba_transport *t) {
+static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.rtp_seq_number = -1,
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
 		 * known - initialization has failed or succeeded. */
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	if (a2dp_validate_bt_sink(t) != 0)
@@ -535,13 +538,13 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 
 	/* Lock transport during thread cancellation. This handler shall be at
 	 * the top of the cleanup stack - lastly pushed. */
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 #if DEBUG
 	uint16_t sbc_bitpool = 0;
 #endif
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -609,17 +612,18 @@ fail_init:
 	return NULL;
 }
 
-static void *a2dp_source_sbc(struct ba_transport *t) {
+static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.timeout = -1,
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
 		 * known - initialization has failed or succeeded. */
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	sbc_t sbc;
@@ -664,7 +668,7 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -675,7 +679,7 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -767,14 +771,15 @@ fail_init:
 }
 
 #if ENABLE_MP3LAME || ENABLE_MPG123
-static void *a2dp_sink_mpeg(struct ba_transport *t) {
+static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.rtp_seq_number = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	if (a2dp_validate_bt_sink(t) != 0)
@@ -831,9 +836,9 @@ static void *a2dp_sink_mpeg(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -938,14 +943,15 @@ fail_init:
 #endif
 
 #if ENABLE_MP3LAME
-static void *a2dp_source_mp3(struct ba_transport *t) {
+static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.timeout = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	lame_t handle;
@@ -1045,7 +1051,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	rtp_header_t *rtp_header;
 	rtp_mpeg_audio_header_t *rtp_mpeg_audio_header;
@@ -1056,7 +1062,7 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1158,14 +1164,15 @@ fail_init:
 #endif
 
 #if ENABLE_AAC
-static void *a2dp_sink_aac(struct ba_transport *t) {
+static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.rtp_seq_number = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	if (a2dp_validate_bt_sink(t) != 0)
@@ -1212,11 +1219,11 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	int markbit_quirk = -3;
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1305,14 +1312,15 @@ fail_open:
 #endif
 
 #if ENABLE_AAC
-static void *a2dp_source_aac(struct ba_transport *t) {
+static void *a2dp_source_aac(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.timeout = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	HANDLE_AACENCODER handle;
@@ -1415,7 +1423,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	rtp_header_t *rtp_header;
 
@@ -1448,7 +1456,7 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	AACENC_InArgs in_args = { 0 };
 	AACENC_OutArgs out_args = { 0 };
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1545,14 +1553,15 @@ fail_open:
 #endif
 
 #if ENABLE_APTX
-static void *a2dp_source_aptx(struct ba_transport *t) {
+static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.timeout = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	APTXENC handle = malloc(SizeofAptxbtenc());
@@ -1579,9 +1588,9 @@ static void *a2dp_source_aptx(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1668,14 +1677,15 @@ fail_init:
 #endif
 
 #if ENABLE_APTX_HD
-static void *a2dp_source_aptx_hd(struct ba_transport *t) {
+static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.timeout = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	APTXENC handle = malloc(SizeofAptxhdbtenc());
@@ -1703,7 +1713,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	rtp_header_t *rtp_header;
 
@@ -1712,7 +1722,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1814,14 +1824,15 @@ fail_init:
 #endif
 
 #if ENABLE_LDAC && HAVE_LDAC_DECODE
-static void *a2dp_sink_ldac(struct ba_transport *t) {
+static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.rtp_seq_number = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	if (a2dp_validate_bt_sink(t) != 0)
@@ -1856,9 +1867,9 @@ static void *a2dp_sink_ldac(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -1921,14 +1932,15 @@ fail_open:
 #endif
 
 #if ENABLE_LDAC
-static void *a2dp_source_ldac(struct ba_transport *t) {
+static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
 		.timeout = -1,
-		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
 	HANDLE_LDAC_BT handle;
@@ -1979,7 +1991,7 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 		goto fail_ffb;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -1991,7 +2003,7 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 	size_t ts_frames = 0;
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	io.t_locked = false;
 
 	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
@@ -2081,11 +2093,12 @@ fail_open_ldac:
 
 /**
  * Dump incoming BT data to a file. */
-static void *a2dp_sink_dump(struct ba_transport *t) {
+static void *a2dp_sink_dump(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
+	struct ba_transport *t = th->t;
 	struct io_thread_data io = { 0 };
 	ffb_t bt = { 0 };
 	FILE *f = NULL;
@@ -2136,56 +2149,58 @@ fail_open:
 
 int a2dp_audio_thread_create(struct ba_transport *t) {
 
+	struct ba_transport_thread *th = &t->thread;
+
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			return ba_transport_pthread_create(t, a2dp_source_sbc, "ba-a2dp-sbc");
+			return ba_transport_thread_create(th, a2dp_source_sbc, "ba-a2dp-sbc");
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 #if ENABLE_MP3LAME
 			if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
-				return ba_transport_pthread_create(t, a2dp_source_mp3, "ba-a2dp-mp3");
+				return ba_transport_thread_create(th, a2dp_source_mp3, "ba-a2dp-mp3");
 #endif
 			break;
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return ba_transport_pthread_create(t, a2dp_source_aac, "ba-a2dp-aac");
+			return ba_transport_thread_create(th, a2dp_source_aac, "ba-a2dp-aac");
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return ba_transport_pthread_create(t, a2dp_source_aptx, "ba-a2dp-aptx");
+			return ba_transport_thread_create(th, a2dp_source_aptx, "ba-a2dp-aptx");
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return ba_transport_pthread_create(t, a2dp_source_aptx_hd, "ba-a2dp-aptx-hd");
+			return ba_transport_thread_create(th, a2dp_source_aptx_hd, "ba-a2dp-aptx-hd");
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
-			return ba_transport_pthread_create(t, a2dp_source_ldac, "ba-a2dp-ldac");
+			return ba_transport_thread_create(th, a2dp_source_ldac, "ba-a2dp-ldac");
 #endif
 		}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			return ba_transport_pthread_create(t, a2dp_sink_sbc, "ba-a2dp-sbc");
+			return ba_transport_thread_create(th, a2dp_sink_sbc, "ba-a2dp-sbc");
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 #if ENABLE_MPG123
-			return ba_transport_pthread_create(t, a2dp_sink_mpeg, "ba-a2dp-mpeg");
+			return ba_transport_thread_create(th, a2dp_sink_mpeg, "ba-a2dp-mpeg");
 #elif ENABLE_MP3LAME
 			if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
-				return ba_transport_pthread_create(t, a2dp_sink_mpeg, "ba-a2dp-mp3");
+				return ba_transport_thread_create(th, a2dp_sink_mpeg, "ba-a2dp-mp3");
 #endif
 			break;
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return ba_transport_pthread_create(t, a2dp_sink_aac, "ba-a2dp-aac");
+			return ba_transport_thread_create(th, a2dp_sink_aac, "ba-a2dp-aac");
 #endif
 #if ENABLE_LDAC && HAVE_LDAC_DECODE
 		case A2DP_CODEC_VENDOR_LDAC:
-			return ba_transport_pthread_create(t, a2dp_sink_ldac, "ba-a2dp-ldac");
+			return ba_transport_thread_create(th, a2dp_sink_ldac, "ba-a2dp-ldac");
 #endif
 		}
 

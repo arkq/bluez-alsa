@@ -327,7 +327,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		return TRUE;
 	case G_IO_STATUS_EOF:
 		ba_transport_pcm_release(pcm);
-		ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
+		ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 		/* remove channel from watch */
 		return FALSE;
 	}
@@ -340,6 +340,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
+	struct ba_transport_thread *th = &pcm->t->thread;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
 	bool locked = false;
@@ -356,7 +357,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	/* We must ensure that transport release is not in progress before
 	 * accessing transport critical section. Otherwise, we might have
 	 * the IO thread close it in the middle of open procedure! */
-	ba_transport_pthread_cleanup_lock(t);
+	ba_transport_thread_cleanup_lock(th);
 	locked = true;
 
 	if (pcm->fd != -1) {
@@ -404,10 +405,10 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	g_io_channel_set_encoding(ch, NULL, NULL);
 	g_io_channel_unref(ch);
 
-	/* notify our IO thread that the FIFO is ready */
-	ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_OPEN);
+	/* notify our audio thread that the FIFO is ready */
+	ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_OPEN);
 
-	ba_transport_pthread_cleanup_unlock(t);
+	ba_transport_thread_cleanup_unlock(th);
 	ba_transport_pcm_unref(pcm);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
@@ -420,7 +421,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 
 fail:
 	if (locked)
-		ba_transport_pthread_cleanup_unlock(t);
+		ba_transport_thread_cleanup_unlock(th);
 	ba_transport_pcm_unref(pcm);
 	/* clean up created file descriptors */
 	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)

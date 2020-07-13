@@ -131,7 +131,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 		fd = -1;
 
-		ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PING);
+		ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PING);
 
 cleanup:
 		if (d != NULL)
@@ -202,10 +202,10 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 	return 0;
 }
 
-void *sco_thread(struct ba_transport *t) {
+void *sco_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	/* buffers for transferring data to and from SCO socket */
 	ffb_t bt_in = { 0 };
@@ -227,9 +227,10 @@ void *sco_thread(struct ba_transport *t) {
 	}
 
 	int poll_timeout = -1;
+	struct ba_transport *t = th->t;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
-		{ t->sig_fd[0], POLLIN, 0 },
+		{ th->pipe[0], POLLIN, 0 },
 		/* SCO socket */
 		{ -1, POLLIN, 0 },
 		{ -1, POLLOUT, 0 },
@@ -311,7 +312,7 @@ void *sco_thread(struct ba_transport *t) {
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			switch (ba_transport_recv_signal(t)) {
+			switch (ba_transport_thread_recv_signal(th)) {
 			case BA_TRANSPORT_SIGNAL_PING:
 				continue;
 			case BA_TRANSPORT_SIGNAL_PCM_OPEN:
@@ -486,7 +487,7 @@ retry_sco_write:
 				if (samples == -1 && errno != EAGAIN)
 					error("PCM read error: %s", strerror(errno));
 				if (samples == 0)
-					ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
+					ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 				continue;
 			}
 
@@ -506,7 +507,7 @@ retry_sco_write:
 		else if (pfds[3].revents & (POLLERR | POLLHUP)) {
 			debug("PCM poll error status: %#x", pfds[3].revents);
 			ba_transport_pcm_release(&t->sco.spk_pcm);
-			ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
+			ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 		}
 
 		if (pfds[4].revents & POLLOUT) {
@@ -533,7 +534,7 @@ retry_sco_write:
 				if (samples == -1)
 					error("FIFO write error: %s", strerror(errno));
 				if (samples == 0)
-					ba_transport_send_signal(t, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
+					ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 			}
 
 			switch (codec) {

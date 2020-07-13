@@ -1,6 +1,6 @@
 /*
  * BlueALSA - sco.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -19,6 +19,6 @@
 #include "ba-transport.h"
 
 int sco_setup_connection_dispatcher(struct ba_adapter *a);
-void *sco_thread(struct ba_transport *t);
+void *sco_thread(struct ba_transport_thread *th);
 
 #endif
