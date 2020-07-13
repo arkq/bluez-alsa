@@ -290,7 +290,6 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	(void)condition;
 
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
-	struct ba_transport *t = pcm->t;
 	char command[32];
 	size_t len;
 
@@ -327,7 +326,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		return TRUE;
 	case G_IO_STATUS_EOF:
 		ba_transport_pcm_release(pcm);
-		ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
+		ba_transport_thread_send_signal(pcm->th, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
 		/* remove channel from watch */
 		return FALSE;
 	}
@@ -340,7 +339,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
-	struct ba_transport_thread *th = &pcm->t->thread;
+	struct ba_transport_thread *th = pcm->th;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
 	bool locked = false;

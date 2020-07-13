@@ -66,10 +66,13 @@ static const char *transport_get_dbus_path_type(
 
 static int transport_pcm_init(
 		struct ba_transport_pcm *pcm,
-		struct ba_transport *t,
+		struct ba_transport_thread *th,
 		enum ba_transport_pcm_mode mode) {
 
+	struct ba_transport *t = th->t;
+
 	pcm->t = t;
+	pcm->th = th;
 	pcm->mode = mode;
 	pcm->fd = -1;
 
@@ -104,6 +107,8 @@ static int transport_thread_init(
 	th->id = config.main_thread;
 	th->pipe[0] = -1;
 	th->pipe[1] = -1;
+
+	pthread_mutex_init(&th->mutex, NULL);
 
 	if (pipe(th->pipe) == -1)
 		return -1;
@@ -140,6 +145,7 @@ static void transport_thread_free(
 		close(th->pipe[0]);
 	if (th->pipe[1] != -1)
 		close(th->pipe[1]);
+	pthread_mutex_destroy(&th->mutex);
 }
 
 /**
@@ -170,7 +176,10 @@ static struct ba_transport *transport_new(
 
 	t->bt_fd = -1;
 
-	if (transport_thread_init(&t->thread, t) != 0)
+	err = 0;
+	err |= transport_thread_init(&t->thread, t);
+	err |= transport_thread_init(&t->thread_bc, t);
+	if (err != 0)
 		goto fail;
 
 	if ((t->bluez_dbus_owner = strdup(dbus_owner)) == NULL)
@@ -220,12 +229,12 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->a2dp.configuration = g_memdup(configuration, codec->capabilities_size);
 	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 
-	transport_pcm_init(&t->a2dp.pcm, t, is_sink ?
+	transport_pcm_init(&t->a2dp.pcm, &t->thread, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm.max_bt_volume = 127;
 
-	transport_pcm_init(&t->a2dp.pcm_bc, t, is_sink ?
+	transport_pcm_init(&t->a2dp.pcm_bc, &t->thread_bc, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm_bc.max_bt_volume = 127;
@@ -271,10 +280,10 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->type = type;
 
-	transport_pcm_init(&t->sco.spk_pcm, t, BA_TRANSPORT_PCM_MODE_SINK);
+	transport_pcm_init(&t->sco.spk_pcm, &t->thread, BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.spk_pcm.max_bt_volume = 15;
 
-	transport_pcm_init(&t->sco.mic_pcm, t, BA_TRANSPORT_PCM_MODE_SOURCE);
+	transport_pcm_init(&t->sco.mic_pcm, &t->thread, BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->sco.mic_pcm.max_bt_volume = 15;
 
 	t->acquire = transport_acquire_bt_sco;
@@ -342,10 +351,11 @@ void ba_transport_destroy(struct ba_transport *t) {
 	}
 
 	/* If the transport is active, prior to releasing resources, we have to
-	 * terminate the IO thread (or at least make sure it is not running any
-	 * more). Not doing so might result in an undefined behavior or even a
-	 * race condition (closed and reused file descriptor). */
+	 * terminate the IO threads (or at least make sure they are not running
+	 * any more). Not doing so might result in an undefined behavior or even
+	 * a race condition (closed and reused file descriptor). */
 	transport_thread_cancel(&t->thread);
+	transport_thread_cancel(&t->thread_bc);
 
 	/* terminate on-going PCM connections - exit PCM controllers */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
@@ -399,6 +409,7 @@ void ba_transport_unref(struct ba_transport *t) {
 	}
 
 	transport_thread_free(&t->thread);
+	transport_thread_free(&t->thread_bc);
 
 	pthread_mutex_destroy(&t->mutex);
 	free(t->bluez_dbus_owner);
@@ -626,7 +637,8 @@ void ba_transport_set_codec(
 
 int ba_transport_start(struct ba_transport *t) {
 
-	if (!pthread_equal(t->thread.id, config.main_thread))
+	if (!pthread_equal(t->thread.id, config.main_thread) ||
+			!pthread_equal(t->thread_bc.id, config.main_thread))
 		return 0;
 
 	debug("Starting transport: %s", ba_transport_type_to_string(t->type));
@@ -642,6 +654,7 @@ int ba_transport_start(struct ba_transport *t) {
 
 int ba_transport_stop(struct ba_transport *t) {
 	transport_thread_cancel(&t->thread);
+	transport_thread_cancel(&t->thread_bc);
 	return 0;
 }
 
@@ -728,27 +741,25 @@ final:
 }
 
 int ba_transport_pcm_pause(struct ba_transport_pcm *pcm) {
-	ba_transport_thread_send_signal(&pcm->t->thread, BA_TRANSPORT_SIGNAL_PCM_PAUSE);
+	ba_transport_thread_send_signal(pcm->th, BA_TRANSPORT_SIGNAL_PCM_PAUSE);
 	debug("PCM paused: %d", pcm->fd);
 	return 0;
 }
 
 int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
-	ba_transport_thread_send_signal(&pcm->t->thread, BA_TRANSPORT_SIGNAL_PCM_RESUME);
+	ba_transport_thread_send_signal(pcm->th, BA_TRANSPORT_SIGNAL_PCM_RESUME);
 	debug("PCM resumed: %d", pcm->fd);
 	return 0;
 }
 
 int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 
-	struct ba_transport *t = pcm->t;
-
-	if (pthread_equal(t->thread.id, config.main_thread))
+	if (pthread_equal(pcm->th->id, config.main_thread))
 		return errno = ESRCH, -1;
 
 	pthread_mutex_lock(&pcm->synced_mtx);
 
-	ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PCM_SYNC);
+	ba_transport_thread_send_signal(pcm->th, BA_TRANSPORT_SIGNAL_PCM_SYNC);
 	pthread_cond_wait(&pcm->synced, &pcm->synced_mtx);
 
 	pthread_mutex_unlock(&pcm->synced_mtx);
@@ -1034,16 +1045,14 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 }
 
 int ba_transport_thread_cleanup_lock(struct ba_transport_thread *th) {
-	struct ba_transport *t = th->t;
-	int ret = pthread_mutex_lock(&t->mutex);
-	t->cleanup_lock = true;
+	int ret = pthread_mutex_lock(&th->mutex);
+	th->cleanup_lock = true;
 	return ret;
 }
 
 int ba_transport_thread_cleanup_unlock(struct ba_transport_thread *th) {
-	struct ba_transport *t = th->t;
-	if (!t->cleanup_lock)
+	if (!th->cleanup_lock)
 		return 0;
-	t->cleanup_lock = false;
-	return pthread_mutex_unlock(&t->mutex);
+	th->cleanup_lock = false;
+	return pthread_mutex_unlock(&th->mutex);
 }

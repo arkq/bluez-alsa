@@ -131,7 +131,8 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 		fd = -1;
 
-		ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PING);
+		ba_transport_thread_send_signal(t->sco.spk_pcm.th, BA_TRANSPORT_SIGNAL_PING);
+		ba_transport_thread_send_signal(t->sco.mic_pcm.th, BA_TRANSPORT_SIGNAL_PING);
 
 cleanup:
 		if (d != NULL)

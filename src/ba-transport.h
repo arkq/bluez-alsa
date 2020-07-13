@@ -93,6 +93,8 @@ struct ba_transport_pcm {
 
 	/* backward reference to transport */
 	struct ba_transport *t;
+	/* associated transport thread */
+	struct ba_transport_thread *th;
 
 	/* PCM stream operation mode */
 	enum ba_transport_pcm_mode mode;
@@ -139,10 +141,14 @@ struct ba_transport_pcm {
 struct ba_transport_thread {
 	/* backward reference to transport */
 	struct ba_transport *t;
+	/* guard PCM running on this thread */
+	pthread_mutex_t mutex;
 	/* actual thread ID */
 	pthread_t id;
 	/* notification PIPE */
 	int pipe[2];
+	/* indicates cleanup lock */
+	bool cleanup_lock;
 };
 
 struct ba_transport {
@@ -174,6 +180,8 @@ struct ba_transport {
 
 	/* main thread for audio processing */
 	struct ba_transport_thread thread;
+	/* thread for back-channel processing */
+	struct ba_transport_thread thread_bc;
 
 	union {
 
@@ -220,9 +228,6 @@ struct ba_transport {
 		} sco;
 
 	};
-
-	/* indicates cleanup lock */
-	bool cleanup_lock;
 
 	/* callback functions for self-management */
 	int (*acquire)(struct ba_transport *);
