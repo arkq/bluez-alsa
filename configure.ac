@@ -50,8 +50,12 @@ AM_CONDITIONAL([WITH_LIBUNWIND], [test "x$with_libunwind" = "xyes"])
 AM_COND_IF([WITH_LIBUNWIND], [
 	PKG_CHECK_MODULES([LIBUNWIND], [libunwind >= 1.1])
 	AC_DEFINE([ENABLE_LIBUNWIND], [1], [Define to 1 if libunwind shall be used.])
+], [
+	AC_CHECK_HEADERS([execinfo.h])
 ])
 
+AC_CHECK_FUNCS([eventfd],
+	[], [AC_MSG_ERROR([unable to find eventfd() function])])
 AC_CHECK_FUNCS([splice],
 	[], [AC_MSG_ERROR([unable to find splice() function])])
 AC_SEARCH_LIBS([clock_gettime], [rt],

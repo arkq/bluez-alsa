@@ -10,7 +10,6 @@
 
 #include "shared/log.h"
 
-#include <execinfo.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -23,6 +22,8 @@
 #if ENABLE_LIBUNWIND
 # define UNW_LOCAL_ONLY
 # include <libunwind.h>
+#elif HAVE_EXECINFO_H
+# include <execinfo.h>
 #endif
 
 #include "shared/defs.h"
@@ -129,7 +130,7 @@ void _debug(const char *format, ...) {
  * Dump current thread's call stack. */
 void callstackdump(const char *label) {
 
-	char buffer[1024 * 2];
+	char buffer[1024 * 2] = "Call stack backtrace not supported";
 	char *ptr = buffer;
 
 #if ENABLE_LIBUNWIND
@@ -151,7 +152,7 @@ void callstackdump(const char *label) {
 
 	ptr[-3] = '\0';
 
-#else
+#elif HAVE_EXECINFO_H
 
 	void *frames[32];
 	size_t n = backtrace(frames, ARRAYSIZE(frames));
