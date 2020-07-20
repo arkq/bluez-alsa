@@ -12,12 +12,20 @@
 # include <config.h>
 #endif
 
+#include <assert.h>
+#include <errno.h>
 #include <getopt.h>
 #include <libgen.h>
-#include <spawn.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
 
 #include <check.h>
 #include <alsa/asoundlib.h>
@@ -25,11 +33,19 @@
 #include "inc/preload.inc"
 #include "inc/server.inc"
 #include "inc/sine.inc"
+#include "../src/shared/defs.h"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
+#include "../src/shared/rt.c"
 
-#define buffer_test_frames 1024
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
+
+static const char *pcm_device = NULL;
+static unsigned int pcm_channels = 2;
+static unsigned int pcm_sampling = 44100;
+static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
+/* big enough buffer to keep one period of data */
+static int16_t buffer[1024 * 8];
 
 static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *service, snd_pcm_stream_t stream, int mode) {
 
@@ -75,34 +91,44 @@ static int set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int channels,
 
 	if ((err = snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED)) != 0) {
 		error("snd_pcm_hw_params_set_access: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_format(pcm, params, format)) != 0) {
 		error("snd_pcm_hw_params_set_format: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_channels(pcm, params, channels)) != 0) {
 		error("snd_pcm_hw_params_set_channels: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params_set_rate(pcm, params, rate, 0)) != 0) {
 		error("snd_pcm_hw_params_set_rate: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
+	dir = 0;
 	if ((err = snd_pcm_hw_params_set_buffer_time_near(pcm, params, buffer_time, &dir)) != 0) {
 		error("snd_pcm_hw_params_set_buffer_time_near: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
+	dir = 0;
 	if ((err = snd_pcm_hw_params_set_period_time_near(pcm, params, period_time, &dir)) != 0) {
 		error("snd_pcm_hw_params_set_period_time_near: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 	if ((err = snd_pcm_hw_params(pcm, params)) != 0) {
 		error("snd_pcm_hw_params: %s", snd_strerror(err));
-		return err;
+		goto fail;
 	}
 
+	debug("Selected PCM parameters: buffer time: %u us, period time: %u us",
+			*buffer_time, *period_time);
 	return 0;
+
+fail:
+	if (pcm_device != NULL)
+		error("List available HW parameters with: aplay -D %s --dump-hw-params /dev/zero",
+				pcm_device);
+	return err;
 }
 
 static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_uframes_t period_size) {
@@ -127,10 +153,246 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 	return 0;
 }
 
-START_TEST(test_playback_hw_constraints) {
+static int test_pcm_open(pid_t *pid, snd_pcm_t **pcm, snd_pcm_stream_t stream) {
 
-	const char *service = "org.bluealsa";
-	pid_t pid = spawn_bluealsa_server(service, 1, false, true, false);
+	if (pcm_device != NULL)
+		return snd_pcm_open(pcm, pcm_device, stream, 0);
+
+	const char *service = "org.bluealsa.test";
+	if ((*pid = spawn_bluealsa_server(service, 1, false,
+					stream == SND_PCM_STREAM_PLAYBACK,
+					stream == SND_PCM_STREAM_CAPTURE)) == -1)
+		return -1;
+	return snd_pcm_open_bluealsa(pcm, service, stream, 0);
+}
+
+static int test_pcm_close(pid_t pid, snd_pcm_t *pcm) {
+	int rv = snd_pcm_close(pcm);
+	if (pid != -1)
+		waitpid(pid, NULL, 0);
+	return rv;
+}
+
+static int16_t *test_sine_s16le(snd_pcm_uframes_t size) {
+	static size_t x = 0;
+	assert(ARRAYSIZE(buffer) >= size * pcm_channels);
+	x = snd_pcm_sine_s16le(buffer, size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
+	return buffer;
+}
+
+static snd_pcm_state_t snd_pcm_state_runtime(snd_pcm_t *pcm) {
+	snd_pcm_status_t *status;
+	snd_pcm_status_alloca(&status);
+	int rv;
+	if ((rv = snd_pcm_status(pcm, status)) != 0)
+		return rv;
+	return snd_pcm_status_get_state(status);
+}
+
+START_TEST(dump_capture) {
+
+	snd_output_t *output;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+
+	ck_assert_int_eq(snd_output_stdio_attach(&output, stdout, 0), 0);
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+
+	ck_assert_int_eq(snd_pcm_dump(pcm, output), 0);
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_capture_start) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	snd_pcm_sframes_t delay;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	/* check capture PCM initial state - not running */
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_PREPARED);
+	ck_assert_int_eq(snd_pcm_avail(pcm), 0);
+	/* if PCM is not started there should be no delay */
+	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+	ck_assert_int_eq(delay, 0);
+
+	/* start capture PCM without reading data */
+	ck_assert_int_eq(snd_pcm_start(pcm), 0);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
+
+	/* wait two and a half period time just to make sure that
+	 * at least two periods of frames should be available */
+	usleep(5 * period_time / 2);
+
+	/* verify the amount of accumulated data */
+	ck_assert_int_ge(snd_pcm_avail(pcm), 2 * period_size);
+	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+	ck_assert_int_ge(delay, 2 * period_size);
+
+	/* read few periods from capture PCM */
+	for (i = 0; i < buffer_size / period_size; i++)
+		ck_assert_int_eq(snd_pcm_readi(pcm, buffer, period_size), period_size);
+
+	/* after reading there should be no more than one period of data */
+	ck_assert_int_le(snd_pcm_avail(pcm), period_size);
+	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+	ck_assert_int_le(delay, period_size);
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_capture_pause) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+	ck_assert_int_eq(snd_pcm_start(pcm), 0);
+
+	/* wait one and a half period time just to make sure that
+	 * at least one period of frames should be available */
+	usleep(3 * period_time / 2);
+
+	snd_pcm_hw_params_t *params;
+	snd_pcm_hw_params_alloca(&params);
+	ck_assert_int_eq(snd_pcm_hw_params_current(pcm, params), 0);
+
+	if (!snd_pcm_hw_params_can_pause(params))
+		warn("PCM capture pause test: %s", "PCM can not pause");
+	else {
+
+		/* pause capture  */
+		ck_assert_int_eq(snd_pcm_pause(pcm, 1), 0);
+		ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_PAUSED);
+
+		/* record PCM parameters just after pausing */
+		snd_pcm_sframes_t delay0, delay;
+		snd_pcm_uframes_t frames0 = snd_pcm_avail(pcm);
+		ck_assert_int_eq(snd_pcm_delay(pcm, &delay0), 0);
+
+		/* wait some time */
+		usleep(buffer_time);
+
+		/* during pause PCM parameters shall not be modified */
+		ck_assert_int_eq(snd_pcm_avail(pcm), frames0);
+		ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+		ck_assert_int_eq(delay, delay0);
+
+		/* resume capture */
+		ck_assert_int_eq(snd_pcm_pause(pcm, 0), 0);
+		ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
+
+		/* wait a little bit */
+		usleep(period_time);
+
+		/* check resume: more available frames, bigger delay */
+		ck_assert_int_gt(snd_pcm_avail(pcm), frames0);
+		ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+		ck_assert_int_gt(delay, delay0);
+
+	}
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_capture_overrun) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+	ck_assert_int_eq(snd_pcm_start(pcm), 0);
+
+	/* check that PCM is running and we can read from it */
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
+	ck_assert_int_eq(snd_pcm_readi(pcm, buffer, period_size), period_size);
+
+	/* allow overrun to occur */
+	usleep(buffer_time + period_time);
+
+	/* check whether ALSA reports overrun */
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_XRUN);
+	ck_assert_int_eq(snd_pcm_avail(pcm), -EPIPE);
+
+	/* recover from overrun */
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_PREPARED);
+
+	/* start capture PCM */
+	ck_assert_int_eq(snd_pcm_start(pcm), 0);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
+
+	/* make sure that PCM is indeed readable */
+	for (i = 0; i < buffer_size / period_size; i++)
+		ck_assert_int_eq(snd_pcm_readi(pcm, buffer, period_size), period_size);
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(dump_playback) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_output_t *output;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+
+	ck_assert_int_eq(snd_output_stdio_attach(&output, stdout, 0), 0);
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+
+	ck_assert_int_eq(snd_pcm_dump(pcm, output), 0);
+
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+
+	snd_pcm_hw_params_t *params;
+	snd_pcm_hw_params_alloca(&params);
+	ck_assert_int_eq(snd_pcm_hw_params_current(pcm, params), 0);
+
+	dumprv(snd_pcm_hw_params_can_disable_period_wakeup(params));
+	dumprv(snd_pcm_hw_params_can_mmap_sample_resolution(params));
+	dumprv(snd_pcm_hw_params_can_overrange(params));
+	dumprv(snd_pcm_hw_params_can_pause(params));
+	dumprv(snd_pcm_hw_params_can_resume(params));
+	dumprv(snd_pcm_hw_params_can_sync_start(params));
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_playback_hw_constraints) {
 
 	/* hard-coded values used in the server-mock */
 	const unsigned int server_channels = 2;
@@ -138,9 +400,10 @@ START_TEST(test_playback_hw_constraints) {
 
 	snd_pcm_t *pcm = NULL;
 	snd_pcm_hw_params_t *params;
+	pid_t pid = -1;
 	int d;
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 
 	snd_pcm_hw_params_alloca(&params);
 	snd_pcm_hw_params_any(pcm, params);
@@ -195,93 +458,254 @@ START_TEST(test_playback_hw_constraints) {
 	ck_assert_int_eq(time, 95108934);
 	ck_assert_int_eq(d, 1);
 
-	ck_assert_int_eq(snd_pcm_close(pcm), 0);
-
-	waitpid(pid, NULL, 0);
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
 
 } END_TEST
 
-START_TEST(test_playback) {
+START_TEST(test_playback_start) {
 
-	const char *service = "org.bluealsa.test";
-	pid_t pid = spawn_bluealsa_server(service, 2, false, true, false);
-
-	snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
-	int pcm_channels = 2;
-	int pcm_sampling = 44100;
-	unsigned int pcm_buffer_time = 500000;
-	unsigned int pcm_period_time = 100000;
-
-	snd_pcm_t *pcm = NULL;
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
 	snd_pcm_uframes_t buffer_size;
 	snd_pcm_uframes_t period_size;
 	snd_pcm_sframes_t delay;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
-				&pcm_buffer_time, &pcm_period_time), 0);
+				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	/* setup PCM to be started by writing the last period of data */
 	ck_assert_int_eq(set_sw_params(pcm, buffer_size, period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
-	int16_t *period = malloc(period_size * pcm_channels * sizeof(int16_t));
-	int i, x = 0;
-
 	/* fill-in buffer without starting playback */
-	int buffer_period_count = (buffer_size - 10) / period_size + 1;
-	for (i = 0; i < buffer_period_count - 1; i++) {
-		x = snd_pcm_sine_s16le(period, period_size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
-		ck_assert_int_gt(snd_pcm_writei(pcm, period, period_size), 0);
-	}
+	for (i = 0; i < (buffer_size - 10) / period_size; i++)
+		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
 
-	usleep(100000);
+	/* wait some time to make sure playback was not started */
+	usleep(period_time);
 
-	/* check if playback was not started and if delay is correctly calculated */
-	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_PREPARED);
+	/* check if playback was not started */
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_PREPARED);
+	/* check if buffer fullness is at the next-to-last period */
+	ck_assert_int_le(snd_pcm_avail(pcm), buffer_size - (i - 1) * period_size);
 	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
-	ck_assert_int_eq(delay, 18375);
+	ck_assert_int_ge(delay, (i - 1) * period_size);
 
 	/* start playback - start threshold will be exceeded */
-	x = snd_pcm_sine_s16le(period, period_size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
-	ck_assert_int_gt(snd_pcm_writei(pcm, period, period_size), 0);
-	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_RUNNING);
+	ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
-	/* at this point buffer should be still almost full */
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_playback_drain) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	struct timespec t0, t, diff;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	/* get current timestamp */
+	gettimestamp(&t0);
+
+	/* fill-in entire PCM buffer */
+	for (i = 0; i <= buffer_size / period_size; i++)
+		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+
+	/* drain PCM buffer and stop playback */
+	ck_assert_int_eq(snd_pcm_drain(pcm), 0);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_SETUP);
+
+	gettimestamp(&t);
+	difftimespec(&t0, &t, &diff);
+	/* verify whether elapsed time is at least PCM buffer time length */
+	ck_assert_uint_gt(diff.tv_sec * 1000000 + diff.tv_nsec / 1000, buffer_time);
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_playback_pause) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	snd_pcm_hw_params_t *params;
+	snd_pcm_hw_params_alloca(&params);
+	ck_assert_int_eq(snd_pcm_hw_params_current(pcm, params), 0);
+
+	if (!snd_pcm_hw_params_can_pause(params))
+		warn("PCM playback pause test: %s", "PCM can not pause");
+	else {
+
+		/* fill-in buffer and start playback */
+		for (i = 0; i <= buffer_size / period_size; i++)
+			ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+
+		/* pause playback  */
+		ck_assert_int_eq(snd_pcm_pause(pcm, 1), 0);
+		ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_PAUSED);
+
+		/* record PCM parameters just after pausing */
+		snd_pcm_sframes_t delay0, delay;
+		snd_pcm_uframes_t frames = snd_pcm_avail(pcm);
+		ck_assert_int_eq(snd_pcm_delay(pcm, &delay0), 0);
+		ck_assert_int_gt(delay0, 0);
+
+		/* wait some time */
+		usleep(buffer_time);
+
+		/* during pause PCM parameters shall not be modified */
+		ck_assert_int_eq(snd_pcm_avail(pcm), frames);
+		ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+		ck_assert_int_eq(delay, delay0);
+
+		/* resume playback */
+		ck_assert_int_eq(snd_pcm_pause(pcm, 0), 0);
+		ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
+
+		/* wait a little bit */
+		usleep(3 * period_time / 2);
+
+		/* check resume: more available frames, lower delay */
+		ck_assert_int_gt(snd_pcm_avail(pcm), frames);
+		ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
+		ck_assert_int_lt(delay, delay0);
+
+	}
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_playback_reset) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	snd_pcm_sframes_t frames;
+	snd_pcm_sframes_t delay;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+retry:
+
+	/* fill-in buffer and start playback */
+	for (i = 0; i <= buffer_size / period_size; i++)
+		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
+
+	/* there should be less than one period of free space */
+	ck_assert_int_lt(snd_pcm_avail(pcm), period_size);
+	/* delay should be no less then buffer_size - period_size */
 	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
-	ck_assert_int_gt(delay, 20000);
+	ck_assert_int_gt(delay, buffer_size - period_size);
 
-	snd_pcm_pause(pcm, 1);
-	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_PAUSED);
+	/* remove queued data from PCM buffer - reset delay to 0 */
+	ck_assert_int_eq(snd_pcm_reset(pcm), 0);
 
-	/* during pause buffer shall not be consumed */
-	usleep(100000);
+	/* immediately try to write one period of data, however, at this point
+	 * we might face PCM in the under-run state; do not treat it as an error */
+	if ((frames = snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size)) == -EPIPE) {
+		debug("Retrying playback reset test: Device in the under-run state");
+		ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+		goto retry;
+	}
+
+	ck_assert_int_eq(frames, period_size);
+
+	/* verify that only one frame is in the PCM buffer */
+	ck_assert_int_ge(snd_pcm_avail(pcm), buffer_size - period_size);
 	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
-	ck_assert_int_gt(delay, 10000);
+	/* from the logical point of view there should be no more than one period
+	 * of delay, however, hardware PCM device reports a little bit more than
+	 * a period of delay, so this test is not as strict as it should be :) */
+	ck_assert_int_le(delay, 3 * period_size / 2);
 
-	snd_pcm_pause(pcm, 0);
-	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_RUNNING);
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(test_playback_underrun) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	/* fill-in buffer and start playback */
+	for (i = 0; i <= buffer_size / period_size; i++)
+		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+
+	/* after one and a half period time we shall be
+	 * able to write at least one period frames */
+	usleep(3 * period_time / 2);
+	ck_assert_int_gt(snd_pcm_avail(pcm), period_size);
 
 	/* allow under-run to occur */
-	usleep(500000);
-	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_XRUN);
+	usleep(buffer_time);
+
+	/* check whether ALSA reports under-run */
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_XRUN);
+	ck_assert_int_eq(snd_pcm_avail(pcm), -EPIPE);
+
+	/* recover from under-run */
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	/* check successful recovery */
-	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
-	for (i = 0; i < buffer_period_count * 2; i++) {
-		x = snd_pcm_sine_s16le(period, period_size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
-		ck_assert_int_gt(snd_pcm_writei(pcm, period, period_size), 0);
-	}
-	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_RUNNING);
+	for (i = 0; i <= buffer_size / period_size; i++)
+		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
-	ck_assert_int_eq(snd_pcm_close(pcm), 0);
-
-	free(period);
-	waitpid(pid, NULL, 0);
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
 
 } END_TEST
 
 /**
- * Make reference test for playback termination.
+ * Make reference test for device unplug.
  *
  * Values obtained with an external USB sound card:
  * - frames = -19
@@ -298,37 +722,30 @@ START_TEST(test_playback) {
  * - snd_pcm_resume(pcm) = -38
  * - snd_pcm_avail(pcm) = -19
  * - snd_pcm_avail_update(pcm) = 15081
- * - snd_pcm_writei(pcm, buffer, buffer_test_frames) = -19
+ * - snd_pcm_writei(pcm, buffer, frames) = -19
  * - snd_pcm_wait(pcm, 10) = -19
  * - snd_pcm_close(pcm) = 0
  */
-void test_playback_termination_reference(const char *name) {
+START_TEST(reference_playback_device_unplug) {
 
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_sframes_t frames = 0;
 	snd_pcm_t *pcm = NULL;
-	unsigned int pcm_buffer_time = 500000;
-	unsigned int pcm_period_time = 100000;
 	struct pollfd pfds[2];
 	unsigned short revents;
-	int err;
 
-	if ((err = snd_pcm_open(&pcm, name, SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
-		error("snd_pcm_open: %s", snd_strerror(err));
-		return;
-	}
-	if (set_hw_params(pcm, SND_PCM_FORMAT_S16_LE, 2, 44100,
-				&pcm_buffer_time, &pcm_period_time) != 0)
-		return;
-	if ((err = snd_pcm_prepare(pcm)) != 0) {
-		error("snd_pcm_prepare: %s", snd_strerror(err));
-		return;
-	}
+	/* this test needs user-defined PCM device */
+	ck_assert_ptr_ne(pcm_device, NULL);
 
-	int16_t buffer[buffer_test_frames * 2] = { 0 };
-	snd_pcm_sframes_t frames = 0;
+	ck_assert_int_eq(test_pcm_open(NULL, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	fprintf(stderr, "Unplug PCM device...");
 	while (frames >= 0)
-		frames = snd_pcm_writei(pcm, buffer, buffer_test_frames);
+		frames = snd_pcm_writei(pcm, test_sine_s16le(512), 512);
 	fprintf(stderr, "\n");
 
 	dumprv(frames);
@@ -345,35 +762,32 @@ void test_playback_termination_reference(const char *name) {
 	dumprv(snd_pcm_resume(pcm));
 	dumprv(snd_pcm_avail(pcm));
 	dumprv(snd_pcm_avail_update(pcm));
-	dumprv(snd_pcm_writei(pcm, buffer, buffer_test_frames));
+	dumprv(snd_pcm_writei(pcm, test_sine_s16le(128), 128));
 	dumprv(snd_pcm_wait(pcm, 10));
 	dumprv(snd_pcm_close(pcm));
 
-}
+} END_TEST
 
-START_TEST(test_playback_termination) {
+START_TEST(test_playback_device_unplug) {
 
-	const char *service = "org.bluealsa";
-	pid_t pid = spawn_bluealsa_server(service, 2, false, true, false);
-
-	snd_pcm_t *pcm = NULL;
-	unsigned int pcm_buffer_time = 500000;
-	unsigned int pcm_period_time = 100000;
-
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, SND_PCM_STREAM_PLAYBACK, 0), 0);
-	ck_assert_int_eq(set_hw_params(pcm, SND_PCM_FORMAT_S16_LE, 2, 44100,
-				&pcm_buffer_time, &pcm_period_time), 0);
-	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
-
-	int16_t buffer[buffer_test_frames * 2] = { 0 };
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
 	snd_pcm_sframes_t frames = 0;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
 	size_t i = 0;
+
+	ck_assert_ptr_eq(pcm_device, NULL);
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	/* write samples until server disconnects */
 	while (frames >= 0) {
 		if (i++ == 10)
 			kill(pid, SIGUSR2);
-		frames = snd_pcm_writei(pcm, buffer, buffer_test_frames);
+		frames = snd_pcm_writei(pcm, test_sine_s16le(128), 128);
 	}
 
 #if 0
@@ -396,7 +810,7 @@ START_TEST(test_playback_termination) {
 	ck_assert_int_eq(snd_pcm_resume(pcm), 0);
 	ck_assert_int_eq(snd_pcm_avail(pcm), -EPIPE);
 	ck_assert_int_eq(snd_pcm_avail_update(pcm), -EPIPE);
-	ck_assert_int_eq(snd_pcm_writei(pcm, buffer, buffer_test_frames), -EPIPE);
+	ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(128), 128), -EPIPE);
 	ck_assert_int_eq(snd_pcm_wait(pcm, 10), -EPIPE);
 	ck_assert_int_eq(snd_pcm_close(pcm), 0);
 #endif
@@ -405,30 +819,39 @@ START_TEST(test_playback_termination) {
 
 } END_TEST
 
-int test_capture(void) {
-	return 0;
-}
-
 int main(int argc, char *argv[]) {
 
 	preload(argc, argv, ".libs/aloader.so");
 
 	int opt;
-	const char *opts = "h";
+	const char *opts = "hD:c:f:r:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
-		{ "pcm", required_argument, NULL, 'd' },
+		{ "pcm", required_argument, NULL, 'D' },
+		{ "channels", required_argument, NULL, 'c' },
+		{ "format", required_argument, NULL, 'f' },
+		{ "rate", required_argument, NULL, 'r' },
 		{ 0, 0, 0, 0 },
 	};
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h' /* --help */ :
-			printf("usage: %s [--pcm=NAME]\n", argv[0]);
+			printf("usage: %s [--pcm=NAME] [playback|capture|unplug]\n", argv[0]);
 			return 0;
-		case 'd' /* --pcm=NAME */ :
-			test_playback_termination_reference(optarg);
-			return 0;
+		case 'D' /* --pcm=NAME */ :
+			pcm_device = optarg;
+			break;
+		case 'c' /* --channels=NUM */ :
+			pcm_channels = atoi(optarg);
+			break;
+		case 'f' /* --format=FMT */ :
+			if ((pcm_format = snd_pcm_format_value(optarg)) == -1)
+				pcm_format = SND_PCM_FORMAT_U8;
+			break;
+		case 'r' /* --rate=NUM */ :
+			pcm_sampling = atoi(optarg);
+			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return 1;
@@ -442,10 +865,41 @@ int main(int argc, char *argv[]) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
+	tcase_set_timeout(tc, 6);
 
-	tcase_add_test(tc, test_playback_hw_constraints);
-	tcase_add_test(tc, test_playback);
-	tcase_add_test(tc, test_playback_termination);
+	if (argc == optind) {
+		tcase_add_test(tc, dump_capture);
+		tcase_add_test(tc, test_capture_start);
+		tcase_add_test(tc, test_capture_overrun);
+		tcase_add_test(tc, dump_playback);
+		tcase_add_test(tc, test_playback_hw_constraints);
+		tcase_add_test(tc, test_playback_start);
+		tcase_add_test(tc, test_playback_drain);
+		tcase_add_test(tc, test_playback_pause);
+		tcase_add_test(tc, test_playback_reset);
+		tcase_add_test(tc, test_playback_underrun);
+		tcase_add_test(tc, test_playback_device_unplug);
+	}
+	else {
+		for (; optind < argc; optind++) {
+			if (strcmp(argv[optind], "capture") == 0) {
+				tcase_add_test(tc, dump_capture);
+				tcase_add_test(tc, test_capture_start);
+				tcase_add_test(tc, test_capture_pause);
+				tcase_add_test(tc, test_capture_overrun);
+			}
+			else if (strcmp(argv[optind], "playback") == 0) {
+				tcase_add_test(tc, dump_playback);
+				tcase_add_test(tc, test_playback_start);
+				tcase_add_test(tc, test_playback_drain);
+				tcase_add_test(tc, test_playback_pause);
+				tcase_add_test(tc, test_playback_reset);
+				tcase_add_test(tc, test_playback_underrun);
+			}
+			else if (strcmp(argv[optind], "unplug") == 0)
+				tcase_add_test(tc, reference_playback_device_unplug);
+		}
+	}
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
