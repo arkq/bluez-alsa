@@ -44,6 +44,19 @@ AM_CONDITIONAL([ENABLE_DEBUG_TIME], [test "x$enable_debug_time" = "xyes"])
 AM_COND_IF([ENABLE_DEBUG_TIME], [
 	AC_DEFINE([DEBUG_TIME], [1], [Define to 1 if the debug timing is enabled.])
 ])
+
+# embedded test coverage
+AC_ARG_WITH([coverage],
+	AS_HELP_STRING([--with-coverage], [use lcov for test coverage reporting]))
+AM_CONDITIONAL([WITH_COVERAGE], [test "x$with_coverage" = "xyes"])
+AM_COND_IF([WITH_COVERAGE], [
+	AC_PATH_PROG(LCOV, lcov)
+	AC_PATH_PROG(GENHTML, genhtml)
+	AC_SUBST([LCOV])
+	AC_SUBST([GENHTML])
+])
+
+# in-place call-stack unwinding
 AC_ARG_WITH([libunwind],
 	AS_HELP_STRING([--with-libunwind], [use libunwind for call-stack unwinding]))
 AM_CONDITIONAL([WITH_LIBUNWIND], [test "x$with_libunwind" = "xyes"])

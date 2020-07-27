@@ -1,6 +1,6 @@
 /*
  * test-msbc.c
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,6 +17,25 @@
 #include "../src/shared/log.c"
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+START_TEST(test_msbc_init) {
+
+	struct esco_msbc msbc = { .initialized = false };
+
+	ck_assert_int_eq(msbc_init(&msbc), 0);
+	ck_assert_int_eq(msbc.initialized, true);
+	ck_assert_int_eq(ffb_len_out(&msbc.enc_pcm), 0);
+
+	ffb_seek(&msbc.enc_pcm, 16);
+	ck_assert_int_eq(ffb_len_out(&msbc.enc_pcm), 16);
+
+	ck_assert_int_eq(msbc_init(&msbc), 0);
+	ck_assert_int_eq(msbc.initialized, true);
+	ck_assert_int_eq(ffb_len_out(&msbc.enc_pcm), 0);
+
+	msbc_finish(&msbc);
+
+} END_TEST
 
 START_TEST(test_msbc_find_h2_header) {
 
@@ -126,6 +145,7 @@ int main(void) {
 
 	suite_add_tcase(s, tc);
 
+	tcase_add_test(tc, test_msbc_init);
 	tcase_add_test(tc, test_msbc_find_h2_header);
 	tcase_add_test(tc, test_msbc_encode_decode);
 

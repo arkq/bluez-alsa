@@ -55,6 +55,9 @@ START_TEST(test_ba_adapter) {
 	ck_assert_ptr_ne(a = ba_adapter_new(5), NULL);
 	ck_assert_int_eq(a->hci.dev_id, 5);
 	ck_assert_str_eq(a->hci.name, "hci5");
+
+	ck_assert_ptr_eq(ba_adapter_lookup(5), a);
+
 	ba_adapter_unref(a);
 
 } END_TEST
@@ -75,6 +78,8 @@ START_TEST(test_ba_device) {
 	ck_assert_int_eq(bacmp(&d->addr, &addr), 0);
 	ck_assert_str_eq(d->ba_dbus_path, "/org/bluealsa/hci0/dev_AB_90_78_56_34_12");
 	ck_assert_str_eq(d->bluez_dbus_path, "/org/bluez/hci0/dev_AB_90_78_56_34_12");
+
+	ck_assert_ptr_eq(ba_device_lookup(a, &addr), d);
 
 	ba_device_unref(d);
 
@@ -99,6 +104,8 @@ START_TEST(test_ba_transport) {
 	ck_assert_int_eq(t->type.profile, BA_TRANSPORT_PROFILE_NONE);
 	ck_assert_str_eq(t->bluez_dbus_owner, "/owner");
 	ck_assert_str_eq(t->bluez_dbus_path, "/path");
+
+	ck_assert_ptr_eq(ba_transport_lookup(d, "/path"), t);
 
 	ba_transport_unref(t);
 

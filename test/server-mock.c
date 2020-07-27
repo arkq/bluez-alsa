@@ -17,10 +17,20 @@
 #endif
 
 #include <assert.h>
-#include <fcntl.h>
+#include <errno.h>
 #include <getopt.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <pthread.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <gio/gio.h>
+#include <glib.h>
 
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
