@@ -67,9 +67,6 @@ struct bluealsa_pcm {
 	pthread_t io_thread;
 	bool io_started;
 
-	/* user provided extra delay component */
-	snd_pcm_sframes_t delay_ex;
-
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
 
@@ -78,6 +75,11 @@ struct bluealsa_pcm {
 	snd_pcm_uframes_t delay_hw_ptr;
 	unsigned int delay_pcm_nread;
 	bool delay_valid;
+
+	/* delay accumulated just before pausing */
+	snd_pcm_sframes_t delay_paused;
+	/* user provided extra delay component */
+	snd_pcm_sframes_t delay_ex;
 
 };
 
@@ -482,51 +484,16 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	return 0;
 }
 
-static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
+/**
+ * Calculate overall PCM delay.
+ *
+ * Exact calculation of the PCM delay is very hard, if not impossible. For
+ * the sake of simplicity we will make few assumptions and approximations.
+ * In general, the delay is proportional to the number of bytes queued in
+ * the FIFO buffer, the time required to encode data, Bluetooth transfer
+ * latency and the time required by the device to decode and play audio. */
+static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-
-	if (!bluealsa_dbus_pcm_ctrl_send(pcm->ba_pcm_ctrl_fd,
-				enable ? "Pause" : "Resume", NULL))
-		return -errno;
-
-	if (enable == 0) {
-		pthread_kill(pcm->io_thread, SIGIO);
-	}
-
-	/* Even though PCM transport is paused, our IO thread is still running. If
-	 * the implementer relies on the PCM file descriptor readiness, we have to
-	 * bump our internal event trigger. Otherwise, client might stuck forever
-	 * in the poll/select system call. */
-	eventfd_write(pcm->event_fd, 1);
-
-	return 0;
-}
-
-static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
-	struct bluealsa_pcm *pcm = io->private_data;
-	snd_output_printf(out, "BlueALSA PCM: %s\n", pcm->ba_pcm.pcm_path);
-	snd_output_printf(out, "BlueALSA BlueZ device: %s\n", pcm->ba_pcm.device_path);
-	snd_output_printf(out, "BlueALSA Bluetooth codec: %s\n", pcm->ba_pcm.codec);
-}
-
-static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
-	struct bluealsa_pcm *pcm = io->private_data;
-
-	if (pcm->ba_pcm_fd == -1)
-		return -ENODEV;
-
-	/* For capture PCMs only, the delay must be reported as zero when an overrun
-	 * occurs. */
-	if (io->stream == SND_PCM_STREAM_CAPTURE && io->state == SND_PCM_STATE_XRUN) {
-		*delayp = 0;
-		return 0;
-	}
-
-	/* Exact calculation of the PCM delay is very hard, if not impossible. For
-	 * the sake of simplicity we will make few assumptions and approximations.
-	 * In general, the delay is proportional to the number of bytes queued in
-	 * the FIFO buffer, the time required to encode data, Bluetooth transfer
-	 * latency and the time required by the device to decode and play audio. */
 
 	snd_pcm_sframes_t delay = 0;
 
@@ -567,7 +534,59 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	/* data transfer (communication) and encoding/decoding */
 	delay += (io->rate / 100) * pcm->ba_pcm.delay / 100;
 
-	*delayp = delay + pcm->delay_ex;
+	delay += pcm->delay_ex;
+
+	return delay;
+}
+
+static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
+	struct bluealsa_pcm *pcm = io->private_data;
+
+	if (!bluealsa_dbus_pcm_ctrl_send(pcm->ba_pcm_ctrl_fd,
+				enable ? "Pause" : "Resume", NULL))
+		return -errno;
+
+	if (enable == 0)
+		pthread_kill(pcm->io_thread, SIGIO);
+	else
+		/* store current delay value */
+		pcm->delay_paused = bluealsa_calculate_delay(io);
+
+	/* Even though PCM transport is paused, our IO thread is still running. If
+	 * the implementer relies on the PCM file descriptor readiness, we have to
+	 * bump our internal event trigger. Otherwise, client might stuck forever
+	 * in the poll/select system call. */
+	eventfd_write(pcm->event_fd, 1);
+
+	return 0;
+}
+
+static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
+	struct bluealsa_pcm *pcm = io->private_data;
+	snd_output_printf(out, "BlueALSA PCM: %s\n", pcm->ba_pcm.pcm_path);
+	snd_output_printf(out, "BlueALSA BlueZ device: %s\n", pcm->ba_pcm.device_path);
+	snd_output_printf(out, "BlueALSA Bluetooth codec: %s\n", pcm->ba_pcm.codec);
+}
+
+static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
+	struct bluealsa_pcm *pcm = io->private_data;
+
+	if (pcm->ba_pcm_fd == -1)
+		return -ENODEV;
+
+	/* For capture PCMs only, the delay must be reported as zero when an overrun
+	 * occurs. */
+	if (io->stream == SND_PCM_STREAM_CAPTURE && io->state == SND_PCM_STATE_XRUN) {
+		*delayp = 0;
+		return 0;
+	}
+
+	/* When the PCM is paused, the delay value remains constant. */
+	if (io->state == SND_PCM_STATE_PAUSED)
+		*delayp = pcm->delay_paused;
+	else
+		*delayp = bluealsa_calculate_delay(io);
+
 	return 0;
 }
 
