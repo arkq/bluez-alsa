@@ -356,6 +356,10 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	}
 	pcm->delay_valid = false;
 
+	/* Bug in ioplug - if pcm->io_hw_ptr == -1 then it reports state
+	 * SND_PCM_STATE_XRUN instead of SND_PCM_STATE_SETUP after pcm is stopped */
+	pcm->io_hw_ptr = 0; 
+
 	if (!bluealsa_dbus_pcm_ctrl_send_drop(pcm->ba_pcm_ctrl_fd, NULL))
 		return -errno;
 
@@ -479,8 +483,10 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 
 static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	if (!bluealsa_dbus_pcm_ctrl_send_drain(pcm->ba_pcm_ctrl_fd, NULL))
-		return -errno;
+	bluealsa_dbus_pcm_ctrl_send_drain(pcm->ba_pcm_ctrl_fd, NULL);
+	/* We cannot recover from an error here. By returning zero we ensure that
+	 * ioplug stops the pcm. Returning an error code would be interpreted by
+	 * ioplug as an incomplete drain and would it leave the pcm running. */
 	return 0;
 }
 
