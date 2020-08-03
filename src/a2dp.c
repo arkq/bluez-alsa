@@ -15,14 +15,11 @@
 #include <string.h>
 
 #include <glib.h>
-#if ENABLE_APTX || ENABLE_APTX_HD
-# include <openaptx.h>
-#endif
 
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
+#include "codec-sbc.h"
 #include "hci.h"
-#include "sbc.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -474,13 +471,13 @@ const struct a2dp_codec *a2dp_codecs[] = {
 #endif
 #if ENABLE_APTX_HD
 	&a2dp_codec_source_aptx_hd,
-# if OPENAPTX_DECODER
+# if HAVE_APTX_HD_DECODE
 	&a2dp_codec_sink_aptx_hd,
 # endif
 #endif
 #if ENABLE_APTX
 	&a2dp_codec_source_aptx,
-# if OPENAPTX_DECODER
+# if HAVE_APTX_DECODE
 	&a2dp_codec_sink_aptx,
 # endif
 #endif

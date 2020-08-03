@@ -51,6 +51,8 @@ Dependencies:
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with
   `--enable-aptx` and/or `--enable-aptx-hd`)
+- [libopenaptx](https://github.com/pali/libopenaptx) (when apt-X support is enabled and
+  `--with-libopenaptx` is used)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
 - [docutils](https://docutils.sourceforge.io) (when man pages build is enabled with `--enable-manpages`)
 

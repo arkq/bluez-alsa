@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2020 Arkadiusz Bokowy
+# Copyright (c) 2016-2021 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
@@ -24,16 +24,21 @@ bluealsa_SOURCES = \
 	bluealsa-iface.c \
 	bluez.c \
 	bluez-iface.c \
+	codec-sbc.c \
 	dbus.c \
 	hci.c \
-	sbc.c \
 	sco.c \
 	utils.c \
 	main.c
 
+if ENABLE_APTX_OR_APTX_HD
+bluealsa_SOURCES += \
+	codec-aptx.c
+endif
+
 if ENABLE_MSBC
 bluealsa_SOURCES += \
-	msbc.c
+	codec-msbc.c
 endif
 
 if ENABLE_OFONO

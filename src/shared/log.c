@@ -19,7 +19,7 @@
 #include <syslog.h>
 #include <time.h>
 
-#if ENABLE_LIBUNWIND
+#if WITH_LIBUNWIND
 # define UNW_LOCAL_ONLY
 # include <libunwind.h>
 #elif HAVE_EXECINFO_H
@@ -110,7 +110,7 @@ void callstackdump(const char *label) {
 	char buffer[1024 * 2] = "Call stack backtrace not supported";
 	char *ptr = buffer;
 
-#if ENABLE_LIBUNWIND
+#if WITH_LIBUNWIND
 
 	unw_cursor_t cursor;
 	unw_context_t context;

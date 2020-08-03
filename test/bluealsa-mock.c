@@ -1,6 +1,6 @@
 /*
  * bluealsa-mock.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -46,10 +46,13 @@
 #include "../src/bluealsa-dbus.c"
 #include "../src/bluealsa-iface.c"
 #include "../src/bluealsa.c"
+#if ENABLE_APTX || ENABLE_APTX_HD
+# include "../src/codec-aptx.c"
+#endif
+#include "../src/codec-msbc.c"
+#include "../src/codec-sbc.c"
 #include "../src/dbus.c"
 #include "../src/hci.c"
-#include "../src/msbc.c"
-#include "../src/sbc.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"

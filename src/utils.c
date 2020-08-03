@@ -573,30 +573,6 @@ const char *aacenc_strerror(AACENC_ERROR err) {
 }
 #endif
 
-#if ENABLE_APTX
-/**
- * Destroy apt-X encoder and free handler.
- *
- * @param enc Initialized encoder handler. */
-void aptxbtenc_destroy_free(APTXENC enc) {
-	if (aptxbtenc_destroy != NULL)
-		aptxbtenc_destroy(enc);
-	free(enc);
-}
-#endif
-
-#if ENABLE_APTX_HD
-/**
- * Destroy apt-X HD encoder and free handler.
- *
- * @param enc Initialized encoder handler. */
-void aptxhdbtenc_destroy_free(APTXENC enc) {
-	if (aptxhdbtenc_destroy != NULL)
-		aptxhdbtenc_destroy(enc);
-	free(enc);
-}
-#endif
-
 #if ENABLE_LDAC
 /**
  * Get string representation of the LDAC error code.

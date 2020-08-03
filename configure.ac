@@ -61,7 +61,7 @@ AC_ARG_WITH([libunwind],
 AM_CONDITIONAL([WITH_LIBUNWIND], [test "x$with_libunwind" = "xyes"])
 AM_COND_IF([WITH_LIBUNWIND], [
 	PKG_CHECK_MODULES([LIBUNWIND], [libunwind >= 1.1])
-	AC_DEFINE([ENABLE_LIBUNWIND], [1], [Define to 1 if libunwind shall be used.])
+	AC_DEFINE([WITH_LIBUNWIND], [1], [Define to 1 if libunwind shall be used.])
 ], [
 	AC_CHECK_HEADERS([execinfo.h])
 ])
@@ -95,11 +95,24 @@ AM_COND_IF([ENABLE_AAC], [
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
+AC_ARG_WITH([libopenaptx],
+	[AS_HELP_STRING([--with-libopenaptx], [use libopenaptx by pali.rohar for apt-X (HD)])])
+AM_CONDITIONAL([WITH_LIBOPENAPTX], [test "x$with_libopenaptx" = "xyes"])
+
 AC_ARG_ENABLE([aptx],
 	[AS_HELP_STRING([--enable-aptx], [enable apt-X support])])
 AM_CONDITIONAL([ENABLE_APTX], [test "x$enable_aptx" = "xyes"])
 AM_COND_IF([ENABLE_APTX], [
-	PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
+	AM_COND_IF([WITH_LIBOPENAPTX], [
+		PKG_CHECK_MODULES([APTX], [libopenaptx >= 0.2.0])
+		AC_DEFINE([HAVE_APTX_DECODE], [1], [Define to 1 if you have apt-X decode library.])
+		AC_DEFINE([WITH_LIBOPENAPTX], [1], [Define to 1 if libopenaptx shall be used.])
+	], [
+		PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
+		if test "$($PKG_CONFIG --variable=aptxdecoder openaptx)" = "true"; then
+			AC_DEFINE([HAVE_APTX_DECODE], [1], [Define to 1 if you have apt-X decode library.])
+		fi
+	])
 	AC_DEFINE([ENABLE_APTX], [1], [Define to 1 if apt-X is enabled.])
 ])
 
@@ -107,9 +120,22 @@ AC_ARG_ENABLE([aptx_hd],
 	[AS_HELP_STRING([--enable-aptx-hd], [enable apt-X HD support])])
 AM_CONDITIONAL([ENABLE_APTX_HD], [test "x$enable_aptx_hd" = "xyes"])
 AM_COND_IF([ENABLE_APTX_HD], [
-	PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.2.0])
+	AM_COND_IF([WITH_LIBOPENAPTX], [
+		PKG_CHECK_MODULES([APTX_HD], [libopenaptx >= 0.2.0])
+		AC_DEFINE([HAVE_APTX_HD_DECODE], [1], [Define to 1 if you have apt-X HD decode library.])
+		AC_DEFINE([WITH_LIBOPENAPTX], [1], [Define to 1 if libopenaptx shall be used.])
+	], [
+		PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.2.0])
+		if test "$($PKG_CONFIG --variable=aptxdecoder openaptxhd)" = "true"; then
+			AC_DEFINE([HAVE_APTX_HD_DECODE], [1], [Define to 1 if you have apt-X HD decode library.])
+		fi
+	])
 	AC_DEFINE([ENABLE_APTX_HD], [1], [Define to 1 if apt-X HD is enabled.])
 ])
+
+# OR-ed conditional which can be used in the Makefile.am
+AM_CONDITIONAL([ENABLE_APTX_OR_APTX_HD], [
+	test "x$enable_aptx" = "xyes" -o "x$enable_aptx_hd" = "xyes"])
 
 AC_ARG_ENABLE([ldac],
 	[AS_HELP_STRING([--enable-ldac], [enable LDAC support])])

@@ -34,10 +34,10 @@
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
 #include "bluez.h"
+#include "codec-sbc.h"
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
-#include "sbc.h"
 #include "utils.h"
 #if ENABLE_UPOWER
 # include "upower.h"

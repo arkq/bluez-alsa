@@ -11,7 +11,7 @@
 #include <check.h>
 
 #include "inc/sine.inc"
-#include "../src/msbc.c"
+#include "../src/codec-msbc.c"
 #include "../src/shared/defs.h"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"

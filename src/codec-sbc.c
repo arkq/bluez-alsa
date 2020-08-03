@@ -1,6 +1,6 @@
 /*
- * BlueALSA - sbc.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * BlueALSA - codec-sbc.c
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,7 +8,7 @@
  *
  */
 
-#include "sbc.h"
+#include "codec-sbc.h"
 
 #include <sbc/sbc.h>
 #include <glib.h>

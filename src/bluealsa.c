@@ -17,8 +17,8 @@
 # include <ldacBT.h>
 #endif
 
+#include "codec-sbc.h"
 #include "hfp.h"
-#include "sbc.h"
 
 /* Initialize global configuration variable. */
 struct ba_config config = {

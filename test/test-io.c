@@ -26,10 +26,13 @@
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
 #include "../src/bluealsa.c"
+#if ENABLE_APTX || ENABLE_APTX_HD
+# include "../src/codec-aptx.c"
+#endif
+#include "../src/codec-msbc.c"
+#include "../src/codec-sbc.c"
 #include "../src/dbus.c"
 #include "../src/hci.c"
-#include "../src/msbc.c"
-#include "../src/sbc.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
@@ -514,7 +517,7 @@ START_TEST(test_a2dp_aptx) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
-#if OPENAPTX_DECODER
+#if HAVE_APTX_DECODE
 		t1->mtu_write = t2->mtu_read = 400;
 		test_a2dp(t1, t2, a2dp_source_aptx, a2dp_sink_aptx);
 #endif
@@ -522,7 +525,7 @@ START_TEST(test_a2dp_aptx) {
 	else {
 		t1->mtu_write = t2->mtu_read = 40;
 		test_a2dp(t1, t2, a2dp_source_aptx, test_io_thread_a2dp_dump_bt);
-#if OPENAPTX_DECODER
+#if HAVE_APTX_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx);
 #endif
 	};
@@ -545,7 +548,7 @@ START_TEST(test_a2dp_aptx_hd) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
-#if OPENAPTX_DECODER
+#if HAVE_APTX_HD_DECODE
 		t1->mtu_write = t2->mtu_read = 600;
 		test_a2dp(t1, t2, a2dp_source_aptx_hd, a2dp_sink_aptx_hd);
 #endif
@@ -553,7 +556,7 @@ START_TEST(test_a2dp_aptx_hd) {
 	else {
 		t1->mtu_write = t2->mtu_read = 60;
 		test_a2dp(t1, t2, a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
-#if OPENAPTX_DECODER
+#if HAVE_APTX_HD_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx_hd);
 #endif
 	};

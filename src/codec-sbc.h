@@ -1,6 +1,6 @@
 /*
- * BlueALSA - sbc.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * BlueALSA - codec-sbc.h
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef BLUEALSA_SBC_H_
-#define BLUEALSA_SBC_H_
+#ifndef BLUEALSA_CODECSBC_H_
+#define BLUEALSA_CODECSBC_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>

@@ -32,9 +32,6 @@
 # define AACENCODER_LIB_VERSION LIB_VERSION( \
 		AACENCODER_LIB_VL0, AACENCODER_LIB_VL1, AACENCODER_LIB_VL2)
 #endif
-#if ENABLE_APTX || ENABLE_APTX_HD
-# include <openaptx.h>
-#endif
 #if ENABLE_MP3LAME
 # include <lame/lame.h>
 #endif
@@ -51,7 +48,10 @@
 #include "a2dp-rtp.h"
 #include "audio.h"
 #include "bluealsa.h"
-#include "sbc.h"
+#if ENABLE_APTX || ENABLE_APTX_HD
+# include "codec-aptx.h"
+#endif
+#include "codec-sbc.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -1556,7 +1556,7 @@ fail_open:
 }
 #endif
 
-#if ENABLE_APTX && OPENAPTX_DECODER
+#if ENABLE_APTX && HAVE_APTX_DECODE
 static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -1569,14 +1569,10 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 	};
 
 	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_open;
+		goto fail_init;
 
-	APTXDEC handle = malloc(SizeofAptxbtdec());
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
-	pthread_cleanup_push(PTHREAD_CLEANUP(aptxbtdec_destroy), handle);
-
-	if (handle == NULL ||
-			aptxbtdec_init(handle, __BYTE_ORDER == __LITTLE_ENDIAN) != 0) {
+	HANDLE_APTX handle;
+	if ((handle = aptxdec_init()) == NULL) {
 		error("Couldn't initialize apt-X decoder: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -1585,8 +1581,11 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 	ffb_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxdec_destroy), handle);
 
-	if (ffb_init_int16_t(&pcm, t->mtu_read / 4 * 8) == -1 ||
+	/* Note, that we are allocating space for one extra output packed, which is
+	 * required by the aptx_decode_sync() function of libopenaptx library. */
+	if (ffb_init_int16_t(&pcm, (t->mtu_read / 4 + 1) * 8) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -1610,28 +1609,23 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 		if (t->a2dp.pcm.fd == -1)
 			continue;
 
-		uint16_t *input = bt.data;
-		size_t input_codewords = len / sizeof(uint16_t);
+		uint8_t *input = bt.data;
+		size_t input_len = len;
 
 		ffb_rewind(&pcm);
-		int16_t *output = pcm.data;
+		while (input_len >= 4) {
 
-		while (input_codewords >= 2) {
+			size_t decoded = ffb_len_in(&pcm);
+			ssize_t len;
 
-			int32_t pcm_l[4], pcm_r[4];
-			if (aptxbtdec_decodestereo(handle, pcm_l, pcm_r, input) != 0) {
+			if ((len = aptxdec_decode(handle, input, input_len, pcm.tail, &decoded)) <= 0) {
 				error("Apt-X decoding error: %s", strerror(errno));
-				break;
+				continue;
 			}
 
-			input += 2;
-			input_codewords -= 2;
-
-			ffb_seek(&pcm, 2 * ARRAYSIZE(pcm_l));
-			for (size_t i = 0; i < ARRAYSIZE(pcm_l); i++) {
-				*output++ = pcm_l[i];
-				*output++ = pcm_r[i];
-			}
+			input += len;
+			input_len -= len;
+			ffb_seek(&pcm, decoded);
 
 		}
 
@@ -1646,10 +1640,8 @@ fail:
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
 fail_init:
-	pthread_cleanup_pop(1);
-	pthread_cleanup_pop(1);
-fail_open:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
@@ -1668,10 +1660,8 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
-	APTXENC handle = malloc(SizeofAptxbtenc());
-	pthread_cleanup_push(PTHREAD_CLEANUP(aptxbtenc_destroy_free), handle);
-
-	if (handle == NULL || aptxbtenc_init(handle, __BYTE_ORDER == __LITTLE_ENDIAN) != 0) {
+	HANDLE_APTX handle;
+	if ((handle = aptxenc_init()) == NULL) {
 		error("Couldn't initialize apt-X encoder: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -1680,6 +1670,7 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 	ffb_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxenc_destroy), handle);
 
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const size_t aptx_pcm_samples = 4 * channels;
@@ -1708,32 +1699,32 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 		}
 
 		int16_t *input = pcm.data;
-		size_t input_len = samples;
+		size_t input_samples = samples;
 
 		/* encode and transfer obtained data */
-		while (input_len >= aptx_pcm_samples) {
+		while (input_samples >= aptx_pcm_samples) {
 
 			size_t output_len = ffb_len_in(&bt);
-			size_t pcm_frames = 0;
+			size_t pcm_samples = 0;
 
 			/* Generate as many apt-X frames as possible to fill the output buffer
 			 * without overflowing it. The size of the output buffer is based on
 			 * the socket MTU, so such a transfer should be most efficient. */
-			while (input_len >= aptx_pcm_samples && output_len >= aptx_code_len) {
+			while (input_samples >= aptx_pcm_samples && output_len >= aptx_code_len) {
 
-				int32_t pcm_l[4] = { input[0], input[2], input[4], input[6] };
-				int32_t pcm_r[4] = { input[1], input[3], input[5], input[7] };
+				size_t encoded = output_len;
+				ssize_t len;
 
-				if (aptxbtenc_encodestereo(handle, pcm_l, pcm_r, (uint16_t *)bt.tail) != 0) {
+				if ((len = aptxenc_encode(handle, input, input_samples, bt.tail, &encoded)) <= 0) {
 					error("Apt-X encoding error: %s", strerror(errno));
 					break;
 				}
 
-				input += 4 * channels;
-				input_len -= 4 * channels;
-				ffb_seek(&bt, aptx_code_len);
-				output_len -= aptx_code_len;
-				pcm_frames += 4;
+				input += len;
+				input_samples -= len;
+				ffb_seek(&bt, encoded);
+				output_len -= encoded;
+				pcm_samples += len;
 
 			}
 
@@ -1743,7 +1734,7 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 			}
 
 			/* keep data transfer at a constant bit rate */
-			asrsync_sync(&io.asrs, pcm_frames);
+			asrsync_sync(&io.asrs, pcm_samples / channels);
 
 			/* update busy delay (encoding overhead) */
 			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
@@ -1757,7 +1748,7 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 		 * have to append new data to the existing one. Since we do not use
 		 * ring buffer, we will simply move unprocessed data to the front
 		 * of our linear buffer. */
-		ffb_shift(&pcm, samples - input_len);
+		ffb_shift(&pcm, samples - input_samples);
 
 	}
 
@@ -1767,14 +1758,14 @@ fail:
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
-fail_init:
 	pthread_cleanup_pop(1);
+fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
 #endif
 
-#if ENABLE_APTX_HD && OPENAPTX_DECODER
+#if ENABLE_APTX_HD && HAVE_APTX_HD_DECODE
 static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -1788,15 +1779,11 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 	};
 
 	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_open;
+		goto fail_init;
 
-	APTXDEC handle = malloc(SizeofAptxbtdec());
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
-	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhdbtdec_destroy), handle);
-
-	if (handle == NULL ||
-			aptxhdbtdec_init(handle, false) != 0) {
-		error("Couldn't initialize apt-X decoder: %s", strerror(errno));
+	HANDLE_APTX handle;
+	if ((handle = aptxhddec_init()) == NULL) {
+		error("Couldn't initialize apt-X HD decoder: %s", strerror(errno));
 		goto fail_init;
 	}
 
@@ -1804,8 +1791,11 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 	ffb_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhddec_destroy), handle);
 
-	if (ffb_init_int32_t(&pcm, t->mtu_read / 6 * 8) == -1 ||
+	/* Note, that we are allocating space for one extra output packed, which is
+	 * required by the aptx_decode_sync() function of libopenaptx library. */
+	if (ffb_init_int32_t(&pcm, (t->mtu_read / 6 + 1) * 8) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -1836,32 +1826,21 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 			continue;
 
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
-		size_t input_codewords = rtp_payload_len / 3;
 
 		ffb_rewind(&pcm);
-		int32_t *output = pcm.data;
+		while (rtp_payload_len >= 6) {
 
-		while (input_codewords >= 2) {
+			size_t decoded = ffb_len_in(&pcm);
+			ssize_t len;
 
-			int32_t pcm_l[4];
-			int32_t pcm_r[4];
-
-			uint32_t code[2] = {
-				(rtp_payload[0] << 16) | (rtp_payload[1] << 8) | rtp_payload[2],
-				(rtp_payload[3] << 16) | (rtp_payload[4] << 8) | rtp_payload[5] };
-			if (aptxhdbtdec_decodestereo(handle, pcm_l, pcm_r, code) != 0) {
+			if ((len = aptxhddec_decode(handle, rtp_payload, rtp_payload_len, pcm.tail, &decoded)) <= 0) {
 				error("Apt-X decoding error: %s", strerror(errno));
-				break;
+				continue;
 			}
 
-			rtp_payload += 6;
-			input_codewords -= 2;
-
-			ffb_seek(&pcm, 2 * ARRAYSIZE(pcm_l));
-			for (size_t i = 0; i < ARRAYSIZE(pcm_l); i++) {
-				*output++ = pcm_l[i];
-				*output++ = pcm_r[i];
-			}
+			rtp_payload += len;
+			rtp_payload_len -= len;
+			ffb_seek(&pcm, decoded);
 
 		}
 
@@ -1876,10 +1855,8 @@ fail:
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
 fail_init:
-	pthread_cleanup_pop(1);
-	pthread_cleanup_pop(1);
-fail_open:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
@@ -1898,10 +1875,8 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
 
-	APTXENC handle = malloc(SizeofAptxhdbtenc());
-	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhdbtenc_destroy_free), handle);
-
-	if (handle == NULL || aptxhdbtenc_init(handle, false) != 0) {
+	HANDLE_APTX handle;
+	if ((handle = aptxhdenc_init()) == NULL) {
 		error("Couldn't initialize apt-X HD encoder: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -1910,6 +1885,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 	ffb_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhdenc_destroy), handle);
 
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
@@ -1946,43 +1922,35 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 		}
 
 		int32_t *input = pcm.data;
-		size_t input_len = samples;
+		size_t input_samples = samples;
 
 		/* encode and transfer obtained data */
-		while (input_len >= aptx_pcm_samples) {
+		while (input_samples >= aptx_pcm_samples) {
 
 			/* anchor for RTP payload */
 			bt.tail = rtp_payload;
 
 			size_t output_len = ffb_len_in(&bt);
-			size_t pcm_frames = 0;
+			size_t pcm_samples = 0;
 
 			/* Generate as many apt-X frames as possible to fill the output buffer
 			 * without overflowing it. The size of the output buffer is based on
 			 * the socket MTU, so such a transfer should be most efficient. */
-			while (input_len >= aptx_pcm_samples && output_len >= aptx_code_len) {
+			while (input_samples >= aptx_pcm_samples && output_len >= aptx_code_len) {
 
-				int32_t pcm_l[4] = { input[0], input[2], input[4], input[6] };
-				int32_t pcm_r[4] = { input[1], input[3], input[5], input[7] };
-				uint32_t code[2];
+				size_t encoded = output_len;
+				ssize_t len;
 
-				if (aptxhdbtenc_encodestereo(handle, pcm_l, pcm_r, code) != 0) {
+				if ((len = aptxhdenc_encode(handle, input, input_samples, bt.tail, &encoded)) <= 0) {
 					error("Apt-X HD encoding error: %s", strerror(errno));
 					break;
 				}
 
-				((uint8_t *)bt.tail)[0] = code[0] >> 16;
-				((uint8_t *)bt.tail)[1] = code[0] >> 8;
-				((uint8_t *)bt.tail)[2] = code[0];
-				((uint8_t *)bt.tail)[3] = code[1] >> 16;
-				((uint8_t *)bt.tail)[4] = code[1] >> 8;
-				((uint8_t *)bt.tail)[5] = code[1];
-
-				input += 4 * channels;
-				input_len -= 4 * channels;
-				ffb_seek(&bt, aptx_code_len);
-				output_len -= aptx_code_len;
-				pcm_frames += 4;
+				input += len;
+				input_samples -= len;
+				ffb_seek(&bt, encoded);
+				output_len -= encoded;
+				pcm_samples += len;
 
 			}
 
@@ -1992,6 +1960,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 			}
 
 			/* keep data transfer at a constant bit rate */
+			unsigned int pcm_frames = pcm_samples / channels;
 			asrsync_sync(&io.asrs, pcm_frames);
 			timestamp += pcm_frames * 10000 / samplerate;
 
@@ -2010,7 +1979,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 		 * have to append new data to the existing one. Since we do not use
 		 * ring buffer, we will simply move unprocessed data to the front
 		 * of our linear buffer. */
-		ffb_shift(&pcm, samples - input_len);
+		ffb_shift(&pcm, samples - input_samples);
 
 	}
 
@@ -2020,8 +1989,8 @@ fail:
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
-fail_init:
 	pthread_cleanup_pop(1);
+fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
@@ -2405,11 +2374,11 @@ int a2dp_audio_thread_create(struct ba_transport *t) {
 		case A2DP_CODEC_MPEG24:
 			return ba_transport_thread_create(th, a2dp_sink_aac, "ba-a2dp-aac");
 #endif
-#if ENABLE_APTX && OPENAPTX_DECODER
+#if ENABLE_APTX && HAVE_APTX_DECODE
 		case A2DP_CODEC_VENDOR_APTX:
 			return ba_transport_thread_create(th, a2dp_sink_aptx, "ba-a2dp-aptx");
 #endif
-#if ENABLE_APTX_HD && OPENAPTX_DECODER
+#if ENABLE_APTX_HD && HAVE_APTX_HD_DECODE
 		case A2DP_CODEC_VENDOR_APTX_HD:
 			return ba_transport_thread_create(th, a2dp_sink_aptx_hd, "ba-a2dp-aptx-hd");
 #endif

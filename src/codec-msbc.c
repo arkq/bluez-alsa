@@ -1,6 +1,6 @@
 /*
- * BlueALSA - msbc.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * BlueALSA - codec-msbc.c
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -9,7 +9,7 @@
  *
  */
 
-#include "msbc.h"
+#include "codec-msbc.h"
 
 #include <endian.h>
 #include <errno.h>
