@@ -95,11 +95,20 @@ AM_COND_IF([ENABLE_AAC], [
 	AC_DEFINE([ENABLE_AAC], [1], [Define to 1 if AAC is enabled.])
 ])
 
+AC_ARG_WITH([libopenaptx],
+	[AS_HELP_STRING([--with-libopenaptx], [use libopenaptx by pali.rohar for apt-X (HD)])])
+AM_CONDITIONAL([WITH_LIBOPENAPTX], [test "x$with_libopenaptx" = "xyes"])
+
 AC_ARG_ENABLE([aptx],
 	[AS_HELP_STRING([--enable-aptx], [enable apt-X encoding support])])
 AM_CONDITIONAL([ENABLE_APTX], [test "x$enable_aptx" = "xyes"])
 AM_COND_IF([ENABLE_APTX], [
-	PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
+	AM_COND_IF([WITH_LIBOPENAPTX], [
+		PKG_CHECK_MODULES([APTX], [libopenaptx >= 0.3.0])
+		AC_DEFINE([ENABLE_QUALCOMM_API], [1], [Enable Qualcomm API.])
+	], [
+		PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
+	])
 	AC_DEFINE([ENABLE_APTX], [1], [Define to 1 if apt-X is enabled.])
 ])
 
@@ -107,7 +116,12 @@ AC_ARG_ENABLE([aptx_hd],
 	[AS_HELP_STRING([--enable-aptx-hd], [enable apt-X HD encoding support])])
 AM_CONDITIONAL([ENABLE_APTX_HD], [test "x$enable_aptx_hd" = "xyes"])
 AM_COND_IF([ENABLE_APTX_HD], [
-	PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.2.0])
+	AM_COND_IF([WITH_LIBOPENAPTX], [
+		PKG_CHECK_MODULES([APTX_HD], [libopenaptx >= 0.3.0])
+		AC_DEFINE([ENABLE_QUALCOMM_API], [1], [Enable Qualcomm API.])
+	], [
+		PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.2.0])
+	])
 	AC_DEFINE([ENABLE_APTX_HD], [1], [Define to 1 if apt-X HD is enabled.])
 ])
 
