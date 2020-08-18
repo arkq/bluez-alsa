@@ -1734,12 +1734,12 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 					break;
 				}
 
-				bt.tail[0] = ((uint8_t *)code)[2];
-				bt.tail[1] = ((uint8_t *)code)[1];
-				bt.tail[2] = ((uint8_t *)code)[0];
-				bt.tail[3] = ((uint8_t *)code)[6];
-				bt.tail[4] = ((uint8_t *)code)[5];
-				bt.tail[5] = ((uint8_t *)code)[4];
+				bt.tail[0] = code[0] >> 16;
+				bt.tail[1] = code[0] >> 8;
+				bt.tail[2] = code[0];
+				bt.tail[3] = code[1] >> 16;
+				bt.tail[4] = code[1] >> 8;
+				bt.tail[5] = code[1];
 
 				input += 4 * channels;
 				input_len -= 4 * channels;

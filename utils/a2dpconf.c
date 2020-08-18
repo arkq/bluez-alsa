@@ -40,9 +40,11 @@ static const struct {
 	{ A2DP_CODEC_MPEG24, "MPEG24" },
 	{ A2DP_CODEC_ATRAC, "ATRAC" },
 	{ A2DP_CODEC_VENDOR_APTX, "aptX" },
-	{ A2DP_CODEC_VENDOR_FASTSTREAM, "FastStream" },
-	{ A2DP_CODEC_VENDOR_APTX_LL, "aptX-LL" },
+	{ A2DP_CODEC_VENDOR_APTX_AD, "aptX-AD" },
 	{ A2DP_CODEC_VENDOR_APTX_HD, "aptX-HD" },
+	{ A2DP_CODEC_VENDOR_APTX_LL, "aptX-LL" },
+	{ A2DP_CODEC_VENDOR_APTX_TWS, "aptX-TWS" },
+	{ A2DP_CODEC_VENDOR_FASTSTREAM, "FastStream" },
 	{ A2DP_CODEC_VENDOR_LDAC, "LDAC" },
 	{ A2DP_CODEC_VENDOR_LHDC, "LHDC" },
 	{ A2DP_CODEC_VENDOR_LHDC_V1, "LHDCv1" },
@@ -214,13 +216,14 @@ static void dump_aptx(const a2dp_aptx_t *aptx) {
 	printf("aptX <hex:%s> {\n"
 			"  vendor-id:32 = %#x\n"
 			"  vendor-codec-id:16 = %#x\n"
-			"  channel-mode:4 =%s%s\n"
+			"  channel-mode:4 =%s%s%s\n"
 			"  sampling-frequency:4 =%s%s%s%s\n"
 			"}\n",
 			bintohex(aptx, sizeof(*aptx)),
 			A2DP_GET_VENDOR_ID(aptx->info),
 			A2DP_GET_CODEC_ID(aptx->info),
 			aptx->channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
+			aptx->channel_mode & APTX_CHANNEL_MODE_TWS ? " DualChannel" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "",
 			aptx->frequency & APTX_SAMPLING_FREQ_48000 ? " 48000" : "",
 			aptx->frequency & APTX_SAMPLING_FREQ_44100 ? " 44100" : "",
@@ -352,19 +355,23 @@ usage:
 			dump_atrac(&atrac);
 	} break;
 
-	case A2DP_CODEC_VENDOR_APTX: {
+	case A2DP_CODEC_VENDOR_APTX:
+	case A2DP_CODEC_VENDOR_APTX_TWS: {
 		a2dp_aptx_t aptx = { 0 };
 		if (get_codec_blob(codec, &aptx, sizeof(aptx)) != -1)
 			dump_aptx(&aptx);
 	} break;
 
-	case A2DP_CODEC_VENDOR_APTX_LL: {
+	case A2DP_CODEC_VENDOR_APTX_AD: {
 	} break;
 
 	case A2DP_CODEC_VENDOR_APTX_HD: {
 		a2dp_aptx_hd_t aptx_hd = { 0 };
 		if (get_codec_blob(codec, &aptx_hd, sizeof(aptx_hd)) != -1)
 			dump_aptx_hd(&aptx_hd);
+	} break;
+
+	case A2DP_CODEC_VENDOR_APTX_LL: {
 	} break;
 
 	case A2DP_CODEC_VENDOR_FASTSTREAM: {

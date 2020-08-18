@@ -164,12 +164,12 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	case A2DP_CODEC_VENDOR_APTX:
 		break;
 #endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		break;
-#endif
 #if ENABLE_APTX_HD
 	case A2DP_CODEC_VENDOR_APTX_HD:
+		break;
+#endif
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM:
 		break;
 #endif
 #if ENABLE_LDAC

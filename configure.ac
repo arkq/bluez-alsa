@@ -256,11 +256,3 @@ AM_COND_IF([ALSA_1_1_2], [
 	AC_MSG_WARN([Either compile alsa-lib without this feature or export])
 	AC_MSG_WARN([LIBASOUND_THREAD_SAFE=0 while using bluealsa PCM.])
 ])
-
-# warn user that aptX support is not an open-source feature
-AM_COND_IF([ENABLE_APTX], [
-	AC_MSG_WARN([             *** aptX encoder support ***])
-	AC_MSG_WARN([You have enabled support for aptX encoding. Note, that])
-	AC_MSG_WARN([by default bluez-alsa will use openaptx library, which])
-	AC_MSG_WARN([does NOT perform any encoding/decoding.])
-])

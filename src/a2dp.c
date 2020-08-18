@@ -394,6 +394,28 @@ static const struct a2dp_codec a2dp_codec_sink_aptx = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
+static const struct a2dp_codec a2dp_codec_source_aptx_hd = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
+	.capabilities = &a2dp_aptx_hd,
+	.capabilities_size = sizeof(a2dp_aptx_hd),
+	.channels[0] = a2dp_aptx_hd_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
+	.samplings[0] = a2dp_aptx_hd_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
+};
+
+static const struct a2dp_codec a2dp_codec_sink_aptx_hd = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
+	.capabilities = &a2dp_aptx_hd,
+	.capabilities_size = sizeof(a2dp_aptx_hd),
+	.channels[0] = a2dp_aptx_hd_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
+	.samplings[0] = a2dp_aptx_hd_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
+};
+
 static const struct a2dp_codec a2dp_codec_source_faststream = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
@@ -416,28 +438,6 @@ static const struct a2dp_codec a2dp_codec_sink_faststream = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
 	.samplings[1] = a2dp_faststream_samplings_voice,
 	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
-};
-
-static const struct a2dp_codec a2dp_codec_source_aptx_hd = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
-	.capabilities = &a2dp_aptx_hd,
-	.capabilities_size = sizeof(a2dp_aptx_hd),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
-	.samplings[0] = a2dp_aptx_hd_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
-};
-
-static const struct a2dp_codec a2dp_codec_sink_aptx_hd = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
-	.capabilities = &a2dp_aptx_hd,
-	.capabilities_size = sizeof(a2dp_aptx_hd),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
-	.samplings[0] = a2dp_aptx_hd_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
 };
 
 static const struct a2dp_codec a2dp_codec_source_ldac = {
@@ -469,12 +469,12 @@ const struct a2dp_codec *a2dp_codecs[] = {
 #if ENABLE_APTX_HD
 	&a2dp_codec_source_aptx_hd,
 #endif
+#if ENABLE_APTX
+	&a2dp_codec_source_aptx,
+#endif
 #if ENABLE_FASTSTREAM
 	&a2dp_codec_source_faststream,
 	&a2dp_codec_sink_faststream,
-#endif
-#if ENABLE_APTX
-	&a2dp_codec_source_aptx,
 #endif
 #if ENABLE_AAC
 	&a2dp_codec_source_aac,
@@ -550,6 +550,10 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 		switch (codec_id) {
 		case APTX_HD_CODEC_ID:
 			return A2DP_CODEC_VENDOR_APTX_HD;
+		case APTX_TWS_CODEC_ID:
+			return A2DP_CODEC_VENDOR_APTX_TWS;
+		case APTX_AD_CODEC_ID:
+			return A2DP_CODEC_VENDOR_APTX_AD;
 		} break;
 	case BT_COMPID_SONY:
 		switch (codec_id) {
@@ -713,20 +717,20 @@ uint32_t a2dp_check_configuration(
 	}
 #endif
 
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM: {
-		const a2dp_faststream_t *cap = configuration;
-		cap_freq = cap->frequency_music;
-		cap_freq_bc = cap->frequency_voice;
-		break;
-	}
-#endif
-
 #if ENABLE_APTX_HD
 	case A2DP_CODEC_VENDOR_APTX_HD: {
 		const a2dp_aptx_hd_t *cap = configuration;
 		cap_chm = cap->aptx.channel_mode;
 		cap_freq = cap->aptx.frequency;
+		break;
+	}
+#endif
+
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM: {
+		const a2dp_faststream_t *cap = configuration;
+		cap_freq = cap->frequency_music;
+		cap_freq_bc = cap->frequency_voice;
 		break;
 	}
 #endif
@@ -810,12 +814,12 @@ int a2dp_filter_capabilities(
 	case A2DP_CODEC_VENDOR_APTX:
 		break;
 #endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		break;
-#endif
 #if ENABLE_APTX_HD
 	case A2DP_CODEC_VENDOR_APTX_HD:
+		break;
+#endif
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM:
 		break;
 #endif
 #if ENABLE_LDAC
@@ -1049,27 +1053,6 @@ int a2dp_select_configuration(
 	}
 #endif
 
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM: {
-
-		a2dp_faststream_t *cap = capabilities;
-		unsigned int cap_freq = cap->frequency_music;
-		unsigned int cap_freq_bc = cap->frequency_voice;
-
-		if ((cap->frequency_music = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
-			error("FastStream: No supported sampling frequencies: %#x", cap_freq);
-			goto fail;
-		}
-
-		if ((cap->frequency_voice = a2dp_codec_select_sampling_freq(codec, cap_freq_bc, true)) == 0) {
-			error("FastStream: No supported back-channel sampling frequencies: %#x", cap_freq_bc);
-			goto fail;
-		}
-
-		break;
-	}
-#endif
-
 #if ENABLE_APTX_HD
 	case A2DP_CODEC_VENDOR_APTX_HD: {
 
@@ -1084,6 +1067,27 @@ int a2dp_select_configuration(
 
 		if ((cap->aptx.frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
 			error("apt-X HD: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_FASTSTREAM
+	case A2DP_CODEC_VENDOR_FASTSTREAM: {
+
+		a2dp_faststream_t *cap = capabilities;
+		unsigned int cap_freq = cap->frequency_music;
+		unsigned int cap_freq_bc = cap->frequency_voice;
+
+		if ((cap->frequency_music = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+			error("FastStream: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
+		}
+
+		if ((cap->frequency_voice = a2dp_codec_select_sampling_freq(codec, cap_freq_bc, true)) == 0) {
+			error("FastStream: No supported back-channel sampling frequencies: %#x", cap_freq_bc);
 			goto fail;
 		}
 

@@ -532,15 +532,15 @@ static void transport_update_channels(struct ba_transport *t) {
 			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->channel_mode;
 			break;
 #endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.channel_mode;
+			break;
+#endif
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			t->a2dp.pcm.channels = 2;
 			t->a2dp.pcm_bc.channels = 1;
-			break;
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.channel_mode;
 			break;
 #endif
 #if ENABLE_LDAC
@@ -601,15 +601,15 @@ static void transport_update_sampling(struct ba_transport *t) {
 			cfg_value = ((a2dp_aptx_t *)t->a2dp.configuration)->frequency;
 			break;
 #endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.frequency;
+			break;
+#endif
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			cfg_value = ((a2dp_faststream_t *)t->a2dp.configuration)->frequency_music;
 			cfg_value_bc = ((a2dp_faststream_t *)t->a2dp.configuration)->frequency_voice;
-			break;
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			cfg_value = ((a2dp_aptx_hd_t *)t->a2dp.configuration)->aptx.frequency;
 			break;
 #endif
 #if ENABLE_LDAC

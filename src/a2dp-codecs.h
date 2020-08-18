@@ -40,8 +40,10 @@
 
 /* Customized (BlueALSA) 16-bit vendor extension. */
 #define A2DP_CODEC_VENDOR_APTX          0x4FFF
+#define A2DP_CODEC_VENDOR_APTX_AD       0xADFF
+#define A2DP_CODEC_VENDOR_APTX_HD       0x24FF
 #define A2DP_CODEC_VENDOR_APTX_LL       0xA2FF
-#define A2DP_CODEC_VENDOR_APTX_HD       0xD7FF
+#define A2DP_CODEC_VENDOR_APTX_TWS      0x25FF
 #define A2DP_CODEC_VENDOR_FASTSTREAM    0xA1FF
 #define A2DP_CODEC_VENDOR_LDAC          0x2DFF
 #define A2DP_CODEC_VENDOR_LHDC          0x4CFF
@@ -245,6 +247,7 @@
 
 #define APTX_CHANNEL_MODE_MONO          0x01
 #define APTX_CHANNEL_MODE_STEREO        0x02
+#define APTX_CHANNEL_MODE_TWS           0x08
 
 #define APTX_SAMPLING_FREQ_16000        0x08
 #define APTX_SAMPLING_FREQ_32000        0x04
@@ -287,6 +290,12 @@
 
 #define APTX_HD_VENDOR_ID               BT_COMPID_QUALCOMM_TECH
 #define APTX_HD_CODEC_ID                0x0024
+
+#define APTX_TWS_VENDOR_ID              BT_COMPID_QUALCOMM_TECH
+#define APTX_TWS_CODEC_ID               0x0025
+
+#define APTX_AD_VENDOR_ID               BT_COMPID_QUALCOMM_TECH
+#define APTX_AD_CODEC_ID                0x00ad
 
 #define LDAC_VENDOR_ID                  BT_COMPID_SONY
 #define LDAC_CODEC_ID                   0x00aa
