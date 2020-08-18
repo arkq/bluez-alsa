@@ -6,8 +6,9 @@ unreleased
 - support for A2DP audio codec selection or reconfiguration
 - fix SBC encoder bit-pool selection (support SBC XQ quality)
 - allow to disable software volume scaling via D-Bus API
-- improve PCM I/O plug-in delay heuristic (fix VLC playback)
+- great improvement to the PCM I/O plug-in (thanks to @borine)
 - bluealsa-aplay: list connected BT devices and available PCMs
+- bluealsa-aplay: fix PCM corruption due to out-of-bounds read
 
 bluez-alsa v2.1.0 (2020-01-25)
 ==============================

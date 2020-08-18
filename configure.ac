@@ -85,7 +85,7 @@ PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.30])
 PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
 
-AM_CONDITIONAL([ALSA_1_1_2], [$PKG_CONFIG --atleast-version=1.1.2 alsa])
+AM_CONDITIONAL([ALSA_1_1_2__1_1_3], [$PKG_CONFIG "alsa >= 1.1.2 alsa <= 1.1.3"])
 AM_CONDITIONAL([ALSA_1_1_7], [$PKG_CONFIG --atleast-version=1.1.7 alsa])
 
 AC_ARG_ENABLE([aac],
@@ -247,8 +247,8 @@ AC_CONFIG_FILES([
 AC_OUTPUT
 
 # warn user that alsa-lib thread-safety makes troubles
-AM_COND_IF([ALSA_1_1_2], [
-	AC_MSG_WARN([              *** alsa-lib >= 1.1.2 ***])
+AM_COND_IF([ALSA_1_1_2__1_1_3], [
+	AC_MSG_WARN([         *** alsa-lib >= 1.1.2, <= 1.1.3 ***])
 	AC_MSG_WARN([Starting from alsa-lib 1.1.2, it is possible to enable])
 	AC_MSG_WARN([thread-safe API functions. Unfortunately, this feature])
 	AC_MSG_WARN([is not mature enough - software plugins may experience])
