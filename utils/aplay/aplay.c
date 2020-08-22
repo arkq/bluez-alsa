@@ -650,7 +650,6 @@ int main(int argc, char *argv[]) {
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h' /* --help */ :
-usage:
 			printf("Usage:\n"
 					"  %s [OPTION]... [BT-ADDR]...\n"
 					"\nOptions:\n"
@@ -670,7 +669,7 @@ usage:
 					"If one wants to receive audio from more than one Bluetooth device, it is\n"
 					"possible to specify more than one MAC address. By specifying any/empty MAC\n"
 					"address (00:00:00:00:00:00), one will allow connections from any Bluetooth\n"
-					"device.\n",
+					"device. Without given explicit MAC address any/empty MAC is assumed.\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 
@@ -719,10 +718,6 @@ usage:
 			return EXIT_FAILURE;
 		}
 
-	if (optind == argc &&
-			!list_bt_devices && !list_bt_pcms)
-		goto usage;
-
 	log_open(argv[0], false, false);
 	dbus_threads_init_default();
 
@@ -748,7 +743,9 @@ usage:
 		return EXIT_SUCCESS;
 	}
 
-	if (parse_bt_addresses(&argv[optind], argc - optind) == -1) {
+	if (optind == argc)
+		ba_addr_any = true;
+	else if (parse_bt_addresses(&argv[optind], argc - optind) == -1) {
 		error("Couldn't parse BT addresses: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
