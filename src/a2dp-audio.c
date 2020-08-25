@@ -1539,7 +1539,7 @@ static void *a2dp_source_aptx(struct ba_transport *t) {
 	};
 
 	APTXENC handle = malloc(SizeofAptxbtenc());
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxbtenc_destroy_free), handle);
 
 	if (handle == NULL || aptxbtenc_init(handle, __BYTE_ORDER == __LITTLE_ENDIAN) != 0) {
 		error("Couldn't initialize apt-X encoder: %s", strerror(errno));
@@ -1662,7 +1662,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 	};
 
 	APTXENC handle = malloc(SizeofAptxhdbtenc());
-	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhdbtenc_destroy_free), handle);
 
 	if (handle == NULL || aptxhdbtenc_init(handle, false) != 0) {
 		error("Couldn't initialize apt-X HD encoder: %s", strerror(errno));

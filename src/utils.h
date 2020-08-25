@@ -49,10 +49,16 @@ const char *lame_encode_strerror(int err);
 #endif
 
 #if ENABLE_AAC
-#include <fdk-aac/aacdecoder_lib.h>
-#include <fdk-aac/aacenc_lib.h>
+# include <fdk-aac/aacdecoder_lib.h>
+# include <fdk-aac/aacenc_lib.h>
 const char *aacdec_strerror(AAC_DECODER_ERROR err);
 const char *aacenc_strerror(AACENC_ERROR err);
+#endif
+
+#if ENABLE_APTX || ENABLE_APTX_HD
+# include <openaptx.h>
+void aptxbtenc_destroy_free(APTXENC enc);
+void aptxhdbtenc_destroy_free(APTXENC enc);
 #endif
 
 #if ENABLE_LDAC

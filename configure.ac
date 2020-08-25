@@ -100,7 +100,7 @@ AC_ARG_ENABLE([aptx],
 	[AS_HELP_STRING([--enable-aptx], [enable apt-X encoding support])])
 AM_CONDITIONAL([ENABLE_APTX], [test "x$enable_aptx" = "xyes"])
 AM_COND_IF([ENABLE_APTX], [
-	PKG_CHECK_MODULES([APTX], [openaptx >= 1.0.0])
+	PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
 	AC_DEFINE([ENABLE_APTX], [1], [Define to 1 if apt-X is enabled.])
 ])
 
@@ -108,7 +108,7 @@ AC_ARG_ENABLE([aptx_hd],
 	[AS_HELP_STRING([--enable-aptx-hd], [enable apt-X HD encoding support])])
 AM_CONDITIONAL([ENABLE_APTX_HD], [test "x$enable_aptx_hd" = "xyes"])
 AM_COND_IF([ENABLE_APTX_HD], [
-	PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.0.0])
+	PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.2.0])
 	AC_DEFINE([ENABLE_APTX_HD], [1], [Define to 1 if apt-X HD is enabled.])
 ])
 
