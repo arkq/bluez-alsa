@@ -85,7 +85,7 @@ most straightforward method is to use BlueZ CLI utility called `bluetoothctl`. W
 connected one can use the `bluealsa` virtual PCM device as follows:
 
 ```sh
-aplay -D bluealsa:SRV=org.bluealsa,DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp Bourree_in_E_minor.wav
+aplay -D bluealsa:DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp Bourree_in_E_minor.wav
 ```
 
 Setup parameters of the bluealsa PCM device can be set in the local `.asoundrc` configuration file
@@ -121,7 +121,7 @@ related part of the specification, or use [oFono](https://01.org/ofono) service 
 order to open SCO audio connection one shall switch to `sco` profile like follows:
 
 ```sh
-aplay -D bluealsa:SRV=org.bluealsa,DEV=XX:XX:XX:XX:XX:XX,PROFILE=sco Bourree_in_E_minor.wav
+aplay -D bluealsa:DEV=XX:XX:XX:XX:XX:XX,PROFILE=sco Bourree_in_E_minor.wav
 ```
 
 The list of available BlueALSA PCMs (provided by connected Bluetooth devices with audio
