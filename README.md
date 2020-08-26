@@ -80,6 +80,9 @@ run as a root during system startup. It will register `org.bluealsa` service in 
 bus, which can be used for accessing configured audio devices. In general, BlueALSA acts as a
 proxy between BlueZ and ALSA.
 
+For details of command-line options to `bluealsa`, consult the [bluealsa man
+page](./doc/bluealsa-manpage.md).
+
 In order to stream audio to the e.g. Bluetooth headset, firstly one has to connect the device. The
 most straightforward method is to use BlueZ CLI utility called `bluetoothctl`. When the device is
 connected one can use the `bluealsa` virtual PCM device as follows:
@@ -114,6 +117,9 @@ BlueALSA player. Connect your Bluetooth device (e.g. smartphone) and do as follo
 ```sh
 bluealsa-aplay XX:XX:XX:XX:XX:XX
 ```
+
+For details of command-line options to `bluealsa-aplay`, consult the [bluealsa-aplay man
+page](./doc/bluealsa-aplay-manpage.md).
 
 In addition to A2DP profile, used for high quality audio, BlueALSA also allows to use phone audio
 connection via SCO link. One can use either build-in HSP/HFP support, which implements only audio

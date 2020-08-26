@@ -4,6 +4,10 @@
 ACLOCAL_AMFLAGS = -I m4
 SUBDIRS = src utils
 
+if ENABLE_MANPAGES
+SUBDIRS += doc
+endif
+
 if ENABLE_TEST
 SUBDIRS += test
 endif
