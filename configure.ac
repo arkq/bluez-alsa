@@ -188,6 +188,15 @@ AM_COND_IF([ENABLE_HCITOP], [
 	PKG_CHECK_MODULES([NCURSES], [ncurses])
 ])
 
+AC_ARG_ENABLE([manpages],
+	AS_HELP_STRING([--enable-manpages], [include man pages - requires pandoc]))
+AM_CONDITIONAL([ENABLE_MANPAGES], [test "x$enable_manpages" = "xyes"])
+AM_COND_IF([ENABLE_MANPAGES], [
+	AC_PATH_PROG(PANDOC, pandoc)
+	AS_IF([test x"$PANDOC" = x], [AC_MSG_ERROR([[--enable-manpages requires program pandoc]])])
+	AC_SUBST([PANDOC])
+])
+
 AC_ARG_ENABLE([test],
 	[AS_HELP_STRING([--enable-test], [enable unit test])])
 AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
@@ -196,7 +205,7 @@ AM_COND_IF([ENABLE_TEST], [
 ])
 
 AC_ARG_WITH([dbusconfdir],
-	AC_HELP_STRING([--with-dbusconfdir=dir], [path to D-Bus system bus configuration files]),
+	AS_HELP_STRING([--with-dbusconfdir=dir], [path to D-Bus system bus configuration files]),
 	[dbusconfdir="${withval}"],
 	[dbusconfdir=$($PKG_CONFIG --variable=sysconfdir dbus-1)/dbus-1/system.d])
 AC_ARG_WITH([alsaplugindir],
@@ -243,7 +252,8 @@ AC_CONFIG_FILES([
 	utils/Makefile
 	utils/aplay/Makefile
 	utils/rfcomm/Makefile
-	test/Makefile])
+	test/Makefile
+	doc/Makefile])
 AC_OUTPUT
 
 # warn user that alsa-lib thread-safety makes troubles
