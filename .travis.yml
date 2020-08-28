@@ -18,6 +18,7 @@ addons:
       - libncurses5-dev
       - libreadline-dev
       - libsbc-dev
+      - pandoc
 
 before_script:
   - mkdir -p m4
@@ -28,7 +29,7 @@ script:
   - cat test/*.log
   - ../configure --enable-test --enable-debug && make && make check
   - cat test/*.log
-  - ../configure --enable-test --enable-aac --enable-msbc && make && make check
+  - ../configure --enable-test --enable-manpages --enable-aac --enable-msbc && make && make check
   - cat test/*.log
   - ../configure --enable-mp3lame --enable-mpg123 --enable-ofono && make
   - ../configure --enable-mp3lame --enable-ofono --enable-upower && make

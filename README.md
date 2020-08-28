@@ -53,6 +53,7 @@ Dependencies:
   `--enable-aptx` and/or `--enable-aptx-hd`)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC encoding support is enabled with
   `--enable-ldac`)
+- [pandoc](https://pandoc.org/) (when man pages building is enabled with `--enable-manpages`)
 
 Dependencies for client applications (e.g. `bluealsa-aplay`):
 
