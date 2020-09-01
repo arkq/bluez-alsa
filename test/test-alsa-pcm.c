@@ -168,8 +168,10 @@ static int test_pcm_open(pid_t *pid, snd_pcm_t **pcm, snd_pcm_stream_t stream) {
 
 static int test_pcm_close(pid_t pid, snd_pcm_t *pcm) {
 	int rv = snd_pcm_close(pcm);
-	if (pid != -1)
+	if (pid != -1) {
+		kill(pid, SIGTERM);
 		waitpid(pid, NULL, 0);
+	}
 	return rv;
 }
 
@@ -775,7 +777,6 @@ START_TEST(test_playback_device_unplug) {
 	snd_pcm_sframes_t frames = 0;
 	snd_pcm_t *pcm = NULL;
 	pid_t pid = -1;
-	size_t i = 0;
 
 	ck_assert_ptr_eq(pcm_device, NULL);
 	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
@@ -784,11 +785,8 @@ START_TEST(test_playback_device_unplug) {
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	/* write samples until server disconnects */
-	while (frames >= 0) {
-		if (i++ == 10)
-			kill(pid, SIGUSR2);
+	while (frames >= 0)
 		frames = snd_pcm_writei(pcm, test_sine_s16le(128), 128);
-	}
 
 #if 0
 	/* check if most commonly used calls will report missing device */

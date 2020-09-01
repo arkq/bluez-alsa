@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include <gio/gio.h>
+#include <glib-unix.h>
 #include <glib.h>
 
 #include "inc/dbus.inc"
@@ -66,7 +67,6 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
-static GMainLoop *loop = NULL;
 static struct ba_adapter *a = NULL;
 static const char *service = "org.bluealsa";
 static unsigned int timeout = 5;
@@ -76,10 +76,10 @@ static bool sink = false;
 static bool sco = false;
 
 static bool main_loop_on = true;
-static void test_pcm_setup_free_handler(int sig) {
-	(void)(sig);
+static gboolean main_loop_exit_handler(void *userdata) {
 	main_loop_on = false;
-	g_main_loop_quit(loop);
+	g_main_loop_quit((GMainLoop *)userdata);
+	return G_SOURCE_REMOVE;
 }
 
 static int sigusr1_count = 0;
@@ -186,13 +186,13 @@ static struct ba_transport *test_transport_new_sco(struct ba_device *d,
 	return t;
 }
 
-void *test_bt_mock(void *data) {
-	(void)data;
+void *test_bt_mock(void *userdata) {
 
 	bdaddr_t addr;
 	struct ba_device *d1, *d2;
 	struct ba_transport *t1d1 = NULL, *t2d1 = NULL, *t3d1 = NULL;
 	struct ba_transport *t1d2 = NULL, *t2d2 = NULL, *t3d2 = NULL;
+	GMainLoop *loop = userdata;
 
 	str2ba("12:34:56:78:9A:BC", &addr);
 	assert((d1 = ba_device_new(a, &addr)) != NULL);
@@ -322,12 +322,8 @@ int main(int argc, char *argv[]) {
 	/* emulate dummy test HCI device */
 	assert((a = ba_adapter_new(0)) != NULL);
 
-	struct sigaction sigact = { .sa_handler = test_pcm_setup_free_handler };
-	sigaction(SIGINT, &sigact, NULL);
-	sigaction(SIGTERM, &sigact, NULL);
-
 	/* receive EPIPE error code */
-	sigact.sa_handler = SIG_IGN;
+	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
 	/* register USR signals handler */
@@ -335,10 +331,13 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGUSR1, &sigact, NULL);
 	sigaction(SIGUSR2, &sigact, NULL);
 
-	/* run mock thread */
-	g_thread_new(NULL, test_bt_mock, NULL);
+	GMainLoop *loop = g_main_loop_new(NULL, FALSE);
+	g_unix_signal_add(SIGINT, main_loop_exit_handler, loop);
+	g_unix_signal_add(SIGTERM, main_loop_exit_handler, loop);
 
-	loop = g_main_loop_new(NULL, FALSE);
+	/* run actual BlueALSA mock thread */
+	g_thread_new(NULL, test_bt_mock, loop);
+
 	g_main_loop_run(loop);
 
 	ba_adapter_unref(a);

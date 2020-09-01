@@ -22,6 +22,7 @@
 #include <time.h>
 
 #include <gio/gio.h>
+#include <glib-unix.h>
 #include <glib.h>
 
 #if ENABLE_LDAC
@@ -52,7 +53,6 @@
 	G_BUS_NAME_OWNER_FLAGS_NONE
 #endif
 
-static GMainLoop *loop = NULL;
 static int retval = EXIT_SUCCESS;
 
 static char *get_a2dp_codecs(
@@ -74,21 +74,15 @@ static char *get_a2dp_codecs(
 	return g_strjoinv(", ", (char **)tmp);
 }
 
-static void main_loop_stop(int sig) {
-	/* Call to this handler restores the default action, so on the
-	 * second call the program will be forcefully terminated. */
-
-	struct sigaction sigact = { .sa_handler = SIG_DFL };
-	sigaction(sig, &sigact, NULL);
-
-	g_main_loop_quit(loop);
+static gboolean main_loop_exit_handler(void *userdata) {
+	g_main_loop_quit((GMainLoop *)userdata);
+	return G_SOURCE_REMOVE;
 }
 
 static void dbus_name_lost(GDBusConnection *conn, const char *name, void *userdata) {
 	(void)conn;
-	(void)userdata;
 	error("Couldn't acquire D-Bus name: %s", name);
-	g_main_loop_quit(loop);
+	g_main_loop_quit((GMainLoop *)userdata);
 	retval = EXIT_FAILURE;
 }
 
@@ -388,19 +382,17 @@ int main(int argc, char **argv) {
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	/* register main loop exit handler */
-	sigact.sa_handler = main_loop_stop;
-	sigaction(SIGTERM, &sigact, NULL);
-	sigaction(SIGINT, &sigact, NULL);
+	GMainLoop *loop = g_main_loop_new(NULL, FALSE);
+	g_unix_signal_add(SIGINT, main_loop_exit_handler, loop);
+	g_unix_signal_add(SIGTERM, main_loop_exit_handler, loop);
 
 	/* register well-known service name */
 	debug("Acquiring D-Bus service name: %s", dbus_service);
 	g_bus_own_name_on_connection(config.dbus, dbus_service,
-			G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE, NULL, dbus_name_lost, NULL, NULL);
+			G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE, NULL, dbus_name_lost, loop, NULL);
 
 	/* main dispatching loop */
 	debug("Starting main dispatching loop");
-	loop = g_main_loop_new(NULL, FALSE);
 	g_main_loop_run(loop);
 
 	debug("Exiting main loop");
