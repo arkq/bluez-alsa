@@ -159,7 +159,7 @@ static int test_pcm_open(pid_t *pid, snd_pcm_t **pcm, snd_pcm_stream_t stream) {
 		return snd_pcm_open(pcm, pcm_device, stream, 0);
 
 	const char *service = "org.bluealsa.test";
-	if ((*pid = spawn_bluealsa_server(service, 1, false,
+	if ((*pid = spawn_bluealsa_server(service, 1, true, false,
 					stream == SND_PCM_STREAM_PLAYBACK,
 					stream == SND_PCM_STREAM_CAPTURE)) == -1)
 		return -1;
@@ -813,7 +813,7 @@ START_TEST(test_playback_device_unplug) {
 	ck_assert_int_eq(snd_pcm_close(pcm), 0);
 #endif
 
-	waitpid(pid, NULL, 0);
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
 
 } END_TEST
 
@@ -856,7 +856,7 @@ int main(int argc, char *argv[]) {
 		}
 
 	/* test-alsa-pcm and server-mock shall be placed in the same directory */
-	bin_path = dirname(argv[0]);
+	server_mock_path = dirname(argv[0]);
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

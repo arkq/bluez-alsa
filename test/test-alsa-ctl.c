@@ -54,7 +54,7 @@ fail:
 START_TEST(test_control) {
 
 	const char *service = "org.bluealsa.test";
-	pid_t pid = spawn_bluealsa_server(service, 1, false, true, true);
+	pid_t pid = spawn_bluealsa_server(service, 1, true, false, true, true);
 
 	snd_ctl_t *ctl = NULL;
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service, 0), 0);
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/aloader.so");
 
 	/* test-alsa-ctl and server-mock shall be placed in the same directory */
-	bin_path = dirname(argv[0]);
+	server_mock_path = dirname(argv[0]);
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);
