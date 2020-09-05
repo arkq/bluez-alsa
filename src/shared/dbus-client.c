@@ -67,6 +67,9 @@ dbus_bool_t bluealsa_dbus_connection_ctx_init(
 	if ((ctx->conn = dbus_bus_get_private(DBUS_BUS_SYSTEM, error)) == NULL)
 		return FALSE;
 
+	/* do not terminate in case of D-Bus connection being lost */
+	dbus_connection_set_exit_on_disconnect(ctx->conn, FALSE);
+
 	if (!dbus_connection_set_watch_functions(ctx->conn, ba_dbus_watch_add,
 				ba_dbus_watch_del, ba_dbus_watch_toggled, ctx, NULL)) {
 		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
