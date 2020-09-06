@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ffb.h
- * Copyright (c) 2016-2018 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -13,67 +13,51 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 /**
- * Convenience wrapper for FIFO-like buffer for uint8_t. */
+ * Convenience wrapper for FIFO-like buffer. */
 typedef struct {
 	/* pointer to the allocated memory block */
-	uint8_t *data;
+	void *data;
 	/* pointer to the end of data */
-	uint8_t *tail;
-	/* size of the buffer */
+	void *tail;
+	/* number of elements in the buffer */
+	size_t nmemb;
+	/* the size of each element */
 	size_t size;
-} ffb_uint8_t;
+} ffb_t;
 
-/**
- * Convenience wrapper for FIFO-like buffer for int16_t. */
-typedef struct {
-	int16_t *data;
-	int16_t *tail;
-	size_t size;
-} ffb_int16_t;
+int ffb_init(ffb_t *ffb, size_t nmemb, size_t size);
+void ffb_free(ffb_t *ffb);
 
-/**
- * Allocate/reallocate resources for the FIFO-like buffer.
- *
- * @param p Pointer to the buffer structure.
- * @param s Number of the buffer unite blocks.
- * @return On success this function returns non-NULL value. */
-#define ffb_init(p, s) \
-	((p)->data = (p)->tail = realloc((p)->data, ((p)->size = s) * sizeof(*(p)->data)))
-
-void ffb_uint8_free(ffb_uint8_t *ffb);
-void ffb_int16_free(ffb_int16_t *ffb);
+#define ffb_init_uint8_t(p, n) ffb_init(p, n, sizeof(uint8_t))
+#define ffb_init_int16_t(p, n) ffb_init(p, n, sizeof(int16_t))
+#define ffb_init_int32_t(p, n) ffb_init(p, n, sizeof(int32_t))
 
 /**
  * Get number of unite blocks available for writing. */
-#define ffb_len_in(p) ((p)->size - ffb_len_out(p))
+#define ffb_len_in(p) (ffb_blen_in(p) / (p)->size)
 /**
  * Get number of unite blocks available for reading. */
-#define ffb_len_out(p) ((size_t)((p)->tail - (p)->data))
+#define ffb_len_out(p) (ffb_blen_out(p) / (p)->size)
 
 /**
  * Get number of bytes available for writing. */
-#define ffb_blen_in(p) (ffb_len_in(p) * sizeof(*(p)->data))
+#define ffb_blen_in(p) ((p)->nmemb * (p)->size - ffb_blen_out(p))
 /**
  * Get number of bytes available for reading. */
-#define ffb_blen_out(p) (ffb_len_out(p) * sizeof(*(p)->data))
+#define ffb_blen_out(p) ((size_t)((uint8_t *)(p)->tail - (uint8_t *)(p)->data))
 
 /**
  * Move the tail pointer by the given number of unite blocks. */
-#define ffb_seek(p, s) ((p)->tail += s)
+#define ffb_seek(p, n) ((p)->tail = (uint8_t *)(p)->tail + (n) * (p)->size)
 
 /**
  * Set the tail pointer to the beginning of the buffer. */
 #define ffb_rewind(p) ((p)->tail = (p)->data)
 
 /**
- * Shift data by the given number of unite blocks. */
-#define ffb_shift(p, s) do { \
-		memmove((p)->data, (p)->data + (s), sizeof(*(p)->data) * (ffb_len_out(p) - (s))); \
-		(p)->tail -= s; \
-	} while (0)
+ * Shift data by the given number of elements. */
+int ffb_shift(ffb_t *ffb, size_t nmemb);
 
 #endif

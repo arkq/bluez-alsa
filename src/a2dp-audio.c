@@ -249,7 +249,7 @@ retry:
  * Note:
  * This function temporally re-enables thread cancellation! */
 static ssize_t a2dp_poll_and_read_pcm(struct ba_transport_pcm *pcm,
-		struct io_thread_data *io, ffb_int16_t *buffer) {
+		struct io_thread_data *io, ffb_t *buffer) {
 
 	struct ba_transport *t = pcm->t;
 	struct pollfd fds[2] = {
@@ -362,7 +362,7 @@ static int a2dp_validate_bt_sink(struct ba_transport *t) {
  * Note:
  * This function temporally re-enables thread cancellation! */
 static ssize_t a2dp_poll_and_read_bt(struct ba_transport *t,
-		struct io_thread_data *io, ffb_uint8_t *buffer) {
+		struct io_thread_data *io, ffb_t *buffer) {
 
 	struct pollfd fds[2] = {
 		{ t->sig_fd[0], POLLIN, 0 },
@@ -471,15 +471,15 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init(&pcm, sbc_get_codesize(&sbc)) == NULL ||
-			ffb_init(&bt, t->mtu_read) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, sbc_get_codesize(&sbc)) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -593,10 +593,10 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
 	const a2dp_sbc_t *configuration = (a2dp_sbc_t *)t->a2dp.configuration;
@@ -621,9 +621,9 @@ static void *a2dp_source_sbc(struct ba_transport *t) {
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu",
 				t->mtu_write, RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len);
 
-	if (ffb_init(&pcm, sbc_pcm_samples * (mtu_write_payload / sbc_frame_len)) == NULL ||
-			ffb_init(&bt, t->mtu_write) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, sbc_pcm_samples * (mtu_write_payload / sbc_frame_len)) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -782,14 +782,14 @@ static void *a2dp_sink_mpeg(struct ba_transport *t) {
 
 #endif
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init(&pcm, MPEG_PCM_DECODE_SAMPLES) == NULL ||
-			ffb_init(&bt, t->mtu_read) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, MPEG_PCM_DECODE_SAMPLES) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -883,8 +883,8 @@ decode:
 
 			ssize_t i;
 			for (i = 0; i < samples; i++) {
-				pcm.data[i * 2 + 0] = pcm_l[i];
-				pcm.data[i * 2 + 1] = pcm_r[i];
+				((int16_t *)pcm.data)[i * 2 + 0] = pcm_l[i];
+				((int16_t *)pcm.data)[i * 2 + 1] = pcm_r[i];
 			}
 
 			if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
@@ -1003,19 +1003,20 @@ static void *a2dp_source_mp3(struct ba_transport *t) {
 		goto fail_setup;
 	}
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
 	const size_t mpeg_pcm_samples = lame_get_framesize(handle);
+	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_mpeg_audio_header_t);
 	/* It is hard to tell the size of the buffer required, but
 	 * empirical test shows that 2KB should be sufficient. */
 	const size_t mpeg_frame_len = 2048;
 
-	if (ffb_init(&pcm, mpeg_pcm_samples) == NULL ||
-			ffb_init(&bt, RTP_HEADER_LEN + sizeof(rtp_mpeg_audio_header_t) + mpeg_frame_len) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, mpeg_pcm_samples) == -1 ||
+			ffb_init_uint8_t(&bt, rtp_headers_len + mpeg_frame_len) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -1171,17 +1172,17 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 	}
 #endif
 
-	ffb_uint8_t bt = { 0 };
-	ffb_uint8_t latm = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &latm);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t latm = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &latm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init(&pcm, 2048 * channels) == NULL ||
-			ffb_init(&latm, t->mtu_read) == NULL ||
-			ffb_init(&bt, t->mtu_read) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, 2048 * channels) == -1 ||
+			ffb_init_uint8_t(&latm, t->mtu_read) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -1241,7 +1242,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 		if (ffb_len_in(&latm) < rtp_latm_len) {
 			debug("Resizing LATM buffer: %zd -> %zd", latm.size, latm.size + t->mtu_read);
 			size_t prev_len = ffb_len_out(&latm);
-			ffb_init(&latm, latm.size + t->mtu_read);
+			ffb_init_uint8_t(&latm, latm.nmemb + t->mtu_read);
 			ffb_seek(&latm, prev_len);
 		}
 
@@ -1257,7 +1258,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 		unsigned int valid = ffb_len_out(&latm);
 		CStreamInfo *aacinf;
 
-		if ((err = aacDecoder_Fill(handle, &latm.data, &data_len, &valid)) != AAC_DEC_OK)
+		if ((err = aacDecoder_Fill(handle, (uint8_t **)&latm.data, &data_len, &valid)) != AAC_DEC_OK)
 			error("AAC buffer fill error: %s", aacdec_strerror(err));
 		else if ((err = aacDecoder_DecodeFrame(handle, pcm.tail, ffb_blen_in(&pcm), 0)) != AAC_DEC_OK)
 			error("AAC decode frame error: %s", aacdec_strerror(err));
@@ -1388,14 +1389,14 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init(&pcm, aacinf.inputChannels * aacinf.frameLength) == NULL ||
-			ffb_init(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, aacinf.inputChannels * aacinf.frameLength) == -1 ||
+			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -1410,10 +1411,10 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 
 	int in_bufferIdentifiers[] = { IN_AUDIO_DATA };
 	int out_bufferIdentifiers[] = { OUT_BITSTREAM_DATA };
-	int in_bufSizes[] = { pcm.size * sizeof(*pcm.data) };
+	int in_bufSizes[] = { pcm.nmemb * pcm.size };
 	int out_bufSizes[] = { aacinf.maxOutBufBytes };
-	int in_bufElSizes[] = { sizeof(*pcm.data) };
-	int out_bufElSizes[] = { sizeof(*bt.data) };
+	int in_bufElSizes[] = { pcm.size };
+	int out_bufElSizes[] = { bt.size };
 
 	AACENC_BufDesc in_buf = {
 		.numBufs = 1,
@@ -1547,19 +1548,19 @@ static void *a2dp_source_aptx(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const size_t aptx_pcm_samples = 4 * channels;
 	const size_t aptx_code_len = 2 * sizeof(uint16_t);
 	const size_t mtu_write = t->mtu_write;
 
-	if (ffb_init(&pcm, aptx_pcm_samples * (mtu_write / aptx_code_len)) == NULL ||
-			ffb_init(&bt, mtu_write) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, aptx_pcm_samples * (mtu_write / aptx_code_len)) == -1 ||
+			ffb_init_uint8_t(&bt, mtu_write) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -1670,10 +1671,10 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
@@ -1681,9 +1682,9 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 	const size_t aptx_code_len = 2 * 3 * sizeof(uint8_t);
 	const size_t mtu_write = t->mtu_write;
 
-	if (ffb_init(&pcm, aptx_pcm_samples * ((mtu_write - RTP_HEADER_LEN) / aptx_code_len)) == NULL ||
-			ffb_init(&bt, mtu_write) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, aptx_pcm_samples * ((mtu_write - RTP_HEADER_LEN) / aptx_code_len)) == -1 ||
+			ffb_init_uint8_t(&bt, mtu_write) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -1735,12 +1736,12 @@ static void *a2dp_source_aptx_hd(struct ba_transport *t) {
 					break;
 				}
 
-				bt.tail[0] = code[0] >> 16;
-				bt.tail[1] = code[0] >> 8;
-				bt.tail[2] = code[0];
-				bt.tail[3] = code[1] >> 16;
-				bt.tail[4] = code[1] >> 8;
-				bt.tail[5] = code[1];
+				((uint8_t *)bt.tail)[0] = code[0] >> 16;
+				((uint8_t *)bt.tail)[1] = code[0] >> 8;
+				((uint8_t *)bt.tail)[2] = code[0];
+				((uint8_t *)bt.tail)[3] = code[1] >> 16;
+				((uint8_t *)bt.tail)[4] = code[1] >> 8;
+				((uint8_t *)bt.tail)[5] = code[1];
 
 				input += 4 * channels;
 				input_len -= 4 * channels;
@@ -1845,14 +1846,14 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 		goto fail_init;
 	}
 
-	ffb_uint8_t bt = { 0 };
-	ffb_int16_t pcm = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_int16_free), &pcm);
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init(&pcm, ldac_pcm_samples) == NULL ||
-			ffb_init(&bt, t->mtu_write) == NULL) {
-		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+	if (ffb_init_int16_t(&pcm, ldac_pcm_samples) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
@@ -1964,7 +1965,7 @@ static void *a2dp_sink_dump(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = { 0 };
-	ffb_uint8_t bt = { 0 };
+	ffb_t bt = { 0 };
 	FILE *f = NULL;
 	char fname[64];
 	char *ptr;
@@ -1982,11 +1983,11 @@ static void *a2dp_sink_dump(struct ba_transport *t) {
 		goto fail_open;
 	}
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(fclose), f);
 
-	if (ffb_init(&bt, t->mtu_read) == NULL) {
-		error("Couldn't create data buffer: %s", strerror(ENOMEM));
+	if (ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffer: %s", strerror(errno));
 		goto fail_ffb;
 	}
 

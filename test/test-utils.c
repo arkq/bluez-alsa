@@ -138,7 +138,6 @@ START_TEST(test_audio_scale_s16le) {
 
 	memcpy(tmp, in, sizeof(tmp));
 	audio_scale_s16le(tmp, 2, ARRAYSIZE(tmp) / 2, 0, 1.0);
-	hexdump("MUTEL", tmp, sizeof(tmp));
 	ck_assert_int_eq(memcmp(tmp, mute_l, sizeof(mute_l)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
@@ -217,20 +216,20 @@ START_TEST(test_difftimespec) {
 
 START_TEST(test_fifo_buffer) {
 
-	ffb_uint8_t ffb_u8 = { 0 };
-	ffb_int16_t ffb_16 = { 0 };
+	ffb_t ffb_u8 = { 0 };
+	ffb_t ffb_16 = { 0 };
 
 	/* allow free before allocation */
-	ffb_uint8_free(&ffb_u8);
-	ffb_int16_free(&ffb_16);
+	ffb_free(&ffb_u8);
+	ffb_free(&ffb_16);
 
-	ck_assert_ptr_ne(ffb_init(&ffb_u8, 64), NULL);
+	ck_assert_int_eq(ffb_init_uint8_t(&ffb_u8, 64), 0);
 	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
-	ck_assert_int_eq(ffb_u8.size, 64);
+	ck_assert_int_eq(ffb_u8.nmemb, 64);
 
-	ck_assert_ptr_ne(ffb_init(&ffb_16, 64), NULL);
+	ck_assert_int_eq(ffb_init_int16_t(&ffb_16, 64), 0);
 	ck_assert_ptr_eq(ffb_16.data, ffb_16.tail);
-	ck_assert_int_eq(ffb_16.size, 64);
+	ck_assert_int_eq(ffb_16.nmemb, 64);
 
 	memcpy(ffb_u8.data, "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", 36);
 	ffb_seek(&ffb_u8, 36);
@@ -242,27 +241,33 @@ START_TEST(test_fifo_buffer) {
 	ck_assert_int_eq(ffb_blen_in(&ffb_u8), 64 - 36);
 	ck_assert_int_eq(ffb_len_out(&ffb_u8), 36);
 	ck_assert_int_eq(ffb_blen_out(&ffb_u8), 36);
-	ck_assert_int_eq(ffb_u8.tail[-1], 'Z');
+	ck_assert_int_eq(((uint8_t *)ffb_u8.tail)[-1], 'Z');
 
 	ck_assert_int_eq(ffb_len_in(&ffb_16), 64 - 36);
 	ck_assert_int_eq(ffb_blen_in(&ffb_16), (64 - 36) * 2);
 	ck_assert_int_eq(ffb_len_out(&ffb_16), 36);
 	ck_assert_int_eq(ffb_blen_out(&ffb_16), 36 * 2);
-	ck_assert_int_eq(ffb_16.tail[-1], 0x5a5a);
+	ck_assert_int_eq(((int16_t *)ffb_16.tail)[-1], 0x5a5a);
 
-	ffb_shift(&ffb_u8, 15);
+	ck_assert_int_eq(ffb_shift(&ffb_u8, 15), 15);
 	ck_assert_int_eq(ffb_len_in(&ffb_u8), 64 - (36 - 15));
 	ck_assert_int_eq(ffb_len_out(&ffb_u8), 36 - 15);
 	ck_assert_int_eq(memcmp(ffb_u8.data, "FGHIJKLMNOPQRSTUVWXYZ", ffb_len_out(&ffb_u8)), 0);
-	ck_assert_int_eq(ffb_u8.tail[-1], 'Z');
+	ck_assert_int_eq(((uint8_t *)ffb_u8.tail)[-1], 'Z');
+
+	ck_assert_int_eq(ffb_shift(&ffb_u8, 100), 36 - 15);
+	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
+
+	ffb_seek(&ffb_u8, 4);
+	ck_assert_ptr_ne(ffb_u8.data, ffb_u8.tail);
 
 	ffb_rewind(&ffb_u8);
 	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
 
-	ffb_uint8_free(&ffb_u8);
+	ffb_free(&ffb_u8);
 	ck_assert_ptr_eq(ffb_u8.data, NULL);
 
-	ffb_int16_free(&ffb_16);
+	ffb_free(&ffb_16);
 	ck_assert_ptr_eq(ffb_16.data, NULL);
 
 } END_TEST

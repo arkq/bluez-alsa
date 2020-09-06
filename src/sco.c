@@ -208,10 +208,10 @@ void *sco_thread(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	/* buffers for transferring data to and from SCO socket */
-	ffb_uint8_t bt_in = { 0 };
-	ffb_uint8_t bt_out = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_in);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &bt_out);
+	ffb_t bt_in = { 0 };
+	ffb_t bt_out = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt_in);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt_out);
 
 #if ENABLE_MSBC
 	struct esco_msbc msbc = { .initialized = false };
@@ -220,9 +220,9 @@ void *sco_thread(struct ba_transport *t) {
 #endif
 
 	/* these buffers shall be bigger than the SCO MTU */
-	if (ffb_init(&bt_in, 128) == NULL ||
-			ffb_init(&bt_out, 128) == NULL) {
-		error("Couldn't create data buffer: %s", strerror(ENOMEM));
+	if (ffb_init_uint8_t(&bt_in, 128) == -1 ||
+			ffb_init_uint8_t(&bt_out, 128) == -1) {
+		error("Couldn't create data buffer: %s", strerror(errno));
 		goto fail_ffb;
 	}
 

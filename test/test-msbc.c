@@ -89,7 +89,7 @@ START_TEST(test_msbc_encode_decode) {
 	int rv;
 
 	ck_assert_int_eq(msbc_init(&msbc), 0);
-	snd_pcm_sine_s16le(sine, sizeof(sine) / sizeof(int16_t), 1, 0, 0.01);
+	snd_pcm_sine_s16le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
 
 	uint8_t data[sizeof(sine)];
 	uint8_t *data_tail = data;
@@ -97,7 +97,7 @@ START_TEST(test_msbc_encode_decode) {
 	for (rv = 1, i = 0; rv == 1;) {
 
 		len = MIN(ARRAYSIZE(sine) - i, ffb_len_in(&msbc.enc_pcm));
-		memcpy(msbc.enc_pcm.tail, &sine[i], len * sizeof(int16_t));
+		memcpy(msbc.enc_pcm.tail, &sine[i], len * msbc.enc_pcm.size);
 		ffb_seek(&msbc.enc_pcm, len);
 		i += len;
 
@@ -125,7 +125,7 @@ START_TEST(test_msbc_encode_decode) {
 		rv = msbc_decode(&msbc);
 
 		len = ffb_len_out(&msbc.dec_pcm);
-		memcpy(pcm_tail, msbc.dec_pcm.data, len * sizeof(int16_t));
+		memcpy(pcm_tail, msbc.dec_pcm.data, len * msbc.dec_pcm.size);
 		ffb_shift(&msbc.dec_pcm, len);
 		pcm_tail += len;
 

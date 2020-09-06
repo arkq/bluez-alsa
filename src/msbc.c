@@ -1,6 +1,6 @@
 /*
  * BlueALSA - msbc.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -100,13 +100,13 @@ int msbc_init(struct esco_msbc *msbc) {
 #endif
 
 	if (!msbc->initialized) {
-		if (ffb_init(&msbc->dec_data, sizeof(esco_msbc_frame_t) * 3) == NULL)
+		if (ffb_init_uint8_t(&msbc->dec_data, sizeof(esco_msbc_frame_t) * 3) == -1)
 			goto fail;
-		if (ffb_init(&msbc->dec_pcm, MSBC_CODESAMPLES * 2) == NULL)
+		if (ffb_init_int16_t(&msbc->dec_pcm, MSBC_CODESAMPLES * 2) == -1)
 			goto fail;
-		if (ffb_init(&msbc->enc_data, sizeof(esco_msbc_frame_t) * 3) == NULL)
+		if (ffb_init_uint8_t(&msbc->enc_data, sizeof(esco_msbc_frame_t) * 3) == -1)
 			goto fail;
-		if (ffb_init(&msbc->enc_pcm, MSBC_CODESAMPLES * 2) == NULL)
+		if (ffb_init_int16_t(&msbc->enc_pcm, MSBC_CODESAMPLES * 2) == -1)
 			goto fail;
 	}
 
@@ -137,10 +137,10 @@ void msbc_finish(struct esco_msbc *msbc) {
 	sbc_finish(&msbc->dec_sbc);
 	sbc_finish(&msbc->enc_sbc);
 
-	ffb_uint8_free(&msbc->dec_data);
-	ffb_int16_free(&msbc->dec_pcm);
-	ffb_uint8_free(&msbc->enc_data);
-	ffb_int16_free(&msbc->enc_pcm);
+	ffb_free(&msbc->dec_data);
+	ffb_free(&msbc->dec_pcm);
+	ffb_free(&msbc->enc_data);
+	ffb_free(&msbc->enc_pcm);
 
 }
 
@@ -194,7 +194,7 @@ int msbc_decode(struct esco_msbc *msbc) {
 
 final:
 	/* Reshuffle remaining data to the beginning of the buffer. */
-	ffb_shift(&msbc->dec_data, input - msbc->dec_data.data);
+	ffb_shift(&msbc->dec_data, input - (uint8_t *)msbc->dec_data.data);
 	return rv;
 }
 
@@ -229,7 +229,7 @@ int msbc_encode(struct esco_msbc *msbc) {
 	msbc->enc_frames++;
 
 	/* Reshuffle remaining PCM data to the beginning of the buffer. */
-	ffb_shift(&msbc->enc_pcm, input + MSBC_CODESAMPLES - msbc->enc_pcm.data);
+	ffb_shift(&msbc->enc_pcm, input + MSBC_CODESAMPLES - (int16_t *)msbc->enc_pcm.data);
 
 	return 1;
 }

@@ -53,14 +53,14 @@ struct esco_msbc {
 	sbc_t enc_sbc;
 
 	/* buffer for incoming eSCO frames */
-	ffb_uint8_t dec_data;
+	ffb_t dec_data;
 	/* buffer for outgoing PCM samples */
-	ffb_int16_t dec_pcm;
+	ffb_t dec_pcm;
 
 	/* buffer for incoming PCM samples */
-	ffb_int16_t enc_pcm;
+	ffb_t enc_pcm;
 	/* buffer for outgoing eSCO frames */
-	ffb_uint8_t enc_data;
+	ffb_t enc_data;
 
 	uint8_t dec_seq_initialized : 1;
 	uint8_t dec_seq_number : 2;

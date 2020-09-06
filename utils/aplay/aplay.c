@@ -295,18 +295,18 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
 	ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
 	size_t pcm_1s_samples = w->ba_pcm.sampling * w->ba_pcm.channels;
-	ffb_uint8_t buffer = { 0 };
+	ffb_t buffer = { 0 };
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(pcm_worker_routine_exit), w);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_uint8_free), &buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
 
 	/* create buffer big enough to hold 100 ms of PCM data */
-	if (ffb_init(&buffer, pcm_1s_samples / 10 * pcm_format_size) == NULL) {
-		error("Couldn't create PCM buffer: %s", strerror(ENOMEM));
+	if (ffb_init(&buffer, pcm_1s_samples / 10, pcm_format_size) == -1) {
+		error("Couldn't create PCM buffer: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -445,10 +445,10 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		w->active = true;
 		timeout = 500;
 
-		ffb_seek(&buffer, ret);
+		ffb_seek(&buffer, ret / pcm_format_size);
 
 		/* calculate the overall number of frames in the buffer */
-		snd_pcm_sframes_t frames = ffb_blen_out(&buffer) / w->ba_pcm.channels / pcm_format_size;
+		snd_pcm_sframes_t frames = ffb_len_out(&buffer) / w->ba_pcm.channels;
 
 		if ((frames = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
 			switch (-frames) {
@@ -464,7 +464,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			}
 
 		/* move leftovers to the beginning and reposition tail */
-		ffb_shift(&buffer, frames * w->ba_pcm.channels * pcm_format_size);
+		ffb_shift(&buffer, frames * w->ba_pcm.channels);
 
 	}
 
