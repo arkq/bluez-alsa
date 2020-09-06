@@ -104,12 +104,16 @@ static int parse_bt_addresses(char *argv[], size_t count) {
 
 static snd_pcm_format_t bluealsa_get_snd_pcm_format(const struct ba_pcm *pcm) {
 	switch (pcm->format) {
-	case 0x0008:
+	case 0x0108:
 		return SND_PCM_FORMAT_U8;
-	case 0x8010:
+	case 0x8210:
 		return SND_PCM_FORMAT_S16_LE;
-	case 0x8018:
+	case 0x8318:
 		return SND_PCM_FORMAT_S24_3LE;
+	case 0x8418:
+		return SND_PCM_FORMAT_S24_LE;
+	case 0x8420:
+		return SND_PCM_FORMAT_S32_LE;
 	default:
 		error("Unknown PCM format: %#x", pcm->format);
 		return SND_PCM_FORMAT_UNKNOWN;

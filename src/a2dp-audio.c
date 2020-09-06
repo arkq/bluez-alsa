@@ -77,7 +77,7 @@ struct io_thread_data {
  * Scale PCM signal according to the volume configuration. */
 static void ba_transport_pcm_scale(
 		const struct ba_transport_pcm *pcm,
-		int16_t *buffer,
+		void *buffer,
 		size_t samples) {
 
 	unsigned int vmax = pcm->max_volume;
@@ -108,10 +108,10 @@ static void ba_transport_pcm_scale(
  * Flush read buffer of the transport PCM FIFO. */
 ssize_t ba_transport_pcm_flush(struct ba_transport_pcm *pcm) {
 	ssize_t rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
-	if (rv == -1 && errno == EAGAIN)
-		rv = 0;
 	if (rv > 0)
-		rv /= sizeof(int16_t);
+		rv /= BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
+	else if (rv == -1 && errno == EAGAIN)
+		rv = 0;
 	return rv;
 }
 
@@ -119,9 +119,10 @@ ssize_t ba_transport_pcm_flush(struct ba_transport_pcm *pcm) {
  * Read PCM signal from the transport PCM FIFO. */
 ssize_t ba_transport_pcm_read(
 		struct ba_transport_pcm *pcm,
-		int16_t *buffer,
+		void *buffer,
 		size_t samples) {
 
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
 	ssize_t ret;
 
 	/* If the passed file descriptor is invalid (e.g. -1) is means, that other
@@ -129,12 +130,12 @@ ssize_t ba_transport_pcm_read(
 	 * closed during this call, we will still read correct data, because Linux
 	 * kernel does not decrement file descriptor reference counter until the
 	 * read returns. */
-	while ((ret = read(pcm->fd, buffer, samples * sizeof(int16_t))) == -1 &&
+	while ((ret = read(pcm->fd, buffer, samples * sample_size)) == -1 &&
 			errno == EINTR)
 		continue;
 
 	if (ret > 0) {
-		samples = ret / sizeof(int16_t);
+		samples = ret / sample_size;
 		ba_transport_pcm_scale(pcm, buffer, samples);
 		return samples;
 	}
@@ -156,12 +157,12 @@ ssize_t ba_transport_pcm_read(
  * This function temporally re-enables thread cancellation! */
 ssize_t ba_transport_pcm_write(
 		struct ba_transport_pcm *pcm,
-		int16_t *buffer,
+		void *buffer,
 		size_t samples) {
 
+	const uint8_t *head = buffer;
+	size_t len = samples * BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
 	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
-	const uint8_t *head = (uint8_t *)buffer;
-	size_t len = samples * sizeof(int16_t);
 	int oldstate;
 	ssize_t ret;
 

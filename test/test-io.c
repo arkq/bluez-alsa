@@ -256,8 +256,9 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport *t) {
 			continue;
 		}
 
-		debug("Decoded samples: %zd", len / sizeof(int16_t));
-		decoded_samples_total += len / sizeof(int16_t);
+		size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
+		debug("Decoded samples: %zd", len / sample_size);
+		decoded_samples_total += len / sample_size;
 
 		if (f != NULL)
 			fwrite(buffer, 1, len, f);
@@ -366,8 +367,9 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport *))
 
 		if (pfds[1].revents & POLLIN) {
 			ck_assert_int_gt(len = read(pcm_mic_fds[0], buffer, sizeof(buffer)), 0);
-			debug("Decoded samples: %zd", len / sizeof(int16_t));
-			decoded_samples_total += len / sizeof(int16_t);
+			size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->sco.mic_pcm.format);
+			debug("Decoded samples: %zd", len / sample_size);
+			decoded_samples_total += len / sample_size;
 		}
 
 	}

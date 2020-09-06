@@ -358,7 +358,7 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 
 	/* Bug in ioplug - if pcm->io_hw_ptr == -1 then it reports state
 	 * SND_PCM_STATE_XRUN instead of SND_PCM_STATE_SETUP after pcm is stopped */
-	pcm->io_hw_ptr = 0; 
+	pcm->io_hw_ptr = 0;
 
 	if (!bluealsa_dbus_pcm_ctrl_send_drop(pcm->ba_pcm_ctrl_fd, NULL))
 		return -errno;
@@ -736,14 +736,18 @@ static int str2profile(const char *str) {
 
 static snd_pcm_format_t get_snd_pcm_format(uint16_t format) {
 	switch (format) {
-	case 0x0008:
+	case 0x0108:
 		return SND_PCM_FORMAT_U8;
-	case 0x8010:
+	case 0x8210:
 		return SND_PCM_FORMAT_S16_LE;
-	case 0x8018:
+	case 0x8318:
 		return SND_PCM_FORMAT_S24_3LE;
+	case 0x8418:
+		return SND_PCM_FORMAT_S24_LE;
+	case 0x8420:
+		return SND_PCM_FORMAT_S32_LE;
 	default:
-		SNDERR("Unsupported PCM format: %#x", format);
+		SNDERR("Unknown PCM format: %#x", format);
 		return SND_PCM_FORMAT_UNKNOWN;
 	}
 }

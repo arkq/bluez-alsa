@@ -494,12 +494,12 @@ int ba_transport_select_codec_sco(
 static void transport_update_format(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16LE;
+		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16LE;
-		t->sco.mic_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16LE;
+		t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+		t->sco.mic_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	}
 
 }

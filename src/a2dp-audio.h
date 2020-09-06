@@ -16,7 +16,6 @@
 #endif
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include "ba-transport.h"
 
@@ -25,12 +24,12 @@ ssize_t ba_transport_pcm_flush(
 
 ssize_t ba_transport_pcm_read(
 		struct ba_transport_pcm *pcm,
-		int16_t *buffer,
+		void *buffer,
 		size_t samples);
 
 ssize_t ba_transport_pcm_write(
 		struct ba_transport_pcm *pcm,
-		int16_t *buffer,
+		void *buffer,
 		size_t samples);
 
 int a2dp_audio_thread_create(struct ba_transport *t);

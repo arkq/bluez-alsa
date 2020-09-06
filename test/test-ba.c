@@ -111,6 +111,25 @@ START_TEST(test_ba_transport) {
 
 } END_TEST
 
+START_TEST(test_ba_transport_pcm_format) {
+
+	uint16_t format_u8 = BA_TRANSPORT_PCM_FORMAT_U8;
+	uint16_t format_s32_4le = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
+
+	ck_assert_int_eq(format_u8, 0x0108);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_SIGN(format_u8), 0);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_WIDTH(format_u8), 8);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_BYTES(format_u8), 1);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_ENDIAN(format_u8), 0);
+
+	ck_assert_int_eq(format_s32_4le, 0x8420);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_SIGN(format_s32_4le), 1);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_WIDTH(format_s32_4le), 32);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_BYTES(format_s32_4le), 4);
+	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_ENDIAN(format_s32_4le), 0);
+
+} END_TEST
+
 START_TEST(test_ba_transport_volume_packed) {
 
 	struct ba_adapter *a;
@@ -196,6 +215,7 @@ int main(void) {
 	tcase_add_test(tc, test_ba_adapter);
 	tcase_add_test(tc, test_ba_device);
 	tcase_add_test(tc, test_ba_transport);
+	tcase_add_test(tc, test_ba_transport_pcm_format);
 	tcase_add_test(tc, test_ba_transport_volume_packed);
 	tcase_add_test(tc, test_cascade_free);
 

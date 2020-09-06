@@ -83,11 +83,12 @@ Properties      object Device [readonly]
 
                         Stream format identifier. The highest two bits of the
                         16-bit identifier determine the signedness and the
-                        endianness, where the remaining bits are used to store
-                        the bit-width.
+                        endianness. Next 6 bits determine the physical width
+                        of a sample in bytes. The lowest 8 bits are used to
+                        store the actual sample bit-width.
 
-                        Examples: 0x4010 - unsigned 16-bit big-endian
-                                  0x8018 - signed 24-bit little-endian
+                        Examples: 0x4210 - unsigned 16-bit 2 bytes big-endian
+                                  0x8418 - signed 24-bit 4 bytes little-endian
 
                 byte Channels [readonly]
 

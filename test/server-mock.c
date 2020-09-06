@@ -126,7 +126,7 @@ static void *test_a2dp_sink_sbc(struct ba_transport *t) {
 		if (asrs.frames == 0)
 			asrsync_init(&asrs, t->a2dp.pcm.sampling);
 
-		int samples = sizeof(buffer) / sizeof(int16_t);
+		const size_t samples = ARRAYSIZE(buffer);
 		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 1.0 / 128);
 
 		if (ba_transport_pcm_write(&t->a2dp.pcm, buffer, samples) == -1)

@@ -75,12 +75,19 @@ enum ba_transport_pcm_mode {
 
 /**
  * Builder for 16-bit PCM stream format identifier. */
-#define BA_TRANSPORT_PCM_FORMAT(sign, width, byteorder) \
-	(((sign & 1) << 15) | ((byteorder & 1) << 14) | ((width) & 0x3F))
+#define BA_TRANSPORT_PCM_FORMAT(sign, width, bytes, endian) \
+	(((sign & 1) << 15) | ((endian & 1) << 14) | ((bytes & 0x3F) << 8) | (width & 0xFF))
 
-#define BA_TRANSPORT_PCM_FORMAT_U8    BA_TRANSPORT_PCM_FORMAT(0, 8, 0)
-#define BA_TRANSPORT_PCM_FORMAT_S16LE BA_TRANSPORT_PCM_FORMAT(1, 16, 0)
-#define BA_TRANSPORT_PCM_FORMAT_S24LE BA_TRANSPORT_PCM_FORMAT(1, 24, 0)
+#define BA_TRANSPORT_PCM_FORMAT_SIGN(format)   (((format) >> 15) & 0x1)
+#define BA_TRANSPORT_PCM_FORMAT_WIDTH(format)  ((format) & 0xFF)
+#define BA_TRANSPORT_PCM_FORMAT_BYTES(format)  (((format) >> 8) & 0x3F)
+#define BA_TRANSPORT_PCM_FORMAT_ENDIAN(format) (((format) >> 14) & 0x1)
+
+#define BA_TRANSPORT_PCM_FORMAT_U8      BA_TRANSPORT_PCM_FORMAT(0, 8, 1, 0)
+#define BA_TRANSPORT_PCM_FORMAT_S16_2LE BA_TRANSPORT_PCM_FORMAT(1, 16, 2, 0)
+#define BA_TRANSPORT_PCM_FORMAT_S24_3LE BA_TRANSPORT_PCM_FORMAT(1, 24, 3, 0)
+#define BA_TRANSPORT_PCM_FORMAT_S24_4LE BA_TRANSPORT_PCM_FORMAT(1, 24, 4, 0)
+#define BA_TRANSPORT_PCM_FORMAT_S32_4LE BA_TRANSPORT_PCM_FORMAT(1, 32, 4, 0)
 
 struct ba_transport_pcm {
 
