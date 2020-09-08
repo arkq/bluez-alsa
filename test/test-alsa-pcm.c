@@ -57,7 +57,7 @@ static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *service, snd_pcm_
 	sprintf(buffer,
 			"pcm.bluealsa {\n"
 			"  type bluealsa\n"
-			"  service \"%s\"\n"
+			"  service \"org.bluealsa.%s\"\n"
 			"  device \"12:34:56:78:9A:BC\"\n"
 			"  profile \"a2dp\"\n"
 			"  delay 0\n"
@@ -158,7 +158,7 @@ static int test_pcm_open(pid_t *pid, snd_pcm_t **pcm, snd_pcm_stream_t stream) {
 	if (pcm_device != NULL)
 		return snd_pcm_open(pcm, pcm_device, stream, 0);
 
-	const char *service = "org.bluealsa.test";
+	const char *service = "test";
 	if ((*pid = spawn_bluealsa_server(service, 1, true, false,
 					stream == SND_PCM_STREAM_PLAYBACK,
 					stream == SND_PCM_STREAM_CAPTURE)) == -1)
@@ -396,7 +396,7 @@ START_TEST(dump_playback) {
 
 START_TEST(test_playback_hw_constraints) {
 
-	/* hard-coded values used in the server-mock */
+	/* hard-coded values used in the bluealsa-mock */
 	const unsigned int server_channels = 2;
 	const unsigned int server_rate = 44100;
 
@@ -855,8 +855,8 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-	/* test-alsa-pcm and server-mock shall be placed in the same directory */
-	server_mock_path = dirname(argv[0]);
+	/* test-alsa-pcm and bluealsa-mock shall be placed in the same directory */
+	bluealsa_mock_path = dirname(argv[0]);
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

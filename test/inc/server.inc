@@ -85,21 +85,21 @@ static void *spawn_bluealsa_server_stderr_proxy(void *userdata) {
 	return NULL;
 }
 
-/* path with the server-mock binary */
-char *server_mock_path = ".";
+/* path with the bluealsa-mock binary */
+char *bluealsa_mock_path = ".";
 
 /**
  * Spawn bluealsa server mock.
  *
  * @param service BlueALSA D-Bus service name.
- * @param timeout Timeout passed to the server-mock.
+ * @param timeout Timeout passed to the bluealsa-mock.
  * @param wait_for_ready Block until PCMs are ready.
  * @param fuzzing Enable fuzzing - delayed startup.
- * @param source Start A2DP source.
- * @param sink Start A2DP sink.
+ * @param a2dp_source Start A2DP source.
+ * @param a2dp_sink Start A2DP sink.
  * @return PID of the bluealsa server mock. */
 pid_t spawn_bluealsa_server(const char *service, unsigned int timeout,
-	bool wait_for_ready, bool fuzzing, bool source, bool sink) {
+	bool wait_for_ready, bool fuzzing, bool a2dp_source, bool a2dp_sink) {
 
 	char arg_service[32] = "";
 	if (service != NULL)
@@ -109,17 +109,17 @@ pid_t spawn_bluealsa_server(const char *service, unsigned int timeout,
 	sprintf(arg_timeout, "--timeout=%d", timeout);
 
 	char *argv[] = {
-		"server-mock",
+		"bluealsa-mock",
 		arg_service,
 		arg_timeout,
+		a2dp_source ? "--a2dp-source" : "",
+		a2dp_sink ? "--a2dp-sink" : "",
 		fuzzing ? "--fuzzing" : "",
-		source ? "--source" : "",
-		sink ? "--sink" : "",
 		NULL,
 	};
 
 	char path[256];
-	sprintf(path, "%s/server-mock", server_mock_path);
+	sprintf(path, "%s/bluealsa-mock", bluealsa_mock_path);
 
 	int fds[2];
 	if (pipe(fds) == -1)
@@ -139,9 +139,9 @@ pid_t spawn_bluealsa_server(const char *service, unsigned int timeout,
 	unsigned int count_a2dp = 0;
 	unsigned int count_sco = 0;
 
-	if (source)
+	if (a2dp_source)
 		count_a2dp += 2;
-	if (sink)
+	if (a2dp_sink)
 		count_a2dp += 2;
 
 	if ((data = calloc(1, sizeof(*data))) == NULL)

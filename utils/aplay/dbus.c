@@ -60,13 +60,27 @@ fail:
 int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 		struct bluez_device *dev, DBusError *error) {
 
+	char path_addr[sizeof("00:00:00:00:00:00")] = { 0 };
+	char *tmp;
+	size_t i;
+
+	memset(dev, 0, sizeof(*dev));
+	strncpy(dev->path, path, sizeof(dev->path) - 1);
+
+	/* Try to extract BT MAC address from the D-Bus path. We will use it as
+	 * a fallback in case where BlueZ service is not available on the bus -
+	 * usage with bluealsa-mock server. */
+	if ((tmp = strstr(path, "/dev_")) != NULL)
+		strncpy(path_addr, tmp + 5, sizeof(path_addr) - 1);
+	for (i = 0; i < sizeof(path_addr); i++)
+		if (path_addr[i] == '_')
+			path_addr[i] = ':';
+	str2ba(path_addr, &dev->bt_addr);
+
 	DBusMessage *rep;
 	if ((rep = dbus_get_properties(conn, "org.bluez", path,
 					"org.bluez.Device1", NULL, error)) == NULL)
 		return -1;
-
-	memset(dev, '\0', sizeof(*dev));
-	strncpy(dev->path, path, sizeof(dev->path) - 1);
 
 	DBusMessageIter iter;
 	dbus_message_iter_init(rep, &iter);

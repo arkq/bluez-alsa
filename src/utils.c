@@ -47,23 +47,19 @@ int g_dbus_bluez_object_path_to_hci_dev_id(const char *path) {
  *   error, NULL is returned. */
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
 
-	char *tmp, *p;
+	char tmp[sizeof("00:00:00:00:00:00")] = { 0 };
+	size_t i;
 
-	if ((path = strstr(path, "/dev_")) == NULL)
-		return NULL;
-	if ((tmp = strdup(path + 5)) == NULL)
-		return NULL;
+	if ((path = strstr(path, "/dev_")) != NULL)
+		strncpy(tmp, path + 5, sizeof(tmp) - 1);
 
-	for (p = tmp; *p != '\0'; p++)
-		if (*p == '_')
-			*p = ':';
-		else if (*p == '/')
-			*p = '\0';
+	for (i = 0; i < sizeof(tmp); i++)
+		if (tmp[i] == '_')
+			tmp[i] = ':';
 
 	if (str2ba(tmp, addr) == -1)
-		addr = NULL;
+		return NULL;
 
-	free(tmp);
 	return addr;
 }
 

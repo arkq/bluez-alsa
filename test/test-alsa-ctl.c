@@ -32,7 +32,7 @@ static int snd_ctl_open_bluealsa(snd_ctl_t **ctlp, const char *service, int mode
 	sprintf(buffer,
 			"ctl.bluealsa {\n"
 			"  type bluealsa\n"
-			"  service \"%s\"\n"
+			"  service \"org.bluealsa.%s\"\n"
 			"}\n", service);
 
 	if ((err = snd_config_top(&conf)) < 0)
@@ -53,7 +53,7 @@ fail:
 
 START_TEST(test_control) {
 
-	const char *service = "org.bluealsa.test";
+	const char *service = "test";
 	pid_t pid = spawn_bluealsa_server(service, 1, true, false, true, true);
 
 	snd_ctl_t *ctl = NULL;
@@ -73,13 +73,14 @@ START_TEST(test_control) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "12:34:56:78:9A:BC - A2DP Capture Volume");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "12:34:56:78:9A:BC - A2DP Playback Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "12:34:56:78:9A:BC - A2DP Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "12:34:56:9A:BC:DE - A2DP Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "12:34:56:9A:BC:DE - A2DP Capture Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "12:34:56:9A:BC:DE - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "12:34:56:9A:BC:DE - A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "23:45:67:89:AB:CD - A2DP Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "23:45:67:89:AB:CD - A2DP Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "23:45:67:89:AB:CD - A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "23:45:67:89:AB:CD - A2DP Playback Volume");
 
 	ck_assert_int_eq(snd_ctl_close(ctl), 0);
 
+	kill(pid, SIGTERM);
 	waitpid(pid, NULL, 0);
 
 } END_TEST
@@ -88,8 +89,8 @@ int main(int argc, char *argv[]) {
 
 	preload(argc, argv, ".libs/aloader.so");
 
-	/* test-alsa-ctl and server-mock shall be placed in the same directory */
-	server_mock_path = dirname(argv[0]);
+	/* test-alsa-ctl and bluealsa-mock shall be placed in the same directory */
+	bluealsa_mock_path = dirname(argv[0]);
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

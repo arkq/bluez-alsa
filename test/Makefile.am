@@ -13,7 +13,7 @@ TESTS = \
 	test-utils
 
 check_PROGRAMS = \
-	server-mock \
+	bluealsa-mock \
 	test-a2dp \
 	test-alsa-ctl \
 	test-alsa-pcm \
