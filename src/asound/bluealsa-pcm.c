@@ -138,10 +138,10 @@ static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
  * write the balance of the period. */
 static void io_thread_wait_first_period(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	while (io->appl_ptr < pcm->io_avail_min && (
+	while (io->appl_ptr < io->period_size && (
 				io->state == SND_PCM_STATE_RUNNING ||
 				io->state == SND_PCM_STATE_PREPARED)) {
-		uint64_t nsec = (pcm->io_avail_min - io->appl_ptr) * 1000000000 / io->rate;
+		uint64_t nsec = (io->period_size - io->appl_ptr) * 1000000000 / io->rate;
 		struct timespec ts = {
 			.tv_sec = nsec / 1000000000,
 			.tv_nsec = nsec % 1000000000,
