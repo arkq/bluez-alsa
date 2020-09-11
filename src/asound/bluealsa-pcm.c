@@ -137,11 +137,10 @@ static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
  * thread for the estimated time it should take for a real-time application to
  * write the balance of the period. */
 static void io_thread_wait_first_period(snd_pcm_ioplug_t *io) {
-	struct bluealsa_pcm *pcm = io->private_data;
-	while (io->appl_ptr < pcm->io_avail_min && (
+	while (io->appl_ptr < io->period_size && (
 				io->state == SND_PCM_STATE_RUNNING ||
 				io->state == SND_PCM_STATE_PREPARED)) {
-		uint64_t nsec = (pcm->io_avail_min - io->appl_ptr) * 1000000000 / io->rate;
+		uint64_t nsec = (io->period_size - io->appl_ptr) * 1000000000 / io->rate;
 		struct timespec ts = {
 			.tv_sec = nsec / 1000000000,
 			.tv_nsec = nsec % 1000000000,
@@ -445,8 +444,6 @@ static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 	snd_pcm_uframes_t avail_min;
 	snd_pcm_sw_params_get_avail_min(params, &avail_min);
 	if (avail_min != pcm->io_avail_min) {
-		if (avail_min > io->buffer_size)
-			return -EINVAL;
 		debug2("Changing SW avail min: %zu -> %zu", pcm->io_avail_min, avail_min);
 		pcm->io_avail_min = avail_min;
 	}
@@ -644,7 +641,7 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 
 		/* This call synchronizes the ring buffer pointers and updates the
 		 * ioplug state. */
-		snd_pcm_uframes_t avail = snd_pcm_avail(io->pcm);
+		snd_pcm_sframes_t avail = snd_pcm_avail(io->pcm);
 
 		/* ALSA expects that the event will match stream direction, e.g.
 		 * playback will not start if the event is for reading. */
@@ -660,7 +657,7 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 				*revents = 0;
 				break;
 			case SND_PCM_STATE_RUNNING:
-				if (avail < pcm->io_avail_min) {
+				if ((snd_pcm_uframes_t)avail < pcm->io_avail_min) {
 					ready = false;
 					*revents = 0;
 				}
@@ -668,7 +665,7 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 			case SND_PCM_STATE_XRUN:
 			case SND_PCM_STATE_PAUSED:
 			case SND_PCM_STATE_SUSPENDED:
-				*revents = POLLERR;
+				*revents |= POLLERR;
 				break;
 			case SND_PCM_STATE_DISCONNECTED:
 				*revents = POLLERR;
