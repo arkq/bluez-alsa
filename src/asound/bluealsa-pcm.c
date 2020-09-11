@@ -778,12 +778,13 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 		return err;
 
 	/* In order to prevent audio tearing and minimize CPU utilization, we're
-	 * going to setup buffer size constraints. These limits are derived from
-	 * the transport sampling rate and the number of channels, so the buffer
-	 * "time" size will be constant. The minimal period size and buffer size
-	 * are respectively 10 ms and 200 ms. Upper limits are not constraint. */
-	unsigned int min_p = pcm->ba_pcm.sampling * 10 / 1000 * pcm->ba_pcm.channels * 2;
-	unsigned int min_b = pcm->ba_pcm.sampling * 200 / 1000 * pcm->ba_pcm.channels * 2;
+	 * going to setup period and buffer size constraints. The period limit
+	 * is derived from the transport sampling rate and the number of channels,
+	 * so the period "time" size will be constant. The minimal period size is
+	 * 10ms and the minimum buffer size is 2 periods. Upper limits are not
+	 * constrained. */
+	unsigned int min_p = 10 * pcm->ba_pcm.sampling / 1000 * pcm->ba_pcm.channels * 2;
+	unsigned int min_b = 2 * min_p;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
 					min_p, 1024 * 16)) < 0)
