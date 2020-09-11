@@ -443,7 +443,7 @@ START_TEST(test_playback_hw_constraints) {
 	unsigned int periods;
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_periods_first(pcm, params, &periods, &d), 0);
-	ck_assert_int_eq(periods, 3);
+	ck_assert_int_eq(periods, 2);
 	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_periods_last(pcm, params, &periods, &d), 0);
@@ -453,7 +453,7 @@ START_TEST(test_playback_hw_constraints) {
 	unsigned int time;
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_first(pcm, params, &time, &d), 0);
-	ck_assert_int_eq(time, 200000);
+	ck_assert_int_eq(time, 20000);
 	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_last(pcm, params, &time, &d), 0);
