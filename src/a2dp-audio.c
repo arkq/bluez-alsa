@@ -1415,7 +1415,8 @@ static void *a2dp_source_aac(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init_int16_t(&pcm, aacinf.inputChannels * aacinf.frameLength) == -1 ||
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
+	if (ffb_init(&pcm, aacinf.inputChannels * aacinf.frameLength, sample_size) == -1 ||
 			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -1848,12 +1849,13 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
 	const a2dp_ldac_t *configuration = (a2dp_ldac_t *)t->a2dp.configuration;
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
 
 	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
-				config.ldac_eqmid, configuration->channel_mode, LDACBT_SMPL_FMT_S16, samplerate) == -1) {
+				config.ldac_eqmid, configuration->channel_mode, LDACBT_SMPL_FMT_S32, samplerate) == -1) {
 		error("Couldn't initialize LDAC encoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
 		goto fail_init;
 	}
@@ -1872,7 +1874,7 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init_int16_t(&pcm, ldac_pcm_samples) == -1 ||
+	if (ffb_init_int32_t(&pcm, ldac_pcm_samples) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -1920,7 +1922,7 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 
 			rtp_media_header->frame_count = frames;
 
-			frames = len / sizeof(int16_t);
+			frames = len / sample_size;
 			input += frames;
 			input_len -= frames;
 

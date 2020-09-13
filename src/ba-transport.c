@@ -503,6 +503,13 @@ static void transport_update_format(struct ba_transport *t) {
 			t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
 			break;
 #endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			/* LDAC library internally for encoding uses 31-bit, so
+			 * the best choice for PCM sample is signed 32-bit. */
+			t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
+			break;
+#endif
 		}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
