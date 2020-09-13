@@ -192,6 +192,7 @@ static snd_pcm_state_t snd_pcm_state_runtime(snd_pcm_t *pcm) {
 }
 
 START_TEST(dump_capture) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	snd_output_t *output;
 	snd_pcm_t *pcm = NULL;
@@ -207,6 +208,7 @@ START_TEST(dump_capture) {
 } END_TEST
 
 START_TEST(test_capture_start) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -257,6 +259,7 @@ START_TEST(test_capture_start) {
 } END_TEST
 
 START_TEST(test_capture_pause) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -320,6 +323,7 @@ START_TEST(test_capture_pause) {
 } END_TEST
 
 START_TEST(test_capture_overrun) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -364,6 +368,7 @@ START_TEST(test_capture_overrun) {
 } END_TEST
 
 START_TEST(dump_playback) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -395,6 +400,7 @@ START_TEST(dump_playback) {
 } END_TEST
 
 START_TEST(test_playback_hw_constraints) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	/* hard-coded values used in the bluealsa-mock */
 	const unsigned int server_channels = 2;
@@ -465,6 +471,7 @@ START_TEST(test_playback_hw_constraints) {
 } END_TEST
 
 START_TEST(test_playback_start) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -506,6 +513,7 @@ START_TEST(test_playback_start) {
 } END_TEST
 
 START_TEST(test_playback_drain) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -543,6 +551,7 @@ START_TEST(test_playback_drain) {
 } END_TEST
 
 START_TEST(test_playback_pause) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -607,6 +616,7 @@ START_TEST(test_playback_pause) {
 } END_TEST
 
 START_TEST(test_playback_reset) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -663,6 +673,7 @@ retry:
 } END_TEST
 
 START_TEST(test_playback_underrun) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -729,6 +740,7 @@ START_TEST(test_playback_underrun) {
  * - snd_pcm_close(pcm) = 0
  */
 START_TEST(reference_playback_device_unplug) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -771,6 +783,7 @@ START_TEST(reference_playback_device_unplug) {
 } END_TEST
 
 START_TEST(test_playback_device_unplug) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;

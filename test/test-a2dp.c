@@ -39,6 +39,34 @@ START_TEST(test_a2dp_get_vendor_codec_id) {
 
 } END_TEST
 
+START_TEST(test_a2dp_check_configuration) {
+
+	const a2dp_sbc_t cfg_valid = {
+		.frequency = SBC_SAMPLING_FREQ_44100,
+		.channel_mode = SBC_CHANNEL_MODE_STEREO,
+		.block_length = SBC_BLOCK_LENGTH_8,
+		.subbands = SBC_SUBBANDS_8,
+		.allocation_method = SBC_ALLOCATION_SNR,
+		.min_bitpool = 42,
+		.max_bitpool = 62,
+	};
+
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_codec_source_sbc,
+				&cfg_valid, sizeof(cfg_valid)), A2DP_CHECK_OK);
+
+	const a2dp_sbc_t cfg_invalid = {
+		.frequency = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100,
+		.channel_mode = SBC_CHANNEL_MODE_STEREO | SBC_CHANNEL_MODE_JOINT_STEREO,
+		.block_length = SBC_BLOCK_LENGTH_8,
+		.allocation_method = SBC_ALLOCATION_SNR,
+	};
+
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_codec_source_sbc,
+				&cfg_invalid, sizeof(cfg_invalid)),
+			A2DP_CHECK_ERR_SAMPLING | A2DP_CHECK_ERR_CHANNELS | A2DP_CHECK_ERR_SBC_SUB_BANDS);
+
+} END_TEST
+
 START_TEST(test_a2dp_filter_capabilities) {
 
 	a2dp_sbc_t cfg = {
@@ -65,6 +93,47 @@ START_TEST(test_a2dp_filter_capabilities) {
 
 } END_TEST
 
+START_TEST(test_a2dp_select_configuration) {
+
+	a2dp_sbc_t cfg;
+	const a2dp_sbc_t cfg_ = {
+		.frequency = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100 | SBC_SAMPLING_FREQ_48000,
+		.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_DUAL_CHANNEL | SBC_CHANNEL_MODE_STEREO,
+		.block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8,
+		.subbands = SBC_SUBBANDS_4 | SBC_SUBBANDS_8,
+		.allocation_method = SBC_ALLOCATION_SNR | SBC_ALLOCATION_LOUDNESS,
+		.min_bitpool = 42,
+		.max_bitpool = 255,
+	};
+
+	cfg = cfg_;
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_codec_source_sbc, &cfg, sizeof(cfg) + 1), -1);
+	ck_assert_int_eq(errno, EINVAL);
+
+	cfg = cfg_;
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_codec_source_sbc, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_48000);
+	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_STEREO);
+	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);
+	ck_assert_int_eq(cfg.subbands, SBC_SUBBANDS_8);
+	ck_assert_int_eq(cfg.allocation_method, SBC_ALLOCATION_LOUDNESS);
+	ck_assert_int_eq(cfg.min_bitpool, 42);
+	ck_assert_int_eq(cfg.max_bitpool, 250);
+
+	cfg = cfg_;
+	config.a2dp.force_44100 = true;
+	config.sbc_quality = SBC_QUALITY_XQ;
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_codec_source_sbc, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_DUAL_CHANNEL);
+	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);
+	ck_assert_int_eq(cfg.subbands, SBC_SUBBANDS_8);
+	ck_assert_int_eq(cfg.allocation_method, SBC_ALLOCATION_LOUDNESS);
+	ck_assert_int_eq(cfg.min_bitpool, 42);
+	ck_assert_int_eq(cfg.max_bitpool, 250);
+
+} END_TEST
+
 int main(void) {
 
 	Suite *s = suite_create(__FILE__);
@@ -76,7 +145,9 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_dir);
 	tcase_add_test(tc, test_a2dp_codec_lookup);
 	tcase_add_test(tc, test_a2dp_get_vendor_codec_id);
+	tcase_add_test(tc, test_a2dp_check_configuration);
 	tcase_add_test(tc, test_a2dp_filter_capabilities);
+	tcase_add_test(tc, test_a2dp_select_configuration);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
