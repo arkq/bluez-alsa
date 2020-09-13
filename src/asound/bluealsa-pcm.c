@@ -570,6 +570,14 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 	snd_output_printf(out, "BlueALSA PCM: %s\n", pcm->ba_pcm.pcm_path);
 	snd_output_printf(out, "BlueALSA BlueZ device: %s\n", pcm->ba_pcm.device_path);
 	snd_output_printf(out, "BlueALSA Bluetooth codec: %s\n", pcm->ba_pcm.codec);
+	/* alsa-lib commits the pcm setup only if bluealsa_hw_params() returned 
+	 * success. So we only dump the pcm params if the bluetooth transport
+	 * connection is valid.
+	 */
+	if (pcm->ba_pcm_fd >= 0) {
+		snd_output_printf(out, "Its setup is:\n");
+		snd_pcm_dump_setup(io->pcm, out);
+	}
 }
 
 static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
