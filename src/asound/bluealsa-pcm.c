@@ -570,7 +570,7 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 	snd_output_printf(out, "BlueALSA BlueZ device: %s\n", pcm->ba_pcm.device_path);
 	snd_output_printf(out, "BlueALSA Bluetooth codec: %s\n", pcm->ba_pcm.codec);
 	/* alsa-lib commits the PCM setup only if bluealsa_hw_params() returned
-	 * success. So, we only dump the ALSA PCM parameters if the BlueALSA PCM
+	 * success, so we only dump the ALSA PCM parameters if the BlueALSA PCM
 	 * connection is established. */
 	if (pcm->ba_pcm_fd >= 0) {
 		snd_output_printf(out, "Its setup is:\n");
@@ -782,20 +782,15 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 		return err;
 
 	/* In order to prevent audio tearing and minimize CPU utilization, we're
-	 * going to setup period and buffer size constraints. The period limit
-	 * is derived from the transport sampling rate and the number of channels,
-	 * so the period "time" size will be constant. The minimal period size is
-	 * 10ms and the minimum buffer size is 2 periods. Upper limits are not
-	 * constrained. */
-	unsigned int min_p = 10 * pcm->ba_pcm.sampling / 1000 * pcm->ba_pcm.channels * 2;
-	unsigned int min_b = 2 * min_p;
+	 * going to setup period size constraint. The limit is derived from the
+	 * transport sampling rate and the number of channels, so the period
+	 * "time" size will be constant, and should be about 10ms. The upper
+	 * limit will not be constrained. */
+	unsigned int min_p = pcm->ba_pcm.sampling / 100 * pcm->ba_pcm.channels *
+		snd_pcm_format_physical_width(get_snd_pcm_format(pcm->ba_pcm.format)) / 8;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
 					min_p, 1024 * 16)) < 0)
-		return err;
-
-	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_BUFFER_BYTES,
-					min_b, 1024 * 1024 * 16)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_CHANNELS,
