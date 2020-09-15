@@ -10,6 +10,8 @@
 
 #include "bluealsa-iface.h"
 
+#include <stddef.h>
+
 static const GDBusArgInfo arg_codec = {
 	-1, "codec", "s", NULL
 };

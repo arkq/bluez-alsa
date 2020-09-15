@@ -1,12 +1,17 @@
 unreleased
 ==========
 
+bluez-alsa v3.0.0 (2020-09-15)
+==============================
+
 - separate D-Bus paths for PCM sink and source (API breakage)
+- store PCM sample physical width in the D-Bus format property
 - list available and supported audio codecs via D-Bus API
 - support for A2DP audio codec selection or reconfiguration
 - fix SBC encoder bit-pool selection (support SBC XQ quality)
 - allow to disable software volume scaling via D-Bus API
 - great improvement to the PCM I/O plug-in (thanks to @borine)
+- install bluez-alsa manual pages (optional, requires pandoc)
 - bluealsa-aplay: list connected BT devices and available PCMs
 - bluealsa-aplay: fix PCM corruption due to out-of-bounds read
 

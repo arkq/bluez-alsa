@@ -14,6 +14,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include <glib-object.h>
+
 #include "shared/defs.h"
 #include "shared/log.h"
 

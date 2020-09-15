@@ -11,6 +11,7 @@
 #include "audio.h"
 
 #include <endian.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include <glib.h>

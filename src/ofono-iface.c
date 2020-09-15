@@ -10,6 +10,8 @@
 
 #include "ofono-iface.h"
 
+#include <stddef.h>
+
 static const GDBusArgInfo arg_card = {
 	-1, "card", "o", NULL
 };

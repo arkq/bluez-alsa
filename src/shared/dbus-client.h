@@ -12,6 +12,7 @@
 #define BLUEALSA_SHARED_DBUSCLIENT_H_
 
 #include <poll.h>
+#include <stddef.h>
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
 
