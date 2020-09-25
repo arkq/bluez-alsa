@@ -249,10 +249,12 @@ START_TEST(test_capture_start) {
 	for (i = 0; i < buffer_size / period_size; i++)
 		ck_assert_int_eq(snd_pcm_readi(pcm, buffer, period_size), period_size);
 
-	/* after reading there should be no more than one period of data */
-	ck_assert_int_le(snd_pcm_avail(pcm), period_size);
+	/* after reading there should be no more than one period of data in buffer */
+	snd_pcm_sframes_t avail;
+	ck_assert_int_le((avail = snd_pcm_avail(pcm)), period_size);
+	/* but there may be more data in the FIFO */
 	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
-	ck_assert_int_le(delay, period_size);
+	ck_assert_int_ge(delay, avail);
 
 	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
 
