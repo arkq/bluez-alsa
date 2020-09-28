@@ -191,6 +191,14 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	struct asrsync asrs;
 	asrsync_init(&asrs, io->rate);
 
+	/* We update pcm->io_hw_ptr (i.e. the value seen by ioplug) only when
+	 * a period has been completed. We use a temporary copy during the
+	 * transfer procedure. */
+	snd_pcm_uframes_t io_hw_ptr = pcm->io_hw_ptr;
+
+	/* The number of frames to complete the current period */
+	snd_pcm_uframes_t balance = io->period_size;
+
 	debug2("Starting IO loop: %d", pcm->ba_pcm_fd);
 	for (;;) {
 
@@ -223,19 +231,30 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 			}
 
 			asrsync_init(&asrs, io->rate);
+			io_hw_ptr = io->hw_ptr;
 		}
 
 		if (io->state == SND_PCM_STATE_DISCONNECTED)
 			goto fail;
 
-		/* We update pcm->io_hw_ptr (i.e. the value seen by ioplug) only when
-		 * a transfer has been completed. We use a temporary copy during the
-		 * transfer procedure. */
-		snd_pcm_uframes_t io_hw_ptr = pcm->io_hw_ptr;
+		/* There are 2 reasons why the number of available frames may be
+		 * zero: xrun or drained final samples; we set the HW pointer to
+		 * -1 to indicate we have no work to do. */
+		snd_pcm_uframes_t avail = snd_pcm_ioplug_hw_avail(io, io_hw_ptr, io->appl_ptr);
+		if (avail == 0) {
+			io_hw_ptr = -1;
+			goto sync;
+		}
+
+		/* The number of frames to be transferred in this iteration */
+		snd_pcm_uframes_t frames = balance;
+
+		/* Do not try to transfer more frames than are available in the ring
+		 * buffer! */
+		if (frames > avail)
+			frames = avail;
 
 		snd_pcm_uframes_t offset = io_hw_ptr % io->buffer_size;
-		snd_pcm_uframes_t frames = pcm->io_avail_min;
-		char *head = pcm->io_hw_buffer + offset * pcm->frame_size;
 
 		/* If the leftover in the buffer is less than a whole period sizes,
 		 * adjust the number of frames which should be transfered. It has
@@ -244,22 +263,9 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		if (io->buffer_size - offset < frames)
 			frames = io->buffer_size - offset;
 
-		/* Do not try to transfer more frames than are available in the ring
-		 * buffer! */
-		snd_pcm_uframes_t hw_avail;
-		if ((hw_avail = snd_pcm_ioplug_hw_avail(io, io_hw_ptr, io->appl_ptr)) < frames)
-			frames = hw_avail;
-
-		/* There are 2 reasons why the number of available frames may be
-		 * zero: xrun or drained final samples; we set the HW pointer to
-		 * -1 to indicate we have no work to do. */
-		if (frames == 0) {
-			io_hw_ptr = -1;
-			goto sync;
-		}
-
 		/* IO operation size in bytes */
 		size_t len = frames * pcm->frame_size;
+		char *head = pcm->io_hw_buffer + offset * pcm->frame_size;
 
 		/* Increment the HW pointer (with boundary wrap) ready for the next
 		 * iteration. */
@@ -320,12 +326,21 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 			asrsync_sync(&asrs, frames);
 		}
 
+		/* repeat until period completed */
+		balance -= frames;
+		if (balance > 0)
+			continue;
+
 sync:
 		/* Make the new HW pointer value visible to the ioplug. */
 		pcm->io_hw_ptr = io_hw_ptr;
+
 		/* Generate poll() event so application is made aware of
 		 * the HW pointer change. */
 		eventfd_write(pcm->event_fd, 1);
+
+		/* Start the next period */
+		balance = io->period_size;
 	}
 
 fail:
