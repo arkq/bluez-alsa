@@ -663,6 +663,13 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 				ready = false;
 				*revents = 0;
 				break;
+			case SND_PCM_STATE_PREPARED:
+				/* capture poll should block forever */
+				if (io->stream == SND_PCM_STREAM_CAPTURE) {
+					ready = false;
+					*revents = 0;
+				}
+				break;
 			case SND_PCM_STATE_RUNNING:
 				if ((snd_pcm_uframes_t)avail < pcm->io_avail_min) {
 					ready = false;
