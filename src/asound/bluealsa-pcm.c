@@ -147,25 +147,6 @@ static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
 }
 
 /**
- * Some playback applications may start the PCM before they have written the
- * first full period of audio data. To match the behavior of the ALSA hw
- * plug-in we do not report an underrun in this case. Instead we pause the IO
- * thread for the estimated time it should take for a real-time application to
- * write the balance of the period. */
-static void io_thread_wait_first_period(snd_pcm_ioplug_t *io) {
-	while (io->appl_ptr < io->period_size && (
-				io->state == SND_PCM_STATE_RUNNING ||
-				io->state == SND_PCM_STATE_PREPARED)) {
-		uint64_t nsec = (io->period_size - io->appl_ptr) * 1000000000 / io->rate;
-		struct timespec ts = {
-			.tv_sec = nsec / 1000000000,
-			.tv_nsec = nsec % 1000000000,
-		};
-		nanosleep(&ts, NULL);
-	}
-}
-
-/**
  * Helper function for IO thread delay calculation. */
 static void io_thread_update_delay(struct bluealsa_pcm *pcm,
                                                    snd_pcm_sframes_t hw_ptr) {
@@ -214,12 +195,6 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		goto fail;
 	}
 
-	/* Block I/O until a full period of frames is available. */
-	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
-		debug2("Waiting for first period of frames");
-		io_thread_wait_first_period(io);
-	}
-
 	struct asrsync asrs;
 	asrsync_init(&asrs, io->rate);
 
@@ -256,11 +231,6 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 				continue;
 			if (pcm->ba_pcm_fd == -1)
 				goto fail;
-
-			if (io->stream == SND_PCM_STREAM_PLAYBACK) {
-				debug2("Waiting for first period of frames");
-				io_thread_wait_first_period(io);
-			}
 
 			asrsync_init(&asrs, io->rate);
 			io_hw_ptr = io->hw_ptr;
