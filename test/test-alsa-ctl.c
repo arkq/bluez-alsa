@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/aloader.so");
 
 	/* test-alsa-ctl and bluealsa-mock shall be placed in the same directory */
-	bluealsa_mock_path = dirname(argv[0]);
+	bluealsa_mock_path = dirname(strdup(argv[0]));
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

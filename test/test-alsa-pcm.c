@@ -367,6 +367,45 @@ START_TEST(test_capture_overrun) {
 
 } END_TEST
 
+START_TEST(test_capture_poll) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+
+	struct pollfd pfds[8];
+	unsigned short revents;
+	int count = snd_pcm_poll_descriptors_count(pcm);
+	ck_assert_int_eq(snd_pcm_poll_descriptors(pcm, pfds, ARRAYSIZE(pfds)), count);
+
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+	/* for a capture PCM just after prepare, the poll() call shall block
+	 * forever or at least the dispatched event shall be set to 0 */
+	ck_assert_int_ne(poll(pfds, count, 250), -1);
+	snd_pcm_poll_descriptors_revents(pcm, pfds, count, &revents);
+	ck_assert_int_eq(revents, 0);
+
+	/* make sure that further calls to poll() will actually block */
+	ck_assert_int_eq(poll(pfds, count, 250), 0);
+
+	ck_assert_int_eq(snd_pcm_start(pcm), 0);
+	do { /* started capture PCM shall not block forever */
+		ck_assert_int_gt(poll(pfds, count, -1), 0);
+		snd_pcm_poll_descriptors_revents(pcm, pfds, count, &revents);
+	} while (revents == 0);
+	/* we should get read event flag set */
+	ck_assert_int_eq(revents & POLLIN, POLLIN);
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
 START_TEST(dump_playback) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
@@ -399,7 +438,11 @@ START_TEST(dump_playback) {
 
 } END_TEST
 
-START_TEST(test_playback_hw_constraints) {
+START_TEST(ba_test_playback_hw_constraints) {
+
+	if (pcm_device != NULL)
+		return;
+
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	/* hard-coded values used in the bluealsa-mock */
@@ -746,7 +789,7 @@ START_TEST(reference_playback_device_unplug) {
 	unsigned int period_time = 25000;
 	snd_pcm_sframes_t frames = 0;
 	snd_pcm_t *pcm = NULL;
-	struct pollfd pfds[2];
+	struct pollfd pfds[4];
 	unsigned short revents;
 
 	/* this test needs user-defined PCM device */
@@ -764,8 +807,8 @@ START_TEST(reference_playback_device_unplug) {
 
 	dumprv(frames);
 	dumprv(snd_pcm_poll_descriptors_count(pcm));
-	dumprv(snd_pcm_poll_descriptors(pcm, pfds, 4));
-	dumprv(snd_pcm_poll_descriptors_revents(pcm, pfds, 4, &revents));
+	dumprv(snd_pcm_poll_descriptors(pcm, pfds, ARRAYSIZE(pfds)));
+	dumprv(snd_pcm_poll_descriptors_revents(pcm, pfds, ARRAYSIZE(pfds), &revents));
 	dumprv(snd_pcm_prepare(pcm));
 	dumprv(snd_pcm_reset(pcm));
 	dumprv(snd_pcm_start(pcm));
@@ -782,7 +825,11 @@ START_TEST(reference_playback_device_unplug) {
 
 } END_TEST
 
-START_TEST(test_playback_device_unplug) {
+START_TEST(ba_test_playback_device_unplug) {
+
+	if (pcm_device != NULL)
+		return;
+
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
@@ -809,8 +856,8 @@ START_TEST(test_playback_device_unplug) {
 
 	ck_assert_int_eq(frames, -ENODEV);
 	ck_assert_int_eq(snd_pcm_poll_descriptors_count(pcm), 2);
-	ck_assert_int_eq(snd_pcm_poll_descriptors(pcm, pfds, 4), 2);
-	ck_assert_int_eq(snd_pcm_poll_descriptors_revents(pcm, pfds, 4, &revents), -ENODEV);
+	ck_assert_int_eq(snd_pcm_poll_descriptors(pcm, pfds, ARRAYSIZE(pfds)), 2);
+	ck_assert_int_eq(snd_pcm_poll_descriptors_revents(pcm, pfds, ARRAYSIZE(pfds), &revents), -ENODEV);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), -ENODEV);
 	ck_assert_int_eq(snd_pcm_reset(pcm), 0);
 	ck_assert_int_eq(snd_pcm_start(pcm), -EBADFD);
@@ -869,46 +916,43 @@ int main(int argc, char *argv[]) {
 		}
 
 	/* test-alsa-pcm and bluealsa-mock shall be placed in the same directory */
-	bluealsa_mock_path = dirname(argv[0]);
+	bluealsa_mock_path = dirname(strdup(argv[0]));
 
 	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
 	SRunner *sr = srunner_create(s);
 
-	suite_add_tcase(s, tc);
-	tcase_set_timeout(tc, 6);
+	TCase *tc_capture = tcase_create("capture");
+	tcase_add_test(tc_capture, dump_capture);
+	tcase_add_test(tc_capture, test_capture_start);
+	tcase_add_test(tc_capture, test_capture_pause);
+	tcase_add_test(tc_capture, test_capture_overrun);
+	tcase_add_test(tc_capture, test_capture_poll);
+
+	TCase *tc_playback = tcase_create("playback");
+	tcase_add_test(tc_playback, dump_playback);
+	tcase_add_test(tc_playback, ba_test_playback_hw_constraints);
+	tcase_add_test(tc_playback, test_playback_start);
+	tcase_add_test(tc_playback, test_playback_drain);
+	tcase_add_test(tc_playback, test_playback_pause);
+	tcase_add_test(tc_playback, test_playback_reset);
+	tcase_add_test(tc_playback, test_playback_underrun);
+	tcase_add_test(tc_playback, ba_test_playback_device_unplug);
+
+	TCase *tc_unplug = tcase_create("unplug");
+	tcase_add_test(tc_unplug, reference_playback_device_unplug);
 
 	if (argc == optind) {
-		tcase_add_test(tc, dump_capture);
-		tcase_add_test(tc, test_capture_start);
-		tcase_add_test(tc, test_capture_overrun);
-		tcase_add_test(tc, dump_playback);
-		tcase_add_test(tc, test_playback_hw_constraints);
-		tcase_add_test(tc, test_playback_start);
-		tcase_add_test(tc, test_playback_drain);
-		tcase_add_test(tc, test_playback_pause);
-		tcase_add_test(tc, test_playback_reset);
-		tcase_add_test(tc, test_playback_underrun);
-		tcase_add_test(tc, test_playback_device_unplug);
+		suite_add_tcase(s, tc_capture);
+		suite_add_tcase(s, tc_playback);
 	}
 	else {
 		for (; optind < argc; optind++) {
-			if (strcmp(argv[optind], "capture") == 0) {
-				tcase_add_test(tc, dump_capture);
-				tcase_add_test(tc, test_capture_start);
-				tcase_add_test(tc, test_capture_pause);
-				tcase_add_test(tc, test_capture_overrun);
-			}
-			else if (strcmp(argv[optind], "playback") == 0) {
-				tcase_add_test(tc, dump_playback);
-				tcase_add_test(tc, test_playback_start);
-				tcase_add_test(tc, test_playback_drain);
-				tcase_add_test(tc, test_playback_pause);
-				tcase_add_test(tc, test_playback_reset);
-				tcase_add_test(tc, test_playback_underrun);
-			}
+			if (strcmp(argv[optind], "capture") == 0)
+				suite_add_tcase(s, tc_capture);
+			else if (strcmp(argv[optind], "playback") == 0)
+				suite_add_tcase(s, tc_playback);
 			else if (strcmp(argv[optind], "unplug") == 0)
-				tcase_add_test(tc, reference_playback_device_unplug);
+				suite_add_tcase(s, tc_unplug);
 		}
 	}
 

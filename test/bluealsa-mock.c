@@ -132,29 +132,51 @@ static void *test_a2dp_sink(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	struct pollfd fds[1] = {{ t->sig_fd[0], POLLIN, 0 }};
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
+	bool io_paused = false;
 	int x = 0;
 
 	while (sigusr1_count == 0) {
 
-		if (t->a2dp.pcm.fd == -1) {
-			usleep(10000);
-			continue;
+		int timout = 0;
+		if (t->a2dp.pcm.fd == -1 || io_paused)
+			timout = -1;
+
+		if (poll(fds, ARRAYSIZE(fds), timout) == 1 &&
+				fds[0].revents & POLLIN) {
+			/* dispatch incoming event */
+			switch (ba_transport_recv_signal(t)) {
+			case BA_TRANSPORT_SIGNAL_PCM_OPEN:
+			case BA_TRANSPORT_SIGNAL_PCM_RESUME:
+				io_paused = false;
+				asrs.frames = 0;
+				continue;
+			case BA_TRANSPORT_SIGNAL_PCM_PAUSE:
+				io_paused = true;
+				continue;
+			default:
+				continue;
+			}
 		}
 
 		fprintf(stderr, ".");
 
 		if (asrs.frames == 0)
-			asrsync_init(&asrs, t->a2dp.pcm.sampling);
+			asrsync_init(&asrs, samplerate);
 
 		const size_t samples = ARRAYSIZE(buffer);
-		x = snd_pcm_sine_s16le(buffer, samples, 2, x, 1.0 / 128);
+		x = snd_pcm_sine_s16le(buffer, samples, channels, x, 1.0 / 128);
 
 		if (ba_transport_pcm_write(&t->a2dp.pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
-		asrsync_sync(&asrs, samples / 2);
+		/* maintain constant speed */
+		asrsync_sync(&asrs, samples / channels);
+
 	}
 
 	pthread_cleanup_pop(1);

@@ -2,7 +2,7 @@
  * preload.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2020 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,6 +10,7 @@
  *
  */
 
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,7 +28,10 @@ int preload(int argc, char *argv[], const char *filename) {
 	char preload[1024];
 	char *envp[] = { preload, NULL };
 
-	sprintf(preload, "%s=%s:", LDPRELOAD, filename);
+	char app[1024];
+	char *dir = dirname(strncpy(app, argv[0], sizeof(app) - 1));
+
+	sprintf(preload, "%s=%s/%s:", LDPRELOAD, dir, filename);
 	if (tmp != NULL)
 		strcat(preload, tmp);
 
