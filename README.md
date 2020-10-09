@@ -53,7 +53,7 @@ Dependencies:
   `--enable-aptx` and/or `--enable-aptx-hd`)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC encoding support is enabled with
   `--enable-ldac`)
-- [pandoc](https://pandoc.org/) (when man pages build is enabled with `--enable-manpages`)
+- [docutils](https://docutils.sourceforge.io) (when man pages build is enabled with `--enable-manpages`)
 
 Dependencies for client applications (e.g. `bluealsa-aplay`):
 
@@ -82,7 +82,7 @@ bus, which can be used for accessing configured audio devices. In general, BlueA
 proxy between BlueZ and ALSA.
 
 For details of command-line options to `bluealsa`, consult the [bluealsa man
-page](./doc/bluealsa-manpage.md).
+page](./doc/bluealsa.8.rst).
 
 In order to stream audio to the e.g. Bluetooth headset, firstly one has to connect the device. The
 most straightforward method is to use BlueZ CLI utility called `bluetoothctl`. When the device is
@@ -120,7 +120,7 @@ bluealsa-aplay XX:XX:XX:XX:XX:XX
 ```
 
 For details of command-line options to `bluealsa-aplay`, consult the [bluealsa-aplay man
-page](./doc/bluealsa-aplay-manpage.md).
+page](./doc/bluealsa-aplay.1.rst).
 
 In addition to A2DP profile, used for high quality audio, BlueALSA also allows to use phone audio
 connection via SCO link. One can use either build-in HSP/HFP support, which implements only audio

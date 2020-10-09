@@ -188,11 +188,11 @@ AM_COND_IF([ENABLE_HCITOP], [
 ])
 
 AC_ARG_ENABLE([manpages],
-	AS_HELP_STRING([--enable-manpages], [enable building of man pages (requires pandoc)]))
+	AS_HELP_STRING([--enable-manpages], [enable building of man pages (requires rst2man)]))
 AM_CONDITIONAL([ENABLE_MANPAGES], [test "x$enable_manpages" = "xyes"])
 AM_COND_IF([ENABLE_MANPAGES], [
-	AC_PATH_PROG([PANDOC], [pandoc])
-	AS_IF([test "x$PANDOC" = "x"], [AC_MSG_ERROR([[--enable-manpages requires pandoc]])])
+	AC_PATH_PROGS([RST2MAN], [rst2man rst2man.py])
+	AS_IF([test "x$RST2MAN" = "x"], [AC_MSG_ERROR([[--enable-manpages requires rst2man]])])
 ])
 
 AC_ARG_ENABLE([test],

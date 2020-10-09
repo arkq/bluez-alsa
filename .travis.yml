@@ -18,7 +18,7 @@ addons:
       - libncurses5-dev
       - libreadline-dev
       - libsbc-dev
-      - pandoc
+      - python3-docutils
 
 before_script:
   - mkdir -p m4

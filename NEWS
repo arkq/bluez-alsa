@@ -2,6 +2,7 @@ unreleased
 ==========
 
 - higher PCM bit depth for apt-X HD (24-bit) and LDAC (32-bit)
+- use rst2man (docutils) instead of pandoc to build man-pages
 
 bluez-alsa v3.0.0 (2020-09-15)
 ==============================
