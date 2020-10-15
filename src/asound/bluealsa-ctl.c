@@ -469,7 +469,9 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*count = pcm->channels;
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		*acc = SND_CTL_EXT_ACCESS_READWRITE;
+		*acc = SND_CTL_EXT_ACCESS_READWRITE |
+			SND_CTL_EXT_ACCESS_TLV_CALLBACK |
+			SND_CTL_EXT_ACCESS_TLV_READ;
 		*type = SND_CTL_ELEM_TYPE_INTEGER;
 		*count = pcm->channels;
 		break;
@@ -842,6 +844,68 @@ static const snd_ctl_ext_callback_t bluealsa_snd_ctl_ext_callback = {
 	.poll_revents = bluealsa_poll_revents,
 };
 
+#if SND_CTL_EXT_VERSION >= 0x010001
+#define TLV_DB_RANGE_SCALE_MIN_MAX(min, max, min_dB, max_dB) \
+	(min), (max), 4 /* dB min/max scale */, 2 * sizeof(int), (min_dB), (max_dB)
+static int bluealsa_snd_ctl_ext_tlv_callback(snd_ctl_ext_t *ext,
+		snd_ctl_ext_key_t key, int op_flag, unsigned int numid,
+		unsigned int *tlv, unsigned int tlv_size) {
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+	(void)numid;
+
+	static const unsigned int tlv_db_a2dp[] = {
+		3,  /* dB range container */
+		10 * (2 /* range */ + 4 /* dB scale */) * sizeof(int),
+		TLV_DB_RANGE_SCALE_MIN_MAX(0, 1, -9600, -6988),
+		TLV_DB_RANGE_SCALE_MIN_MAX(2, 3, -5988, -5403),
+		TLV_DB_RANGE_SCALE_MIN_MAX(4, 5, -4988, -4666),
+		TLV_DB_RANGE_SCALE_MIN_MAX(6, 8, -4399, -3984),
+		TLV_DB_RANGE_SCALE_MIN_MAX(9, 13, -3806, -3277),
+		TLV_DB_RANGE_SCALE_MIN_MAX(14, 21, -3163, -2580),
+		TLV_DB_RANGE_SCALE_MIN_MAX(22, 35, -2504, -1837),
+		TLV_DB_RANGE_SCALE_MIN_MAX(36, 59, -1788, -1081),
+		TLV_DB_RANGE_SCALE_MIN_MAX(60, 100, -1048, -317),
+		TLV_DB_RANGE_SCALE_MIN_MAX(101, 127, -324, 0),
+	};
+
+	static const unsigned int tlv_db_sco[] = {
+		3,  /* dB range container */
+		6 * (2 /* range */ + 4 /* dB scale */) * sizeof(int),
+		TLV_DB_RANGE_SCALE_MIN_MAX(0, 1, -9600, -3906),
+		TLV_DB_RANGE_SCALE_MIN_MAX(2, 3, -2906, -2321),
+		TLV_DB_RANGE_SCALE_MIN_MAX(4, 5, -1906, -1584),
+		TLV_DB_RANGE_SCALE_MIN_MAX(6, 7, -1321, -1099),
+		TLV_DB_RANGE_SCALE_MIN_MAX(8, 10, -904, -582),
+		TLV_DB_RANGE_SCALE_MIN_MAX(11, 15, -438, 0),
+	};
+
+	const struct ctl_elem *elem = &ctl->elem_list[key];
+	const unsigned int *tlv_db = NULL;
+	size_t tlv_db_size = 0;
+
+	switch (elem->pcm->profile) {
+	case BA_PCM_PROFILE_A2DP:
+		tlv_db_size = sizeof(tlv_db_a2dp);
+		tlv_db = tlv_db_a2dp;
+		break;
+	case BA_PCM_PROFILE_SCO:
+		tlv_db_size = sizeof(tlv_db_sco);
+		tlv_db = tlv_db_sco;
+		break;
+	default:
+		return -ENXIO;
+	}
+
+	if (op_flag != 0)
+		return -ENXIO;
+	if (tlv_size < tlv_db_size)
+		return -ENOMEM;
+
+	memcpy(tlv, tlv_db, tlv_db_size);
+	return 0;
+}
+#endif
+
 SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	(void)root;
 
@@ -923,6 +987,9 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	strncpy(ctl->ext.mixername, "BlueALSA Plugin", sizeof(ctl->ext.mixername) - 1);
 
 	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
+#if SND_CTL_EXT_VERSION >= 0x010001
+	ctl->ext.tlv.c = bluealsa_snd_ctl_ext_tlv_callback;
+#endif
 	ctl->ext.private_data = ctl;
 	ctl->ext.poll_fd = -1;
 

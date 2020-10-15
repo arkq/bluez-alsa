@@ -51,13 +51,28 @@ fail:
 	return err;
 }
 
+static int test_ctl_open(pid_t *pid, snd_ctl_t **ctl, int mode) {
+	const char *service = "test";
+	if ((*pid = spawn_bluealsa_server(service, 1, true, false, true, true)) == -1)
+		return -1;
+	return snd_ctl_open_bluealsa(ctl, service, mode);
+}
+
+static int test_pcm_close(pid_t pid, snd_ctl_t *ctl) {
+	int rv = snd_ctl_close(ctl);
+	if (pid != -1) {
+		kill(pid, SIGTERM);
+		waitpid(pid, NULL, 0);
+	}
+	return rv;
+}
+
 START_TEST(test_control) {
 
-	const char *service = "test";
-	pid_t pid = spawn_bluealsa_server(service, 1, true, false, true, true);
-
 	snd_ctl_t *ctl = NULL;
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service, 0), 0);
+	pid_t pid = -1;
+
+	ck_assert_int_eq(test_ctl_open(&pid, &ctl, 0), 0);
 
 	snd_ctl_elem_list_t *elems;
 	snd_ctl_elem_list_alloca(&elems);
@@ -78,10 +93,28 @@ START_TEST(test_control) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "23:45:67:89:AB:CD - A2DP Playback Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "23:45:67:89:AB:CD - A2DP Playback Volume");
 
-	ck_assert_int_eq(snd_ctl_close(ctl), 0);
+	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+} END_TEST
+
+START_TEST(test_db_range) {
+
+	snd_ctl_t *ctl = NULL;
+	pid_t pid = -1;
+
+	ck_assert_int_eq(test_ctl_open(&pid, &ctl, 0), 0);
+
+	snd_ctl_elem_id_t *elem;
+	snd_ctl_elem_id_alloca(&elem);
+	/* 12:34:56:78:9A:BC - A2DP Playback Volume */
+	snd_ctl_elem_id_set_numid(elem, 4);
+
+	long min, max;
+	ck_assert_int_eq(snd_ctl_get_dB_range(ctl, elem, &min, &max), 0);
+	ck_assert_int_eq(min, -9600);
+	ck_assert_int_eq(max, 0);
+
+	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
 } END_TEST
 
@@ -99,6 +132,7 @@ int main(int argc, char *argv[]) {
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_control);
+	tcase_add_test(tc, test_db_range);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
