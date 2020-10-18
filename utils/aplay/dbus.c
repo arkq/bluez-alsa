@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -61,7 +61,7 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 		struct bluez_device *dev, DBusError *error) {
 
 	char path_addr[sizeof("00:00:00:00:00:00")] = { 0 };
-	char *tmp;
+	const char *tmp;
 	size_t i;
 
 	memset(dev, 0, sizeof(*dev));
@@ -100,7 +100,6 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 		dbus_message_iter_recurse(&iter_entry, &iter_entry_val);
 
 		if (strcmp(key, "Adapter") == 0) {
-			const char *tmp;
 			if ((tmp = strrchr(dbus_message_iter_get_basic_string(&iter_entry_val), '/')) != NULL)
 				strncpy(dev->hci_name, tmp + 1, sizeof(dev->hci_name) - 1);
 		}

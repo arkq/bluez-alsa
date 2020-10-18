@@ -14,6 +14,7 @@
 
 #include <errno.h>
 #include <getopt.h>
+#include <math.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -31,6 +32,7 @@
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
+#include "alsa-mixer.h"
 #include "alsa-pcm.h"
 #include "dbus.h"
 
@@ -44,6 +46,9 @@ struct pcm_worker {
 	int ba_pcm_ctrl_fd;
 	/* opened playback PCM device */
 	snd_pcm_t *pcm;
+	/* mixer for volume control */
+	snd_mixer_t *mixer;
+	snd_mixer_elem_t *mixer_elem;
 	/* if true, playback is active */
 	bool active;
 	/* human-readable BT address */
@@ -54,6 +59,9 @@ static unsigned int verbose = 0;
 static bool list_bt_devices = false;
 static bool list_bt_pcms = false;
 static const char *pcm_device = "default";
+static const char *mixer_device = "default";
+static const char *mixer_elem_name = "Master";
+static unsigned int mixer_elem_index = 0;
 static bool ba_profile_a2dp = true;
 static bool ba_addr_any = false;
 static bdaddr_t *ba_addrs = NULL;
@@ -289,6 +297,104 @@ final:
 	return ret;
 }
 
+/**
+ * Synchronize BlueALSA PCM volume with ALSA mixer element. */
+static int pcm_worker_mixer_volume_sync(
+		struct pcm_worker *worker,
+		struct ba_pcm *ba_pcm) {
+
+	/* skip sync in case of software volume */
+	if (ba_pcm->soft_volume)
+		return 0;
+
+	snd_mixer_elem_t *elem = worker->mixer_elem;
+	if (elem == NULL)
+		return 0;
+
+	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
+	long long volume_db_sum = 0;
+	bool muted = true;
+
+	snd_mixer_selem_channel_id_t ch;
+	for (ch = 0; snd_mixer_selem_has_playback_channel(elem, ch) == 1; ch++) {
+
+		long ch_volume_db;
+		int ch_switch;
+
+		int err;
+		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0 ||
+				(err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
+			error("Couldn't get playback volume: %s", snd_strerror(err));
+			return -1;
+		}
+
+		volume_db_sum += ch_volume_db;
+		if (ch_switch == 1)
+			muted = false;
+
+	}
+
+	/* convert dB to loudness using decibel formula */
+	int volume = pow(2, (0.01 * volume_db_sum / ch) / 10) * vmax;
+
+	ba_pcm->volume.ch1_muted = muted;
+	ba_pcm->volume.ch1_volume = volume;
+	ba_pcm->volume.ch2_muted = muted;
+	ba_pcm->volume.ch2_volume = volume;
+
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_pcm_update(&dbus_ctx, ba_pcm, BLUEALSA_PCM_VOLUME, &err)) {
+		error("Couldn't update PCM: %s", err.message);
+		dbus_error_free(&err);
+		return -1;
+	}
+
+	return 0;
+}
+
+/**
+ * Update ALSA mixer element according to BlueALSA PCM volume. */
+static int pcm_worker_mixer_volume_update(
+		struct pcm_worker *worker,
+		struct ba_pcm *ba_pcm) {
+
+	/* skip update in case of software volume */
+	if (ba_pcm->soft_volume)
+		return 0;
+
+	snd_mixer_elem_t *elem = worker->mixer_elem;
+	if (elem == NULL)
+		return 0;
+
+	/* User can connect BlueALSA PCM to mono, stereo or multi-channel output.
+	 * For mono input (audio from BlueALSA PCM), case case is simple: we are
+	 * changing all output channels at once. However, for stereo input it is
+	 * not possible to know how to control left/right volume unless there is
+	 * some kind of channel mapping. In order to simplify things, we will set
+	 * all channels to the average left-right volume. */
+
+	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
+	int volume = ba_pcm->volume.ch1_volume;
+	int muted = ba_pcm->volume.ch1_muted;
+
+	if (ba_pcm->channels > 1) {
+		volume = (ba_pcm->volume.ch1_volume + ba_pcm->volume.ch2_volume) / 2;
+		muted = ba_pcm->volume.ch1_muted || ba_pcm->volume.ch2_muted;
+	}
+
+	/* convert loudness to dB using decibel formula */
+	long db = 10 * log2(1.0 * volume / vmax) * 100;
+
+	int err;
+	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0 ||
+			(err = snd_mixer_selem_set_playback_switch_all(elem, !muted)) != 0) {
+		error("Couldn't set playback volume: %s", snd_strerror(err));
+		return -1;
+	}
+
+	return 0;
+}
+
 static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 	if (worker->ba_pcm_fd != -1) {
 		close(worker->ba_pcm_fd);
@@ -301,6 +407,11 @@ static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 	if (worker->pcm != NULL) {
 		snd_pcm_close(worker->pcm);
 		worker->pcm = NULL;
+	}
+	if (worker->mixer != NULL) {
+		snd_mixer_close(worker->mixer);
+		worker->mixer_elem = NULL;
+		worker->mixer = NULL;
 	}
 	debug("Exiting PCM worker %s", worker->addr);
 }
@@ -435,6 +546,15 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 				continue;
 			}
 
+			if (alsa_mixer_open(&w->mixer, &w->mixer_elem,
+						mixer_device, mixer_elem_name, mixer_elem_index, &tmp) != 0) {
+				warn("Couldn't open mixer: %s", tmp);
+				free(tmp);
+			}
+
+			/* initial volume synchronization */
+			pcm_worker_mixer_volume_sync(w, &w->ba_pcm);
+
 			snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
 			pcm_max_read_len = period_size * w->ba_pcm.channels * pcm_format_size;
 			pcm_open_retries = 0;
@@ -490,12 +610,12 @@ fail:
 	return NULL;
 }
 
-static int supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
+static struct pcm_worker *supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
 		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
-			return 0;
+			return &workers[i];
 
 	pthread_rwlock_wrlock(&workers_lock);
 
@@ -507,7 +627,7 @@ static int supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
 			error("Couldn't (re)allocate memory for PCM workers: %s", strerror(ENOMEM));
 			workers = tmp;
 			pthread_rwlock_unlock(&workers_lock);
-			return -1;
+			return NULL;
 		}
 	}
 
@@ -527,13 +647,13 @@ static int supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
 					PTHREAD_ROUTINE(pcm_worker_routine), worker)) != 0) {
 		error("Couldn't create PCM worker %s: %s", worker->addr, strerror(errno));
 		workers_count--;
-		return -1;
+		return NULL;
 	}
 
-	return 0;
+	return worker;
 }
 
-static int supervise_pcm_worker_stop(struct ba_pcm *ba_pcm) {
+static struct pcm_worker *supervise_pcm_worker_stop(struct ba_pcm *ba_pcm) {
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
@@ -545,13 +665,13 @@ static int supervise_pcm_worker_stop(struct ba_pcm *ba_pcm) {
 			pthread_rwlock_unlock(&workers_lock);
 		}
 
-	return 0;
+	return NULL;
 }
 
-static int supervise_pcm_worker(struct ba_pcm *ba_pcm) {
+static struct pcm_worker *supervise_pcm_worker(struct ba_pcm *ba_pcm) {
 
 	if (ba_pcm == NULL)
-		return -1;
+		return NULL;
 
 	if (ba_pcm->mode != BA_PCM_MODE_SOURCE)
 		goto stop;
@@ -593,6 +713,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 	const char *signal = dbus_message_get_member(message);
 
 	DBusMessageIter iter;
+	struct pcm_worker *worker;
 	struct ba_pcm *pcm;
 
 	if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
@@ -638,7 +759,8 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 		dbus_message_iter_next(&iter);
 		if (!bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm))
 			goto fail;
-		supervise_pcm_worker(pcm);
+		if ((worker = supervise_pcm_worker(pcm)) != NULL)
+			pcm_worker_mixer_volume_update(worker, pcm);
 		return DBUS_HANDLER_RESULT_HANDLED;
 	}
 
@@ -649,7 +771,7 @@ fail:
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVvlLB:D:";
+	const char *opts = "hVvlLB:D:M:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
@@ -660,6 +782,9 @@ int main(int argc, char *argv[]) {
 		{ "pcm", required_argument, NULL, 'D' },
 		{ "pcm-buffer-time", required_argument, NULL, 3 },
 		{ "pcm-period-time", required_argument, NULL, 4 },
+		{ "mixer-device", required_argument, NULL, 'M' },
+		{ "mixer-name", required_argument, NULL, 6 },
+		{ "mixer-index", required_argument, NULL, 7 },
 		{ "profile-a2dp", no_argument, NULL, 1 },
 		{ "profile-sco", no_argument, NULL, 2 },
 		{ "single-audio", no_argument, NULL, 5 },
@@ -681,6 +806,9 @@ int main(int argc, char *argv[]) {
 					"  -D, --pcm=NAME\tplayback PCM device to use\n"
 					"  --pcm-buffer-time=INT\tplayback PCM buffer time\n"
 					"  --pcm-period-time=INT\tplayback PCM period time\n"
+					"  -M, --mixer=NAME\tmixer device to use\n"
+					"  --mixer-name=NAME\tmixer element name\n"
+					"  --mixer-index=NUM\tmixer element channel index\n"
 					"  --profile-a2dp\tuse A2DP profile (default)\n"
 					"  --profile-sco\t\tuse SCO profile\n"
 					"  --single-audio\tsingle audio mode\n"
@@ -710,8 +838,25 @@ int main(int argc, char *argv[]) {
 		case 'B' /* --dbus=NAME */ :
 			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
 			break;
+
 		case 'D' /* --pcm=NAME */ :
 			pcm_device = optarg;
+			break;
+		case 3 /* --pcm-buffer-time=INT */ :
+			pcm_buffer_time = atoi(optarg);
+			break;
+		case 4 /* --pcm-period-time=INT */ :
+			pcm_period_time = atoi(optarg);
+			break;
+
+		case 'M' /* --mixer-device=NAME */ :
+			mixer_device = optarg;
+			break;
+		case 6 /* --mixer-name=NAME */ :
+			mixer_elem_name = optarg;
+			break;
+		case 7 /* --mixer-index=NUM */ :
+			mixer_elem_index = atoi(optarg);
 			break;
 
 		case 1 /* --profile-a2dp */ :
@@ -719,13 +864,6 @@ int main(int argc, char *argv[]) {
 			break;
 		case 2 /* --profile-sco */ :
 			ba_profile_a2dp = false;
-			break;
-
-		case 3 /* --pcm-buffer-time=INT */ :
-			pcm_buffer_time = atoi(optarg);
-			break;
-		case 4 /* --pcm-period-time=INT */ :
-			pcm_period_time = atoi(optarg);
 			break;
 
 		case 5 /* --single-audio */ :
@@ -783,10 +921,13 @@ int main(int argc, char *argv[]) {
 				"  PCM device: %s\n"
 				"  PCM buffer time: %u us\n"
 				"  PCM period time: %u us\n"
+				"  ALSA mixer device: %s\n"
+				"  ALSA mixer element: '%s',%u\n"
 				"  Bluetooth device(s): %s\n"
 				"  Profile: %s\n",
 				dbus_ba_service,
 				pcm_device, pcm_buffer_time, pcm_period_time,
+				mixer_device, mixer_elem_name, mixer_elem_index,
 				ba_addr_any ? "ANY" : &ba_str[2],
 				ba_profile_a2dp ? "A2DP" : "SCO");
 

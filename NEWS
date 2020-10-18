@@ -4,6 +4,7 @@ unreleased
 - optional support for A2DP FastStream codec (music & voice)
 - connection keep-alive timeout for all BT profiles
 - fix for rapid consecutive SCO link close(2)/connect(2)
+- bluealsa-aplay: forward PCM volume to ALSA mixer element
 
 bluez-alsa v3.1.0 (2021-06-01)
 ==============================
