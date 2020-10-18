@@ -46,6 +46,11 @@
 #define BA_PCM_MODE_SINK             (1 << 1)
 
 /**
+ * Get max volume level for given PCM. */
+#define BA_PCM_VOLUME_MAX(pcm) \
+	((pcm)->transport & BA_PCM_TRANSPORT_MASK_A2DP ? 127 : 15)
+
+/**
  * Connection context. */
 struct ba_dbus_ctx {
 	/* private D-Bus connection */
