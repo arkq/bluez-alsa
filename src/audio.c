@@ -11,10 +11,31 @@
 #include "audio.h"
 
 #include <endian.h>
+#include <math.h>
 #include <stdbool.h>
 #include <string.h>
 
 #include <glib.h>
+
+/**
+ * Convert audio volume change in dB to loudness.
+ *
+ * @param value The audio volume change in dB.
+ * @return This function returns the loudness value which
+ *   corresponds to the given audio volume change in dB. */
+double audio_decibel_to_loudness(double value) {
+	return pow(2, value / 10);
+}
+
+/**
+ * Convert loudness to audio volume change in dB.
+ *
+ * @param value The volume loudness value.
+ * @return This function returns the audio volume change
+ *   in dB which corresponds to the given loudness value. */
+double audio_loudness_to_decibel(double value) {
+	return 10 * log2(value);
+}
 
 /**
  * Scale S16_2LE PCM signal.

@@ -283,9 +283,10 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 		goto fail;
 	}
 
+	int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
-	t->a2dp.pcm.volume[0].level = volume;
-	t->a2dp.pcm.volume[1].level = volume;
+	t->a2dp.pcm.volume[0].level = level;
+	t->a2dp.pcm.volume[1].level = level;
 	t->a2dp.delay = delay;
 
 	debug("%s configured for device %s",
@@ -1065,7 +1066,6 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 static void bluez_signal_transport_changed(GDBusConnection *conn, const char *sender,
 		const char *transport_path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
-	debug("Signal: %s.%s()", interface_, signal);
 	(void)conn;
 	(void)sender;
 	(void)interface_;
@@ -1101,7 +1101,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 
 	g_variant_get(params, "(&sa{sv}as)", &interface, &properties, NULL);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
-		debug("Signal: %s: %s: %s", signal, interface, property);
+		debug("Signal: %s.%s(): %s: %s", interface_, signal, interface, property);
 
 		if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
@@ -1117,7 +1117,9 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127] */
 			const uint16_t volume = g_variant_get_uint16(value);
-			t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = volume;
+			int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+			debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
+			t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = level;
 			bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 		}
 

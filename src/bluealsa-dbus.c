@@ -98,15 +98,23 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 }
 
 static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_uint16(ba_transport_get_delay(pcm->t));
+	return g_variant_new_uint16(ba_transport_pcm_get_delay(pcm));
 }
 
 static GVariant *ba_variant_new_pcm_soft_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_boolean(pcm->soft_volume);
 }
 
+static uint8_t ba_volume_pack_dbus_volume(bool muted, int value) {
+	return (muted << 7) | (((uint8_t)value) & 0x7F);
+}
+
 static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_uint16(ba_transport_pcm_get_volume_packed(pcm));
+	uint8_t ch1 = ba_volume_pack_dbus_volume(pcm->volume[0].muted,
+			ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level));
+	uint8_t ch2 = ba_volume_pack_dbus_volume(pcm->volume[1].muted,
+			ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[1].level));
+	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
 }
 
 static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
@@ -720,7 +728,21 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 		return TRUE;
 	}
 	if (strcmp(property, "Volume") == 0) {
-		ba_transport_pcm_set_volume_packed(pcm, g_variant_get_uint16(value));
+
+		uint16_t packed = g_variant_get_uint16(value);
+		uint8_t ch1 = packed >> 8;
+		uint8_t ch2 = packed & 0xFF;
+
+		pcm->volume[0].level = ba_transport_pcm_volume_bt_to_level(pcm, ch1 & 0x7F);
+		pcm->volume[0].muted = !!(ch1 & 0x80);
+		pcm->volume[1].level = ba_transport_pcm_volume_bt_to_level(pcm, ch2 & 0x7F);
+		pcm->volume[1].muted = !!(ch2 & 0x80);
+
+		debug("Setting volume: %u [%.2f dB] %c%c %u [%.2f dB]",
+				ch1 & 0x7F, 0.01 * pcm->volume[0].level, pcm->volume[0].muted ? 'x' : '<',
+				pcm->volume[1].muted ? 'x' : '>', ch2 & 0x7F, 0.01 * pcm->volume[1].level);
+
+		ba_transport_pcm_volume_update(pcm);
 		return TRUE;
 	}
 

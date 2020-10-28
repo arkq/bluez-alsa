@@ -18,6 +18,7 @@
 #include <check.h>
 
 #include "../src/a2dp.c"
+#include "../src/audio.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-rfcomm.c"

@@ -19,6 +19,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+double audio_decibel_to_loudness(double value);
+double audio_loudness_to_decibel(double value);
+
 void audio_scale_s16_2le(int16_t *buffer, int channels, size_t frames, double ch1, double ch2);
 void audio_scale_s32_4le(int32_t *buffer, int channels, size_t frames, double ch1, double ch2);
 #define audio_scale_s24_4le audio_scale_s32_4le

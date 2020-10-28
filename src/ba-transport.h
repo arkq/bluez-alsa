@@ -111,18 +111,18 @@ struct ba_transport_pcm {
 	 * audio encoding or decoding and data transfer. */
 	unsigned int delay;
 
-	/* maximal possible volume level */
-	unsigned int max_volume;
-
 	/* internal software volume control */
 	bool soft_volume;
 
+	/* maximal possible Bluetooth volume */
+	unsigned int max_bt_volume;
+
 	/* Volume configuration for channel left [0] and right [1]. In case of
-	 * a monophonic sound, left [0] channel shall be used. Also note, that
-	 * A2DP and SCO profiles use different volume level ranges:
-	 * A2DP - [0, 127], SCO - [0, 15]. */
+	 * a monophonic sound, only the left [0] channel shall be used. */
 	struct {
-		unsigned int level;
+		/* volume level change in "dB * 100" */
+		int level;
+		/* audio signal mute switch */
 		bool muted;
 	} volume[2];
 
@@ -269,16 +269,24 @@ void ba_transport_set_codec(
 		struct ba_transport *t,
 		uint16_t codec_id);
 
-uint16_t ba_transport_get_delay(const struct ba_transport *t);
-
-uint16_t ba_transport_pcm_get_volume_packed(const struct ba_transport_pcm *pcm);
-int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t value);
-
 int ba_transport_start(struct ba_transport *t);
 
 int ba_transport_set_a2dp_state(
 		struct ba_transport *t,
 		enum bluez_a2dp_transport_state state);
+
+int ba_transport_pcm_get_delay(
+		const struct ba_transport_pcm *pcm);
+
+unsigned int ba_transport_pcm_volume_level_to_bt(
+		const struct ba_transport_pcm *pcm,
+		int value);
+int ba_transport_pcm_volume_bt_to_level(
+		const struct ba_transport_pcm *pcm,
+		unsigned int value);
+
+int ba_transport_pcm_volume_update(
+		struct ba_transport_pcm *pcm);
 
 int ba_transport_pcm_pause(struct ba_transport_pcm *pcm);
 int ba_transport_pcm_resume(struct ba_transport_pcm *pcm);

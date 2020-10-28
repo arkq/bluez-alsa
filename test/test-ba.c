@@ -15,6 +15,7 @@
 #include <check.h>
 
 #include "../src/a2dp.c"
+#include "../src/audio.c"
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
@@ -130,7 +131,7 @@ START_TEST(test_ba_transport_pcm_format) {
 
 } END_TEST
 
-START_TEST(test_ba_transport_volume_packed) {
+START_TEST(test_ba_transport_pcm_volume) {
 
 	struct ba_adapter *a;
 	struct ba_device *d;
@@ -152,31 +153,23 @@ START_TEST(test_ba_transport_volume_packed) {
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
-	t_a2dp->a2dp.pcm.volume[0].muted = true;
-	t_a2dp->a2dp.pcm.volume[0].level = 0x6C;
-	t_a2dp->a2dp.pcm.volume[1].muted = false;
-	t_a2dp->a2dp.pcm.volume[1].level = 0x4F;
-	ck_assert_uint_eq(ba_transport_pcm_get_volume_packed(&t_a2dp->a2dp.pcm), 0xEC4F);
+	ck_assert_int_eq(t_a2dp->a2dp.pcm.max_bt_volume, 127);
+	ck_assert_int_eq(t_a2dp->a2dp.pcm_bc.max_bt_volume, 127);
 
-	ck_assert_int_eq(ba_transport_pcm_set_volume_packed(&t_a2dp->a2dp.pcm, 0xB0C1), 0);
-	ck_assert_int_eq(!!t_a2dp->a2dp.pcm.volume[0].muted, true);
-	ck_assert_int_eq(t_a2dp->a2dp.pcm.volume[0].level, 48);
-	ck_assert_int_eq(!!t_a2dp->a2dp.pcm.volume[1].muted, true);
-	ck_assert_int_eq(t_a2dp->a2dp.pcm.volume[1].level, 65);
+	ck_assert_int_eq(t_sco->sco.spk_pcm.max_bt_volume, 15);
+	ck_assert_int_eq(t_sco->sco.mic_pcm.max_bt_volume, 15);
 
-	t_sco->sco.spk_pcm.volume[0].muted = false;
-	t_sco->sco.spk_pcm.volume[0].level = 0x0A;
-	t_sco->sco.mic_pcm.volume[0].muted = true;
-	t_sco->sco.mic_pcm.volume[0].level = 0x05;
-	ck_assert_uint_eq(ba_transport_pcm_get_volume_packed(&t_sco->sco.spk_pcm), 0x0A00);
-	ck_assert_uint_eq(ba_transport_pcm_get_volume_packed(&t_sco->sco.mic_pcm), 0x8500);
+	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_a2dp->a2dp.pcm, 0), -9600);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_a2dp->a2dp.pcm, -9600), 0);
 
-	ck_assert_int_eq(ba_transport_pcm_set_volume_packed(&t_sco->sco.spk_pcm, 0x8A00), 0);
-	ck_assert_int_eq(ba_transport_pcm_set_volume_packed(&t_sco->sco.mic_pcm, 0x0B00), 0);
-	ck_assert_int_eq(!!t_sco->sco.spk_pcm.volume[0].muted, true);
-	ck_assert_int_eq(t_sco->sco.spk_pcm.volume[0].level, 10);
-	ck_assert_int_eq(!!t_sco->sco.mic_pcm.volume[0].muted, false);
-	ck_assert_int_eq(t_sco->sco.mic_pcm.volume[0].level, 11);
+	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_a2dp->a2dp.pcm, 127), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_a2dp->a2dp.pcm, 0), 127);
+
+	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_sco->sco.spk_pcm, 0), -9600);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_sco->sco.spk_pcm, -9600), 0);
+
+	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_sco->sco.spk_pcm, 15), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_sco->sco.spk_pcm, 0), 15);
 
 	ba_transport_unref(t_a2dp);
 	ba_transport_unref(t_sco);
@@ -216,7 +209,7 @@ int main(void) {
 	tcase_add_test(tc, test_ba_device);
 	tcase_add_test(tc, test_ba_transport);
 	tcase_add_test(tc, test_ba_transport_pcm_format);
-	tcase_add_test(tc, test_ba_transport_volume_packed);
+	tcase_add_test(tc, test_ba_transport_pcm_volume);
 	tcase_add_test(tc, test_cascade_free);
 
 	srunner_run_all(sr, CK_ENV);

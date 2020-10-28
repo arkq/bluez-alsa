@@ -29,6 +29,7 @@
 
 #include "a2dp-audio.h"
 #include "a2dp-codecs.h"
+#include "audio.h"
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
 #include "bluealsa.h"
@@ -71,10 +72,6 @@ static int transport_pcm_init(
 	pcm->t = t;
 	pcm->mode = mode;
 	pcm->fd = -1;
-
-	pcm->max_volume = 127;
-	pcm->volume[0].level = 127;
-	pcm->volume[1].level = 127;
 
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
 	pthread_cond_init(&pcm->synced, NULL);
@@ -184,10 +181,12 @@ struct ba_transport *ba_transport_new_a2dp(
 	transport_pcm_init(&t->a2dp.pcm, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
+	t->a2dp.pcm.max_bt_volume = 127;
 
 	transport_pcm_init(&t->a2dp.pcm_bc, t, is_sink ?
 			BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
+	t->a2dp.pcm_bc.max_bt_volume = 127;
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -230,12 +229,10 @@ struct ba_transport *ba_transport_new_sco(
 	t->type = type;
 
 	transport_pcm_init(&t->sco.spk_pcm, t, BA_TRANSPORT_PCM_MODE_SINK);
-	t->sco.spk_pcm.max_volume = 15;
-	t->sco.spk_pcm.volume[0].level = 15;
+	t->sco.spk_pcm.max_bt_volume = 15;
 
 	transport_pcm_init(&t->sco.mic_pcm, t, BA_TRANSPORT_PCM_MODE_SOURCE);
-	t->sco.mic_pcm.max_volume = 15;
-	t->sco.mic_pcm.volume[0].level = 15;
+	t->sco.mic_pcm.max_bt_volume = 15;
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
@@ -694,69 +691,6 @@ void ba_transport_set_codec(
 
 }
 
-uint16_t ba_transport_get_delay(const struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return t->a2dp.delay + t->a2dp.pcm.delay;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		return t->sco.spk_pcm.delay + 10;
-	return 0;
-}
-
-/**
- * Get transport PCM volume encoded as a single 16-bit value. */
-uint16_t ba_transport_pcm_get_volume_packed(const struct ba_transport_pcm *pcm) {
-	uint16_t v = ((pcm->volume[0].muted << 7) | pcm->volume[0].level) << 8;
-	if (pcm->channels == 2)
-		v |= (pcm->volume[1].muted << 7) | pcm->volume[1].level;
-	return v;
-}
-
-/**
- * Set transport PCM volume from an encoded single 16-bit value. */
-int ba_transport_pcm_set_volume_packed(struct ba_transport_pcm *pcm, uint16_t value) {
-
-	const struct ba_transport *t = pcm->t;
-	uint8_t ch1 = value >> 8;
-	uint8_t ch2 = value & 0xFF;
-
-	debug("Setting volume: %d<>%d [%c%c]", ch1 & 0x7F, ch2 & 0x7F,
-			ch1 & 0x80 ? 'M' : 'O', ch2 & 0x80 ? 'M' : 'O');
-
-	pcm->volume[0].muted = !!(ch1 & 0x80);
-	pcm->volume[1].muted = !!(ch2 & 0x80);
-	pcm->volume[0].level = ch1 & 0x7F;
-	pcm->volume[1].level = ch2 & 0x7F;
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
-			!pcm->soft_volume) {
-
-		uint16_t volume = 0;
-		if (!pcm->volume[0].muted && !pcm->volume[1].muted)
-			volume = (pcm->volume[0].level + pcm->volume[1].level) / 2;
-
-		GError *err = NULL;
-		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
-				BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
-
-		if (err != NULL) {
-			warn("Couldn't set BT device volume: %s", err->message);
-			g_error_free(err);
-		}
-
-	}
-
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
-			t->sco.rfcomm != NULL) {
-		/* notify associated RFCOMM transport */
-		ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
-	}
-
-	/* notify connected clients (including requester) */
-	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
-
-	return 0;
-}
-
 int ba_transport_start(struct ba_transport *t) {
 
 	if (!pthread_equal(t->thread, config.main_thread))
@@ -791,6 +725,63 @@ int ba_transport_set_a2dp_state(
 		ba_transport_pthread_cancel(t);
 		return 0;
 	}
+}
+
+int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
+	const struct ba_transport *t = pcm->t;
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return t->a2dp.delay + pcm->delay;
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		return pcm->delay + 10;
+	return pcm->delay;
+}
+
+unsigned int ba_transport_pcm_volume_level_to_bt(
+		const struct ba_transport_pcm *pcm,
+		int value) {
+	int volume = audio_decibel_to_loudness(value / 100.0) * pcm->max_bt_volume;
+	return MIN((unsigned int)MAX(volume, 0), pcm->max_bt_volume);
+}
+
+int ba_transport_pcm_volume_bt_to_level(
+		const struct ba_transport_pcm *pcm,
+		unsigned int value) {
+	double level = audio_loudness_to_decibel(1.0 * value / pcm->max_bt_volume);
+	return MIN(MAX(level, -96.0), 96.0) * 100;
+}
+
+int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
+
+	const struct ba_transport *t = pcm->t;
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
+			!pcm->soft_volume) {
+
+		int level = 0;
+		if (!pcm->volume[0].muted && !pcm->volume[1].muted)
+			level = (pcm->volume[0].level + pcm->volume[1].level) / 2;
+
+		GError *err = NULL;
+		unsigned int volume = ba_transport_pcm_volume_level_to_bt(pcm, level);
+		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+				BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
+
+		if (err != NULL) {
+			warn("Couldn't set BT device volume: %s", err->message);
+			g_error_free(err);
+		}
+
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+			t->sco.rfcomm != NULL) {
+		/* notify associated RFCOMM transport */
+		ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
+	}
+
+	/* notify connected clients (including requester) */
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
+	return 0;
 }
 
 int ba_transport_pcm_pause(struct ba_transport_pcm *pcm) {
