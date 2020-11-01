@@ -296,7 +296,8 @@ success:
 dbus_bool_t bluealsa_dbus_get_pcm(
 		struct ba_dbus_ctx *ctx,
 		const bdaddr_t *addr,
-		unsigned int flags,
+		unsigned int profile,
+		unsigned int modes,
 		struct ba_pcm *pcm,
 		DBusError *error) {
 
@@ -310,7 +311,8 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 
 	for (i = 0; i < length; i++)
 		if (bacmp(&pcms[i].addr, addr) == 0 &&
-				(pcms[i].flags & flags) == flags) {
+				pcms[i].profile == profile &&
+				(pcms[i].modes & modes) == modes) {
 			memcpy(pcm, &pcms[i], sizeof(*pcm));
 			goto final;
 		}
@@ -588,18 +590,18 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 			goto fail;
 		dbus_message_iter_get_basic(variant, &tmp);
 		if (strstr(tmp, "A2DP") != NULL)
-			pcm->flags |= BA_PCM_FLAG_PROFILE_A2DP;
+			pcm->profile = BA_PCM_PROFILE_A2DP;
 		else
-			pcm->flags |= BA_PCM_FLAG_PROFILE_SCO;
+			pcm->profile = BA_PCM_PROFILE_SCO;
 	}
 	else if (strcmp(key, "Mode") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
 		dbus_message_iter_get_basic(variant, &tmp);
 		if (strcmp(tmp, "source") == 0)
-			pcm->flags |= BA_PCM_FLAG_SOURCE;
+			pcm->modes |= BA_PCM_MODE_SOURCE;
 		else if (strcmp(tmp, "sink") == 0)
-			pcm->flags |= BA_PCM_FLAG_SINK;
+			pcm->modes |= BA_PCM_MODE_SINK;
 	}
 	else if (strcmp(key, "Format") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))

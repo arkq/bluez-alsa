@@ -124,10 +124,10 @@ static void print_bt_device_list(void) {
 
 	static const struct {
 		const char *label;
-		unsigned int flag;
+		unsigned int mode;
 	} section[2] = {
-		{ "**** List of PLAYBACK Bluetooth Devices ****", BA_PCM_FLAG_SINK },
-		{ "**** List of CAPTURE Bluetooth Devices ****", BA_PCM_FLAG_SOURCE },
+		{ "**** List of PLAYBACK Bluetooth Devices ****", BA_PCM_MODE_SINK },
+		{ "**** List of CAPTURE Bluetooth Devices ****", BA_PCM_MODE_SOURCE },
 	};
 
 	const char *tmp;
@@ -140,7 +140,7 @@ static void print_bt_device_list(void) {
 			struct ba_pcm *pcm = &ba_pcms[ii];
 			struct bluez_device dev = { 0 };
 
-			if (!(pcm->flags & section[i].flag))
+			if (!(pcm->modes & section[i].mode))
 				continue;
 
 			if (strcmp(pcm->device_path, tmp) != 0) {
@@ -162,7 +162,7 @@ static void print_bt_device_list(void) {
 			}
 
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
-				pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "A2DP" : "SCO",
+				pcm->profile == BA_PCM_PROFILE_A2DP ? "A2DP" : "SCO",
 				pcm->codec,
 				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 				pcm->channels, pcm->channels != 1 ? "s" : "",
@@ -200,11 +200,11 @@ static void print_bt_pcm_list(void) {
 				"    %s (%s): %s %d channel%s %d Hz\n",
 			dbus_ba_service,
 			bt_addr,
-			pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "a2dp" : "sco",
+			pcm->profile == BA_PCM_PROFILE_A2DP ? "a2dp" : "sco",
 			dev.name,
 			dev.trusted ? "trusted ": "", dev.icon,
-			pcm->flags & BA_PCM_FLAG_SINK ? "playback" : "capture",
-			pcm->flags & BA_PCM_FLAG_PROFILE_A2DP ? "A2DP" : "SCO",
+			pcm->modes & BA_PCM_MODE_SINK ? "playback" : "capture",
+			pcm->profile == BA_PCM_PROFILE_A2DP ? "A2DP" : "SCO",
 			pcm->codec,
 			snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 			pcm->channels, pcm->channels != 1 ? "s" : "",
@@ -538,15 +538,15 @@ static int supervise_pcm_worker(struct ba_pcm *ba_pcm) {
 	if (ba_pcm == NULL)
 		return -1;
 
-	if (!(ba_pcm->flags & BA_PCM_FLAG_SOURCE))
+	if (!(ba_pcm->modes & BA_PCM_MODE_SOURCE))
 		goto stop;
 
-	if ((ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_A2DP)) ||
-			(!ba_profile_a2dp && !(ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO)))
+	if ((ba_profile_a2dp && ba_pcm->profile != BA_PCM_PROFILE_A2DP) ||
+			(!ba_profile_a2dp && ba_pcm->profile != BA_PCM_PROFILE_SCO))
 		goto stop;
 
 	/* check whether SCO has selected codec */
-	if (ba_pcm->flags & BA_PCM_FLAG_PROFILE_SCO &&
+	if (ba_pcm->profile == BA_PCM_PROFILE_SCO &&
 			ba_pcm->sampling == 0) {
 		debug("Skipping SCO with codec not selected");
 		goto stop;

@@ -21,10 +21,10 @@
 #define BLUEALSA_INTERFACE_PCM     "org.bluealsa.PCM1"
 #define BLUEALSA_INTERFACE_RFCOMM  "org.bluealsa.RFCOMM1"
 
-#define BA_PCM_FLAG_SOURCE       (1 << 0)
-#define BA_PCM_FLAG_SINK         (1 << 1)
-#define BA_PCM_FLAG_PROFILE_A2DP (1 << 2)
-#define BA_PCM_FLAG_PROFILE_SCO  (1 << 3)
+#define BA_PCM_PROFILE_A2DP      (1 << 0)
+#define BA_PCM_PROFILE_SCO       (1 << 1)
+#define BA_PCM_MODE_SOURCE       (1 << 0)
+#define BA_PCM_MODE_SINK         (1 << 1)
 
 /**
  * Connection context. */
@@ -57,6 +57,11 @@ struct ba_pcm {
 	/* BlueALSA D-Bus PCM path */
 	char pcm_path[128];
 
+	/* BlueALSA profile type */
+	unsigned int profile;
+	/* available stream modes */
+	unsigned int modes;
+
 	/* PCM stream format */
 	dbus_uint16_t format;
 	/* number of audio channels */
@@ -72,8 +77,6 @@ struct ba_pcm {
 	dbus_uint16_t delay;
 	/* software volume */
 	dbus_bool_t soft_volume;
-	/* feature flags */
-	unsigned int flags;
 
 	/* 16-bit packed PCM volume */
 	union {
@@ -126,7 +129,8 @@ dbus_bool_t bluealsa_dbus_get_pcms(
 dbus_bool_t bluealsa_dbus_get_pcm(
 		struct ba_dbus_ctx *ctx,
 		const bdaddr_t *addr,
-		unsigned int flags,
+		unsigned int profile,
+		unsigned int modes,
 		struct ba_pcm *pcm,
 		DBusError *error);
 

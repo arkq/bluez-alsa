@@ -839,9 +839,9 @@ static int str2bdaddr(const char *str, bdaddr_t *ba) {
 
 static int str2profile(const char *str) {
 	if (strcasecmp(str, "a2dp") == 0)
-		return BA_PCM_FLAG_PROFILE_A2DP;
+		return BA_PCM_PROFILE_A2DP;
 	else if (strcasecmp(str, "sco") == 0)
-		return BA_PCM_FLAG_PROFILE_SCO;
+		return BA_PCM_PROFILE_SCO;
 	return 0;
 }
 
@@ -999,10 +999,10 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	int flags = ba_profile | (
-			stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_FLAG_SINK : BA_PCM_FLAG_SOURCE);
 	debug("Getting BlueALSA PCM: %s %s %s", snd_pcm_stream_name(stream), device, profile);
-	if (!bluealsa_dbus_get_pcm(&pcm->dbus_ctx, &ba_addr, flags, &pcm->ba_pcm, &err)) {
+	if (!bluealsa_dbus_get_pcm(&pcm->dbus_ctx, &ba_addr, ba_profile,
+				stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
+				&pcm->ba_pcm, &err)) {
 		SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
 		ret = -ENODEV;
 		goto fail;

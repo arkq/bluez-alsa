@@ -272,17 +272,19 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 	}
 	else {
 		/* avoid name duplication by adding profile suffixes */
-		if (elem->pcm->flags & BA_PCM_FLAG_PROFILE_A2DP) {
+		switch (elem->pcm->profile) {
+		case BA_PCM_PROFILE_A2DP:
 			len = MIN(len - 7, name_len);
 			while (isspace(name[len - 1]))
 				len--;
 			sprintf(elem->name, "%.*s%s - A2DP", len, name, no);
-		}
-		if (elem->pcm->flags & BA_PCM_FLAG_PROFILE_SCO) {
+			break;
+		case BA_PCM_PROFILE_SCO:
 			len = MIN(len - 6, name_len);
 			while (isspace(name[len - 1]))
 				len--;
 			sprintf(elem->name, "%.*s%s - SCO", len, name, no);
+			break;
 		}
 	}
 
@@ -341,14 +343,14 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 		elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
 		elem_list[count].dev = dev;
 		elem_list[count].pcm = pcm;
-		elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
+		elem_list[count].playback = pcm->modes & BA_PCM_MODE_SINK;
 		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 		count++;
 
 		elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
 		elem_list[count].dev = dev;
 		elem_list[count].pcm = pcm;
-		elem_list[count].playback = pcm->flags & BA_PCM_FLAG_SINK;
+		elem_list[count].playback = pcm->modes & BA_PCM_MODE_SINK;
 		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 		count++;
 
@@ -484,7 +486,6 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		return -EINVAL;
 
 	const struct ctl_elem *elem = &ctl->elem_list[key];
-	const struct ba_pcm *pcm = elem->pcm;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -495,12 +496,16 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	case CTL_ELEM_TYPE_SWITCH:
 		return -EINVAL;
 	case CTL_ELEM_TYPE_VOLUME:
-		if (pcm->flags & BA_PCM_FLAG_PROFILE_A2DP)
+		switch (elem->pcm->profile) {
+		case BA_PCM_PROFILE_A2DP:
 			*imax = 127;
-		else if (pcm->flags & BA_PCM_FLAG_PROFILE_SCO)
+			break;
+		case BA_PCM_PROFILE_SCO:
 			*imax = 15;
-		else
+			break;
+		default:
 			return -EINVAL;
+		}
 		*imin = 0;
 		*istep = 1;
 		break;
