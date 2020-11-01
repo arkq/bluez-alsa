@@ -754,8 +754,14 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
-			!pcm->soft_volume) {
+	/* In case of A2DP Source or HSP/HFP Audio Gateway skip notifying Bluetooth
+	 * device if we are using software volume control. This will prevent volume
+	 * double scaling - firstly by us and then by Bluetooth headset/speaker. */
+	if (pcm->soft_volume && t->type.profile & (
+				BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_MASK_AG))
+		goto final;
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		int level = 0;
 		if (!pcm->volume[0].muted && !pcm->volume[1].muted)
@@ -778,9 +784,9 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 		ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
 	}
 
+final:
 	/* notify connected clients (including requester) */
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
-
 	return 0;
 }
 

@@ -283,10 +283,16 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 		goto fail;
 	}
 
-	int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+	/* Skip volume level initialization in case of A2DP Source
+	 * profile and software volume control. */
+	if (!(t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
+				t->a2dp.pcm.soft_volume)) {
+		int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+		t->a2dp.pcm.volume[0].level = level;
+		t->a2dp.pcm.volume[1].level = level;
+	}
+
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
-	t->a2dp.pcm.volume[0].level = level;
-	t->a2dp.pcm.volume[1].level = level;
 	t->a2dp.delay = delay;
 
 	debug("%s configured for device %s",
@@ -1117,10 +1123,15 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127] */
 			const uint16_t volume = g_variant_get_uint16(value);
-			int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
-			debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
-			t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = level;
-			bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+			if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
+					t->a2dp.pcm.soft_volume)
+				debug("Skipping A2DP volume update: %u", volume);
+			else {
+				int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+				debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
+				t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = level;
+				bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+			}
 		}
 
 		g_variant_unref(value);

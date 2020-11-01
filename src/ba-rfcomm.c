@@ -356,6 +356,10 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
 
+	/* skip update in case of software volume */
+	if (t_sco->sco.mic_pcm.soft_volume)
+		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
+
 	t_sco->sco.mic_pcm.volume[0].level = ba_transport_pcm_volume_bt_to_level(
 			&t_sco->sco.mic_pcm, r->gain_mic = atoi(at->value));
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -383,6 +387,10 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
+
+	/* skip update in case of software volume */
+	if (t_sco->sco.spk_pcm.soft_volume)
+		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
 
 	t_sco->sco.spk_pcm.volume[0].level = ba_transport_pcm_volume_bt_to_level(
 			&t_sco->sco.spk_pcm, r->gain_spk = atoi(at->value));
