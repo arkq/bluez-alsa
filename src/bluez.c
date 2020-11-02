@@ -19,6 +19,7 @@
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
+#include <math.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -286,7 +287,9 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
 	t->a2dp.pcm.volume[0].level = level;
+	t->a2dp.pcm.volume[0].scaling_factor = pow(10, (0.01 * level) / 20);
 	t->a2dp.pcm.volume[1].level = level;
+	t->a2dp.pcm.volume[1].scaling_factor = t->a2dp.pcm.volume[0].scaling_factor;
 	t->a2dp.delay = delay;
 
 	debug("%s configured for device %s",
@@ -1120,6 +1123,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 			int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
 			debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
 			t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = level;
+			t->a2dp.pcm.volume[0].scaling_factor = pow(10, (0.01 * level) / 20);
+			t->a2dp.pcm.volume[1].scaling_factor = t->a2dp.pcm.volume[0].scaling_factor;
 			bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 		}
 

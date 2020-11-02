@@ -17,6 +17,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <math.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -754,23 +755,25 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
-			!pcm->soft_volume) {
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		pcm->volume[0].scaling_factor = pow(10, (0.01 * pcm->volume[0].level) / 20);
+		pcm->volume[1].scaling_factor = pow(10, (0.01 * pcm->volume[1].level) / 20);
+		if (!pcm->soft_volume) {
+			int level = 0;
+			if (!pcm->volume[0].muted && !pcm->volume[1].muted)
+				level = (pcm->volume[0].level + pcm->volume[1].level) / 2;
 
-		int level = 0;
-		if (!pcm->volume[0].muted && !pcm->volume[1].muted)
-			level = (pcm->volume[0].level + pcm->volume[1].level) / 2;
+			GError *err = NULL;
+			unsigned int volume = ba_transport_pcm_volume_level_to_bt(pcm, level);
+			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
 
-		GError *err = NULL;
-		unsigned int volume = ba_transport_pcm_volume_level_to_bt(pcm, level);
-		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
-				BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
+			if (err != NULL) {
+				warn("Couldn't set BT device volume: %s", err->message);
+				g_error_free(err);
+			}
 
-		if (err != NULL) {
-			warn("Couldn't set BT device volume: %s", err->message);
-			g_error_free(err);
 		}
-
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 			t->sco.rfcomm != NULL) {

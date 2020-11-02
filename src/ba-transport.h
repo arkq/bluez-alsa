@@ -124,6 +124,7 @@ struct ba_transport_pcm {
 		int level;
 		/* audio signal mute switch */
 		bool muted;
+		double scaling_factor;
 	} volume[2];
 
 	/* data synchronization */
