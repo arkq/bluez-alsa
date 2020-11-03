@@ -89,12 +89,13 @@ static void dbus_name_lost(GDBusConnection *conn, const char *name, void *userda
 int main(int argc, char **argv) {
 
 	int opt;
-	const char *opts = "hVB:Si:p:";
+	const char *opts = "hVB:SMi:p:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "dbus", required_argument, NULL, 'B' },
 		{ "syslog", no_argument, NULL, 'S' },
+		{ "multi-client", no_argument, NULL, 'M' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
@@ -157,6 +158,7 @@ int main(int argc, char **argv) {
 					"  -V, --version\t\tprint version and exit\n"
 					"  -B, --dbus=NAME\tD-Bus service name suffix\n"
 					"  -S, --syslog\t\tsend output to syslog\n"
+					"  -M, --multi-client\t\tpermit multiple clients for each transport PCM\n"
 					"  -i, --device=hciX\tHCI device(s) to use\n"
 					"  -p, --profile=NAME\tenable BT profile\n"
 					"  --a2dp-force-mono\tforce monophonic sound\n"
@@ -207,6 +209,10 @@ int main(int argc, char **argv) {
 			break;
 
 		case 'S' /* --syslog */ :
+			break;
+
+		case 'M' /* --multi-client */ :
+			config.multi_enabled = true;
 			break;
 
 		case 'i' /* --device=HCI */ :

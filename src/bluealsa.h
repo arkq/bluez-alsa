@@ -55,6 +55,9 @@ struct ba_config {
 	/* opened null device */
 	int null_fd;
 
+	/* Is multi client support enabled? */
+	bool multi_enabled;
+
 	struct {
 		/* set of features exposed via Service Discovery */
 		unsigned int features_sdp_hf;
