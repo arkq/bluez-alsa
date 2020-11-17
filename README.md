@@ -185,6 +185,21 @@ wiki page.
    acquiring "org.bluealsa" name for a particular user - by default only root is allowed to start
    BlueALSA server.
 
+4. Couldn't get BlueALSA PCM: PCM not found
+
+   In contrast to standard ALSA sound cards, BlueALSA does not expose all PCMs right away. In the
+   first place it is required to connect remote Bluetooth device with desired Bluetooth profile -
+   run `bluealsa --help` for the list of available profiles. For querying currently connected audio
+   profiles (and connected devices), run `bluealsa-aplay --list-devices`. The common misconception
+   is an attempt to use A2DP playback device as a capture one in case where A2DP is not listed in
+   the "List of CAPTURE Bluetooth Devices" section.
+
+   Additionally, the cause of the "PCM not found" error might be an incorrect ALSA PCM name. Run
+   `bluealsa-aplay --list-pcms` for the list of currently available ALSA PCM names - it might give
+   you a hint what is wrong with your `.asoundrc` entry. Also, take a look at the "[Using the
+   bluealsa ALSA pcm plugin](https://github.com/Arkq/bluez-alsa/wiki/Using-the-bluealsa-ALSA-pcm-plugin)"
+   bluez-alsa wiki page.
+
 ## Resources
 
 1. [Bluetooth Adopted Specifications](https://www.bluetooth.com/specifications/adopted-specifications)
