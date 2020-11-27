@@ -47,6 +47,8 @@ struct bluealsa_pcm {
 
 	/* D-Bus connection context */
 	struct ba_dbus_ctx dbus_ctx;
+	/* time of last D-Bus dispatching */
+	struct timespec dbus_dispatch_ts;
 
 	/* IO thread and application thread sync */
 	pthread_mutex_t mutex;
@@ -556,6 +558,21 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 	struct timespec now;
 	gettimestamp(&now);
 
+	/* In most cases, dispatching D-Bus messages/signals should be done in the
+	 * poll_revents() callback. However, this mode of operation requires client
+	 * code to use ALSA polling API. If for some reasons, client simply writes
+	 * samples to opened PCM and in the same time wants to know the delay, we
+	 * have to process D-Bus messages here. Otherwise, the BlueALSA component
+	 * of the delay - pcm->ba_pcm.delay - might not be up to date.
+	 *
+	 * This synchronous dispatching will be performed only if the last D-Bus
+	 * dispatching was done more than one second ago - this should prioritize
+	 * asynchronous dispatching in the poll_revents() callback. */
+	if (pcm->dbus_dispatch_ts.tv_sec + 1 < now.tv_sec) {
+		bluealsa_dbus_connection_dispatch(&pcm->dbus_ctx);
+		gettimestamp(&pcm->dbus_dispatch_ts);
+	}
+
 	pthread_mutex_lock(&pcm->mutex);
 
 	struct timespec diff;
@@ -731,9 +748,10 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 	*revents = 0;
 	int ret = 0;
 
-	if (bluealsa_dbus_connection_poll_dispatch(&pcm->dbus_ctx, &pfd[1], nfds - 1))
-		while (dbus_connection_dispatch(pcm->dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
-			continue;
+	bluealsa_dbus_connection_poll_dispatch(&pcm->dbus_ctx, &pfd[1], nfds - 1);
+	while (dbus_connection_dispatch(pcm->dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
+		continue;
+	gettimestamp(&pcm->dbus_dispatch_ts);
 
 	if (pcm->ba_pcm_fd == -1)
 		goto fail;
@@ -861,6 +879,33 @@ static snd_pcm_format_t get_snd_pcm_format(uint16_t format) {
 		SNDERR("Unknown PCM format: %#x", format);
 		return SND_PCM_FORMAT_UNKNOWN;
 	}
+}
+
+static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
+		DBusMessage *message, void *data) {
+	struct bluealsa_pcm *pcm = (struct bluealsa_pcm *)data;
+	(void)conn;
+
+	if (dbus_message_get_type(message) != DBUS_MESSAGE_TYPE_SIGNAL)
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	DBusMessageIter iter;
+	if (!dbus_message_iter_init(message, &iter))
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	if (strcmp(dbus_message_get_path(message), pcm->ba_pcm.pcm_path) != 0 ||
+			strcmp(dbus_message_get_interface(message), DBUS_INTERFACE_PROPERTIES) != 0 ||
+			strcmp(dbus_message_get_member(message), "PropertiesChanged") != 0)
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	const char *updated_interface;
+	dbus_message_iter_get_basic(&iter, &updated_interface);
+	dbus_message_iter_next(&iter);
+
+	if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0)
+		bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, &pcm->ba_pcm);
+
+	return DBUS_HANDLER_RESULT_HANDLED;
 }
 
 static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
@@ -999,6 +1044,12 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
+	if (!dbus_connection_add_filter(pcm->dbus_ctx.conn, bluealsa_dbus_msg_filter, pcm, NULL)) {
+		SNDERR("Couldn't add D-Bus filter: %s", strerror(ENOMEM));
+		ret = -ENOMEM;
+		goto fail;
+	}
+
 	debug("Getting BlueALSA PCM: %s %s %s", snd_pcm_stream_name(stream), device, profile);
 	if (!bluealsa_dbus_get_pcm(&pcm->dbus_ctx, &ba_addr, ba_profile,
 				stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
@@ -1007,6 +1058,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		ret = -ENODEV;
 		goto fail;
 	}
+
+	/* Subscribe for properties-changed signals but for the opened PCM only. */
+	bluealsa_dbus_connection_signal_match_add(&pcm->dbus_ctx, pcm->dbus_ctx.ba_service,
+			pcm->ba_pcm.pcm_path, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
+			"arg0='"BLUEALSA_INTERFACE_PCM"'");
 
 	if ((pcm->event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
 		ret = -errno;

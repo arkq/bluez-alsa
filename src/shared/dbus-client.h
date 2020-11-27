@@ -110,6 +110,9 @@ dbus_bool_t bluealsa_dbus_connection_signal_match_add(
 dbus_bool_t bluealsa_dbus_connection_signal_match_clean(
 		struct ba_dbus_ctx *ctx);
 
+dbus_bool_t bluealsa_dbus_connection_dispatch(
+		struct ba_dbus_ctx *ctx);
+
 dbus_bool_t bluealsa_dbus_connection_poll_fds(
 		struct ba_dbus_ctx *ctx,
 		struct pollfd *fds,

@@ -17,6 +17,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "shared/defs.h"
+
 static int path2ba(const char *path, bdaddr_t *ba) {
 
 	unsigned int x[6];
@@ -154,6 +156,26 @@ dbus_bool_t bluealsa_dbus_connection_signal_match_clean(
 	}
 
 	ctx->matches_len = 0;
+	return TRUE;
+}
+
+/**
+ * Dispatch D-Bus messages synchronously. */
+dbus_bool_t bluealsa_dbus_connection_dispatch(
+		struct ba_dbus_ctx *ctx) {
+
+	struct pollfd fds[8];
+	nfds_t nfds = ARRAYSIZE(fds);
+
+	bluealsa_dbus_connection_poll_fds(ctx, fds, &nfds);
+	if (poll(fds, nfds, 0) > 0)
+		bluealsa_dbus_connection_poll_dispatch(ctx, fds, nfds);
+
+	/* Dispatch incoming D-Bus messages/signals. The actual dispatching is
+	 * done in a function registered with dbus_connection_add_filter(). */
+	while (dbus_connection_dispatch(ctx->conn) == DBUS_DISPATCH_DATA_REMAINS)
+		continue;
+
 	return TRUE;
 }
 

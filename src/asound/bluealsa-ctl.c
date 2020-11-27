@@ -774,22 +774,12 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 		return 1;
 	}
 
-	struct pollfd fds[8];
-	nfds_t nfds = ARRAYSIZE(fds);
-
 	/* It seems that ALSA does not call .poll_revents() callback, but we need
 	 * to feed poll() events back to our dispatching function. Since ALSA is
 	 * not cooperating, we will call poll() once more by ourself and receive
 	 * required event flags. If someday ALSA will be so kind to actually call
 	 * .poll_revents(), this code should remain as a backward compatibility. */
-	bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, fds, &nfds);
-	poll(fds, nfds, 0);
-	bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, fds, nfds);
-
-	/* Dispatch incoming D-Bus messages/signals. The actual dispatching
-	 * will be done in the bluealsa_dbus_msg_filter() callback function. */
-	while (dbus_connection_dispatch(ctl->dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
-		continue;
+	bluealsa_dbus_connection_dispatch(&ctl->dbus_ctx);
 
 	if (ctl->elem_update_list_size)
 		return bluealsa_read_event(ext, id, event_mask);
