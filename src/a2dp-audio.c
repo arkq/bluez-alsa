@@ -67,6 +67,8 @@ struct io_thread_data {
 	struct asrsync asrs;
 	/* history of BT socket COUTQ bytes */
 	struct { int v[16]; size_t i; } coutq;
+	/* local counter for RTP sequence number */
+	uint16_t rtp_seq_number;
 	/* determine whether transport is locked */
 	bool t_locked;
 	/* determine whether audio is paused */
@@ -467,6 +469,32 @@ static uint8_t *a2dp_init_rtp(void *s, rtp_header_t **hdr,
 	return data + phdr_size;
 }
 
+/**
+ * Validate RTP header and get payload.
+ *
+ * @param hdr The pointer to data with RTP header to validate.
+ * @param io The IO thread data - used for storing RTP sequence number.
+ * @return On success, this function returns pointer to data just after
+ *   the RTP header - RTP header payload. On failure, NULL is returned. */
+static void *a2dp_validate_rtp(const rtp_header_t *hdr, struct io_thread_data *io) {
+
+#if ENABLE_PAYLOADCHECK
+	if (hdr->paytype < 96) {
+		warn("Unsupported RTP payload type: %u", hdr->paytype);
+		return NULL;
+	}
+#endif
+
+	uint16_t seq_number = be16toh(hdr->seq_number);
+	if (++io->rtp_seq_number != seq_number) {
+		if (io->rtp_seq_number != 0)
+			warn("Missing RTP packet: %u != %u", seq_number, io->rtp_seq_number);
+		io->rtp_seq_number = seq_number;
+	}
+
+	return (void *)&hdr->csrc[hdr->cc];
+}
+
 static void *a2dp_sink_sbc(struct ba_transport *t) {
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -475,6 +503,7 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.rtp_seq_number = -1,
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
 		 * known - initialization has failed or succeeded. */
@@ -508,7 +537,6 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 	 * the top of the cleanup stack - lastly pushed. */
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
-	uint16_t seq_number = -1;
 #if DEBUG
 	uint16_t sbc_bitpool = 0;
 #endif
@@ -527,28 +555,16 @@ static void *a2dp_sink_sbc(struct ba_transport *t) {
 		}
 
 		if (t->a2dp.pcm.fd == -1) {
-			seq_number = -1;
+			io.rtp_seq_number = -1;
 			continue;
 		}
 
-		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
-		const rtp_media_header_t *rtp_media_header = (rtp_media_header_t *)&rtp_header->csrc[rtp_header->cc];
+		const rtp_media_header_t *rtp_media_header;
+		if ((rtp_media_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
+			continue;
+
 		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
-		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)rtp_header);
-
-#if ENABLE_PAYLOADCHECK
-		if (rtp_header->paytype < 96) {
-			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
-			continue;
-		}
-#endif
-
-		uint16_t _seq_number = be16toh(rtp_header->seq_number);
-		if (++seq_number != _seq_number) {
-			if (seq_number != 0)
-				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
-			seq_number = _seq_number;
-		}
+		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
 
 		/* decode retrieved SBC frames */
 		size_t frames = rtp_media_header->frame_count;
@@ -757,6 +773,7 @@ static void *a2dp_sink_mpeg(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.rtp_seq_number = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -816,8 +833,6 @@ static void *a2dp_sink_mpeg(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
-	uint16_t seq_number = -1;
-
 	ba_transport_pthread_cleanup_unlock(t);
 	io.t_locked = false;
 
@@ -832,27 +847,16 @@ static void *a2dp_sink_mpeg(struct ba_transport *t) {
 		}
 
 		if (t->a2dp.pcm.fd == -1) {
-			seq_number = -1;
+			io.rtp_seq_number = -1;
 			continue;
 		}
 
-		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
-		uint8_t *rtp_mpeg = (uint8_t *)&rtp_header->csrc[rtp_header->cc] + sizeof(rtp_mpeg_audio_header_t);
-		size_t rtp_mpeg_len = len - (rtp_mpeg - (uint8_t *)rtp_header);
-
-#if ENABLE_PAYLOADCHECK
-		if (rtp_header->paytype < 96) {
-			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
+		const rtp_mpeg_audio_header_t *rtp_mpeg_header;
+		if ((rtp_mpeg_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
 			continue;
-		}
-#endif
 
-		uint16_t _seq_number = be16toh(rtp_header->seq_number);
-		if (++seq_number != _seq_number) {
-			if (seq_number != 0)
-				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
-			seq_number = _seq_number;
-		}
+		uint8_t *rtp_mpeg = (uint8_t *)(rtp_mpeg_header + 1);
+		size_t rtp_mpeg_len = len - (rtp_mpeg - (uint8_t *)bt.data);
 
 #if ENABLE_MPG123
 
@@ -1160,6 +1164,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
 
 	struct io_thread_data io = {
+		.rtp_seq_number = -1,
 		.t_locked = !ba_transport_pthread_cleanup_lock(t),
 	};
 
@@ -1209,7 +1214,6 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
 
-	uint16_t seq_number = -1;
 	int markbit_quirk = -3;
 
 	ba_transport_pthread_cleanup_unlock(t);
@@ -1226,20 +1230,16 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 		}
 
 		if (t->a2dp.pcm.fd == -1) {
-			seq_number = -1;
+			io.rtp_seq_number = -1;
 			continue;
 		}
+
+		const uint8_t *rtp_latm;
+		if ((rtp_latm = a2dp_validate_rtp(bt.data, &io)) == NULL)
+			continue;
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
-		uint8_t *rtp_latm = (uint8_t *)&rtp_header->csrc[rtp_header->cc];
-		size_t rtp_latm_len = len - (rtp_latm - (uint8_t *)rtp_header);
-
-#if ENABLE_PAYLOADCHECK
-		if (rtp_header->paytype < 96) {
-			warn("Unsupported RTP payload type: %u", rtp_header->paytype);
-			continue;
-		}
-#endif
+		size_t rtp_latm_len = len - (rtp_latm - (uint8_t *)bt.data);
 
 		/* If in the first N packets mark bit is not set, it might mean, that
 		 * the mark bit will not be set at all. In such a case, activate mark
@@ -1253,13 +1253,6 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 			}
 		}
 
-		uint16_t _seq_number = be16toh(rtp_header->seq_number);
-		if (++seq_number != _seq_number) {
-			if (seq_number != 0)
-				warn("Missing RTP packet: %u != %u", _seq_number, seq_number);
-			seq_number = _seq_number;
-		}
-
 		if (ffb_len_in(&latm) < rtp_latm_len) {
 			debug("Resizing LATM buffer: %zd -> %zd", latm.size, latm.size + t->mtu_read);
 			size_t prev_len = ffb_len_out(&latm);
@@ -1271,7 +1264,7 @@ static void *a2dp_sink_aac(struct ba_transport *t) {
 		ffb_seek(&latm, rtp_latm_len);
 
 		if (markbit_quirk != 1 && !rtp_header->markbit) {
-			debug("Fragmented RTP packet [%u]: LATM len: %zd", seq_number, rtp_latm_len);
+			debug("Fragmented RTP packet [%u]: LATM len: %zd", io.rtp_seq_number, rtp_latm_len);
 			continue;
 		}
 
