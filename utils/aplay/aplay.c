@@ -152,7 +152,7 @@ static void print_bt_device_list(void) {
 					dbus_error_free(&err);
 				}
 
-				char bt_addr[16];
+				char bt_addr[18];
 				ba2str(&dev.bt_addr, bt_addr);
 
 				printf("%s: %s [%s], %s%s\n",
@@ -191,7 +191,7 @@ static void print_bt_pcm_list(void) {
 			}
 		}
 
-		char bt_addr[16];
+		char bt_addr[18];
 		ba2str(&dev.bt_addr, bt_addr);
 
 		printf(
