@@ -1813,6 +1813,113 @@ fail_init:
 }
 #endif
 
+#if ENABLE_LDAC && HAVE_LDAC_DECODE
+static void *a2dp_sink_ldac(struct ba_transport *t) {
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup), t);
+
+	struct io_thread_data io = {
+		.rtp_seq_number = -1,
+		.t_locked = !ba_transport_pthread_cleanup_lock(t),
+	};
+
+	if (a2dp_validate_bt_sink(t) != 0)
+		goto fail_open;
+
+	HANDLE_LDAC_BT handle;
+	if ((handle = ldacBT_get_handle()) == NULL) {
+		error("Couldn't get LDAC handle: %s", strerror(errno));
+		goto fail_open;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
+
+	const a2dp_ldac_t *configuration = (a2dp_ldac_t *)t->a2dp.configuration;
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
+
+	if (ldacBT_init_handle_decode(handle, configuration->channel_mode, samplerate, 0, 0, 0) == -1) {
+		error("Couldn't initialize LDAC decoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
+		goto fail_init;
+	}
+
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+
+	if (ffb_init_int32_t(&pcm, LDACBT_MAX_LSU * channels) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
+		goto fail_ffb;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pthread_cleanup_lock), t);
+
+	ba_transport_pthread_cleanup_unlock(t);
+	io.t_locked = false;
+
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
+	for (;;) {
+
+		ssize_t len;
+		if ((len = a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (t->a2dp.pcm.fd == -1) {
+			io.rtp_seq_number = -1;
+			continue;
+		}
+
+		const rtp_media_header_t *rtp_media_header;
+		if ((rtp_media_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
+			continue;
+
+		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
+		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
+
+		size_t frames = rtp_media_header->frame_count;
+		while (frames--) {
+
+			int used;
+			int decoded;
+
+			if (ldacBT_decode(handle, (void *)rtp_payload, pcm.data,
+						LDACBT_SMPL_FMT_S32, rtp_payload_len, &used, &decoded) != 0) {
+				error("LDAC decoding error: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
+				break;
+			}
+
+			rtp_payload += used;
+			rtp_payload_len -= used;
+
+			const size_t samples = decoded / sample_size;
+			if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+				error("FIFO write error: %s", strerror(errno));
+
+		}
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!io.t_locked);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+fail_open:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
+
 #if ENABLE_LDAC
 static void *a2dp_source_ldac(struct ba_transport *t) {
 
@@ -1825,17 +1932,16 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	};
 
 	HANDLE_LDAC_BT handle;
-	HANDLE_LDAC_ABR handle_abr;
-
 	if ((handle = ldacBT_get_handle()) == NULL) {
-		error("Couldn't open LDAC encoder: %s", strerror(errno));
+		error("Couldn't get LDAC handle: %s", strerror(errno));
 		goto fail_open_ldac;
 	}
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
 
+	HANDLE_LDAC_ABR handle_abr;
 	if ((handle_abr = ldac_ABR_get_handle()) == NULL) {
-		error("Couldn't open LDAC ABR: %s", strerror(errno));
+		error("Couldn't get LDAC ABR handle: %s", strerror(errno));
 		goto fail_open_ldac_abr;
 	}
 
@@ -1847,8 +1953,8 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
 
-	if (ldacBT_init_handle_encode(handle, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t),
-				config.ldac_eqmid, configuration->channel_mode, LDACBT_SMPL_FMT_S32, samplerate) == -1) {
+	if (ldacBT_init_handle_encode(handle, t->mtu_write, config.ldac_eqmid,
+				configuration->channel_mode, LDACBT_SMPL_FMT_S32, samplerate) == -1) {
 		error("Couldn't initialize LDAC encoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
 		goto fail_init;
 	}
@@ -1904,18 +2010,18 @@ static void *a2dp_source_ldac(struct ba_transport *t) {
 		/* encode and transfer obtained data */
 		while (input_len >= ldac_pcm_samples) {
 
-			int len;
+			int used;
 			int encoded;
 			int frames;
 
-			if (ldacBT_encode(handle, input, &len, bt.tail, &encoded, &frames) != 0) {
+			if (ldacBT_encode(handle, input, &used, bt.tail, &encoded, &frames) != 0) {
 				error("LDAC encoding error: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
 				break;
 			}
 
 			rtp_media_header->frame_count = frames;
 
-			frames = len / sample_size;
+			frames = used / sample_size;
 			input += frames;
 			input_len -= frames;
 
@@ -2076,6 +2182,10 @@ int a2dp_audio_thread_create(struct ba_transport *t) {
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			return ba_transport_pthread_create(t, a2dp_sink_aac, "ba-a2dp-aac");
+#endif
+#if ENABLE_LDAC && HAVE_LDAC_DECODE
+		case A2DP_CODEC_VENDOR_LDAC:
+			return ba_transport_pthread_create(t, a2dp_sink_ldac, "ba-a2dp-ldac");
 #endif
 		}
 

@@ -51,8 +51,7 @@ Dependencies:
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X encoding support is enabled with
   `--enable-aptx` and/or `--enable-aptx-hd`)
-- [libldac](https://github.com/EHfive/ldacBT) (when LDAC encoding support is enabled with
-  `--enable-ldac`)
+- [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
 - [docutils](https://docutils.sourceforge.io) (when man pages build is enabled with `--enable-manpages`)
 
 Dependencies for client applications (e.g. `bluealsa-aplay`):

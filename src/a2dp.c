@@ -465,6 +465,9 @@ static const struct a2dp_codec a2dp_codec_sink_ldac = {
 const struct a2dp_codec *a2dp_codecs[] = {
 #if ENABLE_LDAC
 	&a2dp_codec_source_ldac,
+# if HAVE_LDAC_DECODE
+	&a2dp_codec_sink_ldac,
+# endif
 #endif
 #if ENABLE_APTX_HD
 	&a2dp_codec_source_aptx_hd,

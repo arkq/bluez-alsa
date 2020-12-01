@@ -112,11 +112,13 @@ AM_COND_IF([ENABLE_APTX_HD], [
 ])
 
 AC_ARG_ENABLE([ldac],
-	[AS_HELP_STRING([--enable-ldac], [enable LDAC encoding support])])
+	[AS_HELP_STRING([--enable-ldac], [enable LDAC support])])
 AM_CONDITIONAL([ENABLE_LDAC], [test "x$enable_ldac" = "xyes"])
 AM_COND_IF([ENABLE_LDAC], [
-	PKG_CHECK_MODULES([LDAC], [ldacBT-enc >= 2.0.0])
-	PKG_CHECK_MODULES([LDAC_ABR], [ldacBT-abr >= 2.0.0])
+	PKG_CHECK_MODULES([LDAC_ABR], [ldacBT-abr >= 1.0.0])
+	PKG_CHECK_MODULES([LDAC_DEC], [ldacBT-dec >= 2.0.0],
+		AC_DEFINE([HAVE_LDAC_DECODE], [1], [Define to 1 if you have LDAC decode module.]), [:])
+	PKG_CHECK_MODULES([LDAC_ENC], [ldacBT-enc >= 2.0.0])
 	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
 ])
 
