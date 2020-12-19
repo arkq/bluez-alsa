@@ -22,6 +22,7 @@ bluealsa_SOURCES = \
 	bluealsa.c \
 	bluealsa-dbus.c \
 	bluealsa-iface.c \
+	bluealsa-mix-buffer.c \
 	bluez.c \
 	bluez-iface.c \
 	codec-sbc.c \
