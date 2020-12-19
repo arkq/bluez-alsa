@@ -24,6 +24,7 @@
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "bluez.h"
+#include "bluealsa-pcm-multi.h"
 
 #define BA_TRANSPORT_PROFILE_NONE        (0)
 #define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)
@@ -101,6 +102,9 @@ struct ba_transport_pcm {
 
 	/* FIFO file descriptor */
 	int fd;
+
+	/* Multi-client stream support */
+	struct bluealsa_pcm_multi *multi;
 
 	/* 16-bit stream format identifier */
 	uint16_t format;

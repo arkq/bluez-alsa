@@ -75,6 +75,7 @@ static int transport_pcm_init(
 	pcm->th = th;
 	pcm->mode = mode;
 	pcm->fd = -1;
+	pcm->multi = NULL;
 
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
 	pthread_cond_init(&pcm->synced, NULL);
@@ -83,6 +84,9 @@ static int transport_pcm_init(
 			t->d->ba_dbus_path, transport_get_dbus_path_type(t->type),
 			mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
 
+	if (bluealsa_pcm_multi_enabled(pcm))
+		pcm->multi = bluealsa_pcm_multi_create(pcm);
+
 	return 0;
 }
 
@@ -90,6 +94,11 @@ static void transport_pcm_free(
 		struct ba_transport_pcm *pcm) {
 
 	ba_transport_pcm_release(pcm);
+
+	if (pcm->multi != NULL) {
+		bluealsa_pcm_multi_free(pcm->multi);
+		pcm->multi = NULL;
+	}
 
 	pthread_mutex_destroy(&pcm->synced_mtx);
 	pthread_cond_destroy(&pcm->synced);
@@ -679,10 +688,18 @@ int ba_transport_set_a2dp_state(
 
 int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return t->a2dp.delay + pcm->delay;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		return pcm->delay + 10;
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		if (pcm->multi)
+			return pcm->multi->delay + t->a2dp.delay + pcm->delay;
+		else
+			return t->a2dp.delay + pcm->delay;
+	}
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		if (pcm->multi)
+			return pcm->multi->delay + pcm->delay + 10;
+		else
+			return pcm->delay + 10;
+	}
 	return pcm->delay;
 }
 
@@ -973,7 +990,7 @@ final:
 
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
 
-	if (pcm->fd == -1)
+	if (pcm->fd == -1 && pcm->multi == NULL)
 		return 0;
 
 	int oldstate;
@@ -986,9 +1003,14 @@ int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
 	 * going on, see the ba_transport_pcm_read() function. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
-	debug("Closing PCM: %d", pcm->fd);
-	close(pcm->fd);
-	pcm->fd = -1;
+	if (pcm->fd != -1) {
+		debug("Closing PCM: %d", pcm->fd);
+		close(pcm->fd);
+		pcm->fd = -1;
+	}
+
+	if (pcm->multi)
+		bluealsa_pcm_multi_reset(pcm->multi);
 
 	pthread_setcancelstate(oldstate, NULL);
 	return 0;

@@ -25,6 +25,9 @@
 #include "../src/ba-adapter.c"
 #include "../src/ba-device.c"
 #include "../src/ba-transport.c"
+#include "../src/bluealsa-mix-buffer.c"
+#include "../src/bluealsa-pcm-client.c"
+#include "../src/bluealsa-pcm-multi.c"
 #include "../src/bluealsa.c"
 #if ENABLE_APTX || ENABLE_APTX_HD
 # include "../src/codec-aptx.c"

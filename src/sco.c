@@ -205,6 +205,8 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 
 void *sco_thread(struct ba_transport_thread *th) {
 
+	struct ba_transport *t = th->t;
+
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
@@ -227,6 +229,45 @@ void *sco_thread(struct ba_transport_thread *th) {
 			ffb_init_uint8_t(&bt_out, 128) == -1) {
 		error("Couldn't create data buffer: %s", strerror(errno));
 		goto fail_ffb;
+	}
+
+	/* start multi client threads if required. */
+	if (t->sco.spk_pcm.multi) {
+		bool init_ok = false;
+		switch (t->type.codec) {
+		case HFP_CODEC_CVSD:
+		default:
+			init_ok = bluealsa_pcm_multi_init(t->sco.spk_pcm.multi,
+                                               bt_out.nmemb / sizeof(int16_t));
+			break;
+#if ENABLE_MSBC
+		case HFP_CODEC_MSBC:
+			init_ok = bluealsa_pcm_multi_init(t->sco.spk_pcm.multi,
+                                                           msbc_enc.pcm.nmemb);
+			break;
+#endif
+		}
+		if (!init_ok)
+			goto fail_ffb;
+	}
+
+	if (t->sco.mic_pcm.multi) {
+		bool init_ok = false;
+		switch (t->type.codec) {
+		case HFP_CODEC_CVSD:
+		default:
+			init_ok = bluealsa_pcm_multi_init(t->sco.mic_pcm.multi,
+                                                bt_in.nmemb / sizeof(int16_t));
+			break;
+#if ENABLE_MSBC
+		case HFP_CODEC_MSBC:
+			init_ok = bluealsa_pcm_multi_init(t->sco.mic_pcm.multi,
+                                                           msbc_dec.pcm.nmemb);
+			break;
+#endif
+		}
+		if (!init_ok)
+			goto fail_ffb;
 	}
 
 	int poll_timeout = -1;

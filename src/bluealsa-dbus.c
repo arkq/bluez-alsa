@@ -31,6 +31,7 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "bluealsa-iface.h"
+#include "bluealsa-pcm-multi.h"
 #include "bluealsa.h"
 #include "dbus.h"
 #include "hfp.h"
@@ -359,7 +360,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	ba_transport_thread_cleanup_lock(th);
 	locked = true;
 
-	if (pcm->fd != -1) {
+	if (pcm->multi == NULL && pcm->fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "%s", strerror(EBUSY));
 		goto fail;
@@ -393,19 +394,29 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 			goto fail;
 		}
 
-	/* get correct PIPE endpoint - PIPE is unidirectional */
-	pcm->fd = pcm_fds[is_sink ? 0 : 1];
+	/* When multiple client support is enabled, management is delegated to the
+	 * multi client thread.
+	 * Otherwise control channels are managed in this thread. */
+	if (pcm->multi) {
+		/* create new multi client instance */
+		if (!bluealsa_pcm_multi_add_client(pcm->multi, pcm_fds[is_sink ? 0 : 1], pcm_fds[2]))
+			goto fail;
+	}
+	else {
+		/* get correct PIPE endpoint - PIPE is unidirectional */
+		pcm->fd = pcm_fds[is_sink ? 0 : 1];
 
-	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
-	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
-			bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
-			(GDestroyNotify)ba_transport_pcm_unref);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_unref(ch);
+		GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
+		g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
+				bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
+				(GDestroyNotify)ba_transport_pcm_unref);
+		g_io_channel_set_close_on_unref(ch, TRUE);
+		g_io_channel_set_encoding(ch, NULL, NULL);
+		g_io_channel_unref(ch);
 
-	/* notify our audio thread that the FIFO is ready */
-	ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_OPEN);
+		/* notify our IO thread that the FIFO is ready */
+		ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_OPEN);
+	}
 
 	ba_transport_thread_cleanup_unlock(th);
 	ba_transport_pcm_unref(pcm);

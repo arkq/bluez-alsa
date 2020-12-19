@@ -48,6 +48,7 @@
 #include "a2dp-rtp.h"
 #include "audio.h"
 #include "bluealsa.h"
+#include "bluealsa-pcm-multi.h"
 #if ENABLE_APTX || ENABLE_APTX_HD
 # include "codec-aptx.h"
 #endif
@@ -141,7 +142,7 @@ ssize_t ba_transport_pcm_flush(struct ba_transport_pcm *pcm) {
 
 /**
  * Read PCM signal from the transport PCM FIFO. */
-ssize_t ba_transport_pcm_read(
+static ssize_t bluealsa_pcm_single_read(
 		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t samples) {
@@ -175,11 +176,23 @@ ssize_t ba_transport_pcm_read(
 }
 
 /**
+ * Read PCM signal from the transport PCM FIFO or mix as appropriate. */
+ssize_t ba_transport_pcm_read(
+		struct ba_transport_pcm *pcm,
+		void *buffer,
+		size_t samples) {
+	if (pcm->multi)
+		return bluealsa_pcm_multi_read(pcm->multi, buffer, samples);
+	else
+		return bluealsa_pcm_single_read(pcm, buffer, samples);
+}
+
+/**
  * Write PCM signal to the transport PCM FIFO.
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-ssize_t ba_transport_pcm_write(
+static ssize_t ba_transport_pcm_single_write(
 		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t samples) {
@@ -225,6 +238,39 @@ ssize_t ba_transport_pcm_write(
 final:
 	pthread_setcancelstate(oldstate, NULL);
 	return ret;
+}
+
+/**
+ * Copy PCM samples to multiple clients.
+ *
+ * This function is non-blocking */
+static ssize_t ba_transport_pcm_multi_write(
+		struct ba_transport_pcm *pcm,
+		void *buffer,
+		size_t samples) {
+
+	/* Scale volume or mute audio signal. */
+	ba_transport_pcm_scale(pcm, buffer, samples);
+
+	bluealsa_pcm_multi_write(pcm->multi, buffer, samples);
+
+	return samples;
+}
+
+/**
+ * Write samples to PCM.
+ *
+ * Selects either multi sink or direct client FIFO depending on whether
+ * multi client support is enabled. */
+ssize_t ba_transport_pcm_write(
+		struct ba_transport_pcm *pcm,
+		void *buffer,
+		size_t samples) {
+
+	if (pcm->multi == NULL)
+		return ba_transport_pcm_single_write(pcm, buffer, samples);
+	else
+		return ba_transport_pcm_multi_write(pcm, buffer, samples);
 }
 
 /**
@@ -506,6 +552,11 @@ static void *a2dp_validate_rtp(const rtp_header_t *hdr, struct io_thread_data *i
 	return (void *)&hdr->csrc[hdr->cc];
 }
 
+static bool a2dp_pcm_has_clients(struct ba_transport_pcm *pcm) {
+	return (pcm->multi == NULL && pcm->fd != -1) ||
+	       (pcm->multi != NULL && pcm->multi->client_count > 0);
+}
+
 static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -546,6 +597,11 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	/* Lock transport during thread cancellation. This handler shall be at
 	 * the top of the cleanup stack - lastly pushed. */
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
@@ -567,7 +623,7 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
+		if (!a2dp_pcm_has_clients(&t->a2dp.pcm)) {
 			io.rtp_seq_number = -1;
 			continue;
 		}
@@ -678,6 +734,11 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
+
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
@@ -842,6 +903,11 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	ba_transport_thread_cleanup_unlock(th);
@@ -857,7 +923,7 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
+		if (!a2dp_pcm_has_clients(&t->a2dp.pcm)) {
 			io.rtp_seq_number = -1;
 			continue;
 		}
@@ -1058,6 +1124,11 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	rtp_header_t *rtp_header;
@@ -1224,6 +1295,11 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	int markbit_quirk = -3;
@@ -1241,7 +1317,7 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
+		if (!a2dp_pcm_has_clients(&t->a2dp.pcm)) {
 			io.rtp_seq_number = -1;
 			continue;
 		}
@@ -1429,6 +1505,11 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	rtp_header_t *rtp_header;
@@ -1591,6 +1672,11 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	ba_transport_thread_cleanup_unlock(th);
@@ -1606,7 +1692,7 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1)
+		if (!a2dp_pcm_has_clients(&t->a2dp.pcm))
 			continue;
 
 		uint8_t *input = bt.data;
@@ -1682,6 +1768,11 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
+
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
@@ -1801,6 +1892,11 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	ba_transport_thread_cleanup_unlock(th);
@@ -1816,7 +1912,7 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
+		if (!a2dp_pcm_has_clients(&t->a2dp.pcm)) {
 			io.rtp_seq_number = -1;
 			continue;
 		}
@@ -1898,6 +1994,11 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
+
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
@@ -2041,6 +2142,11 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
+
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
 	ba_transport_thread_cleanup_unlock(th);
@@ -2056,7 +2162,7 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
+		if (!a2dp_pcm_has_clients(&t->a2dp.pcm)) {
 			io.rtp_seq_number = -1;
 			continue;
 		}
@@ -2165,6 +2271,11 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
+
+	/* start multi client thread if required. */
+	if (t->a2dp.pcm.multi &&
+	                  !bluealsa_pcm_multi_init(t->a2dp.pcm.multi, pcm.nmemb))
+		goto fail_ffb;
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
 
