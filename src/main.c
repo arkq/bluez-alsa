@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
 			break;
 		case 15 /* --aac-latm-version=NB */ :
 			config.aac_latm_version = atoi(optarg);
-			if (config.aac_vbr_mode > 2) {
+			if (config.aac_latm_version > 2) {
 				error("Invalid LATM version [0, 2]: %s", optarg);
 				return EXIT_FAILURE;
 			}
