@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -36,6 +37,10 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+#define SCO_DRAIN_TIMEOUT   250 /* milliseconds */
+#define SCO_LINGER_TIMEOUT 1000 /* milliseconds */
+#define SCO_CLOSE_TIMEOUT   600 /* milliseconds */
+
 /**
  * SCO dispatcher internal data. */
 struct sco_data {
@@ -47,6 +52,24 @@ static void sco_dispatcher_cleanup(struct sco_data *data) {
 	debug("SCO dispatcher cleanup: %s", data->a->hci.name);
 	if (data->pfd.fd != -1)
 		close(data->pfd.fd);
+}
+
+static int sco_release_bt(struct ba_transport *t) {
+	int result;
+	pthread_mutex_lock(&t->mutex);
+	result = t->release(t);
+	pthread_mutex_unlock(&t->mutex);
+	return result;
+}
+
+static int sco_refresh_bt(struct ba_transport *t, int sco_fd) {
+	pthread_mutex_lock(&t->mutex);
+	/* make sure, we are not leaking file descriptor */
+	t->release(t);
+	t->bt_fd = sco_fd;
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(sco_fd);
+	pthread_mutex_unlock(&t->mutex);
+	return t->bt_fd;
 }
 
 static void *sco_dispatcher_thread(struct ba_adapter *a) {
@@ -124,11 +147,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		}
 #endif
 
-		/* make sure, we are not leaking file descriptor */
-		t->release(t);
-
-		t->bt_fd = fd;
-		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
+		sco_refresh_bt(t, fd);
 		fd = -1;
 
 		ba_transport_thread_send_signal(t->sco.spk_pcm.th, BA_TRANSPORT_SIGNAL_PING);
@@ -203,6 +222,26 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 	return 0;
 }
 
+static void sco_start_timer(struct ba_transport *t, long msec) {
+	struct itimerspec timeout = {
+		.it_interval = { 0 },
+		.it_value = {
+			.tv_sec = msec / 1000,
+			.tv_nsec = (msec * 1000000) % 1000000000,
+		},
+	};
+	timerfd_settime(t->sco.timer_fd, 0, &timeout, NULL);
+}
+
+static void sco_cancel_timer(struct ba_transport *t) {
+	struct itimerspec timeout = { 0 };
+	timerfd_settime(t->sco.timer_fd, 0, &timeout, NULL);
+}
+
+static bool sco_pcm_is_closed(struct ba_transport_pcm *pcm) {
+	return pcm->fd == -1;
+}
+
 void *sco_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -227,7 +266,6 @@ void *sco_thread(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
-	int poll_timeout = -1;
 	struct ba_transport *t = th->t;
 	struct asrsync asrs = { .frames = 0 };
 	struct pollfd pfds[] = {
@@ -238,6 +276,8 @@ void *sco_thread(struct ba_transport_thread *th) {
 		/* PCM FIFO */
 		{ -1, POLLIN, 0 },
 		{ -1, POLLOUT, 0 },
+		/* Timer */
+		{ t->sco.timer_fd, POLLIN , 0 },
 	};
 
 	debug("Starting SCO loop: %s", ba_transport_type_to_string(t->type));
@@ -297,12 +337,7 @@ void *sco_thread(struct ba_transport_thread *th) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->sco.spk_pcm.synced);
-			poll_timeout = -1;
-			continue;
-		case -1:
+		if (poll(pfds, ARRAYSIZE(pfds), -1) <= 0) {
 			if (errno == EINTR)
 				continue;
 			error("SCO poll error: %s", strerror(errno));
@@ -318,6 +353,8 @@ void *sco_thread(struct ba_transport_thread *th) {
 				continue;
 			case BA_TRANSPORT_SIGNAL_PCM_OPEN:
 			case BA_TRANSPORT_SIGNAL_PCM_RESUME:
+				sco_cancel_timer(t);
+				t->sco.state = BA_TRANSPORT_SCO_STATE_RUNNING;
 				asrs.frames = 0;
 				continue;
 			case BA_TRANSPORT_SIGNAL_PCM_CLOSE:
@@ -326,23 +363,55 @@ void *sco_thread(struct ba_transport_thread *th) {
 				 * it will free Bluetooth bandwidth - headset will send microphone
 				 * signal even though we are not reading it! */
 				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG &&
-						t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) {
-					debug("Releasing SCO due to PCM inactivity");
-					t->release(t);
+						      sco_pcm_is_closed(&t->sco.spk_pcm) &&
+				              sco_pcm_is_closed(&t->sco.mic_pcm) &&
+				              t->sco.state != BA_TRANSPORT_SCO_STATE_LINGER) {
+					t->sco.state = BA_TRANSPORT_SCO_STATE_LINGER;
+					sco_start_timer(t, SCO_LINGER_TIMEOUT);
 				}
 				continue;
 			case BA_TRANSPORT_SIGNAL_PCM_SYNC:
-				/* FIXME: Drain functionality for speaker.
-				 * XXX: Right now it is not possible to drain speaker PCM (in a clean
-				 *      fashion), because poll() will not timeout if we've got incoming
-				 *      data from the microphone (BT SCO socket). In order not to hang
-				 *      forever in the transport_drain_pcm() function, we will signal
-				 *      PCM drain right now. */
-				pthread_cond_signal(&t->sco.spk_pcm.synced);
+				t->sco.state = BA_TRANSPORT_SCO_STATE_DRAINING;
+				sco_start_timer(t, SCO_DRAIN_TIMEOUT);
 				break;
 			case BA_TRANSPORT_SIGNAL_PCM_DROP:
+				sco_cancel_timer(t);
 				ba_transport_pcm_flush(&t->sco.spk_pcm);
 				continue;
+			default:
+				break;
+			}
+		}
+
+		if (pfds[5].revents & POLLIN) {
+			/* timer expired */
+			uint64_t val;
+			if (read(t->sco.timer_fd, &val, sizeof(val)) == -1) {
+				sco_cancel_timer(t);
+				debug("SCO timer failed");
+				goto fail;
+			}
+			switch (t->sco.state) {
+			case BA_TRANSPORT_SCO_STATE_DRAINING:
+				/* drain is complete */
+				t->sco.state = BA_TRANSPORT_SCO_STATE_RUNNING;
+				pthread_cond_signal(&t->sco.spk_pcm.synced);
+				continue;
+			case BA_TRANSPORT_SCO_STATE_LINGER:
+				/* If no new client has connected during the linger time,
+				 * release the SCO connection */
+				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG &&
+						 sco_pcm_is_closed(&t->sco.spk_pcm) &&
+				         sco_pcm_is_closed(&t->sco.mic_pcm)) {
+					debug("Releasing SCO due to PCM inactivity");
+					t->sco.state = BA_TRANSPORT_SCO_STATE_CLOSING;
+					sco_release_bt(t);
+					sco_start_timer(t, SCO_CLOSE_TIMEOUT);
+				}
+				continue;
+			case BA_TRANSPORT_SCO_STATE_CLOSING:
+				t->sco.state = BA_TRANSPORT_SCO_STATE_IDLE;
+				break;
 			default:
 				break;
 			}
@@ -383,7 +452,7 @@ retry_sco_read:
 				case 0:
 				case ECONNABORTED:
 				case ECONNRESET:
-					t->release(t);
+					sco_release_bt(t);
 					continue;
 				default:
 					error("SCO read error: %s", strerror(errno));
@@ -410,7 +479,7 @@ retry_sco_read:
 		}
 		else if (pfds[1].revents & (POLLERR | POLLHUP)) {
 			debug("SCO poll error status: %#x", pfds[1].revents);
-			t->release(t);
+			sco_release_bt(t);
 		}
 
 		if (pfds[2].revents & POLLOUT) {
@@ -443,7 +512,7 @@ retry_sco_write:
 				case 0:
 				case ECONNABORTED:
 				case ECONNRESET:
-					t->release(t);
+					sco_release_bt(t);
 					continue;
 				default:
 					error("SCO write error: %s", strerror(errno));

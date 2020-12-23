@@ -16,6 +16,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -294,6 +295,9 @@ struct ba_transport *ba_transport_new_sco(
 			goto fail;
 	}
 
+	t->sco.state = BA_TRANSPORT_SCO_STATE_IDLE;
+	t->sco.timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
+
 	ba_transport_set_codec(t, type.codec);
 
 	bluealsa_dbus_pcm_register(&t->sco.spk_pcm, NULL);
@@ -348,6 +352,7 @@ void ba_transport_destroy(struct ba_transport *t) {
 		if (t->sco.rfcomm != NULL)
 			ba_rfcomm_destroy(t->sco.rfcomm);
 		t->sco.rfcomm = NULL;
+		close(t->sco.timer_fd);
 	}
 
 	/* If the transport is active, prior to releasing resources, we have to
@@ -904,6 +909,12 @@ fail:
 }
 
 static int transport_acquire_bt_sco(struct ba_transport *t) {
+
+	if (t->sco.state == BA_TRANSPORT_SCO_STATE_CLOSING) {
+		debug("SCO socket not ready");
+		errno = EBUSY;
+		return -1;
+	}
 
 	if (t->bt_fd != -1) {
 		debug("Reusing SCO: %d", t->bt_fd);

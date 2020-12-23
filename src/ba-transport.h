@@ -56,6 +56,29 @@ struct ba_transport_type {
 	uint16_t codec;
 };
 
+enum ba_transport_sco_state {
+	/* Transport connected but no PCMs active */
+	BA_TRANSPORT_SCO_STATE_IDLE,
+	/* Transport has active PCM */
+	BA_TRANSPORT_SCO_STATE_RUNNING,
+	/* Transport waiting for drain to complete */
+	BA_TRANSPORT_SCO_STATE_DRAINING,
+	/* Transport waiting after PCMs closed.
+	 * We keep the SCO socket open for a short time after the PCMs are closed
+	 * for the benefit of applications that close then re-open their PCM in
+	 * their init sequence. This avoids the enforced close delay (see next
+	 * item) which might otherwise cause the application to fail with a
+	 * timeout. */
+	BA_TRANSPORT_SCO_STATE_LINGER,
+	/* Transport waiting for BT socket to close.
+	 * Although not documented, it appears that close(2) on a SCO socket
+	 * returns before the HCI handshake is complete, and as a result opening
+	 * a new socket immediately after closing one results in undefined
+	 * behaviour. To avoid this, we use a timer to enforce a delay between
+	 * close() and connect(). */
+	BA_TRANSPORT_SCO_STATE_CLOSING,
+};
+
 enum ba_transport_signal {
 	BA_TRANSPORT_SIGNAL_PING,
 	BA_TRANSPORT_SIGNAL_PCM_OPEN,
@@ -224,6 +247,9 @@ struct ba_transport {
 			 * for separate configurations. */
 			struct ba_transport_pcm spk_pcm;
 			struct ba_transport_pcm mic_pcm;
+
+			enum ba_transport_sco_state state;
+			int timer_fd;
 
 		} sco;
 
