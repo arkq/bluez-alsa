@@ -61,6 +61,7 @@
 /**
  * Common IO thread data. */
 struct io_thread_data {
+	struct ba_transport_thread *th;
 	/* keep-alive and sync timeout */
 	int timeout;
 	/* transfer bit rate synchronization */
@@ -227,46 +228,6 @@ final:
 }
 
 /**
- * Write data to the BT SEQPACKET socket.
- *
- * Note:
- * This function temporally re-enables thread cancellation! */
-static ssize_t io_thread_write_bt(int fd, const uint8_t *buffer,
-		size_t len, int *coutq, int coutq_init) {
-
-	struct pollfd pfd = { fd, POLLOUT, 0 };
-	int oldstate;
-	ssize_t ret;
-
-	/* BT socket is opened in the non-blocking mode. However, this function
-	 * forcefully operates in a blocking mode - it uses poll() when writing
-	 * to the BT socket would block. Hence, it is required to provide a way
-	 * of escaping from the poll() when the IO thread termination request
-	 * has been made by re-enabling thread cancellation. */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
-
-	if (ioctl(pfd.fd, TIOCOUTQ, coutq) == -1)
-		warn("Couldn't get BT queued bytes: %s", strerror(errno));
-	else
-		*coutq = abs(coutq_init - *coutq);
-
-retry:
-	if ((ret = write(pfd.fd, buffer, len)) == -1)
-		switch (errno) {
-		case EINTR:
-			goto retry;
-		case EAGAIN:
-			poll(&pfd, 1, -1);
-			/* set coutq to some arbitrary big value */
-			*coutq = 1024 * 16;
-			goto retry;
-		}
-
-	pthread_setcancelstate(oldstate, NULL);
-	return ret;
-}
-
-/**
  * Poll and read PCM signal from the transport PCM FIFO.
  *
  * Note:
@@ -274,8 +235,7 @@ retry:
 static ssize_t a2dp_poll_and_read_pcm(struct ba_transport_pcm *pcm,
 		struct io_thread_data *io, ffb_t *buffer) {
 
-	struct ba_transport *t = pcm->t;
-	struct ba_transport_thread *th = &t->thread;
+	struct ba_transport_thread *th = io->th;
 	struct pollfd fds[2] = {
 		{ th->pipe[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
@@ -381,14 +341,14 @@ static int a2dp_validate_bt_sink(struct ba_transport *t) {
 }
 
 /**
- * Poll and read BT signal from the SEQPACKET socket.
+ * Poll and read BT data from the SEQPACKET socket.
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_bt(struct ba_transport *t,
-		struct io_thread_data *io, ffb_t *buffer) {
+static ssize_t a2dp_poll_and_read_bt(struct io_thread_data *io, ffb_t *buffer) {
 
-	struct ba_transport_thread *th = &t->thread;
+	struct ba_transport *t = io->th->t;
+	struct ba_transport_thread *th = io->th;
 	struct pollfd fds[2] = {
 		{ th->pipe[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
@@ -442,6 +402,55 @@ repoll:
 	}
 
 	return len;
+}
+
+/**
+ * Write data to the BT SEQPACKET socket.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
+static ssize_t a2dp_write_bt(struct io_thread_data *io, ffb_t *buffer) {
+
+	struct ba_transport *t = io->th->t;
+	struct pollfd pfd = { t->bt_fd, POLLOUT, 0 };
+	int coutq = 0;
+	int oldstate;
+	ssize_t ret;
+
+	/* BT socket is opened in the non-blocking mode. However, this function
+	 * forcefully operates in a blocking mode - it uses poll() when writing
+	 * to the BT socket would block. Hence, it is required to provide a way
+	 * of escaping from the poll() when the IO thread termination request
+	 * has been made by re-enabling thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+
+	/* Try to get the number of bytes queued in the socket output buffer. */
+	if (ioctl(pfd.fd, TIOCOUTQ, &coutq) != -1)
+		coutq = abs(t->a2dp.bt_fd_coutq_init - coutq);
+
+retry:
+	if ((ret = write(pfd.fd, buffer->data, ffb_len_out(buffer))) == -1)
+		switch (errno) {
+		case EINTR:
+			goto retry;
+		case EAGAIN:
+			poll(&pfd, 1, -1);
+			/* set coutq to some arbitrary big value */
+			coutq = 1024 * 16;
+			goto retry;
+		case ECONNRESET:
+		case ENOTCONN:
+			break;
+		default:
+			error("BT socket write error: %s", strerror(errno));
+			ret = 0;
+		}
+
+	io->coutq.i = (io->coutq.i + 1) % ARRAYSIZE(io->coutq.v);
+	io->coutq.v[io->coutq.i] = coutq;
+
+	pthread_setcancelstate(oldstate, NULL);
+	return ret;
 }
 
 /**
@@ -506,6 +515,7 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.rtp_seq_number = -1,
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
@@ -551,7 +561,7 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 	for (;;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -619,6 +629,7 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.timeout = -1,
 		/* Lock transport during initialization stage. This lock will ensure,
 		 * that no one will modify critical section until thread state can be
@@ -731,15 +742,9 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 		rtp_header->timestamp = htobe32(timestamp);
 		rtp_media_header->frame_count = sbc_frames;
 
-		io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-		if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt),
-					&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init) == -1) {
-			if (errno == ECONNRESET || errno == ENOTCONN) {
-				/* exit thread upon BT socket disconnection */
-				debug("BT socket disconnected: %d", t->bt_fd);
-				goto fail;
-			}
-			error("BT socket write error: %s", strerror(errno));
+		if (a2dp_write_bt(&io, &bt) == -1) {
+			debug("BT socket disconnected: %d", t->bt_fd);
+			goto fail;
 		}
 
 		/* keep data transfer at a constant bit rate, also
@@ -778,6 +783,7 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.rtp_seq_number = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -845,7 +851,7 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 	for (;;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -950,6 +956,7 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.timeout = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -1105,17 +1112,14 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 				rtp_header->seq_number = htobe16(++seq_number);
 				rtp_mpeg_audio_header->offset = payload_len_total - payload_len;
 
-				io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-				if ((ret = io_thread_write_bt(t->bt_fd, bt.data, RTP_HEADER_LEN +
-								sizeof(*rtp_mpeg_audio_header) + len, &io.coutq.v[io.coutq.i],
-								t->a2dp.bt_fd_coutq_init)) == -1) {
-					if (errno == ECONNRESET || errno == ENOTCONN) {
-						/* exit thread upon BT socket disconnection */
-						debug("BT socket disconnected: %d", t->bt_fd);
-						goto fail;
-					}
-					error("BT socket write error: %s", strerror(errno));
-					break;
+				ffb_rewind(&bt);
+				ffb_seek(&bt, RTP_HEADER_LEN + sizeof(*rtp_mpeg_audio_header) + len);
+
+				if ((ret = a2dp_write_bt(&io, &bt)) <= 0) {
+					if (ret == 0)
+						break;
+					debug("BT socket disconnected: %d", t->bt_fd);
+					goto fail;
 				}
 
 				/* account written payload only */
@@ -1171,6 +1175,7 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.rtp_seq_number = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -1230,7 +1235,7 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 	for (;;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1319,6 +1324,7 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.timeout = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -1493,16 +1499,14 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 					rtp_header->markbit = payload_len <= payload_len_max;
 					rtp_header->seq_number = htobe16(++seq_number);
 
-					io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-					if ((ret = io_thread_write_bt(t->bt_fd, bt.data, RTP_HEADER_LEN + len,
-									&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init)) == -1) {
-						if (errno == ECONNRESET || errno == ENOTCONN) {
-							/* exit thread upon BT socket disconnection */
-							debug("BT socket disconnected: %d", t->bt_fd);
-							goto fail;
-						}
-						error("BT socket write error: %s", strerror(errno));
-						break;
+					ffb_rewind(&bt);
+					ffb_seek(&bt, RTP_HEADER_LEN + len);
+
+					if ((ret = a2dp_write_bt(&io, &bt)) <= 0) {
+						if (ret == 0)
+							break;
+						debug("BT socket disconnected: %d", t->bt_fd);
+						goto fail;
 					}
 
 					/* account written payload only */
@@ -1560,6 +1564,7 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.timeout = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -1633,15 +1638,9 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 
 			}
 
-			io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-			if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt),
-						&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init) == -1) {
-				if (errno == ECONNRESET || errno == ENOTCONN) {
-					/* exit thread upon BT socket disconnection */
-					debug("BT socket disconnected: %d", t->bt_fd);
-					goto fail;
-				}
-				error("BT socket write error: %s", strerror(errno));
+			if (a2dp_write_bt(&io, &bt) == -1) {
+				debug("BT socket disconnected: %d", t->bt_fd);
+				goto fail;
 			}
 
 			/* keep data transfer at a constant bit rate */
@@ -1684,6 +1683,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.timeout = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -1776,15 +1776,9 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 
 			}
 
-			io.coutq.i = (io.coutq.i + 1) % ARRAYSIZE(io.coutq.v);
-			if (io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt),
-						&io.coutq.v[io.coutq.i], t->a2dp.bt_fd_coutq_init) == -1) {
-				if (errno == ECONNRESET || errno == ENOTCONN) {
-					/* exit thread upon BT socket disconnection */
-					debug("BT socket disconnected: %d", t->bt_fd);
-					goto fail;
-				}
-				error("BT socket write error: %s", strerror(errno));
+			if (a2dp_write_bt(&io, &bt) == -1) {
+				debug("BT socket disconnected: %d", t->bt_fd);
+				goto fail;
 			}
 
 			/* keep data transfer at a constant bit rate */
@@ -1831,6 +1825,7 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.rtp_seq_number = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -1876,7 +1871,7 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 	for (;;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1939,6 +1934,7 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	struct io_thread_data io = {
+		.th = th,
 		.timeout = -1,
 		.t_locked = !ba_transport_thread_cleanup_lock(th),
 	};
@@ -1997,7 +1993,7 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 	rtp_media_header_t *rtp_media_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	bt.tail = a2dp_init_rtp(bt.data, &rtp_header,
+	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header,
 			(void **)&rtp_media_header, sizeof(*rtp_media_header));
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
@@ -2022,6 +2018,9 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 		/* encode and transfer obtained data */
 		while (input_len >= ldac_pcm_samples) {
 
+			/* anchor for RTP payload */
+			bt.tail = rtp_payload;
+
 			int used;
 			int encoded;
 			int frames;
@@ -2036,20 +2035,16 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 			frames = used / sample_size;
 			input += frames;
 			input_len -= frames;
+			ffb_seek(&bt, encoded);
 
 			if (encoded &&
-					io_thread_write_bt(t->bt_fd, bt.data, ffb_len_out(&bt) + encoded,
-						&io.coutq.v[0], t->a2dp.bt_fd_coutq_init) == -1) {
-				if (errno == ECONNRESET || errno == ENOTCONN) {
-					/* exit thread upon BT socket disconnection */
-					debug("BT socket disconnected: %d", t->bt_fd);
-					goto fail;
-				}
-				error("BT socket write error: %s", strerror(errno));
+					a2dp_write_bt(&io, &bt) == -1) {
+				debug("BT socket disconnected: %d", t->bt_fd);
+				goto fail;
 			}
 
 			if (config.ldac_abr)
-				ldac_ABR_Proc(handle, handle_abr, io.coutq.v[0] / t->mtu_write, 1);
+				ldac_ABR_Proc(handle, handle_abr, io.coutq.v[io.coutq.i] / t->mtu_write, 1);
 
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, frames / channels);
@@ -2099,7 +2094,7 @@ static void *a2dp_sink_dump(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = { 0 };
+	struct io_thread_data io = { .th = th };
 	ffb_t bt = { 0 };
 	FILE *f = NULL;
 	char fname[64];
@@ -2128,7 +2123,7 @@ static void *a2dp_sink_dump(struct ba_transport_thread *th) {
 
 	for (;;) {
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(t, &io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
