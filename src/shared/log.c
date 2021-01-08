@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -95,35 +95,12 @@ static void vlog(int priority, const char *format, va_list ap) {
 
 }
 
-void error(const char *format, ...) {
+void log_message(int priority, const char *format, ...) {
 	va_list ap;
 	va_start(ap, format);
-	vlog(LOG_ERR, format, ap);
+	vlog(priority, format, ap);
 	va_end(ap);
 }
-
-void warn(const char *format, ...) {
-	va_list ap;
-	va_start(ap, format);
-	vlog(LOG_WARNING, format, ap);
-	va_end(ap);
-}
-
-void info(const char *format, ...) {
-	va_list ap;
-	va_start(ap, format);
-	vlog(LOG_INFO, format, ap);
-	va_end(ap);
-}
-
-#if DEBUG
-void _debug(const char *format, ...) {
-	va_list ap;
-	va_start(ap, format);
-	vlog(LOG_DEBUG, format, ap);
-	va_end(ap);
-}
-#endif
 
 #if DEBUG
 /**
@@ -167,7 +144,7 @@ void callstackdump(const char *label) {
 
 #endif
 
-	_debug("%s: %s", label, buffer);
+	log_message(LOG_DEBUG, "%s: %s", label, buffer);
 
 }
 #endif
@@ -189,7 +166,7 @@ void hexdump(const char *label, const void *mem, size_t len) {
 		mem = ((unsigned char *)mem) + 1;
 	}
 
-	_debug("%s:%s", label, buf);
+	log_message(LOG_DEBUG, "%s:%s", label, buf);
 	free(buf);
 }
 #endif

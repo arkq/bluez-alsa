@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,6 +17,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <syslog.h>
 
 #if DEBUG_TIME
 # define BLUEALSA_LOGTIME true
@@ -25,14 +26,17 @@
 #endif
 
 void log_open(const char *ident, bool syslog, bool time);
-void error(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
-void warn(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
-void info(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
+void log_message(int priority, const char *format, ...) __attribute__ ((format(printf, 2, 3)));
 
 #if DEBUG
-void _debug(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
-# define debug(M, ...) _debug("%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
+# define error(M, ...) log_message(LOG_ERR, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
+# define warn(M, ...) log_message(LOG_WARNING, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
+# define info(M, ...) log_message(LOG_INFO, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
+# define debug(M, ...) log_message(LOG_DEBUG, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
 #else
+# define error(M, ...) log_message(LOG_ERR, M, ## __VA_ARGS__)
+# define warn(M, ...) log_message(LOG_WARNING, M, ## __VA_ARGS__)
+# define info(M, ...) log_message(LOG_INFO, M, ## __VA_ARGS__)
 # define debug(M, ...) do {} while (0)
 #endif
 
