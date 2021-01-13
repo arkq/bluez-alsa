@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-audio.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -1556,6 +1556,105 @@ fail_open:
 }
 #endif
 
+#if ENABLE_APTX && OPENAPTX_DECODER
+static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+
+	struct ba_transport *t = th->t;
+	struct io_thread_data io = {
+		.th = th,
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
+	};
+
+	if (a2dp_validate_bt_sink(t) != 0)
+		goto fail_open;
+
+	APTXDEC handle = malloc(SizeofAptxbtdec());
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxbtdec_destroy), handle);
+
+	if (handle == NULL ||
+			aptxbtdec_init(handle, __BYTE_ORDER == __LITTLE_ENDIAN) != 0) {
+		error("Couldn't initialize apt-X decoder: %s", strerror(errno));
+		goto fail_init;
+	}
+
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+
+	if (ffb_init_int16_t(&pcm, t->mtu_read / 4 * 8) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
+		goto fail_ffb;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
+
+	ba_transport_thread_cleanup_unlock(th);
+	io.t_locked = false;
+
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
+	for (;;) {
+
+		ssize_t len;
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (t->a2dp.pcm.fd == -1)
+			continue;
+
+		uint16_t *input = bt.data;
+		size_t input_codewords = len / sizeof(uint16_t);
+
+		ffb_rewind(&pcm);
+		int16_t *output = pcm.data;
+
+		while (input_codewords >= 2) {
+
+			int32_t pcm_l[4], pcm_r[4];
+			if (aptxbtdec_decodestereo(handle, pcm_l, pcm_r, input) != 0) {
+				error("Apt-X decoding error: %s", strerror(errno));
+				break;
+			}
+
+			input += 2;
+			input_codewords -= 2;
+
+			ffb_seek(&pcm, 2 * ARRAYSIZE(pcm_l));
+			for (size_t i = 0; i < ARRAYSIZE(pcm_l); i++) {
+				*output++ = pcm_l[i];
+				*output++ = pcm_r[i];
+			}
+
+		}
+
+		if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, ffb_len_out(&pcm)) == -1)
+			error("FIFO write error: %s", strerror(errno));
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!io.t_locked);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_open:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
+
 #if ENABLE_APTX
 static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 
@@ -1670,6 +1769,117 @@ fail_ffb:
 	pthread_cleanup_pop(1);
 fail_init:
 	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
+
+#if ENABLE_APTX_HD && OPENAPTX_DECODER
+static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+
+	struct ba_transport *t = th->t;
+	struct io_thread_data io = {
+		.th = th,
+		.rtp_seq_number = -1,
+		.t_locked = !ba_transport_thread_cleanup_lock(th),
+	};
+
+	if (a2dp_validate_bt_sink(t) != 0)
+		goto fail_open;
+
+	APTXDEC handle = malloc(SizeofAptxbtdec());
+	pthread_cleanup_push(PTHREAD_CLEANUP(free), handle);
+	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhdbtdec_destroy), handle);
+
+	if (handle == NULL ||
+			aptxhdbtdec_init(handle, false) != 0) {
+		error("Couldn't initialize apt-X decoder: %s", strerror(errno));
+		goto fail_init;
+	}
+
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+
+	if (ffb_init_int32_t(&pcm, t->mtu_read / 6 * 8) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
+		goto fail_ffb;
+	}
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup_lock), th);
+
+	ba_transport_thread_cleanup_unlock(th);
+	io.t_locked = false;
+
+	debug("Starting IO loop: %s", ba_transport_type_to_string(t->type));
+	for (;;) {
+
+		ssize_t len;
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (t->a2dp.pcm.fd == -1) {
+			io.rtp_seq_number = -1;
+			continue;
+		}
+
+		const uint8_t *rtp_payload;
+		if ((rtp_payload = a2dp_validate_rtp(bt.data, &io)) == NULL)
+			continue;
+
+		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
+		size_t input_codewords = rtp_payload_len / 3;
+
+		ffb_rewind(&pcm);
+		int32_t *output = pcm.data;
+
+		while (input_codewords >= 2) {
+
+			int32_t pcm_l[4];
+			int32_t pcm_r[4];
+
+			uint32_t code[2] = {
+				(rtp_payload[0] << 16) | (rtp_payload[1] << 8) | rtp_payload[2],
+				(rtp_payload[3] << 16) | (rtp_payload[4] << 8) | rtp_payload[5] };
+			if (aptxhdbtdec_decodestereo(handle, pcm_l, pcm_r, code) != 0) {
+				error("Apt-X decoding error: %s", strerror(errno));
+				break;
+			}
+
+			rtp_payload += 6;
+			input_codewords -= 2;
+
+			ffb_seek(&pcm, 2 * ARRAYSIZE(pcm_l));
+			for (size_t i = 0; i < ARRAYSIZE(pcm_l); i++) {
+				*output++ = pcm_l[i];
+				*output++ = pcm_r[i];
+			}
+
+		}
+
+		if (ba_transport_pcm_write(&t->a2dp.pcm, pcm.data, ffb_len_out(&pcm)) == -1)
+			error("FIFO write error: %s", strerror(errno));
+
+	}
+
+fail:
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_pop(!io.t_locked);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_open:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
@@ -2086,6 +2296,7 @@ fail_open_ldac:
 }
 #endif
 
+#if DEBUG
 /**
  * Dump incoming BT data to a file. */
 static void *a2dp_sink_dump(struct ba_transport_thread *th) {
@@ -2141,6 +2352,7 @@ fail_open:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
+#endif
 
 int a2dp_audio_thread_create(struct ba_transport *t) {
 
@@ -2192,6 +2404,14 @@ int a2dp_audio_thread_create(struct ba_transport *t) {
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
 			return ba_transport_thread_create(th, a2dp_sink_aac, "ba-a2dp-aac");
+#endif
+#if ENABLE_APTX && OPENAPTX_DECODER
+		case A2DP_CODEC_VENDOR_APTX:
+			return ba_transport_thread_create(th, a2dp_sink_aptx, "ba-a2dp-aptx");
+#endif
+#if ENABLE_APTX_HD && OPENAPTX_DECODER
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return ba_transport_thread_create(th, a2dp_sink_aptx_hd, "ba-a2dp-aptx-hd");
 #endif
 #if ENABLE_LDAC && HAVE_LDAC_DECODE
 		case A2DP_CODEC_VENDOR_LDAC:

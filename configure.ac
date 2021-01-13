@@ -1,5 +1,5 @@
 # BlueALSA - configure.ac
-# Copyright (c) 2016-2020 Arkadiusz Bokowy
+# Copyright (c) 2016-2021 Arkadiusz Bokowy
 
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
@@ -96,7 +96,7 @@ AM_COND_IF([ENABLE_AAC], [
 ])
 
 AC_ARG_ENABLE([aptx],
-	[AS_HELP_STRING([--enable-aptx], [enable apt-X encoding support])])
+	[AS_HELP_STRING([--enable-aptx], [enable apt-X support])])
 AM_CONDITIONAL([ENABLE_APTX], [test "x$enable_aptx" = "xyes"])
 AM_COND_IF([ENABLE_APTX], [
 	PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
@@ -104,7 +104,7 @@ AM_COND_IF([ENABLE_APTX], [
 ])
 
 AC_ARG_ENABLE([aptx_hd],
-	[AS_HELP_STRING([--enable-aptx-hd], [enable apt-X HD encoding support])])
+	[AS_HELP_STRING([--enable-aptx-hd], [enable apt-X HD support])])
 AM_CONDITIONAL([ENABLE_APTX_HD], [test "x$enable_aptx_hd" = "xyes"])
 AM_COND_IF([ENABLE_APTX_HD], [
 	PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.2.0])

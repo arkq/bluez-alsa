@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,6 +15,9 @@
 #include <string.h>
 
 #include <glib.h>
+#if ENABLE_APTX || ENABLE_APTX_HD
+# include <openaptx.h>
+#endif
 
 #include "a2dp-codecs.h"
 #include "bluealsa.h"
@@ -471,9 +474,15 @@ const struct a2dp_codec *a2dp_codecs[] = {
 #endif
 #if ENABLE_APTX_HD
 	&a2dp_codec_source_aptx_hd,
+# if OPENAPTX_DECODER
+	&a2dp_codec_sink_aptx_hd,
+# endif
 #endif
 #if ENABLE_APTX
 	&a2dp_codec_source_aptx,
+# if OPENAPTX_DECODER
+	&a2dp_codec_sink_aptx,
+# endif
 #endif
 #if ENABLE_FASTSTREAM
 	&a2dp_codec_source_faststream,

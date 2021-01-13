@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -104,6 +104,25 @@ static const char *input_pcm_file = NULL;
 static unsigned int aging_duration = 0;
 static bool dump_data = false;
 
+static void *write_test_pcm_async(void *userdata) {
+
+	int fd_out = (uintptr_t)userdata;
+	int fd_in;
+
+	ck_assert_int_ne(fd_in = open(input_pcm_file, O_RDONLY), -1);
+
+	struct pollfd pfds[] = {{ fd_out, POLLOUT, 0 }};
+	ssize_t len;
+
+	do {
+		ck_assert_int_ne(poll(pfds, ARRAYSIZE(pfds), -1), -1);
+		ck_assert_int_ne(len = sendfile(fd_out, fd_in, NULL, 0x7FFFF000), -1);
+	} while (len > 0);
+
+	close(fd_in);
+	return NULL;
+}
+
 /**
  * Write test PCM signal to the file descriptor. */
 static void write_test_pcm(int fd, int channels) {
@@ -111,13 +130,12 @@ static void write_test_pcm(int fd, int channels) {
 	static int16_t sample_pcm_mono[5 * 1024];
 	static int16_t sample_pcm_stereo[10 * 1024];
 	static bool initialized = false;
+	pthread_t thread;
 	FILE *f;
-	int ffd;
 
 	if (input_pcm_file != NULL) {
-		ck_assert_int_ne(ffd = open(input_pcm_file, O_RDONLY), -1);
-		ck_assert_int_ne(sendfile(fd, ffd, NULL, 0x7FFFF000), -1);
-		close(ffd);
+		pthread_create(&thread, NULL, write_test_pcm_async, (void *)(uintptr_t)fd);
+		pthread_detach(thread);
 		return;
 	}
 
@@ -172,6 +190,15 @@ static void bt_data_push(uint8_t *data, size_t len) {
 		bt_data_end->next->next = NULL;
 	}
 	bt_data_end = bt_data_end->next;
+}
+
+static void bt_data_write(int fd) {
+	struct bt_data *bt_data_head = &bt_data;
+	struct pollfd pfds[] = {{ fd, POLLOUT, 0 }};
+	for (; bt_data_head != bt_data_end; bt_data_head = bt_data_head->next) {
+		ck_assert_int_ne(poll(pfds, ARRAYSIZE(pfds), -1), -1);
+		ck_assert_int_eq(write(fd, bt_data_head->data, bt_data_head->len), bt_data_head->len);
+	}
 }
 
 /**
@@ -306,10 +333,8 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 
 	if (enc == test_io_thread_a2dp_dump_pcm) {
 		ck_assert_int_eq(ba_transport_thread_create(&t2->thread, dec, dec_name), 0);
-		struct bt_data *bt_data_head = &bt_data;
-		for (; bt_data_head != bt_data_end; bt_data_head = bt_data_head->next)
-			ck_assert_int_eq(write(bt_fds[1], bt_data_head->data, bt_data_head->len), bt_data_head->len);
 		ck_assert_int_eq(ba_transport_thread_create(&t1->thread, enc, enc_name), 0);
+		bt_data_write(bt_fds[1]);
 	}
 	else {
 		ck_assert_int_eq(ba_transport_thread_create(&t1->thread, enc, enc_name), 0);
@@ -489,10 +514,17 @@ START_TEST(test_a2dp_aptx) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
+#if OPENAPTX_DECODER
+		t1->mtu_write = t2->mtu_read = 400;
+		test_a2dp(t1, t2, a2dp_source_aptx, a2dp_sink_aptx);
+#endif
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = 40;
 		test_a2dp(t1, t2, a2dp_source_aptx, test_io_thread_a2dp_dump_bt);
+#if OPENAPTX_DECODER
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx);
+#endif
 	};
 
 } END_TEST
@@ -513,10 +545,17 @@ START_TEST(test_a2dp_aptx_hd) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
+#if OPENAPTX_DECODER
+		t1->mtu_write = t2->mtu_read = 600;
+		test_a2dp(t1, t2, a2dp_source_aptx_hd, a2dp_sink_aptx_hd);
+#endif
 	}
 	else {
 		t1->mtu_write = t2->mtu_read = 60;
 		test_a2dp(t1, t2, a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
+#if OPENAPTX_DECODER
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx_hd);
+#endif
 	};
 
 } END_TEST
@@ -659,7 +698,8 @@ int main(int argc, char *argv[]) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
-	tcase_set_timeout(tc, aging_duration + 5);
+	tcase_set_timeout(tc, aging_duration +
+			(input_pcm_file != NULL ? 180 : 5));
 
 	if (enabled_codecs & TEST_CODEC_SBC)
 		tcase_add_test(tc, test_a2dp_sbc);
