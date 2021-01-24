@@ -595,7 +595,8 @@ static int rfcomm_handler_xapl_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 	d->xapl.product_id = product;
 	strcpy(d->xapl.software_version, version);
 
-	sprintf(resp, "+XAPL=BlueALSA,%u", config.hfp.xapl_features);
+	snprintf(resp, sizeof(resp), "+XAPL=%s,%u",
+			config.hfp.xapl_product_name, config.hfp.xapl_features);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, resp) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)

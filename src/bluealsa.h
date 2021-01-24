@@ -66,6 +66,7 @@ struct ba_config {
 		unsigned int xapl_vendor_id;
 		unsigned int xapl_product_id;
 		const char *xapl_software_version;
+		const char *xapl_product_name;
 		unsigned int xapl_features;
 	} hfp;
 

@@ -115,6 +115,7 @@ int main(int argc, char **argv) {
 		{ "mp3-quality", required_argument, NULL, 12 },
 		{ "mp3-vbr-quality", required_argument, NULL, 13 },
 #endif
+		{ "xapl-resp-name", required_argument, NULL, 16 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -176,6 +177,7 @@ int main(int argc, char **argv) {
 					"  --mp3-quality=NB\tselect LAME encoder algorithm\n"
 					"  --mp3-vbr-quality=NB\tset LAME encoder VBR quality\n"
 #endif
+					"  --xapl-resp-name=NAME\tset product name used by XAPL\n"
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
 					"  - a2dp-sink\tAdvanced Audio Sink (%s)\n"
@@ -317,6 +319,10 @@ int main(int argc, char **argv) {
 			}
 			break;
 #endif
+
+		case 16 /* --xapl-resp-name=NAME */ :
+			config.hfp.xapl_product_name = optarg;
+			break;
 
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);

@@ -59,7 +59,8 @@ struct ba_config config = {
 	/* build-in Apple accessory identification */
 	.hfp.xapl_vendor_id = 0xB103,
 	.hfp.xapl_product_id = 0xA15A,
-	.hfp.xapl_software_version = "0200",
+	.hfp.xapl_software_version = "0300",
+	.hfp.xapl_product_name = "BlueALSA",
 	.hfp.xapl_features =
 		XAPL_FEATURE_BATTERY |
 		XAPL_FEATURE_DOCKING |
