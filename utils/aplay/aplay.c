@@ -33,7 +33,7 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "alsa-pcm.h"
-#include "dbus.h"
+#include "../dbus.h"
 
 struct pcm_worker {
 	pthread_t thread;

@@ -9,8 +9,8 @@ bluealsa_aplay_SOURCES = \
 	../../src/shared/dbus-client.c \
 	../../src/shared/ffb.c \
 	../../src/shared/log.c \
+	../dbus.c \
 	alsa-pcm.c \
-	dbus.c \
 	aplay.c
 
 bluealsa_aplay_CFLAGS = \
