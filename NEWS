@@ -5,6 +5,7 @@ unreleased
 - support for A2DP Sink with apt-X (HD) if decoder is available
 - support for A2DP Sink with LDAC codec if decoder is available
 - use rst2man (docutils) instead of pandoc to build man-pages
+- bluealsa-cli: utility for using D-Bus API from command line
 
 bluez-alsa v3.0.0 (2020-09-15)
 ==============================

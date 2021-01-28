@@ -33,3 +33,4 @@ script:
   - cat test/*.log
   - ../configure --enable-mp3lame --enable-mpg123 --enable-ofono && make
   - ../configure --enable-mp3lame --enable-ofono --enable-upower && make
+  - ../configure --enable-cli --enable-rfcomm && make
