@@ -49,7 +49,9 @@
 #if ENABLE_APTX || ENABLE_APTX_HD
 # include "../src/codec-aptx.c"
 #endif
-#include "../src/codec-msbc.c"
+#if ENABLE_MSBC
+# include "../src/codec-msbc.c"
+#endif
 #include "../src/codec-sbc.c"
 #include "../src/dbus.c"
 #include "../src/hci.c"

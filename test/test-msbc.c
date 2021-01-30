@@ -1,6 +1,6 @@
 /*
  * test-msbc.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,6 +12,7 @@
 
 #include "inc/sine.inc"
 #include "../src/codec-msbc.c"
+#include "../src/codec-sbc.c"
 #include "../src/shared/defs.h"
 #include "../src/shared/ffb.c"
 #include "../src/shared/log.c"
@@ -24,14 +25,14 @@ START_TEST(test_msbc_init) {
 
 	ck_assert_int_eq(msbc_init(&msbc), 0);
 	ck_assert_int_eq(msbc.initialized, true);
-	ck_assert_int_eq(ffb_len_out(&msbc.enc_pcm), 0);
+	ck_assert_int_eq(ffb_len_out(&msbc.pcm), 0);
 
-	ffb_seek(&msbc.enc_pcm, 16);
-	ck_assert_int_eq(ffb_len_out(&msbc.enc_pcm), 16);
+	ffb_seek(&msbc.pcm, 16);
+	ck_assert_int_eq(ffb_len_out(&msbc.pcm), 16);
 
 	ck_assert_int_eq(msbc_init(&msbc), 0);
 	ck_assert_int_eq(msbc.initialized, true);
-	ck_assert_int_eq(ffb_len_out(&msbc.enc_pcm), 0);
+	ck_assert_int_eq(ffb_len_out(&msbc.pcm), 0);
 
 	msbc_finish(&msbc);
 
@@ -88,24 +89,24 @@ START_TEST(test_msbc_encode_decode) {
 	size_t i;
 	int rv;
 
-	ck_assert_int_eq(msbc_init(&msbc), 0);
 	snd_pcm_sine_s16le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
 
 	uint8_t data[sizeof(sine)];
 	uint8_t *data_tail = data;
 
+	ck_assert_int_eq(msbc_init(&msbc), 0);
 	for (rv = 1, i = 0; rv == 1;) {
 
-		len = MIN(ARRAYSIZE(sine) - i, ffb_len_in(&msbc.enc_pcm));
-		memcpy(msbc.enc_pcm.tail, &sine[i], len * msbc.enc_pcm.size);
-		ffb_seek(&msbc.enc_pcm, len);
+		len = MIN(ARRAYSIZE(sine) - i, ffb_len_in(&msbc.pcm));
+		memcpy(msbc.pcm.tail, &sine[i], len * msbc.pcm.size);
+		ffb_seek(&msbc.pcm, len);
 		i += len;
 
 		rv = msbc_encode(&msbc);
 
-		len = ffb_blen_out(&msbc.enc_data);
-		memcpy(data_tail, msbc.enc_data.data, len);
-		ffb_shift(&msbc.enc_data, len);
+		len = ffb_blen_out(&msbc.data);
+		memcpy(data_tail, msbc.data.data, len);
+		ffb_shift(&msbc.data, len);
 		data_tail += len;
 
 	}
@@ -115,18 +116,19 @@ START_TEST(test_msbc_encode_decode) {
 	int16_t pcm[sizeof(sine)];
 	int16_t *pcm_tail = pcm;
 
+	ck_assert_int_eq(msbc_init(&msbc), 0);
 	for (rv = 1, i = 0; rv == 1; ) {
 
-		len = MIN((data_tail - data) - i, ffb_blen_in(&msbc.dec_data));
-		memcpy(msbc.dec_data.tail, &data[i], len);
-		ffb_seek(&msbc.dec_data, len);
+		len = MIN((data_tail - data) - i, ffb_blen_in(&msbc.data));
+		memcpy(msbc.data.tail, &data[i], len);
+		ffb_seek(&msbc.data, len);
 		i += len;
 
 		rv = msbc_decode(&msbc);
 
-		len = ffb_len_out(&msbc.dec_pcm);
-		memcpy(pcm_tail, msbc.dec_pcm.data, len * msbc.dec_pcm.size);
-		ffb_shift(&msbc.dec_pcm, len);
+		len = ffb_len_out(&msbc.pcm);
+		memcpy(pcm_tail, msbc.pcm.data, len * msbc.pcm.size);
+		ffb_shift(&msbc.pcm, len);
 		pcm_tail += len;
 
 	}

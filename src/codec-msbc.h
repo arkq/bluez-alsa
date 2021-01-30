@@ -47,25 +47,18 @@ typedef struct esco_msbc_frame {
 
 struct esco_msbc {
 
-	/* decoder */
-	sbc_t dec_sbc;
-	/* encoder */
-	sbc_t enc_sbc;
+	/* encoder/decoder */
+	sbc_t sbc;
 
-	/* buffer for incoming eSCO frames */
-	ffb_t dec_data;
-	/* buffer for outgoing PCM samples */
-	ffb_t dec_pcm;
+	/* buffer for eSCO frames */
+	ffb_t data;
+	/* buffer for PCM samples */
+	ffb_t pcm;
 
-	/* buffer for incoming PCM samples */
-	ffb_t enc_pcm;
-	/* buffer for outgoing eSCO frames */
-	ffb_t enc_data;
-
-	uint8_t dec_seq_initialized : 1;
-	uint8_t dec_seq_number : 2;
-	uint8_t enc_seq_number : 2;
-	size_t enc_frames;
+	uint8_t seq_initialized : 1;
+	uint8_t seq_number : 2;
+	/* number of processed frames */
+	size_t frames;
 
 	/* Determine whether structure has been initialized. This field is
 	 * used for reinitialization - it makes msbc_init() idempotent. */

@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <stdbool.h>
 
+#include "codec-sbc.h"
 #include "shared/log.h"
 
 /* Code protected 2-bit sequence numbers (SN0 and SN1) used
@@ -61,63 +62,39 @@ int msbc_init(struct esco_msbc *msbc) {
 
 	int err;
 
-	if (msbc->initialized) {
-		/* Because there is no sbc_reinit_msbc(), we have to initialize encoder
-		 * and decoder once more. In order to prevent memory leaks, we have to
-		 * release previously allocated resources. */
-		sbc_finish(&msbc->dec_sbc);
-		sbc_finish(&msbc->enc_sbc);
+	if (!msbc->initialized) {
+		debug("Initializing mSBC codec");
+		if ((errno = -sbc_init_msbc(&msbc->sbc, 0)) != 0)
+			goto fail;
+		if (ffb_init_uint8_t(&msbc->data, sizeof(esco_msbc_frame_t) * 3) == -1)
+			goto fail;
+		if (ffb_init_int16_t(&msbc->pcm, MSBC_CODESAMPLES * 2) == -1)
+			goto fail;
 	}
 
-	debug("Initializing mSBC encoder/decoder");
-	if ((errno = -sbc_init_msbc(&msbc->dec_sbc, 0)) != 0)
-		goto fail;
-	if ((errno = -sbc_init_msbc(&msbc->enc_sbc, 0)) != 0)
-		goto fail;
+	if ((errno = -sbc_reinit_msbc(&msbc->sbc, 0)) != 0)
+		return -1;
 
 #if DEBUG
 	size_t len;
-	if ((len = sbc_get_frame_length(&msbc->dec_sbc)) > MSBC_FRAMELEN) {
+	if ((len = sbc_get_frame_length(&msbc->sbc)) > MSBC_FRAMELEN) {
 		warn("Unexpected mSBC frame size: %zd > %d", len, MSBC_FRAMELEN);
 		errno = ENOMEM;
 		goto fail;
 	}
-	if ((len = sbc_get_codesize(&msbc->dec_sbc)) > MSBC_CODESIZE) {
-		warn("Unexpected mSBC code size: %zd > %d", len, MSBC_CODESIZE);
-		errno = ENOMEM;
-		goto fail;
-	}
-	if ((len = sbc_get_frame_length(&msbc->enc_sbc)) > MSBC_FRAMELEN) {
-		warn("Unexpected mSBC frame size: %zd > %d", len, MSBC_FRAMELEN);
-		errno = ENOMEM;
-		goto fail;
-	}
-	if ((len = sbc_get_codesize(&msbc->enc_sbc)) > MSBC_CODESIZE) {
+	if ((len = sbc_get_codesize(&msbc->sbc)) > MSBC_CODESIZE) {
 		warn("Unexpected mSBC code size: %zd > %d", len, MSBC_CODESIZE);
 		errno = ENOMEM;
 		goto fail;
 	}
 #endif
 
-	if (!msbc->initialized) {
-		if (ffb_init_uint8_t(&msbc->dec_data, sizeof(esco_msbc_frame_t) * 3) == -1)
-			goto fail;
-		if (ffb_init_int16_t(&msbc->dec_pcm, MSBC_CODESAMPLES * 2) == -1)
-			goto fail;
-		if (ffb_init_uint8_t(&msbc->enc_data, sizeof(esco_msbc_frame_t) * 3) == -1)
-			goto fail;
-		if (ffb_init_int16_t(&msbc->enc_pcm, MSBC_CODESAMPLES * 2) == -1)
-			goto fail;
-	}
+	ffb_rewind(&msbc->data);
+	ffb_rewind(&msbc->pcm);
 
-	ffb_rewind(&msbc->dec_data);
-	ffb_rewind(&msbc->dec_pcm);
-	ffb_rewind(&msbc->enc_data);
-	ffb_rewind(&msbc->enc_pcm);
-
-	msbc->dec_seq_initialized = false;
-	msbc->enc_seq_number = 0;
-	msbc->enc_frames = 0;
+	msbc->seq_initialized = false;
+	msbc->seq_number = 0;
+	msbc->frames = 0;
 
 	msbc->initialized = true;
 	return 0;
@@ -134,13 +111,10 @@ void msbc_finish(struct esco_msbc *msbc) {
 	if (msbc == NULL)
 		return;
 
-	sbc_finish(&msbc->dec_sbc);
-	sbc_finish(&msbc->enc_sbc);
+	sbc_finish(&msbc->sbc);
 
-	ffb_free(&msbc->dec_data);
-	ffb_free(&msbc->dec_pcm);
-	ffb_free(&msbc->enc_data);
-	ffb_free(&msbc->enc_pcm);
+	ffb_free(&msbc->data);
+	ffb_free(&msbc->pcm);
 
 }
 
@@ -151,10 +125,10 @@ int msbc_decode(struct esco_msbc *msbc) {
 	if (!msbc->initialized)
 		return errno = EINVAL, -1;
 
-	const uint8_t *input = msbc->dec_data.data;
-	size_t input_len = ffb_blen_out(&msbc->dec_data);
-	int16_t *output = msbc->dec_pcm.tail;
-	size_t output_len = ffb_blen_in(&msbc->dec_pcm);
+	const uint8_t *input = msbc->data.data;
+	size_t input_len = ffb_blen_out(&msbc->data);
+	int16_t *output = msbc->pcm.tail;
+	size_t output_len = ffb_blen_in(&msbc->pcm);
 	int rv = 0;
 
 	const size_t tmp = input_len;
@@ -170,31 +144,31 @@ int msbc_decode(struct esco_msbc *msbc) {
 
 	const uint16_t h2 = le16toh(*_h2);
 	uint8_t _seq = (ESCO_H2_GET_SN1(h2) & 2) | (ESCO_H2_GET_SN0(h2) & 1);
-	if (!msbc->dec_seq_initialized) {
-		msbc->dec_seq_initialized = true;
-		msbc->dec_seq_number = _seq;
+	if (!msbc->seq_initialized) {
+		msbc->seq_initialized = true;
+		msbc->seq_number = _seq;
 	}
-	else if (_seq != ++msbc->dec_seq_number) {
-		warn("Missing mSBC packet: %u != %u", _seq, msbc->dec_seq_number);
-		msbc->dec_seq_number = _seq;
+	else if (_seq != ++msbc->seq_number) {
+		warn("Missing mSBC packet: %u != %u", _seq, msbc->seq_number);
+		msbc->seq_number = _seq;
 		/* TODO: Implement PLC. */
 	}
 
 	ssize_t len;
-	if ((len = sbc_decode(&msbc->dec_sbc, frame->payload, sizeof(frame->payload),
+	if ((len = sbc_decode(&msbc->sbc, frame->payload, sizeof(frame->payload),
 					output, output_len, NULL)) < 0) {
 		errno = -len, rv = -1;
 		input += 1;
 		goto final;
 	}
 
-	ffb_seek(&msbc->dec_pcm, MSBC_CODESAMPLES);
+	ffb_seek(&msbc->pcm, MSBC_CODESAMPLES);
 	input += sizeof(*frame);
 	rv = 1;
 
 final:
 	/* Reshuffle remaining data to the beginning of the buffer. */
-	ffb_shift(&msbc->dec_data, input - (uint8_t *)msbc->dec_data.data);
+	ffb_shift(&msbc->data, input - (uint8_t *)msbc->data.data);
 	return rv;
 }
 
@@ -205,10 +179,10 @@ int msbc_encode(struct esco_msbc *msbc) {
 	if (!msbc->initialized)
 		return errno = EINVAL, -1;
 
-	const int16_t *input = msbc->enc_pcm.data;
-	const size_t input_len = ffb_blen_out(&msbc->enc_pcm);
-	esco_msbc_frame_t *frame = (esco_msbc_frame_t *)msbc->enc_data.tail;
-	size_t output_len = ffb_blen_in(&msbc->enc_data);
+	const int16_t *input = msbc->pcm.data;
+	const size_t input_len = ffb_blen_out(&msbc->pcm);
+	esco_msbc_frame_t *frame = (esco_msbc_frame_t *)msbc->data.tail;
+	size_t output_len = ffb_blen_in(&msbc->data);
 
 	/* Skip encoding if there is not enough PCM samples or the output
 	 * buffer is not big enough to hold whole eSCO mSBC frame.*/
@@ -217,19 +191,19 @@ int msbc_encode(struct esco_msbc *msbc) {
 		return 0;
 
 	ssize_t len;
-	if ((len = sbc_encode(&msbc->enc_sbc, input, input_len,
+	if ((len = sbc_encode(&msbc->sbc, input, input_len,
 					frame->payload, sizeof(frame->payload), NULL)) < 0)
 		return errno = -len, -1;
 
-	const uint8_t n = msbc->enc_seq_number++;
+	const uint8_t n = msbc->seq_number++;
 	frame->header = htole16(ESCO_H2_PACK(sn[n][0], sn[n][1]));
 	frame->padding = 0;
 
-	ffb_seek(&msbc->enc_data, sizeof(*frame));
-	msbc->enc_frames++;
+	ffb_seek(&msbc->data, sizeof(*frame));
+	msbc->frames++;
 
 	/* Reshuffle remaining PCM data to the beginning of the buffer. */
-	ffb_shift(&msbc->enc_pcm, input + MSBC_CODESAMPLES - (int16_t *)msbc->enc_pcm.data);
+	ffb_shift(&msbc->pcm, input + MSBC_CODESAMPLES - (int16_t *)msbc->pcm.data);
 
 	return 1;
 }

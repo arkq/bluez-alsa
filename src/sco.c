@@ -1,6 +1,6 @@
 /*
  * BlueALSA - sco.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -215,8 +215,10 @@ void *sco_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt_out);
 
 #if ENABLE_MSBC
-	struct esco_msbc msbc = { .initialized = false };
-	pthread_cleanup_push(PTHREAD_CLEANUP(msbc_finish), &msbc);
+	struct esco_msbc msbc_enc = { .initialized = false };
+	struct esco_msbc msbc_dec = { .initialized = false };
+	pthread_cleanup_push(PTHREAD_CLEANUP(msbc_finish), &msbc_enc);
+	pthread_cleanup_push(PTHREAD_CLEANUP(msbc_finish), &msbc_dec);
 	bool initialize_msbc = true;
 #endif
 
@@ -253,7 +255,7 @@ void *sco_thread(struct ba_transport_thread *th) {
 #if ENABLE_MSBC
 		if (initialize_msbc && codec == HFP_CODEC_MSBC) {
 			initialize_msbc = false;
-			if (msbc_init(&msbc) != 0) {
+			if (msbc_init(&msbc_enc) != 0 || msbc_init(&msbc_dec) != 0) {
 				error("Couldn't initialize mSBC codec: %s", strerror(errno));
 				goto fail;
 			}
@@ -274,17 +276,17 @@ void *sco_thread(struct ba_transport_thread *th) {
 			break;
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
-			if (msbc_encode(&msbc) == -1)
+			if (msbc_encode(&msbc_enc) == -1)
 				warn("Couldn't encode mSBC: %s", strerror(errno));
-			if (msbc_decode(&msbc) == -1)
+			if (msbc_decode(&msbc_dec) == -1)
 				warn("Couldn't decode mSBC: %s", strerror(errno));
-			if (ffb_blen_in(&msbc.dec_data) >= t->mtu_read)
+			if (ffb_blen_in(&msbc_dec.data) >= t->mtu_read)
 				pfds[1].fd = t->bt_fd;
-			if (ffb_blen_out(&msbc.enc_data) >= t->mtu_write)
+			if (ffb_blen_out(&msbc_enc.data) >= t->mtu_write)
 				pfds[2].fd = t->bt_fd;
-			if (t->bt_fd != -1 && ffb_blen_in(&msbc.enc_pcm) >= t->mtu_write)
+			if (t->bt_fd != -1 && ffb_blen_in(&msbc_enc.pcm) >= t->mtu_write)
 				pfds[3].fd = t->sco.spk_pcm.fd;
-			if (ffb_blen_out(&msbc.dec_pcm) > 0)
+			if (ffb_blen_out(&msbc_dec.pcm) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
 			/* If SCO is not opened or PCM is not connected,
 			 * mark mSBC encoder/decoder for reinitialization. */
@@ -368,8 +370,8 @@ void *sco_thread(struct ba_transport_thread *th) {
 				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
-				buffer = msbc.dec_data.tail;
-				buffer_len = ffb_len_in(&msbc.dec_data);
+				buffer = msbc_dec.data.tail;
+				buffer_len = ffb_len_in(&msbc_dec.data);
 				break;
 #endif
 			}
@@ -402,7 +404,7 @@ retry_sco_read:
 					break;
 #if ENABLE_MSBC
 				case HFP_CODEC_MSBC:
-					ffb_seek(&msbc.dec_data, len);
+					ffb_seek(&msbc_dec.data, len);
 					break;
 #endif
 				}
@@ -428,7 +430,7 @@ retry_sco_read:
 				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
-				buffer = msbc.enc_data.data;
+				buffer = msbc_enc.data.data;
 				buffer_len = t->mtu_write;
 				break;
 #endif
@@ -457,7 +459,7 @@ retry_sco_write:
 				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
-				ffb_shift(&msbc.enc_data, len);
+				ffb_shift(&msbc_enc.data, len);
 				break;
 #endif
 			}
@@ -478,8 +480,8 @@ retry_sco_write:
 				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
-				buffer = msbc.enc_pcm.tail;
-				samples = ffb_len_in(&msbc.enc_pcm);
+				buffer = msbc_enc.pcm.tail;
+				samples = ffb_len_in(&msbc_enc.pcm);
 				break;
 #endif
 			}
@@ -499,7 +501,7 @@ retry_sco_write:
 				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
-				ffb_seek(&msbc.enc_pcm, samples);
+				ffb_seek(&msbc_enc.pcm, samples);
 				break;
 #endif
 			}
@@ -525,8 +527,8 @@ retry_sco_write:
 				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
-				buffer = msbc.dec_pcm.data;
-				samples = ffb_len_out(&msbc.dec_pcm);
+				buffer = msbc_dec.pcm.data;
+				samples = ffb_len_out(&msbc_dec.pcm);
 				break;
 #endif
 			}
@@ -545,7 +547,7 @@ retry_sco_write:
 				break;
 #if ENABLE_MSBC
 			case HFP_CODEC_MSBC:
-				ffb_shift(&msbc.dec_pcm, samples);
+				ffb_shift(&msbc_dec.pcm, samples);
 				break;
 #endif
 			}
@@ -560,9 +562,9 @@ retry_sco_write:
 			break;
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
-			if (msbc.enc_frames > 0) {
-				asrsync_sync(&asrs, msbc.enc_frames * MSBC_CODESAMPLES);
-				msbc.enc_frames = 0;
+			if (msbc_enc.frames > 0) {
+				asrsync_sync(&asrs, msbc_enc.frames * MSBC_CODESAMPLES);
+				msbc_enc.frames = 0;
 			}
 #endif
 		}
@@ -577,6 +579,7 @@ fail:
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 fail_ffb:
 #if ENABLE_MSBC
+	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 #endif
 	pthread_cleanup_pop(1);

@@ -9,7 +9,6 @@ TESTS = \
 	test-audio \
 	test-ba \
 	test-io \
-	test-msbc \
 	test-rfcomm \
 	test-utils
 
@@ -22,9 +21,13 @@ check_PROGRAMS = \
 	test-audio \
 	test-ba \
 	test-io \
-	test-msbc \
 	test-rfcomm \
 	test-utils
+
+if ENABLE_MSBC
+TESTS += test-msbc
+check_PROGRAMS += test-msbc
+endif
 
 check_LTLIBRARIES = \
 	aloader.la

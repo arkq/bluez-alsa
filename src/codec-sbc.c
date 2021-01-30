@@ -102,6 +102,20 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality) {
 	return MIN(MAX(conf->min_bitpool, bitpool), conf->max_bitpool);
 }
 
+#if ENABLE_MSBC
+/**
+ * Reinitialize SBC audio codec for mSBC mode.
+ *
+ * @param sbc SBC structure which shall be reinitialized.
+ * @param flags SBC initialization flags.
+ * @return This function returns 0 on success or a negative error value
+ *   in case of SBC audio codec initialization failure. */
+int sbc_reinit_msbc(sbc_t *sbc, unsigned long flags) {
+	sbc_finish(sbc);
+	return sbc_init_msbc(sbc, flags);
+}
+#endif
+
 #if DEBUG
 void sbc_print_internals(const sbc_t *sbc) {
 

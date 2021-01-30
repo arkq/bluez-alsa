@@ -26,6 +26,10 @@
 
 uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality);
 
+#if ENABLE_MSBC
+int sbc_reinit_msbc(sbc_t *sbc, unsigned long flags);
+#endif
+
 #if DEBUG
 void sbc_print_internals(const sbc_t *sbc);
 #endif
