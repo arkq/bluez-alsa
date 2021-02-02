@@ -1,11 +1,15 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2020 Arkadiusz Bokowy
+# Copyright (c) 2016-2021 Arkadiusz Bokowy
 
 man1_MANS =
 man8_MANS = bluealsa.8
 
 if ENABLE_APLAY
 man1_MANS += bluealsa-aplay.1
+endif
+
+if ENABLE_CMD
+man1_MANS += bluealsa-cmd.1
 endif
 
 if ENABLE_RFCOMM
