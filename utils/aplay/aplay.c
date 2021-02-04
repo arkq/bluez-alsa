@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -18,7 +18,6 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,6 +101,22 @@ static int parse_bt_addresses(char *argv[], size_t count) {
 	return 0;
 }
 
+static const char *bluealsa_get_profile(const struct ba_pcm *pcm) {
+	switch (pcm->transport) {
+	case BA_PCM_TRANSPORT_A2DP_SOURCE:
+	case BA_PCM_TRANSPORT_A2DP_SINK:
+		return "A2DP";
+	case BA_PCM_TRANSPORT_HFP_AG:
+	case BA_PCM_TRANSPORT_HFP_HF:
+	case BA_PCM_TRANSPORT_HSP_AG:
+	case BA_PCM_TRANSPORT_HSP_HS:
+		return "SCO";
+	default:
+		error("Unknown transport: %#x", pcm->transport);
+		return "[...]";
+	}
+}
+
 static snd_pcm_format_t bluealsa_get_snd_pcm_format(const struct ba_pcm *pcm) {
 	switch (pcm->format) {
 	case 0x0108:
@@ -140,7 +155,7 @@ static void print_bt_device_list(void) {
 			struct ba_pcm *pcm = &ba_pcms[ii];
 			struct bluez_device dev = { 0 };
 
-			if (!(pcm->modes & section[i].mode))
+			if (!(pcm->mode == section[i].mode))
 				continue;
 
 			if (strcmp(pcm->device_path, tmp) != 0) {
@@ -162,7 +177,7 @@ static void print_bt_device_list(void) {
 			}
 
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
-				pcm->profile == BA_PCM_PROFILE_A2DP ? "A2DP" : "SCO",
+				bluealsa_get_profile(pcm),
 				pcm->codec,
 				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 				pcm->channels, pcm->channels != 1 ? "s" : "",
@@ -200,11 +215,11 @@ static void print_bt_pcm_list(void) {
 				"    %s (%s): %s %d channel%s %d Hz\n",
 			dbus_ba_service,
 			bt_addr,
-			pcm->profile == BA_PCM_PROFILE_A2DP ? "a2dp" : "sco",
+			pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP ? "a2dp" : "sco",
 			dev.name,
 			dev.trusted ? "trusted ": "", dev.icon,
-			pcm->modes & BA_PCM_MODE_SINK ? "playback" : "capture",
-			pcm->profile == BA_PCM_PROFILE_A2DP ? "A2DP" : "SCO",
+			pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
+			bluealsa_get_profile(pcm),
 			pcm->codec,
 			snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 			pcm->channels, pcm->channels != 1 ? "s" : "",
@@ -538,15 +553,15 @@ static int supervise_pcm_worker(struct ba_pcm *ba_pcm) {
 	if (ba_pcm == NULL)
 		return -1;
 
-	if (!(ba_pcm->modes & BA_PCM_MODE_SOURCE))
+	if (ba_pcm->mode != BA_PCM_MODE_SOURCE)
 		goto stop;
 
-	if ((ba_profile_a2dp && ba_pcm->profile != BA_PCM_PROFILE_A2DP) ||
-			(!ba_profile_a2dp && ba_pcm->profile != BA_PCM_PROFILE_SCO))
+	if ((ba_profile_a2dp && !(ba_pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP)) ||
+			(!ba_profile_a2dp && !(ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO)))
 		goto stop;
 
 	/* check whether SCO has selected codec */
-	if (ba_pcm->profile == BA_PCM_PROFILE_SCO &&
+	if (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO &&
 			ba_pcm->sampling == 0) {
 		debug("Skipping SCO with codec not selected");
 		goto stop;

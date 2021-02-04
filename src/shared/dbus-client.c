@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -318,8 +318,8 @@ success:
 dbus_bool_t bluealsa_dbus_get_pcm(
 		struct ba_dbus_ctx *ctx,
 		const bdaddr_t *addr,
-		unsigned int profile,
-		unsigned int modes,
+		unsigned int transports,
+		unsigned int mode,
 		struct ba_pcm *pcm,
 		DBusError *error) {
 
@@ -333,8 +333,8 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 
 	for (i = 0; i < length; i++)
 		if (bacmp(&pcms[i].addr, addr) == 0 &&
-				pcms[i].profile == profile &&
-				(pcms[i].modes & modes) == modes) {
+				pcms[i].transport & transports &&
+				pcms[i].mode == mode) {
 			memcpy(pcm, &pcms[i], sizeof(*pcm));
 			goto final;
 		}
@@ -611,19 +611,27 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
 		dbus_message_iter_get_basic(variant, &tmp);
-		if (strstr(tmp, "A2DP") != NULL)
-			pcm->profile = BA_PCM_PROFILE_A2DP;
-		else
-			pcm->profile = BA_PCM_PROFILE_SCO;
+		if (strstr(tmp, "A2DP-source") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_A2DP_SOURCE;
+		else if (strstr(tmp, "A2DP-sink") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_A2DP_SINK;
+		else if (strstr(tmp, "HFP-AG") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_HFP_AG;
+		else if (strstr(tmp, "HFP-HF") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_HFP_HF;
+		else if (strstr(tmp, "HSP-AG") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_HSP_AG;
+		else if (strstr(tmp, "HSP-HS") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_HSP_HS;
 	}
 	else if (strcmp(key, "Mode") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
 		dbus_message_iter_get_basic(variant, &tmp);
 		if (strcmp(tmp, "source") == 0)
-			pcm->modes |= BA_PCM_MODE_SOURCE;
+			pcm->mode = BA_PCM_MODE_SOURCE;
 		else if (strcmp(tmp, "sink") == 0)
-			pcm->modes |= BA_PCM_MODE_SINK;
+			pcm->mode = BA_PCM_MODE_SINK;
 	}
 	else if (strcmp(key, "Format") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))
