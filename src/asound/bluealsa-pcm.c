@@ -1,6 +1,6 @@
 /*
  * bluealsa-pcm.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -857,9 +857,10 @@ static int str2bdaddr(const char *str, bdaddr_t *ba) {
 
 static int str2profile(const char *str) {
 	if (strcasecmp(str, "a2dp") == 0)
-		return BA_PCM_PROFILE_A2DP;
+		return BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_A2DP_SINK;
 	else if (strcasecmp(str, "sco") == 0)
-		return BA_PCM_PROFILE_SCO;
+		return BA_PCM_TRANSPORT_HFP_AG | BA_PCM_TRANSPORT_HFP_HF |
+			BA_PCM_TRANSPORT_HSP_AG | BA_PCM_TRANSPORT_HSP_HS;
 	return 0;
 }
 

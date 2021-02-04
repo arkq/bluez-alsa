@@ -1,6 +1,6 @@
 /*
  * bluealsa-ctl.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -272,14 +272,18 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 	}
 	else {
 		/* avoid name duplication by adding profile suffixes */
-		switch (elem->pcm->profile) {
-		case BA_PCM_PROFILE_A2DP:
+		switch (elem->pcm->transport) {
+		case BA_PCM_TRANSPORT_A2DP_SOURCE:
+		case BA_PCM_TRANSPORT_A2DP_SINK:
 			len = MIN(len - 7, name_len);
 			while (isspace(name[len - 1]))
 				len--;
 			sprintf(elem->name, "%.*s%s - A2DP", len, name, no);
 			break;
-		case BA_PCM_PROFILE_SCO:
+		case BA_PCM_TRANSPORT_HFP_AG:
+		case BA_PCM_TRANSPORT_HFP_HF:
+		case BA_PCM_TRANSPORT_HSP_AG:
+		case BA_PCM_TRANSPORT_HSP_HS:
 			len = MIN(len - 6, name_len);
 			while (isspace(name[len - 1]))
 				len--;
@@ -343,14 +347,14 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 		elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
 		elem_list[count].dev = dev;
 		elem_list[count].pcm = pcm;
-		elem_list[count].playback = pcm->modes & BA_PCM_MODE_SINK;
+		elem_list[count].playback = pcm->mode == BA_PCM_MODE_SINK;
 		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 		count++;
 
 		elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
 		elem_list[count].dev = dev;
 		elem_list[count].pcm = pcm;
-		elem_list[count].playback = pcm->modes & BA_PCM_MODE_SINK;
+		elem_list[count].playback = pcm->mode == BA_PCM_MODE_SINK;
 		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
 		count++;
 
@@ -498,11 +502,15 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	case CTL_ELEM_TYPE_SWITCH:
 		return -EINVAL;
 	case CTL_ELEM_TYPE_VOLUME:
-		switch (elem->pcm->profile) {
-		case BA_PCM_PROFILE_A2DP:
+		switch (elem->pcm->transport) {
+		case BA_PCM_TRANSPORT_A2DP_SOURCE:
+		case BA_PCM_TRANSPORT_A2DP_SINK:
 			*imax = 127;
 			break;
-		case BA_PCM_PROFILE_SCO:
+		case BA_PCM_TRANSPORT_HFP_AG:
+		case BA_PCM_TRANSPORT_HFP_HF:
+		case BA_PCM_TRANSPORT_HSP_AG:
+		case BA_PCM_TRANSPORT_HSP_HS:
 			*imax = 15;
 			break;
 		default:
@@ -873,12 +881,16 @@ static int bluealsa_snd_ctl_ext_tlv_callback(snd_ctl_ext_t *ext,
 	const unsigned int *tlv_db = NULL;
 	size_t tlv_db_size = 0;
 
-	switch (elem->pcm->profile) {
-	case BA_PCM_PROFILE_A2DP:
+	switch (elem->pcm->transport) {
+	case BA_PCM_TRANSPORT_A2DP_SOURCE:
+	case BA_PCM_TRANSPORT_A2DP_SINK:
 		tlv_db_size = sizeof(tlv_db_a2dp);
 		tlv_db = tlv_db_a2dp;
 		break;
-	case BA_PCM_PROFILE_SCO:
+	case BA_PCM_TRANSPORT_HFP_AG:
+	case BA_PCM_TRANSPORT_HFP_HF:
+	case BA_PCM_TRANSPORT_HSP_AG:
+	case BA_PCM_TRANSPORT_HSP_HS:
 		tlv_db_size = sizeof(tlv_db_sco);
 		tlv_db = tlv_db_sco;
 		break;
