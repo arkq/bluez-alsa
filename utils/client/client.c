@@ -611,29 +611,34 @@ static int cmd_monitor(int argc, char *argv[]) {
 static struct command {
 	const char *name;
 	int (*func)(int argc, char *arg[]);
+	const char *args;
 	const char *help;
 } commands[] = {
-	{ "get-codecs", cmd_get_codecs, "PCM_PATH", },
-	{ "list-pcms", cmd_list_pcms, "" },
-	{ "monitor", cmd_monitor, "" },
-	{ "mute", cmd_mute, "PCM_PATH y|n [y|n]" },
-	{ "open", cmd_open, "PCM_PATH" },
-	{ "properties", cmd_properties, "PCM_PATH" },
-	{ "select-codec", cmd_select_codec, "PCM_PATH CODEC" },
-	{ "set-volume", cmd_set_volume, "PCM_PATH N [N]" },
-	{ "softvol", cmd_softvol, "PCM_PATH y|n" },
+	{ "list-pcms", cmd_list_pcms, "", "List all PCM paths" },
+	{ "properties", cmd_properties, "<pcm-path>", "Show PCM properties" },
+	{ "get-codecs", cmd_get_codecs, "<pcm-path>", "Show codecs offered by PCM" },
+	{ "select-codec", cmd_select_codec, "<pcm-path> <codec>", "Change codec used by PCM" },
+	{ "set-volume", cmd_set_volume, "<pcm-path> <val> [<val>]", "Change audio volume" },
+	{ "mute", cmd_mute, "<pcm-path> <y|n> [<y|n>]", "Mute/unmute audio" },
+	{ "softvol", cmd_softvol, "<pcm-path> <y|n>", "Enable/disable SoftVolume property" },
+	{ "monitor", cmd_monitor, "", "Display PCMAdded and PCMRemoved signals" },
+	{ "open", cmd_open, "<pcm-path>", "Transfer raw PCM from stdin or to stdout" },
 };
 
 static void usage(void) {
+	printf("%s - Utility to issue BlueALSA API commands\n", progname);
+	printf("\nUsage:\n  %s [options] <command> [command args]\n", progname);
+	printf("\nOptions:\n");
+	printf("  -h, --help          Show this help\n");
+	printf("  -V, --version       Show version\n");
+	printf("  -B, --dbus=NAME     BlueALSA service name suffix\n");
+	printf("  -q, --quiet         Do not print any error messages\n");
+	printf("\nCommands:\n");
 	int index;
 	for (index = 0; index < ARRAYSIZE(commands); index++) {
-		printf("%s [options] %s %s\n", progname, commands[index].name, commands[index].help);
+		printf("  %-13s%-25s%s\n", commands[index].name, commands[index].args, commands[index].help);
 	}
-	printf("options:\n");
-	printf("   -h, --help       Show this help\n");
-	printf("   -V, --version    Show version\n");
-	printf("   -B, --dbus=NAME  BlueALSA service name suffix\n");
-	printf("   -q, --quiet      Do not print any error messages\n");
+
 }
 
 int main(int argc, char *argv[]) {
