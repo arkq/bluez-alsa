@@ -46,28 +46,8 @@ OPTIONS
 COMMANDS
 ========
 
-get-codecs *PCM_PATH*
-    Print a list of additional codecs supported by the given PCM. For A2DP PCMs
-    this requires Bluez SEP support (bluez >= 5.52).
-
 list-pcms
     Print a list of BlueALSA PCM D-Bus paths, one per line.
-
-monitor
-    Listen for ``PCMAdded`` and ``PCMRemoved`` signals and print a message on
-    standard output for each one received. Output lines are formed as
-    'PCMAdded *PCM_PATH*' or 'PCMRemoved *PCM_PATH*'.
-
-mute *PCM_PATH* y|n [y|n]
-    Set mute component of the volume property of the given PCM. The
-    second argument is used for stereo PCMs as described for ``set-volume``.
-
-open *PCM_PATH*
-    Connect to the given PCM then transfer audio frames. For sink PCMs
-    the frames are read from standard input and written to the PCM. For
-    source PCMs the frames are read from the PCM and written to standard
-    output. The format, channels and sampling rate must match the properties
-    of the PCM, as no format conversions are performed by this tool.
 
 properties *PCM_PATH*
     Print the properties of the given PCM. The properties are printed one per
@@ -75,6 +55,10 @@ properties *PCM_PATH*
     presented in human-readable format - for example the Volume property is
     printed as
     'Volume: L: 127 R: 127' or 'Volume: L: 127 (Muted) R: 127 (Muted)'.
+
+get-codecs *PCM_PATH*
+    Print a list of additional codecs supported by the given PCM. For A2DP PCMs
+    this requires Bluez SEP support (bluez >= 5.52).
 
 select-codec *PCM_PATH* *CODEC*
     Change the codec to be used by the given PCM. This command will terminate
@@ -89,11 +73,28 @@ set-volume *PCM_PATH* *N* [*N*]
     second value *N* is ignored. Valid A2DP values for *N* are 0-127, valid SCO
     values are 0-15.
 
+mute *PCM_PATH* y|n [y|n]
+    Set mute component of the volume property of the given PCM. The
+    second argument is used for stereo PCMs as described for ``set-volume``.
+
 softvol *PCM_PATH* y|n
     Set the SoftVolume property for the given PCM. This property determines
     whether BlueALSA will make volume control internally or will delegate this
     task to BlueALSA PCM client or connected Bluetooth device respectively for
     PCM sink or PCM source. The value 'y' enables SoftVolume, 'n' disables it.
+
+monitor
+    Listen for ``PCMAdded`` and ``PCMRemoved`` signals and print a message on
+    standard output for each one received. Output lines are formed as
+    'PCMAdded *PCM_PATH*' or 'PCMRemoved *PCM_PATH*'.
+
+open *PCM_PATH*
+    Connect to the given PCM then transfer raw audio frames. For sink PCMs
+    the frames are read from standard input and written to the PCM. For
+    source PCMs the frames are read from the PCM and written to standard
+    output. The format, channels and sampling rate must match the properties
+    of the PCM, as no format conversions are performed by this tool.
+
 
 SEE ALSO
 ========
