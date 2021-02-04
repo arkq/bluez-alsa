@@ -199,9 +199,9 @@ AC_ARG_ENABLE([aplay],
 	[AS_HELP_STRING([--disable-aplay], [disable building of bluealsa-aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
 
-AC_ARG_ENABLE([cmd],
-	[AS_HELP_STRING([--enable-cmd], [enable building of bluealsa-cmd tool])])
-AM_CONDITIONAL([ENABLE_CMD], [test "x$enable_cmd" = "xyes"])
+AC_ARG_ENABLE([client],
+	[AS_HELP_STRING([--enable-client], [enable building of bluealsa-client tool])])
+AM_CONDITIONAL([ENABLE_CLIENT], [test "x$enable_client" = "xyes"])
 
 AC_ARG_ENABLE([rfcomm],
 	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
@@ -282,7 +282,7 @@ AC_CONFIG_FILES([
 	src/asound/Makefile
 	utils/Makefile
 	utils/aplay/Makefile
-	utils/cmd/Makefile
+	utils/client/Makefile
 	utils/rfcomm/Makefile
 	test/Makefile])
 AC_OUTPUT
