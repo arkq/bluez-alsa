@@ -13,10 +13,6 @@
 # include <config.h>
 #endif
 
-#include "shared/dbus-client.h"
-#include "shared/defs.h"
-#include "../dbus.h"
-
 #include <errno.h>
 #include <getopt.h>
 #include <signal.h>
@@ -26,57 +22,19 @@
 #include <string.h>
 #include <unistd.h>
 
-
-static int list_pcms(int argc, char *argv[]);
-static int get_codecs(int argc, char *argv[]);
-static int select_codec(int argc, char *argv[]);
-static int properties(int argc, char *argv[]);
-static int set_volume(int argc, char *argv[]);
-static int mute(int argc, char *argv[]);
-static int softvol(int argc, char *argv[]);
-static int open_pcm(int argc, char *argv[]);
-static int monitor(int argc, char *argv[]);
+#include "shared/dbus-client.h"
+#include "shared/defs.h"
+#include "../dbus.h"
 
 
-static struct command {
-	const char *name;
-	int (*func)(int argc, char *arg[]);
-	const char *help;
-} commands[] = {
-	{ "get-codecs", get_codecs, "PCM_PATH", },
-	{ "list-pcms", list_pcms, "" },
-	{ "monitor", monitor, "" },
-	{ "mute", mute, "PCM_PATH y|n [y|n]" },
-	{ "open", open_pcm, "PCM_PATH" },
-	{ "properties", properties, "PCM_PATH" },
-	{ "select-codec", select_codec, "PCM_PATH CODEC" },
-	{ "set-volume", set_volume, "PCM_PATH N [N]" },
-	{ "softvol", softvol, "PCM_PATH y|n" },
-	{ 0 }
-};
-
-static const struct option long_options[] = {
-    {"dbus",        required_argument, NULL, 'B'},
-    {"version",     no_argument, NULL, 'V'},
-    {"help",        no_argument, NULL, 'h'},
-	{"quiet",       no_argument, NULL, 'q'},
-    { 0 },
-};
-
-static struct {
-	const char *progname;
-	bool quiet;
-	char service[32];
-} options = {
-	.progname = NULL,
-	.quiet = false,
-	.service = BLUEALSA_SERVICE,
-};
+static const char *progname = NULL;
+static bool quiet = false;
+static char service_name[32] = BLUEALSA_SERVICE;
 
 static struct ba_dbus_ctx dbus_ctx;
 
 static void print_error(const char *format, ...) {
-	if (!options.quiet) {
+	if (!quiet) {
 		va_list ap;
 		va_start(ap, format);
 		vfprintf(stderr, format, ap);
@@ -86,12 +44,12 @@ static void print_error(const char *format, ...) {
 }
 
 static void print_error_usage(const char *format, ...) {
-	if (!options.quiet) {
+	if (!quiet) {
 		va_list ap;
 		va_start(ap, format);
 		vfprintf(stderr, format, ap);
 		va_end(ap);
-		fprintf(stderr, "\nTry '%s --help' for more information.\n", options.progname);
+		fprintf(stderr, "\nTry '%s --help' for more information.\n", progname);
 	}
 }
 
@@ -140,7 +98,7 @@ static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 	return found;
 }
 
-static int list_pcms(int argc, char *argv[]) {
+static int cmd_list_pcms(int argc, char *argv[]) {
 	if (argc > 1) {
 		print_error_usage("Too many arguments.");
 		return EXIT_FAILURE;
@@ -164,9 +122,9 @@ static int list_pcms(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-static int get_codecs(int argc, char *argv[]) {
+static int cmd_get_codecs(int argc, char *argv[]) {
 	if (argc != 2) {
-		print_error_usage("Too many arguments.");
+		print_error_usage("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -181,7 +139,7 @@ static int get_codecs(int argc, char *argv[]) {
 	DBusError err = DBUS_ERROR_INIT;
 	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
 					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
-		print_error("Out of memory");
+		print_error(strerror(ENOMEM));
 		return EXIT_FAILURE;
 	}
 
@@ -233,7 +191,7 @@ fail:
 	return result;
 }
 
-static int select_codec(int argc, char *argv[]) {
+static int cmd_select_codec(int argc, char *argv[]) {
 	if (argc != 3) {
 		print_error_usage("Invalid arguments.");
 		return EXIT_FAILURE;
@@ -251,7 +209,7 @@ static int select_codec(int argc, char *argv[]) {
 	DBusError err = DBUS_ERROR_INIT;
 	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
 					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		print_error("Out of memory");
+		print_error(strerror(ENOMEM));
 		return EXIT_FAILURE;
 	}
 
@@ -259,14 +217,14 @@ static int select_codec(int argc, char *argv[]) {
 	dbus_message_iter_init_append(msg, &iter);
 
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
-		print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
+		print_error(strerror(ENOMEM));
 		dbus_message_unref(msg);
 		return EXIT_FAILURE;
 	}
 
 	DBusMessageIter props = DBUS_MESSAGE_ITER_INIT_CLOSED;
 	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
+		print_error(strerror(ENOMEM));
 		dbus_message_unref(msg);
 		return EXIT_FAILURE;
 	}
@@ -284,7 +242,7 @@ static int select_codec(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-static int properties(int argc, char *argv[]) {
+static int cmd_properties(int argc, char *argv[]) {
 	if (argc != 2) {
 		print_error_usage("Too many arguments.");
 		return EXIT_FAILURE;
@@ -366,15 +324,16 @@ static int properties(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-static int set_volume(int argc, char *argv[]) {
+static int cmd_set_volume(int argc, char *argv[]) {
 	if (argc < 3 || argc > 4) {
 		print_error_usage("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
-	int vol1 = atoi(argv[2]);
-	int vol2 = vol1;
+
+	int vol1, vol2;
+	vol1 = vol2 = atoi(argv[2]);
 	if (argc == 4)
 		vol2 = atoi(argv[3]);
 
@@ -384,15 +343,7 @@ static int set_volume(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	/* Get the transport value from the pcm path */
-	char *token[6] = { 0 };
-	char *tmp = strdup(path);
-	char *next = tmp + 1;
-	int i = 0;
-	while (next && i < 6) {
-		token[i++] = strsep(&next, "/");
-	}
-	if (strstr(token[4], "a2dp")) {
+	if (pcm.profile == BA_PCM_PROFILE_A2DP) {
 		if (vol1 < 0 || vol1 > 127) {
 			print_error("Invalid volume %d ([0 - 127])", vol1);
 			return EXIT_FAILURE;
@@ -414,15 +365,16 @@ static int set_volume(int argc, char *argv[]) {
 		pcm.volume.ch1_volume = vol1;
 	}
 
-	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_VOLUME, NULL)) {
-		print_error("Out of memory");
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
+		print_error("Volume loudness update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	return EXIT_SUCCESS;
 }
 
-static int mute(int argc, char *argv[]) {
+static int cmd_mute(int argc, char *argv[]) {
 	if (argc < 3 || argc > 4) {
 		print_error_usage("Invalid arguments.");
 		return EXIT_FAILURE;
@@ -466,15 +418,16 @@ static int mute(int argc, char *argv[]) {
 	if (pcm.channels == 2)
 		pcm.volume.ch2_muted = mute2;
 
-	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_VOLUME, NULL)) {
-		print_error("Out of memory");
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
+		print_error("Volume mute update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	return EXIT_SUCCESS;
 }
 
-static int softvol(int argc, char *argv[]) {
+static int cmd_softvol(int argc, char *argv[]) {
 	if (argc != 3) {
 		print_error_usage("Invalid arguments.");
 		return EXIT_FAILURE;
@@ -500,15 +453,16 @@ static int softvol(int argc, char *argv[]) {
 	strncpy(pcm.pcm_path, argv[optind], sizeof(pcm.pcm_path));
 	pcm.soft_volume = enable_softvol;
 
-	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_SOFT_VOLUME, NULL)) {
-		print_error("Out of memory");
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
+		print_error("SoftVolume update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	return EXIT_SUCCESS;
 }
 
-static int open_pcm(int argc, char *argv[]) {
+static int cmd_open(int argc, char *argv[]) {
 	if (argc != 2) {
 		print_error_usage("Invalid arguments.");
 		return EXIT_FAILURE;
@@ -612,16 +566,16 @@ static void monitor_loop_stop(int sig) {
 	monitor_loop_on = false;
 }
 
-static int monitor(int argc, char *argv[]) {
+static int cmd_monitor(int argc, char *argv[]) {
 	if (argc != 1) {
 		print_error_usage("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
-			options.service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
+			service_name, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
-			options.service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
+			service_name, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
 
 	if (!dbus_connection_add_filter(dbus_ctx.conn, dbus_signal_handler, NULL, NULL)) {
 		print_error("Couldn't add D-Bus filter");
@@ -654,10 +608,26 @@ static int monitor(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
+static struct command {
+	const char *name;
+	int (*func)(int argc, char *arg[]);
+	const char *help;
+} commands[] = {
+	{ "get-codecs", cmd_get_codecs, "PCM_PATH", },
+	{ "list-pcms", cmd_list_pcms, "" },
+	{ "monitor", cmd_monitor, "" },
+	{ "mute", cmd_mute, "PCM_PATH y|n [y|n]" },
+	{ "open", cmd_open, "PCM_PATH" },
+	{ "properties", cmd_properties, "PCM_PATH" },
+	{ "select-codec", cmd_select_codec, "PCM_PATH CODEC" },
+	{ "set-volume", cmd_set_volume, "PCM_PATH N [N]" },
+	{ "softvol", cmd_softvol, "PCM_PATH y|n" },
+};
+
 static void usage(void) {
 	int index;
 	for (index = 0; commands[index].name != NULL; index++) {
-		printf("%s [options] %s %s\n", options.progname, commands[index].name, commands[index].help);
+		printf("%s [options] %s %s\n", progname, commands[index].name, commands[index].help);
 	}
 	printf("options:\n");
 	printf("   -h, --help       Show this help\n");
@@ -668,54 +638,50 @@ static void usage(void) {
 
 int main(int argc, char *argv[]) {
 
-	int ret = EXIT_SUCCESS;
+	const struct option long_options[] = {
+		{"dbus",        required_argument, NULL, 'B'},
+		{"version",     no_argument, NULL, 'V'},
+		{"help",        no_argument, NULL, 'h'},
+		{"quiet",       no_argument, NULL, 'q'},
+		{ 0 },
+	};
 
-	const char *progname = strrchr(argv[0], '/');
-	if (progname == NULL)
-		progname = argv[0];
-	else
-		++progname;
-	options.progname = progname;
+	progname = argv[0];
 
 	int c;
     while ((c = getopt_long(argc, argv, "+s:Vh", long_options, NULL)) != -1) {
         switch (c) {
             case 'h' :
                 usage();
-                goto quit;
+				return EXIT_SUCCESS;
             case 'V' :
-				printf("%s %s\n", options.progname, PACKAGE_VERSION);
-                goto quit;
+				printf("%s %s\n", progname, PACKAGE_VERSION);
+				return EXIT_SUCCESS;
 			case 'B' :
-				snprintf(options.service, sizeof(options.service), BLUEALSA_SERVICE ".%s", optarg);
+				snprintf(service_name, sizeof(service_name), BLUEALSA_SERVICE ".%s", optarg);
 				break;
 			case 'q' :
-				options.quiet = true;
+				quiet = true;
 				break;
 		}
 	}
 
     if (optind < argc) {
-		struct command *command = &commands[0];
-		while (command->name != NULL) {
-			if (strcmp(argv[optind], command->name) == 0) {
+		int n;
+		for (n = 0; n < ARRAYSIZE(commands); n++) {
+			if (strcmp(argv[optind], commands[n].name) == 0) {
 				DBusError err = DBUS_ERROR_INIT;
-				if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, options.service, &err)) {
+				if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, service_name, &err)) {
 					print_error("Couldn't initialize D-Bus context: %s", err.message);
-					ret = EXIT_FAILURE;
-					goto quit;
+					return EXIT_FAILURE;
 				}
 
-				ret = command->func(argc - optind, &argv[optind]);
-				goto quit;
+				return commands[n].func(argc - optind, &argv[optind]);
 			}
-			++command;
 		}
 	}
 
 	print_error_usage("No valid command specified.");
-	ret = EXIT_FAILURE;
+	return EXIT_FAILURE;
 
-quit:
-	return ret;
 }
