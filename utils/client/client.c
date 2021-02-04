@@ -626,7 +626,7 @@ static struct command {
 
 static void usage(void) {
 	int index;
-	for (index = 0; commands[index].name != NULL; index++) {
+	for (index = 0; index < ARRAYSIZE(commands); index++) {
 		printf("%s [options] %s %s\n", progname, commands[index].name, commands[index].help);
 	}
 	printf("options:\n");
