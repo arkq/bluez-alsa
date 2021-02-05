@@ -3,7 +3,7 @@ bluealsa-client
 ===============
 
 --------------------------------------------------------
-a simple command-line wrapper for the bluealsa D-Bus API
+a simple command-line wrapper for the BlueALSA D-Bus API
 --------------------------------------------------------
 
 :Date: February 2021

@@ -256,34 +256,41 @@ static int cmd_properties(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	/* Get the transport and mode values from the pcm path */
-	char *token[6] = { 0 };
-	char *tmp = strdup(path);
-	char *next = tmp + 1;
-	size_t i = 0;
-	while (next && i < 6) {
-		token[i++] = strsep(&next, "/");
-	}
-
 	printf("Device: %s\n", pcm.device_path);
 
-	if (strstr(token[4], "a2dpsrc"))
+	switch (pcm.transport) {
+	case BA_PCM_TRANSPORT_A2DP_SOURCE:
 		printf("Transport: %s\n", "A2DP-source");
-	else if (strstr(token[4], "a2dpsink"))
+		break;
+	case BA_PCM_TRANSPORT_A2DP_SINK:
 		printf("Transport: %s\n", "A2DP-sink");
-	else if (strstr(token[4], "hfpag"))
+		break;
+	case BA_PCM_TRANSPORT_HFP_AG:
 		printf("Transport: %s\n", "HFP-AG");
-	else if (strstr(token[4], "hfphf"))
+		break;
+	case BA_PCM_TRANSPORT_HFP_HF:
 		printf("Transport: %s\n", "HFP-HF");
-	else if (strstr(token[4], "hspag"))
+		break;
+	case BA_PCM_TRANSPORT_HSP_AG:
 		printf("Transport: %s\n", "HSP-AG");
-	else if (strstr(token[4], "hsphs"))
+		break;
+	case BA_PCM_TRANSPORT_HSP_HS:
 		printf("Transport: %s\n", "HSP-HS");
+		break;
+	default:
+		printf("Transport: %s\n", "Unknown");
+	}
 
-	if (strstr(token[5], "sink"))
+	switch (pcm.mode) {
+	case BA_PCM_MODE_SINK:
 		printf("Mode: %s\n", "sink");
-	else if (strstr(token[5], "source"))
+		break;
+	case BA_PCM_MODE_SOURCE:
 		printf("Mode: %s\n", "source");
+		break;
+	default:
+		printf("Mode: %s\n", "Unknown");
+	}
 
 	switch (pcm.format) {
 	case 0x0108:
@@ -343,7 +350,7 @@ static int cmd_set_volume(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	if (pcm.profile == BA_PCM_PROFILE_A2DP) {
+	if (pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP) {
 		if (vol1 < 0 || vol1 > 127) {
 			print_error("Invalid volume %d ([0 - 127])", vol1);
 			return EXIT_FAILURE;
@@ -478,7 +485,7 @@ static int cmd_open(int argc, char *argv[]) {
 	size_t len = strlen(path);
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_open_pcm(&dbus_ctx, argv[optind], &fd_pcm, &fd_pcm_ctrl, &err)) {
+	if (!bluealsa_dbus_open_pcm(&dbus_ctx, path, &fd_pcm, &fd_pcm_ctrl, &err)) {
 		print_error("Cannot open PCM : %s", err.message);
 		return EXIT_FAILURE;
 	}
@@ -555,17 +562,6 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-static bool monitor_loop_on = true;
-static void monitor_loop_stop(int sig) {
-	/* Call to this handler restores the default action, so on the
-	 * second call the program will be forcefully terminated. */
-
-	struct sigaction sigact = { .sa_handler = SIG_DFL };
-	sigaction(sig, &sigact, NULL);
-
-	monitor_loop_on = false;
-}
-
 static int cmd_monitor(int argc, char *argv[]) {
 	if (argc != 1) {
 		print_error_usage("Invalid arguments.");
@@ -582,28 +578,7 @@ static int cmd_monitor(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	struct sigaction sigact = { .sa_handler = monitor_loop_stop };
-	sigaction(SIGTERM, &sigact, NULL);
-	sigaction(SIGINT, &sigact, NULL);
-
-	while (monitor_loop_on) {
-
-		struct pollfd pfds[10];
-		nfds_t pfds_len = ARRAYSIZE(pfds);
-
-		if (!bluealsa_dbus_connection_poll_fds(&dbus_ctx, pfds, &pfds_len)) {
-			print_error("Couldn't get D-Bus connection file descriptors");
-			return EXIT_FAILURE;
-		}
-
-		if (poll(pfds, pfds_len, -1) == -1 &&
-				errno == EINTR)
-			continue;
-
-		if (bluealsa_dbus_connection_poll_dispatch(&dbus_ctx, pfds, pfds_len))
-			while (dbus_connection_dispatch(dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
-				continue;
-	}
+	while (dbus_connection_read_write_dispatch(dbus_ctx.conn, -1));
 
 	return EXIT_SUCCESS;
 }
@@ -654,7 +629,7 @@ int main(int argc, char *argv[]) {
 	progname = argv[0];
 
 	int c;
-    while ((c = getopt_long(argc, argv, "+s:Vh", long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "+B:Vhq", long_options, NULL)) != -1) {
         switch (c) {
             case 'h' :
                 usage();
