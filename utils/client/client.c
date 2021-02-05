@@ -53,31 +53,6 @@ static void print_error_usage(const char *format, ...) {
 	}
 }
 
-static bool check_path(const char *path) {
-	struct ba_pcm *pcms = NULL;
-	size_t pcms_count = 0;
-	DBusError err = DBUS_ERROR_INIT;
-	bool result = false;
-
-	if (!bluealsa_dbus_get_pcms(&dbus_ctx, &pcms, &pcms_count, &err)) {
-		print_error("Couldn't get BlueALSA PCM list: %s", err.message);
-		return false;
-	}
-
-	size_t i;
-	for (i = 0; i < pcms_count; i++)
-		if (strcmp(pcms[i].pcm_path, path) == 0) {
-			result = true;
-			break;
-		}
-
-	if (!result)
-		print_error("Invalid pcm path: %s", path);
-
-	free(pcms);
-	return result;
-}
-
 static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 	struct ba_pcm *pcms = NULL;
 	bool found = false;
@@ -130,7 +105,8 @@ static int cmd_get_codecs(int argc, char *argv[]) {
 
 	const char *path = argv[1];
 
-	if (!check_path(path)) {
+	if (!dbus_validate_path(path, NULL)) {
+		print_error_usage("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -200,7 +176,8 @@ static int cmd_select_codec(int argc, char *argv[]) {
 	const char *path = argv[1];
 	const char *codec = argv[2];
 
-	if (!check_path(path)) {
+	if (!dbus_validate_path(path, NULL)) {
+		print_error_usage("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -442,7 +419,8 @@ static int cmd_softvol(int argc, char *argv[]) {
 
 	const char *path = argv[1];
 
-	if (!check_path(path)) {
+	if (!dbus_validate_path(path, NULL)) {
+		print_error_usage("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -477,7 +455,8 @@ static int cmd_open(int argc, char *argv[]) {
 
 	const char *path = argv[1];
 
-	if (!check_path(path)) {
+	if (!dbus_validate_path(path, NULL)) {
+		print_error_usage("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -594,15 +573,15 @@ static struct command {
 	{ "get-codecs", cmd_get_codecs, "<pcm-path>", "Show codecs offered by PCM" },
 	{ "select-codec", cmd_select_codec, "<pcm-path> <codec>", "Change codec used by PCM" },
 	{ "set-volume", cmd_set_volume, "<pcm-path> <val> [<val>]", "Change audio volume" },
-	{ "mute", cmd_mute, "<pcm-path> <y|n> [<y|n>]", "Mute/unmute audio" },
-	{ "softvol", cmd_softvol, "<pcm-path> <y|n>", "Enable/disable SoftVolume property" },
+	{ "mute", cmd_mute, "<pcm-path> y|n [y|n]", "Mute/unmute audio" },
+	{ "softvol", cmd_softvol, "<pcm-path> y|n", "Enable/disable SoftVolume property" },
 	{ "monitor", cmd_monitor, "", "Display PCMAdded and PCMRemoved signals" },
 	{ "open", cmd_open, "<pcm-path>", "Transfer raw PCM from stdin or to stdout" },
 };
 
 static void usage(void) {
 	printf("%s - Utility to issue BlueALSA API commands\n", progname);
-	printf("\nUsage:\n  %s [options] <command> [command args]\n", progname);
+	printf("\nUsage:\n  %s [options] <command> [command-args]\n", progname);
 	printf("\nOptions:\n");
 	printf("  -h, --help          Show this help\n");
 	printf("  -V, --version       Show version\n");
