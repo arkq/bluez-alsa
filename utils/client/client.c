@@ -15,7 +15,6 @@
 
 #include <errno.h>
 #include <getopt.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +23,6 @@
 
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
-#include "../dbus.h"
 
 
 static const char *progname = NULL;
@@ -608,24 +606,24 @@ int main(int argc, char *argv[]) {
 	progname = argv[0];
 
 	int c;
-    while ((c = getopt_long(argc, argv, "+B:Vhq", long_options, NULL)) != -1) {
-        switch (c) {
-            case 'h' :
-                usage();
-				return EXIT_SUCCESS;
-            case 'V' :
-				printf("%s %s\n", progname, PACKAGE_VERSION);
-				return EXIT_SUCCESS;
-			case 'B' :
-				snprintf(service_name, sizeof(service_name), BLUEALSA_SERVICE ".%s", optarg);
-				break;
-			case 'q' :
-				quiet = true;
-				break;
+	while ((c = getopt_long(argc, argv, "+B:Vhq", long_options, NULL)) != -1) {
+		switch (c) {
+		case 'h' :
+			usage();
+			return EXIT_SUCCESS;
+		case 'V' :
+			printf("%s %s\n", progname, PACKAGE_VERSION);
+			return EXIT_SUCCESS;
+		case 'B' :
+			snprintf(service_name, sizeof(service_name), BLUEALSA_SERVICE ".%s", optarg);
+			break;
+		case 'q' :
+			quiet = true;
+			break;
 		}
 	}
 
-    if (optind < argc) {
+	if (optind < argc) {
 		int n;
 		for (n = 0; n < ARRAYSIZE(commands); n++) {
 			if (strcmp(argv[optind], commands[n].name) == 0) {
