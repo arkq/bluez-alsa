@@ -23,6 +23,13 @@
 
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
+#include "shared/log.h"
+
+
+/**
+ * Helper macro for internal usage. */
+# define print_error(M, ...) if (!quiet) { error(M, ##__VA_ARGS__); }
+
 
 
 static const char *progname = NULL;
@@ -30,26 +37,6 @@ static bool quiet = false;
 static char service_name[32] = BLUEALSA_SERVICE;
 
 static struct ba_dbus_ctx dbus_ctx;
-
-static void print_error(const char *format, ...) {
-	if (!quiet) {
-		va_list ap;
-		va_start(ap, format);
-		vfprintf(stderr, format, ap);
-		fputs("\n", stderr);
-		va_end(ap);
-	}
-}
-
-static void print_error_usage(const char *format, ...) {
-	if (!quiet) {
-		va_list ap;
-		va_start(ap, format);
-		vfprintf(stderr, format, ap);
-		va_end(ap);
-		fprintf(stderr, "\nTry '%s --help' for more information.\n", progname);
-	}
-}
 
 static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 	struct ba_pcm *pcms = NULL;
@@ -73,7 +60,7 @@ static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 
 static int cmd_list_pcms(int argc, char *argv[]) {
 	if (argc > 1) {
-		print_error_usage("Too many arguments.");
+		print_error("Too many arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -97,14 +84,14 @@ static int cmd_list_pcms(int argc, char *argv[]) {
 
 static int cmd_get_codecs(int argc, char *argv[]) {
 	if (argc != 2) {
-		print_error_usage("Invalid arguments.");
+		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
 
 	if (!dbus_validate_path(path, NULL)) {
-		print_error_usage("Invalid PCM path '%s'", path);
+		print_error("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -113,7 +100,7 @@ static int cmd_get_codecs(int argc, char *argv[]) {
 	DBusError err = DBUS_ERROR_INIT;
 	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
 					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
-		print_error(strerror(ENOMEM));
+		print_error("%s", strerror(ENOMEM));
 		return EXIT_FAILURE;
 	}
 
@@ -167,7 +154,7 @@ fail:
 
 static int cmd_select_codec(int argc, char *argv[]) {
 	if (argc != 3) {
-		print_error_usage("Invalid arguments.");
+		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -175,7 +162,7 @@ static int cmd_select_codec(int argc, char *argv[]) {
 	const char *codec = argv[2];
 
 	if (!dbus_validate_path(path, NULL)) {
-		print_error_usage("Invalid PCM path '%s'", path);
+		print_error("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -184,7 +171,7 @@ static int cmd_select_codec(int argc, char *argv[]) {
 	DBusError err = DBUS_ERROR_INIT;
 	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
 					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		print_error(strerror(ENOMEM));
+		print_error("%s", strerror(ENOMEM));
 		return EXIT_FAILURE;
 	}
 
@@ -192,14 +179,14 @@ static int cmd_select_codec(int argc, char *argv[]) {
 	dbus_message_iter_init_append(msg, &iter);
 
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
-		print_error(strerror(ENOMEM));
+		print_error("%s", strerror(ENOMEM));
 		dbus_message_unref(msg);
 		return EXIT_FAILURE;
 	}
 
 	DBusMessageIter props = DBUS_MESSAGE_ITER_INIT_CLOSED;
 	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		print_error(strerror(ENOMEM));
+		print_error("%s", strerror(ENOMEM));
 		dbus_message_unref(msg);
 		return EXIT_FAILURE;
 	}
@@ -217,9 +204,68 @@ static int cmd_select_codec(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
+static const char *transport_code_to_string(int transport_code) {
+	switch (transport_code) {
+	case BA_PCM_TRANSPORT_A2DP_SOURCE:
+		return "A2DP-source";
+	case BA_PCM_TRANSPORT_A2DP_SINK:
+		return"A2DP-sink";
+	case BA_PCM_TRANSPORT_HFP_AG:
+		return "HFP-AG";
+	case BA_PCM_TRANSPORT_HFP_HF:
+		return "HFP-HF";
+	case BA_PCM_TRANSPORT_HSP_AG:
+		return "HSP-AG";
+	case BA_PCM_TRANSPORT_HSP_HS:
+		return "HSP-HS";
+	case  BA_PCM_TRANSPORT_MASK_A2DP:
+		return "A2DP";
+	case  BA_PCM_TRANSPORT_MASK_HFP:
+		return "HFP";
+	case BA_PCM_TRANSPORT_MASK_HSP:
+		return "HSP";
+	case BA_PCM_TRANSPORT_MASK_SCO:
+		return "SCO";
+	case BA_PCM_TRANSPORT_MASK_AG:
+		return "AG";
+	case BA_PCM_TRANSPORT_MASK_HF:
+		return "HF";
+	default:
+		return "Invalid";
+	}
+}
+
+static const char *pcm_mode_to_string(int pcm_mode) {
+	switch (pcm_mode) {
+	case BA_PCM_MODE_SINK:
+		return "sink";
+	case BA_PCM_MODE_SOURCE:
+		return "source";
+	default:
+		return "Invalid";
+	}
+}
+
+static const char *pcm_format_to_string(int pcm_format) {
+	switch (pcm_format) {
+	case 0x0108:
+		return "U8";
+	case 0x8210:
+		return "S16_LE";
+	case 0x8318:
+		return "S24_3LE";
+	case 0x8418:
+		return "S24_LE";
+	case 0x8420:
+		return "S32_LE";
+	default:
+		return "Invalid";
+	}
+}
+
 static int cmd_properties(int argc, char *argv[]) {
 	if (argc != 2) {
-		print_error_usage("Too many arguments.");
+		print_error("Too many arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -232,65 +278,13 @@ static int cmd_properties(int argc, char *argv[]) {
 	}
 
 	printf("Device: %s\n", pcm.device_path);
-
-	switch (pcm.transport) {
-	case BA_PCM_TRANSPORT_A2DP_SOURCE:
-		printf("Transport: %s\n", "A2DP-source");
-		break;
-	case BA_PCM_TRANSPORT_A2DP_SINK:
-		printf("Transport: %s\n", "A2DP-sink");
-		break;
-	case BA_PCM_TRANSPORT_HFP_AG:
-		printf("Transport: %s\n", "HFP-AG");
-		break;
-	case BA_PCM_TRANSPORT_HFP_HF:
-		printf("Transport: %s\n", "HFP-HF");
-		break;
-	case BA_PCM_TRANSPORT_HSP_AG:
-		printf("Transport: %s\n", "HSP-AG");
-		break;
-	case BA_PCM_TRANSPORT_HSP_HS:
-		printf("Transport: %s\n", "HSP-HS");
-		break;
-	default:
-		printf("Transport: %s\n", "Unknown");
-	}
-
-	switch (pcm.mode) {
-	case BA_PCM_MODE_SINK:
-		printf("Mode: %s\n", "sink");
-		break;
-	case BA_PCM_MODE_SOURCE:
-		printf("Mode: %s\n", "source");
-		break;
-	default:
-		printf("Mode: %s\n", "Unknown");
-	}
-
-	switch (pcm.format) {
-	case 0x0108:
-		printf("Format: %s\n", "U8");
-		break;
-	case 0x8210:
-		printf("Format: %s\n", "S16_LE");
-		break;
-	case 0x8318:
-		printf("Format: %s\n", "S24_3LE");
-		break;
-	case 0x8418:
-		printf("Format: %s\n", "S24_LE");
-		break;
-	case 0x8420:
-		printf("Format: %s\n", "S32_LE");
-		break;
-	default:
-		printf("Format: %s\n", "Unknown");
-	}
-
+	printf("Transport: %s\n", transport_code_to_string(pcm.transport));
+	printf("Mode: %s\n", pcm_mode_to_string(pcm.mode));
+	printf("Format: %s\n", pcm_format_to_string(pcm.format));
 	printf("Channels: %d\n", pcm.channels);
-	printf("Sampling: %d\n", pcm.sampling);
+	printf("Sampling: %d Hz\n", pcm.sampling);
 	printf("Codec: %s\n", pcm.codec);
-	printf("Delay: %u\n", pcm.delay);
+	printf("Delay: %#.1f ms\n", (double)pcm.delay / 10);
 	printf("SoftVolume: %s\n", pcm.soft_volume ? "Y" : "N");
 
 	if (pcm.channels == 2) {
@@ -308,7 +302,7 @@ static int cmd_properties(int argc, char *argv[]) {
 
 static int cmd_set_volume(int argc, char *argv[]) {
 	if (argc < 3 || argc > 4) {
-		print_error_usage("Invalid arguments.");
+		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -327,13 +321,13 @@ static int cmd_set_volume(int argc, char *argv[]) {
 
 	if (pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP) {
 		if (vol1 < 0 || vol1 > 127) {
-			print_error("Invalid volume %d ([0 - 127])", vol1);
+			print_error("Invalid volume ([0 - 127]) %d", vol1);
 			return EXIT_FAILURE;
 		}
 		pcm.volume.ch1_volume = vol1;
 		if (pcm.channels == 2) {
 			if (vol2 < 0 || vol2 > 127) {
-				print_error("Invalid volume %d ([0 - 127])", vol2);
+				print_error("Invalid volume ([0 - 127]) %d", vol2);
 				return EXIT_FAILURE;
 			}
 			pcm.volume.ch2_volume = vol2;
@@ -341,7 +335,7 @@ static int cmd_set_volume(int argc, char *argv[]) {
 	}
 	else {
 		if (vol1 < 0 || vol1 > 15) {
-			print_error("Invalid volume %d ([0 - 15])", vol1);
+			print_error("Invalid volume ([0 - 15]) %d", vol1);
 			return EXIT_FAILURE;
 		}
 		pcm.volume.ch1_volume = vol1;
@@ -358,22 +352,11 @@ static int cmd_set_volume(int argc, char *argv[]) {
 
 static int cmd_mute(int argc, char *argv[]) {
 	if (argc < 3 || argc > 4) {
-		print_error_usage("Invalid arguments.");
+		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
-
-	bool mute1 = 0, mute2 = 0;
-
-	if (strcasecmp(argv[2], "y") == 0)
-		mute1 = true;
-	else if (strcasecmp(argv[2], "n") == 0)
-		mute1 = false;
-	else {
-		print_error_usage("Invalid arguments");
-		return EXIT_FAILURE;
-	}
 
 	struct ba_pcm pcm;
 	if (!get_pcm(path, &pcm)) {
@@ -381,24 +364,27 @@ static int cmd_mute(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	pcm.volume.ch1_muted = pcm.volume.ch2_muted = false;
+
+	if (strcasecmp(argv[2], "y") == 0)
+		pcm.volume.ch1_muted = true;
+	else if (strcasecmp(argv[2], "n") != 0) {
+		print_error("Invalid argument (y|n): %s", argv[2]);
+		return EXIT_FAILURE;
+	}
+
 	if (pcm.channels == 2) {
 		if (argc == 3)
-			mute2 = mute1;
+			pcm.volume.ch2_muted = pcm.volume.ch1_muted;
 		else {
 			if (strcasecmp(argv[3], "y") == 0)
-				mute2 = true;
-			else if (strcasecmp(argv[3], "n") == 0)
-				mute2 = false;
-			else {
-				print_error_usage("Invalid arguments");
+				pcm.volume.ch2_muted  = true;
+			else if (strcasecmp(argv[3], "n") != 0) {
+				print_error("Invalid argument (y|n): %s", argv[3]);
 				return EXIT_FAILURE;
 			}
 		}
 	}
-
-	pcm.volume.ch1_muted = mute1;
-	if (pcm.channels == 2)
-		pcm.volume.ch2_muted = mute2;
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
@@ -411,30 +397,27 @@ static int cmd_mute(int argc, char *argv[]) {
 
 static int cmd_softvol(int argc, char *argv[]) {
 	if (argc != 3) {
-		print_error_usage("Invalid arguments.");
+		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
 
 	if (!dbus_validate_path(path, NULL)) {
-		print_error_usage("Invalid PCM path '%s'", path);
-		return EXIT_FAILURE;
-	}
-
-	bool enable_softvol;
-	if (strcasecmp(argv[2], "y") == 0)
-		enable_softvol = true;
-	else if (strcasecmp(argv[2], "n") == 0)
-		enable_softvol = false;
-	else {
-		print_error_usage("Invalid arguments");
+		print_error("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
 	struct ba_pcm pcm = { 0 };
-	strncpy(pcm.pcm_path, argv[optind], sizeof(pcm.pcm_path));
-	pcm.soft_volume = enable_softvol;
+	strncpy(pcm.pcm_path, path, sizeof(pcm.pcm_path));
+	if (strcasecmp(argv[2], "y") == 0)
+		pcm.soft_volume = true;
+	else if (strcasecmp(argv[2], "n") == 0)
+		pcm.soft_volume = false;
+	else {
+		print_error("Invalid argument (y|n): %s", argv[2]);
+		return EXIT_FAILURE;
+	}
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
@@ -447,14 +430,14 @@ static int cmd_softvol(int argc, char *argv[]) {
 
 static int cmd_open(int argc, char *argv[]) {
 	if (argc != 2) {
-		print_error_usage("Invalid arguments.");
+		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
 
 	if (!dbus_validate_path(path, NULL)) {
-		print_error_usage("Invalid PCM path '%s'", path);
+		print_error("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -476,12 +459,12 @@ static int cmd_open(int argc, char *argv[]) {
 		output = fd_pcm;
 	}
 
-	size_t count;
+	ssize_t count;
 	char buffer[4096];
 	while ((count = read(input, buffer, sizeof(buffer))) > 0) {
 		size_t written = 0;
 		while (written < count) {
-			size_t res = write(output, buffer, count - written);
+			ssize_t res = write(output, buffer, count - written);
 			if (res <= 0) {
 				/* Cannot write any more, so just terminate */
 				goto finish;
@@ -492,9 +475,6 @@ static int cmd_open(int argc, char *argv[]) {
 
 	if (output == fd_pcm)
 		bluealsa_dbus_pcm_ctrl_send_drain(fd_pcm_ctrl, &err);
-	else
-		/* sleep arbitrary 300ms to allow stdout to drain */
-		usleep(300000);
 
 finish:
 	close(fd_pcm);
@@ -541,7 +521,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 static int cmd_monitor(int argc, char *argv[]) {
 	if (argc != 1) {
-		print_error_usage("Invalid arguments.");
+		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -605,6 +585,8 @@ int main(int argc, char *argv[]) {
 
 	progname = argv[0];
 
+	log_open(argv[0], false, false);
+
 	int c;
 	while ((c = getopt_long(argc, argv, "+B:Vhq", long_options, NULL)) != -1) {
 		switch (c) {
@@ -623,22 +605,24 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (optind < argc) {
-		int n;
-		for (n = 0; n < ARRAYSIZE(commands); n++) {
-			if (strcmp(argv[optind], commands[n].name) == 0) {
-				DBusError err = DBUS_ERROR_INIT;
-				if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, service_name, &err)) {
-					print_error("Couldn't initialize D-Bus context: %s", err.message);
-					return EXIT_FAILURE;
-				}
+	if (argc == optind) {
+		print_error("Missing command.");
+		return EXIT_FAILURE;
+	}
 
-				return commands[n].func(argc - optind, &argv[optind]);
+	int n;
+	for (n = 0; n < ARRAYSIZE(commands); n++) {
+		if (strcmp(argv[optind], commands[n].name) == 0) {
+			DBusError err = DBUS_ERROR_INIT;
+			if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, service_name, &err)) {
+				print_error("Couldn't initialize D-Bus context: %s", err.message);
+				return EXIT_FAILURE;
 			}
+			return commands[n].func(argc - optind, &argv[optind]);
 		}
 	}
 
-	print_error_usage("No valid command specified.");
+	print_error("Invalid command: %s", argv[optind]);
 	return EXIT_FAILURE;
 
 }

@@ -19,8 +19,8 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-bluealsa-client provides command-line access to the BlueALSA D-Bus API. It
-implements the org.bluealsa.Manager1 and org.bluealsa.PCM1 interfaces and thus
+bluealsa-client provides command-line access to the BlueALSA D-Bus API
+"org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus
 allows introspection and some control of BlueALSA PCMs while they are running.
 
 The *PCM_PATH* command argument, where required, must be a BlueALSA PCM D-Bus
