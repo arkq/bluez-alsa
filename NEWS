@@ -1,7 +1,7 @@
 unreleased
 ==========
 
-- bluealsa-client: new utility for using D-Dus API from commandline
+- bluealsa-cli: new utility for using D-Dus API from command line
 - higher PCM bit depth for apt-X HD (24-bit) and LDAC (32-bit)
 - support for A2DP Sink with apt-X (HD) if decoder is available
 - support for A2DP Sink with LDAC codec if decoder is available

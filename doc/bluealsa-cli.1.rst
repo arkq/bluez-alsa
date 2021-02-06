@@ -1,10 +1,10 @@
-===============
-bluealsa-client
-===============
+============
+bluealsa-cli
+============
 
---------------------------------------------------------
-a simple command-line wrapper for the BlueALSA D-Bus API
---------------------------------------------------------
+----------------------------------------------------------
+a simple command line interface for the BlueALSA D-Bus API
+----------------------------------------------------------
 
 :Date: February 2021
 :Manual section: 1
@@ -14,12 +14,12 @@ a simple command-line wrapper for the BlueALSA D-Bus API
 SYNOPSIS
 ========
 
-**bluealsa-client** [*OPTION*]... *COMMAND* [*ARG*]...
+**bluealsa-cli** [*OPTION*]... *COMMAND* [*ARG*]...
 
 DESCRIPTION
 ===========
 
-bluealsa-client provides command-line access to the BlueALSA D-Bus API
+bluealsa-cli provides command-line access to the BlueALSA D-Bus API
 "org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus
 allows introspection and some control of BlueALSA PCMs while they are running.
 

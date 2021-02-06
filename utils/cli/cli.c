@@ -1,5 +1,5 @@
 /*
- * BlueALSA - client.c
+ * BlueALSA - cli.c
  * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

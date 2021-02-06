@@ -8,8 +8,8 @@ if ENABLE_APLAY
 man1_MANS += bluealsa-aplay.1
 endif
 
-if ENABLE_CLIENT
-man1_MANS += bluealsa-client.1
+if ENABLE_CLI
+man1_MANS += bluealsa-cli.1
 endif
 
 if ENABLE_RFCOMM
