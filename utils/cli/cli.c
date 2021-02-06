@@ -82,128 +82,6 @@ static int cmd_list_pcms(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-static int cmd_get_codecs(int argc, char *argv[]) {
-	if (argc != 2) {
-		print_error("Invalid arguments.");
-		return EXIT_FAILURE;
-	}
-
-	const char *path = argv[1];
-
-	if (!dbus_validate_path(path, NULL)) {
-		print_error("Invalid PCM path '%s'", path);
-		return EXIT_FAILURE;
-	}
-
-	DBusMessage *msg;
-	DBusMessage *rep;
-	DBusError err = DBUS_ERROR_INIT;
-	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
-					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
-		print_error("%s", strerror(ENOMEM));
-		return EXIT_FAILURE;
-	}
-
-	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
-		dbus_message_unref(msg);
-		print_error("Couldn't get BlueALSA PCM Codec list: %s", err.message);
-		return EXIT_FAILURE;
-	}
-
-	int result = EXIT_FAILURE;
-
-	DBusMessageIter iter;
-	if (!dbus_message_iter_init(rep, &iter)) {
-		print_error("Empty response message");
-		goto fail;
-	}
-
-	DBusMessageIter iter_codecs;
-	for (dbus_message_iter_recurse(&iter, &iter_codecs);
-			dbus_message_iter_get_arg_type(&iter_codecs) != DBUS_TYPE_INVALID;
-			dbus_message_iter_next(&iter_codecs)) {
-
-		if (dbus_message_iter_get_arg_type(&iter_codecs) != DBUS_TYPE_DICT_ENTRY)  {
-			print_error("item is not dict entry");
-			goto fail;
-		}
-
-		DBusMessageIter iter_codecs_entry;
-		dbus_message_iter_recurse(&iter_codecs, &iter_codecs_entry);
-
-		if (dbus_message_iter_get_arg_type(&iter_codecs_entry) != DBUS_TYPE_STRING) {
-			print_error("item is not string");
-			goto fail;
-		}
-
-		const char *codec;
-		dbus_message_iter_get_basic(&iter_codecs_entry, &codec);
-		printf("%s\n", codec);
-
-		/* Ignore the properties field, get next codec. */
-	}
-	result = EXIT_SUCCESS;
-
-fail:
-	dbus_message_unref(rep);
-	dbus_message_unref(msg);
-
-	return result;
-}
-
-static int cmd_select_codec(int argc, char *argv[]) {
-	if (argc != 3) {
-		print_error("Invalid arguments.");
-		return EXIT_FAILURE;
-	}
-
-	const char *path = argv[1];
-	const char *codec = argv[2];
-
-	if (!dbus_validate_path(path, NULL)) {
-		print_error("Invalid PCM path '%s'", path);
-		return EXIT_FAILURE;
-	}
-
-	DBusMessage *msg;
-	DBusMessage *rep;
-	DBusError err = DBUS_ERROR_INIT;
-	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
-					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		print_error("%s", strerror(ENOMEM));
-		return EXIT_FAILURE;
-	}
-
-	DBusMessageIter iter;
-	dbus_message_iter_init_append(msg, &iter);
-
-	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
-		print_error("%s", strerror(ENOMEM));
-		dbus_message_unref(msg);
-		return EXIT_FAILURE;
-	}
-
-	DBusMessageIter props = DBUS_MESSAGE_ITER_INIT_CLOSED;
-	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		print_error("%s", strerror(ENOMEM));
-		dbus_message_unref(msg);
-		return EXIT_FAILURE;
-	}
-	dbus_message_iter_close_container(&iter, &props);
-
-	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
-		dbus_message_unref(msg);
-		print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
-		return EXIT_FAILURE;
-	}
-
-	dbus_message_unref(rep);
-	dbus_message_unref(msg);
-	return EXIT_SUCCESS;
-}
-
 static const char *transport_code_to_string(int transport_code) {
 	switch (transport_code) {
 	case BA_PCM_TRANSPORT_A2DP_SOURCE:
@@ -263,7 +141,86 @@ static const char *pcm_format_to_string(int pcm_format) {
 	}
 }
 
-static int cmd_properties(int argc, char *argv[]) {
+static bool print_codecs(const char *path, DBusError *err) {
+	bool result = false;
+	DBusMessage *msg;
+	DBusMessage *rep;
+	int count = 0;
+
+	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
+					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
+		dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(ENOMEM));
+		return false;
+	}
+
+	printf("Available codecs:");
+
+	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, err)) == NULL) {
+		dbus_message_unref(msg);
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	if (!dbus_message_iter_init(rep, &iter)) {
+		dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	DBusMessageIter iter_codecs;
+	for (dbus_message_iter_recurse(&iter, &iter_codecs);
+			dbus_message_iter_get_arg_type(&iter_codecs) != DBUS_TYPE_INVALID;
+			dbus_message_iter_next(&iter_codecs)) {
+
+		if (dbus_message_iter_get_arg_type(&iter_codecs) != DBUS_TYPE_DICT_ENTRY)  {
+			dbus_set_error(err, DBUS_ERROR_FAILED, "Message corrupted.");
+			goto fail;
+		}
+
+		DBusMessageIter iter_codecs_entry;
+		dbus_message_iter_recurse(&iter_codecs, &iter_codecs_entry);
+
+		if (dbus_message_iter_get_arg_type(&iter_codecs_entry) != DBUS_TYPE_STRING) {
+			dbus_set_error(err, DBUS_ERROR_FAILED, "Message corrupted.");
+			goto fail;
+		}
+
+		const char *codec;
+		dbus_message_iter_get_basic(&iter_codecs_entry, &codec);
+		printf(" %s", codec);
+		++count;
+
+		/* Ignore the properties field, get next codec. */
+	}
+	result = true;
+
+fail:
+	if (count == 0)
+		printf(" [ Unknown ] ");
+	printf("\n");
+
+	dbus_message_unref(rep);
+	dbus_message_unref(msg);
+
+	return result;
+}
+
+static void print_volume(struct ba_pcm *pcm) {
+	if (pcm->channels == 2)
+		printf("Volume: L: %u R: %u\n", pcm->volume.ch1_volume, pcm->volume.ch2_volume);
+	else
+		printf("Volume: %u\n", pcm->volume.ch1_volume);
+}
+
+static void print_mute(struct ba_pcm *pcm) {
+	if (pcm->channels == 2)
+		printf("Muted: L: %c R: %c\n",
+		   pcm->volume.ch1_muted ? 'Y' : 'N', pcm->volume.ch2_muted ? 'Y' : 'N');
+	else
+		printf("Muted: %c\n", pcm->volume.ch1_muted ? 'Y' : 'N');
+}
+
+static int cmd_info(int argc, char *argv[]) {
 	if (argc != 2) {
 		print_error("Too many arguments.");
 		return EXIT_FAILURE;
@@ -277,47 +234,111 @@ static int cmd_properties(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	DBusError err = DBUS_ERROR_INIT;
+
 	printf("Device: %s\n", pcm.device_path);
 	printf("Transport: %s\n", transport_code_to_string(pcm.transport));
 	printf("Mode: %s\n", pcm_mode_to_string(pcm.mode));
 	printf("Format: %s\n", pcm_format_to_string(pcm.format));
 	printf("Channels: %d\n", pcm.channels);
 	printf("Sampling: %d Hz\n", pcm.sampling);
-	printf("Codec: %s\n", pcm.codec);
+	print_codecs(path, &err);
+	printf("Selected codec: %s\n", pcm.codec);
 	printf("Delay: %#.1f ms\n", (double)pcm.delay / 10);
 	printf("SoftVolume: %s\n", pcm.soft_volume ? "Y" : "N");
+	print_volume(&pcm);
+	print_mute(&pcm);
 
-	if (pcm.channels == 2) {
-		printf("Volume: L: %u %s R: %u %s\n",
-			 pcm.volume.ch1_volume, pcm.volume.ch1_muted ? "(Muted)" : "",
-			 pcm.volume.ch2_volume, pcm.volume.ch2_muted ? "(Muted)" : "");
-	}
-	else {
-		printf("Volume: %u %s\n",
-			 pcm.volume.ch1_volume, pcm.volume.ch1_muted ? "(Muted)" : "");
-	}
+	if (dbus_error_is_set(&err))
+		warn("Unable to read available codecs: %s", err.message);
 
 	return EXIT_SUCCESS;
 }
 
-static int cmd_set_volume(int argc, char *argv[]) {
-	if (argc < 3 || argc > 4) {
+static int cmd_codec(int argc, char *argv[]) {
+	if (argc < 2 || argc > 3) {
 		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
 
-	int vol1, vol2;
-	vol1 = vol2 = atoi(argv[2]);
-	if (argc == 4)
-		vol2 = atoi(argv[3]);
+	struct ba_pcm pcm;
+	if (!get_pcm(path, &pcm)) {
+		print_error("Invalid pcm path: %s", path);
+		return EXIT_FAILURE;
+	}
+
+	DBusError err = DBUS_ERROR_INIT;
+
+	if (argc == 2) {
+		print_codecs(path, &err);
+		printf("Selected codec: %s\n", pcm.codec);
+		return EXIT_SUCCESS;
+	}
+
+	const char *codec = argv[2];
+
+	DBusMessage *msg;
+	DBusMessage *rep;
+	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
+					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
+		print_error("%s", strerror(ENOMEM));
+		return EXIT_FAILURE;
+	}
+
+	DBusMessageIter iter;
+	dbus_message_iter_init_append(msg, &iter);
+
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
+		print_error("%s", strerror(ENOMEM));
+		dbus_message_unref(msg);
+		return EXIT_FAILURE;
+	}
+
+	DBusMessageIter props = DBUS_MESSAGE_ITER_INIT_CLOSED;
+	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
+		print_error("%s", strerror(ENOMEM));
+		dbus_message_unref(msg);
+		return EXIT_FAILURE;
+	}
+	dbus_message_iter_close_container(&iter, &props);
+
+	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
+		dbus_message_unref(msg);
+		print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
+		return EXIT_FAILURE;
+	}
+
+	dbus_message_unref(rep);
+	dbus_message_unref(msg);
+	return EXIT_SUCCESS;
+}
+
+static int cmd_volume(int argc, char *argv[]) {
+	if (argc < 2 || argc > 4) {
+		print_error("Invalid arguments.");
+		return EXIT_FAILURE;
+	}
+
+	const char *path = argv[1];
 
 	struct ba_pcm pcm;
 	if (!get_pcm(path, &pcm)) {
 		print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
 	}
+
+	if (argc == 2) {
+		print_volume(&pcm);
+		return EXIT_SUCCESS;
+	}
+
+	int vol1, vol2;
+	vol1 = vol2 = atoi(argv[2]);
+	if (argc == 4)
+		vol2 = atoi(argv[3]);
 
 	if (pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP) {
 		if (vol1 < 0 || vol1 > 127) {
@@ -351,7 +372,7 @@ static int cmd_set_volume(int argc, char *argv[]) {
 }
 
 static int cmd_mute(int argc, char *argv[]) {
-	if (argc < 3 || argc > 4) {
+	if (argc < 2 || argc > 4) {
 		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
@@ -362,6 +383,11 @@ static int cmd_mute(int argc, char *argv[]) {
 	if (!get_pcm(path, &pcm)) {
 		print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
+	}
+
+	if (argc == 2) {
+		print_mute(&pcm);
+		return EXIT_SUCCESS;
 	}
 
 	pcm.volume.ch1_muted = pcm.volume.ch2_muted = false;
@@ -396,20 +422,24 @@ static int cmd_mute(int argc, char *argv[]) {
 }
 
 static int cmd_softvol(int argc, char *argv[]) {
-	if (argc != 3) {
+	if (argc < 2 || argc > 3) {
 		print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
 
-	if (!dbus_validate_path(path, NULL)) {
-		print_error("Invalid PCM path '%s'", path);
+	struct ba_pcm pcm;
+	if (!get_pcm(path, &pcm)) {
+		print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
 	}
 
-	struct ba_pcm pcm = { 0 };
-	strncpy(pcm.pcm_path, path, sizeof(pcm.pcm_path));
+	if (argc == 2) {
+		printf("SoftVolume: %c\n", pcm.soft_volume ? 'Y' : 'N');
+		return EXIT_SUCCESS;
+	}
+
 	if (strcasecmp(argv[2], "y") == 0)
 		pcm.soft_volume = true;
 	else if (strcasecmp(argv[2], "n") == 0)
@@ -547,14 +577,13 @@ static struct command {
 	const char *help;
 } commands[] = {
 	{ "list-pcms", cmd_list_pcms, "", "List all PCM paths" },
-	{ "properties", cmd_properties, "<pcm-path>", "Show PCM properties" },
-	{ "get-codecs", cmd_get_codecs, "<pcm-path>", "Show codecs offered by PCM" },
-	{ "select-codec", cmd_select_codec, "<pcm-path> <codec>", "Change codec used by PCM" },
-	{ "set-volume", cmd_set_volume, "<pcm-path> <val> [<val>]", "Change audio volume" },
-	{ "mute", cmd_mute, "<pcm-path> y|n [y|n]", "Mute/unmute audio" },
-	{ "softvol", cmd_softvol, "<pcm-path> y|n", "Enable/disable SoftVolume property" },
+	{ "info", cmd_info, "<pcm-path>", "Show PCM properties etc" },
+	{ "codec", cmd_codec, "<pcm-path> [<codec>]", "Change codec used by PCM" },
+	{ "volume", cmd_volume, "<pcm-path> [<val>] [<val>]", "Set audio volume" },
+	{ "mute", cmd_mute, "<pcm-path> [y|n] [y|n]", "Mute/unmute audio" },
+	{ "soft-volume", cmd_softvol, "<pcm-path> [y|n]", "Enable/disable SoftVolume property" },
 	{ "monitor", cmd_monitor, "", "Display PCMAdded and PCMRemoved signals" },
-	{ "open", cmd_open, "<pcm-path>", "Transfer raw PCM from stdin or to stdout" },
+	{ "open", cmd_open, "<pcm-path>", "Transfer raw PCM via stdin or stdout" },
 };
 
 static void usage(void) {
@@ -568,7 +597,7 @@ static void usage(void) {
 	printf("\nCommands:\n");
 	int index;
 	for (index = 0; index < ARRAYSIZE(commands); index++) {
-		printf("  %-13s%-25s%s\n", commands[index].name, commands[index].args, commands[index].help);
+		printf("  %-12s%-27s%s\n", commands[index].name, commands[index].args, commands[index].help);
 	}
 
 }
