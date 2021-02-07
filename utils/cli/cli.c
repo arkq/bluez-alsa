@@ -27,12 +27,12 @@
 
 
 /**
- * Helper macro for internal usage. */
-# define print_error(M, ...) if (!quiet) { error(M, ##__VA_ARGS__); }
+ * Helper macros for internal usage. */
+
+#define print_error(M, ...) if (!quiet) { error(M, ##__VA_ARGS__); }
+#define cmd_print_error(M, ...) if (!quiet) { error("CMD \"%s\": " M, argv[0], ##__VA_ARGS__); }
 
 
-
-static const char *progname = NULL;
 static bool quiet = false;
 static char service_name[32] = BLUEALSA_SERVICE;
 
@@ -60,7 +60,7 @@ static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 
 static int cmd_list_pcms(int argc, char *argv[]) {
 	if (argc > 1) {
-		print_error("Too many arguments.");
+		cmd_print_error("Too many arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -69,7 +69,7 @@ static int cmd_list_pcms(int argc, char *argv[]) {
 	DBusError err = DBUS_ERROR_INIT;
 
 	if (!bluealsa_dbus_get_pcms(&dbus_ctx, &pcms, &pcms_count, &err)) {
-		print_error("Couldn't get BlueALSA PCM list: %s", err.message);
+		cmd_print_error("Couldn't get BlueALSA PCM list: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -222,7 +222,7 @@ static void print_mute(struct ba_pcm *pcm) {
 
 static int cmd_info(int argc, char *argv[]) {
 	if (argc != 2) {
-		print_error("Too many arguments.");
+		cmd_print_error("Too many arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -230,7 +230,7 @@ static int cmd_info(int argc, char *argv[]) {
 
 	struct ba_pcm pcm;
 	if (!get_pcm(path, &pcm)) {
-		print_error("Invalid pcm path: %s", path);
+		cmd_print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
 	}
 
@@ -257,7 +257,7 @@ static int cmd_info(int argc, char *argv[]) {
 
 static int cmd_codec(int argc, char *argv[]) {
 	if (argc < 2 || argc > 3) {
-		print_error("Invalid arguments.");
+		cmd_print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -265,7 +265,7 @@ static int cmd_codec(int argc, char *argv[]) {
 
 	struct ba_pcm pcm;
 	if (!get_pcm(path, &pcm)) {
-		print_error("Invalid pcm path: %s", path);
+		cmd_print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
 	}
 
@@ -283,7 +283,7 @@ static int cmd_codec(int argc, char *argv[]) {
 	DBusMessage *rep;
 	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
 					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		print_error("%s", strerror(ENOMEM));
+		cmd_print_error("%s", strerror(ENOMEM));
 		return EXIT_FAILURE;
 	}
 
@@ -291,14 +291,14 @@ static int cmd_codec(int argc, char *argv[]) {
 	dbus_message_iter_init_append(msg, &iter);
 
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
-		print_error("%s", strerror(ENOMEM));
+		cmd_print_error("%s", strerror(ENOMEM));
 		dbus_message_unref(msg);
 		return EXIT_FAILURE;
 	}
 
 	DBusMessageIter props = DBUS_MESSAGE_ITER_INIT_CLOSED;
 	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		print_error("%s", strerror(ENOMEM));
+		cmd_print_error("%s", strerror(ENOMEM));
 		dbus_message_unref(msg);
 		return EXIT_FAILURE;
 	}
@@ -307,7 +307,7 @@ static int cmd_codec(int argc, char *argv[]) {
 	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
 					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
 		dbus_message_unref(msg);
-		print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
+		cmd_print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -318,7 +318,7 @@ static int cmd_codec(int argc, char *argv[]) {
 
 static int cmd_volume(int argc, char *argv[]) {
 	if (argc < 2 || argc > 4) {
-		print_error("Invalid arguments.");
+		cmd_print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -326,7 +326,7 @@ static int cmd_volume(int argc, char *argv[]) {
 
 	struct ba_pcm pcm;
 	if (!get_pcm(path, &pcm)) {
-		print_error("Invalid pcm path: %s", path);
+		cmd_print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
 	}
 
@@ -342,13 +342,13 @@ static int cmd_volume(int argc, char *argv[]) {
 
 	if (pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP) {
 		if (vol1 < 0 || vol1 > 127) {
-			print_error("Invalid volume ([0 - 127]) %d", vol1);
+			cmd_print_error("Invalid volume ([0 - 127]) %d", vol1);
 			return EXIT_FAILURE;
 		}
 		pcm.volume.ch1_volume = vol1;
 		if (pcm.channels == 2) {
 			if (vol2 < 0 || vol2 > 127) {
-				print_error("Invalid volume ([0 - 127]) %d", vol2);
+				cmd_print_error("Invalid volume ([0 - 127]) %d", vol2);
 				return EXIT_FAILURE;
 			}
 			pcm.volume.ch2_volume = vol2;
@@ -356,7 +356,7 @@ static int cmd_volume(int argc, char *argv[]) {
 	}
 	else {
 		if (vol1 < 0 || vol1 > 15) {
-			print_error("Invalid volume ([0 - 15]) %d", vol1);
+			cmd_print_error("Invalid volume ([0 - 15]) %d", vol1);
 			return EXIT_FAILURE;
 		}
 		pcm.volume.ch1_volume = vol1;
@@ -364,7 +364,7 @@ static int cmd_volume(int argc, char *argv[]) {
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
-		print_error("Volume loudness update failed: %s", err.message);
+		cmd_print_error("Volume loudness update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -373,7 +373,7 @@ static int cmd_volume(int argc, char *argv[]) {
 
 static int cmd_mute(int argc, char *argv[]) {
 	if (argc < 2 || argc > 4) {
-		print_error("Invalid arguments.");
+		cmd_print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -381,7 +381,7 @@ static int cmd_mute(int argc, char *argv[]) {
 
 	struct ba_pcm pcm;
 	if (!get_pcm(path, &pcm)) {
-		print_error("Invalid pcm path: %s", path);
+		cmd_print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
 	}
 
@@ -395,7 +395,7 @@ static int cmd_mute(int argc, char *argv[]) {
 	if (strcasecmp(argv[2], "y") == 0)
 		pcm.volume.ch1_muted = true;
 	else if (strcasecmp(argv[2], "n") != 0) {
-		print_error("Invalid argument (y|n): %s", argv[2]);
+		cmd_print_error("Invalid argument (y|n): %s", argv[2]);
 		return EXIT_FAILURE;
 	}
 
@@ -406,7 +406,7 @@ static int cmd_mute(int argc, char *argv[]) {
 			if (strcasecmp(argv[3], "y") == 0)
 				pcm.volume.ch2_muted  = true;
 			else if (strcasecmp(argv[3], "n") != 0) {
-				print_error("Invalid argument (y|n): %s", argv[3]);
+				cmd_print_error("Invalid argument (y|n): %s", argv[3]);
 				return EXIT_FAILURE;
 			}
 		}
@@ -414,7 +414,7 @@ static int cmd_mute(int argc, char *argv[]) {
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
-		print_error("Volume mute update failed: %s", err.message);
+		cmd_print_error("Volume mute update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -423,7 +423,7 @@ static int cmd_mute(int argc, char *argv[]) {
 
 static int cmd_softvol(int argc, char *argv[]) {
 	if (argc < 2 || argc > 3) {
-		print_error("Invalid arguments.");
+		cmd_print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -431,7 +431,7 @@ static int cmd_softvol(int argc, char *argv[]) {
 
 	struct ba_pcm pcm;
 	if (!get_pcm(path, &pcm)) {
-		print_error("Invalid pcm path: %s", path);
+		cmd_print_error("Invalid pcm path: %s", path);
 		return EXIT_FAILURE;
 	}
 
@@ -445,13 +445,13 @@ static int cmd_softvol(int argc, char *argv[]) {
 	else if (strcasecmp(argv[2], "n") == 0)
 		pcm.soft_volume = false;
 	else {
-		print_error("Invalid argument (y|n): %s", argv[2]);
+		cmd_print_error("Invalid argument (y|n): %s", argv[2]);
 		return EXIT_FAILURE;
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&dbus_ctx, &pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
-		print_error("SoftVolume update failed: %s", err.message);
+		cmd_print_error("SoftVolume update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -460,14 +460,14 @@ static int cmd_softvol(int argc, char *argv[]) {
 
 static int cmd_open(int argc, char *argv[]) {
 	if (argc != 2) {
-		print_error("Invalid arguments.");
+		cmd_print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
 	const char *path = argv[1];
 
 	if (!dbus_validate_path(path, NULL)) {
-		print_error("Invalid PCM path '%s'", path);
+		cmd_print_error("Invalid PCM path '%s'", path);
 		return EXIT_FAILURE;
 	}
 
@@ -476,7 +476,7 @@ static int cmd_open(int argc, char *argv[]) {
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_open_pcm(&dbus_ctx, path, &fd_pcm, &fd_pcm_ctrl, &err)) {
-		print_error("Cannot open PCM : %s", err.message);
+		cmd_print_error("Cannot open PCM : %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -551,7 +551,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 static int cmd_monitor(int argc, char *argv[]) {
 	if (argc != 1) {
-		print_error("Invalid arguments.");
+		cmd_print_error("Invalid arguments.");
 		return EXIT_FAILURE;
 	}
 
@@ -561,7 +561,7 @@ static int cmd_monitor(int argc, char *argv[]) {
 			service_name, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
 
 	if (!dbus_connection_add_filter(dbus_ctx.conn, dbus_signal_handler, NULL, NULL)) {
-		print_error("Couldn't add D-Bus filter");
+		cmd_print_error("Couldn't add D-Bus filter");
 		return EXIT_FAILURE;
 	}
 
@@ -586,7 +586,7 @@ static struct command {
 	{ "open", cmd_open, "<pcm-path>", "Transfer raw PCM via stdin or stdout" },
 };
 
-static void usage(void) {
+static void usage(const char *progname) {
 	printf("%s - Utility to issue BlueALSA API commands\n", progname);
 	printf("\nUsage:\n  %s [options] <command> [command-args]\n", progname);
 	printf("\nOptions:\n");
@@ -599,7 +599,14 @@ static void usage(void) {
 	for (index = 0; index < ARRAYSIZE(commands); index++) {
 		printf("  %-12s%-27s%s\n", commands[index].name, commands[index].args, commands[index].help);
 	}
-
+	printf("\nNotes:\n");
+	printf("   1. <pcm-path> must be a valid BlueALSA PCM path as returned by "
+	       "the list-pcms command.\n");
+	printf("   2. For commands that accept optional arguments, if no such "
+	       "argument is given then the current status of the associated "
+	       "attribute is printed.\n");
+	printf("   3. The codec command requires Bluez version >= 5.52 "
+	       "for SEP support.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -612,18 +619,16 @@ int main(int argc, char *argv[]) {
 		{ 0 },
 	};
 
-	progname = argv[0];
-
 	log_open(argv[0], false, false);
 
 	int c;
 	while ((c = getopt_long(argc, argv, "+B:Vhq", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'h' :
-			usage();
+			usage(argv[0]);
 			return EXIT_SUCCESS;
 		case 'V' :
-			printf("%s %s\n", progname, PACKAGE_VERSION);
+			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 		case 'B' :
 			snprintf(service_name, sizeof(service_name), BLUEALSA_SERVICE ".%s", optarg);
@@ -631,6 +636,9 @@ int main(int argc, char *argv[]) {
 		case 'q' :
 			quiet = true;
 			break;
+		default:
+			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+			return EXIT_FAILURE;
 		}
 	}
 
