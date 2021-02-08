@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: December 2020
+:Date: February 2021
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$

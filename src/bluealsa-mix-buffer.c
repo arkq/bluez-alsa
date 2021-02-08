@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-mix-buffer.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -217,7 +217,7 @@ ssize_t bluealsa_mix_buffer_add(struct bluealsa_mix_buffer *buffer,
  * Applies volume scaling to the samples returned.
  *
  * @param data Pointer to a buffer in which to place the frames.
- * @param frames Size of the data buffer in samples.
+ * @param samples Size of the data buffer in samples.
  * @param scale An array of scaling factors, one for each channel of the stream.
  * @return number of samples fetched from mix. This is always complete frames.
  * */
