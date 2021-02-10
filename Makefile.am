@@ -1,8 +1,8 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2020 Arkadiusz Bokowy
+# Copyright (c) 2016-2021 Arkadiusz Bokowy
 
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = src utils
+SUBDIRS = misc src utils
 
 if ENABLE_MANPAGES
 SUBDIRS += doc

@@ -15,6 +15,8 @@ AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_MKDIR_P
 AM_PROG_AR
 AM_PROG_CC_C_O
 LT_INIT
@@ -227,6 +229,17 @@ AM_COND_IF([ENABLE_MANPAGES], [
 	AS_IF([test "x$RST2MAN" = "x"], [AC_MSG_ERROR([[--enable-manpages requires rst2man]])])
 ])
 
+AC_ARG_WITH([bash-completion],
+	AS_HELP_STRING([--with-bash-completion@<:@=DIR@:>@], [install bash completion
+		script in DIR (or the bash completions default directory if not specified)]))
+AM_CONDITIONAL([WITH_BASH_COMPLETION], [
+	test "x$with_bash_completion" != "x" -a "x$with_bash_completion" != "xno"])
+AS_IF([test "x$with_bash_completion" = "xyes"], [
+	PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
+		[bashcompdir=$($PKG_CONFIG --variable=completionsdir bash-completion)],
+		[bashcompdir="$datadir/bash-completion/completions"])
+	], [bashcompdir="$with_bash_completion"])
+
 AC_ARG_ENABLE([test],
 	[AS_HELP_STRING([--enable-test], [enable unit test])])
 AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
@@ -274,10 +287,12 @@ AC_DEFINE_UNQUOTED([ALSA_PLUGIN_DIR], "$alsaplugindir", [Directory containing AL
 AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
+AC_SUBST([BASH_COMPLETION_DIR], [$bashcompdir])
 
 AC_CONFIG_FILES([
 	Makefile
 	doc/Makefile
+	misc/Makefile
 	src/Makefile
 	src/asound/Makefile
 	utils/Makefile
