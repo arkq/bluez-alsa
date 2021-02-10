@@ -22,3 +22,24 @@ hcitop_LDADD = \
 	@LIBBSD_LIBS@ \
 	@NCURSES_LIBS@
 endif
+
+if ENABLE_BASH_COMPLETION
+bashcompdir = $(BASH_COMPLETION_DIR)
+bashcomp_DATA = bash-completion/bluealsa
+
+EXTRA_DIST = $(bashcomp_DATA)
+
+SYMLINKS = \
+	a2dpconf \
+	bluealsa-aplay \
+	bluealsa-cli \
+	bluealsa-rfcomm \
+	hcitop
+
+install-data-hook:
+	cd $(DESTDIR)$(bashcompdir) && \
+	for link in $(SYMLINKS); do ln -sf bluealsa $$link; done
+
+uninstall-hook:
+	cd $(DESTDIR)$(bashcompdir) && rm -f $(SYMLINKS)
+endif

@@ -227,6 +227,20 @@ AM_COND_IF([ENABLE_MANPAGES], [
 	AS_IF([test "x$RST2MAN" = "x"], [AC_MSG_ERROR([[--enable-manpages requires rst2man]])])
 ])
 
+AC_ARG_WITH([bash-completion-dir],
+	AS_HELP_STRING([--with-bash-completion-dir[=PATH]],
+	[Install the bash auto-completion script in this directory. @<:@default=yes@:>@]),
+	[],
+	[with_bash_completion_dir=yes])
+if test "x$with_bash_completion_dir" = "xyes"; then
+    PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
+        [BASH_COMPLETION_DIR="`pkg-config --variable=completionsdir bash-completion`"],
+        [BASH_COMPLETION_DIR="$datadir/bash-completion/completions"])
+else
+    BASH_COMPLETION_DIR="$with_bash_completion_dir"
+fi
+AM_CONDITIONAL([ENABLE_BASH_COMPLETION],[test "x$with_bash_completion_dir" != "xno"])
+
 AC_ARG_ENABLE([test],
 	[AS_HELP_STRING([--enable-test], [enable unit test])])
 AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
@@ -274,6 +288,7 @@ AC_DEFINE_UNQUOTED([ALSA_PLUGIN_DIR], "$alsaplugindir", [Directory containing AL
 AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
+AC_SUBST([BASH_COMPLETION_DIR])
 
 AC_CONFIG_FILES([
 	Makefile
