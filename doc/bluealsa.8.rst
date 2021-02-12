@@ -138,7 +138,7 @@ PROFILES
 ========
 
 BlueALSA provides support for Bluetooth Advanced Audio Distribution Profile (A2DP),
-Hands-Free Profile (HFP) and Headset Profile (HFP).
+Hands-Free Profile (HFP) and Headset Profile (HSP).
 A2DP profile is dedicated for streaming music (i.e. stereo, 48 kHz or more sampling
 frequency), while HFP and HSP for two-way voice transmission (mono, 8 kHz or 16 kHz
 sampling frequency).
@@ -169,7 +169,7 @@ FILES
 EXAMPLE
 =======
 
-Emulate Bluetooth headset with A2DP and HFP support:
+Emulate Bluetooth headset with A2DP and HSP support:
 
 ::
 
