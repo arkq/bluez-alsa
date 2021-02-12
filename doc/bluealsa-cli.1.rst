@@ -84,7 +84,7 @@ volume *PCM_PATH* [*N*] [*N*]
 mute *PCM_PATH* [y|n] [y|n]
     If y|n argument(s) are given, set mute component of the volume property of
     the given PCM - 'y' mutes the volume, 'n' unmutes it. The second y|n
-    argument is used for stereo PCMs as described for ``set-volume``.
+    argument is used for stereo PCMs as described for ``volume``.
 
     If no argument is given, print the current mute setting of the given PCM.
 
