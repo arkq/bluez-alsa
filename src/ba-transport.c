@@ -789,10 +789,13 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	GDBusMessage *msg, *rep;
 	GUnixFDList *fd_list;
 	GError *err = NULL;
+	int fd;
+
+	pthread_mutex_lock(&t->mutex);
 
 	/* Check whether transport is already acquired - keep-alive mode. */
-	if (t->bt_fd != -1) {
-		debug("Reusing transport: %d", t->bt_fd);
+	if ((fd = t->bt_fd) != -1) {
+		debug("Reusing transport: %d", fd);
 		goto final;
 	}
 
@@ -809,23 +812,24 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 		goto fail;
 	}
 
-	g_variant_get(g_dbus_message_get_body(rep), "(hqq)", (int32_t *)&t->bt_fd,
+	g_variant_get(g_dbus_message_get_body(rep), "(hqq)", (int32_t *)&fd,
 			(uint16_t *)&t->mtu_read, (uint16_t *)&t->mtu_write);
 
 	fd_list = g_dbus_message_get_unix_fd_list(rep);
-	t->bt_fd = g_unix_fd_list_get(fd_list, 0, &err);
+	fd = g_unix_fd_list_get(fd_list, 0, &err);
+	t->bt_fd = fd;
 
 	/* Minimize audio delay and increase responsiveness (seeking, stopping) by
 	 * decreasing the BT socket output buffer. We will use a tripled write MTU
 	 * value, in order to prevent tearing due to temporal heavy load. */
 	size_t size = t->mtu_write * 3;
-	if (setsockopt(t->bt_fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) == -1)
+	if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) == -1)
 		warn("Couldn't set socket output buffer size: %s", strerror(errno));
 
-	if (ioctl(t->bt_fd, TIOCOUTQ, &t->a2dp.bt_fd_coutq_init) == -1)
+	if (ioctl(fd, TIOCOUTQ, &t->a2dp.bt_fd_coutq_init) == -1)
 		warn("Couldn't get socket queued bytes: %s", strerror(errno));
 
-	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+	debug("New transport: %d (MTU: R:%zu W:%zu)", fd, t->mtu_read, t->mtu_write);
 
 fail:
 	g_object_unref(msg);
@@ -837,20 +841,23 @@ fail:
 	}
 
 final:
-	return t->bt_fd;
+	pthread_mutex_unlock(&t->mutex);
+	return fd;
 }
 
 static int transport_release_bt_a2dp(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
-	int ret = -1;
+	int ret = 0;
+
+	pthread_mutex_lock(&t->mutex);
 
 	/* If the transport has not been acquired, or it has been released already,
 	 * there is no need to release it again. In fact, trying to release already
 	 * closed transport will result in returning error message. */
 	if (t->bt_fd == -1)
-		return 0;
+		goto final;
 
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the BlueZ. In both cases there is no point in a explicit
@@ -859,6 +866,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 			t->bluez_dbus_owner != NULL) {
 
 		debug("Releasing A2DP transport: %s", ba_transport_type_to_string(t->type));
+		ret = -1;
 
 		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
 				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
@@ -900,44 +908,57 @@ fail:
 		error("Couldn't release transport: %s", err->message);
 		g_error_free(err);
 	}
+
+final:
+	pthread_mutex_unlock(&t->mutex);
 	return ret;
 }
 
 static int transport_acquire_bt_sco(struct ba_transport *t) {
 
-	if (t->bt_fd != -1) {
-		debug("Reusing SCO: %d", t->bt_fd);
-		return t->bt_fd;
+	struct ba_device *d = t->d;
+	int fd;
+
+	pthread_mutex_lock(&t->mutex);
+
+	if ((fd = t->bt_fd) != -1) {
+		debug("Reusing SCO: %d", fd);
+		goto final;
 	}
 
-	if ((t->bt_fd = hci_sco_open(t->d->a->hci.dev_id)) == -1) {
+	if ((fd = hci_sco_open(d->a->hci.dev_id)) == -1) {
 		error("Couldn't open SCO socket: %s", strerror(errno));
 		goto fail;
 	}
 
-	if (hci_sco_connect(t->bt_fd, &t->d->addr,
+	if (hci_sco_connect(fd, &d->addr,
 				t->type.codec == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
 		error("Couldn't establish SCO link: %s", strerror(errno));
 		goto fail;
 	}
 
-	debug("New SCO link: %s: %d", batostr_(&t->d->addr), t->bt_fd);
+	debug("New SCO link: %s: %d", batostr_(&d->addr), fd);
 
-	t->mtu_read = t->mtu_write = hci_sco_get_mtu(t->bt_fd);
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
+	t->bt_fd = fd;
 
-	return t->bt_fd;
+	goto final;
 
 fail:
-	if (t->bt_fd != -1)
-		close(t->bt_fd);
-	t->bt_fd = -1;
-	return -1;
+	if (fd != -1)
+		close(fd);
+	fd = -1;
+final:
+	pthread_mutex_unlock(&t->mutex);
+	return fd;
 }
 
 static int transport_release_bt_sco(struct ba_transport *t) {
 
+	pthread_mutex_lock(&t->mutex);
+
 	if (t->bt_fd == -1)
-		return 0;
+		goto final;
 
 	debug("Closing SCO: %d", t->bt_fd);
 
@@ -945,6 +966,8 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
+final:
+	pthread_mutex_unlock(&t->mutex);
 	return 0;
 }
 

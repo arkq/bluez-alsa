@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *               2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -131,8 +131,10 @@ final:
  * @return On success this function returns 0. Otherwise -1 is returned. */
 static int ofono_release_bt_sco(struct ba_transport *t) {
 
+	pthread_mutex_lock(&t->mutex);
+
 	if (t->bt_fd == -1)
-		return 0;
+		goto final;
 
 	debug("Closing oFono SCO: %d", t->bt_fd);
 
@@ -140,6 +142,8 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
+final:
+	pthread_mutex_unlock(&t->mutex);
 	return 0;
 }
 
@@ -395,10 +399,14 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 		goto fail;
 	}
 
+	pthread_mutex_lock(&t->mutex);
+
 	debug("New oFono SCO connection (codec: %#x): %d", codec, fd);
 
 	t->bt_fd = fd;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
+
+	pthread_mutex_unlock(&t->mutex);
 
 	ba_transport_set_codec(t, codec);
 
