@@ -170,6 +170,30 @@ _bluealsa() {
 			COMPREPLY=( $(compgen -W "$(_bluealsa_profiles $1)" -- $cur) )
 			return
 			;;
+		--sbc-quality)
+			COMPREPLY=( 0 1 2 3 )
+			return
+			;;
+		--mp3-quality|--mp3-vbr-quality)
+			COMPREPLY=( 0 1 2 3 4 5 6 7 8 9 )
+			return
+			;;
+		--aac-latm-version)
+			COMPREPLY=( 0 1 )
+			return
+			;;
+		--aac-vbr-mode)
+			COMPREPLY=( 0 1 2 3 4 5 )
+			return
+			;;
+		--ldac-eqmid)
+			COMPREPLY=( 0 1 2 )
+			return
+			;;
+		--xapl-resp-name)
+			COMPREPLY=( $(compgen -W "BlueALSA iPhone" -- $cur) )
+			return
+			;;
 		--*)
 			[[ ${COMP_WORDS[COMP_CWORD]} = = ]] && return
 			;;
