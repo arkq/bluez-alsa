@@ -461,7 +461,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv) {
 				ba_transport_codecs_hfp_to_string(HFP_CODEC_CVSD), NULL);
 
 #if ENABLE_MSBC
-		if (t->sco.rfcomm->msbc)
+		if (t->sco.rfcomm != NULL && t->sco.rfcomm->msbc)
 			g_variant_builder_add(&codecs, "{sa{sv}}",
 					ba_transport_codecs_hfp_to_string(HFP_CODEC_MSBC), NULL);
 #endif
