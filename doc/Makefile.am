@@ -16,6 +16,10 @@ if ENABLE_RFCOMM
 man1_MANS += bluealsa-rfcomm.1
 endif
 
+if ENABLE_HCITOP
+man1_MANS += hcitop.1
+endif
+
 SUFFIXES = .rst
 MOSTLYCLEANFILES = $(man1_MANS) $(man8_MANS)
 
