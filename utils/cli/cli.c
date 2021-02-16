@@ -492,13 +492,15 @@ static int cmd_open(int argc, char *argv[]) {
 	char buffer[4096];
 	while ((count = read(input, buffer, sizeof(buffer))) > 0) {
 		ssize_t written = 0;
+		const char *pos = buffer;
 		while (written < count) {
-			ssize_t res = write(output, buffer, count - written);
+			ssize_t res = write(output, pos, count - written);
 			if (res <= 0) {
 				/* Cannot write any more, so just terminate */
 				goto finish;
 			}
 			written += res;
+			pos += res;
 		}
 	}
 
