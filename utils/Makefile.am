@@ -24,7 +24,7 @@ hcitop_LDADD = \
 endif
 
 if ENABLE_BASH_COMPLETION
-bashcompdir = $(BASH_COMPLETION_DIR)
+bashcompdir = @BASH_COMPLETION_DIR@
 bashcomp_DATA = bash-completion/bluealsa
 
 EXTRA_DIST = $(bashcomp_DATA)
