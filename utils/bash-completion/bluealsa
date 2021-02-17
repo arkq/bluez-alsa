@@ -41,7 +41,7 @@ _bluealsa_valopts() {
 		[[ "$line" =~ --[^=]*= ]] || continue
 		line=${line/,/}
 		[[ "$line" =~ .*[^=]+= ]]
-		printf "%s" "${BASH_REMATCH[0]} "
+		printf "%s" "${BASH_REMATCH[0]//=/}"
 	done
 }
 
@@ -93,8 +93,8 @@ _bluealsa_rfcomm_paths() {
 # @return 0 if no errors found, 1 if dbus check failed
 _bluealsa_util_init() {
 	local valopts=$(_bluealsa_valopts $1)
-	valopts=${valopts//$'\n'/ }
 	service="org.bluealsa"
+	nonopt_offset=0
 	local i
 	for (( i=1; i <= COMP_CWORD; i++ )); do
 		case "${COMP_WORDS[i]}" in
@@ -103,33 +103,33 @@ _bluealsa_util_init() {
 					break
 				elif (( i == COMP_CWORD - 1 )) ; then
 					[[ "${COMP_WORDS[i+1]}" = = ]] && break
-					[[ "${COMP_WORDS[i+1]}" == -* ]] && return 1
 					dbus_opt="--dbus=${COMP_WORDS[i+1]}"
 					service="org.bluealsa.${COMP_WORDS[i+1]}"
 					break
 				else
 					[[ "${COMP_WORDS[i+1]}" = = ]] && (( i++ ))
-					[[ "${COMP_WORDS[i+1]}" == -* ]] && return 1
-					dbus_opt="--dbus=${COMP_WORDS[i+1]}"
-					service="org.bluealsa.${COMP_WORDS[i+1]}"
-					(( i++ ))
-					continue
+					if [[ "${COMP_WORDS[i+1]}" ]] ; then
+						(( i++ ))
+						dbus_opt="--dbus=${COMP_WORDS[i]}"
+						service="org.bluealsa.${COMP_WORDS[i]}"
+						continue
+					fi
 				fi
 				;;
 			-B)
 				if (( i == COMP_CWORD )) ; then
 					break
 				elif (( i == COMP_CWORD - 1 )) ; then
-					[[ "${COMP_WORDS[i+1]}" == -* ]] && return 1
 					dbus_opt="--dbus=${COMP_WORDS[i+1]}"
 					service="org.bluealsa.${COMP_WORDS[i+1]}"
 					break
 				else
-					[[ "${COMP_WORDS[i+1]}" == -* ]] && return 1
-					dbus_opt="--dbus=${COMP_WORDS[i+1]}"
-					service="org.bluealsa.${COMP_WORDS[i+1]}"
-					(( i++ ))
-					continue
+					if [[ "${COMP_WORDS[i+1]}" ]] ; then
+						(( i++ ))
+						dbus_opt="--dbus=${COMP_WORDS[i]}"
+						service="org.bluealsa.${COMP_WORDS[i]}"
+						continue
+					fi
 				fi
 				;;
 			-*|=)
@@ -137,7 +137,7 @@ _bluealsa_util_init() {
 				;;
 		esac
 
-		[[ "${COMP_WORDS[i-1]}" == = ]] && continue
+		[[ "${COMP_WORDS[i-1]}" == = ]] && (( i < COMP_CWORD )) && continue
 		[[ "$valopts " == *"${COMP_WORDS[i-1]} "* ]] && continue
 
 		nonopt_offset=$i
@@ -218,9 +218,6 @@ _bluealsa_aplay() {
 			COMPREPLY=( $(compgen -W "$list" -- $cur) )
 			return
 			;;
-		--dbus=)
-			return
-			;;
 		--pcm|-D)
 			_have aplay || return
 			COMPREPLY=( $(compgen -W "$(_bluealsa_alsa_pcms)" -- $cur) )
@@ -251,7 +248,8 @@ _bluealsa_aplay() {
 # complete available dbus suffices, command names and pcm paths in addition to options
 _bluealsa_cli() {
 	local cur prev words cword split
-	local dbus_opt nonopt_offset service
+	local dbus_opt service
+	local -i nonopt_offset
 
 	_init_completion -s || return
 
@@ -268,15 +266,14 @@ _bluealsa_cli() {
 			COMPREPLY=( $(compgen -W "$list" -- $cur) )
 			return
 			;;
-		--dbus=)
-			return
-			;;
 		--*)
 			[[ ${COMP_WORDS[COMP_CWORD]} = = ]] && return
 			;;
 	esac
 
 	case "$nonopt_offset" in
+		0) :
+		;;
 		"$COMP_CWORD")
 			# list available commands
 			COMPREPLY=( $(compgen -W "$simple_commands $path_commands" -- "$cur") )
@@ -313,7 +310,7 @@ _bluealsa_cli() {
 			;;
 	esac
 
-	[[ "$nonopt_offset" ]] || _bluealsa_complete_options $1
+	(( nonopt_offset > 0 )) || _bluealsa_complete_options $1
 }
 
 # completion function for bluealsa-rfcomm
@@ -321,7 +318,8 @@ _bluealsa_cli() {
 # requires busctl (part of systemd) to list device paths
 _bluealsa_rfcomm() {
 	local cur prev words cword split
-	local dbus_opt nonopt_offset service
+	local dbus_opt service
+	local -i nonopt_offset
 
 	_init_completion -s || return
 
@@ -333,9 +331,6 @@ _bluealsa_rfcomm() {
 			_have dbus-send || return
 			list=$(_bluealsa_list_dbus_suffices)
 			COMPREPLY=( $(compgen -W "$list" -- $cur) )
-			return
-			;;
-		--dbus=)
 			return
 			;;
 		--*)
@@ -350,7 +345,7 @@ _bluealsa_rfcomm() {
 	fi
 
 	# do not list options if path was found
-	[[ -z "$nonopt_offset" ]] && _bluealsa_complete_options $1
+	(( $nonopt_offset > 0 )) || _bluealsa_complete_options $1
 }
 
 # completion function for a2dpconf and hcitop
