@@ -15,6 +15,8 @@ AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_MKDIR_P
 AM_PROG_AR
 AM_PROG_CC_C_O
 LT_INIT
@@ -227,16 +229,17 @@ AM_COND_IF([ENABLE_MANPAGES], [
 	AS_IF([test "x$RST2MAN" = "x"], [AC_MSG_ERROR([[--enable-manpages requires rst2man]])])
 ])
 
-AC_ARG_ENABLE([bash-completion],
-	AS_HELP_STRING([--enable-bash-completion@<:@=DIR@:>@], [install bash completion script @<:@default=no@:>@]),
-	[bashcompdir="${enableval}"],
-	[bashcompdir=$($PKG_CONFIG --variable=completionsdir bash-completion)]
+AC_ARG_WITH([bash-completion],
+	AS_HELP_STRING([--with-bash-completion@<:@=DIR@:>@], [install bash completion script in DIR (or the bash completions default directory if not specified)]),
+	[bashcompdir="${withval}"],
+	[]
 )
-echo "XXX enable_bash_completion = [$enable_bash_completion] XXX"
-AM_CONDITIONAL([ENABLE_BASH_COMPLETION], [test "x$enable_bash_completion" != "x"])
-if test "x$bashcompdir" = "xyes" ; then
-	bashcompdir="$datadir/bash-completion/completions"
-fi
+AM_CONDITIONAL([WITH_BASH_COMPLETION], [test "x$with_bash_completion" != "x"])
+AS_IF([test "x$with_bash_completion" = "xyes"], [
+   PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
+	[bashcompdir=$($PKG_CONFIG --variable=completionsdir bash-completion)],
+	[bashcompdir="$datadir/bash-completion/completions"])
+])
 
 AC_ARG_ENABLE([test],
 	[AS_HELP_STRING([--enable-test], [enable unit test])])

@@ -23,7 +23,7 @@ hcitop_LDADD = \
 	@NCURSES_LIBS@
 endif
 
-if ENABLE_BASH_COMPLETION
+if WITH_BASH_COMPLETION
 bashcompdir = @BASH_COMPLETION_DIR@
 bashcomp_DATA = bash-completion/bluealsa
 
@@ -37,8 +37,9 @@ SYMLINKS = \
 	hcitop
 
 install-data-hook:
+	$(MKDIR_P) $(DESTDIR)$(bashcompdir) && \
 	cd $(DESTDIR)$(bashcompdir) && \
-	for link in $(SYMLINKS); do ln -sf bluealsa $$link; done
+	for link in $(SYMLINKS); do rm -f $$link; $(LN_S) bluealsa $$link; done
 
 uninstall-hook:
 	cd $(DESTDIR)$(bashcompdir) && rm -f $(SYMLINKS)
