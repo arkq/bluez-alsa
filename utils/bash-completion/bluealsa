@@ -72,10 +72,15 @@ _bluealsa_cli_path_commands() {
 }
 
 # helper function gets ALSA pcms
-_bluealsa_alsa_pcms() {
-	aplay -L 2>/dev/null | while read -r; do
-		[[ "$REPLY" =~ ^[^\ ] ]] && printf "%s\n" "$REPLY "
-	done
+# @param $1 is the current word to match
+_bluealsa_aplay_pcms() {
+	eval local cur="$1"
+	cur="${cur/%\\/\\\\}"
+	while read -r; do
+		[[ "$REPLY" == " "* ]] && continue
+		[[ "$REPLY" == "$cur"* ]] || continue
+		printf "%s\n" "${REPLY// /\\ }"
+	done <<< $(aplay -L 2>/dev/null)
 }
 
 # helper function gets rfcomm dbus paths
@@ -207,7 +212,7 @@ _bluealsa() {
 # - does not complete MAC addresses
 # requires aplay to list ALSA pcms
 _bluealsa_aplay() {
-	local cur prev words cword split list
+	local cur prev words cword split
 
 	_init_completion -s -n : || return
 
@@ -220,7 +225,9 @@ _bluealsa_aplay() {
 			;;
 		--pcm|-D)
 			_have aplay || return
-			COMPREPLY=( $(compgen -W "$(_bluealsa_alsa_pcms)" -- $cur) )
+			local IFS=$'\n'
+			COMPREPLY=( $(_bluealsa_aplay_pcms "$cur" ) )
+
 			# ALSA pcm names can contain '=' and ':', both of which cause
 			# problems for bash completion if it considers them to be word
 			# terminators. So we adjust the list of candidate matches to allow
