@@ -225,6 +225,10 @@ _bluealsa_aplay() {
 			;;
 		--pcm|-D)
 			_have aplay || return
+
+			# do not attempt completion on words containing ' or "
+			[[ "$cur" =~ [\'\"] ]] && return
+
 			local IFS=$'\n'
 			COMPREPLY=( $(_bluealsa_aplay_pcms "$cur" ) )
 
