@@ -230,16 +230,15 @@ AM_COND_IF([ENABLE_MANPAGES], [
 ])
 
 AC_ARG_WITH([bash-completion],
-	AS_HELP_STRING([--with-bash-completion@<:@=DIR@:>@], [install bash completion script in DIR (or the bash completions default directory if not specified)]),
-	[bashcompdir="${withval}"],
-	[]
-)
-AM_CONDITIONAL([WITH_BASH_COMPLETION], [test "x$with_bash_completion" != "x"])
+	AS_HELP_STRING([--with-bash-completion@<:@=DIR@:>@], [install bash completion
+		script in DIR (or the bash completions default directory if not specified)]))
+AM_CONDITIONAL([WITH_BASH_COMPLETION], [
+	test "x$with_bash_completion" != "x" -a "x$with_bash_completion" != "xno"])
 AS_IF([test "x$with_bash_completion" = "xyes"], [
-   PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
-	[bashcompdir=$($PKG_CONFIG --variable=completionsdir bash-completion)],
-	[bashcompdir="$datadir/bash-completion/completions"])
-])
+	PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
+		[bashcompdir=$($PKG_CONFIG --variable=completionsdir bash-completion)],
+		[bashcompdir="$datadir/bash-completion/completions"])
+	], [bashcompdir="$with_bash_completion"])
 
 AC_ARG_ENABLE([test],
 	[AS_HELP_STRING([--enable-test], [enable unit test])])
