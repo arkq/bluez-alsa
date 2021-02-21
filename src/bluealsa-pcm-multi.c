@@ -86,7 +86,6 @@ struct bluealsa_pcm_multi *bluealsa_pcm_multi_create(
 	multi->thread = config.main_thread;
 
 	pthread_mutex_init(&multi->mutex, NULL);
-	pthread_cond_init(&multi->cond, NULL);
 
 	if ((multi->epoll_fd = epoll_create(1)) == -1)
 		goto fail;
@@ -192,7 +191,6 @@ void bluealsa_pcm_multi_free(struct bluealsa_pcm_multi *multi) {
 	close(multi->event_fd);
 
 	pthread_mutex_destroy(&multi->mutex);
-	pthread_cond_destroy(&multi->cond);
 
 	free(multi);
 }
@@ -508,7 +506,7 @@ static void *bluealsa_pcm_mix_thread_func(struct bluealsa_pcm_multi *multi) {
 					pthread_mutex_unlock(&multi->mutex);
 
 					/* removing a client invalidates the event array, so
-					 * we need to call epoll() again here */
+					 * we need to call epoll_wait() again here */
 					break;
 				}
 			}
@@ -598,7 +596,7 @@ static void *bluealsa_pcm_snoop_thread_func(struct bluealsa_pcm_multi *multi) {
 				if (deleted)
 					/* the event array will be invalid if any clients were
 					 * deleted by the above call to bluealsa_pcm_multi_deliver()
-					 * So we must call epoll() again. */
+					 * So we must call epoll_wait() again. */
 					break;
 			}
 

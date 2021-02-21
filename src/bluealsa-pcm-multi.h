@@ -54,7 +54,6 @@ struct bluealsa_pcm_multi {
 	int event_fd;
 	pthread_t thread;
 	pthread_mutex_t mutex;
-	pthread_cond_t cond;
 #if DEBUG
 	size_t client_no;
 #endif
