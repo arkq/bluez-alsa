@@ -177,8 +177,8 @@ static struct ba_transport *transport_new(
 	t->bt_fd = -1;
 
 	err = 0;
-	err |= transport_thread_init(&t->thread, t);
-	err |= transport_thread_init(&t->thread_bc, t);
+	err |= transport_thread_init(&t->thread_enc, t);
+	err |= transport_thread_init(&t->thread_dec, t);
 	if (err != 0)
 		goto fail;
 
@@ -229,13 +229,15 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->a2dp.configuration = g_memdup(configuration, codec->capabilities_size);
 	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 
-	transport_pcm_init(&t->a2dp.pcm, &t->thread, is_sink ?
-			BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
+	transport_pcm_init(&t->a2dp.pcm,
+			is_sink ? &t->thread_dec : &t->thread_enc,
+			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm.max_bt_volume = 127;
 
-	transport_pcm_init(&t->a2dp.pcm_bc, &t->thread_bc, is_sink ?
-			BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
+	transport_pcm_init(&t->a2dp.pcm_bc,
+			is_sink ? &t->thread_enc : &t->thread_dec,
+			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm_bc.max_bt_volume = 127;
 
@@ -280,10 +282,11 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->type = type;
 
-	transport_pcm_init(&t->sco.spk_pcm, &t->thread, BA_TRANSPORT_PCM_MODE_SINK);
+	transport_pcm_init(&t->sco.spk_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.spk_pcm.max_bt_volume = 15;
 
-	transport_pcm_init(&t->sco.mic_pcm, &t->thread, BA_TRANSPORT_PCM_MODE_SOURCE);
+	/* TODO: After SCO thread refactoring use decoder thread for mic. */
+	transport_pcm_init(&t->sco.mic_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->sco.mic_pcm.max_bt_volume = 15;
 
 	t->acquire = transport_acquire_bt_sco;
@@ -354,8 +357,8 @@ void ba_transport_destroy(struct ba_transport *t) {
 	 * terminate the IO threads (or at least make sure they are not running
 	 * any more). Not doing so might result in an undefined behavior or even
 	 * a race condition (closed and reused file descriptor). */
-	transport_thread_cancel(&t->thread);
-	transport_thread_cancel(&t->thread_bc);
+	transport_thread_cancel(&t->thread_enc);
+	transport_thread_cancel(&t->thread_dec);
 
 	/* terminate on-going PCM connections - exit PCM controllers */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
@@ -408,8 +411,8 @@ void ba_transport_unref(struct ba_transport *t) {
 		transport_pcm_free(&t->sco.mic_pcm);
 	}
 
-	transport_thread_free(&t->thread);
-	transport_thread_free(&t->thread_bc);
+	transport_thread_free(&t->thread_enc);
+	transport_thread_free(&t->thread_dec);
 
 	pthread_mutex_destroy(&t->mutex);
 	free(t->bluez_dbus_owner);
@@ -637,8 +640,8 @@ void ba_transport_set_codec(
 
 int ba_transport_start(struct ba_transport *t) {
 
-	if (!pthread_equal(t->thread.id, config.main_thread) ||
-			!pthread_equal(t->thread_bc.id, config.main_thread))
+	if (!pthread_equal(t->thread_enc.id, config.main_thread) ||
+			!pthread_equal(t->thread_dec.id, config.main_thread))
 		return 0;
 
 	debug("Starting transport: %s", ba_transport_type_to_string(t->type));
@@ -646,15 +649,15 @@ int ba_transport_start(struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return a2dp_audio_thread_create(t);
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		return ba_transport_thread_create(&t->thread, sco_thread, "ba-sco");
+		return ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco");
 
 	errno = ENOTSUP;
 	return -1;
 }
 
 int ba_transport_stop(struct ba_transport *t) {
-	transport_thread_cancel(&t->thread);
-	transport_thread_cancel(&t->thread_bc);
+	transport_thread_cancel(&t->thread_enc);
+	transport_thread_cancel(&t->thread_dec);
 	return 0;
 }
 
@@ -779,7 +782,7 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 }
 
 int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
-	ba_transport_thread_send_signal(&pcm->t->thread, BA_TRANSPORT_SIGNAL_PCM_DROP);
+	ba_transport_thread_send_signal(&pcm->t->thread_enc, BA_TRANSPORT_SIGNAL_PCM_DROP);
 	debug("PCM dropped: %d", pcm->fd);
 	return 0;
 }

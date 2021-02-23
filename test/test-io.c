@@ -337,25 +337,25 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 		test_a2dp_start_terminate_timer(aging_duration);
 
 	if (enc == test_io_thread_a2dp_dump_pcm) {
-		ck_assert_int_eq(ba_transport_thread_create(&t2->thread, dec, dec_name), 0);
-		ck_assert_int_eq(ba_transport_thread_create(&t1->thread, enc, enc_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name), 0);
 		bt_data_write(bt_fds[1]);
 	}
 	else {
-		ck_assert_int_eq(ba_transport_thread_create(&t1->thread, enc, enc_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name), 0);
 		write_test_pcm(pcm_fds[0], t1->a2dp.pcm.channels);
-		ck_assert_int_eq(ba_transport_thread_create(&t2->thread, dec, dec_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name), 0);
 	}
 
 	pthread_mutex_lock(&test_a2dp_mutex);
 	pthread_cond_wait(&test_a2dp_terminate, &test_a2dp_mutex);
 	pthread_mutex_unlock(&test_a2dp_mutex);
 
-	ck_assert_int_eq(pthread_cancel(t1->thread.id), 0);
-	ck_assert_int_eq(pthread_cancel(t2->thread.id), 0);
+	ck_assert_int_eq(pthread_cancel(t1->thread_enc.id), 0);
+	ck_assert_int_eq(pthread_cancel(t2->thread_dec.id), 0);
 
-	ck_assert_int_eq(pthread_timedjoin(t1->thread.id, NULL, 1e6), 0);
-	ck_assert_int_eq(pthread_timedjoin(t2->thread.id, NULL, 1e6), 0);
+	ck_assert_int_eq(pthread_timedjoin(t1->thread_enc.id, NULL, 1e6), 0);
+	ck_assert_int_eq(pthread_timedjoin(t2->thread_dec.id, NULL, 1e6), 0);
 
 }
 
@@ -374,7 +374,7 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	t->sco.mic_pcm.fd = pcm_mic_fds[1];
 	t->sco.spk_pcm.fd = pcm_spk_fds[1];
 
-	ck_assert_int_eq(ba_transport_thread_create(&t->thread, cb, "sco"), 0);
+	ck_assert_int_eq(ba_transport_thread_create(&t->thread_enc, cb, "sco"), 0);
 
 	struct pollfd pfds[] = {
 		{ sco_fds[0], POLLIN, 0 },
@@ -407,8 +407,8 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 
 	debug("Decoded samples total: %zd", decoded_samples_total);
 
-	ck_assert_int_eq(pthread_cancel(t->thread.id), 0);
-	ck_assert_int_eq(pthread_timedjoin(t->thread.id, NULL, 1e6), 0);
+	ck_assert_int_eq(pthread_cancel(t->thread_enc.id), 0);
+	ck_assert_int_eq(pthread_timedjoin(t->thread_enc.id, NULL, 1e6), 0);
 
 	close(pcm_spk_fds[0]);
 	close(pcm_mic_fds[0]);
@@ -605,7 +605,7 @@ START_TEST(test_sco_cvsd) {
 	t->mtu_read = t->mtu_write = 48;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PING);
+	ba_transport_thread_send_signal(&t->thread_enc, BA_TRANSPORT_SIGNAL_PING);
 	test_sco(t, sco_thread);
 
 } END_TEST
@@ -621,7 +621,7 @@ START_TEST(test_sco_msbc) {
 	t->mtu_read = t->mtu_write = 24;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_send_signal(&t->thread, BA_TRANSPORT_SIGNAL_PING);
+	ba_transport_thread_send_signal(&t->thread_enc, BA_TRANSPORT_SIGNAL_PING);
 	test_sco(t, sco_thread);
 
 } END_TEST

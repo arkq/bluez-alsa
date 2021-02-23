@@ -178,10 +178,9 @@ struct ba_transport {
 	size_t mtu_read;
 	size_t mtu_write;
 
-	/* main thread for audio processing */
-	struct ba_transport_thread thread;
-	/* thread for back-channel processing */
-	struct ba_transport_thread thread_bc;
+	/* threads for audio processing */
+	struct ba_transport_thread thread_enc;
+	struct ba_transport_thread thread_dec;
 
 	union {
 
