@@ -131,7 +131,7 @@ final:
  * @return On success this function returns 0. Otherwise -1 is returned. */
 static int ofono_release_bt_sco(struct ba_transport *t) {
 
-	pthread_mutex_lock(&t->mutex);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	if (t->bt_fd == -1)
 		goto final;
@@ -143,7 +143,7 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	t->bt_fd = -1;
 
 final:
-	pthread_mutex_unlock(&t->mutex);
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return 0;
 }
 
@@ -399,14 +399,14 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 		goto fail;
 	}
 
-	pthread_mutex_lock(&t->mutex);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	debug("New oFono SCO connection (codec: %#x): %d", codec, fd);
 
 	t->bt_fd = fd;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 
-	pthread_mutex_unlock(&t->mutex);
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 
 	ba_transport_set_codec(t, codec);
 

@@ -345,6 +345,10 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	bool locked = false;
 	size_t i;
 
+	/* Prevent two (or more) clients trying to
+	 * open the same PCM at the same time. */
+	pthread_mutex_lock(&pcm->dbus_mtx);
+
 	/* preliminary check whether HFP codes is selected */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 			t->type.codec == HFP_CODEC_UNDEFINED) {
@@ -408,6 +412,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_OPEN);
 
 	ba_transport_thread_cleanup_unlock(th);
+	pthread_mutex_unlock(&pcm->dbus_mtx);
 	ba_transport_pcm_unref(pcm);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
@@ -421,6 +426,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 fail:
 	if (locked)
 		ba_transport_thread_cleanup_unlock(th);
+	pthread_mutex_unlock(&pcm->dbus_mtx);
 	ba_transport_pcm_unref(pcm);
 	/* clean up created file descriptors */
 	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
@@ -507,6 +513,9 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 		value = NULL;
 	}
 
+	/* synchronize codec selection and e.g. PCM open */
+	pthread_mutex_lock(&pcm->dbus_mtx);
+
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* support for Stream End-Points not enabled in BlueZ */
@@ -578,6 +587,7 @@ fail:
 			G_DBUS_ERROR_FAILED, "%s", errmsg);
 
 final:
+	pthread_mutex_unlock(&pcm->dbus_mtx);
 	ba_transport_pcm_unref(pcm);
 	g_free(a2dp_configuration);
 	g_variant_iter_free(properties);

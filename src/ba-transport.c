@@ -76,6 +76,7 @@ static int transport_pcm_init(
 	pcm->mode = mode;
 	pcm->fd = -1;
 
+	pthread_mutex_init(&pcm->dbus_mtx, NULL);
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
 	pthread_cond_init(&pcm->synced, NULL);
 
@@ -91,6 +92,7 @@ static void transport_pcm_free(
 
 	ba_transport_pcm_release(pcm);
 
+	pthread_mutex_destroy(&pcm->dbus_mtx);
 	pthread_mutex_destroy(&pcm->synced_mtx);
 	pthread_cond_destroy(&pcm->synced);
 
@@ -172,7 +174,8 @@ static struct ba_transport *transport_new(
 	t->type.profile = BA_TRANSPORT_PROFILE_NONE;
 	t->ref_count = 1;
 
-	pthread_mutex_init(&t->mutex, NULL);
+	pthread_mutex_init(&t->type_mtx, NULL);
+	pthread_mutex_init(&t->bt_fd_mtx, NULL);
 
 	t->bt_fd = -1;
 
@@ -414,7 +417,8 @@ void ba_transport_unref(struct ba_transport *t) {
 	transport_thread_free(&t->thread_enc);
 	transport_thread_free(&t->thread_dec);
 
-	pthread_mutex_destroy(&t->mutex);
+	pthread_mutex_destroy(&t->bt_fd_mtx);
+	pthread_mutex_destroy(&t->type_mtx);
 	free(t->bluez_dbus_owner);
 	free(t->bluez_dbus_path);
 	free(t);
@@ -436,18 +440,24 @@ int ba_transport_select_codec_a2dp(
 	if (!(t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
 		return errno = ENOTSUP, -1;
 
+	/* selecting new codec will change transport type */
+	pthread_mutex_lock(&t->type_mtx);
+
 	/* the same codec with the same configuration already selected */
 	if (t->type.codec == sep->codec_id &&
 			memcmp(sep->configuration, t->a2dp.configuration, sep->capabilities_size) == 0)
-		return 0;
+		goto final;
 
 	GError *err = NULL;
 	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path, sep, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
+		pthread_mutex_unlock(&t->type_mtx);
 		g_error_free(err);
 		return errno = EIO, -1;
 	}
 
+final:
+	pthread_mutex_unlock(&t->type_mtx);
 	return 0;
 }
 
@@ -460,13 +470,16 @@ int ba_transport_select_codec_sco(
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 #if ENABLE_MSBC
 
-		/* codec already selected, skip switching */
-		if (t->type.codec == codec_id)
-			return 0;
-
 		/* with oFono back-end we have no access to RFCOMM */
 		if (t->sco.rfcomm == NULL)
 			return errno = ENOTSUP, -1;
+
+		/* selecting new codec will change transport type */
+		pthread_mutex_lock(&t->type_mtx);
+
+		/* codec already selected, skip switching */
+		if (t->type.codec == codec_id)
+			goto final;
 
 		struct ba_rfcomm * const r = t->sco.rfcomm;
 		pthread_mutex_lock(&r->codec_selection_completed_mtx);
@@ -488,9 +501,13 @@ int ba_transport_select_codec_sco(
 		}
 
 		pthread_mutex_unlock(&r->codec_selection_completed_mtx);
-		if (t->type.codec != codec_id)
+		if (t->type.codec != codec_id) {
+			pthread_mutex_unlock(&t->type_mtx);
 			return errno = EIO, -1;
+		}
 
+final:
+		pthread_mutex_unlock(&t->type_mtx);
 		break;
 #endif
 
@@ -794,7 +811,7 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	GError *err = NULL;
 	int fd;
 
-	pthread_mutex_lock(&t->mutex);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	/* Check whether transport is already acquired - keep-alive mode. */
 	if ((fd = t->bt_fd) != -1) {
@@ -844,7 +861,7 @@ fail:
 	}
 
 final:
-	pthread_mutex_unlock(&t->mutex);
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return fd;
 }
 
@@ -854,7 +871,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 	GError *err = NULL;
 	int ret = 0;
 
-	pthread_mutex_lock(&t->mutex);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	/* If the transport has not been acquired, or it has been released already,
 	 * there is no need to release it again. In fact, trying to release already
@@ -913,7 +930,7 @@ fail:
 	}
 
 final:
-	pthread_mutex_unlock(&t->mutex);
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return ret;
 }
 
@@ -922,7 +939,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	struct ba_device *d = t->d;
 	int fd;
 
-	pthread_mutex_lock(&t->mutex);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	if ((fd = t->bt_fd) != -1) {
 		debug("Reusing SCO: %d", fd);
@@ -952,13 +969,13 @@ fail:
 		close(fd);
 	fd = -1;
 final:
-	pthread_mutex_unlock(&t->mutex);
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return fd;
 }
 
 static int transport_release_bt_sco(struct ba_transport *t) {
 
-	pthread_mutex_lock(&t->mutex);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	if (t->bt_fd == -1)
 		goto final;
@@ -970,7 +987,7 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 	t->bt_fd = -1;
 
 final:
-	pthread_mutex_unlock(&t->mutex);
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return 0;
 }
 
@@ -994,6 +1011,7 @@ int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
 	pcm->fd = -1;
 
 	pthread_setcancelstate(oldstate, NULL);
+
 	return 0;
 }
 

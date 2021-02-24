@@ -132,6 +132,9 @@ struct ba_transport_pcm {
 	pthread_mutex_t synced_mtx;
 	pthread_cond_t synced;
 
+	/* PCM access synchronization */
+	pthread_mutex_t dbus_mtx;
+
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
 	unsigned int ba_dbus_id;
@@ -156,6 +159,9 @@ struct ba_transport {
 	/* backward reference to device */
 	struct ba_device *d;
 
+	/* guard modifications of transport type, e.g. codec */
+	pthread_mutex_t type_mtx;
+
 	/* Transport structure covers all transports supported by BlueALSA. However,
 	 * every transport requires specific handling - link acquisition, transport
 	 * specific configuration, freeing resources, etc. */
@@ -165,9 +171,8 @@ struct ba_transport {
 	char *bluez_dbus_owner;
 	char *bluez_dbus_path;
 
-	/* This mutex shall guard modifications of the critical sections in this
-	 * transport structure, e.g. thread creation/termination. */
-	pthread_mutex_t mutex;
+	/* guard modifications of our file descriptor */
+	pthread_mutex_t bt_fd_mtx;
 
 	/* This field stores a file descriptor (socket) associated with the BlueZ
 	 * side of the transport. The role of this socket depends on the transport
