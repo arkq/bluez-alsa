@@ -342,12 +342,16 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	struct ba_transport_thread *th = pcm->th;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
-	bool locked = false;
 	size_t i;
 
 	/* Prevent two (or more) clients trying to
 	 * open the same PCM at the same time. */
 	pthread_mutex_lock(&pcm->dbus_mtx);
+
+	/* We must ensure that transport release is not in progress before
+	 * accessing transport critical section. Otherwise, we might have
+	 * the IO thread closing it in the middle of the open procedure! */
+	ba_transport_thread_cleanup_lock(th);
 
 	/* preliminary check whether HFP codes is selected */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
@@ -356,12 +360,6 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
 		goto fail;
 	}
-
-	/* We must ensure that transport release is not in progress before
-	 * accessing transport critical section. Otherwise, we might have
-	 * the IO thread close it in the middle of open procedure! */
-	ba_transport_thread_cleanup_lock(th);
-	locked = true;
 
 	if (pcm->fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
@@ -411,6 +409,16 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	/* notify our audio thread that the FIFO is ready */
 	ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_OPEN);
 
+	/* For source profiles (A2DP Source and SCO Audio Gateway) wait
+	 * until the underlying IO thread is ready to process audio. */
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
+			t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+		pthread_mutex_lock(&th->ready_mtx);
+		while (!th->running)
+			pthread_cond_wait(&th->ready, &th->ready_mtx);
+		pthread_mutex_unlock(&th->ready_mtx);
+	}
+
 	ba_transport_thread_cleanup_unlock(th);
 	pthread_mutex_unlock(&pcm->dbus_mtx);
 	ba_transport_pcm_unref(pcm);
@@ -424,8 +432,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	return;
 
 fail:
-	if (locked)
-		ba_transport_thread_cleanup_unlock(th);
+	ba_transport_thread_cleanup_unlock(th);
 	pthread_mutex_unlock(&pcm->dbus_mtx);
 	ba_transport_pcm_unref(pcm);
 	/* clean up created file descriptors */

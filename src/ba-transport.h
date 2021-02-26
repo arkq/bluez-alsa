@@ -144,7 +144,7 @@ struct ba_transport_pcm {
 struct ba_transport_thread {
 	/* backward reference to transport */
 	struct ba_transport *t;
-	/* guard PCM running on this thread */
+	/* guard thread structure */
 	pthread_mutex_t mutex;
 	/* actual thread ID */
 	pthread_t id;
@@ -152,6 +152,10 @@ struct ba_transport_thread {
 	int pipe[2];
 	/* indicates cleanup lock */
 	bool cleanup_lock;
+	/* thread synchronization */
+	pthread_mutex_t ready_mtx;
+	pthread_cond_t ready;
+	bool running;
 };
 
 struct ba_transport {
@@ -311,6 +315,9 @@ int ba_transport_thread_create(
 		void *(*routine)(struct ba_transport_thread *),
 		const char *name);
 
+int ba_transport_thread_ready(
+		struct ba_transport_thread *th);
+
 int ba_transport_thread_send_signal(
 		struct ba_transport_thread *th,
 		enum ba_transport_signal sig);
@@ -320,5 +327,8 @@ enum ba_transport_signal ba_transport_thread_recv_signal(
 void ba_transport_thread_cleanup(struct ba_transport_thread *th);
 int ba_transport_thread_cleanup_lock(struct ba_transport_thread *th);
 int ba_transport_thread_cleanup_unlock(struct ba_transport_thread *th);
+
+#define debug_transport_thread_loop(th, tag) \
+	debug("IO loop: %s: %s: %s", tag, __func__, ba_transport_type_to_string((th)->t->type))
 
 #endif

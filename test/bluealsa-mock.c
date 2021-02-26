@@ -146,6 +146,9 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 	bool io_paused = false;
 	int x = 0;
 
+	debug_transport_thread_loop(th, "START");
+	ba_transport_thread_ready(th);
+
 	while (sigusr1_count == 0) {
 
 		int timout = 0;

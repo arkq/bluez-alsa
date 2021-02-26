@@ -246,6 +246,9 @@ static void *test_io_thread_a2dp_dump_bt(struct ba_transport_thread *th) {
 	uint8_t buffer[1024];
 	ssize_t len;
 
+	debug_transport_thread_loop(th, "START");
+	ba_transport_thread_ready(th);
+
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
@@ -282,7 +285,9 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
 		ck_assert_ptr_ne(f = fopen(fname, "w"), NULL);
 	}
 
-	debug("Starting PCM dump: %d", pfds[0].fd);
+	debug_transport_thread_loop(th, "START");
+	ba_transport_thread_ready(th);
+
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {

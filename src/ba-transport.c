@@ -111,6 +111,8 @@ static int transport_thread_init(
 	th->pipe[1] = -1;
 
 	pthread_mutex_init(&th->mutex, NULL);
+	pthread_mutex_init(&th->ready_mtx, NULL);
+	pthread_cond_init(&th->ready, NULL);
 
 	if (pipe(th->pipe) == -1)
 		return -1;
@@ -136,6 +138,7 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 	 * make sure, that after termination, this thread handler will not
 	 * be used anymore. */
 	th->id = config.main_thread;
+	th->running = false;
 
 }
 
@@ -148,6 +151,8 @@ static void transport_thread_free(
 	if (th->pipe[1] != -1)
 		close(th->pipe[1]);
 	pthread_mutex_destroy(&th->mutex);
+	pthread_mutex_destroy(&th->ready_mtx);
+	pthread_cond_destroy(&th->ready);
 }
 
 /**
@@ -1026,6 +1031,7 @@ int ba_transport_thread_create(
 	int ret;
 
 	ba_transport_ref(t);
+
 	if ((ret = pthread_create(&th->id, NULL, PTHREAD_ROUTINE(routine), th)) != 0) {
 		error("Couldn't create transport thread: %s", strerror(ret));
 		th->id = config.main_thread;
@@ -1037,6 +1043,13 @@ int ba_transport_thread_create(
 	debug("Created new transport thread [%s]: %s",
 			name, ba_transport_type_to_string(t->type));
 
+	return 0;
+}
+
+int ba_transport_thread_ready(
+		struct ba_transport_thread *th) {
+	th->running = true;
+	pthread_cond_signal(&th->ready);
 	return 0;
 }
 

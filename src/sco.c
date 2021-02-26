@@ -242,8 +242,8 @@ void *sco_thread(struct ba_transport_thread *th) {
 		{ -1, POLLOUT, 0 },
 	};
 
-	debug("Starting SCO loop: %s", ba_transport_type_to_string(t->type));
-	for (;;) {
+	debug_transport_thread_loop(th, "START");
+	for (ba_transport_thread_ready(th);;) {
 
 		/* prevent an unexpected change of the codec value */
 		const uint16_t codec = t->type.codec;
@@ -576,6 +576,7 @@ retry_sco_write:
 	}
 
 fail:
+	debug_transport_thread_loop(th, "EXIT");
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 fail_ffb:
 #if ENABLE_MSBC
