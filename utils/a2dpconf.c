@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dpconf.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -18,6 +18,8 @@
 #include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <bluetooth/bluetooth.h>
 
 #include "a2dp-codecs.h"
 #include "shared/defs.h"
@@ -60,33 +62,44 @@ static uint16_t get_codec(const char *s) {
 	if ((tmp = strchr(s, ':')) != NULL)
 		len = tmp - s;
 
+	if (len == 0)
+		goto fail;
+
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		if (strncasecmp(s, codecs[i].name, len) == 0)
 			return codecs[i].codec_id;
 
+fail:
 	return 0xFFFF;
 }
 
-static int get_codec_blob(const char *s, void *dest, size_t n) {
+static ssize_t get_codec_blob(const char *s, void *dest, size_t n) {
 
 	const char *tmp;
-	if ((tmp = strchr(s, ':')) == NULL)
-		return -1;
-
-	s = tmp + 1;
+	if ((tmp = strchr(s, ':')) != NULL)
+		s = tmp + 1;
 
 	size_t len;
-	if ((len = strlen(s)) != n * 2) {
-		fprintf(stderr, "Invalid codec blob size: %zd != %zd\n", len, n * 2);
+	if ((len = strlen(s)) % 2 != 0) {
+		fprintf(stderr, "Invalid blob: Size not a multiple of 2: %zd\n", len);
 		return -1;
 	}
 
-	for (size_t i = 0; i < n; i++) {
+	if (n == 0)
+		return len / 2;
+
+	if (n * 2 < len) {
+		fprintf(stderr, "Invalid blob buffer size: %zd < %zd\n", n * 2, len);
+		return -1;
+	}
+
+	len /= 2;
+	for (size_t i = 0; i < len; i++) {
 		((char *)dest)[i] = hextable[(int)s[i * 2]] << 4;
 		((char *)dest)[i] |= hextable[(int)s[i * 2 + 1]];
 	}
 
-	return 0;
+	return len;
 }
 
 static char *bintohex(const void *src, size_t n) {
@@ -96,7 +109,17 @@ static char *bintohex(const void *src, size_t n) {
 	return hex;
 }
 
-static void dump_sbc(const a2dp_sbc_t *sbc) {
+static int check_blob_size(size_t size, size_t value) {
+	if (value == size)
+		return 0;
+	fprintf(stderr, "Invalid codec blob size: %zd != %zd\n", value, size);
+	return -1;
+}
+
+static void dump_sbc(const void *blob, size_t size) {
+	const a2dp_sbc_t *sbc = blob;
+	if (check_blob_size(sizeof(*sbc), size) == -1)
+		return;
 	printf("SBC <hex:%s> {\n"
 			"  sampling-frequency:4 =%s%s%s%s\n"
 			"  channel-mode:4 =%s%s%s%s\n"
@@ -126,7 +149,10 @@ static void dump_sbc(const a2dp_sbc_t *sbc) {
 			sbc->min_bitpool, sbc->max_bitpool);
 }
 
-static void dump_mpeg(const a2dp_mpeg_t *mpeg) {
+static void dump_mpeg(const void *blob, size_t size) {
+	const a2dp_mpeg_t *mpeg = blob;
+	if (check_blob_size(sizeof(*mpeg), size) == -1)
+		return;
 	printf("MPEG-1,2 Audio <hex:%s> {\n"
 			"  layer:3 =%s%s%s\n"
 			"  crc:1 = %s\n"
@@ -157,7 +183,10 @@ static void dump_mpeg(const a2dp_mpeg_t *mpeg) {
 			MPEG_GET_BITRATE(*mpeg));
 }
 
-static void dump_aac(const a2dp_aac_t *aac) {
+static void dump_aac(const void *blob, size_t size) {
+	const a2dp_aac_t *aac = blob;
+	if (check_blob_size(sizeof(*aac), size) == -1)
+		return;
 	printf("MPEG-2,4 AAC <hex:%s> {\n"
 			"  object-type:8 =%s%s%s%s\n"
 			"  sampling-frequency:12 =%s%s%s%s%s%s%s%s%s%s%s%s\n"
@@ -189,7 +218,10 @@ static void dump_aac(const a2dp_aac_t *aac) {
 			AAC_GET_BITRATE(*aac));
 }
 
-static void dump_atrac(const a2dp_atrac_t *atrac) {
+static void dump_atrac(const void *blob, size_t size) {
+	const a2dp_atrac_t *atrac = blob;
+	if (check_blob_size(sizeof(*atrac), size) == -1)
+		return;
 	printf("ATRAC <hex:%s> {\n"
 			"  version:3 = ATRAC%u\n"
 			"  channel-mode:3 =%s%s%s\n"
@@ -212,15 +244,39 @@ static void dump_atrac(const a2dp_atrac_t *atrac) {
 			ATRAC_GET_MAX_SUL(*atrac));
 }
 
-static void dump_aptx(const a2dp_aptx_t *aptx) {
-	printf("aptX <hex:%s> {\n"
-			"  vendor-id:32 = %#x\n"
+static void dump_vendor(const void *blob, size_t size) {
+	const a2dp_vendor_codec_t *info = blob;
+	if (size <= sizeof(*info))
+		return;
+	const void *data = info + 1;
+	size_t data_size = size - sizeof(*info);
+	printf("<hex:%s> {\n"
+			"  vendor-id:32 = %#x [%s]\n"
+			"  vendor-codec-id:16 = %#x\n"
+			"  data:%zu = hex:%s\n"
+			"}\n",
+			bintohex(blob, size),
+			A2DP_GET_VENDOR_ID(*info),
+			bt_compidtostr(A2DP_GET_VENDOR_ID(*info)),
+			A2DP_GET_CODEC_ID(*info),
+			data_size * 8,
+			bintohex(data, data_size));
+}
+
+static void _dump_aptx(const void *blob, size_t size, const char *name) {
+	const a2dp_aptx_t *aptx = blob;
+	if (check_blob_size(sizeof(*aptx), size) == -1)
+		return;
+	printf("%s <hex:%s> {\n"
+			"  vendor-id:32 = %#x [%s]\n"
 			"  vendor-codec-id:16 = %#x\n"
 			"  channel-mode:4 =%s%s%s\n"
 			"  sampling-frequency:4 =%s%s%s%s\n"
 			"}\n",
+			name,
 			bintohex(aptx, sizeof(*aptx)),
 			A2DP_GET_VENDOR_ID(aptx->info),
+			bt_compidtostr(A2DP_GET_VENDOR_ID(aptx->info)),
 			A2DP_GET_CODEC_ID(aptx->info),
 			aptx->channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_TWS ? " DualChannel" : "",
@@ -231,9 +287,20 @@ static void dump_aptx(const a2dp_aptx_t *aptx) {
 			aptx->frequency & APTX_SAMPLING_FREQ_16000 ? " 16000" : "");
 }
 
-static void dump_aptx_hd(const a2dp_aptx_hd_t *aptx_hd) {
+static void dump_aptx(const void *blob, size_t size) {
+	_dump_aptx(blob, size, "aptX");
+}
+
+static void dump_aptx_tws(const void *blob, size_t size) {
+	_dump_aptx(blob, size, "aptX-TWS");
+}
+
+static void dump_aptx_hd(const void *blob, size_t size) {
+	const a2dp_aptx_hd_t *aptx_hd = blob;
+	if (check_blob_size(sizeof(*aptx_hd), size) == -1)
+		return;
 	printf("aptX HD <hex:%s> {\n"
-			"  vendor-id:32 = %#x\n"
+			"  vendor-id:32 = %#x [%s]\n"
 			"  vendor-codec-id:16 = %#x\n"
 			"  channel-mode:4 =%s%s\n"
 			"  sampling-frequency:4 =%s%s%s%s\n"
@@ -241,6 +308,7 @@ static void dump_aptx_hd(const a2dp_aptx_hd_t *aptx_hd) {
 			"}\n",
 			bintohex(aptx_hd, sizeof(*aptx_hd)),
 			A2DP_GET_VENDOR_ID(aptx_hd->aptx.info),
+			bt_compidtostr(A2DP_GET_VENDOR_ID(aptx_hd->aptx.info)),
 			A2DP_GET_CODEC_ID(aptx_hd->aptx.info),
 			aptx_hd->aptx.channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
 			aptx_hd->aptx.channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "",
@@ -250,9 +318,12 @@ static void dump_aptx_hd(const a2dp_aptx_hd_t *aptx_hd) {
 			aptx_hd->aptx.frequency & APTX_SAMPLING_FREQ_16000 ? " 16000" : "");
 }
 
-static void dump_faststream(const a2dp_faststream_t *faststream) {
+static void dump_faststream(const void *blob, size_t size) {
+	const a2dp_faststream_t *faststream = blob;
+	if (check_blob_size(sizeof(*faststream), size) == -1)
+		return;
 	printf("FastStream <hex:%s> {\n"
-			"  vendor-id:32 = %#x\n"
+			"  vendor-id:32 = %#x [%s]\n"
 			"  vendor-codec-id:16 = %#x\n"
 			"  direction:8 =%s%s\n"
 			"  sampling-frequency-voice:8 =%s\n"
@@ -260,6 +331,7 @@ static void dump_faststream(const a2dp_faststream_t *faststream) {
 			"}\n",
 			bintohex(faststream, sizeof(*faststream)),
 			A2DP_GET_VENDOR_ID(faststream->info),
+			bt_compidtostr(A2DP_GET_VENDOR_ID(faststream->info)),
 			A2DP_GET_CODEC_ID(faststream->info),
 			faststream->direction & FASTSTREAM_DIRECTION_MUSIC ? " Music" : "",
 			faststream->direction & FASTSTREAM_DIRECTION_VOICE ? " Voice" : "",
@@ -268,9 +340,12 @@ static void dump_faststream(const a2dp_faststream_t *faststream) {
 			faststream->frequency_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 ? " 44100" : "");
 }
 
-static void dump_ldac(const a2dp_ldac_t *ldac) {
+static void dump_ldac(const void *blob, size_t size) {
+	const a2dp_ldac_t *ldac = blob;
+	if (check_blob_size(sizeof(*ldac), size) == -1)
+		return;
 	printf("LDAC <hex:%s> {\n"
-			"  vendor-id:32 = %#x\n"
+			"  vendor-id:32 = %#x [%s]\n"
 			"  vendor-codec-id:16 = %#x\n"
 			"  <reserved>:2\n"
 			"  sampling-frequency:6 =%s%s%s%s%s%s\n"
@@ -279,6 +354,7 @@ static void dump_ldac(const a2dp_ldac_t *ldac) {
 			"}\n",
 			bintohex(ldac, sizeof(*ldac)),
 			A2DP_GET_VENDOR_ID(ldac->info),
+			bt_compidtostr(A2DP_GET_VENDOR_ID(ldac->info)),
 			A2DP_GET_CODEC_ID(ldac->info),
 			ldac->frequency & LDAC_SAMPLING_FREQ_192000 ? " 192000" : "",
 			ldac->frequency & LDAC_SAMPLING_FREQ_176400 ? " 176400" : "",
@@ -291,15 +367,41 @@ static void dump_ldac(const a2dp_ldac_t *ldac) {
 			ldac->channel_mode & LDAC_CHANNEL_MODE_MONO ? " Mono" : "");
 }
 
+static struct {
+	uint16_t codec_id;
+	size_t blob_size;
+	void (*dump)(const void *, size_t);
+} dumps[] = {
+	{ A2DP_CODEC_SBC, sizeof(a2dp_sbc_t), dump_sbc },
+	{ A2DP_CODEC_MPEG12, sizeof(a2dp_mpeg_t), dump_mpeg },
+	{ A2DP_CODEC_MPEG24, sizeof(a2dp_aac_t), dump_aac },
+	{ A2DP_CODEC_ATRAC, sizeof(a2dp_atrac_t), dump_atrac },
+	{ A2DP_CODEC_VENDOR_APTX, sizeof(a2dp_aptx_t), dump_aptx },
+	{ A2DP_CODEC_VENDOR_APTX_TWS, sizeof(a2dp_aptx_t), dump_aptx_tws },
+	{ A2DP_CODEC_VENDOR_APTX_AD, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_APTX_HD, sizeof(a2dp_aptx_hd_t), dump_aptx_hd },
+	{ A2DP_CODEC_VENDOR_APTX_LL, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_FASTSTREAM, sizeof(a2dp_faststream_t), dump_faststream },
+	{ A2DP_CODEC_VENDOR_LDAC, sizeof(a2dp_ldac_t), dump_ldac },
+	{ A2DP_CODEC_VENDOR_LHDC, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_LHDC_V1, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_LLAC, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, -1, dump_vendor },
+};
+
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hV";
+	const char *opts = "hVx";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
+		{ "auto-detect", no_argument, NULL, 'x' },
 		{ 0, 0, 0, 0 },
 	};
+
+	bool detect = false;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
@@ -310,6 +412,7 @@ usage:
 					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
+					"  -x, --auto-detect\ttry to auto-detect codec\n"
 					"\nExamples:\n"
 					"  %s sbc:ffff0235\n"
 					"  %s aptx:4f0000000100ff\n",
@@ -320,6 +423,10 @@ usage:
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
+		case 'x' /* --auto-detect */ :
+			detect = true;
+			break;
+
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return EXIT_FAILURE;
@@ -329,79 +436,29 @@ usage:
 		goto usage;
 
 	const char *codec = argv[optind];
-	switch (get_codec(codec)) {
+	uint16_t codec_id = get_codec(codec);
 
-	case A2DP_CODEC_SBC: {
-		a2dp_sbc_t sbc = { 0 };
-		if (get_codec_blob(codec, &sbc, sizeof(sbc)) != -1)
-			dump_sbc(&sbc);
-	} break;
+	ssize_t blob_size;
+	if ((blob_size = get_codec_blob(codec, NULL, 0)) == -1)
+		return EXIT_FAILURE;
 
-	case A2DP_CODEC_MPEG12: {
-		a2dp_mpeg_t mpeg = { 0 };
-		if (get_codec_blob(codec, &mpeg, sizeof(mpeg)) != -1)
-			dump_mpeg(&mpeg);
-	} break;
+	void *blob = malloc(blob_size);
+	if (get_codec_blob(codec, blob, blob_size) == -1)
+		return EXIT_FAILURE;
 
-	case A2DP_CODEC_MPEG24: {
-		a2dp_aac_t aac = { 0 };
-		if (get_codec_blob(codec, &aac, sizeof(aac)) != -1)
-			dump_aac(&aac);
-	} break;
+	for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
+		if (dumps[i].codec_id == codec_id) {
+			dumps[i].dump(blob, blob_size);
+			return EXIT_SUCCESS;
+		}
 
-	case A2DP_CODEC_ATRAC: {
-		a2dp_atrac_t atrac = { 0 };
-		if (get_codec_blob(codec, &atrac, sizeof(atrac)) != -1)
-			dump_atrac(&atrac);
-	} break;
-
-	case A2DP_CODEC_VENDOR_APTX:
-	case A2DP_CODEC_VENDOR_APTX_TWS: {
-		a2dp_aptx_t aptx = { 0 };
-		if (get_codec_blob(codec, &aptx, sizeof(aptx)) != -1)
-			dump_aptx(&aptx);
-	} break;
-
-	case A2DP_CODEC_VENDOR_APTX_AD: {
-	} break;
-
-	case A2DP_CODEC_VENDOR_APTX_HD: {
-		a2dp_aptx_hd_t aptx_hd = { 0 };
-		if (get_codec_blob(codec, &aptx_hd, sizeof(aptx_hd)) != -1)
-			dump_aptx_hd(&aptx_hd);
-	} break;
-
-	case A2DP_CODEC_VENDOR_APTX_LL: {
-	} break;
-
-	case A2DP_CODEC_VENDOR_FASTSTREAM: {
-		a2dp_faststream_t faststream = { 0 };
-		if (get_codec_blob(codec, &faststream, sizeof(faststream)) != -1)
-			dump_faststream(&faststream);
-	} break;
-
-	case A2DP_CODEC_VENDOR_LDAC: {
-		a2dp_ldac_t ldac = { 0 };
-		if (get_codec_blob(codec, &ldac, sizeof(ldac)) != -1)
-			dump_ldac(&ldac);
-	} break;
-
-	case A2DP_CODEC_VENDOR_LHDC: {
-	} break;
-
-	case A2DP_CODEC_VENDOR_LHDC_V1: {
-	} break;
-
-	case A2DP_CODEC_VENDOR_LLAC: {
-	} break;
-
-	case A2DP_CODEC_VENDOR_SAMSUNG_HD: {
-	} break;
-
-	case A2DP_CODEC_VENDOR_SAMSUNG_SC: {
-	} break;
-
-	default:
+	if (detect) {
+		for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
+			if (dumps[i].blob_size == (size_t)blob_size)
+				dumps[i].dump(blob, blob_size);
+		dump_vendor(blob, blob_size);
+	}
+	else {
 		fprintf(stderr, "Couldn't detect codec type: %s\n", codec);
 		return EXIT_FAILURE;
 	}

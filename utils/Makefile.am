@@ -9,6 +9,8 @@ if ENABLE_A2DPCONF
 bin_PROGRAMS += a2dpconf
 a2dpconf_CFLAGS = \
 	-I$(top_srcdir)/src
+a2dpconf_LDADD = \
+	@BLUEZ_LIBS@
 endif
 
 if ENABLE_HCITOP
