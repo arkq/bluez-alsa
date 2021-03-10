@@ -10,7 +10,9 @@
 
 #include "codec-aptx.h"
 
+#include <endian.h>
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-audio.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_A2DPAUDIO_H_
 #define BLUEALSA_A2DPAUDIO_H_
 
@@ -15,22 +16,7 @@
 # include <config.h>
 #endif
 
-#include <stddef.h>
-
 #include "ba-transport.h"
-
-ssize_t ba_transport_pcm_flush(
-		struct ba_transport_pcm *pcm);
-
-ssize_t ba_transport_pcm_read(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
-		size_t samples);
-
-ssize_t ba_transport_pcm_write(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
-		size_t samples);
 
 int a2dp_audio_thread_create(struct ba_transport *t);
 

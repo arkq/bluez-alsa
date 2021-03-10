@@ -55,6 +55,7 @@
 #include "../src/codec-sbc.c"
 #include "../src/dbus.c"
 #include "../src/hci.c"
+#include "../src/io.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
@@ -180,7 +181,8 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 		const size_t samples = ARRAYSIZE(buffer);
 		x = snd_pcm_sine_s16le(buffer, samples, channels, x, 1.0 / 128);
 
-		if (ba_transport_pcm_write(&t->a2dp.pcm, buffer, samples) == -1)
+		io_pcm_scale(&t->a2dp.pcm, buffer, samples);
+		if (io_pcm_write(&t->a2dp.pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		/* maintain constant speed */

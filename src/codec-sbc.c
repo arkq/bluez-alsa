@@ -10,8 +10,8 @@
 
 #include "codec-sbc.h"
 
-#include <sbc/sbc.h>
 #include <glib.h>
+#include <sbc/sbc.h>
 
 #include "a2dp-codecs.h"
 #include "shared/log.h"

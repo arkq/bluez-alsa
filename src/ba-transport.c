@@ -1008,7 +1008,7 @@ int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
 	 * execution. In this release function it is important to perform actions
 	 * atomically. Since close call is a cancellation point, it is required to
 	 * temporally disable cancellation. For a better understanding of what is
-	 * going on, see the ba_transport_pcm_read() function. */
+	 * going on, see the io_pcm_read() function. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
 	debug("Closing PCM: %d", pcm->fd);

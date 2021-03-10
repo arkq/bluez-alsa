@@ -27,6 +27,7 @@ bluealsa_SOURCES = \
 	codec-sbc.c \
 	dbus.c \
 	hci.c \
+	io.c \
 	sco.c \
 	utils.c \
 	main.c

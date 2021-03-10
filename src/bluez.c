@@ -36,7 +36,6 @@
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
-#include "codec-sbc.h"
 #include "dbus.h"
 #include "hci.h"
 #include "sco.h"

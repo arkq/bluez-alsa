@@ -24,12 +24,12 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
 
-#include "a2dp-audio.h"
 #include "ba-device.h"
 #include "bluealsa.h"
 #include "codec-msbc.h"
 #include "hci.h"
 #include "hfp.h"
+#include "io.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -343,7 +343,7 @@ void *sco_thread(struct ba_transport_thread *th) {
 				pthread_cond_signal(&t->sco.spk_pcm.synced);
 				break;
 			case BA_TRANSPORT_SIGNAL_PCM_DROP:
-				ba_transport_pcm_flush(&t->sco.spk_pcm);
+				io_pcm_flush(&t->sco.spk_pcm);
 				continue;
 			default:
 				break;
@@ -486,7 +486,7 @@ retry_sco_write:
 #endif
 			}
 
-			if ((samples = ba_transport_pcm_read(&t->sco.spk_pcm, buffer, samples)) <= 0) {
+			if ((samples = io_pcm_read(&t->sco.spk_pcm, buffer, samples)) <= 0) {
 				if (samples == -1 && errno != EAGAIN)
 					error("PCM read error: %s", strerror(errno));
 				if (samples == 0)
@@ -533,7 +533,8 @@ retry_sco_write:
 #endif
 			}
 
-			if ((samples = ba_transport_pcm_write(&t->sco.mic_pcm, buffer, samples)) <= 0) {
+			io_pcm_scale(&t->sco.mic_pcm, buffer, samples);
+			if ((samples = io_pcm_write(&t->sco.mic_pcm, buffer, samples)) <= 0) {
 				if (samples == -1)
 					error("FIFO write error: %s", strerror(errno));
 				if (samples == 0)

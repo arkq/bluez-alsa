@@ -35,6 +35,7 @@
 #include "../src/codec-sbc.c"
 #include "../src/dbus.c"
 #include "../src/hci.c"
+#include "../src/io.c"
 #include "../src/sco.c"
 #include "../src/utils.c"
 #include "../src/shared/ffb.c"
