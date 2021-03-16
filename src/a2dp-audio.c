@@ -224,6 +224,9 @@ repoll:
 		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
 			io->t_paused = false;
 			goto repoll;
+		case BA_TRANSPORT_SIGNAL_PCM_CLOSE:
+			io->rtp_seq_number = -1;
+			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_PAUSE:
 			io->t_paused = true;
 			goto repoll;
@@ -409,10 +412,8 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
-			io.rtp_seq_number = -1;
+		if (t->a2dp.pcm.fd == -1)
 			continue;
-		}
 
 		const rtp_media_header_t *rtp_media_header;
 		if ((rtp_media_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
@@ -691,10 +692,8 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
-			io.rtp_seq_number = -1;
+		if (t->a2dp.pcm.fd == -1)
 			continue;
-		}
 
 		const rtp_mpeg_audio_header_t *rtp_mpeg_header;
 		if ((rtp_mpeg_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
@@ -1072,10 +1071,8 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
-			io.rtp_seq_number = -1;
+		if (t->a2dp.pcm.fd == -1)
 			continue;
-		}
 
 		const uint8_t *rtp_latm;
 		if ((rtp_latm = a2dp_validate_rtp(bt.data, &io)) == NULL)
@@ -1638,10 +1635,8 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
-			io.rtp_seq_number = -1;
+		if (t->a2dp.pcm.fd == -1)
 			continue;
-		}
 
 		const uint8_t *rtp_payload;
 		if ((rtp_payload = a2dp_validate_rtp(bt.data, &io)) == NULL)
@@ -1874,10 +1869,8 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1) {
-			io.rtp_seq_number = -1;
+		if (t->a2dp.pcm.fd == -1)
 			continue;
-		}
 
 		const rtp_media_header_t *rtp_media_header;
 		if ((rtp_media_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
