@@ -1,6 +1,6 @@
 /*
  * test-rfcomm.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -80,12 +80,10 @@ START_TEST(test_rfcomm) {
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
-
 	/* wait for SLC established signals */
-	while (transport_codec_updated_cnt < 2)
+	while (transport_codec_updated_cnt < 0 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	while (transport_codec_updated_cnt < 4)
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
+	pthread_mutex_unlock(&transport_codec_updated_mtx);
 
 	ck_assert_int_eq(device->ref_count, 1 + 2);
 
@@ -103,8 +101,6 @@ START_TEST(test_rfcomm) {
 	usleep(100000);
 
 	ck_assert_int_eq(device->ref_count, 1);
-
-	pthread_mutex_unlock(&transport_codec_updated_mtx);
 
 } END_TEST
 
@@ -134,21 +130,19 @@ START_TEST(test_rfcomm_esco) {
 #endif
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
-
 	/* wait for SLC established signals */
-	while (transport_codec_updated_cnt < 2)
+	while (transport_codec_updated_cnt < 0 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	while (transport_codec_updated_cnt < 4)
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
+	pthread_mutex_unlock(&transport_codec_updated_mtx);
 
 	ck_assert_int_eq(device->ref_count, 1 + 2);
 
 #if ENABLE_MSBC
+	pthread_mutex_lock(&transport_codec_updated_mtx);
 	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 6)
+	while (transport_codec_updated_cnt < 4 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	while (transport_codec_updated_cnt < 8)
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
+	pthread_mutex_unlock(&transport_codec_updated_mtx);
 #endif
 
 #if ENABLE_MSBC
@@ -166,9 +160,77 @@ START_TEST(test_rfcomm_esco) {
 
 	ck_assert_int_eq(device->ref_count, 1);
 
+} END_TEST
+
+#if ENABLE_MSBC
+START_TEST(test_rfcomm_set_codec) {
+
+	transport_codec_updated_cnt = 0;
+	adapter->hci.features[2] = LMP_TRSP_SCO;
+	adapter->hci.features[3] = LMP_ESCO;
+
+	int fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+
+	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
+	struct ba_transport *ag = ba_transport_new_sco(device, ttype_ag, ":test", "/sco/ag", fds[0]);
+	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
+	struct ba_transport *hf = ba_transport_new_sco(device, ttype_hf, ":test", "/sco/hf", fds[1]);
+
+	ag->sco.rfcomm->link_lost_quirk = false;
+	hf->sco.rfcomm->link_lost_quirk = false;
+
+	pthread_mutex_lock(&transport_codec_updated_mtx);
+	/* wait for SLC established signals */
+	while (transport_codec_updated_cnt < 0 + (2 + 2))
+		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
+	/* wait for codec selection signals */
+	while (transport_codec_updated_cnt < 4 + (2 + 2))
+		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
 
+	/* Allow RFCOMM thread to finalize internal codec selection. This sleep is
+	 * required, because we are waiting on "codec-updated" signal which is sent
+	 * by the RFCOMM thread before the codec selection completeness signal. And
+	 * this latter signal might prematurely wake ba_transport_select_codec_sco()
+	 * function. */
+	usleep(10000);
+
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_MSBC);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_MSBC);
+
+	/* select different audio codec */
+	ck_assert_int_eq(ba_transport_select_codec_sco(ag, HFP_CODEC_CVSD), 0);
+
+	pthread_mutex_lock(&transport_codec_updated_mtx);
+	/* wait for codec selection signals */
+	while (transport_codec_updated_cnt < 8 + (2 + 2))
+		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
+	pthread_mutex_unlock(&transport_codec_updated_mtx);
+
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
+
+	/* select already selected audio codec */
+	ck_assert_int_eq(ba_transport_select_codec_sco(ag, HFP_CODEC_CVSD), 0);
+
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
+
+	/* switch back audio codec */
+	ck_assert_int_eq(ba_transport_select_codec_sco(ag, HFP_CODEC_MSBC), 0);
+
+	pthread_mutex_lock(&transport_codec_updated_mtx);
+	/* wait for codec selection signals */
+	while (transport_codec_updated_cnt < 12 + (2 + 2))
+		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
+	pthread_mutex_unlock(&transport_codec_updated_mtx);
+
+	ck_assert_int_eq(ag->type.codec, HFP_CODEC_MSBC);
+	ck_assert_int_eq(hf->type.codec, HFP_CODEC_MSBC);
+
 } END_TEST
+#endif
 
 int main(void) {
 
@@ -191,6 +253,9 @@ int main(void) {
 
 	tcase_add_test(tc, test_rfcomm);
 	tcase_add_test(tc, test_rfcomm_esco);
+#if ENABLE_MSBC
+	tcase_add_test(tc, test_rfcomm_set_codec);
+#endif
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

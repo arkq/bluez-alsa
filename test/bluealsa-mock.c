@@ -499,6 +499,7 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
+	log_open(argv[0], false, true);
 	assert(bluealsa_config_init() == 0);
 	assert((config.dbus = g_test_dbus_connection_new_sync(NULL)) != NULL);
 
