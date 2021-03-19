@@ -15,7 +15,7 @@
 #include <math.h>
 #include <poll.h>
 #include <pthread.h>
-#include <stdint.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <glib.h>
@@ -24,6 +24,80 @@
 #include "bluealsa.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+
+/**
+ * Read data from the BT transport (SCO or SEQPACKET) socket. */
+ssize_t io_bt_read(
+		struct ba_transport_thread *th,
+		void *buffer,
+		size_t count) {
+
+	const int fd = th->bt_fd;
+	ssize_t ret;
+
+	if (fd == -1)
+		return errno = EBADFD, -1;
+
+	while ((ret = read(fd, buffer, count)) == -1 &&
+			errno == EINTR)
+		continue;
+	if (ret == -1 && (
+				errno == ECONNABORTED ||
+				errno == ECONNRESET ||
+				errno == ETIMEDOUT)) {
+		error("BT socket disconnected: %s", strerror(errno));
+		ret = 0;
+	}
+
+	if (ret == 0)
+		ba_transport_thread_bt_release(th);
+
+	return ret;
+}
+
+/**
+ * Write data to the BT transport (SCO or SEQPACKET) socket.
+ *
+ * Note:
+ * This function may temporally re-enable thread cancellation! */
+ssize_t io_bt_write(
+		struct ba_transport_thread *th,
+		const void *buffer,
+		size_t count) {
+
+	ssize_t ret;
+	int fd;
+
+retry:
+
+	if ((fd = th->bt_fd) == -1)
+		return errno = EBADFD, -1;
+
+	if ((ret = write(fd, buffer, count)) == -1)
+		switch (errno) {
+		case EINTR:
+			goto retry;
+		case EAGAIN:
+			/* In order to provide a way of escaping from the infinite poll()
+			 * we have to temporally re-enable thread cancellation. */
+			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+			struct pollfd pfd = { fd, POLLOUT, 0 };
+			poll(&pfd, 1, -1);
+			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+			goto retry;
+		case ECONNABORTED:
+		case ECONNRESET:
+		case ENOTCONN:
+		case ETIMEDOUT:
+			error("BT socket disconnected: %s", strerror(errno));
+			ret = 0;
+		}
+
+	if (ret == 0)
+		ba_transport_thread_bt_release(th);
+
+	return ret;
+}
 
 /**
  * Scale PCM signal according to the volume configuration. */
@@ -99,10 +173,12 @@ ssize_t io_pcm_read(
 	pthread_mutex_lock(&pcm->mutex);
 
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
-	ssize_t ret = 0;
-
 	const int fd = pcm->fd;
-	if (fd != -1) {
+	ssize_t ret = -1;
+
+	if (fd == -1)
+		errno = EBADFD;
+	else {
 		while ((ret = read(fd, buffer, samples * sample_size)) == -1 &&
 				errno == EINTR)
 			continue;
@@ -135,13 +211,16 @@ ssize_t io_pcm_write(
 	pthread_mutex_lock(&pcm->mutex);
 
 	size_t len = samples * BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
-	ssize_t ret = 0;
+	ssize_t ret;
 
 	do {
 
 		const int fd = pcm->fd;
-		if (fd == -1)
+		if (fd == -1) {
+			errno = EBADFD;
+			ret = -1;
 			goto final;
+		}
 
 		if ((ret = write(fd, buffer, len)) == -1)
 			switch (errno) {
@@ -156,7 +235,6 @@ ssize_t io_pcm_write(
 				poll(&pfd, 1, -1);
 				pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 				pthread_cleanup_pop(0);
-				ret = 0;
 				continue;
 			case EPIPE:
 				/* This errno value will be received only, when the SIGPIPE

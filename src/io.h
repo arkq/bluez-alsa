@@ -20,6 +20,16 @@
 
 #include "ba-transport.h"
 
+ssize_t io_bt_read(
+		struct ba_transport_thread *th,
+		void *buffer,
+		size_t count);
+
+ssize_t io_bt_write(
+		struct ba_transport_thread *th,
+		const void *buffer,
+		size_t count);
+
 void io_pcm_scale(
 		const struct ba_transport_pcm *pcm,
 		void *buffer,
