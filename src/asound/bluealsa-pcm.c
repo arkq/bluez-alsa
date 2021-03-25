@@ -209,15 +209,12 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	 * transfer procedure. */
 	snd_pcm_uframes_t io_hw_ptr = pcm->io_hw_ptr;
 
-	/* The number of frames to complete the current period. */
-	snd_pcm_uframes_t balance = io->period_size;
-
 	debug2("Starting IO loop: %d", pcm->ba_pcm_fd);
 	for (;;) {
 
 		if (pcm->pause_state & BA_PAUSE_STATE_PENDING ||
 				pcm->io_hw_ptr == -1) {
-			debug2("Pausing IO thread: %ld", pcm->io_hw_ptr);
+			debug2("Pausing IO thread");
 
 			pthread_mutex_lock(&pcm->mutex);
 			pcm->pause_state = BA_PAUSE_STATE_PAUSED;
@@ -239,8 +236,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 				goto fail;
 
 			asrsync_init(&asrs, io->rate);
-			io_hw_ptr = io->hw_ptr;
-
+			io_hw_ptr = pcm->io_hw_ptr;
 		}
 
 		if (io->state == SND_PCM_STATE_DISCONNECTED)
@@ -252,24 +248,25 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		snd_pcm_uframes_t avail;
 		if ((avail = snd_pcm_ioplug_hw_avail(io, io_hw_ptr, io->appl_ptr)) == 0) {
 			io_thread_update_delay(pcm, 0);
-			io_hw_ptr = -1;
-			goto sync;
+			pcm->io_hw_ptr = io_hw_ptr = -1;
+			eventfd_write(pcm->event_fd, 1);
+			continue;
 		}
 
-		/* the number of frames to be transferred in this iteration */
-		snd_pcm_uframes_t frames = balance;
 		/* current offset of the head pointer in the IO buffer */
 		snd_pcm_uframes_t offset = io_hw_ptr % io->buffer_size;
 
-		/* Do not try to transfer more frames than are available in the ring
-		 * buffer! */
+		/* Transfer at most 1 period of frames in each iteration ... */
+		snd_pcm_uframes_t frames = io->period_size;
+		/* ... but do not try to transfer more frames than are available in the
+		 * ring buffer! */
 		if (frames > avail)
 			frames = avail;
 
-		/* If the leftover in the buffer is less than a whole period sizes,
-		 * adjust the number of frames which should be transfered. It has
-		 * turned out, that the buffer might contain fractional number of
-		 * periods - it could be an ALSA bug, though, it has to be handled. */
+		/* When used with the rate plugin the buffer might contain a fractional
+		 * number of periods. So if the leftover in the buffer is less than a
+		 * whole period size, adjust the number of frames which should be
+		 * transfered.  */
 		if (io->buffer_size - offset < frames)
 			frames = io->buffer_size - offset;
 
@@ -277,8 +274,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		size_t len = frames * pcm->frame_size;
 		char *head = pcm->io_hw_buffer + offset * pcm->frame_size;
 
-		/* Increment the HW pointer (with boundary wrap) ready for the next
-		 * iteration. */
+		/* Increment the HW pointer (with boundary wrap) */
 		io_hw_ptr += frames;
 		if (io_hw_ptr >= pcm->io_hw_boundary)
 			io_hw_ptr -= pcm->io_hw_boundary;
@@ -327,21 +323,12 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 		}
 
-		/* repeat until period is completed */
-		balance -= frames;
-		if (balance > 0)
-			continue;
-
-sync:
 		/* Make the new HW pointer value visible to the ioplug. */
 		pcm->io_hw_ptr = io_hw_ptr;
 
-		/* Generate poll() event so application is made aware of
-		 * the HW pointer change. */
-		eventfd_write(pcm->event_fd, 1);
-
-		/* Start the next period. */
-		balance = io->period_size;
+		/* Wake application thread if enough space/frames available */
+		if (frames + io->buffer_size - avail >= pcm->io_avail_min)
+			eventfd_write(pcm->event_fd, 1);
 	}
 
 fail:
@@ -613,7 +600,7 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 			buffer_delay = snd_pcm_ioplug_hw_avail(io, pcm->delay_hw_ptr, io->appl_ptr);
 
 		/* If the PCM is running, then some frames from the buffer may have been
-		 * consumed. */
+		 * consumed, so we add them before adjusting for time elapsed. */
 		if (pcm->delay_running)
 			delay += buffer_delay;
 
@@ -622,7 +609,8 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 			delay = 0;
 
 		/* If the PCM is not running, then the frames in the buffer will not have
-		 * been consumed since pcm->delay_ts. */
+		 * been consumed since pcm->delay_ts, so we add them after the time
+		 * elapsed adjustment. */
 		if (!pcm->delay_running)
 			delay += buffer_delay;
 	}
