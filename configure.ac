@@ -68,6 +68,8 @@ AM_COND_IF([WITH_LIBUNWIND], [
 	AC_CHECK_HEADERS([execinfo.h])
 ])
 
+AC_CHECK_HEADERS([stdatomic.h],
+	[], [AC_MSG_ERROR([C11 atomic support not available])])
 AC_CHECK_FUNCS([eventfd],
 	[], [AC_MSG_ERROR([unable to find eventfd() function])])
 AC_CHECK_FUNCS([splice],

@@ -66,6 +66,12 @@ Properties      object Device [readonly]
 
                         BlueZ device object path.
 
+                uint32 Sequence [readonly]
+
+                        This property indicates the sequence in which devices
+                        connected. The larger the value, the later the device
+                        was connected.
+
                 string Transport [readonly]
 
                         Underlying Bluetooth transport type.

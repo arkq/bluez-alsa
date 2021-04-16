@@ -16,6 +16,7 @@
 #endif
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -48,6 +49,9 @@ struct ba_config {
 	/* List of HCI names (or BT addresses) used for adapters filtering
 	 * during profile registration. Leave it empty to use any adapter. */
 	GArray *hci_filter;
+
+	/* device connection sequence number */
+	atomic_uint device_seq;
 
 	/* used for main thread identification */
 	pthread_t main_thread;

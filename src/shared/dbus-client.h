@@ -75,6 +75,9 @@ struct ba_pcm {
 	/* BlueALSA D-Bus PCM path */
 	char pcm_path[128];
 
+	/* connection sequence number */
+	uint32_t sequence;
+
 	/* BlueALSA transport type */
 	unsigned int transport;
 	/* stream mode */

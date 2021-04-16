@@ -11,6 +11,7 @@
 #include "shared/dbus-client.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -323,26 +324,41 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 		struct ba_pcm *pcm,
 		DBusError *error) {
 
+	const bool get_last = bacmp(addr, BDADDR_ANY) == 0;
 	struct ba_pcm *pcms = NULL;
+	struct ba_pcm *match = NULL;
 	dbus_bool_t rv = TRUE;
 	size_t length = 0;
+	uint32_t seq = 0;
 	size_t i;
 
 	if (!bluealsa_dbus_get_pcms(ctx, &pcms, &length, error))
 		return FALSE;
 
-	for (i = 0; i < length; i++)
-		if (bacmp(&pcms[i].addr, addr) == 0 &&
+	for (i = 0; i < length; i++) {
+		if (get_last) {
+			if (pcms[i].sequence >= seq &&
+					pcms[i].transport & transports &&
+					pcms[i].mode == mode) {
+				seq = pcms[i].sequence;
+				match = &pcms[i];
+			}
+		}
+		else if (bacmp(&pcms[i].addr, addr) == 0 &&
 				pcms[i].transport & transports &&
 				pcms[i].mode == mode) {
-			memcpy(pcm, &pcms[i], sizeof(*pcm));
-			goto final;
+			match = &pcms[i];
+			break;
 		}
+	}
 
-	rv = FALSE;
-	dbus_set_error(error, DBUS_ERROR_FILE_NOT_FOUND, "PCM not found");
+	if (match != NULL)
+		memcpy(pcm, match, sizeof(*pcm));
+	else {
+		dbus_set_error(error, DBUS_ERROR_FILE_NOT_FOUND, "PCM not found");
+		rv = FALSE;
+	}
 
-final:
 	free(pcms);
 	return rv;
 }
@@ -606,6 +622,11 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		dbus_message_iter_get_basic(variant, &tmp);
 		strncpy(pcm->device_path, tmp, sizeof(pcm->device_path) - 1);
 		path2ba(tmp, &pcm->addr);
+	}
+	else if (strcmp(key, "Sequence") == 0) {
+		if (type != (type_expected = DBUS_TYPE_UINT32))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &pcm->sequence);
 	}
 	else if (strcmp(key, "Transport") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))

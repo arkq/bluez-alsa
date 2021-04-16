@@ -10,10 +10,12 @@
 
 #include "ba-device.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "ba-transport.h"
+#include "bluealsa.h"
 #include "hci.h"
 #include "shared/log.h"
 
@@ -29,6 +31,8 @@ struct ba_device *ba_device_new(
 	d->a = ba_adapter_ref(adapter);
 	bacpy(&d->addr, addr);
 	d->ref_count = 1;
+
+	d->seq = atomic_fetch_add_explicit(&config.device_seq, 1, memory_order_relaxed);
 
 	char tmp[sizeof("dev_XX:XX:XX:XX:XX:XX")];
 	sprintf(tmp, "dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X",

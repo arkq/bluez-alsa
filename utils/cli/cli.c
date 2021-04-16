@@ -237,6 +237,7 @@ static int cmd_info(int argc, char *argv[]) {
 	}
 
 	printf("Device: %s\n", pcm.device_path);
+	printf("Sequence: %u\n", pcm.sequence);
 	printf("Transport: %s\n", transport_code_to_string(pcm.transport));
 	printf("Mode: %s\n", pcm_mode_to_string(pcm.mode));
 	printf("Format: %s\n", pcm_format_to_string(pcm.format));

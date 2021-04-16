@@ -42,6 +42,10 @@ static GVariant *ba_variant_new_device_path(const struct ba_device *d) {
 	return g_variant_new_object_path(d->bluez_dbus_path);
 }
 
+static GVariant *ba_variant_new_device_sequence(const struct ba_device *d) {
+	return g_variant_new_uint32(d->seq);
+}
+
 static GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
 	return g_variant_new_byte(d->battery_level);
 }
@@ -120,6 +124,7 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
 	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(props, "{sv}", "Device", ba_variant_new_device_path(pcm->t->d));
+	g_variant_builder_add(props, "{sv}", "Sequence", ba_variant_new_device_sequence(pcm->t->d));
 	g_variant_builder_add(props, "{sv}", "Transport", ba_variant_new_transport_type(pcm->t));
 	g_variant_builder_add(props, "{sv}", "Mode", ba_variant_new_pcm_mode(pcm));
 	g_variant_builder_add(props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
@@ -689,6 +694,8 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 
 	if (strcmp(property, "Device") == 0)
 		return ba_variant_new_device_path(d);
+	if (strcmp(property, "Sequence") == 0)
+		return ba_variant_new_device_sequence(d);
 	if (strcmp(property, "Transport") == 0)
 		return ba_variant_new_transport_type(pcm->t);
 	if (strcmp(property, "Mode") == 0)

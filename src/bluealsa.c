@@ -30,6 +30,8 @@ struct ba_config config = {
 
 	.adapters_mutex = PTHREAD_MUTEX_INITIALIZER,
 
+	.device_seq = 0,
+
 	.null_fd = -1,
 
 	.hfp.features_sdp_hf =
