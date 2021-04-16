@@ -14,6 +14,7 @@
 #include <stdlib.h>
 
 #include "ba-transport.h"
+#include "bluealsa.h"
 #include "hci.h"
 #include "shared/log.h"
 
@@ -40,6 +41,10 @@ struct ba_device *ba_device_new(
 
 	pthread_mutex_init(&d->transports_mutex, NULL);
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+
+	pthread_mutex_lock(&config.seq_mutex);
+	d->seq = config.seq++;
+	pthread_mutex_unlock(&config.seq_mutex);
 
 	pthread_mutex_lock(&adapter->devices_mutex);
 	g_hash_table_insert(adapter->devices, &d->addr, d);

@@ -49,6 +49,10 @@ struct ba_config {
 	 * during profile registration. Leave it empty to use any adapter. */
 	GArray *hci_filter;
 
+	/* Device connection sequence number */
+	pthread_mutex_t seq_mutex;
+	uint32_t seq;
+
 	/* used for main thread identification */
 	pthread_t main_thread;
 

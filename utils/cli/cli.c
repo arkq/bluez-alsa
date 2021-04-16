@@ -248,6 +248,7 @@ static int cmd_info(int argc, char *argv[]) {
 	printf("SoftVolume: %s\n", pcm.soft_volume ? "Y" : "N");
 	print_volume(&pcm);
 	print_mute(&pcm);
+	printf("Sequence: %d\n", pcm.sequence);
 
 	if (dbus_error_is_set(&err))
 		warn("Unable to read available codecs: %s", err.message);

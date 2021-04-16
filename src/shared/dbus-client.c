@@ -327,22 +327,36 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 	dbus_bool_t rv = TRUE;
 	size_t length = 0;
 	size_t i;
+	dbus_bool_t get_last = bacmp(addr, BDADDR_ANY) == 0;
+	uint32_t seq = 0;
+	struct ba_pcm *match = NULL;
 
 	if (!bluealsa_dbus_get_pcms(ctx, &pcms, &length, error))
 		return FALSE;
 
 	for (i = 0; i < length; i++)
-		if (bacmp(&pcms[i].addr, addr) == 0 &&
+		if (get_last) {
+			if (pcms[i].sequence >= seq &&
+					pcms[i].transport & transports &&
+					pcms[i].mode == mode) {
+				seq = pcms[i].sequence;
+				match = &pcms[i];
+			}
+		}
+		else if (bacmp(&pcms[i].addr, addr) == 0 &&
 				pcms[i].transport & transports &&
 				pcms[i].mode == mode) {
-			memcpy(pcm, &pcms[i], sizeof(*pcm));
-			goto final;
+			match = &pcms[i];
+			break;
 		}
 
-	rv = FALSE;
-	dbus_set_error(error, DBUS_ERROR_FILE_NOT_FOUND, "PCM not found");
+	if (match)
+		memcpy(pcm, match, sizeof(*pcm));
+	else {
+		rv = FALSE;
+		dbus_set_error(error, DBUS_ERROR_FILE_NOT_FOUND, "PCM not found");
+	}
 
-final:
 	free(pcms);
 	return rv;
 }
@@ -668,6 +682,11 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
 		dbus_message_iter_get_basic(variant, &pcm->volume.raw);
+	}
+	else if (strcmp(key, "Sequence") == 0) {
+		if (type != (type_expected = DBUS_TYPE_UINT32))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &pcm->sequence);
 	}
 
 	return TRUE;

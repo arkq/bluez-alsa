@@ -173,6 +173,10 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Volume = {
 	NULL
 };
 
+static const GDBusPropertyInfo bluealsa_iface_pcm_Sequence = {
+	-1, "Sequence", "u", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	&bluealsa_iface_pcm_Device,
 	&bluealsa_iface_pcm_Transport,
@@ -184,6 +188,7 @@ static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	&bluealsa_iface_pcm_Delay,
 	&bluealsa_iface_pcm_SoftVolume,
 	&bluealsa_iface_pcm_Volume,
+	&bluealsa_iface_pcm_Sequence,
 	NULL,
 };
 

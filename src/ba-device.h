@@ -31,6 +31,9 @@ struct ba_device {
 	/* address of the Bluetooth device */
 	bdaddr_t addr;
 
+	/* connection sequence number */
+	uint32_t seq;
+
 	/* data for D-Bus management */
 	char *ba_dbus_path;
 	char *bluez_dbus_path;

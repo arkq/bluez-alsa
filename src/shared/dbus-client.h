@@ -107,6 +107,8 @@ struct ba_pcm {
 		dbus_uint16_t raw;
 	} volume;
 
+	/* Connection sequence number */
+	uint32_t sequence;
 };
 
 dbus_bool_t bluealsa_dbus_connection_ctx_init(
