@@ -48,6 +48,9 @@ COMMANDS
 list-pcms
     Print a list of BlueALSA PCM D-Bus paths, one per line.
 
+list-services
+    Print a list of all running BlueALSA D-Bus service names, one per line.
+
 info *PCM_PATH*
     Print the properties and available codecs of the given PCM.
     The properties are printed one per line, in the format
