@@ -127,7 +127,7 @@ static bool print_codecs(const char *path, DBusError *err) {
 
 	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
 					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
-		dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(ENOMEM));
+		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -194,6 +194,66 @@ static void print_mute(struct ba_pcm *pcm) {
 				pcm->volume.ch1_muted ? 'Y' : 'N', pcm->volume.ch2_muted ? 'Y' : 'N');
 	else
 		printf("Muted: %c\n", pcm->volume.ch1_muted ? 'Y' : 'N');
+}
+
+static int cmd_list_services(int argc, char *argv[]) {
+
+	if (argc != 1) {
+		cmd_print_error("Invalid number of arguments");
+		return EXIT_FAILURE;
+	}
+
+	DBusMessage *msg = NULL, *rep = NULL;
+	DBusError err = DBUS_ERROR_INIT;
+	int result = EXIT_FAILURE;
+
+	if ((msg = dbus_message_new_method_call(DBUS_SERVICE_DBUS,
+					DBUS_PATH_DBUS, DBUS_INTERFACE_DBUS, "ListNames")) == NULL) {
+		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	if (!dbus_message_iter_init(rep, &iter)) {
+		dbus_set_error(&err, DBUS_ERROR_INVALID_SIGNATURE, "Empty response message");
+		goto fail;
+	}
+
+	DBusMessageIter iter_names;
+	for (dbus_message_iter_recurse(&iter, &iter_names);
+			dbus_message_iter_get_arg_type(&iter_names) != DBUS_TYPE_INVALID;
+			dbus_message_iter_next(&iter_names)) {
+
+		if (dbus_message_iter_get_arg_type(&iter_names) != DBUS_TYPE_STRING) {
+			char *signature = dbus_message_iter_get_signature(&iter);
+			dbus_set_error(&err, DBUS_ERROR_INVALID_SIGNATURE,
+					"Incorrect signature: %s != as", signature);
+			dbus_free(signature);
+			goto fail;
+		}
+
+		const char *name;
+		dbus_message_iter_get_basic(&iter_names, &name);
+		if (strncmp(name, BLUEALSA_SERVICE, sizeof(BLUEALSA_SERVICE) - 1) == 0)
+			printf("%s\n", name);
+
+	}
+
+	result = EXIT_SUCCESS;
+
+fail:
+	if (dbus_error_is_set(&err))
+		cmd_print_error("D-Bus error: %s", err.message);
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	return result;
 }
 
 static int cmd_list_pcms(int argc, char *argv[]) {
@@ -579,13 +639,14 @@ static struct command {
 	const char *args;
 	const char *help;
 } commands[] = {
-	{ "list-pcms", cmd_list_pcms, "", "List all PCM paths" },
+	{ "list-services", cmd_list_services, "", "List all BlueALSA services" },
+	{ "list-pcms", cmd_list_pcms, "", "List all BlueALSA PCM paths" },
 	{ "info", cmd_info, "<pcm-path>", "Show PCM properties etc" },
 	{ "codec", cmd_codec, "<pcm-path> [<codec>]", "Change codec used by PCM" },
 	{ "volume", cmd_volume, "<pcm-path> [<val>] [<val>]", "Set audio volume" },
 	{ "mute", cmd_mute, "<pcm-path> [y|n] [y|n]", "Mute/unmute audio" },
 	{ "soft-volume", cmd_softvol, "<pcm-path> [y|n]", "Enable/disable SoftVolume property" },
-	{ "monitor", cmd_monitor, "", "Display PCMAdded and PCMRemoved signals" },
+	{ "monitor", cmd_monitor, "", "Display PCMAdded & PCMRemoved signals" },
 	{ "open", cmd_open, "<pcm-path>", "Transfer raw PCM via stdin or stdout" },
 };
 
@@ -600,7 +661,7 @@ static void usage(const char *progname) {
 	printf("\nCommands:\n");
 	size_t i;
 	for (i = 0; i < ARRAYSIZE(commands); i++)
-		printf("  %-12s%-27s%s\n", commands[i].name, commands[i].args, commands[i].help);
+		printf("  %-14s%-27s%s\n", commands[i].name, commands[i].args, commands[i].help);
 	printf("\nNotes:\n");
 	printf("   1. <pcm-path> must be a valid BlueALSA PCM path as returned by "
 	       "the list-pcms command.\n");

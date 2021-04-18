@@ -252,7 +252,6 @@ dbus_bool_t bluealsa_dbus_get_pcms(
 
 	dbus_bool_t rv = TRUE;
 	struct ba_pcm *_pcms = NULL;
-	char *signature;
 	size_t i;
 
 	DBusMessage *rep;
@@ -271,8 +270,13 @@ dbus_bool_t bluealsa_dbus_get_pcms(
 			dbus_message_iter_get_arg_type(&iter_pcms) != DBUS_TYPE_INVALID;
 			dbus_message_iter_next(&iter_pcms), i++) {
 
-		if (dbus_message_iter_get_arg_type(&iter_pcms) != DBUS_TYPE_DICT_ENTRY)
-			goto fail_signature;
+		if (dbus_message_iter_get_arg_type(&iter_pcms) != DBUS_TYPE_DICT_ENTRY) {
+			char *signature = dbus_message_iter_get_signature(&iter);
+			dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+					"Incorrect signature: %s != a{oa{sv}}", signature);
+			dbus_free(signature);
+			goto fail;
+		}
 
 		struct ba_pcm *tmp = _pcms;
 		if ((tmp = realloc(tmp, (i + 1) * sizeof(*tmp))) == NULL) {
@@ -298,11 +302,6 @@ dbus_bool_t bluealsa_dbus_get_pcms(
 	*length = i;
 
 	goto success;
-
-fail_signature:
-	signature = dbus_message_iter_get_signature(&iter);
-	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect signature: %s != a{oa{sv}}", signature);
 
 fail:
 	if (_pcms != NULL)

@@ -45,6 +45,9 @@ OPTIONS
 COMMANDS
 ========
 
+list-services
+    Print a name list of all running BlueALSA D-Bus services, one per line.
+
 list-pcms
     Print a list of BlueALSA PCM D-Bus paths, one per line.
 
