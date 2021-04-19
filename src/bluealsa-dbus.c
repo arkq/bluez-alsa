@@ -124,6 +124,7 @@ static GVariant *ba_variant_new_pcm_sequence(const struct ba_transport_pcm *pcm)
 static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
 	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(props, "{sv}", "Device", ba_variant_new_device_path(pcm->t->d));
+	g_variant_builder_add(props, "{sv}", "Sequence", ba_variant_new_pcm_sequence(pcm));
 	g_variant_builder_add(props, "{sv}", "Transport", ba_variant_new_transport_type(pcm->t));
 	g_variant_builder_add(props, "{sv}", "Mode", ba_variant_new_pcm_mode(pcm));
 	g_variant_builder_add(props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
@@ -133,7 +134,6 @@ static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_tran
 	g_variant_builder_add(props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	g_variant_builder_add(props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
-	g_variant_builder_add(props, "{sv}", "Sequence", ba_variant_new_pcm_sequence(pcm));
 }
 
 static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_sep *sep) {

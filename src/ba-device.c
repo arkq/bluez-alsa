@@ -10,6 +10,7 @@
 
 #include "ba-device.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -42,9 +43,7 @@ struct ba_device *ba_device_new(
 	pthread_mutex_init(&d->transports_mutex, NULL);
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
 
-	pthread_mutex_lock(&config.seq_mutex);
-	d->seq = config.seq++;
-	pthread_mutex_unlock(&config.seq_mutex);
+	d->seq = __atomic_fetch_add(&config.seq, 1, memory_order_relaxed);
 
 	pthread_mutex_lock(&adapter->devices_mutex);
 	g_hash_table_insert(adapter->devices, &d->addr, d);

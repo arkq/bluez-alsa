@@ -10,6 +10,7 @@
 
 #include "shared/dbus-client.h"
 
+#include <stdbool.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -327,7 +328,7 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 	dbus_bool_t rv = TRUE;
 	size_t length = 0;
 	size_t i;
-	dbus_bool_t get_last = bacmp(addr, BDADDR_ANY) == 0;
+	bool get_last = bacmp(addr, BDADDR_ANY) == 0;
 	uint32_t seq = 0;
 	struct ba_pcm *match = NULL;
 
