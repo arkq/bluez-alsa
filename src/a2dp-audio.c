@@ -72,8 +72,6 @@ struct io_thread_data {
 	uint16_t rtp_seq_number;
 	/* determine whether transport is locked */
 	bool t_locked;
-	/* determine whether audio is paused */
-	bool t_paused;
 };
 
 /**
@@ -81,8 +79,8 @@ struct io_thread_data {
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_pcm(struct ba_transport_pcm *pcm,
-		struct io_thread_data *io, ffb_t *buffer) {
+static ssize_t a2dp_poll_and_read_pcm(struct io_thread_data *io,
+		struct ba_transport_pcm *pcm, ffb_t *buffer) {
 
 	struct ba_transport_thread *th = io->th;
 	struct pollfd fds[2] = {
@@ -94,8 +92,8 @@ static ssize_t a2dp_poll_and_read_pcm(struct ba_transport_pcm *pcm,
 
 repoll:
 
-	/* Add PCM socket to the poll if transport is active. */
-	fds[1].fd = io->t_paused ? -1 : pcm->fd;
+	/* Add PCM socket to the poll if it is active. */
+	fds[1].fd = pcm->active ? pcm->fd : -1;
 
 	/* Poll for reading with keep-alive and sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
@@ -119,16 +117,12 @@ repoll:
 		switch (ba_transport_thread_recv_signal(th)) {
 		case BA_TRANSPORT_SIGNAL_PCM_OPEN:
 		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
-			io->t_paused = false;
 			io->asrs.frames = 0;
 			io->timeout = -1;
 			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_CLOSE:
 			/* reuse PCM read disconnection logic */
 			break;
-		case BA_TRANSPORT_SIGNAL_PCM_PAUSE:
-			io->t_paused = true;
-			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_SYNC:
 			io->timeout = 100;
 			goto repoll;
@@ -194,7 +188,8 @@ static int a2dp_validate_bt_sink(struct ba_transport *t) {
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_bt(struct io_thread_data *io, ffb_t *buffer) {
+static ssize_t a2dp_poll_and_read_bt(struct io_thread_data *io,
+		struct ba_transport_pcm *pcm, ffb_t *buffer) {
 
 	struct ba_transport *t = io->th->t;
 	struct ba_transport_thread *th = io->th;
@@ -207,8 +202,8 @@ static ssize_t a2dp_poll_and_read_bt(struct io_thread_data *io, ffb_t *buffer) {
 
 repoll:
 
-	/* Add BT socket to the poll if transport is active. */
-	fds[1].fd = io->t_paused ? -1 : t->bt_fd;
+	/* Add BT socket to the poll if PCM is active. */
+	fds[1].fd = pcm->active ? t->bt_fd : -1;
 
 	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
 		if (errno == EINTR)
@@ -220,15 +215,8 @@ repoll:
 	if (fds[0].revents & POLLIN) {
 		/* dispatch incoming event */
 		switch (ba_transport_thread_recv_signal(th)) {
-		case BA_TRANSPORT_SIGNAL_PCM_OPEN:
-		case BA_TRANSPORT_SIGNAL_PCM_RESUME:
-			io->t_paused = false;
-			goto repoll;
 		case BA_TRANSPORT_SIGNAL_PCM_CLOSE:
 			io->rtp_seq_number = -1;
-			goto repoll;
-		case BA_TRANSPORT_SIGNAL_PCM_PAUSE:
-			io->t_paused = true;
 			goto repoll;
 		default:
 			goto repoll;
@@ -406,7 +394,7 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -535,7 +523,7 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -686,7 +674,7 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -909,7 +897,7 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1065,7 +1053,7 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1295,7 +1283,7 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1423,7 +1411,7 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1514,7 +1502,7 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1629,7 +1617,7 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1731,7 +1719,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1863,7 +1851,7 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1994,7 +1982,7 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_ready(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&t->a2dp.pcm, &io, &pcm)) <= 0) {
+		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			goto fail;
@@ -2115,7 +2103,7 @@ static void *a2dp_sink_dump(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_ready(th);;) {
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;

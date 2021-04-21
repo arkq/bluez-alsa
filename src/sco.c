@@ -269,9 +269,9 @@ void *sco_thread(struct ba_transport_thread *th) {
 				pfds[1].fd = t->bt_fd;
 			if (ffb_len_out(&bt_out) >= t->mtu_write)
 				pfds[2].fd = t->bt_fd;
-			if (t->bt_fd != -1 && ffb_len_in(&bt_out) >= t->mtu_write)
+			if (t->sco.spk_pcm.active && t->bt_fd != -1 && ffb_len_in(&bt_out) >= t->mtu_write)
 				pfds[3].fd = t->sco.spk_pcm.fd;
-			if (ffb_len_out(&bt_in) > 0)
+			if (t->sco.mic_pcm.active && ffb_len_out(&bt_in) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
 			break;
 #if ENABLE_MSBC
@@ -284,9 +284,9 @@ void *sco_thread(struct ba_transport_thread *th) {
 				pfds[1].fd = t->bt_fd;
 			if (ffb_blen_out(&msbc_enc.data) >= t->mtu_write)
 				pfds[2].fd = t->bt_fd;
-			if (t->bt_fd != -1 && ffb_blen_in(&msbc_enc.pcm) >= t->mtu_write)
+			if (t->sco.spk_pcm.active && t->bt_fd != -1 && ffb_blen_in(&msbc_enc.pcm) >= t->mtu_write)
 				pfds[3].fd = t->sco.spk_pcm.fd;
-			if (ffb_blen_out(&msbc_dec.pcm) > 0)
+			if (t->sco.mic_pcm.active && ffb_blen_out(&msbc_dec.pcm) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
 			/* If SCO is not opened or PCM is not connected,
 			 * mark mSBC encoder/decoder for reinitialization. */

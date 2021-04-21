@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_BATRANSPORT_H_
 #define BLUEALSA_BATRANSPORT_H_
 
@@ -101,6 +102,9 @@ struct ba_transport_pcm {
 
 	/* FIFO file descriptor */
 	int fd;
+
+	/* indicates whether PCM shall be active */
+	bool active;
 
 	/* 16-bit stream format identifier */
 	uint16_t format;

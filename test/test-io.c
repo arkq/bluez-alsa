@@ -131,11 +131,14 @@ static void *write_test_pcm_async(void *userdata) {
 
 /**
  * Write test PCM signal to the file descriptor. */
-static void write_test_pcm(int fd, int channels) {
+static void write_test_pcm(int fd, int channels, size_t frames) {
 
-	static int16_t sample_pcm_mono[5 * 1024];
-	static int16_t sample_pcm_stereo[10 * 1024];
+	static int16_t pcm_mono_buffer[1024];
+	static const size_t pcm_mono_samples = ARRAYSIZE(pcm_mono_buffer);
+	static int16_t pcm_stereo_buffer[2 * 1024];
+	static const size_t pcm_stereo_samples = ARRAYSIZE(pcm_stereo_buffer);
 	static bool initialized = false;
+	size_t samples = channels * frames;
 	pthread_t thread;
 	FILE *f;
 
@@ -148,28 +151,43 @@ static void write_test_pcm(int fd, int channels) {
 	if (!initialized) {
 
 		/* initialize build-in sample PCM test signals */
-		snd_pcm_sine_s16le(sample_pcm_mono, ARRAYSIZE(sample_pcm_mono), 1, 0, 1.0 / 128);
-		snd_pcm_sine_s16le(sample_pcm_stereo, ARRAYSIZE(sample_pcm_stereo), 2, 0, 1.0 / 128);
+		snd_pcm_sine_s16le(pcm_mono_buffer, pcm_mono_samples, 1, 0, 1.0 / 128);
+		snd_pcm_sine_s16le(pcm_stereo_buffer, pcm_stereo_samples, 2, 0, 1.0 / 128);
 		initialized = true;
 
 		if (dump_data) {
 			ck_assert_ptr_ne(f = fopen("sample-mono.pcm", "w"), NULL);
-			fwrite(sample_pcm_mono, 1, sizeof(sample_pcm_mono), f);
+			fwrite(pcm_mono_buffer, 2, pcm_mono_samples, f);
 			fclose(f);
 			ck_assert_ptr_ne(f = fopen("sample-stereo.pcm", "w"), NULL);
-			fwrite(sample_pcm_stereo, 1, sizeof(sample_pcm_stereo), f);
+			fwrite(pcm_stereo_buffer, 2, pcm_stereo_samples, f);
 			fclose(f);
 		}
 
 	}
 
+	int16_t *pcm_buffer = NULL;
+	size_t pcm_samples = 0;
+
 	switch (channels) {
 	case 1:
-		ck_assert_int_eq(write(fd, sample_pcm_mono, sizeof(sample_pcm_mono)), sizeof(sample_pcm_mono));
+		pcm_buffer = pcm_mono_buffer;
+		pcm_samples = pcm_mono_samples;
 		break;
 	case 2:
-		ck_assert_int_eq(write(fd, sample_pcm_stereo, sizeof(sample_pcm_stereo)), sizeof(sample_pcm_stereo));
+		pcm_buffer = pcm_stereo_buffer;
+		pcm_samples = pcm_stereo_samples;
 		break;
+	}
+
+	ck_assert_ptr_ne(pcm_buffer, NULL);
+	ck_assert_int_ne(pcm_samples, 0);
+
+	while (samples > 0) {
+		size_t _samples = pcm_samples <= samples ? pcm_samples : samples;
+		size_t bytes = _samples * sizeof(*pcm_buffer);
+		ck_assert_int_eq(write(fd, pcm_buffer, bytes), bytes);
+		samples -= _samples;
 	}
 
 }
@@ -305,6 +323,7 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
 	}
 
 	debug("Decoded samples total: %zd", decoded_samples_total);
+	ck_assert_int_gt(decoded_samples_total, 0);
 
 	if (f != NULL)
 		fclose(f);
@@ -314,6 +333,11 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
 	sleep(3600);
 	return NULL;
 }
+
+/**
+ * Adjust this variable in order to inject more PCM samples during A2DP test
+ * initialization. Remember to restore it to its original value afterwards. */
+static int test_a2dp_pcm_samples_boost = 1;
 
 /**
  * Drive PCM signal through A2DP source/sink loop. */
@@ -349,7 +373,7 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 	}
 	else {
 		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name), 0);
-		write_test_pcm(pcm_fds[0], t1->a2dp.pcm.channels);
+		write_test_pcm(pcm_fds[0], t1->a2dp.pcm.channels, 4 * 1024 * test_a2dp_pcm_samples_boost);
 		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name), 0);
 	}
 
@@ -374,7 +398,7 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sco_fds), 0);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_mic_fds), 0);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_spk_fds), 0);
-	write_test_pcm(pcm_spk_fds[0], t->sco.spk_pcm.channels);
+	write_test_pcm(pcm_spk_fds[0], t->sco.spk_pcm.channels, 1024);
 
 	t->bt_fd = sco_fds[1];
 	t->sco.mic_pcm.fd = pcm_mic_fds[1];
@@ -412,6 +436,7 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	}
 
 	debug("Decoded samples total: %zd", decoded_samples_total);
+	ck_assert_int_gt(decoded_samples_total, 0);
 
 	ck_assert_int_eq(pthread_cancel(t->thread_enc.id), 0);
 	ck_assert_int_eq(pthread_timedjoin(t->thread_enc.id, NULL, 1e6), 0);
@@ -470,6 +495,12 @@ START_TEST(test_a2dp_mp3) {
 	t1->acquire = t2->acquire = test_transport_acquire;
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
+	int prev = test_a2dp_pcm_samples_boost;
+	/* We have to feed more samples while using MP3, because mpg123 library
+	 * does not output samples until at least two frames are decoded, where
+	 * one frame is 4094 samples. */
+	test_a2dp_pcm_samples_boost = 3;
+
 	if (aging_duration) {
 		t1->mtu_write = t2->mtu_read = 1024;
 		test_a2dp(t1, t2, a2dp_source_mp3, a2dp_sink_mpeg);
@@ -479,6 +510,8 @@ START_TEST(test_a2dp_mp3) {
 		test_a2dp(t1, t2, a2dp_source_mp3, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_mpeg);
 	}
+
+	test_a2dp_pcm_samples_boost = prev;
 
 } END_TEST
 #endif

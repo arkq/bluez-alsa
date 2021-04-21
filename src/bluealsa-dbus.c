@@ -403,6 +403,9 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	/* get correct PIPE endpoint - PIPE is unidirectional */
 	pcm->fd = pcm_fds[is_sink ? 0 : 1];
 
+	/* set newly opened PCM as active */
+	pcm->active = true;
+
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
 	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
 			bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
