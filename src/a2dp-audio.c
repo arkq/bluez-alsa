@@ -631,6 +631,21 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(mpg123_delete), handle);
 
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
+
+	mpg123_param(handle, MPG123_RESYNC_LIMIT, -1, 0);
+	mpg123_param(handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0);
+#if MPG123_API_VERSION >= 45
+	mpg123_param(handle, MPG123_ADD_FLAGS, MPG123_NO_READAHEAD, 0);
+#endif
+
+	mpg123_format_none(handle);
+	if (mpg123_format(handle, samplerate, channels, MPG123_ENC_SIGNED_16) != MPG123_OK) {
+		error("Couldn't set MPG123 format: %s", mpg123_strerror(handle));
+		goto fail_open;
+	}
+
 	if (mpg123_open_feed(handle) != MPG123_OK) {
 		error("Couldn't open MPG123 feed: %s", mpg123_strerror(handle));
 		goto fail_open;
