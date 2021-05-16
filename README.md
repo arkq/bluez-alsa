@@ -1,4 +1,6 @@
-# Bluetooth Audio ALSA Backend [![Build Status](https://travis-ci.org/Arkq/bluez-alsa.svg?branch=master)](https://travis-ci.org/Arkq/bluez-alsa)
+# Bluetooth Audio ALSA Backend
+
+[![Build Status](https://github.com/Arkq/bluez-alsa/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/Arkq/bluez-alsa/actions/workflows/build-and-test.yaml)
 
 This project is a rebirth of a direct integration between [BlueZ](http://www.bluez.org/) and
 [ALSA](https://www.alsa-project.org/). Since BlueZ >= 5, the build-in integration has been removed
@@ -72,8 +74,9 @@ Dependencies for `hcitop` (when `--enable-hcitop` is specified during configurat
 For a comprehensive installation guide, please look at the [Installation from
 source](https://github.com/Arkq/bluez-alsa/wiki/Installation-from-source) bluez-alsa wiki page. If
 you've found something missing or incorrect, fill free to make a wiki contribution. Alternatively,
-if you are using Debian-based distribution, take a look at the [.travis.yml](.travis.yml) file, it
-might give you a hint about required packages.
+if you are using Debian-based distribution, take a look at the
+[build-and-test.yml](.github/workflows/build-and-test.yml) GitHub workflow file, it might give you
+a hint about required packages.
 
 ## Configuration & Usage
 

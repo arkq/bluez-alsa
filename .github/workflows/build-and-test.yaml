@@ -1,0 +1,48 @@
+name: CI - Build and Test
+on: [push]
+jobs:
+  build:
+    strategy:
+      matrix:
+        feature-set1:
+        - --enable-aac --enable-msbc
+        - --enable-debug --enable-mp3lame --enable-mpg123
+        feature-set2:
+        - --enable-mp3lame --enable-ofono --enable-upower
+        - --enable-cli --enable-rfcomm --enable-manpages
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Install Dependencies
+      run: |
+        sudo apt install --yes --quiet --no-install-recommends \
+          check \
+          libasound2-dev \
+          libbluetooth-dev \
+          libbsd-dev \
+          libdbus-1-dev \
+          libfdk-aac-dev \
+          libglib2.0-dev \
+          libmp3lame-dev \
+          libmpg123-dev \
+          libncurses5-dev \
+          libreadline-dev \
+          libsbc-dev \
+          python-docutils
+    - uses: actions/checkout@v2
+    - name: Create Build Environment
+      run: |
+        mkdir -p ${{ github.workspace }}/{build,m4}
+        autoreconf --install
+    - name: Configure GNU Automake
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        ${{ github.workspace }}/configure \
+          ${{ matrix.feature-set1 }} \
+          ${{ matrix.feature-set2 }} \
+          --enable-test
+    - name: Build
+      working-directory: ${{ github.workspace }}/build
+      run: make && make check TESTS=
+    - name: Run Test
+      working-directory: ${{ github.workspace }}/build
+      run: make check && cat test/*.log
