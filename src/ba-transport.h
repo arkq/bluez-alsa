@@ -144,6 +144,8 @@ enum ba_transport_thread_state {
 
 enum ba_transport_thread_signal {
 	BA_TRANSPORT_THREAD_SIGNAL_PING,
+	BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE,
+	BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE,
 	BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN,
 	BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE,
 	BA_TRANSPORT_THREAD_SIGNAL_PCM_PAUSE,
@@ -163,6 +165,8 @@ struct ba_transport_thread {
 	pthread_cond_t changed;
 	/* actual thread ID */
 	pthread_t id;
+	/* clone of BT socket */
+	int bt_fd;
 	/* notification PIPE */
 	int pipe[2];
 };
@@ -178,6 +182,11 @@ int ba_transport_thread_set_state(
 	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_RUNNING, false)
 #define ba_transport_thread_set_state_stopping(th) \
 	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STOPPING, false)
+
+int ba_transport_thread_bt_acquire(
+		struct ba_transport_thread *th);
+int ba_transport_thread_bt_release(
+		struct ba_transport_thread *th);
 
 int ba_transport_thread_signal_send(
 		struct ba_transport_thread *th,

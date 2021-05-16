@@ -225,24 +225,6 @@ static void bt_data_write(int fd) {
 	}
 }
 
-/**
- * Helper function for timed thread join.
- *
- * This function takes the timeout value in microseconds. */
-static int pthread_timedjoin(pthread_t thread, void **retval, useconds_t usec) {
-
-	struct timespec ts;
-
-	clock_gettime(CLOCK_REALTIME, &ts);
-	ts.tv_nsec += (long)usec * 1000;
-
-	/* normalize timespec structure */
-	ts.tv_sec += ts.tv_nsec / (long)1e9;
-	ts.tv_nsec = ts.tv_nsec % (long)1e9;
-
-	return pthread_timedjoin_np(thread, retval, &ts);
-}
-
 static pthread_cond_t test_a2dp_terminate = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t test_a2dp_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -260,8 +242,9 @@ static void test_a2dp_start_terminate_timer(unsigned int delay) {
 
 static void *test_io_thread_a2dp_dump_bt(struct ba_transport_thread *th) {
 
-	struct ba_transport *t = th->t;
-	struct pollfd pfds[] = {{ t->bt_fd, POLLIN, 0 }};
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+
+	struct pollfd pfds[] = {{ th->bt_fd, POLLIN, 0 }};
 	uint8_t buffer[1024];
 	ssize_t len;
 
@@ -282,13 +265,17 @@ static void *test_io_thread_a2dp_dump_bt(struct ba_transport_thread *th) {
 
 	}
 
-	/* signal termination and wait for cancelation */
+	/* signal termination and wait for cancellation */
 	test_a2dp_start_terminate_timer(0);
 	sleep(3600);
+
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
 static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
 	struct pollfd pfds[] = {{ t->a2dp.pcm.fd, POLLIN, 0 }};
@@ -326,9 +313,11 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
 	if (f != NULL)
 		fclose(f);
 
-	/* signal termination and wait for cancelation */
+	/* signal termination and wait for cancellation */
 	test_a2dp_start_terminate_timer(0);
 	sleep(3600);
+
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
@@ -349,7 +338,9 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 	int pcm_fds[2];
 
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, pcm_fds), 0);
+	debug("Created PCM socket pair: %d, %d", pcm_fds[0], pcm_fds[1]);
 
 	if (dec == test_io_thread_a2dp_dump_bt)
 		bt_data_init();
@@ -379,11 +370,17 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 	pthread_cond_wait(&test_a2dp_terminate, &test_a2dp_mutex);
 	pthread_mutex_unlock(&test_a2dp_mutex);
 
-	ck_assert_int_eq(pthread_cancel(t1->thread_enc.id), 0);
-	ck_assert_int_eq(pthread_cancel(t2->thread_dec.id), 0);
+	pthread_mutex_lock(&t1->a2dp.pcm.mutex);
+	ba_transport_pcm_release(&t1->a2dp.pcm);
+	pthread_mutex_unlock(&t1->a2dp.pcm.mutex);
 
-	ck_assert_int_eq(pthread_timedjoin(t1->thread_enc.id, NULL, 1e6), 0);
-	ck_assert_int_eq(pthread_timedjoin(t2->thread_dec.id, NULL, 1e6), 0);
+	transport_thread_cancel(&t1->thread_enc);
+
+	pthread_mutex_lock(&t2->a2dp.pcm.mutex);
+	ba_transport_pcm_release(&t2->a2dp.pcm);
+	pthread_mutex_unlock(&t2->a2dp.pcm.mutex);
+
+	transport_thread_cancel(&t2->thread_dec);
 
 }
 
@@ -394,8 +391,11 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	int pcm_spk_fds[2];
 
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sco_fds), 0);
+	debug("Created BT socket pair: %d, %d", sco_fds[0], sco_fds[1]);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_mic_fds), 0);
+	debug("Created PCM mic socket pair: %d, %d", pcm_mic_fds[0], pcm_mic_fds[1]);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_spk_fds), 0);
+	debug("Created PCM spk socket pair: %d, %d", pcm_spk_fds[0], pcm_spk_fds[1]);
 	write_test_pcm(pcm_spk_fds[0], t->sco.spk_pcm.channels, 1024);
 
 	t->bt_fd = sco_fds[1];
@@ -436,12 +436,12 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	debug("Decoded samples total: %zd", decoded_samples_total);
 	ck_assert_int_gt(decoded_samples_total, 0);
 
-	ck_assert_int_eq(pthread_cancel(t->thread_enc.id), 0);
-	ck_assert_int_eq(pthread_timedjoin(t->thread_enc.id, NULL, 1e6), 0);
+	transport_thread_cancel(&t->thread_enc);
 
 	close(pcm_spk_fds[0]);
 	close(pcm_mic_fds[0]);
 	close(sco_fds[0]);
+
 }
 
 static int test_transport_acquire(struct ba_transport *t) {
@@ -477,6 +477,9 @@ START_TEST(test_a2dp_sbc) {
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_sbc);
 	}
 
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
 } END_TEST
 
 #if ENABLE_MP3LAME
@@ -511,6 +514,9 @@ START_TEST(test_a2dp_mp3) {
 
 	test_a2dp_pcm_samples_boost = prev;
 
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
 } END_TEST
 #endif
 
@@ -537,6 +543,9 @@ START_TEST(test_a2dp_aac) {
 		test_a2dp(t1, t2, a2dp_source_aac, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aac);
 	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } END_TEST
 #endif
@@ -569,6 +578,9 @@ START_TEST(test_a2dp_aptx) {
 #endif
 	};
 
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
 } END_TEST
 #endif
 
@@ -599,6 +611,9 @@ START_TEST(test_a2dp_aptx_hd) {
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx_hd);
 #endif
 	};
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } END_TEST
 #endif
@@ -631,6 +646,9 @@ START_TEST(test_a2dp_ldac) {
 #endif
 	}
 
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
 } END_TEST
 #endif
 
@@ -644,6 +662,8 @@ START_TEST(test_sco_cvsd) {
 
 	ba_transport_thread_signal_send(&t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PING);
 	test_sco(t, sco_thread);
+
+	ba_transport_destroy(t);
 
 } END_TEST
 
@@ -660,6 +680,8 @@ START_TEST(test_sco_msbc) {
 
 	ba_transport_thread_signal_send(&t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PING);
 	test_sco(t, sco_thread);
+
+	ba_transport_destroy(t);
 
 } END_TEST
 #endif

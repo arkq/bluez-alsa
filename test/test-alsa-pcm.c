@@ -515,6 +515,29 @@ START_TEST(ba_test_playback_hw_constraints) {
 
 } END_TEST
 
+START_TEST(test_playback_hw_set_free) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+
+	for (i = 0; i < 5; i++) {
+		/* acquire Bluetooth transport */
+		ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+					&buffer_time, &period_time), 0);
+		/* release Bluetooth transport */
+		ck_assert_int_eq(snd_pcm_hw_free(pcm), 0);
+	}
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
 START_TEST(test_playback_start) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
@@ -933,6 +956,7 @@ int main(int argc, char *argv[]) {
 	TCase *tc_playback = tcase_create("playback");
 	tcase_add_test(tc_playback, dump_playback);
 	tcase_add_test(tc_playback, ba_test_playback_hw_constraints);
+	tcase_add_test(tc_playback, test_playback_hw_set_free);
 	tcase_add_test(tc_playback, test_playback_start);
 	tcase_add_test(tc_playback, test_playback_drain);
 	tcase_add_test(tc_playback, test_playback_pause);

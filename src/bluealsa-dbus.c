@@ -441,7 +441,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 
 		enum ba_transport_thread_state state;
 
-		if (ba_transport_acquire(t) == -1) {
+		if (ba_transport_acquire(t) == -1 ||
+				ba_transport_thread_bt_acquire(th) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 					G_DBUS_ERROR_FAILED, "Acquire transport: %s", strerror(errno));
 			goto fail;

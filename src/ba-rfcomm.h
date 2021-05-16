@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_BARFCOMM_H_
 #define BLUEALSA_BARFCOMM_H_
 

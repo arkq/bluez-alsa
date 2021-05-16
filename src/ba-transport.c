@@ -114,6 +114,7 @@ static int transport_thread_init(
 	th->t = t;
 	th->state = BA_TRANSPORT_THREAD_STATE_NONE;
 	th->id = config.main_thread;
+	th->bt_fd = -1;
 	th->pipe[0] = -1;
 	th->pipe[1] = -1;
 
@@ -165,6 +166,8 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
  * Release transport thread resources. */
 static void transport_thread_free(
 		struct ba_transport_thread *th) {
+	if (th->bt_fd != -1)
+		close(th->bt_fd);
 	if (th->pipe[0] != -1)
 		close(th->pipe[0]);
 	if (th->pipe[1] != -1)
@@ -199,9 +202,46 @@ skip:
 	return 0;
 }
 
+int ba_transport_thread_bt_acquire(
+		struct ba_transport_thread *th) {
+
+	struct ba_transport *t = th->t;
+	int ret = 0;
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	const int bt_fd = t->bt_fd;
+	if (bt_fd != -1 && th->bt_fd == -1) {
+		if ((th->bt_fd = dup(bt_fd)) != -1)
+			debug("Created BT socket duplicate [%d]: %d", bt_fd, th->bt_fd);
+		else {
+			error("Couldn't duplicate BT socket [%d]: %s", bt_fd, strerror(errno));
+			ret = -1;
+		}
+	}
+
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+
+	return ret;
+}
+
+int ba_transport_thread_bt_release(
+		struct ba_transport_thread *th) {
+
+	if (th->bt_fd != -1) {
+		debug("Closing BT socket duplicate [%d]: %d", th->t->bt_fd, th->bt_fd);
+		close(th->bt_fd);
+		th->bt_fd = -1;
+	}
+
+	return 0;
+}
+
 int ba_transport_thread_signal_send(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_signal signal) {
+	if (pthread_equal(th->id, config.main_thread))
+		return errno = ESRCH, -1;
 	if (write(th->pipe[1], &signal, sizeof(signal)) == sizeof(signal))
 		return 0;
 	warn("Couldn't write transport thread signal: %s", strerror(errno));
@@ -1143,6 +1183,11 @@ int ba_transport_thread_create(
 	struct ba_transport *t = th->t;
 	int ret;
 
+	/* Please note, this call here does not guarantee that the BT socket
+	 * will be acquired, because transport might not be opened yet. */
+	if (ba_transport_thread_bt_acquire(th) == -1)
+		return -1;
+
 	ba_transport_ref(t);
 
 	ba_transport_thread_set_state_starting(th);
@@ -1155,7 +1200,7 @@ int ba_transport_thread_create(
 	}
 
 	pthread_setname_np(th->id, name);
-	debug("Created new transport thread [%s]: %s",
+	debug("Created new IO thread [%s]: %s",
 			name, ba_transport_type_to_string(t->type));
 
 	return 0;
@@ -1167,12 +1212,20 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 
+	/* Release BT socket file descriptor duplicate created either in the
+	 * ba_transport_thread_create() function or in the IO thread itself. */
+	ba_transport_thread_bt_release(th);
+
 	/* Release underlying BT transport. */
 	ba_transport_release(t);
 
+#if DEBUG
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the transport IO thread. */
-	debug("Exiting IO thread: %s", ba_transport_type_to_string(t->type));
+	char name[32];
+	pthread_getname_np(th->id, name, sizeof(name));
+	debug("Exiting IO thread [%s]: %s", name, ba_transport_type_to_string(t->type));
+#endif
 
 	/* Reset transport IO thread state back to NONE. */
 	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_NONE, true);

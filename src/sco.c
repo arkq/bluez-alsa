@@ -126,6 +126,8 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 
 		ba_transport_pcms_lock(t);
 		/* make sure, we are not leaking file descriptor */
+		ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
+		ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
 		ba_transport_release(t);
 		ba_transport_pcms_unlock(t);
 
@@ -133,8 +135,8 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 		fd = -1;
 
-		ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_PING);
-		ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_PING);
+		ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
+		ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
 
 cleanup:
 		if (d != NULL)
@@ -268,10 +270,10 @@ void *sco_thread(struct ba_transport_thread *th) {
 		case HFP_CODEC_CVSD:
 		default:
 			if (ffb_len_in(&bt_in) >= t->mtu_read)
-				pfds[1].fd = t->bt_fd;
+				pfds[1].fd = th->bt_fd;
 			if (ffb_len_out(&bt_out) >= t->mtu_write)
-				pfds[2].fd = t->bt_fd;
-			if (t->sco.spk_pcm.active && t->bt_fd != -1 && ffb_len_in(&bt_out) >= t->mtu_write)
+				pfds[2].fd = th->bt_fd;
+			if (t->sco.spk_pcm.active && th->bt_fd != -1 && ffb_len_in(&bt_out) >= t->mtu_write)
 				pfds[3].fd = t->sco.spk_pcm.fd;
 			if (t->sco.mic_pcm.active && ffb_len_out(&bt_in) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
@@ -283,17 +285,17 @@ void *sco_thread(struct ba_transport_thread *th) {
 			if (msbc_decode(&msbc_dec) == -1)
 				warn("Couldn't decode mSBC: %s", strerror(errno));
 			if (ffb_blen_in(&msbc_dec.data) >= t->mtu_read)
-				pfds[1].fd = t->bt_fd;
+				pfds[1].fd = th->bt_fd;
 			if (ffb_blen_out(&msbc_enc.data) >= t->mtu_write)
-				pfds[2].fd = t->bt_fd;
-			if (t->sco.spk_pcm.active && t->bt_fd != -1 && ffb_blen_in(&msbc_enc.pcm) >= t->mtu_write)
+				pfds[2].fd = th->bt_fd;
+			if (t->sco.spk_pcm.active && th->bt_fd != -1 && ffb_blen_in(&msbc_enc.pcm) >= t->mtu_write)
 				pfds[3].fd = t->sco.spk_pcm.fd;
 			if (t->sco.mic_pcm.active && ffb_blen_out(&msbc_dec.pcm) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
 			/* If SCO is not opened or PCM is not connected,
 			 * mark mSBC encoder/decoder for reinitialization. */
 			if ((t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) ||
-					t->bt_fd == -1)
+					th->bt_fd == -1)
 				initialize_msbc = true;
 			break;
 #endif
@@ -320,7 +322,11 @@ void *sco_thread(struct ba_transport_thread *th) {
 			enum ba_transport_thread_signal signal;
 			ba_transport_thread_signal_recv(th, &signal);
 			switch (signal) {
-			case BA_TRANSPORT_THREAD_SIGNAL_PING:
+			case BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE:
+				ba_transport_thread_bt_acquire(th);
+				continue;
+			case BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE:
+				ba_transport_thread_bt_release(th);
 				continue;
 			case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
 			case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
@@ -582,6 +588,7 @@ retry_sco_write:
 
 release:
 		ba_transport_pcms_lock(t);
+		ba_transport_thread_bt_release(th);
 		ba_transport_release(t);
 		ba_transport_pcms_unlock(t);
 	}

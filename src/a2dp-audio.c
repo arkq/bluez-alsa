@@ -204,7 +204,7 @@ static ssize_t a2dp_poll_and_read_bt(struct io_thread_data *io,
 repoll:
 
 	/* Add BT socket to the poll if PCM is active. */
-	fds[1].fd = pcm->active ? t->bt_fd : -1;
+	fds[1].fd = pcm->active ? th->bt_fd : -1;
 
 	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
 		if (errno == EINTR)
@@ -237,9 +237,10 @@ repoll:
 	/* it seems that zero is never returned... */
 	if (len == 0) {
 		debug("BT socket has been closed: %d", fds[1].fd);
+		ba_transport_thread_bt_release(th);
 		/* Prevent sending the release request to the BlueZ. If the socket has
 		 * been closed, it means that BlueZ has already closed the connection. */
-		close(fds[1].fd);
+		close(t->bt_fd);
 		t->bt_fd = -1;
 		return 0;
 	}
@@ -255,7 +256,8 @@ repoll:
 static ssize_t a2dp_write_bt(struct io_thread_data *io, ffb_t *buffer) {
 
 	struct ba_transport *t = io->th->t;
-	struct pollfd pfd = { t->bt_fd, POLLOUT, 0 };
+	struct ba_transport_thread *th = io->th;
+	struct pollfd pfd = { th->bt_fd, POLLOUT, 0 };
 	int coutq = 0;
 	int oldstate;
 	ssize_t ret;

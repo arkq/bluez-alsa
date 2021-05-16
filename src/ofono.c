@@ -139,6 +139,9 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 
 	debug("Closing oFono SCO: %d", t->bt_fd);
 
+	ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
+	ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
+
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
 	t->bt_fd = -1;
@@ -413,11 +416,11 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 
 	bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_PING);
+	ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
 
 	bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_PING);
+	ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

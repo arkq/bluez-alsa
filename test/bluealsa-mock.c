@@ -228,6 +228,8 @@ static int mock_transport_acquire(struct ba_transport *t) {
 	t->mtu_read = 256;
 	t->mtu_write = 256;
 
+	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
