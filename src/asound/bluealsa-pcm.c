@@ -406,8 +406,19 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 
 static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	if (pcm->ba_pcm_fd == -1)
+	if (pcm->ba_pcm_fd == -1) {
+		/* The ioplug sets the PCM state to SND_PCM_STATE_XRUN
+		 * when this function returns error, so setting the state
+		 * here has no effect - but we do it anyway in the hope
+		 * that one day ioplug will acknowledge that PCM devices
+		 * can disconnect. So typically when an application attempts
+		 * I/O on a disconnected bluealsa PCM it gets EPIPE with
+		 * state SND_PCM_STATE_XRUN, and only later when it attempts
+		 * to recover with snd_pcm_prepare() does it get ENODEV
+		 * with state SND_PCM_STATE_DISCONNECTED. */
+		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 		return -ENODEV;
+	}
 #ifndef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
 	if (pcm->io_hw_ptr != -1)
 		return pcm->io_hw_ptr % io->buffer_size;
@@ -493,8 +504,10 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
 	/* if PCM FIFO is not opened, report it right away */
-	if (pcm->ba_pcm_fd == -1)
+	if (pcm->ba_pcm_fd == -1) {
+		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 		return -ENODEV;
+	}
 
 	/* initialize ring buffer */
 	pcm->io_hw_ptr = 0;
@@ -674,8 +687,10 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	if (pcm->ba_pcm_fd == -1)
+	if (pcm->ba_pcm_fd == -1) {
+		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 		return -ENODEV;
+	}
 
 	int ret = 0;
 	*delayp = 0;
@@ -694,9 +709,6 @@ static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 			break;
 		case SND_PCM_STATE_SUSPENDED:
 			ret = -ESTRPIPE;
-			break;
-		case SND_PCM_STATE_DISCONNECTED:
-			ret = -ENODEV;
 			break;
 		default:
 			break;
@@ -787,14 +799,12 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 			case SND_PCM_STATE_SUSPENDED:
 				*revents |= POLLERR;
 				break;
-			case SND_PCM_STATE_DISCONNECTED:
-				*revents = POLLERR;
-				ret = -ENODEV;
-				break;
 			case SND_PCM_STATE_OPEN:
 				*revents = POLLERR;
 				ret = -EBADF;
 				break;
+			case SND_PCM_STATE_DISCONNECTED:
+				goto fail;
 			default:
 				break;
 		};
@@ -807,6 +817,7 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 	return ret;
 
 fail:
+	snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 	*revents = POLLERR | POLLHUP;
 	return -ENODEV;
 }
