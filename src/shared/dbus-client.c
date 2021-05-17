@@ -237,6 +237,90 @@ dbus_bool_t bluealsa_dbus_connection_poll_dispatch(
 	return rv;
 }
 
+/**
+ * Callback function for BlueALSA service properties parser. */
+static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
+		DBusMessageIter *value, void *userdata, DBusError *error) {
+	struct ba_service_props *props = (struct ba_service_props *)userdata;
+
+	char type = dbus_message_iter_get_arg_type(value);
+	char type_expected;
+
+	if (strcmp(key, "Version") == 0) {
+		if (type != (type_expected = DBUS_TYPE_STRING))
+			goto fail;
+		const char *tmp;
+		dbus_message_iter_get_basic(value, &tmp);
+		strncpy(props->version, tmp, sizeof(props->version) - 1);
+	}
+	else if (strcmp(key, "Adapters") == 0) {
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+		const char *tmp[ARRAYSIZE(props->adapters)];
+		size_t length = ARRAYSIZE(tmp);
+		if (!bluealsa_dbus_message_iter_array_get_strings(value, error, tmp, &length))
+			return FALSE;
+		if (length > ARRAYSIZE(props->adapters))
+			length = ARRAYSIZE(props->adapters);
+		for (size_t i = 0; i < length; i++)
+			strncpy(props->adapters[i], tmp[i], sizeof(props->adapters[i]) - 1);
+	}
+
+	return TRUE;
+
+fail:
+	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+			"Incorrect variant for '%s': %c != %c", key, type, type_expected);
+	return FALSE;
+}
+
+/**
+ * Get properties of BlueALSA service. */
+dbus_bool_t bluealsa_dbus_get_props(
+		struct ba_dbus_ctx *ctx,
+		struct ba_service_props *props,
+		DBusError *error) {
+
+	static const char *interface = BLUEALSA_INTERFACE_MANAGER;
+	DBusMessage *msg = NULL, *rep = NULL;
+	dbus_bool_t ret = FALSE;
+
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, "/org/bluealsa",
+					DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	dbus_message_iter_init_append(msg, &iter);
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface)) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
+		goto fail;
+
+	if (!dbus_message_iter_init(rep, &iter)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE, "Empty response message");
+		goto fail;
+	}
+
+	if (!bluealsa_dbus_message_iter_dict(&iter, error,
+				bluealsa_dbus_message_iter_get_props_cb, props))
+		goto fail;
+
+	ret = TRUE;
+
+fail:
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	return ret;
+}
+
 dbus_bool_t bluealsa_dbus_get_pcms(
 		struct ba_dbus_ctx *ctx,
 		struct ba_pcm **pcms,
@@ -517,6 +601,42 @@ dbus_bool_t bluealsa_dbus_pcm_ctrl_send(
 	}
 
 	return TRUE;
+}
+
+/**
+ * Extract strings from the string array. */
+dbus_bool_t bluealsa_dbus_message_iter_array_get_strings(
+		DBusMessageIter *iter,
+		DBusError *error,
+		const char **strings,
+		size_t *length) {
+
+	char *signature;
+	size_t i;
+
+	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_ARRAY)
+		goto fail;
+
+	DBusMessageIter iter_array;
+	for (dbus_message_iter_recurse(iter, &iter_array), i = 0;
+			dbus_message_iter_get_arg_type(&iter_array) != DBUS_TYPE_INVALID;
+			dbus_message_iter_next(&iter_array)) {
+		if (dbus_message_iter_get_arg_type(&iter_array) != DBUS_TYPE_STRING)
+			goto fail;
+		if (i < *length)
+			dbus_message_iter_get_basic(&iter_array, &strings[i]);
+		i++;
+	}
+
+	*length = i;
+	return TRUE;
+
+fail:
+	signature = dbus_message_iter_get_signature(iter);
+	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+			"Incorrect signature: %s != as", signature);
+	dbus_free(signature);
+	return FALSE;
 }
 
 /**

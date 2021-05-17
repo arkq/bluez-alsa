@@ -21,6 +21,15 @@ Signals         void PCMAdded(object path, dict props)
                         object path is only for a reference - it has been
                         already removed.
 
+Properties      string Version [readonly]
+
+                        Version of BlueALSA service.
+
+                array{string} Adapters [readonly]
+
+                        Used HCI adapters. The device names ("hci0", etc.) of
+                        Bluetooth adapters that the BlueALSA service is using.
+
 PCM hierarchy
 =============
 

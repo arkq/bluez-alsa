@@ -38,6 +38,29 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
+static GVariant *ba_variant_new_bluealsa_version(void) {
+	return g_variant_new_string(PACKAGE_VERSION);
+}
+
+static GVariant *ba_variant_new_bluealsa_adapters(void) {
+
+	const char *strv[HCI_MAX_DEV] = { NULL };
+	GVariant *variant;
+	size_t i, ii = 0;
+
+	pthread_mutex_lock(&config.adapters_mutex);
+
+	for (i = 0; i < HCI_MAX_DEV; i++)
+		if (config.adapters[i] != NULL)
+			strv[ii++] = config.adapters[i]->hci.name;
+
+	variant = g_variant_new_strv(strv, ii);
+
+	pthread_mutex_unlock(&config.adapters_mutex);
+
+	return variant;
+}
+
 static GVariant *ba_variant_new_device_path(const struct ba_device *d) {
 	return g_variant_new_object_path(d->bluez_dbus_path);
 }
@@ -281,11 +304,34 @@ static void bluealsa_manager_method_call(GDBusConnection *conn, const char *send
 
 }
 
+static GVariant *bluealsa_manager_get_property(GDBusConnection *conn,
+		const char *sender, const char *path, const char *interface,
+		const char *property, GError **error, void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)interface;
+	(void)userdata;
+
+	if (strcmp(property, "Version") == 0)
+		return ba_variant_new_bluealsa_version();
+	if (strcmp(property, "Adapters") == 0)
+		return ba_variant_new_bluealsa_adapters();
+
+	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
+			"Property not supported '%s'", property);
+	return NULL;
+}
+
 /**
  * Register BlueALSA D-Bus manager interface. */
 unsigned int bluealsa_dbus_manager_register(GError **error) {
+
 	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluealsa_manager_method_call };
+		.method_call = bluealsa_manager_method_call,
+		.get_property = bluealsa_manager_get_property,
+	};
+
 	return g_dbus_connection_register_object(config.dbus, "/org/bluealsa",
 			(GDBusInterfaceInfo *)&bluealsa_iface_manager, &vtable, NULL, NULL, error);
 }

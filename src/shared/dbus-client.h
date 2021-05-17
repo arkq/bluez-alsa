@@ -14,6 +14,7 @@
 #include <poll.h>
 #include <stddef.h>
 #include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
 #include <dbus/dbus.h>
 
 #define BLUEALSA_SERVICE           "org.bluealsa"
@@ -57,6 +58,15 @@ struct ba_dbus_ctx {
 	size_t matches_len;
 	/* BlueALSA service name */
 	char ba_service[32];
+};
+
+/**
+ * BlueALSA service property object. */
+struct ba_service_props {
+	/* service version */
+	char version[32];
+	/* currently used HCI adapters */
+	char adapters[HCI_MAX_DEV][8];
 };
 
 /**
@@ -144,6 +154,11 @@ dbus_bool_t bluealsa_dbus_connection_poll_dispatch(
 		struct pollfd *fds,
 		nfds_t nfds);
 
+dbus_bool_t bluealsa_dbus_get_props(
+		struct ba_dbus_ctx *ctx,
+		struct ba_service_props *props,
+		DBusError *error);
+
 dbus_bool_t bluealsa_dbus_get_pcms(
 		struct ba_dbus_ctx *ctx,
 		struct ba_pcm **pcms,
@@ -193,6 +208,12 @@ dbus_bool_t bluealsa_dbus_pcm_ctrl_send(
 
 #define bluealsa_dbus_pcm_ctrl_send_resume(fd, err) \
 	bluealsa_dbus_pcm_ctrl_send(fd, "Resume", err)
+
+dbus_bool_t bluealsa_dbus_message_iter_array_get_strings(
+		DBusMessageIter *iter,
+		DBusError *error,
+		const char **strings,
+		size_t *length);
 
 dbus_bool_t bluealsa_dbus_message_iter_dict(
 		DBusMessageIter *iter,
