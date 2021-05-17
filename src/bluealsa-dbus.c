@@ -32,6 +32,7 @@
 #include "ba-device.h"
 #include "bluealsa-iface.h"
 #include "bluealsa.h"
+#include "codec-sbc.h"
 #include "dbus.h"
 #include "hfp.h"
 #include "utils.h"
@@ -281,11 +282,51 @@ static void bluealsa_manager_method_call(GDBusConnection *conn, const char *send
 
 }
 
+static GVariant *ba_variant_new_version(void) {
+	static const char *version = PACKAGE_VERSION;
+	return g_variant_new_string(version);
+}
+
+static GVariant *ba_variant_new_adapters(void) {
+	const gchar *strv[HCI_MAX_DEV];
+
+	int a, s = 0;
+	for (a = 0; a < HCI_MAX_DEV; a++) {
+		if (config.adapters[a] && config.adapters[a]->hci.name)
+			strv[s++] = config.adapters[a]->hci.name;
+	}
+	strv[s] = NULL;
+
+	return g_variant_new_strv(strv, -1);
+}
+
+static GVariant *bluealsa_manager_get_property(GDBusConnection *conn,
+		const char *sender, const char *path, const char *interface,
+		const char *property, GError **error, void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)path;
+	(void)interface;
+	(void)userdata;
+
+	if (strcmp(property, "Version") == 0)
+		return ba_variant_new_version();
+
+	if (strcmp(property, "Adapters") == 0)
+		return ba_variant_new_adapters();
+
+	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
+			"Property not supported '%s'", property);
+	return NULL;
+}
+
 /**
  * Register BlueALSA D-Bus manager interface. */
 unsigned int bluealsa_dbus_manager_register(GError **error) {
 	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluealsa_manager_method_call };
+		.method_call = bluealsa_manager_method_call,
+		.get_property = bluealsa_manager_get_property,
+	 };
 	return g_dbus_connection_register_object(config.dbus, "/org/bluealsa",
 			(GDBusInterfaceInfo *)&bluealsa_iface_manager, &vtable, NULL, NULL, error);
 }

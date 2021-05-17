@@ -567,6 +567,101 @@ fail:
 	return FALSE;
 }
 
+static dbus_bool_t parse_dbus_string_array(DBusMessageIter *iter, void *out, int size, int strlen, DBusError *err) {
+	DBusMessageIter iter2;
+	char *array = out;
+	int count;
+	for (dbus_message_iter_recurse(iter, &iter2), count = 0;
+			dbus_message_iter_get_arg_type(&iter2) != DBUS_TYPE_INVALID &&
+				count < size;
+			dbus_message_iter_next(&iter2), count++) {
+		if (dbus_message_iter_get_arg_type(&iter2) != DBUS_TYPE_STRING) {
+			dbus_set_error(err, DBUS_ERROR_FAILED, "DBus message corrupted");
+			return FALSE;
+		}
+
+		const char *tmp;
+		dbus_message_iter_get_basic(&iter2, &tmp);
+		strncpy(&array[count * strlen], tmp, strlen);
+	}
+	array[count * strlen] = 0;
+	return TRUE;
+}
+
+/* Callback function for BlueALSA service properties parser. */
+static dbus_bool_t bluealsa_dbus_message_iter_get_serv_props_cb(const char *key,
+		DBusMessageIter *val, void *userdata, DBusError *error) {
+
+	struct ba_service_props *props = (struct ba_service_props *)userdata;
+	char type = dbus_message_iter_get_arg_type(val);
+
+	if (strcmp(key, "Version") == 0) {
+		if (type != DBUS_TYPE_STRING)
+			return FALSE;
+		const char *tmp;
+		dbus_message_iter_get_basic(val, &tmp);
+		strncpy(props->version, tmp, sizeof(props->version) - 1);
+	}
+	else if (strcmp(key, "Adapters") == 0) {
+		if (type != DBUS_TYPE_ARRAY)
+			return FALSE;
+		if (! parse_dbus_string_array(val, &props->adapters, ARRAYSIZE(props->adapters), sizeof(props->adapters[0]), error))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/**
+ * Get properties of BlueALSA service. */
+dbus_bool_t bluealsa_dbus_get_serv_props(
+		struct ba_dbus_ctx *ctx,
+		struct ba_service_props *props,
+		DBusError *error) {
+
+	dbus_bool_t ret = FALSE;
+
+	DBusMessage *msg;
+	if ((msg = dbus_message_new_method_call(ctx->ba_service,
+			"/org/bluealsa", DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	dbus_message_iter_init_append(msg, &iter);
+	static const char *interface = BLUEALSA_INTERFACE_MANAGER;
+
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	DBusMessage *rep;
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+			msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
+		goto fail;
+
+	if (!dbus_message_iter_init(rep, &iter)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s", strerror(ENOMEM));
+		goto fail;
+	}
+
+	if (!bluealsa_dbus_message_iter_dict(&iter, error, bluealsa_dbus_message_iter_get_serv_props_cb, props)
+)
+		goto fail;
+
+	ret = TRUE;
+
+fail:
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	return ret;
+
+}
+
 /**
  * Parse BlueALSA PCM. */
 dbus_bool_t bluealsa_dbus_message_iter_get_pcm(

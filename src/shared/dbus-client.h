@@ -60,6 +60,13 @@ struct ba_dbus_ctx {
 };
 
 /**
+ * BlueALSA service property object. */
+struct ba_service_props {
+	char version[32];
+	char adapters[11][5];
+};
+
+/**
  * BlueALSA PCM object property. */
 enum ba_pcm_property {
 	BLUEALSA_PCM_SOFT_VOLUME,
@@ -143,6 +150,11 @@ dbus_bool_t bluealsa_dbus_connection_poll_dispatch(
 		struct ba_dbus_ctx *ctx,
 		struct pollfd *fds,
 		nfds_t nfds);
+
+dbus_bool_t bluealsa_dbus_get_serv_props(
+		struct ba_dbus_ctx *ctx,
+		struct ba_service_props *props,
+		DBusError *error);
 
 dbus_bool_t bluealsa_dbus_get_pcms(
 		struct ba_dbus_ctx *ctx,

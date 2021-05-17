@@ -280,6 +280,43 @@ static int cmd_list_pcms(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
+static void print_string(const char *key, const char *val) {
+	printf("%s: %s\n", key, val ? val : "[ Unknown ]");
+}
+
+static void print_string_array(const char *key, const void *data, int size, int strlen) {
+	const char *array = data;
+	int count;
+
+	printf("%s:", key);
+	for (count = 0; count < size && array[count * strlen]; count++)
+		printf(" %s", &array[count*strlen]);
+	printf("\n");
+}
+
+static int cmd_status(int argc, char *argv[]) {
+
+	if (argc != 1) {
+		cmd_print_error("Invalid number of arguments");
+		return EXIT_FAILURE;
+	}
+
+	struct ba_service_props props = { 0 };
+	DBusError error = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_get_serv_props(&dbus_ctx, &props, &error)) {
+		if (dbus_error_is_set(&error))
+			cmd_print_error("DBus error: %s\n", error.message);
+		return EXIT_FAILURE;
+	}
+
+	print_string("Version", props.version);
+
+	print_string_array("Adapters", &props.adapters,
+		ARRAYSIZE(props.adapters), sizeof(props.adapters[0]));
+
+	return EXIT_SUCCESS;
+}
+
 static int cmd_info(int argc, char *argv[]) {
 
 	if (argc != 2) {
@@ -641,6 +678,7 @@ static struct command {
 } commands[] = {
 	{ "list-services", cmd_list_services, "", "List all BlueALSA services" },
 	{ "list-pcms", cmd_list_pcms, "", "List all BlueALSA PCM paths" },
+	{ "status", cmd_status, "", "Show service runtime properties" },
 	{ "info", cmd_info, "<pcm-path>", "Show PCM properties etc" },
 	{ "codec", cmd_codec, "<pcm-path> [<codec>]", "Change codec used by PCM" },
 	{ "volume", cmd_volume, "<pcm-path> [<val>] [<val>]", "Set audio volume" },
