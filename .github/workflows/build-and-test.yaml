@@ -4,10 +4,10 @@ jobs:
   build:
     strategy:
       matrix:
-        feature-set1:
-        - --enable-aac --enable-msbc
+        features:
+        - --enable-debug
+        - --enable-debug --enable-aac --enable-msbc
         - --enable-debug --enable-mp3lame --enable-mpg123
-        feature-set2:
         - --enable-mp3lame --enable-ofono --enable-upower
         - --enable-cli --enable-rfcomm --enable-manpages
     runs-on: ubuntu-18.04
@@ -37,8 +37,7 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: |
         ${{ github.workspace }}/configure \
-          ${{ matrix.feature-set1 }} \
-          ${{ matrix.feature-set2 }} \
+          ${{ matrix.features }} \
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build

@@ -1,9 +1,17 @@
 unreleased
 ==========
 
+bluez-alsa v3.1.0 (2021-06-01)
+==============================
+
 - higher PCM bit depth for apt-X HD (24-bit) and LDAC (32-bit)
 - support for A2DP Sink with apt-X (HD) if decoder is available
 - support for A2DP Sink with LDAC codec if decoder is available
+- better audio volume scaling (Bluetooth volume as loudness)
+- support TLV data for dB calculations in ALSA control plug-in
+- fix PCM delay reporting from connected Bluetooth devices
+- most recently connected Bluetooth device as a default PCM
+- lots of improvements to the ALSA PCM I/O plug-in
 - use rst2man (docutils) instead of pandoc to build man-pages
 - bluealsa-cli: utility for using D-Bus API from command line
 - bash completion script for installed applications

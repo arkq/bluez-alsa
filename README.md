@@ -75,8 +75,8 @@ For a comprehensive installation guide, please look at the [Installation from
 source](https://github.com/Arkq/bluez-alsa/wiki/Installation-from-source) bluez-alsa wiki page. If
 you've found something missing or incorrect, fill free to make a wiki contribution. Alternatively,
 if you are using Debian-based distribution, take a look at the
-[build-and-test.yml](.github/workflows/build-and-test.yml) GitHub workflow file, it might give you
-a hint about required packages.
+[build-and-test.yaml](.github/workflows/build-and-test.yaml) GitHub workflow file, it might give
+you a hint about required packages.
 
 ## Configuration & Usage
 

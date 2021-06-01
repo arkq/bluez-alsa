@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
-	[m4_normalize(esyscmd([test -d .git && git describe || echo v3.0.0]))],
+	[m4_normalize(esyscmd([test -d .git && git describe || echo v3.1.0]))],
 	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/Arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
@@ -314,3 +314,13 @@ AM_COND_IF([ALSA_1_1_2__1_1_3], [
 	AC_MSG_WARN([Either compile alsa-lib without this feature or export])
 	AC_MSG_WARN([LIBASOUND_THREAD_SAFE=0 while using bluealsa PCM.])
 ])
+
+# notify user that using libopenaptx might be a good idea
+AM_COND_IF([ENABLE_APTX_OR_APTX_HD], [
+AM_COND_IF([WITH_LIBOPENAPTX], [], [
+	AC_MSG_NOTICE([       *** using apt-X (HD) via Qualcomm API ***])
+	AC_MSG_NOTICE([Enabled apt-X (HD) support requires encoder (and decoder)])
+	AC_MSG_NOTICE([library with a proprietary Qualcomm API. Please consider])
+	AC_MSG_NOTICE([using --with-libopenaptx option which will use a library])
+	AC_MSG_NOTICE([based on FFmpeg project with better decoding support.])
+])])
