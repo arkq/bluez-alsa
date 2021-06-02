@@ -77,6 +77,9 @@ static int transport_pcm_init(
 	pcm->fd = -1;
 	pcm->active = true;
 
+	pcm->volume[0].level = config.volume_init_level;
+	pcm->volume[1].level = config.volume_init_level;
+
 	pthread_mutex_init(&pcm->dbus_mtx, NULL);
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
 	pthread_cond_init(&pcm->synced, NULL);

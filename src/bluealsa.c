@@ -34,6 +34,8 @@ struct ba_config config = {
 
 	.null_fd = -1,
 
+	.volume_init_level = 0,
+
 	.hfp.features_sdp_hf =
 		SDP_HFP_HF_FEAT_CLI |
 		SDP_HFP_HF_FEAT_VOLUME |

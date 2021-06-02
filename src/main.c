@@ -30,6 +30,7 @@
 #endif
 
 #include "a2dp.h"
+#include "audio.h"
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
@@ -97,6 +98,7 @@ int main(int argc, char **argv) {
 		{ "syslog", no_argument, NULL, 'S' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
+		{ "initial-volume", required_argument, NULL, 17 },
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
 		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
 		{ "a2dp-keep-alive", required_argument, NULL, 8 },
@@ -159,6 +161,7 @@ int main(int argc, char **argv) {
 					"  -S, --syslog\t\tsend output to syslog\n"
 					"  -i, --device=hciX\tHCI device(s) to use\n"
 					"  -p, --profile=NAME\tenable BT profile\n"
+					"  --initial-volume=NB\tinitial volume level [0-100]\n"
 					"  --a2dp-force-mono\tforce monophonic sound\n"
 					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
 					"  --a2dp-keep-alive=SEC\tkeep A2DP transport alive\n"
@@ -242,6 +245,17 @@ int main(int argc, char **argv) {
 				return EXIT_FAILURE;
 			}
 
+			break;
+		}
+
+		case 17 /* --initial-volume=NB */ : {
+			unsigned int vol = atoi(optarg);
+			if (vol > 100) {
+				error("Invalid initial volume [0, 100]: %s", optarg);
+				return EXIT_FAILURE;
+			}
+			double level = audio_loudness_to_decibel(1.0 * vol / 100);
+			config.volume_init_level = MIN(MAX(level, -96.0), 96.0) * 100;
 			break;
 		}
 
