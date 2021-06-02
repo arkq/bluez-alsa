@@ -59,6 +59,9 @@ struct ba_config {
 	/* opened null device */
 	int null_fd;
 
+	/* The initial volume level */
+	int volume_init_level;
+
 	struct {
 		/* set of features exposed via Service Discovery */
 		unsigned int features_sdp_hf;

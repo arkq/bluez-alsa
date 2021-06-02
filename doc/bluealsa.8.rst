@@ -51,6 +51,11 @@ OPTIONS
     Without this option, **bluealsa** enables **a2dp-source**, **hfp-ag** and **hsp-ag**.
     For the list of supported profiles see the PROFILES_ section below.
 
+--init-volume=NB
+    Set the initial volume to *NB*% when the device is connected.
+    *NB* must be an integer in the range from **0** to **100**.
+    The default value is **100** (full volume).
+
 --a2dp-force-mono
     Force monophonic sound for A2DP profile.
 

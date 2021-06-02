@@ -225,7 +225,6 @@ struct ba_transport *ba_transport_new_a2dp(
 		const char *dbus_path,
 		const struct a2dp_codec *codec,
 		const void *configuration) {
-
 	const bool is_sink = type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t;
 
@@ -243,12 +242,14 @@ struct ba_transport *ba_transport_new_a2dp(
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm.max_bt_volume = 127;
+	t->a2dp.pcm.volume[0].level = t->a2dp.pcm.volume[1].level = config.volume_init_level;
 
 	transport_pcm_init(&t->a2dp.pcm_bc,
 			is_sink ? &t->thread_enc : &t->thread_dec,
 			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
 	t->a2dp.pcm_bc.max_bt_volume = 127;
+	t->a2dp.pcm_bc.volume[0].level = t->a2dp.pcm_bc.volume[1].level = config.volume_init_level;
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -293,10 +294,12 @@ struct ba_transport *ba_transport_new_sco(
 
 	transport_pcm_init(&t->sco.spk_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.spk_pcm.max_bt_volume = 15;
+	t->sco.spk_pcm.volume[0].level = config.volume_init_level;
 
 	/* TODO: After SCO thread refactoring use decoder thread for mic. */
 	transport_pcm_init(&t->sco.mic_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->sco.mic_pcm.max_bt_volume = 15;
+	t->sco.mic_pcm.volume[0].level = config.volume_init_level;
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
