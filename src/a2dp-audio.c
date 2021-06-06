@@ -2097,61 +2097,61 @@ int a2dp_audio_thread_create(struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			return ba_transport_thread_create(th_enc, a2dp_source_sbc, "ba-a2dp-sbc");
+			return ba_transport_thread_create(th_enc, a2dp_source_sbc, "ba-a2dp-sbc", true);
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 #if ENABLE_MP3LAME
 			if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
-				return ba_transport_thread_create(th_enc, a2dp_source_mp3, "ba-a2dp-mp3");
+				return ba_transport_thread_create(th_enc, a2dp_source_mp3, "ba-a2dp-mp3", true);
 #endif
 			break;
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return ba_transport_thread_create(th_enc, a2dp_source_aac, "ba-a2dp-aac");
+			return ba_transport_thread_create(th_enc, a2dp_source_aac, "ba-a2dp-aac", true);
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return ba_transport_thread_create(th_enc, a2dp_source_aptx, "ba-a2dp-aptx");
+			return ba_transport_thread_create(th_enc, a2dp_source_aptx, "ba-a2dp-aptx", true);
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return ba_transport_thread_create(th_enc, a2dp_source_aptx_hd, "ba-a2dp-aptx-hd");
+			return ba_transport_thread_create(th_enc, a2dp_source_aptx_hd, "ba-a2dp-aptx-hd", true);
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
-			return ba_transport_thread_create(th_enc, a2dp_source_ldac, "ba-a2dp-ldac");
+			return ba_transport_thread_create(th_enc, a2dp_source_ldac, "ba-a2dp-ldac", true);
 #endif
 		}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			return ba_transport_thread_create(th_dec, a2dp_sink_sbc, "ba-a2dp-sbc");
+			return ba_transport_thread_create(th_dec, a2dp_sink_sbc, "ba-a2dp-sbc", true);
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
 #if ENABLE_MPG123
-			return ba_transport_thread_create(th_dec, a2dp_sink_mpeg, "ba-a2dp-mpeg");
+			return ba_transport_thread_create(th_dec, a2dp_sink_mpeg, "ba-a2dp-mpeg", true);
 #elif ENABLE_MP3LAME
 			if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
-				return ba_transport_thread_create(th_dec, a2dp_sink_mpeg, "ba-a2dp-mp3");
+				return ba_transport_thread_create(th_dec, a2dp_sink_mpeg, "ba-a2dp-mp3", true);
 #endif
 			break;
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return ba_transport_thread_create(th_dec, a2dp_sink_aac, "ba-a2dp-aac");
+			return ba_transport_thread_create(th_dec, a2dp_sink_aac, "ba-a2dp-aac", true);
 #endif
 #if ENABLE_APTX && HAVE_APTX_DECODE
 		case A2DP_CODEC_VENDOR_APTX:
-			return ba_transport_thread_create(th_dec, a2dp_sink_aptx, "ba-a2dp-aptx");
+			return ba_transport_thread_create(th_dec, a2dp_sink_aptx, "ba-a2dp-aptx", true);
 #endif
 #if ENABLE_APTX_HD && HAVE_APTX_HD_DECODE
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return ba_transport_thread_create(th_dec, a2dp_sink_aptx_hd, "ba-a2dp-aptx-hd");
+			return ba_transport_thread_create(th_dec, a2dp_sink_aptx_hd, "ba-a2dp-aptx-hd", true);
 #endif
 #if ENABLE_LDAC && HAVE_LDAC_DECODE
 		case A2DP_CODEC_VENDOR_LDAC:
-			return ba_transport_thread_create(th_dec, a2dp_sink_ldac, "ba-a2dp-ldac");
+			return ba_transport_thread_create(th_dec, a2dp_sink_ldac, "ba-a2dp-ldac", true);
 #endif
 		}
 

@@ -230,43 +230,30 @@ static int mock_transport_acquire(struct ba_transport *t) {
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+		g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
+		assert(a2dp_audio_thread_create(t) == 0);
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			assert(ba_transport_thread_create(&t->thread_enc, a2dp_source_sbc, "ba-a2dp-sbc") == 0);
-			g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
-			break;
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX:
-			assert(ba_transport_thread_create(&t->thread_enc, a2dp_source_aptx, "ba-a2dp-aptx") == 0);
-			g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
-			break;
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			assert(ba_transport_thread_create(&t->thread_enc, a2dp_source_aptx_hd, "ba-a2dp-aptx-hd") == 0);
-			g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
-			break;
-#endif
-		}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		switch (t->type.codec) {
-		case A2DP_CODEC_SBC:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-sbc") == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-sbc", true) == 0);
 			break;
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx") == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx", true) == 0);
 			break;
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx-hd") == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx-hd", true) == 0);
 			break;
 #endif
 		}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		assert(ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco") == 0);
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		assert(ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco", true) == 0);
+	}
 
 	return 0;
 }

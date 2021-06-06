@@ -356,14 +356,14 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 		test_a2dp_start_terminate_timer(aging_duration);
 
 	if (enc == test_io_thread_a2dp_dump_pcm) {
-		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name), 0);
-		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name, true), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name, true), 0);
 		bt_data_write(bt_fds[1]);
 	}
 	else {
-		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name, true), 0);
 		write_test_pcm(pcm_fds[0], t1->a2dp.pcm.channels, 4 * 1024 * test_a2dp_pcm_samples_boost);
-		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name, true), 0);
 	}
 
 	pthread_mutex_lock(&test_a2dp_mutex);
@@ -402,7 +402,7 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	t->sco.mic_pcm.fd = pcm_mic_fds[1];
 	t->sco.spk_pcm.fd = pcm_spk_fds[1];
 
-	ck_assert_int_eq(ba_transport_thread_create(&t->thread_enc, cb, "sco"), 0);
+	ck_assert_int_eq(ba_transport_thread_create(&t->thread_enc, cb, "sco", true), 0);
 
 	struct pollfd pfds[] = {
 		{ sco_fds[0], POLLIN, 0 },

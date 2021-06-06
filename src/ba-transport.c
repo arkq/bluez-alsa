@@ -806,15 +806,17 @@ void ba_transport_set_codec(
 int ba_transport_start(struct ba_transport *t) {
 
 	if (!pthread_equal(t->thread_enc.id, config.main_thread) ||
-			!pthread_equal(t->thread_dec.id, config.main_thread))
-		return 0;
+			!pthread_equal(t->thread_dec.id, config.main_thread)) {
+		errno = EEXIST;
+		return -1;
+	}
 
 	debug("Starting transport: %s", ba_transport_type_to_string(t->type));
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return a2dp_audio_thread_create(t);
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		return ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco");
+		return ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco", true);
 
 	errno = ENOTSUP;
 	return -1;
@@ -1178,10 +1180,13 @@ final:
 int ba_transport_thread_create(
 		struct ba_transport_thread *th,
 		void *(*routine)(struct ba_transport_thread *),
-		const char *name) {
+		const char *name,
+		bool master) {
 
 	struct ba_transport *t = th->t;
 	int ret;
+
+	th->master = master;
 
 	/* Please note, this call here does not guarantee that the BT socket
 	 * will be acquired, because transport might not be opened yet. */
@@ -1216,8 +1221,9 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 	 * ba_transport_thread_create() function or in the IO thread itself. */
 	ba_transport_thread_bt_release(th);
 
-	/* Release underlying BT transport. */
-	ba_transport_release(t);
+	/* If we are closing master thread, release underlying BT transport. */
+	if (th->master)
+		ba_transport_release(t);
 
 #if DEBUG
 	/* XXX: If the order of the cleanup push is right, this function will
