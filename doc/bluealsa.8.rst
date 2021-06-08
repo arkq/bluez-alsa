@@ -14,7 +14,7 @@ Bluetooth Audio ALSA Backend
 SYNOPSIS
 ========
 
-**bluealsa** [*OPTION*]...
+**bluealsa** [*OPTION*] ...
 
 DESCRIPTION
 ===========
@@ -39,22 +39,34 @@ OPTIONS
 
 -S, --syslog
     Send output to system logger (``syslogd(8)``).
-    By default, system output is sent to stderr.
+    By default, log output is sent to stderr.
 
 -i hciX, --device=hciX
     HCI device to use. Can be specified multiple times to select more than one HCI.
     Because HCI numbering can change after a system reboot, this option also accepts
     HCI MAC address for the *hciX* value, e.g: ``--device=00:11:22:33:44:55``
 
+    Without this option, the default is to use all available HCI devices.
+
 -p NAME, --profile=NAME
-    Enable *NAME* Bluetooth profile.
+    Enable *NAME* Bluetooth profile. May be given multiple times to enable
+    multiple profiles. If this option is given, then only those profiles
+    explicitly mentioned will be enabled.
+
     Without this option, **bluealsa** enables **a2dp-source**, **hfp-ag** and **hsp-ag**.
     For the list of supported profiles see the PROFILES_ section below.
 
 --initial-volume=NB
-    Set the initial volume to *NB*% when the device is connected.
+    Set the initial volume to *NB* % when the device is connected.
     *NB* must be an integer in the range from **0** to **100**.
     The default value is **100** (full volume).
+
+    Having headphones volume reset to max whenever they connect can lead to
+    an unpleasant experience. This option allows the user to choose an
+    alternative initial volume level. Only one value can be specified and
+    each device on connect will have the volume level of all its PCMs set
+    to this value (%). However, a device with native volume control may
+    then immediately override this level.
 
 --a2dp-force-mono
     Force monophonic sound for A2DP profile.
@@ -95,7 +107,7 @@ OPTIONS
 --mp3-vbr-quality=NB
     Specifies variable bit rate (VBR) quality, where *NB* can be in the range from **0** to **9**.
     For best VBR quality use **0**.
-    Default value is **2** (hight quality VBR mode).
+    Default value is **2** (high quality VBR mode).
 
 --aac-afterburner
     Enables Fraunhofer AAC afterburner feature, which is a type of analysis by synthesis algorithm.
@@ -170,6 +182,10 @@ FILES
 
 /etc/dbus-1/system.d/bluealsa.conf
     BlueALSA service D-Bus policy file.
+    D-Bus will deny all access to the **org.bluealsa** service (even to *root*)
+    unless permission is granted by a policy file. The default file permits
+    only *root* to own this service, and only members of the *audio* group to
+    exchange messages with it.
 
 EXAMPLE
 =======
@@ -213,6 +229,6 @@ Project web site at https://github.com/Arkq/bluez-alsa
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2020 Arkadiusz Bokowy.
+Copyright (c) 2016-2021 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
