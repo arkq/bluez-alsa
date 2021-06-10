@@ -266,8 +266,7 @@ static void *test_io_thread_a2dp_dump_bt(struct ba_transport_thread *th) {
 	ssize_t len;
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_ready(th);
-
+	ba_transport_thread_set_state_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
@@ -305,8 +304,7 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_ready(th);
-
+	ba_transport_thread_set_state_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
@@ -644,7 +642,7 @@ START_TEST(test_sco_cvsd) {
 	t->mtu_read = t->mtu_write = 48;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_send_signal(&t->thread_enc, BA_TRANSPORT_SIGNAL_PING);
+	ba_transport_thread_signal_send(&t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PING);
 	test_sco(t, sco_thread);
 
 } END_TEST
@@ -660,7 +658,7 @@ START_TEST(test_sco_msbc) {
 	t->mtu_read = t->mtu_write = 24;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_send_signal(&t->thread_enc, BA_TRANSPORT_SIGNAL_PING);
+	ba_transport_thread_signal_send(&t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PING);
 	test_sco(t, sco_thread);
 
 } END_TEST

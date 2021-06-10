@@ -413,11 +413,11 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 
 	bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	ba_transport_thread_send_signal(t->sco.spk_pcm.th, BA_TRANSPORT_SIGNAL_PING);
+	ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_PING);
 
 	bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
 			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	ba_transport_thread_send_signal(t->sco.mic_pcm.th, BA_TRANSPORT_SIGNAL_PING);
+	ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_PING);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;

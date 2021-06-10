@@ -147,7 +147,7 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 	int x = 0;
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_ready(th);
+	ba_transport_thread_set_state_running(th);
 
 	while (sigusr1_count == 0) {
 
@@ -158,9 +158,11 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 		if (poll(fds, ARRAYSIZE(fds), timout) == 1 &&
 				fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			switch (ba_transport_thread_recv_signal(th)) {
-			case BA_TRANSPORT_SIGNAL_PCM_OPEN:
-			case BA_TRANSPORT_SIGNAL_PCM_RESUME:
+			enum ba_transport_thread_signal signal;
+			ba_transport_thread_signal_recv(th, &signal);
+			switch (signal) {
+			case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
+			case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
 				asrs.frames = 0;
 				continue;
 			default:
@@ -185,6 +187,7 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 
 	}
 
+	ba_transport_thread_set_state_stopping(th);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
@@ -287,7 +290,7 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 			device_btmac, ba_transport_codecs_a2dp_to_string(t->type.codec));
 	t->acquire = mock_transport_acquire;
 	if (type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
-		assert(t->acquire(t) == 0);
+		assert(ba_transport_acquire(t) == 0);
 	ba_device_unref(d);
 	return t;
 }

@@ -57,16 +57,6 @@ struct ba_transport_type {
 	uint16_t codec;
 };
 
-enum ba_transport_signal {
-	BA_TRANSPORT_SIGNAL_PING,
-	BA_TRANSPORT_SIGNAL_PCM_OPEN,
-	BA_TRANSPORT_SIGNAL_PCM_CLOSE,
-	BA_TRANSPORT_SIGNAL_PCM_PAUSE,
-	BA_TRANSPORT_SIGNAL_PCM_RESUME,
-	BA_TRANSPORT_SIGNAL_PCM_SYNC,
-	BA_TRANSPORT_SIGNAL_PCM_DROP,
-};
-
 enum ba_transport_pcm_mode {
 	/* PCM used for capturing audio */
 	BA_TRANSPORT_PCM_MODE_SOURCE,
@@ -99,6 +89,9 @@ struct ba_transport_pcm {
 
 	/* PCM stream operation mode */
 	enum ba_transport_pcm_mode mode;
+
+	/* PCM access guard */
+	pthread_mutex_t mutex;
 
 	/* FIFO file descriptor */
 	int fd;
@@ -136,13 +129,27 @@ struct ba_transport_pcm {
 	pthread_mutex_t synced_mtx;
 	pthread_cond_t synced;
 
-	/* PCM access synchronization */
-	pthread_mutex_t dbus_mtx;
-
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
 	unsigned int ba_dbus_id;
 
+};
+
+enum ba_transport_thread_state {
+	BA_TRANSPORT_THREAD_STATE_NONE,
+	BA_TRANSPORT_THREAD_STATE_STARTING,
+	BA_TRANSPORT_THREAD_STATE_RUNNING,
+	BA_TRANSPORT_THREAD_STATE_STOPPING,
+};
+
+enum ba_transport_thread_signal {
+	BA_TRANSPORT_THREAD_SIGNAL_PING,
+	BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN,
+	BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE,
+	BA_TRANSPORT_THREAD_SIGNAL_PCM_PAUSE,
+	BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME,
+	BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC,
+	BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP,
 };
 
 struct ba_transport_thread {
@@ -150,17 +157,34 @@ struct ba_transport_thread {
 	struct ba_transport *t;
 	/* guard thread structure */
 	pthread_mutex_t mutex;
+	/* current state of the thread */
+	enum ba_transport_thread_state state;
+	/* state changed notification */
+	pthread_cond_t changed;
 	/* actual thread ID */
 	pthread_t id;
 	/* notification PIPE */
 	int pipe[2];
-	/* indicates cleanup lock */
-	bool cleanup_lock;
-	/* thread synchronization */
-	pthread_mutex_t ready_mtx;
-	pthread_cond_t ready;
-	bool running;
 };
+
+int ba_transport_thread_set_state(
+		struct ba_transport_thread *th,
+		enum ba_transport_thread_state state,
+		bool force);
+
+#define ba_transport_thread_set_state_starting(th) \
+	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STARTING, false)
+#define ba_transport_thread_set_state_running(th) \
+	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_RUNNING, false)
+#define ba_transport_thread_set_state_stopping(th) \
+	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STOPPING, false)
+
+int ba_transport_thread_signal_send(
+		struct ba_transport_thread *th,
+		enum ba_transport_thread_signal signal);
+int ba_transport_thread_signal_recv(
+		struct ba_transport_thread *th,
+		enum ba_transport_thread_signal *signal);
 
 struct ba_transport {
 
@@ -276,6 +300,9 @@ void ba_transport_unref(struct ba_transport *t);
 struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm);
 void ba_transport_pcm_unref(struct ba_transport_pcm *pcm);
 
+int ba_transport_pcms_lock(struct ba_transport *t);
+int ba_transport_pcms_unlock(struct ba_transport *t);
+
 int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
 		const struct a2dp_sep *sep);
@@ -289,6 +316,9 @@ void ba_transport_set_codec(
 
 int ba_transport_start(struct ba_transport *t);
 int ba_transport_stop(struct ba_transport *t);
+
+int ba_transport_acquire(struct ba_transport *t);
+int ba_transport_release(struct ba_transport *t);
 
 int ba_transport_set_a2dp_state(
 		struct ba_transport *t,
@@ -319,18 +349,7 @@ int ba_transport_thread_create(
 		void *(*routine)(struct ba_transport_thread *),
 		const char *name);
 
-int ba_transport_thread_ready(
-		struct ba_transport_thread *th);
-
-int ba_transport_thread_send_signal(
-		struct ba_transport_thread *th,
-		enum ba_transport_signal sig);
-enum ba_transport_signal ba_transport_thread_recv_signal(
-		struct ba_transport_thread *th);
-
 void ba_transport_thread_cleanup(struct ba_transport_thread *th);
-int ba_transport_thread_cleanup_lock(struct ba_transport_thread *th);
-int ba_transport_thread_cleanup_unlock(struct ba_transport_thread *th);
 
 #define debug_transport_thread_loop(th, tag) \
 	debug("IO loop: %s: %s: %s", tag, __func__, ba_transport_type_to_string((th)->t->type))

@@ -22,6 +22,7 @@
 
 #include "audio.h"
 #include "bluealsa.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 /**
@@ -95,80 +96,88 @@ ssize_t io_pcm_read(
 		void *buffer,
 		size_t samples) {
 
+	pthread_mutex_lock(&pcm->mutex);
+
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
-	ssize_t ret;
+	ssize_t ret = 0;
 
-	/* If the passed file descriptor is invalid (e.g. -1) is means, that other
-	 * thread (the controller) has closed the connection. If the connection was
-	 * closed during this call, we will still read correct data, because Linux
-	 * kernel does not decrement file descriptor reference counter until the
-	 * read returns. */
-	while ((ret = read(pcm->fd, buffer, samples * sample_size)) == -1 &&
-			errno == EINTR)
-		continue;
-
-	if (ret > 0) {
-		samples = ret / sample_size;
-		io_pcm_scale(pcm, buffer, samples);
-		return samples;
+	const int fd = pcm->fd;
+	if (fd != -1) {
+		while ((ret = read(fd, buffer, samples * sample_size)) == -1 &&
+				errno == EINTR)
+			continue;
+		if (ret == 0) {
+			debug("PCM has been closed: %d", fd);
+			ba_transport_pcm_release(pcm);
+		}
 	}
 
-	if (ret == 0)
-		debug("PCM has been closed: %d", pcm->fd);
-	if (errno == EBADF)
-		ret = 0;
-	if (ret == 0)
-		ba_transport_pcm_release(pcm);
+	pthread_mutex_unlock(&pcm->mutex);
 
-	return ret;
+	if (ret <= 0)
+		return ret;
+
+	samples = ret / sample_size;
+	io_pcm_scale(pcm, buffer, samples);
+	return samples;
 }
 
 /**
  * Write PCM signal to the transport PCM FIFO.
  *
  * Note:
- * This function temporally re-enables thread cancellation! */
+ * This function may temporally re-enable thread cancellation! */
 ssize_t io_pcm_write(
 		struct ba_transport_pcm *pcm,
 		const void *buffer,
 		size_t samples) {
 
-	const uint8_t *head = buffer;
-	size_t len = samples * BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
-	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
-	int oldstate;
-	ssize_t ret;
+	pthread_mutex_lock(&pcm->mutex);
 
-	/* In order to provide a way of escaping from the infinite poll() we have
-	 * to temporally re-enable thread cancellation. */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+	size_t len = samples * BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
+	ssize_t ret = 0;
 
 	do {
-		if ((ret = write(pcm->fd, head, len)) == -1)
+
+		const int fd = pcm->fd;
+		if (fd == -1)
+			goto final;
+
+		if ((ret = write(fd, buffer, len)) == -1)
 			switch (errno) {
 			case EINTR:
 				continue;
 			case EAGAIN:
+				/* In order to provide a way of escaping from the infinite poll()
+				 * we have to temporally re-enable thread cancellation. */
+				pthread_cleanup_push(PTHREAD_CLEANUP(pthread_mutex_unlock), &pcm->mutex);
+				pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+				struct pollfd pfd = { fd, POLLOUT, 0 };
 				poll(&pfd, 1, -1);
+				pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+				pthread_cleanup_pop(0);
+				ret = 0;
 				continue;
 			case EPIPE:
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
-				debug("PCM has been closed: %d", pcm->fd);
+				debug("PCM has been closed: %d", fd);
 				ba_transport_pcm_release(pcm);
 				ret = 0;
 				/* fall-through */
 			default:
 				goto final;
 			}
-		head += ret;
+
+		buffer += ret;
 		len -= ret;
+
 	} while (len != 0);
 
 	/* It is guaranteed, that this function will write data atomically. */
 	ret = samples;
 
 final:
-	pthread_setcancelstate(oldstate, NULL);
+	pthread_mutex_unlock(&pcm->mutex);
 	return ret;
 }
