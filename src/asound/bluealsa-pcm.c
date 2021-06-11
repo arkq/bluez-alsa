@@ -942,7 +942,11 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 		snd_pcm_format_physical_width(get_snd_pcm_format(pcm->ba_pcm.format)) / 8;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-					min_p, 1024 * 16)) < 0)
+					min_p, 1024 * 1024)) < 0)
+		return err;
+
+	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_BUFFER_BYTES,
+					2 * min_p, 2 * 1024 * 1024)) < 0)
 		return err;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_CHANNELS,
