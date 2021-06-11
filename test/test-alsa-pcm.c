@@ -508,7 +508,7 @@ START_TEST(ba_test_playback_hw_constraints) {
 	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_last(pcm, params, &time, &d), 0);
-	ck_assert_int_eq(time, 95108934);
+	ck_assert_int_eq(time, 11888616);
 	ck_assert_int_eq(d, 1);
 
 	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
