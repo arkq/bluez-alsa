@@ -29,8 +29,8 @@
 
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
-#include "shared/ffb.h"
 #include "shared/log.h"
+#include "ring-buffer.h"
 #include "alsa-pcm.h"
 #include "dbus.h"
 
@@ -310,18 +310,21 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
 	ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
 	size_t pcm_1s_samples = w->ba_pcm.sampling * w->ba_pcm.channels;
-	ffb_t buffer = { 0 };
+
+	/* store 50 ms of PCM data in the ring buffer */
+	size_t ring_buff_bytes = pcm_1s_samples * pcm_format_size * 50 / 1000;
+	ring_buff_t buffer = { 0 };
+	unsigned char *read_buff = malloc(ring_buff_bytes);
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(pcm_worker_routine_exit), w);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ring_buff_free), &buffer);
 
-	/* create buffer big enough to hold 100 ms of PCM data */
-	if (ffb_init(&buffer, pcm_1s_samples / 10, pcm_format_size) == -1) {
-		error("Couldn't create PCM buffer: %s", strerror(errno));
+	if (ring_buff_init(&buffer, ring_buff_bytes) == -1) {
+		error("Couldn't create PCM ring buffer: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -370,7 +373,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 			pcm_max_read_len = pcm_max_read_len_init;
 			pause_counter = pause_bytes = 0;
-			ffb_rewind(&buffer);
+			ring_buff_rewind(&buffer);
 			if (w->pcm != NULL) {
 				snd_pcm_close(w->pcm);
 				w->pcm = NULL;
@@ -384,9 +387,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
-		#define MIN(a,b) a < b ? a : b
-		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
-		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
+		if ((ret = ring_buff_write(&buffer, w->ba_pcm_fd)) == -1) {
 			if (errno == EINTR)
 				continue;
 			error("PCM FIFO read error: %s", strerror(errno));
@@ -460,12 +461,12 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		w->active = true;
 		timeout = 500;
 
-		ffb_seek(&buffer, ret / pcm_format_size);
+		/* read the max possible number of bytes from the ring buffer in the continuous read buffer
+		   and calculate the overall number of frames in the read buffer */
+		size_t read_bytes = ring_buff_read(&buffer, read_buff, ring_buff_bytes);
+		snd_pcm_sframes_t frames = read_bytes / w->ba_pcm.channels / pcm_format_size;
 
-		/* calculate the overall number of frames in the buffer */
-		snd_pcm_sframes_t frames = ffb_len_out(&buffer) / w->ba_pcm.channels;
-
-		if ((frames = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
+		if ((frames = snd_pcm_writei(w->pcm, read_buff, frames)) < 0)
 			switch (-frames) {
 			case EPIPE:
 				debug("An underrun has occurred");
@@ -479,8 +480,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			}
 
 		/* move leftovers to the beginning and reposition tail */
-		ffb_shift(&buffer, frames * w->ba_pcm.channels);
-
+		ring_buff_shift(&buffer, frames * w->ba_pcm.channels * pcm_format_size);
 	}
 
 fail:
