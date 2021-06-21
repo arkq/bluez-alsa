@@ -192,7 +192,7 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 	return NULL;
 }
 
-void *bt_dump_thread(void *userdata) {
+static void *mock_bt_dump_thread(void *userdata) {
 
 	int bt_fd = GPOINTER_TO_INT(userdata);
 	FILE *f_output = NULL;
@@ -219,19 +219,10 @@ void *bt_dump_thread(void *userdata) {
 	return NULL;
 }
 
-static int mock_transport_acquire(struct ba_transport *t) {
-
-	int bt_fds[2];
-	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
-
-	t->bt_fd = bt_fds[0];
-	t->mtu_read = 256;
-	t->mtu_write = 256;
-
-	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
-		g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
+		g_thread_unref(g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(bt_fd)));
 		assert(a2dp_audio_thread_create(t) == 0);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
@@ -254,6 +245,23 @@ static int mock_transport_acquire(struct ba_transport *t) {
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		assert(ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco", true) == 0);
 	}
+
+}
+
+static int mock_transport_acquire(struct ba_transport *t) {
+
+	int bt_fds[2];
+	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
+
+	t->bt_fd = bt_fds[0];
+	t->mtu_read = 256;
+	t->mtu_write = 256;
+
+	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+	mock_transport_start(t, bt_fds[1]);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	return 0;
 }

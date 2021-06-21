@@ -527,9 +527,16 @@ START_TEST(test_playback_hw_set_free) {
 	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 
 	for (i = 0; i < 5; i++) {
+		int set_hw_param_ret;
 		/* acquire Bluetooth transport */
-		ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
-					&buffer_time, &period_time), 0);
+		if ((set_hw_param_ret = set_hw_params(pcm, pcm_format, pcm_channels,
+					pcm_sampling, &buffer_time, &period_time)) == -EBUSY) {
+			debug("Retrying snd_pcm_hw_params_set...");
+			/* do not treat busy as an error */
+			i--;
+			continue;
+		}
+		ck_assert_int_eq(set_hw_param_ret, 0);
 		/* release Bluetooth transport */
 		ck_assert_int_eq(snd_pcm_hw_free(pcm), 0);
 	}

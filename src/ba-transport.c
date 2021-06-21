@@ -318,14 +318,119 @@ fail:
 	return NULL;
 }
 
-/* These acquire/release helper functions should be defined before the
- * corresponding ba_transport_new_* ones. However, git commit history is
- * more important, so we're going to keep these functions at original
- * locations and use forward declarations instead. */
-static int transport_acquire_bt_a2dp(struct ba_transport *t);
-static int transport_release_bt_a2dp(struct ba_transport *t);
-static int transport_acquire_bt_sco(struct ba_transport *t);
-static int transport_release_bt_sco(struct ba_transport *t);
+static int transport_acquire_bt_a2dp(struct ba_transport *t) {
+
+	GDBusMessage *msg, *rep;
+	GUnixFDList *fd_list;
+	GError *err = NULL;
+	int fd = -1;
+
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
+			t->bluez_dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
+			t->a2dp.state == BLUEZ_A2DP_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+	uint16_t mtu_read, mtu_write;
+	g_variant_get(g_dbus_message_get_body(rep), "(hqq)",
+			NULL, &mtu_read, &mtu_write);
+
+	t->mtu_read = mtu_read;
+	t->mtu_write = mtu_write;
+
+	fd_list = g_dbus_message_get_unix_fd_list(rep);
+	fd = g_unix_fd_list_get(fd_list, 0, &err);
+	t->bt_fd = fd;
+
+	/* Minimize audio delay and increase responsiveness (seeking, stopping) by
+	 * decreasing the BT socket output buffer. We will use a tripled write MTU
+	 * value, in order to prevent tearing due to temporal heavy load. */
+	size_t size = t->mtu_write * 3;
+	if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) == -1)
+		warn("Couldn't set socket output buffer size: %s", strerror(errno));
+
+	if (ioctl(fd, TIOCOUTQ, &t->a2dp.bt_fd_coutq_init) == -1)
+		warn("Couldn't get socket queued bytes: %s", strerror(errno));
+
+	debug("New A2DP transport: %d", fd);
+	debug("A2DP socket MTU: %d: R:%u W:%u", fd, mtu_read, mtu_write);
+
+fail:
+	g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't acquire transport: %s", err->message);
+		g_error_free(err);
+	}
+
+	return fd;
+}
+
+static int transport_release_bt_a2dp(struct ba_transport *t) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+	int ret = -1;
+
+	/* If the state is idle, it means that either transport was not acquired, or
+	 * was released by the BlueZ. In both cases there is no point in a explicit
+	 * release request. It might even return error (e.g. not authorized). */
+	if (t->a2dp.state != BLUEZ_A2DP_TRANSPORT_STATE_IDLE &&
+			t->bluez_dbus_owner != NULL) {
+
+		debug("Releasing A2DP transport: %d", t->bt_fd);
+
+		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
+				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
+
+		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+			goto fail;
+
+		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+			g_dbus_message_to_gerror(rep, &err);
+			if (err->code == G_DBUS_ERROR_NO_REPLY ||
+					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN ||
+					err->code == G_DBUS_ERROR_UNKNOWN_OBJECT) {
+				/* If BlueZ is already terminated (or is terminating) or BlueZ
+				 * transport interface was already removed (ClearConfiguration
+				 * call), we won't receive success response. Do not treat such
+				 * a case as an error - omit logging. */
+				g_error_free(err);
+				err = NULL;
+			}
+			else
+				goto fail;
+		}
+
+	}
+
+	debug("Closing A2DP transport: %d", t->bt_fd);
+
+	ret = 0;
+	close(t->bt_fd);
+	t->bt_fd = -1;
+
+fail:
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't release transport: %s", err->message);
+		g_error_free(err);
+	}
+
+	return ret;
+}
 
 struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
@@ -370,6 +475,46 @@ struct ba_transport *ba_transport_new_a2dp(
 		bluealsa_dbus_pcm_register(&t->a2dp.pcm_bc, NULL);
 
 	return t;
+}
+
+static int transport_acquire_bt_sco(struct ba_transport *t) {
+
+	struct ba_device *d = t->d;
+	int fd;
+
+	if ((fd = hci_sco_open(d->a->hci.dev_id)) == -1) {
+		error("Couldn't open SCO socket: %s", strerror(errno));
+		goto fail;
+	}
+
+	if (hci_sco_connect(fd, &d->addr,
+				t->type.codec == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
+		error("Couldn't establish SCO link: %s", strerror(errno));
+		goto fail;
+	}
+
+	debug("New SCO link: %s: %d", batostr_(&d->addr), fd);
+
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
+	t->bt_fd = fd;
+
+	return fd;
+
+fail:
+	if (fd != -1)
+		close(fd);
+	return -1;
+}
+
+static int transport_release_bt_sco(struct ba_transport *t) {
+
+	debug("Releasing SCO link: %d", t->bt_fd);
+
+	shutdown(t->bt_fd, SHUT_RDWR);
+	close(t->bt_fd);
+	t->bt_fd = -1;
+
+	return 0;
 }
 
 struct ba_transport *ba_transport_new_sco(
@@ -834,11 +979,42 @@ int ba_transport_stop(struct ba_transport *t) {
 }
 
 int ba_transport_acquire(struct ba_transport *t) {
-	return t->acquire(t);
+
+	int fd = -1;
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	/* If BT socket file descriptor is still valid, we
+	 * can safely reuse it (e.g. in a keep-alive mode). */
+	if ((fd = t->bt_fd) != -1) {
+		debug("Reusing BT socket: %d", fd);
+		goto final;
+	}
+
+	fd = t->acquire(t);
+
+final:
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+	return fd;
 }
 
 int ba_transport_release(struct ba_transport *t) {
-	return t->release(t);
+
+	int ret = 0;
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	/* If the transport has not been acquired, or it has been released already,
+	 * there is no need to release it again. In fact, trying to release already
+	 * closed transport will result in returning error message. */
+	if (t->bt_fd == -1)
+		goto final;
+
+	ret = t->release(t);
+
+final:
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+	return ret;
 }
 
 int ba_transport_set_a2dp_state(
@@ -966,193 +1142,6 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
 	ba_transport_thread_signal_send(&pcm->t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP);
 	debug("PCM dropped: %d", pcm->fd);
-	return 0;
-}
-
-static int transport_acquire_bt_a2dp(struct ba_transport *t) {
-
-	GDBusMessage *msg, *rep;
-	GUnixFDList *fd_list;
-	GError *err = NULL;
-	int fd;
-
-	pthread_mutex_lock(&t->bt_fd_mtx);
-
-	/* Check whether transport is already acquired - keep-alive mode. */
-	if ((fd = t->bt_fd) != -1) {
-		debug("Reusing transport: %d", fd);
-		goto final;
-	}
-
-	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
-			t->bluez_dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
-			t->a2dp.state == BLUEZ_A2DP_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
-
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
-
-	g_variant_get(g_dbus_message_get_body(rep), "(hqq)", (int32_t *)&fd,
-			(uint16_t *)&t->mtu_read, (uint16_t *)&t->mtu_write);
-
-	fd_list = g_dbus_message_get_unix_fd_list(rep);
-	fd = g_unix_fd_list_get(fd_list, 0, &err);
-	t->bt_fd = fd;
-
-	/* Minimize audio delay and increase responsiveness (seeking, stopping) by
-	 * decreasing the BT socket output buffer. We will use a tripled write MTU
-	 * value, in order to prevent tearing due to temporal heavy load. */
-	size_t size = t->mtu_write * 3;
-	if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) == -1)
-		warn("Couldn't set socket output buffer size: %s", strerror(errno));
-
-	if (ioctl(fd, TIOCOUTQ, &t->a2dp.bt_fd_coutq_init) == -1)
-		warn("Couldn't get socket queued bytes: %s", strerror(errno));
-
-	debug("New transport: %d (MTU: R:%zu W:%zu)", fd, t->mtu_read, t->mtu_write);
-
-fail:
-	g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
-		error("Couldn't acquire transport: %s", err->message);
-		g_error_free(err);
-	}
-
-final:
-	pthread_mutex_unlock(&t->bt_fd_mtx);
-	return fd;
-}
-
-static int transport_release_bt_a2dp(struct ba_transport *t) {
-
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
-	int ret = 0;
-
-	pthread_mutex_lock(&t->bt_fd_mtx);
-
-	/* If the transport has not been acquired, or it has been released already,
-	 * there is no need to release it again. In fact, trying to release already
-	 * closed transport will result in returning error message. */
-	if (t->bt_fd == -1)
-		goto final;
-
-	/* If the state is idle, it means that either transport was not acquired, or
-	 * was released by the BlueZ. In both cases there is no point in a explicit
-	 * release request. It might even return error (e.g. not authorized). */
-	if (t->a2dp.state != BLUEZ_A2DP_TRANSPORT_STATE_IDLE &&
-			t->bluez_dbus_owner != NULL) {
-
-		debug("Releasing A2DP transport: %s", ba_transport_type_to_string(t->type));
-		ret = -1;
-
-		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
-				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
-
-		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-			goto fail;
-
-		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-			g_dbus_message_to_gerror(rep, &err);
-			if (err->code == G_DBUS_ERROR_NO_REPLY ||
-					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN ||
-					err->code == G_DBUS_ERROR_UNKNOWN_OBJECT) {
-				/* If BlueZ is already terminated (or is terminating) or BlueZ
-				 * transport interface was already removed (ClearConfiguration
-				 * call), we won't receive success response. Do not treat such
-				 * a case as an error - omit logging. */
-				g_error_free(err);
-				err = NULL;
-			}
-			else
-				goto fail;
-		}
-
-	}
-
-	debug("Closing BT: %d", t->bt_fd);
-
-	ret = 0;
-	close(t->bt_fd);
-	t->bt_fd = -1;
-
-fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
-		error("Couldn't release transport: %s", err->message);
-		g_error_free(err);
-	}
-
-final:
-	pthread_mutex_unlock(&t->bt_fd_mtx);
-	return ret;
-}
-
-static int transport_acquire_bt_sco(struct ba_transport *t) {
-
-	struct ba_device *d = t->d;
-	int fd;
-
-	pthread_mutex_lock(&t->bt_fd_mtx);
-
-	if ((fd = t->bt_fd) != -1) {
-		debug("Reusing SCO: %d", fd);
-		goto final;
-	}
-
-	if ((fd = hci_sco_open(d->a->hci.dev_id)) == -1) {
-		error("Couldn't open SCO socket: %s", strerror(errno));
-		goto fail;
-	}
-
-	if (hci_sco_connect(fd, &d->addr,
-				t->type.codec == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
-		error("Couldn't establish SCO link: %s", strerror(errno));
-		goto fail;
-	}
-
-	debug("New SCO link: %s: %d", batostr_(&d->addr), fd);
-
-	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
-	t->bt_fd = fd;
-
-	goto final;
-
-fail:
-	if (fd != -1)
-		close(fd);
-	fd = -1;
-final:
-	pthread_mutex_unlock(&t->bt_fd_mtx);
-	return fd;
-}
-
-static int transport_release_bt_sco(struct ba_transport *t) {
-
-	pthread_mutex_lock(&t->bt_fd_mtx);
-
-	if (t->bt_fd == -1)
-		goto final;
-
-	debug("Closing SCO: %d", t->bt_fd);
-
-	shutdown(t->bt_fd, SHUT_RDWR);
-	close(t->bt_fd);
-	t->bt_fd = -1;
-
-final:
-	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return 0;
 }
 
