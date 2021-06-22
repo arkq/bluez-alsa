@@ -197,6 +197,12 @@ int ba_transport_thread_signal_recv(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_signal *signal);
 
+enum ba_transport_thread_manager_command {
+	BA_TRANSPORT_THREAD_MANAGER_TERMINATE = 0,
+	BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS,
+	BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS,
+};
+
 struct ba_transport {
 
 	/* backward reference to device */
@@ -214,7 +220,8 @@ struct ba_transport {
 	char *bluez_dbus_owner;
 	char *bluez_dbus_path;
 
-	/* guard modifications of our file descriptor */
+	/* guard modifications of our file descriptor
+	 * and the IO threads stopping flag */
 	pthread_mutex_t bt_fd_mtx;
 
 	/* This field stores a file descriptor (socket) associated with the BlueZ
@@ -229,6 +236,13 @@ struct ba_transport {
 	/* threads for audio processing */
 	struct ba_transport_thread thread_enc;
 	struct ba_transport_thread thread_dec;
+
+	/* thread for managing IO threads */
+	pthread_t thread_manager_thread_id;
+	int thread_manager_pipe[2];
+
+	/* indicates IO threads stopping */
+	bool stopping;
 
 	union {
 
@@ -327,6 +341,7 @@ void ba_transport_set_codec(
 
 int ba_transport_start(struct ba_transport *t);
 int ba_transport_stop(struct ba_transport *t);
+int ba_transport_stop_if_no_clients(struct ba_transport *t);
 
 int ba_transport_acquire(struct ba_transport *t);
 int ba_transport_release(struct ba_transport *t);

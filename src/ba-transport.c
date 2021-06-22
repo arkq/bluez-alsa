@@ -11,6 +11,7 @@
 #include "ba-transport.h"
 
 #include <errno.h>
+#include <poll.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -145,21 +146,35 @@ static void transport_thread_cancel_prepare(struct ba_transport_thread *th) {
  * terminate, so join will not return either! */
 static void transport_thread_cancel(struct ba_transport_thread *th) {
 
-	if (pthread_equal(th->id, config.main_thread) ||
-			pthread_equal(th->id, pthread_self()))
+	pthread_t id = th->id;
+	if (pthread_equal(id, config.main_thread))
 		return;
 
 	int err;
-	if ((err = pthread_cancel(th->id)) != 0 && err != ESRCH)
+	if ((err = pthread_cancel(id)) != 0 && err != ESRCH)
 		warn("Couldn't cancel transport thread: %s", strerror(err));
-	if ((err = pthread_join(th->id, NULL)) != 0)
+	if ((err = pthread_join(id, NULL)) != 0)
 		warn("Couldn't join transport thread: %s", strerror(err));
+
+	pthread_mutex_lock(&th->mutex);
 
 	/* Indicate that the thread has been successfully terminated. Also,
 	 * make sure, that after termination, this thread handler will not
 	 * be used anymore. */
 	th->id = config.main_thread;
+	pthread_cond_signal(&th->changed);
 
+	pthread_mutex_unlock(&th->mutex);
+
+}
+
+/**
+ * Wait until transport thread is terminated. */
+static void transport_thread_cancel_wait(struct ba_transport_thread *th) {
+	pthread_mutex_lock(&th->mutex);
+	while (!pthread_equal(th->id, config.main_thread))
+		pthread_cond_wait(&th->changed, &th->mutex);
+	pthread_mutex_unlock(&th->mutex);
 }
 
 /**
@@ -265,6 +280,113 @@ int ba_transport_thread_signal_recv(
 	return -1;
 }
 
+static void transport_threads_cancel(struct ba_transport *t) {
+
+	transport_thread_cancel_prepare(&t->thread_enc);
+	transport_thread_cancel_prepare(&t->thread_dec);
+
+	transport_thread_cancel(&t->thread_enc);
+	transport_thread_cancel(&t->thread_dec);
+	t->stopping = false;
+
+}
+
+static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
+
+	/* Hold PCM locks, so no client will open a PCM in
+	 * the middle of our PCM inactivity check. */
+	ba_transport_pcms_lock(t);
+
+	/* Hold BT lock, because we are going to modify
+	 * the IO transports stopping flag. */
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	bool stop = false;
+
+	if (t->stopping)
+		goto final;
+
+	switch (t->type.profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		/* Release bidirectional A2DP transport only in case when there
+		 * is no active PCM connection - neither encoder nor decoder. */
+		if (t->a2dp.pcm.fd == -1 && t->a2dp.pcm_bc.fd == -1)
+			t->stopping = stop = true;
+		break;
+	}
+
+	if (stop) {
+		debug("Stopping transport: %s", "No PCM clients");
+		transport_thread_cancel_prepare(&t->thread_enc);
+		transport_thread_cancel_prepare(&t->thread_dec);
+	}
+
+final:
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+	ba_transport_pcms_unlock(t);
+
+	if (stop) {
+		transport_threads_cancel(t);
+	}
+
+}
+
+/**
+ * Transport thread manager.
+ *
+ * This manager handles transport IO threads asynchronous cancellation. */
+static void *transport_thread_manager(struct ba_transport *t) {
+
+	pthread_setname_np(pthread_self(), "ba-th-manager");
+
+	struct pollfd fds[1] = {
+		{ t->thread_manager_pipe[0], POLLIN, 0 }};
+	int timeout = -1;
+
+	for (;;) {
+
+		if (poll(fds, ARRAYSIZE(fds), timeout) == 0) {
+			transport_threads_cancel_if_no_clients(t);
+			timeout = -1;
+		}
+
+		if (fds[0].revents & POLLIN) {
+
+			enum ba_transport_thread_manager_command cmd;
+			if (read(fds[0].fd, &cmd, sizeof(cmd)) != sizeof(cmd)) {
+				error("Couldn't read manager command: %s", strerror(errno));
+				continue;
+			}
+
+			switch (cmd) {
+			case BA_TRANSPORT_THREAD_MANAGER_TERMINATE:
+				goto exit;
+			case BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS:
+				transport_threads_cancel(t);
+				timeout = -1;
+				break;
+			case BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS:
+				debug("PCM clients check keep-alive timeout: %d", config.a2dp.keep_alive);
+				timeout = config.a2dp.keep_alive * 1000;
+				break;
+			}
+
+		}
+
+	}
+
+exit:
+	return NULL;
+}
+
+static int transport_thread_manager_send_command(struct ba_transport *t,
+		enum ba_transport_thread_manager_command cmd) {
+	if (write(t->thread_manager_pipe[1], &cmd, sizeof(cmd)) == sizeof(cmd))
+		return 0;
+	error("Couldn't send thread manager command: %s", strerror(errno));
+	return -1;
+}
+
 /**
  * Create new transport.
  *
@@ -294,11 +416,23 @@ static struct ba_transport *transport_new(
 
 	t->bt_fd = -1;
 
+	t->thread_manager_thread_id = config.main_thread;
+	t->thread_manager_pipe[0] = -1;
+	t->thread_manager_pipe[1] = -1;
+
 	err = 0;
 	err |= transport_thread_init(&t->thread_enc, t);
 	err |= transport_thread_init(&t->thread_dec, t);
 	if (err != 0)
 		goto fail;
+
+	if (pipe(t->thread_manager_pipe) == -1)
+		goto fail;
+	if ((errno = pthread_create(&t->thread_manager_thread_id,
+			NULL, PTHREAD_ROUTINE(transport_thread_manager), t)) != 0) {
+		t->thread_manager_thread_id = config.main_thread;
+		goto fail;
+	}
 
 	if ((t->bluez_dbus_owner = strdup(dbus_owner)) == NULL)
 		goto fail;
@@ -673,8 +807,18 @@ void ba_transport_unref(struct ba_transport *t) {
 		transport_pcm_free(&t->sco.mic_pcm);
 	}
 
+	if (!pthread_equal(t->thread_manager_thread_id, config.main_thread)) {
+		transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_TERMINATE);
+		pthread_join(t->thread_manager_thread_id, NULL);
+	}
+
 	transport_thread_free(&t->thread_enc);
 	transport_thread_free(&t->thread_dec);
+
+	if (t->thread_manager_pipe[0] != -1)
+		close(t->thread_manager_pipe[0]);
+	if (t->thread_manager_pipe[1] != -1)
+		close(t->thread_manager_pipe[1]);
 
 	pthread_mutex_destroy(&t->bt_fd_mtx);
 	pthread_mutex_destroy(&t->type_mtx);
@@ -967,14 +1111,26 @@ int ba_transport_start(struct ba_transport *t) {
 	return -1;
 }
 
+/**
+ * Stop transport IO threads.
+ *
+ * This function waits for transport IO threads termination. It is not safe
+ * to call it from IO thread itself - it will cause deadlock! */
 int ba_transport_stop(struct ba_transport *t) {
+	transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS);
+	transport_thread_cancel_wait(&t->thread_enc);
+	transport_thread_cancel_wait(&t->thread_dec);
+	return 0;
+}
 
-	transport_thread_cancel_prepare(&t->thread_enc);
-	transport_thread_cancel_prepare(&t->thread_dec);
-
-	transport_thread_cancel(&t->thread_enc);
-	transport_thread_cancel(&t->thread_dec);
-
+/**
+ * Stop transport IO threads if there are no PCM clients.
+ *
+ * This function does not wait for actual threads termination. It is safe to
+ * call it even from the IO thread itself. Please note, that the check for
+ * present PCM clients will happen after the keep-alive number of seconds. */
+int ba_transport_stop_if_no_clients(struct ba_transport *t) {
+	transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS);
 	return 0;
 }
 
@@ -983,6 +1139,12 @@ int ba_transport_acquire(struct ba_transport *t) {
 	int fd = -1;
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	if (t->stopping) {
+		debug("Couldn't acquire transport: %s", "Stopping in progress");
+		errno = EAGAIN;
+		goto final;
+	}
 
 	/* If BT socket file descriptor is still valid, we
 	 * can safely reuse it (e.g. in a keep-alive mode). */

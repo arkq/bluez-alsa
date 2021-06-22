@@ -93,21 +93,17 @@ repoll:
 	/* Add PCM socket to the poll if it is active. */
 	fds[1].fd = pcm->active ? pcm->fd : -1;
 
-	/* Poll for reading with keep-alive and sync timeout. */
+	/* Poll for reading with optional sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
 	case 0:
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 		pthread_cond_signal(&pcm->synced);
 		io->timeout = -1;
-		pthread_mutex_lock(&pcm->mutex);
-		if (pcm->fd == -1) {
-			pthread_mutex_unlock(&pcm->mutex);
-			return 0;
-		}
-		pthread_mutex_unlock(&pcm->mutex);
-		goto repoll;
+		return 0;
 	case -1:
 		if (errno == EINTR)
 			goto repoll;
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 		return -1;
 	}
 
@@ -146,11 +142,8 @@ repoll:
 		samples = 0;
 	}
 
-	if (samples == 0) {
-		io->timeout = config.a2dp.keep_alive * 1000;
-		debug("Keep-alive polling: %d", io->timeout);
-		goto repoll;
-	}
+	if (samples == 0)
+		return 0;
 
 	/* When the thread is created, there might be no data in the FIFO. In fact
 	 * there might be no data for a long time - until client starts playback.
@@ -211,6 +204,7 @@ repoll:
 	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
 		if (errno == EINTR)
 			goto repoll;
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 		return -1;
 	}
 
@@ -489,7 +483,8 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
-			goto fail;
+			ba_transport_stop_if_no_clients(t);
+			continue;
 		}
 
 		/* anchor for RTP payload */
@@ -876,7 +871,8 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
-			goto fail;
+			ba_transport_stop_if_no_clients(t);
+			continue;
 		}
 
 		/* anchor for RTP payload */
@@ -1257,7 +1253,8 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
-			goto fail;
+			ba_transport_stop_if_no_clients(t);
+			continue;
 		}
 
 		while ((in_args.numInSamples = ffb_len_out(&pcm)) > 0) {
@@ -1471,7 +1468,8 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
-			goto fail;
+			ba_transport_stop_if_no_clients(t);
+			continue;
 		}
 
 		int16_t *input = pcm.data;
@@ -1686,7 +1684,8 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
-			goto fail;
+			ba_transport_stop_if_no_clients(t);
+			continue;
 		}
 
 		int32_t *input = pcm.data;
@@ -1947,7 +1946,8 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
-			goto fail;
+			ba_transport_stop_if_no_clients(t);
+			continue;
 		}
 
 		int16_t *input = pcm.data;
