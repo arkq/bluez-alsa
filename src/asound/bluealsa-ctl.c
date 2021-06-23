@@ -311,25 +311,24 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 
 static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
-	if (ctl->pcm_list_size == 0)
-		return 0;
-
 	size_t count = 0;
 	size_t i;
-
-	for (i = 0; i < ctl->pcm_list_size; i++) {
-		/* Every stream has two controls associated to
-		 * itself - volume adjustment and mute switch. */
-		count += 2;
-		/* It is possible, that BT device battery level will be exposed via
-		 * RFCOMM interface, so in order to account for a special "battery"
-		 * element we have to increment our element counter by one. */
-		count += 1;
-	}
-
 	struct ctl_elem *elem_list = ctl->elem_list;
-	if ((elem_list = realloc(elem_list, count * sizeof(*elem_list))) == NULL)
-		return -1;
+
+	if (ctl->pcm_list_size > 0) {
+		for (i = 0; i < ctl->pcm_list_size; i++) {
+			/* Every stream has two controls associated to
+			 * itself - volume adjustment and mute switch. */
+			count += 2;
+			/* It is possible, that BT device battery level will be exposed via
+			 * RFCOMM interface, so in order to account for a special "battery"
+			 * element we have to increment our element counter by one. */
+			count += 1;
+		}
+
+		if ((elem_list = realloc(elem_list, count * sizeof(*elem_list))) == NULL)
+			return -1;
+	}
 
 	/* Clear device mask, so we can distinguish currently used and unused (old)
 	 * device entries - we are not invalidating device list after PCM remove. */
