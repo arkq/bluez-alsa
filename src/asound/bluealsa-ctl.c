@@ -597,6 +597,10 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 				BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
+		char dbus_args[50];
+		snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", ctl->dbus_ctx.ba_service);
+		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, DBUS_SERVICE_DBUS, NULL,
+				DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_PCM"'");
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
@@ -726,8 +730,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 			}
 
 	}
-
-	if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
+	else if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
 
 		if (strcmp(signal, "PCMAdded") == 0) {
 			struct ba_pcm pcm;
@@ -741,6 +744,26 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 			dbus_message_iter_get_basic(&iter, &path);
 			bluealsa_pcm_remove(ctl, path);
 			goto remove_add;
+		}
+
+	}
+	else if (strcmp(interface, DBUS_INTERFACE_DBUS) == 0 &&
+			strcmp(signal, "NameOwnerChanged") == 0) {
+
+		const char *service, *arg2;
+		dbus_message_iter_get_basic(&iter, &service);
+		if (strcmp(service, ctl->dbus_ctx.ba_service) == 0) {
+			if (dbus_message_iter_next(&iter) &&
+					dbus_message_iter_next(&iter) &&
+					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING) {
+				dbus_message_iter_get_basic(&iter, &arg2);
+				if (strlen(arg2) == 0) {
+					/* BlueALSA daemon has terminated,
+					 * so all PCMs have been removed. */
+					ctl->pcm_list_size = 0;
+					goto remove_add;
+				}
+			}
 		}
 
 	}
