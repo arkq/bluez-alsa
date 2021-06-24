@@ -345,8 +345,6 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 	if (dec == test_io_thread_a2dp_dump_bt)
 		bt_data_init();
 
-	t1->type.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE;
-	t2->type.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	t1->bt_fd = bt_fds[1];
 	t2->bt_fd = bt_fds[0];
 	t1->a2dp.pcm.fd = pcm_fds[1];
@@ -461,6 +459,7 @@ START_TEST(test_a2dp_sbc) {
 		.codec = A2DP_CODEC_SBC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/sbc",
 			&a2dp_codec_source_sbc, &config_sbc_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/sbc",
 			&a2dp_codec_sink_sbc, &config_sbc_44100_stereo);
 
@@ -468,11 +467,11 @@ START_TEST(test_a2dp_sbc) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
-		t1->mtu_write = t2->mtu_read = 153 * 3;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
 		test_a2dp(t1, t2, a2dp_source_sbc, a2dp_sink_sbc);
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 153 * 3;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
 		test_a2dp(t1, t2, a2dp_source_sbc, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_sbc);
 	}
@@ -490,6 +489,7 @@ START_TEST(test_a2dp_mp3) {
 		.codec = A2DP_CODEC_MPEG12 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/mp3",
 			&a2dp_codec_source_mpeg, &config_mp3_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/mp3",
 			&a2dp_codec_sink_mpeg, &config_mp3_44100_stereo);
 
@@ -503,11 +503,11 @@ START_TEST(test_a2dp_mp3) {
 	test_a2dp_pcm_samples_boost = 3;
 
 	if (aging_duration) {
-		t1->mtu_write = t2->mtu_read = 1024;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
 		test_a2dp(t1, t2, a2dp_source_mp3, a2dp_sink_mpeg);
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 250;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 250;
 		test_a2dp(t1, t2, a2dp_source_mp3, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_mpeg);
 	}
@@ -528,6 +528,7 @@ START_TEST(test_a2dp_aac) {
 		.codec = A2DP_CODEC_MPEG24 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aac",
 			&a2dp_codec_source_aac, &config_aac_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aac",
 			&a2dp_codec_sink_aac, &config_aac_44100_stereo);
 
@@ -535,11 +536,11 @@ START_TEST(test_a2dp_aac) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
-		t1->mtu_write = t2->mtu_read = 450;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 450;
 		test_a2dp(t1, t2, a2dp_source_aac, a2dp_sink_aac);
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 64;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 64;
 		test_a2dp(t1, t2, a2dp_source_aac, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aac);
 	}
@@ -558,6 +559,7 @@ START_TEST(test_a2dp_aptx) {
 		.codec = A2DP_CODEC_VENDOR_APTX };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptx",
 			&a2dp_codec_source_aptx, &config_aptx_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aptx",
 			&a2dp_codec_sink_aptx, &config_aptx_44100_stereo);
 
@@ -566,12 +568,12 @@ START_TEST(test_a2dp_aptx) {
 
 	if (aging_duration) {
 #if HAVE_APTX_DECODE
-		t1->mtu_write = t2->mtu_read = 400;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 400;
 		test_a2dp(t1, t2, a2dp_source_aptx, a2dp_sink_aptx);
 #endif
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 40;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 40;
 		test_a2dp(t1, t2, a2dp_source_aptx, test_io_thread_a2dp_dump_bt);
 #if HAVE_APTX_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx);
@@ -592,6 +594,7 @@ START_TEST(test_a2dp_aptx_hd) {
 		.codec = A2DP_CODEC_VENDOR_APTX_HD };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
 			&a2dp_codec_source_aptx_hd, &config_aptx_hd_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aptxhd",
 			&a2dp_codec_sink_aptx_hd, &config_aptx_hd_44100_stereo);
 
@@ -600,12 +603,12 @@ START_TEST(test_a2dp_aptx_hd) {
 
 	if (aging_duration) {
 #if HAVE_APTX_HD_DECODE
-		t1->mtu_write = t2->mtu_read = 600;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
 		test_a2dp(t1, t2, a2dp_source_aptx_hd, a2dp_sink_aptx_hd);
 #endif
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 60;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
 		test_a2dp(t1, t2, a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
 #if HAVE_APTX_HD_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx_hd);
@@ -626,6 +629,7 @@ START_TEST(test_a2dp_ldac) {
 		.codec = A2DP_CODEC_VENDOR_LDAC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/ldac",
 			&a2dp_codec_source_ldac, &config_ldac_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/ldac",
 			&a2dp_codec_sink_ldac, &config_ldac_44100_stereo);
 
@@ -634,12 +638,14 @@ START_TEST(test_a2dp_ldac) {
 
 	if (aging_duration) {
 #if HAVE_LDAC_DECODE
-		t1->mtu_write = t2->mtu_read = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990 + 6;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990 + 6;
 		test_a2dp(t1, t2, a2dp_source_ldac, a2dp_sink_ldac);
 #endif
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
 		test_a2dp(t1, t2, a2dp_source_ldac, test_io_thread_a2dp_dump_bt);
 #if HAVE_LDAC_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_ldac);

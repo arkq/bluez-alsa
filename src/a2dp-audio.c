@@ -160,27 +160,6 @@ repoll:
 }
 
 /**
- * Validate BT socket for reading. */
-static int a2dp_validate_bt_sink(struct ba_transport *t) {
-
-	if (t->bt_fd == -1) {
-		error("Invalid BT socket: %d", t->bt_fd);
-		return -1;
-	}
-
-	/* Check for invalid (e.g. not set) reading MTU. If buffer allocation does
-	 * not return NULL (allocating zero bytes might return NULL), we will read
-	 * zero bytes from the BT socket, which will be wrongly identified as a
-	 * "connection closed" action. */
-	if (t->mtu_read <= 0) {
-		error("Invalid reading MTU: %zu", t->mtu_read);
-		return -1;
-	}
-
-	return 0;
-}
-
-/**
  * Poll and read BT data from the SEQPACKET socket.
  *
  * Note:
@@ -321,9 +300,6 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 		.th = th,
 		.rtp_seq_number = -1,
 	};
-
-	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_init;
 
 	sbc_t sbc;
 
@@ -573,9 +549,6 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 		.th = th,
 		.rtp_seq_number = -1,
 	};
-
-	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_init;
 
 #if ENABLE_MPG123
 
@@ -972,9 +945,6 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 		.rtp_seq_number = -1,
 	};
 
-	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_open;
-
 	HANDLE_AACDECODER handle;
 	AAC_DECODER_ERROR err;
 
@@ -1349,9 +1319,6 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 		.th = th,
 	};
 
-	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_init;
-
 	HANDLE_APTX handle;
 	if ((handle = aptxdec_init()) == NULL) {
 		error("Couldn't initialize apt-X decoder: %s", strerror(errno));
@@ -1553,9 +1520,6 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 		.th = th,
 		.rtp_seq_number = -1,
 	};
-
-	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_init;
 
 	HANDLE_APTX handle;
 	if ((handle = aptxhddec_init()) == NULL) {
@@ -1777,9 +1741,6 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 		.th = th,
 		.rtp_seq_number = -1,
 	};
-
-	if (a2dp_validate_bt_sink(t) != 0)
-		goto fail_open;
 
 	HANDLE_LDAC_BT handle;
 	if ((handle = ldacBT_get_handle()) == NULL) {

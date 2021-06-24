@@ -221,22 +221,38 @@ int ba_transport_thread_bt_acquire(
 		struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
-	int ret = 0;
+	int ret = -1;
+
+	if (th->bt_fd != -1)
+		return 0;
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	const int bt_fd = t->bt_fd;
-	if (bt_fd != -1 && th->bt_fd == -1) {
-		if ((th->bt_fd = dup(bt_fd)) != -1)
-			debug("Created BT socket duplicate [%d]: %d", bt_fd, th->bt_fd);
-		else {
-			error("Couldn't duplicate BT socket [%d]: %s", bt_fd, strerror(errno));
-			ret = -1;
-		}
+
+	/* check if BT socket file descriptor is valid */
+	if (bt_fd == -1) {
+		error("Invalid BT socket: %d", bt_fd);
+		goto fail;
 	}
 
-	pthread_mutex_unlock(&t->bt_fd_mtx);
+	/* check for invalid (i.e. not set) MTU values */
+	if (t->mtu_read == 0 || t->mtu_write == 0) {
+		error("Invalid BT socket MTU [%d]: R:%zu W:%zu", bt_fd,
+				t->mtu_read, t->mtu_write);
+		goto fail;
+	}
 
+	if ((th->bt_fd = dup(bt_fd)) == -1) {
+		error("Couldn't duplicate BT socket [%d]: %s", bt_fd, strerror(errno));
+		goto fail;
+	}
+
+	debug("Created BT socket duplicate: [%d]: %d", bt_fd, th->bt_fd);
+	ret = 0;
+
+fail:
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return ret;
 }
 
