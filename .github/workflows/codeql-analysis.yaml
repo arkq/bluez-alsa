@@ -1,0 +1,66 @@
+name: "CodeQL Analysis"
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  analyze:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        language: [ 'cpp' ]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install --yes --quiet --no-install-recommends \
+          libasound2-dev \
+          libbluetooth-dev \
+          libbsd-dev \
+          libdbus-1-dev \
+          libfdk-aac-dev \
+          libglib2.0-dev \
+          libmp3lame-dev \
+          libmpg123-dev \
+          libncurses5-dev \
+          libreadline-dev \
+          libsbc-dev
+    - uses: actions/checkout@v2
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v1
+      with:
+        languages: ${{ matrix.language }}
+        # If you wish to specify custom queries, you can do so here or in a config file.
+        # By default, queries listed here will override any specified in a config file.
+        # Prefix the list here with "+" to use these queries and those in the config file.
+        # queries: ./path/to/local/query, your-org/your-repo/queries@main
+    - name: Create Build Environment
+      run: |
+        mkdir -p ${{ github.workspace }}/{build,m4}
+        autoreconf --install
+    - name: Configure GNU Automake
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        ${{ github.workspace }}/configure \
+          --enable-aac \
+          --enable-mp3lame \
+          --enable-mpg123 \
+          --enable-msbc \
+          --enable-ofono \
+          --enable-upower \
+          --enable-aplay \
+          --enable-cli \
+          --enable-rfcomm \
+          --enable-a2dpconf \
+          --enable-hcitop
+    - name: Build
+      working-directory: ${{ github.workspace }}/build
+      run: make
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v1
