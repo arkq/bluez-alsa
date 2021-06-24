@@ -124,19 +124,17 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		}
 #endif
 
-		ba_transport_pcms_lock(t);
-		/* make sure, we are not leaking file descriptor */
-		ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
-		ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
-		ba_transport_release(t);
-		ba_transport_pcms_unlock(t);
+		ba_transport_stop(t);
+
+		pthread_mutex_lock(&t->bt_fd_mtx);
 
 		t->bt_fd = fd;
 		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 		fd = -1;
 
-		ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
-		ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
+		pthread_mutex_unlock(&t->bt_fd_mtx);
+
+		ba_transport_start(t);
 
 cleanup:
 		if (d != NULL)
@@ -292,11 +290,6 @@ void *sco_thread(struct ba_transport_thread *th) {
 				pfds[3].fd = t->sco.spk_pcm.fd;
 			if (t->sco.mic_pcm.active && ffb_blen_out(&msbc_dec.pcm) > 0)
 				pfds[4].fd = t->sco.mic_pcm.fd;
-			/* If SCO is not opened or PCM is not connected,
-			 * mark mSBC encoder/decoder for reinitialization. */
-			if ((t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) ||
-					th->bt_fd == -1)
-				initialize_msbc = true;
 			break;
 #endif
 		}
@@ -322,29 +315,12 @@ void *sco_thread(struct ba_transport_thread *th) {
 			enum ba_transport_thread_signal signal;
 			ba_transport_thread_signal_recv(th, &signal);
 			switch (signal) {
-			case BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE:
-				ba_transport_thread_bt_acquire(th);
-				continue;
-			case BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE:
-				ba_transport_thread_bt_release(th);
-				continue;
 			case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
 			case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
 				asrs.frames = 0;
 				continue;
 			case BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE:
-				ba_transport_pcms_lock(t);
-				/* For Audio Gateway profile it is required to release SCO if we
-				 * are not transferring audio (not sending nor receiving), because
-				 * it will free Bluetooth bandwidth - headset will send microphone
-				 * signal even though we are not reading it! */
-				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG &&
-						t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1) {
-					debug("Releasing SCO due to PCM inactivity");
-					ba_transport_thread_bt_release(th);
-					ba_transport_release(t);
-				}
-				ba_transport_pcms_unlock(t);
+				ba_transport_stop_if_no_clients(t);
 				continue;
 			case BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC:
 				/* FIXME: Drain functionality for speaker.
@@ -392,10 +368,7 @@ void *sco_thread(struct ba_transport_thread *th) {
 			if ((len = io_bt_read(th, buffer, buffer_len)) <= 0) {
 				if (len == -1)
 					debug("BT read error: %s", strerror(errno));
-				ba_transport_pcms_lock(t);
-				ba_transport_release(t);
-				ba_transport_pcms_unlock(t);
-				continue;
+				goto fail;
 			}
 
 			/* If microphone (capture) PCM is not connected ignore incoming data. In
@@ -444,10 +417,7 @@ void *sco_thread(struct ba_transport_thread *th) {
 			if ((len = io_bt_write(th, buffer, buffer_len)) <= 0) {
 				if (len == -1)
 					error("SCO write error: %s", strerror(errno));
-				ba_transport_pcms_lock(t);
-				ba_transport_release(t);
-				ba_transport_pcms_unlock(t);
-				continue;
+				goto fail;
 			}
 
 			switch (codec) {

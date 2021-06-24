@@ -381,6 +381,9 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		ba_transport_pcm_release(pcm);
 		ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE);
 		pthread_mutex_unlock(&pcm->mutex);
+		/* Check whether we've just closed the last PCM client and in
+		 * such a case schedule transport IO threads termination. */
+		ba_transport_stop_if_no_clients(pcm->t);
 		/* remove channel from watch */
 		return FALSE;
 	}
@@ -441,8 +444,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 
 		enum ba_transport_thread_state state;
 
-		if (ba_transport_acquire(t) == -1 ||
-				ba_transport_thread_bt_acquire(th) == -1) {
+		if (ba_transport_acquire(t) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 					G_DBUS_ERROR_FAILED, "Acquire transport: %s", strerror(errno));
 			goto fail;

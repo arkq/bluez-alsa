@@ -134,9 +134,6 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 
 	debug("Closing oFono SCO link: %d", t->bt_fd);
 
-	ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
-	ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_RELEASE);
-
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
 	t->bt_fd = -1;
@@ -396,24 +393,19 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
 		goto fail;
 	}
 
+	ba_transport_stop(t);
+
 	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	debug("New oFono SCO connection (codec: %#x): %d", codec, fd);
 
 	t->bt_fd = fd;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
+	ba_transport_set_codec(t, codec);
 
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-	ba_transport_set_codec(t, codec);
-
-	bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	ba_transport_thread_signal_send(t->sco.spk_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
-
-	bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	ba_transport_thread_signal_send(t->sco.mic_pcm.th, BA_TRANSPORT_THREAD_SIGNAL_BT_ACQUIRE);
+	ba_transport_start(t);
 
 	g_dbus_method_invocation_return_value(inv, NULL);
 	goto final;
