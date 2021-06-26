@@ -91,7 +91,7 @@ repoll:
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 	/* Add PCM socket to the poll if it is active. */
-	fds[1].fd = pcm->active ? pcm->fd : -1;
+	fds[1].fd = ba_transport_pcm_is_active(pcm) ? pcm->fd : -1;
 
 	/* Poll for reading with optional sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
@@ -165,20 +165,17 @@ repoll:
  * Note:
  * This function temporally re-enables thread cancellation! */
 static ssize_t a2dp_poll_and_read_bt(struct io_thread_data *io,
-		struct ba_transport_pcm *pcm, ffb_t *buffer) {
+		ffb_t *buffer) {
 
 	struct ba_transport_thread *th = io->th;
 	struct pollfd fds[2] = {
 		{ th->pipe[0], POLLIN, 0 },
-		{ -1, POLLIN, 0 }};
+		{ th->bt_fd, POLLIN, 0 }};
 
 repoll:
 
 	/* Allow escaping from the poll() by thread cancellation. */
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-	/* Add BT socket to the poll if PCM is active. */
-	fds[1].fd = pcm->active ? th->bt_fd : -1;
 
 	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
 		if (errno == EINTR)
@@ -329,13 +326,13 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		const rtp_media_header_t *rtp_media_header;
@@ -620,13 +617,13 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		const rtp_mpeg_audio_header_t *rtp_mpeg_header;
@@ -992,13 +989,13 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		const uint8_t *rtp_latm;
@@ -1343,13 +1340,13 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		uint8_t *input = bt.data;
@@ -1545,13 +1542,13 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		const uint8_t *rtp_payload;
@@ -1775,13 +1772,13 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
 		}
 
-		if (t->a2dp.pcm.fd == -1)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		const rtp_media_header_t *rtp_media_header;
@@ -2028,7 +2025,7 @@ static void *a2dp_sink_dump(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &t->a2dp.pcm, &bt)) <= 0) {
+		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;

@@ -348,6 +348,9 @@ int ba_transport_set_a2dp_state(
 		struct ba_transport *t,
 		enum bluez_a2dp_transport_state state);
 
+bool ba_transport_pcm_is_active(
+		struct ba_transport_pcm *pcm);
+
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);
 

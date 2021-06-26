@@ -1231,6 +1231,10 @@ int ba_transport_set_a2dp_state(
 	}
 }
 
+bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) {
+	return pcm->fd != -1 && pcm->active;
+}
+
 int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
