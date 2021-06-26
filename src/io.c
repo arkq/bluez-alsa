@@ -259,3 +259,142 @@ final:
 	pthread_mutex_unlock(&pcm->mutex);
 	return ret;
 }
+
+static enum ba_transport_thread_signal io_poll_signal_filter_none(
+		enum ba_transport_thread_signal signal,
+		void *userdata) {
+	(void)userdata;
+	return signal;
+}
+
+/**
+ * Poll and read data from the BT transport socket.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
+ssize_t io_poll_and_read_bt(
+		struct io_poll *io,
+		struct ba_transport_thread *th,
+		void *buffer,
+		size_t count) {
+
+	struct pollfd fds[2] = {
+		{ th->pipe[0], POLLIN, 0 },
+		{ th->bt_fd, POLLIN, 0 }};
+
+	/* Allow escaping from the poll() by thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+repoll:
+
+	if (poll(fds, ARRAYSIZE(fds), io->timeout) == -1) {
+		if (errno == EINTR)
+			goto repoll;
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		return -1;
+	}
+
+	if (fds[0].revents & POLLIN) {
+		/* dispatch incoming event */
+		io_poll_signal_filter *filter = io->signal.filter != NULL ?
+			io->signal.filter : io_poll_signal_filter_none;
+		enum ba_transport_thread_signal signal;
+		ba_transport_thread_signal_recv(th, &signal);
+		switch (filter(signal, io->signal.userdata)) {
+		default:
+			goto repoll;
+		}
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	return io_bt_read(th, buffer, count);
+}
+
+/**
+ * Poll and read data from the PCM FIFO.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
+ssize_t io_poll_and_read_pcm(
+		struct io_poll *io,
+		struct ba_transport_pcm *pcm,
+		void *buffer,
+		size_t samples) {
+
+	struct ba_transport_thread *th = pcm->th;
+	struct pollfd fds[2] = {
+		{ th->pipe[0], POLLIN, 0 },
+		{ -1, POLLIN, 0 }};
+
+repoll:
+
+	/* Allow escaping from the poll() by thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+	/* Add PCM socket to the poll if it is active. */
+	fds[1].fd = ba_transport_pcm_is_active(pcm) ? pcm->fd : -1;
+
+	/* Poll for reading with optional sync timeout. */
+	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
+	case 0:
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		pthread_cond_signal(&pcm->synced);
+		io->timeout = -1;
+		return 0;
+	case -1:
+		if (errno == EINTR)
+			goto repoll;
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		return -1;
+	}
+
+	if (fds[0].revents & POLLIN) {
+		/* dispatch incoming event */
+		io_poll_signal_filter *filter = io->signal.filter != NULL ?
+			io->signal.filter : io_poll_signal_filter_none;
+		enum ba_transport_thread_signal signal;
+		ba_transport_thread_signal_recv(th, &signal);
+		switch (filter(signal, io->signal.userdata)) {
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
+			io->asrs.frames = 0;
+			io->timeout = -1;
+			goto repoll;
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE:
+			/* reuse PCM read disconnection logic */
+			break;
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC:
+			io->timeout = 100;
+			goto repoll;
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP:
+			io_pcm_flush(pcm);
+			goto repoll;
+		default:
+			goto repoll;
+		}
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	ssize_t samples_read;
+	if ((samples_read = io_pcm_read(pcm, buffer, samples)) == -1) {
+		if (errno == EAGAIN)
+			goto repoll;
+		if (errno != EBADFD)
+			return -1;
+		samples_read = 0;
+	}
+
+	if (samples_read == 0)
+		return 0;
+
+	/* When the thread is created, there might be no data in the FIFO. In fact
+	 * there might be no data for a long time - until client starts playback.
+	 * In order to correctly calculate time drift, the zero time point has to
+	 * be obtained after the stream has started. */
+	if (io->asrs.frames == 0)
+		asrsync_init(&io->asrs, pcm->sampling);
+
+	return samples_read;
+}

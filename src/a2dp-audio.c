@@ -58,99 +58,38 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-/**
- * Common IO thread data. */
-struct io_thread_data {
+struct a2dp_io_poll {
+	struct io_poll io;
+	/* associated transport thread */
 	struct ba_transport_thread *th;
-	/* keep-alive and sync timeout */
-	int timeout;
-	/* transfer bit rate synchronization */
-	struct asrsync asrs;
 	/* history of BT socket COUTQ bytes */
 	struct { int v[16]; size_t i; } coutq;
 	/* local counter for RTP sequence number */
 	uint16_t rtp_seq_number;
 };
 
+static enum ba_transport_thread_signal a2dp_io_poll_signal_filter_dec(
+		enum ba_transport_thread_signal signal, void *userdata) {
+	struct a2dp_io_poll *io = userdata;
+
+	if (signal == BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE)
+		io->rtp_seq_number = -1;
+
+	return signal;
+}
+
 /**
  * Poll and read PCM signal from the transport PCM FIFO.
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_pcm(struct io_thread_data *io,
+static ssize_t a2dp_poll_and_read_pcm(struct a2dp_io_poll *io,
 		struct ba_transport_pcm *pcm, ffb_t *buffer) {
 
-	struct ba_transport_thread *th = io->th;
-	struct pollfd fds[2] = {
-		{ th->pipe[0], POLLIN, 0 },
-		{ -1, POLLIN, 0 }};
-
-repoll:
-
-	/* Allow escaping from the poll() by thread cancellation. */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-	/* Add PCM socket to the poll if it is active. */
-	fds[1].fd = ba_transport_pcm_is_active(pcm) ? pcm->fd : -1;
-
-	/* Poll for reading with optional sync timeout. */
-	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
-	case 0:
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-		pthread_cond_signal(&pcm->synced);
-		io->timeout = -1;
-		return 0;
-	case -1:
-		if (errno == EINTR)
-			goto repoll;
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-		return -1;
-	}
-
-	if (fds[0].revents & POLLIN) {
-		/* dispatch incoming event */
-		enum ba_transport_thread_signal signal;
-		ba_transport_thread_signal_recv(th, &signal);
-		switch (signal) {
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
-			io->asrs.frames = 0;
-			io->timeout = -1;
-			goto repoll;
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE:
-			/* reuse PCM read disconnection logic */
-			break;
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC:
-			io->timeout = 100;
-			goto repoll;
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP:
-			io_pcm_flush(pcm);
-			goto repoll;
-		default:
-			goto repoll;
-		}
-	}
-
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
 	ssize_t samples;
-	if ((samples = io_pcm_read(pcm, buffer->tail, ffb_len_in(buffer))) == -1) {
-		if (errno == EAGAIN)
-			goto repoll;
-		if (errno != EBADFD)
-			return -1;
-		samples = 0;
-	}
-
-	if (samples == 0)
-		return 0;
-
-	/* When the thread is created, there might be no data in the FIFO. In fact
-	 * there might be no data for a long time - until client starts playback.
-	 * In order to correctly calculate time drift, the zero time point has to
-	 * be obtained after the stream has started. */
-	if (io->asrs.frames == 0)
-		asrsync_init(&io->asrs, pcm->sampling);
+	if ((samples = io_poll_and_read_pcm(&io->io, pcm,
+					buffer->tail, ffb_len_in(buffer))) <= 0)
+		return samples;
 
 	/* update PCM buffer */
 	ffb_seek(buffer, samples);
@@ -164,42 +103,8 @@ repoll:
  *
  * Note:
  * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_bt(struct io_thread_data *io,
-		ffb_t *buffer) {
-
-	struct ba_transport_thread *th = io->th;
-	struct pollfd fds[2] = {
-		{ th->pipe[0], POLLIN, 0 },
-		{ th->bt_fd, POLLIN, 0 }};
-
-repoll:
-
-	/* Allow escaping from the poll() by thread cancellation. */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-	if (poll(fds, ARRAYSIZE(fds), -1) == -1) {
-		if (errno == EINTR)
-			goto repoll;
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-		return -1;
-	}
-
-	if (fds[0].revents & POLLIN) {
-		/* dispatch incoming event */
-		enum ba_transport_thread_signal signal;
-		ba_transport_thread_signal_recv(th, &signal);
-		switch (signal) {
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE:
-			io->rtp_seq_number = -1;
-			goto repoll;
-		default:
-			goto repoll;
-		}
-	}
-
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-	return io_bt_read(th, buffer->tail, ffb_blen_in(buffer));
+static ssize_t a2dp_poll_and_read_bt(struct a2dp_io_poll *io, ffb_t *buffer) {
+	return io_poll_and_read_bt(&io->io, io->th, buffer->tail, ffb_blen_in(buffer));
 }
 
 /**
@@ -207,7 +112,7 @@ repoll:
  *
  * Note:
  * This function may temporally re-enables thread cancellation! */
-static ssize_t a2dp_write_bt(struct io_thread_data *io, ffb_t *buffer) {
+static ssize_t a2dp_write_bt(struct a2dp_io_poll *io, ffb_t *buffer) {
 
 	struct ba_transport *t = io->th->t;
 	struct ba_transport_thread *th = io->th;
@@ -266,7 +171,7 @@ static uint8_t *a2dp_init_rtp(void *s, rtp_header_t **hdr,
  * @param io The IO thread data - used for storing RTP sequence number.
  * @return On success, this function returns pointer to data just after
  *   the RTP header - RTP header payload. On failure, NULL is returned. */
-static void *a2dp_validate_rtp(const rtp_header_t *hdr, struct io_thread_data *io) {
+static void *a2dp_validate_rtp(const rtp_header_t *hdr, struct a2dp_io_poll *io) {
 
 #if ENABLE_PAYLOADCHECK
 	if (hdr->paytype < 96) {
@@ -293,7 +198,10 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.signal.filter = a2dp_io_poll_signal_filter_dec,
+		.io.signal.userdata = &io,
+		.io.timeout = -1,
 		.th = th,
 		.rtp_seq_number = -1,
 	};
@@ -393,9 +301,9 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.timeout = -1,
 		.th = th,
-		.timeout = -1,
 	};
 
 	sbc_t sbc;
@@ -508,11 +416,11 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 
 		/* keep data transfer at a constant bit rate, also
 		 * get a timestamp for the next RTP frame */
-		asrsync_sync(&io.asrs, pcm_frames);
+		asrsync_sync(&io.io.asrs, pcm_frames);
 		timestamp += pcm_frames * 10000 / samplerate;
 
 		/* update busy delay (encoding overhead) */
-		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.io.asrs) / 100;
 
 		/* If the input buffer was not consumed (due to codesize limit), we
 		 * have to append new data to the existing one. Since we do not use
@@ -542,7 +450,10 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.signal.filter = a2dp_io_poll_signal_filter_dec,
+		.io.signal.userdata = &io,
+		.io.timeout = -1,
 		.th = th,
 		.rtp_seq_number = -1,
 	};
@@ -723,9 +634,9 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.timeout = -1,
 		.th = th,
-		.timeout = -1,
 	};
 
 	lame_t handle;
@@ -901,11 +812,11 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 
 		/* keep data transfer at a constant bit rate, also
 		 * get a timestamp for the next RTP frame */
-		asrsync_sync(&io.asrs, pcm_frames);
+		asrsync_sync(&io.io.asrs, pcm_frames);
 		timestamp += pcm_frames * 10000 / samplerate;
 
 		/* update busy delay (encoding overhead) */
-		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.io.asrs) / 100;
 
 		/* If the input buffer was not consumed (due to frame alignment), we
 		 * have to append new data to the existing one. Since we do not use
@@ -937,7 +848,10 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.signal.filter = a2dp_io_poll_signal_filter_dec,
+		.io.signal.userdata = &io,
+		.io.timeout = -1,
 		.th = th,
 		.rtp_seq_number = -1,
 	};
@@ -1043,7 +957,9 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 		else if ((aacinf = aacDecoder_GetStreamInfo(handle)) == NULL)
 			error("Couldn't get AAC stream info");
 		else {
-			const size_t samples = aacinf->frameSize * aacinf->numChannels;
+			if ((unsigned int)aacinf->numChannels != channels)
+				warn("AAC channels mismatch: %u != %u", aacinf->numChannels, channels);
+			const size_t samples = (size_t)aacinf->frameSize * channels;
 			io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
 			if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
@@ -1077,9 +993,9 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.timeout = -1,
 		.th = th,
-		.timeout = -1,
 	};
 
 	HANDLE_AACENCODER handle;
@@ -1175,8 +1091,9 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
+	const unsigned int aac_frame_size = aacinf.inputChannels * aacinf.frameLength;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
-	if (ffb_init(&pcm, aacinf.inputChannels * aacinf.frameLength, sample_size) == -1 ||
+	if (ffb_init(&pcm, aac_frame_size, sample_size) == -1 ||
 			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -1275,11 +1192,11 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 			/* keep data transfer at a constant bit rate, also
 			 * get a timestamp for the next RTP frame */
 			unsigned int pcm_frames = out_args.numInSamples / channels;
-			asrsync_sync(&io.asrs, pcm_frames);
+			asrsync_sync(&io.io.asrs, pcm_frames);
 			timestamp += pcm_frames * 10000 / samplerate;
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.io.asrs) / 100;
 
 			/* If the input buffer was not consumed, we have to append new data to
 			 * the existing one. Since we do not use ring buffer, we will simply
@@ -1312,7 +1229,8 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.timeout = -1,
 		.th = th,
 	};
 
@@ -1397,9 +1315,9 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.timeout = -1,
 		.th = th,
-		.timeout = -1,
 	};
 
 	HANDLE_APTX handle;
@@ -1474,10 +1392,10 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 			}
 
 			/* keep data transfer at a constant bit rate */
-			asrsync_sync(&io.asrs, pcm_samples / channels);
+			asrsync_sync(&io.io.asrs, pcm_samples / channels);
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.io.asrs) / 100;
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
@@ -1513,7 +1431,10 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.signal.filter = a2dp_io_poll_signal_filter_dec,
+		.io.signal.userdata = &io,
+		.io.timeout = -1,
 		.th = th,
 		.rtp_seq_number = -1,
 	};
@@ -1602,9 +1523,9 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.timeout = -1,
 		.th = th,
-		.timeout = -1,
 	};
 
 	HANDLE_APTX handle;
@@ -1691,11 +1612,11 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 
 			/* keep data transfer at a constant bit rate */
 			unsigned int pcm_frames = pcm_samples / channels;
-			asrsync_sync(&io.asrs, pcm_frames);
+			asrsync_sync(&io.io.asrs, pcm_frames);
 			timestamp += pcm_frames * 10000 / samplerate;
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.io.asrs) / 100;
 
 			rtp_header->seq_number = htobe16(++seq_number);
 			rtp_header->timestamp = htobe32(timestamp);
@@ -1734,7 +1655,10 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.signal.filter = a2dp_io_poll_signal_filter_dec,
+		.io.signal.userdata = &io,
+		.io.timeout = -1,
 		.th = th,
 		.rtp_seq_number = -1,
 	};
@@ -1834,9 +1758,9 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = {
+	struct a2dp_io_poll io = {
+		.io.timeout = -1,
 		.th = th,
-		.timeout = -1,
 	};
 
 	HANDLE_LDAC_BT handle;
@@ -1945,11 +1869,11 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 				ldac_ABR_Proc(handle, handle_abr, io.coutq.v[io.coutq.i] / t->mtu_write, 1);
 
 			/* keep data transfer at a constant bit rate */
-			asrsync_sync(&io.asrs, frames / channels);
+			asrsync_sync(&io.io.asrs, frames / channels);
 			ts_frames += frames;
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.io.asrs) / 100;
 
 			if (encoded) {
 				timestamp += ts_frames / channels * 10000 / samplerate;
@@ -1995,7 +1919,7 @@ static void *a2dp_sink_dump(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct io_thread_data io = { .th = th };
+	struct a2dp_io_poll io = { .io.timeout = -1, .th = th };
 	ffb_t bt = { 0 };
 	FILE *f = NULL;
 	char fname[64];
