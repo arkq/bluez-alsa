@@ -707,8 +707,7 @@ struct ba_transport *ba_transport_new_sco(
 	transport_pcm_init(&t->sco.spk_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.spk_pcm.max_bt_volume = 15;
 
-	/* TODO: After SCO thread refactoring use decoder thread for mic. */
-	transport_pcm_init(&t->sco.mic_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SOURCE);
+	transport_pcm_init(&t->sco.mic_pcm, &t->thread_dec, BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->sco.mic_pcm.max_bt_volume = 15;
 
 	t->acquire = transport_acquire_bt_sco;
@@ -1129,8 +1128,12 @@ int ba_transport_start(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return a2dp_audio_thread_create(t);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		return ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco", true);
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);
+		ba_transport_thread_create(&t->thread_dec, sco_dec_thread, "ba-sco-dec", false);
+		return 0;
+	}
 
 	errno = ENOTSUP;
 	return -1;

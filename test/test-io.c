@@ -382,7 +382,8 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 
 }
 
-static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thread *)) {
+static void test_sco(struct ba_transport *t,
+		void *(*enc)(struct ba_transport_thread *), void *(*dec)(struct ba_transport_thread *)) {
 
 	int sco_fds[2];
 	int pcm_mic_fds[2];
@@ -400,7 +401,8 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	t->sco.mic_pcm.fd = pcm_mic_fds[1];
 	t->sco.spk_pcm.fd = pcm_spk_fds[1];
 
-	ck_assert_int_eq(ba_transport_thread_create(&t->thread_enc, cb, "sco", true), 0);
+	ck_assert_int_eq(ba_transport_thread_create(&t->thread_enc, enc, "sco-enc", true), 0);
+	ck_assert_int_eq(ba_transport_thread_create(&t->thread_dec, dec, "sco-dec", false), 0);
 
 	struct pollfd pfds[] = {
 		{ sco_fds[0], POLLIN, 0 },
@@ -660,14 +662,14 @@ START_TEST(test_a2dp_ldac) {
 
 START_TEST(test_sco_cvsd) {
 
-	struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_HSP_AG };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_HSP_AG };
 	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/cvsd", -1);
 
-	t->mtu_read = t->mtu_write = 48;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_signal_send(&t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PING);
-	test_sco(t, sco_thread);
+	t->mtu_read = t->mtu_write = 48;
+	test_sco(t, sco_enc_thread, sco_dec_thread);
 
 	ba_transport_destroy(t);
 
@@ -681,11 +683,10 @@ START_TEST(test_sco_msbc) {
 		.codec = HFP_CODEC_MSBC };
 	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/msbc", -1);
 
-	t->mtu_read = t->mtu_write = 24;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_signal_send(&t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PING);
-	test_sco(t, sco_thread);
+	t->mtu_read = t->mtu_write = 24;
+	test_sco(t, sco_enc_thread, sco_dec_thread);
 
 	ba_transport_destroy(t);
 

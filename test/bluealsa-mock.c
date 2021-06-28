@@ -243,7 +243,7 @@ static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 		}
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		assert(ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco", true) == 0);
+		assert(ba_transport_start(t) == 0);
 	}
 
 }
