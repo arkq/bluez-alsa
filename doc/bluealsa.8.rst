@@ -68,6 +68,11 @@ OPTIONS
     to this value (%). However, a device with native volume control may
     then immediately override this level.
 
+--keep-alive=SEC
+    Keep Bluetooth transport alive for *SEC* number of seconds after streaming was closed.
+    This option can be useful when playing short audio files in quick succession.
+    It will reduce the gap between playbacks caused by Bluetooth audio transport acquisition.
+
 --a2dp-force-mono
     Force monophonic sound for A2DP profile.
 
@@ -76,11 +81,6 @@ OPTIONS
     Some bluetooth devices can handle streams sampled at either 48kHz or 44.1kHz, in which case
     they normally default to using 48kHz.
     With this option, **bluealsa** will request such a device uses only 44.1 kHz sample rate.
-
---a2dp-keep-alive=SEC
-    Keep A2DP transport alive for *SEC* number of seconds after streaming was closed.
-    This option can be useful when playing short audio files in quick succession.
-    It will reduce the gap between playbacks caused by Bluetooth audio transport acquisition.
 
 --a2dp-volume
     Enable native A2DP volume control.

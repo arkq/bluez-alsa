@@ -375,8 +375,8 @@ static void *transport_thread_manager(struct ba_transport *t) {
 				timeout = -1;
 				break;
 			case BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS:
-				debug("PCM clients check keep-alive timeout: %d", config.a2dp.keep_alive);
-				timeout = config.a2dp.keep_alive * 1000;
+				debug("PCM clients check keep-alive timeout: %d", config.keep_alive_time);
+				timeout = config.keep_alive_time * 1000;
 				break;
 			}
 
