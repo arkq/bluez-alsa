@@ -14,6 +14,7 @@ jobs:
         - --enable-debug --enable-mp3lame --enable-mpg123
         - --enable-mp3lame --enable-ofono --enable-upower
         - --enable-cli --enable-rfcomm --enable-manpages
+      fail-fast: false
     runs-on: ubuntu-18.04
     steps:
     - name: Install Dependencies
@@ -49,4 +50,8 @@ jobs:
       run: make && make check TESTS=
     - name: Run Test
       working-directory: ${{ github.workspace }}/build
-      run: make check && cat test/*.log
+      run: make check
+    - name: Show Test Log
+      if: ${{ always() }}
+      working-directory: ${{ github.workspace }}/build
+      run: cat test/*.log
