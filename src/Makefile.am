@@ -13,6 +13,7 @@ bluealsa_SOURCES = \
 	shared/rt.c \
 	a2dp.c \
 	a2dp-audio.c \
+	a2dp-rtp.c \
 	at.c \
 	audio.c \
 	ba-adapter.c \

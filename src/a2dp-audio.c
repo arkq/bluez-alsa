@@ -73,7 +73,7 @@ static enum ba_transport_thread_signal a2dp_io_poll_signal_filter_dec(
 	struct a2dp_io_poll *io = userdata;
 
 	if (signal == BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE)
-		io->rtp_seq_number = -1;
+		io->rtp_seq_number = 0;
 
 	return signal;
 }
@@ -137,59 +137,6 @@ static ssize_t a2dp_write_bt(struct a2dp_io_poll *io, ffb_t *buffer) {
 	return ret;
 }
 
-/**
- * Initialize RTP headers.
- *
- * @param s The memory area where the RTP headers will be initialized.
- * @param hdr The address where the pointer to the RTP header will be stored.
- * @param phdr The address where the pointer to the RTP payload header will
- *   be stored. This parameter might be NULL.
- * @param phdr_size The size of the RTP payload header.
- * @return This function returns the address of the RTP payload region. */
-static uint8_t *a2dp_init_rtp(void *s, rtp_header_t **hdr,
-		void **phdr, size_t phdr_size) {
-
-	rtp_header_t *header = *hdr = (rtp_header_t *)s;
-	memset(header, 0, RTP_HEADER_LEN + phdr_size);
-	header->paytype = 96;
-	header->version = 2;
-	header->seq_number = random();
-	header->timestamp = random();
-
-	uint8_t *data = (uint8_t *)&header->csrc[header->cc];
-
-	if (phdr != NULL)
-		*phdr = data;
-
-	return data + phdr_size;
-}
-
-/**
- * Validate RTP header and get payload.
- *
- * @param hdr The pointer to data with RTP header to validate.
- * @param io The IO thread data - used for storing RTP sequence number.
- * @return On success, this function returns pointer to data just after
- *   the RTP header - RTP header payload. On failure, NULL is returned. */
-static void *a2dp_validate_rtp(const rtp_header_t *hdr, struct a2dp_io_poll *io) {
-
-#if ENABLE_PAYLOADCHECK
-	if (hdr->paytype < 96) {
-		warn("Unsupported RTP payload type: %u", hdr->paytype);
-		return NULL;
-	}
-#endif
-
-	uint16_t seq_number = be16toh(hdr->seq_number);
-	if (++io->rtp_seq_number != seq_number) {
-		if (io->rtp_seq_number != 0)
-			warn("Missing RTP packet: %u != %u", seq_number, io->rtp_seq_number);
-		io->rtp_seq_number = seq_number;
-	}
-
-	return (void *)&hdr->csrc[hdr->cc];
-}
-
 static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -203,7 +150,6 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 		.io.signal.userdata = &io,
 		.io.timeout = -1,
 		.th = th,
-		.rtp_seq_number = -1,
 	};
 
 	sbc_t sbc;
@@ -244,7 +190,7 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 			continue;
 
 		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
+		if ((rtp_media_header = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
@@ -352,7 +298,7 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 	rtp_media_header_t *rtp_media_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header,
+	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header,
 			(void **)&rtp_media_header, sizeof(*rtp_media_header));
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
@@ -455,7 +401,6 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 		.io.signal.userdata = &io,
 		.io.timeout = -1,
 		.th = th,
-		.rtp_seq_number = -1,
 	};
 
 #if ENABLE_MPG123
@@ -538,7 +483,7 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 			continue;
 
 		const rtp_mpeg_audio_header_t *rtp_mpeg_header;
-		if ((rtp_mpeg_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
+		if ((rtp_mpeg_header = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		uint8_t *rtp_mpeg = (uint8_t *)(rtp_mpeg_header + 1);
@@ -740,7 +685,7 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 	rtp_mpeg_audio_header_t *rtp_mpeg_audio_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header,
+	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header,
 			(void **)&rtp_mpeg_audio_header, sizeof(*rtp_mpeg_audio_header));
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
@@ -853,7 +798,6 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 		.io.signal.userdata = &io,
 		.io.timeout = -1,
 		.th = th,
-		.rtp_seq_number = -1,
 	};
 
 	HANDLE_AACDECODER handle;
@@ -913,7 +857,7 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 			continue;
 
 		const uint8_t *rtp_latm;
-		if ((rtp_latm = a2dp_validate_rtp(bt.data, &io)) == NULL)
+		if ((rtp_latm = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
@@ -1102,7 +1046,7 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 	rtp_header_t *rtp_header;
 
 	/* initialize RTP header and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header, NULL, 0);
+	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header, NULL, 0);
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
@@ -1436,7 +1380,6 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 		.io.signal.userdata = &io,
 		.io.timeout = -1,
 		.th = th,
-		.rtp_seq_number = -1,
 	};
 
 	HANDLE_APTX handle;
@@ -1473,7 +1416,7 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 			continue;
 
 		const uint8_t *rtp_payload;
-		if ((rtp_payload = a2dp_validate_rtp(bt.data, &io)) == NULL)
+		if ((rtp_payload = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
@@ -1555,7 +1498,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 	rtp_header_t *rtp_header;
 
 	/* initialize RTP header and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header, NULL, 0);
+	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header, NULL, 0);
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
@@ -1660,7 +1603,6 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 		.io.signal.userdata = &io,
 		.io.timeout = -1,
 		.th = th,
-		.rtp_seq_number = -1,
 	};
 
 	HANDLE_LDAC_BT handle;
@@ -1706,7 +1648,7 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 			continue;
 
 		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = a2dp_validate_rtp(bt.data, &io)) == NULL)
+		if ((rtp_media_header = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
@@ -1815,7 +1757,7 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 	rtp_media_header_t *rtp_media_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_init_rtp(bt.data, &rtp_header,
+	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header,
 			(void **)&rtp_media_header, sizeof(*rtp_media_header));
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);

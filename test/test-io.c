@@ -20,6 +20,7 @@
 #include "inc/sine.inc"
 #include "../src/a2dp.c"
 #include "../src/a2dp-audio.c"
+#include "../src/a2dp-rtp.c"
 #include "../src/at.c"
 #include "../src/audio.c"
 #include "../src/ba-adapter.c"
