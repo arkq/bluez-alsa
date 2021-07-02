@@ -1,0 +1,287 @@
+/*
+ * BlueALSA - a2dp-faststream.c
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ *
+ * This file is a part of bluez-alsa.
+ *
+ * This project is licensed under the terms of the MIT license.
+ *
+ */
+
+#include "a2dp-faststream.h"
+
+#include <errno.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <glib.h>
+
+#include <sbc/sbc.h>
+
+#include "a2dp.h"
+#include "a2dp-codecs.h"
+#include "codec-sbc.h"
+#include "io.h"
+#include "utils.h"
+#include "shared/defs.h"
+#include "shared/ffb.h"
+#include "shared/log.h"
+#include "shared/rt.h"
+
+void a2dp_faststream_transport_set_codec(struct ba_transport *t) {
+
+	const struct a2dp_codec *codec = t->a2dp.codec;
+
+	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+
+	if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC) {
+		t->a2dp.pcm.channels = 2;
+		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+				((a2dp_faststream_t *)t->a2dp.configuration)->frequency_music, false);
+	}
+
+	if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE) {
+		t->a2dp.pcm_bc.channels = 1;
+		t->a2dp.pcm_bc.sampling = a2dp_codec_lookup_frequency(codec,
+				((a2dp_faststream_t *)t->a2dp.configuration)->frequency_voice, true);
+	}
+
+}
+
+static void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+
+	struct ba_transport *t = th->t;
+	struct io_poll io = { .timeout = -1 };
+
+	/* determine encoder operation mode: music or voice */
+	const bool is_voice = t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
+	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
+
+	sbc_t sbc;
+	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, t->a2dp.configuration,
+					t->a2dp.codec->capabilities_size, is_voice)) != 0) {
+		error("Couldn't initialize FastStream SBC codec: %s", strerror(errno));
+		goto fail_init;
+	}
+
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
+
+	const unsigned int channels = t_a2dp_pcm->channels;
+	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
+	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
+
+	if (ffb_init_int16_t(&pcm, sbc_frame_samples * 3) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
+		error("Couldn't create data buffers: %s", strerror(ENOMEM));
+		goto fail_ffb;
+	}
+
+	debug_transport_thread_loop(th, "START");
+	for (ba_transport_thread_set_state_running(th);;) {
+
+
+		ssize_t samples = ffb_len_in(&pcm);
+		if ((samples = io_poll_and_read_pcm(&io, t_a2dp_pcm, pcm.tail, samples)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
+			ba_transport_stop_if_no_clients(t);
+			continue;
+		}
+
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
+
+		const int16_t *input = pcm.data;
+		size_t input_len = samples;
+		size_t output_len = ffb_len_in(&bt);
+		size_t pcm_frames = 0;
+		size_t sbc_frames = 0;
+
+		while (input_len >= sbc_frame_samples &&
+				output_len >= sbc_frame_len &&
+				sbc_frames < 3) {
+
+			ssize_t len;
+			ssize_t encoded;
+
+			if ((len = sbc_encode(&sbc, input, input_len * sizeof(int16_t),
+							bt.tail, output_len, &encoded)) < 0) {
+				error("FastStream SBC encoding error: %s", strerror(-len));
+				break;
+			}
+
+			len = len / sizeof(int16_t);
+			input += len;
+			input_len -= len;
+			ffb_seek(&bt, encoded);
+			output_len -= encoded;
+			pcm_frames += len / channels;
+			sbc_frames += 1;
+
+		}
+
+		if (sbc_frames > 0) {
+
+			ssize_t len = ffb_blen_out(&bt);
+			if ((len = io_bt_write(th, bt.data, len)) <= 0) {
+				if (len == -1)
+					error("BT write error: %s", strerror(errno));
+				goto fail;
+			}
+
+			/* make room for new FastStream frames */
+			ffb_rewind(&bt);
+
+			/* keep data transfer at a constant bit rate */
+			asrsync_sync(&io.asrs, pcm_frames);
+
+			/* update busy delay (encoding overhead) */
+			t_a2dp_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+
+			/* If the input buffer was not consumed (due to codesize limit), we
+			 * have to append new data to the existing one. Since we do not use
+			 * ring buffer, we will simply move unprocessed data to the front
+			 * of our linear buffer. */
+			ffb_shift(&pcm, samples - input_len);
+
+		}
+
+	}
+
+fail:
+	debug_transport_thread_loop(th, "EXIT");
+	ba_transport_thread_set_state_stopping(th);
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+
+static void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+
+	struct ba_transport *t = th->t;
+	struct io_poll io = { .timeout = -1 };
+
+	/* determine decoder operation mode: music or voice */
+	const bool is_voice = t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE;
+	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
+
+	sbc_t sbc;
+	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, t->a2dp.configuration,
+					t->a2dp.codec->capabilities_size, is_voice)) != 0) {
+		error("Couldn't initialize FastStream SBC codec: %s", strerror(errno));
+		goto fail_init;
+	}
+
+	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
+	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
+
+	ffb_t bt = { 0 };
+	ffb_t pcm = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
+
+	if (ffb_init_int16_t(&pcm, sbc_frame_samples) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
+		goto fail_ffb;
+	}
+
+	debug_transport_thread_loop(th, "START");
+	for (ba_transport_thread_set_state_running(th);;) {
+
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io, th, bt.tail, len)) <= 0) {
+			if (len == -1)
+				error("BT poll and read error: %s", strerror(errno));
+			goto fail;
+		}
+
+		if (!ba_transport_pcm_is_active(t_a2dp_pcm))
+			continue;
+
+		uint8_t *input = bt.data;
+		size_t input_len = len;
+
+		/* decode retrieved SBC frames */
+		while (input_len >= sbc_frame_len) {
+
+			ssize_t len;
+			size_t decoded;
+
+			if ((len = sbc_decode(&sbc, input, input_len,
+							pcm.data, ffb_blen_in(&pcm), &decoded)) < 0) {
+				error("FastStream SBC decoding error: %s", strerror(-len));
+				break;
+			}
+
+			input += len;
+			input_len -= len;
+
+			const size_t samples = decoded / sizeof(int16_t);
+			io_pcm_scale(t_a2dp_pcm, pcm.data, samples);
+			if (io_pcm_write(t_a2dp_pcm, pcm.data, samples) == -1)
+				error("FIFO write error: %s", strerror(errno));
+
+		}
+
+	}
+
+fail:
+	debug_transport_thread_loop(th, "EXIT");
+	ba_transport_thread_set_state_stopping(th);
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+fail_ffb:
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
+fail_init:
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+
+int a2dp_faststream_transport_start(struct ba_transport *t) {
+
+	struct ba_transport_thread *th_enc = &t->thread_enc;
+	struct ba_transport_thread *th_dec = &t->thread_dec;
+	int rv = 0;
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC)
+			rv |= ba_transport_thread_create(th_enc, a2dp_faststream_enc_thread, "ba-a2dp-fs-m", true);
+		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE)
+			rv |= ba_transport_thread_create(th_dec, a2dp_faststream_dec_thread, "ba-a2dp-fs-v", false);
+		return rv;
+	}
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
+		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC)
+			rv |= ba_transport_thread_create(th_dec, a2dp_faststream_dec_thread, "ba-a2dp-fs-m", true);
+		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE)
+			rv |= ba_transport_thread_create(th_enc, a2dp_faststream_enc_thread, "ba-a2dp-fs-v", false);
+		return rv;
+	}
+
+	g_assert_not_reached();
+	return -1;
+}

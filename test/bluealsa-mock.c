@@ -77,6 +77,13 @@ static const a2dp_aptx_hd_t config_aptx_hd_48000_stereo = {
 	.aptx.frequency = APTX_SAMPLING_FREQ_48000,
 };
 
+static const a2dp_faststream_t config_faststream_44100_16000 = {
+	.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
+	.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
+	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+};
+
 static struct ba_adapter *a = NULL;
 static char service[32] = BLUEALSA_SERVICE;
 static GMutex timeout_mutex = { NULL };
@@ -127,13 +134,19 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 	return false;
 }
 
-static void *mock_a2dp_sink(struct ba_transport_thread *th) {
+static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	struct ba_transport_pcm *t_a2dp_pcm = &t->a2dp.pcm;
+
+	/* use back-channel PCM for bidirectional codecs */
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+		t_a2dp_pcm = &t->a2dp.pcm_bc;
+
+	const unsigned int channels = t_a2dp_pcm->channels;
+	const unsigned int samplerate = t_a2dp_pcm->sampling;
 	struct pollfd fds[1] = {{ th->pipe[0], POLLIN, 0 }};
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
@@ -145,7 +158,7 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 	while (sigusr1_count == 0) {
 
 		int timout = 0;
-		if (t->a2dp.pcm.fd == -1 || !t->a2dp.pcm.active)
+		if (!ba_transport_pcm_is_active(t_a2dp_pcm))
 			timout = -1;
 
 		if (poll(fds, ARRAYSIZE(fds), timout) == 1 &&
@@ -171,8 +184,8 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 		const size_t samples = ARRAYSIZE(buffer);
 		x = snd_pcm_sine_s16le(buffer, samples, channels, x, 1.0 / 128);
 
-		io_pcm_scale(&t->a2dp.pcm, buffer, samples);
-		if (io_pcm_write(&t->a2dp.pcm, buffer, samples) == -1)
+		io_pcm_scale(t_a2dp_pcm, buffer, samples);
+		if (io_pcm_write(t_a2dp_pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		/* maintain constant speed */
@@ -221,16 +234,16 @@ static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 		switch (t->type.codec) {
 		case A2DP_CODEC_SBC:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-sbc", true) == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_dec, "ba-a2dp-sbc", true) == 0);
 			break;
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx", true) == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_dec, "ba-a2dp-aptx", true) == 0);
 			break;
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx-hd", true) == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_dec, "ba-a2dp-aptx-hd", true) == 0);
 			break;
 #endif
 		}
@@ -328,6 +341,12 @@ void *mock_service_thread(void *userdata) {
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:88:DD",
 						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_codec_source_aptx_hd,
 						&config_aptx_hd_48000_stereo));
+#endif
+
+#if ENABLE_FASTSTREAM
+			g_ptr_array_add(tt, mock_transport_new_a2dp("FF:AA:55:77:00:00",
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_codec_source_faststream,
+						&config_faststream_44100_16000));
 #endif
 
 		}

@@ -141,6 +141,13 @@ AM_COND_IF([ENABLE_APTX_HD], [
 AM_CONDITIONAL([ENABLE_APTX_OR_APTX_HD], [
 	test "x$enable_aptx" = "xyes" -o "x$enable_aptx_hd" = "xyes"])
 
+AC_ARG_ENABLE([faststream],
+	[AS_HELP_STRING([--enable-faststream], [enable FastStream support])])
+AM_CONDITIONAL([ENABLE_FASTSTREAM], [test "x$enable_faststream" = "xyes"])
+AM_COND_IF([ENABLE_FASTSTREAM], [
+	AC_DEFINE([ENABLE_FASTSTREAM], [1], [Define to 1 if FastStream is enabled.])
+])
+
 AC_ARG_ENABLE([ldac],
 	[AS_HELP_STRING([--enable-ldac], [enable LDAC support])])
 AM_CONDITIONAL([ENABLE_LDAC], [test "x$enable_ldac" = "xyes"])

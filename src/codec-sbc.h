@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_CODECSBC_H_
 #define BLUEALSA_CODECSBC_H_
 
@@ -15,8 +16,12 @@
 # include <config.h>
 #endif
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
 #include <sbc/sbc.h>
+
 #include "a2dp-codecs.h"
 
 #define SBC_QUALITY_LOW    0
@@ -25,6 +30,11 @@
 #define SBC_QUALITY_XQ     3
 
 uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality);
+
+#if ENABLE_FASTSTREAM
+int sbc_init_a2dp_faststream(sbc_t *sbc, unsigned long flags,
+		const void *conf, size_t size, bool voice);
+#endif
 
 #if ENABLE_MSBC
 int sbc_reinit_msbc(sbc_t *sbc, unsigned long flags);

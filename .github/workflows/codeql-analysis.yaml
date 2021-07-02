@@ -46,6 +46,7 @@ jobs:
       run: |
         ${{ github.workspace }}/configure \
           --enable-aac \
+          --enable-faststream \
           --enable-mp3lame \
           --enable-mpg123 \
           --enable-msbc \

@@ -38,6 +38,11 @@ bluealsa_SOURCES += \
 	codec-aptx.c
 endif
 
+if ENABLE_FASTSTREAM
+bluealsa_SOURCES += \
+	a2dp-faststream.c
+endif
+
 if ENABLE_MSBC
 bluealsa_SOURCES += \
 	codec-msbc.c

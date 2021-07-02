@@ -795,9 +795,16 @@ uint32_t a2dp_check_configuration(
 
 #if ENABLE_FASTSTREAM
 	case A2DP_CODEC_VENDOR_FASTSTREAM: {
+
 		const a2dp_faststream_t *cap = configuration;
 		cap_freq = cap->frequency_music;
 		cap_freq_bc = cap->frequency_voice;
+
+		if ((cap->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
+			debug("Invalid FastStream directions: %#x", cap->direction);
+			ret |= A2DP_CHECK_ERR_FASTSTREAM_DIR;
+		}
+
 		break;
 	}
 #endif
@@ -1156,6 +1163,10 @@ int a2dp_select_configuration(
 		if ((cap->frequency_voice = a2dp_codec_select_sampling_freq(codec, cap_freq_bc, true)) == 0) {
 			error("FastStream: No supported back-channel sampling frequencies: %#x", cap_freq_bc);
 			goto fail;
+		}
+
+		if ((cap->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
+			error("FastStream: No supported directions: %#x", cap->direction);
 		}
 
 		break;

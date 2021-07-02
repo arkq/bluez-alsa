@@ -43,6 +43,8 @@ static pthread_mutex_t transport_codec_updated_mtx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t transport_codec_updated = PTHREAD_COND_INITIALIZER;
 static unsigned int transport_codec_updated_cnt = 0;
 
+void a2dp_faststream_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 	debug("%s: %p", __func__, (void *)pcm); (void)error;
 	return 0; }

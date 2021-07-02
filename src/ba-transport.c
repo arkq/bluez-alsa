@@ -30,6 +30,9 @@
 
 #include "a2dp-audio.h"
 #include "a2dp-codecs.h"
+#ifdef ENABLE_FASTSTREAM
+# include "a2dp-faststream.h"
+#endif
 #include "audio.h"
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
@@ -1048,16 +1051,7 @@ static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 #endif
 #if ENABLE_FASTSTREAM
 	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC) {
-			t->a2dp.pcm.channels = 2;
-			t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-					((a2dp_faststream_t *)t->a2dp.configuration)->frequency_music, false);
-		}
-		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE) {
-			t->a2dp.pcm_bc.channels = 1;
-			t->a2dp.pcm_bc.sampling = a2dp_codec_lookup_frequency(codec,
-					((a2dp_faststream_t *)t->a2dp.configuration)->frequency_voice, true);
-		}
+		a2dp_faststream_transport_set_codec(t);
 		break;
 #endif
 #if ENABLE_LDAC
@@ -1127,7 +1121,14 @@ int ba_transport_start(struct ba_transport *t) {
 	debug("Starting transport: %s", ba_transport_type_to_string(t->type));
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return a2dp_audio_thread_create(t);
+		switch (t->type.codec) {
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return a2dp_faststream_transport_start(t);
+#endif
+		default:
+			return a2dp_audio_thread_create(t);
+		}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);

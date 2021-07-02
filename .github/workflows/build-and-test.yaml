@@ -12,7 +12,8 @@ jobs:
         - --enable-debug
         - --enable-debug --enable-aac --enable-msbc
         - --enable-debug --enable-mp3lame --enable-mpg123
-        - --enable-mp3lame --enable-ofono --enable-upower
+        - --enable-faststream --enable-mp3lame
+        - --enable-ofono --enable-upower
         - --enable-cli --enable-rfcomm --enable-manpages
       fail-fast: false
     runs-on: ubuntu-18.04

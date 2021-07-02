@@ -10,6 +10,9 @@
 
 #include "codec-sbc.h"
 
+#include <errno.h>
+#include <stdbool.h>
+
 #include <glib.h>
 #include <sbc/sbc.h>
 
@@ -101,6 +104,78 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality) {
 	/* Clamp selected bit-pool value to supported range. */
 	return MIN(MAX(conf->min_bitpool, bitpool), conf->max_bitpool);
 }
+
+#if ENABLE_FASTSTREAM
+/**
+ * Initialize SBC audio codec for A2DP FastStream connection.
+ *
+ * @param sbc SBC structure which shall be initialized.
+ * @param flags SBC initialization flags.
+ * @param conf A2DP FastStream configuration blob.
+ * @param size Size of the configuration blob.
+ * @param voice It true, SBC will be initialized for voice direction.
+ * @return This function returns 0 on success or a negative error value
+ *   in case of SBC audio codec initialization failure. */
+int sbc_init_a2dp_faststream(sbc_t *sbc, unsigned long flags,
+		const void *conf, size_t size, bool voice) {
+
+	const a2dp_faststream_t *a2dp = conf;
+	if (size != sizeof(*a2dp))
+		return -EINVAL;
+
+	int rv;
+	if ((rv = sbc_init(sbc, flags)) != 0)
+		return rv;
+
+	sbc->blocks = SBC_BLK_16;
+	sbc->subbands = SBC_SB_8;
+	sbc->allocation = SBC_AM_LOUDNESS;
+
+	if (voice) {
+
+		if (!(a2dp->direction & FASTSTREAM_DIRECTION_VOICE))
+			goto fail;
+
+		switch (a2dp->frequency_voice) {
+		case FASTSTREAM_SAMPLING_FREQ_VOICE_16000:
+			sbc->frequency = SBC_FREQ_16000;
+			break;
+		default:
+			goto fail;
+		}
+
+		sbc->mode = SBC_MODE_MONO;
+		sbc->bitpool = 32;
+
+	}
+	else {
+
+		if (!(a2dp->direction & FASTSTREAM_DIRECTION_MUSIC))
+			goto fail;
+
+		switch (a2dp->frequency_music) {
+		case FASTSTREAM_SAMPLING_FREQ_MUSIC_44100:
+			sbc->frequency = SBC_FREQ_44100;
+			break;
+		case FASTSTREAM_SAMPLING_FREQ_MUSIC_48000:
+			sbc->frequency = SBC_FREQ_48000;
+			break;
+		default:
+			goto fail;
+		}
+
+		sbc->mode = SBC_MODE_JOINT_STEREO;
+		sbc->bitpool = 29;
+
+	}
+
+	return 0;
+
+fail:
+	sbc_finish(sbc);
+	return -EINVAL;
+}
+#endif
 
 #if ENABLE_MSBC
 /**

@@ -124,7 +124,6 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 	};
 
 	sbc_t sbc;
-
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration,
 					t->a2dp.codec->capabilities_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
@@ -224,7 +223,6 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 	};
 
 	sbc_t sbc;
-
 	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration,
 					t->a2dp.codec->capabilities_size)) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
@@ -238,7 +236,7 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
 	const a2dp_sbc_t *configuration = (a2dp_sbc_t *)t->a2dp.configuration;
-	const size_t sbc_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
+	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
 
@@ -259,7 +257,7 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu",
 				t->mtu_write, RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len);
 
-	if (ffb_init_int16_t(&pcm, sbc_pcm_samples * (mtu_write_payload / sbc_frame_len)) == -1 ||
+	if (ffb_init_int16_t(&pcm, sbc_frame_samples * (mtu_write_payload / sbc_frame_len)) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -301,7 +299,7 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 		/* Generate as many SBC frames as possible, but less than a 4-bit media
 		 * header frame counter can contain. The size of the output buffer is
 		 * based on the socket MTU, so such transfer should be most efficient. */
-		while (input_samples >= sbc_pcm_samples &&
+		while (input_samples >= sbc_frame_samples &&
 				output_len >= sbc_frame_len &&
 				sbc_frames < ((1 << 4) - 1)) {
 

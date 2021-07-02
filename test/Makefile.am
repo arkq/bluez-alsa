@@ -147,6 +147,10 @@ bluealsa_mock_SOURCES += ../src/codec-aptx.c
 test_io_SOURCES += ../src/codec-aptx.c
 endif
 
+if ENABLE_FASTSTREAM
+bluealsa_mock_SOURCES += ../src/a2dp-faststream.c
+endif
+
 if ENABLE_MSBC
 bluealsa_mock_SOURCES += ../src/codec-msbc.c
 test_io_SOURCES += ../src/codec-msbc.c
