@@ -1,6 +1,6 @@
 /*
  * test-alsa-ctl.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -13,6 +13,10 @@
 #endif
 
 #include <libgen.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/wait.h>
 
 #include <check.h>
@@ -20,7 +24,6 @@
 
 #include "inc/preload.inc"
 #include "inc/server.inc"
-#include "../src/shared/log.c"
 
 static int snd_ctl_open_bluealsa(snd_ctl_t **ctlp, const char *service, int mode) {
 

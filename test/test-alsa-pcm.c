@@ -1,6 +1,6 @@
 /*
  * test-alsa-pcm.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -30,13 +30,13 @@
 #include <check.h>
 #include <alsa/asoundlib.h>
 
+#include "shared/defs.h"
+#include "shared/log.h"
+#include "shared/rt.h"
+
 #include "inc/preload.inc"
 #include "inc/server.inc"
 #include "inc/sine.inc"
-#include "../src/shared/defs.h"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-#include "../src/shared/rt.c"
 
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 

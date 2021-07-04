@@ -1,6 +1,6 @@
 /*
  * test-a2dp.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,11 +8,21 @@
  *
  */
 
+#include <errno.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 #include <check.h>
+#include <glib.h>
+
+#include "a2dp-codecs.h"
+#include "a2dp.h"
+#include "bluealsa.h"
+#include "codec-sbc.h"
+#include "shared/log.h"
 
 #include "../src/a2dp.c"
-#include "../src/bluealsa.c"
-#include "../src/shared/log.c"
 
 START_TEST(test_a2dp_dir) {
 	ck_assert_int_eq(A2DP_SOURCE, !A2DP_SINK);

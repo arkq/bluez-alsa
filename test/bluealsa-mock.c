@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -32,36 +33,27 @@
 #include <glib-unix.h>
 #include <glib.h>
 
-#include "inc/dbus.inc"
-#include "inc/sine.inc"
+#include "a2dp-audio.h"
+#include "a2dp-codecs.h"
+#include "a2dp.h"
+#include "ba-adapter.h"
+#include "ba-device.h"
+#include "ba-transport.h"
+#include "bluealsa-dbus.h"
+#include "bluealsa-iface.h"
+#include "bluealsa.h"
+#include "bluez.h"
+#include "codec-sbc.h"
+#include "hfp.h"
+#include "io.h"
+#include "utils.h"
+#include "shared/defs.h"
+#include "shared/log.h"
+#include "shared/rt.h"
 
 #include "../src/a2dp.c"
-#include "../src/a2dp-audio.c"
-#include "../src/a2dp-rtp.c"
-#include "../src/at.c"
-#include "../src/audio.c"
-#include "../src/ba-adapter.c"
-#include "../src/ba-device.c"
-#include "../src/ba-rfcomm.c"
-#include "../src/ba-transport.c"
-#include "../src/bluealsa-dbus.c"
-#include "../src/bluealsa-iface.c"
-#include "../src/bluealsa.c"
-#if ENABLE_APTX || ENABLE_APTX_HD
-# include "../src/codec-aptx.c"
-#endif
-#if ENABLE_MSBC
-# include "../src/codec-msbc.c"
-#endif
-#include "../src/codec-sbc.c"
-#include "../src/dbus.c"
-#include "../src/hci.c"
-#include "../src/io.c"
-#include "../src/sco.c"
-#include "../src/utils.c"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-#include "../src/shared/rt.c"
+#include "inc/dbus.inc"
+#include "inc/sine.inc"
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,

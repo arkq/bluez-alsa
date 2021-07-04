@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,14 +8,25 @@
  *
  */
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
+
+#include <bluetooth/bluetooth.h>
 #include <check.h>
 
-#include "../src/hci.c"
-#include "../src/utils.c"
-#include "../src/shared/defs.h"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-#include "../src/shared/rt.c"
+#include "a2dp-codecs.h"
+#include "ba-transport.h"
+#include "hci.h"
+#include "hfp.h"
+#include "utils.h"
+#include "shared/defs.h"
+#include "shared/ffb.h"
+#include "shared/rt.h"
 
 START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
 

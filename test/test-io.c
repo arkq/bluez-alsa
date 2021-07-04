@@ -12,36 +12,48 @@
 # include <config.h>
 #endif
 
+#include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
+#include <poll.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
+#include <bluetooth/bluetooth.h>
 #include <check.h>
+#include <glib.h>
+#if ENABLE_LDAC
+# include <ldacBT.h>
+#endif
 
-#include "inc/sine.inc"
+#include "a2dp-codecs.h"
+#include "a2dp-rtp.h"
+#include "a2dp.h"
+#include "ba-adapter.h"
+#include "ba-device.h"
+#include "ba-rfcomm.h"
+#include "ba-transport.h"
+#include "bluealsa-dbus.h"
+#include "bluealsa.h"
+#include "bluez.h"
+#include "hfp.h"
+#include "sco.h"
+#include "utils.h"
+#include "shared/defs.h"
+#include "shared/log.h"
+
 #include "../src/a2dp.c"
 #include "../src/a2dp-audio.c"
-#include "../src/a2dp-rtp.c"
-#include "../src/at.c"
-#include "../src/audio.c"
-#include "../src/ba-adapter.c"
-#include "../src/ba-device.c"
 #include "../src/ba-transport.c"
-#include "../src/bluealsa.c"
-#if ENABLE_APTX || ENABLE_APTX_HD
-# include "../src/codec-aptx.c"
-#endif
-#if ENABLE_MSBC
-# include "../src/codec-msbc.c"
-#endif
-#include "../src/codec-sbc.c"
-#include "../src/dbus.c"
-#include "../src/hci.c"
-#include "../src/io.c"
-#include "../src/sco.c"
-#include "../src/utils.c"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-#include "../src/shared/rt.c"
+#include "inc/sine.inc"
 
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 	debug("%s: %p", __func__, (void *)pcm); (void)error; return 0; }

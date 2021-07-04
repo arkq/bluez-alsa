@@ -12,18 +12,30 @@
 # include <config.h>
 #endif
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <unistd.h>
+
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
 #include <check.h>
+#include <glib.h>
+
+#include "a2dp-audio.h"
+#include "a2dp-codecs.h"
+#include "a2dp.h"
+#include "ba-adapter.h"
+#include "ba-device.h"
+#include "ba-rfcomm.h"
+#include "ba-transport.h"
+#include "bluealsa-dbus.h"
+#include "bluez.h"
+#include "sco.h"
+#include "shared/log.h"
 
 #include "../src/a2dp.c"
-#include "../src/audio.c"
-#include "../src/ba-adapter.c"
-#include "../src/ba-device.c"
 #include "../src/ba-transport.c"
-#include "../src/bluealsa.c"
-#include "../src/dbus.c"
-#include "../src/hci.c"
-#include "../src/utils.c"
-#include "../src/shared/log.c"
 
 int a2dp_audio_thread_create(struct ba_transport *t) { (void)t; return 0; }
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
