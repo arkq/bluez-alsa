@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2020 Arkadiusz Bokowy
+# Copyright (c) 2016-2021 Arkadiusz Bokowy
 
 TESTS = \
 	test-a2dp \
@@ -35,6 +35,122 @@ aloader_la_LDFLAGS = \
 	-rpath /nowhere \
 	-avoid-version \
 	-shared -module
+
+bluealsa_mock_SOURCES = \
+	../src/shared/ffb.c \
+	../src/shared/log.c \
+	../src/shared/rt.c \
+	../src/a2dp-audio.c \
+	../src/a2dp-rtp.c \
+	../src/at.c \
+	../src/audio.c \
+	../src/ba-adapter.c \
+	../src/ba-device.c \
+	../src/ba-rfcomm.c \
+	../src/ba-transport.c \
+	../src/bluealsa-dbus.c \
+	../src/bluealsa-iface.c \
+	../src/bluealsa.c \
+	../src/codec-sbc.c \
+	../src/dbus.c \
+	../src/hci.c \
+	../src/io.c \
+	../src/sco.c \
+	../src/utils.c \
+	bluealsa-mock.c
+
+test_a2dp_SOURCES = \
+	../src/shared/log.c \
+	../src/bluealsa.c \
+	test-a2dp.c
+
+test_alsa_ctl_SOURCES = \
+	../src/shared/log.c \
+	test-alsa-ctl.c
+
+test_alsa_pcm_SOURCES = \
+	../src/shared/log.c \
+	../src/shared/rt.c \
+	test-alsa-pcm.c
+
+test_at_SOURCES = \
+	../src/shared/log.c \
+	../src/at.c \
+	test-at.c
+
+test_audio_SOURCES = \
+	../src/shared/log.c \
+	../src/audio.c \
+	test-audio.c
+
+test_ba_SOURCES = \
+	../src/shared/log.c \
+	../src/audio.c \
+	../src/ba-adapter.c \
+	../src/ba-device.c \
+	../src/bluealsa.c \
+	../src/dbus.c \
+	../src/hci.c \
+	../src/utils.c \
+	test-ba.c
+
+test_io_SOURCES = \
+	../src/shared/ffb.c \
+	../src/shared/log.c \
+	../src/shared/rt.c \
+	../src/a2dp-rtp.c \
+	../src/audio.c \
+	../src/ba-adapter.c \
+	../src/ba-device.c \
+	../src/bluealsa.c \
+	../src/codec-sbc.c \
+	../src/dbus.c \
+	../src/hci.c \
+	../src/io.c \
+	../src/sco.c \
+	../src/utils.c \
+	test-io.c
+
+if ENABLE_MSBC
+test_msbc_SOURCES = \
+	../src/shared/ffb.c \
+	../src/shared/log.c \
+	../src/codec-sbc.c \
+	test-msbc.c
+endif
+
+test_rfcomm_SOURCES = \
+	../src/shared/log.c \
+	../src/a2dp.c \
+	../src/at.c \
+	../src/audio.c \
+	../src/ba-adapter.c \
+	../src/ba-device.c \
+	../src/ba-rfcomm.c \
+	../src/ba-transport.c \
+	../src/bluealsa.c \
+	../src/dbus.c \
+	../src/hci.c \
+	../src/utils.c \
+	test-rfcomm.c
+
+test_utils_SOURCES = \
+	../src/shared/ffb.c \
+	../src/shared/log.c \
+	../src/shared/rt.c \
+	../src/hci.c \
+	../src/utils.c \
+	test-utils.c
+
+if ENABLE_APTX_OR_APTX_HD
+bluealsa_mock_SOURCES += ../src/codec-aptx.c
+test_io_SOURCES += ../src/codec-aptx.c
+endif
+
+if ENABLE_MSBC
+bluealsa_mock_SOURCES += ../src/codec-msbc.c
+test_io_SOURCES += ../src/codec-msbc.c
+endif
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \

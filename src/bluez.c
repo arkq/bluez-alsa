@@ -616,7 +616,6 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv) {
 			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
 
-	ba_transport_start(t);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);

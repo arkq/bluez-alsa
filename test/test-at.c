@@ -1,6 +1,6 @@
 /*
  * test-at.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,10 +8,13 @@
  *
  */
 
+#include <stdbool.h>
+#include <string.h>
+
 #include <check.h>
 
-#include "../src/at.c"
-#include "../src/shared/log.c"
+#include "at.h"
+#include "hfp.h"
 
 START_TEST(test_at_build) {
 

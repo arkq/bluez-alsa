@@ -1,27 +1,25 @@
-name: CI - Build and Test
+name: CodeQL Analysis
 on:
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
 jobs:
-  build:
+  analyze:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     strategy:
       matrix:
-        features:
-        - --enable-debug
-        - --enable-debug --enable-aac --enable-msbc
-        - --enable-debug --enable-mp3lame --enable-mpg123
-        - --enable-mp3lame --enable-ofono --enable-upower
-        - --enable-cli --enable-rfcomm --enable-manpages
+        language: [ 'cpp' ]
       fail-fast: false
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
     - name: Install Dependencies
       run: |
         sudo apt update
         sudo apt install --yes --quiet --no-install-recommends \
-          check \
           libasound2-dev \
           libbluetooth-dev \
           libbsd-dev \
@@ -32,9 +30,13 @@ jobs:
           libmpg123-dev \
           libncurses5-dev \
           libreadline-dev \
-          libsbc-dev \
-          python-docutils
+          libsbc-dev
     - uses: actions/checkout@v2
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v1
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-and-quality
     - name: Create Build Environment
       run: |
         mkdir -p ${{ github.workspace }}/{build,m4}
@@ -43,15 +45,19 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: |
         ${{ github.workspace }}/configure \
-          ${{ matrix.features }} \
-          --enable-test
+          --enable-aac \
+          --enable-mp3lame \
+          --enable-mpg123 \
+          --enable-msbc \
+          --enable-ofono \
+          --enable-upower \
+          --enable-aplay \
+          --enable-cli \
+          --enable-rfcomm \
+          --enable-a2dpconf \
+          --enable-hcitop
     - name: Build
       working-directory: ${{ github.workspace }}/build
-      run: make && make check TESTS=
-    - name: Run Test
-      working-directory: ${{ github.workspace }}/build
-      run: make check
-    - name: Show Test Log
-      if: ${{ always() }}
-      working-directory: ${{ github.workspace }}/build
-      run: cat test/*.log
+      run: make
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v1

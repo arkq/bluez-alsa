@@ -328,6 +328,7 @@ static const struct a2dp_codec a2dp_codec_sink_sbc = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_source_mpeg = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG12,
@@ -339,6 +340,7 @@ static const struct a2dp_codec a2dp_codec_source_mpeg = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_sink_mpeg = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG12,
@@ -350,6 +352,7 @@ static const struct a2dp_codec a2dp_codec_sink_mpeg = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_source_aac = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG24,
@@ -361,6 +364,7 @@ static const struct a2dp_codec a2dp_codec_source_aac = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_sink_aac = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
@@ -372,6 +376,7 @@ static const struct a2dp_codec a2dp_codec_sink_aac = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_source_aptx = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
@@ -383,6 +388,7 @@ static const struct a2dp_codec a2dp_codec_source_aptx = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_sink_aptx = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
@@ -394,6 +400,7 @@ static const struct a2dp_codec a2dp_codec_sink_aptx = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_source_aptx_hd = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
@@ -405,6 +412,7 @@ static const struct a2dp_codec a2dp_codec_source_aptx_hd = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_sink_aptx_hd = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
@@ -416,6 +424,7 @@ static const struct a2dp_codec a2dp_codec_sink_aptx_hd = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_source_faststream = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
@@ -428,6 +437,7 @@ static const struct a2dp_codec a2dp_codec_source_faststream = {
 	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_sink_faststream = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
@@ -440,6 +450,7 @@ static const struct a2dp_codec a2dp_codec_sink_faststream = {
 	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_source_ldac = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
@@ -451,6 +462,7 @@ static const struct a2dp_codec a2dp_codec_source_ldac = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
 };
 
+__attribute__ ((unused))
 static const struct a2dp_codec a2dp_codec_sink_ldac = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,

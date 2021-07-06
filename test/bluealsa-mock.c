@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -32,35 +33,27 @@
 #include <glib-unix.h>
 #include <glib.h>
 
-#include "inc/dbus.inc"
-#include "inc/sine.inc"
+#include "a2dp-audio.h"
+#include "a2dp-codecs.h"
+#include "a2dp.h"
+#include "ba-adapter.h"
+#include "ba-device.h"
+#include "ba-transport.h"
+#include "bluealsa-dbus.h"
+#include "bluealsa-iface.h"
+#include "bluealsa.h"
+#include "bluez.h"
+#include "codec-sbc.h"
+#include "hfp.h"
+#include "io.h"
+#include "utils.h"
+#include "shared/defs.h"
+#include "shared/log.h"
+#include "shared/rt.h"
 
 #include "../src/a2dp.c"
-#include "../src/a2dp-audio.c"
-#include "../src/at.c"
-#include "../src/audio.c"
-#include "../src/ba-adapter.c"
-#include "../src/ba-device.c"
-#include "../src/ba-rfcomm.c"
-#include "../src/ba-transport.c"
-#include "../src/bluealsa-dbus.c"
-#include "../src/bluealsa-iface.c"
-#include "../src/bluealsa.c"
-#if ENABLE_APTX || ENABLE_APTX_HD
-# include "../src/codec-aptx.c"
-#endif
-#if ENABLE_MSBC
-# include "../src/codec-msbc.c"
-#endif
-#include "../src/codec-sbc.c"
-#include "../src/dbus.c"
-#include "../src/hci.c"
-#include "../src/io.c"
-#include "../src/sco.c"
-#include "../src/utils.c"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-#include "../src/shared/rt.c"
+#include "inc/dbus.inc"
+#include "inc/sine.inc"
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
@@ -147,7 +140,7 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 	int x = 0;
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_ready(th);
+	ba_transport_thread_set_state_running(th);
 
 	while (sigusr1_count == 0) {
 
@@ -158,9 +151,11 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 		if (poll(fds, ARRAYSIZE(fds), timout) == 1 &&
 				fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			switch (ba_transport_thread_recv_signal(th)) {
-			case BA_TRANSPORT_SIGNAL_PCM_OPEN:
-			case BA_TRANSPORT_SIGNAL_PCM_RESUME:
+			enum ba_transport_thread_signal signal;
+			ba_transport_thread_signal_recv(th, &signal);
+			switch (signal) {
+			case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
+			case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
 				asrs.frames = 0;
 				continue;
 			default:
@@ -185,11 +180,12 @@ static void *mock_a2dp_sink(struct ba_transport_thread *th) {
 
 	}
 
+	ba_transport_thread_set_state_stopping(th);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
 
-void *bt_dump_thread(void *userdata) {
+static void *mock_bt_dump_thread(void *userdata) {
 
 	int bt_fd = GPOINTER_TO_INT(userdata);
 	FILE *f_output = NULL;
@@ -216,6 +212,35 @@ void *bt_dump_thread(void *userdata) {
 	return NULL;
 }
 
+static void mock_transport_start(struct ba_transport *t, int bt_fd) {
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+		g_thread_unref(g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(bt_fd)));
+		assert(a2dp_audio_thread_create(t) == 0);
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
+		switch (t->type.codec) {
+		case A2DP_CODEC_SBC:
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-sbc", true) == 0);
+			break;
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx", true) == 0);
+			break;
+#endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx-hd", true) == 0);
+			break;
+#endif
+		}
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		assert(ba_transport_start(t) == 0);
+	}
+
+}
+
 static int mock_transport_acquire(struct ba_transport *t) {
 
 	int bt_fds[2];
@@ -225,43 +250,11 @@ static int mock_transport_acquire(struct ba_transport *t) {
 	t->mtu_read = 256;
 	t->mtu_write = 256;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		switch (t->type.codec) {
-		case A2DP_CODEC_SBC:
-			assert(ba_transport_thread_create(&t->thread_enc, a2dp_source_sbc, "ba-a2dp-sbc") == 0);
-			g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
-			break;
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX:
-			assert(ba_transport_thread_create(&t->thread_enc, a2dp_source_aptx, "ba-a2dp-aptx") == 0);
-			g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
-			break;
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			assert(ba_transport_thread_create(&t->thread_enc, a2dp_source_aptx_hd, "ba-a2dp-aptx-hd") == 0);
-			g_thread_unref(g_thread_new(NULL, bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
-			break;
-#endif
-		}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		switch (t->type.codec) {
-		case A2DP_CODEC_SBC:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-sbc") == 0);
-			break;
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx") == 0);
-			break;
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_sink, "ba-a2dp-aptx-hd") == 0);
-			break;
-#endif
-		}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		assert(ba_transport_thread_create(&t->thread_enc, sco_thread, "ba-sco") == 0);
+	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
+
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+	mock_transport_start(t, bt_fds[1]);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	return 0;
 }
@@ -287,7 +280,7 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 			device_btmac, ba_transport_codecs_a2dp_to_string(t->type.codec));
 	t->acquire = mock_transport_acquire;
 	if (type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
-		assert(t->acquire(t) == 0);
+		assert(ba_transport_acquire(t) == 0);
 	ba_device_unref(d);
 	return t;
 }

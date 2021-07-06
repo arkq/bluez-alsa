@@ -12,35 +12,48 @@
 # include <config.h>
 #endif
 
+#include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
+#include <poll.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
+#include <bluetooth/bluetooth.h>
 #include <check.h>
+#include <glib.h>
+#if ENABLE_LDAC
+# include <ldacBT.h>
+#endif
 
-#include "inc/sine.inc"
+#include "a2dp-codecs.h"
+#include "a2dp-rtp.h"
+#include "a2dp.h"
+#include "ba-adapter.h"
+#include "ba-device.h"
+#include "ba-rfcomm.h"
+#include "ba-transport.h"
+#include "bluealsa-dbus.h"
+#include "bluealsa.h"
+#include "bluez.h"
+#include "hfp.h"
+#include "sco.h"
+#include "utils.h"
+#include "shared/defs.h"
+#include "shared/log.h"
+
 #include "../src/a2dp.c"
 #include "../src/a2dp-audio.c"
-#include "../src/at.c"
-#include "../src/audio.c"
-#include "../src/ba-adapter.c"
-#include "../src/ba-device.c"
 #include "../src/ba-transport.c"
-#include "../src/bluealsa.c"
-#if ENABLE_APTX || ENABLE_APTX_HD
-# include "../src/codec-aptx.c"
-#endif
-#if ENABLE_MSBC
-# include "../src/codec-msbc.c"
-#endif
-#include "../src/codec-sbc.c"
-#include "../src/dbus.c"
-#include "../src/hci.c"
-#include "../src/io.c"
-#include "../src/sco.c"
-#include "../src/utils.c"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-#include "../src/shared/rt.c"
+#include "inc/sine.inc"
 
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 	debug("%s: %p", __func__, (void *)pcm); (void)error; return 0; }
@@ -225,24 +238,6 @@ static void bt_data_write(int fd) {
 	}
 }
 
-/**
- * Helper function for timed thread join.
- *
- * This function takes the timeout value in microseconds. */
-static int pthread_timedjoin(pthread_t thread, void **retval, useconds_t usec) {
-
-	struct timespec ts;
-
-	clock_gettime(CLOCK_REALTIME, &ts);
-	ts.tv_nsec += (long)usec * 1000;
-
-	/* normalize timespec structure */
-	ts.tv_sec += ts.tv_nsec / (long)1e9;
-	ts.tv_nsec = ts.tv_nsec % (long)1e9;
-
-	return pthread_timedjoin_np(thread, retval, &ts);
-}
-
 static pthread_cond_t test_a2dp_terminate = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t test_a2dp_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -260,14 +255,14 @@ static void test_a2dp_start_terminate_timer(unsigned int delay) {
 
 static void *test_io_thread_a2dp_dump_bt(struct ba_transport_thread *th) {
 
-	struct ba_transport *t = th->t;
-	struct pollfd pfds[] = {{ t->bt_fd, POLLIN, 0 }};
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+
+	struct pollfd pfds[] = {{ th->bt_fd, POLLIN, 0 }};
 	uint8_t buffer[1024];
 	ssize_t len;
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_ready(th);
-
+	ba_transport_thread_set_state_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
@@ -283,13 +278,17 @@ static void *test_io_thread_a2dp_dump_bt(struct ba_transport_thread *th) {
 
 	}
 
-	/* signal termination and wait for cancelation */
+	/* signal termination and wait for cancellation */
 	test_a2dp_start_terminate_timer(0);
 	sleep(3600);
+
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
 static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
 	struct pollfd pfds[] = {{ t->a2dp.pcm.fd, POLLIN, 0 }};
@@ -305,8 +304,7 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_ready(th);
-
+	ba_transport_thread_set_state_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
@@ -328,9 +326,11 @@ static void *test_io_thread_a2dp_dump_pcm(struct ba_transport_thread *th) {
 	if (f != NULL)
 		fclose(f);
 
-	/* signal termination and wait for cancelation */
+	/* signal termination and wait for cancellation */
 	test_a2dp_start_terminate_timer(0);
 	sleep(3600);
+
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
@@ -351,13 +351,13 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 	int pcm_fds[2];
 
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, pcm_fds), 0);
+	debug("Created PCM socket pair: %d, %d", pcm_fds[0], pcm_fds[1]);
 
 	if (dec == test_io_thread_a2dp_dump_bt)
 		bt_data_init();
 
-	t1->type.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE;
-	t2->type.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	t1->bt_fd = bt_fds[1];
 	t2->bt_fd = bt_fds[0];
 	t1->a2dp.pcm.fd = pcm_fds[1];
@@ -367,44 +367,55 @@ static void test_a2dp(struct ba_transport *t1, struct ba_transport *t2,
 		test_a2dp_start_terminate_timer(aging_duration);
 
 	if (enc == test_io_thread_a2dp_dump_pcm) {
-		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name), 0);
-		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name, true), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name, true), 0);
 		bt_data_write(bt_fds[1]);
 	}
 	else {
-		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t1->thread_enc, enc, enc_name, true), 0);
 		write_test_pcm(pcm_fds[0], t1->a2dp.pcm.channels, 4 * 1024 * test_a2dp_pcm_samples_boost);
-		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name), 0);
+		ck_assert_int_eq(ba_transport_thread_create(&t2->thread_dec, dec, dec_name, true), 0);
 	}
 
 	pthread_mutex_lock(&test_a2dp_mutex);
 	pthread_cond_wait(&test_a2dp_terminate, &test_a2dp_mutex);
 	pthread_mutex_unlock(&test_a2dp_mutex);
 
-	ck_assert_int_eq(pthread_cancel(t1->thread_enc.id), 0);
-	ck_assert_int_eq(pthread_cancel(t2->thread_dec.id), 0);
+	pthread_mutex_lock(&t1->a2dp.pcm.mutex);
+	ba_transport_pcm_release(&t1->a2dp.pcm);
+	pthread_mutex_unlock(&t1->a2dp.pcm.mutex);
 
-	ck_assert_int_eq(pthread_timedjoin(t1->thread_enc.id, NULL, 1e6), 0);
-	ck_assert_int_eq(pthread_timedjoin(t2->thread_dec.id, NULL, 1e6), 0);
+	transport_thread_cancel(&t1->thread_enc);
+
+	pthread_mutex_lock(&t2->a2dp.pcm.mutex);
+	ba_transport_pcm_release(&t2->a2dp.pcm);
+	pthread_mutex_unlock(&t2->a2dp.pcm.mutex);
+
+	transport_thread_cancel(&t2->thread_dec);
 
 }
 
-static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thread *)) {
+static void test_sco(struct ba_transport *t,
+		void *(*enc)(struct ba_transport_thread *), void *(*dec)(struct ba_transport_thread *)) {
 
 	int sco_fds[2];
 	int pcm_mic_fds[2];
 	int pcm_spk_fds[2];
 
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sco_fds), 0);
+	debug("Created BT socket pair: %d, %d", sco_fds[0], sco_fds[1]);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_mic_fds), 0);
+	debug("Created PCM mic socket pair: %d, %d", pcm_mic_fds[0], pcm_mic_fds[1]);
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, pcm_spk_fds), 0);
+	debug("Created PCM spk socket pair: %d, %d", pcm_spk_fds[0], pcm_spk_fds[1]);
 	write_test_pcm(pcm_spk_fds[0], t->sco.spk_pcm.channels, 1024);
 
 	t->bt_fd = sco_fds[1];
 	t->sco.mic_pcm.fd = pcm_mic_fds[1];
 	t->sco.spk_pcm.fd = pcm_spk_fds[1];
 
-	ck_assert_int_eq(ba_transport_thread_create(&t->thread_enc, cb, "sco"), 0);
+	ck_assert_int_eq(ba_transport_thread_create(&t->thread_enc, enc, "sco-enc", true), 0);
+	ck_assert_int_eq(ba_transport_thread_create(&t->thread_dec, dec, "sco-dec", false), 0);
 
 	struct pollfd pfds[] = {
 		{ sco_fds[0], POLLIN, 0 },
@@ -438,12 +449,12 @@ static void test_sco(struct ba_transport *t, void *(*cb)(struct ba_transport_thr
 	debug("Decoded samples total: %zd", decoded_samples_total);
 	ck_assert_int_gt(decoded_samples_total, 0);
 
-	ck_assert_int_eq(pthread_cancel(t->thread_enc.id), 0);
-	ck_assert_int_eq(pthread_timedjoin(t->thread_enc.id, NULL, 1e6), 0);
+	transport_thread_cancel(&t->thread_enc);
 
 	close(pcm_spk_fds[0]);
 	close(pcm_mic_fds[0]);
 	close(sco_fds[0]);
+
 }
 
 static int test_transport_acquire(struct ba_transport *t) {
@@ -463,6 +474,7 @@ START_TEST(test_a2dp_sbc) {
 		.codec = A2DP_CODEC_SBC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/sbc",
 			&a2dp_codec_source_sbc, &config_sbc_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/sbc",
 			&a2dp_codec_sink_sbc, &config_sbc_44100_stereo);
 
@@ -470,14 +482,17 @@ START_TEST(test_a2dp_sbc) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
-		t1->mtu_write = t2->mtu_read = 153 * 3;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
 		test_a2dp(t1, t2, a2dp_source_sbc, a2dp_sink_sbc);
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 153 * 3;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
 		test_a2dp(t1, t2, a2dp_source_sbc, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_sbc);
 	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } END_TEST
 
@@ -489,6 +504,7 @@ START_TEST(test_a2dp_mp3) {
 		.codec = A2DP_CODEC_MPEG12 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/mp3",
 			&a2dp_codec_source_mpeg, &config_mp3_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/mp3",
 			&a2dp_codec_sink_mpeg, &config_mp3_44100_stereo);
 
@@ -502,16 +518,19 @@ START_TEST(test_a2dp_mp3) {
 	test_a2dp_pcm_samples_boost = 3;
 
 	if (aging_duration) {
-		t1->mtu_write = t2->mtu_read = 1024;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
 		test_a2dp(t1, t2, a2dp_source_mp3, a2dp_sink_mpeg);
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 250;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 250;
 		test_a2dp(t1, t2, a2dp_source_mp3, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_mpeg);
 	}
 
 	test_a2dp_pcm_samples_boost = prev;
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } END_TEST
 #endif
@@ -524,6 +543,7 @@ START_TEST(test_a2dp_aac) {
 		.codec = A2DP_CODEC_MPEG24 };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aac",
 			&a2dp_codec_source_aac, &config_aac_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aac",
 			&a2dp_codec_sink_aac, &config_aac_44100_stereo);
 
@@ -531,14 +551,17 @@ START_TEST(test_a2dp_aac) {
 	t1->release = t2->release = test_transport_release_bt_a2dp;
 
 	if (aging_duration) {
-		t1->mtu_write = t2->mtu_read = 450;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 450;
 		test_a2dp(t1, t2, a2dp_source_aac, a2dp_sink_aac);
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 64;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 64;
 		test_a2dp(t1, t2, a2dp_source_aac, test_io_thread_a2dp_dump_bt);
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aac);
 	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } END_TEST
 #endif
@@ -551,6 +574,7 @@ START_TEST(test_a2dp_aptx) {
 		.codec = A2DP_CODEC_VENDOR_APTX };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptx",
 			&a2dp_codec_source_aptx, &config_aptx_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aptx",
 			&a2dp_codec_sink_aptx, &config_aptx_44100_stereo);
 
@@ -559,17 +583,20 @@ START_TEST(test_a2dp_aptx) {
 
 	if (aging_duration) {
 #if HAVE_APTX_DECODE
-		t1->mtu_write = t2->mtu_read = 400;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 400;
 		test_a2dp(t1, t2, a2dp_source_aptx, a2dp_sink_aptx);
 #endif
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 40;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 40;
 		test_a2dp(t1, t2, a2dp_source_aptx, test_io_thread_a2dp_dump_bt);
 #if HAVE_APTX_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx);
 #endif
 	};
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } END_TEST
 #endif
@@ -582,6 +609,7 @@ START_TEST(test_a2dp_aptx_hd) {
 		.codec = A2DP_CODEC_VENDOR_APTX_HD };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/aptxhd",
 			&a2dp_codec_source_aptx_hd, &config_aptx_hd_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/aptxhd",
 			&a2dp_codec_sink_aptx_hd, &config_aptx_hd_44100_stereo);
 
@@ -590,17 +618,20 @@ START_TEST(test_a2dp_aptx_hd) {
 
 	if (aging_duration) {
 #if HAVE_APTX_HD_DECODE
-		t1->mtu_write = t2->mtu_read = 600;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
 		test_a2dp(t1, t2, a2dp_source_aptx_hd, a2dp_sink_aptx_hd);
 #endif
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = 60;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
 		test_a2dp(t1, t2, a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
 #if HAVE_APTX_HD_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx_hd);
 #endif
 	};
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } END_TEST
 #endif
@@ -613,6 +644,7 @@ START_TEST(test_a2dp_ldac) {
 		.codec = A2DP_CODEC_VENDOR_LDAC };
 	struct ba_transport *t1 = ba_transport_new_a2dp(device1, ttype, ":test", "/path/ldac",
 			&a2dp_codec_source_ldac, &config_ldac_44100_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = ba_transport_new_a2dp(device2, ttype, ":test", "/path/ldac",
 			&a2dp_codec_sink_ldac, &config_ldac_44100_stereo);
 
@@ -621,31 +653,38 @@ START_TEST(test_a2dp_ldac) {
 
 	if (aging_duration) {
 #if HAVE_LDAC_DECODE
-		t1->mtu_write = t2->mtu_read = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990 + 6;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990 + 6;
 		test_a2dp(t1, t2, a2dp_source_ldac, a2dp_sink_ldac);
 #endif
 	}
 	else {
-		t1->mtu_write = t2->mtu_read = RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
 		test_a2dp(t1, t2, a2dp_source_ldac, test_io_thread_a2dp_dump_bt);
 #if HAVE_LDAC_DECODE
 		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_ldac);
 #endif
 	}
 
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
 } END_TEST
 #endif
 
 START_TEST(test_sco_cvsd) {
 
-	struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_HSP_AG };
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_HSP_AG };
 	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/cvsd", -1);
 
-	t->mtu_read = t->mtu_write = 48;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_send_signal(&t->thread_enc, BA_TRANSPORT_SIGNAL_PING);
-	test_sco(t, sco_thread);
+	t->mtu_read = t->mtu_write = 48;
+	test_sco(t, sco_enc_thread, sco_dec_thread);
+
+	ba_transport_destroy(t);
 
 } END_TEST
 
@@ -657,11 +696,12 @@ START_TEST(test_sco_msbc) {
 		.codec = HFP_CODEC_MSBC };
 	struct ba_transport *t = ba_transport_new_sco(device1, ttype, ":test", "/path/sco/msbc", -1);
 
-	t->mtu_read = t->mtu_write = 24;
 	t->acquire = test_transport_acquire;
 
-	ba_transport_thread_send_signal(&t->thread_enc, BA_TRANSPORT_SIGNAL_PING);
-	test_sco(t, sco_thread);
+	t->mtu_read = t->mtu_write = 24;
+	test_sco(t, sco_enc_thread, sco_dec_thread);
+
+	ba_transport_destroy(t);
 
 } END_TEST
 #endif

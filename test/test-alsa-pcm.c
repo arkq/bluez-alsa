@@ -1,6 +1,6 @@
 /*
  * test-alsa-pcm.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -30,13 +30,13 @@
 #include <check.h>
 #include <alsa/asoundlib.h>
 
+#include "shared/defs.h"
+#include "shared/log.h"
+#include "shared/rt.h"
+
 #include "inc/preload.inc"
 #include "inc/server.inc"
 #include "inc/sine.inc"
-#include "../src/shared/defs.h"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-#include "../src/shared/rt.c"
 
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 
@@ -515,6 +515,36 @@ START_TEST(ba_test_playback_hw_constraints) {
 
 } END_TEST
 
+START_TEST(test_playback_hw_set_free) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+	size_t i;
+
+	ck_assert_int_eq(test_pcm_open(&pid, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+
+	for (i = 0; i < 5; i++) {
+		int set_hw_param_ret;
+		/* acquire Bluetooth transport */
+		if ((set_hw_param_ret = set_hw_params(pcm, pcm_format, pcm_channels,
+					pcm_sampling, &buffer_time, &period_time)) == -EBUSY) {
+			debug("Retrying snd_pcm_hw_params_set...");
+			/* do not treat busy as an error */
+			i--;
+			continue;
+		}
+		ck_assert_int_eq(set_hw_param_ret, 0);
+		/* release Bluetooth transport */
+		ck_assert_int_eq(snd_pcm_hw_free(pcm), 0);
+	}
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
 START_TEST(test_playback_start) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
@@ -933,6 +963,7 @@ int main(int argc, char *argv[]) {
 	TCase *tc_playback = tcase_create("playback");
 	tcase_add_test(tc_playback, dump_playback);
 	tcase_add_test(tc_playback, ba_test_playback_hw_constraints);
+	tcase_add_test(tc_playback, test_playback_hw_set_free);
 	tcase_add_test(tc_playback, test_playback_start);
 	tcase_add_test(tc_playback, test_playback_drain);
 	tcase_add_test(tc_playback, test_playback_pause);

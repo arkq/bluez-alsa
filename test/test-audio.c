@@ -8,10 +8,13 @@
  *
  */
 
+#include <stdint.h>
+#include <string.h>
+
 #include <check.h>
 
-#include "../src/audio.c"
-#include "../src/shared/defs.h"
+#include "audio.h"
+#include "shared/defs.h"
 
 START_TEST(test_audio_scale_s16_2le) {
 

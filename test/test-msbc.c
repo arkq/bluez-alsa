@@ -8,16 +8,19 @@
  *
  */
 
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+
 #include <check.h>
+#include <glib.h>
+
+#include "codec-msbc.h"
+#include "shared/defs.h"
+#include "shared/ffb.h"
 
 #include "inc/sine.inc"
 #include "../src/codec-msbc.c"
-#include "../src/codec-sbc.c"
-#include "../src/shared/defs.h"
-#include "../src/shared/ffb.c"
-#include "../src/shared/log.c"
-
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 START_TEST(test_msbc_init) {
 
@@ -83,7 +86,7 @@ START_TEST(test_msbc_find_h2_header) {
 
 START_TEST(test_msbc_encode_decode) {
 
-	struct esco_msbc msbc = { .initialized = false };
+	struct esco_msbc msbc = { 0 };
 	int16_t sine[1024];
 	size_t len;
 	size_t i;
@@ -94,6 +97,7 @@ START_TEST(test_msbc_encode_decode) {
 	uint8_t data[sizeof(sine)];
 	uint8_t *data_tail = data;
 
+	msbc.initialized = false;
 	ck_assert_int_eq(msbc_init(&msbc), 0);
 	for (rv = 1, i = 0; rv == 1;) {
 
@@ -113,9 +117,12 @@ START_TEST(test_msbc_encode_decode) {
 
 	ck_assert_int_eq(data_tail - data, 480);
 
+	msbc_finish(&msbc);
+
 	int16_t pcm[sizeof(sine)];
 	int16_t *pcm_tail = pcm;
 
+	msbc.initialized = false;
 	ck_assert_int_eq(msbc_init(&msbc), 0);
 	for (rv = 1, i = 0; rv == 1; ) {
 

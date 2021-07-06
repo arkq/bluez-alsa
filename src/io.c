@@ -15,14 +15,89 @@
 #include <math.h>
 #include <poll.h>
 #include <pthread.h>
-#include <stdint.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <glib.h>
 
 #include "audio.h"
 #include "bluealsa.h"
+#include "shared/defs.h"
 #include "shared/log.h"
+
+/**
+ * Read data from the BT transport (SCO or SEQPACKET) socket. */
+ssize_t io_bt_read(
+		struct ba_transport_thread *th,
+		void *buffer,
+		size_t count) {
+
+	const int fd = th->bt_fd;
+	ssize_t ret;
+
+	if (fd == -1)
+		return errno = EBADFD, -1;
+
+	while ((ret = read(fd, buffer, count)) == -1 &&
+			errno == EINTR)
+		continue;
+	if (ret == -1 && (
+				errno == ECONNABORTED ||
+				errno == ECONNRESET ||
+				errno == ETIMEDOUT)) {
+		error("BT socket disconnected: %s", strerror(errno));
+		ret = 0;
+	}
+
+	if (ret == 0)
+		ba_transport_thread_bt_release(th);
+
+	return ret;
+}
+
+/**
+ * Write data to the BT transport (SCO or SEQPACKET) socket.
+ *
+ * Note:
+ * This function may temporally re-enable thread cancellation! */
+ssize_t io_bt_write(
+		struct ba_transport_thread *th,
+		const void *buffer,
+		size_t count) {
+
+	ssize_t ret;
+	int fd;
+
+retry:
+
+	if ((fd = th->bt_fd) == -1)
+		return errno = EBADFD, -1;
+
+	if ((ret = write(fd, buffer, count)) == -1)
+		switch (errno) {
+		case EINTR:
+			goto retry;
+		case EAGAIN:
+			/* In order to provide a way of escaping from the infinite poll()
+			 * we have to temporally re-enable thread cancellation. */
+			pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+			struct pollfd pfd = { fd, POLLOUT, 0 };
+			poll(&pfd, 1, -1);
+			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+			goto retry;
+		case ECONNABORTED:
+		case ECONNRESET:
+		case ENOTCONN:
+		case ETIMEDOUT:
+			error("BT socket disconnected: %s", strerror(errno));
+			ret = 0;
+		}
+
+	if (ret == 0)
+		ba_transport_thread_bt_release(th);
+
+	return ret;
+}
 
 /**
  * Scale PCM signal according to the volume configuration. */
@@ -95,80 +170,231 @@ ssize_t io_pcm_read(
 		void *buffer,
 		size_t samples) {
 
+	pthread_mutex_lock(&pcm->mutex);
+
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
-	ssize_t ret;
+	const int fd = pcm->fd;
+	ssize_t ret = -1;
 
-	/* If the passed file descriptor is invalid (e.g. -1) is means, that other
-	 * thread (the controller) has closed the connection. If the connection was
-	 * closed during this call, we will still read correct data, because Linux
-	 * kernel does not decrement file descriptor reference counter until the
-	 * read returns. */
-	while ((ret = read(pcm->fd, buffer, samples * sample_size)) == -1 &&
-			errno == EINTR)
-		continue;
-
-	if (ret > 0) {
-		samples = ret / sample_size;
-		io_pcm_scale(pcm, buffer, samples);
-		return samples;
+	if (fd == -1)
+		errno = EBADFD;
+	else {
+		while ((ret = read(fd, buffer, samples * sample_size)) == -1 &&
+				errno == EINTR)
+			continue;
+		if (ret == 0) {
+			debug("PCM has been closed: %d", fd);
+			ba_transport_pcm_release(pcm);
+		}
 	}
 
-	if (ret == 0)
-		debug("PCM has been closed: %d", pcm->fd);
-	if (errno == EBADF)
-		ret = 0;
-	if (ret == 0)
-		ba_transport_pcm_release(pcm);
+	pthread_mutex_unlock(&pcm->mutex);
 
-	return ret;
+	if (ret <= 0)
+		return ret;
+
+	samples = ret / sample_size;
+	io_pcm_scale(pcm, buffer, samples);
+	return samples;
 }
 
 /**
  * Write PCM signal to the transport PCM FIFO.
  *
  * Note:
- * This function temporally re-enables thread cancellation! */
+ * This function may temporally re-enable thread cancellation! */
 ssize_t io_pcm_write(
 		struct ba_transport_pcm *pcm,
 		const void *buffer,
 		size_t samples) {
 
-	const uint8_t *head = buffer;
+	pthread_mutex_lock(&pcm->mutex);
+
 	size_t len = samples * BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
-	struct pollfd pfd = { pcm->fd, POLLOUT, 0 };
-	int oldstate;
 	ssize_t ret;
 
-	/* In order to provide a way of escaping from the infinite poll() we have
-	 * to temporally re-enable thread cancellation. */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
-
 	do {
-		if ((ret = write(pcm->fd, head, len)) == -1)
+
+		const int fd = pcm->fd;
+		if (fd == -1) {
+			errno = EBADFD;
+			ret = -1;
+			goto final;
+		}
+
+		if ((ret = write(fd, buffer, len)) == -1)
 			switch (errno) {
 			case EINTR:
 				continue;
 			case EAGAIN:
+				/* In order to provide a way of escaping from the infinite poll()
+				 * we have to temporally re-enable thread cancellation. */
+				pthread_cleanup_push(PTHREAD_CLEANUP(pthread_mutex_unlock), &pcm->mutex);
+				pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+				struct pollfd pfd = { fd, POLLOUT, 0 };
 				poll(&pfd, 1, -1);
+				pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+				pthread_cleanup_pop(0);
 				continue;
 			case EPIPE:
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
-				debug("PCM has been closed: %d", pcm->fd);
+				debug("PCM has been closed: %d", fd);
 				ba_transport_pcm_release(pcm);
 				ret = 0;
 				/* fall-through */
 			default:
 				goto final;
 			}
-		head += ret;
+
+		buffer += ret;
 		len -= ret;
+
 	} while (len != 0);
 
 	/* It is guaranteed, that this function will write data atomically. */
 	ret = samples;
 
 final:
-	pthread_setcancelstate(oldstate, NULL);
+	pthread_mutex_unlock(&pcm->mutex);
 	return ret;
+}
+
+static enum ba_transport_thread_signal io_poll_signal_filter_none(
+		enum ba_transport_thread_signal signal,
+		void *userdata) {
+	(void)userdata;
+	return signal;
+}
+
+/**
+ * Poll and read data from the BT transport socket.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
+ssize_t io_poll_and_read_bt(
+		struct io_poll *io,
+		struct ba_transport_thread *th,
+		void *buffer,
+		size_t count) {
+
+	struct pollfd fds[2] = {
+		{ th->pipe[0], POLLIN, 0 },
+		{ th->bt_fd, POLLIN, 0 }};
+
+	/* Allow escaping from the poll() by thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+repoll:
+
+	if (poll(fds, ARRAYSIZE(fds), io->timeout) == -1) {
+		if (errno == EINTR)
+			goto repoll;
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		return -1;
+	}
+
+	if (fds[0].revents & POLLIN) {
+		/* dispatch incoming event */
+		io_poll_signal_filter *filter = io->signal.filter != NULL ?
+			io->signal.filter : io_poll_signal_filter_none;
+		enum ba_transport_thread_signal signal;
+		ba_transport_thread_signal_recv(th, &signal);
+		switch (filter(signal, io->signal.userdata)) {
+		default:
+			goto repoll;
+		}
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	return io_bt_read(th, buffer, count);
+}
+
+/**
+ * Poll and read data from the PCM FIFO.
+ *
+ * Note:
+ * This function temporally re-enables thread cancellation! */
+ssize_t io_poll_and_read_pcm(
+		struct io_poll *io,
+		struct ba_transport_pcm *pcm,
+		void *buffer,
+		size_t samples) {
+
+	struct ba_transport_thread *th = pcm->th;
+	struct pollfd fds[2] = {
+		{ th->pipe[0], POLLIN, 0 },
+		{ -1, POLLIN, 0 }};
+
+repoll:
+
+	/* Allow escaping from the poll() by thread cancellation. */
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+	/* Add PCM socket to the poll if it is active. */
+	fds[1].fd = ba_transport_pcm_is_active(pcm) ? pcm->fd : -1;
+
+	/* Poll for reading with optional sync timeout. */
+	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
+	case 0:
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		pthread_cond_signal(&pcm->synced);
+		io->timeout = -1;
+		return 0;
+	case -1:
+		if (errno == EINTR)
+			goto repoll;
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		return -1;
+	}
+
+	if (fds[0].revents & POLLIN) {
+		/* dispatch incoming event */
+		io_poll_signal_filter *filter = io->signal.filter != NULL ?
+			io->signal.filter : io_poll_signal_filter_none;
+		enum ba_transport_thread_signal signal;
+		ba_transport_thread_signal_recv(th, &signal);
+		switch (filter(signal, io->signal.userdata)) {
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
+			io->asrs.frames = 0;
+			io->timeout = -1;
+			goto repoll;
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE:
+			/* reuse PCM read disconnection logic */
+			break;
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC:
+			io->timeout = 100;
+			goto repoll;
+		case BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP:
+			io_pcm_flush(pcm);
+			goto repoll;
+		default:
+			goto repoll;
+		}
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	ssize_t samples_read;
+	if ((samples_read = io_pcm_read(pcm, buffer, samples)) == -1) {
+		if (errno == EAGAIN)
+			goto repoll;
+		if (errno != EBADFD)
+			return -1;
+		samples_read = 0;
+	}
+
+	if (samples_read == 0)
+		return 0;
+
+	/* When the thread is created, there might be no data in the FIFO. In fact
+	 * there might be no data for a long time - until client starts playback.
+	 * In order to correctly calculate time drift, the zero time point has to
+	 * be obtained after the stream has started. */
+	if (io->asrs.frames == 0)
+		asrsync_init(&io->asrs, pcm->sampling);
+
+	return samples_read;
 }

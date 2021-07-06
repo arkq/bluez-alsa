@@ -14,21 +14,27 @@
 
 #include <pthread.h>
 #include <signal.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
 #include <check.h>
+#include <glib.h>
 
-#include "../src/a2dp.c"
-#include "../src/audio.c"
-#include "../src/ba-adapter.c"
-#include "../src/ba-device.c"
-#include "../src/ba-rfcomm.c"
-#include "../src/ba-transport.c"
-#include "../src/bluealsa.c"
-#include "../src/dbus.c"
-#include "../src/at.c"
-#include "../src/hci.c"
-#include "../src/utils.c"
-#include "../src/shared/log.c"
+#include "a2dp.h"
+#include "ba-adapter.h"
+#include "ba-device.h"
+#include "ba-rfcomm.h"
+#include "ba-transport.h"
+#include "bluealsa-dbus.h"
+#include "bluealsa.h"
+#include "bluez.h"
+#include "hfp.h"
+#include "shared/log.h"
 
 static struct ba_adapter *adapter = NULL;
 static struct ba_device *device = NULL;
@@ -37,7 +43,6 @@ static pthread_mutex_t transport_codec_updated_mtx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t transport_codec_updated = PTHREAD_COND_INITIALIZER;
 static unsigned int transport_codec_updated_cnt = 0;
 
-const struct bluez_a2dp_codec **bluez_a2dp_codecs = NULL;
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 	debug("%s: %p", __func__, (void *)pcm); (void)error;
 	return 0; }
@@ -57,7 +62,8 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); }
 int a2dp_audio_thread_create(struct ba_transport *t) { (void)t; return -1; }
-void *sco_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
+void *sco_enc_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
+void *sco_dec_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
 	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
@@ -246,7 +252,7 @@ int main(void) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
-	tcase_set_timeout(tc, 6);
+	tcase_set_timeout(tc, 10);
 
 	config.battery.available = true;
 	config.battery.level = 80;

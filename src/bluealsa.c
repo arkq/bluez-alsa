@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -33,6 +33,8 @@ struct ba_config config = {
 	.device_seq = 0,
 
 	.null_fd = -1,
+
+	.keep_alive_time = 0,
 
 	.volume_init_level = 0,
 
@@ -78,7 +80,6 @@ struct ba_config config = {
 	.a2dp.volume = false,
 	.a2dp.force_mono = false,
 	.a2dp.force_44100 = false,
-	.a2dp.keep_alive = 0,
 
 	/* Try to use high SBC encoding quality as a default. */
 	.sbc_quality = SBC_QUALITY_HIGH,

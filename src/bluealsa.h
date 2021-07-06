@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_BLUEALSA_H_
 #define BLUEALSA_BLUEALSA_H_
 
@@ -59,6 +60,11 @@ struct ba_config {
 	/* opened null device */
 	int null_fd;
 
+	/* The number of seconds for keeping Bluetooth transport alive after
+	 * PCM has been closed. One might set this value to negative number for
+	 * infinite time. This option applies for the source profile only. */
+	int keep_alive_time;
+
 	/* the initial volume level */
 	int volume_init_level;
 
@@ -100,11 +106,6 @@ struct ba_config {
 		 * for sink endpoint and semi-mandatory for source. It is then possible
 		 * to force lower sampling in order to save Bluetooth bandwidth. */
 		bool force_44100;
-
-		/* The number of seconds for keeping A2DP transport alive after PCM has
-		 * been closed. One might set this value to negative number for infinite
-		 * time. This option applies for the source profile only. */
-		int keep_alive;
 
 	} a2dp;
 

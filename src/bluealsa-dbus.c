@@ -30,6 +30,7 @@
 #include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
+#include "ba-transport.h"
 #include "bluealsa-iface.h"
 #include "bluealsa.h"
 #include "dbus.h"
@@ -376,8 +377,13 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	case G_IO_STATUS_AGAIN:
 		return TRUE;
 	case G_IO_STATUS_EOF:
+		pthread_mutex_lock(&pcm->mutex);
 		ba_transport_pcm_release(pcm);
-		ba_transport_thread_send_signal(pcm->th, BA_TRANSPORT_SIGNAL_PCM_CLOSE);
+		ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE);
+		pthread_mutex_unlock(&pcm->mutex);
+		/* Check whether we've just closed the last PCM client and in
+		 * such a case schedule transport IO threads termination. */
+		ba_transport_stop_if_no_clients(pcm->t);
 		/* remove channel from watch */
 		return FALSE;
 	}
@@ -397,12 +403,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 
 	/* Prevent two (or more) clients trying to
 	 * open the same PCM at the same time. */
-	pthread_mutex_lock(&pcm->dbus_mtx);
-
-	/* We must ensure that transport release is not in progress before
-	 * accessing transport critical section. Otherwise, we might have
-	 * the IO thread closing it in the middle of the open procedure! */
-	ba_transport_thread_cleanup_lock(th);
+	pthread_mutex_lock(&pcm->mutex);
 
 	/* preliminary check whether HFP codes is selected */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
@@ -439,16 +440,33 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	 * the transport is acquired in order to extend battery life. For profiles
 	 * like A2DP Sink and HFP headset, we will wait for incoming connection. */
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
-			t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG)
-		if (t->acquire(t) == -1) {
+			t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+
+		enum ba_transport_thread_state state;
+
+		if (ba_transport_acquire(t) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 					G_DBUS_ERROR_FAILED, "Acquire transport: %s", strerror(errno));
 			goto fail;
 		}
 
+		/* wait until ready to process audio */
+		pthread_mutex_lock(&th->mutex);
+		while ((state = th->state) < BA_TRANSPORT_THREAD_STATE_RUNNING)
+			pthread_cond_wait(&th->changed, &th->mutex);
+		pthread_mutex_unlock(&th->mutex);
+
+		/* bail if something has gone wrong */
+		if (state != BA_TRANSPORT_THREAD_STATE_RUNNING) {
+			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
+					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(EIO));
+			goto fail;
+		}
+
+	}
+
 	/* get correct PIPE endpoint - PIPE is unidirectional */
 	pcm->fd = pcm_fds[is_sink ? 0 : 1];
-
 	/* set newly opened PCM as active */
 	pcm->active = true;
 
@@ -461,20 +479,9 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	g_io_channel_unref(ch);
 
 	/* notify our audio thread that the FIFO is ready */
-	ba_transport_thread_send_signal(th, BA_TRANSPORT_SIGNAL_PCM_OPEN);
+	ba_transport_thread_signal_send(th, BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN);
 
-	/* For source profiles (A2DP Source and SCO Audio Gateway) wait
-	 * until the underlying IO thread is ready to process audio. */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
-			t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
-		pthread_mutex_lock(&th->ready_mtx);
-		while (!th->running)
-			pthread_cond_wait(&th->ready, &th->ready_mtx);
-		pthread_mutex_unlock(&th->ready_mtx);
-	}
-
-	ba_transport_thread_cleanup_unlock(th);
-	pthread_mutex_unlock(&pcm->dbus_mtx);
+	pthread_mutex_unlock(&pcm->mutex);
 	ba_transport_pcm_unref(pcm);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
@@ -486,8 +493,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
 	return;
 
 fail:
-	ba_transport_thread_cleanup_unlock(th);
-	pthread_mutex_unlock(&pcm->dbus_mtx);
+	pthread_mutex_unlock(&pcm->mutex);
 	ba_transport_pcm_unref(pcm);
 	/* clean up created file descriptors */
 	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
@@ -574,9 +580,6 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 		value = NULL;
 	}
 
-	/* synchronize codec selection and e.g. PCM open */
-	pthread_mutex_lock(&pcm->dbus_mtx);
-
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* support for Stream End-Points not enabled in BlueZ */
@@ -648,7 +651,6 @@ fail:
 			G_DBUS_ERROR_FAILED, "%s", errmsg);
 
 final:
-	pthread_mutex_unlock(&pcm->dbus_mtx);
 	ba_transport_pcm_unref(pcm);
 	g_free(a2dp_configuration);
 	g_variant_iter_free(properties);

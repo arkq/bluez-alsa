@@ -99,9 +99,9 @@ int main(int argc, char **argv) {
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
 		{ "initial-volume", required_argument, NULL, 17 },
+		{ "keep-alive", required_argument, NULL, 8 },
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
 		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
-		{ "a2dp-keep-alive", required_argument, NULL, 8 },
 		{ "a2dp-volume", no_argument, NULL, 9 },
 		{ "sbc-quality", required_argument, NULL, 14 },
 #if ENABLE_AAC
@@ -162,9 +162,9 @@ int main(int argc, char **argv) {
 					"  -i, --device=hciX\tHCI device(s) to use\n"
 					"  -p, --profile=NAME\tenable BT profile\n"
 					"  --initial-volume=NB\tinitial volume level [0-100]\n"
+					"  --keep-alive=SEC\tkeep Bluetooth transport alive\n"
 					"  --a2dp-force-mono\tforce monophonic sound\n"
 					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
-					"  --a2dp-keep-alive=SEC\tkeep A2DP transport alive\n"
 					"  --a2dp-volume\t\tnative volume control by default\n"
 					"  --sbc-quality=NB\tset SBC encoder quality\n"
 #if ENABLE_AAC
@@ -259,14 +259,15 @@ int main(int argc, char **argv) {
 			break;
 		}
 
+		case 8 /* --keep-alive=SEC */ :
+			config.keep_alive_time = atoi(optarg);
+			break;
+
 		case 6 /* --a2dp-force-mono */ :
 			config.a2dp.force_mono = true;
 			break;
 		case 7 /* --a2dp-force-audio-cd */ :
 			config.a2dp.force_44100 = true;
-			break;
-		case 8 /* --a2dp-keep-alive=SEC */ :
-			config.a2dp.keep_alive = atoi(optarg);
 			break;
 		case 9 /* --a2dp-volume */ :
 			config.a2dp.volume = true;
