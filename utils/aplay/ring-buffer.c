@@ -30,6 +30,69 @@ void ring_buff_free(ring_buff_t *ring_buff) {
 	ring_buff->read_pos = 0;
 }
 
+int ring_buff_resize(ring_buff_t *ring_buff, size_t new_size) {
+	if (ring_buff->size == new_size)
+		return 0;
+
+	printf("Resizing Ring Buffer from %u to %u bytes\n", ring_buff->size, new_size);
+
+	unsigned char *new_buff = (unsigned char*)malloc(new_size);
+	size_t new_write_pos;
+	bool new_full;
+
+	if (new_size >= ring_buff_size(ring_buff)) {
+		// copy all
+
+		if (ring_buff->write_pos >= ring_buff->read_pos && !ring_buff->full) {
+			// 1 copy
+			size_t copy_len = ring_buff->write_pos - ring_buff->read_pos;
+			memcpy(new_buff, &ring_buff->data[ring_buff->read_pos], copy_len);
+		} else {
+			// 2 copies
+			size_t copy_len1 = ring_buff->size - ring_buff->read_pos;
+			size_t copy_len2 = ring_buff->write_pos;
+
+			memcpy(new_buff, &ring_buff->data[ring_buff->read_pos], copy_len1);
+			memcpy(&new_buff[copy_len1], ring_buff->data, copy_len2);
+		}
+
+		new_write_pos = ring_buff_size(ring_buff);
+		new_full = false;
+	} else {
+		// copy most recent new_size bytes
+
+		if ((ring_buff->write_pos >= ring_buff->read_pos && !ring_buff->full) || ring_buff->write_pos >= new_size) {
+			// 1 copy
+			size_t copy_len = new_size; // bc new_size < write_pos - read_pos
+			size_t copy_from = ring_buff->write_pos - copy_len; // most recent bytes
+			memcpy(new_buff, &ring_buff->data[copy_from], copy_len);
+		} else {
+			// 2 copies
+			size_t copy_len2 = ring_buff->write_pos;
+			size_t copy_len1 = new_size - copy_len2;
+
+			size_t copy_from = ring_buff->size - copy_len1;
+
+			memcpy(new_buff, &ring_buff->data[copy_from], copy_len1);
+			memcpy(&new_buff[copy_len1], ring_buff->data, copy_len2);
+		}
+
+		new_write_pos = 0;
+		new_full = true;
+	}
+
+	unsigned char *old_buff = ring_buff->data;
+	ring_buff->data = new_buff;
+	ring_buff->write_pos = new_write_pos;
+	ring_buff->read_pos = 0;
+	ring_buff->size = new_size;
+	ring_buff->full = new_full;
+
+	free(old_buff);
+
+	return 1;
+}
+
 
 bool ring_buff_is_full(ring_buff_t *ring_buff) {
 	return ring_buff->full;

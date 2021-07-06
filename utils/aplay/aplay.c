@@ -312,6 +312,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	size_t pcm_1s_samples = w->ba_pcm.sampling * w->ba_pcm.channels;
 
 	/* store 50 ms of PCM data in the ring buffer */
+	/* will be adjusted to one period size when pcm is openend */
 	size_t ring_buff_bytes = pcm_1s_samples * pcm_format_size * 50 / 1000;
 	ring_buff_t buffer = { 0 };
 	unsigned char *read_buff = malloc(ring_buff_bytes);
@@ -439,6 +440,8 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
 			pcm_max_read_len = period_size * w->ba_pcm.channels * pcm_format_size;
 			pcm_open_retries = 0;
+
+			ring_buff_resize(&buffer, snd_pcm_frames_to_bytes(w->pcm, period_size));
 
 			if (verbose >= 2) {
 				printf("Used configuration for %s:\n"

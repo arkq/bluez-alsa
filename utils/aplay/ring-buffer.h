@@ -17,6 +17,8 @@ typedef struct {
 int ring_buff_init(ring_buff_t *ring_buff, size_t size);
 void ring_buff_free(ring_buff_t *ring_buff);
 
+int ring_buff_resize(ring_buff_t *ring_buff, size_t new_size);
+
 bool ring_buff_is_full(ring_buff_t *ring_buff);
 bool ring_buff_is_empty(ring_buff_t *ring_buff);
 
