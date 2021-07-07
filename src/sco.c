@@ -205,230 +205,122 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 	return 0;
 }
 
-static void *sco_cvsd_thread(struct ba_transport_thread *th) {
+static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
-	/* buffers for transferring data to and from SCO socket */
-	ffb_t bt_in = { 0 };
-	ffb_t bt_out = { 0 };
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt_in);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt_out);
-
-	/* these buffers shall be bigger than the SCO MTU */
-	if (ffb_init_uint8_t(&bt_in, 128) == -1 ||
-			ffb_init_uint8_t(&bt_out, 128) == -1) {
-		error("Couldn't create data buffer: %s", strerror(errno));
-		goto fail_ffb;
-	}
-
-	int poll_timeout = -1;
 	struct ba_transport *t = th->t;
-	struct asrsync asrs = { .frames = 0 };
-	struct pollfd pfds[] = {
-		{ th->pipe[0], POLLIN, 0 },
-		/* SCO socket */
-		{ -1, POLLIN, 0 },
-		{ -1, POLLOUT, 0 },
-		/* PCM FIFO */
-		{ -1, POLLIN, 0 },
-		{ -1, POLLOUT, 0 },
-	};
+	struct ba_transport_pcm *pcm = &t->sco.spk_pcm;
+	struct io_poll io = { .timeout = -1 };
+
+	const size_t mtu_samples = t->mtu_write / sizeof(int16_t);
+	const size_t mtu_write = t->mtu_write;
+
+	ffb_t buffer = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
+
+	/* define a bigger buffer to enhance read performance */
+	if (ffb_init_int16_t(&buffer, mtu_samples * 4) == -1) {
+		error("Couldn't create data buffer: %s", strerror(errno));
+		goto fail_init;
+	}
 
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
-		/* fresh-start for file descriptors polling */
-		pfds[1].fd = pfds[2].fd = -1;
-		pfds[3].fd = pfds[4].fd = -1;
-
-			if (ffb_len_in(&bt_in) >= t->mtu_read)
-				pfds[1].fd = th->bt_fd;
-			if (ffb_len_out(&bt_out) >= t->mtu_write)
-				pfds[2].fd = th->bt_fd;
-			if (t->sco.spk_pcm.active && th->bt_fd != -1 && ffb_len_in(&bt_out) >= t->mtu_write)
-				pfds[3].fd = t->sco.spk_pcm.fd;
-			if (t->sco.mic_pcm.active && ffb_len_out(&bt_in) > 0)
-				pfds[4].fd = t->sco.mic_pcm.fd;
-
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-		switch (poll(pfds, ARRAYSIZE(pfds), poll_timeout)) {
-		case 0:
-			pthread_cond_signal(&t->sco.spk_pcm.synced);
-			poll_timeout = -1;
-			continue;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			error("SCO poll error: %s", strerror(errno));
-			goto fail;
-		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-		if (pfds[0].revents & POLLIN) {
-			/* dispatch incoming event */
-			enum ba_transport_thread_signal signal;
-			ba_transport_thread_signal_recv(th, &signal);
-			switch (signal) {
-			case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
-			case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
-				asrs.frames = 0;
-				continue;
-			case BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE:
+		ssize_t samples = ffb_len_in(&buffer);
+		if ((samples = io_poll_and_read_pcm(&io, pcm, buffer.tail, samples)) <= 0) {
+			if (samples == -1)
+				error("PCM poll and read error: %s", strerror(errno));
+			else if (samples == 0)
 				ba_transport_stop_if_no_clients(t);
-				continue;
-			case BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC:
-				/* FIXME: Drain functionality for speaker.
-				 * XXX: Right now it is not possible to drain speaker PCM (in a clean
-				 *      fashion), because poll() will not timeout if we've got incoming
-				 *      data from the microphone (BT SCO socket). In order not to hang
-				 *      forever in the transport_drain_pcm() function, we will signal
-				 *      PCM drain right now. */
-				pthread_cond_signal(&t->sco.spk_pcm.synced);
-				break;
-			case BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP:
-				io_pcm_flush(&t->sco.spk_pcm);
-				continue;
-			default:
-				break;
-			}
+			continue;
 		}
 
-		if (asrs.frames == 0)
-			asrsync_init(&asrs, t->sco.spk_pcm.sampling);
+		ffb_seek(&buffer, samples);
+		samples = ffb_len_out(&buffer);
 
-		if (pfds[1].revents & (POLLIN | POLLHUP)) {
-			/* dispatch incoming SCO data */
+		const int16_t *input = buffer.data;
+		size_t input_samples = samples;
 
-			uint8_t *buffer;
-			size_t buffer_len;
+		while (input_samples >= mtu_samples) {
 
-				if (t->sco.mic_pcm.fd == -1)
-					ffb_rewind(&bt_in);
-				buffer = bt_in.tail;
-				buffer_len = ffb_blen_in(&bt_in);
-
-			ssize_t len;
-			if ((len = io_bt_read(th, buffer, buffer_len)) <= 0) {
-				if (len == -1)
-					debug("BT read error: %s", strerror(errno));
-				goto fail;
+			ssize_t ret;
+			if ((ret = io_bt_write(th, input, mtu_write)) <= 0) {
+				if (ret == -1)
+					error("BT write error: %s", strerror(errno));
+				goto exit;
 			}
 
-			/* If microphone (capture) PCM is not connected ignore incoming data. In
-			 * the worst case scenario, we might lose few milliseconds of data (one
-			 * mSBC frame which is 7.5 ms), but we will be sure, that the microphone
-			 * latency will not build up. */
-			if (t->sco.mic_pcm.fd != -1)
-					ffb_seek(&bt_in, len);
+			input += mtu_samples;
+			input_samples -= mtu_samples;
 
-		}
-		else if (pfds[1].revents) {
-			error("SCO poll error: %#x", pfds[1].revents);
-		}
-
-		if (pfds[2].revents & POLLOUT) {
-			/* write-out SCO data */
-
-			uint8_t *buffer;
-			size_t buffer_len;
-
-				buffer = bt_out.data;
-				buffer_len = t->mtu_write;
-
-			ssize_t len;
-			if ((len = io_bt_write(th, buffer, buffer_len)) <= 0) {
-				if (len == -1)
-					error("SCO write error: %s", strerror(errno));
-				goto fail;
-			}
-
-				ffb_shift(&bt_out, len);
+			/* keep data transfer at a constant bit rate */
+			asrsync_sync(&io.asrs, mtu_samples);
+			/* update busy delay (encoding overhead) */
+			pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		}
 
-		if (pfds[3].revents & (POLLIN | POLLHUP)) {
-			/* dispatch incoming PCM data */
-
-			int16_t *buffer;
-			ssize_t samples;
-
-				buffer = (int16_t *)bt_out.tail;
-				samples = ffb_len_in(&bt_out) / sizeof(int16_t);
-
-			if ((samples = io_pcm_read(&t->sco.spk_pcm, buffer, samples)) <= 0) {
-				if (samples == -1 && errno != EAGAIN)
-					error("PCM read error: %s", strerror(errno));
-				if (samples == 0)
-					ba_transport_thread_signal_send(th, BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE);
-				continue;
-			}
-
-				ffb_seek(&bt_out, samples * sizeof(int16_t));
-
-		}
-		else if (pfds[3].revents) {
-			error("PCM poll error: %#x", pfds[3].revents);
-		}
-
-		if (pfds[4].revents & POLLOUT) {
-			/* write-out PCM data */
-
-			int16_t *buffer;
-			ssize_t samples;
-
-				buffer = (int16_t *)bt_in.data;
-				samples = ffb_len_out(&bt_in) / sizeof(int16_t);
-
-			io_pcm_scale(&t->sco.mic_pcm, buffer, samples);
-			if ((samples = io_pcm_write(&t->sco.mic_pcm, buffer, samples)) <= 0) {
-				if (samples == -1)
-					error("FIFO write error: %s", strerror(errno));
-				if (samples == 0)
-					ba_transport_thread_signal_send(th, BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE);
-			}
-
-				ffb_shift(&bt_in, samples * sizeof(int16_t));
-
-		}
-
-		/* keep data transfer at a constant bit rate */
-			asrsync_sync(&asrs, t->mtu_write / sizeof(int16_t));
-
-		/* update busy delay (encoding overhead) */
-		const unsigned int delay = asrsync_get_busy_usec(&asrs) / 100;
-		t->sco.spk_pcm.delay = t->sco.mic_pcm.delay = delay;
+		ffb_shift(&buffer, samples - input_samples);
 
 	}
 
-fail:
+exit:
 	debug_transport_thread_loop(th, "EXIT");
 	ba_transport_thread_set_state_stopping(th);
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-fail_ffb:
-	pthread_cleanup_pop(1);
+fail_init:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
 
-static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
-	return sco_cvsd_thread(th);
-}
-
 static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
-	for (ba_transport_thread_set_state_running(th);;) {
-		enum ba_transport_thread_signal signal;
-		ba_transport_thread_signal_recv(th, &signal);
-		ba_transport_thread_signal_send(&th->t->thread_enc, signal);
+	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *pcm = &t->sco.mic_pcm;
+	struct io_poll io = { .timeout = -1 };
+
+	ffb_t buffer = { 0 };
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
+
+	if (ffb_init_int16_t(&buffer, t->mtu_read) == -1) {
+		error("Couldn't create data buffers: %s", strerror(errno));
+		goto fail_ffb;
 	}
 
+	debug_transport_thread_loop(th, "START");
+	for (ba_transport_thread_set_state_running(th);;) {
+
+		ssize_t len = ffb_blen_in(&buffer);
+		if ((len = io_poll_and_read_bt(&io, th, buffer.tail, len)) == -1)
+			error("BT poll and read error: %s", strerror(errno));
+		else if (len == 0)
+			goto exit;
+
+		if (!ba_transport_pcm_is_active(pcm))
+			continue;
+
+		ssize_t samples = len / sizeof(int16_t);
+		io_pcm_scale(pcm, buffer.data, samples);
+		if ((samples = io_pcm_write(pcm, buffer.data, samples)) == -1)
+			error("FIFO write error: %s", strerror(errno));
+		else if (samples == 0)
+			ba_transport_stop_if_no_clients(t);
+
+	}
+
+exit:
+	debug_transport_thread_loop(th, "EXIT");
+	ba_transport_thread_set_state_stopping(th);
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+fail_ffb:
+	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
