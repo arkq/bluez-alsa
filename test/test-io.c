@@ -35,7 +35,6 @@
 #endif
 
 #include "a2dp-codecs.h"
-#include "a2dp-rtp.h"
 #include "a2dp.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
@@ -45,6 +44,7 @@
 #include "bluealsa.h"
 #include "bluez.h"
 #include "hfp.h"
+#include "rtp.h"
 #include "sco.h"
 #include "utils.h"
 #include "shared/defs.h"

@@ -41,7 +41,6 @@ bluealsa_mock_SOURCES = \
 	../src/shared/log.c \
 	../src/shared/rt.c \
 	../src/a2dp-audio.c \
-	../src/a2dp-rtp.c \
 	../src/at.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
@@ -55,6 +54,7 @@ bluealsa_mock_SOURCES = \
 	../src/dbus.c \
 	../src/hci.c \
 	../src/io.c \
+	../src/rtp.c \
 	../src/sco.c \
 	../src/utils.c \
 	bluealsa-mock.c
@@ -98,7 +98,6 @@ test_io_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
-	../src/a2dp-rtp.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
@@ -107,6 +106,7 @@ test_io_SOURCES = \
 	../src/dbus.c \
 	../src/hci.c \
 	../src/io.c \
+	../src/rtp.c \
 	../src/sco.c \
 	../src/utils.c \
 	test-io.c

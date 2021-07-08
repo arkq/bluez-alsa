@@ -45,13 +45,13 @@
 
 #include "a2dp.h"
 #include "a2dp-codecs.h"
-#include "a2dp-rtp.h"
 #include "bluealsa.h"
 #if ENABLE_APTX || ENABLE_APTX_HD
 # include "codec-aptx.h"
 #endif
 #include "codec-sbc.h"
 #include "io.h"
+#include "rtp.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -76,35 +76,6 @@ static enum ba_transport_thread_signal a2dp_io_poll_signal_filter_dec(
 		io->rtp_seq_number = 0;
 
 	return signal;
-}
-
-/**
- * Poll and read PCM signal from the transport PCM FIFO.
- *
- * Note:
- * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_pcm(struct a2dp_io_poll *io,
-		struct ba_transport_pcm *pcm, ffb_t *buffer) {
-
-	ssize_t samples;
-	if ((samples = io_poll_and_read_pcm(&io->io, pcm,
-					buffer->tail, ffb_len_in(buffer))) <= 0)
-		return samples;
-
-	/* update PCM buffer */
-	ffb_seek(buffer, samples);
-
-	/* return overall number of samples */
-	return ffb_len_out(buffer);
-}
-
-/**
- * Poll and read BT data from the SEQPACKET socket.
- *
- * Note:
- * This function temporally re-enables thread cancellation! */
-static ssize_t a2dp_poll_and_read_bt(struct a2dp_io_poll *io, ffb_t *buffer) {
-	return io_poll_and_read_bt(&io->io, io->th, buffer->tail, ffb_blen_in(buffer));
 }
 
 /**
@@ -179,8 +150,8 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
-		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io.io, th, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -190,7 +161,7 @@ static void *a2dp_sink_sbc(struct ba_transport_thread *th) {
 			continue;
 
 		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
+		if ((rtp_media_header = rtp_a2dp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
@@ -298,7 +269,7 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 	rtp_media_header_t *rtp_media_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header,
+	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
 			(void **)&rtp_media_header, sizeof(*rtp_media_header));
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
@@ -307,12 +278,16 @@ static void *a2dp_source_sbc(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io.io, &t->a2dp.pcm,
+						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
+
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
 
 		/* anchor for RTP payload */
 		bt.tail = rtp_payload;
@@ -472,8 +447,8 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
-		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io.io, th, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -483,7 +458,7 @@ static void *a2dp_sink_mpeg(struct ba_transport_thread *th) {
 			continue;
 
 		const rtp_mpeg_audio_header_t *rtp_mpeg_header;
-		if ((rtp_mpeg_header = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
+		if ((rtp_mpeg_header = rtp_a2dp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		uint8_t *rtp_mpeg = (uint8_t *)(rtp_mpeg_header + 1);
@@ -685,7 +660,7 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 	rtp_mpeg_audio_header_t *rtp_mpeg_audio_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header,
+	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
 			(void **)&rtp_mpeg_audio_header, sizeof(*rtp_mpeg_audio_header));
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
@@ -694,12 +669,16 @@ static void *a2dp_source_mp3(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io.io, &t->a2dp.pcm,
+						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
+
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
 
 		/* anchor for RTP payload */
 		bt.tail = rtp_payload;
@@ -846,8 +825,8 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
-		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io.io, th, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -857,7 +836,7 @@ static void *a2dp_sink_aac(struct ba_transport_thread *th) {
 			continue;
 
 		const uint8_t *rtp_latm;
-		if ((rtp_latm = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
+		if ((rtp_latm = rtp_a2dp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
@@ -1046,7 +1025,7 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 	rtp_header_t *rtp_header;
 
 	/* initialize RTP header and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header, NULL, 0);
+	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header, NULL, 0);
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
@@ -1078,13 +1057,15 @@ static void *a2dp_source_aac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io.io, &t->a2dp.pcm,
+						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
 
+		ffb_seek(&pcm, samples);
 		while ((in_args.numInSamples = ffb_len_out(&pcm)) > 0) {
 
 			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
@@ -1201,8 +1182,8 @@ static void *a2dp_sink_aptx(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
-		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io.io, th, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1291,12 +1272,16 @@ static void *a2dp_source_aptx(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io.io, &t->a2dp.pcm,
+						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
+
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
 
 		int16_t *input = pcm.data;
 		size_t input_samples = samples;
@@ -1405,8 +1390,8 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
-		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io.io, th, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1416,7 +1401,7 @@ static void *a2dp_sink_aptx_hd(struct ba_transport_thread *th) {
 			continue;
 
 		const uint8_t *rtp_payload;
-		if ((rtp_payload = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
+		if ((rtp_payload = rtp_a2dp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
@@ -1498,7 +1483,7 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 	rtp_header_t *rtp_header;
 
 	/* initialize RTP header and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header, NULL, 0);
+	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header, NULL, 0);
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
 
@@ -1506,12 +1491,16 @@ static void *a2dp_source_aptx_hd(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io.io, &t->a2dp.pcm,
+						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
+
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
 
 		int32_t *input = pcm.data;
 		size_t input_samples = samples;
@@ -1637,8 +1626,8 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
-		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io.io, th, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
@@ -1648,7 +1637,7 @@ static void *a2dp_sink_ldac(struct ba_transport_thread *th) {
 			continue;
 
 		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = a2dp_rtp_payload(bt.data, &io.rtp_seq_number)) == NULL)
+		if ((rtp_media_header = rtp_a2dp_payload(bt.data, &io.rtp_seq_number)) == NULL)
 			continue;
 
 		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);
@@ -1757,7 +1746,7 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 	rtp_media_header_t *rtp_media_header;
 
 	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = a2dp_rtp_init(bt.data, &rtp_header,
+	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
 			(void **)&rtp_media_header, sizeof(*rtp_media_header));
 	uint16_t seq_number = be16toh(rtp_header->seq_number);
 	uint32_t timestamp = be32toh(rtp_header->timestamp);
@@ -1767,12 +1756,16 @@ static void *a2dp_source_ldac(struct ba_transport_thread *th) {
 	for (ba_transport_thread_set_state_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = a2dp_poll_and_read_pcm(&io, &t->a2dp.pcm, &pcm)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io.io, &t->a2dp.pcm,
+						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
+
+		ffb_seek(&pcm, samples);
+		samples = ffb_len_out(&pcm);
 
 		int16_t *input = pcm.data;
 		size_t input_len = samples;
@@ -1890,8 +1883,8 @@ static void *a2dp_sink_dump(struct ba_transport_thread *th) {
 
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
-		ssize_t len;
-		if ((len = a2dp_poll_and_read_bt(&io, &bt)) <= 0) {
+		ssize_t len = ffb_blen_in(&bt);
+		if ((len = io_poll_and_read_bt(&io.io, th, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;

@@ -1,5 +1,5 @@
 /*
- * BlueALSA - a2dp-rtp.c
+ * BlueALSA - rtp.c
  * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -8,7 +8,7 @@
  *
  */
 
-#include "a2dp-rtp.h"
+#include "rtp.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +24,7 @@
  *   be stored. This parameter might be NULL.
  * @param phdr_size The size of the RTP payload header.
  * @return This function returns the address of the RTP payload region. */
-void *a2dp_rtp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size) {
+void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size) {
 
 	rtp_header_t *header = *hdr = (rtp_header_t *)s;
 	memset(header, 0, RTP_HEADER_LEN + phdr_size);
@@ -48,7 +48,7 @@ void *a2dp_rtp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size) 
  * @param seq_number The pointer to a local RTP sequence number.
  * @return On success, this function returns pointer to data just after
  *   the RTP header - RTP header payload. On failure, NULL is returned. */
-void *a2dp_rtp_payload(const rtp_header_t *hdr, uint16_t *seq_number) {
+void *rtp_a2dp_payload(const rtp_header_t *hdr, uint16_t *seq_number) {
 
 #if ENABLE_PAYLOADCHECK
 	if (hdr->paytype < 96) {

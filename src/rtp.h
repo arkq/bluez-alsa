@@ -1,5 +1,5 @@
 /*
- * BlueALSA - a2dp-rtp.h
+ * BlueALSA - rtp.h
  * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -9,8 +9,8 @@
  */
 
 #pragma once
-#ifndef BLUEALSA_A2DPRTP_H_
-#define BLUEALSA_A2DPRTP_H_
+#ifndef BLUEALSA_RTP_H_
+#define BLUEALSA_RTP_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -72,7 +72,7 @@ typedef struct rtp_mpeg_audio_header {
 	uint16_t offset;
 } __attribute__ ((packed)) rtp_mpeg_audio_header_t;
 
-void *a2dp_rtp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size);
-void *a2dp_rtp_payload(const rtp_header_t *hdr, uint16_t *seq_number);
+void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size);
+void *rtp_a2dp_payload(const rtp_header_t *hdr, uint16_t *seq_number);
 
 #endif
