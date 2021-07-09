@@ -85,6 +85,7 @@ test_audio_SOURCES = \
 
 test_ba_SOURCES = \
 	../src/shared/log.c \
+	../src/shared/rt.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
@@ -121,6 +122,7 @@ endif
 
 test_rfcomm_SOURCES = \
 	../src/shared/log.c \
+	../src/shared/rt.c \
 	../src/a2dp.c \
 	../src/at.c \
 	../src/audio.c \

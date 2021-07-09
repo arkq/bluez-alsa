@@ -60,7 +60,7 @@ struct ba_config {
 	/* opened null device */
 	int null_fd;
 
-	/* The number of seconds for keeping Bluetooth transport alive after
+	/* The number of milliseconds for keeping BT transport alive after
 	 * PCM has been closed. One might set this value to negative number for
 	 * infinite time. This option applies for the source profile only. */
 	int keep_alive_time;

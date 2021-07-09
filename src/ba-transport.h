@@ -284,6 +284,9 @@ struct ba_transport {
 			struct ba_transport_pcm spk_pcm;
 			struct ba_transport_pcm mic_pcm;
 
+			/* time-stamp when the SCO link has been closed */
+			struct timespec closed_at;
+
 		} sco;
 
 	};

@@ -6,7 +6,7 @@
 
 # open PCM and close it right away
 : |bluealsa-cli open $1
-: |bluealsa-cli open $1
+bluealsa-cli open $1
 
 if [ $? -ne 0 ]; then
 	echo "error: Couldn't open BlueALSA PCM"

@@ -23,6 +23,8 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include <bsd/sys/time.h>
+
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
 #include <glib-object.h>
@@ -56,6 +58,7 @@
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "shared/rt.h"
 
 static const char *transport_get_dbus_path_type(
 		struct ba_transport_type type) {
@@ -376,7 +379,7 @@ static void *transport_thread_manager(struct ba_transport *t) {
 
 	pthread_setname_np(pthread_self(), "ba-th-manager");
 
-	struct pollfd fds[1] = {
+	struct pollfd fds[] = {
 		{ t->thread_manager_pipe[0], POLLIN, 0 }};
 	int timeout = -1;
 
@@ -388,6 +391,7 @@ static void *transport_thread_manager(struct ba_transport *t) {
 		}
 
 		if (fds[0].revents & POLLIN) {
+			/* incoming manager command */
 
 			enum ba_transport_thread_manager_command cmd;
 			if (read(fds[0].fd, &cmd, sizeof(cmd)) != sizeof(cmd)) {
@@ -403,8 +407,8 @@ static void *transport_thread_manager(struct ba_transport *t) {
 				timeout = -1;
 				break;
 			case BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS:
-				debug("PCM clients check keep-alive timeout: %d", config.keep_alive_time);
-				timeout = config.keep_alive_time * 1000;
+				debug("PCM clients check keep-alive: %d ms", config.keep_alive_time);
+				timeout = config.keep_alive_time;
 				break;
 			}
 
@@ -651,11 +655,23 @@ struct ba_transport *ba_transport_new_a2dp(
 static int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	struct ba_device *d = t->d;
-	int fd;
+	int fd = -1;
 
 	if ((fd = hci_sco_open(d->a->hci.dev_id)) == -1) {
 		error("Couldn't open SCO socket: %s", strerror(errno));
 		goto fail;
+	}
+
+	struct timespec now;
+	struct timespec delay = {
+		.tv_nsec = HCI_SCO_CLOSE_CONNECT_QUIRK_DELAY * 1000000 };
+
+	gettimestamp(&now);
+	timespecadd(&t->sco.closed_at, &delay, &delay);
+	if (difftimespec(&now, &delay, &delay) > 0) {
+		info("SCO link close-connect quirk delay: %d ms",
+				(int)(delay.tv_nsec / 1000000));
+		nanosleep(&delay, NULL);
 	}
 
 	if (hci_sco_connect(fd, &d->addr,
@@ -684,6 +700,10 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
 	t->bt_fd = -1;
+
+	/* Keep the time-stamp when the SCO link has been close. It will be used
+	 * for calculating close-connect quirk delay in the acquire function. */
+	gettimestamp(&t->sco.closed_at);
 
 	return 0;
 }

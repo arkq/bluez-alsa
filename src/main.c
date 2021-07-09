@@ -260,7 +260,7 @@ int main(int argc, char **argv) {
 		}
 
 		case 8 /* --keep-alive=SEC */ :
-			config.keep_alive_time = atoi(optarg);
+			config.keep_alive_time = atof(optarg) * 1000;
 			break;
 
 		case 6 /* --a2dp-force-mono */ :

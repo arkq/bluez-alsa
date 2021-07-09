@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hci.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_HCI_H_
 #define BLUEALSA_HCI_H_
 
@@ -34,6 +35,16 @@
 #define BT_COMPID_SAVITECH           0x053A
 
 int hci_get_version(int dev_id, struct hci_version *ver);
+
+/**
+ * SCO close-connect quirk delay (milliseconds).
+ *
+ * Although not documented, it appears that close(2) on a SCO socket returns
+ * before the HCI handshake is complete, and as a result opening a new socket
+ * immediately after closing one results in an undefined behavior. To avoid
+ * this, the close-connect delay shall be used to enforce a delay between the
+ * close(2) and connect(2) calls. */
+#define HCI_SCO_CLOSE_CONNECT_QUIRK_DELAY 300
 
 int hci_sco_open(int dev_id);
 int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice);
