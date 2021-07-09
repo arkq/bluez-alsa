@@ -61,6 +61,9 @@
 #if ENABLE_FASTSTREAM
 # include "../src/a2dp-faststream.c"
 #endif
+#if ENABLE_LDAC
+# include "../src/a2dp-ldac.c"
+#endif
 #include "../src/ba-transport.c"
 #include "inc/sine.inc"
 
@@ -725,16 +728,16 @@ START_TEST(test_a2dp_ldac) {
 #if HAVE_LDAC_DECODE
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
 			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990 + 6;
-		test_a2dp(t1, t2, a2dp_source_ldac, a2dp_sink_ldac);
+		test_a2dp(t1, t2, a2dp_ldac_enc_thread, a2dp_ldac_dec_thread);
 #endif
 	}
 	else {
 		debug("\n\n*** A2DP codec: LDAC ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
 			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
-		test_a2dp(t1, t2, a2dp_source_ldac, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, a2dp_ldac_enc_thread, test_io_thread_a2dp_dump_bt);
 #if HAVE_LDAC_DECODE
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_ldac);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_ldac_dec_thread);
 #endif
 	}
 

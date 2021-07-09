@@ -53,6 +53,11 @@ bluealsa_SOURCES += \
 	a2dp-faststream.c
 endif
 
+if ENABLE_LDAC
+bluealsa_SOURCES += \
+	a2dp-ldac.c
+endif
+
 if ENABLE_MSBC
 bluealsa_SOURCES += \
 	codec-msbc.c

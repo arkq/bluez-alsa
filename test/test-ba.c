@@ -44,6 +44,9 @@ void a2dp_aptx_hd_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_aptx_hd_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_faststream_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_ldac_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_ldac_transport_start(struct ba_transport *t) { (void)t; return 0; }
+
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
 void *sco_dec_thread(struct ba_transport_thread *th) { return sleep(3600), th; }

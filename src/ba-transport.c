@@ -39,6 +39,9 @@
 #ifdef ENABLE_FASTSTREAM
 # include "a2dp-faststream.h"
 #endif
+#ifdef ENABLE_LDAC
+# include "a2dp-ldac.h"
+#endif
 #include "audio.h"
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
@@ -995,20 +998,8 @@ static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 	const struct a2dp_codec *codec = t->a2dp.codec;
 	const uint16_t codec_id = t->type.codec;
 
-	switch (codec_id) {
-	default:
-		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		break;
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		/* LDAC library internally for encoding uses 31-bit integers or
-		 * floats, so the best choice for PCM sample is signed 32-bit. */
-		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
-		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
-		break;
-#endif
-	}
+	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 
 	switch (codec_id) {
 	case A2DP_CODEC_SBC:
@@ -1050,10 +1041,7 @@ static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 #endif
 #if ENABLE_LDAC
 	case A2DP_CODEC_VENDOR_LDAC:
-		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-				((a2dp_ldac_t *)t->a2dp.configuration)->channel_mode, false);
-		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-				((a2dp_ldac_t *)t->a2dp.configuration)->frequency, false);
+		a2dp_ldac_transport_set_codec(t);
 		break;
 #endif
 	default:
@@ -1127,6 +1115,10 @@ int ba_transport_start(struct ba_transport *t) {
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			return a2dp_faststream_transport_start(t);
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			return a2dp_ldac_transport_start(t);
 #endif
 		default:
 			return a2dp_audio_thread_create(t);

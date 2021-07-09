@@ -159,6 +159,10 @@ if ENABLE_FASTSTREAM
 bluealsa_mock_SOURCES += ../src/a2dp-faststream.c
 endif
 
+if ENABLE_LDAC
+bluealsa_mock_SOURCES += ../src/a2dp-ldac.c
+endif
+
 if ENABLE_MSBC
 bluealsa_mock_SOURCES += ../src/codec-msbc.c
 test_io_SOURCES += ../src/codec-msbc.c
