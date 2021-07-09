@@ -47,6 +47,7 @@ Dependencies:
 - [alsa-lib](https://www.alsa-project.org/)
 - [bluez](http://www.bluez.org/) >= 5.0
 - [glib](https://wiki.gnome.org/Projects/GLib) with GIO support
+- [libbsd](https://libbsd.freedesktop.org/)
 - [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
 - [mp3lame](https://lame.sourceforge.net/) (when MP3 support is enabled with `--enable-mp3lame`)
 - [mpg123](https://www.mpg123.org/) (when MPEG decoding support is enabled with `--enable-mpg123`)
@@ -58,7 +59,7 @@ Dependencies:
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
 - [docutils](https://docutils.sourceforge.io) (when man pages build is enabled with `--enable-manpages`)
 
-Dependencies for client applications (e.g. `bluealsa-aplay`):
+Dependencies for client applications (e.g. `bluealsa-aplay` or `bluealsa-cli`):
 
 - [libdbus](https://www.freedesktop.org/wiki/Software/dbus/)
 
@@ -68,7 +69,6 @@ Dependencies for `bluealsa-rfcomm` (when `--enable-rfcomm` is specified during c
 
 Dependencies for `hcitop` (when `--enable-hcitop` is specified during configuration):
 
-- [libbsd](https://libbsd.freedesktop.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
 
 For a comprehensive installation guide, please look at the [Installation from

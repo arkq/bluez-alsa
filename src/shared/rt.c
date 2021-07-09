@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rt.h
- * Copyright (c) 2016-2017 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,7 +11,7 @@
 #include "shared/rt.h"
 
 #include <stdlib.h>
-
+#include <bsd/sys/time.h>
 
 /**
  * Synchronize time with the sampling rate.
@@ -39,14 +39,14 @@ int asrsync_sync(struct asrsync *asrs, unsigned int frames) {
 	frames = asrs->frames;
 
 	ts_rate.tv_sec = frames / rate;
-	ts_rate.tv_nsec = 1000000000 / rate * (frames % rate);
+	ts_rate.tv_nsec = 1000000000L / rate * (frames % rate);
 
 	gettimestamp(&ts);
 	/* calculate delay since the last sync */
-	difftimespec(&asrs->ts, &ts, &asrs->ts_busy);
+	timespecsub(&ts, &asrs->ts, &asrs->ts_busy);
 
 	/* maintain constant rate */
-	difftimespec(&asrs->ts0, &ts, &ts);
+	timespecsub(&ts, &asrs->ts0, &ts);
 	if (difftimespec(&ts, &ts_rate, &asrs->ts_idle) > 0) {
 		nanosleep(&asrs->ts_idle, NULL);
 		rv = 1;
@@ -77,28 +77,14 @@ int difftimespec(
 	if (_ts1.tv_sec == _ts2.tv_sec) {
 		ts->tv_sec = 0;
 		ts->tv_nsec = labs(_ts2.tv_nsec - _ts1.tv_nsec);
-		return _ts2.tv_nsec > _ts1.tv_nsec ? 1 : -ts->tv_nsec;
+		return _ts2.tv_nsec - _ts1.tv_nsec;
 	}
 
 	if (_ts1.tv_sec < _ts2.tv_sec) {
-		if (_ts1.tv_nsec <= _ts2.tv_nsec) {
-			ts->tv_sec = _ts2.tv_sec - _ts1.tv_sec;
-			ts->tv_nsec = _ts2.tv_nsec - _ts1.tv_nsec;
-		}
-		else {
-			ts->tv_sec = _ts2.tv_sec - 1 - _ts1.tv_sec;
-			ts->tv_nsec = _ts2.tv_nsec + 1000000000 - _ts1.tv_nsec;
-		}
+		timespecsub(&_ts2, &_ts1, ts);
 		return 1;
 	}
 
-	if (_ts1.tv_nsec >= _ts2.tv_nsec) {
-		ts->tv_sec = _ts1.tv_sec - _ts2.tv_sec;
-		ts->tv_nsec = _ts1.tv_nsec - _ts2.tv_nsec;
-	}
-	else {
-		ts->tv_sec = _ts1.tv_sec - 1 - _ts2.tv_sec;
-		ts->tv_nsec = _ts1.tv_nsec + 1000000000 - _ts2.tv_nsec;
-	}
+	timespecsub(&_ts1, &_ts2, ts);
 	return -1;
 }

@@ -31,6 +31,7 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 #include <bluetooth/bluetooth.h>
+#include <bsd/sys/time.h>
 #include <dbus/dbus.h>
 
 #include "shared/dbus-client.h"
@@ -576,7 +577,7 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 	pthread_mutex_lock(&pcm->mutex);
 
 	struct timespec diff;
-	difftimespec(&now, &pcm->delay_ts, &diff);
+	timespecsub(&now, &pcm->delay_ts, &diff);
 
 	/* the maximum number of frames that can have been
 	 * produced/consumed by the server since pcm->delay_ts */

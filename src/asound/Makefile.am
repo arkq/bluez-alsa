@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2020 Arkadiusz Bokowy
+# Copyright (c) 2016-2021 Arkadiusz Bokowy
 
 EXTRA_DIST = 20-bluealsa.conf
 
@@ -25,6 +25,7 @@ AM_CFLAGS = \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@DBUS1_CFLAGS@ \
+	@LIBBSD_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@
 
 AM_LDFLAGS = -module -avoid-version
