@@ -33,6 +33,16 @@ bluealsa_SOURCES = \
 	utils.c \
 	main.c
 
+if ENABLE_APTX
+bluealsa_SOURCES += \
+	a2dp-aptx.c
+endif
+
+if ENABLE_APTX_HD
+bluealsa_SOURCES += \
+	a2dp-aptx-hd.c
+endif
+
 if ENABLE_APTX_OR_APTX_HD
 bluealsa_SOURCES += \
 	codec-aptx.c

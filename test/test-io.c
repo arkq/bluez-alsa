@@ -52,6 +52,12 @@
 
 #include "../src/a2dp.c"
 #include "../src/a2dp-audio.c"
+#if ENABLE_APTX
+# include "../src/a2dp-aptx.c"
+#endif
+#if ENABLE_APTX_HD
+# include "../src/a2dp-aptx-hd.c"
+#endif
 #if ENABLE_FASTSTREAM
 # include "../src/a2dp-faststream.c"
 #endif
@@ -611,15 +617,15 @@ START_TEST(test_a2dp_aptx) {
 	if (aging_duration) {
 #if HAVE_APTX_DECODE
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 400;
-		test_a2dp(t1, t2, a2dp_source_aptx, a2dp_sink_aptx);
+		test_a2dp(t1, t2, a2dp_aptx_enc_thread, a2dp_aptx_dec_thread);
 #endif
 	}
 	else {
 		debug("\n\n*** A2DP codec: apt-X ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 40;
-		test_a2dp(t1, t2, a2dp_source_aptx, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, a2dp_aptx_enc_thread, test_io_thread_a2dp_dump_bt);
 #if HAVE_APTX_DECODE
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_aptx_dec_thread);
 #endif
 	};
 
@@ -647,15 +653,15 @@ START_TEST(test_a2dp_aptx_hd) {
 	if (aging_duration) {
 #if HAVE_APTX_HD_DECODE
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
-		test_a2dp(t1, t2, a2dp_source_aptx_hd, a2dp_sink_aptx_hd);
+		test_a2dp(t1, t2, a2dp_aptx_hd_enc_thread, a2dp_aptx_hd_dec_thread);
 #endif
 	}
 	else {
 		debug("\n\n*** A2DP codec: apt-X HD ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
-		test_a2dp(t1, t2, a2dp_source_aptx_hd, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, a2dp_aptx_hd_enc_thread, test_io_thread_a2dp_dump_bt);
 #if HAVE_APTX_HD_DECODE
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aptx_hd);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_aptx_hd_dec_thread);
 #endif
 	};
 

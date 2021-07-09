@@ -38,6 +38,10 @@
 #include "../src/ba-transport.c"
 
 int a2dp_audio_thread_create(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_aptx_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_aptx_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_aptx_hd_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_aptx_hd_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_faststream_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }

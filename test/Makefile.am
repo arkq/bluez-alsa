@@ -142,6 +142,14 @@ test_utils_SOURCES = \
 	../src/utils.c \
 	test-utils.c
 
+if ENABLE_APTX
+bluealsa_mock_SOURCES += ../src/a2dp-aptx.c
+endif
+
+if ENABLE_APTX_HD
+bluealsa_mock_SOURCES += ../src/a2dp-aptx-hd.c
+endif
+
 if ENABLE_APTX_OR_APTX_HD
 bluealsa_mock_SOURCES += ../src/codec-aptx.c
 test_io_SOURCES += ../src/codec-aptx.c
