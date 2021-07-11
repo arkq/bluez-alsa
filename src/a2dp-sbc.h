@@ -1,5 +1,5 @@
 /*
- * BlueALSA - a2dp-audio.h
+ * BlueALSA - a2dp-sbc.h
  * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -9,8 +9,8 @@
  */
 
 #pragma once
-#ifndef BLUEALSA_A2DPAUDIO_H_
-#define BLUEALSA_A2DPAUDIO_H_
+#ifndef BLUEALSA_A2DPSBC_H_
+#define BLUEALSA_A2DPSBC_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -18,6 +18,7 @@
 
 #include "ba-transport.h"
 
-int a2dp_audio_thread_create(struct ba_transport *t);
+void a2dp_sbc_transport_set_codec(struct ba_transport *t);
+int a2dp_sbc_transport_start(struct ba_transport *t);
 
 #endif

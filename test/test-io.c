@@ -51,7 +51,10 @@
 #include "shared/log.h"
 
 #include "../src/a2dp.c"
-#include "../src/a2dp-audio.c"
+#include "../src/a2dp-sbc.c"
+#if ENABLE_AAC
+# include "../src/a2dp-aac.c"
+#endif
 #if ENABLE_APTX
 # include "../src/a2dp-aptx.c"
 #endif
@@ -63,6 +66,9 @@
 #endif
 #if ENABLE_LDAC
 # include "../src/a2dp-ldac.c"
+#endif
+#if ENABLE_MPEG
+# include "../src/a2dp-mpeg.c"
 #endif
 #include "../src/ba-transport.c"
 #include "inc/sine.inc"
@@ -94,6 +100,7 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.max_bitpool = SBC_MAX_BITPOOL,
 };
 
+__attribute__ ((unused))
 static const a2dp_mpeg_t config_mp3_44100_stereo = {
 	.layer = MPEG_LAYER_MP3,
 	.channel_mode = MPEG_CHANNEL_MODE_STEREO,
@@ -102,6 +109,7 @@ static const a2dp_mpeg_t config_mp3_44100_stereo = {
 	MPEG_INIT_BITRATE(0xFFFF)
 };
 
+__attribute__ ((unused))
 static const a2dp_aac_t config_aac_44100_stereo = {
 	.object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC,
 	AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
@@ -110,18 +118,21 @@ static const a2dp_aac_t config_aac_44100_stereo = {
 	AAC_INIT_BITRATE(0xFFFF)
 };
 
+__attribute__ ((unused))
 static const a2dp_aptx_t config_aptx_44100_stereo = {
 	.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.frequency = APTX_SAMPLING_FREQ_44100,
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
+__attribute__ ((unused))
 static const a2dp_aptx_hd_t config_aptx_hd_44100_stereo = {
 	.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 	.aptx.frequency = APTX_SAMPLING_FREQ_44100,
 	.aptx.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
+__attribute__ ((unused))
 static const a2dp_faststream_t config_faststream_44100_16000 = {
 	.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
@@ -129,6 +140,7 @@ static const a2dp_faststream_t config_faststream_44100_16000 = {
 	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 };
 
+__attribute__ ((unused))
 static const a2dp_ldac_t config_ldac_44100_stereo = {
 	.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 	.frequency = LDAC_SAMPLING_FREQ_44100,
@@ -516,13 +528,13 @@ START_TEST(test_a2dp_sbc) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
-		test_a2dp(t1, t2, a2dp_source_sbc, a2dp_sink_sbc);
+		test_a2dp(t1, t2, a2dp_sbc_enc_thread, a2dp_sbc_dec_thread);
 	}
 	else {
 		debug("\n\n*** A2DP codec: SBC ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
-		test_a2dp(t1, t2, a2dp_source_sbc, test_io_thread_a2dp_dump_bt);
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_sbc);
+		test_a2dp(t1, t2, a2dp_sbc_enc_thread, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sbc_dec_thread);
 	}
 
 	ba_transport_destroy(t1);
@@ -553,13 +565,13 @@ START_TEST(test_a2dp_mp3) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
-		test_a2dp(t1, t2, a2dp_source_mp3, a2dp_sink_mpeg);
+		test_a2dp(t1, t2, a2dp_mp3_enc_thread, a2dp_mpeg_dec_thread);
 	}
 	else {
 		debug("\n\n*** A2DP codec: MP3 ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 250;
-		test_a2dp(t1, t2, a2dp_source_mp3, test_io_thread_a2dp_dump_bt);
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_mpeg);
+		test_a2dp(t1, t2, a2dp_mp3_enc_thread, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_mpeg_dec_thread);
 	}
 
 	test_a2dp_pcm_samples_boost = prev;
@@ -587,13 +599,13 @@ START_TEST(test_a2dp_aac) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 450;
-		test_a2dp(t1, t2, a2dp_source_aac, a2dp_sink_aac);
+		test_a2dp(t1, t2, a2dp_aac_enc_thread, a2dp_aac_dec_thread);
 	}
 	else {
 		debug("\n\n*** A2DP codec: AAC ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 64;
-		test_a2dp(t1, t2, a2dp_source_aac, test_io_thread_a2dp_dump_bt);
-		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_sink_aac);
+		test_a2dp(t1, t2, a2dp_aac_enc_thread, test_io_thread_a2dp_dump_bt);
+		test_a2dp(t1, t2, test_io_thread_a2dp_dump_pcm, a2dp_aac_dec_thread);
 	}
 
 	ba_transport_destroy(t1);

@@ -33,7 +33,6 @@
 #include <glib-unix.h>
 #include <glib.h>
 
-#include "a2dp-audio.h"
 #include "a2dp-codecs.h"
 #include "a2dp.h"
 #include "ba-adapter.h"
@@ -229,7 +228,7 @@ static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 		g_thread_unref(g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(bt_fd)));
-		assert(a2dp_audio_thread_create(t) == 0);
+		assert(ba_transport_start(t) == 0);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 		switch (t->type.codec) {

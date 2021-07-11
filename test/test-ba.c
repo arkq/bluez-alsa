@@ -22,7 +22,6 @@
 #include <check.h>
 #include <glib.h>
 
-#include "a2dp-audio.h"
 #include "a2dp-codecs.h"
 #include "a2dp.h"
 #include "ba-adapter.h"
@@ -37,7 +36,8 @@
 #include "../src/a2dp.c"
 #include "../src/ba-transport.c"
 
-int a2dp_audio_thread_create(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_aac_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_aac_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_aptx_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_aptx_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_aptx_hd_transport_set_codec(struct ba_transport *t) { (void)t; }
@@ -46,6 +46,10 @@ void a2dp_faststream_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_ldac_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_ldac_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_mpeg_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_sbc_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_thread *th) { return sleep(3600), th; }

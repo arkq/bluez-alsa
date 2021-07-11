@@ -43,6 +43,8 @@ static pthread_mutex_t transport_codec_updated_mtx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t transport_codec_updated = PTHREAD_COND_INITIALIZER;
 static unsigned int transport_codec_updated_cnt = 0;
 
+void a2dp_aac_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_aac_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_aptx_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_aptx_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_aptx_hd_transport_set_codec(struct ba_transport *t) { (void)t; }
@@ -53,6 +55,10 @@ void a2dp_ldac_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_ldac_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
 void *sco_dec_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
+void a2dp_mpeg_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_sbc_transport_set_codec(struct ba_transport *t) { (void)t; }
+int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
 
 unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
 	debug("%s: %p", __func__, (void *)pcm); (void)error;
@@ -72,7 +78,6 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)r, mask); }
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); }
-int a2dp_audio_thread_create(struct ba_transport *t) { (void)t; return -1; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
 	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;

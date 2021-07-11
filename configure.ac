@@ -179,6 +179,10 @@ AM_COND_IF([ENABLE_MPG123], [
 	AC_DEFINE([ENABLE_MPG123], [1], [Define to 1 if MPG123 is enabled.])
 ])
 
+# OR-ed conditional which can be used in the Makefile.am
+AM_CONDITIONAL([ENABLE_MPEG], [
+	test "x$enable_mp3lame" = "xyes" -o "x$enable_mpg123" = "xyes"])
+
 AC_ARG_ENABLE([msbc],
 	[AS_HELP_STRING([--enable-msbc], [enable mSBC support])])
 AM_CONDITIONAL([ENABLE_MSBC], [test "x$enable_msbc" = "xyes"])

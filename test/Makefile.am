@@ -40,7 +40,7 @@ bluealsa_mock_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
-	../src/a2dp-audio.c \
+	../src/a2dp-sbc.c \
 	../src/at.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
@@ -144,6 +144,10 @@ test_utils_SOURCES = \
 	../src/utils.c \
 	test-utils.c
 
+if ENABLE_AAC
+bluealsa_mock_SOURCES += ../src/a2dp-aac.c
+endif
+
 if ENABLE_APTX
 bluealsa_mock_SOURCES += ../src/a2dp-aptx.c
 endif
@@ -163,6 +167,10 @@ endif
 
 if ENABLE_LDAC
 bluealsa_mock_SOURCES += ../src/a2dp-ldac.c
+endif
+
+if ENABLE_MPEG
+bluealsa_mock_SOURCES += ../src/a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC

@@ -30,8 +30,10 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include "a2dp-audio.h"
 #include "a2dp-codecs.h"
+#ifdef ENABLE_AAC
+# include "a2dp-aac.h"
+#endif
 #ifdef ENABLE_APTX
 # include "a2dp-aptx.h"
 #endif
@@ -44,6 +46,10 @@
 #ifdef ENABLE_LDAC
 # include "a2dp-ldac.h"
 #endif
+#ifdef ENABLE_MPEG
+# include "a2dp-mpeg.h"
+#endif
+#include "a2dp-sbc.h"
 #include "audio.h"
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
@@ -1015,33 +1021,20 @@ final:
 
 static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 
-	const struct a2dp_codec *codec = t->a2dp.codec;
 	const uint16_t codec_id = t->type.codec;
-
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 
 	switch (codec_id) {
 	case A2DP_CODEC_SBC:
-		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-				((a2dp_sbc_t *)t->a2dp.configuration)->channel_mode, false);
-		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-				((a2dp_sbc_t *)t->a2dp.configuration)->frequency, false);
+		a2dp_sbc_transport_set_codec(t);
 		break;
 #if ENABLE_MPEG
 	case A2DP_CODEC_MPEG12:
-		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-				((a2dp_mpeg_t *)t->a2dp.configuration)->channel_mode, false);
-		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-				((a2dp_mpeg_t *)t->a2dp.configuration)->frequency, false);
+		a2dp_mpeg_transport_set_codec(t);
 		break;
 #endif
 #if ENABLE_AAC
 	case A2DP_CODEC_MPEG24:
-		t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-				((a2dp_aac_t *)t->a2dp.configuration)->channels, false);
-		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-				AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.configuration), false);
+		a2dp_aac_transport_set_codec(t);
 		break;
 #endif
 #if ENABLE_APTX
@@ -1124,6 +1117,16 @@ int ba_transport_start(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		switch (t->type.codec) {
+		case A2DP_CODEC_SBC:
+			return a2dp_sbc_transport_start(t);
+#if ENABLE_MPEG
+		case A2DP_CODEC_MPEG12:
+			return a2dp_mpeg_transport_start(t);
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return a2dp_aac_transport_start(t);
+#endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
 			return a2dp_aptx_transport_start(t);
@@ -1140,8 +1143,6 @@ int ba_transport_start(struct ba_transport *t) {
 		case A2DP_CODEC_VENDOR_LDAC:
 			return a2dp_ldac_transport_start(t);
 #endif
-		default:
-			return a2dp_audio_thread_create(t);
 		}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {

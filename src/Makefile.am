@@ -12,7 +12,7 @@ bluealsa_SOURCES = \
 	shared/log.c \
 	shared/rt.c \
 	a2dp.c \
-	a2dp-audio.c \
+	a2dp-sbc.c \
 	at.c \
 	audio.c \
 	ba-adapter.c \
@@ -32,6 +32,11 @@ bluealsa_SOURCES = \
 	sco.c \
 	utils.c \
 	main.c
+
+if ENABLE_AAC
+bluealsa_SOURCES += \
+	a2dp-aac.c
+endif
 
 if ENABLE_APTX
 bluealsa_SOURCES += \
@@ -56,6 +61,11 @@ endif
 if ENABLE_LDAC
 bluealsa_SOURCES += \
 	a2dp-ldac.c
+endif
+
+if ENABLE_MPEG
+bluealsa_SOURCES += \
+	a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC
