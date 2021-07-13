@@ -118,11 +118,14 @@ struct ba_transport_pcm {
 
 	/* Volume configuration for channel left [0] and right [1]. In case of
 	 * a monophonic sound, only the left [0] channel shall be used. */
-	struct {
+	struct ba_transport_pcm_volume {
 		/* volume level change in "dB * 100" */
 		int level;
 		/* audio signal mute switch */
 		bool muted;
+		/* pre-calculated PCM scale factor based on decibel formula
+		 * pow(10, dB / 20); for muted channel it shall equal 0 */
+		double scale;
 	} volume[2];
 
 	/* data synchronization */
@@ -134,6 +137,10 @@ struct ba_transport_pcm {
 	unsigned int ba_dbus_id;
 
 };
+
+void ba_transport_pcm_volume_set(
+		struct ba_transport_pcm_volume *volume,
+		const int *level, const bool *muted);
 
 enum ba_transport_thread_state {
 	BA_TRANSPORT_THREAD_STATE_NONE,

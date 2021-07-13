@@ -816,14 +816,17 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 		uint8_t ch1 = packed >> 8;
 		uint8_t ch2 = packed & 0xFF;
 
-		pcm->volume[0].level = ba_transport_pcm_volume_bt_to_level(pcm, ch1 & 0x7F);
-		pcm->volume[0].muted = !!(ch1 & 0x80);
-		pcm->volume[1].level = ba_transport_pcm_volume_bt_to_level(pcm, ch2 & 0x7F);
-		pcm->volume[1].muted = !!(ch2 & 0x80);
+		int ch1_level = ba_transport_pcm_volume_bt_to_level(pcm, ch1 & 0x7F);
+		bool ch1_muted = !!(ch1 & 0x80);
+		int ch2_level = ba_transport_pcm_volume_bt_to_level(pcm, ch2 & 0x7F);
+		bool ch2_muted = !!(ch2 & 0x80);
+
+		ba_transport_pcm_volume_set(&pcm->volume[0], &ch1_level, &ch1_muted);
+		ba_transport_pcm_volume_set(&pcm->volume[1], &ch2_level, &ch2_muted);
 
 		debug("Setting volume: %u [%.2f dB] %c%c %u [%.2f dB]",
-				ch1 & 0x7F, 0.01 * pcm->volume[0].level, pcm->volume[0].muted ? 'x' : '<',
-				pcm->volume[1].muted ? 'x' : '>', ch2 & 0x7F, 0.01 * pcm->volume[1].level);
+				ch1 & 0x7F, 0.01 * ch1_level, ch1_muted ? 'x' : '<',
+				ch2_muted ? 'x' : '>', ch2 & 0x7F, 0.01 * ch2_level);
 
 		ba_transport_pcm_volume_update(pcm);
 		return TRUE;

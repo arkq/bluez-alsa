@@ -12,7 +12,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <math.h>
 #include <poll.h>
 #include <pthread.h>
 #include <string.h>
@@ -129,22 +128,15 @@ void io_pcm_scale(
 		return;
 	}
 
-	double ch1_scale = 0;
-	double ch2_scale = 0;
-
-	/* scaling based on the decibel formula pow(10, dB / 20) */
-	if (!pcm->volume[0].muted)
-		ch1_scale = pow(10, (0.01 * pcm->volume[0].level) / 20);
-	if (!pcm->volume[1].muted)
-		ch2_scale = pow(10, (0.01 * pcm->volume[1].level) / 20);
-
 	switch (pcm->format) {
 	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-		audio_scale_s16_2le(buffer, channels, frames, ch1_scale, ch2_scale);
+		audio_scale_s16_2le(buffer, channels, frames,
+				pcm->volume[0].scale, pcm->volume[1].scale);
 		break;
 	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
 	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-		audio_scale_s32_4le(buffer, channels, frames, ch1_scale, ch2_scale);
+		audio_scale_s32_4le(buffer, channels, frames,
+				pcm->volume[0].scale, pcm->volume[1].scale);
 		break;
 	default:
 		g_assert_not_reached();

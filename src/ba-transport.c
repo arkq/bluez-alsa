@@ -11,6 +11,7 @@
 #include "ba-transport.h"
 
 #include <errno.h>
+#include <math.h>
 #include <poll.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -101,6 +102,8 @@ static int transport_pcm_init(
 
 	pcm->volume[0].level = config.volume_init_level;
 	pcm->volume[1].level = config.volume_init_level;
+	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL);
+	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL);
 
 	pthread_mutex_init(&pcm->mutex, NULL);
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
@@ -126,6 +129,28 @@ static void transport_pcm_free(
 
 	if (pcm->ba_dbus_path != NULL)
 		g_free(pcm->ba_dbus_path);
+
+}
+
+/**
+ * Set PCM volume level/mute.
+ *
+ * One shall use this function instead of directly writing to PCM volume
+ * structure fields.
+ *
+ * @param level If not NULL, new PCM volume level in "dB * 100".
+ * @param muted If not NULL, change muted state. */
+void ba_transport_pcm_volume_set(
+		struct ba_transport_pcm_volume *volume,
+		const int *level, const bool *muted) {
+
+	if (level != NULL)
+		volume->level = *level;
+	if (muted != NULL)
+		volume->muted = *muted;
+
+	/* pre-calculate PCM scale factor */
+	volume->scale = volume->muted ? 0 : pow(10, (0.01 * volume->level) / 20);
 
 }
 

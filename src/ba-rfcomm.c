@@ -354,18 +354,20 @@ static int rfcomm_handler_nrec_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
+	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
 	const int fd = r->fd;
 
 	/* skip update in case of software volume */
-	if (t_sco->sco.mic_pcm.soft_volume)
+	if (pcm->soft_volume)
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
 
-	t_sco->sco.mic_pcm.volume[0].level = ba_transport_pcm_volume_bt_to_level(
-			&t_sco->sco.mic_pcm, r->gain_mic = atoi(at->value));
+	r->gain_mic = atoi(at->value);
+	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -374,10 +376,13 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
+	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
 
-	t_sco->sco.mic_pcm.volume[0].level = ba_transport_pcm_volume_bt_to_level(
-			&t_sco->sco.mic_pcm, r->gain_mic = atoi(at->value));
-	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	r->gain_mic = atoi(at->value);
+	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -386,18 +391,20 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
+	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
 	const int fd = r->fd;
 
 	/* skip update in case of software volume */
-	if (t_sco->sco.spk_pcm.soft_volume)
+	if (pcm->soft_volume)
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
 
-	t_sco->sco.spk_pcm.volume[0].level = ba_transport_pcm_volume_bt_to_level(
-			&t_sco->sco.spk_pcm, r->gain_spk = atoi(at->value));
+	r->gain_spk = atoi(at->value);
+	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
-	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -406,10 +413,13 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
+	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
 
-	t_sco->sco.spk_pcm.volume[0].level = ba_transport_pcm_volume_bt_to_level(
-			&t_sco->sco.spk_pcm, r->gain_spk = atoi(at->value));
-	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	r->gain_spk = atoi(at->value);
+	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -795,13 +805,14 @@ static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
+	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
 	const int fd = r->fd;
 	int gain = 0;
 	char tmp[16];
 
-	if (!t_sco->sco.mic_pcm.volume[0].muted)
+	if (!pcm->volume[0].muted)
 		gain = ba_transport_pcm_volume_level_to_bt(
-				&t_sco->sco.mic_pcm, t_sco->sco.mic_pcm.volume[0].level);
+				pcm, pcm->volume[0].level);
 
 	if (!force && r->gain_mic == gain)
 		return 0;
@@ -828,13 +839,14 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
+	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
 	const int fd = r->fd;
 	int gain = 0;
 	char tmp[16];
 
-	if (!t_sco->sco.spk_pcm.volume[0].muted)
+	if (!pcm->volume[0].muted)
 		gain = ba_transport_pcm_volume_level_to_bt(
-				&t_sco->sco.spk_pcm, t_sco->sco.spk_pcm.volume[0].level);
+				pcm, pcm->volume[0].level);
 
 	if (!force && r->gain_spk == gain)
 		return 0;
