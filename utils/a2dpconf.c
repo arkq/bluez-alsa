@@ -244,40 +244,34 @@ static void dump_atrac(const void *blob, size_t size) {
 			ATRAC_GET_MAX_SUL(*atrac));
 }
 
+static void printf_vendor(const a2dp_vendor_codec_t *info) {
+	printf(""
+			"  vendor-id:32 = %#x [%s]\n"
+			"  vendor-codec-id:16 = %#x\n",
+			A2DP_GET_VENDOR_ID(*info),
+			bt_compidtostr(A2DP_GET_VENDOR_ID(*info)),
+			A2DP_GET_CODEC_ID(*info));
+}
+
 static void dump_vendor(const void *blob, size_t size) {
 	const a2dp_vendor_codec_t *info = blob;
 	if (size <= sizeof(*info))
 		return;
 	const void *data = info + 1;
 	size_t data_size = size - sizeof(*info);
-	printf("<hex:%s> {\n"
-			"  vendor-id:32 = %#x [%s]\n"
-			"  vendor-codec-id:16 = %#x\n"
+	printf("<hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(info);
+	printf(""
 			"  data:%zu = hex:%s\n"
 			"}\n",
-			bintohex(blob, size),
-			A2DP_GET_VENDOR_ID(*info),
-			bt_compidtostr(A2DP_GET_VENDOR_ID(*info)),
-			A2DP_GET_CODEC_ID(*info),
 			data_size * 8,
 			bintohex(data, data_size));
 }
 
-static void _dump_aptx(const void *blob, size_t size, const char *name) {
-	const a2dp_aptx_t *aptx = blob;
-	if (check_blob_size(sizeof(*aptx), size) == -1)
-		return;
-	printf("%s <hex:%s> {\n"
-			"  vendor-id:32 = %#x [%s]\n"
-			"  vendor-codec-id:16 = %#x\n"
+static void printf_aptx(const a2dp_aptx_t *aptx) {
+	printf(""
 			"  channel-mode:4 =%s%s%s\n"
-			"  sampling-frequency:4 =%s%s%s%s\n"
-			"}\n",
-			name,
-			bintohex(aptx, sizeof(*aptx)),
-			A2DP_GET_VENDOR_ID(aptx->info),
-			bt_compidtostr(A2DP_GET_VENDOR_ID(aptx->info)),
-			A2DP_GET_CODEC_ID(aptx->info),
+			"  sampling-frequency:4 =%s%s%s%s\n",
 			aptx->channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_TWS ? " DualChannel" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "",
@@ -288,51 +282,87 @@ static void _dump_aptx(const void *blob, size_t size, const char *name) {
 }
 
 static void dump_aptx(const void *blob, size_t size) {
-	_dump_aptx(blob, size, "aptX");
+	const a2dp_aptx_t *aptx = blob;
+	if (check_blob_size(sizeof(*aptx), size) == -1)
+		return;
+	printf("aptX <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&aptx->info);
+	printf_aptx(aptx);
+	printf("}\n");
 }
 
 static void dump_aptx_tws(const void *blob, size_t size) {
-	_dump_aptx(blob, size, "aptX-TWS");
+	const a2dp_aptx_t *aptx = blob;
+	if (check_blob_size(sizeof(*aptx), size) == -1)
+		return;
+	printf("aptX-TWS <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&aptx->info);
+	printf_aptx(aptx);
+	printf("}\n");
 }
 
 static void dump_aptx_hd(const void *blob, size_t size) {
 	const a2dp_aptx_hd_t *aptx_hd = blob;
 	if (check_blob_size(sizeof(*aptx_hd), size) == -1)
 		return;
-	printf("aptX HD <hex:%s> {\n"
-			"  vendor-id:32 = %#x [%s]\n"
-			"  vendor-codec-id:16 = %#x\n"
-			"  channel-mode:4 =%s%s\n"
-			"  sampling-frequency:4 =%s%s%s%s\n"
+	printf("aptX HD <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&aptx_hd->aptx.info);
+	printf_aptx(&aptx_hd->aptx);
+	printf(""
 			"  <reserved>:32\n"
-			"}\n",
-			bintohex(aptx_hd, sizeof(*aptx_hd)),
-			A2DP_GET_VENDOR_ID(aptx_hd->aptx.info),
-			bt_compidtostr(A2DP_GET_VENDOR_ID(aptx_hd->aptx.info)),
-			A2DP_GET_CODEC_ID(aptx_hd->aptx.info),
-			aptx_hd->aptx.channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
-			aptx_hd->aptx.channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "",
-			aptx_hd->aptx.frequency & APTX_SAMPLING_FREQ_48000 ? " 48000" : "",
-			aptx_hd->aptx.frequency & APTX_SAMPLING_FREQ_44100 ? " 44100" : "",
-			aptx_hd->aptx.frequency & APTX_SAMPLING_FREQ_32000 ? " 32000" : "",
-			aptx_hd->aptx.frequency & APTX_SAMPLING_FREQ_16000 ? " 16000" : "");
+			"}\n");
+}
+
+static void dump_aptx_ll(const void *blob, size_t size) {
+
+	const a2dp_aptx_ll_t *aptx_ll = blob;
+	const a2dp_aptx_ll_new_caps_t *aptx_ll_new_caps = (void *)(aptx_ll + 1);
+
+	size_t new_caps_size = 0;
+	if (size >= sizeof(*aptx_ll) && aptx_ll->has_new_caps)
+		new_caps_size = sizeof(*aptx_ll_new_caps);
+	if (check_blob_size(sizeof(*aptx_ll) + new_caps_size, size) == -1)
+		return;
+
+	printf("aptX LL (Sprint) <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&aptx_ll->aptx.info);
+	printf_aptx(&aptx_ll->aptx);
+	printf(""
+			"  <reserved>:6\n"
+			"  has-new-caps:1 = %s\n"
+			"  bidirect-link:1 = %s\n",
+			aptx_ll->has_new_caps ? "true" : "false",
+			aptx_ll->bidirect_link ? "true" : "false");
+
+	if (new_caps_size > 0)
+		printf(""
+				"  <reserved>:8\n"
+				"  target-codec-level:16 = %u\n"
+				"  initial-codec-level:16 = %u\n"
+				"  sra-max-rate:8 = %u\n"
+				"  sra-avg-time:8 = %u\n"
+				"  good-working-level:16 = %u\n",
+				APTX_LL_GET_TARGET_CODEC_LEVEL(*aptx_ll_new_caps),
+				APTX_LL_GET_INITIAL_CODEC_LEVEL(*aptx_ll_new_caps),
+				aptx_ll_new_caps->sra_max_rate,
+				aptx_ll_new_caps->sra_avg_time,
+				APTX_LL_GET_GOOD_WORKING_LEVEL(*aptx_ll_new_caps));
+
+	printf("}\n");
+
 }
 
 static void dump_faststream(const void *blob, size_t size) {
 	const a2dp_faststream_t *faststream = blob;
 	if (check_blob_size(sizeof(*faststream), size) == -1)
 		return;
-	printf("FastStream <hex:%s> {\n"
-			"  vendor-id:32 = %#x [%s]\n"
-			"  vendor-codec-id:16 = %#x\n"
+	printf("FastStream <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&faststream->info);
+	printf(""
 			"  direction:8 =%s%s\n"
 			"  sampling-frequency-voice:8 =%s\n"
 			"  sampling-frequency-music:8 =%s%s\n"
 			"}\n",
-			bintohex(faststream, sizeof(*faststream)),
-			A2DP_GET_VENDOR_ID(faststream->info),
-			bt_compidtostr(A2DP_GET_VENDOR_ID(faststream->info)),
-			A2DP_GET_CODEC_ID(faststream->info),
 			faststream->direction & FASTSTREAM_DIRECTION_MUSIC ? " Music" : "",
 			faststream->direction & FASTSTREAM_DIRECTION_VOICE ? " Voice" : "",
 			faststream->frequency_voice & FASTSTREAM_SAMPLING_FREQ_VOICE_16000 ? " 16000" : "",
@@ -344,18 +374,14 @@ static void dump_ldac(const void *blob, size_t size) {
 	const a2dp_ldac_t *ldac = blob;
 	if (check_blob_size(sizeof(*ldac), size) == -1)
 		return;
-	printf("LDAC <hex:%s> {\n"
-			"  vendor-id:32 = %#x [%s]\n"
-			"  vendor-codec-id:16 = %#x\n"
+	printf("LDAC <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&ldac->info);
+	printf(""
 			"  <reserved>:2\n"
 			"  sampling-frequency:6 =%s%s%s%s%s%s\n"
 			"  <reserved>:5\n"
 			"  channel-mode:3 =%s%s%s\n"
 			"}\n",
-			bintohex(ldac, sizeof(*ldac)),
-			A2DP_GET_VENDOR_ID(ldac->info),
-			bt_compidtostr(A2DP_GET_VENDOR_ID(ldac->info)),
-			A2DP_GET_CODEC_ID(ldac->info),
 			ldac->frequency & LDAC_SAMPLING_FREQ_192000 ? " 192000" : "",
 			ldac->frequency & LDAC_SAMPLING_FREQ_176400 ? " 176400" : "",
 			ldac->frequency & LDAC_SAMPLING_FREQ_96000 ? " 96000" : "",
@@ -380,7 +406,9 @@ static struct {
 	{ A2DP_CODEC_VENDOR_APTX_TWS, sizeof(a2dp_aptx_t), dump_aptx_tws },
 	{ A2DP_CODEC_VENDOR_APTX_AD, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_APTX_HD, sizeof(a2dp_aptx_hd_t), dump_aptx_hd },
-	{ A2DP_CODEC_VENDOR_APTX_LL, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_t), dump_aptx_ll },
+	{ A2DP_CODEC_VENDOR_APTX_LL,
+		sizeof(a2dp_aptx_ll_t) + sizeof(a2dp_aptx_ll_new_caps_t), dump_aptx_ll },
 	{ A2DP_CODEC_VENDOR_FASTSTREAM, sizeof(a2dp_faststream_t), dump_faststream },
 	{ A2DP_CODEC_VENDOR_LDAC, sizeof(a2dp_ldac_t), dump_ldac },
 	{ A2DP_CODEC_VENDOR_LHDC, -1, dump_vendor },

@@ -5,7 +5,7 @@
  *  Copyright (C) 2006-2010  Nokia Corporation
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *  Copyright (C) 2018       Pali Rohár <pali.rohar@gmail.com>
- *  Copyright (C) 2016-2020  Arkadiusz Bokowy
+ *  Copyright (C) 2016-2021  Arkadiusz Bokowy
  *
  *
  *  This library is free software; you can redistribute it and/or
@@ -38,7 +38,8 @@
 #define A2DP_CODEC_ATRAC    0x04
 #define A2DP_CODEC_VENDOR   0xFF
 
-/* Customized (BlueALSA) 16-bit vendor extension. */
+/**
+ * Customized (BlueALSA) 16-bit vendor extension. */
 #define A2DP_CODEC_VENDOR_APTX          0x4FFF
 #define A2DP_CODEC_VENDOR_APTX_AD       0xADFF
 #define A2DP_CODEC_VENDOR_APTX_HD       0x24FF
@@ -175,7 +176,8 @@
 
 #define MPEG_BIT_RATE_FREE              MPEG_BIT_RATE_INDEX_0
 
-#define MPEG_GET_BITRATE(a) ((uint16_t)(a).bitrate1 << 8 | (a).bitrate2)
+#define MPEG_GET_BITRATE(a) \
+	((uint16_t)(a).bitrate1 << 8 | (a).bitrate2)
 #define MPEG_SET_BITRATE(a, b) \
 	do { \
 		(a).bitrate1 = ((b) >> 8) & 0x7f; \
@@ -206,9 +208,10 @@
 #define AAC_CHANNELS_1                  0x02
 #define AAC_CHANNELS_2                  0x01
 
-#define AAC_GET_BITRATE(a) ((a).bitrate1 << 16 | \
-					(a).bitrate2 << 8 | (a).bitrate3)
-#define AAC_GET_FREQUENCY(a) ((a).frequency1 << 4 | (a).frequency2)
+#define AAC_GET_BITRATE(a) \
+	((a).bitrate1 << 16 | (a).bitrate2 << 8 | (a).bitrate3)
+#define AAC_GET_FREQUENCY(a) \
+	((a).frequency1 << 4 | (a).frequency2)
 
 #define AAC_SET_BITRATE(a, b) \
 	do { \
@@ -268,25 +271,20 @@
 #define APTX_LL_VENDOR_ID               BT_COMPID_QUALCOMM_TECH_INTL
 #define APTX_LL_CODEC_ID                0x0002
 
-/* Default parameters for aptX Low Latency encoder */
+/**
+ * Default parameters for aptX LL (Sprint) encoder */
+#define APTX_LL_TARGET_CODEC_LEVEL      180  /* target codec buffer level */
+#define APTX_LL_INITIAL_CODEC_LEVEL     360  /* initial codec buffer level */
+#define APTX_LL_SRA_MAX_RATE            50   /* x/10000 = 0.005 SRA rate */
+#define APTX_LL_SRA_AVG_TIME            1    /* SRA averaging time = 1s */
+#define APTX_LL_GOOD_WORKING_LEVEL      180  /* good working buffer level */
 
-/* Target codec buffer level = 180 */
-#define APTX_LL_TARGET_LEVEL2           0xb4
-#define APTX_LL_TARGET_LEVEL1           0x00
-
-/* Initial codec buffer level = 360 */
-#define APTX_LL_INITIAL_LEVEL2          0x68
-#define APTX_LL_INITIAL_LEVEL1          0x01
-
-/* SRA max rate 0.005 * 10000 = 50 */
-#define APTX_LL_SRA_MAX_RATE            0x32
-
-/* SRA averaging time = 1s */
-#define APTX_LL_SRA_AVG_TIME            0x01
-
-/* Good working codec buffer level = 180 */
-#define APTX_LL_GOOD_WORKING_LEVEL2     0xB4
-#define APTX_LL_GOOD_WORKING_LEVEL1     0x00
+#define APTX_LL_GET_TARGET_CODEC_LEVEL(a) \
+	((a).target_codec_level1 << 8 | (a).target_codec_level2)
+#define APTX_LL_GET_INITIAL_CODEC_LEVEL(a) \
+	((a).initial_codec_level1 << 8 | (a).initial_codec_level2)
+#define APTX_LL_GET_GOOD_WORKING_LEVEL(a) \
+	((a).good_working_level1 << 8 | (a).good_working_level2)
 
 #define APTX_HD_VENDOR_ID               BT_COMPID_QUALCOMM_TECH
 #define APTX_HD_CODEC_ID                0x0024
@@ -341,7 +339,8 @@ typedef struct {
 		(((uint32_t)(a).vendor_id2) << 16) | \
 		(((uint32_t)(a).vendor_id1) << 24) \
 	)
-#define A2DP_GET_CODEC_ID(a) ((a).codec_id2 | (((uint16_t)(a).codec_id1) << 8))
+#define A2DP_GET_CODEC_ID(a) \
+	((a).codec_id2 | (((uint16_t)(a).codec_id1) << 8))
 #define A2DP_SET_VENDOR_ID_CODEC_ID(v, c) { \
 		.vendor_id4 = (((v) >>  0) & 0xff), \
 		.vendor_id3 = (((v) >>  8) & 0xff), \
@@ -353,10 +352,10 @@ typedef struct {
 
 typedef struct {
 	uint8_t reserved;
-	uint8_t target_level2;
-	uint8_t target_level1;
-	uint8_t initial_level2;
-	uint8_t initial_level1;
+	uint8_t target_codec_level2;
+	uint8_t target_codec_level1;
+	uint8_t initial_codec_level2;
+	uint8_t initial_codec_level1;
 	uint8_t sra_max_rate;
 	uint8_t sra_avg_time;
 	uint8_t good_working_level2;
