@@ -12,9 +12,34 @@
 #ifndef BLUEALSA_SHARED_RT_H_
 #define BLUEALSA_SHARED_RT_H_
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <stdint.h>
 #include <sys/time.h>
 #include <time.h>
+
+#if HAVE_LIBBSD
+# include <bsd/sys/time.h>
+#else
+# define timespecadd(ts_a, ts_b, dest) do { \
+		(dest)->tv_sec = (ts_a)->tv_sec + (ts_b)->tv_sec; \
+		(dest)->tv_nsec = (ts_a)->tv_nsec + (ts_b)->tv_nsec; \
+		if ((dest)->tv_nsec >= 1000000000L) { \
+			(dest)->tv_sec++; \
+			(dest)->tv_nsec -= 1000000000L; \
+		} \
+	} while (0)
+# define timespecsub(ts_a, ts_b, dest) do { \
+		(dest)->tv_sec = (ts_a)->tv_sec - (ts_b)->tv_sec; \
+		(dest)->tv_nsec = (ts_a)->tv_nsec - (ts_b)->tv_nsec; \
+		if ((dest)->tv_nsec < 0) { \
+			(dest)->tv_sec--; \
+			(dest)->tv_nsec += 1000000000L; \
+		} \
+	} while (0)
+#endif
 
 /**
  * Structure used for time synchronization.

@@ -11,7 +11,6 @@
 #include "shared/rt.h"
 
 #include <stdlib.h>
-#include <bsd/sys/time.h>
 
 /**
  * Synchronize time with the sampling rate.

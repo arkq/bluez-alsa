@@ -31,7 +31,6 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 #include <bluetooth/bluetooth.h>
-#include <bsd/sys/time.h>
 #include <dbus/dbus.h>
 
 #include "shared/dbus-client.h"

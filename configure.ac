@@ -86,8 +86,10 @@ PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.0])
 PKG_CHECK_MODULES([DBUS1], [dbus-1 >= 1.6])
 PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.30])
-PKG_CHECK_MODULES([LIBBSD], [libbsd >= 0.8])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
+
+PKG_CHECK_MODULES([LIBBSD], [libbsd >= 0.8],
+	AC_DEFINE([HAVE_LIBBSD], [1], [Define to 1 if you have the libbsd library.]), [:])
 
 AM_CONDITIONAL([ALSA_1_1_2__1_1_3], [$PKG_CONFIG "alsa >= 1.1.2 alsa <= 1.1.3"])
 AM_CONDITIONAL([ALSA_1_1_7], [$PKG_CONFIG --atleast-version=1.1.7 alsa])
@@ -231,6 +233,7 @@ AC_ARG_ENABLE([hcitop],
 	[AS_HELP_STRING([--enable-hcitop], [enable building of hcitop tool])])
 AM_CONDITIONAL([ENABLE_HCITOP], [test "x$enable_hcitop" = "xyes"])
 AM_COND_IF([ENABLE_HCITOP], [
+	PKG_CHECK_MODULES([LIBBSD], [libbsd >= 0.8])
 	PKG_CHECK_MODULES([NCURSES], [ncurses])
 ])
 
