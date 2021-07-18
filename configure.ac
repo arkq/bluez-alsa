@@ -199,6 +199,13 @@ AM_COND_IF([ENABLE_OFONO], [
 	AC_DEFINE([ENABLE_OFONO], [1], [Define to 1 if oFono is enabled.])
 ])
 
+AC_ARG_ENABLE([systemd],
+	AS_HELP_STRING([--enable-systemd], [enable systemd integration]))
+AM_CONDITIONAL([ENABLE_SYSTEMD], [test "x$enable_systemd" = "xyes"])
+AM_COND_IF([ENABLE_SYSTEMD], [
+	PKG_CHECK_MODULES([SYSTEMD], [systemd >= 200])
+])
+
 AC_ARG_ENABLE([upower],
 	AS_HELP_STRING([--enable-upower], [enable UPower integration]))
 AM_CONDITIONAL([ENABLE_UPOWER], [test "x$enable_upower" = "xyes"])
@@ -245,6 +252,13 @@ AM_COND_IF([ENABLE_MANPAGES], [
 	AS_IF([test "x$RST2MAN" = "x"], [AC_MSG_ERROR([[--enable-manpages requires rst2man]])])
 ])
 
+AC_ARG_ENABLE([test],
+	[AS_HELP_STRING([--enable-test], [enable unit test])])
+AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
+AM_COND_IF([ENABLE_TEST], [
+	PKG_CHECK_MODULES([CHECK], [check >= 0.9.10])
+])
+
 AC_ARG_WITH([bash-completion],
 	AS_HELP_STRING([--with-bash-completion@<:@=DIR@:>@], [install bash completion
 		script in DIR (or the bash completions default directory if not specified)]))
@@ -255,22 +269,13 @@ AS_IF([test "x$with_bash_completion" = "xyes"], [
 		[bashcompdir=$($PKG_CONFIG --variable=completionsdir bash-completion)],
 		[bashcompdir="$datadir/bash-completion/completions"])
 	], [bashcompdir="$with_bash_completion"])
+AC_SUBST([BASH_COMPLETION_DIR], [$bashcompdir])
 
-AC_ARG_ENABLE([test],
-	[AS_HELP_STRING([--enable-test], [enable unit test])])
-AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
-AM_COND_IF([ENABLE_TEST], [
-	PKG_CHECK_MODULES([CHECK], [check >= 0.9.10])
-])
-
-AC_ARG_WITH([dbusconfdir],
-	AS_HELP_STRING([--with-dbusconfdir=dir], [path to D-Bus system bus configuration files]),
-	[dbusconfdir="${withval}"],
-	[dbusconfdir=$($PKG_CONFIG --variable=sysconfdir dbus-1)/dbus-1/system.d])
 AC_ARG_WITH([alsaplugindir],
-	AS_HELP_STRING([--with-alsaplugindir=dir], [path where ALSA plugin files are stored]),
+	AS_HELP_STRING([--with-alsaplugindir=DIR], [path where ALSA plugin files are stored]),
 	[alsaplugindir="$withval"],
 	[alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
+AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
 
 # Unfortunately, for ALSA >= 1.1.7 the directory for add-on configuration files
 # is hard-coded as /etc/alsa/conf.d (unless the distribution has patched the
@@ -281,34 +286,30 @@ if test "$sysconfdir" = "\${prefix}/etc"; then
 fi
 
 AC_ARG_WITH([alsaconfdir],
-	AS_HELP_STRING([--with-alsaconfdir=dir], [path to ALSA add-on configuration files]),
+	AS_HELP_STRING([--with-alsaconfdir=DIR], [path to ALSA add-on configuration files]),
 	[alsaconfdir="$withval"],
 	[AM_COND_IF([ALSA_1_1_7],
 		[alsaconfdir="$sysconfdir/alsa/conf.d"],
 		[alsaconfdir="$datadir/alsa/alsa.conf.d"])])
-
-test "x$prefix" = xNONE && prefix=$ac_default_prefix
-test "x$exec_prefix" = xNONE && exec_prefix=$prefix
-
-# TODO: Get rid of "ev(a|i)l" statements.
-# TIP: Wizard-level Autotconf coder is needed.
-eval alsaconfdir="$alsaconfdir"
-eval alsaconfdir="$alsaconfdir"
-eval alsaplugindir="$alsaplugindir"
-eval alsaplugindir="$alsaplugindir"
-
-AC_DEFINE_UNQUOTED([ALSA_CONF_DIR], "$alsaconfdir", [Directory containing ALSA add-on configuration files.])
-AC_DEFINE_UNQUOTED([ALSA_PLUGIN_DIR], "$alsaplugindir", [Directory containing ALSA add-on modules.])
-
-AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
-AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
-AC_SUBST([BASH_COMPLETION_DIR], [$bashcompdir])
+
+AC_ARG_WITH([dbusconfdir],
+	AS_HELP_STRING([--with-dbusconfdir=DIR], [path to D-Bus system bus configuration files]),
+	[dbusconfdir="${withval}"],
+	[dbusconfdir=$($PKG_CONFIG --variable=sysconfdir dbus-1)/dbus-1/system.d])
+AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
+
+AC_ARG_WITH([systemdsystemunitdir],
+	AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [path to systemd system unit files]),
+	[systemdsystemunitdir="${withval}"], [AM_COND_IF([ENABLE_SYSTEMD],
+	[systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])])
+AC_SUBST([SYSTEMD_SYSTEM_UNIT_DIR], [$systemdsystemunitdir])
 
 AC_CONFIG_FILES([
 	Makefile
 	doc/Makefile
 	misc/Makefile
+	misc/systemd/Makefile
 	src/Makefile
 	src/asound/Makefile
 	utils/Makefile

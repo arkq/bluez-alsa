@@ -1,0 +1,31 @@
+[Unit]
+Description=BlueALSA player service
+Documentation=man:bluealsa-aplay(1)
+Requisite=dbus.service
+
+# In order to customize BlueALSA player D-Bus service one should create an
+# override for this systemd unit file. Please note, that in the override file
+# one will have to explicitly clear the ExecStart before setting it again.
+# See the bluez-alsa wiki for more options.
+#
+# $ sudo systemctl edit bluealsa-aplay
+# [Service]
+# ExecStart=
+# ExecStart=@bindir@/bluealsa-aplay --pcm=my-playback-pcm
+
+[Service]
+Type=simple
+ExecStart=@bindir@/bluealsa-aplay
+Restart=on-failure
+
+# Sandboxing
+PrivateDevices=true
+PrivateNetwork=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RemoveIPC=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=bluetooth.target

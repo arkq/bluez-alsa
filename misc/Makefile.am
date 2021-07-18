@@ -1,6 +1,8 @@
 # BlueALSA - Makefile.am
 # Copyright (c) 2016-2021 Arkadiusz Bokowy
 
+SUBDIRS =
+
 if WITH_BASH_COMPLETION
 
 bashcompdir = @BASH_COMPLETION_DIR@
@@ -21,4 +23,8 @@ install-data-hook:
 uninstall-hook:
 	cd $(DESTDIR)$(bashcompdir) && rm -f $(SYMLINKS)
 
+endif
+
+if ENABLE_SYSTEMD
+SUBDIRS += systemd
 endif

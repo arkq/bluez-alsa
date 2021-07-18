@@ -1,0 +1,33 @@
+[Unit]
+Description=BlueALSA service
+Documentation=man:bluealsa(8)
+Requisite=dbus.service
+After=bluez.service
+
+# In order to customize BlueALSA D-Bus service one should create an override
+# for this systemd unit file. Please note, that in the override file one will
+# have to explicitly clear the ExecStart before setting it again. See the
+# bluez-alsa wiki for more options.
+#
+# $ sudo systemctl edit bluealsa
+# [Service]
+# ExecStart=
+# ExecStart=@bindir@/bluealsa --keep-alive=5 -p a2dp-sink
+
+[Service]
+Type=dbus
+BusName=org.bluealsa
+ExecStart=@bindir@/bluealsa
+Restart=on-failure
+
+# Sandboxing
+PrivateDevices=true
+PrivateNetwork=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RemoveIPC=true
+RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH
+
+[Install]
+WantedBy=bluetooth.target
