@@ -209,6 +209,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	struct ba_device *d = NULL;
 	struct ba_transport *t = NULL;
 
+	struct ofono_card_data *ocd = NULL;
 	const char *key = NULL;
 	GVariant *value = NULL;
 	bdaddr_t addr_dev = { 0 };
@@ -255,19 +256,22 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 		goto fail;
 	}
 
-	struct ofono_card_data ocd = {
-		.hci_dev_id = hci_dev_id,
-		.bt_addr = addr_dev,
-	};
+	if ((ocd = malloc(sizeof(*ocd))) == NULL) {
+		error("Couldn't create oFono card data: %s", strerror(errno));
+		goto fail;
+	}
 
-	snprintf(ocd.transport_path, sizeof(ocd.transport_path), "/ofono%s", card);
-	if ((t = ofono_transport_new(d, ttype, dbus_sender, ocd.transport_path)) == NULL) {
+	ocd->hci_dev_id = hci_dev_id;
+	ocd->bt_addr = addr_dev;
+	snprintf(ocd->transport_path, sizeof(ocd->transport_path), "/ofono%s", card);
+
+	if ((t = ofono_transport_new(d, ttype, dbus_sender, ocd->transport_path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
-	g_hash_table_insert(ofono_card_data_map, g_strdup(card),
-			g_memdup(&ocd, sizeof(ocd)));
+	g_hash_table_insert(ofono_card_data_map, g_strdup(card), ocd);
+	ocd = NULL;
 
 	ba_transport_start(t);
 
@@ -280,6 +284,7 @@ fail:
 		ba_transport_unref(t);
 	if (value != NULL)
 		g_variant_unref(value);
+	free(ocd);
 }
 
 /**

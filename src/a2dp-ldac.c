@@ -44,9 +44,9 @@ void a2dp_ldac_transport_set_codec(struct ba_transport *t) {
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
 
 	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			((a2dp_ldac_t *)t->a2dp.configuration)->channel_mode, false);
+			t->a2dp.configuration.ldac.channel_mode, false);
 	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			((a2dp_ldac_t *)t->a2dp.configuration)->frequency, false);
+			t->a2dp.configuration.ldac.frequency, false);
 
 }
 
@@ -74,7 +74,7 @@ static void *a2dp_ldac_enc_thread(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
-	const a2dp_ldac_t *configuration = (a2dp_ldac_t *)t->a2dp.configuration;
+	const a2dp_ldac_t *configuration = &t->a2dp.configuration.ldac;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
@@ -255,7 +255,7 @@ static void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
 
-	const a2dp_ldac_t *configuration = (a2dp_ldac_t *)t->a2dp.configuration;
+	const a2dp_ldac_t *configuration = &t->a2dp.configuration.ldac;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;

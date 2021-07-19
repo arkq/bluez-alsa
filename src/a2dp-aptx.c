@@ -36,9 +36,9 @@ void a2dp_aptx_transport_set_codec(struct ba_transport *t) {
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			((a2dp_aptx_t *)t->a2dp.configuration)->channel_mode, false);
+			t->a2dp.configuration.aptx.channel_mode, false);
 	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			((a2dp_aptx_t *)t->a2dp.configuration)->frequency, false);
+			t->a2dp.configuration.aptx.frequency, false);
 
 }
 

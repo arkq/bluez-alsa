@@ -22,6 +22,7 @@
 #include <stdint.h>
 
 #include "a2dp.h"
+#include "a2dp-codecs.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "bluez.h"
@@ -262,7 +263,7 @@ struct ba_transport {
 			/* audio codec configuration capabilities */
 			const struct a2dp_codec *codec;
 			/* selected audio codec configuration */
-			uint8_t *configuration;
+			a2dp_t configuration;
 
 			/* delay reported by the AVDTP */
 			uint16_t delay;

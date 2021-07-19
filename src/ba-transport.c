@@ -24,8 +24,6 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-#include <bsd/sys/time.h>
-
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
 #include <glib-object.h>
@@ -655,7 +653,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->type = type;
 
 	t->a2dp.codec = codec;
-	t->a2dp.configuration = g_memdup(configuration, codec->capabilities_size);
+	memcpy(&t->a2dp.configuration, configuration, codec->capabilities_size);
 	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 
 	transport_pcm_init(&t->a2dp.pcm,
@@ -885,7 +883,6 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		transport_pcm_free(&t->a2dp.pcm);
 		transport_pcm_free(&t->a2dp.pcm_bc);
-		free(t->a2dp.configuration);
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
@@ -965,7 +962,7 @@ int ba_transport_select_codec_a2dp(
 
 	/* the same codec with the same configuration already selected */
 	if (t->type.codec == sep->codec_id &&
-			memcmp(sep->configuration, t->a2dp.configuration, sep->capabilities_size) == 0)
+			memcmp(sep->configuration, &t->a2dp.configuration, sep->capabilities_size) == 0)
 		goto final;
 
 	GError *err = NULL;

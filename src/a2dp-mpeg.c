@@ -45,9 +45,9 @@ void a2dp_mpeg_transport_set_codec(struct ba_transport *t) {
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			((a2dp_mpeg_t *)t->a2dp.configuration)->channel_mode, false);
+			t->a2dp.configuration.mpeg.channel_mode, false);
 	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			((a2dp_mpeg_t *)t->a2dp.configuration)->frequency, false);
+			t->a2dp.configuration.mpeg.frequency, false);
 
 }
 
@@ -68,7 +68,7 @@ static void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(lame_close), handle);
 
-	const a2dp_mpeg_t *configuration = (a2dp_mpeg_t *)t->a2dp.configuration;
+	const a2dp_mpeg_t *configuration = &t->a2dp.configuration.mpeg;
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	MPEG_mode mode = NOT_SET;
@@ -461,7 +461,7 @@ int a2dp_mpeg_transport_start(struct ba_transport *t) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 #if ENABLE_MP3LAME
-		if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
+		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
 			return ba_transport_thread_create(&t->thread_enc, a2dp_mp3_enc_thread, "ba-a2dp-mp3", true);
 #endif
 	}
@@ -470,7 +470,7 @@ int a2dp_mpeg_transport_start(struct ba_transport *t) {
 #if ENABLE_MPG123
 		return ba_transport_thread_create(&t->thread_dec, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg", true);
 #elif ENABLE_MP3LAME
-		if (((a2dp_mpeg_t *)t->a2dp.configuration)->layer == MPEG_LAYER_MP3)
+		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
 			return ba_transport_thread_create(&t->thread_dec, a2dp_mpeg_dec_thread, "ba-a2dp-mp3", true);
 #endif
 	}

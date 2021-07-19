@@ -350,18 +350,6 @@ typedef struct {
 		.codec_id1 = (((c) >> 8) & 0xff), \
 	}
 
-typedef struct {
-	uint8_t reserved;
-	uint8_t target_codec_level2;
-	uint8_t target_codec_level1;
-	uint8_t initial_codec_level2;
-	uint8_t initial_codec_level1;
-	uint8_t sra_max_rate;
-	uint8_t sra_avg_time;
-	uint8_t good_working_level2;
-	uint8_t good_working_level1;
-} __attribute__ ((packed)) a2dp_aptx_ll_new_caps_t;
-
 #if defined(__BYTE_ORDER) && defined(__LITTLE_ENDIAN) && \
 	__BYTE_ORDER == __LITTLE_ENDIAN
 
@@ -432,7 +420,6 @@ typedef struct {
 	uint8_t bidirect_link:1;
 	uint8_t has_new_caps:1;
 	uint8_t reserved:6;
-	a2dp_aptx_ll_new_caps_t new_caps[0];
 } __attribute__ ((packed)) a2dp_aptx_ll_t;
 
 typedef struct {
@@ -518,7 +505,6 @@ typedef struct {
 	uint8_t reserved:6;
 	uint8_t has_new_caps:1;
 	uint8_t bidirect_link:1;
-	a2dp_aptx_ll_new_caps_t new_caps[0];
 } __attribute__ ((packed)) a2dp_aptx_ll_t;
 
 typedef struct {
@@ -537,5 +523,31 @@ typedef struct {
 #else
 # error "Unknown byte order"
 #endif
+
+typedef struct {
+	a2dp_aptx_ll_t aptx_ll;
+	uint8_t reserved;
+	uint8_t target_codec_level2;
+	uint8_t target_codec_level1;
+	uint8_t initial_codec_level2;
+	uint8_t initial_codec_level1;
+	uint8_t sra_max_rate;
+	uint8_t sra_avg_time;
+	uint8_t good_working_level2;
+	uint8_t good_working_level1;
+} __attribute__ ((packed)) a2dp_aptx_ll_new_t;
+
+typedef union {
+	a2dp_sbc_t sbc;
+	a2dp_mpeg_t mpeg;
+	a2dp_aac_t aac;
+	a2dp_atrac_t atrac;
+	a2dp_aptx_t aptx;
+	a2dp_faststream_t faststream;
+	a2dp_aptx_ll_t aptx_ll;
+	a2dp_aptx_ll_new_t aptx_ll_new;
+	a2dp_aptx_hd_t aptx_hd;
+	a2dp_ldac_t ldac;
+} a2dp_t;
 
 #endif

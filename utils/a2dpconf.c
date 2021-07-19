@@ -316,12 +316,12 @@ static void dump_aptx_hd(const void *blob, size_t size) {
 static void dump_aptx_ll(const void *blob, size_t size) {
 
 	const a2dp_aptx_ll_t *aptx_ll = blob;
-	const a2dp_aptx_ll_new_caps_t *aptx_ll_new_caps = (void *)(aptx_ll + 1);
+	const a2dp_aptx_ll_new_t *aptx_ll_new_caps = blob;
 
-	size_t new_caps_size = 0;
+	size_t conf_size = sizeof(*aptx_ll);
 	if (size >= sizeof(*aptx_ll) && aptx_ll->has_new_caps)
-		new_caps_size = sizeof(*aptx_ll_new_caps);
-	if (check_blob_size(sizeof(*aptx_ll) + new_caps_size, size) == -1)
+		conf_size = sizeof(*aptx_ll_new_caps);
+	if (check_blob_size(conf_size, size) == -1)
 		return;
 
 	printf("aptX LL (Sprint) <hex:%s> {\n", bintohex(blob, size));
@@ -334,7 +334,7 @@ static void dump_aptx_ll(const void *blob, size_t size) {
 			aptx_ll->has_new_caps ? "true" : "false",
 			aptx_ll->bidirect_link ? "true" : "false");
 
-	if (new_caps_size > 0)
+	if (aptx_ll->has_new_caps)
 		printf(""
 				"  <reserved>:8\n"
 				"  target-codec-level:16 = %u\n"
@@ -407,8 +407,7 @@ static struct {
 	{ A2DP_CODEC_VENDOR_APTX_AD, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_APTX_HD, sizeof(a2dp_aptx_hd_t), dump_aptx_hd },
 	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_t), dump_aptx_ll },
-	{ A2DP_CODEC_VENDOR_APTX_LL,
-		sizeof(a2dp_aptx_ll_t) + sizeof(a2dp_aptx_ll_new_caps_t), dump_aptx_ll },
+	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_new_t), dump_aptx_ll },
 	{ A2DP_CODEC_VENDOR_FASTSTREAM, sizeof(a2dp_faststream_t), dump_faststream },
 	{ A2DP_CODEC_VENDOR_LDAC, sizeof(a2dp_ldac_t), dump_ldac },
 	{ A2DP_CODEC_VENDOR_LHDC, -1, dump_vendor },

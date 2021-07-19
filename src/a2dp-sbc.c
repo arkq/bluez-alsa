@@ -41,9 +41,9 @@ void a2dp_sbc_transport_set_codec(struct ba_transport *t) {
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			((a2dp_sbc_t *)t->a2dp.configuration)->channel_mode, false);
+			t->a2dp.configuration.sbc.channel_mode, false);
 	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			((a2dp_sbc_t *)t->a2dp.configuration)->frequency, false);
+			t->a2dp.configuration.sbc.frequency, false);
 
 }
 
@@ -56,8 +56,8 @@ static void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	struct io_poll io = { .timeout = -1 };
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration,
-					t->a2dp.codec->capabilities_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, &t->a2dp.configuration.sbc,
+					sizeof(t->a2dp.configuration.sbc))) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -68,7 +68,7 @@ static void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
-	const a2dp_sbc_t *configuration = (a2dp_sbc_t *)t->a2dp.configuration;
+	const a2dp_sbc_t *configuration = &t->a2dp.configuration.sbc;
 	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
@@ -223,8 +223,8 @@ static void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 	};
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp(&sbc, 0, t->a2dp.configuration,
-					t->a2dp.codec->capabilities_size)) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, &t->a2dp.configuration.sbc,
+					sizeof(t->a2dp.configuration.sbc))) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}

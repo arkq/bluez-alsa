@@ -39,16 +39,16 @@ void a2dp_faststream_transport_set_codec(struct ba_transport *t) {
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 
-	if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC) {
+	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
 		t->a2dp.pcm.channels = 2;
 		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-				((a2dp_faststream_t *)t->a2dp.configuration)->frequency_music, false);
+				t->a2dp.configuration.faststream.frequency_music, false);
 	}
 
-	if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE) {
+	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE) {
 		t->a2dp.pcm_bc.channels = 1;
 		t->a2dp.pcm_bc.sampling = a2dp_codec_lookup_frequency(codec,
-				((a2dp_faststream_t *)t->a2dp.configuration)->frequency_voice, true);
+				t->a2dp.configuration.faststream.frequency_voice, true);
 	}
 
 }
@@ -66,8 +66,8 @@ static void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, t->a2dp.configuration,
-					t->a2dp.codec->capabilities_size, is_voice)) != 0) {
+	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, &t->a2dp.configuration.faststream,
+					sizeof(t->a2dp.configuration.faststream), is_voice)) != 0) {
 		error("Couldn't initialize FastStream SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -186,8 +186,8 @@ static void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, t->a2dp.configuration,
-					t->a2dp.codec->capabilities_size, is_voice)) != 0) {
+	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, &t->a2dp.configuration.faststream,
+					sizeof(t->a2dp.configuration.faststream), is_voice)) != 0) {
 		error("Couldn't initialize FastStream SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -267,17 +267,17 @@ int a2dp_faststream_transport_start(struct ba_transport *t) {
 	int rv = 0;
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
-		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC)
+		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
 			rv |= ba_transport_thread_create(th_enc, a2dp_faststream_enc_thread, "ba-a2dp-fs-m", true);
-		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE)
+		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
 			rv |= ba_transport_thread_create(th_dec, a2dp_faststream_dec_thread, "ba-a2dp-fs-v", false);
 		return rv;
 	}
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
-		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_MUSIC)
+		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
 			rv |= ba_transport_thread_create(th_dec, a2dp_faststream_dec_thread, "ba-a2dp-fs-m", true);
-		if (((a2dp_faststream_t *)t->a2dp.configuration)->direction & FASTSTREAM_DIRECTION_VOICE)
+		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
 			rv |= ba_transport_thread_create(th_enc, a2dp_faststream_enc_thread, "ba-a2dp-fs-v", false);
 		return rv;
 	}

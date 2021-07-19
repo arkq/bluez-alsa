@@ -42,9 +42,9 @@ void a2dp_aac_transport_set_codec(struct ba_transport *t) {
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			((a2dp_aac_t *)t->a2dp.configuration)->channels, false);
+			t->a2dp.configuration.aac.channels, false);
 	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			AAC_GET_FREQUENCY(*(a2dp_aac_t *)t->a2dp.configuration), false);
+			AAC_GET_FREQUENCY(t->a2dp.configuration.aac), false);
 
 }
 
@@ -60,7 +60,7 @@ static void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 	AACENC_InfoStruct aacinf;
 	AACENC_ERROR err;
 
-	const a2dp_aac_t *configuration = (a2dp_aac_t *)t->a2dp.configuration;
+	const a2dp_aac_t *configuration = &t->a2dp.configuration.aac;
 	const unsigned int bitrate = AAC_GET_BITRATE(*configuration);
 	const unsigned int channels = t->a2dp.pcm.channels;
 	const unsigned int samplerate = t->a2dp.pcm.sampling;
