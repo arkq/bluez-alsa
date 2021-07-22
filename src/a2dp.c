@@ -638,7 +638,7 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 		} break;
 	}
 
-	hexdump("Unknown vendor codec", capabilities, size);
+	hexdump("Unknown vendor codec", capabilities, size, true);
 
 	errno = ENOTSUP;
 	return 0xFFFF;

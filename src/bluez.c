@@ -187,7 +187,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 
 	enum bluez_a2dp_transport_state state = 0xFFFF;
 	char *device_path = NULL;
-	void *configuration = NULL;
+	a2dp_t configuration = {};
 	uint16_t volume = 127;
 	uint16_t delay = 150;
 
@@ -221,15 +221,13 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 
 			size_t size = 0;
 			const void *data = g_variant_get_fixed_array(value, &size, sizeof(char));
+			memcpy(&configuration, data, MIN(size, sizeof(configuration)));
 
 			uint32_t rv;
 			if ((rv = a2dp_check_configuration(codec, data, size)) != A2DP_CHECK_OK) {
 				error("Invalid configuration: %s: %#x", "Invalid configuration blob", rv);
 				goto fail;
 			}
-
-			g_free(configuration);
-			configuration = g_memdup(data, size);
 
 		}
 		else if (strcmp(property, "State") == 0 &&
@@ -277,7 +275,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	}
 
 	if ((t = ba_transport_new_a2dp(d, dbus_obj->ttype,
-					sender, transport_path, codec, configuration)) == NULL) {
+					sender, transport_path, codec, &configuration)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -297,7 +295,9 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	debug("%s configured for device %s",
 			ba_transport_type_to_string(t->type),
 			batostr_(&d->addr));
-	debug("Configuration: channels: %u, sampling: %u",
+	hexdump("A2DP selected configuration blob",
+			&configuration, codec->capabilities_size, true);
+	debug("PCM configuration: channels: %u, sampling: %u",
 			t->a2dp.pcm.channels, t->a2dp.pcm.sampling);
 
 	ba_transport_set_a2dp_state(t, state);
@@ -322,7 +322,6 @@ final:
 	if (value != NULL)
 		g_variant_unref(value);
 	g_free(device_path);
-	g_free(configuration);
 }
 
 static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv) {

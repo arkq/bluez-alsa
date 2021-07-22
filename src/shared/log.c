@@ -105,7 +105,7 @@ void log_message(int priority, const char *format, ...) {
 #if DEBUG
 /**
  * Dump current thread's call stack. */
-void callstackdump(const char *label) {
+void callstackdump_(const char *label) {
 
 	char buffer[1024 * 2] = "Call stack backtrace not supported";
 	char *ptr = buffer;
@@ -154,19 +154,22 @@ void callstackdump(const char *label) {
  * Dump memory using hexadecimal representation.
  *
  * @param label Label printed before the memory block output.
- * @param mem Address of the memory block.
- * @param len Number of bytes which should be printed. */
-void hexdump(const char *label, const void *mem, size_t len) {
+ * @param data Address of the memory block.
+ * @param len Number of bytes which should be printed.
+ * @param compact Dump memory block without spaces. */
+void hexdump_(const char *label, const void *data, size_t len, bool compact) {
 
+	const char *sep = "";
+	const char *spacing = compact ? "" : " ";
 	char *buf = malloc(len * 3 + 1);
 	char *p = buf;
 
-	while (len--) {
-		p += sprintf(p, " %02x", *(unsigned char *)mem & 0xFF);
-		mem = ((unsigned char *)mem) + 1;
+	for (size_t i = 0; i < len; sep = ++i % 4 ? "" : spacing) {
+		p += sprintf(p, "%s%02x", sep, *(unsigned char *)data & 0xFF);
+		data = ((unsigned char *)data) + 1;
 	}
 
-	log_message(LOG_DEBUG, "%s:%s", label, buf);
+	log_message(LOG_DEBUG, "%s [len=%zu]: %s", label, len, buf);
 	free(buf);
 }
 #endif

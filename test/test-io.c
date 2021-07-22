@@ -302,10 +302,7 @@ static void *test_io_thread_a2dp_dump_bt(struct ba_transport_thread *th) {
 		}
 
 		bt_data_push(buffer, len);
-
-		char label[35];
-		sprintf(label, "BT data [len: %3zd]", len);
-		hexdump(label, buffer, len);
+		hexdump("BT data", buffer, len, false);
 
 	}
 
@@ -472,14 +469,9 @@ static void test_sco(struct ba_transport *t,
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if (pfds[0].revents & POLLIN) {
-
 			ck_assert_int_gt(len = read(sco_fds[0], buffer, t->mtu_write), 0);
 			ck_assert_int_gt(write(sco_fds[0], buffer, len), 0);
-
-			char label[35];
-			sprintf(label, "BT data [len: %3zd]", len);
-			hexdump(label, buffer, len);
-
+			hexdump("BT data", buffer, len, false);
 		}
 
 		if (pfds[1].revents & POLLIN) {

@@ -89,10 +89,10 @@ START_TEST(test_a2dp_filter_capabilities) {
 		.max_bitpool = 255,
 	};
 
-	hexdump("Capabilities original", &cfg, sizeof(cfg));
+	hexdump("Capabilities original", &cfg, sizeof(cfg), true);
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_codec_source_sbc, &cfg, sizeof(cfg)), 0);
 
-	hexdump("Capabilities filtered", &cfg, sizeof(cfg));
+	hexdump("Capabilities filtered", &cfg, sizeof(cfg), true);
 	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
 	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);

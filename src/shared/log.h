@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_SHARED_LOG_H_
 #define BLUEALSA_SHARED_LOG_H_
 
@@ -19,6 +20,8 @@
 #include <stddef.h>
 #include <syslog.h>
 
+#include "shared/defs.h"
+
 #if DEBUG_TIME
 # define BLUEALSA_LOGTIME true
 #else
@@ -29,10 +32,11 @@ void log_open(const char *ident, bool syslog, bool time);
 void log_message(int priority, const char *format, ...) __attribute__ ((format(printf, 2, 3)));
 
 #if DEBUG
-# define error(M, ...) log_message(LOG_ERR, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
-# define warn(M, ...) log_message(LOG_WARNING, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
-# define info(M, ...) log_message(LOG_INFO, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
-# define debug(M, ...) log_message(LOG_DEBUG, "%s:%d: " M, __FILE__, __LINE__, ## __VA_ARGS__)
+# define DEBUG_LOG_PREFIX __FILE__ ":" STRINGIZE(__LINE__) ": "
+# define error(M, ...) log_message(LOG_ERR, DEBUG_LOG_PREFIX M, ## __VA_ARGS__)
+# define warn(M, ...) log_message(LOG_WARNING, DEBUG_LOG_PREFIX M, ## __VA_ARGS__)
+# define info(M, ...) log_message(LOG_INFO, DEBUG_LOG_PREFIX M, ## __VA_ARGS__)
+# define debug(M, ...) log_message(LOG_DEBUG, DEBUG_LOG_PREFIX M, ## __VA_ARGS__)
 #else
 # define error(M, ...) log_message(LOG_ERR, M, ## __VA_ARGS__)
 # define warn(M, ...) log_message(LOG_WARNING, M, ## __VA_ARGS__)
@@ -41,15 +45,17 @@ void log_message(int priority, const char *format, ...) __attribute__ ((format(p
 #endif
 
 #if DEBUG
-void callstackdump(const char *label);
+void callstackdump_(const char *label);
+# define callstackdump(M) callstackdump(DEBUG_LOG_PREFIX M)
 #else
 # define callstackdump(M) do {} while (0)
 #endif
 
 #if DEBUG
-void hexdump(const char *label, const void *mem, size_t len);
+void hexdump_(const char *label, const void *data, size_t len, bool compact);
+# define hexdump(M, D, L, C) hexdump_(DEBUG_LOG_PREFIX M, D, L, C)
 #else
-# define hexdump(A, M, L) do {} while (0)
+# define hexdump(M, D, L, C) do {} while (0)
 #endif
 
 #endif
