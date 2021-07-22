@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_A2DP_H_
 #define BLUEALSA_A2DP_H_
 
@@ -18,6 +19,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "a2dp-codecs.h"
 
 enum a2dp_dir {
 	A2DP_SOURCE = 0,
@@ -51,7 +54,7 @@ struct a2dp_codec {
 	/* support for A2DP back-channel */
 	bool backchannel;
 	/* capabilities configuration element */
-	const void *capabilities;
+	a2dp_t capabilities;
 	size_t capabilities_size;
 	/* list of supported channel modes */
 	const struct a2dp_channel_mode *channels[2];

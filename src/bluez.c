@@ -139,15 +139,16 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
 	const struct a2dp_codec *codec = dbus_obj->codec;
 
 	const void *data;
-	void *capabilities;
+	a2dp_t capabilities = {};
 	size_t size = 0;
 
 	params = g_variant_get_child_value(params, 0);
 	data = g_variant_get_fixed_array(params, &size, sizeof(char));
-	capabilities = g_memdup(data, size);
+	memcpy(&capabilities, data, MIN(size, sizeof(capabilities)));
 	g_variant_unref(params);
 
-	if (a2dp_select_configuration(codec, capabilities, size) == -1)
+	hexdump("A2DP peer capabilities blob", &capabilities, size, true);
+	if (a2dp_select_configuration(codec, &capabilities, size) == -1)
 		goto fail;
 
 	GVariantBuilder caps;
@@ -155,19 +156,16 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
 
 	g_variant_builder_init(&caps, G_VARIANT_TYPE("ay"));
 	for (i = 0; i < size; i++)
-		g_variant_builder_add(&caps, "y", ((char *)capabilities)[i]);
+		g_variant_builder_add(&caps, "y", ((char *)&capabilities)[i]);
 
 	g_dbus_method_invocation_return_value(inv, g_variant_new("(ay)", &caps));
 	g_variant_builder_clear(&caps);
 
-	goto final;
+	return;
 
 fail:
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 			G_DBUS_ERROR_INVALID_ARGS, "Invalid capabilities");
-
-final:
-	g_free(capabilities);
 }
 
 static void bluez_register_a2dp_all(struct ba_adapter *adapter);
@@ -420,7 +418,7 @@ static int bluez_register_media_endpoint(
 	g_variant_builder_init(&properties, G_VARIANT_TYPE("a{sv}"));
 
 	for (i = 0; i < codec->capabilities_size; i++)
-		g_variant_builder_add(&caps, "y", ((char *)codec->capabilities)[i]);
+		g_variant_builder_add(&caps, "y", ((char *)&codec->capabilities)[i]);
 
 	g_variant_builder_add(&properties, "{sv}", "UUID", g_variant_new_string(uuid));
 	g_variant_builder_add(&properties, "{sv}", "DelayReporting", g_variant_new_boolean(TRUE));
