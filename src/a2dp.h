@@ -81,6 +81,8 @@ struct a2dp_sep {
 /* NULL-terminated list of available A2DP codecs */
 extern const struct a2dp_codec *a2dp_codecs[];
 
+int a2dp_codecs_init(void);
+
 const struct a2dp_codec *a2dp_codec_lookup(
 		uint16_t codec_id,
 		enum a2dp_dir dir);

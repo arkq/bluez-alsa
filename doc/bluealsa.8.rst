@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: June 2021
+:Date: July 2021
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -114,6 +114,11 @@ OPTIONS
     This feature increases the audio quality at the cost of increased processing power and overall
     memory consumption.
 
+--aac-bitrate=BPS
+    Set the target bit rate for constant bit rate (CBR) mode or the maximum peak bit rate for
+    variable bit rate (VBR) mode.
+    Default value is **220000** bits per second.
+
 --aac-latm-version=NB
     Select LATM syntax version used for AAC audio transport.
     Default value is **1**.
@@ -123,16 +128,28 @@ OPTIONS
     - **0** - LATM syntax specified by ISO-IEC 14496-3 (2001), should work with all older BT devices
     - **1** - LATM syntax specified by ISO-IEC 14496-3 (2005), should work with newer BT devices
 
---aac-vbr-mode=NB
-    Specifies AAC encoder variable bit rate (VBR) quality, or disables it.
-    The *NB* can be one of:
+--aac-true-bps
+    Enable true "bit per second" bit rate.
 
-    - **0** - disables variable bit rate mode and uses constant bit rate specified by the A2DP AAC configuration
-    - **1** - lowest quality VBR mode (mono: 32 kbps, stereo: 40 kbps)
-    - **2** - low quality VBR mode (mono: 40 kbps, stereo: 64 kbps)
-    - **3** - medium quality VBR mode (mono: 56 kbps, stereo: 96 kbps)
-    - **4** - high quality VBR mode (mono: 72 kbps, stereo: 128 kbps) (**default**)
-    - **5** - highest quality VBR mode (mono: 112 kbps, 192 kbps)
+    A2DP AAC specification requires that for the constant bit rate (CBR) mode every RTP frame has
+    the same bit rate and for the variable bit rate (VBR) mode the maximum peak bit rate limit is
+    also per RTP frame.
+    However, a single RTP frame does not contain a single full second of audio.
+    This option enables true bit rate calculation (per second), which means that per RTP frame bit
+    rate may vary even for CBR mode.
+    This feature is not enabled by default, because it violates A2DP AAC specification.
+    Enabling it should result in an enhanced audio quality, but will for sure produce fragmented
+    RTP frames.
+    If RTP fragmentation is not supported by used A2DP sink device (e.g. headphones) one might
+    hear clearly audible clicks in the playback audio.
+    In such case, please do not enable this option.
+
+--aac-vbr
+    Prefer variable bit rate mode over constant bit rate mode.
+
+    Please note, that this option does not necessarily mean that the variable bit rate (VBR) mode
+    will be used.
+    Used AAC configuration depends on a remote Bluetooth device capabilities.
 
 --ldac-abr
     Enables LDAC adaptive bit rate, which will dynamically adjust encoder quality

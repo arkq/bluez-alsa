@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -106,8 +106,10 @@ int main(int argc, char **argv) {
 		{ "sbc-quality", required_argument, NULL, 14 },
 #if ENABLE_AAC
 		{ "aac-afterburner", no_argument, NULL, 4 },
+		{ "aac-bitrate", required_argument, NULL, 5 },
 		{ "aac-latm-version", required_argument, NULL, 15 },
-		{ "aac-vbr-mode", required_argument, NULL, 5 },
+		{ "aac-true-bps", no_argument, NULL, 18 },
+		{ "aac-vbr", no_argument, NULL, 19 },
 #endif
 #if ENABLE_LDAC
 		{ "ldac-abr", no_argument, NULL, 10 },
@@ -163,14 +165,16 @@ int main(int argc, char **argv) {
 					"  -p, --profile=NAME\tenable BT profile\n"
 					"  --initial-volume=NB\tinitial volume level [0-100]\n"
 					"  --keep-alive=SEC\tkeep Bluetooth transport alive\n"
-					"  --a2dp-force-mono\tforce monophonic sound\n"
-					"  --a2dp-force-audio-cd\tforce 44.1 kHz sampling\n"
+					"  --a2dp-force-mono\ttry to force monophonic sound\n"
+					"  --a2dp-force-audio-cd\ttry to force 44.1 kHz sampling\n"
 					"  --a2dp-volume\t\tnative volume control by default\n"
 					"  --sbc-quality=NB\tset SBC encoder quality\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\tenable FDK AAC afterburner\n"
+					"  --aac-bitrate=BPS\tCBR bitrate or max peak for VBR\n"
 					"  --aac-latm-version=NB\tselect LATM syntax version\n"
-					"  --aac-vbr-mode=NB\tselect FDK AAC encoder VBR mode\n"
+					"  --aac-true-bps\tenable true bit-per-second bit rate\n"
+					"  --aac-vbr\t\tprefer VBR mode over CBR mode\n"
 #endif
 #if ENABLE_LDAC
 					"  --ldac-abr\t\tenable LDAC adaptive bit rate\n"
@@ -289,6 +293,9 @@ int main(int argc, char **argv) {
 		case 4 /* --aac-afterburner */ :
 			config.aac_afterburner = true;
 			break;
+		case 5 /* --aac-bitrate=BPS */ :
+			config.aac_bitrate = atoi(optarg);
+			break;
 		case 15 /* --aac-latm-version=NB */ :
 			config.aac_latm_version = atoi(optarg);
 			if (config.aac_latm_version > 2) {
@@ -296,12 +303,11 @@ int main(int argc, char **argv) {
 				return EXIT_FAILURE;
 			}
 			break;
-		case 5 /* --aac-vbr-mode=NB */ :
-			config.aac_vbr_mode = atoi(optarg);
-			if (config.aac_vbr_mode > 5) {
-				error("Invalid bitrate mode [0, 5]: %s", optarg);
-				return EXIT_FAILURE;
-			}
+		case 18 /* --aac-true-bps */ :
+			config.aac_true_bps = true;
+			break;
+		case 19 /* --aac-vbr */ :
+			config.aac_prefer_vbr = true;
 			break;
 #endif
 
@@ -383,6 +389,8 @@ int main(int argc, char **argv) {
 		config.enable.hfp_hf = false;
 	}
 #endif
+
+	a2dp_codecs_init();
 
 	bluez_subscribe_signals();
 	bluez_register();

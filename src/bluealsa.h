@@ -117,8 +117,10 @@ struct ba_config {
 
 #if ENABLE_AAC
 	bool aac_afterburner;
-	uint8_t aac_latm_version;
-	uint8_t aac_vbr_mode;
+	bool aac_prefer_vbr;
+	bool aac_true_bps;
+	unsigned int aac_bitrate;
+	unsigned int aac_latm_version;
 #endif
 
 #if ENABLE_MP3LAME

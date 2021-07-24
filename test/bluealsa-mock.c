@@ -366,13 +366,13 @@ void *mock_service_thread(void *userdata) {
 
 #if ENABLE_APTX
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:00:00",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_source_aptx,
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_sink_aptx,
 						&config_aptx_44100_stereo));
 #endif
 
 #if ENABLE_APTX_HD
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:88:DD",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_source_aptx_hd,
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_sink_aptx_hd,
 						&config_aptx_hd_48000_stereo));
 #endif
 
@@ -426,11 +426,14 @@ static void dbus_name_acquired(GDBusConnection *conn, const char *name, void *us
 
 	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
 
-	/* emulate dummy test HCI device */
-	assert((a = ba_adapter_new(0)) != NULL);
-
 	/* do not generate lots of data */
 	config.sbc_quality = SBC_QUALITY_LOW;
+
+	/* initialize codec capabilities */
+	a2dp_codecs_init();
+
+	/* emulate dummy test HCI device */
+	assert((a = ba_adapter_new(0)) != NULL);
 
 	/* run actual BlueALSA mock thread */
 	g_thread_new(NULL, mock_service_thread, loop);

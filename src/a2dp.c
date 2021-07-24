@@ -117,7 +117,7 @@ static const struct a2dp_sampling_freq a2dp_ldac_samplings[] = {
 	{ 96000, LDAC_SAMPLING_FREQ_96000 },
 };
 
-static const struct a2dp_codec a2dp_codec_source_sbc = {
+static struct a2dp_codec a2dp_codec_source_sbc = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_SBC,
 	.capabilities.sbc = {
@@ -188,7 +188,7 @@ static const struct a2dp_codec a2dp_codec_sink_sbc = {
 };
 
 __attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_source_mpeg = {
+static struct a2dp_codec a2dp_codec_source_mpeg = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG12,
 	.capabilities.mpeg = {
@@ -294,7 +294,7 @@ static const struct a2dp_codec a2dp_codec_sink_mpeg = {
 };
 
 __attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_source_aac = {
+static struct a2dp_codec a2dp_codec_source_aac = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.capabilities.aac = {
@@ -330,7 +330,7 @@ static const struct a2dp_codec a2dp_codec_source_aac = {
 };
 
 __attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_sink_aac = {
+static struct a2dp_codec a2dp_codec_sink_aac = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.capabilities.aac = {
@@ -590,6 +590,41 @@ const struct a2dp_codec *a2dp_codecs[] = {
 };
 
 /**
+ * Initialize A2DP codecs. */
+int a2dp_codecs_init(void) {
+
+	if (config.a2dp.force_mono)
+		/* With this we are violating A2DP SBC requirements. According to spec,
+		 * SBC source shall support mono channel and at least one of the stereo
+		 * modes. However, since for sink all channel modes are mandatory, even
+		 * though we are supporting only mono mode, there will be a match when
+		 * selecting configuration. */
+		a2dp_codec_source_sbc.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
+	if (config.a2dp.force_44100)
+		a2dp_codec_source_sbc.capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+
+#if ENABLE_MPEG
+	if (config.a2dp.force_mono)
+		a2dp_codec_source_mpeg.capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
+	if (config.a2dp.force_44100)
+		a2dp_codec_source_mpeg.capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
+#endif
+
+#if ENABLE_AAC
+	if (config.a2dp.force_mono)
+		a2dp_codec_source_aac.capabilities.aac.channels = AAC_CHANNELS_1;
+	if (config.a2dp.force_44100)
+		AAC_SET_FREQUENCY(a2dp_codec_source_aac.capabilities.aac, AAC_SAMPLING_FREQ_44100);
+	if (!config.aac_prefer_vbr)
+		a2dp_codec_source_aac.capabilities.aac.vbr = 0;
+	AAC_SET_BITRATE(a2dp_codec_source_aac.capabilities.aac, config.aac_bitrate);
+	AAC_SET_BITRATE(a2dp_codec_sink_aac.capabilities.aac, config.aac_bitrate);
+#endif
+
+	return 0;
+}
+
+/**
  * Lookup codec configuration for given stream direction.
  *
  * @param codec_id BlueALSA A2DP 16-bit codec ID.
@@ -597,8 +632,7 @@ const struct a2dp_codec *a2dp_codecs[] = {
  * @return On success this function returns the address of the codec
  *   configuration structure. Otherwise, NULL is returned. */
 const struct a2dp_codec *a2dp_codec_lookup(uint16_t codec_id, enum a2dp_dir dir) {
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(a2dp_codecs) - 1; i++)
+	for (size_t i = 0; a2dp_codecs[i] != NULL; i++)
 		if (a2dp_codecs[i]->dir == dir &&
 				a2dp_codecs[i]->codec_id == codec_id)
 			return a2dp_codecs[i];
@@ -1180,6 +1214,9 @@ int a2dp_select_configuration(
 			/* fix bitrate value if it was not set */
 			peer_bitrate = UINT_MAX;
 		AAC_SET_BITRATE(*cap, MIN(ba_bitrate, peer_bitrate));
+
+		if (!config.aac_prefer_vbr)
+			cap->vbr = 0;
 
 		break;
 	}
