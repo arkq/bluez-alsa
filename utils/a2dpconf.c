@@ -32,27 +32,24 @@ static const int hextable[255] = {
 
 static const struct {
 	uint16_t codec_id;
-	const char *name;
+	const char *name[5];
 } codecs[] = {
-	{ A2DP_CODEC_SBC, "SBC" },
-	{ A2DP_CODEC_MPEG12, "MP3" },
-	{ A2DP_CODEC_MPEG12, "MPEG" },
-	{ A2DP_CODEC_MPEG12, "MPEG12" },
-	{ A2DP_CODEC_MPEG24, "AAC" },
-	{ A2DP_CODEC_MPEG24, "MPEG24" },
-	{ A2DP_CODEC_ATRAC, "ATRAC" },
-	{ A2DP_CODEC_VENDOR_APTX, "aptX" },
-	{ A2DP_CODEC_VENDOR_APTX_AD, "aptX-AD" },
-	{ A2DP_CODEC_VENDOR_APTX_HD, "aptX-HD" },
-	{ A2DP_CODEC_VENDOR_APTX_LL, "aptX-LL" },
-	{ A2DP_CODEC_VENDOR_APTX_TWS, "aptX-TWS" },
-	{ A2DP_CODEC_VENDOR_FASTSTREAM, "FastStream" },
-	{ A2DP_CODEC_VENDOR_LDAC, "LDAC" },
-	{ A2DP_CODEC_VENDOR_LHDC, "LHDC" },
-	{ A2DP_CODEC_VENDOR_LHDC_V1, "LHDCv1" },
-	{ A2DP_CODEC_VENDOR_LLAC, "LLAC" },
-	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, "samsung-HD" },
-	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, "samsung-SC" },
+	{ A2DP_CODEC_SBC, { "SBC" } },
+	{ A2DP_CODEC_MPEG12, { "MPEG", "MPEG12", "MP3"} },
+	{ A2DP_CODEC_MPEG24, { "MPEG24", "AAC" } },
+	{ A2DP_CODEC_ATRAC, { "ATRAC" } },
+	{ A2DP_CODEC_VENDOR_APTX, { "aptX" } },
+	{ A2DP_CODEC_VENDOR_APTX_AD, { "aptX-AD" } },
+	{ A2DP_CODEC_VENDOR_APTX_HD, { "aptX-HD" } },
+	{ A2DP_CODEC_VENDOR_APTX_LL, { "aptX-LL" } },
+	{ A2DP_CODEC_VENDOR_APTX_TWS, { "aptX-TWS" } },
+	{ A2DP_CODEC_VENDOR_FASTSTREAM, { "FastStream", "FS" } },
+	{ A2DP_CODEC_VENDOR_LDAC, { "LDAC" } },
+	{ A2DP_CODEC_VENDOR_LHDC, { "LHDC" } },
+	{ A2DP_CODEC_VENDOR_LHDC_LL, { "LHDC-LL", "LLAC" } },
+	{ A2DP_CODEC_VENDOR_LHDC_V1, { "LHDC-v1" } },
+	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, { "samsung-HD" } },
+	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, { "samsung-SC" } },
 };
 
 static uint16_t get_codec(const char *s) {
@@ -66,8 +63,11 @@ static uint16_t get_codec(const char *s) {
 		goto fail;
 
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
-		if (strncasecmp(s, codecs[i].name, len) == 0)
-			return codecs[i].codec_id;
+		for (size_t n = 0; n < ARRAYSIZE(codecs[i].name); n++)
+			if (codecs[i].name[n] != NULL &&
+					strlen(codecs[i].name[n]) == len &&
+					strncasecmp(s, codecs[i].name[n], len) == 0)
+				return codecs[i].codec_id;
 
 fail:
 	return 0xFFFF;
@@ -393,6 +393,67 @@ static void dump_ldac(const void *blob, size_t size) {
 			ldac->channel_mode & LDAC_CHANNEL_MODE_MONO ? " Mono" : "");
 }
 
+static int lhdc_get_max_bit_rate(const a2dp_lhdc_t *lhdc) {
+	if (lhdc->max_bit_rate == LHDC_MAX_BIT_RATE_400K)
+		return 400;
+	if (lhdc->max_bit_rate == LHDC_MAX_BIT_RATE_500K)
+		return 500;
+	if (lhdc->max_bit_rate == LHDC_MAX_BIT_RATE_900K)
+		return 900;
+	return -1;
+}
+
+static void dump_lhdc(const void *blob, size_t size) {
+	const a2dp_lhdc_t *lhdc = blob;
+	if (check_blob_size(sizeof(*lhdc), size) == -1)
+		return;
+	printf("LHDC <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&lhdc->info);
+	printf(""
+			"  <reserved>:2\n"
+			"  bit-depth:2 =%s%s\n"
+			"  frequency:2 =%s%s%s%s\n"
+			"  low-latency:1 = %s\n"
+			"  max-bit-rate:3 = %d\n"
+			"  version:4 = %u\n"
+			"  <reserved>:4\n"
+			"  ch-split-mode:4 =%s%s%s\n"
+			"}\n",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			lhdc->low_latency ? "true" : "false",
+			lhdc_get_max_bit_rate(lhdc),
+			lhdc->version,
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS_PLUS ? " TWS+" : "",
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS ? " TWS" : "",
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_NONE ? " None" : "");
+}
+
+static void dump_lhdc_v1(const void *blob, size_t size) {
+	const a2dp_lhdc_v1_t *lhdc = blob;
+	if (check_blob_size(sizeof(*lhdc), size) == -1)
+		return;
+	printf("LHDC v1 <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&lhdc->info);
+	printf(""
+			"  <reserved>:1\n"
+			"  ch-separation:1 = %s\n"
+			"  bit-depth:2 =%s%s\n"
+			"  frequency:2 =%s%s%s%s\n"
+			"}\n",
+			lhdc->ch_separation ? "true" : "false",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "");
+}
+
 static struct {
 	uint16_t codec_id;
 	size_t blob_size;
@@ -410,9 +471,9 @@ static struct {
 	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_new_t), dump_aptx_ll },
 	{ A2DP_CODEC_VENDOR_FASTSTREAM, sizeof(a2dp_faststream_t), dump_faststream },
 	{ A2DP_CODEC_VENDOR_LDAC, sizeof(a2dp_ldac_t), dump_ldac },
-	{ A2DP_CODEC_VENDOR_LHDC, -1, dump_vendor },
-	{ A2DP_CODEC_VENDOR_LHDC_V1, -1, dump_vendor },
-	{ A2DP_CODEC_VENDOR_LLAC, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_LHDC, sizeof(a2dp_lhdc_t), dump_lhdc },
+	{ A2DP_CODEC_VENDOR_LHDC_LL, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_LHDC_V1, sizeof(a2dp_lhdc_v1_t), dump_lhdc_v1 },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, -1, dump_vendor },
 };

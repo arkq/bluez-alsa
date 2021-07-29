@@ -740,10 +740,10 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 		switch (codec_id) {
 		case LHDC_CODEC_ID:
 			return A2DP_CODEC_VENDOR_LHDC;
+		case LHDC_LL_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC_LL;
 		case LHDC_V1_CODEC_ID:
 			return A2DP_CODEC_VENDOR_LHDC_V1;
-		case LLAC_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LLAC;
 		} break;
 	}
 

@@ -48,8 +48,8 @@
 #define A2DP_CODEC_VENDOR_FASTSTREAM    0xA1FF
 #define A2DP_CODEC_VENDOR_LDAC          0x2DFF
 #define A2DP_CODEC_VENDOR_LHDC          0x4CFF
+#define A2DP_CODEC_VENDOR_LHDC_LL       0x44FF
 #define A2DP_CODEC_VENDOR_LHDC_V1       0x48FF
-#define A2DP_CODEC_VENDOR_LLAC          0x44FF
 #define A2DP_CODEC_VENDOR_SAMSUNG_HD    0x52FF
 #define A2DP_CODEC_VENDOR_SAMSUNG_SC    0x53FF
 
@@ -312,11 +312,27 @@
 #define LHDC_VENDOR_ID                  BT_COMPID_SAVITECH
 #define LHDC_CODEC_ID                   0x4C32
 
+#define LHDC_LL_VENDOR_ID               BT_COMPID_SAVITECH
+#define LHDC_LL_CODEC_ID                0x4C4C
+
 #define LHDC_V1_VENDOR_ID               BT_COMPID_SAVITECH
 #define LHDC_V1_CODEC_ID                0x484C
 
-#define LLAC_VENDOR_ID                  BT_COMPID_SAVITECH
-#define LLAC_CODEC_ID                   0x4C4C
+#define LHDC_BIT_DEPTH_16               0x02
+#define LHDC_BIT_DEPTH_24               0x01
+
+#define LHDC_SAMPLING_FREQ_44100        0x08
+#define LHDC_SAMPLING_FREQ_48000        0x04
+#define LHDC_SAMPLING_FREQ_88200        0x02
+#define LHDC_SAMPLING_FREQ_96000        0x01
+
+#define LHDC_MAX_BIT_RATE_400K          0x02
+#define LHDC_MAX_BIT_RATE_500K          0x01
+#define LHDC_MAX_BIT_RATE_900K          0x00
+
+#define LHDC_CH_SPLIT_MODE_NONE         0x01
+#define LHDC_CH_SPLIT_MODE_TWS          0x02
+#define LHDC_CH_SPLIT_MODE_TWS_PLUS     0x04
 
 #define SAMSUNG_HD_VENDOR_ID            BT_COMPID_SAMSUNG_ELEC
 #define SAMSUNG_HD_CODEC_ID             0x0102
@@ -435,6 +451,26 @@ typedef struct {
 	uint8_t rfa2:5;
 } __attribute__ ((packed)) a2dp_ldac_t;
 
+typedef struct {
+	a2dp_vendor_codec_t info;
+	uint8_t frequency:4;
+	uint8_t bit_depth:2;
+	uint8_t rfa1:2;
+	uint8_t version:4;
+	uint8_t max_bit_rate:3;
+	uint8_t low_latency:1;
+	uint8_t ch_split_mode:4;
+	uint8_t rfa2:4;
+} __attribute__ ((packed)) a2dp_lhdc_t;
+
+typedef struct {
+	a2dp_vendor_codec_t info;
+	uint8_t frequency:4;
+	uint8_t bit_depth:2;
+	uint8_t ch_separation:1;
+	uint8_t rfa:1;
+} __attribute__ ((packed)) a2dp_lhdc_v1_t;
+
 #elif defined(__BYTE_ORDER) && defined(__BIG_ENDIAN) && \
 	__BYTE_ORDER == __BIG_ENDIAN
 
@@ -520,6 +556,26 @@ typedef struct {
 	uint8_t channel_mode:3;
 } __attribute__ ((packed)) a2dp_ldac_t;
 
+typedef struct {
+	a2dp_vendor_codec_t info;
+	uint8_t rfa1:2;
+	uint8_t bit_depth:2;
+	uint8_t frequency:4;
+	uint8_t low_latency:1;
+	uint8_t max_bit_rate:3;
+	uint8_t version:4;
+	uint8_t rfa2:4;
+	uint8_t ch_split_mode:4;
+} __attribute__ ((packed)) a2dp_lhdc_t;
+
+typedef struct {
+	a2dp_vendor_codec_t info;
+	uint8_t rfa:1;
+	uint8_t ch_separation:1;
+	uint8_t bit_depth:2;
+	uint8_t frequency:4;
+} __attribute__ ((packed)) a2dp_lhdc_v1_t;
+
 #else
 # error "Unknown byte order"
 #endif
@@ -548,6 +604,8 @@ typedef union {
 	a2dp_aptx_ll_new_t aptx_ll_new;
 	a2dp_aptx_hd_t aptx_hd;
 	a2dp_ldac_t ldac;
+	a2dp_lhdc_t lhdc;
+	a2dp_lhdc_v1_t lhdc_v1;
 } a2dp_t;
 
 #endif

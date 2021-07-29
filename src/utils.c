@@ -266,10 +266,10 @@ const char *ba_transport_codecs_a2dp_to_string(uint16_t codec) {
 		return "LDAC";
 	case A2DP_CODEC_VENDOR_LHDC:
 		return "LHDC";
+	case A2DP_CODEC_VENDOR_LHDC_LL:
+		return "LHDC-LL";
 	case A2DP_CODEC_VENDOR_LHDC_V1:
-		return "LHDCv1";
-	case A2DP_CODEC_VENDOR_LLAC:
-		return "LLAC";
+		return "LHDC-v1";
 	case A2DP_CODEC_VENDOR_SAMSUNG_HD:
 		return "samsung-HD";
 	case A2DP_CODEC_VENDOR_SAMSUNG_SC:
