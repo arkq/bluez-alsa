@@ -176,15 +176,8 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	}
 
 	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
-
-	GVariantBuilder vcaps;
-	g_variant_builder_init(&vcaps, G_VARIANT_TYPE("ay"));
-
-	size_t i;
-	for (i = 0; i < size; i++)
-		g_variant_builder_add(&vcaps, "y", caps[i]);
-
-	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_builder_end(&vcaps));
+	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_new_fixed_array(
+				G_VARIANT_TYPE_BYTE, caps, size, sizeof(uint8_t)));
 
 	switch (codec->codec_id) {
 	case A2DP_CODEC_SBC:
@@ -556,13 +549,13 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 	GVariantIter *properties;
 	GVariant *value = NULL;
 	const char *errmsg = NULL;
+	const char *codec_name;
 	const char *property;
-	const char *codec;
 
-	void *a2dp_configuration = NULL;
+	a2dp_t a2dp_configuration = {};
 	size_t a2dp_configuration_size = 0;
 
-	g_variant_get(params, "(sa{sv})", &codec, &properties);
+	g_variant_get(params, "(sa{sv})", &codec_name, &properties);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 
 		if (strcmp(property, "Configuration") == 0 &&
@@ -571,8 +564,13 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 			const void *data = g_variant_get_fixed_array(value,
 					&a2dp_configuration_size, sizeof(char));
 
-			g_free(a2dp_configuration);
-			a2dp_configuration = g_memdup(data, a2dp_configuration_size);
+			if (a2dp_configuration_size > sizeof(a2dp_configuration)) {
+				warn("Configuration blob size exceeded: %zu > %zu",
+						a2dp_configuration_size, sizeof(a2dp_configuration));
+				a2dp_configuration_size = sizeof(a2dp_configuration);
+			}
+
+			memcpy(&a2dp_configuration, data, a2dp_configuration_size);
 
 		}
 
@@ -588,7 +586,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 			goto fail;
 		}
 
-		uint16_t codec_id = ba_transport_codecs_a2dp_from_string(codec);
+		uint16_t codec_id = ba_transport_codecs_a2dp_from_string(codec_name);
 		enum a2dp_dir dir = !t->a2dp.codec->dir;
 		const GArray *seps = t->d->seps;
 		struct a2dp_sep *sep = NULL;
@@ -619,13 +617,13 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 			goto fail;
 
 		/* use codec configuration blob provided by user */
-		if (a2dp_configuration != NULL) {
-			if (a2dp_check_configuration(codec, a2dp_configuration,
+		if (a2dp_configuration_size != 0) {
+			if (a2dp_check_configuration(codec, &a2dp_configuration,
 						a2dp_configuration_size) != A2DP_CHECK_OK) {
 				errmsg = "Invalid configuration blob";
 				goto fail;
 			}
-			memcpy(sep->configuration, a2dp_configuration, sep->capabilities_size);
+			memcpy(sep->configuration, &a2dp_configuration, sep->capabilities_size);
 		}
 
 		if (ba_transport_select_codec_a2dp(t, sep) == -1)
@@ -634,7 +632,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 	}
 	else {
 
-		uint16_t codec_id = ba_transport_codecs_hfp_from_string(codec);
+		uint16_t codec_id = ba_transport_codecs_hfp_from_string(codec_name);
 		if (ba_transport_select_codec_sco(t, codec_id) == -1)
 			goto fail;
 
@@ -646,13 +644,12 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 fail:
 	if (errmsg == NULL)
 		errmsg = strerror(errno);
-	error("Couldn't select codec: %s: %s", codec, errmsg);
+	error("Couldn't select codec: %s: %s", codec_name, errmsg);
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 			G_DBUS_ERROR_FAILED, "%s", errmsg);
 
 final:
 	ba_transport_pcm_unref(pcm);
-	g_free(a2dp_configuration);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);

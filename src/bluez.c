@@ -151,15 +151,9 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
 	if (a2dp_select_configuration(codec, &capabilities, size) == -1)
 		goto fail;
 
-	GVariantBuilder caps;
-	size_t i;
-
-	g_variant_builder_init(&caps, G_VARIANT_TYPE("ay"));
-	for (i = 0; i < size; i++)
-		g_variant_builder_add(&caps, "y", ((char *)&capabilities)[i]);
-
-	g_dbus_method_invocation_return_value(inv, g_variant_new("(ay)", &caps));
-	g_variant_builder_clear(&caps);
+	GVariant *rv[] = {
+		g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &capabilities, size, sizeof(uint8_t)) };
+	g_dbus_method_invocation_return_value(inv, g_variant_new_tuple(rv, 1));
 
 	return;
 
@@ -404,26 +398,20 @@ static int bluez_register_media_endpoint(
 	const struct a2dp_codec *codec = dbus_obj->codec;
 	GDBusMessage *msg = NULL, *rep = NULL;
 	int ret = 0;
-	size_t i;
 
 	debug("Registering media endpoint: %s", dbus_obj->path);
 
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
 			BLUEZ_IFACE_MEDIA, "RegisterEndpoint");
 
-	GVariantBuilder caps;
 	GVariantBuilder properties;
-
-	g_variant_builder_init(&caps, G_VARIANT_TYPE("ay"));
 	g_variant_builder_init(&properties, G_VARIANT_TYPE("a{sv}"));
-
-	for (i = 0; i < codec->capabilities_size; i++)
-		g_variant_builder_add(&caps, "y", ((char *)&codec->capabilities)[i]);
 
 	g_variant_builder_add(&properties, "{sv}", "UUID", g_variant_new_string(uuid));
 	g_variant_builder_add(&properties, "{sv}", "DelayReporting", g_variant_new_boolean(TRUE));
 	g_variant_builder_add(&properties, "{sv}", "Codec", g_variant_new_byte(codec->codec_id));
-	g_variant_builder_add(&properties, "{sv}", "Capabilities", g_variant_builder_end(&caps));
+	g_variant_builder_add(&properties, "{sv}", "Capabilities", g_variant_new_fixed_array(
+				G_VARIANT_TYPE_BYTE, &codec->capabilities, codec->capabilities_size, sizeof(uint8_t)));
 
 	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", dbus_obj->path, &properties));
 	g_variant_builder_clear(&properties);
@@ -1273,16 +1261,10 @@ bool bluez_a2dp_set_configuration(
 		goto fail;
 	}
 
-	GVariantBuilder caps;
-	g_variant_builder_init(&caps, G_VARIANT_TYPE("ay"));
-
-	size_t i;
-	for (i = 0; i < sep->capabilities_size; i++)
-		g_variant_builder_add(&caps, "y", ((char *)sep->configuration)[i]);
-
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
-	g_variant_builder_add(&props, "{sv}", "Capabilities", g_variant_builder_end(&caps));
+	g_variant_builder_add(&props, "{sv}", "Capabilities", g_variant_new_fixed_array(
+				G_VARIANT_TYPE_BYTE, sep->configuration, sep->capabilities_size, sizeof(uint8_t)));
 
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
 			sep->bluez_dbus_path, BLUEZ_IFACE_MEDIA_ENDPOINT, "SetConfiguration");

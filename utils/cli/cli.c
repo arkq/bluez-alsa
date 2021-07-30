@@ -19,12 +19,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include <dbus/dbus.h>
 
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
+#include "shared/hex.h"
 #include "shared/log.h"
 
 /**
@@ -138,7 +140,7 @@ static bool print_codecs(const char *path, DBusError *err) {
 
 	DBusMessageIter iter;
 	if (!dbus_message_iter_init(rep, &iter)) {
-		dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(ENOMEM));
+		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -348,7 +350,7 @@ static int cmd_info(int argc, char *argv[]) {
 
 static int cmd_codec(int argc, char *argv[]) {
 
-	if (argc < 2 || argc > 3) {
+	if (argc < 2 || argc > 4) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
 	}
@@ -370,41 +372,77 @@ static int cmd_codec(int argc, char *argv[]) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
 	const char *codec = argv[2];
+	int result = EXIT_FAILURE;
 
 	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
 					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		cmd_print_error("%s", strerror(ENOMEM));
-		return EXIT_FAILURE;
+		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
 	}
 
 	DBusMessageIter iter;
 	dbus_message_iter_init_append(msg, &iter);
 
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
-		cmd_print_error("%s", strerror(ENOMEM));
-		dbus_message_unref(msg);
-		return EXIT_FAILURE;
+		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
 	}
 
 	DBusMessageIter props;
 	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		cmd_print_error("%s", strerror(ENOMEM));
-		dbus_message_unref(msg);
-		return EXIT_FAILURE;
+		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if (argc == 4) {
+
+		const char *property = "Configuration";
+		const char *configuration = argv[3];
+		ssize_t len = strlen(configuration);
+		uint8_t data[64];
+
+		len = MIN((size_t)len, sizeof(data) * 2);
+		if ((len = hex2bin(configuration, data, len)) == -1) {
+			dbus_set_error(&err, DBUS_ERROR_FAILED, "%s", strerror(errno));
+			goto fail;
+		}
+
+		DBusMessageIter dict;
+		DBusMessageIter config;
+		DBusMessageIter array;
+		const uint8_t *ptr = data;
+
+		if (!dbus_message_iter_open_container(&props, DBUS_TYPE_DICT_ENTRY, NULL, &dict) ||
+				!dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &property) ||
+				!dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, "ay", &config) ||
+				!dbus_message_iter_open_container(&config, DBUS_TYPE_ARRAY, "y", &array) ||
+				!dbus_message_iter_append_fixed_array(&array, DBUS_TYPE_BYTE, &ptr, len) ||
+				!dbus_message_iter_close_container(&config, &array) ||
+				!dbus_message_iter_close_container(&dict, &config) ||
+				!dbus_message_iter_close_container(&props, &dict)) {
+			dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+			goto fail;
+		}
+
 	}
 
 	dbus_message_iter_close_container(&iter, &props);
 
 	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
 					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
-		cmd_print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
-		dbus_message_unref(msg);
-		return EXIT_FAILURE;
+		goto fail;
 	}
 
-	dbus_message_unref(rep);
-	dbus_message_unref(msg);
-	return EXIT_SUCCESS;
+	result = EXIT_SUCCESS;
+
+fail:
+	if (dbus_error_is_set(&err))
+		cmd_print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	return result;
 }
 
 static int cmd_volume(int argc, char *argv[]) {
@@ -668,20 +706,30 @@ static struct command {
 	int (*func)(int argc, char *arg[]);
 	const char *args;
 	const char *help;
+	unsigned int name_len;
+	unsigned int args_len;
 } commands[] = {
-	{ "list-services", cmd_list_services, "", "List all BlueALSA services" },
-	{ "list-pcms", cmd_list_pcms, "", "List all BlueALSA PCM paths" },
-	{ "status", cmd_status, "", "Show service runtime properties" },
-	{ "info", cmd_info, "<pcm-path>", "Show PCM properties etc" },
-	{ "codec", cmd_codec, "<pcm-path> [<codec>]", "Change codec used by PCM" },
-	{ "volume", cmd_volume, "<pcm-path> [<val>] [<val>]", "Set audio volume" },
-	{ "mute", cmd_mute, "<pcm-path> [y|n] [y|n]", "Mute/unmute audio" },
-	{ "soft-volume", cmd_softvol, "<pcm-path> [y|n]", "Enable/disable SoftVolume property" },
-	{ "monitor", cmd_monitor, "", "Display PCMAdded & PCMRemoved signals" },
-	{ "open", cmd_open, "<pcm-path>", "Transfer raw PCM via stdin or stdout" },
+#define CMD(name, f, args, help) { name, f, args, help, sizeof(name), sizeof(args) }
+	CMD("list-services", cmd_list_services, "", "List all BlueALSA services"),
+	CMD("list-pcms", cmd_list_pcms, "", "List all BlueALSA PCM paths"),
+	CMD("status", cmd_status, "", "Show service runtime properties"),
+	CMD("info", cmd_info, "<pcm-path>", "Show PCM properties etc"),
+	CMD("codec", cmd_codec, "<pcm-path> [<codec>] [<config>]", "Change codec used by PCM"),
+	CMD("volume", cmd_volume, "<pcm-path> [<val>] [<val>]", "Set audio volume"),
+	CMD("mute", cmd_mute, "<pcm-path> [y|n] [y|n]", "Mute/unmute audio"),
+	CMD("soft-volume", cmd_softvol, "<pcm-path> [y|n]", "Enable/disable SoftVolume property"),
+	CMD("monitor", cmd_monitor, "", "Display PCMAdded & PCMRemoved signals"),
+	CMD("open", cmd_open, "<pcm-path>", "Transfer raw PCM via stdin or stdout"),
 };
 
 static void usage(const char *progname) {
+
+	unsigned int max_len = 0;
+	size_t i;
+
+	for (i = 0; i < ARRAYSIZE(commands); i++)
+		max_len = MAX(max_len, commands[i].name_len + commands[i].args_len);
+
 	printf("%s - Utility to issue BlueALSA API commands\n", progname);
 	printf("\nUsage:\n  %s [options] <command> [command-args]\n", progname);
 	printf("\nOptions:\n");
@@ -690,9 +738,10 @@ static void usage(const char *progname) {
 	printf("  -B, --dbus=NAME     BlueALSA service name suffix\n");
 	printf("  -q, --quiet         Do not print any error messages\n");
 	printf("\nCommands:\n");
-	size_t i;
 	for (i = 0; i < ARRAYSIZE(commands); i++)
-		printf("  %-14s%-27s%s\n", commands[i].name, commands[i].args, commands[i].help);
+		printf("  %s %-*s%s\n", commands[i].name,
+				max_len - commands[i].name_len, commands[i].args,
+				commands[i].help);
 	printf("\nNotes:\n");
 	printf("   1. <pcm-path> must be a valid BlueALSA PCM path as returned by "
 	       "the list-pcms command.\n");
@@ -701,6 +750,7 @@ static void usage(const char *progname) {
 	       "attribute is printed.\n");
 	printf("   3. The codec command requires BlueZ version >= 5.52 "
 	       "for SEP support.\n");
+
 }
 
 int main(int argc, char *argv[]) {

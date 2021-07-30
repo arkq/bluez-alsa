@@ -7,6 +7,7 @@ bin_PROGRAMS = bluealsa-cli
 
 bluealsa_cli_SOURCES = \
 	../../src/shared/dbus-client.c \
+	../../src/shared/hex.c \
 	../../src/shared/log.c \
 	cli.c
 

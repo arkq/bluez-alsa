@@ -7,6 +7,9 @@ bin_PROGRAMS =
 
 if ENABLE_A2DPCONF
 bin_PROGRAMS += a2dpconf
+a2dpconf_SOURCES = \
+	../src/shared/hex.c \
+	a2dpconf.c
 a2dpconf_CFLAGS = \
 	-I$(top_srcdir)/src
 a2dpconf_LDADD = \

@@ -23,12 +23,7 @@
 
 #include "a2dp-codecs.h"
 #include "shared/defs.h"
-
-static const int hextable[255] = {
-	['0'] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	['A'] = 10, 11, 12, 13, 14, 15,
-	['a'] = 10, 11, 12, 13, 14, 15,
-};
+#include "shared/hex.h"
 
 static const struct {
 	uint16_t codec_id;
@@ -93,19 +88,12 @@ static ssize_t get_codec_blob(const char *s, void *dest, size_t n) {
 		return -1;
 	}
 
-	len /= 2;
-	for (size_t i = 0; i < len; i++) {
-		((char *)dest)[i] = hextable[(int)s[i * 2]] << 4;
-		((char *)dest)[i] |= hextable[(int)s[i * 2 + 1]];
-	}
-
-	return len;
+	return hex2bin(s, dest, len);
 }
 
 static char *bintohex(const void *src, size_t n) {
 	char *hex = calloc(1, n * 2 + 1);
-	for (size_t i = 0; i < n; i++)
-		sprintf(&hex[i * 2], "%.2x", ((unsigned char *)src)[i]);
+	bin2hex(src, hex, n);
 	return hex;
 }
 
@@ -478,6 +466,36 @@ static struct {
 	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, -1, dump_vendor },
 };
 
+int dump(const char *config, bool detect) {
+
+	uint16_t codec_id = get_codec(config);
+
+	ssize_t blob_size;
+	if ((blob_size = get_codec_blob(config, NULL, 0)) == -1)
+		return -1;
+
+	void *blob = malloc(blob_size);
+	if (get_codec_blob(config, blob, blob_size) == -1)
+		return -1;
+
+	for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
+		if (dumps[i].codec_id == codec_id) {
+			dumps[i].dump(blob, blob_size);
+			return 0;
+		}
+
+	if (detect) {
+		for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
+			if (dumps[i].blob_size == (size_t)blob_size)
+				dumps[i].dump(blob, blob_size);
+		dump_vendor(blob, blob_size);
+		return 0;
+	}
+
+	fprintf(stderr, "Couldn't detect codec type: %s\n", config);
+	return -1;
+}
+
 int main(int argc, char *argv[]) {
 
 	int opt;
@@ -489,6 +507,7 @@ int main(int argc, char *argv[]) {
 		{ 0, 0, 0, 0 },
 	};
 
+	int rv = EXIT_SUCCESS;
 	bool detect = false;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
@@ -496,7 +515,7 @@ int main(int argc, char *argv[]) {
 		case 'h' /* --help */ :
 usage:
 			printf("Usage:\n"
-					"  %s [OPTION]... <CODEC>\n"
+					"  %s [OPTION]... <CONFIG>...\n"
 					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
@@ -520,36 +539,13 @@ usage:
 			return EXIT_FAILURE;
 		}
 
-	if (argc - optind != 1)
+	if (argc - optind < 1)
 		goto usage;
 
-	const char *codec = argv[optind];
-	uint16_t codec_id = get_codec(codec);
+	int i;
+	for (i = optind; i < argc; i++)
+		if (dump(argv[i], detect) == -1)
+			rv = EXIT_FAILURE;
 
-	ssize_t blob_size;
-	if ((blob_size = get_codec_blob(codec, NULL, 0)) == -1)
-		return EXIT_FAILURE;
-
-	void *blob = malloc(blob_size);
-	if (get_codec_blob(codec, blob, blob_size) == -1)
-		return EXIT_FAILURE;
-
-	for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
-		if (dumps[i].codec_id == codec_id) {
-			dumps[i].dump(blob, blob_size);
-			return EXIT_SUCCESS;
-		}
-
-	if (detect) {
-		for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
-			if (dumps[i].blob_size == (size_t)blob_size)
-				dumps[i].dump(blob, blob_size);
-		dump_vendor(blob, blob_size);
-	}
-	else {
-		fprintf(stderr, "Couldn't detect codec type: %s\n", codec);
-		return EXIT_FAILURE;
-	}
-
-	return EXIT_SUCCESS;
+	return rv;
 }
