@@ -283,6 +283,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
 	t->a2dp.delay = delay;
+	t->a2dp.volume = volume;
 
 	debug("%s configured for device %s",
 			ba_transport_type_to_string(t->type),
@@ -1105,7 +1106,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 		else if (strcmp(property, "Volume") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127] */
-			const uint16_t volume = g_variant_get_uint16(value);
+			uint16_t volume = t->a2dp.volume = g_variant_get_uint16(value);
 			if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
 					t->a2dp.pcm.soft_volume)
 				debug("Skipping A2DP volume update: %u", volume);

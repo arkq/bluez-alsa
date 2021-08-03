@@ -1301,7 +1301,7 @@ int ba_transport_pcm_volume_bt_to_level(
 
 int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 
-	const struct ba_transport *t = pcm->t;
+	struct ba_transport *t = pcm->t;
 
 	/* In case of A2DP Source or HSP/HFP Audio Gateway skip notifying Bluetooth
 	 * device if we are using software volume control. This will prevent volume
@@ -1312,18 +1312,36 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-		int level = 0;
-		if (!pcm->volume[0].muted && !pcm->volume[1].muted)
-			level = (pcm->volume[0].level + pcm->volume[1].level) / 2;
+		/* A2DP specification defines volume property as a single value - volume
+		 * for only one channel. For stereo audio we will use an average of left
+		 * and right PCM channels. */
 
-		GError *err = NULL;
-		unsigned int volume = ba_transport_pcm_volume_level_to_bt(pcm, level);
-		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
-				BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
+		unsigned int volume;
+		switch (pcm->channels) {
+		case 1:
+			volume = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
+			break;
+		case 2:
+			volume = ba_transport_pcm_volume_level_to_bt(pcm,
+					(pcm->volume[0].level + pcm->volume[1].level) / 2);
+			break;
+		default:
+			g_assert_not_reached();
+		}
 
-		if (err != NULL) {
-			warn("Couldn't set BT device volume: %s", err->message);
-			g_error_free(err);
+		/* skip update if nothing has changed */
+		if (volume != t->a2dp.volume) {
+
+			GError *err = NULL;
+			t->a2dp.volume = volume;
+			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
+
+			if (err != NULL) {
+				warn("Couldn't set BT device volume: %s", err->message);
+				g_error_free(err);
+			}
+
 		}
 
 	}

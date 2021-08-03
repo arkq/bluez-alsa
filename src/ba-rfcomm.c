@@ -807,13 +807,9 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
 	const int fd = r->fd;
-	int gain = 0;
 	char tmp[16];
 
-	if (!pcm->volume[0].muted)
-		gain = ba_transport_pcm_volume_level_to_bt(
-				pcm, pcm->volume[0].level);
-
+	int gain = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
 	if (!force && r->gain_mic == gain)
 		return 0;
 
@@ -841,13 +837,9 @@ static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
 	const int fd = r->fd;
-	int gain = 0;
 	char tmp[16];
 
-	if (!pcm->volume[0].muted)
-		gain = ba_transport_pcm_volume_level_to_bt(
-				pcm, pcm->volume[0].level);
-
+	int gain = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
 	if (!force && r->gain_spk == gain)
 		return 0;
 

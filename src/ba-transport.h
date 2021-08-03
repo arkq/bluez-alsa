@@ -265,8 +265,10 @@ struct ba_transport {
 			/* selected audio codec configuration */
 			a2dp_t configuration;
 
-			/* delay reported by the AVDTP */
+			/* delay reported by BlueZ */
 			uint16_t delay;
+			/* volume reported by BlueZ */
+			uint16_t volume;
 
 			struct ba_transport_pcm pcm;
 			/* PCM for back-channel stream */
