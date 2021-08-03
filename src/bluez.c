@@ -283,6 +283,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
 	t->a2dp.delay = delay;
+	t->a2dp.volume = volume;
 
 	debug("%s configured for device %s",
 			ba_transport_type_to_string(t->type),
@@ -1105,15 +1106,20 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 		else if (strcmp(property, "Volume") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127] */
-			const uint16_t volume = g_variant_get_uint16(value);
+			uint16_t volume = t->a2dp.volume = g_variant_get_uint16(value);
 			if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
 					t->a2dp.pcm.soft_volume)
 				debug("Skipping A2DP volume update: %u", volume);
 			else {
 				int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+				/* There is no mute information in the volume level update signal.
+				 * In order not to stay forever in the muted state, we will unmute
+				 * our PCM, but only if the incoming volume level is non-zero. */
+				bool muted = false;
+				bool *muted_ptr = volume > 0 ? &muted : NULL;
 				debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
-				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL);
-				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, NULL);
+				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, muted_ptr);
+				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, muted_ptr);
 				bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 			}
 		}

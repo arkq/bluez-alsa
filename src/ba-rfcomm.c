@@ -363,7 +363,8 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+	bool muted = false;  /* always unmute when volume changes */
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, &muted);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
@@ -380,7 +381,8 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+	bool muted = false;  /* always unmute when volume changes */
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, &muted);
 
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
@@ -400,7 +402,8 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+	bool muted = false;  /* always unmute when volume changes */
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, &muted);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 
@@ -417,7 +420,8 @@ static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+	bool muted = false;  /* always unmute when volume changes */
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, &muted);
 
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
