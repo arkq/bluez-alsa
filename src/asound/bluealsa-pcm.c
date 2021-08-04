@@ -207,7 +207,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	/* We update pcm->io_hw_ptr (i.e. the value seen by ioplug) only when
 	 * a period has been completed. We use a temporary copy during the
 	 * transfer procedure. */
-	snd_pcm_uframes_t io_hw_ptr = pcm->io_hw_ptr;
+	snd_pcm_sframes_t io_hw_ptr = pcm->io_hw_ptr;
 
 	debug2("Starting IO loop: %d", pcm->ba_pcm_fd);
 	for (;;) {
@@ -276,7 +276,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 		/* Increment the HW pointer (with boundary wrap). */
 		io_hw_ptr += frames;
-		if (io_hw_ptr >= pcm->io_hw_boundary)
+		if ((snd_pcm_uframes_t)io_hw_ptr >= pcm->io_hw_boundary)
 			io_hw_ptr -= pcm->io_hw_boundary;
 
 		ssize_t ret = 0;
