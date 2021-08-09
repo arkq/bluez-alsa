@@ -863,6 +863,36 @@ static int str2profile(const char *str) {
 	return 0;
 }
 
+/**
+ * Convert volume string to volume level and mute state.
+ *
+ * Mute state is determined by the last character of the volume
+ * string. The '-' at the end indicates to mute; '+' indicates
+ * to unmute. */
+static int str2volume(const char *str, int *volume, int *mute) {
+
+	char *endptr;
+	long v = strtol(str, &endptr, 10);
+	if (endptr != str) {
+		if (v < 0 || v > 100)
+			return -1;
+		*volume = v;
+	}
+
+	if (endptr[0] == '+' && endptr[1] == '\0')
+		*mute = 0;
+	else if (endptr[0] == '-' && endptr[1] == '\0')
+		*mute = 1;
+	else if (endptr[0] != '\0')
+		return -1;
+
+	return 0;
+}
+
+static int str2softvol(const char *str) {
+	return snd_config_get_bool_ascii(str);
+}
+
 static snd_pcm_format_t get_snd_pcm_format(uint16_t format) {
 	switch (format) {
 	case 0x0108:
@@ -960,6 +990,34 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 	return 0;
 }
 
+static bool bluealsa_update_pcm_volume(struct bluealsa_pcm *pcm,
+		int volume, int mute, DBusError *err) {
+	uint16_t old = pcm->ba_pcm.volume.raw;
+	if (volume >= 0) {
+		const int v = BA_PCM_VOLUME_MAX(&pcm->ba_pcm) * volume / 100;
+		pcm->ba_pcm.volume.ch1_volume = v;
+		if (pcm->ba_pcm.channels == 2)
+			pcm->ba_pcm.volume.ch2_volume = v;
+	}
+	if (mute >= 0) {
+		const bool v = !!mute;
+		pcm->ba_pcm.volume.ch1_muted = v;
+		if (pcm->ba_pcm.channels == 2)
+			pcm->ba_pcm.volume.ch2_muted = v;
+	}
+	if (pcm->ba_pcm.volume.raw == old)
+		return true;
+	return bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, err);
+}
+
+static bool bluealsa_update_pcm_softvol(struct bluealsa_pcm *pcm,
+		int softvol, DBusError *err) {
+	if (softvol < 0 || !!softvol == pcm->ba_pcm.soft_volume)
+		return true;
+	pcm->ba_pcm.soft_volume = !!softvol;
+	return bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_SOFT_VOLUME, err);
+}
+
 SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	(void)root;
 
@@ -967,8 +1025,10 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *service = BLUEALSA_SERVICE;
 	const char *device = NULL;
 	const char *profile = NULL;
-	struct bluealsa_pcm *pcm;
+	const char *volume = NULL;
+	const char *softvol = NULL;
 	long delay = 0;
+	struct bluealsa_pcm *pcm;
 	int ret;
 
 	snd_config_for_each(i, next, conf) {
@@ -1004,6 +1064,24 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			}
 			continue;
 		}
+		if (strcmp(id, "volume") == 0) {
+			if (snd_config_get_string(n, &volume) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			if (strcmp(volume, "unchanged") == 0)
+				volume = NULL;
+			continue;
+		}
+		if (strcmp(id, "softvol") == 0) {
+			if (snd_config_get_string(n, &softvol) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			if (strcmp(softvol, "unchanged") == 0)
+				softvol = NULL;
+			continue;
+		}
 		if (strcmp(id, "delay") == 0) {
 			if (snd_config_get_integer(n, &delay) < 0) {
 				SNDERR("Invalid type for %s", id);
@@ -1025,6 +1103,19 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	int ba_profile = 0;
 	if (profile == NULL || (ba_profile = str2profile(profile)) == 0) {
 		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
+		return -EINVAL;
+	}
+
+	int pcm_mute = -1;
+	int pcm_volume = -1;
+	if (volume != NULL && str2volume(volume, &pcm_volume, &pcm_mute) != 0) {
+		SNDERR("Invalid volume [0-100][+-]: %s", volume);
+		return -EINVAL;
+	}
+
+	int pcm_softvol = -1;
+	if (softvol != NULL && (pcm_softvol = str2softvol(softvol)) < 0) {
+		SNDERR("Invalid softvol: %s", softvol);
 		return -EINVAL;
 	}
 
@@ -1097,6 +1188,16 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0) {
 		snd_pcm_ioplug_delete(&pcm->io);
 		return ret;
+	}
+
+	if (!bluealsa_update_pcm_volume(pcm, pcm_volume, pcm_mute, &err)) {
+		SNDERR("Couldn't set BlueALSA PCM volume: %s", err.message);
+		dbus_error_free(&err);
+	}
+
+	if (!bluealsa_update_pcm_softvol(pcm, pcm_softvol, &err)) {
+		SNDERR("Couldn't set BlueALSA PCM soft-volume: %s", err.message);
+		dbus_error_free(&err);
 	}
 
 	*pcmp = pcm->io.pcm;
