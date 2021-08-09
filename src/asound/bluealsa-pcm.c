@@ -141,6 +141,24 @@ static int close_transport(struct bluealsa_pcm *pcm) {
 	return rv;
 }
 
+static void update_volume(struct bluealsa_pcm *pcm, long volume, int mute) {
+	if (volume >= 0) {
+		uint16_t max_vol = pcm->ba_pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP ? 127 : 15;
+		pcm->ba_pcm.volume.ch1_volume = max_vol * volume / 100;
+		if (pcm->ba_pcm.channels == 2)
+			pcm->ba_pcm.volume.ch2_volume = pcm->ba_pcm.volume.ch1_volume;
+	}
+	if (mute != 0) {
+		pcm->ba_pcm.volume.ch1_muted = (mute > 0);
+		if (pcm->ba_pcm.channels == 2)
+			pcm->ba_pcm.volume.ch2_muted = pcm->ba_pcm.volume.ch1_muted;
+	}
+
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, &err))
+		SNDERR("Couldn't set volume: %s", err.message);
+}
+
 /**
  * Helper function for IO thread termination. */
 static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
@@ -967,8 +985,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *service = BLUEALSA_SERVICE;
 	const char *device = NULL;
 	const char *profile = NULL;
-	struct bluealsa_pcm *pcm;
 	long delay = 0;
+	const char *volume_str = NULL;
+	long volume = -1;
+	int mute = 0;
+	struct bluealsa_pcm *pcm;
 	int ret;
 
 	snd_config_for_each(i, next, conf) {
@@ -1011,6 +1032,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			}
 			continue;
 		}
+		if (strcmp(id, "volume") == 0) {
+			if (snd_config_get_string(n, &volume_str) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
 
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
@@ -1026,6 +1054,30 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if (profile == NULL || (ba_profile = str2profile(profile)) == 0) {
 		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
 		return -EINVAL;
+	}
+
+	if (volume_str != NULL) {
+		char *endptr;
+		volume = strtol(volume_str, &endptr, 10);
+		if (endptr != volume_str) {
+			if (volume < 0 || volume > 100) {
+				SNDERR("Invalid volume %ld [0, 100]", volume);
+				return -EINVAL;
+			}
+		}
+		else
+			volume = -1;
+
+		/* '+' at end of volume value indicates to unmute;
+		 * '-' indicates to mute */
+		if (*endptr == '+' && *(endptr + 1) == 0)
+			mute = -1;
+		else if (*endptr == '-' && *(endptr + 1) == 0)
+			mute = 1;
+		else if (*endptr != 0) {
+			SNDERR("Invalid volume : %s", volume_str);
+			return -EINVAL;
+		}
 	}
 
 	if ((pcm = calloc(1, sizeof(*pcm))) == NULL)
@@ -1098,6 +1150,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		snd_pcm_ioplug_delete(&pcm->io);
 		return ret;
 	}
+
+	update_volume(pcm, volume, mute);
 
 	*pcmp = pcm->io.pcm;
 	return 0;
