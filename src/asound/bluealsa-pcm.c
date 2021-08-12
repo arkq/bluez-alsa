@@ -141,27 +141,12 @@ static int close_transport(struct bluealsa_pcm *pcm) {
 	return rv;
 }
 
-static void update_volume(struct bluealsa_pcm *pcm, long volume, int mute) {
-	if (volume >= 0) {
-		uint16_t max_vol = pcm->ba_pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP ? 127 : 15;
-		pcm->ba_pcm.volume.ch1_volume = max_vol * volume / 100;
-		if (pcm->ba_pcm.channels == 2)
-			pcm->ba_pcm.volume.ch2_volume = pcm->ba_pcm.volume.ch1_volume;
-	}
-	if (mute != 0) {
-		pcm->ba_pcm.volume.ch1_muted = (mute > 0);
-		if (pcm->ba_pcm.channels == 2)
-			pcm->ba_pcm.volume.ch2_muted = pcm->ba_pcm.volume.ch1_muted;
-	}
-
-	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, &err))
-		SNDERR("Couldn't set volume: %s", err.message);
-}
-
 static void select_codec(struct bluealsa_pcm *pcm, const char *codec) {
 	DBusMessage *msg = NULL, *rep = NULL;
 	DBusError err = DBUS_ERROR_INIT;
+
+	if (codec == NULL || *codec == 0)
+		return;
 
 	if ((msg = dbus_message_new_method_call(pcm->dbus_ctx.ba_service, pcm->ba_pcm.pcm_path,
 					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
@@ -195,6 +180,25 @@ fail:
 		dbus_message_unref(msg);
 	if (rep != NULL)
 		dbus_message_unref(rep);
+	dbus_error_free(&err);
+}
+
+static void update_volume(struct bluealsa_pcm *pcm, long volume, int mute) {
+	if (volume >= 0) {
+		pcm->ba_pcm.volume.ch1_volume = BA_PCM_VOLUME_MAX(&pcm->ba_pcm) * volume / 100;
+		if (pcm->ba_pcm.channels == 2)
+			pcm->ba_pcm.volume.ch2_volume = pcm->ba_pcm.volume.ch1_volume;
+	}
+	if (mute != 0) {
+		pcm->ba_pcm.volume.ch1_muted = (mute > 0);
+		if (pcm->ba_pcm.channels == 2)
+			pcm->ba_pcm.volume.ch2_muted = pcm->ba_pcm.volume.ch1_muted;
+	}
+
+	DBusError err = DBUS_ERROR_INIT;
+	if (!bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, &err))
+		SNDERR("Couldn't set volume: %s", err.message);
+	dbus_error_free(&err);
 }
 
 /**
@@ -1071,15 +1075,15 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			}
 			continue;
 		}
-		if (strcmp(id, "volume") == 0) {
-			if (snd_config_get_string(n, &volume_str) < 0) {
+		if (strcmp(id, "codec") == 0) {
+			if (snd_config_get_string(n, &codec) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
-		if (strcmp(id, "codec") == 0) {
-			if (snd_config_get_string(n, &codec) < 0) {
+		if (strcmp(id, "volume") == 0) {
+			if (snd_config_get_string(n, &volume_str) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
@@ -1197,8 +1201,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		return ret;
 	}
 
-	if (codec != NULL && *codec != 0)
-		select_codec(pcm, codec);
+	select_codec(pcm, codec);
 
 	update_volume(pcm, volume, mute);
 
