@@ -159,6 +159,44 @@ static void update_volume(struct bluealsa_pcm *pcm, long volume, int mute) {
 		SNDERR("Couldn't set volume: %s", err.message);
 }
 
+static void select_codec(struct bluealsa_pcm *pcm, const char *codec) {
+	DBusMessage *msg = NULL, *rep = NULL;
+	DBusError err = DBUS_ERROR_INIT;
+
+	if ((msg = dbus_message_new_method_call(pcm->dbus_ctx.ba_service, pcm->ba_pcm.pcm_path,
+					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
+		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	dbus_message_iter_init_append(msg, &iter);
+
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
+		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter props;
+	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
+		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	dbus_message_iter_close_container(&iter, &props);
+
+	dbus_connection_send_with_reply_and_block(pcm->dbus_ctx.conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
+
+fail:
+	if (dbus_error_is_set(&err))
+		SNDERR("Couldn't select BlueALSA PCM Codec: %s", err.message);
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
+}
+
 /**
  * Helper function for IO thread termination. */
 static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
@@ -989,6 +1027,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *volume_str = NULL;
 	long volume = -1;
 	int mute = 0;
+	const char *codec = NULL;
 	struct bluealsa_pcm *pcm;
 	int ret;
 
@@ -1034,6 +1073,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 		if (strcmp(id, "volume") == 0) {
 			if (snd_config_get_string(n, &volume_str) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
+		if (strcmp(id, "codec") == 0) {
+			if (snd_config_get_string(n, &codec) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
@@ -1150,6 +1196,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		snd_pcm_ioplug_delete(&pcm->io);
 		return ret;
 	}
+
+	if (codec != NULL && *codec != 0)
+		select_codec(pcm, codec);
 
 	update_volume(pcm, volume, mute);
 
