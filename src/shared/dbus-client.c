@@ -16,9 +16,39 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include "shared/defs.h"
+
+static const struct {
+	const char *alias;
+	const char *name;
+} codec_aliases[] = {
+	{ "SBC", "SBC" },
+	{ "MP3", "MP3" },
+	{ "AAC", "AAC" },
+	{ "ATRAC", "ATRAC" },
+	{ "aptX", "aptX" },
+	{ "apt-X", "aptX" },
+	{ "aptX-AD", "aptX-AD" },
+	{ "apt-X-AD", "aptX-AD" },
+	{ "aptX-HD", "aptX-HD" },
+	{ "apt-X-HD", "aptX-HD" },
+	{ "aptX-LL", "aptX-LL" },
+	{ "apt-X-LL", "aptX-LL" },
+	{ "aptX-TWS", "aptX-TWS" },
+	{ "apt-X-TWS", "aptX-TWS" },
+	{ "FastStream", "FastStream" },
+	{ "LDAC", "LDAC" },
+	{ "LHDC", "LHDC" },
+	{ "LHDC-LL", "LHDC-LL" },
+	{ "LHDC-v1", "LHDC-v1" },
+	{ "samsung-HD", "samsung-HD" },
+	{ "samsung-SC", "samsung-SC" },
+	{ "CVSD", "CVSD" },
+	{ "MSBC", "mSBC" },
+};
 
 static int path2ba(const char *path, bdaddr_t *ba) {
 
@@ -283,7 +313,7 @@ dbus_bool_t bluealsa_dbus_get_props(
 
 	static const char *interface = BLUEALSA_INTERFACE_MANAGER;
 	DBusMessage *msg = NULL, *rep = NULL;
-	dbus_bool_t ret = FALSE;
+	dbus_bool_t rv = FALSE;
 
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, "/org/bluealsa",
 					DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
@@ -311,14 +341,14 @@ dbus_bool_t bluealsa_dbus_get_props(
 				bluealsa_dbus_message_iter_get_props_cb, props))
 		goto fail;
 
-	ret = TRUE;
+	rv = TRUE;
 
 fail:
 	if (rep != NULL)
 		dbus_message_unref(rep);
 	if (msg != NULL)
 		dbus_message_unref(msg);
-	return ret;
+	return rv;
 }
 
 dbus_bool_t bluealsa_dbus_get_pcms(
@@ -448,7 +478,7 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 
 /**
  * Open BlueALSA PCM stream. */
-dbus_bool_t bluealsa_dbus_open_pcm(
+dbus_bool_t bluealsa_dbus_pcm_open(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
 		int *fd_pcm,
@@ -477,6 +507,82 @@ dbus_bool_t bluealsa_dbus_open_pcm(
 
 	dbus_message_unref(rep);
 	dbus_message_unref(msg);
+	return rv;
+}
+
+const char *bluealsa_dbus_pcm_get_codec_canonical_name(
+		const char *alias) {
+	size_t i;
+	for (i = 0; i < ARRAYSIZE(codec_aliases); i++)
+		if (strcasecmp(alias, codec_aliases[i].alias) == 0)
+			return codec_aliases[i].name;
+	return alias;
+}
+
+/**
+ * Select BlueALSA PCM Bluetooth codec. */
+dbus_bool_t bluealsa_dbus_pcm_select_codec(
+		struct ba_dbus_ctx *ctx,
+		const char *pcm_path,
+		const char *codec,
+		const void *configuration,
+		size_t configuration_len,
+		DBusError *error) {
+
+	DBusMessage *msg = NULL, *rep = NULL;
+	dbus_bool_t rv = FALSE;
+
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
+					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	DBusMessageIter props;
+
+	dbus_message_iter_init_append(msg, &iter);
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec) ||
+			!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if (configuration != NULL &&
+			configuration_len > 0) {
+		const char *property = "Configuration";
+		DBusMessageIter dict;
+		DBusMessageIter config;
+		DBusMessageIter array;
+		if (!dbus_message_iter_open_container(&props, DBUS_TYPE_DICT_ENTRY, NULL, &dict) ||
+				!dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &property) ||
+				!dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, "ay", &config) ||
+				!dbus_message_iter_open_container(&config, DBUS_TYPE_ARRAY, "y", &array) ||
+				!dbus_message_iter_append_fixed_array(&array, DBUS_TYPE_BYTE, &configuration, configuration_len) ||
+				!dbus_message_iter_close_container(&config, &array) ||
+				!dbus_message_iter_close_container(&dict, &config) ||
+				!dbus_message_iter_close_container(&props, &dict)) {
+			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+			goto fail;
+		}
+	}
+
+	if (!dbus_message_iter_close_container(&iter, &props)) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
+		goto fail;
+
+	rv = TRUE;
+
+fail:
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
 	return rv;
 }
 

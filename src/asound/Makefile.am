@@ -12,6 +12,7 @@ libasound_module_ctl_bluealsa_la_SOURCES = \
 	bluealsa-ctl.c
 libasound_module_pcm_bluealsa_la_SOURCES = \
 	../shared/dbus-client.c \
+	../shared/hex.c \
 	../shared/log.c \
 	../shared/rt.c \
 	bluealsa-pcm.c
