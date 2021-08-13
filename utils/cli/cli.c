@@ -370,78 +370,34 @@ static int cmd_codec(int argc, char *argv[]) {
 		return EXIT_SUCCESS;
 	}
 
-	DBusMessage *msg = NULL, *rep = NULL;
-	const char *codec = argv[2];
 	int result = EXIT_FAILURE;
+	const char *codec = argv[2];
 
-	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
-					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	DBusMessageIter iter;
-	dbus_message_iter_init_append(msg, &iter);
-
-	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
-		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	DBusMessageIter props;
-	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
+	uint8_t data[64];
+	uint8_t *data_ptr = NULL;
+	size_t len = 0;
 
 	if (argc == 4) {
-
-		const char *property = "Configuration";
-		const char *configuration = argv[3];
-		ssize_t len = strlen(configuration);
-		uint8_t data[64];
-
-		len = MIN((size_t)len, sizeof(data) * 2);
-		if ((len = hex2bin(configuration, data, len)) == -1) {
+		len = strlen(argv[3]);
+		if (len > sizeof(data) * 2) {
+			dbus_set_error(&err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", argv[3]);
+			goto fail;
+		}
+		if ((len = hex2bin(argv[3], data, len)) == -1) {
 			dbus_set_error(&err, DBUS_ERROR_FAILED, "%s", strerror(errno));
 			goto fail;
 		}
-
-		DBusMessageIter dict;
-		DBusMessageIter config;
-		DBusMessageIter array;
-		const uint8_t *ptr = data;
-
-		if (!dbus_message_iter_open_container(&props, DBUS_TYPE_DICT_ENTRY, NULL, &dict) ||
-				!dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &property) ||
-				!dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, "ay", &config) ||
-				!dbus_message_iter_open_container(&config, DBUS_TYPE_ARRAY, "y", &array) ||
-				!dbus_message_iter_append_fixed_array(&array, DBUS_TYPE_BYTE, &ptr, len) ||
-				!dbus_message_iter_close_container(&config, &array) ||
-				!dbus_message_iter_close_container(&dict, &config) ||
-				!dbus_message_iter_close_container(&props, &dict)) {
-			dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
-			goto fail;
-		}
-
+		data_ptr = data;
 	}
 
-	dbus_message_iter_close_container(&iter, &props);
-
-	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
+	if (!bluealsa_dbus_pcm_select_codec(&dbus_ctx, &pcm, codec, data_ptr, len, &err))
 		goto fail;
-	}
 
 	result = EXIT_SUCCESS;
 
 fail:
 	if (dbus_error_is_set(&err))
 		cmd_print_error("Couldn't select BlueALSA PCM Codec: %s", err.message);
-	if (msg != NULL)
-		dbus_message_unref(msg);
-	if (rep != NULL)
-		dbus_message_unref(rep);
 	return result;
 }
 

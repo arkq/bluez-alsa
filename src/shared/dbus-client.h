@@ -236,4 +236,12 @@ dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props(
 		DBusError *error,
 		struct ba_pcm *pcm);
 
+dbus_bool_t bluealsa_dbus_pcm_select_codec(
+		struct ba_dbus_ctx *ctx,
+		const struct ba_pcm *pcm,
+		const char *codec,
+		const void *configuration,
+		size_t len,
+		DBusError *error);
+
 #endif

@@ -35,6 +35,7 @@
 
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
+#include "shared/hex.h"
 #include "shared/log.h"
 #include "shared/rt.h"
 
@@ -141,64 +142,67 @@ static int close_transport(struct bluealsa_pcm *pcm) {
 	return rv;
 }
 
-static void select_codec(struct bluealsa_pcm *pcm, const char *codec) {
-	DBusMessage *msg = NULL, *rep = NULL;
-	DBusError err = DBUS_ERROR_INIT;
+static bool select_codec(struct bluealsa_pcm *pcm, const char *codec, DBusError *err) {
+	bool result = false;
+	uint8_t data[64];
+	uint8_t *data_ptr = NULL;
+	size_t len = 0;
 
 	if (codec == NULL || *codec == 0)
-		return;
+		return true;
 
-	if ((msg = dbus_message_new_method_call(pcm->dbus_ctx.ba_service, pcm->ba_pcm.pcm_path,
-					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
+	char *name = strdup(codec);
+	if (name == NULL) {
+		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
+		return result;
 	}
 
-	DBusMessageIter iter;
-	dbus_message_iter_init_append(msg, &iter);
-
-	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec)) {
-		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
+	/* split the given string into name and configuration components */
+	char *config = strchr(name, ':');
+	if (config != NULL) {
+		*config++ = 0;
+		len = strlen(config);
+		if (len > sizeof(data) * 2) {
+			dbus_set_error(err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", config);
+			goto fail;
+		}
+		if ((len = hex2bin(config, data, len)) == -1) {
+			dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(errno));
+			goto fail;
+		}
+		data_ptr = data;
 	}
 
-	DBusMessageIter props;
-	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+	if (!bluealsa_dbus_pcm_select_codec(&pcm->dbus_ctx, &pcm->ba_pcm, name, data_ptr, len, err))
 		goto fail;
-	}
 
-	dbus_message_iter_close_container(&iter, &props);
-
-	dbus_connection_send_with_reply_and_block(pcm->dbus_ctx.conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
+	result = true;
 
 fail:
-	if (dbus_error_is_set(&err))
-		SNDERR("Couldn't select BlueALSA PCM Codec: %s", err.message);
-	if (msg != NULL)
-		dbus_message_unref(msg);
-	if (rep != NULL)
-		dbus_message_unref(rep);
-	dbus_error_free(&err);
+	free(name);
+	return result;
 }
 
-static void update_volume(struct bluealsa_pcm *pcm, long volume, int mute) {
+static bool update_volume(struct bluealsa_pcm *pcm, long volume, int mute, DBusError *err) {
 	if (volume >= 0) {
 		pcm->ba_pcm.volume.ch1_volume = BA_PCM_VOLUME_MAX(&pcm->ba_pcm) * volume / 100;
 		if (pcm->ba_pcm.channels == 2)
 			pcm->ba_pcm.volume.ch2_volume = pcm->ba_pcm.volume.ch1_volume;
 	}
-	if (mute != 0) {
-		pcm->ba_pcm.volume.ch1_muted = (mute > 0);
+	if (mute >= 0) {
+		pcm->ba_pcm.volume.ch1_muted = mute;
 		if (pcm->ba_pcm.channels == 2)
 			pcm->ba_pcm.volume.ch2_muted = pcm->ba_pcm.volume.ch1_muted;
 	}
 
-	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, &err))
-		SNDERR("Couldn't set volume: %s", err.message);
-	dbus_error_free(&err);
+	return bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, err);
+}
+
+static bool update_softvol(struct bluealsa_pcm *pcm, int softvol, DBusError *err) {
+	if (softvol >= 0)
+		pcm->ba_pcm.soft_volume = softvol;
+
+	return bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_SOFT_VOLUME, err);
 }
 
 /**
@@ -1028,10 +1032,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *device = NULL;
 	const char *profile = NULL;
 	long delay = 0;
+	const char *codec = NULL;
 	const char *volume_str = NULL;
 	long volume = -1;
-	int mute = 0;
-	const char *codec = NULL;
+	int mute = -1;
+	int softvol = -1;
 	struct bluealsa_pcm *pcm;
 	int ret;
 
@@ -1089,6 +1094,17 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			}
 			continue;
 		}
+		if (strcmp(id, "softvol") == 0) {
+			const char *softvol_str;
+			if (snd_config_get_string(n, &softvol_str) == 0) {
+				if (strlen(softvol_str) == 0)
+					continue;
+				if ((softvol = snd_config_get_bool(n)) >= 0)
+					continue;
+			}
+			SNDERR("Invalid type for %s", id);
+			return -EINVAL;
+		}
 
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
@@ -1121,7 +1137,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		/* '+' at end of volume value indicates to unmute;
 		 * '-' indicates to mute */
 		if (*endptr == '+' && *(endptr + 1) == 0)
-			mute = -1;
+			mute = 0;
 		else if (*endptr == '-' && *(endptr + 1) == 0)
 			mute = 1;
 		else if (*endptr != 0) {
@@ -1201,9 +1217,16 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		return ret;
 	}
 
-	select_codec(pcm, codec);
+	if (!select_codec(pcm, codec, &err)) {
+		SNDERR("Couldn't select BlueALSA PCM Codec: %s", err.message);
+		dbus_error_free(&err);
+	}
 
-	update_volume(pcm, volume, mute);
+	if (!update_volume(pcm, volume, mute, &err))
+		SNDERR("Couldn't set PCM volume: %s", err.message);
+
+	if (!update_softvol(pcm, softvol, &err))
+		SNDERR("Couldn't set PCM soft volume property: %s", err.message);
 
 	*pcmp = pcm->io.pcm;
 	return 0;
