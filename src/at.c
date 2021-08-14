@@ -1,6 +1,6 @@
 /*
  * BlueALSA - at.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -24,37 +24,38 @@
 /**
  * Build AT message.
  *
- * @param buffer Address of the buffer, which shall be big enough to contain
+ * @param buffer Address of the buffer, which should be big enough to contain
  *   AT message: len(command) + len(value) + 6 bytes.
+ * @param buffer The size of the buffer.
  * @param type AT message type.
  * @param command AT command. If one wants to build unsolicited response code,
  *   this parameter should be set to NULL, otherwise AT command response will
  *   be build.
  * @param value AT command value or unsolicited response code.
  * @return Pointer to the destination buffer. */
-char *at_build(char *buffer, enum bt_at_type type, const char *command,
-		const char *value) {
+char *at_build(char *buffer, size_t size, enum bt_at_type type,
+		const char *command, const char *value) {
 	switch (type) {
 	case AT_TYPE_RAW:
-		strcpy(buffer, command);
+		snprintf(buffer, size, "%s", command);
 		break;
 	case AT_TYPE_CMD:
-		sprintf(buffer, "AT%s\r", command);
+		snprintf(buffer, size, "AT%s\r", command);
 		break;
 	case AT_TYPE_CMD_GET:
-		sprintf(buffer, "AT%s?\r", command);
+		snprintf(buffer, size, "AT%s?\r", command);
 		break;
 	case AT_TYPE_CMD_SET:
-		sprintf(buffer, "AT%s=%s\r", command, value);
+		snprintf(buffer, size, "AT%s=%s\r", command, value);
 		break;
 	case AT_TYPE_CMD_TEST:
-		sprintf(buffer, "AT%s=?\r", command);
+		snprintf(buffer, size, "AT%s=?\r", command);
 		break;
 	case AT_TYPE_RESP:
 		if (command != NULL)
-			sprintf(buffer, "\r\n%s:%s\r\n", command, value);
+			snprintf(buffer, size, "\r\n%s:%s\r\n", command, value);
 		else
-			sprintf(buffer, "\r\n%s\r\n", value);
+			snprintf(buffer, size, "\r\n%s\r\n", value);
 		break;
 	case __AT_TYPE_MAX:
 		break;

@@ -21,17 +21,17 @@ START_TEST(test_at_build) {
 	char buffer[256];
 
 	/* build commands */
-	ck_assert_str_eq(at_build(buffer, AT_TYPE_RAW, "\r\nRING", NULL), "\r\nRING");
-	ck_assert_str_eq(at_build(buffer, AT_TYPE_CMD, "+CLCC", NULL), "AT+CLCC\r");
-	ck_assert_str_eq(at_build(buffer, AT_TYPE_CMD_GET, "+COPS", NULL), "AT+COPS?\r");
-	ck_assert_str_eq(at_build(buffer, AT_TYPE_CMD_SET, "+BCS", "1"), "AT+BCS=1\r");
-	ck_assert_str_eq(at_build(buffer, AT_TYPE_CMD_TEST, "+CIND", NULL), "AT+CIND=?\r");
+	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_RAW, "\r\nRING", NULL), "\r\nRING");
+	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_CMD, "+CLCC", NULL), "AT+CLCC\r");
+	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_CMD_GET, "+COPS", NULL), "AT+COPS?\r");
+	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_CMD_SET, "+BCS", "1"), "AT+BCS=1\r");
+	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_CMD_TEST, "+CIND", NULL), "AT+CIND=?\r");
 
 	/* build response result code */
-	ck_assert_str_eq(at_build(buffer, AT_TYPE_RESP, "+CIND", ""), "\r\n+CIND:\r\n");
+	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_RESP, "+CIND", ""), "\r\n+CIND:\r\n");
 
 	/* build unsolicited result code */
-	ck_assert_str_eq(at_build(buffer, AT_TYPE_RESP, NULL, "OK"), "\r\nOK\r\n");
+	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_RESP, NULL, "OK"), "\r\nOK\r\n");
 
 } END_TEST
 

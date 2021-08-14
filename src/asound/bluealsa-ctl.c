@@ -257,7 +257,7 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 
 	const int name_len = strlen(name);
 	int len = sizeof(elem->name) - 16 - 1;
-	char no[8] = "";
+	char no[16] = "";
 
 	if (id != -1) {
 		sprintf(no, " #%u", id);
@@ -740,9 +740,9 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 		}
 
 		if (strcmp(signal, "PCMRemoved") == 0) {
-			const char *path;
-			dbus_message_iter_get_basic(&iter, &path);
-			bluealsa_pcm_remove(ctl, path);
+			const char *pcm_path;
+			dbus_message_iter_get_basic(&iter, &pcm_path);
+			bluealsa_pcm_remove(ctl, pcm_path);
 			goto remove_add;
 		}
 

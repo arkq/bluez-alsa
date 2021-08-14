@@ -1,6 +1,6 @@
 /*
  * BlueALSA - at.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -12,7 +12,9 @@
 #ifndef BLUEALSA_AT_H_
 #define BLUEALSA_AT_H_
 
+#pragma once
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "hfp.h"
 
@@ -32,8 +34,8 @@ struct bt_at {
 	char *value;
 };
 
-char *at_build(char *buffer, enum bt_at_type type, const char *command,
-		const char *value);
+char *at_build(char *buffer, size_t size, enum bt_at_type type,
+		const char *command, const char *value);
 char *at_parse(const char *str, struct bt_at *at);
 int at_parse_bia(const char *str, bool state[__HFP_IND_MAX]);
 int at_parse_cind(const char *str, enum hfp_ind map[20]);

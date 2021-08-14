@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -107,7 +107,7 @@ static int rfcomm_write_at(int fd, enum bt_at_type type, const char *command,
 	debug("Sending AT message: %s: command:%s, value:%s",
 			at_type2str(type), command, value);
 
-	at_build(msg, type, command, value);
+	at_build(msg, sizeof(msg), type, command, value);
 	len = strlen(msg);
 
 retry:
@@ -807,7 +807,7 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
 	const int fd = r->fd;
-	char tmp[16];
+	char tmp[24];
 
 	int gain = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
 	if (!force && r->gain_mic == gain)
@@ -837,7 +837,7 @@ static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
 	const int fd = r->fd;
-	char tmp[16];
+	char tmp[24];
 
 	int gain = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
 	if (!force && r->gain_spk == gain)
@@ -1173,7 +1173,8 @@ read:
 				callback = rfcomm_get_callback(&reader.at);
 
 			if (pfds[2].fd != -1 && !predefined_callback) {
-				at_build(tmp, reader.at.type, reader.at.command, reader.at.value);
+				at_build(tmp, sizeof(tmp), reader.at.type,
+						reader.at.command, reader.at.value);
 				if (write(pfds[2].fd, tmp, strlen(tmp)) == -1)
 					warn("Couldn't forward AT: %s", strerror(errno));
 			}
