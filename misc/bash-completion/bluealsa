@@ -292,9 +292,12 @@ _bluealsa_cli() {
 			return
 			;;
 		$((COMP_CWORD - 1)))
-			# if previous word was command then list available paths
+			# if previous word was path command then list available paths
 			if [[ "$path_commands" =~ "$prev" ]]; then
 				COMPREPLY=( $(compgen -W "$("$1" $dbus_opt list-pcms 2>/dev/null)" -- $cur) )
+				return
+			elif [[ "$prev" =~ (list-pcms|monitor) ]]; then
+				COMPREPLY=( $(compgen -W verbose -- $cur) )
 				return
 			fi
 			;;
