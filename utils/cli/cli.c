@@ -37,6 +37,7 @@
 static struct ba_dbus_ctx dbus_ctx;
 static char dbus_ba_service[32] = BLUEALSA_SERVICE;
 static bool quiet = false;
+static bool verbose = false;
 
 static const char *transport_code_to_string(int transport_code) {
 	switch (transport_code) {
@@ -183,7 +184,7 @@ fail:
 	return result;
 }
 
-static void print_adapters(struct ba_service_props *props) {
+static void print_adapters(const struct ba_service_props *props) {
 	printf("Adapters:");
 	for (size_t i = 0; i < ARRAYSIZE(props->adapters); i++)
 		if (strlen(props->adapters[i]) > 0)
@@ -191,14 +192,14 @@ static void print_adapters(struct ba_service_props *props) {
 	printf("\n");
 }
 
-static void print_volume(struct ba_pcm *pcm) {
+static void print_volume(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
 		printf("Volume: L: %u R: %u\n", pcm->volume.ch1_volume, pcm->volume.ch2_volume);
 	else
 		printf("Volume: %u\n", pcm->volume.ch1_volume);
 }
 
-static void print_mute(struct ba_pcm *pcm) {
+static void print_mute(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
 		printf("Muted: L: %c R: %c\n",
 				pcm->volume.ch1_muted ? 'Y' : 'N', pcm->volume.ch2_muted ? 'Y' : 'N');
@@ -206,31 +207,59 @@ static void print_mute(struct ba_pcm *pcm) {
 		printf("Muted: %c\n", pcm->volume.ch1_muted ? 'Y' : 'N');
 }
 
-static int cmd_list_services(int argc, char *argv[]) {
+static void print_properties(const struct ba_pcm *pcm, DBusError *err) {
+	printf("Device: %s\n", pcm->device_path);
+	printf("Sequence: %u\n", pcm->sequence);
+	printf("Transport: %s\n", transport_code_to_string(pcm->transport));
+	printf("Mode: %s\n", pcm_mode_to_string(pcm->mode));
+	printf("Format: %s\n", pcm_format_to_string(pcm->format));
+	printf("Channels: %d\n", pcm->channels);
+	printf("Sampling: %d Hz\n", pcm->sampling);
+	print_codecs(pcm->pcm_path, err);
+	printf("Selected codec: %s\n", pcm->codec);
+	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
+	printf("SoftVolume: %s\n", pcm->soft_volume ? "Y" : "N");
+	print_volume(pcm);
+	print_mute(pcm);
+}
 
-	if (argc != 1) {
-		cmd_print_error("Invalid number of arguments");
-		return EXIT_FAILURE;
+typedef bool (*get_services_cb)(const char *name, void *data);
+
+static bool print_bluealsa_service(const char *name, void *data) {
+	(void) data;
+	if (strncmp(name, BLUEALSA_SERVICE, sizeof(BLUEALSA_SERVICE) - 1) == 0)
+		printf("%s\n", name);
+	return true;
+}
+
+static bool test_bluealsa_service(const char *name, void *data) {
+	bool *result = data;
+	if (strcmp(name, BLUEALSA_SERVICE) == 0) {
+		*result = true;
+		return false;
 	}
+	*result = false;
+	return true;
+}
+
+static void get_services(get_services_cb func, void *data, DBusError *err) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
-	DBusError err = DBUS_ERROR_INIT;
-	int result = EXIT_FAILURE;
 
 	if ((msg = dbus_message_new_method_call(DBUS_SERVICE_DBUS,
 					DBUS_PATH_DBUS, DBUS_INTERFACE_DBUS, "ListNames")) == NULL) {
-		dbus_set_error(&err, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
 	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
+					msg, DBUS_TIMEOUT_USE_DEFAULT, err)) == NULL) {
 		goto fail;
 	}
 
 	DBusMessageIter iter;
 	if (!dbus_message_iter_init(rep, &iter)) {
-		dbus_set_error(&err, DBUS_ERROR_INVALID_SIGNATURE, "Empty response message");
+		dbus_set_error(err, DBUS_ERROR_INVALID_SIGNATURE, "Empty response message");
 		goto fail;
 	}
 
@@ -241,7 +270,7 @@ static int cmd_list_services(int argc, char *argv[]) {
 
 		if (dbus_message_iter_get_arg_type(&iter_names) != DBUS_TYPE_STRING) {
 			char *signature = dbus_message_iter_get_signature(&iter);
-			dbus_set_error(&err, DBUS_ERROR_INVALID_SIGNATURE,
+			dbus_set_error(err, DBUS_ERROR_INVALID_SIGNATURE,
 					"Incorrect signature: %s != as", signature);
 			dbus_free(signature);
 			goto fail;
@@ -249,21 +278,34 @@ static int cmd_list_services(int argc, char *argv[]) {
 
 		const char *name;
 		dbus_message_iter_get_basic(&iter_names, &name);
-		if (strncmp(name, BLUEALSA_SERVICE, sizeof(BLUEALSA_SERVICE) - 1) == 0)
-			printf("%s\n", name);
+		if (!func(name, data)) {
+			break;
+		}
 
 	}
 
-	result = EXIT_SUCCESS;
-
 fail:
-	if (dbus_error_is_set(&err))
-		cmd_print_error("D-Bus error: %s", err.message);
 	if (msg != NULL)
 		dbus_message_unref(msg);
 	if (rep != NULL)
 		dbus_message_unref(rep);
-	return result;
+}
+
+static int cmd_list_services(int argc, char *argv[]) {
+
+	if (argc != 1) {
+		cmd_print_error("Invalid number of arguments");
+		return EXIT_FAILURE;
+	}
+
+	DBusError err = DBUS_ERROR_INIT;
+	get_services(print_bluealsa_service, NULL, &err);
+	if (dbus_error_is_set(&err)) {
+		cmd_print_error("D-Bus error: %s", err.message);
+		return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
 }
 
 static int cmd_list_pcms(int argc, char *argv[]) {
@@ -283,8 +325,11 @@ static int cmd_list_pcms(int argc, char *argv[]) {
 	}
 
 	size_t i;
-	for (i = 0; i < pcms_count; i++)
+	for (i = 0; i < pcms_count; i++) {
 		printf("%s\n", pcms[i].pcm_path);
+		if (verbose)
+			print_properties(&pcms[i], &err);
+	}
 
 	free(pcms);
 	return EXIT_SUCCESS;
@@ -328,20 +373,7 @@ static int cmd_info(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	printf("Device: %s\n", pcm.device_path);
-	printf("Sequence: %u\n", pcm.sequence);
-	printf("Transport: %s\n", transport_code_to_string(pcm.transport));
-	printf("Mode: %s\n", pcm_mode_to_string(pcm.mode));
-	printf("Format: %s\n", pcm_format_to_string(pcm.format));
-	printf("Channels: %d\n", pcm.channels);
-	printf("Sampling: %d Hz\n", pcm.sampling);
-	print_codecs(path, &err);
-	printf("Selected codec: %s\n", pcm.codec);
-	printf("Delay: %#.1f ms\n", (double)pcm.delay / 10);
-	printf("SoftVolume: %s\n", pcm.soft_volume ? "Y" : "N");
-	print_volume(&pcm);
-	print_mute(&pcm);
-
+	print_properties(&pcm, &err);
 	if (dbus_error_is_set(&err))
 		warn("Unable to read available codecs: %s", err.message);
 
@@ -617,6 +649,16 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
 				dbus_message_iter_get_basic(&iter, &path);
 				printf("PCMAdded %s\n", path);
+				if (verbose) {
+					struct ba_pcm pcm;
+					DBusError err = DBUS_ERROR_INIT;
+					if (!bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &pcm)) {
+						error("Couldn't read PCM properties: %s", "Invalid signal signature");
+						goto fail;
+					}
+					print_properties(&pcm, &err);
+					printf("\n");
+				}
 				return DBUS_HANDLER_RESULT_HANDLED;
 			}
 
@@ -629,7 +671,41 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 			}
 
 	}
+	else if (strcmp(interface, DBUS_INTERFACE_DBUS) == 0) {
+		if (strcmp(signal, "NameOwnerChanged") == 0) {
 
+			const char *arg0 = NULL, *arg1 = NULL, *arg2 = NULL;
+			if (dbus_message_iter_init(message, &iter) &&
+					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
+				dbus_message_iter_get_basic(&iter, &arg0);
+			else
+				goto fail;
+			if (dbus_message_iter_next(&iter) &&
+					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
+				dbus_message_iter_get_basic(&iter, &arg1);
+			else
+				goto fail;
+			if (dbus_message_iter_next(&iter) &&
+					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
+				dbus_message_iter_get_basic(&iter, &arg2);
+			else
+				goto fail;
+
+			if (strcmp(arg0, dbus_ctx.ba_service))
+				goto fail;
+
+			if (strlen(arg1) == 0)
+				printf("ServiceRunning %s\n", dbus_ctx.ba_service);
+			else if (strlen(arg2) == 0)
+				printf("ServiceStopped %s\n", dbus_ctx.ba_service);
+			else
+				goto fail;
+
+			return DBUS_HANDLER_RESULT_HANDLED;
+		}
+	}
+
+fail:
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
@@ -640,15 +716,41 @@ static int cmd_monitor(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	/* Force line buffered output to be sure each event will be flushed
+	 * immediately, as this command will most likely be used to write to
+	 * a pipe. */
+	setvbuf(stdout, NULL, _IOLBF, 0);
+
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
 			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
 			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
 
+	char dbus_args[50];
+	snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", dbus_ctx.ba_service);
+	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
+	snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg1=''", dbus_ctx.ba_service);
+	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
+
 	if (!dbus_connection_add_filter(dbus_ctx.conn, dbus_signal_handler, NULL, NULL)) {
 		cmd_print_error("Couldn't add D-Bus filter");
 		return EXIT_FAILURE;
 	}
+
+	bool running = false;
+	DBusError err = DBUS_ERROR_INIT;
+	get_services(test_bluealsa_service, &running, &err);
+	if (dbus_error_is_set(&err)) {
+		cmd_print_error("D-Bus error: %s", err.message);
+		return EXIT_FAILURE;
+	}
+
+	if (running)
+		printf("ServiceRunning %s\n", dbus_ctx.ba_service);
+	else
+		printf("ServiceStopped %s\n", dbus_ctx.ba_service);
 
 	while (dbus_connection_read_write_dispatch(dbus_ctx.conn, -1))
 		continue;
@@ -692,6 +794,7 @@ static void usage(const char *progname) {
 	printf("  -V, --version       Show version\n");
 	printf("  -B, --dbus=NAME     BlueALSA service name suffix\n");
 	printf("  -q, --quiet         Do not print any error messages\n");
+	printf("  -v, --verbose       Show extra information\n");
 	printf("\nCommands:\n");
 	for (i = 0; i < ARRAYSIZE(commands); i++)
 		printf("  %s %-*s%s\n", commands[i].name,
@@ -711,12 +814,13 @@ static void usage(const char *progname) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "+B:Vhq";
+	const char *opts = "+B:Vhqv";
 	const struct option longopts[] = {
 		{"dbus", required_argument, NULL, 'B'},
 		{"version", no_argument, NULL, 'V'},
 		{"help", no_argument, NULL, 'h'},
 		{"quiet", no_argument, NULL, 'q'},
+		{"verbose", no_argument, NULL, 'v'},
 		{ 0 },
 	};
 
@@ -733,6 +837,9 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'q' /* --quiet */ :
 			quiet = true;
+			break;
+		case 'v' /* --verbose */ :
+			verbose = true;
 			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);

@@ -6,7 +6,7 @@ bluealsa-cli
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: July 2021
+:Date: October 2021
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -42,6 +42,9 @@ OPTIONS
 -q, --quiet
     Do not print any error messages.
 
+-v, --verbose
+    Include extra information in normal output - see COMMANDS_ for details.
+
 COMMANDS
 ========
 
@@ -50,6 +53,10 @@ list-services
 
 list-pcms
     Print a list of BlueALSA PCM D-Bus paths, one per line.
+
+    If the *--verbose* option is given then the properties of each connected
+    PCM are printed after each path, one per line, in the same format as the
+    **info** command.
 
 info *PCM_PATH*
     Print the properties and available codecs of the given PCM.
@@ -107,12 +114,31 @@ soft-volume *PCM_PATH* [y|n]
     PCM.
 
 monitor
-    Listen for ``PCMAdded`` and ``PCMRemoved`` signals and print a message on
-    standard output for each one received. Output lines are formed as:
+    Listen for D-Bus ``PCMAdded`` and ``PCMRemoved`` signals and also detect
+    service running and service stopped events. Print a line on
+    standard output for each one received. PCM event output lines are formed as:
 
     ``PCMAdded PCM_PATH``
 
     ``PCMRemoved PCM_PATH``
+
+    Service start/stop event lines are formed as:
+
+    ``ServiceRunning SERVICE_NAME``
+
+    ``ServiceStopped SERVICE_NAME``
+
+    If the *--verbose* option is given then the properties of each added PCM are
+    printed after the PCMAdded line, one per line, in the same format as the
+    **info** command. In this case a blank line is printed after the last
+    property.
+
+    When the monitor starts, it begins by printing a ``ServiceRunning`` or
+    ``ServiceStopped`` message according to the current state of the service.
+
+    Note that the **bluealsa(8)** service does not emit ``PCMRemoved`` signals
+    when the service stops. The ``ServiceStopped`` message here can be used
+    to indicate that all remaining PCMs have been removed.
 
 open *PCM_PATH*
     Transfer raw audio frames to or from the given PCM. For sink PCMs
