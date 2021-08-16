@@ -178,11 +178,19 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 		struct ba_pcm *pcm,
 		DBusError *error);
 
-dbus_bool_t bluealsa_dbus_open_pcm(
+dbus_bool_t bluealsa_dbus_pcm_open(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
 		int *fd_pcm,
 		int *fd_pcm_ctrl,
+		DBusError *error);
+
+dbus_bool_t bluealsa_dbus_pcm_select_codec(
+		struct ba_dbus_ctx *ctx,
+		const char *pcm_path,
+		const char *codec,
+		const void *configuration,
+		size_t len,
 		DBusError *error);
 
 dbus_bool_t bluealsa_dbus_open_rfcomm(
@@ -235,13 +243,5 @@ dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props(
 		DBusMessageIter *iter,
 		DBusError *error,
 		struct ba_pcm *pcm);
-
-dbus_bool_t bluealsa_dbus_pcm_select_codec(
-		struct ba_dbus_ctx *ctx,
-		const struct ba_pcm *pcm,
-		const char *codec,
-		const void *configuration,
-		size_t len,
-		DBusError *error);
 
 #endif

@@ -144,9 +144,9 @@ static int close_transport(struct bluealsa_pcm *pcm) {
 
 static bool select_codec(struct bluealsa_pcm *pcm, const char *codec, DBusError *err) {
 	bool result = false;
-	uint8_t data[64];
-	uint8_t *data_ptr = NULL;
-	size_t len = 0;
+	uint8_t configuration[64];
+	uint8_t *config_ptr = NULL;
+	size_t config_len = 0;
 
 	if (codec == NULL || *codec == 0)
 		return true;
@@ -158,22 +158,22 @@ static bool select_codec(struct bluealsa_pcm *pcm, const char *codec, DBusError 
 	}
 
 	/* split the given string into name and configuration components */
-	char *config = strchr(name, ':');
-	if (config != NULL) {
-		*config++ = 0;
-		len = strlen(config);
-		if (len > sizeof(data) * 2) {
-			dbus_set_error(err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", config);
+	char *config_hex = strchr(name, ':');
+	if (config_hex != NULL) {
+		*config_hex++ = 0;
+		config_len = strlen(config_hex);
+		if (config_len > sizeof(configuration) * 2) {
+			dbus_set_error(err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", config_hex);
 			goto fail;
 		}
-		if ((len = hex2bin(config, data, len)) == -1) {
+		if ((config_len = hex2bin(config_hex, configuration, config_len)) == -1) {
 			dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(errno));
 			goto fail;
 		}
-		data_ptr = data;
+		config_ptr = configuration;
 	}
 
-	if (!bluealsa_dbus_pcm_select_codec(&pcm->dbus_ctx, &pcm->ba_pcm, name, data_ptr, len, err))
+	if (!bluealsa_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path, name, config_ptr, config_len, err))
 		goto fail;
 
 	result = true;
@@ -509,7 +509,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_open_pcm(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
+	if (!bluealsa_dbus_pcm_open(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				&pcm->ba_pcm_fd, &pcm->ba_pcm_ctrl_fd, &err)) {
 		debug2("Couldn't open PCM: %s", err.message);
 		dbus_error_free(&err);
@@ -1085,6 +1085,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
+			if (strcmp(codec, "unchanged") == 0)
+				codec = "";
 			continue;
 		}
 		if (strcmp(id, "volume") == 0) {
@@ -1092,11 +1094,15 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
+			if (strcmp(volume_str, "unchanged") == 0)
+				volume_str = "";
 			continue;
 		}
 		if (strcmp(id, "softvol") == 0) {
 			const char *softvol_str;
 			if (snd_config_get_string(n, &softvol_str) == 0) {
+				if (strcmp(softvol_str, "unchanged") == 0)
+					softvol_str = "";
 				if (strlen(softvol_str) == 0)
 					continue;
 				if ((softvol = snd_config_get_bool(n)) >= 0)
@@ -1222,11 +1228,15 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		dbus_error_free(&err);
 	}
 
-	if (!update_volume(pcm, volume, mute, &err))
+	if (!update_volume(pcm, volume, mute, &err)) {
 		SNDERR("Couldn't set PCM volume: %s", err.message);
+		dbus_error_free(&err);
+	}
 
-	if (!update_softvol(pcm, softvol, &err))
+	if (!update_softvol(pcm, softvol, &err)) {
 		SNDERR("Couldn't set PCM soft volume property: %s", err.message);
+		dbus_error_free(&err);
+	}
 
 	*pcmp = pcm->io.pcm;
 	return 0;

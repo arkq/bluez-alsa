@@ -373,24 +373,24 @@ static int cmd_codec(int argc, char *argv[]) {
 	int result = EXIT_FAILURE;
 	const char *codec = argv[2];
 
-	uint8_t data[64];
-	uint8_t *data_ptr = NULL;
-	size_t len = 0;
+	uint8_t configuration[64];
+	uint8_t *config_ptr = NULL;
+	size_t config_len = 0;
 
 	if (argc == 4) {
-		len = strlen(argv[3]);
-		if (len > sizeof(data) * 2) {
+		config_len = strlen(argv[3]);
+		if (config_len > sizeof(configuration) * 2) {
 			dbus_set_error(&err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", argv[3]);
 			goto fail;
 		}
-		if ((len = hex2bin(argv[3], data, len)) == -1) {
+		if ((config_len = hex2bin(argv[3], configuration, config_len)) == -1) {
 			dbus_set_error(&err, DBUS_ERROR_FAILED, "%s", strerror(errno));
 			goto fail;
 		}
-		data_ptr = data;
+		config_ptr = configuration;
 	}
 
-	if (!bluealsa_dbus_pcm_select_codec(&dbus_ctx, &pcm, codec, data_ptr, len, &err))
+	if (!bluealsa_dbus_pcm_select_codec(&dbus_ctx, path, codec, config_ptr, config_len, &err))
 		goto fail;
 
 	result = EXIT_SUCCESS;
@@ -559,7 +559,7 @@ static int cmd_open(int argc, char *argv[]) {
 	size_t len = strlen(path);
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_open_pcm(&dbus_ctx, path, &fd_pcm, &fd_pcm_ctrl, &err)) {
+	if (!bluealsa_dbus_pcm_open(&dbus_ctx, path, &fd_pcm, &fd_pcm_ctrl, &err)) {
 		cmd_print_error("Cannot open PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}

@@ -105,6 +105,23 @@ static void ba_dbus_watch_toggled(DBusWatch *watch, void *data) {
 	(void)data;
 }
 
+static const char *bluealsa_codec_get_canonical_name(const char *name) {
+	int i, ii;
+
+	for (i = 0; i < ARRAYSIZE(codecs); i++) {
+		if (strcasecmp(name, codecs[i].name) == 0)
+			return codecs[i].name;
+		if (codecs[i].aliases != NULL) {
+			for (ii = 0; codecs[i].aliases[ii] != NULL; ii++) {
+				if (strcasecmp(name, codecs[i].aliases[ii]) == 0)
+					return codecs[i].name;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 dbus_bool_t bluealsa_dbus_connection_ctx_init(
 		struct ba_dbus_ctx *ctx,
 		const char *ba_service_name,
@@ -495,7 +512,7 @@ dbus_bool_t bluealsa_dbus_get_pcm(
 
 /**
  * Open BlueALSA PCM stream. */
-dbus_bool_t bluealsa_dbus_open_pcm(
+dbus_bool_t bluealsa_dbus_pcm_open(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
 		int *fd_pcm,
@@ -525,6 +542,80 @@ dbus_bool_t bluealsa_dbus_open_pcm(
 	dbus_message_unref(rep);
 	dbus_message_unref(msg);
 	return rv;
+}
+
+dbus_bool_t bluealsa_dbus_pcm_select_codec(
+		struct ba_dbus_ctx *ctx,
+		const char *pcm_path,
+		const char *codec,
+		const void *configuration,
+		size_t len,
+		DBusError *error) {
+
+	DBusMessage *msg = NULL, *rep = NULL;
+	dbus_bool_t result = FALSE;
+
+	const char *codec_name = bluealsa_codec_get_canonical_name(codec);
+	if (codec_name == NULL) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unknown codec name: %s", codec);
+		goto fail;
+	}
+
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
+					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	dbus_message_iter_init_append(msg, &iter);
+
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec_name)) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter props;
+	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if (configuration != NULL) {
+		const char *property = "Configuration";
+		DBusMessageIter dict;
+		DBusMessageIter config;
+		DBusMessageIter array;
+		const uint8_t *ptr = configuration;
+
+		if (!dbus_message_iter_open_container(&props, DBUS_TYPE_DICT_ENTRY, NULL, &dict) ||
+				!dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &property) ||
+				!dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, "ay", &config) ||
+				!dbus_message_iter_open_container(&config, DBUS_TYPE_ARRAY, "y", &array) ||
+				!dbus_message_iter_append_fixed_array(&array, DBUS_TYPE_BYTE, &ptr, len) ||
+				!dbus_message_iter_close_container(&config, &array) ||
+				!dbus_message_iter_close_container(&dict, &config) ||
+				!dbus_message_iter_close_container(&props, &dict)) {
+			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+			goto fail;
+		}
+	}
+
+	dbus_message_iter_close_container(&iter, &props);
+
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL) {
+		goto fail;
+	}
+
+	result = TRUE;
+
+fail:
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	return result;
 }
 
 /**
@@ -875,93 +966,3 @@ dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props(
 			bluealsa_dbus_message_iter_get_pcm_props_cb, pcm);
 }
 
-static const char *bluealsa_codec_get_canonical_name(const char *name) {
-	int i, ii;
-
-	for (i = 0; i < ARRAYSIZE(codecs); i++) {
-		if (strcasecmp(name, codecs[i].name) == 0)
-			return codecs[i].name;
-		if (codecs[i].aliases != NULL) {
-			for (ii = 0; codecs[i].aliases[ii] != NULL; ii++) {
-				if (strcasecmp(name, codecs[i].aliases[ii]) == 0)
-					return codecs[i].name;
-			}
-		}
-	}
-
-	return NULL;
-}
-
-dbus_bool_t bluealsa_dbus_pcm_select_codec(
-		struct ba_dbus_ctx *ctx,
-		const struct ba_pcm *pcm,
-		const char *codec,
-		const void *configuration,
-		size_t len,
-		DBusError *error) {
-
-	DBusMessage *msg = NULL, *rep = NULL;
-	dbus_bool_t result = FALSE;
-
-	const char *codec_name = bluealsa_codec_get_canonical_name(codec);
-	if (codec_name == NULL) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "Unknown codec name: %s", codec);
-		goto fail;
-	}
-
-	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm->pcm_path,
-					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	DBusMessageIter iter;
-	dbus_message_iter_init_append(msg, &iter);
-
-	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec_name)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	DBusMessageIter props;
-	if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	if (configuration != NULL) {
-		const char *property = "Configuration";
-		DBusMessageIter dict;
-		DBusMessageIter config;
-		DBusMessageIter array;
-		const uint8_t *ptr = configuration;
-
-		if (!dbus_message_iter_open_container(&props, DBUS_TYPE_DICT_ENTRY, NULL, &dict) ||
-				!dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &property) ||
-				!dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, "ay", &config) ||
-				!dbus_message_iter_open_container(&config, DBUS_TYPE_ARRAY, "y", &array) ||
-				!dbus_message_iter_append_fixed_array(&array, DBUS_TYPE_BYTE, &ptr, len) ||
-				!dbus_message_iter_close_container(&config, &array) ||
-				!dbus_message_iter_close_container(&dict, &config) ||
-				!dbus_message_iter_close_container(&props, &dict)) {
-			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-			goto fail;
-		}
-	}
-
-	dbus_message_iter_close_container(&iter, &props);
-
-	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL) {
-		goto fail;
-	}
-
-	result = TRUE;
-
-fail:
-	if (msg != NULL)
-		dbus_message_unref(msg);
-	if (rep != NULL)
-		dbus_message_unref(rep);
-	return result;
-}
