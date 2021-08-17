@@ -216,7 +216,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm *r, const struct bt_
 	for (i = 0; i < ARRAYSIZE(r->hfp_ind_map); i++) {
 		r->hfp_ind[r->hfp_ind_map[i]] = atoi(tmp);
 		if (r->hfp_ind_map[i] == HFP_IND_BATTCHG) {
-			d->battery_level = atoi(tmp) * 100 / 5;
+			d->battery.charge = atoi(tmp) * 100 / 5;
 			bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
 		}
 		if ((tmp = strchr(tmp, ',')) == NULL)
@@ -265,7 +265,7 @@ static int rfcomm_handler_ciev_resp_cb(struct ba_rfcomm *r, const struct bt_at *
 		r->hfp_ind[r->hfp_ind_map[index]] = value;
 		switch (r->hfp_ind_map[index]) {
 		case HFP_IND_BATTCHG:
-			d->battery_level = value * 100 / 5;
+			d->battery.charge = value * 100 / 5;
 			bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
 			break;
 		default:
@@ -363,11 +363,11 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
-
-	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -380,9 +380,9 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
-
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
 	return 0;
 }
 
@@ -400,11 +400,11 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
-
-	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	return 0;
 }
 
@@ -417,9 +417,9 @@ static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
-	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL);
-
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
 	return 0;
 }
 
@@ -544,6 +544,98 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 }
 
 /**
+ * SET: Android Ext: XHSMICMUTE: Zebra HS3100 microphone mute */
+static int rfcomm_handler_android_set_xhsmicmute(struct ba_rfcomm *r, char *value) {
+
+	if (value == NULL)
+		return errno = EINVAL, -1;
+
+	struct ba_transport * const t_sco = r->sco;
+	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
+	const int fd = r->fd;
+
+	bool muted = value[0] == '0' ? false : true;
+	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL, &muted);
+	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
+		return -1;
+	return 0;
+}
+
+/**
+ * SET: Android Ext: XHSTBATSOC: Zebra HS3100 battery state of charge */
+static int rfcomm_handler_android_set_xhstbatsoc(struct ba_rfcomm *r, char *value) {
+
+	if (value == NULL)
+		return errno = EINVAL, -1;
+
+	struct ba_device * const d = r->sco->d;
+	const int fd = r->fd;
+
+	char *ptr = value;
+	d->battery.charge = atoi(strsep(&ptr, ","));
+	bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
+		return -1;
+	return 0;
+}
+
+/**
+ * SET: Android Ext: XHSTBATSOH: Zebra HS3100 battery state of health */
+static int rfcomm_handler_android_set_xhstbatsoh(struct ba_rfcomm *r, char *value) {
+
+	if (value == NULL)
+		return errno = EINVAL, -1;
+
+	struct ba_device * const d = r->sco->d;
+	const int fd = r->fd;
+
+	char *ptr = value;
+	d->battery.health = atoi(strsep(&ptr, ","));
+	bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
+		return -1;
+	return 0;
+}
+
+/**
+ * SET: Android Ext: Report various state changes */
+static int rfcomm_handler_android_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+
+	static const struct {
+		const char *name;
+		int (*cb)(struct ba_rfcomm *, char *);
+	} handlers[] = {
+		{ "XHSMICMUTE", rfcomm_handler_android_set_xhsmicmute },
+		{ "XHSTBATSOC", rfcomm_handler_android_set_xhstbatsoc },
+		{ "XHSTBATSOH", rfcomm_handler_android_set_xhstbatsoh },
+	};
+
+	char *sep = ",";
+	char *value = at->value;
+	char *name = strsep(&value, sep);
+
+	size_t i;
+	for (i = 0; i < ARRAYSIZE(handlers); i++)
+		if (strcmp(name, handlers[i].name) == 0) {
+			int rv = handlers[i].cb(r, value);
+			if (rv == -1 && errno == EINVAL)
+				break;
+			return rv;
+		}
+
+	if (value == NULL)
+		sep = value = "";
+	warn("Unsupported +ANDROID value: %s%s%s", name, sep, value);
+	if (rfcomm_write_at(r->fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
+		return -1;
+	return 0;
+}
+
+/**
  * SET: Apple Ext: Report a headset state change */
 static int rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
@@ -558,7 +650,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const struct b
 		switch (tmp = *strsep(&ptr, ",")) {
 		case '1':
 			if (ptr != NULL) {
-				d->battery_level = atoi(strsep(&ptr, ",")) * 100 / 9;
+				d->battery.charge = atoi(strsep(&ptr, ",")) * 100 / 9;
 				bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
 			}
 			break;
@@ -567,7 +659,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const struct b
 				d->xapl.accev_docked = atoi(strsep(&ptr, ","));
 			break;
 		default:
-			warn("Unsupported IPHONEACCEV key: %c", tmp);
+			warn("Unsupported +IPHONEACCEV key: %c", tmp);
 			strsep(&ptr, ",");
 		}
 
@@ -672,6 +764,8 @@ static const struct ba_rfcomm_handler rfcomm_handler_bcs_resp = {
 	AT_TYPE_RESP, "+BCS", rfcomm_handler_bcs_resp_cb };
 static const struct ba_rfcomm_handler rfcomm_handler_bac_set = {
 	AT_TYPE_CMD_SET, "+BAC", rfcomm_handler_bac_set_cb };
+static const struct ba_rfcomm_handler rfcomm_handler_android_set = {
+	AT_TYPE_CMD_SET, "+ANDROID", rfcomm_handler_android_set_cb };
 static const struct ba_rfcomm_handler rfcomm_handler_iphoneaccev_set = {
 	AT_TYPE_CMD_SET, "+IPHONEACCEV", rfcomm_handler_iphoneaccev_set_cb };
 static const struct ba_rfcomm_handler rfcomm_handler_xapl_set = {
@@ -701,6 +795,7 @@ static ba_rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 		&rfcomm_handler_bcs_set,
 		&rfcomm_handler_bcs_resp,
 		&rfcomm_handler_bac_set,
+		&rfcomm_handler_android_set,
 		&rfcomm_handler_iphoneaccev_set,
 		&rfcomm_handler_xapl_set,
 		&rfcomm_handler_xapl_resp,
@@ -1326,7 +1421,9 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 		close(r->handler_fd);
 
 	if (r->sco != NULL) {
-		r->sco->d->battery_level = -1;
+		/* battery status is no longer available */
+		r->sco->d->battery.charge = -1;
+		r->sco->d->battery.health = -1;
 		ba_transport_unref(r->sco);
 	}
 

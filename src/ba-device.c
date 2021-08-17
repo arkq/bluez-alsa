@@ -40,7 +40,8 @@ struct ba_device *ba_device_new(
 	d->ba_dbus_path = g_strdup_printf("%s/%s", adapter->ba_dbus_path, tmp);
 	d->bluez_dbus_path = g_strdup_printf("%s/%s", adapter->bluez_dbus_path, tmp);
 
-	d->battery_level = -1;
+	d->battery.charge = -1;
+	d->battery.health = -1;
 
 	pthread_mutex_init(&d->transports_mutex, NULL);
 	d->transports = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);

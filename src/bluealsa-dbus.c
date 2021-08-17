@@ -71,7 +71,7 @@ static GVariant *ba_variant_new_device_sequence(const struct ba_device *d) {
 }
 
 static GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
-	return g_variant_new_byte(d->battery_level);
+	return g_variant_new_byte(d->battery.charge);
 }
 
 static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
@@ -138,9 +138,9 @@ static uint8_t ba_volume_pack_dbus_volume(bool muted, int value) {
 }
 
 static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
-	uint8_t ch1 = ba_volume_pack_dbus_volume(pcm->volume[0].muted,
+	uint8_t ch1 = ba_volume_pack_dbus_volume(pcm->volume[0].scale == 0,
 			ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level));
-	uint8_t ch2 = ba_volume_pack_dbus_volume(pcm->volume[1].muted,
+	uint8_t ch2 = ba_volume_pack_dbus_volume(pcm->volume[1].scale == 0,
 			ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[1].level));
 	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
 }
@@ -818,8 +818,8 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 		int ch2_level = ba_transport_pcm_volume_bt_to_level(pcm, ch2 & 0x7F);
 		bool ch2_muted = !!(ch2 & 0x80);
 
-		ba_transport_pcm_volume_set(&pcm->volume[0], &ch1_level, &ch1_muted);
-		ba_transport_pcm_volume_set(&pcm->volume[1], &ch2_level, &ch2_muted);
+		ba_transport_pcm_volume_set(&pcm->volume[0], &ch1_level, &ch1_muted, NULL);
+		ba_transport_pcm_volume_set(&pcm->volume[1], &ch2_level, &ch2_muted, NULL);
 
 		debug("Setting volume: %u [%.2f dB] %c%c %u [%.2f dB]",
 				ch1 & 0x7F, 0.01 * ch1_level, ch1_muted ? 'x' : '<',

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-device.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_BADEVICE_H_
 #define BLUEALSA_BADEVICE_H_
 
@@ -38,8 +39,11 @@ struct ba_device {
 	char *ba_dbus_path;
 	char *bluez_dbus_path;
 
-	/* battery level in range [0, 100] or -1 */
-	int8_t battery_level;
+	struct {
+		/* battery parameters in range [0, 100] or -1 */
+		int8_t charge;
+		int8_t health;
+	} battery;
 
 	/* Apple's extension used with HFP profile */
 	struct {

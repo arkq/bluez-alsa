@@ -122,8 +122,9 @@ struct ba_transport_pcm {
 	struct ba_transport_pcm_volume {
 		/* volume level change in "dB * 100" */
 		int level;
-		/* audio signal mute switch */
-		bool muted;
+		/* audio signal mute switches */
+		bool soft_mute;
+		bool hard_mute;
 		/* pre-calculated PCM scale factor based on decibel formula
 		 * pow(10, dB / 20); for muted channel it shall equal 0 */
 		double scale;
@@ -141,7 +142,9 @@ struct ba_transport_pcm {
 
 void ba_transport_pcm_volume_set(
 		struct ba_transport_pcm_volume *volume,
-		const int *level, const bool *muted);
+		const int *level,
+		const bool *soft_mute,
+		const bool *hard_mute);
 
 enum ba_transport_thread_state {
 	BA_TRANSPORT_THREAD_STATE_NONE,

@@ -277,8 +277,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
 	if (!(t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
 				t->a2dp.pcm.soft_volume)) {
 		int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
-		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL);
-		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, NULL);
+		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL, NULL);
+		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, NULL, NULL);
 	}
 
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
@@ -1113,8 +1113,8 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 			else {
 				int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
 				debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
-				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL);
-				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, NULL);
+				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL, NULL);
+				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, NULL, NULL);
 				bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 			}
 		}

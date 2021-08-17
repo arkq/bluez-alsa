@@ -115,12 +115,12 @@ void io_pcm_scale(
 		switch (pcm->format) {
 		case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
 			audio_silence_s16_2le(buffer, channels, frames,
-					pcm->volume[0].muted, pcm->volume[1].muted);
+					pcm->volume[0].scale == 0, pcm->volume[1].scale == 0);
 			break;
 		case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
 		case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
 			audio_silence_s32_4le(buffer, channels, frames,
-					pcm->volume[0].muted, pcm->volume[1].muted);
+					pcm->volume[0].scale == 0, pcm->volume[1].scale == 0);
 			break;
 		default:
 			g_assert_not_reached();

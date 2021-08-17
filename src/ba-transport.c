@@ -100,8 +100,8 @@ static int transport_pcm_init(
 
 	pcm->volume[0].level = config.volume_init_level;
 	pcm->volume[1].level = config.volume_init_level;
-	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL);
-	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL);
+	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL, NULL);
+	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
 
 	pthread_mutex_init(&pcm->mutex, NULL);
 	pthread_mutex_init(&pcm->synced_mtx, NULL);
@@ -137,18 +137,28 @@ static void transport_pcm_free(
  * structure fields.
  *
  * @param level If not NULL, new PCM volume level in "dB * 100".
- * @param muted If not NULL, change muted state. */
+ * @param soft_mute If not NULL, change software mute state.
+ * @param hard_mute If not NULL, change hardware mute state. */
 void ba_transport_pcm_volume_set(
 		struct ba_transport_pcm_volume *volume,
-		const int *level, const bool *muted) {
+		const int *level,
+		const bool *soft_mute,
+		const bool *hard_mute) {
 
 	if (level != NULL)
 		volume->level = *level;
-	if (muted != NULL)
-		volume->muted = *muted;
+	/* Allow software mute state modifications only if hardware mute
+	 * was not enabled or we are updating software and hardware mute
+	 * at the same time. */
+	if (soft_mute != NULL &&
+			(!volume->hard_mute || hard_mute != NULL))
+		volume->soft_mute = *soft_mute;
+	if (hard_mute != NULL)
+		volume->hard_mute = *hard_mute;
 
 	/* pre-calculate PCM scale factor */
-	volume->scale = volume->muted ? 0 : pow(10, (0.01 * volume->level) / 20);
+	const bool muted = volume->soft_mute || volume->hard_mute;
+	volume->scale = muted ? 0 : pow(10, (0.01 * volume->level) / 20);
 
 }
 
