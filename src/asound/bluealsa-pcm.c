@@ -240,9 +240,6 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 			io_hw_ptr = pcm->io_hw_ptr;
 		}
 
-		if (io->state == SND_PCM_STATE_DISCONNECTED)
-			goto fail;
-
 		/* There are 2 reasons why the number of available frames may be
 		 * zero: XRUN or drained final samples; we set the HW pointer to
 		 * -1 to indicate we have no work to do. */
@@ -407,19 +404,20 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 
 static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	if (pcm->ba_pcm_fd == -1) {
-		/* The ioplug sets the PCM state to SND_PCM_STATE_XRUN
-		 * when this function returns error, so setting the state
-		 * here has no effect - but we do it anyway in the hope
-		 * that one day ioplug will acknowledge that PCM devices
-		 * can disconnect. So typically when an application attempts
-		 * I/O on a disconnected bluealsa PCM it gets EPIPE with
-		 * state SND_PCM_STATE_XRUN, and only later when it attempts
-		 * to recover with snd_pcm_prepare() does it get ENODEV
-		 * with state SND_PCM_STATE_DISCONNECTED. */
+
+	/* Any error returned here is translated to -EPIPE, SND_PCM_STATE_XRUN,
+	 * by ioplug; and that prevents snd_pcm_readi() and snd_pcm_writei()
+	 * from returning -ENODEV to the application on device disconnection.
+`	 * Instead, when the device is disconnected, we update the PCM state
+	 * directly here but we do not return an error code. This ensures that
+	 * ioplug does not undo that state change. Both snd_pcm_readi() and
+	 * snd_pcm_writei() return -ENODEV when the PCM state is
+	 * SND_PCM_STATE_DISCONNECTED after their internal call to
+	 * snd_pcm_avail_update(), which will be the case when we set it here.
+	 */
+	if (pcm->ba_pcm_fd == -1)
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
-		return -ENODEV;
-	}
+
 #ifndef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
 	if (pcm->io_hw_ptr != -1)
 		return pcm->io_hw_ptr % io->buffer_size;
