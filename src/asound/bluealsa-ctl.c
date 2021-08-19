@@ -8,8 +8,13 @@
  *
  */
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
+#include <unistd.h>
 
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
@@ -77,10 +83,34 @@ struct bluealsa_ctl {
 	size_t elem_update_list_size;
 	size_t elem_update_event_i;
 
+	/* Disconnection event pipe.
+	 * This allows us to generate a POLLERR event by closing the read end
+	 * then polling the write end. No actual reads or writes are performed
+	 * on this pipe, so no risk of SIGPIPE.
+	 * Many applications (including alsamixer) interpret POLLERR as
+	 * indicating the mixer device has been disconnected. */
+	int pipefd[2];
+
 	/* if true, show battery meter */
-	bool battery;
+	bool show_battery;
+	/* if true, this mixer is for a single Bluetooth device */
+	bool single_device;
 
 };
+
+static int str2bdaddr(const char *str, bdaddr_t *ba) {
+
+	unsigned int x[6];
+	if (sscanf(str, "%x:%x:%x:%x:%x:%x",
+				&x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
+		return -1;
+
+	size_t i;
+	for (i = 0; i < 6; i++)
+		ba->b[i] = x[i];
+
+	return 0;
+}
 
 static int bluealsa_bt_dev_cmp(const void *p1, const void *p2) {
 	const struct bt_dev *d1 = *(const struct bt_dev **)p1;
@@ -250,46 +280,69 @@ static int bluealsa_pcm_remove(struct bluealsa_ctl *ctl, const char *path) {
  * Update element name based on given string and PCM type.
  *
  * @param elem An address to the element structure.
- * @param name A string which should be used as a base for the element name.
+ * @param name A string which should be used as a base for the element name. May
+ *   be NULL if no base prefix is required.
  * @param id An unique ID number. If the ID is other than -1, it will be
  *   attached to the element name in order to prevent duplications. */
 static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int id) {
 
-	const int name_len = strlen(name);
-	int len = sizeof(elem->name) - 16 - 1;
-	char no[16] = "";
+	if (name != NULL) {
+		/* multi-device mixer - include device alias in control names */
 
-	if (id != -1) {
-		sprintf(no, " #%u", id);
-		len -= strlen(no);
-	}
+		const int name_len = strlen(name);
+		int len = sizeof(elem->name) - 16 - 1;
+		char no[16] = "";
 
-	if (elem->type == CTL_ELEM_TYPE_BATTERY) {
-		len = MIN(len - 10, name_len);
-		while (isspace(name[len - 1]))
-			len--;
-		sprintf(elem->name, "%.*s%s | Battery", len, name, no);
+		if (id != -1) {
+			sprintf(no, " #%u", id);
+			len -= strlen(no);
+		}
+
+		if (elem->type == CTL_ELEM_TYPE_BATTERY) {
+			len = MIN(len - 10, name_len);
+			while (isspace(name[len - 1]))
+				len--;
+			sprintf(elem->name, "%.*s%s | Battery", len, name, no);
+		}
+		else {
+			/* avoid name duplication by adding profile suffixes */
+			switch (elem->pcm->transport) {
+			case BA_PCM_TRANSPORT_A2DP_SOURCE:
+			case BA_PCM_TRANSPORT_A2DP_SINK:
+				len = MIN(len - 7, name_len);
+				while (isspace(name[len - 1]))
+					len--;
+				sprintf(elem->name, "%.*s%s - A2DP", len, name, no);
+				break;
+			case BA_PCM_TRANSPORT_HFP_AG:
+			case BA_PCM_TRANSPORT_HFP_HF:
+			case BA_PCM_TRANSPORT_HSP_AG:
+			case BA_PCM_TRANSPORT_HSP_HS:
+				len = MIN(len - 6, name_len);
+				while (isspace(name[len - 1]))
+					len--;
+				sprintf(elem->name, "%.*s%s - SCO", len, name, no);
+				break;
+			}
+		}
 	}
 	else {
-		/* avoid name duplication by adding profile suffixes */
-		switch (elem->pcm->transport) {
-		case BA_PCM_TRANSPORT_A2DP_SOURCE:
-		case BA_PCM_TRANSPORT_A2DP_SINK:
-			len = MIN(len - 7, name_len);
-			while (isspace(name[len - 1]))
-				len--;
-			sprintf(elem->name, "%.*s%s - A2DP", len, name, no);
-			break;
-		case BA_PCM_TRANSPORT_HFP_AG:
-		case BA_PCM_TRANSPORT_HFP_HF:
-		case BA_PCM_TRANSPORT_HSP_AG:
-		case BA_PCM_TRANSPORT_HSP_HS:
-			len = MIN(len - 6, name_len);
-			while (isspace(name[len - 1]))
-				len--;
-			sprintf(elem->name, "%.*s%s - SCO", len, name, no);
-			break;
-		}
+		/* single-device mixer - constant control names */
+		if (elem->type == CTL_ELEM_TYPE_BATTERY)
+			strcpy(elem->name, "Battery");
+		else
+			switch (elem->pcm->transport) {
+			case BA_PCM_TRANSPORT_A2DP_SOURCE:
+			case BA_PCM_TRANSPORT_A2DP_SINK:
+				strcpy(elem->name, "A2DP");
+				break;
+			case BA_PCM_TRANSPORT_HFP_AG:
+			case BA_PCM_TRANSPORT_HFP_HF:
+			case BA_PCM_TRANSPORT_HSP_AG:
+			case BA_PCM_TRANSPORT_HSP_HS:
+				strcpy(elem->name, "SCO");
+				break;
+			}
 	}
 
 	/* ALSA library determines the element type by checking it's
@@ -344,29 +397,33 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 		struct ba_pcm *pcm = &ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
+		const char *name = ctl->single_device ? NULL : dev->name;
 
 		elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
 		elem_list[count].dev = dev;
 		elem_list[count].pcm = pcm;
 		elem_list[count].playback = pcm->mode == BA_PCM_MODE_SINK;
-		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
+		bluealsa_elem_set_name(&elem_list[count], name, -1);
+
 		count++;
 
 		elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
 		elem_list[count].dev = dev;
 		elem_list[count].pcm = pcm;
 		elem_list[count].playback = pcm->mode == BA_PCM_MODE_SINK;
-		bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
+		bluealsa_elem_set_name(&elem_list[count], name, -1);
+
 		count++;
 
 		/* Try to add special "battery" element. */
-		if (ctl->battery && dev->battery_level == -1 &&
+		if (ctl->show_battery && dev->battery_level == -1 &&
 				bluealsa_dev_fetch_battery(ctl, dev) != -1) {
 			elem_list[count].type = CTL_ELEM_TYPE_BATTERY;
 			elem_list[count].dev = dev;
 			elem_list[count].pcm = pcm;
 			elem_list[count].playback = true;
-			bluealsa_elem_set_name(&elem_list[count], dev->name, -1);
+			bluealsa_elem_set_name(&elem_list[count], name, -1);
+
 			count++;
 		}
 
@@ -377,24 +434,25 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 	/* Detect element name duplicates and annotate them with the
 	 * consecutive device ID number - make ALSA library happy. */
-	for (i = 0; i < count; i++) {
+	if (!ctl->single_device)
+		for (i = 0; i < count; i++) {
 
-		char tmp[sizeof(elem_list[0].name)];
-		bool duplicated = false;
-		size_t ii;
+			char tmp[sizeof(elem_list[0].name)];
+			bool duplicated = false;
+			size_t ii;
 
-		for (ii = i + 1; ii < count; ii++)
-			if (strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
-				bluealsa_elem_set_name(&elem_list[ii], strcpy(tmp, elem_list[ii].dev->name),
-						bluealsa_dev_get_id(ctl, elem_list[ii].pcm));
-				duplicated = true;
-			}
+			for (ii = i + 1; ii < count; ii++)
+				if (strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
+					bluealsa_elem_set_name(&elem_list[ii], strcpy(tmp, elem_list[ii].dev->name),
+							bluealsa_dev_get_id(ctl, elem_list[ii].pcm));
+					duplicated = true;
+				}
 
-		if (duplicated)
-			bluealsa_elem_set_name(&elem_list[i], strcpy(tmp, elem_list[i].dev->name),
-					bluealsa_dev_get_id(ctl, elem_list[i].pcm));
+			if (duplicated)
+				bluealsa_elem_set_name(&elem_list[i], strcpy(tmp, elem_list[i].dev->name),
+						bluealsa_dev_get_id(ctl, elem_list[i].pcm));
 
-	}
+		}
 
 	ctl->elem_list = elem_list;
 	ctl->elem_list_size = count;
@@ -408,6 +466,12 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 	size_t i;
 
 	bluealsa_dbus_connection_ctx_free(&ctl->dbus_ctx);
+
+	if (ctl->pipefd[0] != -1)
+		close(ctl->pipefd[0]);
+	if (ctl->pipefd[1] != -1)
+		close(ctl->pipefd[1]);
+
 	for (i = 0; i < ctl->dev_list_size; i++)
 		free(ctl->dev_list[i]);
 	free(ctl->dev_list);
@@ -593,8 +657,9 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
 	if (subscribe) {
-		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-				BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
+		if (!ctl->single_device)
+			bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
+					BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
 		char dbus_args[50];
@@ -732,7 +797,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 	}
 	else if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
 
-		if (strcmp(signal, "PCMAdded") == 0) {
+		if (!ctl->single_device && strcmp(signal, "PCMAdded") == 0) {
 			struct ba_pcm pcm;
 			bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &pcm);
 			bluealsa_pcm_add(ctl, &pcm);
@@ -786,11 +851,25 @@ remove_add: {
 	for (i = 0; i < ctl->elem_list_size; i++)
 		bluealsa_event_elem_added(ctl, ctl->elem_list[i].name);
 
+	if (ctl->single_device && ctl->pcm_list_size == 0) {
+		/* Trigger POLLERR by closing the read end of our pipe. This
+		 * simulates a CTL device being unplugged. */
+		close(ctl->pipefd[0]);
+		ctl->pipefd[0] = -1;
+	}
+
 	return DBUS_HANDLER_RESULT_HANDLED;
 }}
 
 static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsigned int *event_mask) {
 	struct bluealsa_ctl *ctl = ext->private_data;
+
+	/* Some applications (e.g. MPD) ignore POLLERR and rely on snd_ctl_read()
+	 * to return an appropriate error code. So we check the state of our
+	 * device disconnection pipe and return -ENODEV if the device is
+	 * disconnected. */
+	if (ctl->single_device && ctl->pipefd[0] == -1)
+		return -ENODEV;
 
 	if (ctl->elem_update_list_size) {
 
@@ -806,11 +885,15 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 		return 1;
 	}
 
-	/* It seems that ALSA does not call .poll_revents() callback, but we need
-	 * to feed poll() events back to our dispatching function. Since ALSA is
-	 * not cooperating, we will call poll() once more by ourself and receive
-	 * required event flags. If someday ALSA will be so kind to actually call
-	 * .poll_revents(), this code should remain as a backward compatibility. */
+	/* The ALSA snd_mixer API does not propagate the
+	 * snd_mixer_poll_descriptors_revents() call down to the underlying hctl
+	 * API, so our .poll_revents callback is never invoked by applications
+	 * using the snd_mixer API (i.e. just about every mixer application!).
+	 * But we need to feed poll() events back to our dispatching function.
+	 * Since ALSA is not cooperating, we will call poll() once more by
+	 * ourself and receive required event flags. If someday ALSA will be so
+	 * kind to actually call .poll_revents(), this code should remain as a
+	 * backward compatibility. */
 	bluealsa_dbus_connection_dispatch(&ctl->dbus_ctx);
 
 	if (ctl->elem_update_list_size)
@@ -824,28 +907,34 @@ static int bluealsa_poll_descriptors_count(snd_ctl_ext_t *ext) {
 	nfds_t dbus_nfds = 0;
 	bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, NULL, &dbus_nfds);
 
-	return dbus_nfds;
+	return 1 + dbus_nfds;
 }
 
 static int bluealsa_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd,
 		unsigned int nfds) {
 	struct bluealsa_ctl *ctl = ext->private_data;
 
-	nfds_t dbus_nfds = nfds;
-	if (!bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, pfd, &dbus_nfds))
+	nfds_t dbus_nfds = nfds - 1;
+
+	pfd[0].fd = ctl->pipefd[1];
+	/* For our internal PIPE we are not interested
+	 * in any I/O events, only in error condition. */
+	pfd[0].events = 0;
+
+	if (!bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, &pfd[1], &dbus_nfds))
 		return -EINVAL;
 
-	return dbus_nfds;
+	return 1 + dbus_nfds;
 }
 
 static int bluealsa_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd,
 		unsigned int nfds, unsigned short *revents) {
 	struct bluealsa_ctl *ctl = ext->private_data;
 
-	if (bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, pfd, nfds))
-		*revents = POLLIN;
-	else
-		*revents = 0;
+	*revents = pfd[0].revents;
+
+	if (bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, &pfd[1], nfds - 1))
+		*revents |= POLLIN;
 
 	return 0;
 }
@@ -935,15 +1024,16 @@ static int bluealsa_snd_ctl_ext_tlv_callback(snd_ctl_ext_t *ext,
 SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	(void)root;
 
-	snd_config_iterator_t i, next;
 	DBusError err = DBUS_ERROR_INIT;
 	const char *service = BLUEALSA_SERVICE;
+	const char *device = NULL;
 	const char *battery = "no";
 	struct bluealsa_ctl *ctl;
 	int ret;
 
-	snd_config_for_each(i, next, conf) {
-		snd_config_t *n = snd_config_iterator_entry(i);
+	snd_config_iterator_t pos, next;
+	snd_config_for_each(pos, next, conf) {
+		snd_config_t *n = snd_config_iterator_entry(pos);
 
 		const char *id;
 		if (snd_config_get_id(n, &id) < 0)
@@ -961,6 +1051,13 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 			}
 			continue;
 		}
+		if (strcmp(id, "device") == 0) {
+			if (snd_config_get_string(n, &device) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
 		if (strcmp(id, "battery") == 0) {
 			if (snd_config_get_string(n, &battery) < 0) {
 				SNDERR("Invalid type for %s", id);
@@ -970,6 +1067,12 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 
 		SNDERR("Unknown field %s", id);
+		return -EINVAL;
+	}
+
+	bdaddr_t ba_addr = *BDADDR_ALL;
+	if (device != NULL && str2bdaddr(device, &ba_addr) == -1) {
+		SNDERR("Invalid BT device address: %s", device);
 		return -EINVAL;
 	}
 
@@ -992,7 +1095,11 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	ctl->ext.private_data = ctl;
 	ctl->ext.poll_fd = -1;
 
-	ctl->battery = snd_config_get_bool_ascii(battery) == 1;
+	ctl->pipefd[0] = -1;
+	ctl->pipefd[1] = -1;
+
+	ctl->show_battery = snd_config_get_bool_ascii(battery) == 1;
+	ctl->single_device = false;
 
 	dbus_threads_init_default();
 
@@ -1014,10 +1121,73 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
+	if (bacmp(&ba_addr, BDADDR_ALL) != 0) {
+
+		/* single Bluetooth device mode */
+		ctl->single_device = true;
+
+		const size_t pcm_list_size = ctl->pcm_list_size;
+		struct ba_pcm *pcm_list = ctl->pcm_list;
+
+		if (bacmp(&ba_addr, BDADDR_ANY) == 0) {
+			/* Interpret BT address ANY as a request for the most
+			 * recently connected Bluetooth audio device. */
+
+			const struct ba_pcm *latest = NULL;
+			uint32_t seq = 0;
+
+			if (pcm_list_size == 0) {
+				SNDERR("No BlueALSA audio devices connected");
+				ret = -ENODEV;
+				goto fail;
+			}
+
+			size_t i;
+			for (i = 0; i < pcm_list_size; i++) {
+				if (pcm_list[i].sequence >= seq) {
+					seq = pcm_list[i].sequence;
+					latest = &pcm_list[i];
+				}
+			}
+
+			bacpy(&ba_addr, &latest->addr);
+
+		}
+
+		/* Filter the PCM list so that it contains only those
+		 * PCMs belonging to the selected BT device. */
+		size_t i, count;
+		for (i = count = 0; i < pcm_list_size; i++)
+			if (bacmp(&ba_addr, &pcm_list[i].addr) == 0)
+				memmove(&pcm_list[count++], &pcm_list[i], sizeof(*pcm_list));
+		ctl->pcm_list_size = count;
+
+	}
+
 	if (bluealsa_create_elem_list(ctl) == -1) {
 		SNDERR("Couldn't create control elements: %s", strerror(errno));
 		ret = -errno;
 		goto fail;
+	}
+
+	if (ctl->single_device) {
+
+		if (pipe2(ctl->pipefd, O_CLOEXEC) == -1) {
+			SNDERR("Couldn't create event pipe: %s", strerror(errno));
+			ret = -errno;
+			goto fail;
+		}
+
+		if (ctl->dev_list_size != 1) {
+			SNDERR("No such BlueALSA audio device: %s", device);
+			ret = -ENODEV;
+			goto fail;
+		}
+
+		/* use Bluetooth device name as the card name for our plug-in */
+		strncpy(ctl->ext.name, ctl->dev_list[0]->name, sizeof(ctl->ext.name) - 1);
+		ctl->ext.name[sizeof(ctl->ext.name) - 1] = '\0';
+
 	}
 
 	if ((ret = snd_ctl_ext_create(&ctl->ext, name, mode)) < 0)

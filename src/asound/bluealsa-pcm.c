@@ -1063,7 +1063,6 @@ static bool bluealsa_update_pcm_softvol(struct bluealsa_pcm *pcm,
 SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	(void)root;
 
-	snd_config_iterator_t i, next;
 	const char *service = BLUEALSA_SERVICE;
 	const char *device = NULL;
 	const char *profile = NULL;
@@ -1074,8 +1073,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	struct bluealsa_pcm *pcm;
 	int ret;
 
-	snd_config_for_each(i, next, conf) {
-		snd_config_t *n = snd_config_iterator_entry(i);
+	snd_config_iterator_t pos, next;
+	snd_config_for_each(pos, next, conf) {
+		snd_config_t *n = snd_config_iterator_entry(pos);
 
 		const char *id;
 		if (snd_config_get_id(n, &id) < 0)

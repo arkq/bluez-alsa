@@ -4,6 +4,7 @@ unreleased
 - optional support for A2DP FastStream codec (music & voice)
 - allow to select BT transport codec with ALSA configuration
 - allow to set PCM volume properties with ALSA configuration
+- optional single-device mode for ALSA control plug-in
 - connection keep-alive timeout for all BT profiles
 - fix for rapid consecutive SCO link close(2)/connect(2)
 - bluealsa-aplay: forward PCM volume to ALSA mixer element
