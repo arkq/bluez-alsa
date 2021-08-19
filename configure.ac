@@ -71,6 +71,8 @@ AC_CHECK_HEADERS([stdatomic.h],
 	[], [AC_MSG_ERROR([C11 atomic support not available])])
 AC_CHECK_FUNCS([eventfd],
 	[], [AC_MSG_ERROR([unable to find eventfd() function])])
+AC_CHECK_FUNCS([pipe2],
+	[], [AC_MSG_ERROR([unable to find pipe2() function])])
 AC_CHECK_FUNCS([splice],
 	[], [AC_MSG_ERROR([unable to find splice() function])])
 AC_SEARCH_LIBS([clock_gettime], [rt],
