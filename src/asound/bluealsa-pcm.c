@@ -148,7 +148,7 @@ static bool select_codec(struct bluealsa_pcm *pcm, const char *codec, DBusError 
 	uint8_t *config_ptr = NULL;
 	size_t config_len = 0;
 
-	if (codec == NULL || *codec == 0)
+	if (codec == NULL || *codec == 0 || strcasecmp(codec, pcm->ba_pcm.codec) == 0)
 		return true;
 
 	char *name = strdup(codec);
@@ -184,6 +184,8 @@ fail:
 }
 
 static bool update_volume(struct bluealsa_pcm *pcm, long volume, int mute, DBusError *err) {
+	uint16_t old_vol = pcm->ba_pcm.volume.raw;
+
 	if (volume >= 0) {
 		pcm->ba_pcm.volume.ch1_volume = BA_PCM_VOLUME_MAX(&pcm->ba_pcm) * volume / 100;
 		if (pcm->ba_pcm.channels == 2)
@@ -195,13 +197,17 @@ static bool update_volume(struct bluealsa_pcm *pcm, long volume, int mute, DBusE
 			pcm->ba_pcm.volume.ch2_muted = pcm->ba_pcm.volume.ch1_muted;
 	}
 
+	if (pcm->ba_pcm.volume.raw == old_vol)
+		return true;
+
 	return bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, err);
 }
 
 static bool update_softvol(struct bluealsa_pcm *pcm, int softvol, DBusError *err) {
-	if (softvol >= 0)
-		pcm->ba_pcm.soft_volume = softvol;
+	if (softvol < 0 || softvol == pcm->ba_pcm.soft_volume)
+		return true;
 
+	pcm->ba_pcm.soft_volume = softvol;
 	return bluealsa_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_SOFT_VOLUME, err);
 }
 
@@ -1095,7 +1101,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 				return -EINVAL;
 			}
 			if (strcmp(volume_str, "unchanged") == 0)
-				volume_str = "";
+				volume_str = NULL;
 			continue;
 		}
 		if (strcmp(id, "softvol") == 0) {

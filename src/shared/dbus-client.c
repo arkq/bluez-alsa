@@ -24,46 +24,33 @@
 #include "hfp.h"
 #include "shared/defs.h"
 
-struct ba_codec {
+static const struct {
+	const char *alias;
 	const char *name;
-	const char **aliases;
-};
-
-static const char *aliases_aptx[] = {
-	"apt-x", NULL
-};
-static const char *aliases_aptx_ad[] = {
-	"apt-x-ad", NULL
-};
-static const char *aliases_aptx_hd[] = {
-	"apt-x-hd", NULL
-};
-static const char *aliases_aptx_ll[] = {
-	"apt-x-ll", NULL
-};
-static const char *aliases_aptx_tws[] = {
-	"apt-x-tws", NULL
-};
-
-static const struct ba_codec codecs[] = {
-	{ "SBC", NULL },
-	{ "MP3", NULL },
-	{ "AAC", NULL },
-	{ "ATRAC", NULL },
-	{ "aptX", aliases_aptx },
-	{ "aptX-AD", aliases_aptx_ad },
-	{ "aptX-HD", aliases_aptx_hd },
-	{ "aptX-LL", aliases_aptx_ll },
-	{ "aptX-TWS", aliases_aptx_tws },
-	{ "FastStream", NULL },
-	{ "LDAC", NULL },
-	{ "LHDC", NULL },
-	{ "LHDC-LL", NULL },
-	{ "LHDC-v1", NULL },
-	{ "samsung-HD", NULL },
-	{ "samsung-SC", NULL },
-	{ "CVSD", NULL },
-	{ "MSBC", NULL },
+} codecs[] = {
+	{ "SBC", "SBC" },
+	{ "MP3", "SBC" },
+	{ "AAC", "AAC" },
+	{ "ATRAC", "ATRAC" },
+	{ "aptX", "aptX" },
+	{ "apt-X", "aptX" },
+	{ "aptX-AD", "aptX-AD" },
+	{ "apt-X-AD", "aptX-AD" },
+	{ "aptX-HD", "aptX-HD" },
+	{ "apt-X-HD", "aptX-HD" },
+	{ "aptX-LL", "aptX-LL" },
+	{ "apt-X-LL", "aptX-LL" },
+	{ "aptX-TWS", "aptX-TWS" },
+	{ "apt-X-TWS", "aptX-TWS" },
+	{ "FastStream", "FastStream" },
+	{ "LDAC", "LDAC" },
+	{ "LHDC", "LHDC" },
+	{ "LHDC-LL", "LHDC-LL" },
+	{ "LHDC-v1", "LHDC-v1" },
+	{ "samsung-HD", "samsung-HD" },
+	{ "samsung-SC", "samsung-SC" },
+	{ "CVSD", "CVSD" },
+	{ "MSBC", "MSBC" },
 };
 
 
@@ -105,18 +92,12 @@ static void ba_dbus_watch_toggled(DBusWatch *watch, void *data) {
 	(void)data;
 }
 
-static const char *bluealsa_codec_get_canonical_name(const char *name) {
-	int i, ii;
+static const char *bluealsa_codec_get_canonical_name(const char *alias) {
+	int i;
 
 	for (i = 0; i < ARRAYSIZE(codecs); i++) {
-		if (strcasecmp(name, codecs[i].name) == 0)
+		if (strcasecmp(alias, codecs[i].alias) == 0)
 			return codecs[i].name;
-		if (codecs[i].aliases != NULL) {
-			for (ii = 0; codecs[i].aliases[ii] != NULL; ii++) {
-				if (strcasecmp(name, codecs[i].aliases[ii]) == 0)
-					return codecs[i].name;
-			}
-		}
 	}
 
 	return NULL;
