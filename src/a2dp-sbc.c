@@ -10,7 +10,7 @@
 
 #include "a2dp-sbc.h"
 
-#include <ctype.h>
+#include <endian.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -25,8 +25,8 @@
 
 #include "a2dp.h"
 #include "a2dp-codecs.h"
-#include "codec-sbc.h"
 #include "bluealsa.h"
+#include "codec-sbc.h"
 #include "io.h"
 #include "rtp.h"
 #include "utils.h"
@@ -309,68 +309,6 @@ fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
-
-#if DEBUG
-/**
- * Dump incoming BT data to a file. */
-__attribute__ ((unused))
-static void *a2dp_sink_dump(struct ba_transport_thread *th) {
-
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
-
-	struct ba_transport *t = th->t;
-	struct io_poll io = { .timeout = -1 };
-	ffb_t bt = { 0 };
-	FILE *f = NULL;
-	char fname[64];
-	char *ptr;
-
-	sprintf(fname, "/tmp/ba-%s.dump", ba_transport_type_to_string(t->type));
-	for (ptr = fname; *ptr != '\0'; ptr++) {
-		*ptr = tolower(*ptr);
-		if (*ptr == ' ' || *ptr == '(' || *ptr == ')')
-			*ptr = '-';
-	}
-
-	debug("Opening BT dump file: %s", fname);
-	if ((f = fopen(fname, "wb")) == NULL) {
-		error("Couldn't create dump file: %s", strerror(errno));
-		goto fail_open;
-	}
-
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
-	pthread_cleanup_push(PTHREAD_CLEANUP(fclose), f);
-
-	if (ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
-		error("Couldn't create data buffer: %s", strerror(errno));
-		goto fail_ffb;
-	}
-
-	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
-		ssize_t len = ffb_blen_in(&bt);
-		if ((len = io_poll_and_read_bt(&io, th, bt.data, len)) <= 0) {
-			if (len == -1)
-				error("BT poll and read error: %s", strerror(errno));
-			goto fail;
-		}
-		debug("BT read: %zd", len);
-		fwrite(bt.data, 1, len, f);
-	}
-
-fail:
-	debug_transport_thread_loop(th, "EXIT");
-	ba_transport_thread_set_state_stopping(th);
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-fail_ffb:
-	pthread_cleanup_pop(1);
-	pthread_cleanup_pop(1);
-fail_open:
-	pthread_cleanup_pop(1);
-	return NULL;
-}
-#endif
 
 int a2dp_sbc_transport_start(struct ba_transport *t) {
 

@@ -29,25 +29,13 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include "a2dp-aac.h"
+#include "a2dp-aptx-hd.h"
+#include "a2dp-aptx.h"
 #include "a2dp-codecs.h"
-#ifdef ENABLE_AAC
-# include "a2dp-aac.h"
-#endif
-#ifdef ENABLE_APTX
-# include "a2dp-aptx.h"
-#endif
-#ifdef ENABLE_APTX_HD
-# include "a2dp-aptx-hd.h"
-#endif
-#ifdef ENABLE_FASTSTREAM
-# include "a2dp-faststream.h"
-#endif
-#ifdef ENABLE_LDAC
-# include "a2dp-ldac.h"
-#endif
-#ifdef ENABLE_MPEG
-# include "a2dp-mpeg.h"
-#endif
+#include "a2dp-faststream.h"
+#include "a2dp-ldac.h"
+#include "a2dp-mpeg.h"
 #include "a2dp-sbc.h"
 #include "audio.h"
 #include "ba-adapter.h"

@@ -16,6 +16,7 @@
 # include <config.h>
 #endif
 
+#include <stddef.h>
 #include <sys/types.h>
 
 ssize_t bin2hex(const void *bin, char *hex, size_t n);

@@ -257,6 +257,8 @@ AC_ARG_ENABLE([test],
 AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
 AM_COND_IF([ENABLE_TEST], [
 	PKG_CHECK_MODULES([CHECK], [check >= 0.9.10])
+	PKG_CHECK_MODULES([SNDFILE], [sndfile >= 1.0],
+		AC_DEFINE([HAVE_SNDFILE], [1], [Define to 1 if you have the sndfile library.]), [:])
 ])
 
 AC_ARG_WITH([bash-completion],

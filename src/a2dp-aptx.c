@@ -10,6 +10,8 @@
 
 #include "a2dp-aptx.h"
 
+#if ENABLE_APTX
+
 #include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -253,3 +255,5 @@ int a2dp_aptx_transport_start(struct ba_transport *t) {
 	g_assert_not_reached();
 	return -1;
 }
+
+#endif
