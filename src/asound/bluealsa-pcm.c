@@ -248,8 +248,8 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		 * -1 to indicate we have no work to do. */
 		snd_pcm_uframes_t avail;
 		if ((avail = snd_pcm_ioplug_hw_avail(io, io_hw_ptr, io->appl_ptr)) == 0) {
-			io_thread_update_delay(pcm, 0);
 			pcm->io_hw_ptr = io_hw_ptr = -1;
+			io_thread_update_delay(pcm, io_hw_ptr);
 			eventfd_write(pcm->event_fd, 1);
 			continue;
 		}
