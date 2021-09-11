@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple bluealsa player
 ------------------------
 
-:Date: July 2021
+:Date: September 2021
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -64,7 +64,9 @@ OPTIONS
 
 --pcm-buffer-time=INT
     Set the playback PCM buffer duration time to *INT* microseconds.
-    The default is 500000.
+    The default is 500000. It is recommended to choose a buffer time that is
+    an exact multiple of the period time to avoid potential issues with some
+    ALSA plugins (see --pcm-period-time option below).
     ALSA may choose the nearest available alternative if the requested value is
     not supported.
 
@@ -79,11 +81,21 @@ OPTIONS
     not supported.
 
     The ALSA **rate** plugin, which may be invoked by **plug**, does not always
-    produce the exact required effective sample rate, especially with small
-    period sizes. This can result in stream underruns (if the effective rate is
-    too fast) or dropped A2DP frames in the **bluealsa(8)** server (if the
-    effective rate is too slow). Increase the period time with this option if
-    this problem occurs.
+    produce the exact required effective sample rate because of rounding errors
+    in the conversion between period time and period size. This can have a
+    significant impact on synchronization "drift", especially with small
+    period sizes, and can also result in stream underruns (if the effective
+    rate is too fast) or dropped A2DP frames in the **bluealsa(8)** server (if
+    the effective rate is too slow). This effect is avoided if the selected
+    period time results in an exact integer number of frames for both the source
+    rate (Bluetooth) and sink rate (hardware card). For example, in
+    the case of Bluetooth stream sampled at 44100Hz playing to a hardware
+    device that supports only 48000Hz, choosing a period time that is a
+    multiple of 10000 microseconds will result in zero rounding error.
+    (10000 µs at 44100Hz is 441 frames, and at 48000Hz is 480 frames).
+
+    See also DMIX_ section below for more information on rate calculation
+    rounding errors.
 
 -M NAME, --mixer=NAME
     Select ALSA mixer device to use for controlling audio output mute state
@@ -119,6 +131,39 @@ OPTIONS
     Please note that playing from all Bluetooth devices at a time requires used
     PCM to be able to mix audio from multiple sources (i.e., it can be opened
     more than once; for example the ALSA **dmix** plugin).
+
+DMIX
+====
+
+The ALSA `dmix` plugin will ignore the period and buffer times selected by the
+application (because it has to allow connections from multiple applications).
+Instead it will choose its own values, which can lead to rounding errors in the
+period size calculation when used with the ALSA `rate` plugin. To avoid this, it
+is recommended to explicitly define the hardware period size and buffer size for
+dmix in your ALSA configuration. For example, suppose we want a period time of
+100000 µs and a buffer holding 5 periods with an Intel 'PCH' card:
+
+::
+
+    defaults.dmix.PCH.period_time 100000
+    defaults.dmix.PCH.periods 5
+
+Alternatively we can define a PCM with the required setting:
+
+::
+
+    pcm.dmix_rate_fix {
+        type plug
+        slave.pcm {
+            type dmix
+            ipc_key 12345
+            slave {
+                pcm "hw:0,0"
+                period_time 100000
+                periods 5
+            }
+        }
+    }
 
 SEE ALSO
 ========
