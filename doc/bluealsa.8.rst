@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: July 2021
+:Date: September 2021
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -239,9 +239,11 @@ Please add following lines to the BlueALSA D-Bus policy:
 SEE ALSO
 ========
 
-``bluetoothd(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
+``bluetoothctl(1)``, ``bluetoothd(8)``, ``bluealsa-aplay(1)``, ``bluealsa-cli(1)``,
+``bluealsa-plugins(7)``, ``bluealsa-rfcomm(1)``
 
-Project web site at https://github.com/Arkq/bluez-alsa
+Project web site
+  https://github.com/Arkq/bluez-alsa
 
 COPYRIGHT
 =========
