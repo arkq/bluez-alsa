@@ -47,7 +47,12 @@ static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
 /* big enough buffer to keep one period of data */
 static int16_t buffer[1024 * 8];
 
-static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *service, snd_pcm_stream_t stream, int mode) {
+static int snd_pcm_open_bluealsa(
+		snd_pcm_t **pcmp,
+		const char *service,
+		const char *extra_config,
+		snd_pcm_stream_t stream,
+		int mode) {
 
 	char buffer[256];
 	snd_config_t *conf = NULL;
@@ -61,7 +66,8 @@ static int snd_pcm_open_bluealsa(snd_pcm_t **pcmp, const char *service, snd_pcm_
 			"  device \"12:34:56:78:9A:BC\"\n"
 			"  profile \"a2dp\"\n"
 			"  delay 0\n"
-			"}\n", service);
+			"  %s\n"
+			"}\n", service, extra_config);
 
 	if ((err = snd_config_top(&conf)) < 0)
 		goto fail;
@@ -163,11 +169,13 @@ static int test_pcm_open(pid_t *pid, snd_pcm_t **pcm, snd_pcm_stream_t stream) {
 					stream == SND_PCM_STREAM_PLAYBACK,
 					stream == SND_PCM_STREAM_CAPTURE)) == -1)
 		return -1;
-	return snd_pcm_open_bluealsa(pcm, service, stream, 0);
+	return snd_pcm_open_bluealsa(pcm, service, "", stream, 0);
 }
 
 static int test_pcm_close(pid_t pid, snd_pcm_t *pcm) {
-	int rv = snd_pcm_close(pcm);
+	int rv = 0;
+	if (pcm != NULL)
+		rv = snd_pcm_close(pcm);
 	if (pid != -1) {
 		kill(pid, SIGTERM);
 		waitpid(pid, NULL, 0);
@@ -512,6 +520,32 @@ START_TEST(ba_test_playback_hw_constraints) {
 	ck_assert_int_eq(d, 1);
 
 	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
+START_TEST(ba_test_playback_extra_setup) {
+
+	if (pcm_device != NULL)
+		return;
+
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+
+	const char *service = "test";
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1, true, false, true, false), -1);
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "codec \"sbc\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "volume \"50+\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "softvol true", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
+
+	ck_assert_int_eq(test_pcm_close(pid, NULL), 0);
 
 } END_TEST
 
@@ -963,6 +997,7 @@ int main(int argc, char *argv[]) {
 	TCase *tc_playback = tcase_create("playback");
 	tcase_add_test(tc_playback, dump_playback);
 	tcase_add_test(tc_playback, ba_test_playback_hw_constraints);
+	tcase_add_test(tc_playback, ba_test_playback_extra_setup);
 	tcase_add_test(tc_playback, test_playback_hw_set_free);
 	tcase_add_test(tc_playback, test_playback_start);
 	tcase_add_test(tc_playback, test_playback_drain);
