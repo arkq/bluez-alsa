@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -166,9 +166,9 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	if ((codec = a2dp_codec_lookup(sep->codec_id, !sep->dir)) == NULL)
 		return false;
 
-	uint8_t caps[32];
+	uint8_t caps[sizeof(sep->capabilities)];
 	size_t size = MIN(sep->capabilities_size, sizeof(caps));
-	if (a2dp_filter_capabilities(codec, memcpy(caps, sep->capabilities, size), size) != 0) {
+	if (a2dp_filter_capabilities(codec, memcpy(caps, &sep->capabilities, size), size) != 0) {
 		error("Couldn't filter %s capabilities: %s",
 				ba_transport_codecs_a2dp_to_string(sep->codec_id),
 				strerror(errno));
@@ -612,8 +612,8 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 		}
 
 		/* setup default codec configuration */
-		memcpy(sep->configuration, sep->capabilities, sep->capabilities_size);
-		if (a2dp_select_configuration(codec, sep->configuration, sep->capabilities_size) == -1)
+		memcpy(&sep->configuration, &sep->capabilities, sep->capabilities_size);
+		if (a2dp_select_configuration(codec, &sep->configuration, sep->capabilities_size) == -1)
 			goto fail;
 
 		/* use codec configuration blob provided by user */
@@ -623,7 +623,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
 				errmsg = "Invalid configuration blob";
 				goto fail;
 			}
-			memcpy(sep->configuration, &a2dp_configuration, sep->capabilities_size);
+			memcpy(&sep->configuration, &a2dp_configuration, sep->capabilities_size);
 		}
 
 		if (ba_transport_select_codec_a2dp(t, sep) == -1)

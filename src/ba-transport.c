@@ -960,7 +960,7 @@ int ba_transport_select_codec_a2dp(
 
 	/* the same codec with the same configuration already selected */
 	if (t->type.codec == sep->codec_id &&
-			memcmp(sep->configuration, &t->a2dp.configuration, sep->capabilities_size) == 0)
+			memcmp(&sep->configuration, &t->a2dp.configuration, sep->capabilities_size) == 0)
 		goto final;
 
 	GError *err = NULL;

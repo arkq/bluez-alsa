@@ -70,12 +70,12 @@ struct a2dp_sep {
 	enum a2dp_dir dir;
 	uint16_t codec_id;
 	/* exposed capabilities */
-	void *capabilities;
+	a2dp_t capabilities;
 	size_t capabilities_size;
 	/* stream end-point path */
 	char bluez_dbus_path[64];
 	/* selected configuration */
-	void *configuration;
+	a2dp_t configuration;
 };
 
 /* NULL-terminated list of available A2DP codecs */

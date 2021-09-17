@@ -834,15 +834,6 @@ static void bluez_register_hfp_all(void) {
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_ag);
 }
 
-static void bluez_sep_array_free(GArray *seps) {
-	size_t i;
-	for (i = 0; i < seps->len; i++) {
-		g_free(bluez_adapters_device_get_sep(seps, i).capabilities);
-		g_free(bluez_adapters_device_get_sep(seps, i).configuration);
-	}
-	g_array_unref(seps);
-}
-
 /**
  * Register to the BlueZ service. */
 void bluez_register(void) {
@@ -891,7 +882,7 @@ void bluez_register(void) {
 				(a = ba_adapter_new(i)) != NULL) {
 			bluez_adapters[a->hci.dev_id].adapter = a;
 			bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
-					g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)bluez_sep_array_free);
+					g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)g_array_unref);
 			bluez_register_a2dp_all(a);
 		}
 
@@ -947,8 +938,13 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 					const void *data = g_variant_get_fixed_array(value,
 							&sep.capabilities_size, sizeof(char));
 
-					g_free(sep.capabilities);
-					sep.capabilities = g_memdup(data, sep.capabilities_size);
+					if (sep.capabilities_size > sizeof(sep.capabilities)) {
+						warn("Capabilities blob size exceeded: %zu > %zu",
+								sep.capabilities_size, sizeof(sep.capabilities));
+						sep.capabilities_size = sizeof(sep.capabilities);
+					}
+
+					memcpy(&sep.capabilities, data, sep.capabilities_size);
 
 				}
 				g_variant_unref(value);
@@ -962,7 +958,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 			(a = ba_adapter_new(hci_dev_id)) != NULL) {
 		bluez_adapters[a->hci.dev_id].adapter = a;
 		bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
-				g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)bluez_sep_array_free);
+				g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)g_array_unref);
 		bluez_register_a2dp_all(a);
 	}
 
@@ -983,8 +979,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 
 		strncpy(sep.bluez_dbus_path, object_path, sizeof(sep.bluez_dbus_path) - 1);
 		if (sep.codec_id == A2DP_CODEC_VENDOR)
-			sep.codec_id = a2dp_get_vendor_codec_id(sep.capabilities, sep.capabilities_size);
-		sep.configuration = g_malloc(sep.capabilities_size);
+			sep.codec_id = a2dp_get_vendor_codec_id(&sep.capabilities, sep.capabilities_size);
 
 		debug("Adding new Stream End-Point: %s: %s", batostr_(&addr),
 				ba_transport_codecs_a2dp_to_string(sep.codec_id));
@@ -1265,7 +1260,7 @@ bool bluez_a2dp_set_configuration(
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(&props, "{sv}", "Capabilities", g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, sep->configuration, sep->capabilities_size, sizeof(uint8_t)));
+				G_VARIANT_TYPE_BYTE, &sep->configuration, sep->capabilities_size, sizeof(uint8_t)));
 
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
 			sep->bluez_dbus_path, BLUEZ_IFACE_MEDIA_ENDPOINT, "SetConfiguration");
