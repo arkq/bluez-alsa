@@ -447,7 +447,7 @@ static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *
 			.handler = ofono_agent_new_connection },
 		{ .method = "Release",
 			.handler = ofono_agent_release },
-		{ NULL },
+		{ 0 },
 	};
 
 	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))

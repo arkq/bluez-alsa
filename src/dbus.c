@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -18,6 +18,11 @@
 
 #include "shared/defs.h"
 #include "shared/log.h"
+
+/* Compatibility patch for glib < 2.68. */
+#if !GLIB_CHECK_VERSION(2, 68, 0)
+# define g_memdup2 g_memdup
+#endif
 
 struct dispatch_method_caller_data {
 	void (*handler)(GDBusMethodInvocation *);
@@ -70,7 +75,7 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 			pthread_t thread;
 			int ret;
 
-			void *userdata = g_memdup(&data, sizeof(data));
+			void *userdata = g_memdup2(&data, sizeof(data));
 			if ((ret = pthread_create(&thread, NULL,
 							PTHREAD_ROUTINE(dispatch_method_caller), userdata)) != 0) {
 				error("Couldn't create D-Bus call dispatcher: %s", strerror(ret));

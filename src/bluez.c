@@ -48,6 +48,11 @@
 # define G_DBUS_ERROR_UNKNOWN_OBJECT G_DBUS_ERROR_FAILED
 #endif
 
+/* Compatibility patch for glib < 2.68. */
+#if !GLIB_CHECK_VERSION(2, 68, 0)
+# define g_memdup2 g_memdup
+#endif
+
 /**
  * Data associated with registered D-Bus object. */
 struct bluez_dbus_object_data {
@@ -78,7 +83,7 @@ struct bluez_adapter {
 
 static pthread_mutex_t bluez_mutex = PTHREAD_MUTEX_INITIALIZER;
 static GHashTable *dbus_object_data_map = NULL;
-static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { NULL };
+static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { 0 };
 
 #define bluez_adapters_device_lookup(hci_dev_id, addr) \
 	g_hash_table_lookup(bluez_adapters[hci_dev_id].device_sep_map, addr)
@@ -380,7 +385,7 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender
 			.handler = bluez_endpoint_clear_configuration },
 		{ .method = "Release",
 			.handler = bluez_endpoint_release },
-		{ NULL },
+		{ 0 },
 	};
 
 	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
@@ -687,7 +692,7 @@ static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
 			.handler = bluez_profile_request_disconnection },
 		{ .method = "Release",
 			.handler = bluez_profile_release },
-		{ NULL },
+		{ 0 },
 	};
 
 	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
@@ -975,7 +980,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 		GArray *seps;
 		if ((seps = bluez_adapters_device_lookup(hci_dev_id, &addr)) == NULL)
 			g_hash_table_insert(bluez_adapters[hci_dev_id].device_sep_map,
-					g_memdup(&addr, sizeof(addr)), seps = g_array_new(FALSE, FALSE, sizeof(sep)));
+					g_memdup2(&addr, sizeof(addr)), seps = g_array_new(FALSE, FALSE, sizeof(sep)));
 
 		strncpy(sep.bluez_dbus_path, object_path, sizeof(sep.bluez_dbus_path) - 1);
 		if (sep.codec_id == A2DP_CODEC_VENDOR)

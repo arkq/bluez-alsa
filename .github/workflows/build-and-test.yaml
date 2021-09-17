@@ -47,6 +47,8 @@ jobs:
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build
+      env:
+        CFLAGS: -Wall -Wextra -Werror
       run: make && make check TESTS=
     - name: Run Test
       working-directory: ${{ github.workspace }}/build

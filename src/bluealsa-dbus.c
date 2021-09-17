@@ -290,7 +290,7 @@ static void bluealsa_manager_method_call(GDBusConnection *conn, const char *send
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "GetPCMs",
 			.handler = bluealsa_manager_get_pcms },
-		{ NULL },
+		{ 0 },
 	};
 
 	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
@@ -671,7 +671,7 @@ static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 		{ .method = "SelectCodec",
 			.handler = bluealsa_pcm_select_codec,
 			.asynchronous_call = true },
-		{ NULL },
+		{ 0 },
 	};
 
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
@@ -721,7 +721,7 @@ static void bluealsa_rfcomm_method_call(GDBusConnection *conn, const char *sende
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "Open",
 			.handler = bluealsa_rfcomm_open },
-		{ NULL },
+		{ 0 },
 	};
 
 	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
