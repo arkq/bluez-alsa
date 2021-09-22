@@ -976,7 +976,23 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((ctl = calloc(1, sizeof(*ctl))) == NULL)
 		return -ENOMEM;
 
-	ctl->battery = strcmp(battery, "yes") == 0;
+	ctl->ext.version = SND_CTL_EXT_VERSION;
+	ctl->ext.card_idx = 0;
+
+	strncpy(ctl->ext.id, "bluealsa", sizeof(ctl->ext.id) - 1);
+	strncpy(ctl->ext.driver, "BlueALSA", sizeof(ctl->ext.driver) - 1);
+	strncpy(ctl->ext.name, "BlueALSA", sizeof(ctl->ext.name) - 1);
+	strncpy(ctl->ext.longname, "Bluetooth Audio Hub Controller", sizeof(ctl->ext.longname) - 1);
+	strncpy(ctl->ext.mixername, "BlueALSA Plugin", sizeof(ctl->ext.mixername) - 1);
+
+	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
+#if SND_CTL_EXT_VERSION >= 0x010001
+	ctl->ext.tlv.c = bluealsa_snd_ctl_ext_tlv_callback;
+#endif
+	ctl->ext.private_data = ctl;
+	ctl->ext.poll_fd = -1;
+
+	ctl->battery = snd_config_get_bool_ascii(battery) == 1;
 
 	dbus_threads_init_default();
 
@@ -1004,21 +1020,6 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	ctl->ext.version = SND_CTL_EXT_VERSION;
-	ctl->ext.card_idx = 0;
-	strncpy(ctl->ext.id, "bluealsa", sizeof(ctl->ext.id) - 1);
-	strncpy(ctl->ext.driver, "BlueALSA", sizeof(ctl->ext.driver) - 1);
-	strncpy(ctl->ext.name, "BlueALSA", sizeof(ctl->ext.name) - 1);
-	strncpy(ctl->ext.longname, "Bluetooth Audio Hub Controller", sizeof(ctl->ext.longname) - 1);
-	strncpy(ctl->ext.mixername, "BlueALSA Plugin", sizeof(ctl->ext.mixername) - 1);
-
-	ctl->ext.callback = &bluealsa_snd_ctl_ext_callback;
-#if SND_CTL_EXT_VERSION >= 0x010001
-	ctl->ext.tlv.c = bluealsa_snd_ctl_ext_tlv_callback;
-#endif
-	ctl->ext.private_data = ctl;
-	ctl->ext.poll_fd = -1;
-
 	if ((ret = snd_ctl_ext_create(&ctl->ext, name, mode)) < 0)
 		goto fail;
 
@@ -1026,9 +1027,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	return 0;
 
 fail:
-	bluealsa_dbus_connection_ctx_free(&ctl->dbus_ctx);
-	dbus_error_free(&err);
-	free(ctl);
+	bluealsa_close(&ctl->ext);
 	return ret;
 }
 
