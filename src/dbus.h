@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_DBUS_H_
 #define BLUEALSA_DBUS_H_
 
@@ -21,6 +22,11 @@
 #define DBUS_IFACE_DBUS             DBUS_SERVICE
 #define DBUS_IFACE_OBJECT_MANAGER   DBUS_SERVICE ".ObjectManager"
 #define DBUS_IFACE_PROPERTIES       DBUS_SERVICE ".Properties"
+
+/* Compatibility patch for glib < 2.42. */
+#ifndef G_DBUS_ERROR_UNKNOWN_OBJECT
+# define G_DBUS_ERROR_UNKNOWN_OBJECT G_DBUS_ERROR_FAILED
+#endif
 
 /**
  * Definition of a D-Bus method call dispatcher. */

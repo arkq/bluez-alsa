@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -43,11 +43,6 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
-/* Compatibility patch for glib < 2.42. */
-#ifndef G_DBUS_ERROR_UNKNOWN_OBJECT
-# define G_DBUS_ERROR_UNKNOWN_OBJECT G_DBUS_ERROR_FAILED
-#endif
-
 /* Compatibility patch for glib < 2.68. */
 #if !GLIB_CHECK_VERSION(2, 68, 0)
 # define g_memdup2 g_memdup
@@ -89,6 +84,15 @@ static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { 0 };
 	g_hash_table_lookup(bluez_adapters[hci_dev_id].device_sep_map, addr)
 #define bluez_adapters_device_get_sep(seps, i) \
 	g_array_index(seps, struct a2dp_sep, i)
+
+static void bluez_adapter_free(struct bluez_adapter *adapter) {
+	if (adapter->adapter == NULL)
+		return;
+	g_hash_table_destroy(adapter->device_sep_map);
+	adapter->device_sep_map = NULL;
+	ba_adapter_destroy(adapter->adapter);
+	adapter->adapter = NULL;
+}
 
 static void bluez_dbus_object_data_unref(
 		struct bluez_dbus_object_data *obj) {
@@ -1026,12 +1030,7 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 					g_hash_table_iter_remove(&iter);
 				}
 
-			if (bluez_adapters[hci_dev_id].adapter != NULL) {
-				ba_adapter_destroy(bluez_adapters[hci_dev_id].adapter);
-				bluez_adapters[hci_dev_id].adapter = NULL;
-				g_hash_table_destroy(bluez_adapters[hci_dev_id].device_sep_map);
-				bluez_adapters[hci_dev_id].device_sep_map = NULL;
-			}
+			bluez_adapter_free(&bluez_adapters[hci_dev_id]);
 
 		}
 		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0) {
@@ -1133,50 +1132,32 @@ final:
 }
 
 /**
- * Monitor BlueZ service availability.
+ * Monitor BlueZ service disappearance.
  *
  * When BlueZ is properly shutdown, we are notified about adapter removal via
  * the InterfacesRemoved signal. Here, we get the opportunity to perform some
  * cleanup if BlueZ service was killed. */
-static void bluez_signal_name_owner_changed(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *signal, GVariant *params,
+static void bluez_disappeared(GDBusConnection *conn, const char *name,
 		void *userdata) {
 	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
-	(void)signal;
+	(void)name;
 	(void)userdata;
 
-	const char *name;
-	const char *owner_old;
-	const char *owner_new;
+	pthread_mutex_lock(&bluez_mutex);
 
-	g_variant_get(params, "(&s&s&s)", &name, &owner_old, &owner_new);
-	if (owner_old != NULL && owner_old[0] != '\0') {
-
-		pthread_mutex_lock(&bluez_mutex);
-
-		GHashTableIter iter;
-		struct bluez_dbus_object_data *dbus_obj;
-		g_hash_table_iter_init(&iter, dbus_object_data_map);
-		while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj)) {
-			g_dbus_connection_unregister_object(conn, dbus_obj->id);
-			g_hash_table_iter_remove(&iter);
-		}
-
-		size_t i;
-		for (i = 0; i < ARRAYSIZE(bluez_adapters); i++)
-			if (bluez_adapters[i].adapter != NULL) {
-				ba_adapter_destroy(bluez_adapters[i].adapter);
-				bluez_adapters[i].adapter = NULL;
-				g_hash_table_destroy(bluez_adapters[i].device_sep_map);
-				bluez_adapters[i].device_sep_map = NULL;
-			}
-
-		pthread_mutex_unlock(&bluez_mutex);
-
+	GHashTableIter iter;
+	struct bluez_dbus_object_data *dbus_obj;
+	g_hash_table_iter_init(&iter, dbus_object_data_map);
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj)) {
+		g_dbus_connection_unregister_object(conn, dbus_obj->id);
+		g_hash_table_iter_remove(&iter);
 	}
+
+	size_t i;
+	for (i = 0; i < ARRAYSIZE(bluez_adapters); i++)
+		bluez_adapter_free(&bluez_adapters[i]);
+
+	pthread_mutex_unlock(&bluez_mutex);
 
 }
 
@@ -1197,9 +1178,9 @@ int bluez_subscribe_signals(void) {
 			DBUS_IFACE_PROPERTIES, "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_transport_changed, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(config.dbus, DBUS_SERVICE,
-			DBUS_IFACE_DBUS, "NameOwnerChanged", NULL, BLUEZ_SERVICE,
-			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_name_owner_changed, NULL, NULL);
+	g_bus_watch_name_on_connection(config.dbus, BLUEZ_SERVICE,
+			G_BUS_NAME_WATCHER_FLAGS_NONE, NULL, bluez_disappeared,
+			NULL, NULL);
 
 	return 0;
 }

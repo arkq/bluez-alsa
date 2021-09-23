@@ -571,32 +571,28 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 }
 
 /**
- * Monitor oFono service availability.
+ * Monitor oFono service appearance. */
+static void ofono_appeared(GDBusConnection *conn, const char *name,
+		const char *owner, void *userdata) {
+	(void)conn;
+	(void)name;
+	(void)owner;
+	(void)userdata;
+	ofono_register();
+}
+
+/**
+ * Monitor oFono service disappearance.
  *
  * When oFono is properly shutdown, we are notified through the Release()
  * method. Here, we get the opportunity to perform some cleanup if oFono
  * was killed. */
-static void ofono_signal_name_owner_changed(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *signal, GVariant *params,
+static void ofono_disappeared(GDBusConnection *conn, const char *name,
 		void *userdata) {
 	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
-	(void)signal;
+	(void)name;
 	(void)userdata;
-
-	const char *name;
-	const char *owner_old;
-	const char *owner_new;
-
-	g_variant_get(params, "(&s&s&s)", &name, &owner_old, &owner_new);
-
-	if (owner_old != NULL && owner_old[0] != '\0')
-		ofono_remove_all_cards();
-	if (owner_new != NULL && owner_new[0] != '\0')
-		ofono_register();
-
+	ofono_remove_all_cards();
 }
 
 /**
@@ -615,9 +611,9 @@ int ofono_subscribe_signals(void) {
 			OFONO_IFACE_HF_AUDIO_MANAGER, "CardRemoved", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_card_removed, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(config.dbus, DBUS_SERVICE,
-			DBUS_IFACE_DBUS, "NameOwnerChanged", NULL, OFONO_SERVICE,
-			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_name_owner_changed, NULL, NULL);
+	g_bus_watch_name_on_connection(config.dbus, OFONO_SERVICE,
+			G_BUS_NAME_WATCHER_FLAGS_NONE, ofono_appeared, ofono_disappeared,
+			NULL, NULL);
 
 	return 0;
 }
