@@ -33,6 +33,8 @@
 
 static int rfcomm_fd = -1;
 static bool main_loop_on = true;
+static bool input_is_tty = true;
+static bool output_is_tty = true;
 
 static int path2hci(const char *path) {
 	int id;
@@ -102,8 +104,8 @@ static void rl_callback_handler(char *line) {
 	if (write(rfcomm_fd, cmd, strlen(cmd)) == -1)
 		warn("Couldn't send RFCOMM command: %s", strerror(errno));
 
-	add_history(line);
-
+	if (input_is_tty)
+		add_history(line);
 }
 
 int main(int argc, char *argv[]) {
@@ -175,11 +177,29 @@ usage:
 		return EXIT_FAILURE;
 	}
 
-	char prompt[32];
-	sprintf(prompt, "%.2X:%.2X:%.2X:%.2X:%.2X:%.2X> ",
-			addr.b[5], addr.b[4], addr.b[3], addr.b[2], addr.b[1], addr.b[0]);
+	input_is_tty = isatty(fileno(stdin));
+	output_is_tty = isatty(fileno(stdout));
+	char prompt[32] = {0};
+	char *prefix="";
 
-	rl_bind_key('\t', rl_insert);
+	if (input_is_tty) {
+		sprintf(prompt, "%.2X:%.2X:%.2X:%.2X:%.2X:%.2X> ",
+			addr.b[5], addr.b[4], addr.b[3], addr.b[2], addr.b[1], addr.b[0]);
+		prefix = "> ";
+		rl_bind_key('\t', rl_insert);
+	}
+	else
+		/* libreadline echos its input to stdout which is a problem when
+		 * stdin is not the terminal. The function rl_tty_set_echoing() is
+		 * broken when used with the callback API, so as a workaround we
+		 * redirect the (useless) output to /dev/null */
+		rl_outstream = fopen("/dev/null", "w");
+
+	if (!output_is_tty)
+		/* Force line buffered output to be sure each event will be flushed
+		 * immediately. */
+		setvbuf(stdout, NULL, _IOLBF, 0);
+
 	rl_callback_handler_install(prompt, rl_callback_handler);
 
 	struct pollfd pfds[] = {
@@ -200,29 +220,37 @@ usage:
 
 			char buffer[256];
 			ssize_t ret;
+			char *old_text;
+			int old_point;
 
 			if ((ret = read(rfcomm_fd, buffer, sizeof(buffer) - 1)) <= 0) {
-				rl_replace_line("disconnected", 0);
-				rl_message("");
-				rl_redisplay();
+				if (output_is_tty) {
+					rl_replace_line("disconnected", 0);
+					rl_message("");
+					rl_redisplay();
+				}
 				break;
 			}
 
-			int old_point = rl_point;
-			char *old_text = rl_copy_text(0, rl_end);
-			rl_save_prompt();
-			rl_replace_line("", 0);
-			rl_redisplay();
-
 			buffer[ret] = '\0';
-			fprintf(stdout, "> %s\n", strtrim(buffer));
 
-			rl_restore_prompt();
-			rl_replace_line(old_text, 0);
-			rl_point = old_point;
-			rl_redisplay();
-			free(old_text);
+			if (output_is_tty) {
+				old_point = rl_point;
+				old_text = rl_copy_text(0, rl_end);
+				rl_save_prompt();
+				rl_replace_line("", 0);
+				rl_redisplay();
+			}
 
+			fprintf(stdout, "%s%s\n", prefix, strtrim(buffer));
+
+			if (output_is_tty) {
+				rl_restore_prompt();
+				rl_replace_line(old_text, 0);
+				rl_point = old_point;
+				rl_redisplay();
+				free(old_text);
+			}
 		}
 
 	}
