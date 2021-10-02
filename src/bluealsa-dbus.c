@@ -62,7 +62,7 @@ static GVariant *ba_variant_new_bluealsa_adapters(void) {
 	return variant;
 }
 
-static GVariant *ba_variant_new_device_path(const struct ba_device *d) {
+GVariant *ba_variant_new_device_path(const struct ba_device *d) {
 	return g_variant_new_object_path(d->bluez_dbus_path);
 }
 
@@ -70,7 +70,7 @@ static GVariant *ba_variant_new_device_sequence(const struct ba_device *d) {
 	return g_variant_new_uint32(d->seq);
 }
 
-static GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
+GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
 	return g_variant_new_byte(d->battery.charge);
 }
 
@@ -883,11 +883,10 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 
-	g_dbus_connection_emit_signal(config.dbus, NULL, pcm->ba_dbus_path,
-			DBUS_IFACE_PROPERTIES, "PropertiesChanged",
-			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_PCM, &props, NULL), NULL);
-
+	g_dbus_connection_emit_properties_changed(config.dbus,
+			pcm->ba_dbus_path, BLUEALSA_IFACE_PCM, &props, NULL);
 	g_variant_builder_clear(&props);
+
 }
 
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
@@ -930,11 +929,10 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	if (mask & BA_DBUS_RFCOMM_UPDATE_BATTERY)
 		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(r->sco->d));
 
-	g_dbus_connection_emit_signal(config.dbus, NULL, r->ba_dbus_path,
-			DBUS_IFACE_PROPERTIES, "PropertiesChanged",
-			g_variant_new("(sa{sv}as)", BLUEALSA_IFACE_RFCOMM, &props, NULL), NULL);
-
+	g_dbus_connection_emit_properties_changed(config.dbus,
+			r->ba_dbus_path, BLUEALSA_IFACE_RFCOMM, &props, NULL);
 	g_variant_builder_clear(&props);
+
 }
 
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {

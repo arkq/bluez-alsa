@@ -37,7 +37,10 @@ struct ba_device {
 
 	/* data for D-Bus management */
 	char *ba_dbus_path;
+	char *ba_battery_dbus_path;
 	char *bluez_dbus_path;
+	/* string representation of BT address */
+	char addr_dbus_str[sizeof("dev_XX_XX_XX_XX_XX_XX")];
 
 	struct {
 		/* battery parameters in range [0, 100] or -1 */

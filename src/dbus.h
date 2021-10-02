@@ -44,6 +44,10 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 		const char *sender, const char *path, const char *interface,
 		const char *method, GDBusMethodInvocation *invocation);
 
+bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
+		const char *path, const char *interface, GVariantBuilder *props,
+		GError **error);
+
 GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
 		const char *name, const char *path, GError **error);
 

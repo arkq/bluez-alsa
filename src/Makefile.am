@@ -24,6 +24,7 @@ bluealsa_SOURCES = \
 	bluealsa-iface.c \
 	bluez.c \
 	bluez-iface.c \
+	bluez-skeleton.c \
 	codec-sbc.c \
 	dbus.c \
 	hci.c \

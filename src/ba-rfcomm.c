@@ -27,6 +27,7 @@
 #include "ba-transport.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa.h"
+#include "bluez.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -218,6 +219,7 @@ static int rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm *r, const struct bt_
 		if (r->hfp_ind_map[i] == HFP_IND_BATTCHG) {
 			d->battery.charge = atoi(tmp) * 100 / 5;
 			bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+			bluez_battery_provider_update(d);
 		}
 		if ((tmp = strchr(tmp, ',')) == NULL)
 			break;
@@ -267,6 +269,7 @@ static int rfcomm_handler_ciev_resp_cb(struct ba_rfcomm *r, const struct bt_at *
 		case HFP_IND_BATTCHG:
 			d->battery.charge = value * 100 / 5;
 			bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+			bluez_battery_provider_update(d);
 			break;
 		default:
 			break;
@@ -576,6 +579,7 @@ static int rfcomm_handler_android_set_xhstbatsoc(struct ba_rfcomm *r, char *valu
 	char *ptr = value;
 	d->battery.charge = atoi(strsep(&ptr, ","));
 	bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+	bluez_battery_provider_update(d);
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
@@ -595,6 +599,7 @@ static int rfcomm_handler_android_set_xhstbatsoh(struct ba_rfcomm *r, char *valu
 	char *ptr = value;
 	d->battery.health = atoi(strsep(&ptr, ","));
 	bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+	bluez_battery_provider_update(d);
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
@@ -652,6 +657,7 @@ static int rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const struct b
 			if (ptr != NULL) {
 				d->battery.charge = atoi(strsep(&ptr, ",")) * 100 / 9;
 				bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+				bluez_battery_provider_update(d);
 			}
 			break;
 		case '2':
@@ -967,6 +973,13 @@ static void rfcomm_thread_cleanup(struct ba_rfcomm *r) {
 	r->fd = -1;
 
 	if (r->sco != NULL) {
+
+		/* battery status will no longer be available */
+		struct ba_device *d = r->sco->d;
+		d->battery.charge = -1;
+		d->battery.health = -1;
+		bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
+		bluez_battery_provider_update(d);
 
 		if (r->link_lost_quirk) {
 			debug("RFCOMM link lost quirk: Destroying SCO transport");
@@ -1420,12 +1433,8 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 	if (r->handler_fd != -1)
 		close(r->handler_fd);
 
-	if (r->sco != NULL) {
-		/* battery status is no longer available */
-		r->sco->d->battery.charge = -1;
-		r->sco->d->battery.health = -1;
+	if (r->sco != NULL)
 		ba_transport_unref(r->sco);
-	}
 
 	if (r->sig_fd[0] != -1)
 		close(r->sig_fd[0]);

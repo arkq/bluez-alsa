@@ -34,11 +34,10 @@ struct ba_device *ba_device_new(
 
 	d->seq = atomic_fetch_add_explicit(&config.device_seq, 1, memory_order_relaxed);
 
-	char tmp[sizeof("dev_XX:XX:XX:XX:XX:XX")];
-	sprintf(tmp, "dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X",
+	sprintf(d->addr_dbus_str, "dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X",
 			addr->b[5], addr->b[4], addr->b[3], addr->b[2], addr->b[1], addr->b[0]);
-	d->ba_dbus_path = g_strdup_printf("%s/%s", adapter->ba_dbus_path, tmp);
-	d->bluez_dbus_path = g_strdup_printf("%s/%s", adapter->bluez_dbus_path, tmp);
+	d->ba_dbus_path = g_strdup_printf("%s/%s", adapter->ba_dbus_path, d->addr_dbus_str);
+	d->bluez_dbus_path = g_strdup_printf("%s/%s", adapter->bluez_dbus_path, d->addr_dbus_str);
 
 	d->battery.charge = -1;
 	d->battery.health = -1;
@@ -140,6 +139,7 @@ void ba_device_unref(struct ba_device *d) {
 	g_hash_table_unref(d->transports);
 	pthread_mutex_destroy(&d->transports_mutex);
 	g_free(d->bluez_dbus_path);
+	g_free(d->ba_battery_dbus_path);
 	g_free(d->ba_dbus_path);
 	free(d);
 }

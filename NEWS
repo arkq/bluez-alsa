@@ -5,6 +5,7 @@ unreleased
 - allow to select BT transport codec with ALSA configuration
 - allow to set PCM volume properties with ALSA configuration
 - optional single-device mode for ALSA control plug-in
+- export battery status/charge via BlueZ battery provider
 - connection keep-alive timeout for all BT profiles
 - fix for rapid consecutive SCO link close(2)/connect(2)
 - bluealsa-aplay: forward PCM volume to ALSA mixer element

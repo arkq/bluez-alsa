@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-iface.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -69,6 +69,18 @@ static const GDBusArgInfo *in_RequestDisconnection[] = {
 	NULL,
 };
 
+static const GDBusPropertyInfo bluez_iface_battery_provider_Device = {
+	-1, "Device", "o", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo bluez_iface_battery_provider_Percentage = {
+	-1, "Percentage", "y", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo bluez_iface_battery_provider_Source = {
+	-1, "Source", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusMethodInfo bluez_iface_endpoint_SelectConfiguration = {
 	-1, "SelectConfiguration",
 	(GDBusArgInfo **)in_SelectConfiguration,
@@ -118,6 +130,13 @@ static const GDBusMethodInfo bluez_iface_profile_Release = {
 	NULL,
 };
 
+static const GDBusPropertyInfo *bluez_iface_battery_provider_properties[] = {
+	&bluez_iface_battery_provider_Device,
+	&bluez_iface_battery_provider_Percentage,
+	&bluez_iface_battery_provider_Source,
+	NULL,
+};
+
 static const GDBusMethodInfo *bluez_iface_endpoint_methods[] = {
 	&bluez_iface_endpoint_SelectConfiguration,
 	&bluez_iface_endpoint_SetConfiguration,
@@ -133,7 +152,15 @@ static const GDBusMethodInfo *bluez_iface_profile_methods[] = {
 	NULL,
 };
 
-const GDBusInterfaceInfo bluez_iface_endpoint = {
+const GDBusInterfaceInfo bluez_iface_battery_provider = {
+	-1, BLUEZ_IFACE_BATTERY_PROVIDER,
+	NULL,
+	NULL,
+	(GDBusPropertyInfo **)bluez_iface_battery_provider_properties,
+	NULL,
+};
+
+const GDBusInterfaceInfo bluez_iface_media_endpoint = {
 	-1, BLUEZ_IFACE_MEDIA_ENDPOINT,
 	(GDBusMethodInfo **)bluez_iface_endpoint_methods,
 	NULL,

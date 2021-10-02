@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -73,30 +73,30 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		switch (type.codec) {
 		case A2DP_CODEC_SBC:
-			return "/A2DP/SBC/Source";
+			return "/A2DP/SBC/source";
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG/Source";
+			return "/A2DP/MPEG/source";
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return "/A2DP/AAC/Source";
+			return "/A2DP/AAC/source";
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/aptX/Source";
+			return "/A2DP/aptX/source";
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/aptXHD/Source";
+			return "/A2DP/aptXHD/source";
 #endif
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "/A2DP/FastStream/Source";
+			return "/A2DP/FastStream/source";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
-			return "/A2DP/LDAC/Source";
+			return "/A2DP/LDAC/source";
 #endif
 		default:
 			error("Unsupported A2DP codec: %#x", type.codec);
@@ -105,30 +105,30 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		switch (type.codec) {
 		case A2DP_CODEC_SBC:
-			return "/A2DP/SBC/Sink";
+			return "/A2DP/SBC/sink";
 #if ENABLE_MPEG
 		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG/Sink";
+			return "/A2DP/MPEG/sink";
 #endif
 #if ENABLE_AAC
 		case A2DP_CODEC_MPEG24:
-			return "/A2DP/AAC/Sink";
+			return "/A2DP/AAC/sink";
 #endif
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/aptX/Sink";
+			return "/A2DP/aptX/sink";
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/aptXHD/Sink";
+			return "/A2DP/aptXHD/sink";
 #endif
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "/A2DP/FastStream/Sink";
+			return "/A2DP/FastStream/sink";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
-			return "/A2DP/LDAC/Sink";
+			return "/A2DP/LDAC/sink";
 #endif
 		default:
 			error("Unsupported A2DP codec: %#x", type.codec);

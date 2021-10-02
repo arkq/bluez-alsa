@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_BLUEZ_H_
 #define BLUEALSA_BLUEZ_H_
 
@@ -16,6 +17,7 @@
 #include <glib.h>
 
 #include "a2dp.h"
+#include "ba-device.h"
 
 /* List of Bluetooth audio profiles. */
 #define BLUETOOTH_UUID_A2DP_SOURCE "0000110A-0000-1000-8000-00805F9B34FB"
@@ -38,5 +40,8 @@ bool bluez_a2dp_set_configuration(
 		const char *dbus_current_sep_path,
 		const struct a2dp_sep *sep,
 		GError **error);
+
+void bluez_battery_provider_update(
+		struct ba_device *device);
 
 #endif

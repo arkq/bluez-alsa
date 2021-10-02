@@ -96,6 +96,23 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 }
 
 /**
+ * Emit properties changed signal for the given D-Bus interface.
+ *
+ * @param conn D-Bus connection handler.
+ * @param path Valid D-Bus object path.
+ * @param interface Interface for which properties have changed.
+ * @param props The dictionary builder with changed properties.
+ * @param error NULL GError pointer.
+ * @return On success this function returns true. */
+bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
+		const char *path, const char *interface, GVariantBuilder *props,
+		GError **error) {
+	return g_dbus_connection_emit_signal(conn, NULL,
+			path, DBUS_IFACE_PROPERTIES, "PropertiesChanged",
+			g_variant_new("(sa{sv}as)", interface, props, NULL), error);
+}
+
+/**
  * Get managed objects of a given D-Bus service.
  *
  * @param conn D-Bus connection handler.

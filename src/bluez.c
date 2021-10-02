@@ -36,6 +36,7 @@
 #include "bluealsa.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
+#include "bluez-skeleton.h"
 #include "dbus.h"
 #include "hci.h"
 #include "sco.h"
@@ -72,6 +73,8 @@ struct bluez_dbus_object_data {
 struct bluez_adapter {
 	/* reference to the adapter structure */
 	struct ba_adapter *adapter;
+	/* manager for battery provider objects */
+	GDBusObjectManagerServer *battery_manager;
 	/* array of end-points for connected devices */
 	GHashTable *device_sep_map;
 };
@@ -90,6 +93,8 @@ static void bluez_adapter_free(struct bluez_adapter *adapter) {
 		return;
 	g_hash_table_destroy(adapter->device_sep_map);
 	adapter->device_sep_map = NULL;
+	g_object_unref(adapter->battery_manager);
+	adapter->battery_manager = NULL;
 	ba_adapter_destroy(adapter->adapter);
 	adapter->adapter = NULL;
 }
@@ -502,7 +507,7 @@ static void bluez_register_a2dp(
 			dbus_obj->ref_count = 2;
 
 			if ((dbus_obj->id = g_dbus_connection_register_object(config.dbus,
-							path, (GDBusInterfaceInfo *)&bluez_iface_endpoint, &vtable,
+							path, (GDBusInterfaceInfo *)&bluez_iface_media_endpoint, &vtable,
 							dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref, &err)) == 0) {
 				free(dbus_obj);
 				goto fail;
@@ -554,6 +559,110 @@ static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
 		}
 	}
 
+}
+
+/**
+ * Add battery to battery provider. */
+static bool bluez_battery_provider_manager_add(struct ba_device *device) {
+
+	struct ba_adapter *a = device->a;
+	GDBusObjectManagerServer *manager = bluez_adapters[a->hci.dev_id].battery_manager;
+
+	if (device->ba_battery_dbus_path != NULL)
+		return true;
+
+	GDBusObjectSkeleton *skeleton = NULL;
+	bluez_BatteryProviderIfaceSkeleton *ifs_battery_provider = NULL;
+
+	char *path = g_strdup_printf("/org/bluez/%s/battery/%s",
+			a->hci.name, device->addr_dbus_str);
+	if ((skeleton = g_dbus_object_skeleton_new(path)) == NULL)
+		goto fail;
+	if ((ifs_battery_provider = bluez_battery_provider_iface_skeleton_new(device)) == NULL)
+		goto fail;
+
+	g_dbus_object_skeleton_add_interface(skeleton,
+			G_DBUS_INTERFACE_SKELETON(ifs_battery_provider));
+	g_object_unref(ifs_battery_provider);
+
+	debug("Adding battery to battery provider: %s", path);
+
+	device->ba_battery_dbus_path = path;
+
+	g_dbus_object_manager_server_export(manager, skeleton);
+	g_object_unref(skeleton);
+
+	return true;
+
+fail:
+	if (skeleton != NULL)
+		g_object_unref(skeleton);
+	if (ifs_battery_provider != NULL)
+		g_object_unref(ifs_battery_provider);
+	g_free(path);
+	return false;
+}
+
+/**
+ * Remove battery from battery provider. */
+static bool bluez_battery_provider_manager_remove(struct ba_device *device) {
+
+	struct ba_adapter *a = device->a;
+	GDBusObjectManagerServer *manager = bluez_adapters[a->hci.dev_id].battery_manager;
+
+	if (device->ba_battery_dbus_path == NULL)
+		return true;
+
+	char *path = device->ba_battery_dbus_path;
+	device->ba_battery_dbus_path = NULL;
+
+	debug("Removing battery from battery provider: %s", path);
+	g_dbus_object_manager_server_unexport(manager, path);
+	g_free(path);
+
+	return true;
+}
+
+/**
+ * Register battery provider in BlueZ. */
+static void bluez_register_battery_provider_manager(struct bluez_adapter *b_adapter) {
+
+	struct ba_adapter *a = b_adapter->adapter;
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+
+	char path[64];
+	snprintf(path, sizeof(path), "/org/bluez/%s/battery", a->hci.name);
+
+	debug("Registering battery provider: %s", path);
+
+	GDBusObjectManagerServer *manager = g_dbus_object_manager_server_new(path);
+	g_dbus_object_manager_server_set_connection(manager, config.dbus);
+	b_adapter->battery_manager = manager;
+
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, a->bluez_dbus_path,
+			BLUEZ_IFACE_BATTERY_PROVIDER_MANAGER, "RegisterBatteryProvider");
+
+	g_dbus_message_set_body(msg, g_variant_new("(o)", path));
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+fail:
+	if (err != NULL) {
+		warn("Couldn't register battery provider: %s", err->message);
+		g_error_free(err);
+	}
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
 }
 
 static void bluez_profile_new_connection(GDBusMethodInvocation *inv) {
@@ -892,6 +1001,7 @@ void bluez_register(void) {
 			bluez_adapters[a->hci.dev_id].adapter = a;
 			bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
 					g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)g_array_unref);
+			bluez_register_battery_provider_manager(&bluez_adapters[a->hci.dev_id]);
 			bluez_register_a2dp_all(a);
 		}
 
@@ -968,6 +1078,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 		bluez_adapters[a->hci.dev_id].adapter = a;
 		bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
 				g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)g_array_unref);
+		bluez_register_battery_provider_manager(&bluez_adapters[a->hci.dev_id]);
 		bluez_register_a2dp_all(a);
 	}
 
@@ -1272,4 +1383,32 @@ fail:
 	if (rep != NULL)
 		g_object_unref(rep);
 	return rv;
+}
+
+/**
+ * Signal update on battery provider properties.
+ *
+ * This function makes sure that the battery provider object is
+ * exported or unexported when necessary. */
+void bluez_battery_provider_update(
+		struct ba_device *device) {
+
+	if (device->battery.charge == -1) {
+		bluez_battery_provider_manager_remove(device);
+		return;
+	}
+
+	if (!bluez_battery_provider_manager_add(device))
+		return;
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+	g_variant_builder_add(&props, "{sv}", "Percentage",
+			ba_variant_new_device_battery(device));
+
+	g_dbus_connection_emit_properties_changed(config.dbus,
+			device->ba_battery_dbus_path, BLUEZ_IFACE_BATTERY_PROVIDER, &props, NULL);
+	g_variant_builder_clear(&props);
+
 }

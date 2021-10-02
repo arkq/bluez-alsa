@@ -133,6 +133,10 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 	return false;
 }
 
+void bluez_battery_provider_update(struct ba_device *device) {
+	debug("%s: %p", __func__, device);
+}
+
 static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);

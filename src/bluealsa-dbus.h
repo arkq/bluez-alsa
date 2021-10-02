@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_BLUEALSADBUS_H_
 #define BLUEALSA_BLUEALSADBUS_H_
 
@@ -18,6 +19,7 @@
 #include <glib.h>
 
 #include "ba-rfcomm.h"
+#include "ba-device.h"
 #include "ba-transport.h"
 
 #define BA_DBUS_PCM_UPDATE_FORMAT      (1 << 0)
@@ -30,6 +32,9 @@
 
 #define BA_DBUS_RFCOMM_UPDATE_FEATURES (1 << 0)
 #define BA_DBUS_RFCOMM_UPDATE_BATTERY  (1 << 1)
+
+GVariant *ba_variant_new_device_path(const struct ba_device *d);
+GVariant *ba_variant_new_device_battery(const struct ba_device *d);
 
 unsigned int bluealsa_dbus_manager_register(GError **error);
 
