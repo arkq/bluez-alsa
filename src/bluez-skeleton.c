@@ -10,9 +10,13 @@
 
 #include "bluez-skeleton.h"
 
+#include <string.h>
+
+#include <glib-object.h>
+#include <glib.h>
+
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
-#include "shared/log.h"
 
 G_DEFINE_TYPE(bluez_BatteryProviderIfaceSkeleton, bluez_battery_provider_iface_skeleton,
 		G_TYPE_DBUS_INTERFACE_SKELETON);

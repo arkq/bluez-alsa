@@ -981,8 +981,10 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-	/* test-alsa-pcm and bluealsa-mock shall be placed in the same directory */
-	bluealsa_mock_path = dirname(strdup(argv[0]));
+	/* test-alsa-pcm and bluealsa-mock shall
+	 * be placed in the same directory */
+	char *argv_0 = strdup(argv[0]);
+	bluealsa_mock_path = dirname(argv_0);
 
 	Suite *s = suite_create(__FILE__);
 	SRunner *sr = srunner_create(s);
@@ -1026,7 +1028,9 @@ int main(int argc, char *argv[]) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
+
 	srunner_free(sr);
+	free(argv_0);
 
 	return nf == 0 ? 0 : 1;
 }

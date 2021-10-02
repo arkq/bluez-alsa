@@ -469,6 +469,7 @@ static struct {
 int dump(const char *config, bool detect) {
 
 	uint16_t codec_id = get_codec(config);
+	int rv = -1;
 
 	ssize_t blob_size;
 	if ((blob_size = get_codec_blob(config, NULL, 0)) == -1)
@@ -476,12 +477,13 @@ int dump(const char *config, bool detect) {
 
 	void *blob = malloc(blob_size);
 	if (get_codec_blob(config, blob, blob_size) == -1)
-		return -1;
+		goto final;
 
+	rv = 0;
 	for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
 		if (dumps[i].codec_id == codec_id) {
 			dumps[i].dump(blob, blob_size);
-			return 0;
+			goto final;
 		}
 
 	if (detect) {
@@ -489,11 +491,15 @@ int dump(const char *config, bool detect) {
 			if (dumps[i].blob_size == (size_t)blob_size)
 				dumps[i].dump(blob, blob_size);
 		dump_vendor(blob, blob_size);
-		return 0;
+		goto final;
 	}
 
 	fprintf(stderr, "Couldn't detect codec type: %s\n", config);
-	return -1;
+	rv = -1;
+
+final:
+	free(blob);
+	return rv;
 }
 
 int main(int argc, char *argv[]) {

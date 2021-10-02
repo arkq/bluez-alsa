@@ -651,6 +651,13 @@ static void bluez_register_battery_provider_manager(struct bluez_adapter *b_adap
 
 	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
 		g_dbus_message_to_gerror(rep, &err);
+		if (err->code == G_DBUS_ERROR_UNKNOWN_METHOD) {
+			/* Suppress warning message in case when BlueZ has no battery provider
+			 * support enabled, because it's not a mandatory feature. */
+			debug("BlueZ battery provider support not available");
+			g_error_free(err);
+			err = NULL;
+		}
 		goto fail;
 	}
 

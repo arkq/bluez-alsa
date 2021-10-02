@@ -12,6 +12,7 @@
 
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -184,8 +185,8 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
  * @param v A pointer to bdaddr_t structure.
  * @return Hash value compatible with GHashTable. */
 unsigned int g_bdaddr_hash(const void *v) {
-	const bdaddr_t *ba = (const bdaddr_t *)v;
-	return ((uint32_t *)ba->b)[0] * ((uint16_t *)ba->b)[2];
+	const uint16_t *b = (uint16_t *)((const bdaddr_t *)v)->b;
+	return (b[0] | ((uint32_t)b[1]) << 16) * b[2];
 }
 
 /**
