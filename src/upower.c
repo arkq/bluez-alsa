@@ -47,7 +47,7 @@ int upower_initialize(void) {
 	}
 
 	if (percentage != NULL) {
-		config.battery.level = round(g_variant_get_double(percentage));
+		config.battery.level = lround(g_variant_get_double(percentage));
 		g_variant_unref(percentage);
 	}
 
@@ -79,7 +79,7 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 		}
 		else if (strcmp(property, "Percentage") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_DOUBLE, property)) {
-			config.battery.level = round(g_variant_get_double(value));
+			config.battery.level = lround(g_variant_get_double(value));
 			updated = true;
 		}
 
