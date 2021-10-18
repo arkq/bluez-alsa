@@ -12,6 +12,7 @@
 # include <config.h>
 #endif
 
+#include <assert.h>
 #include <errno.h>
 #include <getopt.h>
 #include <math.h>
@@ -334,8 +335,11 @@ static int pcm_worker_mixer_volume_sync(
 
 	}
 
+	/* guard against undefined behaviour from out-of-bounds dB conversion. */
+	assert(volume_db_sum <= 0LL);
+
 	/* convert dB to loudness using decibel formula, rounding to nearest integer */
-	int volume = 0.5 + pow(2, (0.01 * volume_db_sum / ch) / 10) * vmax;
+	int volume = (int) lround(pow(2, (0.01 * volume_db_sum / ch) / 10) * vmax);
 
 	ba_pcm->volume.ch1_muted = muted;
 	ba_pcm->volume.ch1_volume = volume;
