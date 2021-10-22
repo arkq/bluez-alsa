@@ -19,7 +19,7 @@ bluealsa_SOURCES = \
 	ba-device.c \
 	ba-rfcomm.c \
 	ba-transport.c \
-	bluealsa.c \
+	bluealsa-config.c \
 	bluealsa-dbus.c \
 	bluealsa-iface.c \
 	bluez.c \

@@ -7,7 +7,7 @@ AC_INIT([BlueALSA],
 	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/Arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
-AC_CONFIG_SRCDIR([src/bluealsa.c])
+AC_CONFIG_SRCDIR([src/bluealsa-config.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 

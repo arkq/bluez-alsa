@@ -31,7 +31,7 @@
 
 #include "a2dp.h"
 #include "audio.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
 #include "bluez.h"

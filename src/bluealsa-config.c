@@ -1,5 +1,5 @@
 /*
- * BlueALSA - bluealsa.c
+ * BlueALSA - bluealsa-config.c
  * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -8,7 +8,7 @@
  *
  */
 
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 
 #include <fcntl.h>
 #include <stdbool.h>

@@ -47,9 +47,9 @@ bluealsa_mock_SOURCES = \
 	../src/ba-device.c \
 	../src/ba-rfcomm.c \
 	../src/ba-transport.c \
+	../src/bluealsa-config.c \
 	../src/bluealsa-dbus.c \
 	../src/bluealsa-iface.c \
-	../src/bluealsa.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
@@ -61,7 +61,7 @@ bluealsa_mock_SOURCES = \
 
 test_a2dp_SOURCES = \
 	../src/shared/log.c \
-	../src/bluealsa.c \
+	../src/bluealsa-config.c \
 	test-a2dp.c
 
 test_alsa_ctl_SOURCES = \
@@ -89,7 +89,7 @@ test_ba_SOURCES = \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
-	../src/bluealsa.c \
+	../src/bluealsa-config.c \
 	../src/dbus.c \
 	../src/hci.c \
 	../src/utils.c \
@@ -102,7 +102,7 @@ test_io_SOURCES = \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
-	../src/bluealsa.c \
+	../src/bluealsa-config.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
@@ -130,7 +130,7 @@ test_rfcomm_SOURCES = \
 	../src/ba-device.c \
 	../src/ba-rfcomm.c \
 	../src/ba-transport.c \
-	../src/bluealsa.c \
+	../src/bluealsa-config.c \
 	../src/dbus.c \
 	../src/hci.c \
 	../src/utils.c \

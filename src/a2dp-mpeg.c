@@ -33,7 +33,7 @@
 #include "a2dp.h"
 #include "a2dp-codecs.h"
 #include "ba-transport.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "io.h"
 #include "rtp.h"
 #include "utils.h"

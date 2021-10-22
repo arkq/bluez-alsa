@@ -40,7 +40,7 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "dbus.h"
 #include "hci.h"

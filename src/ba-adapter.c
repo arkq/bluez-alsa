@@ -20,7 +20,7 @@
 #include <bluetooth/hci_lib.h>
 
 #include "ba-device.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "hci.h"
 #include "hfp.h"
 #include "utils.h"

@@ -25,7 +25,7 @@
 
 #include "a2dp.h"
 #include "a2dp-codecs.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "io.h"
 #include "rtp.h"

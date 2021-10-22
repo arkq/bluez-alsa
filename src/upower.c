@@ -25,7 +25,7 @@
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "dbus.h"
 #include "utils.h"
 #include "shared/log.h"

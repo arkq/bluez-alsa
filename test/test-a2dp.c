@@ -18,7 +18,7 @@
 
 #include "a2dp-codecs.h"
 #include "a2dp.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "shared/log.h"
 

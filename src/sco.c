@@ -25,7 +25,7 @@
 #include <bluetooth/sco.h>
 
 #include "ba-device.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "codec-msbc.h"
 #include "hci.h"
 #include "hfp.h"

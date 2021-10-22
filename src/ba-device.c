@@ -15,7 +15,7 @@
 #include <stdlib.h>
 
 #include "ba-transport.h"
-#include "bluealsa.h"
+#include "bluealsa-config.h"
 #include "hci.h"
 #include "shared/log.h"
 
