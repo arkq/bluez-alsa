@@ -25,12 +25,13 @@
 #endif
 
 struct dispatch_method_caller_data {
-	void (*handler)(GDBusMethodInvocation *);
+	void (*handler)(GDBusMethodInvocation *, void *);
 	GDBusMethodInvocation *invocation;
+	void *userdata;
 };
 
 static void *dispatch_method_caller(struct dispatch_method_caller_data *data) {
-	data->handler(data->invocation);
+	data->handler(data->invocation, data->userdata);
 	g_free(data);
 	return NULL;
 }
@@ -44,10 +45,11 @@ static void *dispatch_method_caller(struct dispatch_method_caller_data *data) {
  * @param interface D-Bus interface on which call was made.
  * @param method Name of the called D-Bus method.
  * @param invocation D-Bus method invocation structure.
+ * @param userdata Data to pass to the handler function.
  * @return On success this function returns true. */
 bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
-		const char *sender, const char *path, const char *interface,
-		const char *method, GDBusMethodInvocation *invocation) {
+		const char *sender, const char *path, const char *interface, const char *method,
+		GDBusMethodInvocation *invocation, void *userdata) {
 
 	const GDBusMethodCallDispatcher *dispatcher;
 	for (dispatcher = dispatchers; dispatcher->handler != NULL; dispatcher++) {
@@ -64,20 +66,21 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 		debug("Called: %s.%s() on %s", interface, method, path);
 
 		if (!dispatcher->asynchronous_call)
-			dispatcher->handler(invocation);
+			dispatcher->handler(invocation, userdata);
 		else {
 
 			struct dispatch_method_caller_data data = {
 				.handler = dispatcher->handler,
 				.invocation = invocation,
+				.userdata = userdata,
 			};
 
 			pthread_t thread;
 			int ret;
 
-			void *userdata = g_memdup2(&data, sizeof(data));
+			void *ptr = g_memdup2(&data, sizeof(data));
 			if ((ret = pthread_create(&thread, NULL,
-							PTHREAD_ROUTINE(dispatch_method_caller), userdata)) != 0) {
+							PTHREAD_ROUTINE(dispatch_method_caller), ptr)) != 0) {
 				error("Couldn't create D-Bus call dispatcher: %s", strerror(ret));
 				return false;
 			}
@@ -93,6 +96,79 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 	}
 
 	return false;
+}
+
+static void interface_skeleton_ex_method_call(G_GNUC_UNUSED GDBusConnection *conn,
+		const char *sender, const char *path, const char *interface, const char *method,
+		G_GNUC_UNUSED GVariant *params, GDBusMethodInvocation *invocation, void *userdata) {
+	GDBusInterfaceSkeletonEx *iface = userdata;
+	if (!g_dbus_dispatch_method_call(iface->vtable.dispatchers,
+				sender, path, interface, method, invocation, iface->userdata))
+		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
+}
+
+static GVariant *interface_skeleton_ex_get_property(G_GNUC_UNUSED GDBusConnection *conn,
+		G_GNUC_UNUSED const char *sender, G_GNUC_UNUSED const char *path,
+		G_GNUC_UNUSED const char *interface, const char *property,
+		GError **error, void *userdata) {
+	GDBusInterfaceSkeletonEx *iface = userdata;
+	return iface->vtable.get_property(property, error, iface->userdata);
+}
+
+static gboolean interface_skeleton_ex_set_property(G_GNUC_UNUSED GDBusConnection *conn,
+		G_GNUC_UNUSED const char *sender, G_GNUC_UNUSED const char *path,
+		G_GNUC_UNUSED const char *interface, const char *property, GVariant *value,
+		GError **error, void *userdata) {
+	GDBusInterfaceSkeletonEx *iface = userdata;
+	return iface->vtable.set_property(property, value, error, iface->userdata);
+}
+
+static const GDBusInterfaceVTable interface_skeleton_ex_vtable = {
+	.method_call = interface_skeleton_ex_method_call,
+	.get_property = interface_skeleton_ex_get_property,
+	.set_property = interface_skeleton_ex_set_property,
+};
+
+GDBusInterfaceInfo *g_dbus_interface_skeleton_ex_class_get_info(
+		GDBusInterfaceSkeleton *interface_skeleton) {
+	GDBusInterfaceSkeletonEx *iface = (GDBusInterfaceSkeletonEx *)interface_skeleton;
+	return iface->interface_info;
+}
+
+GDBusInterfaceVTable *g_dbus_interface_skeleton_ex_class_get_vtable(
+		G_GNUC_UNUSED GDBusInterfaceSkeleton *interface_skeleton) {
+	return (GDBusInterfaceVTable *)&interface_skeleton_ex_vtable;
+}
+
+GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
+		GDBusInterfaceSkeleton *interface_skeleton) {
+	GDBusInterfaceSkeletonEx *iface = (GDBusInterfaceSkeletonEx *)interface_skeleton;
+	return iface->vtable.get_properties(iface->userdata);
+}
+
+/**
+ * Create interface skeleton object of given type.
+ *
+ * @param interface_skeleton_type The type of interface skeleton.
+ * @param interface_info The definition of the D-Bus interface.
+ * @param vtable VTable with interface skeleton callback functions.
+ * @param userdata Data to pass to callback functions.
+ * @param userdata_free_func User data free function called when the
+ *   interface skeleton object is destroyed.
+ * @return On success, this function returns newly allocated GIO interface
+ *   skeleton object, which shall be freed with g_object_unref(). If error
+ *   occurs, NULL is returned. */
+void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
+		GDBusInterfaceInfo *interface_info, const GDBusInterfaceSkeletonVTable *vtable,
+		void *userdata, GDestroyNotify userdata_free_func) {
+	GDBusInterfaceSkeletonEx *iface;
+	if ((iface = g_object_new(interface_skeleton_type, NULL)) == NULL)
+		return NULL;
+	g_object_set_data_full(G_OBJECT(iface), "_ud", userdata, userdata_free_func);
+	iface->interface_info = interface_info;
+	memcpy(&iface->vtable, vtable, sizeof(iface->vtable));
+	iface->userdata = userdata;
+	return iface;
 }
 
 /**

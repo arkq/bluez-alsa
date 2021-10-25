@@ -13,19 +13,20 @@
 #define BLUEALSA_BLUEZSKELETON_H_
 
 #include <gio/gio.h>
+#include <glib.h>
 
-#include "ba-device.h"
+#include "dbus.h"
 
 typedef struct {
 	GDBusInterfaceSkeletonClass parent;
 } bluez_BatteryProviderIfaceSkeletonClass;
 
 typedef struct {
-	GDBusInterfaceSkeleton parent;
-	struct ba_device *device;
+	GDBusInterfaceSkeletonEx parent;
 } bluez_BatteryProviderIfaceSkeleton;
 
 bluez_BatteryProviderIfaceSkeleton *bluez_battery_provider_iface_skeleton_new(
-		struct ba_device *device);
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
 
 #endif

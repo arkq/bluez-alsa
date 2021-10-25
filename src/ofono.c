@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -41,7 +42,6 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa-config.h"
-#include "bluealsa-dbus.h"
 #include "dbus.h"
 #include "hci.h"
 #include "hfp.h"
@@ -368,7 +368,8 @@ fail:
 
 }
 
-static void ofono_agent_new_connection(GDBusMethodInvocation *inv) {
+static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdata) {
+	(void)userdata;
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
@@ -430,7 +431,8 @@ final:
 
 /**
  * Callback for the Release method, called when oFono is properly shutdown. */
-static void ofono_agent_release(GDBusMethodInvocation *inv) {
+static void ofono_agent_release(GDBusMethodInvocation *inv, void *userdata) {
+	(void)userdata;
 	ofono_remove_all_cards();
 	g_object_unref(inv);
 }
@@ -440,7 +442,6 @@ static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *
 		GDBusMethodInvocation *invocation, void *userdata) {
 	(void)conn;
 	(void)params;
-	(void)userdata;
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "NewConnection",
@@ -450,7 +451,8 @@ static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *
 		{ 0 },
 	};
 
-	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+	if (!g_dbus_dispatch_method_call(dispatchers,
+				sender, path, interface, method, invocation, userdata))
 		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
@@ -534,6 +536,8 @@ static void ofono_signal_card_added(GDBusConnection *conn, const char *sender,
 	debug("Signal: %s.%s()", interface, signal);
 	(void)conn;
 	(void)path;
+	(void)interface;
+	(void)signal;
 	(void)userdata;
 
 	const char *card = NULL;
@@ -554,6 +558,8 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 	(void)conn;
 	(void)sender;
 	(void)path;
+	(void)interface;
+	(void)signal;
 	(void)userdata;
 
 	const char *card = NULL;

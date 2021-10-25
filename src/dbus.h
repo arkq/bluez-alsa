@@ -15,6 +15,7 @@
 #include <stdbool.h>
 
 #include <gio/gio.h>
+#include <glib-object.h>
 #include <glib.h>
 
 #define DBUS_SERVICE "org.freedesktop.DBus"
@@ -35,14 +36,44 @@ typedef struct _GDBusMethodCallDispatcher {
 	const char *path;
 	const char *interface;
 	const char *method;
-	void (*handler)(GDBusMethodInvocation *);
+	void (*handler)(GDBusMethodInvocation *, void *);
 	/* if true, handler will be called in a separate thread */
 	bool asynchronous_call;
 } GDBusMethodCallDispatcher;
 
+typedef struct _GDBusInterfaceSkeletonVTable {
+	const GDBusMethodCallDispatcher *dispatchers;
+	GVariant *(*get_properties)(void *userdata);
+	GVariant *(*get_property)(const char *property, GError **error, void *userdata);
+	bool (*set_property)(const char *property, GVariant *value, GError **error, void *userdata);
+} GDBusInterfaceSkeletonVTable;
+
+/**
+ * Definition for interface skeleton with callbacks. */
+typedef struct _GDBusInterfaceSkeletonEx {
+	GDBusInterfaceSkeleton parent;
+	GDBusInterfaceInfo *interface_info;
+	GDBusInterfaceSkeletonVTable vtable;
+	/* user data passed to callback functions */
+	void *userdata;
+} GDBusInterfaceSkeletonEx;
+
 bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
-		const char *sender, const char *path, const char *interface,
-		const char *method, GDBusMethodInvocation *invocation);
+		const char *sender, const char *path, const char *interface, const char *method,
+		GDBusMethodInvocation *invocation, void *userdata);
+
+GDBusInterfaceInfo *g_dbus_interface_skeleton_ex_class_get_info(
+		GDBusInterfaceSkeleton *interface_skeleton);
+
+GDBusInterfaceVTable *g_dbus_interface_skeleton_ex_class_get_vtable(
+		GDBusInterfaceSkeleton *interface_skeleton);
+
+GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
+		GDBusInterfaceSkeleton *interface_skeleton);
+
+void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
+		GDBusInterfaceInfo *interface_info, const GDBusInterfaceSkeletonVTable *vtable,
+		void *userdata, GDestroyNotify userdata_free_func);
 
 bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
 		const char *path, const char *interface, GVariantBuilder *props,

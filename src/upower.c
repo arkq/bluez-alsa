@@ -61,6 +61,8 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 	(void)conn;
 	(void)sender;
 	(void)path;
+	(void)interface_;
+	(void)signal;
 	(void)userdata;
 
 	bool updated = false;

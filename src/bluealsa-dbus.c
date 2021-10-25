@@ -213,7 +213,8 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	return true;
 }
 
-static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv) {
+static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata) {
+	(void)userdata;
 
 	GVariantBuilder pcms;
 	g_variant_builder_init(&pcms, G_VARIANT_TYPE("a{oa{sv}}"));
@@ -285,7 +286,6 @@ static void bluealsa_manager_method_call(GDBusConnection *conn, const char *send
 		GDBusMethodInvocation *invocation, void *userdata) {
 	(void)conn;
 	(void)params;
-	(void)userdata;
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "GetPCMs",
@@ -293,7 +293,8 @@ static void bluealsa_manager_method_call(GDBusConnection *conn, const char *send
 		{ 0 },
 	};
 
-	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+	if (!g_dbus_dispatch_method_call(dispatchers,
+				sender, path, interface, method, invocation, userdata))
 		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
@@ -384,9 +385,8 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	return TRUE;
 }
 
-static void bluealsa_pcm_open(GDBusMethodInvocation *inv) {
+static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
 	struct ba_transport_thread *th = pcm->th;
@@ -494,9 +494,8 @@ fail:
 			close(pcm_fds[i]);
 }
 
-static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv) {
+static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) {
 
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	const struct ba_transport *t = pcm->t;
 	const GArray *seps = t->d->seps;
@@ -540,10 +539,9 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv) {
 	ba_transport_pcm_unref(pcm);
 }
 
-static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv) {
+static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	struct ba_transport *t = pcm->t;
 	GVariantIter *properties;
@@ -677,16 +675,16 @@ static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	ba_transport_pcm_ref(pcm);
 
-	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation)) {
+	if (!g_dbus_dispatch_method_call(dispatchers,
+				sender, path, interface, method, invocation, userdata)) {
 		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 		ba_transport_pcm_unref(pcm);
 	}
 
 }
 
-static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv) {
+static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
 	int fds[2] = { -1, -1 };
 
@@ -716,7 +714,6 @@ static void bluealsa_rfcomm_method_call(GDBusConnection *conn, const char *sende
 		GDBusMethodInvocation *invocation, void *userdata) {
 	(void)conn;
 	(void)params;
-	(void)userdata;
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "Open",
@@ -724,7 +721,8 @@ static void bluealsa_rfcomm_method_call(GDBusConnection *conn, const char *sende
 		{ 0 },
 	};
 
-	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+	if (!g_dbus_dispatch_method_call(dispatchers,
+				sender, path, interface, method, invocation, userdata))
 		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }

@@ -145,10 +145,9 @@ static enum bluez_a2dp_transport_state bluez_a2dp_transport_state_from_string(
 	return BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 }
 
-static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv) {
+static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 	const struct a2dp_codec *codec = dbus_obj->codec;
 
@@ -178,11 +177,10 @@ fail:
 
 static void bluez_register_a2dp_all(struct ba_adapter *adapter);
 
-static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv) {
+static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	const char *sender = g_dbus_method_invocation_get_sender(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 	const struct a2dp_codec *codec = dbus_obj->codec;
 	const uint16_t codec_id = codec->codec_id;
@@ -331,10 +329,9 @@ final:
 	g_free(device_path);
 }
 
-static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv) {
+static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	struct ba_adapter *a = NULL;
@@ -366,9 +363,8 @@ fail:
 	g_object_unref(inv);
 }
 
-static void bluez_endpoint_release(GDBusMethodInvocation *inv) {
+static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	debug("Releasing media endpoint: %s", dbus_obj->path);
@@ -383,7 +379,6 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender
 		GDBusMethodInvocation *invocation, void *userdata) {
 	(void)conn;
 	(void)params;
-	(void)userdata;
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "SelectConfiguration",
@@ -397,7 +392,8 @@ static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender
 		{ 0 },
 	};
 
-	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+	if (!g_dbus_dispatch_method_call(dispatchers,
+				sender, path, interface, method, invocation, userdata))
 		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
@@ -561,9 +557,46 @@ static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
 
 }
 
+static GVariant *bluez_battery_provider_iface_skeleton_get_properties(
+		void *userdata) {
+
+	const struct ba_device *d = userdata;
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+	g_variant_builder_add(&props, "{sv}", "Device", ba_variant_new_device_path(d));
+	g_variant_builder_add(&props, "{sv}", "Percentage", ba_variant_new_device_battery(d));
+	g_variant_builder_add(&props, "{sv}", "Source", g_variant_new_string("BlueALSA"));
+
+	return g_variant_builder_end(&props);
+}
+
+static GVariant *bluez_battery_provider_iface_skeleton_get_property(
+		const char *property, GError **error, void *userdata) {
+	(void)error;
+
+	const struct ba_device *d = userdata;
+
+	if (strcmp(property, "Device") == 0)
+		return ba_variant_new_device_path(d);
+	if (strcmp(property, "Percentage") == 0)
+		return ba_variant_new_device_battery(d);
+	if (strcmp(property, "Source") == 0)
+		return g_variant_new_string("BlueALSA");
+
+	g_assert_not_reached();
+	return NULL;
+}
+
 /**
  * Add battery to battery provider. */
 static bool bluez_battery_provider_manager_add(struct ba_device *device) {
+
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.get_properties = bluez_battery_provider_iface_skeleton_get_properties,
+		.get_property = bluez_battery_provider_iface_skeleton_get_property,
+	};
 
 	struct ba_adapter *a = device->a;
 	GDBusObjectManagerServer *manager = bluez_adapters[a->hci.dev_id].battery_manager;
@@ -578,8 +611,11 @@ static bool bluez_battery_provider_manager_add(struct ba_device *device) {
 			a->hci.name, device->addr_dbus_str);
 	if ((skeleton = g_dbus_object_skeleton_new(path)) == NULL)
 		goto fail;
-	if ((ifs_battery_provider = bluez_battery_provider_iface_skeleton_new(device)) == NULL)
+	if ((ifs_battery_provider = bluez_battery_provider_iface_skeleton_new(&vtable,
+				device, (GDestroyNotify)ba_device_unref)) == NULL)
 		goto fail;
+
+	ba_device_ref(device);
 
 	g_dbus_object_skeleton_add_interface(skeleton,
 			G_DBUS_INTERFACE_SKELETON(ifs_battery_provider));
@@ -672,12 +708,11 @@ fail:
 		g_object_unref(rep);
 }
 
-static void bluez_profile_new_connection(GDBusMethodInvocation *inv) {
+static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userdata) {
 
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	const char *sender = g_dbus_method_invocation_get_sender(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	struct ba_adapter *a = NULL;
@@ -750,10 +785,9 @@ final:
 		g_error_free(err);
 }
 
-static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv) {
+static void bluez_profile_request_disconnection(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	debug("Disconnecting hands-free profile: %s", dbus_obj->path);
@@ -786,9 +820,8 @@ fail:
 	g_object_unref(inv);
 }
 
-static void bluez_profile_release(GDBusMethodInvocation *inv) {
+static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 
-	void *userdata = g_dbus_method_invocation_get_user_data(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	debug("Releasing hands-free profile: %s", dbus_obj->path);
@@ -803,7 +836,6 @@ static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
 		GDBusMethodInvocation *invocation, void *userdata) {
 	(void)conn;
 	(void)params;
-	(void)userdata;
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "NewConnection",
@@ -815,7 +847,8 @@ static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
 		{ 0 },
 	};
 
-	if (!g_dbus_dispatch_method_call(dispatchers, sender, path, interface, method, invocation))
+	if (!g_dbus_dispatch_method_call(dispatchers,
+				sender, path, interface, method, invocation, userdata))
 		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 
 }
