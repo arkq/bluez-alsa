@@ -805,7 +805,7 @@ START_TEST(test_playback_underrun) {
 	/* after one and a half period time we shall be
 	 * able to write at least one period frames */
 	usleep(3 * period_time / 2);
-	ck_assert_int_gt(snd_pcm_avail(pcm), period_size);
+	ck_assert_int_ge(snd_pcm_avail(pcm), period_size);
 
 	/* allow under-run to occur */
 	usleep(buffer_time);
