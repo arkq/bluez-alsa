@@ -193,7 +193,7 @@ usage:
 		 * stdin is not the terminal. The function rl_tty_set_echoing() is
 		 * broken when used with the callback API, so as a workaround we
 		 * redirect the (useless) output to /dev/null */
-		rl_outstream = fopen("/dev/null", "w"); /* lgtm[cpp/world-writable-file-creation] */
+		rl_outstream = fopen("/dev/null", "w");
 
 	if (!output_is_tty)
 		/* Force line buffered output to be sure each event will be flushed
@@ -246,8 +246,8 @@ usage:
 
 			if (output_is_tty) {
 				rl_restore_prompt();
-				rl_replace_line(old_text, 0); /* lgtm[cpp/uninitialized-local] */
-				rl_point = old_point;         /* lgtm[cpp/uninitialized-local] */
+				rl_replace_line(old_text, 0);
+				rl_point = old_point;
 				rl_redisplay();
 				free(old_text);
 			}
