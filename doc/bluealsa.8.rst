@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: September 2021
+:Date: October 2021
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -70,7 +70,13 @@ OPTIONS
 
 --keep-alive=SEC
     Keep Bluetooth transport alive for *SEC* number of seconds after streaming was closed.
-    This option can be useful when playing short audio files in quick succession.
+
+    This option is required when using ``bluealsa`` with applications that close
+    and then immediately re-open the same PCM as part of their initialization;
+    for example applications built with the ``portaudio`` portability library
+    and many other "portable" applications.
+
+    It can also be useful when playing short audio files in quick succession.
     It will reduce the gap between playbacks caused by Bluetooth audio transport acquisition.
 
 --a2dp-force-mono
