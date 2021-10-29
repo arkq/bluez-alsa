@@ -37,7 +37,7 @@
 static struct ba_dbus_ctx dbus_ctx;
 static char dbus_ba_service[32] = BLUEALSA_SERVICE;
 static bool quiet = false;
-static bool monitor_verbose = false;
+static bool verbose = false;
 
 static const char *transport_code_to_string(int transport_code) {
 	switch (transport_code) {
@@ -306,20 +306,9 @@ static int cmd_list_services(int argc, char *argv[]) {
 }
 
 static int cmd_list_pcms(int argc, char *argv[]) {
-	bool verbose = false;
-
-	if (argc > 2) {
+	if (argc != 1) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
-	}
-
-	if (argc == 2) {
-		if (strcmp("verbose", argv[1]) == 0)
-			verbose = true;
-		else {
-			cmd_print_error("Invalid argument: %s", argv[1]);
-			return EXIT_FAILURE;
-		}
 	}
 
 	struct ba_pcm *pcms = NULL;
@@ -638,7 +627,7 @@ finish:
 
 static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *message, void *data) {
 	(void)conn;
-	bool verbose = *(bool*)data;
+	(void)data;
 
 	if (dbus_message_get_type(message) != DBUS_MESSAGE_TYPE_SIGNAL)
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -716,18 +705,9 @@ fail:
 }
 
 static int cmd_monitor(int argc, char *argv[]) {
-	if (argc > 2) {
+	if (argc != 1) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
-	}
-
-	if (argc == 2) {
-		if (strcmp("verbose", argv[1]) == 0)
-			monitor_verbose = true;
-		else {
-			cmd_print_error("Invalid argument: %s", argv[1]);
-			return EXIT_FAILURE;
-		}
 	}
 
 	/* Force line buffered output to be sure each event will be flushed
@@ -749,7 +729,7 @@ static int cmd_monitor(int argc, char *argv[]) {
 			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged",
 			dbus_args);
 
-	if (!dbus_connection_add_filter(dbus_ctx.conn, dbus_signal_handler, &monitor_verbose, NULL)) {
+	if (!dbus_connection_add_filter(dbus_ctx.conn, dbus_signal_handler, NULL, NULL)) {
 		cmd_print_error("Couldn't add D-Bus filter");
 		return EXIT_FAILURE;
 	}
@@ -783,14 +763,14 @@ static struct command {
 } commands[] = {
 #define CMD(name, f, args, help) { name, f, args, help, sizeof(name), sizeof(args) }
 	CMD("list-services", cmd_list_services, "", "List all BlueALSA services"),
-	CMD("list-pcms", cmd_list_pcms, "[verbose]", "List all BlueALSA PCM paths"),
+	CMD("list-pcms", cmd_list_pcms, "", "List all BlueALSA PCM paths"),
 	CMD("status", cmd_status, "", "Show service runtime properties"),
 	CMD("info", cmd_info, "<pcm-path>", "Show PCM properties etc"),
 	CMD("codec", cmd_codec, "<pcm-path> [<codec>] [<config>]", "Change codec used by PCM"),
 	CMD("volume", cmd_volume, "<pcm-path> [<val>] [<val>]", "Set audio volume"),
 	CMD("mute", cmd_mute, "<pcm-path> [y|n] [y|n]", "Mute/unmute audio"),
 	CMD("soft-volume", cmd_softvol, "<pcm-path> [y|n]", "Enable/disable SoftVolume property"),
-	CMD("monitor", cmd_monitor, "[verbose]", "Display PCMAdded & PCMRemoved signals"),
+	CMD("monitor", cmd_monitor, "", "Display PCMAdded & PCMRemoved signals"),
 	CMD("open", cmd_open, "<pcm-path>", "Transfer raw PCM via stdin or stdout"),
 };
 
@@ -809,6 +789,7 @@ static void usage(const char *progname) {
 	printf("  -V, --version       Show version\n");
 	printf("  -B, --dbus=NAME     BlueALSA service name suffix\n");
 	printf("  -q, --quiet         Do not print any error messages\n");
+	printf("  -v, --verbose       Show extra information\n");
 	printf("\nCommands:\n");
 	for (i = 0; i < ARRAYSIZE(commands); i++)
 		printf("  %s %-*s%s\n", commands[i].name,
@@ -828,12 +809,13 @@ static void usage(const char *progname) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "+B:Vhq";
+	const char *opts = "+B:Vhqv";
 	const struct option longopts[] = {
 		{"dbus", required_argument, NULL, 'B'},
 		{"version", no_argument, NULL, 'V'},
 		{"help", no_argument, NULL, 'h'},
 		{"quiet", no_argument, NULL, 'q'},
+		{"verbose", no_argument, NULL, 'v'},
 		{ 0 },
 	};
 
@@ -850,6 +832,9 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'q' /* --quiet */ :
 			quiet = true;
+			break;
+		case 'v' /* --verbose */ :
+			verbose = true;
 			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);

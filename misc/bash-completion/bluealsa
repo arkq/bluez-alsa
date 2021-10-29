@@ -296,9 +296,6 @@ _bluealsa_cli() {
 			if [[ "$path_commands" =~ "$prev" ]]; then
 				COMPREPLY=( $(compgen -W "$("$1" $dbus_opt list-pcms 2>/dev/null)" -- $cur) )
 				return
-			elif [[ "$prev" =~ (list-pcms|monitor) ]]; then
-				COMPREPLY=( $(compgen -W verbose -- $cur) )
-				return
 			fi
 			;;
 		$((COMP_CWORD - 2)))

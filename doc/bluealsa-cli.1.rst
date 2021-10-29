@@ -42,16 +42,19 @@ OPTIONS
 -q, --quiet
     Do not print any error messages.
 
+-v, --verbose
+    Include extra information in normal output - see COMMANDS_ for details.
+
 COMMANDS
 ========
 
 list-services
     Print a name list of all running BlueALSA D-Bus services, one per line.
 
-list-pcms [verbose]
+list-pcms
     Print a list of BlueALSA PCM D-Bus paths, one per line.
 
-    If *verbose* is given then the properties of each connected PCM are
+    If the *--verbose* option is given then the properties of each connected PCM are
     printed after each path, one per line, in the same format as the **info**
     command.
 
@@ -110,7 +113,7 @@ soft-volume *PCM_PATH* [y|n]
     If no argument is given, print the current SoftVolume property of the given
     PCM.
 
-monitor [verbose]
+monitor
     Listen for D-Bus ``PCMAdded`` and ``PCMRemoved`` signals and also detect
     service running and service stopped events. Print a line on
     standard output for each one received. PCM event output lines are formed as:
@@ -125,7 +128,7 @@ monitor [verbose]
 
     ``ServiceStopped SERVICE_NAME``
 
-    If *verbose* is given then the properties of each added PCM are
+    If the *--verbose* option is given then the properties of each added PCM are
     printed after the PCMAdded line, one per line, in the same format as the
     **info** command. In this case a blank line is printed after the last
     property.
