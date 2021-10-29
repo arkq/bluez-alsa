@@ -220,8 +220,8 @@ usage:
 
 			char buffer[256];
 			ssize_t ret;
-			char *old_text;
-			int old_point;
+			char *old_text = NULL;
+			int old_point = 0;
 
 			if ((ret = read(rfcomm_fd, buffer, sizeof(buffer) - 1)) <= 0) {
 				if (output_is_tty) {
