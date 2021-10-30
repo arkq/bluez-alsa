@@ -77,7 +77,8 @@ endif
 if ENABLE_OFONO
 bluealsa_SOURCES += \
 	ofono.c \
-	ofono-iface.c
+	ofono-iface.c \
+	ofono-skeleton.c
 endif
 
 if ENABLE_UPOWER

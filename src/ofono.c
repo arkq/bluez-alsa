@@ -46,6 +46,7 @@
 #include "hci.h"
 #include "hfp.h"
 #include "ofono-iface.h"
+#include "ofono-skeleton.h"
 #include "shared/log.h"
 
 /**
@@ -58,7 +59,7 @@ struct ofono_card_data {
 
 static GHashTable *ofono_card_data_map = NULL;
 static const char *dbus_agent_object_path = "/org/bluez/HFP/oFono";
-static unsigned int dbus_agent_object_id = 0;
+static ofono_HFAudioAgentIfaceSkeleton *dbus_hf_agent = NULL;
 
 /**
  * Authorize oFono SCO connection.
@@ -437,11 +438,11 @@ static void ofono_agent_release(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(inv);
 }
 
-static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *method, GVariant *params,
-		GDBusMethodInvocation *invocation, void *userdata) {
-	(void)conn;
-	(void)params;
+/**
+ * Register to the oFono service.
+ *
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+int ofono_register(void) {
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "NewConnection",
@@ -451,20 +452,8 @@ static void ofono_hf_audio_agent_method_call(GDBusConnection *conn, const char *
 		{ 0 },
 	};
 
-	if (!g_dbus_dispatch_method_call(dispatchers,
-				sender, path, interface, method, invocation, userdata))
-		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
-
-}
-
-/**
- * Register to the oFono service.
- *
- * @return On success this function returns 0. Otherwise -1 is returned. */
-int ofono_register(void) {
-
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = ofono_hf_audio_agent_method_call,
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.dispatchers = dispatchers,
 	};
 
 	GDBusMessage *msg = NULL, *rep = NULL;
@@ -479,11 +468,17 @@ int ofono_register(void) {
 	if (ofono_card_data_map == NULL)
 		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
-	if (dbus_agent_object_id == 0)
-		if ((dbus_agent_object_id = g_dbus_connection_register_object(config.dbus,
-						dbus_agent_object_path, (GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent,
-						&vtable, NULL, NULL, &err)) == 0)
+	if (dbus_hf_agent == NULL) {
+		ofono_HFAudioAgentIfaceSkeleton *ifs_hf_agent;
+		if ((ifs_hf_agent = ofono_hf_audio_agent_iface_skeleton_new(&vtable, NULL, NULL)) == NULL)
 			goto fail;
+		GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_hf_agent);
+		if (!g_dbus_interface_skeleton_export(ifs, config.dbus, dbus_agent_object_path, &err)) {
+			g_object_unref(ifs_hf_agent);
+			goto fail;
+		}
+		dbus_hf_agent = ifs_hf_agent;
+	}
 
 	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
 			OFONO_IFACE_HF_AUDIO_MANAGER, "Register");

@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -52,20 +53,22 @@
 /**
  * Data associated with registered D-Bus object. */
 struct bluez_dbus_object_data {
-	/* D-Bus object registration ID */
-	unsigned int id;
 	/* D-Bus object registration path */
 	char path[64];
+	/* exported interface skeleton */
+	GDBusInterfaceSkeleton *ifs;
 	/* associated adapter */
 	int hci_dev_id;
-	const struct a2dp_codec *codec;
+	/* the type of the transport */
 	struct ba_transport_type ttype;
+	/* media endpoint codec */
+	const struct a2dp_codec *codec;
 	/* determine whether object is registered in BlueZ */
 	bool registered;
 	/* determine whether object is used */
 	bool connected;
 	/* memory self-management */
-	int ref_count;
+	atomic_int ref_count;
 };
 
 /**
@@ -101,7 +104,7 @@ static void bluez_adapter_free(struct bluez_adapter *adapter) {
 
 static void bluez_dbus_object_data_unref(
 		struct bluez_dbus_object_data *obj) {
-	if (--obj->ref_count != 0)
+	if (atomic_fetch_sub_explicit(&obj->ref_count, 1, memory_order_relaxed) > 1)
 		return;
 	free(obj);
 }
@@ -374,30 +377,6 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(inv);
 }
 
-static void bluez_endpoint_method_call(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *method, GVariant *params,
-		GDBusMethodInvocation *invocation, void *userdata) {
-	(void)conn;
-	(void)params;
-
-	static const GDBusMethodCallDispatcher dispatchers[] = {
-		{ .method = "SelectConfiguration",
-			.handler = bluez_endpoint_select_configuration },
-		{ .method = "SetConfiguration",
-			.handler = bluez_endpoint_set_configuration },
-		{ .method = "ClearConfiguration",
-			.handler = bluez_endpoint_clear_configuration },
-		{ .method = "Release",
-			.handler = bluez_endpoint_release },
-		{ 0 },
-	};
-
-	if (!g_dbus_dispatch_method_call(dispatchers,
-				sender, path, interface, method, invocation, userdata))
-		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
-
-}
-
 /**
  * Register media endpoint in BlueZ. */
 static int bluez_register_media_endpoint(
@@ -457,8 +436,20 @@ static void bluez_register_a2dp(
 		const struct a2dp_codec *codec,
 		const char *uuid) {
 
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluez_endpoint_method_call,
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "SelectConfiguration",
+			.handler = bluez_endpoint_select_configuration },
+		{ .method = "SetConfiguration",
+			.handler = bluez_endpoint_set_configuration },
+		{ .method = "ClearConfiguration",
+			.handler = bluez_endpoint_clear_configuration },
+		{ .method = "Release",
+			.handler = bluez_endpoint_release },
+		{ 0 },
+	};
+
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.dispatchers = dispatchers,
 	};
 
 	struct ba_transport_type ttype = {
@@ -502,9 +493,16 @@ static void bluez_register_a2dp(
 			dbus_obj->ttype = ttype;
 			dbus_obj->ref_count = 2;
 
-			if ((dbus_obj->id = g_dbus_connection_register_object(config.dbus,
-							path, (GDBusInterfaceInfo *)&bluez_iface_media_endpoint, &vtable,
-							dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref, &err)) == 0) {
+			bluez_MediaEndpointIfaceSkeleton *ifs_endpoint;
+			if ((ifs_endpoint = bluez_media_endpoint_iface_skeleton_new(&vtable,
+							dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref)) == NULL) {
+				free(dbus_obj);
+				goto fail;
+			}
+
+			dbus_obj->ifs = G_DBUS_INTERFACE_SKELETON(ifs_endpoint);
+			if (!g_dbus_interface_skeleton_export(dbus_obj->ifs, config.dbus, path, &err)) {
+				g_object_unref(ifs_endpoint);
 				free(dbus_obj);
 				goto fail;
 			}
@@ -831,28 +829,6 @@ static void bluez_profile_release(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(inv);
 }
 
-static void bluez_profile_method_call(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *method, GVariant *params,
-		GDBusMethodInvocation *invocation, void *userdata) {
-	(void)conn;
-	(void)params;
-
-	static const GDBusMethodCallDispatcher dispatchers[] = {
-		{ .method = "NewConnection",
-			.handler = bluez_profile_new_connection },
-		{ .method = "RequestDisconnection",
-			.handler = bluez_profile_request_disconnection },
-		{ .method = "Release",
-			.handler = bluez_profile_release },
-		{ 0 },
-	};
-
-	if (!g_dbus_dispatch_method_call(dispatchers,
-				sender, path, interface, method, invocation, userdata))
-		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
-
-}
-
 /**
  * Register hands-free profile in BlueZ. */
 static int bluez_register_profile(
@@ -912,8 +888,18 @@ static void bluez_register_hfp(
 		uint16_t version,
 		uint16_t features) {
 
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluez_profile_method_call,
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "NewConnection",
+			.handler = bluez_profile_new_connection },
+		{ .method = "RequestDisconnection",
+			.handler = bluez_profile_request_disconnection },
+		{ .method = "Release",
+			.handler = bluez_profile_release },
+		{ 0 },
+	};
+
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.dispatchers = dispatchers,
 	};
 
 	struct ba_transport_type ttype = {
@@ -943,9 +929,16 @@ static void bluez_register_hfp(
 		dbus_obj->ttype = ttype;
 		dbus_obj->ref_count = 2;
 
-		if ((dbus_obj->id = g_dbus_connection_register_object(config.dbus,
-						path, (GDBusInterfaceInfo *)&bluez_iface_profile, &vtable,
-						dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref, &err)) == 0) {
+		bluez_ProfileIfaceSkeleton *ifs_profile;
+		if ((ifs_profile = bluez_profile_iface_skeleton_new(&vtable,
+						dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref)) == NULL) {
+			free(dbus_obj);
+			goto fail;
+		}
+
+		dbus_obj->ifs = G_DBUS_INTERFACE_SKELETON(ifs_profile);
+		if (!g_dbus_interface_skeleton_export(dbus_obj->ifs, config.dbus, path, &err)) {
+			g_object_unref(ifs_profile);
 			free(dbus_obj);
 			goto fail;
 		}
@@ -1153,6 +1146,7 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 		const char *path, const char *interface_, const char *signal, GVariant *params,
 		void *userdata) {
 	debug("Signal: %s.%s()", interface_, signal);
+	(void)conn;
 	(void)sender;
 	(void)path;
 	(void)interface_;
@@ -1177,7 +1171,8 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 			g_hash_table_iter_init(&iter, dbus_object_data_map);
 			while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj))
 				if (dbus_obj->hci_dev_id == hci_dev_id) {
-					g_dbus_connection_unregister_object(conn, dbus_obj->id);
+					g_dbus_interface_skeleton_unexport(dbus_obj->ifs);
+					g_object_unref(dbus_obj->ifs);
 					g_hash_table_iter_remove(&iter);
 				}
 
@@ -1300,7 +1295,8 @@ static void bluez_disappeared(GDBusConnection *conn, const char *name,
 	struct bluez_dbus_object_data *dbus_obj;
 	g_hash_table_iter_init(&iter, dbus_object_data_map);
 	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj)) {
-		g_dbus_connection_unregister_object(conn, dbus_obj->id);
+		g_dbus_interface_skeleton_unexport(dbus_obj->ifs);
+		g_object_unref(dbus_obj->ifs);
 		g_hash_table_iter_remove(&iter);
 	}
 
