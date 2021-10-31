@@ -374,11 +374,7 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	err = NULL;
-	if (bluealsa_dbus_manager_register(&err) == 0) {
-		error("Couldn't register D-Bus manager: %s", err->message);
-		return EXIT_FAILURE;
-	}
+	bluealsa_dbus_register();
 
 #if ENABLE_OFONO
 	/* Enabling native HFP support while oFono is running might interfere

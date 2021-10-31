@@ -5,17 +5,17 @@ Service         org.bluealsa[.unique ID]
 Interface       org.bluealsa.Manager1
 Object path     [variable prefix]/
 
-Methods         array{object, dict} GetPCMs()
+Methods         array{object, dict} GetPCMs() [Deprecated]
 
                         Returns the array of available PCM objects and
                         associated properties.
 
-Signals         void PCMAdded(object path, dict props)
+Signals         void PCMAdded(object path, dict props) [Deprecated]
 
                         Signal emitted when new PCM is added. It contains
                         the object path and associated properties.
 
-                void PCMRemoved(object path)
+                void PCMRemoved(object path) [Deprecated]
 
                         Signal emitted when device has been removed. The
                         object path is only for a reference - it has been

@@ -1399,7 +1399,7 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 			name, ba_transport_type_to_string(sco->type));
 
 	r->ba_dbus_path = g_strdup_printf("%s/rfcomm", sco->d->ba_dbus_path);
-	bluealsa_dbus_rfcomm_register(r, NULL);
+	bluealsa_dbus_rfcomm_register(r);
 
 	return r;
 

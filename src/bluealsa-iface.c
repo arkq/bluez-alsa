@@ -36,8 +36,17 @@ static const GDBusArgInfo arg_props = {
 	-1, "props", "a{sv}", NULL
 };
 
+static const GDBusAnnotationInfo ann_deprecated = {
+	-1, "org.freedesktop.DBus.Deprecated", "true", NULL
+};
+
 static const GDBusArgInfo *GetPCMs_out[] = {
 	&arg_PCMs,
+	NULL,
+};
+
+static const GDBusAnnotationInfo *GetPCMs_annotations[] = {
+	&ann_deprecated,
 	NULL,
 };
 
@@ -45,7 +54,7 @@ static const GDBusMethodInfo bluealsa_iface_manager_GetPCMs = {
 	-1, "GetPCMs",
 	NULL,
 	(GDBusArgInfo **)GetPCMs_out,
-	NULL,
+	(GDBusAnnotationInfo **)GetPCMs_annotations,
 };
 
 static const GDBusMethodInfo *bluealsa_iface_manager_methods[] = {
@@ -64,16 +73,26 @@ static const GDBusArgInfo *PCMRemoved_args[] = {
 	NULL,
 };
 
+static const GDBusAnnotationInfo *PCMAdded_annotations[] = {
+	&ann_deprecated,
+	NULL,
+};
+
 static const GDBusSignalInfo bluealsa_iface_manager_PCMAdded = {
 	-1, "PCMAdded",
 	(GDBusArgInfo **)PCMAdded_args,
+	(GDBusAnnotationInfo **)PCMAdded_annotations,
+};
+
+static const GDBusAnnotationInfo *PCMRemoved_annotations[] = {
+	&ann_deprecated,
 	NULL,
 };
 
 static const GDBusSignalInfo bluealsa_iface_manager_PCMRemoved = {
 	-1, "PCMRemoved",
 	(GDBusArgInfo **)PCMRemoved_args,
-	NULL,
+	(GDBusAnnotationInfo **)PCMRemoved_annotations,
 };
 
 static const GDBusSignalInfo *bluealsa_iface_manager_signals[] = {

@@ -64,8 +64,8 @@
 #include "inc/btd.inc"
 #include "inc/sine.inc"
 
-unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
-	debug("%s: %p", __func__, (void *)pcm); (void)error; return 0; }
+int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
+	debug("%s: %p", __func__, (void *)pcm); return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask); }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {

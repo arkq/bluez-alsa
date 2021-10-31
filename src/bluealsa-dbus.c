@@ -33,11 +33,14 @@
 #include "ba-transport.h"
 #include "bluealsa-config.h"
 #include "bluealsa-iface.h"
+#include "bluealsa-skeleton.h"
 #include "dbus.h"
 #include "hfp.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+
+static GDBusObjectManagerServer *bluealsa_dbus_manager = NULL;
 
 static GVariant *ba_variant_new_bluealsa_version(void) {
 	return g_variant_new_string(PACKAGE_VERSION);
@@ -242,13 +245,13 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 
 				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-					if (t->a2dp.pcm.ba_dbus_id != 0) {
+					if (t->a2dp.pcm.ba_dbus_exported) {
 						ba_variant_populate_pcm(&props, &t->a2dp.pcm);
 						g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm.ba_dbus_path, &props);
 						g_variant_builder_clear(&props);
 					}
 
-					if (t->a2dp.pcm_bc.ba_dbus_id != 0) {
+					if (t->a2dp.pcm_bc.ba_dbus_exported) {
 						ba_variant_populate_pcm(&props, &t->a2dp.pcm_bc);
 						g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm_bc.ba_dbus_path, &props);
 						g_variant_builder_clear(&props);
@@ -281,31 +284,9 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 	g_variant_builder_clear(&pcms);
 }
 
-static void bluealsa_manager_method_call(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *method, GVariant *params,
-		GDBusMethodInvocation *invocation, void *userdata) {
-	(void)conn;
-	(void)params;
-
-	static const GDBusMethodCallDispatcher dispatchers[] = {
-		{ .method = "GetPCMs",
-			.handler = bluealsa_manager_get_pcms },
-		{ 0 },
-	};
-
-	if (!g_dbus_dispatch_method_call(dispatchers,
-				sender, path, interface, method, invocation, userdata))
-		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
-
-}
-
-static GVariant *bluealsa_manager_get_property(GDBusConnection *conn,
-		const char *sender, const char *path, const char *interface,
-		const char *property, GError **error, void *userdata) {
-	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
+static GVariant *bluealsa_manager_get_property(const char *property,
+		GError **error, void *userdata) {
+	(void)error;
 	(void)userdata;
 
 	if (strcmp(property, "Version") == 0)
@@ -313,22 +294,33 @@ static GVariant *bluealsa_manager_get_property(GDBusConnection *conn,
 	if (strcmp(property, "Adapters") == 0)
 		return ba_variant_new_bluealsa_adapters();
 
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
-			"Property not supported '%s'", property);
+	g_assert_not_reached();
 	return NULL;
 }
 
 /**
- * Register BlueALSA D-Bus manager interface. */
-unsigned int bluealsa_dbus_manager_register(GError **error) {
+ * Register BlueALSA D-Bus manager interfaces. */
+void bluealsa_dbus_register(void) {
 
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluealsa_manager_method_call,
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "GetPCMs",
+			.handler = bluealsa_manager_get_pcms },
+		{ 0 },
+	};
+
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.dispatchers = dispatchers,
 		.get_property = bluealsa_manager_get_property,
 	};
 
-	return g_dbus_connection_register_object(config.dbus, "/org/bluealsa",
-			(GDBusInterfaceInfo *)&bluealsa_iface_manager, &vtable, NULL, NULL, error);
+	bluealsa_ManagerIfaceSkeleton *ifs_manager;
+	ifs_manager = bluealsa_manager_iface_skeleton_new(&vtable, NULL, NULL);
+	g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(ifs_manager),
+			config.dbus, "/org/bluealsa", NULL);
+
+	bluealsa_dbus_manager = g_dbus_object_manager_server_new("/org/bluealsa");
+	g_dbus_object_manager_server_set_connection(bluealsa_dbus_manager, config.dbus);
+
 }
 
 static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
@@ -475,7 +467,6 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	ba_transport_thread_signal_send(th, BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN);
 
 	pthread_mutex_unlock(&pcm->mutex);
-	ba_transport_pcm_unref(pcm);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);
@@ -487,7 +478,6 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 fail:
 	pthread_mutex_unlock(&pcm->mutex);
-	ba_transport_pcm_unref(pcm);
 	/* clean up created file descriptors */
 	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
 		if (pcm_fds[i] != -1)
@@ -536,7 +526,6 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	g_dbus_method_invocation_return_value(inv, g_variant_new("(a{sa{sv}})", &codecs));
 	g_variant_builder_clear(&codecs);
 
-	ba_transport_pcm_unref(pcm);
 }
 
 static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata) {
@@ -647,40 +636,9 @@ fail:
 			G_DBUS_ERROR_FAILED, "%s", errmsg);
 
 final:
-	ba_transport_pcm_unref(pcm);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);
-}
-
-static void bluealsa_pcm_method_call(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *method, GVariant *params,
-		GDBusMethodInvocation *invocation, void *userdata) {
-	(void)conn;
-	(void)params;
-
-	static const GDBusMethodCallDispatcher dispatchers[] = {
-		{ .method = "Open",
-			.handler = bluealsa_pcm_open,
-			.asynchronous_call = true },
-		{ .method = "GetCodecs",
-			.handler = bluealsa_pcm_get_codecs,
-			.asynchronous_call = true },
-		{ .method = "SelectCodec",
-			.handler = bluealsa_pcm_select_codec,
-			.asynchronous_call = true },
-		{ 0 },
-	};
-
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
-	ba_transport_pcm_ref(pcm);
-
-	if (!g_dbus_dispatch_method_call(dispatchers,
-				sender, path, interface, method, invocation, userdata)) {
-		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
-		ba_transport_pcm_unref(pcm);
-	}
-
 }
 
 static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
@@ -709,31 +667,20 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(fd_list);
 }
 
-static void bluealsa_rfcomm_method_call(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface, const char *method, GVariant *params,
-		GDBusMethodInvocation *invocation, void *userdata) {
-	(void)conn;
-	(void)params;
+static GVariant *bluealsa_pcm_get_properties(void *userdata) {
 
-	static const GDBusMethodCallDispatcher dispatchers[] = {
-		{ .method = "Open",
-			.handler = bluealsa_rfcomm_open },
-		{ 0 },
-	};
+	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 
-	if (!g_dbus_dispatch_method_call(dispatchers,
-				sender, path, interface, method, invocation, userdata))
-		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
+	GVariantBuilder props;
 
+	ba_variant_populate_pcm(&props, pcm);
+
+	return g_variant_builder_end(&props);
 }
 
-static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
-		const char *sender, const char *path, const char *interface,
-		const char *property, GError **error, void *userdata) {
-	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
+static GVariant *bluealsa_pcm_get_property(const char *property,
+		GError **error, void *userdata) {
+	(void)error;
 
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	struct ba_device *d = pcm->t->d;
@@ -761,42 +708,13 @@ static GVariant *bluealsa_pcm_get_property(GDBusConnection *conn,
 	if (strcmp(property, "Volume") == 0)
 		return ba_variant_new_pcm_volume(pcm);
 
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
-			"Property not supported '%s'", property);
+	g_assert_not_reached();
 	return NULL;
 }
 
-static GVariant *bluealsa_rfcomm_get_property(GDBusConnection *conn,
-		const char *sender, const char *path, const char *interface,
-		const char *property, GError **error, void *userdata) {
-	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
-
-	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
-	struct ba_transport *t = r->sco;
-	struct ba_device *d = t->d;
-
-	if (strcmp(property, "Transport") == 0)
-		return ba_variant_new_transport_type(t);
-	if (strcmp(property, "Features") == 0)
-		return ba_variant_new_rfcomm_features(r);
-	if (strcmp(property, "Battery") == 0)
-		return ba_variant_new_device_battery(d);
-
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
-			"Property not supported '%s'", property);
-	return NULL;
-}
-
-static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
-		const gchar *sender, const gchar *path, const gchar *interface,
-		const gchar *property, GVariant *value, GError **error, gpointer userdata) {
-	(void)conn;
-	(void)sender;
-	(void)path;
-	(void)interface;
+static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
+		GError **error, void *userdata) {
+	(void)error;
 
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 
@@ -805,6 +723,7 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_SOFT_VOLUME);
 		return TRUE;
 	}
+
 	if (strcmp(property, "Volume") == 0) {
 
 		uint16_t packed = g_variant_get_uint16(value);
@@ -827,38 +746,62 @@ static gboolean bluealsa_pcm_set_property(GDBusConnection *conn,
 		return TRUE;
 	}
 
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
-			"Property not supported '%s'", property);
+	g_assert_not_reached();
 	return FALSE;
 }
 
 /**
  * Register BlueALSA D-Bus PCM interface. */
-unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
+int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluealsa_pcm_method_call,
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "Open",
+			.handler = bluealsa_pcm_open },
+		{ .method = "GetCodecs",
+			.handler = bluealsa_pcm_get_codecs },
+		{ .method = "SelectCodec",
+			.handler = bluealsa_pcm_select_codec },
+		{ 0 },
+	};
+
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.dispatchers = dispatchers,
+		.get_properties = bluealsa_pcm_get_properties,
 		.get_property = bluealsa_pcm_get_property,
 		.set_property = bluealsa_pcm_set_property,
 	};
 
-	if ((pcm->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
-					pcm->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_pcm, &vtable,
-					pcm, (GDestroyNotify)ba_transport_pcm_unref, error)) != 0) {
+	GDBusObjectSkeleton *skeleton = NULL;
+	bluealsa_PCMIfaceSkeleton *ifs_pcm = NULL;
 
-		ba_transport_pcm_ref(pcm);
+	if ((skeleton = g_dbus_object_skeleton_new(pcm->ba_dbus_path)) == NULL)
+		goto fail;
 
-		GVariantBuilder props;
-		ba_variant_populate_pcm(&props, pcm);
+	if ((ifs_pcm = bluealsa_pcm_iface_skeleton_new(&vtable,
+					pcm, (GDestroyNotify)ba_transport_pcm_unref)) == NULL)
+		goto fail;
 
-		g_dbus_connection_emit_signal(config.dbus, NULL,
-				"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMAdded",
-				g_variant_new("(oa{sv})", pcm->ba_dbus_path, &props), NULL);
-		g_variant_builder_clear(&props);
+	ba_transport_pcm_ref(pcm);
 
-	}
+	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(ifs_pcm));
+	g_dbus_object_manager_server_export(bluealsa_dbus_manager, skeleton);
+	pcm->ba_dbus_exported = true;
 
-	return pcm->ba_dbus_id;
+	GVariantBuilder props;
+	ba_variant_populate_pcm(&props, pcm);
+	g_dbus_connection_emit_signal(config.dbus, NULL,
+			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMAdded",
+			g_variant_new("(oa{sv})", pcm->ba_dbus_path, &props), NULL);
+	g_variant_builder_clear(&props);
+
+fail:
+
+	if (skeleton != NULL)
+		g_object_unref(skeleton);
+	if (ifs_pcm != NULL)
+		g_object_unref(ifs_pcm);
+
+	return 0;
 }
 
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
@@ -889,11 +832,11 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 
-	if (pcm->ba_dbus_id == 0)
+	if (!pcm->ba_dbus_exported)
 		return;
 
-	g_dbus_connection_unregister_object(config.dbus, pcm->ba_dbus_id);
-	pcm->ba_dbus_id = 0;
+	g_dbus_object_manager_server_unexport(bluealsa_dbus_manager, pcm->ba_dbus_path);
+	pcm->ba_dbus_exported = false;
 
 	g_dbus_connection_emit_signal(config.dbus, NULL,
 			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMRemoved",
@@ -901,20 +844,79 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 
 }
 
+static GVariant *bluealsa_rfcomm_get_properties(void *userdata) {
+
+	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
+	struct ba_transport *t = r->sco;
+	struct ba_device *d = t->d;
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+	g_variant_builder_add(&props, "{sv}", "Transport", ba_variant_new_transport_type(t));
+	g_variant_builder_add(&props, "{sv}", "Features", ba_variant_new_rfcomm_features(r));
+	g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(d));
+
+	return g_variant_builder_end(&props);
+}
+
+static GVariant *bluealsa_rfcomm_get_property(const char *property,
+		GError **error, void *userdata) {
+	(void)error;
+
+	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
+	struct ba_transport *t = r->sco;
+	struct ba_device *d = t->d;
+
+	if (strcmp(property, "Transport") == 0)
+		return ba_variant_new_transport_type(t);
+	if (strcmp(property, "Features") == 0)
+		return ba_variant_new_rfcomm_features(r);
+	if (strcmp(property, "Battery") == 0)
+		return ba_variant_new_device_battery(d);
+
+	g_assert_not_reached();
+	return NULL;
+}
+
 /**
  * Register BlueALSA D-Bus RFCOMM interface. */
-unsigned int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r, GError **error) {
+int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
 
-	static const GDBusInterfaceVTable vtable = {
-		.method_call = bluealsa_rfcomm_method_call,
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "Open",
+			.handler = bluealsa_rfcomm_open },
+		{ 0 },
+	};
+
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.dispatchers = dispatchers,
+		.get_properties = bluealsa_rfcomm_get_properties,
 		.get_property = bluealsa_rfcomm_get_property,
 	};
 
-	r->ba_dbus_id = g_dbus_connection_register_object(config.dbus,
-			r->ba_dbus_path, (GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
-			&vtable, r, NULL, error);
+	GDBusObjectSkeleton *skeleton = NULL;
+	bluealsa_RFCOMMIfaceSkeleton *ifs_rfcomm = NULL;
 
-	return r->ba_dbus_id;
+	if ((skeleton = g_dbus_object_skeleton_new(r->ba_dbus_path)) == NULL)
+		goto fail;
+
+	if ((ifs_rfcomm = bluealsa_rfcomm_iface_skeleton_new(&vtable,
+					r, NULL)) == NULL)
+		goto fail;
+
+	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(ifs_rfcomm));
+	g_dbus_object_manager_server_export(bluealsa_dbus_manager, skeleton);
+	r->ba_dbus_exported = true;
+
+fail:
+
+	if (skeleton != NULL)
+		g_object_unref(skeleton);
+	if (ifs_rfcomm != NULL)
+		g_object_unref(ifs_rfcomm);
+
+	return 0;
 }
 
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
@@ -934,8 +936,8 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 }
 
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
-	if (r->ba_dbus_id == 0)
+	if (!r->ba_dbus_exported)
 		return;
-	g_dbus_connection_unregister_object(config.dbus, r->ba_dbus_id);
-	r->ba_dbus_id = 0;
+	g_dbus_object_manager_server_unexport(bluealsa_dbus_manager, r->ba_dbus_path);
+	r->ba_dbus_exported = false;
 }

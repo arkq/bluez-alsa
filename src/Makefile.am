@@ -22,6 +22,7 @@ bluealsa_SOURCES = \
 	bluealsa-config.c \
 	bluealsa-dbus.c \
 	bluealsa-iface.c \
+	bluealsa-skeleton.c \
 	bluez.c \
 	bluez-iface.c \
 	bluez-skeleton.c \

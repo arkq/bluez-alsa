@@ -106,7 +106,7 @@ struct ba_rfcomm {
 
 	/* exported RFCOMM D-Bus API */
 	char *ba_dbus_path;
-	unsigned int ba_dbus_id;
+	bool ba_dbus_exported;
 
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
 	 * link has been lost (e.g. device power down). However, it is required to

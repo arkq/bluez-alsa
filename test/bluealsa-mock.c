@@ -537,7 +537,7 @@ int main(int argc, char *argv[]) {
 	g_unix_signal_add(SIGINT, main_loop_exit_handler, loop);
 	g_unix_signal_add(SIGTERM, main_loop_exit_handler, loop);
 
-	assert(bluealsa_dbus_manager_register(NULL) != 0);
+	bluealsa_dbus_register();
 	assert(g_bus_own_name_on_connection(config.dbus, service,
 				G_BUS_NAME_OWNER_FLAGS_NONE, dbus_name_acquired, NULL, loop, NULL) != 0);
 

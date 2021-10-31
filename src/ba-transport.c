@@ -672,9 +672,9 @@ struct ba_transport *ba_transport_new_a2dp(
 	ba_transport_set_codec(t, type.codec);
 
 	if (t->a2dp.pcm.channels > 0)
-		bluealsa_dbus_pcm_register(&t->a2dp.pcm, NULL);
+		bluealsa_dbus_pcm_register(&t->a2dp.pcm);
 	if (t->a2dp.pcm_bc.channels > 0)
-		bluealsa_dbus_pcm_register(&t->a2dp.pcm_bc, NULL);
+		bluealsa_dbus_pcm_register(&t->a2dp.pcm_bc);
 
 	return t;
 }
@@ -779,8 +779,8 @@ struct ba_transport *ba_transport_new_sco(
 
 	ba_transport_set_codec(t, type.codec);
 
-	bluealsa_dbus_pcm_register(&t->sco.spk_pcm, NULL);
-	bluealsa_dbus_pcm_register(&t->sco.mic_pcm, NULL);
+	bluealsa_dbus_pcm_register(&t->sco.spk_pcm);
+	bluealsa_dbus_pcm_register(&t->sco.mic_pcm);
 
 	return t;
 

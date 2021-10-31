@@ -60,9 +60,8 @@ int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_sbc_transport_set_codec(struct ba_transport *t) { (void)t; }
 int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
 
-unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error) {
-	debug("%s: %p", __func__, (void *)pcm); (void)error;
-	return 0; }
+int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
+	debug("%s: %p", __func__, (void *)pcm); return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask);
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC) {
@@ -72,8 +71,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		pthread_mutex_unlock(&transport_codec_updated_mtx); }}
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); }
-unsigned int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r, GError **error) {
-	debug("%s: %p", __func__, (void *)r); (void)error; return 0; }
+int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
+	debug("%s: %p", __func__, (void *)r); return 0; }
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)r, mask); }
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {

@@ -136,7 +136,7 @@ struct ba_transport_pcm {
 
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
-	unsigned int ba_dbus_id;
+	bool ba_dbus_exported;
 
 };
 

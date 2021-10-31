@@ -36,13 +36,13 @@
 GVariant *ba_variant_new_device_path(const struct ba_device *d);
 GVariant *ba_variant_new_device_battery(const struct ba_device *d);
 
-unsigned int bluealsa_dbus_manager_register(GError **error);
+void bluealsa_dbus_register(void);
 
-unsigned int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm, GError **error);
+int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm);
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask);
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm);
 
-unsigned int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r, GError **error);
+int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r);
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask);
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r);
 
