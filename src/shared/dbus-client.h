@@ -17,11 +17,16 @@
 #include <bluetooth/hci.h>
 #include <dbus/dbus.h>
 
+#ifndef DBUS_INTERFACE_OBJECT_MANAGER
+# define DBUS_INTERFACE_OBJECT_MANAGER "org.freedesktop.DBus.ObjectManager"
+#endif
+
 #define BLUEALSA_SERVICE           "org.bluealsa"
 #define BLUEALSA_INTERFACE_MANAGER "org.bluealsa.Manager1"
 #define BLUEALSA_INTERFACE_PCM     "org.bluealsa.PCM1"
 #define BLUEALSA_INTERFACE_RFCOMM  "org.bluealsa.RFCOMM1"
 
+#define BA_PCM_TRANSPORT_NONE        (0)
 #define BA_PCM_TRANSPORT_A2DP_SOURCE (1 << 0)
 #define BA_PCM_TRANSPORT_A2DP_SINK   (2 << 0)
 #define BA_PCM_TRANSPORT_HFP_AG      (1 << 2)

@@ -359,14 +359,14 @@ dbus_bool_t bluealsa_dbus_get_pcms(
 
 	DBusMessage *msg;
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, "/org/bluealsa",
-					BLUEALSA_INTERFACE_MANAGER, "GetPCMs")) == NULL) {
+					DBUS_INTERFACE_OBJECT_MANAGER, "GetManagedObjects")) == NULL) {
 		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
 
 	dbus_bool_t rv = TRUE;
 	struct ba_pcm *_pcms = NULL;
-	size_t i;
+	size_t _length = 0;
 
 	DBusMessage *rep;
 	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
@@ -379,41 +379,47 @@ dbus_bool_t bluealsa_dbus_get_pcms(
 		goto fail;
 	}
 
-	DBusMessageIter iter_pcms;
-	for (dbus_message_iter_recurse(&iter, &iter_pcms), i = 0;
-			dbus_message_iter_get_arg_type(&iter_pcms) != DBUS_TYPE_INVALID;
-			dbus_message_iter_next(&iter_pcms), i++) {
+	DBusMessageIter iter_objects;
+	for (dbus_message_iter_recurse(&iter, &iter_objects);
+			dbus_message_iter_get_arg_type(&iter_objects) != DBUS_TYPE_INVALID;
+			dbus_message_iter_next(&iter_objects)) {
 
-		if (dbus_message_iter_get_arg_type(&iter_pcms) != DBUS_TYPE_DICT_ENTRY) {
+		if (dbus_message_iter_get_arg_type(&iter_objects) != DBUS_TYPE_DICT_ENTRY) {
 			char *signature = dbus_message_iter_get_signature(&iter);
 			dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-					"Incorrect signature: %s != a{oa{sv}}", signature);
+					"Incorrect signature: %s != a{oa{sa{sv}}}", signature);
 			dbus_free(signature);
 			goto fail;
 		}
 
+		DBusMessageIter iter_object_entry;
+		dbus_message_iter_recurse(&iter_objects, &iter_object_entry);
+
+		struct ba_pcm pcm;
+		DBusError err = DBUS_ERROR_INIT;
+		if (!bluealsa_dbus_message_iter_get_pcm(&iter_object_entry, &err, &pcm)) {
+			dbus_set_error(error, err.name, "Get PCM: %s", err.message);
+			dbus_error_free(&err);
+			goto fail;
+		}
+
+		if (pcm.transport == BA_PCM_TRANSPORT_NONE)
+			continue;
+
 		struct ba_pcm *tmp = _pcms;
-		if ((tmp = realloc(tmp, (i + 1) * sizeof(*tmp))) == NULL) {
+		if ((tmp = realloc(tmp, (_length + 1) * sizeof(*tmp))) == NULL) {
 			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
 			goto fail;
 		}
 
 		_pcms = tmp;
 
-		DBusMessageIter iter_pcms_entry;
-		dbus_message_iter_recurse(&iter_pcms, &iter_pcms_entry);
-
-		DBusError err = DBUS_ERROR_INIT;
-		if (!bluealsa_dbus_message_iter_get_pcm(&iter_pcms_entry, &err, &_pcms[i])) {
-			dbus_set_error(error, err.name, "Get PCM: %s", err.message);
-			dbus_error_free(&err);
-			goto fail;
-		}
+		memcpy(&_pcms[_length++], &pcm, sizeof(*_pcms));
 
 	}
 
 	*pcms = _pcms;
-	*length = i;
+	*length = _length;
 
 	goto success;
 
@@ -803,22 +809,48 @@ dbus_bool_t bluealsa_dbus_message_iter_get_pcm(
 	const char *path;
 	char *signature;
 
-	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_OBJECT_PATH)
-		goto fail;
-
 	memset(pcm, 0, sizeof(*pcm));
 
+	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_OBJECT_PATH)
+		goto fail;
 	dbus_message_iter_get_basic(iter, &path);
-	strncpy(pcm->pcm_path, path, sizeof(pcm->pcm_path) - 1);
 
 	if (!dbus_message_iter_next(iter))
 		goto fail;
 
-	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_message_iter_get_pcm_props(iter, &err, pcm)) {
-		dbus_set_error(error, err.name, "Get properties: %s", err.message);
-		dbus_error_free(&err);
-		return FALSE;
+	DBusMessageIter iter_ifaces;
+	for (dbus_message_iter_recurse(iter, &iter_ifaces);
+			dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_INVALID;
+			dbus_message_iter_next(&iter_ifaces)) {
+
+		if (dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_DICT_ENTRY)
+			goto fail;
+
+		DBusMessageIter iter_iface_entry;
+		dbus_message_iter_recurse(&iter_ifaces, &iter_iface_entry);
+
+		const char *iface_name;
+		if (dbus_message_iter_get_arg_type(&iter_iface_entry) != DBUS_TYPE_STRING)
+			goto fail;
+		dbus_message_iter_get_basic(&iter_iface_entry, &iface_name);
+
+		if (strcmp(iface_name, BLUEALSA_INTERFACE_PCM) == 0) {
+
+			strncpy(pcm->pcm_path, path, sizeof(pcm->pcm_path) - 1);
+
+			if (!dbus_message_iter_next(&iter_iface_entry))
+				goto fail;
+
+			DBusError err = DBUS_ERROR_INIT;
+			if (!bluealsa_dbus_message_iter_get_pcm_props(&iter_iface_entry, &err, pcm)) {
+				dbus_set_error(error, err.name, "Get properties: %s", err.message);
+				dbus_error_free(&err);
+				return FALSE;
+			}
+
+			break;
+		}
+
 	}
 
 	return TRUE;
@@ -826,7 +858,7 @@ dbus_bool_t bluealsa_dbus_message_iter_get_pcm(
 fail:
 	signature = dbus_message_iter_get_signature(iter);
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect signature: %s != oa{sv}", signature);
+			"Incorrect signature: %s != oa{sa{sv}}", signature);
 	dbus_free(signature);
 	return FALSE;
 }

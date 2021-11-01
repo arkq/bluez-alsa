@@ -327,8 +327,10 @@ static int cmd_list_pcms(int argc, char *argv[]) {
 	size_t i;
 	for (i = 0; i < pcms_count; i++) {
 		printf("%s\n", pcms[i].pcm_path);
-		if (verbose)
+		if (verbose) {
 			print_properties(&pcms[i], &err);
+			printf("\n");
+		}
 	}
 
 	free(pcms);
@@ -640,35 +642,89 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 	const char *signal = dbus_message_get_member(message);
 
 	DBusMessageIter iter;
-	const char *path;
+	if (!dbus_message_iter_init(message, &iter))
+		goto fail;
 
-	if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
+	if (strcmp(interface, DBUS_INTERFACE_OBJECT_MANAGER) == 0) {
 
-		if (strcmp(signal, "PCMAdded") == 0)
-			if (dbus_message_iter_init(message, &iter) &&
-					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
-				dbus_message_iter_get_basic(&iter, &path);
-				printf("PCMAdded %s\n", path);
-				if (verbose) {
-					struct ba_pcm pcm;
-					DBusError err = DBUS_ERROR_INIT;
-					if (!bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &pcm)) {
-						error("Couldn't read PCM properties: %s", "Invalid signal signature");
-						goto fail;
+		const char *path;
+		if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH)
+			goto fail;
+		dbus_message_iter_get_basic(&iter, &path);
+
+		if (!dbus_message_iter_next(&iter))
+			goto fail;
+
+		if (strcmp(signal, "InterfacesAdded") == 0) {
+
+			DBusMessageIter iter_ifaces;
+			for (dbus_message_iter_recurse(&iter, &iter_ifaces);
+					dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_INVALID;
+					dbus_message_iter_next(&iter_ifaces)) {
+
+				DBusMessageIter iter_iface_entry;
+				if (dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_DICT_ENTRY)
+					goto fail;
+				dbus_message_iter_recurse(&iter_ifaces, &iter_iface_entry);
+
+				const char *iface;
+				if (dbus_message_iter_get_arg_type(&iter_iface_entry) != DBUS_TYPE_STRING)
+					goto fail;
+				dbus_message_iter_get_basic(&iter_iface_entry, &iface);
+
+				if (strcmp(iface, BLUEALSA_INTERFACE_PCM) == 0) {
+
+					printf("PCMAdded %s\n", path);
+
+					if (verbose) {
+
+						DBusMessageIter iter2;
+						if (!dbus_message_iter_init(message, &iter2))
+							goto fail;
+
+						struct ba_pcm pcm;
+						DBusError err = DBUS_ERROR_INIT;
+						if (!bluealsa_dbus_message_iter_get_pcm(&iter2, &err, &pcm)) {
+							error("Couldn't read PCM properties: %s", err.message);
+							dbus_error_free(&err);
+							goto fail;
+						}
+
+						print_properties(&pcm, &err);
+						printf("\n");
+
 					}
-					print_properties(&pcm, &err);
-					printf("\n");
+
 				}
-				return DBUS_HANDLER_RESULT_HANDLED;
+				else if (strcmp(iface, BLUEALSA_INTERFACE_RFCOMM) == 0) {
+					printf("RFCOMMAdded %s\n", path);
+				}
+
 			}
 
-		if (strcmp(signal, "PCMRemoved") == 0)
-			if (dbus_message_iter_init(message, &iter) &&
-					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
-				dbus_message_iter_get_basic(&iter, &path);
-				printf("PCMRemoved %s\n", path);
-				return DBUS_HANDLER_RESULT_HANDLED;
+			return DBUS_HANDLER_RESULT_HANDLED;
+		}
+		else if (strcmp(signal, "InterfacesRemoved") == 0) {
+
+			DBusMessageIter iter_ifaces;
+			for (dbus_message_iter_recurse(&iter, &iter_ifaces);
+					dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_INVALID;
+					dbus_message_iter_next(&iter_ifaces)) {
+
+				const char *iface;
+				if (dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_STRING)
+					goto fail;
+				dbus_message_iter_get_basic(&iter_ifaces, &iface);
+
+				if (strcmp(iface, BLUEALSA_INTERFACE_PCM) == 0)
+					printf("PCMRemoved %s\n", path);
+				else if (strcmp(iface, BLUEALSA_INTERFACE_RFCOMM) == 0)
+					printf("RFCOMMRemoved %s\n", path);
+
 			}
+
+			return DBUS_HANDLER_RESULT_HANDLED;
+		}
 
 	}
 	else if (strcmp(interface, DBUS_INTERFACE_DBUS) == 0) {
@@ -722,9 +778,11 @@ static int cmd_monitor(int argc, char *argv[]) {
 	setvbuf(stdout, NULL, _IOLBF, 0);
 
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
-			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
+			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
+			"path_namespace='/org/bluealsa'");
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
-			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
+			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
+			"path_namespace='/org/bluealsa'");
 
 	char dbus_args[50];
 	snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", dbus_ctx.ba_service);

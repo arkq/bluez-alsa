@@ -616,7 +616,7 @@ fail:
 	return NULL;
 }
 
-static struct pcm_worker *supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
+static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm) {
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
@@ -659,7 +659,7 @@ static struct pcm_worker *supervise_pcm_worker_start(struct ba_pcm *ba_pcm) {
 	return worker;
 }
 
-static struct pcm_worker *supervise_pcm_worker_stop(struct ba_pcm *ba_pcm) {
+static struct pcm_worker *supervise_pcm_worker_stop(const struct ba_pcm *ba_pcm) {
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
@@ -674,7 +674,7 @@ static struct pcm_worker *supervise_pcm_worker_stop(struct ba_pcm *ba_pcm) {
 	return NULL;
 }
 
-static struct pcm_worker *supervise_pcm_worker(struct ba_pcm *ba_pcm) {
+static struct pcm_worker *supervise_pcm_worker(const struct ba_pcm *ba_pcm) {
 
 	if (ba_pcm == NULL)
 		return NULL;
@@ -720,40 +720,50 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 	DBusMessageIter iter;
 	struct pcm_worker *worker;
-	struct ba_pcm *pcm;
 
-	if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
+	if (strcmp(interface, DBUS_INTERFACE_OBJECT_MANAGER) == 0) {
 
-		if (strcmp(signal, "PCMAdded") == 0) {
+		if (strcmp(signal, "InterfacesAdded") == 0) {
+			if (!dbus_message_iter_init(message, &iter))
+				goto fail;
+			struct ba_pcm pcm;
+			DBusError err = DBUS_ERROR_INIT;
+			if (!bluealsa_dbus_message_iter_get_pcm(&iter, &err, &pcm)) {
+				error("Couldn't add new PCM: %s", err.message);
+				dbus_error_free(&err);
+				goto fail;
+			}
+			if (pcm.transport == BA_PCM_TRANSPORT_NONE)
+				goto fail;
 			struct ba_pcm *tmp = ba_pcms;
 			if ((ba_pcms = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL) {
 				error("Couldn't add new PCM: %s", strerror(ENOMEM));
 				ba_pcms = tmp;
 				goto fail;
 			}
-			if (!dbus_message_iter_init(message, &iter) ||
-					!bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &ba_pcms[ba_pcms_count])) {
-				error("Couldn't add new PCM: %s", "Invalid signal signature");
-				goto fail;
-			}
-			supervise_pcm_worker(&ba_pcms[ba_pcms_count++]);
+			memcpy(&ba_pcms[ba_pcms_count++], &pcm, sizeof(*ba_pcms));
+			supervise_pcm_worker(&pcm);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 
-		if (strcmp(signal, "PCMRemoved") == 0) {
+		if (strcmp(signal, "InterfacesRemoved") == 0) {
 			if (!dbus_message_iter_init(message, &iter) ||
 					dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH) {
 				error("Couldn't remove PCM: %s", "Invalid signal signature");
 				goto fail;
 			}
 			dbus_message_iter_get_basic(&iter, &path);
-			supervise_pcm_worker_stop(get_ba_pcm(path));
+			struct ba_pcm *pcm;
+			if ((pcm = get_ba_pcm(path)) == NULL)
+				goto fail;
+			supervise_pcm_worker_stop(pcm);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 
 	}
 
 	if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0) {
+		struct ba_pcm *pcm;
 		if ((pcm = get_ba_pcm(path)) == NULL)
 			goto fail;
 		if (!dbus_message_iter_init(message, &iter) ||
@@ -941,9 +951,11 @@ int main(int argc, char *argv[]) {
 	}
 
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
-			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
+			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
+			"path_namespace='/org/bluealsa'");
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
-			dbus_ba_service, NULL, BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
+			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
+			"path_namespace='/org/bluealsa'");
 	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
 			dbus_ba_service, NULL, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
 			"arg0='"BLUEALSA_INTERFACE_PCM"'");

@@ -259,7 +259,7 @@ static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba
 	return dev;
 }
 
-static int bluealsa_pcm_add(struct bluealsa_ctl *ctl, struct ba_pcm *pcm) {
+static int bluealsa_pcm_add(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
 	struct ba_pcm *tmp = ctl->pcm_list;
 	if ((tmp = realloc(tmp, (ctl->pcm_list_size + 1) * sizeof(*tmp))) == NULL)
 		return -1;
@@ -659,9 +659,9 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	if (subscribe) {
 		if (!ctl->single_device)
 			bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-					BLUEALSA_INTERFACE_MANAGER, "PCMAdded", NULL);
+					DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded", "path_namespace='/org/bluealsa'");
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-				BLUEALSA_INTERFACE_MANAGER, "PCMRemoved", NULL);
+				DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved", "path_namespace='/org/bluealsa'");
 		char dbus_args[50];
 		snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", ctl->dbus_ctx.ba_service);
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, DBUS_SERVICE_DBUS, NULL,
@@ -795,16 +795,19 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 			}
 
 	}
-	else if (strcmp(interface, BLUEALSA_INTERFACE_MANAGER) == 0) {
+	else if (strcmp(interface, DBUS_INTERFACE_OBJECT_MANAGER) == 0) {
 
-		if (!ctl->single_device && strcmp(signal, "PCMAdded") == 0) {
+		if (!ctl->single_device &&
+				strcmp(signal, "InterfacesAdded") == 0) {
 			struct ba_pcm pcm;
-			bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &pcm);
-			bluealsa_pcm_add(ctl, &pcm);
-			goto remove_add;
+			if (bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &pcm) &&
+					pcm.transport != BA_PCM_TRANSPORT_NONE) {
+				bluealsa_pcm_add(ctl, &pcm);
+				goto remove_add;
+			}
 		}
 
-		if (strcmp(signal, "PCMRemoved") == 0) {
+		if (strcmp(signal, "InterfacesRemoved") == 0) {
 			const char *pcm_path;
 			dbus_message_iter_get_basic(&iter, &pcm_path);
 			bluealsa_pcm_remove(ctl, pcm_path);

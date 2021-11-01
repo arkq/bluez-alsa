@@ -6,7 +6,7 @@ bluealsa-cli
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: October 2021
+:Date: November 2021
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -114,13 +114,21 @@ soft-volume *PCM_PATH* [y|n]
     PCM.
 
 monitor
-    Listen for D-Bus ``PCMAdded`` and ``PCMRemoved`` signals and also detect
-    service running and service stopped events. Print a line on
-    standard output for each one received. PCM event output lines are formed as:
+    Listen for D-Bus signals indicating adding/removing BlueALSA interfaces.
+    Also detect service running and service stopped events. Print a line on
+    standard output for each one received.
+
+    PCM event output lines are formed as:
 
     ``PCMAdded PCM_PATH``
 
     ``PCMRemoved PCM_PATH``
+
+    RFCOMM event output lines are formed as:
+
+    ``RFCOMMAdded RFCOMM_PATH``
+
+    ``RFCOMMRemoved RFCOMM_PATH``
 
     Service start/stop event lines are formed as:
 
