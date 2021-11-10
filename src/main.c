@@ -157,34 +157,34 @@ int main(int argc, char **argv) {
 			printf("Usage:\n"
 					"  %s [OPTION]...\n"
 					"\nOptions:\n"
-					"  -h, --help\t\tprint this help and exit\n"
-					"  -V, --version\t\tprint version and exit\n"
-					"  -B, --dbus=NAME\tD-Bus service name suffix\n"
-					"  -S, --syslog\t\tsend output to syslog\n"
-					"  -i, --device=hciX\tHCI device(s) to use\n"
-					"  -p, --profile=NAME\tenable BT profile\n"
-					"  --initial-volume=NB\tinitial volume level [0-100]\n"
-					"  --keep-alive=SEC\tkeep Bluetooth transport alive\n"
-					"  --a2dp-force-mono\ttry to force monophonic sound\n"
-					"  --a2dp-force-audio-cd\ttry to force 44.1 kHz sampling\n"
-					"  --a2dp-volume\t\tnative volume control by default\n"
-					"  --sbc-quality=NB\tset SBC encoder quality\n"
+					"  -h, --help\t\t\tprint this help and exit\n"
+					"  -V, --version\t\t\tprint version and exit\n"
+					"  -B, --dbus=NAME\t\tD-Bus service name suffix\n"
+					"  -S, --syslog\t\t\tsend output to syslog\n"
+					"  -i, --device=hciX\t\tHCI device(s) to use\n"
+					"  -p, --profile=NAME\t\tenable BT profile\n"
+					"  --initial-volume=NUM\t\tinitial volume level [0-100]\n"
+					"  --keep-alive=SEC\t\tkeep Bluetooth transport alive\n"
+					"  --a2dp-force-mono\t\ttry to force monophonic sound\n"
+					"  --a2dp-force-audio-cd\t\ttry to force 44.1 kHz sampling\n"
+					"  --a2dp-volume\t\t\tnative volume control by default\n"
+					"  --sbc-quality=NUM\t\tset SBC encoder quality\n"
 #if ENABLE_AAC
-					"  --aac-afterburner\tenable FDK AAC afterburner\n"
-					"  --aac-bitrate=BPS\tCBR bitrate or max peak for VBR\n"
-					"  --aac-latm-version=NB\tselect LATM syntax version\n"
-					"  --aac-true-bps\tenable true bit-per-second bit rate\n"
-					"  --aac-vbr\t\tprefer VBR mode over CBR mode\n"
+					"  --aac-afterburner\t\tenable FDK AAC afterburner\n"
+					"  --aac-bitrate=BPS\t\tCBR bitrate or max peak for VBR\n"
+					"  --aac-latm-version=NUM\tselect LATM syntax version\n"
+					"  --aac-true-bps\t\tenable true bit-per-second bit rate\n"
+					"  --aac-vbr\t\t\tprefer VBR mode over CBR mode\n"
 #endif
 #if ENABLE_LDAC
-					"  --ldac-abr\t\tenable LDAC adaptive bit rate\n"
-					"  --ldac-eqmid=NB\tset LDAC encoder quality\n"
+					"  --ldac-abr\t\t\tenable LDAC adaptive bit rate\n"
+					"  --ldac-eqmid=NUM\t\tset LDAC encoder quality\n"
 #endif
 #if ENABLE_MP3LAME
-					"  --mp3-quality=NB\tselect LAME encoder algorithm\n"
-					"  --mp3-vbr-quality=NB\tset LAME encoder VBR quality\n"
+					"  --mp3-quality=NUM\t\tselect LAME encoder algorithm\n"
+					"  --mp3-vbr-quality=NUM\t\tset LAME encoder VBR quality\n"
 #endif
-					"  --xapl-resp-name=NAME\tset product name used by XAPL\n"
+					"  --xapl-resp-name=NAME\t\tset product name used by XAPL\n"
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
 					"  - a2dp-sink\tAdvanced Audio Sink (%s)\n"
@@ -252,7 +252,7 @@ int main(int argc, char **argv) {
 			break;
 		}
 
-		case 17 /* --initial-volume=NB */ : {
+		case 17 /* --initial-volume=NUM */ : {
 			unsigned int vol = atoi(optarg);
 			if (vol > 100) {
 				error("Invalid initial volume [0, 100]: %s", optarg);
@@ -277,7 +277,7 @@ int main(int argc, char **argv) {
 			config.a2dp.volume = true;
 			break;
 
-		case 14 /* --sbc-quality=NB */ :
+		case 14 /* --sbc-quality=NUM */ :
 			config.sbc_quality = atoi(optarg);
 			if (config.sbc_quality > SBC_QUALITY_XQ) {
 				error("Invalid encoder quality [0, %d]: %s", SBC_QUALITY_XQ, optarg);
@@ -296,7 +296,7 @@ int main(int argc, char **argv) {
 		case 5 /* --aac-bitrate=BPS */ :
 			config.aac_bitrate = atoi(optarg);
 			break;
-		case 15 /* --aac-latm-version=NB */ :
+		case 15 /* --aac-latm-version=NUM */ :
 			config.aac_latm_version = atoi(optarg);
 			if (config.aac_latm_version > 2) {
 				error("Invalid LATM version [0, 2]: %s", optarg);
@@ -315,7 +315,7 @@ int main(int argc, char **argv) {
 		case 10 /* --ldac-abr */ :
 			config.ldac_abr = true;
 			break;
-		case 11 /* --ldac-eqmid=NB */ :
+		case 11 /* --ldac-eqmid=NUM */ :
 			config.ldac_eqmid = atoi(optarg);
 			if (config.ldac_eqmid >= LDACBT_EQMID_NUM) {
 				error("Invalid encoder quality index [0, %d]: %s", LDACBT_EQMID_NUM - 1, optarg);
@@ -325,14 +325,14 @@ int main(int argc, char **argv) {
 #endif
 
 #if ENABLE_MP3LAME
-		case 12 /* --mp3-quality=NB */ :
+		case 12 /* --mp3-quality=NUM */ :
 			config.lame_quality = atoi(optarg);
 			if (config.lame_quality > 9) {
 				error("Invalid encoder quality [0, 9]: %s", optarg);
 				return EXIT_FAILURE;
 			}
 			break;
-		case 13 /* --mp3-vbr-quality=NB */ :
+		case 13 /* --mp3-vbr-quality=NUM */ :
 			config.lame_vbr_quality = atoi(optarg);
 			if (config.lame_vbr_quality > 9) {
 				error("Invalid VBR quality [0, 9]: %s", optarg);

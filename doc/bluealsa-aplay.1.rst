@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple bluealsa player
 ------------------------
 
-:Date: September 2021
+:Date: November 2021
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -97,7 +97,7 @@ OPTIONS
     See also DMIX_ section below for more information on rate calculation
     rounding errors.
 
--M NAME, --mixer=NAME
+-M NAME, --mixer-device=NAME
     Select ALSA mixer device to use for controlling audio output mute state
     and volume level.
     In order to use this feature, BlueALSA PCM can not use software volume.

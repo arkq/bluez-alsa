@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: October 2021
+:Date: November 2021
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -56,9 +56,9 @@ OPTIONS
     Without this option, **bluealsa** enables **a2dp-source**, **hfp-ag** and **hsp-ag**.
     For the list of supported profiles see the PROFILES_ section below.
 
---initial-volume=NB
-    Set the initial volume to *NB* % when the device is connected.
-    *NB* must be an integer in the range from **0** to **100**.
+--initial-volume=NUM
+    Set the initial volume to *NUM* % when the device is connected.
+    *NUM* must be an integer in the range from **0** to **100**.
     The default value is **100** (full volume).
 
     Having headphones volume reset to max whenever they connect can lead to
@@ -96,22 +96,22 @@ OPTIONS
     This feature can also be controlled during runtime via BlueALSA D-Bus API.
     Note that this feature might not work with all Bluetooth headsets.
 
---sbc-quality=NB
-    Set SBC encoder quality, where *NB* can be one of:
+--sbc-quality=NUM
+    Set SBC encoder quality, where *NUM* can be one of:
 
     - **0** - low audio quality (mono: 114 kbps, stereo: 213 kbps)
     - **1** - medium audio quality (mono: 132 kbps, stereo: 237 kbps)
     - **2** - high audio quality (mono: 198 kbps, stereo: 345 kbps) (**default**)
     - **3** - SBC Dual Channel HD (SBC XQ) (452 kbps)
 
---mp3-quality=NB
+--mp3-quality=NUM
     Selects LAME encoder internal algorithm.
-    The *NB* can be in the range from **0** to **9**, where **0** is the best quality but requires
+    The *NUM* can be in the range from **0** to **9**, where **0** is the best quality but requires
     a lot of CPU power.
     Default value is **5**.
 
---mp3-vbr-quality=NB
-    Specifies variable bit rate (VBR) quality, where *NB* can be in the range from **0** to **9**.
+--mp3-vbr-quality=NUM
+    Specifies variable bit rate (VBR) quality, where *NUM* can be in the range from **0** to **9**.
     For best VBR quality use **0**.
     Default value is **2** (high quality VBR mode).
 
@@ -125,11 +125,11 @@ OPTIONS
     variable bit rate (VBR) mode.
     Default value is **220000** bits per second.
 
---aac-latm-version=NB
+--aac-latm-version=NUM
     Select LATM syntax version used for AAC audio transport.
     Default value is **1**.
 
-    The *NB* can be one of:
+    The *NUM* can be one of:
 
     - **0** - LATM syntax specified by ISO-IEC 14496-3 (2001), should work with all older BT devices
     - **1** - LATM syntax specified by ISO-IEC 14496-3 (2005), should work with newer BT devices
@@ -161,8 +161,8 @@ OPTIONS
     Enables LDAC adaptive bit rate, which will dynamically adjust encoder quality
     based on the connection stability.
 
---ldac-eqmid=NB
-    Specifies LDAC encoder quality, where *NB* can be one of:
+--ldac-eqmid=NUM
+    Specifies LDAC encoder quality, where *NUM* can be one of:
 
     - **0** - high quality (44.1 kHz: 909 kbps, 48 kHz: 990 kbps)
     - **1** - standard quality (44.1 kHz: 606 kbps, 48 kHz: 660 kbps) (**default**)
