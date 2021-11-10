@@ -980,6 +980,10 @@ int ba_transport_select_codec_sco(
 		struct ba_transport *t,
 		uint16_t codec_id) {
 
+#if !ENABLE_MSBC
+	(void)codec_id;
+#endif
+
 	switch (t->type.profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -1086,27 +1090,32 @@ static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 
 static void ba_transport_set_codec_sco(struct ba_transport *t) {
 
+	const uint16_t codec_id = t->type.codec;
+
 	t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.spk_pcm.channels = 1;
 
 	t->sco.mic_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.mic_pcm.channels = 1;
 
-	switch (t->type.codec) {
-	case HFP_CODEC_CVSD:
-		t->sco.spk_pcm.sampling = 8000;
-		t->sco.mic_pcm.sampling = 8000;
-		return;
-	case HFP_CODEC_MSBC:
-		t->sco.spk_pcm.sampling = 16000;
-		t->sco.mic_pcm.sampling = 16000;
-		return;
-	default:
-		debug("Unsupported SCO codec: %#x", t->type.codec);
-		/* fall-through */
+	switch (codec_id) {
 	case HFP_CODEC_UNDEFINED:
 		t->sco.spk_pcm.sampling = 0;
 		t->sco.mic_pcm.sampling = 0;
+		break;
+	case HFP_CODEC_CVSD:
+		t->sco.spk_pcm.sampling = 8000;
+		t->sco.mic_pcm.sampling = 8000;
+		break;
+#if ENABLE_MSBC
+	case HFP_CODEC_MSBC:
+		t->sco.spk_pcm.sampling = 16000;
+		t->sco.mic_pcm.sampling = 16000;
+		break;
+#endif
+	default:
+		debug("Unsupported SCO codec: %#x", codec_id);
+		g_assert_not_reached();
 	}
 
 }
