@@ -404,14 +404,15 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 		}
 
 		if (ffb_len_in(&latm) < rtp_latm_len) {
-			debug("Resizing LATM buffer: %zd -> %zd", latm.size, latm.size + t->mtu_read);
-			size_t prev_len = ffb_len_out(&latm);
-			ffb_init_uint8_t(&latm, latm.nmemb + t->mtu_read);
-			ffb_seek(&latm, prev_len);
+			debug("Resizing LATM buffer: %zd -> %zd", latm.nmemb, latm.nmemb + t->mtu_read);
+			if (ffb_init_uint8_t(&latm, latm.nmemb + t->mtu_read) == -1)
+				error("Couldn't resize LATM buffer: %s", strerror(errno));
 		}
 
-		memcpy(latm.tail, rtp_latm, rtp_latm_len);
-		ffb_seek(&latm, rtp_latm_len);
+		if (ffb_len_in(&latm) >= rtp_latm_len) {
+			memcpy(latm.tail, rtp_latm, rtp_latm_len);
+			ffb_seek(&latm, rtp_latm_len);
+		}
 
 		if (markbit_quirk != 1 && !rtp_header->markbit) {
 			debug("Fragmented RTP packet [%u]: LATM len: %zd", rtp_seq_number, rtp_latm_len);

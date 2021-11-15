@@ -286,10 +286,13 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 	struct ba_transport_pcm *pcm = &t->sco.mic_pcm;
 	struct io_poll io = { .timeout = -1 };
 
+	const size_t mtu_samples = t->mtu_read / sizeof(int16_t);
+	const size_t mtu_samples_multiplier = 2;
+
 	ffb_t buffer = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
 
-	if (ffb_init_int16_t(&buffer, t->mtu_read) == -1) {
+	if (ffb_init_int16_t(&buffer, mtu_samples * mtu_samples_multiplier) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -302,6 +305,13 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 			error("BT poll and read error: %s", strerror(errno));
 		else if (len == 0)
 			goto exit;
+
+		if ((size_t)len == buffer.nmemb * buffer.size) {
+			debug("Resizing CVSD read buffer: %zd -> %zd",
+					buffer.nmemb * buffer.size, buffer.nmemb * buffer.size * 2);
+			if (ffb_init_int16_t(&buffer, buffer.nmemb * 2) == -1)
+				error("Couldn't resize CVSD read buffer: %s", strerror(errno));
+		}
 
 		if (!ba_transport_pcm_is_active(pcm))
 			continue;

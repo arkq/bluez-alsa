@@ -183,7 +183,7 @@ START_TEST(test_difftimespec) {
 
 } END_TEST
 
-START_TEST(test_fifo_buffer) {
+START_TEST(test_ffb) {
 
 	ffb_t ffb_u8 = { 0 };
 	ffb_t ffb_16 = { 0 };
@@ -241,6 +241,29 @@ START_TEST(test_fifo_buffer) {
 
 } END_TEST
 
+START_TEST(test_ffb_resize) {
+
+	const char *data = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	const size_t data_len = strlen(data);
+
+	ffb_t ffb = { 0 };
+	ck_assert_int_eq(ffb_init_uint8_t(&ffb, 64), 0);
+
+	memcpy(ffb.data, data, data_len);
+	ffb_seek(&ffb, data_len);
+
+	ck_assert_int_eq(ffb_len_out(&ffb), data_len);
+	ck_assert_int_eq(ffb_len_in(&ffb), 64 - data_len);
+	ck_assert_int_eq(memcmp(ffb.data, data, data_len), 0);
+
+	ck_assert_int_eq(ffb_init_uint8_t(&ffb, 128), 0);
+
+	ck_assert_int_eq(ffb_len_out(&ffb), data_len);
+	ck_assert_int_eq(ffb_len_in(&ffb), 128 - data_len);
+	ck_assert_int_eq(memcmp(ffb.data, data, data_len), 0);
+
+} END_TEST
+
 int main(void) {
 
 	Suite *s = suite_create(__FILE__);
@@ -255,7 +278,9 @@ int main(void) {
 	tcase_add_test(tc, test_g_variant_sanitize_object_path);
 	tcase_add_test(tc, test_batostr_);
 	tcase_add_test(tc, test_difftimespec);
-	tcase_add_test(tc, test_fifo_buffer);
+
+	tcase_add_test(tc, test_ffb);
+	tcase_add_test(tc, test_ffb_resize);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
