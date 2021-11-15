@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ffb.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -26,7 +26,10 @@ int ffb_init(ffb_t *ffb, size_t nmemb, size_t size) {
 	if ((ptr = realloc(ffb->data, nmemb * size)) == NULL)
 		return -1;
 
-	ffb->data = ffb->tail = ptr;
+	size_t len = ffb_blen_out(ffb);
+
+	ffb->data = ptr;
+	ffb->tail = (uint8_t *)ptr + len;
 	ffb->nmemb = nmemb;
 	ffb->size = size;
 

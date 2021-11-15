@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
-	[m4_normalize(esyscmd([test -d .git && git describe || echo v3.1.0]))],
+	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v3.1.0]))],
 	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/Arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
