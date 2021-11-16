@@ -109,9 +109,10 @@ int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
  * Get read/write MTU for given SCO socket.
  *
  * @param sco_fd File descriptor of opened SCO socket.
+ * @param hci_type The type of the HCI returned by hci_devinfo().
  * @return On success this function returns MTU value. Otherwise, 0 is returned and
  *   errno is set to indicate the error. */
-unsigned int hci_sco_get_mtu(int sco_fd) {
+unsigned int hci_sco_get_mtu(int sco_fd, int hci_type) {
 
 	struct sco_options options = { 0 };
 	struct bt_voice voice = { 0 };
@@ -131,12 +132,14 @@ unsigned int hci_sco_get_mtu(int sco_fd) {
 
 	debug("SCO link socket MTU: %d: %u", sco_fd, options.mtu);
 
-	/* XXX: It seems, that the MTU value returned by kernel
-	 *      is incorrect (or our interpretation of it). */
-
-	options.mtu = 48;
-	if (voice.setting == BT_VOICE_TRANSPARENT)
-		options.mtu = 24;
+	/* XXX: It seems, that the MTU value returned by kernel btusb driver
+	 *      is incorrect. */
+	if ((hci_type & 0x0F) == HCI_USB) {
+		options.mtu = 48;
+		if (voice.setting == BT_VOICE_TRANSPARENT)
+			options.mtu = 24;
+		debug("USB adjusted SCO MTU: %d: %u", sco_fd, options.mtu);
+	}
 
 	return options.mtu;
 }
