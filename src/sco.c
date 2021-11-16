@@ -129,7 +129,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		pthread_mutex_lock(&t->bt_fd_mtx);
 
 		t->bt_fd = fd;
-		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
+		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, a->hci.type);
 		fd = -1;
 
 		pthread_mutex_unlock(&t->bt_fd_mtx);

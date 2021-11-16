@@ -48,7 +48,7 @@ int hci_get_version(int dev_id, struct hci_version *ver);
 
 int hci_sco_open(int dev_id);
 int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice);
-unsigned int hci_sco_get_mtu(int sco_fd);
+unsigned int hci_sco_get_mtu(int sco_fd, int hci_type);
 
 #define BT_BCM_PARAM_ROUTING_PCM       0x0
 #define BT_BCM_PARAM_ROUTING_TRANSPORT 0x1
