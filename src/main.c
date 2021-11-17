@@ -54,6 +54,7 @@
 	G_BUS_NAME_OWNER_FLAGS_NONE
 #endif
 
+static bool dbus_name_acquired = false;
 static int retval = EXIT_SUCCESS;
 
 static char *get_a2dp_codecs(
@@ -80,10 +81,44 @@ static gboolean main_loop_exit_handler(void *userdata) {
 	return G_SOURCE_REMOVE;
 }
 
-static void dbus_name_lost(GDBusConnection *conn, const char *name, void *userdata) {
+static void g_bus_name_acquired(GDBusConnection *conn, const char *name, void *userdata) {
 	(void)conn;
-	error("Couldn't acquire D-Bus name: %s", name);
+	(void)name;
+	(void)userdata;
+
+	debug("Acquired D-Bus service name: %s", name);
+	dbus_name_acquired = true;
+
+	bluealsa_dbus_register();
+
+	bluez_subscribe_signals();
+	bluez_register();
+
+#if ENABLE_OFONO
+	ofono_subscribe_signals();
+	ofono_register();
+#endif
+
+#if ENABLE_UPOWER
+	upower_subscribe_signals();
+	upower_initialize();
+#endif
+
+}
+
+static void g_bus_name_lost(GDBusConnection *conn, const char *name, void *userdata) {
+	(void)conn;
+
+	if (!dbus_name_acquired)
+		error(
+			"Couldn't acquire D-Bus name. Please check D-Bus configuration."
+			" Requested name: %s", name);
+	else
+		error("Lost BlueALSA D-Bus name: %s", name);
+
 	g_main_loop_quit((GMainLoop *)userdata);
+
+	dbus_name_acquired = false;
 	retval = EXIT_FAILURE;
 }
 
@@ -374,8 +409,6 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	bluealsa_dbus_register();
-
 #if ENABLE_OFONO
 	/* Enabling native HFP support while oFono is running might interfere
 	 * with oFono, so in the end neither BlueALSA nor oFono will work. */
@@ -388,19 +421,6 @@ int main(int argc, char **argv) {
 
 	a2dp_codecs_init();
 
-	bluez_subscribe_signals();
-	bluez_register();
-
-#if ENABLE_OFONO
-	ofono_subscribe_signals();
-	ofono_register();
-#endif
-
-#if ENABLE_UPOWER
-	upower_subscribe_signals();
-	upower_initialize();
-#endif
-
 	/* In order to receive EPIPE while writing to the pipe whose reading end
 	 * is closed, the SIGPIPE signal has to be handled. For more information
 	 * see the io_thread_write_pcm() function. */
@@ -412,14 +432,17 @@ int main(int argc, char **argv) {
 	g_unix_signal_add(SIGTERM, main_loop_exit_handler, loop);
 
 	/* register well-known service name */
-	debug("Acquiring D-Bus service name: %s", dbus_service);
-	g_bus_own_name_on_connection(config.dbus, dbus_service,
-			G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE, NULL, dbus_name_lost, loop, NULL);
+	g_bus_own_name_on_connection(config.dbus,
+			dbus_service, G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE,
+			g_bus_name_acquired, g_bus_name_lost, loop, NULL);
 
 	/* main dispatching loop */
 	debug("Starting main dispatching loop");
 	g_main_loop_run(loop);
 
-	debug("Exiting main loop");
+	/* cleanup internal structures */
+	for (size_t i = 0; i < ARRAYSIZE(config.adapters); i++)
+		ba_adapter_destroy(config.adapters[i]);
+
 	return retval;
 }

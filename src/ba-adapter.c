@@ -94,6 +94,9 @@ struct ba_adapter *ba_adapter_ref(struct ba_adapter *a) {
 
 void ba_adapter_destroy(struct ba_adapter *a) {
 
+	if (a == NULL)
+		return;
+
 	/* XXX: Modification-safe remove-all loop.
 	 *
 	 * Before calling ba_device_destroy() we have to unlock mutex, so

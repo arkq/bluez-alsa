@@ -40,6 +40,7 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
+static const char *bluealsa_dbus_manager_path = "/org/bluealsa";
 static GDBusObjectManagerServer *bluealsa_dbus_manager = NULL;
 
 static GVariant *ba_variant_new_bluealsa_version(void) {
@@ -48,13 +49,13 @@ static GVariant *ba_variant_new_bluealsa_version(void) {
 
 static GVariant *ba_variant_new_bluealsa_adapters(void) {
 
-	const char *strv[HCI_MAX_DEV] = { NULL };
+	const char *strv[ARRAYSIZE(config.adapters)] = { NULL };
 	GVariant *variant;
 	size_t i, ii = 0;
 
 	pthread_mutex_lock(&config.adapters_mutex);
 
-	for (i = 0; i < HCI_MAX_DEV; i++)
+	for (i = 0; i < ARRAYSIZE(config.adapters); i++)
 		if (config.adapters[i] != NULL)
 			strv[ii++] = config.adapters[i]->hci.name;
 
@@ -225,7 +226,7 @@ static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata
 	struct ba_adapter *a;
 	size_t i;
 
-	for (i = 0; i < HCI_MAX_DEV; i++) {
+	for (i = 0; i < ARRAYSIZE(config.adapters); i++) {
 
 		if ((a = ba_adapter_lookup(i)) == NULL)
 			continue;
@@ -313,12 +314,14 @@ void bluealsa_dbus_register(void) {
 		.get_property = bluealsa_manager_get_property,
 	};
 
+	debug("Registering D-Bus manager: %s", bluealsa_dbus_manager_path);
+
 	bluealsa_ManagerIfaceSkeleton *ifs_manager;
 	ifs_manager = bluealsa_manager_iface_skeleton_new(&vtable, NULL, NULL);
 	g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(ifs_manager),
-			config.dbus, "/org/bluealsa", NULL);
+			config.dbus, bluealsa_dbus_manager_path, NULL);
 
-	bluealsa_dbus_manager = g_dbus_object_manager_server_new("/org/bluealsa");
+	bluealsa_dbus_manager = g_dbus_object_manager_server_new(bluealsa_dbus_manager_path);
 	g_dbus_object_manager_server_set_connection(bluealsa_dbus_manager, config.dbus);
 
 }
@@ -790,7 +793,7 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	GVariantBuilder props;
 	ba_variant_populate_pcm(&props, pcm);
 	g_dbus_connection_emit_signal(config.dbus, NULL,
-			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMAdded",
+			bluealsa_dbus_manager_path, BLUEALSA_IFACE_MANAGER, "PCMAdded",
 			g_variant_new("(oa{sv})", pcm->ba_dbus_path, &props), NULL);
 	g_variant_builder_clear(&props);
 
@@ -839,7 +842,7 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	pcm->ba_dbus_exported = false;
 
 	g_dbus_connection_emit_signal(config.dbus, NULL,
-			"/org/bluealsa", BLUEALSA_IFACE_MANAGER, "PCMRemoved",
+			bluealsa_dbus_manager_path, BLUEALSA_IFACE_MANAGER, "PCMRemoved",
 			g_variant_new("(o)", pcm->ba_dbus_path), NULL);
 
 }
