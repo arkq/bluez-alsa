@@ -127,6 +127,8 @@ struct ba_transport {
 			/* selected audio codec configuration */
 			a2dp_t configuration;
 
+			/* delay reporting support */
+			bool delay_reporting;
 			/* delay reported by BlueZ */
 			uint16_t delay;
 			/* volume reported by BlueZ */

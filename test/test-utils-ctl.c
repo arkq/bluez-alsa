@@ -264,7 +264,7 @@ CK_START_TEST(test_client_delay) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--profile=a2dp-source",
+				"--profile=a2dp-sink",
 				NULL), -1);
 
 	char output[4096];
@@ -276,21 +276,21 @@ CK_START_TEST(test_client_delay) {
 
 	/* check default client delay */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "ClientDelay: 0.0 ms"), NULL);
 
 	/* check setting client delay */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "-7.5",
+				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source", "-7.5",
 				NULL), 0);
 
 	/* check that setting client delay does not affect delay */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "ClientDelay: -7.5 ms"), NULL);
-	ck_assert_ptr_ne(strstr(output, "Delay: 10.0 ms"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Delay: 0.0 ms"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);

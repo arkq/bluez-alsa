@@ -24,6 +24,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <gio/gio.h>
 #include <glib.h>
 
 #include "audio.h"
@@ -631,7 +632,11 @@ void ba_transport_pcm_volume_set(
 
 }
 
-int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
+/**
+ * Synchronize PCM volume level.
+ *
+ * This function notifies remote Bluetooth device and D-Bus clients. */
+int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int update_mask) {
 
 	struct ba_transport *t = pcm->t;
 
@@ -684,8 +689,8 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 	}
 
 final:
-	/* notify connected clients (including requester) */
-	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	/* Notify all connected D-Bus clients. */
+	bluealsa_dbus_pcm_update(pcm, update_mask);
 	return 0;
 }
 
@@ -716,18 +721,69 @@ int ba_transport_pcm_get_hardware_volume(
 	return 0;
 }
 
-int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
+/**
+ * Get PCM playback/capture cumulative delay. */
+int ba_transport_pcm_delay_get(const struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
+	int delay = 0;
 
-	int delay = pcm->codec_delay_dms + pcm->processing_delay_dms;
+	delay += pcm->codec_delay_dms;
+	delay += pcm->processing_delay_dms;
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	/* Add delay reported by BlueZ but only for A2DP Source profile. In case
+	 * of A2DP Sink, the BlueZ delay value is in fact our client delay. */
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		delay += t->a2dp.delay;
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	/* HFP/HSP profiles do not provide any delay information. However, we can
+	 * assume some arbitrary value here - for now it will be 10 ms. */
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG)
 		delay += 10;
 
 	return delay;
+}
+
+/**
+ * Synchronize PCM playback delay.
+ *
+ * This function notifies remote Bluetooth device and D-Bus clients. */
+int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int update_mask) {
+
+	struct ba_transport *t = pcm->t;
+	int delay = 0;
+
+	delay += pcm->codec_delay_dms;
+	delay += pcm->processing_delay_dms;
+	delay += pcm->client_delay_dms;
+
+	/* In case of A2DP Sink, update the delay property of the BlueZ media
+	 * transport interface. BlueZ should forward this value to the remote
+	 * device, so it can adjust audio/video synchronization. */
+	if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SINK &&
+			t->a2dp.delay_reporting &&
+			abs(delay - t->a2dp.delay) >= 100 /* 10ms */) {
+
+		GError *err = NULL;
+		t->a2dp.delay = delay;
+		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+				BLUEZ_IFACE_MEDIA_TRANSPORT, "Delay", g_variant_new_uint16(delay), &err);
+
+		if (err != NULL) {
+			if (err->code == G_DBUS_ERROR_PROPERTY_READ_ONLY)
+				/* Even though BlueZ documentation says that the Delay property is
+				 * read-write, it might not be true. In case when the delay write
+				 * operation fails with "not writable" error, we should not try to
+				 * update the delay report value any more. */
+				t->a2dp.delay_reporting = false;
+			warn("Couldn't set A2DP transport delay: %s", err->message);
+			g_error_free(err);
+		}
+
+	}
+
+	/* Notify all connected D-Bus clients. */
+	bluealsa_dbus_pcm_update(pcm, update_mask);
+	return 0;
 }
 
 const char *ba_transport_pcm_channel_to_string(

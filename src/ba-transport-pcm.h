@@ -247,14 +247,19 @@ void ba_transport_pcm_volume_set(
 		const bool *soft_mute,
 		const bool *hard_mute);
 
-int ba_transport_pcm_volume_update(
-		struct ba_transport_pcm *pcm);
+int ba_transport_pcm_volume_sync(
+		struct ba_transport_pcm *pcm,
+		unsigned int update_mask);
 
 int ba_transport_pcm_get_hardware_volume(
 		const struct ba_transport_pcm *pcm);
 
-int ba_transport_pcm_get_delay(
+int ba_transport_pcm_delay_get(
 		const struct ba_transport_pcm *pcm);
+
+int ba_transport_pcm_delay_sync(
+		struct ba_transport_pcm *pcm,
+		unsigned int update_mask);
 
 const char *ba_transport_pcm_channel_to_string(
 		enum ba_transport_pcm_channel channel);

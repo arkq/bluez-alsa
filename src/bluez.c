@@ -455,6 +455,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	enum bluez_a2dp_transport_state state = 0xFFFF;
 	char *device_path = NULL;
 	a2dp_t configuration = { 0 };
+	bool delay_reporting = false;
 	uint16_t volume = 127;
 	uint16_t delay = 150;
 
@@ -508,6 +509,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			delay = g_variant_get_uint16(value);
+			delay_reporting = true;
 		}
 		else if (strcmp(property, "Volume") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
@@ -566,6 +568,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	}
 
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
+	t->a2dp.delay_reporting = delay_reporting;
 	t->a2dp.delay = delay;
 	t->a2dp.volume = volume;
 
@@ -576,6 +579,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			&configuration, sep->config.caps_size);
 	debug("PCM configuration: channels=%u rate=%u",
 			t->a2dp.pcm.channels, t->a2dp.pcm.rate);
+	debug("Delay reporting: %s",
+			delay_reporting ? "supported" : "unsupported");
 
 	ba_transport_set_a2dp_state(t, state);
 
@@ -1331,8 +1336,8 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 
 				}
 				g_variant_unref(value);
-
 			}
+
 		}
 		g_variant_iter_free(properties);
 	}

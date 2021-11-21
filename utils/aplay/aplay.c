@@ -28,6 +28,7 @@
 #include <syslog.h>
 #include <sys/eventfd.h>
 #include <sys/param.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
@@ -40,6 +41,7 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/nv.h"
+#include "shared/rt.h"
 #include "alsa-mixer.h"
 #include "alsa-pcm.h"
 #include "dbus.h"
@@ -563,8 +565,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				w->ba_pcm.pcm_path, softvol ? "software" : "pass-through");
 		if (softvol != w->ba_pcm.soft_volume) {
 			w->ba_pcm.soft_volume = softvol;
-			if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm,
-						BLUEALSA_PCM_SOFT_VOLUME, &err)) {
+			if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
 				error("Couldn't set BlueALSA source PCM volume mode: %s", err.message);
 				dbus_error_free(&err);
 				goto fail;
@@ -592,6 +593,12 @@ static void *io_worker_routine(struct io_worker *w) {
 	const unsigned int pcm_open_retry_intervals[] = { 1, 1, 2, 3, 5 };
 	size_t pcm_open_retry_pcm_samples = 0;
 	size_t pcm_open_retries = 0;
+
+	/* The time-stamp for delay update rate limiting. */
+	struct timespec pcm_delay_update_ts = { 0 };
+	/* Window buffer for calculating delay moving average. */
+	snd_pcm_sframes_t pcm_delay_frames[64];
+	size_t pcm_delay_frames_i = 0;
 
 	size_t pause_retry_pcm_samples = pcm_1s_samples;
 	size_t pause_retries = 0;
@@ -745,9 +752,12 @@ static void *io_worker_routine(struct io_worker *w) {
 			io_worker_mixer_open(w, mixer_device, mixer_elem_name, mixer_elem_index);
 			io_worker_mixer_volume_sync_setup(w);
 
-			/* reset retry counters */
+			/* Reset retry counters. */
 			pcm_open_retry_pcm_samples = 0;
 			pcm_open_retries = 0;
+
+			/* Reset moving delay window buffer. */
+			memset(pcm_delay_frames, 0, sizeof(pcm_delay_frames));
 
 			if (verbose >= 2) {
 				info("Used configuration for %s:\n"
@@ -803,8 +813,43 @@ retry_alsa_write:
 				goto close_alsa;
 			}
 
-		/* move leftovers to the beginning and reposition tail */
+		/* Move leftovers to the beginning and reposition tail. */
 		ffb_shift(&buffer, frames * w->ba_pcm.channels);
+
+		int ret;
+		if ((ret = snd_pcm_delay(w->snd_pcm,
+						&pcm_delay_frames[pcm_delay_frames_i++ % ARRAYSIZE(pcm_delay_frames)])) != 0)
+			warn("Couldn't get PCM delay: %s", snd_strerror(ret));
+		else {
+
+			struct timespec ts_now;
+			/* Rate limit delay updates to 1 update per second. */
+			struct timespec ts_delay = { .tv_sec = 1 };
+
+			gettimestamp(&ts_now);
+			timespecadd(&pcm_delay_update_ts, &ts_delay, &ts_delay);
+
+			snd_pcm_sframes_t pcm_delay_frames_avg = 0;
+			for (size_t i = 0; i < ARRAYSIZE(pcm_delay_frames); i++)
+				pcm_delay_frames_avg += pcm_delay_frames[i];
+			pcm_delay_frames_avg /= ARRAYSIZE(pcm_delay_frames);
+
+			const int delay = pcm_delay_frames_avg * 10000 / w->ba_pcm.rate;
+			if (difftimespec(&ts_now, &ts_delay, &ts_delay) < 0 &&
+					abs(delay - w->ba_pcm.client_delay) >= 100 /* 10ms */) {
+
+				pcm_delay_update_ts = ts_now;
+
+				w->ba_pcm.client_delay = delay;
+				if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm, BLUEALSA_PCM_CLIENT_DELAY, &err)) {
+					error("Couldn't update BlueALSA PCM client delay: %s", err.message);
+					dbus_error_free(&err);
+					goto fail;
+				}
+
+			}
+
+		}
 
 		continue;
 

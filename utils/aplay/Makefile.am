@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2023 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 
 if ENABLE_APLAY
 
@@ -12,6 +12,7 @@ bluealsa_aplay_SOURCES = \
 	../../src/shared/ffb.c \
 	../../src/shared/log.c \
 	../../src/shared/nv.c \
+	../../src/shared/rt.c \
 	alsa-mixer.c \
 	alsa-pcm.c \
 	dbus.c \

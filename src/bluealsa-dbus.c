@@ -281,7 +281,7 @@ static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *
 }
 
 static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_uint16(ba_transport_pcm_get_delay(pcm));
+	return g_variant_new_uint16(ba_transport_pcm_delay_get(pcm));
 }
 
 static GVariant *ba_variant_new_pcm_client_delay(const struct ba_transport_pcm *pcm) {
@@ -962,7 +962,7 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 
 	if (strcmp(property, "ClientDelay") == 0) {
 		pcm->client_delay_dms = g_variant_get_int16(value);
-		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
+		ba_transport_pcm_delay_sync(pcm, BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
 		return TRUE;
 	}
 
@@ -987,7 +987,7 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 
 		pthread_mutex_unlock(&pcm->mutex);
 
-		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_SOFT_VOLUME | BA_DBUS_PCM_UPDATE_VOLUME);
+		ba_transport_pcm_volume_sync(pcm, BA_DBUS_PCM_UPDATE_SOFT_VOLUME | BA_DBUS_PCM_UPDATE_VOLUME);
 		return true;
 	}
 
@@ -1017,7 +1017,7 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 
 		pthread_mutex_unlock(&pcm->mutex);
 
-		ba_transport_pcm_volume_update(pcm);
+		ba_transport_pcm_volume_sync(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 		return true;
 	}
 

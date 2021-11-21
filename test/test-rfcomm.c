@@ -325,7 +325,7 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
 	pthread_mutex_unlock(&pcm->mutex);
 	/* use internal API to update volume */
-	ba_transport_pcm_volume_update(pcm);
+	ba_transport_pcm_volume_sync(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 	ck_assert_rfcomm_recv(fd, "\r\n+VGS:7\r\n");
 
 	ba_transport_destroy(sco);
