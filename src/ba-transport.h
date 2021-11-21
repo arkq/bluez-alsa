@@ -143,6 +143,12 @@ struct ba_transport {
 			 * subsequent ioctl() calls. */
 			int bt_fd_coutq_init;
 
+			/* Even though BlueZ documentation says that the Delay property is
+			 * read-write, it might not be true. In case when the delay write
+			 * operation fails with "not writable" error, we should not try to
+			 * update the delay value any more. */
+			bool read_only_delay_quirk;
+
 		} a2dp;
 
 		struct {
