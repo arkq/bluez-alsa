@@ -152,6 +152,17 @@ AM_COND_IF([ENABLE_FASTSTREAM], [
 	AC_DEFINE([ENABLE_FASTSTREAM], [1], [Define to 1 if FastStream is enabled.])
 ])
 
+AC_ARG_ENABLE([lc3plus],
+	[AS_HELP_STRING([--enable-lc3plus], [enable LC3plus support])])
+AM_CONDITIONAL([ENABLE_LC3PLUS], [test "x$enable_lc3plus" = "xyes"])
+AM_COND_IF([ENABLE_LC3PLUS], [
+	AC_CHECK_HEADERS([lc3.h],
+		[], [AC_MSG_ERROR([LC3plus header file not found])])
+	AC_CHECK_LIB([LC3plus], [lc3plus_version],
+		[AC_SUBST([LC3PLUS_LIBS], [-lLC3plus])], [AC_MSG_ERROR([LC3plus library not found])])
+	AC_DEFINE([ENABLE_LC3PLUS], [1], [Define to 1 if LC3plus is enabled.])
+])
+
 AC_ARG_ENABLE([ldac],
 	[AS_HELP_STRING([--enable-ldac], [enable LDAC support])])
 AM_CONDITIONAL([ENABLE_LDAC], [test "x$enable_ldac" = "xyes"])

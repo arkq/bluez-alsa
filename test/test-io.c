@@ -58,6 +58,7 @@
 #include "../src/a2dp-aptx-hd.c"
 #include "../src/a2dp-aptx.c"
 #include "../src/a2dp-faststream.c"
+#include "../src/a2dp-lc3plus.c"
 #include "../src/a2dp-ldac.c"
 #include "../src/a2dp-mpeg.c"
 #include "../src/a2dp-sbc.c"
@@ -128,6 +129,14 @@ static const a2dp_faststream_t config_faststream_44100_16000 = {
 	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
 	.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
 	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+};
+
+__attribute__ ((unused))
+static const a2dp_lc3plus_t config_lc3plus_48000_stereo = {
+	.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+	.frame_duration = LC3PLUS_FRAME_DURATION_050,
+	.channels = LC3PLUS_CHANNELS_2,
+	LC3PLUS_INIT_FREQUENCY(LC3PLUS_SAMPLING_FREQ_48000)
 };
 
 __attribute__ ((unused))
@@ -432,7 +441,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 		sprintf(fname, "decoded-%s.wav", transport_type_to_fname(t->type));
 		ck_assert_ptr_ne(sf = sf_open(fname, SFM_WRITE, &sf_info), NULL);
 #else
-		error("Loading audio files requires sndfile library!");
+		error("Dumping audio files requires sndfile library!");
 #endif
 	}
 
@@ -457,6 +466,9 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 				sf_write_short(sf, (short *)buffer, samples);
 				break;
 			case 4:
+				if (sf_info.format & SF_FORMAT_PCM_24)
+					for (size_t i = 0; i < samples; i++)
+						((int *)buffer)[i] <<= 8;
 				sf_write_int(sf, (int *)buffer, samples);
 				break;
 			default:
@@ -806,6 +818,37 @@ START_TEST(test_a2dp_faststream) {
 } END_TEST
 #endif
 
+#if ENABLE_LC3PLUS
+START_TEST(test_a2dp_lc3plus) {
+
+	struct ba_transport_type ttype = {
+		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		.codec = A2DP_CODEC_VENDOR_LC3PLUS };
+	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/lc3plus",
+			&a2dp_lc3plus_source, &config_lc3plus_48000_stereo);
+	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
+	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/lc3plus",
+			&a2dp_lc3plus_sink, &config_lc3plus_48000_stereo);
+
+	if (aging_duration) {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 300;
+		test_io(t1, t2, a2dp_lc3plus_enc_thread, a2dp_lc3plus_dec_thread, 4 * 1024);
+	}
+	else {
+		debug("\n\n*** A2DP codec: LC3plus ***");
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 300;
+		test_io(t1, t2, a2dp_lc3plus_enc_thread, test_io_thread_dump_bt, 2 * 1024);
+		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_lc3plus_dec_thread, 2 * 1024);
+	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
+} END_TEST
+#endif
+
 #if ENABLE_LDAC
 START_TEST(test_a2dp_ldac) {
 
@@ -908,11 +951,13 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX_HD), TEST_CODEC_APTX_HD },
 #define TEST_CODEC_FASTSTREAM (1 << 5)
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), TEST_CODEC_FASTSTREAM },
-#define TEST_CODEC_LDAC (1 << 6)
+#define TEST_CODEC_LC3PLUS (1 << 6)
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LC3PLUS), TEST_CODEC_LC3PLUS },
+#define TEST_CODEC_LDAC (1 << 7)
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), TEST_CODEC_LDAC },
-#define TEST_CODEC_CVSD (1 << 7)
+#define TEST_CODEC_CVSD (1 << 8)
 		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), TEST_CODEC_CVSD },
-#define TEST_CODEC_MSBC (1 << 8)
+#define TEST_CODEC_MSBC (1 << 9)
 		{ hfp_codec_id_to_string(HFP_CODEC_MSBC), TEST_CODEC_MSBC },
 	};
 
@@ -1030,6 +1075,10 @@ int main(int argc, char *argv[]) {
 #if ENABLE_FASTSTREAM
 	if (enabled_codecs & TEST_CODEC_FASTSTREAM)
 		tcase_add_test(tc, test_a2dp_faststream);
+#endif
+#if ENABLE_LC3PLUS
+	if (enabled_codecs & TEST_CODEC_LC3PLUS)
+		tcase_add_test(tc, test_a2dp_lc3plus);
 #endif
 #if ENABLE_LDAC
 	config.ldac_abr = true;

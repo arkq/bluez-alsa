@@ -140,6 +140,10 @@ struct ba_config {
 	uint8_t lame_vbr_quality;
 #endif
 
+#if ENABLE_LC3PLUS
+	unsigned int lc3plus_bitrate;
+#endif
+
 #if ENABLE_LDAC
 	bool ldac_abr;
 	uint8_t ldac_eqmid;

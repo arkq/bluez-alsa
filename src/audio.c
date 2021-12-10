@@ -1,6 +1,6 @@
 /*
  * BlueALSA - audio.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2021 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,6 +16,8 @@
 #include <string.h>
 
 #include <glib.h>
+
+#include "shared/defs.h"
 
 /**
  * Convert audio volume change in dB to loudness.
@@ -35,6 +37,50 @@ double audio_decibel_to_loudness(double value) {
  *   in dB which corresponds to the given loudness value. */
 double audio_loudness_to_decibel(double value) {
 	return 10 * log2(value);
+}
+
+/**
+ * Join channnels into interleaved S16 PCM signal. */
+void audio_interleave_s16_2le(const int16_t *ch1, const int16_t *ch2,
+		size_t frames, unsigned int channels, int16_t *dest) {
+	const int16_t *src[] = { ch1, ch2 };
+	g_assert_cmpint(channels, <=, ARRAYSIZE(src));
+	for (size_t f = 0; f < frames; f++)
+		for (unsigned int c = 0; c < channels; c++)
+			*dest++ = src[c][f];
+}
+
+/**
+ * Join channnels into interleaved S32 PCM signal. */
+void audio_interleave_s32_4le(const int32_t *ch1, const int32_t *ch2,
+		size_t frames, unsigned int channels, int32_t *dest) {
+	const int32_t *src[] = { ch1, ch2 };
+	g_assert_cmpint(channels, <=, ARRAYSIZE(src));
+	for (size_t f = 0; f < frames; f++)
+		for (unsigned int c = 0; c < channels; c++)
+			*dest++ = src[c][f];
+}
+
+/**
+ * Split interleaved S16 PCM signal into channels. */
+void audio_deinterleave_s16_2le(const int16_t *src, size_t frames,
+		unsigned int channels, int16_t *dest1, int16_t *dest2) {
+	int16_t *dest[] = { dest1, dest2 };
+	g_assert_cmpint(channels, <=, ARRAYSIZE(dest));
+	for (size_t f = 0; f < frames; f++)
+		for (unsigned int c = 0; c < channels; c++)
+			dest[c][f] = *src++;
+}
+
+/**
+ * Split interleaved S32 PCM signal into channels. */
+void audio_deinterleave_s32_4le(const int32_t *src, size_t frames,
+		unsigned int channels, int32_t *dest1, int32_t *dest2) {
+	int32_t *dest[] = { dest1, dest2 };
+	g_assert_cmpint(channels, <=, ARRAYSIZE(dest));
+	for (size_t f = 0; f < frames; f++)
+		for (unsigned int c = 0; c < channels; c++)
+			dest[c][f] = *src++;
 }
 
 /**

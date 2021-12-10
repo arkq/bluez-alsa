@@ -50,6 +50,8 @@ void a2dp_aptx_hd_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_aptx_hd_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_faststream_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_lc3plus_transport_init(struct ba_transport *t) { (void)t; }
+int a2dp_lc3plus_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_ldac_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_ldac_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_thread *th) { return sleep(3600), th; }

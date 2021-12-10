@@ -62,6 +62,11 @@ bluealsa_SOURCES += \
 	a2dp-faststream.c
 endif
 
+if ENABLE_LC3PLUS
+bluealsa_SOURCES += \
+	a2dp-lc3plus.c
+endif
+
 if ENABLE_LDAC
 bluealsa_SOURCES += \
 	a2dp-ldac.c
@@ -111,6 +116,7 @@ LDADD = \
 	@BLUEZ_LIBS@ \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@ \
+	@LC3PLUS_LIBS@ \
 	@LDAC_ABR_LIBS@ \
 	@LDAC_DEC_LIBS@ \
 	@LDAC_ENC_LIBS@ \

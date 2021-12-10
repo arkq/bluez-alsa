@@ -121,6 +121,12 @@ struct ba_config config = {
 	.lame_vbr_quality = 2,
 #endif
 
+#if ENABLE_LC3PLUS
+	/* Set default bitrate to 396.8 kbps. Such value should result in a high
+	 * quality with a guarantee that LC3plus frames will not be fragmented. */
+	.lc3plus_bitrate = 396800,
+#endif
+
 #if ENABLE_LDAC
 	.ldac_abr = false,
 	/* Use standard encoder quality as a reasonable default. */

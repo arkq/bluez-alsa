@@ -183,14 +183,20 @@ static void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
 	 * header and at least one SBC frame. In general, there is no constraint
 	 * for the MTU value, but the speed might suffer significantly. */
-	const size_t mtu_write_payload = t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_media_header_t);
+	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_media_header_t);
+	const size_t mtu_write_payload_len = t->mtu_write - rtp_headers_len;
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 
-	if (mtu_write_payload < sbc_frame_len)
+	size_t ffb_pcm_len = sbc_frame_samples;
+	if (mtu_write_payload_len / sbc_frame_len > 1)
+		/* account for possible SBC frames packing */
+		ffb_pcm_len *= mtu_write_payload_len / sbc_frame_len;
+
+	if (mtu_write_payload_len < sbc_frame_len)
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu",
 				t->mtu_write, RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len);
 
-	if (ffb_init_int16_t(&pcm, sbc_frame_samples * (mtu_write_payload / sbc_frame_len)) == -1 ||
+	if (ffb_init_int16_t(&pcm, ffb_pcm_len) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -234,6 +240,7 @@ static void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 		 * based on the socket MTU, so such transfer should be most efficient. */
 		while (input_samples >= sbc_frame_samples &&
 				output_len >= sbc_frame_len &&
+				/* do not overflow RTP frame counter */
 				sbc_frames < ((1 << 4) - 1)) {
 
 			ssize_t len;

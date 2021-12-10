@@ -186,6 +186,11 @@ bluealsa_mock_SOURCES += ../src/a2dp-faststream.c
 test_a2dp_SOURCES += ../src/a2dp-faststream.c
 endif
 
+if ENABLE_LC3PLUS
+bluealsa_mock_SOURCES += ../src/a2dp-lc3plus.c
+test_a2dp_SOURCES += ../src/a2dp-lc3plus.c
+endif
+
 if ENABLE_LDAC
 bluealsa_mock_SOURCES += ../src/a2dp-ldac.c
 test_a2dp_SOURCES += ../src/a2dp-ldac.c
@@ -229,6 +234,7 @@ LDADD = \
 	@CHECK_LIBS@ \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@ \
+	@LC3PLUS_LIBS@ \
 	@LDAC_ABR_LIBS@ \
 	@LDAC_DEC_LIBS@ \
 	@LDAC_ENC_LIBS@ \

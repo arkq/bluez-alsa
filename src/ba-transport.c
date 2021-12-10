@@ -33,6 +33,7 @@
 #include "a2dp-aptx-hd.h"
 #include "a2dp-aptx.h"
 #include "a2dp-faststream.h"
+#include "a2dp-lc3plus.h"
 #include "a2dp-ldac.h"
 #include "a2dp-mpeg.h"
 #include "a2dp-sbc.h"
@@ -1076,6 +1077,11 @@ static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 		a2dp_faststream_transport_init(t);
 		break;
 #endif
+#if ENABLE_LC3PLUS
+	case A2DP_CODEC_VENDOR_LC3PLUS:
+		a2dp_lc3plus_transport_init(t);
+		break;
+#endif
 #if ENABLE_LDAC
 	case A2DP_CODEC_VENDOR_LDAC:
 		a2dp_ldac_transport_init(t);
@@ -1167,6 +1173,10 @@ int ba_transport_start(struct ba_transport *t) {
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			return a2dp_faststream_transport_start(t);
+#endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return a2dp_lc3plus_transport_start(t);
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:

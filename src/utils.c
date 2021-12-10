@@ -95,6 +95,10 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			return "/A2DP/FastStream/source";
 #endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "/A2DP/LC3plus/source";
+#endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "/A2DP/LDAC/source";
@@ -126,6 +130,10 @@ const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type 
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			return "/A2DP/FastStream/sink";
+#endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "/A2DP/LC3plus/sink";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
@@ -230,6 +238,10 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			return "A2DP Source (FastStream)";
 #endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "A2DP Source (LC3plus)";
+#endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
 			return "A2DP Source (LDAC)";
@@ -260,6 +272,10 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 #if ENABLE_FASTSTREAM
 		case A2DP_CODEC_VENDOR_FASTSTREAM:
 			return "A2DP Sink (FastStream)";
+#endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "A2DP Sink (LC3plus)";
 #endif
 #if ENABLE_LDAC
 		case A2DP_CODEC_VENDOR_LDAC:
@@ -448,6 +464,62 @@ const char *aacenc_strerror(AACENC_ERROR err) {
 		return "Encoding error";
 	case AACENC_ENCODE_EOF:
 		return "End of file";
+	default:
+		debug("Unknown error code: %#x", err);
+		return "Unknown error";
+	}
+}
+#endif
+
+#if ENABLE_LC3PLUS
+/**
+ * Get string representation of the LC3plus error code.
+ *
+ * @param err LC3plus error code.
+ * @return Human-readable string. */
+const char *lc3plus_strerror(LC3PLUS_Error err) {
+	switch (err) {
+	case LC3PLUS_OK:
+		return "Success";
+	case LC3PLUS_ERROR:
+		return "Generic error";
+	case LC3PLUS_DECODE_ERROR:
+		return "Decode error";
+	case LC3PLUS_NULL_ERROR:
+		return "Invalid argument";
+	case LC3PLUS_SAMPLERATE_ERROR:
+		return "Invalid sample rate";
+	case LC3PLUS_CHANNELS_ERROR:
+		return "Invalid channel config";
+	case LC3PLUS_BITRATE_ERROR:
+		return "Invalid bitrate";
+	case LC3PLUS_NUMBYTES_ERROR:
+		return "Invalid number of bytes";
+	case LC3PLUS_EPMODE_ERROR:
+		return "Invalid EP mode";
+	case LC3PLUS_FRAMEMS_ERROR:
+		return "Invalid frame length";
+	case LC3PLUS_ALIGN_ERROR:
+		return "Unaligned pointer";
+	case LC3PLUS_HRMODE_ERROR:
+		return "Invalid hi-resolution mode";
+	case LC3PLUS_BITRATE_UNSET_ERROR:
+	case LC3PLUS_BITRATE_SET_ERROR:
+		return "Bitrate set error";
+	case LC3PLUS_HRMODE_BW_ERROR:
+		return "Conflict hi-resolution mode and bandwidth switching";
+	case LC3PLUS_PLCMODE_ERROR:
+		return "Invalid PLC method";
+	case LC3PLUS_EPMR_ERROR:
+		return "Invalid EPMR value";
+	case LC3PLUS_WARNING:
+		return "Generic warning";
+	case LC3PLUS_BW_WARNING:
+		return "Invalid cutoff frequency";
+	case LC3PLUS_PADDING_ERROR:
+		return "Padding error";
+	case FRAMESIZE_ERROR:
+		return "Framesize error";
 	default:
 		debug("Unknown error code: %#x", err);
 		return "Unknown error";

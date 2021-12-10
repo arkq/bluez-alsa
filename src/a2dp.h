@@ -117,6 +117,7 @@ uint16_t a2dp_get_vendor_codec_id(
 #define A2DP_CHECK_ERR_MPEG_LAYER        (1 << 7)
 #define A2DP_CHECK_ERR_AAC_OBJ_TYPE      (1 << 8)
 #define A2DP_CHECK_ERR_FASTSTREAM_DIR    (1 << 9)
+#define A2DP_CHECK_ERR_LC3PLUS_DURATION  (1 << 10)
 
 uint32_t a2dp_check_configuration(
 		const struct a2dp_codec *codec,

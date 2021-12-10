@@ -367,15 +367,15 @@ static void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 						goto fail;
 					}
 
-					/* account written payload only */
+					/* resend RTP header */
 					len -= RTP_HEADER_LEN;
 
-					/* break if the last part of the payload has been written */
+					/* break if there is no more payload data */
 					if ((payload_len -= len) == 0)
 						break;
 
-					/* move rest of data to the beginning of the payload */
-					debug("Payload fragmentation: extra %zd bytes", payload_len);
+					/* move the rest of data to the beginning of payload */
+					debug("AAC payload fragmentation: extra %zu bytes", payload_len);
 					memmove(rtp_payload, rtp_payload + len, payload_len);
 
 				}

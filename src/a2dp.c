@@ -22,6 +22,7 @@
 #include "a2dp-aptx-hd.h"
 #include "a2dp-aptx.h"
 #include "a2dp-faststream.h"
+#include "a2dp-lc3plus.h"
 #include "a2dp-ldac.h"
 #include "a2dp-mpeg.h"
 #include "a2dp-sbc.h"
@@ -33,6 +34,10 @@
 #include "shared/log.h"
 
 struct a2dp_codec * const a2dp_codecs[] = {
+#if ENABLE_LC3PLUS
+	&a2dp_lc3plus_source,
+	&a2dp_lc3plus_sink,
+#endif
 #if ENABLE_LDAC
 	&a2dp_ldac_source,
 # if HAVE_LDAC_DECODE
@@ -90,6 +95,9 @@ int a2dp_codecs_init(void) {
 #endif
 #if ENABLE_FASTSTREAM
 	a2dp_faststream_init();
+#endif
+#if ENABLE_LC3PLUS
+	a2dp_lc3plus_init();
 #endif
 #if ENABLE_LDAC
 	a2dp_ldac_init();
@@ -422,6 +430,24 @@ uint32_t a2dp_check_configuration(
 	}
 #endif
 
+#if ENABLE_LC3PLUS
+	case A2DP_CODEC_VENDOR_LC3PLUS: {
+
+		const a2dp_lc3plus_t *cap = configuration;
+		cap_chm = cap->channels;
+		cap_freq = LC3PLUS_GET_FREQUENCY(*cap);
+
+		if (cap->frame_duration != LC3PLUS_FRAME_DURATION_025 &&
+				cap->frame_duration != LC3PLUS_FRAME_DURATION_050 &&
+				cap->frame_duration != LC3PLUS_FRAME_DURATION_100) {
+			debug("Invalid LC3plus frame duration: %#x", cap->frame_duration);
+			ret |= A2DP_CHECK_ERR_LC3PLUS_DURATION;
+		}
+
+		break;
+	}
+#endif
+
 #if ENABLE_LDAC
 	case A2DP_CODEC_VENDOR_LDAC: {
 		const a2dp_ldac_t *cap = configuration;
@@ -507,6 +533,10 @@ int a2dp_filter_capabilities(
 #endif
 #if ENABLE_FASTSTREAM
 	case A2DP_CODEC_VENDOR_FASTSTREAM:
+		break;
+#endif
+#if ENABLE_LC3PLUS
+	case A2DP_CODEC_VENDOR_LC3PLUS:
 		break;
 #endif
 #if ENABLE_LDAC
@@ -787,6 +817,41 @@ int a2dp_select_configuration(
 
 		if ((cap->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 			error("FastStream: No supported directions: %#x", cap->direction);
+		}
+
+		break;
+	}
+#endif
+
+#if ENABLE_LC3PLUS
+	case A2DP_CODEC_VENDOR_LC3PLUS: {
+
+		a2dp_lc3plus_t *cap = capabilities;
+		unsigned int cap_chm = cap->channels;
+		unsigned int cap_freq = LC3PLUS_GET_FREQUENCY(*cap);
+
+		if (cap->frame_duration & LC3PLUS_FRAME_DURATION_100)
+			cap->frame_duration = LC3PLUS_FRAME_DURATION_100;
+		else if (cap->frame_duration & LC3PLUS_FRAME_DURATION_050)
+			cap->frame_duration = LC3PLUS_FRAME_DURATION_050;
+		else if (cap->frame_duration & LC3PLUS_FRAME_DURATION_025)
+			cap->frame_duration = LC3PLUS_FRAME_DURATION_025;
+		else {
+			error("LC3plus: No supported frame duration: %#x", cap->frame_duration);
+			goto fail;
+		}
+
+		if ((cap->channels = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+			error("LC3plus: No supported channels: %#x", cap_chm);
+			goto fail;
+		}
+
+		unsigned int freq;
+		if ((freq = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) != 0)
+			LC3PLUS_SET_FREQUENCY(*cap, freq);
+		else {
+			error("LC3plus: No supported sampling frequencies: %#x", cap_freq);
+			goto fail;
 		}
 
 		break;

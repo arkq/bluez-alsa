@@ -169,6 +169,9 @@ int main(int argc, char **argv) {
 		{ "aac-true-bps", no_argument, NULL, 18 },
 		{ "aac-vbr", no_argument, NULL, 19 },
 #endif
+#if ENABLE_LC3PLUS
+		{ "lc3plus-bitrate", required_argument, NULL, 20 },
+#endif
 #if ENABLE_LDAC
 		{ "ldac-abr", no_argument, NULL, 10 },
 		{ "ldac-eqmid", required_argument, NULL, 11 },
@@ -230,6 +233,9 @@ int main(int argc, char **argv) {
 					"  --aac-latm-version=NUM\tselect LATM syntax version\n"
 					"  --aac-true-bps\t\tenable true bit-per-second bit rate\n"
 					"  --aac-vbr\t\t\tprefer VBR mode over CBR mode\n"
+#endif
+#if ENABLE_LC3PLUS
+					"  --lc3plus-bitrate=BPS\t\tset LC3plus encoder CBR bitrate\n"
 #endif
 #if ENABLE_LDAC
 					"  --ldac-abr\t\t\tenable LDAC adaptive bit rate\n"
@@ -420,6 +426,12 @@ int main(int argc, char **argv) {
 			break;
 		case 19 /* --aac-vbr */ :
 			config.aac_prefer_vbr = true;
+			break;
+#endif
+
+#if ENABLE_LC3PLUS
+		case 20 /* --lc3plus-bitrate=BPS */ :
+			config.lc3plus_bitrate = atoi(optarg);
 			break;
 #endif
 

@@ -173,6 +173,10 @@ OPTIONS
     will be used.
     Used AAC configuration depends on a remote Bluetooth device capabilities.
 
+--lc3plus-bitrate=BPS
+    Set LC3plus encoder bit rate for constant bit rate mode (CBR) as *BPS*.
+    Default value is **396800** bits per second.
+
 --ldac-abr
     Enables LDAC adaptive bit rate, which will dynamically adjust encoder quality
     based on the connection stability.

@@ -333,6 +333,19 @@ static void dump_lc3plus(const void *blob, size_t size) {
 		return;
 	printf("LC3plus <hex:%s> {\n", bintohex(blob, size));
 	printf_vendor(&lc3plus->info);
+	printf(""
+			"  <reserved>:4\n"
+			"  frame-duration:4 =%s%s%s\n"
+			"  channel-mode:2 =%s%s\n"
+			"  sampling-frequency:16 =%s%s\n"
+			"}\n",
+			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_025 ? " 2.5ms" : "",
+			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_050 ? " 5ms" : "",
+			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_100 ? " 10ms" : "",
+			lc3plus->channels & LC3PLUS_CHANNELS_1 ? " Mono" : "",
+			lc3plus->channels & LC3PLUS_CHANNELS_2 ? " Stereo" : "",
+			LC3PLUS_GET_FREQUENCY(*lc3plus) & LC3PLUS_SAMPLING_FREQ_48000 ? " 48000" : "",
+			LC3PLUS_GET_FREQUENCY(*lc3plus) & LC3PLUS_SAMPLING_FREQ_96000 ? " 96000" : "");
 }
 
 static void dump_ldac(const void *blob, size_t size) {

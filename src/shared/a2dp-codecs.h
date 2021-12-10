@@ -303,6 +303,27 @@
 #define LC3PLUS_VENDOR_ID               BT_COMPID_FRAUNHOFER_IIS
 #define LC3PLUS_CODEC_ID                0x0001
 
+#define LC3PLUS_FRAME_DURATION_100      0x04
+#define LC3PLUS_FRAME_DURATION_050      0x02
+#define LC3PLUS_FRAME_DURATION_025      0x01
+
+#define LC3PLUS_CHANNELS_1              0x80
+#define LC3PLUS_CHANNELS_2              0x40
+
+#define LC3PLUS_SAMPLING_FREQ_48000     0x0100
+#define LC3PLUS_SAMPLING_FREQ_96000     0x0080
+
+#define LC3PLUS_GET_FREQUENCY(a) \
+	((a).frequency1 << 8 | (a).frequency2)
+#define LC3PLUS_SET_FREQUENCY(a, f) \
+	do { \
+		(a).frequency1 = ((f) >> 8) & 0xff; \
+		(a).frequency2 = (f) & 0xff; \
+	} while (0)
+#define LC3PLUS_INIT_FREQUENCY(f) \
+	.frequency1 = ((f) >> 8) & 0xff, \
+	.frequency2 = (f) & 0xff,
+
 #define LDAC_VENDOR_ID                  BT_COMPID_SONY
 #define LDAC_CODEC_ID                   0x00aa
 
@@ -453,6 +474,11 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
+	uint8_t frame_duration:4;
+	uint8_t rfa:4;
+	uint8_t channels;
+	uint8_t frequency1;
+	uint8_t frequency2;
 } __attribute__ ((packed)) a2dp_lc3plus_t;
 
 typedef struct {
@@ -562,6 +588,11 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
+	uint8_t rfa:4;
+	uint8_t frame_duration:4;
+	uint8_t channels;
+	uint8_t frequency1;
+	uint8_t frequency2;
 } __attribute__ ((packed)) a2dp_lc3plus_t;
 
 typedef struct {

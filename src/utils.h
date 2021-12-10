@@ -49,6 +49,11 @@ const char *aacdec_strerror(AAC_DECODER_ERROR err);
 const char *aacenc_strerror(AACENC_ERROR err);
 #endif
 
+#if ENABLE_LC3PLUS
+# include <lc3.h>
+const char *lc3plus_strerror(LC3PLUS_Error err);
+#endif
+
 #if ENABLE_LDAC
 const char *ldacBT_strerror(int err);
 #endif
