@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "a2dp-codecs.h"
+#include "shared/a2dp-codecs.h"
 
 enum a2dp_dir {
 	A2DP_SOURCE = 0,

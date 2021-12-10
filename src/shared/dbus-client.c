@@ -16,39 +16,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <unistd.h>
 
 #include "shared/defs.h"
-
-static const struct {
-	const char *alias;
-	const char *name;
-} codec_aliases[] = {
-	{ "SBC", "SBC" },
-	{ "MP3", "MP3" },
-	{ "AAC", "AAC" },
-	{ "ATRAC", "ATRAC" },
-	{ "aptX", "aptX" },
-	{ "apt-X", "aptX" },
-	{ "aptX-AD", "aptX-AD" },
-	{ "apt-X-AD", "aptX-AD" },
-	{ "aptX-HD", "aptX-HD" },
-	{ "apt-X-HD", "aptX-HD" },
-	{ "aptX-LL", "aptX-LL" },
-	{ "apt-X-LL", "aptX-LL" },
-	{ "aptX-TWS", "aptX-TWS" },
-	{ "apt-X-TWS", "aptX-TWS" },
-	{ "FastStream", "FastStream" },
-	{ "LDAC", "LDAC" },
-	{ "LHDC", "LHDC" },
-	{ "LHDC-LL", "LHDC-LL" },
-	{ "LHDC-v1", "LHDC-v1" },
-	{ "samsung-HD", "samsung-HD" },
-	{ "samsung-SC", "samsung-SC" },
-	{ "CVSD", "CVSD" },
-	{ "MSBC", "mSBC" },
-};
 
 static int path2ba(const char *path, bdaddr_t *ba) {
 
@@ -514,15 +484,6 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 	dbus_message_unref(rep);
 	dbus_message_unref(msg);
 	return rv;
-}
-
-const char *bluealsa_dbus_pcm_get_codec_canonical_name(
-		const char *alias) {
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(codec_aliases); i++)
-		if (strcasecmp(alias, codec_aliases[i].alias) == 0)
-			return codec_aliases[i].name;
-	return alias;
 }
 
 /**

@@ -37,6 +37,7 @@ aloader_la_LDFLAGS = \
 	-shared -module
 
 bluealsa_mock_SOURCES = \
+	../src/shared/a2dp-codecs.c \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
@@ -97,6 +98,7 @@ test_ba_SOURCES = \
 	test-ba.c
 
 test_io_SOURCES = \
+	../src/shared/a2dp-codecs.c \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \

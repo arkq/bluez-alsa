@@ -35,8 +35,6 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
 unsigned int g_bdaddr_hash(const void *v);
 gboolean g_bdaddr_equal(const void *v1, const void *v2);
 
-uint16_t ba_transport_codecs_a2dp_from_string(const char *str);
-const char *ba_transport_codecs_a2dp_to_string(uint16_t codec);
 uint16_t ba_transport_codecs_hfp_from_string(const char *str);
 const char *ba_transport_codecs_hfp_to_string(uint16_t codec);
 

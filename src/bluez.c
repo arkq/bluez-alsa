@@ -30,7 +30,6 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
@@ -42,6 +41,7 @@
 #include "hci.h"
 #include "sco.h"
 #include "utils.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -1135,7 +1135,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 			sep.codec_id = a2dp_get_vendor_codec_id(&sep.capabilities, sep.capabilities_size);
 
 		debug("Adding new Stream End-Point: %s: %s", batostr_(&addr),
-				ba_transport_codecs_a2dp_to_string(sep.codec_id));
+				a2dp_codecs_codec_id_to_string(sep.codec_id));
 		g_array_append_val(seps, sep);
 
 	}

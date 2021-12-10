@@ -27,7 +27,6 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#include "a2dp-codecs.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
@@ -37,6 +36,7 @@
 #include "dbus.h"
 #include "hfp.h"
 #include "utils.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -121,7 +121,7 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	const char *codec = NULL;
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		codec = ba_transport_codecs_a2dp_to_string(t->type.codec);
+		codec = a2dp_codecs_codec_id_to_string(t->type.codec);
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		codec = ba_transport_codecs_hfp_to_string(t->type.codec);
 	if (codec != NULL)
@@ -174,7 +174,7 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	size_t size = MIN(sep->capabilities_size, sizeof(caps));
 	if (a2dp_filter_capabilities(codec, memcpy(caps, &sep->capabilities, size), size) != 0) {
 		error("Couldn't filter %s capabilities: %s",
-				ba_transport_codecs_a2dp_to_string(sep->codec_id),
+				a2dp_codecs_codec_id_to_string(sep->codec_id),
 				strerror(errno));
 		return false;
 	}
@@ -506,7 +506,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 				GVariantBuilder props;
 				if (ba_variant_populate_sep(&props, sep)) {
 					g_variant_builder_add(&codecs, "{sa{sv}}",
-							ba_transport_codecs_a2dp_to_string(sep->codec_id), &props);
+							a2dp_codecs_codec_id_to_string(sep->codec_id), &props);
 					g_variant_builder_clear(&props);
 				}
 			}
@@ -576,7 +576,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			goto fail;
 		}
 
-		uint16_t codec_id = ba_transport_codecs_a2dp_from_string(codec_name);
+		uint16_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
 		enum a2dp_dir dir = !t->a2dp.codec->dir;
 		const GArray *seps = t->d->seps;
 		struct a2dp_sep *sep = NULL;

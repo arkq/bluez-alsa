@@ -31,6 +31,7 @@
 
 #include "a2dp.h"
 #include "audio.h"
+#include "ba-adapter.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
@@ -39,10 +40,10 @@
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
-#include "utils.h"
 #if ENABLE_UPOWER
 # include "upower.h"
 #endif
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -68,7 +69,7 @@ static char *get_a2dp_codecs(
 		const struct a2dp_codec *c = *codecs++;
 		if (c->dir != dir)
 			continue;
-		if ((tmp[i] = ba_transport_codecs_a2dp_to_string(c->codec_id)) == NULL)
+		if ((tmp[i] = a2dp_codecs_codec_id_to_string(c->codec_id)) == NULL)
 			tmp[i] = "N/A";
 		i++;
 	}

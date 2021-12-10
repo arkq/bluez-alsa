@@ -22,8 +22,8 @@
 # include "ldacBT.h"
 #endif
 
-#include "a2dp-codecs.h"
 #include "hfp.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -197,87 +197,6 @@ unsigned int g_bdaddr_hash(const void *v) {
  * @return Comparision value compatible with GHashTable. */
 gboolean g_bdaddr_equal(const void *v1, const void *v2) {
 	return bacmp(v1, v2) == 0;
-}
-
-/**
- * Get BlueALSA A2DP codec from string representation.
- *
- * @param codec String representation of BlueALSA audio codec.
- * @return BlueALSA audio codec or 0xFFFF for not supported value. */
-uint16_t ba_transport_codecs_a2dp_from_string(const char *str) {
-
-	static const uint16_t codecs[] = {
-		A2DP_CODEC_SBC,
-#if ENABLE_MPEG
-		A2DP_CODEC_MPEG12,
-#endif
-#if ENABLE_AAC
-		A2DP_CODEC_MPEG24,
-#endif
-#if ENABLE_APTX
-		A2DP_CODEC_VENDOR_APTX,
-#endif
-#if ENABLE_APTX_HD
-		A2DP_CODEC_VENDOR_APTX_HD,
-#endif
-#if ENABLE_FASTSTREAM
-		A2DP_CODEC_VENDOR_FASTSTREAM,
-#endif
-#if ENABLE_LDAC
-		A2DP_CODEC_VENDOR_LDAC,
-#endif
-	};
-
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(codecs); i++)
-		if (strcmp(str, ba_transport_codecs_a2dp_to_string(codecs[i])) == 0)
-			return codecs[i];
-
-	return 0xFFFF;
-}
-
-/**
- * Convert BlueALSA A2DP codec into a human-readable string.
- *
- * @param codec BlueALSA A2DP audio codec.
- * @return Human-readable string or NULL for unknown codec. */
-const char *ba_transport_codecs_a2dp_to_string(uint16_t codec) {
-	switch (codec) {
-	case A2DP_CODEC_SBC:
-		return "SBC";
-	case A2DP_CODEC_MPEG12:
-		return "MP3";
-	case A2DP_CODEC_MPEG24:
-		return "AAC";
-	case A2DP_CODEC_ATRAC:
-		return "ATRAC";
-	case A2DP_CODEC_VENDOR_APTX:
-		return "aptX";
-	case A2DP_CODEC_VENDOR_APTX_AD:
-		return "aptX-AD";
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		return "aptX-HD";
-	case A2DP_CODEC_VENDOR_APTX_LL:
-		return "aptX-LL";
-	case A2DP_CODEC_VENDOR_APTX_TWS:
-		return "aptX-TWS";
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		return "FastStream";
-	case A2DP_CODEC_VENDOR_LDAC:
-		return "LDAC";
-	case A2DP_CODEC_VENDOR_LHDC:
-		return "LHDC";
-	case A2DP_CODEC_VENDOR_LHDC_LL:
-		return "LHDC-LL";
-	case A2DP_CODEC_VENDOR_LHDC_V1:
-		return "LHDC-v1";
-	case A2DP_CODEC_VENDOR_SAMSUNG_HD:
-		return "samsung-HD";
-	case A2DP_CODEC_VENDOR_SAMSUNG_SC:
-		return "samsung-SC";
-	default:
-		return NULL;
-	}
 }
 
 /**

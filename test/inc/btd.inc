@@ -24,10 +24,10 @@
 #include <unistd.h>
 
 #include "a2dp.h"
-#include "a2dp-codecs.h"
 #include "ba-transport.h"
 #include "io.h"
 #include "utils.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"

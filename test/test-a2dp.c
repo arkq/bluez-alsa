@@ -16,10 +16,10 @@
 #include <check.h>
 #include <glib.h>
 
-#include "a2dp-codecs.h"
 #include "a2dp.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
 #include "../src/a2dp.c"

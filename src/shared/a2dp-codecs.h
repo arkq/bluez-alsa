@@ -1,6 +1,5 @@
 /*
- *
- *  BlueZ - Bluetooth protocol stack for Linux
+ *  BlueALSA - a2dp-codecs.h
  *
  *  Copyright (C) 2006-2010  Nokia Corporation
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
@@ -24,8 +23,13 @@
  *
  */
 
-#ifndef BLUEALSA_A2DPCODECS_H_
-#define BLUEALSA_A2DPCODECS_H_
+#pragma once
+#ifndef BLUEALSA_SHARED_A2DPCODECS_H_
+#define BLUEALSA_SHARED_A2DPCODECS_H_
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <endian.h>
 #include <stdint.h>
@@ -46,6 +50,7 @@
 #define A2DP_CODEC_VENDOR_APTX_LL       0xA2FF
 #define A2DP_CODEC_VENDOR_APTX_TWS      0x25FF
 #define A2DP_CODEC_VENDOR_FASTSTREAM    0xA1FF
+#define A2DP_CODEC_VENDOR_LC3PLUS       0xC3FF
 #define A2DP_CODEC_VENDOR_LDAC          0x2DFF
 #define A2DP_CODEC_VENDOR_LHDC          0x4CFF
 #define A2DP_CODEC_VENDOR_LHDC_LL       0x44FF
@@ -295,6 +300,9 @@
 #define APTX_AD_VENDOR_ID               BT_COMPID_QUALCOMM_TECH
 #define APTX_AD_CODEC_ID                0x00ad
 
+#define LC3PLUS_VENDOR_ID               BT_COMPID_FRAUNHOFER_IIS
+#define LC3PLUS_CODEC_ID                0x0001
+
 #define LDAC_VENDOR_ID                  BT_COMPID_SONY
 #define LDAC_CODEC_ID                   0x00aa
 
@@ -445,6 +453,10 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
+} __attribute__ ((packed)) a2dp_lc3plus_t;
+
+typedef struct {
+	a2dp_vendor_codec_t info;
 	uint8_t frequency:6;
 	uint8_t rfa1:2;
 	uint8_t channel_mode:3;
@@ -550,6 +562,10 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
+} __attribute__ ((packed)) a2dp_lc3plus_t;
+
+typedef struct {
+	a2dp_vendor_codec_t info;
 	uint8_t rfa1:2;
 	uint8_t frequency:6;
 	uint8_t rfa2:5;
@@ -603,9 +619,14 @@ typedef union {
 	a2dp_aptx_ll_t aptx_ll;
 	a2dp_aptx_ll_new_t aptx_ll_new;
 	a2dp_aptx_hd_t aptx_hd;
+	a2dp_lc3plus_t lc3plus;
 	a2dp_ldac_t ldac;
 	a2dp_lhdc_t lhdc;
 	a2dp_lhdc_v1_t lhdc_v1;
 } a2dp_t;
+
+uint16_t a2dp_codecs_codec_id_from_string(const char *alias);
+const char *a2dp_codecs_codec_id_to_string(uint16_t codec_id);
+const char *a2dp_codecs_get_canonical_name(const char *alias);
 
 #endif

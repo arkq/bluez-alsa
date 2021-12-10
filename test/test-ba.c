@@ -22,7 +22,6 @@
 #include <check.h>
 #include <glib.h>
 
-#include "a2dp-codecs.h"
 #include "a2dp.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
@@ -31,6 +30,7 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "sco.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
 #include "../src/a2dp.c"

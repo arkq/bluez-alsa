@@ -22,10 +22,10 @@
 #include <stdint.h>
 
 #include "a2dp.h"
-#include "a2dp-codecs.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "bluez.h"
+#include "shared/a2dp-codecs.h"
 
 #define BA_TRANSPORT_PROFILE_NONE        (0)
 #define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)

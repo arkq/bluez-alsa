@@ -36,7 +36,6 @@
 # include <sndfile.h>
 #endif
 
-#include "a2dp-codecs.h"
 #include "a2dp.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
@@ -49,6 +48,7 @@
 #include "rtp.h"
 #include "sco.h"
 #include "utils.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -879,19 +879,19 @@ int main(int argc, char *argv[]) {
 		unsigned int flag;
 	} codecs[] = {
 #define TEST_CODEC_SBC  (1 << 0)
-		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_SBC), TEST_CODEC_SBC },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), TEST_CODEC_SBC },
 #define TEST_CODEC_MP3  (1 << 1)
-		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_MPEG12), TEST_CODEC_MP3 },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), TEST_CODEC_MP3 },
 #define TEST_CODEC_AAC  (1 << 2)
-		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_MPEG24), TEST_CODEC_AAC },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), TEST_CODEC_AAC },
 #define TEST_CODEC_APTX (1 << 3)
-		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_APTX), TEST_CODEC_APTX },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), TEST_CODEC_APTX },
 #define TEST_CODEC_APTX_HD (1 << 4)
-		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_APTX_HD), TEST_CODEC_APTX_HD },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX_HD), TEST_CODEC_APTX_HD },
 #define TEST_CODEC_FASTSTREAM (1 << 5)
-		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), TEST_CODEC_FASTSTREAM },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), TEST_CODEC_FASTSTREAM },
 #define TEST_CODEC_LDAC (1 << 6)
-		{ ba_transport_codecs_a2dp_to_string(A2DP_CODEC_VENDOR_LDAC), TEST_CODEC_LDAC },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), TEST_CODEC_LDAC },
 #define TEST_CODEC_CVSD (1 << 7)
 		{ ba_transport_codecs_hfp_to_string(HFP_CODEC_CVSD), TEST_CODEC_CVSD },
 #define TEST_CODEC_MSBC (1 << 8)
@@ -949,7 +949,7 @@ int main(int argc, char *argv[]) {
 		switch (btd->mode) {
 		case BT_DUMP_MODE_A2DP_SOURCE:
 		case BT_DUMP_MODE_A2DP_SINK:
-			codec = ba_transport_codecs_a2dp_to_string(btd->transport_codec_id);
+			codec = a2dp_codecs_codec_id_to_string(btd->transport_codec_id);
 			debug("BT dump A2DP codec: %s (%#x)", codec, btd->transport_codec_id);
 			hexdump("BT dump A2DP configuration",
 					&btd->a2dp_configuration, btd->a2dp_configuration_size, true);

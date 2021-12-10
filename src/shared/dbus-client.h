@@ -8,11 +8,13 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_SHARED_DBUSCLIENT_H_
 #define BLUEALSA_SHARED_DBUSCLIENT_H_
 
 #include <poll.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <dbus/dbus.h>
@@ -189,9 +191,6 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 		int *fd_pcm,
 		int *fd_pcm_ctrl,
 		DBusError *error);
-
-const char *bluealsa_dbus_pcm_get_codec_canonical_name(
-		const char *alias);
 
 dbus_bool_t bluealsa_dbus_pcm_select_codec(
 		struct ba_dbus_ctx *ctx,

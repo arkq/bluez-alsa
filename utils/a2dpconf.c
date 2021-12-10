@@ -21,51 +21,20 @@
 
 #include <bluetooth/bluetooth.h>
 
-#include "a2dp-codecs.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/hex.h"
 
-static const struct {
-	uint16_t codec_id;
-	const char *name[5];
-} codecs[] = {
-	{ A2DP_CODEC_SBC, { "SBC" } },
-	{ A2DP_CODEC_MPEG12, { "MPEG", "MPEG12", "MP3"} },
-	{ A2DP_CODEC_MPEG24, { "MPEG24", "AAC" } },
-	{ A2DP_CODEC_ATRAC, { "ATRAC" } },
-	{ A2DP_CODEC_VENDOR_APTX, { "aptX" } },
-	{ A2DP_CODEC_VENDOR_APTX_AD, { "aptX-AD" } },
-	{ A2DP_CODEC_VENDOR_APTX_HD, { "aptX-HD" } },
-	{ A2DP_CODEC_VENDOR_APTX_LL, { "aptX-LL" } },
-	{ A2DP_CODEC_VENDOR_APTX_TWS, { "aptX-TWS" } },
-	{ A2DP_CODEC_VENDOR_FASTSTREAM, { "FastStream", "FS" } },
-	{ A2DP_CODEC_VENDOR_LDAC, { "LDAC" } },
-	{ A2DP_CODEC_VENDOR_LHDC, { "LHDC" } },
-	{ A2DP_CODEC_VENDOR_LHDC_LL, { "LHDC-LL", "LLAC" } },
-	{ A2DP_CODEC_VENDOR_LHDC_V1, { "LHDC-v1" } },
-	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, { "samsung-HD" } },
-	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, { "samsung-SC" } },
-};
-
 static uint16_t get_codec(const char *s) {
 
-	const char *tmp;
-	size_t len = strlen(s);
-	if ((tmp = strchr(s, ':')) != NULL)
-		len = tmp - s;
+	char buffer[32] = { 0 };
+	char *tmp;
 
-	if (len == 0)
-		goto fail;
+	strncpy(buffer, s, sizeof(buffer) - 1);
+	if ((tmp = strchr(buffer, ':')) != NULL)
+		tmp[0] = '\0';
 
-	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
-		for (size_t n = 0; n < ARRAYSIZE(codecs[i].name); n++)
-			if (codecs[i].name[n] != NULL &&
-					strlen(codecs[i].name[n]) == len &&
-					strncasecmp(s, codecs[i].name[n], len) == 0)
-				return codecs[i].codec_id;
-
-fail:
-	return 0xFFFF;
+	return a2dp_codecs_codec_id_from_string(buffer);
 }
 
 static ssize_t get_codec_blob(const char *s, void *dest, size_t n) {
@@ -358,6 +327,14 @@ static void dump_faststream(const void *blob, size_t size) {
 			faststream->frequency_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 ? " 44100" : "");
 }
 
+static void dump_lc3plus(const void *blob, size_t size) {
+	const a2dp_lc3plus_t *lc3plus = blob;
+	if (check_blob_size(sizeof(*lc3plus), size) == -1)
+		return;
+	printf("LC3plus <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&lc3plus->info);
+}
+
 static void dump_ldac(const void *blob, size_t size) {
 	const a2dp_ldac_t *ldac = blob;
 	if (check_blob_size(sizeof(*ldac), size) == -1)
@@ -458,6 +435,7 @@ static struct {
 	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_t), dump_aptx_ll },
 	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_new_t), dump_aptx_ll },
 	{ A2DP_CODEC_VENDOR_FASTSTREAM, sizeof(a2dp_faststream_t), dump_faststream },
+	{ A2DP_CODEC_VENDOR_LC3PLUS, sizeof(a2dp_lc3plus_t), dump_lc3plus },
 	{ A2DP_CODEC_VENDOR_LDAC, sizeof(a2dp_ldac_t), dump_ldac },
 	{ A2DP_CODEC_VENDOR_LHDC, sizeof(a2dp_lhdc_t), dump_lhdc },
 	{ A2DP_CODEC_VENDOR_LHDC_LL, -1, dump_vendor },

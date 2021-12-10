@@ -33,6 +33,7 @@
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
 
+#include "shared/a2dp-codecs.h"
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
 #include "shared/hex.h"
@@ -1134,7 +1135,7 @@ static bool bluealsa_select_pcm_codec(struct bluealsa_pcm *pcm, const char *code
 	}
 
 	if (!bluealsa_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
-				bluealsa_dbus_pcm_get_codec_canonical_name(codec_name), config, config_len, err))
+				a2dp_codecs_get_canonical_name(codec_name), config, config_len, err))
 		goto fail;
 
 	ret = true;

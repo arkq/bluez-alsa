@@ -22,7 +22,7 @@
 
 #include <sbc/sbc.h>
 
-#include "a2dp-codecs.h"
+#include "shared/a2dp-codecs.h"
 
 #define SBC_QUALITY_LOW    0
 #define SBC_QUALITY_MEDIUM 1

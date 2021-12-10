@@ -33,7 +33,6 @@
 #include <glib-unix.h>
 #include <glib.h>
 
-#include "a2dp-codecs.h"
 #include "a2dp.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
@@ -46,6 +45,7 @@
 #include "hfp.h"
 #include "io.h"
 #include "utils.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
@@ -299,7 +299,7 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
 	struct ba_transport *t = ba_transport_new_a2dp(d, type, ":test", path, codec, configuration);
 	fprintf(stderr, "BLUEALSA_PCM_READY=A2DP:%s:%s\n",
-			device_btmac, ba_transport_codecs_a2dp_to_string(t->type.codec));
+			device_btmac, a2dp_codecs_codec_id_to_string(t->type.codec));
 	t->acquire = mock_transport_acquire;
 	if (type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 		assert(ba_transport_acquire(t) == 0);

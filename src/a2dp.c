@@ -11,15 +11,16 @@
 #include "a2dp.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <string.h>
 
 #include <glib.h>
 
-#include "a2dp-codecs.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "hci.h"
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -744,6 +745,11 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 			return A2DP_CODEC_VENDOR_LHDC_LL;
 		case LHDC_V1_CODEC_ID:
 			return A2DP_CODEC_VENDOR_LHDC_V1;
+		} break;
+	case BT_COMPID_FRAUNHOFER_IIS:
+		switch (codec_id) {
+		case LC3PLUS_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LC3PLUS;
 		} break;
 	}
 

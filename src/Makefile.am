@@ -8,6 +8,7 @@ dbusconfdir = @DBUS_CONF_DIR@
 dist_dbusconf_DATA = bluealsa.conf
 
 bluealsa_SOURCES = \
+	shared/a2dp-codecs.c \
 	shared/ffb.c \
 	shared/log.c \
 	shared/rt.c \
