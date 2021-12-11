@@ -192,6 +192,9 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 		int *fd_pcm_ctrl,
 		DBusError *error);
 
+const char *bluealsa_dbus_pcm_get_codec_canonical_name(
+		const char *alias);
+
 dbus_bool_t bluealsa_dbus_pcm_select_codec(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,

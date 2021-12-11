@@ -24,7 +24,6 @@
 
 #include <dbus/dbus.h>
 
-#include "shared/a2dp-codecs.h"
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
 #include "shared/hex.h"
@@ -424,7 +423,7 @@ static int cmd_codec(int argc, char *argv[]) {
 	}
 
 	if (!bluealsa_dbus_pcm_select_codec(&dbus_ctx, path,
-				a2dp_codecs_get_canonical_name(codec), config, config_len, &err))
+				bluealsa_dbus_pcm_get_codec_canonical_name(codec), config, config_len, &err))
 		goto fail;
 
 	result = EXIT_SUCCESS;

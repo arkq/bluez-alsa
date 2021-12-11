@@ -16,8 +16,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
+#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 
 static int path2ba(const char *path, bdaddr_t *ba) {
@@ -484,6 +486,17 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 	dbus_message_unref(rep);
 	dbus_message_unref(msg);
 	return rv;
+}
+
+const char *bluealsa_dbus_pcm_get_codec_canonical_name(
+		const char *alias) {
+
+	static const char *sco_codecs[] = { "CVSD", "mSBC" };
+	for (size_t i = 0; i < ARRAYSIZE(sco_codecs); i++)
+		if (strcasecmp(sco_codecs[i], alias) == 0)
+			return sco_codecs[i];
+
+	return a2dp_codecs_get_canonical_name(alias);
 }
 
 /**

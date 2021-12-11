@@ -6,6 +6,7 @@ if ENABLE_APLAY
 bin_PROGRAMS = bluealsa-aplay
 
 bluealsa_aplay_SOURCES = \
+	../../src/shared/a2dp-codecs.c \
 	../../src/shared/dbus-client.c \
 	../../src/shared/ffb.c \
 	../../src/shared/log.c \
