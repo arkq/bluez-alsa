@@ -62,7 +62,7 @@ int hci_sco_open(int dev_id) {
 
 	if (hci_devba(dev_id, &addr_hci.sco_bdaddr) == -1)
 		return -1;
-	if ((dd = socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)) == -1)
+	if ((dd = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)) == -1)
 		return -1;
 	if (bind(dd, (struct sockaddr *)&addr_hci, sizeof(addr_hci)) == -1)
 		goto fail;

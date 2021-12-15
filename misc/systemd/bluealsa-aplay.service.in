@@ -19,12 +19,9 @@ ExecStart=@bindir@/bluealsa-aplay
 Restart=on-failure
 
 # Sandboxing
-PrivateDevices=true
-PrivateNetwork=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-RemoveIPC=true
 RestrictAddressFamilies=AF_UNIX
 
 [Install]
