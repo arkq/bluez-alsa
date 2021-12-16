@@ -41,6 +41,7 @@ bluealsa_mock_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
+	../src/a2dp.c \
 	../src/a2dp-sbc.c \
 	../src/at.c \
 	../src/audio.c \
@@ -62,8 +63,17 @@ bluealsa_mock_SOURCES = \
 	bluealsa-mock.c
 
 test_a2dp_SOURCES = \
+	../src/shared/ffb.c \
 	../src/shared/log.c \
+	../src/shared/rt.c \
 	../src/bluealsa-config.c \
+	../src/a2dp.c \
+	../src/a2dp-sbc.c \
+	../src/audio.c \
+	../src/codec-sbc.c \
+	../src/io.c \
+	../src/rtp.c \
+	../src/utils.c \
 	test-a2dp.c
 
 test_alsa_ctl_SOURCES = \
@@ -126,7 +136,6 @@ endif
 test_rfcomm_SOURCES = \
 	../src/shared/log.c \
 	../src/shared/rt.c \
-	../src/a2dp.c \
 	../src/at.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
@@ -149,31 +158,38 @@ test_utils_SOURCES = \
 
 if ENABLE_AAC
 bluealsa_mock_SOURCES += ../src/a2dp-aac.c
+test_a2dp_SOURCES += ../src/a2dp-aac.c
 endif
 
 if ENABLE_APTX
 bluealsa_mock_SOURCES += ../src/a2dp-aptx.c
+test_a2dp_SOURCES += ../src/a2dp-aptx.c
 endif
 
 if ENABLE_APTX_HD
 bluealsa_mock_SOURCES += ../src/a2dp-aptx-hd.c
+test_a2dp_SOURCES += ../src/a2dp-aptx-hd.c
 endif
 
 if ENABLE_APTX_OR_APTX_HD
 bluealsa_mock_SOURCES += ../src/codec-aptx.c
+test_a2dp_SOURCES += ../src/codec-aptx.c
 test_io_SOURCES += ../src/codec-aptx.c
 endif
 
 if ENABLE_FASTSTREAM
 bluealsa_mock_SOURCES += ../src/a2dp-faststream.c
+test_a2dp_SOURCES += ../src/a2dp-faststream.c
 endif
 
 if ENABLE_LDAC
 bluealsa_mock_SOURCES += ../src/a2dp-ldac.c
+test_a2dp_SOURCES += ../src/a2dp-ldac.c
 endif
 
 if ENABLE_MPEG
 bluealsa_mock_SOURCES += ../src/a2dp-mpeg.c
+test_a2dp_SOURCES += ../src/a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC

@@ -17,12 +17,26 @@
 #include <glib.h>
 
 #include "a2dp.h"
+#include "a2dp-sbc.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
-#include "../src/a2dp.c"
+bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) { (void)pcm; return false; }
+int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
+int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
+int ba_transport_thread_bt_release(struct ba_transport_thread *th) { (void)th; return -1; }
+int ba_transport_thread_create(struct ba_transport_thread *th,
+		void *(*routine)(struct ba_transport_thread *), const char *name, bool master) {
+	(void)th; (void)routine; (void)name; (void)master; return -1; }
+int ba_transport_thread_set_state(struct ba_transport_thread *th,
+		enum ba_transport_thread_state state, bool force) {
+	(void)th; (void)state; (void)force; return -1; }
+int ba_transport_thread_signal_recv(struct ba_transport_thread *th,
+		enum ba_transport_thread_signal *signal) {
+	(void)th; (void)signal; return -1; }
+void ba_transport_thread_cleanup(struct ba_transport_thread *th) { (void)th; }
 
 START_TEST(test_a2dp_dir) {
 	ck_assert_int_eq(A2DP_SOURCE, !A2DP_SINK);
@@ -30,7 +44,7 @@ START_TEST(test_a2dp_dir) {
 } END_TEST
 
 START_TEST(test_a2dp_codec_lookup) {
-	ck_assert_ptr_eq(a2dp_codec_lookup(A2DP_CODEC_SBC, A2DP_SOURCE), &a2dp_codec_source_sbc);
+	ck_assert_ptr_eq(a2dp_codec_lookup(A2DP_CODEC_SBC, A2DP_SOURCE), &a2dp_sbc_source);
 	ck_assert_ptr_eq(a2dp_codec_lookup(0xFFFF, A2DP_SOURCE), NULL);
 } END_TEST
 
@@ -61,7 +75,7 @@ START_TEST(test_a2dp_check_configuration) {
 		.max_bitpool = 62,
 	};
 
-	ck_assert_int_eq(a2dp_check_configuration(&a2dp_codec_source_sbc,
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
 				&cfg_valid, sizeof(cfg_valid)), A2DP_CHECK_OK);
 
 	const a2dp_sbc_t cfg_invalid = {
@@ -71,7 +85,7 @@ START_TEST(test_a2dp_check_configuration) {
 		.allocation_method = SBC_ALLOCATION_SNR,
 	};
 
-	ck_assert_int_eq(a2dp_check_configuration(&a2dp_codec_source_sbc,
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
 				&cfg_invalid, sizeof(cfg_invalid)),
 			A2DP_CHECK_ERR_SAMPLING | A2DP_CHECK_ERR_CHANNELS | A2DP_CHECK_ERR_SBC_SUB_BANDS);
 
@@ -90,7 +104,7 @@ START_TEST(test_a2dp_filter_capabilities) {
 	};
 
 	hexdump("Capabilities original", &cfg, sizeof(cfg), true);
-	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_codec_source_sbc, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
 
 	hexdump("Capabilities filtered", &cfg, sizeof(cfg), true);
 	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_44100);
@@ -117,11 +131,11 @@ START_TEST(test_a2dp_select_configuration) {
 	};
 
 	cfg = cfg_;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_codec_source_sbc, &cfg, sizeof(cfg) + 1), -1);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg) + 1), -1);
 	ck_assert_int_eq(errno, EINVAL);
 
 	cfg = cfg_;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_codec_source_sbc, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
 	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_48000);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_STEREO);
 	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);
@@ -133,7 +147,7 @@ START_TEST(test_a2dp_select_configuration) {
 	cfg = cfg_;
 	config.a2dp.force_44100 = true;
 	config.sbc_quality = SBC_QUALITY_XQ;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_codec_source_sbc, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
 	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_DUAL_CHANNEL);
 	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);

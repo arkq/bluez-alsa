@@ -34,7 +34,59 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void a2dp_faststream_transport_set_codec(struct ba_transport *t) {
+static const struct a2dp_sampling_freq a2dp_faststream_samplings_music[] = {
+	{ 44100, FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 },
+	{ 48000, FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 },
+};
+
+static const struct a2dp_sampling_freq a2dp_faststream_samplings_voice[] = {
+	{ 16000, FASTSTREAM_SAMPLING_FREQ_VOICE_16000 },
+};
+
+struct a2dp_codec a2dp_faststream_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
+	.backchannel = true,
+	.capabilities.faststream = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
+		.frequency_music =
+			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
+			FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
+		.frequency_voice =
+			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+	},
+	.capabilities_size = sizeof(a2dp_faststream_t),
+	.samplings[0] = a2dp_faststream_samplings_music,
+	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
+	.samplings[1] = a2dp_faststream_samplings_voice,
+	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
+};
+
+struct a2dp_codec a2dp_faststream_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
+	.backchannel = true,
+	.capabilities.faststream = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
+		.frequency_music =
+			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
+			FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
+		.frequency_voice =
+			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+	},
+	.capabilities_size = sizeof(a2dp_faststream_t),
+	.samplings[0] = a2dp_faststream_samplings_music,
+	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
+	.samplings[1] = a2dp_faststream_samplings_voice,
+	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
+};
+
+void a2dp_faststream_init(void) {
+}
+
+void a2dp_faststream_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_codec *codec = t->a2dp.codec;
 

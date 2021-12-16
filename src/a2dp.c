@@ -17,6 +17,13 @@
 
 #include <glib.h>
 
+#include "a2dp-aac.h"
+#include "a2dp-aptx-hd.h"
+#include "a2dp-aptx.h"
+#include "a2dp-faststream.h"
+#include "a2dp-ldac.h"
+#include "a2dp-mpeg.h"
+#include "a2dp-sbc.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "hci.h"
@@ -24,604 +31,68 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
-static const struct a2dp_channel_mode a2dp_sbc_channels[] = {
-	{ A2DP_CHM_MONO, 1, SBC_CHANNEL_MODE_MONO },
-	{ A2DP_CHM_DUAL_CHANNEL, 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
-	{ A2DP_CHM_STEREO, 2, SBC_CHANNEL_MODE_STEREO },
-	{ A2DP_CHM_JOINT_STEREO, 2, SBC_CHANNEL_MODE_JOINT_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_sbc_samplings[] = {
-	{ 16000, SBC_SAMPLING_FREQ_16000 },
-	{ 32000, SBC_SAMPLING_FREQ_32000 },
-	{ 44100, SBC_SAMPLING_FREQ_44100 },
-	{ 48000, SBC_SAMPLING_FREQ_48000 },
-};
-
-static const struct a2dp_channel_mode a2dp_mpeg_channels[] = {
-	{ A2DP_CHM_MONO, 1, MPEG_CHANNEL_MODE_MONO },
-	{ A2DP_CHM_DUAL_CHANNEL, 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
-	{ A2DP_CHM_STEREO, 2, MPEG_CHANNEL_MODE_STEREO },
-	{ A2DP_CHM_JOINT_STEREO, 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_mpeg_samplings[] = {
-	{ 16000, MPEG_SAMPLING_FREQ_16000 },
-	{ 22050, MPEG_SAMPLING_FREQ_22050 },
-	{ 24000, MPEG_SAMPLING_FREQ_24000 },
-	{ 32000, MPEG_SAMPLING_FREQ_32000 },
-	{ 44100, MPEG_SAMPLING_FREQ_44100 },
-	{ 48000, MPEG_SAMPLING_FREQ_48000 },
-};
-
-static const struct a2dp_channel_mode a2dp_aac_channels[] = {
-	{ A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
-	{ A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
-};
-
-static const struct a2dp_sampling_freq a2dp_aac_samplings[] = {
-	{ 8000, AAC_SAMPLING_FREQ_8000 },
-	{ 11025, AAC_SAMPLING_FREQ_11025 },
-	{ 12000, AAC_SAMPLING_FREQ_12000 },
-	{ 16000, AAC_SAMPLING_FREQ_16000 },
-	{ 22050, AAC_SAMPLING_FREQ_22050 },
-	{ 24000, AAC_SAMPLING_FREQ_24000 },
-	{ 32000, AAC_SAMPLING_FREQ_32000 },
-	{ 44100, AAC_SAMPLING_FREQ_44100 },
-	{ 48000, AAC_SAMPLING_FREQ_48000 },
-	{ 64000, AAC_SAMPLING_FREQ_64000 },
-	{ 88200, AAC_SAMPLING_FREQ_88200 },
-	{ 96000, AAC_SAMPLING_FREQ_96000 },
-};
-
-static const struct a2dp_channel_mode a2dp_aptx_channels[] = {
-	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_aptx_samplings[] = {
-	{ 16000, APTX_SAMPLING_FREQ_16000 },
-	{ 32000, APTX_SAMPLING_FREQ_32000 },
-	{ 44100, APTX_SAMPLING_FREQ_44100 },
-	{ 48000, APTX_SAMPLING_FREQ_48000 },
-};
-
-static const struct a2dp_sampling_freq a2dp_faststream_samplings_music[] = {
-	{ 44100, FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 },
-	{ 48000, FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 },
-};
-
-static const struct a2dp_sampling_freq a2dp_faststream_samplings_voice[] = {
-	{ 16000, FASTSTREAM_SAMPLING_FREQ_VOICE_16000 },
-};
-
-static const struct a2dp_channel_mode a2dp_aptx_hd_channels[] = {
-	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_aptx_hd_samplings[] = {
-	{ 16000, APTX_SAMPLING_FREQ_16000 },
-	{ 32000, APTX_SAMPLING_FREQ_32000 },
-	{ 44100, APTX_SAMPLING_FREQ_44100 },
-	{ 48000, APTX_SAMPLING_FREQ_48000 },
-};
-
-static const struct a2dp_channel_mode a2dp_ldac_channels[] = {
-	{ A2DP_CHM_MONO, 1, LDAC_CHANNEL_MODE_MONO },
-	{ A2DP_CHM_DUAL_CHANNEL, 2, LDAC_CHANNEL_MODE_DUAL },
-	{ A2DP_CHM_STEREO, 2, LDAC_CHANNEL_MODE_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_ldac_samplings[] = {
-	{ 44100, LDAC_SAMPLING_FREQ_44100 },
-	{ 48000, LDAC_SAMPLING_FREQ_48000 },
-	{ 88200, LDAC_SAMPLING_FREQ_88200 },
-	{ 96000, LDAC_SAMPLING_FREQ_96000 },
-};
-
-static struct a2dp_codec a2dp_codec_source_sbc = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_SBC,
-	.capabilities.sbc = {
-		.frequency =
-			SBC_SAMPLING_FREQ_16000 |
-			SBC_SAMPLING_FREQ_32000 |
-			SBC_SAMPLING_FREQ_44100 |
-			SBC_SAMPLING_FREQ_48000,
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
-		.block_length =
-			SBC_BLOCK_LENGTH_4 |
-			SBC_BLOCK_LENGTH_8 |
-			SBC_BLOCK_LENGTH_12 |
-			SBC_BLOCK_LENGTH_16,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.min_bitpool = SBC_MIN_BITPOOL,
-		.max_bitpool = SBC_MAX_BITPOOL,
-	},
-	.capabilities_size = sizeof(a2dp_sbc_t),
-	.channels[0] = a2dp_sbc_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
-	.samplings[0] = a2dp_sbc_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
-};
-
-static const struct a2dp_codec a2dp_codec_sink_sbc = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_SBC,
-	.capabilities.sbc = {
-		.frequency =
-			SBC_SAMPLING_FREQ_16000 |
-			SBC_SAMPLING_FREQ_32000 |
-			SBC_SAMPLING_FREQ_44100 |
-			SBC_SAMPLING_FREQ_48000,
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
-		.block_length =
-			SBC_BLOCK_LENGTH_4 |
-			SBC_BLOCK_LENGTH_8 |
-			SBC_BLOCK_LENGTH_12 |
-			SBC_BLOCK_LENGTH_16,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.min_bitpool = SBC_MIN_BITPOOL,
-		.max_bitpool = SBC_MAX_BITPOOL,
-	},
-	.capabilities_size = sizeof(a2dp_sbc_t),
-	.channels[0] = a2dp_sbc_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
-	.samplings[0] = a2dp_sbc_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
-};
-
-__attribute__ ((unused))
-static struct a2dp_codec a2dp_codec_source_mpeg = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_MPEG12,
-	.capabilities.mpeg = {
-		.layer =
-			MPEG_LAYER_MP3,
-		.crc = 1,
-		/* NOTE: LAME does not support dual-channel mode. */
-		.channel_mode =
-			MPEG_CHANNEL_MODE_MONO |
-			MPEG_CHANNEL_MODE_STEREO |
-			MPEG_CHANNEL_MODE_JOINT_STEREO,
-		/* NOTE: Since MPF-2 is not required for neither Sink
-		 *       nor Source, we are not going to support it. */
-		.mpf = 0,
-		.frequency =
-			MPEG_SAMPLING_FREQ_16000 |
-			MPEG_SAMPLING_FREQ_22050 |
-			MPEG_SAMPLING_FREQ_24000 |
-			MPEG_SAMPLING_FREQ_32000 |
-			MPEG_SAMPLING_FREQ_44100 |
-			MPEG_SAMPLING_FREQ_48000,
-		.vbr = 1,
-		MPEG_INIT_BITRATE(
-			MPEG_BIT_RATE_INDEX_0 |
-			MPEG_BIT_RATE_INDEX_1 |
-			MPEG_BIT_RATE_INDEX_2 |
-			MPEG_BIT_RATE_INDEX_3 |
-			MPEG_BIT_RATE_INDEX_4 |
-			MPEG_BIT_RATE_INDEX_5 |
-			MPEG_BIT_RATE_INDEX_6 |
-			MPEG_BIT_RATE_INDEX_7 |
-			MPEG_BIT_RATE_INDEX_8 |
-			MPEG_BIT_RATE_INDEX_9 |
-			MPEG_BIT_RATE_INDEX_10 |
-			MPEG_BIT_RATE_INDEX_11 |
-			MPEG_BIT_RATE_INDEX_12 |
-			MPEG_BIT_RATE_INDEX_13 |
-			MPEG_BIT_RATE_INDEX_14
-		)
-	},
-	.capabilities_size = sizeof(a2dp_mpeg_t),
-	.channels[0] = a2dp_mpeg_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
-	.samplings[0] = a2dp_mpeg_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_sink_mpeg = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_MPEG12,
-	.capabilities.mpeg = {
-		.layer =
-#if ENABLE_MPG123
-			MPEG_LAYER_MP1 |
-			MPEG_LAYER_MP2 |
-#endif
-			MPEG_LAYER_MP3,
-		.crc = 1,
-		/* NOTE: LAME does not support dual-channel mode. Be aware, that
-		 *       lack of this feature violates A2DP Sink specification. */
-		.channel_mode =
-			MPEG_CHANNEL_MODE_MONO |
-#if ENABLE_MPG123
-			MPEG_CHANNEL_MODE_DUAL_CHANNEL |
-#endif
-			MPEG_CHANNEL_MODE_STEREO |
-			MPEG_CHANNEL_MODE_JOINT_STEREO,
-		/* NOTE: Since MPF-2 is not required for neither Sink
-		 *       nor Source, we are not going to support it. */
-		.mpf = 0,
-		.frequency =
-			MPEG_SAMPLING_FREQ_16000 |
-			MPEG_SAMPLING_FREQ_22050 |
-			MPEG_SAMPLING_FREQ_24000 |
-			MPEG_SAMPLING_FREQ_32000 |
-			MPEG_SAMPLING_FREQ_44100 |
-			MPEG_SAMPLING_FREQ_48000,
-		.vbr = 1,
-		MPEG_INIT_BITRATE(
-			MPEG_BIT_RATE_INDEX_0 |
-			MPEG_BIT_RATE_INDEX_1 |
-			MPEG_BIT_RATE_INDEX_2 |
-			MPEG_BIT_RATE_INDEX_3 |
-			MPEG_BIT_RATE_INDEX_4 |
-			MPEG_BIT_RATE_INDEX_5 |
-			MPEG_BIT_RATE_INDEX_6 |
-			MPEG_BIT_RATE_INDEX_7 |
-			MPEG_BIT_RATE_INDEX_8 |
-			MPEG_BIT_RATE_INDEX_9 |
-			MPEG_BIT_RATE_INDEX_10 |
-			MPEG_BIT_RATE_INDEX_11 |
-			MPEG_BIT_RATE_INDEX_12 |
-			MPEG_BIT_RATE_INDEX_13 |
-			MPEG_BIT_RATE_INDEX_14
-		)
-	},
-	.capabilities_size = sizeof(a2dp_mpeg_t),
-	.channels[0] = a2dp_mpeg_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
-	.samplings[0] = a2dp_mpeg_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
-};
-
-__attribute__ ((unused))
-static struct a2dp_codec a2dp_codec_source_aac = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_MPEG24,
-	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable are
-		 *       not supported by the FDK-AAC library. */
-		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
-			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
-		AAC_INIT_FREQUENCY(
-				AAC_SAMPLING_FREQ_8000 |
-				AAC_SAMPLING_FREQ_11025 |
-				AAC_SAMPLING_FREQ_12000 |
-				AAC_SAMPLING_FREQ_16000 |
-				AAC_SAMPLING_FREQ_22050 |
-				AAC_SAMPLING_FREQ_24000 |
-				AAC_SAMPLING_FREQ_32000 |
-				AAC_SAMPLING_FREQ_44100 |
-				AAC_SAMPLING_FREQ_48000 |
-				AAC_SAMPLING_FREQ_64000 |
-				AAC_SAMPLING_FREQ_88200 |
-				AAC_SAMPLING_FREQ_96000)
-		.channels =
-			AAC_CHANNELS_1 |
-			AAC_CHANNELS_2,
-		.vbr = 1,
-		AAC_INIT_BITRATE(320000)
-	},
-	.capabilities_size = sizeof(a2dp_aac_t),
-	.channels[0] = a2dp_aac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
-	.samplings[0] = a2dp_aac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
-};
-
-__attribute__ ((unused))
-static struct a2dp_codec a2dp_codec_sink_aac = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_MPEG24,
-	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable are
-		 *       not supported by the FDK-AAC library. */
-		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
-			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
-		AAC_INIT_FREQUENCY(
-				AAC_SAMPLING_FREQ_8000 |
-				AAC_SAMPLING_FREQ_11025 |
-				AAC_SAMPLING_FREQ_12000 |
-				AAC_SAMPLING_FREQ_16000 |
-				AAC_SAMPLING_FREQ_22050 |
-				AAC_SAMPLING_FREQ_24000 |
-				AAC_SAMPLING_FREQ_32000 |
-				AAC_SAMPLING_FREQ_44100 |
-				AAC_SAMPLING_FREQ_48000 |
-				AAC_SAMPLING_FREQ_64000 |
-				AAC_SAMPLING_FREQ_88200 |
-				AAC_SAMPLING_FREQ_96000)
-		.channels =
-			AAC_CHANNELS_1 |
-			AAC_CHANNELS_2,
-		.vbr = 1,
-		AAC_INIT_BITRATE(320000)
-	},
-	.capabilities_size = sizeof(a2dp_aac_t),
-	.channels[0] = a2dp_aac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
-	.samplings[0] = a2dp_aac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_source_aptx = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_APTX,
-	.capabilities.aptx = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
-		/* NOTE: Used apt-X library does not support
-		 *       single channel (mono) mode. */
-		.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_t),
-	.channels[0] = a2dp_aptx_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
-	.samplings[0] = a2dp_aptx_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_sink_aptx = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_APTX,
-	.capabilities.aptx = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
-		/* NOTE: Used apt-X library does not support
-		 *       single channel (mono) mode. */
-		.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_t),
-	.channels[0] = a2dp_aptx_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
-	.samplings[0] = a2dp_aptx_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_source_aptx_hd = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
-	.capabilities.aptx_hd = {
-		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
-		/* NOTE: Used apt-X HD library does not support
-		 *       single channel (mono) mode. */
-		.aptx.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.aptx.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_hd_t),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
-	.samplings[0] = a2dp_aptx_hd_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_sink_aptx_hd = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
-	.capabilities.aptx_hd = {
-		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
-		/* NOTE: Used apt-X HD library does not support
-		 *       single channel (mono) mode. */
-		.aptx.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.aptx.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_hd_t),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
-	.samplings[0] = a2dp_aptx_hd_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_source_faststream = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
-	.backchannel = true,
-	.capabilities.faststream = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
-		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
-		.frequency_music =
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
-		.frequency_voice =
-			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
-	},
-	.capabilities_size = sizeof(a2dp_faststream_t),
-	.samplings[0] = a2dp_faststream_samplings_music,
-	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
-	.samplings[1] = a2dp_faststream_samplings_voice,
-	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_sink_faststream = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
-	.backchannel = true,
-	.capabilities.faststream = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
-		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
-		.frequency_music =
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
-		.frequency_voice =
-			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
-	},
-	.capabilities_size = sizeof(a2dp_faststream_t),
-	.samplings[0] = a2dp_faststream_samplings_music,
-	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
-	.samplings[1] = a2dp_faststream_samplings_voice,
-	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_source_ldac = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_LDAC,
-	.capabilities.ldac = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-		.channel_mode =
-			LDAC_CHANNEL_MODE_MONO |
-			LDAC_CHANNEL_MODE_DUAL |
-			LDAC_CHANNEL_MODE_STEREO,
-		/* NOTE: Used LDAC library does not support
-		 *       frequencies higher than 96 kHz. */
-		.frequency =
-			LDAC_SAMPLING_FREQ_44100 |
-			LDAC_SAMPLING_FREQ_48000 |
-			LDAC_SAMPLING_FREQ_88200 |
-			LDAC_SAMPLING_FREQ_96000,
-	},
-	.capabilities_size = sizeof(a2dp_ldac_t),
-	.channels[0] = a2dp_ldac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_ldac_channels),
-	.samplings[0] = a2dp_ldac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
-};
-
-__attribute__ ((unused))
-static const struct a2dp_codec a2dp_codec_sink_ldac = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_LDAC,
-	.capabilities.ldac = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-		.channel_mode =
-			LDAC_CHANNEL_MODE_MONO |
-			LDAC_CHANNEL_MODE_DUAL |
-			LDAC_CHANNEL_MODE_STEREO,
-		/* NOTE: Used LDAC library does not support
-		 *       frequencies higher than 96 kHz. */
-		.frequency =
-			LDAC_SAMPLING_FREQ_44100 |
-			LDAC_SAMPLING_FREQ_48000 |
-			LDAC_SAMPLING_FREQ_88200 |
-			LDAC_SAMPLING_FREQ_96000,
-	},
-	.capabilities_size = sizeof(a2dp_ldac_t),
-	.channels[0] = a2dp_ldac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_ldac_channels),
-	.samplings[0] = a2dp_ldac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
-};
-
 const struct a2dp_codec *a2dp_codecs[] = {
 #if ENABLE_LDAC
-	&a2dp_codec_source_ldac,
+	&a2dp_ldac_source,
 # if HAVE_LDAC_DECODE
-	&a2dp_codec_sink_ldac,
+	&a2dp_ldac_sink,
 # endif
 #endif
 #if ENABLE_APTX_HD
-	&a2dp_codec_source_aptx_hd,
+	&a2dp_aptx_hd_source,
 # if HAVE_APTX_HD_DECODE
-	&a2dp_codec_sink_aptx_hd,
+	&a2dp_aptx_hd_sink,
 # endif
 #endif
 #if ENABLE_APTX
-	&a2dp_codec_source_aptx,
+	&a2dp_aptx_source,
 # if HAVE_APTX_DECODE
-	&a2dp_codec_sink_aptx,
+	&a2dp_aptx_sink,
 # endif
 #endif
 #if ENABLE_FASTSTREAM
-	&a2dp_codec_source_faststream,
-	&a2dp_codec_sink_faststream,
+	&a2dp_faststream_source,
+	&a2dp_faststream_sink,
 #endif
 #if ENABLE_AAC
-	&a2dp_codec_source_aac,
-	&a2dp_codec_sink_aac,
+	&a2dp_aac_source,
+	&a2dp_aac_sink,
 #endif
 #if ENABLE_MPEG
 # if ENABLE_MP3LAME
-	&a2dp_codec_source_mpeg,
+	&a2dp_mpeg_source,
 # endif
 # if ENABLE_MP3LAME || ENABLE_MPG123
-	&a2dp_codec_sink_mpeg,
+	&a2dp_mpeg_sink,
 # endif
 #endif
-	&a2dp_codec_source_sbc,
-	&a2dp_codec_sink_sbc,
+	&a2dp_sbc_source,
+	&a2dp_sbc_sink,
 	NULL,
 };
 
 /**
  * Initialize A2DP codecs. */
 int a2dp_codecs_init(void) {
-
-	if (config.a2dp.force_mono)
-		/* With this we are violating A2DP SBC requirements. According to spec,
-		 * SBC source shall support mono channel and at least one of the stereo
-		 * modes. However, since for sink all channel modes are mandatory, even
-		 * though we are supporting only mono mode, there will be a match when
-		 * selecting configuration. */
-		a2dp_codec_source_sbc.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
-	if (config.a2dp.force_44100)
-		a2dp_codec_source_sbc.capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
-
+	a2dp_sbc_init();
 #if ENABLE_MPEG
-	if (config.a2dp.force_mono)
-		a2dp_codec_source_mpeg.capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
-	if (config.a2dp.force_44100)
-		a2dp_codec_source_mpeg.capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
+	a2dp_mpeg_init();
 #endif
-
 #if ENABLE_AAC
-	if (config.a2dp.force_mono)
-		a2dp_codec_source_aac.capabilities.aac.channels = AAC_CHANNELS_1;
-	if (config.a2dp.force_44100)
-		AAC_SET_FREQUENCY(a2dp_codec_source_aac.capabilities.aac, AAC_SAMPLING_FREQ_44100);
-	if (!config.aac_prefer_vbr)
-		a2dp_codec_source_aac.capabilities.aac.vbr = 0;
-	AAC_SET_BITRATE(a2dp_codec_source_aac.capabilities.aac, config.aac_bitrate);
-	AAC_SET_BITRATE(a2dp_codec_sink_aac.capabilities.aac, config.aac_bitrate);
+	a2dp_aac_init();
 #endif
-
+#if ENABLE_APTX
+	a2dp_aptx_init();
+#endif
+#if ENABLE_APTX_HD
+	a2dp_aptx_hd_init();
+#endif
+#if ENABLE_FASTSTREAM
+	a2dp_faststream_init();
+#endif
+#if ENABLE_LDAC
+	a2dp_ldac_init();
+#endif
 	return 0;
 }
 

@@ -35,7 +35,105 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void a2dp_sbc_transport_set_codec(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_sbc_channels[] = {
+	{ A2DP_CHM_MONO, 1, SBC_CHANNEL_MODE_MONO },
+	{ A2DP_CHM_DUAL_CHANNEL, 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
+	{ A2DP_CHM_STEREO, 2, SBC_CHANNEL_MODE_STEREO },
+	{ A2DP_CHM_JOINT_STEREO, 2, SBC_CHANNEL_MODE_JOINT_STEREO },
+};
+
+static const struct a2dp_sampling_freq a2dp_sbc_samplings[] = {
+	{ 16000, SBC_SAMPLING_FREQ_16000 },
+	{ 32000, SBC_SAMPLING_FREQ_32000 },
+	{ 44100, SBC_SAMPLING_FREQ_44100 },
+	{ 48000, SBC_SAMPLING_FREQ_48000 },
+};
+
+struct a2dp_codec a2dp_sbc_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_SBC,
+	.capabilities.sbc = {
+		.frequency =
+			SBC_SAMPLING_FREQ_16000 |
+			SBC_SAMPLING_FREQ_32000 |
+			SBC_SAMPLING_FREQ_44100 |
+			SBC_SAMPLING_FREQ_48000,
+		.channel_mode =
+			SBC_CHANNEL_MODE_MONO |
+			SBC_CHANNEL_MODE_DUAL_CHANNEL |
+			SBC_CHANNEL_MODE_STEREO |
+			SBC_CHANNEL_MODE_JOINT_STEREO,
+		.block_length =
+			SBC_BLOCK_LENGTH_4 |
+			SBC_BLOCK_LENGTH_8 |
+			SBC_BLOCK_LENGTH_12 |
+			SBC_BLOCK_LENGTH_16,
+		.subbands =
+			SBC_SUBBANDS_4 |
+			SBC_SUBBANDS_8,
+		.allocation_method =
+			SBC_ALLOCATION_SNR |
+			SBC_ALLOCATION_LOUDNESS,
+		.min_bitpool = SBC_MIN_BITPOOL,
+		.max_bitpool = SBC_MAX_BITPOOL,
+	},
+	.capabilities_size = sizeof(a2dp_sbc_t),
+	.channels[0] = a2dp_sbc_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
+	.samplings[0] = a2dp_sbc_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
+};
+
+struct a2dp_codec a2dp_sbc_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_SBC,
+	.capabilities.sbc = {
+		.frequency =
+			SBC_SAMPLING_FREQ_16000 |
+			SBC_SAMPLING_FREQ_32000 |
+			SBC_SAMPLING_FREQ_44100 |
+			SBC_SAMPLING_FREQ_48000,
+		.channel_mode =
+			SBC_CHANNEL_MODE_MONO |
+			SBC_CHANNEL_MODE_DUAL_CHANNEL |
+			SBC_CHANNEL_MODE_STEREO |
+			SBC_CHANNEL_MODE_JOINT_STEREO,
+		.block_length =
+			SBC_BLOCK_LENGTH_4 |
+			SBC_BLOCK_LENGTH_8 |
+			SBC_BLOCK_LENGTH_12 |
+			SBC_BLOCK_LENGTH_16,
+		.subbands =
+			SBC_SUBBANDS_4 |
+			SBC_SUBBANDS_8,
+		.allocation_method =
+			SBC_ALLOCATION_SNR |
+			SBC_ALLOCATION_LOUDNESS,
+		.min_bitpool = SBC_MIN_BITPOOL,
+		.max_bitpool = SBC_MAX_BITPOOL,
+	},
+	.capabilities_size = sizeof(a2dp_sbc_t),
+	.channels[0] = a2dp_sbc_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
+	.samplings[0] = a2dp_sbc_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
+};
+
+void a2dp_sbc_init(void) {
+
+	if (config.a2dp.force_mono)
+		/* With this we are violating A2DP SBC requirements. According to spec,
+		 * SBC source shall support mono channel and at least one of the stereo
+		 * modes. However, since for sink all channel modes are mandatory, even
+		 * though we are supporting only mono mode, there will be a match when
+		 * selecting configuration. */
+		a2dp_sbc_source.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
+	if (config.a2dp.force_44100)
+		a2dp_sbc_source.capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+
+}
+
+void a2dp_sbc_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_codec *codec = t->a2dp.codec;
 

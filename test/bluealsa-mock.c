@@ -34,6 +34,11 @@
 #include <glib.h>
 
 #include "a2dp.h"
+#include "a2dp-aac.h"
+#include "a2dp-aptx.h"
+#include "a2dp-aptx-hd.h"
+#include "a2dp-faststream.h"
+#include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
@@ -50,7 +55,6 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-#include "../src/a2dp.c"
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
 
@@ -331,30 +335,30 @@ void *mock_service_thread(void *userdata) {
 	if (a2dp_source) {
 
 		g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
-					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_codec_source_sbc,
+					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
 					&config_sbc_44100_stereo));
 
 		g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
-					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_codec_source_sbc,
+					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
 					&config_sbc_44100_stereo));
 
 		if (a2dp_extra_codecs) {
 
 #if ENABLE_APTX
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:00:00",
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_codec_source_aptx,
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_aptx_source,
 						&config_aptx_44100_stereo));
 #endif
 
 #if ENABLE_APTX_HD
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:88:DD",
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_codec_source_aptx_hd,
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_aptx_hd_source,
 						&config_aptx_hd_48000_stereo));
 #endif
 
 #if ENABLE_FASTSTREAM
 			g_ptr_array_add(tt, mock_transport_new_a2dp("FF:AA:55:77:00:00",
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_codec_source_faststream,
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_faststream_source,
 						&config_faststream_44100_16000));
 #endif
 
@@ -365,24 +369,24 @@ void *mock_service_thread(void *userdata) {
 	if (a2dp_sink) {
 
 		g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_sink_sbc,
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
 						&config_sbc_44100_stereo));
 
 		g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_sink_sbc,
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
 						&config_sbc_44100_stereo));
 
 		if (a2dp_extra_codecs) {
 
 #if ENABLE_APTX
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:00:00",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_sink_aptx,
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_aptx_sink,
 						&config_aptx_44100_stereo));
 #endif
 
 #if ENABLE_APTX_HD
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:88:DD",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_codec_sink_aptx_hd,
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_aptx_hd_sink,
 						&config_aptx_hd_48000_stereo));
 #endif
 

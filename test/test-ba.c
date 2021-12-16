@@ -33,22 +33,21 @@
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
-#include "../src/a2dp.c"
 #include "../src/ba-transport.c"
 
-void a2dp_aac_transport_set_codec(struct ba_transport *t) { (void)t; }
+void a2dp_aac_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_aac_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_aptx_transport_set_codec(struct ba_transport *t) { (void)t; }
+void a2dp_aptx_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_aptx_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_aptx_hd_transport_set_codec(struct ba_transport *t) { (void)t; }
+void a2dp_aptx_hd_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_aptx_hd_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_faststream_transport_set_codec(struct ba_transport *t) { (void)t; }
+void a2dp_faststream_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_ldac_transport_set_codec(struct ba_transport *t) { (void)t; }
+void a2dp_ldac_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_ldac_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_mpeg_transport_set_codec(struct ba_transport *t) { (void)t; }
+void a2dp_mpeg_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_sbc_transport_set_codec(struct ba_transport *t) { (void)t; }
+void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
@@ -169,9 +168,10 @@ START_TEST(test_ba_transport_pcm_volume) {
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
 	struct ba_transport_type ttype_a2dp = { .profile = BA_TRANSPORT_PROFILE_A2DP_SINK };
+	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d, ttype_a2dp,
-				"/owner", "/path", &a2dp_codec_sink_sbc, &configuration), NULL);
+				"/owner", "/path", &codec, &configuration), NULL);
 
 	struct ba_transport_type ttype_sco = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
 	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path", -1), NULL);

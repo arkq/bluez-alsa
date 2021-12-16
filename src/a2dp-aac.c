@@ -39,7 +39,112 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void a2dp_aac_transport_set_codec(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_aac_channels[] = {
+	{ A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
+	{ A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
+};
+
+static const struct a2dp_sampling_freq a2dp_aac_samplings[] = {
+	{ 8000, AAC_SAMPLING_FREQ_8000 },
+	{ 11025, AAC_SAMPLING_FREQ_11025 },
+	{ 12000, AAC_SAMPLING_FREQ_12000 },
+	{ 16000, AAC_SAMPLING_FREQ_16000 },
+	{ 22050, AAC_SAMPLING_FREQ_22050 },
+	{ 24000, AAC_SAMPLING_FREQ_24000 },
+	{ 32000, AAC_SAMPLING_FREQ_32000 },
+	{ 44100, AAC_SAMPLING_FREQ_44100 },
+	{ 48000, AAC_SAMPLING_FREQ_48000 },
+	{ 64000, AAC_SAMPLING_FREQ_64000 },
+	{ 88200, AAC_SAMPLING_FREQ_88200 },
+	{ 96000, AAC_SAMPLING_FREQ_96000 },
+};
+
+struct a2dp_codec a2dp_aac_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_MPEG24,
+	.capabilities.aac = {
+		/* NOTE: AAC Long Term Prediction and AAC Scalable are
+		 *       not supported by the FDK-AAC library. */
+		.object_type =
+			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
+			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
+		AAC_INIT_FREQUENCY(
+				AAC_SAMPLING_FREQ_8000 |
+				AAC_SAMPLING_FREQ_11025 |
+				AAC_SAMPLING_FREQ_12000 |
+				AAC_SAMPLING_FREQ_16000 |
+				AAC_SAMPLING_FREQ_22050 |
+				AAC_SAMPLING_FREQ_24000 |
+				AAC_SAMPLING_FREQ_32000 |
+				AAC_SAMPLING_FREQ_44100 |
+				AAC_SAMPLING_FREQ_48000 |
+				AAC_SAMPLING_FREQ_64000 |
+				AAC_SAMPLING_FREQ_88200 |
+				AAC_SAMPLING_FREQ_96000)
+		.channels =
+			AAC_CHANNELS_1 |
+			AAC_CHANNELS_2,
+		.vbr = 1,
+		AAC_INIT_BITRATE(320000)
+	},
+	.capabilities_size = sizeof(a2dp_aac_t),
+	.channels[0] = a2dp_aac_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
+	.samplings[0] = a2dp_aac_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+};
+
+struct a2dp_codec a2dp_aac_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_MPEG24,
+	.capabilities.aac = {
+		/* NOTE: AAC Long Term Prediction and AAC Scalable are
+		 *       not supported by the FDK-AAC library. */
+		.object_type =
+			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
+			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
+		AAC_INIT_FREQUENCY(
+				AAC_SAMPLING_FREQ_8000 |
+				AAC_SAMPLING_FREQ_11025 |
+				AAC_SAMPLING_FREQ_12000 |
+				AAC_SAMPLING_FREQ_16000 |
+				AAC_SAMPLING_FREQ_22050 |
+				AAC_SAMPLING_FREQ_24000 |
+				AAC_SAMPLING_FREQ_32000 |
+				AAC_SAMPLING_FREQ_44100 |
+				AAC_SAMPLING_FREQ_48000 |
+				AAC_SAMPLING_FREQ_64000 |
+				AAC_SAMPLING_FREQ_88200 |
+				AAC_SAMPLING_FREQ_96000)
+		.channels =
+			AAC_CHANNELS_1 |
+			AAC_CHANNELS_2,
+		.vbr = 1,
+		AAC_INIT_BITRATE(320000)
+	},
+	.capabilities_size = sizeof(a2dp_aac_t),
+	.channels[0] = a2dp_aac_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
+	.samplings[0] = a2dp_aac_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+};
+
+void a2dp_aac_init(void) {
+
+	if (config.a2dp.force_mono)
+		a2dp_aac_source.capabilities.aac.channels = AAC_CHANNELS_1;
+	if (config.a2dp.force_44100)
+		AAC_SET_FREQUENCY(a2dp_aac_source.capabilities.aac, AAC_SAMPLING_FREQ_44100);
+
+	if (!config.aac_prefer_vbr)
+		a2dp_aac_source.capabilities.aac.vbr = 0;
+
+	AAC_SET_BITRATE(a2dp_aac_source.capabilities.aac, config.aac_bitrate);
+	AAC_SET_BITRATE(a2dp_aac_sink.capabilities.aac, config.aac_bitrate);
+
+}
+
+void a2dp_aac_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_codec *codec = t->a2dp.codec;
 

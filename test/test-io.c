@@ -612,10 +612,10 @@ START_TEST(test_a2dp_sbc) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_SBC };
 	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/sbc",
-			&a2dp_codec_source_sbc, &config_sbc_44100_stereo);
+			&a2dp_sbc_source, &config_sbc_44100_stereo);
 	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/sbc",
-			&a2dp_codec_sink_sbc, &config_sbc_44100_stereo);
+			&a2dp_sbc_sink, &config_sbc_44100_stereo);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
@@ -640,10 +640,10 @@ START_TEST(test_a2dp_mp3) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_MPEG12 };
 	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/mp3",
-			&a2dp_codec_source_mpeg, &config_mp3_44100_stereo);
+			&a2dp_mpeg_source, &config_mp3_44100_stereo);
 	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/mp3",
-			&a2dp_codec_sink_mpeg, &config_mp3_44100_stereo);
+			&a2dp_mpeg_sink, &config_mp3_44100_stereo);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
@@ -669,10 +669,10 @@ START_TEST(test_a2dp_aac) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_MPEG24 };
 	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/aac",
-			&a2dp_codec_source_aac, &config_aac_44100_stereo);
+			&a2dp_aac_source, &config_aac_44100_stereo);
 	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/aac",
-			&a2dp_codec_sink_aac, &config_aac_44100_stereo);
+			&a2dp_aac_sink, &config_aac_44100_stereo);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 450;
@@ -698,10 +698,10 @@ START_TEST(test_a2dp_aptx) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_APTX };
 	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/aptx",
-			&a2dp_codec_source_aptx, &config_aptx_44100_stereo);
+			&a2dp_aptx_source, &config_aptx_44100_stereo);
 	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/aptx",
-			&a2dp_codec_sink_aptx, &config_aptx_44100_stereo);
+			&a2dp_aptx_sink, &config_aptx_44100_stereo);
 
 	if (aging_duration) {
 #if HAVE_APTX_DECODE
@@ -731,10 +731,10 @@ START_TEST(test_a2dp_aptx_hd) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_APTX_HD };
 	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/aptxhd",
-			&a2dp_codec_source_aptx_hd, &config_aptx_hd_44100_stereo);
+			&a2dp_aptx_hd_source, &config_aptx_hd_44100_stereo);
 	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/aptxhd",
-			&a2dp_codec_sink_aptx_hd, &config_aptx_hd_44100_stereo);
+			&a2dp_aptx_hd_sink, &config_aptx_hd_44100_stereo);
 
 	if (aging_duration) {
 #if HAVE_APTX_HD_DECODE
@@ -764,10 +764,10 @@ START_TEST(test_a2dp_faststream) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_FASTSTREAM };
 	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/faststream",
-			&a2dp_codec_source_faststream, &config_faststream_44100_16000);
+			&a2dp_faststream_source, &config_faststream_44100_16000);
 	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/faststream",
-			&a2dp_codec_sink_faststream, &config_faststream_44100_16000);
+			&a2dp_faststream_sink, &config_faststream_44100_16000);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
@@ -796,10 +796,10 @@ START_TEST(test_a2dp_ldac) {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_LDAC };
 	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/ldac",
-			&a2dp_codec_source_ldac, &config_ldac_44100_stereo);
+			&a2dp_ldac_source, &config_ldac_44100_stereo);
 	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/ldac",
-			&a2dp_codec_sink_ldac, &config_ldac_44100_stereo);
+			&a2dp_ldac_sink, &config_ldac_44100_stereo);
 
 	if (aging_duration) {
 #if HAVE_LDAC_DECODE

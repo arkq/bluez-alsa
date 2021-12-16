@@ -39,7 +39,71 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void a2dp_ldac_transport_set_codec(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_ldac_channels[] = {
+	{ A2DP_CHM_MONO, 1, LDAC_CHANNEL_MODE_MONO },
+	{ A2DP_CHM_DUAL_CHANNEL, 2, LDAC_CHANNEL_MODE_DUAL },
+	{ A2DP_CHM_STEREO, 2, LDAC_CHANNEL_MODE_STEREO },
+};
+
+static const struct a2dp_sampling_freq a2dp_ldac_samplings[] = {
+	{ 44100, LDAC_SAMPLING_FREQ_44100 },
+	{ 48000, LDAC_SAMPLING_FREQ_48000 },
+	{ 88200, LDAC_SAMPLING_FREQ_88200 },
+	{ 96000, LDAC_SAMPLING_FREQ_96000 },
+};
+
+struct a2dp_codec a2dp_ldac_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_VENDOR_LDAC,
+	.capabilities.ldac = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+		.channel_mode =
+			LDAC_CHANNEL_MODE_MONO |
+			LDAC_CHANNEL_MODE_DUAL |
+			LDAC_CHANNEL_MODE_STEREO,
+		/* NOTE: Used LDAC library does not support
+		 *       frequencies higher than 96 kHz. */
+		.frequency =
+			LDAC_SAMPLING_FREQ_44100 |
+			LDAC_SAMPLING_FREQ_48000 |
+			LDAC_SAMPLING_FREQ_88200 |
+			LDAC_SAMPLING_FREQ_96000,
+	},
+	.capabilities_size = sizeof(a2dp_ldac_t),
+	.channels[0] = a2dp_ldac_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_ldac_channels),
+	.samplings[0] = a2dp_ldac_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
+};
+
+struct a2dp_codec a2dp_ldac_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_VENDOR_LDAC,
+	.capabilities.ldac = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+		.channel_mode =
+			LDAC_CHANNEL_MODE_MONO |
+			LDAC_CHANNEL_MODE_DUAL |
+			LDAC_CHANNEL_MODE_STEREO,
+		/* NOTE: Used LDAC library does not support
+		 *       frequencies higher than 96 kHz. */
+		.frequency =
+			LDAC_SAMPLING_FREQ_44100 |
+			LDAC_SAMPLING_FREQ_48000 |
+			LDAC_SAMPLING_FREQ_88200 |
+			LDAC_SAMPLING_FREQ_96000,
+	},
+	.capabilities_size = sizeof(a2dp_ldac_t),
+	.channels[0] = a2dp_ldac_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_ldac_channels),
+	.samplings[0] = a2dp_ldac_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
+};
+
+void a2dp_ldac_init(void) {
+}
+
+void a2dp_ldac_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_codec *codec = t->a2dp.codec;
 

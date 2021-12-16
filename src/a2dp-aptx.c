@@ -32,7 +32,65 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void a2dp_aptx_transport_set_codec(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_aptx_channels[] = {
+	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
+};
+
+static const struct a2dp_sampling_freq a2dp_aptx_samplings[] = {
+	{ 16000, APTX_SAMPLING_FREQ_16000 },
+	{ 32000, APTX_SAMPLING_FREQ_32000 },
+	{ 44100, APTX_SAMPLING_FREQ_44100 },
+	{ 48000, APTX_SAMPLING_FREQ_48000 },
+};
+
+struct a2dp_codec a2dp_aptx_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.capabilities.aptx = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+		/* NOTE: Used apt-X library does not support
+		 *       single channel (mono) mode. */
+		.channel_mode =
+			APTX_CHANNEL_MODE_STEREO,
+		.frequency =
+			APTX_SAMPLING_FREQ_16000 |
+			APTX_SAMPLING_FREQ_32000 |
+			APTX_SAMPLING_FREQ_44100 |
+			APTX_SAMPLING_FREQ_48000,
+	},
+	.capabilities_size = sizeof(a2dp_aptx_t),
+	.channels[0] = a2dp_aptx_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
+	.samplings[0] = a2dp_aptx_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
+};
+
+struct a2dp_codec a2dp_aptx_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.capabilities.aptx = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+		/* NOTE: Used apt-X library does not support
+		 *       single channel (mono) mode. */
+		.channel_mode =
+			APTX_CHANNEL_MODE_STEREO,
+		.frequency =
+			APTX_SAMPLING_FREQ_16000 |
+			APTX_SAMPLING_FREQ_32000 |
+			APTX_SAMPLING_FREQ_44100 |
+			APTX_SAMPLING_FREQ_48000,
+	},
+	.capabilities_size = sizeof(a2dp_aptx_t),
+	.channels[0] = a2dp_aptx_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
+	.samplings[0] = a2dp_aptx_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
+};
+
+void a2dp_aptx_init(void) {
+}
+
+void a2dp_aptx_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_codec *codec = t->a2dp.codec;
 

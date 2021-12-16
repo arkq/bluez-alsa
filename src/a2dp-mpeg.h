@@ -16,9 +16,14 @@
 # include <config.h>
 #endif
 
+#include "a2dp.h"
 #include "ba-transport.h"
 
-void a2dp_mpeg_transport_set_codec(struct ba_transport *t);
+extern struct a2dp_codec a2dp_mpeg_sink;
+extern struct a2dp_codec a2dp_mpeg_source;
+
+void a2dp_mpeg_init(void);
+void a2dp_mpeg_transport_init(struct ba_transport *t);
 int a2dp_mpeg_transport_start(struct ba_transport *t);
 
 #endif

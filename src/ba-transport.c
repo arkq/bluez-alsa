@@ -1049,36 +1049,36 @@ static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 
 	switch (codec_id) {
 	case A2DP_CODEC_SBC:
-		a2dp_sbc_transport_set_codec(t);
+		a2dp_sbc_transport_init(t);
 		break;
 #if ENABLE_MPEG
 	case A2DP_CODEC_MPEG12:
-		a2dp_mpeg_transport_set_codec(t);
+		a2dp_mpeg_transport_init(t);
 		break;
 #endif
 #if ENABLE_AAC
 	case A2DP_CODEC_MPEG24:
-		a2dp_aac_transport_set_codec(t);
+		a2dp_aac_transport_init(t);
 		break;
 #endif
 #if ENABLE_APTX
 	case A2DP_CODEC_VENDOR_APTX:
-		a2dp_aptx_transport_set_codec(t);
+		a2dp_aptx_transport_init(t);
 		break;
 #endif
 #if ENABLE_APTX_HD
 	case A2DP_CODEC_VENDOR_APTX_HD:
-		a2dp_aptx_hd_transport_set_codec(t);
+		a2dp_aptx_hd_transport_init(t);
 		break;
 #endif
 #if ENABLE_FASTSTREAM
 	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		a2dp_faststream_transport_set_codec(t);
+		a2dp_faststream_transport_init(t);
 		break;
 #endif
 #if ENABLE_LDAC
 	case A2DP_CODEC_VENDOR_LDAC:
-		a2dp_ldac_transport_set_codec(t);
+		a2dp_ldac_transport_init(t);
 		break;
 #endif
 	default:

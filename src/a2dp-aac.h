@@ -18,7 +18,11 @@
 
 #include "ba-transport.h"
 
-void a2dp_aac_transport_set_codec(struct ba_transport *t);
+extern struct a2dp_codec a2dp_aac_sink;
+extern struct a2dp_codec a2dp_aac_source;
+
+void a2dp_aac_init(void);
+void a2dp_aac_transport_init(struct ba_transport *t);
 int a2dp_aac_transport_start(struct ba_transport *t);
 
 #endif
