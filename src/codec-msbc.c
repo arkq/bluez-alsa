@@ -124,16 +124,16 @@ void msbc_finish(struct esco_msbc *msbc) {
 
 /**
  * Find and decode single eSCO mSBC frame. */
-int msbc_decode(struct esco_msbc *msbc) {
+ssize_t msbc_decode(struct esco_msbc *msbc) {
 
 	if (!msbc->initialized)
-		return errno = EINVAL, -1;
+		return -EINVAL;
 
 	const uint8_t *input = msbc->data.data;
 	size_t input_len = ffb_blen_out(&msbc->data);
 	int16_t *output = msbc->pcm.tail;
 	size_t output_len = ffb_blen_in(&msbc->pcm);
-	int rv = 0;
+	ssize_t rv = 0;
 
 	const size_t tmp = input_len;
 	const esco_msbc_frame_t *frame = msbc_find_h2_header(input, &input_len);
@@ -163,14 +163,14 @@ int msbc_decode(struct esco_msbc *msbc) {
 	ssize_t len;
 	if ((len = sbc_decode(&msbc->sbc, frame->payload, sizeof(frame->payload),
 					output, output_len, NULL)) < 0) {
-		errno = -len, rv = -1;
 		input += 1;
+		rv = len;
 		goto final;
 	}
 
 	ffb_seek(&msbc->pcm, MSBC_CODESAMPLES);
 	input += sizeof(*frame);
-	rv = 1;
+	rv = MSBC_CODESAMPLES;
 
 final:
 	/* Reshuffle remaining data to the beginning of the buffer. */
@@ -180,10 +180,10 @@ final:
 
 /**
  * Encode single eSCO mSBC frame. */
-int msbc_encode(struct esco_msbc *msbc) {
+ssize_t msbc_encode(struct esco_msbc *msbc) {
 
 	if (!msbc->initialized)
-		return errno = EINVAL, -1;
+		return -EINVAL;
 
 	const int16_t *input = msbc->pcm.data;
 	const size_t input_len = ffb_blen_out(&msbc->pcm);
@@ -199,7 +199,7 @@ int msbc_encode(struct esco_msbc *msbc) {
 	ssize_t len;
 	if ((len = sbc_encode(&msbc->sbc, input, input_len,
 					frame->payload, sizeof(frame->payload), NULL)) < 0)
-		return errno = -len, -1;
+		return len;
 
 	const uint8_t n = msbc->seq_number++;
 	frame->header = htole16(ESCO_H2_PACK(sn[n][0], sn[n][1]));
@@ -211,5 +211,5 @@ int msbc_encode(struct esco_msbc *msbc) {
 	/* Reshuffle remaining PCM data to the beginning of the buffer. */
 	ffb_shift(&msbc->pcm, input + MSBC_CODESAMPLES - (int16_t *)msbc->pcm.data);
 
-	return 1;
+	return sizeof(*frame);
 }

@@ -239,7 +239,7 @@ static void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 
 			if ((len = sbc_encode(&sbc, input, input_samples * sizeof(int16_t),
 							bt.tail, output_len, &encoded)) < 0) {
-				error("SBC encoding error: %s", strerror(-len));
+				error("SBC encoding error: %s", sbc_strerror(len));
 				break;
 			}
 
@@ -372,7 +372,7 @@ static void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 
 			if ((len = sbc_decode(&sbc, rtp_payload, rtp_payload_len,
 							pcm.data, ffb_blen_in(&pcm), &decoded)) < 0) {
-				error("SBC decoding error: %s", strerror(-len));
+				error("SBC decoding error: %s", sbc_strerror(len));
 				break;
 			}
 

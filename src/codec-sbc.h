@@ -40,6 +40,8 @@ int sbc_init_a2dp_faststream(sbc_t *sbc, unsigned long flags,
 int sbc_reinit_msbc(sbc_t *sbc, unsigned long flags);
 #endif
 
+const char *sbc_strerror(int err);
+
 #if DEBUG
 void sbc_print_internals(const sbc_t *sbc);
 #endif

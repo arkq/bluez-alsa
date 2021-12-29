@@ -99,7 +99,7 @@ START_TEST(test_msbc_encode_decode) {
 
 	msbc.initialized = false;
 	ck_assert_int_eq(msbc_init(&msbc), 0);
-	for (rv = 1, i = 0; rv == 1;) {
+	for (rv = 1, i = 0; rv > 0;) {
 
 		len = MIN(ARRAYSIZE(sine) - i, ffb_len_in(&msbc.pcm));
 		memcpy(msbc.pcm.tail, &sine[i], len * msbc.pcm.size);
@@ -124,7 +124,7 @@ START_TEST(test_msbc_encode_decode) {
 
 	msbc.initialized = false;
 	ck_assert_int_eq(msbc_init(&msbc), 0);
-	for (rv = 1, i = 0; rv == 1; ) {
+	for (rv = 1, i = 0; rv > 0; ) {
 
 		len = MIN((data_tail - data) - i, ffb_blen_in(&msbc.data));
 		memcpy(msbc.data.tail, &data[i], len);

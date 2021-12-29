@@ -191,6 +191,34 @@ int sbc_reinit_msbc(sbc_t *sbc, unsigned long flags) {
 }
 #endif
 
+/**
+ * Get string representation of the SBC encode/decode error.
+ *
+ * @param err The encode/decode error code.
+ * @return Human-readable string. */
+const char *sbc_strerror(int err) {
+	if (err >= 0)
+		return "Success";
+	switch (err) {
+	case -1:
+		return "Bitstream corrupted";
+	case -2:
+		return "Invalid sync-word";
+	case -3:
+		return "Invalid CRC";
+	case -4:
+	case -5:
+		return "Bitpool out of range";
+	case -EINVAL:
+		return "Invalid argument";
+	case -ENOSPC:
+		return "No space for output data";
+	default:
+		debug("Unknown SBC error code: %d", err);
+		return "Unknown error";
+	}
+}
+
 #if DEBUG
 void sbc_print_internals(const sbc_t *sbc) {
 

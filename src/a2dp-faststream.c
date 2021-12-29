@@ -172,7 +172,7 @@ static void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 
 			if ((len = sbc_encode(&sbc, input, input_len * sizeof(int16_t),
 							bt.tail, output_len, &encoded)) < 0) {
-				error("FastStream SBC encoding error: %s", strerror(-len));
+				error("FastStream SBC encoding error: %s", sbc_strerror(len));
 				break;
 			}
 
@@ -285,7 +285,7 @@ static void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 
 			if ((len = sbc_decode(&sbc, input, input_len,
 							pcm.data, ffb_blen_in(&pcm), &decoded)) < 0) {
-				error("FastStream SBC decoding error: %s", strerror(-len));
+				error("FastStream SBC decoding error: %s", sbc_strerror(len));
 				break;
 			}
 

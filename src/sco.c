@@ -27,6 +27,7 @@
 #include "ba-device.h"
 #include "bluealsa-config.h"
 #include "codec-msbc.h"
+#include "codec-sbc.h"
 #include "hci.h"
 #include "hfp.h"
 #include "io.h"
@@ -367,8 +368,10 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 		}
 
 		ffb_seek(&msbc.pcm, samples);
-		if (msbc_encode(&msbc) == -1) {
-			warn("Couldn't encode mSBC: %s", strerror(errno));
+
+		int err;
+		if ((err = msbc_encode(&msbc)) < 0) {
+			warn("Couldn't encode mSBC: %s", sbc_strerror(err));
 			ffb_rewind(&msbc.pcm);
 		}
 
@@ -446,8 +449,10 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 			continue;
 
 		ffb_seek(&msbc.data, len);
-		if (msbc_decode(&msbc) == -1) {
-			warn("Couldn't decode mSBC: %s", strerror(errno));
+
+		int err;
+		if ((err = msbc_decode(&msbc)) < 0) {
+			warn("Couldn't decode mSBC: %s", sbc_strerror(err));
 			ffb_rewind(&msbc.data);
 		}
 

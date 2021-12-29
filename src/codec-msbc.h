@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_CODECMSBC_H_
 #define BLUEALSA_CODECMSBC_H_
 
@@ -18,6 +19,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 #include <sbc/sbc.h>
 
@@ -69,7 +71,7 @@ struct esco_msbc {
 int msbc_init(struct esco_msbc *msbc);
 void msbc_finish(struct esco_msbc *msbc);
 
-int msbc_decode(struct esco_msbc *msbc);
-int msbc_encode(struct esco_msbc *msbc);
+ssize_t msbc_decode(struct esco_msbc *msbc);
+ssize_t msbc_encode(struct esco_msbc *msbc);
 
 #endif
