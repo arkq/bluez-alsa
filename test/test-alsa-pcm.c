@@ -186,7 +186,7 @@ static int test_pcm_close(pid_t pid, snd_pcm_t *pcm) {
 static int16_t *test_sine_s16le(snd_pcm_uframes_t size) {
 	static size_t x = 0;
 	assert(ARRAYSIZE(buffer) >= size * pcm_channels);
-	x = snd_pcm_sine_s16le(buffer, size * pcm_channels, pcm_channels, x, 441.0 / pcm_sampling);
+	x = snd_pcm_sine_s16_2le(buffer, size, pcm_channels, x, 441.0 / pcm_sampling);
 	return buffer;
 }
 

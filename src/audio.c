@@ -45,12 +45,13 @@ double audio_loudness_to_decibel(double value) {
  * clipping will most certainly occur.
  *
  * @param buffer Address to the buffer where the PCM signal is stored.
- * @param channels The number of channels in the buffer.
  * @param frames The number of PCM frames in the buffer.
+ * @param channels The number of channels in the buffer.
  * @param ch1 The scaling factor for 1st channel.
  * @param ch1 The scaling factor for 2nd channel. */
-void audio_scale_s16_2le(int16_t *buffer, int channels, size_t frames, double ch1, double ch2) {
-	audio_silence_s16_2le(buffer, channels, frames, ch1 == 0, ch2 == 0);
+void audio_scale_s16_2le(int16_t *buffer, size_t frames,
+		unsigned int channels, double ch1, double ch2) {
+	audio_silence_s16_2le(buffer, frames, channels, ch1 == 0, ch2 == 0);
 	switch (channels) {
 	case 1:
 		if (ch1 != 0 && ch1 != 1)
@@ -71,8 +72,9 @@ void audio_scale_s16_2le(int16_t *buffer, int channels, size_t frames, double ch
 
 /**
  * Scale S32_4LE PCM signal. */
-void audio_scale_s32_4le(int32_t *buffer, int channels, size_t frames, double ch1, double ch2) {
-	audio_silence_s32_4le(buffer, channels, frames, ch1 == 0, ch2 == 0);
+void audio_scale_s32_4le(int32_t *buffer, size_t frames,
+		unsigned int channels, double ch1, double ch2) {
+	audio_silence_s32_4le(buffer, frames, channels, ch1 == 0, ch2 == 0);
 	switch (channels) {
 	case 1:
 		if (ch1 != 0 && ch1 != 1)
@@ -93,7 +95,8 @@ void audio_scale_s32_4le(int32_t *buffer, int channels, size_t frames, double ch
 
 /**
  * Silence S16_2LE PCM signal. */
-void audio_silence_s16_2le(int16_t *buffer, int channels, size_t frames, bool ch1, bool ch2) {
+void audio_silence_s16_2le(int16_t *buffer, size_t frames,
+		unsigned int channels, bool ch1, bool ch2) {
 	switch (channels) {
 	case 1:
 		if (ch1)
@@ -113,7 +116,8 @@ void audio_silence_s16_2le(int16_t *buffer, int channels, size_t frames, bool ch
 
 /**
  * Silence S32_4LE PCM signal. */
-void audio_silence_s32_4le(int32_t *buffer, int channels, size_t frames, bool ch1, bool ch2) {
+void audio_silence_s32_4le(int32_t *buffer, size_t frames,
+		unsigned int channels, bool ch1, bool ch2) {
 	switch (channels) {
 	case 1:
 		if (ch1)

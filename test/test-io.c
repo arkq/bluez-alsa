@@ -45,6 +45,7 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"
+#include "io.h"
 #include "rtp.h"
 #include "sco.h"
 #include "utils.h"
@@ -92,20 +93,18 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 };
 
 __attribute__ ((unused))
-static const a2dp_mpeg_t config_mp3_44100_stereo = {
+static a2dp_mpeg_t config_mp3_44100_stereo = {
 	.layer = MPEG_LAYER_MP3,
 	.channel_mode = MPEG_CHANNEL_MODE_STEREO,
 	.frequency = MPEG_SAMPLING_FREQ_44100,
-	.vbr = 1,
 	MPEG_INIT_BITRATE(0xFFFF)
 };
 
 __attribute__ ((unused))
-static const a2dp_aac_t config_aac_44100_stereo = {
+static a2dp_aac_t config_aac_44100_stereo = {
 	.object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC,
 	AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
 	.channels = AAC_CHANNELS_2,
-	.vbr = 1,
 	AAC_INIT_BITRATE(0xFFFF)
 };
 
@@ -144,6 +143,7 @@ static struct ba_device *device2 = NULL;
 static const char *input_bt_file = NULL;
 static const char *input_pcm_file = NULL;
 static unsigned int aging_duration = 0;
+static bool enable_vbr_mode = false;
 static bool dump_data = false;
 
 static struct bt_dump *btd = NULL;
@@ -153,8 +153,6 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 
 	struct ba_transport_pcm *pcm = userdata;
 	struct pollfd pfds[] = {{ pcm->fd, POLLOUT, 0 }};
-	int16_t buffer[1024];
-	sf_count_t samples;
 
 	SNDFILE *sf = NULL;
 	SF_INFO sf_info = {};
@@ -164,11 +162,40 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 	}
 
 	for (;;) {
+
+		union {
+			int16_t s16[1024];
+			int32_t s32[1024];
+		} buffer;
+		sf_count_t samples = 0;
+		ssize_t len = 0;
+
 		ck_assert_int_ne(poll(pfds, ARRAYSIZE(pfds), -1), -1);
-		if ((samples = sf_read_short(sf, buffer, ARRAYSIZE(buffer))) == 0)
+
+		switch (pcm->format) {
+		case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
+			samples = sf_read_short(sf, buffer.s16, ARRAYSIZE(buffer.s16));
+			len = samples * sizeof(int16_t);
 			break;
-		ssize_t len = samples * sizeof(int16_t);
-		ck_assert_int_eq(write(pfds[0].fd, buffer, len), len);
+		case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
+			samples = sf_read_int(sf, buffer.s32, ARRAYSIZE(buffer.s32));
+			for (sf_count_t i = 0; i < samples; i++)
+				buffer.s32[i] >>= 8;
+			len = samples * sizeof(int32_t);
+			break;
+		case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
+			samples = sf_read_int(sf, buffer.s32, ARRAYSIZE(buffer.s32));
+			len = samples * sizeof(int32_t);
+			break;
+		default:
+			g_assert_not_reached();
+		}
+
+		if (samples == 0)
+			break;
+
+		ck_assert_int_eq(write(pfds[0].fd, &buffer, len), len);
+
 	};
 
 	sf_close(sf);
@@ -179,13 +206,6 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 /**
  * Write test PCM signal to the file descriptor. */
 static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
-
-	static int16_t pcm_mono_buffer[1024];
-	static const size_t pcm_mono_samples = ARRAYSIZE(pcm_mono_buffer);
-	static int16_t pcm_stereo_buffer[2 * 1024];
-	static const size_t pcm_stereo_samples = ARRAYSIZE(pcm_stereo_buffer);
-	static bool initialized = false;
-	FILE *f;
 
 	if (input_pcm_file != NULL) {
 #if HAVE_SNDFILE
@@ -198,48 +218,43 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 		return;
 	}
 
-	if (!initialized) {
+	union {
+		int16_t s16[2 * 1024];
+		int32_t s32[2 * 1024];
+	} pcm_sine_buffer;
+	size_t pcm_sine_bytes = 0;
 
-		/* initialize build-in sample PCM test signals */
-		snd_pcm_sine_s16le(pcm_mono_buffer, pcm_mono_samples, 1, 0, 1.0 / 128);
-		snd_pcm_sine_s16le(pcm_stereo_buffer, pcm_stereo_samples, 2, 0, 1.0 / 128);
-		initialized = true;
-
-		if (dump_data) {
-			ck_assert_ptr_ne(f = fopen("sample-mono.pcm", "w"), NULL);
-			fwrite(pcm_mono_buffer, 2, pcm_mono_samples, f);
-			fclose(f);
-			ck_assert_ptr_ne(f = fopen("sample-stereo.pcm", "w"), NULL);
-			fwrite(pcm_stereo_buffer, 2, pcm_stereo_samples, f);
-			fclose(f);
-		}
-
+	switch (pcm->format) {
+	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
+		snd_pcm_sine_s16_2le(pcm_sine_buffer.s16, 1024, pcm->channels, 0, 1.0 / 128);
+		pcm_sine_bytes = 1024 * pcm->channels * sizeof(int16_t);
+		break;
+	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
+		snd_pcm_sine_s24_4le(pcm_sine_buffer.s32, 1024, pcm->channels, 0, 1.0 / 128);
+		pcm_sine_bytes = 1024 * pcm->channels * sizeof(int32_t);
+		break;
+	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
+		snd_pcm_sine_s32_4le(pcm_sine_buffer.s32, 1024, pcm->channels, 0, 1.0 / 128);
+		pcm_sine_bytes = 1024 * pcm->channels * sizeof(int32_t);
+		break;
+	default:
+		g_assert_not_reached();
 	}
 
 	size_t samples = pcm->channels * frames;
-	debug("PCM write samples: %zd", samples);
-
 	size_t bytes = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format) * samples;
-	int16_t *pcm_buffer = NULL;
-	size_t pcm_bytes = 0;
+	debug("PCM write samples: %zu (%zu bytes)", samples, bytes);
 
-	switch (pcm->channels) {
-	case 1:
-		pcm_buffer = pcm_mono_buffer;
-		pcm_bytes = pcm_mono_samples * sizeof(*pcm_buffer);
-		break;
-	case 2:
-		pcm_buffer = pcm_stereo_buffer;
-		pcm_bytes = pcm_stereo_samples * sizeof(*pcm_buffer);
-		break;
+	if (dump_data) {
+		FILE *f;
+		ck_assert_ptr_ne(f = fopen("sample-sine.pcm", "w"), NULL);
+		ck_assert_int_eq(fwrite(&pcm_sine_buffer, pcm_sine_bytes, 1, f), 1);
+		ck_assert_int_eq(fclose(f), 0);
 	}
 
-	ck_assert_ptr_ne(pcm_buffer, NULL);
-	ck_assert_int_ne(pcm_bytes, 0);
-
 	while (bytes > 0) {
-		size_t len = pcm_bytes <= bytes ? pcm_bytes : bytes;
-		ck_assert_int_eq(write(pcm->fd, pcm_buffer, len), len);
+		size_t len = pcm_sine_bytes <= bytes ? pcm_sine_bytes : bytes;
+		ck_assert_int_eq(write(pcm->fd, &pcm_sine_buffer, len), len);
 		bytes -= len;
 	}
 
@@ -330,9 +345,10 @@ static void *test_io_thread_dump_bt(struct ba_transport_thread *th) {
 	ba_transport_thread_set_state_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
-		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
-			debug("BT read error: %s", strerror(errno));
-			continue;
+		if ((len = io_bt_read(th, buffer, sizeof(buffer))) <= 0) {
+			if (len == -1)
+				error("BT read error: %s", strerror(errno));
+			break;
 		}
 
 		bt_data_push(buffer, len);
@@ -451,7 +467,8 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 
 	}
 
-	debug("Decoded samples total: %zd", decoded_samples_total);
+	debug("Decoded samples total [%zu frames]: %zu",
+			decoded_samples_total / t_pcm->channels, decoded_samples_total);
 	ck_assert_int_gt(decoded_samples_total, 0);
 
 #if HAVE_SNDFILE
@@ -647,13 +664,13 @@ START_TEST(test_a2dp_mp3) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
-		test_io(t1, t2, a2dp_mp3_enc_thread, a2dp_mpeg_dec_thread, 12 * 1024);
+		test_io(t1, t2, a2dp_mp3_enc_thread, a2dp_mpeg_dec_thread, 4 * 1024);
 	}
 	else {
 		debug("\n\n*** A2DP codec: MP3 ***");
-		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 250;
-		test_io(t1, t2, a2dp_mp3_enc_thread, test_io_thread_dump_bt, 12 * 1024);
-		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_mpeg_dec_thread, 12 * 1024);
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 512;
+		test_io(t1, t2, a2dp_mp3_enc_thread, test_io_thread_dump_bt, 3 * 1024);
+		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_mpeg_dec_thread, 3 * 1024);
 	}
 
 	ba_transport_destroy(t1);
@@ -680,7 +697,7 @@ START_TEST(test_a2dp_aac) {
 	}
 	else {
 		debug("\n\n*** A2DP codec: AAC ***");
-		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 64;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 190;
 		test_io(t1, t2, a2dp_aac_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_aac_dec_thread, 2 * 1024);
 	}
@@ -833,8 +850,8 @@ START_TEST(test_sco_cvsd) {
 
 	debug("\n\n*** SCO codec: CVSD ***");
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 48;
-	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 512);
-	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 512);
+	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 600);
+	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 600);
 
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
@@ -852,8 +869,8 @@ START_TEST(test_sco_msbc) {
 
 	debug("\n\n*** SCO codec: mSBC ***");
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
-	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 1024);
-	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 1024);
+	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 600);
+	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 600);
 
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
@@ -871,6 +888,7 @@ int main(int argc, char *argv[]) {
 		{ "dump", no_argument, NULL, 'd' },
 		{ "input-bt", required_argument, NULL, 1 },
 		{ "input-pcm", required_argument, NULL, 2 },
+		{ "vbr", no_argument, NULL, 3 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -907,8 +925,9 @@ int main(int argc, char *argv[]) {
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -a, --aging=SEC\tperform aging test for SEC seconds\n"
 					"  -d, --dump\t\tdump PCM and Bluetooth data\n"
-					"  --input-bt=FILE\tload Bluetooth data from file\n"
-					"  --input-pcm=FILE\tload audio data from file\n",
+					"  --input-bt=FILE\tload Bluetooth data from FILE\n"
+					"  --input-pcm=FILE\tload audio from FILE (via libsndfile)\n"
+					"  --vbr\t\t\tuse VBR if supported by the codec\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 		case 'a' /* --aging=SEC */ :
@@ -922,6 +941,9 @@ int main(int argc, char *argv[]) {
 			break;
 		case 2 /* --input-pcm=FILE */ :
 			input_pcm_file = optarg;
+			break;
+		case 3 /* --vbr */ :
+			enable_vbr_mode = true;
 			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
@@ -986,11 +1008,14 @@ int main(int argc, char *argv[]) {
 	if (enabled_codecs & TEST_CODEC_SBC)
 		tcase_add_test(tc, test_a2dp_sbc);
 #if ENABLE_MP3LAME
+	config_mp3_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 	if (enabled_codecs & TEST_CODEC_MP3)
 		tcase_add_test(tc, test_a2dp_mp3);
 #endif
 #if ENABLE_AAC
 	config.aac_afterburner = true;
+	config.aac_prefer_vbr = enable_vbr_mode;
+	config_aac_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 	if (enabled_codecs & TEST_CODEC_AAC)
 		tcase_add_test(tc, test_a2dp_aac);
 #endif

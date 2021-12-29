@@ -195,14 +195,15 @@ static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 			asrsync_init(&asrs, samplerate);
 
 		const size_t samples = ARRAYSIZE(buffer);
-		x = snd_pcm_sine_s16le(buffer, samples, channels, x, 1.0 / 128);
+		const size_t frames = samples / channels;
+		x = snd_pcm_sine_s16_2le(buffer, frames, channels, x, 1.0 / 128);
 
 		io_pcm_scale(t_a2dp_pcm, buffer, samples);
 		if (io_pcm_write(t_a2dp_pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		/* maintain constant speed */
-		asrsync_sync(&asrs, samples / channels);
+		asrsync_sync(&asrs, frames);
 
 	}
 

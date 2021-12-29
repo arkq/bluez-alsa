@@ -114,12 +114,12 @@ void io_pcm_scale(
 		 * headsets does not entirely silence audio. */
 		switch (pcm->format) {
 		case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-			audio_silence_s16_2le(buffer, channels, frames,
+			audio_silence_s16_2le(buffer, frames, channels,
 					pcm->volume[0].scale == 0, pcm->volume[1].scale == 0);
 			break;
 		case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
 		case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-			audio_silence_s32_4le(buffer, channels, frames,
+			audio_silence_s32_4le(buffer, frames, channels,
 					pcm->volume[0].scale == 0, pcm->volume[1].scale == 0);
 			break;
 		default:
@@ -130,12 +130,12 @@ void io_pcm_scale(
 
 	switch (pcm->format) {
 	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-		audio_scale_s16_2le(buffer, channels, frames,
+		audio_scale_s16_2le(buffer, frames, channels,
 				pcm->volume[0].scale, pcm->volume[1].scale);
 		break;
 	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
 	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-		audio_scale_s32_4le(buffer, channels, frames,
+		audio_scale_s32_4le(buffer, frames, channels,
 				pcm->volume[0].scale, pcm->volume[1].scale);
 		break;
 	default:

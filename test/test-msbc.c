@@ -92,7 +92,7 @@ START_TEST(test_msbc_encode_decode) {
 	size_t i;
 	int rv;
 
-	snd_pcm_sine_s16le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
+	snd_pcm_sine_s16_2le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
 
 	uint8_t data[sizeof(sine)];
 	uint8_t *data_tail = data;

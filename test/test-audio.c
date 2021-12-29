@@ -28,31 +28,31 @@ START_TEST(test_audio_scale_s16_2le) {
 	int16_t tmp[ARRAYSIZE(in)];
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s16_2le(tmp, 1, ARRAYSIZE(tmp), 0, 0);
+	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp), 1, 0, 0);
 	ck_assert_int_eq(memcmp(tmp, mute, sizeof(mute)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s16_2le(tmp, 1, ARRAYSIZE(tmp), 1.0, 0);
+	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp), 1, 1.0, 0);
 	ck_assert_int_eq(memcmp(tmp, in, sizeof(in)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s16_2le(tmp, 1, ARRAYSIZE(tmp), 0.5, 0);
+	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp), 1, 0.5, 0);
 	ck_assert_int_eq(memcmp(tmp, half, sizeof(half)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s16_2le(tmp, 2, ARRAYSIZE(tmp) / 2, 0, 1.0);
+	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp) / 2, 2, 0, 1.0);
 	ck_assert_int_eq(memcmp(tmp, mute_l, sizeof(mute_l)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s16_2le(tmp, 2, ARRAYSIZE(tmp) / 2, 1.0, 0);
+	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp) / 2, 2, 1.0, 0);
 	ck_assert_int_eq(memcmp(tmp, mute_r, sizeof(mute_r)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s16_2le(tmp, 2, ARRAYSIZE(tmp) / 2, 0.5, 1.0);
+	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp) / 2, 2, 0.5, 1.0);
 	ck_assert_int_eq(memcmp(tmp, half_l, sizeof(half_l)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s16_2le(tmp, 2, ARRAYSIZE(tmp) / 2, 1.0, 0.5);
+	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp) / 2, 2, 1.0, 0.5);
 	ck_assert_int_eq(memcmp(tmp, half_r, sizeof(half_r)), 0);
 
 } END_TEST
@@ -67,19 +67,19 @@ START_TEST(test_audio_scale_s32_4le) {
 	int32_t tmp[ARRAYSIZE(in)];
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s32_4le(tmp, 1, ARRAYSIZE(tmp), 0, 0);
+	audio_scale_s32_4le(tmp, ARRAYSIZE(tmp), 1, 0, 0);
 	ck_assert_int_eq(memcmp(tmp, mute, sizeof(mute)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s32_4le(tmp, 2, ARRAYSIZE(tmp) / 2, 0, 1.0);
+	audio_scale_s32_4le(tmp, ARRAYSIZE(tmp) / 2, 2, 0, 1.0);
 	ck_assert_int_eq(memcmp(tmp, mute_l, sizeof(mute_l)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s32_4le(tmp, 1, ARRAYSIZE(tmp), 0.5, 0);
+	audio_scale_s32_4le(tmp, ARRAYSIZE(tmp), 1, 0.5, 0);
 	ck_assert_int_eq(memcmp(tmp, half, sizeof(half)), 0);
 
 	memcpy(tmp, in, sizeof(tmp));
-	audio_scale_s32_4le(tmp, 2, ARRAYSIZE(tmp) / 2, 1.0, 0.5);
+	audio_scale_s32_4le(tmp, ARRAYSIZE(tmp) / 2, 2, 1.0, 0.5);
 	ck_assert_int_eq(memcmp(tmp, half_r, sizeof(half_r)), 0);
 
 } END_TEST
