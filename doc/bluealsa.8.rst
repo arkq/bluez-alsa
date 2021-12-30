@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: November 2021
+:Date: January 2022
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -44,17 +44,33 @@ OPTIONS
 -i hciX, --device=hciX
     HCI device to use. Can be specified multiple times to select more than one HCI.
     Because HCI numbering can change after a system reboot, this option also accepts
-    HCI MAC address for the *hciX* value, e.g: ``--device=00:11:22:33:44:55``
+    HCI MAC address for the *hciX* value, e.g.: ``--device=00:11:22:33:44:55``
 
     Without this option, the default is to use all available HCI devices.
 
 -p NAME, --profile=NAME
-    Enable *NAME* Bluetooth profile. May be given multiple times to enable
-    multiple profiles. If this option is given, then only those profiles
-    explicitly mentioned will be enabled.
+    Enable or disable *NAME* Bluetooth profile.
+    May be given multiple number of times to enable (or disable) multiple profiles.
+
+    In order to disable given profile (remove it from the list of profiles enabled
+    by default), the *NAME* has to be prefixed with **-** (minus) character.
 
     Without this option, **bluealsa** enables **a2dp-source**, **hfp-ag** and **hsp-ag**.
     For the list of supported profiles see the PROFILES_ section below.
+
+-c NAME, --codec=NAME
+    Enable or disable *NAME* Bluetooth audio codec.
+    May be given multiple number of times to enable (or disable) multiple codecs.
+
+    In order to disable given audio codec (remove it from the list of audio codecs
+    enabled by default), the *NAME* has to be prefixed with **-** (minus) character.
+    It is not possible to disable SBC and CVSD codecs which are mandatory for A2DP
+    and HFP/HSP respectively.
+
+    By default BlueALSA enables SBC, AAC (if AAC support is compiled-in), CVSD and
+    mSBC.
+    For the list of supported audio codecs see the "Available BT audio codecs"
+    section of the **bluealsa** command-line help message.
 
 --initial-volume=NUM
     Set the initial volume to *NUM* % when the device is connected.
@@ -84,7 +100,7 @@ OPTIONS
 
 --a2dp-force-audio-cd
     Force 44.1 kHz sampling frequency for A2DP profile.
-    Some bluetooth devices can handle streams sampled at either 48kHz or 44.1kHz, in which case
+    Some Bluetooth devices can handle streams sampled at either 48kHz or 44.1kHz, in which case
     they normally default to using 48kHz.
     With this option, **bluealsa** will request such a device uses only 44.1 kHz sample rate.
 
@@ -191,11 +207,11 @@ The list of profile *NAME*-s accepted by the ``--profile=NAME`` option:
 
 - **a2dp-source** - Advanced Audio Source (streaming audio to connected device)
 - **a2dp-sink** - Advanced Audio Sink (receiving audio from connected device)
-- **hfp-ofono** - Hands-Free handled by oFono
-- **hfp-hf** - Hands-Free
+- **hfp-ofono** - Hands-Free AG/HF handled by oFono
 - **hfp-ag** - Hands-Free Audio Gateway
-- **hsp-hs** - Headset
+- **hfp-hf** - Hands-Free
 - **hsp-ag** Headset Audio Gateway
+- **hsp-hs** - Headset
 
 The **hfp-ofono** is available only when **bluealsa** was compiled with oFono support.
 Enabling HFP over oFono will automatically disable **hfp-hf** and **hfp-ag**.

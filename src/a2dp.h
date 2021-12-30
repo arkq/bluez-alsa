@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -62,6 +62,8 @@ struct a2dp_codec {
 	/* list of supported sampling frequencies */
 	const struct a2dp_sampling_freq *samplings[2];
 	size_t samplings_size[2];
+	/* determine whether codec shall be enabled */
+	bool enabled;
 };
 
 /**
@@ -79,9 +81,11 @@ struct a2dp_sep {
 };
 
 /* NULL-terminated list of available A2DP codecs */
-extern const struct a2dp_codec *a2dp_codecs[];
+extern struct a2dp_codec * const a2dp_codecs[];
 
 int a2dp_codecs_init(void);
+
+void a2dp_codecs_qsort(const struct a2dp_codec ** codecs, size_t nmemb);
 
 const struct a2dp_codec *a2dp_codec_lookup(
 		uint16_t codec_id,

@@ -16,6 +16,7 @@
 # include <config.h>
 #endif
 
+#include "a2dp.h"
 #include "ba-transport.h"
 
 extern struct a2dp_codec a2dp_aac_sink;

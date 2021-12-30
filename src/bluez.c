@@ -537,17 +537,15 @@ fail:
  * Register A2DP endpoints. */
 static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
 
-	const struct a2dp_codec **cc = a2dp_codecs;
-
-	while (*cc != NULL) {
-		const struct a2dp_codec *c = *cc++;
+	struct a2dp_codec * const * cc = a2dp_codecs;
+	for (const struct a2dp_codec *c = *cc; c != NULL; c = *++cc) {
 		switch (c->dir) {
 		case A2DP_SOURCE:
-			if (config.enable.a2dp_source)
+			if (config.profile.a2dp_source && c->enabled)
 				bluez_register_a2dp(adapter, c, BLUETOOTH_UUID_A2DP_SOURCE);
 			break;
 		case A2DP_SINK:
-			if (config.enable.a2dp_sink)
+			if (config.profile.a2dp_sink && c->enabled)
 				bluez_register_a2dp(adapter, c, BLUETOOTH_UUID_A2DP_SINK);
 			break;
 		}
@@ -971,16 +969,16 @@ fail:
  * is controlled by the global configuration structure - if none is enabled,
  * this function will do nothing. */
 static void bluez_register_hfp_all(void) {
-	if (config.enable.hsp_hs)
+	if (config.profile.hsp_hs)
 		bluez_register_hfp(BLUETOOTH_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS,
 				0x0102 /* HSP 1.2 */, 0x1 /* remote audio volume control */);
-	if (config.enable.hsp_ag)
+	if (config.profile.hsp_ag)
 		bluez_register_hfp(BLUETOOTH_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG,
 				0x0102 /* HSP 1.2 */, 0x0);
-	if (config.enable.hfp_hf)
+	if (config.profile.hfp_hf)
 		bluez_register_hfp(BLUETOOTH_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_hf);
-	if (config.enable.hfp_ag)
+	if (config.profile.hfp_ag)
 		bluez_register_hfp(BLUETOOTH_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_ag);
 }

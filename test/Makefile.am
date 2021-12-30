@@ -64,6 +64,7 @@ bluealsa_mock_SOURCES = \
 	bluealsa-mock.c
 
 test_a2dp_SOURCES = \
+	../src/shared/a2dp-codecs.c \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \

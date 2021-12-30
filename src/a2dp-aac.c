@@ -92,6 +92,7 @@ struct a2dp_codec a2dp_aac_sink = {
 	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
 	.samplings[0] = a2dp_aac_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+	.enabled = true,
 };
 
 struct a2dp_codec a2dp_aac_source = {
@@ -127,6 +128,7 @@ struct a2dp_codec a2dp_aac_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
 	.samplings[0] = a2dp_aac_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+	.enabled = true,
 };
 
 void a2dp_aac_init(void) {

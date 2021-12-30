@@ -112,6 +112,10 @@ struct a2dp_codec a2dp_mpeg_sink = {
 	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
 	.samplings[0] = a2dp_mpeg_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
+	/* TODO: This is an optional but covered by the A2DP spec codec,
+	 *       so it could be enabled by default. However, it does not
+	 *       work reliably enough (for now)... */
+	.enabled = false,
 };
 
 struct a2dp_codec a2dp_mpeg_source = {
@@ -160,6 +164,7 @@ struct a2dp_codec a2dp_mpeg_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
 	.samplings[0] = a2dp_mpeg_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
+	.enabled = false,
 };
 
 void a2dp_mpeg_init(void) {

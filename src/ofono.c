@@ -460,7 +460,7 @@ int ofono_register(void) {
 	GError *err = NULL;
 	int ret = 0;
 
-	if (!config.enable.hfp_ofono)
+	if (!config.profile.hfp_ofono)
 		goto final;
 
 	debug("Registering oFono audio agent: %s", dbus_agent_object_path);
@@ -486,9 +486,11 @@ int ofono_register(void) {
 	GVariantBuilder options;
 
 	g_variant_builder_init(&options, G_VARIANT_TYPE("ay"));
-	g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_CVSD);
+	if (config.hfp.codecs.cvsd)
+		g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_CVSD);
 #if ENABLE_MSBC
-	g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_MSBC);
+	if (config.hfp.codecs.msbc)
+		g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_MSBC);
 #endif
 
 	g_dbus_message_set_body(msg, g_variant_new("(oay)", dbus_agent_object_path, &options));
@@ -602,7 +604,7 @@ static void ofono_disappeared(GDBusConnection *conn, const char *name,
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int ofono_subscribe_signals(void) {
 
-	if (!config.enable.hfp_ofono)
+	if (!config.profile.hfp_ofono)
 		return 0;
 
 	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,

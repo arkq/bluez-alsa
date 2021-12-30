@@ -170,6 +170,11 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	if ((codec = a2dp_codec_lookup(sep->codec_id, !sep->dir)) == NULL)
 		return false;
 
+	/* Do not report SEP if corresponding codec is not enabled
+	 * in BlueALSA - it will be not possible to use it. */
+	if (!codec->enabled)
+		return false;
+
 	uint8_t caps[sizeof(sep->capabilities)];
 	size_t size = MIN(sep->capabilities_size, sizeof(caps));
 	if (a2dp_filter_capabilities(codec, memcpy(caps, &sep->capabilities, size), size) != 0) {
@@ -515,11 +520,13 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 
-		g_variant_builder_add(&codecs, "{sa{sv}}",
-				hfp_codec_id_to_string(HFP_CODEC_CVSD), NULL);
+		if (config.hfp.codecs.cvsd)
+			g_variant_builder_add(&codecs, "{sa{sv}}",
+					hfp_codec_id_to_string(HFP_CODEC_CVSD), NULL);
 
 #if ENABLE_MSBC
-		if (t->sco.rfcomm != NULL && t->sco.rfcomm->msbc)
+		if (config.hfp.codecs.msbc &&
+				t->sco.rfcomm != NULL && t->sco.rfcomm->codecs.msbc)
 			g_variant_builder_add(&codecs, "{sa{sv}}",
 					hfp_codec_id_to_string(HFP_CODEC_MSBC), NULL);
 #endif

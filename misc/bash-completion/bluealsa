@@ -13,6 +13,19 @@ _bluealsa_profiles() {
 	done
 }
 
+# helper function gets available codecs
+# @param $1 the bluealsa executable name
+_bluealsa_codecs() {
+	"$1" --help | while read -r line; do
+		[[ "$line" = "Available BT audio codecs:" ]] && start=yes && continue
+		[[ "$start" ]] || continue
+		[[ "$line" ]] || break
+		line=${line,,}
+		words=(${line//,/})
+		echo ${words[@]:1}
+	done
+}
+
 # helper function gets dbus services
 # note that this function does not detect if default service (no suffix) is running.
 _bluealsa_list_dbus_suffices() {
@@ -29,7 +42,7 @@ _bluealsa_list_dbus_suffices() {
 # @param $1 the executable name
 # @param $2 dbus option ( --dbus=aaa )
 # @param $3 pcm path
-_bluealsa_codecs() {
+_bluealsa_pcm_codecs() {
 	"$1" $2 codec "$3" | while read -r line; do
 		[[ $line =~ ^Available\ codecs:\ ([^[]+$) ]] && printf "${BASH_REMATCH[1]}"
 	done
@@ -164,6 +177,7 @@ _bluealsa_complete_options() {
 # complete available devices and profiles in addition to options
 _bluealsa() {
 	local cur prev words cword split list
+	local prefix
 
 	_init_completion -s || return
 
@@ -173,7 +187,13 @@ _bluealsa() {
 			return
 			;;
 		--profile|-p)
-			COMPREPLY=( $(compgen -W "$(_bluealsa_profiles $1)" -- $cur) )
+			[[ $cur =~ ^[+-].* ]] && prefix=${cur:0:1} && cur=${cur:1}
+			COMPREPLY=( $(compgen -P "$prefix" -W "$(_bluealsa_profiles $1)" -- $cur) )
+			return
+			;;
+		--codec|-c)
+			[[ $cur =~ ^[+-].* ]] && prefix=${cur:0:1} && cur=${cur:1}
+			COMPREPLY=( $(compgen -P "$prefix" -W "$(_bluealsa_codecs $1)" -- $cur) )
 			return
 			;;
 		--sbc-quality)
@@ -303,7 +323,7 @@ _bluealsa_cli() {
 			local path="$prev"
 			case ${COMP_WORDS[nonopt_offset]} in
 				codec)
-					COMPREPLY=( $(compgen -W "$(_bluealsa_codecs "$1" "$dbus_opt" "$path")" -- $cur) )
+					COMPREPLY=( $(compgen -W "$(_bluealsa_pcm_codecs "$1" "$dbus_opt" "$path")" -- $cur) )
 					return
 					;;
 				mute|soft-volume)

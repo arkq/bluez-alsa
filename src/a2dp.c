@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -14,6 +14,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <string.h>
+#include <strings.h>
 
 #include <glib.h>
 
@@ -31,7 +32,7 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
-const struct a2dp_codec *a2dp_codecs[] = {
+struct a2dp_codec * const a2dp_codecs[] = {
 #if ENABLE_LDAC
 	&a2dp_ldac_source,
 # if HAVE_LDAC_DECODE
@@ -94,6 +95,32 @@ int a2dp_codecs_init(void) {
 	a2dp_ldac_init();
 #endif
 	return 0;
+}
+
+static int a2dp_codecs_qsort_cmp(const void *a_, const void *b_) {
+	const struct a2dp_codec *a = *(const struct a2dp_codec **)a_;
+	const struct a2dp_codec *b = *(const struct a2dp_codec **)b_;
+	int ret;
+	if ((ret = a->dir - b->dir) != 0)
+		return ret;
+	if (a->codec_id >= A2DP_CODEC_VENDOR &&
+			b->codec_id >= A2DP_CODEC_VENDOR) {
+		const char *a_name = a2dp_codecs_codec_id_to_string(a->codec_id);
+		const char *b_name = a2dp_codecs_codec_id_to_string(b->codec_id);
+		return strcasecmp(a_name, b_name);
+	}
+	return a->codec_id - b->codec_id;
+}
+
+/**
+ * Sort A2DP codecs.
+ *
+ * This function sorts A2DP codecs according to following rules:
+ *  - sort codecs by A2DP direction
+ *  - sort codecs by codec ID
+ *  - sort vendor codecs alphabetically (case insensitive) */
+void a2dp_codecs_qsort(const struct a2dp_codec ** codecs, size_t nmemb) {
+	qsort(codecs, nmemb, sizeof(*codecs), a2dp_codecs_qsort_cmp);
 }
 
 /**

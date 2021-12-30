@@ -82,6 +82,7 @@ struct a2dp_codec a2dp_sbc_sink = {
 	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
 	.samplings[0] = a2dp_sbc_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
+	.enabled = true,
 };
 
 struct a2dp_codec a2dp_sbc_source = {
@@ -117,6 +118,7 @@ struct a2dp_codec a2dp_sbc_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
 	.samplings[0] = a2dp_sbc_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
+	.enabled = true,
 };
 
 void a2dp_sbc_init(void) {

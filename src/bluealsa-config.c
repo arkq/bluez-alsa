@@ -24,9 +24,9 @@
 struct ba_config config = {
 
 	/* enable output profiles by default */
-	.enable.a2dp_source = true,
-	.enable.hfp_ag = true,
-	.enable.hsp_ag = true,
+	.profile.a2dp_source = true,
+	.profile.hfp_ag = true,
+	.profile.hsp_ag = true,
 
 	.adapters_mutex = PTHREAD_MUTEX_INITIALIZER,
 
@@ -37,6 +37,14 @@ struct ba_config config = {
 	.keep_alive_time = 0,
 
 	.volume_init_level = 0,
+
+	/* CVSD is a mandatory codec */
+	.hfp.codecs.cvsd = true,
+#if ENABLE_MSBC
+	/* mSBC is an optional codec but provides better audio
+	 * quality, so we will enable it by default */
+	.hfp.codecs.msbc = true,
+#endif
 
 	.hfp.features_sdp_hf =
 		SDP_HFP_HF_FEAT_CLI |

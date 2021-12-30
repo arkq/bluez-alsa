@@ -38,7 +38,7 @@ struct ba_config {
 		bool hfp_ag;
 		bool hsp_hs;
 		bool hsp_ag;
-	} enable;
+	} profile;
 
 	/* established D-Bus connection */
 	GDBusConnection *dbus;
@@ -69,18 +69,30 @@ struct ba_config {
 	int volume_init_level;
 
 	struct {
+
+		/* available HFP codecs */
+		struct {
+			bool cvsd;
+#if ENABLE_MSBC
+			bool msbc;
+#endif
+		} codecs;
+
 		/* set of features exposed via Service Discovery */
 		unsigned int features_sdp_hf;
 		unsigned int features_sdp_ag;
+
 		/* set of features exposed via RFCOMM connection */
 		unsigned int features_rfcomm_hf;
 		unsigned int features_rfcomm_ag;
+
 		/* information exposed via Apple AT extension */
 		unsigned int xapl_vendor_id;
 		unsigned int xapl_product_id;
 		const char *xapl_software_version;
 		const char *xapl_product_name;
 		unsigned int xapl_features;
+
 	} hfp;
 
 	struct {

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,6 +15,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +31,7 @@
 #endif
 
 #include "a2dp.h"
+#include "a2dp-sbc.h"
 #include "audio.h"
 #include "ba-adapter.h"
 #include "bluealsa-config.h"
@@ -37,6 +39,7 @@
 #include "bluealsa-iface.h"
 #include "bluez.h"
 #include "codec-sbc.h"
+#include "hfp.h"
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
@@ -58,23 +61,41 @@
 static bool dbus_name_acquired = false;
 static int retval = EXIT_SUCCESS;
 
-static char *get_a2dp_codecs(
-		const struct a2dp_codec **codecs,
-		enum a2dp_dir dir) {
+static char *get_a2dp_codecs(enum a2dp_dir dir) {
 
-	const char *tmp[16] = { NULL };
-	int i = 0;
+	const char *strv[16 + 1] = { NULL };
+	size_t n = 0;
 
-	while (*codecs != NULL) {
-		const struct a2dp_codec *c = *codecs++;
+	const struct a2dp_codec * a2dp_codecs_tmp[16];
+	struct a2dp_codec * const * cc = a2dp_codecs;
+	for (const struct a2dp_codec *c = *cc; c != NULL; c = *++cc) {
 		if (c->dir != dir)
 			continue;
-		if ((tmp[i] = a2dp_codecs_codec_id_to_string(c->codec_id)) == NULL)
-			tmp[i] = "N/A";
-		i++;
+		a2dp_codecs_tmp[n] = c;
+		if (++n >= ARRAYSIZE(a2dp_codecs_tmp))
+			break;
 	}
 
-	return g_strjoinv(", ", (char **)tmp);
+	/* Sort A2DP codecs before displaying them. */
+	a2dp_codecs_qsort(a2dp_codecs_tmp, n);
+
+	for (size_t i = 0; i < n; i++)
+		strv[i] = a2dp_codecs_codec_id_to_string(a2dp_codecs_tmp[i]->codec_id);
+
+	return g_strjoinv(", ", (char **)strv);
+}
+
+static char *get_hfp_codecs(void) {
+
+	const char *strv[] = {
+		hfp_codec_id_to_string(HFP_CODEC_CVSD),
+#if ENABLE_MSBC
+		hfp_codec_id_to_string(HFP_CODEC_MSBC),
+#endif
+		NULL,
+	};
+
+	return g_strjoinv(", ", (char **)strv);
 }
 
 static gboolean main_loop_exit_handler(void *userdata) {
@@ -126,7 +147,7 @@ static void g_bus_name_lost(GDBusConnection *conn, const char *name, void *userd
 int main(int argc, char **argv) {
 
 	int opt;
-	const char *opts = "hVB:Si:p:";
+	const char *opts = "hVB:Si:p:c:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
@@ -134,6 +155,7 @@ int main(int argc, char **argv) {
 		{ "syslog", no_argument, NULL, 'S' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
+		{ "codec", required_argument, NULL, 'c' },
 		{ "initial-volume", required_argument, NULL, 17 },
 		{ "keep-alive", required_argument, NULL, 8 },
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
@@ -171,10 +193,6 @@ int main(int argc, char **argv) {
 		case 'S' /* --syslog */ :
 			syslog = true;
 			break;
-		case 'p' /* --profile=NAME */ :
-			/* reset defaults if user has specified profile option */
-			memset(&config.enable, 0, sizeof(config.enable));
-			break;
 		}
 
 	log_open(argv[0], syslog, BLUEALSA_LOGTIME);
@@ -198,7 +216,8 @@ int main(int argc, char **argv) {
 					"  -B, --dbus=NAME\t\tD-Bus service name suffix\n"
 					"  -S, --syslog\t\t\tsend output to syslog\n"
 					"  -i, --device=hciX\t\tHCI device(s) to use\n"
-					"  -p, --profile=NAME\t\tenable BT profile\n"
+					"  -p, --profile=NAME\t\tset enabled BT profiles\n"
+					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
 					"  --initial-volume=NUM\t\tinitial volume level [0-100]\n"
 					"  --keep-alive=SEC\t\tkeep Bluetooth transport alive\n"
 					"  --a2dp-force-mono\t\ttry to force monophonic sound\n"
@@ -225,20 +244,28 @@ int main(int argc, char **argv) {
 					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
 					"  - a2dp-sink\tAdvanced Audio Sink (%s)\n"
 #if ENABLE_OFONO
-					"  - hfp-ofono\tHands-Free handled by oFono (hf & ag)\n"
+					"  - hfp-ofono\tHands-Free AG/HF handled by oFono\n"
 #endif
-					"  - hfp-hf\tHands-Free (%s)\n"
 					"  - hfp-ag\tHands-Free Audio Gateway (%s)\n"
-					"  - hsp-hs\tHeadset (%s)\n"
+					"  - hfp-hf\tHands-Free (%s)\n"
 					"  - hsp-ag\tHeadset Audio Gateway (%s)\n"
+					"  - hsp-hs\tHeadset (%s)\n"
+					"\n"
+					"Available BT audio codecs:\n"
+					"  a2dp-source:\t%s\n"
+					"  a2dp-sink:\t%s\n"
+					"  hfp-*:\t%s\n"
 					"\n"
 					"By default only output profiles are enabled, which includes A2DP Source and\n"
-					"HSP/HFP Audio Gateways. If one wants to enable other set of profiles, it is\n"
-					"required to explicitly specify all of them using `-p NAME` options.\n",
+					"HFP/HSP Audio Gateways. If one wants to enable other set of profiles, it is\n"
+					"required to enable (or disable) them using `-p NAME` options.\n",
 					argv[0],
-					get_a2dp_codecs(a2dp_codecs, A2DP_SOURCE),
-					get_a2dp_codecs(a2dp_codecs, A2DP_SINK),
-					"v1.7", "v1.7", "v1.2", "v1.2");
+					"v1.3", "v1.3",
+					"v1.7", "v1.7",
+					"v1.2", "v1.2",
+					get_a2dp_codecs(A2DP_SOURCE),
+					get_a2dp_codecs(A2DP_SINK),
+					get_hfp_codecs());
 			return EXIT_SUCCESS;
 
 		case 'V' /* --version */ :
@@ -258,30 +285,79 @@ int main(int argc, char **argv) {
 
 		case 'p' /* --profile=NAME */ : {
 
-			size_t i;
-			const struct {
-				char *name;
+			static const struct {
+				const char *name;
 				bool *ptr;
 			} map[] = {
-				{ "a2dp-source", &config.enable.a2dp_source },
-				{ "a2dp-sink", &config.enable.a2dp_sink },
+				{ "a2dp-source", &config.profile.a2dp_source },
+				{ "a2dp-sink", &config.profile.a2dp_sink },
 #if ENABLE_OFONO
-				{ "hfp-ofono", &config.enable.hfp_ofono },
+				{ "hfp-ofono", &config.profile.hfp_ofono },
 #endif
-				{ "hfp-hf", &config.enable.hfp_hf },
-				{ "hfp-ag", &config.enable.hfp_ag },
-				{ "hsp-hs", &config.enable.hsp_hs },
-				{ "hsp-ag", &config.enable.hsp_ag },
+				{ "hfp-hf", &config.profile.hfp_hf },
+				{ "hfp-ag", &config.profile.hfp_ag },
+				{ "hsp-hs", &config.profile.hsp_hs },
+				{ "hsp-ag", &config.profile.hsp_ag },
 			};
 
-			for (i = 0; i < ARRAYSIZE(map); i++)
+			bool enable = true;
+			bool matched = false;
+			if (optarg[0] == '+' || optarg[0] == '-') {
+				enable = optarg[0] == '+' ? true : false;
+				optarg++;
+			}
+
+			for (size_t i = 0; i < ARRAYSIZE(map); i++)
 				if (strcasecmp(optarg, map[i].name) == 0) {
-					*map[i].ptr = true;
+					*map[i].ptr = enable;
+					matched = true;
 					break;
 				}
 
-			if (i == ARRAYSIZE(map)) {
+			if (!matched) {
 				error("Invalid BT profile name: %s", optarg);
+				return EXIT_FAILURE;
+			}
+
+			break;
+		}
+
+		case 'c' /* --codec=NAME */ : {
+
+			static const struct {
+				uint16_t codec_id;
+				bool *ptr;
+			} hfp_codecs[] = {
+				{ HFP_CODEC_CVSD, &config.hfp.codecs.cvsd },
+#if ENABLE_MSBC
+				{ HFP_CODEC_MSBC, &config.hfp.codecs.msbc },
+#endif
+			};
+
+			bool enable = true;
+			bool matched = false;
+			if (optarg[0] == '+' || optarg[0] == '-') {
+				enable = optarg[0] == '+' ? true : false;
+				optarg++;
+			}
+
+			struct a2dp_codec * const * cc = a2dp_codecs;
+			uint16_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
+			for (struct a2dp_codec *c = *cc; c != NULL; c = *++cc)
+				if (c->codec_id == codec_id) {
+					c->enabled = enable;
+					matched = true;
+				}
+
+			codec_id = hfp_codec_id_from_string(optarg);
+			for (size_t i = 0; i < ARRAYSIZE(hfp_codecs); i++)
+				if (hfp_codecs[i].codec_id == codec_id) {
+					*hfp_codecs[i].ptr = enable;
+					matched = true;
+				}
+
+			if (!matched) {
+				error("Invalid BT codec name: %s", optarg);
 				return EXIT_FAILURE;
 			}
 
@@ -387,10 +463,10 @@ int main(int argc, char **argv) {
 		}
 
 #if ENABLE_OFONO
-	if ((config.enable.hfp_ag || config.enable.hfp_hf) && config.enable.hfp_ofono) {
+	if ((config.profile.hfp_ag || config.profile.hfp_hf) && config.profile.hfp_ofono) {
 		info("Disabling native HFP support due to enabled oFono profile");
-		config.enable.hfp_ag = false;
-		config.enable.hfp_hf = false;
+		config.profile.hfp_ag = false;
+		config.profile.hfp_hf = false;
 	}
 #endif
 
@@ -413,12 +489,17 @@ int main(int argc, char **argv) {
 #if ENABLE_OFONO
 	/* Enabling native HFP support while oFono is running might interfere
 	 * with oFono, so in the end neither BlueALSA nor oFono will work. */
-	if ((config.enable.hfp_ag || config.enable.hfp_hf) && ofono_detect_service()) {
+	if ((config.profile.hfp_ag || config.profile.hfp_hf) && ofono_detect_service()) {
 		warn("Disabling native HFP support due to oFono service presence");
-		config.enable.hfp_ag = false;
-		config.enable.hfp_hf = false;
+		config.profile.hfp_ag = false;
+		config.profile.hfp_hf = false;
 	}
 #endif
+
+	/* Make sure that mandatory codecs are enabled. */
+	a2dp_sbc_source.enabled = true;
+	a2dp_sbc_sink.enabled = true;
+	config.hfp.codecs.cvsd = true;
 
 	a2dp_codecs_init();
 

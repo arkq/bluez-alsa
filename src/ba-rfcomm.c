@@ -529,12 +529,22 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 	const int fd = r->fd;
 	char *tmp = at->value - 1;
 
+	/* We shall use the information on codecs available in HF
+	 * from the most recently received AT+BAC command. */
+	memset(&r->codecs, 0, sizeof(r->codecs));
+
 	do {
 		tmp += 1;
+		switch (atoi(tmp)) {
+		case HFP_CODEC_CVSD:
+				r->codecs.cvsd = true;
+			break;
 #if ENABLE_MSBC
-		if (atoi(tmp) == HFP_CODEC_MSBC)
-			r->msbc = true;
+		case HFP_CODEC_MSBC:
+				r->codecs.msbc = true;
+			break;
 #endif
+		}
 	} while ((tmp = strchr(tmp, ',')) != NULL);
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -849,9 +859,8 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 			ba_transport_type_to_string(t_sco->type),
 			hfp_codec_id_to_string(codec));
 
-	/* Codec selection can be requested only after Service Level Connection
-	 * establishment, and make sense only if mSBC encoding is supported. */
-	if (r->state != HFP_SLC_CONNECTED || !r->msbc) {
+	/* Codec selection can be requested only after SLC establishment. */
+	if (r->state != HFP_SLC_CONNECTED) {
 		/* If codec selection was requested by some other thread by calling the
 		 * ba_transport_select_codec(), we have to signal it that the selection
 		 * procedure has been completed. */
@@ -1022,7 +1031,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 		int timeout = BA_RFCOMM_TIMEOUT_IDLE;
 
 		ba_rfcomm_callback *callback;
-		char tmp[256];
+		char tmp[256] = "";
 
 		if (r->handler != NULL)
 			goto process;
@@ -1063,13 +1072,15 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					break;
 				case HFP_SLC_BRSF_SET_OK:
 					if (r->hfp_features & HFP_AG_FEAT_CODEC) {
+						char *ptr = tmp;
+						if (config.hfp.codecs.cvsd)
+							ptr += sprintf(ptr, "%u", HFP_CODEC_CVSD);
 #if ENABLE_MSBC
-						/* advertise, that we are supporting CVSD (1) and mSBC (2) */
-						const char *value = BA_TEST_ESCO_SUPPORT(t_sco->d->a) ? "1,2" : "1";
-						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", value) == -1)
-#else
-						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", "1") == -1)
+						if (config.hfp.codecs.msbc && BA_TEST_ESCO_SUPPORT(t_sco->d->a))
+							ptr += sprintf(ptr, "%s%u", ptr != tmp ? "," : "", HFP_CODEC_MSBC);
 #endif
+						/* advertise which HFP codecs we are supporting */
+						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", tmp) == -1)
 							goto ioerror;
 						r->handler = &rfcomm_handler_resp_ok;
 						r->handler_resp_ok_new_state = HFP_SLC_BAC_SET_OK;
@@ -1187,8 +1198,20 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
 					t_sco->type.codec == HFP_CODEC_UNDEFINED &&
 					r->idle) {
-				if (rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
-					goto ioerror;
+				struct {
+					uint16_t codec_id;
+					bool is_supported;
+				} codecs[] = {
+					{ HFP_CODEC_MSBC, config.hfp.codecs.msbc && r->codecs.msbc },
+					{ HFP_CODEC_CVSD, config.hfp.codecs.cvsd && r->codecs.cvsd },
+				};
+				for (size_t i = 0; i < ARRAYSIZE(codecs); i++) {
+					if (!codecs[i].is_supported)
+						continue;
+					if (rfcomm_set_hfp_codec(r, codecs[i].codec_id) == -1)
+						goto ioerror;
+					break;
+				}
 				r->setup = HFP_SETUP_COMPLETE;
 			}
 #endif
@@ -1232,11 +1255,13 @@ process:
 			switch (rfcomm_recv_signal(r)) {
 #if ENABLE_MSBC
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD:
-				if (rfcomm_set_hfp_codec(r, HFP_CODEC_CVSD) == -1)
+				if (config.hfp.codecs.cvsd &&
+						rfcomm_set_hfp_codec(r, HFP_CODEC_CVSD) == -1)
 					goto ioerror;
 				break;
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC:
-				if (rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
+				if (config.hfp.codecs.msbc &&
+						rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
 				break;
 #endif

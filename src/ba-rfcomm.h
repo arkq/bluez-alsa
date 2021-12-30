@@ -78,6 +78,14 @@ struct ba_rfcomm {
 	/* AG/HF supported features bitmask */
 	uint32_t hfp_features;
 
+	/* HF supported HFP codecs */
+	struct {
+		bool cvsd;
+#if ENABLE_MSBC
+		bool msbc;
+#endif
+	} codecs;
+
 	/* codec selection synchronization */
 	pthread_mutex_t codec_selection_completed_mtx;
 	pthread_cond_t codec_selection_completed;
@@ -98,11 +106,6 @@ struct ba_rfcomm {
 	/* variables used for AG<->HF sync */
 	uint8_t gain_mic;
 	uint8_t gain_spk;
-
-#if ENABLE_MSBC
-	/* determine whether mSBC is available */
-	bool msbc;
-#endif
 
 	/* exported RFCOMM D-Bus API */
 	char *ba_dbus_path;
