@@ -616,12 +616,45 @@ fail:
 	return NULL;
 }
 
+static bool pcm_hw_params_equal(const struct ba_pcm *ba_pcm_1, const struct ba_pcm *ba_pcm_2) {
+	if (ba_pcm_1->format != ba_pcm_2->format)
+		return false;
+
+	if (ba_pcm_1->channels != ba_pcm_2->channels)
+		return false;
+
+	if (ba_pcm_1->sampling != ba_pcm_2->sampling)
+		return false;
+
+	return true;
+}
+
+/**
+ * Stop the worker thread at workers[index], and move the last worker in the
+ * array to position index, to prevent any "gaps" in the array. */
+static void pcm_worker_stop(size_t index) {
+	assert(index < workers_count);
+	pthread_rwlock_wrlock(&workers_lock);
+	pthread_cancel(workers[index].thread);
+	pthread_join(workers[index].thread, NULL);
+	if (index != --workers_count)
+		memcpy(&workers[index], &workers[workers_count], sizeof(workers[index]));
+	pthread_rwlock_unlock(&workers_lock);
+}
+
 static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm) {
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
-		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
-			return &workers[i];
+		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
+			/* If the codec has changed after the device connected, then the
+			 * audio format may have changed. If it has, the worker thread
+			 * needs to be restarted. */
+			if (!pcm_hw_params_equal(&workers[i].ba_pcm, ba_pcm))
+				pcm_worker_stop(i);
+			else
+				return &workers[i];
+		}
 
 	pthread_rwlock_wrlock(&workers_lock);
 
@@ -663,13 +696,8 @@ static struct pcm_worker *supervise_pcm_worker_stop(const struct ba_pcm *ba_pcm)
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
-		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
-			pthread_rwlock_wrlock(&workers_lock);
-			pthread_cancel(workers[i].thread);
-			pthread_join(workers[i].thread, NULL);
-			memcpy(&workers[i], &workers[--workers_count], sizeof(workers[i]));
-			pthread_rwlock_unlock(&workers_lock);
-		}
+		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
+			pcm_worker_stop(i);
 
 	return NULL;
 }
