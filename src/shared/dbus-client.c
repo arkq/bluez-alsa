@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include "shared/a2dp-codecs.h"
@@ -249,23 +250,61 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
 	char type_expected;
 
 	if (strcmp(key, "Version") == 0) {
+
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
+
 		const char *tmp;
 		dbus_message_iter_get_basic(value, &tmp);
 		strncpy(props->version, tmp, sizeof(props->version) - 1);
+
 	}
 	else if (strcmp(key, "Adapters") == 0) {
+
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
+
 		const char *tmp[ARRAYSIZE(props->adapters)];
 		size_t length = ARRAYSIZE(tmp);
 		if (!bluealsa_dbus_message_iter_array_get_strings(value, error, tmp, &length))
 			return FALSE;
-		if (length > ARRAYSIZE(props->adapters))
-			length = ARRAYSIZE(props->adapters);
+
+		props->adapters_len = MIN(length, ARRAYSIZE(tmp));
 		for (size_t i = 0; i < length; i++)
 			strncpy(props->adapters[i], tmp[i], sizeof(props->adapters[i]) - 1);
+
+	}
+	else if (strcmp(key, "Profiles") == 0) {
+
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+
+		const char *tmp[32];
+		size_t length = ARRAYSIZE(tmp);
+		if (!bluealsa_dbus_message_iter_array_get_strings(value, error, tmp, &length))
+			return FALSE;
+
+		props->profiles = malloc(length * sizeof(*props->profiles));
+		props->profiles_len = MIN(length, ARRAYSIZE(tmp));
+		for (size_t i = 0; i < length; i++)
+			props->profiles[i] = strdup(tmp[i]);
+
+	}
+	else if (strcmp(key, "Codecs") == 0) {
+
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+
+		const char *tmp[64];
+		size_t length = ARRAYSIZE(tmp);
+		if (!bluealsa_dbus_message_iter_array_get_strings(value, error, tmp, &length))
+			return FALSE;
+
+		props->codecs = malloc(length * sizeof(*props->codecs));
+		props->codecs_len = MIN(length, ARRAYSIZE(tmp));
+		for (size_t i = 0; i < length; i++)
+			props->codecs[i] = strdup(tmp[i]);
+
 	}
 
 	return TRUE;
@@ -277,7 +316,10 @@ fail:
 }
 
 /**
- * Get properties of BlueALSA service. */
+ * Get properties of BlueALSA service.
+ *
+ * This function allocates resources within the properties structure, which
+ * shall be freed with the bluealsa_dbus_props_free() function. */
 dbus_bool_t bluealsa_dbus_get_props(
 		struct ba_dbus_ctx *ctx,
 		struct ba_service_props *props,
@@ -286,6 +328,11 @@ dbus_bool_t bluealsa_dbus_get_props(
 	static const char *interface = BLUEALSA_INTERFACE_MANAGER;
 	DBusMessage *msg = NULL, *rep = NULL;
 	dbus_bool_t rv = FALSE;
+
+	props->profiles = NULL;
+	props->profiles_len = 0;
+	props->codecs = NULL;
+	props->codecs_len = 0;
 
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, "/org/bluealsa",
 					DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
@@ -321,6 +368,24 @@ fail:
 	if (msg != NULL)
 		dbus_message_unref(msg);
 	return rv;
+}
+
+/**
+ * Free BlueALSA service properties structure. */
+void bluealsa_dbus_props_free(
+		struct ba_service_props *props) {
+	if (props->profiles != NULL) {
+		for (size_t i = 0; i < props->profiles_len; i++)
+			free(props->profiles[i]);
+		free(props->profiles);
+		props->profiles = NULL;
+	}
+	if (props->codecs != NULL) {
+		for (size_t i = 0; i < props->codecs_len; i++)
+			free(props->codecs[i]);
+		free(props->codecs);
+		props->codecs = NULL;
+	}
 }
 
 dbus_bool_t bluealsa_dbus_get_pcms(

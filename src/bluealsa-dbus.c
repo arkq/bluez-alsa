@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -49,21 +49,117 @@ static GVariant *ba_variant_new_bluealsa_version(void) {
 
 static GVariant *ba_variant_new_bluealsa_adapters(void) {
 
-	const char *strv[ARRAYSIZE(config.adapters)] = { NULL };
+	const char *strv[ARRAYSIZE(config.adapters)];
 	GVariant *variant;
-	size_t i, ii = 0;
+	size_t n = 0;
 
 	pthread_mutex_lock(&config.adapters_mutex);
 
-	for (i = 0; i < ARRAYSIZE(config.adapters); i++)
+	for (size_t i = 0; i < ARRAYSIZE(config.adapters); i++)
 		if (config.adapters[i] != NULL)
-			strv[ii++] = config.adapters[i]->hci.name;
+			strv[n++] = config.adapters[i]->hci.name;
 
-	variant = g_variant_new_strv(strv, ii);
+	variant = g_variant_new_strv(strv, n);
 
 	pthread_mutex_unlock(&config.adapters_mutex);
 
 	return variant;
+}
+
+static GVariant *ba_variant_new_bluealsa_profiles(void) {
+
+	struct {
+		const char *name;
+		bool enabled;
+	} profiles[] = {
+		{ BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE, config.profile.a2dp_source },
+		{ BLUEALSA_TRANSPORT_TYPE_A2DP_SINK, config.profile.a2dp_sink },
+#if ENABLE_OFONO
+		{ BLUEALSA_TRANSPORT_TYPE_HFP_OFONO, config.profile.hfp_ofono },
+#endif
+		{ BLUEALSA_TRANSPORT_TYPE_HFP_AG, config.profile.hfp_ag },
+		{ BLUEALSA_TRANSPORT_TYPE_HFP_HF, config.profile.hfp_hf },
+		{ BLUEALSA_TRANSPORT_TYPE_HSP_AG, config.profile.hsp_ag },
+		{ BLUEALSA_TRANSPORT_TYPE_HSP_HS, config.profile.hsp_hs },
+	};
+
+	const char *strv[ARRAYSIZE(profiles)];
+	size_t n = 0;
+
+	for (size_t i = 0; i < ARRAYSIZE(profiles); i++)
+		if (profiles[i].enabled)
+			strv[n++] = profiles[i].name;
+
+	return g_variant_new_strv(strv, n);
+}
+
+static GVariant *ba_variant_new_bluealsa_codecs(void) {
+
+	char tmp[64][32];
+	const char *strv[ARRAYSIZE(tmp)];
+	size_t n = 0;
+
+	const struct a2dp_codec * a2dp_codecs_tmp[32];
+	struct a2dp_codec * const * cc = a2dp_codecs;
+	for (const struct a2dp_codec *c = *cc; c != NULL; c = *++cc) {
+		if (!c->enabled)
+			continue;
+		a2dp_codecs_tmp[n] = c;
+		if (++n >= ARRAYSIZE(a2dp_codecs_tmp))
+			break;
+	}
+
+	/* Expose A2DP codecs always in the same order. */
+	a2dp_codecs_qsort(a2dp_codecs_tmp, n);
+
+	for (size_t i = 0; i < n; i++) {
+		const char *profile = a2dp_codecs_tmp[i]->dir == A2DP_SOURCE ?
+				BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE : BLUEALSA_TRANSPORT_TYPE_A2DP_SINK;
+		const char *name = a2dp_codecs_codec_id_to_string(a2dp_codecs_tmp[i]->codec_id);
+		snprintf(tmp[i], sizeof(tmp[i]), "%s:%s", profile, name);
+		strv[i] = (const char *)&tmp[i];
+	}
+
+	static const char *hfp_profiles[] = {
+#if ENABLE_OFONO
+		BLUEALSA_TRANSPORT_TYPE_HFP_OFONO,
+# endif
+		BLUEALSA_TRANSPORT_TYPE_HFP_AG,
+		BLUEALSA_TRANSPORT_TYPE_HFP_HF,
+	};
+
+	struct {
+		uint16_t codec_id;
+		bool enabled;
+	} hfp_codecs[] = {
+		{ HFP_CODEC_CVSD, config.hfp.codecs.cvsd },
+#if ENABLE_MSBC
+		{ HFP_CODEC_MSBC, config.hfp.codecs.msbc },
+#endif
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(hfp_profiles); i++)
+		for (size_t ii = 0; ii < ARRAYSIZE(hfp_codecs); ii++)
+			if (hfp_codecs[ii].enabled) {
+				const char *name = hfp_codec_id_to_string(hfp_codecs[ii].codec_id);
+				snprintf(tmp[n], sizeof(tmp[n]), "%s:%s", hfp_profiles[i], name);
+				strv[n] = (const char *)&tmp[n];
+				n++;
+			}
+
+	static const char *hsp_profiles[] = {
+		BLUEALSA_TRANSPORT_TYPE_HSP_AG,
+		BLUEALSA_TRANSPORT_TYPE_HSP_HS,
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(hsp_profiles); i++) {
+		const char *name = hfp_codec_id_to_string(HFP_CODEC_CVSD);
+		snprintf(tmp[n], sizeof(tmp[n]), "%s:%s", hsp_profiles[i], name);
+		strv[n] = (const char *)&tmp[n];
+		n++;
+	}
+
+	return g_variant_new_strv(strv, n);
 }
 
 GVariant *ba_variant_new_device_path(const struct ba_device *d) {
@@ -299,6 +395,10 @@ static GVariant *bluealsa_manager_get_property(const char *property,
 		return ba_variant_new_bluealsa_version();
 	if (strcmp(property, "Adapters") == 0)
 		return ba_variant_new_bluealsa_adapters();
+	if (strcmp(property, "Profiles") == 0)
+		return ba_variant_new_bluealsa_profiles();
+	if (strcmp(property, "Codecs") == 0)
+		return ba_variant_new_bluealsa_codecs();
 
 	g_assert_not_reached();
 	return NULL;

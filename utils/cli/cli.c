@@ -120,7 +120,7 @@ static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 	return found;
 }
 
-static bool print_codecs(const char *path, DBusError *err) {
+static bool print_pcm_codecs(const char *path, DBusError *err) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
 	bool result = false;
@@ -186,10 +186,21 @@ fail:
 
 static void print_adapters(const struct ba_service_props *props) {
 	printf("Adapters:");
-	for (size_t i = 0; i < ARRAYSIZE(props->adapters); i++)
-		if (strlen(props->adapters[i]) > 0)
-			printf(" %s", props->adapters[i]);
+	for (size_t i = 0; i < props->adapters_len; i++)
+		printf(" %s", props->adapters[i]);
 	printf("\n");
+}
+
+static void print_profiles_and_codecs(const struct ba_service_props *props) {
+	printf("Profiles:\n");
+	for (size_t i = 0; i < props->profiles_len; i++) {
+		printf("  %-11s :", props->profiles[i]);
+		size_t len = strlen(props->profiles[i]);
+		for (size_t ii = 0; ii < props->codecs_len; ii++)
+			if (strncmp(props->codecs[ii], props->profiles[i], len) == 0)
+				printf(" %s", &props->codecs[ii][len + 1]);
+		printf("\n");
+	}
 }
 
 static void print_volume(const struct ba_pcm *pcm) {
@@ -215,7 +226,7 @@ static void print_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Format: %s\n", pcm_format_to_string(pcm->format));
 	printf("Channels: %d\n", pcm->channels);
 	printf("Sampling: %d Hz\n", pcm->sampling);
-	print_codecs(pcm->pcm_path, err);
+	print_pcm_codecs(pcm->pcm_path, err);
 	printf("Selected codec: %s\n", pcm->codec);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
 	printf("SoftVolume: %s\n", pcm->soft_volume ? "Y" : "N");
@@ -349,13 +360,16 @@ static int cmd_status(int argc, char *argv[]) {
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_get_props(&dbus_ctx, &props, &err)) {
 		cmd_print_error("D-Bus error: %s", err.message);
+		bluealsa_dbus_props_free(&props);
 		return EXIT_FAILURE;
 	}
 
 	printf("Service: %s\n", dbus_ctx.ba_service);
 	printf("Version: %s\n", props.version);
 	print_adapters(&props);
+	print_profiles_and_codecs(&props);
 
+	bluealsa_dbus_props_free(&props);
 	return EXIT_SUCCESS;
 }
 
@@ -399,7 +413,7 @@ static int cmd_codec(int argc, char *argv[]) {
 	}
 
 	if (argc == 2) {
-		print_codecs(path, &err);
+		print_pcm_codecs(path, &err);
 		printf("Selected codec: %s\n", pcm.codec);
 		return EXIT_SUCCESS;
 	}

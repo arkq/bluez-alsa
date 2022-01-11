@@ -30,6 +30,15 @@ Properties      string Version [readonly]
                         Used HCI adapters. The device names ("hci0", etc.) of
                         Bluetooth adapters that the BlueALSA service is using.
 
+                array{string} Profiles [readonly]
+
+                        Used (enabled) Bluetooth profiles.
+
+                array{string} Codecs [readonly]
+
+                        Used (enabled) Bluetooth audio codecs. The Bluetooth
+                        audio codec name format: "<profile-name>:<codec-name>"
+
 PCM hierarchy
 =============
 

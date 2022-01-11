@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -79,6 +79,13 @@ struct ba_service_props {
 	char version[32];
 	/* currently used HCI adapters */
 	char adapters[HCI_MAX_DEV][8];
+	size_t adapters_len;
+	/* currently used Bluetooth profiles */
+	char **profiles;
+	size_t profiles_len;
+	/* currently used audio codecs */
+	char **codecs;
+	size_t codecs_len;
 };
 
 /**
@@ -170,6 +177,9 @@ dbus_bool_t bluealsa_dbus_get_props(
 		struct ba_dbus_ctx *ctx,
 		struct ba_service_props *props,
 		DBusError *error);
+
+void bluealsa_dbus_props_free(
+		struct ba_service_props *props);
 
 dbus_bool_t bluealsa_dbus_get_pcms(
 		struct ba_dbus_ctx *ctx,

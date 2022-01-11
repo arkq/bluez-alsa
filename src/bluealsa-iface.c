@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-iface.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -109,9 +109,19 @@ static const GDBusPropertyInfo bluealsa_iface_manager_Adapters = {
 	-1, "Adapters", "as", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
+static const GDBusPropertyInfo bluealsa_iface_manager_Profiles = {
+	-1, "Profiles", "as", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static const GDBusPropertyInfo bluealsa_iface_manager_Codecs = {
+	-1, "Codecs", "as", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo *bluealsa_iface_manager_properties[] = {
 	&bluealsa_iface_manager_Version,
 	&bluealsa_iface_manager_Adapters,
+	&bluealsa_iface_manager_Profiles,
+	&bluealsa_iface_manager_Codecs,
 	NULL,
 };
 
