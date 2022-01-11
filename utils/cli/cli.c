@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cli.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -907,15 +907,16 @@ int main(int argc, char *argv[]) {
 	log_open(argv[0], false, false);
 	dbus_threads_init_default();
 
-	if (argc == optind) {
-		cli_print_error("Missing command");
-		return EXIT_FAILURE;
-	}
-
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
 		cli_print_error("Couldn't initialize D-Bus context: %s", err.message);
 		return EXIT_FAILURE;
+	}
+
+	if (argc == optind) {
+		/* show "status" information by default */
+		char *status_argv[] = { "status", NULL };
+		return cmd_status(1, status_argv);
 	}
 
 	size_t i;
