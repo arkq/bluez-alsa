@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2021 Arkadiusz Bokowy
+# Copyright (c) 2016-2022 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
@@ -30,6 +30,7 @@ bluealsa_SOURCES = \
 	codec-sbc.c \
 	dbus.c \
 	hci.c \
+	hfp.c \
 	io.c \
 	rtp.c \
 	sco.c \

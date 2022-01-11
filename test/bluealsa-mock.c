@@ -321,7 +321,7 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
 	struct ba_transport *t = ba_transport_new_sco(d, type, ":test", path, -1);
 	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n",
-			device_btmac, ba_transport_codecs_hfp_to_string(t->type.codec));
+			device_btmac, hfp_codec_id_to_string(t->type.codec));
 	t->acquire = mock_transport_acquire;
 	ba_device_unref(d);
 	return t;

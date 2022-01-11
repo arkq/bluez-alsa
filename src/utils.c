@@ -200,44 +200,6 @@ gboolean g_bdaddr_equal(const void *v1, const void *v2) {
 }
 
 /**
- * Get BlueALSA HFP codec from string representation.
- *
- * @param codec String representation of BlueALSA audio codec.
- * @return BlueALSA audio codec or 0xFFFF for not supported value. */
-uint16_t ba_transport_codecs_hfp_from_string(const char *str) {
-
-	static const uint16_t codecs[] = {
-		HFP_CODEC_CVSD,
-#if ENABLE_MSBC
-		HFP_CODEC_MSBC,
-#endif
-	};
-
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(codecs); i++)
-		if (strcmp(str, ba_transport_codecs_hfp_to_string(codecs[i])) == 0)
-			return codecs[i];
-
-	return 0xFFFF;
-}
-
-/**
- * Convert HFP audio codec into a human-readable string.
- *
- * @param codec HFP audio codec.
- * @return Human-readable string or NULL for unknown codec. */
-const char *ba_transport_codecs_hfp_to_string(uint16_t codec) {
-	switch (codec) {
-	case HFP_CODEC_CVSD:
-		return "CVSD";
-	case HFP_CODEC_MSBC:
-		return "mSBC";
-	default:
-		return NULL;
-	}
-}
-
-/**
  * Convert BlueALSA transport type into a human-readable string.
  *
  * @param type Transport type structure.

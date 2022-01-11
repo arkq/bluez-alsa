@@ -911,9 +911,9 @@ int main(int argc, char *argv[]) {
 #define TEST_CODEC_LDAC (1 << 6)
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), TEST_CODEC_LDAC },
 #define TEST_CODEC_CVSD (1 << 7)
-		{ ba_transport_codecs_hfp_to_string(HFP_CODEC_CVSD), TEST_CODEC_CVSD },
+		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), TEST_CODEC_CVSD },
 #define TEST_CODEC_MSBC (1 << 8)
-		{ ba_transport_codecs_hfp_to_string(HFP_CODEC_MSBC), TEST_CODEC_MSBC },
+		{ hfp_codec_id_to_string(HFP_CODEC_MSBC), TEST_CODEC_MSBC },
 	};
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
@@ -977,7 +977,7 @@ int main(int argc, char *argv[]) {
 					&btd->a2dp_configuration, btd->a2dp_configuration_size, true);
 			break;
 		case BT_DUMP_MODE_SCO:
-			codec = ba_transport_codecs_hfp_to_string(btd->transport_codec_id);
+			codec = hfp_codec_id_to_string(btd->transport_codec_id);
 			debug("BT dump HFP codec: %s (%#x)", codec, btd->transport_codec_id);
 			break;
 		}

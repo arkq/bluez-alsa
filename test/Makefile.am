@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2021 Arkadiusz Bokowy
+# Copyright (c) 2016-2022 Arkadiusz Bokowy
 
 TESTS = \
 	test-a2dp \
@@ -56,6 +56,7 @@ bluealsa_mock_SOURCES = \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
+	../src/hfp.c \
 	../src/io.c \
 	../src/rtp.c \
 	../src/sco.c \
@@ -119,6 +120,7 @@ test_io_SOURCES = \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
+	../src/hfp.c \
 	../src/io.c \
 	../src/rtp.c \
 	../src/sco.c \
@@ -145,6 +147,7 @@ test_rfcomm_SOURCES = \
 	../src/bluealsa-config.c \
 	../src/dbus.c \
 	../src/hci.c \
+	../src/hfp.c \
 	../src/utils.c \
 	test-rfcomm.c
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hfp.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -9,8 +9,11 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_HFP_H_
 #define BLUEALSA_HFP_H_
+
+#include <stdint.h>
 
 /* HFP codec IDs */
 #define HFP_CODEC_UNDEFINED 0x00
@@ -130,5 +133,8 @@ enum __attribute__ ((packed)) hfp_ind {
 #define HFP_IND_ROAM_NONE           0
 /* a roaming is active */
 #define HFP_IND_ROAM_ACTIVE         1
+
+uint16_t hfp_codec_id_from_string(const char *alias);
+const char *hfp_codec_id_to_string(uint16_t codec_id);
 
 #endif

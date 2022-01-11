@@ -123,7 +123,7 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		codec = a2dp_codecs_codec_id_to_string(t->type.codec);
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		codec = ba_transport_codecs_hfp_to_string(t->type.codec);
+		codec = hfp_codec_id_to_string(t->type.codec);
 	if (codec != NULL)
 		return g_variant_new_string(codec);
 	return g_variant_new_string("<null>");
@@ -516,12 +516,12 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 
 		g_variant_builder_add(&codecs, "{sa{sv}}",
-				ba_transport_codecs_hfp_to_string(HFP_CODEC_CVSD), NULL);
+				hfp_codec_id_to_string(HFP_CODEC_CVSD), NULL);
 
 #if ENABLE_MSBC
 		if (t->sco.rfcomm != NULL && t->sco.rfcomm->msbc)
 			g_variant_builder_add(&codecs, "{sa{sv}}",
-					ba_transport_codecs_hfp_to_string(HFP_CODEC_MSBC), NULL);
+					hfp_codec_id_to_string(HFP_CODEC_MSBC), NULL);
 #endif
 
 	}
@@ -622,7 +622,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	}
 	else {
 
-		uint16_t codec_id = ba_transport_codecs_hfp_from_string(codec_name);
+		uint16_t codec_id = hfp_codec_id_from_string(codec_name);
 		if (ba_transport_select_codec_sco(t, codec_id) == -1)
 			goto fail;
 
