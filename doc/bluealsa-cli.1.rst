@@ -6,7 +6,7 @@ bluealsa-cli
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: November 2021
+:Date: January 2022
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -14,12 +14,12 @@ a simple command line interface for the BlueALSA D-Bus API
 SYNOPSIS
 ========
 
-**bluealsa-cli** [*OPTION*]... *COMMAND* [*ARG*]...
+**bluealsa-cli** [*OPTION*]... [*COMMAND* [*ARG*]...]
 
 DESCRIPTION
 ===========
 
-bluealsa-cli provides command-line access to the BlueALSA D-Bus API
+**bluealsa-cli** provides command-line access to the BlueALSA D-Bus API
 "org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus
 allows introspection and some control of BlueALSA PCMs while they are running.
 
@@ -48,6 +48,21 @@ OPTIONS
 COMMANDS
 ========
 
+If no *COMMAND* is given, the default is **status**.
+
+status
+    Print properties of the service: service name, build version, in-use
+    bluetooth adapters, available profiles and codecs. Example output:
+    ::
+
+        Service: org.bluealsa
+        Version: v3.1.0-96-gc86142d
+        Adapters: hci0 hci1
+        Profiles:
+          A2DP-source : SBC AAC
+          HFP-AG      : CVSD mSBC
+          HSP-AG      : CVSD
+
 list-services
     Print a name list of all running BlueALSA D-Bus services, one per line.
 
@@ -68,7 +83,7 @@ info *PCM_PATH*
 
     The list of available codecs requires BlueZ SEP support (BlueZ >= 5.52)
 
-codec *PCM_PATH* [*CODEC*] [*CONFIG*]
+codec *PCM_PATH* [*CODEC* [*CONFIG*]]
     If *CODEC* is given, change the codec to be used by the given PCM. This
     command will terminate the PCM if it is currently running.
 
@@ -144,10 +159,6 @@ monitor
     When the monitor starts, it begins by printing a ``ServiceRunning`` or
     ``ServiceStopped`` message according to the current state of the service.
 
-    Note that the **bluealsa(8)** service does not emit ``PCMRemoved`` signals
-    when the service stops. The ``ServiceStopped`` message here can be used
-    to indicate that all remaining PCMs have been removed.
-
 open *PCM_PATH*
     Transfer raw audio frames to or from the given PCM. For sink PCMs
     the frames are read from standard input and written to the PCM. For
@@ -165,6 +176,6 @@ Project web site at https://github.com/Arkq/bluez-alsa
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2021 Arkadiusz Bokowy.
+Copyright (c) 2016-2022 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
