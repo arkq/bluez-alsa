@@ -48,6 +48,7 @@ TODO
 UI
 UUID
 VBR
+XDG
 XQ
 
 # Proper Names
@@ -78,6 +79,7 @@ endian
 endianness
 enum
 init
+inode
 middleware
 mutex
 natively
@@ -86,6 +88,7 @@ params
 proc
 reinitialization
 scalable
+shm
 signedness
 unexported
 unmute
@@ -105,6 +108,7 @@ asrsync
 autoreconf
 ay
 BAC
+bahfp
 batostr
 battchg
 BCC
@@ -144,6 +148,7 @@ EQMID
 errno
 FB
 ffb
+FIXME
 fs
 GError
 GHashTable
@@ -199,10 +204,13 @@ syslog
 syslogd
 systemd
 TIOCOUTQ
+tmp
+TMPDIR
 TNS
 TWS
 ud
 uint
+unlinked
 VGM
 VGS
 VTable
