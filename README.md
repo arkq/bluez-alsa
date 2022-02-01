@@ -48,17 +48,18 @@ Dependencies:
 - [bluez](http://www.bluez.org/) >= 5.0
 - [glib](https://wiki.gnome.org/Projects/GLib) with GIO support
 - [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
-- [mp3lame](https://lame.sourceforge.net/) (when MP3 support is enabled with `--enable-mp3lame`)
-- [mpg123](https://www.mpg123.org/) (when MPEG decoding support is enabled with `--enable-mpg123`)
+- [docutils](https://docutils.sourceforge.io) (when man pages build is enabled with
+  `--enable-manpages`)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled with `--enable-aac`)
-- [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with
-  `--enable-aptx` and/or `--enable-aptx-hd`)
-- [lc3plus](https://www.iis.fraunhofer.de/en/ff/amm/communication/lc3.html) (when LC3plus support is
-  enabled with `--enable-lc3plus`)
+- [lc3plus](https://www.iis.fraunhofer.de/en/ff/amm/communication/lc3.html) (when LC3plus support
+  is enabled with `--enable-lc3plus`)
+- [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
 - [libopenaptx](https://github.com/pali/libopenaptx) (when apt-X support is enabled and
   `--with-libopenaptx` is used)
-- [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled with `--enable-ldac`)
-- [docutils](https://docutils.sourceforge.io) (when man pages build is enabled with `--enable-manpages`)
+- [mp3lame](https://lame.sourceforge.net/) (when MP3 support is enabled with `--enable-mp3lame`)
+- [mpg123](https://www.mpg123.org/) (when MPEG decoding support is enabled with `--enable-mpg123`)
+- [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with
+  `--enable-aptx` and/or `--enable-aptx-hd`)
 
 Dependencies for client applications (e.g. `bluealsa-aplay` or `bluealsa-cli`):
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-lc3plus.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -202,11 +202,9 @@ static void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 		error("Couldn't set frame length: %s", lc3plus_strerror(err));
 		goto fail_setup;
 	}
-	if (samplerate >= 96000) {
-		if ((err = lc3plus_enc_set_hrmode(handle, 1)) != LC3PLUS_OK) {
-			error("Couldn't set hi-resolution mode: %s", lc3plus_strerror(err));
-			goto fail_setup;
-		}
+	if ((err = lc3plus_enc_set_hrmode(handle, 1)) != LC3PLUS_OK) {
+		error("Couldn't set hi-resolution mode: %s", lc3plus_strerror(err));
+		goto fail_setup;
 	}
 	if ((err = lc3plus_enc_set_bitrate(handle, config.lc3plus_bitrate)) != LC3PLUS_OK) {
 		error("Couldn't set bitrate: %s", lc3plus_strerror(err));
@@ -436,11 +434,9 @@ static void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 		error("Couldn't set frame length: %s", lc3plus_strerror(err));
 		goto fail_setup;
 	}
-	if (samplerate >= 96000) {
-		if ((err = lc3plus_dec_set_hrmode(handle, 1)) != LC3PLUS_OK) {
-			error("Couldn't set hi-resolution mode: %s", lc3plus_strerror(err));
-			goto fail_setup;
-		}
+	if ((err = lc3plus_dec_set_hrmode(handle, 1)) != LC3PLUS_OK) {
+		error("Couldn't set hi-resolution mode: %s", lc3plus_strerror(err));
+		goto fail_setup;
 	}
 
 	ffb_t bt = { 0 };
