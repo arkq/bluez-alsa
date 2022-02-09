@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,6 +12,7 @@
 # include <config.h>
 #endif
 
+#include <errno.h>
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
@@ -26,6 +27,7 @@
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
+#include "shared/hex.h"
 #include "shared/rt.h"
 
 START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
@@ -264,6 +266,30 @@ START_TEST(test_ffb_resize) {
 
 } END_TEST
 
+START_TEST(test_bin2hex) {
+
+	const uint8_t bin[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+	char hex[sizeof(bin) * 2 + 1];
+
+	ck_assert_int_eq(bin2hex(bin, hex, sizeof(bin)), 8);
+	ck_assert_str_eq(hex, "deadbeef");
+
+} END_TEST
+
+START_TEST(test_hex2bin) {
+
+	const uint8_t bin_ok[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+	const char *hex = "DEADbeef";
+	uint8_t bin[sizeof(bin_ok)];
+
+	ck_assert_int_eq(hex2bin(hex, bin, strlen(hex)), 4);
+	ck_assert_int_eq(memcmp(bin, bin_ok, sizeof(bin)), 0);
+
+	ck_assert_int_eq(hex2bin(hex, bin, 3), -1);
+	ck_assert_int_eq(errno, EINVAL);
+
+} END_TEST
+
 int main(void) {
 
 	Suite *s = suite_create(__FILE__);
@@ -272,15 +298,22 @@ int main(void) {
 
 	suite_add_tcase(s, tc);
 
+	/* shared/ffb.c */
+	tcase_add_test(tc, test_ffb);
+	tcase_add_test(tc, test_ffb_resize);
+
+	/* shared/hex.c */
+	tcase_add_test(tc, test_bin2hex);
+	tcase_add_test(tc, test_hex2bin);
+
+	/* shared/rt.c */
+	tcase_add_test(tc, test_difftimespec);
+
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_hci_dev_id);
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_bdaddr);
 	tcase_add_test(tc, test_dbus_profile_object_path);
 	tcase_add_test(tc, test_g_variant_sanitize_object_path);
 	tcase_add_test(tc, test_batostr_);
-	tcase_add_test(tc, test_difftimespec);
-
-	tcase_add_test(tc, test_ffb);
-	tcase_add_test(tc, test_ffb_resize);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

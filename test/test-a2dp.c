@@ -1,6 +1,6 @@
 /*
  * test-a2dp.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -37,6 +37,23 @@ int ba_transport_thread_signal_recv(struct ba_transport_thread *th,
 		enum ba_transport_thread_signal *signal) {
 	(void)th; (void)signal; return -1; }
 void ba_transport_thread_cleanup(struct ba_transport_thread *th) { (void)th; }
+
+START_TEST(test_a2dp_codecs_codec_id_from_string) {
+	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);
+	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("apt-x"), A2DP_CODEC_VENDOR_APTX);
+	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("unknown"), 0xFFFF);
+} END_TEST
+
+START_TEST(test_a2dp_codecs_codec_id_to_string) {
+	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), "SBC");
+	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), "aptX");
+	ck_assert_ptr_eq(a2dp_codecs_codec_id_to_string(0xFFFF), NULL);
+} END_TEST
+
+START_TEST(test_a2dp_codecs_get_canonical_name) {
+	ck_assert_str_eq(a2dp_codecs_get_canonical_name("apt-x"), "aptX");
+	ck_assert_str_eq(a2dp_codecs_get_canonical_name("Foo-Bar"), "Foo-Bar");
+} END_TEST
 
 START_TEST(test_a2dp_dir) {
 	ck_assert_int_eq(A2DP_SOURCE, !A2DP_SINK);
@@ -165,6 +182,10 @@ int main(void) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
+
+	tcase_add_test(tc, test_a2dp_codecs_codec_id_from_string);
+	tcase_add_test(tc, test_a2dp_codecs_codec_id_to_string);
+	tcase_add_test(tc, test_a2dp_codecs_get_canonical_name);
 
 	tcase_add_test(tc, test_a2dp_dir);
 	tcase_add_test(tc, test_a2dp_codec_lookup);
