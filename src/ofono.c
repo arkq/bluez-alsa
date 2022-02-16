@@ -465,9 +465,6 @@ int ofono_register(void) {
 
 	debug("Registering oFono audio agent: %s", dbus_agent_object_path);
 
-	if (ofono_card_data_map == NULL)
-		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-
 	if (dbus_hf_agent == NULL) {
 		ofono_HFAudioAgentIfaceSkeleton *ifs_hf_agent;
 		if ((ifs_hf_agent = ofono_hf_audio_agent_iface_skeleton_new(&vtable, NULL, NULL)) == NULL)
@@ -599,13 +596,16 @@ static void ofono_disappeared(GDBusConnection *conn, const char *name,
 }
 
 /**
- * Subscribe to oFono signals.
+ * Initialize integration with oFono service.
  *
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int ofono_subscribe_signals(void) {
+int ofono_init(void) {
 
 	if (!config.profile.hfp_ofono)
 		return 0;
+
+	if (ofono_card_data_map == NULL)
+		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
 	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
 			OFONO_IFACE_HF_AUDIO_MANAGER, "CardAdded", NULL, NULL,

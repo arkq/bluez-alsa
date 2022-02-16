@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -33,8 +33,7 @@ enum bluez_a2dp_transport_state {
 	BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE,
 };
 
-void bluez_register(void);
-int bluez_subscribe_signals(void);
+int bluez_init(void);
 
 bool bluez_a2dp_set_configuration(
 		const char *dbus_current_sep_path,

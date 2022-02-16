@@ -985,11 +985,7 @@ static void bluez_register_hfp_all(void) {
 
 /**
  * Register to the BlueZ service. */
-void bluez_register(void) {
-
-	if (dbus_object_data_map == NULL)
-		dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal,
-				NULL, (GDestroyNotify)bluez_dbus_object_data_unref);
+static void bluez_register(void) {
 
 	GError *err = NULL;
 	GVariantIter *objects = NULL;
@@ -1307,10 +1303,8 @@ static void bluez_disappeared(GDBusConnection *conn, const char *name,
 }
 
 /**
- * Subscribe to BlueZ signals.
- *
- * @return On success this function returns 0. Otherwise -1 is returned. */
-int bluez_subscribe_signals(void) {
+ * Subscribe to BlueZ signals. */
+static void bluez_subscribe_signals(void) {
 
 	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
 			DBUS_IFACE_OBJECT_MANAGER, "InterfacesAdded", NULL, NULL,
@@ -1326,6 +1320,21 @@ int bluez_subscribe_signals(void) {
 	g_bus_watch_name_on_connection(config.dbus, BLUEZ_SERVICE,
 			G_BUS_NAME_WATCHER_FLAGS_NONE, NULL, bluez_disappeared,
 			NULL, NULL);
+
+}
+
+/**
+ * Initialize integration with BlueZ service.
+ *
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+int bluez_init(void) {
+
+	if (dbus_object_data_map == NULL)
+		dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal,
+				NULL, (GDestroyNotify)bluez_dbus_object_data_unref);
+
+	bluez_subscribe_signals();
+	bluez_register();
 
 	return 0;
 }

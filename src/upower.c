@@ -1,6 +1,6 @@
 /*
  * BlueALSA - upower.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -29,30 +29,6 @@
 #include "dbus.h"
 #include "utils.h"
 #include "shared/log.h"
-
-/**
- * Get initial setup from UPower service.
- *
- * @return On success this function returns 0. Otherwise -1 is returned. */
-int upower_initialize(void) {
-
-	GVariant *present = g_dbus_get_property(config.dbus, UPOWER_SERVICE,
-			UPOWER_PATH_DISPLAY_DEVICE, UPOWER_IFACE_DEVICE, "IsPresent", NULL);
-	GVariant *percentage = g_dbus_get_property(config.dbus, UPOWER_SERVICE,
-			UPOWER_PATH_DISPLAY_DEVICE, UPOWER_IFACE_DEVICE, "Percentage", NULL);
-
-	if (present != NULL) {
-		config.battery.available = g_variant_get_boolean(present);
-		g_variant_unref(present);
-	}
-
-	if (percentage != NULL) {
-		config.battery.level = lround(g_variant_get_double(percentage));
-		g_variant_unref(percentage);
-	}
-
-	return 0;
-}
 
 static void upower_signal_display_device_changed(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface_, const char *signal, GVariant *params,
@@ -121,14 +97,37 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 }
 
 /**
- * Subscribe to UPower service signals.
- *
- * @return On success this function returns 0. Otherwise -1 is returned. */
-int upower_subscribe_signals(void) {
+ * Subscribe to UPower service signals. */
+static void upower_subscribe_signals(void) {
 
 	g_dbus_connection_signal_subscribe(config.dbus, UPOWER_SERVICE,
 			DBUS_IFACE_PROPERTIES, "PropertiesChanged", UPOWER_PATH_DISPLAY_DEVICE,
 			NULL, G_DBUS_SIGNAL_FLAGS_NONE, upower_signal_display_device_changed, NULL, NULL);
+
+}
+
+/**
+ * Initialize integration with UPower service.
+ *
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+int upower_init(void) {
+
+	upower_subscribe_signals();
+
+	GVariant *present = g_dbus_get_property(config.dbus, UPOWER_SERVICE,
+			UPOWER_PATH_DISPLAY_DEVICE, UPOWER_IFACE_DEVICE, "IsPresent", NULL);
+	GVariant *percentage = g_dbus_get_property(config.dbus, UPOWER_SERVICE,
+			UPOWER_PATH_DISPLAY_DEVICE, UPOWER_IFACE_DEVICE, "Percentage", NULL);
+
+	if (present != NULL) {
+		config.battery.available = g_variant_get_boolean(present);
+		g_variant_unref(present);
+	}
+
+	if (percentage != NULL) {
+		config.battery.level = lround(g_variant_get_double(percentage));
+		g_variant_unref(percentage);
+	}
 
 	return 0;
 }

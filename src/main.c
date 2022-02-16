@@ -113,17 +113,12 @@ static void g_bus_name_acquired(GDBusConnection *conn, const char *name, void *u
 
 	bluealsa_dbus_register();
 
-	bluez_subscribe_signals();
-	bluez_register();
-
+	bluez_init();
 #if ENABLE_OFONO
-	ofono_subscribe_signals();
-	ofono_register();
+	ofono_init();
 #endif
-
 #if ENABLE_UPOWER
-	upower_subscribe_signals();
-	upower_initialize();
+	upower_init();
 #endif
 
 }
