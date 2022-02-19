@@ -478,6 +478,7 @@ static struct ba_transport *transport_new(
 
 	t->d = ba_device_ref(device);
 	t->type.profile = BA_TRANSPORT_PROFILE_NONE;
+	t->type.codec = -1;
 	t->ref_count = 1;
 
 	pthread_mutex_init(&t->type_mtx, NULL);
@@ -649,7 +650,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
-	t->type = type;
+	t->type.profile = type.profile;
 
 	t->a2dp.codec = codec;
 	memcpy(&t->a2dp.configuration, configuration, codec->capabilities_size);
@@ -762,7 +763,7 @@ struct ba_transport *ba_transport_new_sco(
 	type.codec = HFP_CODEC_CVSD;
 #endif
 
-	t->type = type;
+	t->type.profile = type.profile;
 
 	transport_pcm_init(&t->sco.spk_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.spk_pcm.max_bt_volume = 15;
@@ -1124,11 +1125,22 @@ static void ba_transport_set_codec_sco(struct ba_transport *t) {
 		g_assert_not_reached();
 	}
 
+	if (t->sco.spk_pcm.ba_dbus_exported)
+		bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
+				BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+
+	if (t->sco.mic_pcm.ba_dbus_exported)
+		bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
+				BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+
 }
 
 void ba_transport_set_codec(
 		struct ba_transport *t,
 		uint16_t codec_id) {
+
+	if (t->type.codec == codec_id)
+		return;
 
 	t->type.codec = codec_id;
 

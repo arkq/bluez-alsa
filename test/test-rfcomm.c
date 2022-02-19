@@ -1,6 +1,6 @@
 /*
  * test-rfcomm.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -62,7 +62,9 @@ void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
 
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); return 0; }
+	debug("%s: %p", __func__, (void *)pcm);
+	pcm->ba_dbus_exported = true;
+	return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask);
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC) {

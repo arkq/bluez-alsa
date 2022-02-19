@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -470,10 +470,6 @@ static int rfcomm_handler_bcs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 	/* Codec negotiation process is complete. Update transport and
 	 * notify connected clients, that transport has been changed. */
 	ba_transport_set_codec(t_sco, codec);
-	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 final:
 	pthread_cond_signal(&r->codec_selection_completed);
@@ -496,10 +492,6 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm *r, const struct bt_at
 	 * transport has been changed. Note, that this event might be emitted
 	 * for an active transport - switching initiated by Audio Gateway. */
 	ba_transport_set_codec(t_sco, r->codec);
-	bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-	bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
-			BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 
 final:
 	pthread_cond_signal(&r->codec_selection_completed);

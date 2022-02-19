@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *               2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -273,8 +273,6 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	g_hash_table_insert(ofono_card_data_map, g_strdup(card), ocd);
 	ocd = NULL;
-
-	ba_transport_start(t);
 
 fail:
 	if (a != NULL)
