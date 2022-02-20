@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-msbc.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *               2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -14,10 +14,22 @@
 #include <endian.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
+
+#include <spandsp.h>
 
 #include "codec-sbc.h"
 #include "shared/log.h"
+
+/**
+ * Use PLC in case of SBC decoding error.
+ *
+ * If defined to 1, in case of SBC frame decoding error the msbc_decode()
+ * function will not return error code, but will use PLC to conceal missing
+ * PCM samples. Such behavior should ensure that a PCM client will receive
+ * correct number of PCM samples - matching sampling frequency. */
+#define MSBC_DECODE_ERROR_PLC 1
 
 /* Code protected 2-bit sequence numbers (SN0 and SN1) used
  * by the msbc_encode() function. */
@@ -72,7 +84,9 @@ int msbc_init(struct esco_msbc *msbc) {
 			goto fail;
 		if (ffb_init_uint8_t(&msbc->data, sizeof(esco_msbc_frame_t) * 3) == -1)
 			goto fail;
-		if (ffb_init_int16_t(&msbc->pcm, MSBC_CODESAMPLES * 2) == -1)
+		/* Allocate buffer for 1 decoded frame, optional 3 PLC frames and
+		 * some extra frames to account for async PCM samples reading. */
+		if (ffb_init_int16_t(&msbc->pcm, MSBC_CODESAMPLES * 6) == -1)
 			goto fail;
 	}
 
@@ -99,6 +113,11 @@ int msbc_init(struct esco_msbc *msbc) {
 	msbc->seq_initialized = false;
 	msbc->seq_number = 0;
 	msbc->frames = 0;
+
+	/* Initialize PLC context. When calling with non-NULL parameter,
+	 * this function does not allocate anything - there is no need
+	 * to call plc_free(). */
+	plc_init(&msbc->plc);
 
 	msbc->initialized = true;
 	return 0;
@@ -131,7 +150,6 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 
 	const uint8_t *input = msbc->data.data;
 	size_t input_len = ffb_blen_out(&msbc->data);
-	int16_t *output = msbc->pcm.tail;
 	size_t output_len = ffb_blen_in(&msbc->pcm);
 	ssize_t rv = 0;
 
@@ -140,9 +158,10 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 	input += tmp - input_len;
 
 	/* Skip decoding if there is not enough input data or the output
-	 * buffer is not big enough to hold decoded PCM samples.*/
+	 * buffer is not big enough to hold decoded PCM samples and PCM
+	 * samples reconstructed with PLC (up to 3 mSBC frames). */
 	if (input_len < sizeof(*frame) ||
-			output_len < MSBC_CODESIZE)
+			output_len < MSBC_CODESIZE * (1 + 3))
 		goto final;
 
 	esco_h2_header_t h2;
@@ -155,22 +174,49 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 		msbc->seq_number = _seq;
 	}
 	else if (_seq != ++msbc->seq_number) {
-		warn("Missing mSBC packet: %u != %u", _seq, msbc->seq_number);
+
+		/* In case of missing mSBC frames (we can detect up to 3 consecutive
+		 * missing frames) use PLC for PCM samples reconstruction. */
+
+		uint8_t missing = (_seq + ESCO_H2_SN_MAX - msbc->seq_number) % ESCO_H2_SN_MAX;
+		warn("Missing mSBC packets (%u != %u): %u", _seq, msbc->seq_number, missing);
+
 		msbc->seq_number = _seq;
-		/* TODO: Implement PLC. */
+
+		plc_fillin(&msbc->plc, msbc->pcm.tail, missing * MSBC_CODESAMPLES);
+		ffb_seek(&msbc->pcm, missing * MSBC_CODESAMPLES);
+		rv += missing * MSBC_CODESAMPLES;
+
 	}
 
 	ssize_t len;
 	if ((len = sbc_decode(&msbc->sbc, frame->payload, sizeof(frame->payload),
-					output, output_len, NULL)) < 0) {
+					msbc->pcm.tail, output_len, NULL)) < 0) {
+
+		/* Move forward one byte to avoid getting stuck in
+		 * decoding the same mSBC packet all over again. */
 		input += 1;
+
+#if MSBC_DECODE_ERROR_PLC
+
+		warn("Couldn't decode mSBC frame: %s", sbc_strerror(len));
+		plc_fillin(&msbc->plc, msbc->pcm.tail, MSBC_CODESAMPLES);
+		ffb_seek(&msbc->pcm, MSBC_CODESAMPLES);
+		rv += MSBC_CODESAMPLES;
+
+#else
 		rv = len;
+#endif
+
 		goto final;
 	}
 
+	/* record PCM history and blend new data after PLC */
+	plc_rx(&msbc->plc, msbc->pcm.tail, MSBC_CODESAMPLES);
+
 	ffb_seek(&msbc->pcm, MSBC_CODESAMPLES);
 	input += sizeof(*frame);
-	rv = MSBC_CODESAMPLES;
+	rv += MSBC_CODESAMPLES;
 
 final:
 	/* Reshuffle remaining data to the beginning of the buffer. */

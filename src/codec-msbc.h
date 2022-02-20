@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-msbc.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -22,6 +22,7 @@
 #include <sys/types.h>
 
 #include <sbc/sbc.h>
+#include <spandsp.h>
 
 #include "shared/ffb.h"
 
@@ -32,6 +33,7 @@
 #define MSBC_FRAMELEN    57
 
 #define ESCO_H2_SYNCWORD 0x801
+#define ESCO_H2_SN_MAX   0x4
 #define ESCO_H2_GET_SYNCWORD(h2) ((h2) & 0xFFF)
 #define ESCO_H2_GET_SN0(h2)      (((h2) >> 12) & 0x3)
 #define ESCO_H2_GET_SN1(h2)      (((h2) >> 14) & 0x3)
@@ -61,6 +63,9 @@ struct esco_msbc {
 	uint8_t seq_number : 2;
 	/* number of processed frames */
 	size_t frames;
+
+	/* packet loss concealment */
+	plc_state_t plc;
 
 	/* Determine whether structure has been initialized. This field is
 	 * used for reinitialization - it makes msbc_init() idempotent. */

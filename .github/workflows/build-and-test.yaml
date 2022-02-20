@@ -33,6 +33,7 @@ jobs:
           libncurses5-dev \
           libreadline-dev \
           libsbc-dev \
+          libspandsp-dev \
           python-docutils
     - uses: actions/checkout@v2
     - name: Create Build Environment

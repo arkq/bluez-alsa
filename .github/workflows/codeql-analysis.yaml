@@ -29,7 +29,8 @@ jobs:
           libmpg123-dev \
           libncurses5-dev \
           libreadline-dev \
-          libsbc-dev
+          libsbc-dev \
+          libspandsp-dev
     - uses: actions/checkout@v2
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v1
