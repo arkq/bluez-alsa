@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -13,7 +13,6 @@
 #endif
 
 #include <errno.h>
-#include <fcntl.h>
 #include <getopt.h>
 #include <poll.h>
 #include <pthread.h>
@@ -27,6 +26,7 @@
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
 #include <check.h>
 #include <glib.h>
 #if ENABLE_LDAC
@@ -48,7 +48,6 @@
 #include "io.h"
 #include "rtp.h"
 #include "sco.h"
-#include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -65,6 +64,11 @@
 #include "../src/ba-transport.c"
 #include "inc/btd.inc"
 #include "inc/sine.inc"
+
+#define CHECK_VERSION ( \
+		(CHECK_MAJOR_VERSION << 16 & 0xff0000) | \
+		(CHECK_MINOR_VERSION << 8 & 0x00ff00) | \
+		(CHECK_MICRO_VERSION << 0 & 0x0000ff))
 
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); return 0; }
@@ -665,6 +669,8 @@ START_TEST(test_a2dp_sbc) {
 #if ENABLE_MP3LAME
 START_TEST(test_a2dp_mp3) {
 
+	config_mp3_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
+
 	struct ba_transport_type ttype = {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_MPEG12 };
@@ -693,6 +699,10 @@ START_TEST(test_a2dp_mp3) {
 
 #if ENABLE_AAC
 START_TEST(test_a2dp_aac) {
+
+	config.aac_afterburner = true;
+	config.aac_prefer_vbr = enable_vbr_mode;
+	config_aac_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 
 	struct ba_transport_type ttype = {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
@@ -852,6 +862,9 @@ START_TEST(test_a2dp_lc3plus) {
 #if ENABLE_LDAC
 START_TEST(test_a2dp_ldac) {
 
+	config.ldac_abr = true;
+	config.ldac_eqmid = LDACBT_EQMID_HQ;
+
 	struct ba_transport_type ttype = {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec = A2DP_CODEC_VENDOR_LDAC };
@@ -904,6 +917,9 @@ START_TEST(test_sco_cvsd) {
 #if ENABLE_MSBC
 START_TEST(test_sco_msbc) {
 
+	adapter->hci.features[2] = LMP_TRSP_SCO;
+	adapter->hci.features[3] = LMP_ESCO;
+
 	struct ba_transport_type ttype = {
 		.profile = BA_TRANSPORT_PROFILE_HFP_AG,
 		.codec = HFP_CODEC_MSBC };
@@ -923,6 +939,42 @@ START_TEST(test_sco_msbc) {
 
 int main(int argc, char *argv[]) {
 
+	const struct {
+		const char *name;
+#if CHECK_VERSION >= 0x000D00 /* 0.13.0 */
+		const TTest *tf;
+#else
+		TFun tf;
+#endif
+	} codecs[] = {
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc },
+#if ENABLE_MP3LAME
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },
+#endif
+#if ENABLE_AAC
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac },
+#endif
+#if ENABLE_APTX
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), test_a2dp_aptx },
+#endif
+#if ENABLE_APTX_HD
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX_HD), test_a2dp_aptx_hd },
+#endif
+#if ENABLE_FASTSTREAM
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), test_a2dp_faststream },
+#endif
+#if ENABLE_LC3PLUS
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LC3PLUS), test_a2dp_lc3plus },
+#endif
+#if ENABLE_LDAC
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), test_a2dp_ldac },
+#endif
+		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), test_sco_cvsd },
+#if ENABLE_MSBC
+		{ hfp_codec_id_to_string(HFP_CODEC_MSBC), test_sco_msbc },
+#endif
+	};
+
 	int opt;
 	const char *opts = "ha:d";
 	struct option longopts[] = {
@@ -933,32 +985,6 @@ int main(int argc, char *argv[]) {
 		{ "input-pcm", required_argument, NULL, 2 },
 		{ "vbr", no_argument, NULL, 3 },
 		{ 0, 0, 0, 0 },
-	};
-
-	struct {
-		const char *name;
-		unsigned int flag;
-	} codecs[] = {
-#define TEST_CODEC_SBC  (1 << 0)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), TEST_CODEC_SBC },
-#define TEST_CODEC_MP3  (1 << 1)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), TEST_CODEC_MP3 },
-#define TEST_CODEC_AAC  (1 << 2)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), TEST_CODEC_AAC },
-#define TEST_CODEC_APTX (1 << 3)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), TEST_CODEC_APTX },
-#define TEST_CODEC_APTX_HD (1 << 4)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX_HD), TEST_CODEC_APTX_HD },
-#define TEST_CODEC_FASTSTREAM (1 << 5)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), TEST_CODEC_FASTSTREAM },
-#define TEST_CODEC_LC3PLUS (1 << 6)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LC3PLUS), TEST_CODEC_LC3PLUS },
-#define TEST_CODEC_LDAC (1 << 7)
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), TEST_CODEC_LDAC },
-#define TEST_CODEC_CVSD (1 << 8)
-		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), TEST_CODEC_CVSD },
-#define TEST_CODEC_MSBC (1 << 9)
-		{ hfp_codec_id_to_string(HFP_CODEC_MSBC), TEST_CODEC_MSBC },
 	};
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
@@ -996,14 +1022,14 @@ int main(int argc, char *argv[]) {
 		}
 
 	unsigned int enabled_codecs = 0xFFFF;
-	size_t i;
 
 	if (optind != argc)
 		enabled_codecs = 0;
+
 	for (; optind < argc; optind++)
-		for (i = 0; i < ARRAYSIZE(codecs); i++)
+		for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 			if (strcasecmp(argv[optind], codecs[i].name) == 0)
-				enabled_codecs |= codecs[i].flag;
+				enabled_codecs |= 1 << i;
 
 	if (input_bt_file != NULL) {
 
@@ -1028,9 +1054,9 @@ int main(int argc, char *argv[]) {
 		}
 
 		enabled_codecs = 0;
-		for (i = 0; i < ARRAYSIZE(codecs); i++)
+		for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 			if (strcmp(codec, codecs[i].name) == 0)
-				enabled_codecs = codecs[i].flag;
+				enabled_codecs = 1 << i;
 
 	}
 
@@ -1050,48 +1076,9 @@ int main(int argc, char *argv[]) {
 	if (input_bt_file != NULL || input_pcm_file != NULL)
 		tcase_set_timeout(tc, aging_duration + 3600);
 
-	if (enabled_codecs & TEST_CODEC_SBC)
-		tcase_add_test(tc, test_a2dp_sbc);
-#if ENABLE_MP3LAME
-	config_mp3_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
-	if (enabled_codecs & TEST_CODEC_MP3)
-		tcase_add_test(tc, test_a2dp_mp3);
-#endif
-#if ENABLE_AAC
-	config.aac_afterburner = true;
-	config.aac_prefer_vbr = enable_vbr_mode;
-	config_aac_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
-	if (enabled_codecs & TEST_CODEC_AAC)
-		tcase_add_test(tc, test_a2dp_aac);
-#endif
-#if ENABLE_APTX
-	if (enabled_codecs & TEST_CODEC_APTX)
-		tcase_add_test(tc, test_a2dp_aptx);
-#endif
-#if ENABLE_APTX_HD
-	if (enabled_codecs & TEST_CODEC_APTX_HD)
-		tcase_add_test(tc, test_a2dp_aptx_hd);
-#endif
-#if ENABLE_FASTSTREAM
-	if (enabled_codecs & TEST_CODEC_FASTSTREAM)
-		tcase_add_test(tc, test_a2dp_faststream);
-#endif
-#if ENABLE_LC3PLUS
-	if (enabled_codecs & TEST_CODEC_LC3PLUS)
-		tcase_add_test(tc, test_a2dp_lc3plus);
-#endif
-#if ENABLE_LDAC
-	config.ldac_abr = true;
-	config.ldac_eqmid = LDACBT_EQMID_HQ;
-	if (enabled_codecs & TEST_CODEC_LDAC)
-		tcase_add_test(tc, test_a2dp_ldac);
-#endif
-	if (enabled_codecs & TEST_CODEC_CVSD)
-		tcase_add_test(tc, test_sco_cvsd);
-#if ENABLE_MSBC
-	if (enabled_codecs & TEST_CODEC_MSBC)
-		tcase_add_test(tc, test_sco_msbc);
-#endif
+	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
+		if (enabled_codecs & (1 << i))
+			tcase_add_test(tc, codecs[i].tf);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

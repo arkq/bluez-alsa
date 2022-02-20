@@ -60,6 +60,7 @@ Dependencies:
 - [mpg123](https://www.mpg123.org/) (when MPEG decoding support is enabled with `--enable-mpg123`)
 - [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled with
   `--enable-aptx` and/or `--enable-aptx-hd`)
+- [spandsp](https://www.soft-switch.org) (when mSBC support is enabled with `--enable-msbc`)
 
 Dependencies for client applications (e.g. `bluealsa-aplay` or `bluealsa-cli`):
 

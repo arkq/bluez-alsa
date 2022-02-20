@@ -369,41 +369,42 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 
 		ffb_seek(&msbc.pcm, samples);
 
-		int err;
-		if ((err = msbc_encode(&msbc)) < 0) {
-			warn("Couldn't encode mSBC: %s", sbc_strerror(err));
-			ffb_rewind(&msbc.pcm);
-		}
+		while (ffb_len_out(&msbc.pcm) >= MSBC_CODESAMPLES) {
 
-		if (msbc.frames == 0)
-			continue;
-
-		uint8_t *data = msbc.data.data;
-		size_t data_len = ffb_blen_out(&msbc.data);
-
-		while (data_len >= mtu_write) {
-
-			ssize_t len;
-			if ((len = io_bt_write(th, data, mtu_write)) <= 0) {
-				if (len == -1)
-					error("BT write error: %s", strerror(errno));
-				goto exit;
+			int err;
+			if ((err = msbc_encode(&msbc)) < 0) {
+				error("mSBC encoding error: %s", sbc_strerror(err));
+				break;
 			}
 
-			data += len;
-			data_len -= len;
+			uint8_t *data = msbc.data.data;
+			size_t data_len = ffb_blen_out(&msbc.data);
+
+			while (data_len >= mtu_write) {
+
+				ssize_t len;
+				if ((len = io_bt_write(th, data, mtu_write)) <= 0) {
+					if (len == -1)
+						error("BT write error: %s", strerror(errno));
+					goto exit;
+				}
+
+				data += len;
+				data_len -= len;
+
+			}
+
+			/* keep data transfer at a constant bit rate */
+			asrsync_sync(&io.asrs, msbc.frames * MSBC_CODESAMPLES);
+			/* update busy delay (encoding overhead) */
+			pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+
+			/* Move unprocessed data to the front of our linear
+			* buffer and clear the mSBC frame counter. */
+			ffb_shift(&msbc.data, ffb_blen_out(&msbc.data) - data_len);
+			msbc.frames = 0;
 
 		}
-
-		/* keep data transfer at a constant bit rate */
-		asrsync_sync(&io.asrs, msbc.frames * MSBC_CODESAMPLES);
-		/* update busy delay (encoding overhead) */
-		pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
-
-		/* Move unprocessed data to the front of our linear
-		 * buffer and clear the mSBC frame counter. */
-		ffb_shift(&msbc.data, ffb_blen_out(&msbc.data) - data_len);
-		msbc.frames = 0;
 
 	}
 
@@ -452,8 +453,8 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 
 		int err;
 		if ((err = msbc_decode(&msbc)) < 0) {
-			warn("Couldn't decode mSBC: %s", sbc_strerror(err));
-			ffb_rewind(&msbc.data);
+			error("mSBC decoding error: %s", sbc_strerror(err));
+			break;
 		}
 
 		ssize_t samples;
