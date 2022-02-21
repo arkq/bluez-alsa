@@ -1,0 +1,52 @@
+name: Codecov - Upload Report
+on:
+  push:
+  pull_request:
+    branches: [ master ]
+jobs:
+  coverage:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install --yes --quiet --no-install-recommends \
+          check \
+          lcov \
+          libasound2-dev \
+          libbluetooth-dev \
+          libdbus-1-dev \
+          libfdk-aac-dev \
+          libglib2.0-dev \
+          libmp3lame-dev \
+          libmpg123-dev \
+          libsbc-dev \
+          libspandsp-dev
+    - uses: actions/checkout@v2
+    - name: Create Build Environment
+      run: |
+        mkdir -p ${{ github.workspace }}/{build,m4}
+        autoreconf --install
+    - name: Configure GNU Automake
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        ${{ github.workspace }}/configure \
+          --disable-aplay \
+          --enable-aac \
+          --enable-faststream \
+          --enable-mp3lame \
+          --enable-mpg123 \
+          --enable-msbc \
+          --enable-ofono \
+          --enable-upower \
+          --enable-test \
+          --with-coverage
+    - name: Generate Coverage Report
+      working-directory: ${{ github.workspace }}/build
+      run: make cov
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v2
+      with:
+        files: build/cov.info

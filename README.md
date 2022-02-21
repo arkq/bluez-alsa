@@ -1,6 +1,7 @@
 # Bluetooth Audio ALSA Backend
 
 [![Build Status](https://github.com/Arkq/bluez-alsa/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/Arkq/bluez-alsa/actions/workflows/build-and-test.yaml)
+[![Code Coverage](https://codecov.io/gh/Arkq/bluez-alsa/branch/master/graph/badge.svg)](https://codecov.io/gh/Arkq/bluez-alsa)
 
 This project is a rebirth of a direct integration between [BlueZ](http://www.bluez.org/) and
 [ALSA](https://www.alsa-project.org/). Since BlueZ >= 5, the build-in integration has been removed
