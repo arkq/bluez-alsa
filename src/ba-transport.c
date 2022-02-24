@@ -163,6 +163,7 @@ static int transport_thread_init(
 	th->pipe[1] = -1;
 
 	pthread_mutex_init(&th->mutex, NULL);
+	pthread_mutex_init(&th->state_mtx, NULL);
 	pthread_cond_init(&th->changed, NULL);
 
 	if (pipe(th->pipe) == -1)
@@ -189,9 +190,12 @@ static void transport_thread_cancel_prepare(struct ba_transport_thread *th) {
  * terminate, so join will not return either! */
 static void transport_thread_cancel(struct ba_transport_thread *th) {
 
+	/* we are going to modify thread ID */
+	pthread_mutex_lock(&th->mutex);
+
 	pthread_t id = th->id;
 	if (pthread_equal(id, config.main_thread))
-		return;
+		goto skip;
 
 	int err;
 	if ((err = pthread_cancel(id)) != 0 && err != ESRCH)
@@ -199,16 +203,14 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 	if ((err = pthread_join(id, NULL)) != 0)
 		warn("Couldn't join transport thread: %s", strerror(err));
 
-	pthread_mutex_lock(&th->mutex);
-
 	/* Indicate that the thread has been successfully terminated. Also,
 	 * make sure, that after termination, this thread handler will not
 	 * be used anymore. */
 	th->id = config.main_thread;
 	pthread_cond_signal(&th->changed);
 
+skip:
 	pthread_mutex_unlock(&th->mutex);
-
 }
 
 /**
@@ -231,6 +233,7 @@ static void transport_thread_free(
 	if (th->pipe[1] != -1)
 		close(th->pipe[1]);
 	pthread_mutex_destroy(&th->mutex);
+	pthread_mutex_destroy(&th->state_mtx);
 	pthread_cond_destroy(&th->changed);
 }
 
@@ -239,7 +242,7 @@ int ba_transport_thread_set_state(
 		enum ba_transport_thread_state state,
 		bool force) {
 
-	pthread_mutex_lock(&th->mutex);
+	pthread_mutex_lock(&th->state_mtx);
 
 	/* By default only a valid state transitions are allowed. In order
 	 * to set the state to an arbitrary value, the force parameter has
@@ -256,7 +259,7 @@ int ba_transport_thread_set_state(
 	pthread_cond_signal(&th->changed);
 
 skip:
-	pthread_mutex_unlock(&th->mutex);
+	pthread_mutex_unlock(&th->state_mtx);
 	return 0;
 }
 

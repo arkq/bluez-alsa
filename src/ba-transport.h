@@ -164,22 +164,30 @@ enum ba_transport_thread_signal {
 };
 
 struct ba_transport_thread {
+
 	/* backward reference to transport */
 	struct ba_transport *t;
-	/* indicates a master thread */
-	bool master;
+
 	/* guard thread structure */
 	pthread_mutex_t mutex;
+
+	/* guard thread state */
+	pthread_mutex_t state_mtx;
 	/* current state of the thread */
 	enum ba_transport_thread_state state;
-	/* state changed notification */
-	pthread_cond_t changed;
+
 	/* actual thread ID */
 	pthread_t id;
+	/* indicates a master thread */
+	bool master;
 	/* clone of BT socket */
 	int bt_fd;
 	/* notification PIPE */
 	int pipe[2];
+
+	/* state/id changed notification */
+	pthread_cond_t changed;
+
 };
 
 int ba_transport_thread_set_state(

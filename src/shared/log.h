@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -46,7 +46,7 @@ void log_message(int priority, const char *format, ...) __attribute__ ((format(p
 
 #if DEBUG
 void callstackdump_(const char *label);
-# define callstackdump(M) callstackdump(DEBUG_LOG_PREFIX M)
+# define callstackdump(M) callstackdump_(DEBUG_LOG_PREFIX M)
 #else
 # define callstackdump(M) do {} while (0)
 #endif

@@ -211,6 +211,14 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 
 	};
 
+	if (aging_duration == 0) {
+		/* If we are not performign aging test, close the PCM right
+		 * away. The reading loop will not wait for timeout. */
+		pthread_mutex_lock(&pcm->mutex);
+		ba_transport_pcm_release(pcm);
+		pthread_mutex_unlock(&pcm->mutex);
+	}
+
 	sf_close(sf);
 	return NULL;
 }
@@ -271,6 +279,14 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 		bytes -= len;
 	}
 
+	if (aging_duration == 0) {
+		/* If we are not performign aging test, close the PCM right
+		 * away. The reading loop will not wait for timeout. */
+		pthread_mutex_lock(&pcm->mutex);
+		ba_transport_pcm_release(pcm);
+		pthread_mutex_unlock(&pcm->mutex);
+	}
+
 }
 
 struct bt_data {
@@ -297,9 +313,9 @@ static void bt_data_push(uint8_t *data, size_t len) {
 	bt_data_end = bt_data_end->next;
 }
 
-static void bt_data_write(int fd) {
+static void bt_data_write(struct ba_transport *t) {
 
-	struct pollfd pfds[] = {{ fd, POLLOUT, 0 }};
+	struct pollfd fds[] = {{ t->bt_fd, POLLOUT, 0 }};
 	struct bt_data *bt_data_head = &bt_data;
 	char buffer[2024];
 	ssize_t len;
@@ -307,16 +323,17 @@ static void bt_data_write(int fd) {
 	if (input_bt_file != NULL) {
 
 		while ((len = bt_dump_read(btd, buffer, sizeof(buffer))) != -1) {
-			ck_assert_int_ne(poll(pfds, ARRAYSIZE(pfds), -1), -1);
-			ck_assert_int_eq(write(fd, buffer, len), len);
+			ck_assert_int_ne(poll(fds, ARRAYSIZE(fds), -1), -1);
+			ck_assert_int_eq(write(fds[0].fd, buffer, len), len);
 		}
 
 	}
 	else {
 
 		for (; bt_data_head != bt_data_end; bt_data_head = bt_data_head->next) {
-			ck_assert_int_ne(poll(pfds, ARRAYSIZE(pfds), -1), -1);
-			ck_assert_int_eq(write(fd, bt_data_head->data, bt_data_head->len), bt_data_head->len);
+			len = bt_data_head->len;
+			ck_assert_int_ne(poll(fds, ARRAYSIZE(fds), -1), -1);
+			ck_assert_int_eq(write(fds[0].fd, bt_data_head->data, len), len);
 		}
 
 	}
@@ -576,7 +593,7 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 	if (enc == test_io_thread_dump_pcm) {
 		ck_assert_int_eq(ba_transport_thread_create(&t_snk->thread_dec, dec, dec_name, true), 0);
 		ck_assert_int_eq(ba_transport_thread_create(&t_src->thread_enc, enc, enc_name, true), 0);
-		bt_data_write(bt_fds[1]);
+		bt_data_write(t_src);
 	}
 	else {
 		ck_assert_int_eq(ba_transport_thread_create(&t_src->thread_enc, enc, enc_name, true), 0);
@@ -592,12 +609,14 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 	ba_transport_pcm_release(t_src_pcm);
 	pthread_mutex_unlock(&t_src_pcm->mutex);
 
+	transport_thread_cancel_prepare(&t_src->thread_enc);
 	transport_thread_cancel(&t_src->thread_enc);
 
 	pthread_mutex_lock(&t_snk_pcm->mutex);
 	ba_transport_pcm_release(t_snk_pcm);
 	pthread_mutex_unlock(&t_snk_pcm->mutex);
 
+	transport_thread_cancel_prepare(&t_snk->thread_dec);
 	transport_thread_cancel(&t_snk->thread_dec);
 
 }
