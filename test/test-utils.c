@@ -264,6 +264,8 @@ START_TEST(test_ffb_resize) {
 	ck_assert_int_eq(ffb_len_in(&ffb), 128 - data_len);
 	ck_assert_int_eq(memcmp(ffb.data, data, data_len), 0);
 
+	ffb_free(&ffb);
+
 } END_TEST
 
 START_TEST(test_bin2hex) {

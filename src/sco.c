@@ -26,7 +26,9 @@
 
 #include "ba-device.h"
 #include "bluealsa-config.h"
-#include "codec-msbc.h"
+#if ENABLE_MSBC
+# include "codec-msbc.h"
+#endif
 #include "codec-sbc.h"
 #include "hci.h"
 #include "hfp.h"
