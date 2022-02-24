@@ -1107,9 +1107,6 @@ static bool bluealsa_select_pcm_codec(struct bluealsa_pcm *pcm, const char *code
 	ssize_t config_len = 0;
 	bool ret = false;
 
-	if (codec == NULL || codec[0] == '\0')
-		return true;
-
 	char *codec_name;
 	if ((codec_name = strdup(codec)) == NULL) {
 		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
@@ -1349,23 +1346,37 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
 		goto fail;
 
+	if (codec != NULL && codec[0] != '\0') {
+		if (bluealsa_select_pcm_codec(pcm, codec, &err)) {
+			/* Changing the codec may change the audio format, sampling rate and/or
+			 * channels. We need to refresh our cache of PCM properties. */
+			if (!bluealsa_dbus_get_pcm(&pcm->dbus_ctx, &ba_addr, ba_profile,
+						stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
+						&pcm->ba_pcm, &err)) {
+				SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
+				ret = -ENODEV;
+				goto fail;
+			}
+		}
+		else {
+			SNDERR("Couldn't select BlueALSA PCM codec: %s", err.message);
+			dbus_error_free(&err);
+		}
+
+	}
+
 	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0) {
 		snd_pcm_ioplug_delete(&pcm->io);
 		return ret;
 	}
 
-	if (!bluealsa_select_pcm_codec(pcm, codec, &err)) {
-		SNDERR("Couldn't select BlueALSA PCM codec: %s", err.message);
+	if (!bluealsa_update_pcm_softvol(pcm, pcm_softvol, &err)) {
+		SNDERR("Couldn't set BlueALSA PCM soft-volume: %s", err.message);
 		dbus_error_free(&err);
 	}
 
 	if (!bluealsa_update_pcm_volume(pcm, pcm_volume, pcm_mute, &err)) {
 		SNDERR("Couldn't set BlueALSA PCM volume: %s", err.message);
-		dbus_error_free(&err);
-	}
-
-	if (!bluealsa_update_pcm_softvol(pcm, pcm_softvol, &err)) {
-		SNDERR("Couldn't set BlueALSA PCM soft-volume: %s", err.message);
 		dbus_error_free(&err);
 	}
 
