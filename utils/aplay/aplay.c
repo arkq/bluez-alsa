@@ -329,7 +329,7 @@ static int pcm_worker_mixer_volume_sync(
 
 		int err;
 
-		if (err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
+		if ((err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
 			ch_switch = 0
 		}
 
