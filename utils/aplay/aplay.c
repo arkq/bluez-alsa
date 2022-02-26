@@ -82,6 +82,8 @@ static struct pcm_worker *workers = NULL;
 static size_t workers_count = 0;
 static size_t workers_size = 0;
 
+static long dbscale = 6000;
+
 static bool main_loop_on = true;
 static void main_loop_stop(int sig) {
 	/* Call to this handler restores the default action, so on the
@@ -338,7 +340,7 @@ static int pcm_worker_mixer_volume_sync(
                             	return -1;
 			    }
                             // Convert range to decibel
-                            ch_volume_db= (6000/(v_max-v_min)*(ch_volume-v_min)-6000)/100;
+                            ch_volume_db= (dbscale/(v_max-v_min)*(ch_volume-v_min)-dbscale)/100;
 				
                             debug("Got volume %i (%i-%i), but no db, db_calc=%i", ch_volume,v_min, v_max,ch_volume_db);
                         }
@@ -419,13 +421,13 @@ static int pcm_worker_mixer_volume_update(
                 	return -1;
 		}
 
-		if (db <= -6000) {
+		if (db <= -dbscale) {
 			vol=v_min;
 		} else if (db >= 0) {
 			vol=v_max;
 		} else {
-			// Convert [-6000..0] to [v_min..v_max]
-			vol=v_min+((db+6000)*(v_max-v_min)/6000);
+			// Convert [-dbscale..0] to [v_min..v_max]
+			vol=v_min+((db+dbscale)*(v_max-v_min)/dbscale);
 		}
 
 		if (err=snd_mixer_selem_set_playback_volume_all (elem, vol) != 0) {
