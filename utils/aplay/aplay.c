@@ -346,7 +346,7 @@ static int pcm_worker_mixer_volume_sync(
                             // Convert range to decibel
                             ch_volume_db= (dbscale/(v_max-v_min)*(ch_volume-v_min)-dbscale)/100;
 				
-                            debug("Got volume %i (%i-%i), but no db, db_calc=%i", ch_volume,v_min, v_max,ch_volume_db);
+                            debug("Got volume %l (%l-%l), but no db, db_calc=%l", ch_volume,v_min, v_max,ch_volume_db);
                         }
 		}
 
@@ -440,7 +440,7 @@ static int pcm_worker_mixer_volume_update(
 		}
 	}
 
-	debug("Set playback volume %i db/%i", db, vol);
+	debug("Set playback volume %l db/%l", db, vol);
 
 	return 0;
 }
