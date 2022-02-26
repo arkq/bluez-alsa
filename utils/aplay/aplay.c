@@ -330,7 +330,7 @@ static int pcm_worker_mixer_volume_sync(
 		int err;
 
 		if ((err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
-			ch_switch = 0
+			ch_switch = 0;
 		}
 
 		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0) {
@@ -346,7 +346,7 @@ static int pcm_worker_mixer_volume_sync(
                             // Convert range to decibel
                             ch_volume_db= (dbscale/(v_max-v_min)*(ch_volume-v_min)-dbscale)/100;
 				
-                            debug("Got volume %l (%l-%l), but no db, db_calc=%l", ch_volume,v_min, v_max,ch_volume_db);
+                            debug("Got volume %l (%l - %l), but no db, db_calc=%l", ch_volume,v_min, v_max,ch_volume_db);
                         }
 		}
 
@@ -435,7 +435,7 @@ static int pcm_worker_mixer_volume_update(
 		}
 
 		if (err=snd_mixer_selem_set_playback_volume_all (elem, vol) != 0) {
-			error("Couldn't set playback volume %i db/%i: %s", db, vol, snd_strerror(err));
+			error("Couldn't set playback volume %l db/%l: %s", db, vol, snd_strerror(err));
                 	return -1;
 		}
 	}
