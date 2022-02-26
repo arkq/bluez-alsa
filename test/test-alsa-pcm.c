@@ -167,7 +167,8 @@ static int test_pcm_open(pid_t *pid, snd_pcm_t **pcm, snd_pcm_stream_t stream) {
 	const char *service = "test";
 	if ((*pid = spawn_bluealsa_server(service, 1, true, false,
 					stream == SND_PCM_STREAM_PLAYBACK,
-					stream == SND_PCM_STREAM_CAPTURE)) == -1)
+					stream == SND_PCM_STREAM_CAPTURE,
+					false, false)) == -1)
 		return -1;
 	return snd_pcm_open_bluealsa(pcm, service, "", stream, 0);
 }
@@ -534,7 +535,7 @@ START_TEST(ba_test_playback_extra_setup) {
 	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1, true, false, true, false), -1);
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1, true, false, true, false, false, false), -1);
 
 	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "codec \"sbc\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);

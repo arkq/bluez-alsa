@@ -1,6 +1,6 @@
 /*
  * bluealsa-ctl.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -199,9 +199,13 @@ static int bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev)
 static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
 
 	DBusMessage *rep;
+	DBusError err = DBUS_ERROR_INIT;
 	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, ctl->dbus_ctx.ba_service,
-					dev->rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, "Battery", NULL)) == NULL)
+					dev->rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, "Battery", &err)) == NULL) {
+		SNDERR("Couldn't get device battery status: %s", err.message);
+		dbus_error_free(&err);
 		return -1;
+	}
 
 	DBusMessageIter iter;
 	DBusMessageIter iter_val;
@@ -1201,6 +1205,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 fail:
 	bluealsa_close(&ctl->ext);
+	dbus_error_free(&err);
 	return ret;
 }
 

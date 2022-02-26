@@ -97,9 +97,12 @@ char *bluealsa_mock_path = ".";
  * @param fuzzing Enable fuzzing - delayed startup.
  * @param a2dp_source Start A2DP source.
  * @param a2dp_sink Start A2DP sink.
+ * @param sco_hfp Start HFP audio gateway.
+ * @param sco_hsp Start HSP audio gateway.
  * @return PID of the bluealsa server mock. */
 pid_t spawn_bluealsa_server(const char *service, unsigned int timeout,
-	bool wait_for_ready, bool fuzzing, bool a2dp_source, bool a2dp_sink) {
+		bool wait_for_ready, bool fuzzing, bool a2dp_source, bool a2dp_sink,
+		bool sco_hfp, bool sco_hsp) {
 
 	char arg_service[32] = "";
 	if (service != NULL)
@@ -114,6 +117,8 @@ pid_t spawn_bluealsa_server(const char *service, unsigned int timeout,
 		arg_timeout,
 		a2dp_source ? "--a2dp-source" : "",
 		a2dp_sink ? "--a2dp-sink" : "",
+		sco_hfp ? "--sco-hfp" : "",
+		sco_hsp ? "--sco-hsp" : "",
 		fuzzing ? "--fuzzing" : "",
 		NULL,
 	};
@@ -143,6 +148,10 @@ pid_t spawn_bluealsa_server(const char *service, unsigned int timeout,
 		count_a2dp += 2;
 	if (a2dp_sink)
 		count_a2dp += 2;
+	if (sco_hfp)
+		count_sco += 1;
+	if (sco_hsp)
+		count_sco += 1;
 
 	if ((data = calloc(1, sizeof(*data))) == NULL)
 		return -1;

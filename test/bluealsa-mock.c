@@ -1,6 +1,6 @@
 /*
  * bluealsa-mock.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -57,6 +57,10 @@
 
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
+
+/**
+ * Fuzzing sleep duration in milliseconds. */
+#define FUZZING_SLEEP_MS 250
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
@@ -298,7 +302,7 @@ static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac
 static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 		uint16_t profile, const struct a2dp_codec *codec, const void *configuration) {
 	if (fuzzing)
-		sleep(1);
+		usleep(FUZZING_SLEEP_MS * 1000);
 	struct ba_device *d = mock_device_new(a, device_btmac);
 	struct ba_transport_type type = { profile, codec->codec_id };
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
@@ -315,7 +319,7 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 		uint16_t profile, uint16_t codec) {
 	if (fuzzing)
-		sleep(1);
+		usleep(FUZZING_SLEEP_MS * 1000);
 	struct ba_device *d = mock_device_new(a, device_btmac);
 	struct ba_transport_type type = { profile, codec };
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
@@ -424,11 +428,11 @@ void *mock_service_thread(void *userdata) {
 	for (i = 0; i < tt->len; i++) {
 		ba_transport_destroy(tt->pdata[i]);
 		if (fuzzing && i % 2 == 0)
-			sleep(1);
+			usleep(FUZZING_SLEEP_MS * 1000);
 	}
 
 	if (fuzzing)
-		sleep(1);
+		usleep(FUZZING_SLEEP_MS * 1000);
 
 	g_ptr_array_free(tt, TRUE);
 	g_main_loop_quit(loop);
