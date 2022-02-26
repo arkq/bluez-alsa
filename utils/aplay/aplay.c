@@ -328,8 +328,12 @@ static int pcm_worker_mixer_volume_sync(
 		long v_max;
 
 		int err;
-		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0 ||
-				(err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
+
+		if (err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
+			ch_switch = 0
+		}
+
+		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0) {
 
 			if ((err = snd_mixer_selem_get_playback_volume(elem, 0, &ch_volume)) != 0) {
                             error("Couldn't get playback volume: %s", snd_strerror(err));
