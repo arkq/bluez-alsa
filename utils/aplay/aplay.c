@@ -321,12 +321,27 @@ static int pcm_worker_mixer_volume_sync(
 
 		long ch_volume_db;
 		int ch_switch;
+                long ch_volume;
+                long v_min;
+		long v_max;
 
 		int err;
 		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0 ||
 				(err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
-			error("Couldn't get playback volume: %s", snd_strerror(err));
-			return -1;
+
+			if ((err = snd_mixer_selem_get_playback_volume(elem, 0, &ch_volume)) != 0) {
+                            error("Couldn't get playback volume: %s", snd_strerror(err));
+			    return -1;
+                        } else {
+			    if ((err = snd_mixer_selem_get_playback_volume_range(elem, &v_min, &v_max)) != 0) {
+				error("Couldn't get playback volume range: %s", snd_strerror(err));
+                            	return -1;
+			    }
+                            // Convert range to decibel
+                            ch_volume_db= (6000/(v_max-v_min)*(ch_volume-v_min)-6000)/100;
+				
+                            debug("Got volume %i (%i-%i), but no db, db_calc=%i", ch_volume,v_min, v_max,ch_volume_db);
+                        }
 		}
 
 		volume_db_sum += ch_volume_db;
@@ -391,12 +406,35 @@ static int pcm_worker_mixer_volume_update(
 	/* convert loudness to dB using decibel formula */
 	long db = 10 * log2(1.0 * volume / vmax) * 100;
 
+	long v_min, v_max;
+	long vol;
+
 	int err;
 	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0 ||
 			(err = snd_mixer_selem_set_playback_switch_all(elem, !muted)) != 0) {
-		error("Couldn't set playback volume: %s", snd_strerror(err));
-		return -1;
+
+		// Deal with non-decibel range
+	 	if (err=snd_mixer_selem_get_playback_volume_range(elem, &v_min, &v_max) != 0) {
+			error("Couldn't get playback volume range %s", snd_strerror(err));
+                	return -1;
+		}
+
+		if (db <= -6000) {
+			vol=v_min;
+		} else if (db >= 0) {
+			vol=v_max;
+		} else {
+			// Convert [-6000..0] to [v_min..v_max]
+			vol=v_min+((db+6000)*(v_max-v_min)/6000);
+		}
+
+		if (err=snd_mixer_selem_set_playback_volume_all (elem, vol) != 0) {
+			error("Couldn't set playback volume %i db/%i: %s", db, vol, snd_strerror(err));
+                	return -1;
+		}
 	}
+
+	debug("Set playback volume %i db/%i", db, vol);
 
 	return 0;
 }
