@@ -1,6 +1,6 @@
 /*
  * test-audio.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,6 +15,48 @@
 
 #include "audio.h"
 #include "shared/defs.h"
+
+START_TEST(test_audio_interleave_deinterleave_s16_2le) {
+
+	const int16_t ch1[] = { 0x0123, 0x1234, 0x2345, 0x3456 };
+	const int16_t ch2[] = { 0x4567, 0x5678, 0x6789, 0x789A };
+
+	int16_t dest[ARRAYSIZE(ch1) + ARRAYSIZE(ch2)];
+	int16_t dest_ch1[ARRAYSIZE(ch1)];
+	int16_t dest_ch2[ARRAYSIZE(ch2)];
+
+	audio_interleave_s16_2le(ch1, ch2, ARRAYSIZE(ch1), 2, dest);
+	for (size_t i = 0; i < ARRAYSIZE(ch1); i++) {
+		ck_assert_int_eq(dest[i * 2 + 0], ch1[i]);
+		ck_assert_int_eq(dest[i * 2 + 1], ch2[i]);
+	}
+
+	audio_deinterleave_s16_2le(dest, ARRAYSIZE(ch1), 2, dest_ch1, dest_ch2);
+	ck_assert_int_eq(memcmp(dest_ch1, ch1, sizeof(ch1)), 0);
+	ck_assert_int_eq(memcmp(dest_ch2, ch2, sizeof(ch1)), 0);
+
+} END_TEST
+
+START_TEST(test_audio_interleave_deinterleave_s32_4le) {
+
+	const int32_t ch1[] = { 0x01234567, 0x12345678, 0x23456789, 0x3456789A };
+	const int32_t ch2[] = { 0x456789AB, 0x56789ABC, 0x6789ABCD, 0x789ABCDE };
+
+	int32_t dest[ARRAYSIZE(ch1) + ARRAYSIZE(ch2)];
+	int32_t dest_ch1[ARRAYSIZE(ch1)];
+	int32_t dest_ch2[ARRAYSIZE(ch2)];
+
+	audio_interleave_s32_4le(ch1, ch2, ARRAYSIZE(ch1), 2, dest);
+	for (size_t i = 0; i < ARRAYSIZE(ch1); i++) {
+		ck_assert_int_eq(dest[i * 2 + 0], ch1[i]);
+		ck_assert_int_eq(dest[i * 2 + 1], ch2[i]);
+	}
+
+	audio_deinterleave_s32_4le(dest, ARRAYSIZE(ch1), 2, dest_ch1, dest_ch2);
+	ck_assert_int_eq(memcmp(dest_ch1, ch1, sizeof(ch1)), 0);
+	ck_assert_int_eq(memcmp(dest_ch2, ch2, sizeof(ch1)), 0);
+
+} END_TEST
 
 START_TEST(test_audio_scale_s16_2le) {
 
@@ -92,6 +134,8 @@ int main(void) {
 
 	suite_add_tcase(s, tc);
 
+	tcase_add_test(tc, test_audio_interleave_deinterleave_s16_2le);
+	tcase_add_test(tc, test_audio_interleave_deinterleave_s32_4le);
 	tcase_add_test(tc, test_audio_scale_s16_2le);
 	tcase_add_test(tc, test_audio_scale_s32_4le);
 

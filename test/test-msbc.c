@@ -165,6 +165,7 @@ START_TEST(test_msbc_decode_plc) {
 	size_t counter, i;
 	for (rv = 1, counter = i = 0; rv > 0; counter++) {
 
+		bool packet_error = false;
 		size_t len = MIN(ARRAYSIZE(sine) - i, ffb_len_in(&msbc.pcm));
 		memcpy(msbc.pcm.tail, &sine[i], len * msbc.pcm.size);
 		ffb_seek(&msbc.pcm, len);
@@ -185,7 +186,13 @@ START_TEST(test_msbc_decode_plc) {
 			continue;
 		}
 
-		fprintf(stderr, "x");
+		/* simulate packet error */
+		if (counter == 4) {
+			data_tail[5] *= 0x07;
+			packet_error = true;
+		}
+
+		fprintf(stderr, packet_error ? "e" : "x");
 		data_tail += len;
 
 	}
