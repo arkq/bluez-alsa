@@ -21,11 +21,30 @@ ExecStart=@bindir@/bluealsa
 Restart=on-failure
 
 # Sandboxing
+CapabilityBoundingSet=
+IPAddressDeny=any
+LockPersonality=true
+MemoryDenyWriteExecute=true
+NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true
+PrivateUsers=true
+ProtectControlGroups=true
 ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
 ProtectSystem=strict
 RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+SystemCallFilter=@system-service
+SystemCallFilter=~@resources @privileged
+UMask=0077
 
 [Install]
 WantedBy=bluetooth.target
