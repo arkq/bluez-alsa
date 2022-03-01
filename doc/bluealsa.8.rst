@@ -119,6 +119,7 @@ OPTIONS
     - **medium** - medium audio quality (mono: 132 kbps, stereo: 237 kbps)
     - **high** - high audio quality (mono: 198 kbps, stereo: 345 kbps) (**default**)
     - **xq** - SBC Dual Channel HD (SBC XQ) (452 kbps)
+    - **xq+** - SBC Dual Channel HD (SBC XQ+) (551 kbps)
 
 --mp3-algorithm=TYPE
     Select LAME encoder internal algorithm, where *TYPE* can be one of:

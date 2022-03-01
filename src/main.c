@@ -398,6 +398,7 @@ int main(int argc, char **argv) {
 				{ "medium", .v.ui = SBC_QUALITY_MEDIUM },
 				{ "high", .v.ui = SBC_QUALITY_HIGH },
 				{ "xq", .v.ui = SBC_QUALITY_XQ },
+				{ "xq+", .v.ui = SBC_QUALITY_XQPLUS },
 				{ 0 },
 			};
 

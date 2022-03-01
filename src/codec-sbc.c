@@ -56,16 +56,19 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality) {
 
 	uint8_t bitpool = SBC_MIN_BITPOOL;
 
-	if (quality == SBC_QUALITY_XQ) {
-		/* Check whether XQ is possible. If not, downgrade to high quality. */
+	if (quality == SBC_QUALITY_XQ ||
+			quality == SBC_QUALITY_XQPLUS) {
+		/* Check whether XQ/XQ+ is possible. If not,
+		 * downgrade to high quality. */
 		if (conf->frequency == SBC_SAMPLING_FREQ_44100 &&
 				conf->channel_mode == SBC_CHANNEL_MODE_DUAL_CHANNEL &&
 				conf->block_length == SBC_BLOCK_LENGTH_16 &&
 				conf->subbands == SBC_SUBBANDS_8 &&
 				conf->allocation_method == SBC_ALLOCATION_LOUDNESS)
-			bitpool = 38;
+			bitpool = quality == SBC_QUALITY_XQ ? 38 : 47;
 		else {
-			warn("Unable to use SBC XQ, downgrading to high quality");
+			warn("Unable to use SBC %s, downgrading to high quality",
+					quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
 			quality = SBC_QUALITY_HIGH;
 		}
 	}

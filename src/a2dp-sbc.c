@@ -123,8 +123,10 @@ struct a2dp_codec a2dp_sbc_source = {
 
 void a2dp_sbc_init(void) {
 
-	if (config.sbc_quality == SBC_QUALITY_XQ) {
-		info("Activating SBC Dual Channel HD (SBC XQ)");
+	if (config.sbc_quality == SBC_QUALITY_XQ ||
+			config.sbc_quality == SBC_QUALITY_XQPLUS) {
+		info("Activating SBC Dual Channel HD (SBC %s)",
+				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
 		config.a2dp.force_44100 = true;
 	}
 

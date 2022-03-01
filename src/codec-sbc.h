@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-sbc.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -28,6 +28,7 @@
 #define SBC_QUALITY_MEDIUM 1
 #define SBC_QUALITY_HIGH   2
 #define SBC_QUALITY_XQ     3
+#define SBC_QUALITY_XQPLUS 4
 
 uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality);
 

@@ -121,10 +121,11 @@ struct ba_config {
 
 	} a2dp;
 
-	/* BlueALSA supports 4 SBC qualities: low, medium, high and XQ. The XQ mode
-	 * uses 44.1 kHz sampling rate, dual channel mode with bitpool 38, 16 blocks
-	 * in frame, 8 frequency bands and allocation method Loudness, which is also
-	 * known as SBC XQ Dual Channel HD. */
+	/* BlueALSA supports 5 SBC qualities: low, medium, high, XQ and XQ+. The XQ
+	 * mode uses 44.1 kHz sampling rate, dual channel mode with bitpool 38, 16
+	 * blocks in frame, 8 frequency bands and allocation method Loudness, which
+	 * is also known as SBC XQ Dual Channel HD. The "+" version uses bitpool 47
+	 * instead of 38. */
 	uint8_t sbc_quality;
 
 #if ENABLE_AAC

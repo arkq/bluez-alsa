@@ -627,7 +627,8 @@ int a2dp_select_configuration(
 			goto fail;
 		}
 
-		if (config.sbc_quality == SBC_QUALITY_XQ) {
+		if (config.sbc_quality == SBC_QUALITY_XQ ||
+				config.sbc_quality == SBC_QUALITY_XQPLUS) {
 			if (cap_chm & SBC_CHANNEL_MODE_DUAL_CHANNEL)
 				cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 			else
