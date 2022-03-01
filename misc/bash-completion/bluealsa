@@ -26,6 +26,15 @@ _bluealsa_codecs() {
 	done
 }
 
+# helper function gets available enum values
+# @param $1 the bluealsa executable name
+# @param $2 the bluealsa option to inspect
+_bluealsa_enum_values() {
+	"$1" "${2}=" 2>&1 | while read -r line; do
+		[[ $line =~ \{([^}]*)\} ]] && printf "${BASH_REMATCH[1]//,/}"
+	done
+}
+
 # helper function gets dbus services
 # note that this function does not detect if default service (no suffix) is running.
 _bluealsa_list_dbus_suffices() {
@@ -196,24 +205,12 @@ _bluealsa() {
 			COMPREPLY=( $(compgen -P "$prefix" -W "$(_bluealsa_codecs $1)" -- $cur) )
 			return
 			;;
-		--sbc-quality)
-			COMPREPLY=( $(compgen -W "0 1 2 3" -- $cur) )
-			return
-			;;
-		--mp3-quality|--mp3-vbr-quality)
-			COMPREPLY=( $(compgen -W "0 1 2 3 4 5 6 7 8 9" -- $cur) )
+		--sbc-quality|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality)
+			COMPREPLY=( $(compgen -W "$(_bluealsa_enum_values $1 $prev)" -- $cur) )
 			return
 			;;
 		--aac-latm-version)
 			COMPREPLY=( $(compgen -W "0 1" -- $cur) )
-			return
-			;;
-		--aac-vbr-mode)
-			COMPREPLY=( $(compgen -W "0 1 2 3 4 5" -- $cur) )
-			return
-			;;
-		--ldac-eqmid)
-			COMPREPLY=( $(compgen -W "0 1 2" -- $cur) )
 			return
 			;;
 		--xapl-resp-name)

@@ -28,6 +28,7 @@
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/hex.h"
+#include "shared/nv.h"
 #include "shared/rt.h"
 
 START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
@@ -122,6 +123,38 @@ START_TEST(test_batostr_) {
 
 	ba2str(&ba, tmp);
 	ck_assert_str_eq(batostr_(&ba), tmp);
+
+} END_TEST
+
+START_TEST(test_nv_find) {
+
+	const nv_entry_t entries[] = {
+		{ "name1", .v.i = 1 },
+		{ "name2", .v.i = 2 },
+		{ 0 }
+	};
+
+	ck_assert_ptr_eq(nv_find(entries, "invalid"), NULL);
+	ck_assert_ptr_eq(nv_find(entries, "name2"), &entries[1]);
+
+} END_TEST
+
+START_TEST(test_nv_join_names) {
+
+	const nv_entry_t entries_zero[] = {{ 0 }};
+	const nv_entry_t entries[] = {
+		{ "name1", .v.i = 1 },
+		{ "name2", .v.i = 2 },
+		{ 0 }
+	};
+
+	char *tmp;
+
+	ck_assert_str_eq(tmp = nv_join_names(entries_zero), "");
+	free(tmp);
+
+	ck_assert_str_eq(tmp = nv_join_names(entries), "name1, name2");
+	free(tmp);
 
 } END_TEST
 
@@ -307,6 +340,10 @@ int main(void) {
 	/* shared/hex.c */
 	tcase_add_test(tc, test_bin2hex);
 	tcase_add_test(tc, test_hex2bin);
+
+	/* shared/nv.c */
+	tcase_add_test(tc, test_nv_find);
+	tcase_add_test(tc, test_nv_join_names);
 
 	/* shared/rt.c */
 	tcase_add_test(tc, test_difftimespec);

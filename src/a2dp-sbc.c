@@ -123,6 +123,11 @@ struct a2dp_codec a2dp_sbc_source = {
 
 void a2dp_sbc_init(void) {
 
+	if (config.sbc_quality == SBC_QUALITY_XQ) {
+		info("Activating SBC Dual Channel HD (SBC XQ)");
+		config.a2dp.force_44100 = true;
+	}
+
 	if (config.a2dp.force_mono)
 		/* With this we are violating A2DP SBC requirements. According to spec,
 		 * SBC source shall support mono channel and at least one of the stereo

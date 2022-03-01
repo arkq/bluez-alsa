@@ -116,7 +116,7 @@ struct ba_config config = {
 #endif
 
 #if ENABLE_MP3LAME
-	.lame_quality = 5,
+	.lame_quality = 2,
 	/* Use high quality for VBR mode (~190 kbps) as a default. */
 	.lame_vbr_quality = 2,
 #endif

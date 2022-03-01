@@ -49,6 +49,7 @@
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "shared/nv.h"
 
 /* If glib does not support immediate return in case of bus
  * name being owned by some other connection (glib < 2.54),
@@ -169,10 +170,10 @@ int main(int argc, char **argv) {
 #endif
 #if ENABLE_LDAC
 		{ "ldac-abr", no_argument, NULL, 10 },
-		{ "ldac-eqmid", required_argument, NULL, 11 },
+		{ "ldac-quality", required_argument, NULL, 11 },
 #endif
 #if ENABLE_MP3LAME
-		{ "mp3-quality", required_argument, NULL, 12 },
+		{ "mp3-algorithm", required_argument, NULL, 12 },
 		{ "mp3-vbr-quality", required_argument, NULL, 13 },
 #endif
 		{ "xapl-resp-name", required_argument, NULL, 16 },
@@ -221,7 +222,7 @@ int main(int argc, char **argv) {
 					"  --a2dp-force-mono\t\ttry to force monophonic sound\n"
 					"  --a2dp-force-audio-cd\t\ttry to force 44.1 kHz sampling\n"
 					"  --a2dp-volume\t\t\tnative volume control by default\n"
-					"  --sbc-quality=NUM\t\tset SBC encoder quality\n"
+					"  --sbc-quality=MODE\t\tset SBC encoder quality mode\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\t\tenable FDK AAC afterburner\n"
 					"  --aac-bitrate=BPS\t\tCBR bitrate or max peak for VBR\n"
@@ -234,11 +235,11 @@ int main(int argc, char **argv) {
 #endif
 #if ENABLE_LDAC
 					"  --ldac-abr\t\t\tenable LDAC adaptive bit rate\n"
-					"  --ldac-eqmid=NUM\t\tset LDAC encoder quality\n"
+					"  --ldac-quality=MODE\t\tset LDAC encoder quality mode\n"
 #endif
 #if ENABLE_MP3LAME
-					"  --mp3-quality=NUM\t\tselect LAME encoder algorithm\n"
-					"  --mp3-vbr-quality=NUM\t\tset LAME encoder VBR quality\n"
+					"  --mp3-algorithm=TYPE\t\tselect LAME encoder algorithm type\n"
+					"  --mp3-vbr-quality=MODE\tset LAME encoder VBR quality mode\n"
 #endif
 					"  --xapl-resp-name=NAME\t\tset product name used by XAPL\n"
 					"\nAvailable BT profiles:\n"
@@ -390,17 +391,26 @@ int main(int argc, char **argv) {
 			config.a2dp.volume = true;
 			break;
 
-		case 14 /* --sbc-quality=NUM */ :
-			config.sbc_quality = atoi(optarg);
-			if (config.sbc_quality > SBC_QUALITY_XQ) {
-				error("Invalid encoder quality [0, %d]: %s", SBC_QUALITY_XQ, optarg);
+		case 14 /* --sbc-quality=MODE */ : {
+
+			static const nv_entry_t values[] = {
+				{ "low", .v.ui = SBC_QUALITY_LOW },
+				{ "medium", .v.ui = SBC_QUALITY_MEDIUM },
+				{ "high", .v.ui = SBC_QUALITY_HIGH },
+				{ "xq", .v.ui = SBC_QUALITY_XQ },
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid SBC encoder quality mode {%s}: %s",
+						nv_join_names(values), optarg);
 				return EXIT_FAILURE;
 			}
-			if (config.sbc_quality == SBC_QUALITY_XQ) {
-				info("Activating SBC Dual Channel HD (SBC XQ)");
-				config.a2dp.force_44100 = true;
-			}
+
+			config.sbc_quality = entry->v.ui;
 			break;
+		}
 
 #if ENABLE_AAC
 		case 4 /* --aac-afterburner */ :
@@ -434,30 +444,70 @@ int main(int argc, char **argv) {
 		case 10 /* --ldac-abr */ :
 			config.ldac_abr = true;
 			break;
-		case 11 /* --ldac-eqmid=NUM */ :
-			config.ldac_eqmid = atoi(optarg);
-			if (config.ldac_eqmid >= LDACBT_EQMID_NUM) {
-				error("Invalid encoder quality index [0, %d]: %s", LDACBT_EQMID_NUM - 1, optarg);
+		case 11 /* --ldac-quality=MODE */ : {
+
+			static const nv_entry_t values[] = {
+				{ "mobile", .v.ui = LDACBT_EQMID_MQ },
+				{ "standard", .v.ui = LDACBT_EQMID_SQ },
+				{ "high", .v.ui = LDACBT_EQMID_HQ },
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid LDAC encoder quality mode {%s}: %s",
+						nv_join_names(values), optarg);
 				return EXIT_FAILURE;
 			}
+
+			config.ldac_eqmid = entry->v.ui;
 			break;
+		}
 #endif
 
 #if ENABLE_MP3LAME
-		case 12 /* --mp3-quality=NUM */ :
-			config.lame_quality = atoi(optarg);
-			if (config.lame_quality > 9) {
-				error("Invalid encoder quality [0, 9]: %s", optarg);
+		case 12 /* --mp3-algorithm=TYPE */ : {
+
+			static const nv_entry_t values[] = {
+				{ "fast", .v.ui = 7 },
+				{ "cheap", .v.ui = 5 },
+				{ "expensive", .v.ui = 2 },
+				{ "best", .v.ui = 0 },
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid LAME encoder algorithm type {%s}: %s",
+						nv_join_names(values), optarg);
 				return EXIT_FAILURE;
 			}
+
+			config.lame_quality = entry->v.ui;
 			break;
-		case 13 /* --mp3-vbr-quality=NUM */ :
-			config.lame_vbr_quality = atoi(optarg);
-			if (config.lame_vbr_quality > 9) {
-				error("Invalid VBR quality [0, 9]: %s", optarg);
+		}
+
+		case 13 /* --mp3-vbr-quality=MODE */ : {
+
+			static const nv_entry_t values[] = {
+				{ "low", .v.ui = 6 },
+				{ "medium", .v.ui = 4 },
+				{ "standard", .v.ui = 2 },
+				{ "high", .v.ui = 1 },
+				{ "extreme", .v.ui = 0 },
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid LAME VBR quality mode {%s}: %s",
+						nv_join_names(values), optarg);
 				return EXIT_FAILURE;
 			}
+
+			config.lame_vbr_quality = entry->v.ui;
 			break;
+		}
 #endif
 
 		case 16 /* --xapl-resp-name=NAME */ :

@@ -12,6 +12,7 @@ bluealsa_SOURCES = \
 	shared/ffb.c \
 	shared/log.c \
 	shared/rt.c \
+	shared/nv.c \
 	a2dp.c \
 	a2dp-sbc.c \
 	at.c \

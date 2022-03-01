@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: January 2022
+:Date: March 2022
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -112,24 +112,35 @@ OPTIONS
     This feature can also be controlled during runtime via BlueALSA D-Bus API.
     Note that this feature might not work with all Bluetooth headsets.
 
---sbc-quality=NUM
-    Set SBC encoder quality, where *NUM* can be one of:
+--sbc-quality=MODE
+    Set SBC encoder quality, where *MODE* can be one of:
 
-    - **0** - low audio quality (mono: 114 kbps, stereo: 213 kbps)
-    - **1** - medium audio quality (mono: 132 kbps, stereo: 237 kbps)
-    - **2** - high audio quality (mono: 198 kbps, stereo: 345 kbps) (**default**)
-    - **3** - SBC Dual Channel HD (SBC XQ) (452 kbps)
+    - **low** - low audio quality (mono: 114 kbps, stereo: 213 kbps)
+    - **medium** - medium audio quality (mono: 132 kbps, stereo: 237 kbps)
+    - **high** - high audio quality (mono: 198 kbps, stereo: 345 kbps) (**default**)
+    - **xq** - SBC Dual Channel HD (SBC XQ) (452 kbps)
 
---mp3-quality=NUM
-    Selects LAME encoder internal algorithm.
-    The *NUM* can be in the range from **0** to **9**, where **0** is the best quality but requires
-    a lot of CPU power.
-    Default value is **5**.
+--mp3-algorithm=TYPE
+    Select LAME encoder internal algorithm, where *TYPE* can be one of:
 
---mp3-vbr-quality=NUM
-    Specifies variable bit rate (VBR) quality, where *NUM* can be in the range from **0** to **9**.
-    For best VBR quality use **0**.
-    Default value is **2** (high quality VBR mode).
+    - **fast** - OK quality, really fast
+    - **cheap** - good quality, fast
+    - **expensive** - near-best quality, not too slow (**default**)
+    - **best** - best quality, slow
+
+    If CPU power consumption is not an issue, one might safely select **best** as the algorithm
+    type.
+    Also, please note that the true quality is determined by the selected bit rate or used VBR
+    quality option (**--mp3-vbr-quality**).
+
+--mp3-vbr-quality=MODE
+    Set variable bit rate (VBR) quality, where *MODE* can be one of:
+
+    - **low** - low audio quality (100-130 kbps)
+    - **medium** - medium audio quality (140-185 kbps)
+    - **standard** - standard audio quality (170-210 kbps) (**default**)
+    - **high** - high audio quality (190-250 kbps)
+    - **extreme** - best audio quality, no low-pass filter (220-260 kbps)
 
 --aac-afterburner
     Enables Fraunhofer AAC afterburner feature, which is a type of analysis by synthesis algorithm.
@@ -181,12 +192,12 @@ OPTIONS
     Enables LDAC adaptive bit rate, which will dynamically adjust encoder quality
     based on the connection stability.
 
---ldac-eqmid=NUM
-    Specifies LDAC encoder quality, where *NUM* can be one of:
+--ldac-quality=MODE
+    Specifies LDAC encoder quality, where *MODE* can be one of:
 
-    - **0** - high quality (44.1 kHz: 909 kbps, 48 kHz: 990 kbps)
-    - **1** - standard quality (44.1 kHz: 606 kbps, 48 kHz: 660 kbps) (**default**)
-    - **2** - mobile quality (44.1 kHz: 303 kbps, 48 kHz: 330 kbps)
+    - **mobile** - mobile quality (44.1 kHz: 303 kbps, 48 kHz: 330 kbps)
+    - **standard** - standard quality (44.1 kHz: 606 kbps, 48 kHz: 660 kbps) (**default**)
+    - **high** - high quality (44.1 kHz: 909 kbps, 48 kHz: 990 kbps)
 
 --xapl-resp-name=NAME
     Set the product name send in the XAPL response message.

@@ -156,6 +156,7 @@ test_utils_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/hex.c \
 	../src/shared/log.c \
+	../src/shared/nv.c \
 	../src/shared/rt.c \
 	../src/hci.c \
 	../src/utils.c \
