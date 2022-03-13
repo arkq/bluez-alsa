@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -91,6 +91,18 @@ static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { 0 };
 #define bluez_adapters_device_get_sep(seps, i) \
 	g_array_index(seps, struct a2dp_sep, i)
 
+static void bluez_register_a2dp_all(struct ba_adapter *);
+static void bluez_register_battery_provider_manager(struct bluez_adapter *);
+
+static struct bluez_adapter *bluez_adapter_new(struct ba_adapter *a) {
+	bluez_adapters[a->hci.dev_id].adapter = a;
+	bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
+			g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)g_array_unref);
+	bluez_register_battery_provider_manager(&bluez_adapters[a->hci.dev_id]);
+	bluez_register_a2dp_all(a);
+	return &bluez_adapters[a->hci.dev_id];
+}
+
 static void bluez_adapter_free(struct bluez_adapter *adapter) {
 	if (adapter->adapter == NULL)
 		return;
@@ -177,8 +189,6 @@ fail:
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 			G_DBUS_ERROR_INVALID_ARGS, "Invalid capabilities");
 }
-
-static void bluez_register_a2dp_all(struct ba_adapter *adapter);
 
 static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
 
@@ -1025,11 +1035,7 @@ static void bluez_register(void) {
 	for (i = 0; i < ARRAYSIZE(adapters); i++)
 		if (adapters[i] &&
 				(a = ba_adapter_new(i)) != NULL) {
-			bluez_adapters[a->hci.dev_id].adapter = a;
-			bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
-					g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)g_array_unref);
-			bluez_register_battery_provider_manager(&bluez_adapters[a->hci.dev_id]);
-			bluez_register_a2dp_all(a);
+			bluez_adapter_new(a);
 		}
 
 	/* HFP has to be registered globally */
@@ -1063,14 +1069,24 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 
 	g_variant_get(params, "(&oa{sa{sv}})", &object_path, &interfaces);
 	while (g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
-		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0)
+		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
 			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 				if (strcmp(property, "Address") == 0 &&
+						/* make sure that this new BT adapter matches our HCI filter */
 						bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL)))
 					hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 				g_variant_unref(value);
 			}
-		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0)
+		}
+		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0) {
+
+			/* Check whether this new media endpoint interface was added in the HCI
+			 * which exists in our local BlueZ adapter cache - HCI that matches our
+			 * HCI filter. */
+			int dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
+			if (dev_id == -1 || bluez_adapters[dev_id].adapter == NULL)
+				continue;
+
 			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 				if (strcmp(property, "UUID") == 0) {
 					const char *uuid = g_variant_get_string(value, NULL);
@@ -1094,7 +1110,9 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 
 				}
 				g_variant_unref(value);
+
 			}
+		}
 		g_variant_iter_free(properties);
 	}
 	g_variant_iter_free(interfaces);
@@ -1102,11 +1120,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	struct ba_adapter *a;
 	if (hci_dev_id != -1 &&
 			(a = ba_adapter_new(hci_dev_id)) != NULL) {
-		bluez_adapters[a->hci.dev_id].adapter = a;
-		bluez_adapters[a->hci.dev_id].device_sep_map = g_hash_table_new_full(
-				g_bdaddr_hash, g_bdaddr_equal, g_free, (GDestroyNotify)g_array_unref);
-		bluez_register_battery_provider_manager(&bluez_adapters[a->hci.dev_id]);
-		bluez_register_a2dp_all(a);
+		bluez_adapter_new(a);
 	}
 
 	/* HFP has to be registered globally */
@@ -1117,11 +1131,11 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 
 		bdaddr_t addr;
 		g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
-		int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
+		int dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 
 		GArray *seps;
-		if ((seps = bluez_adapters_device_lookup(hci_dev_id, &addr)) == NULL)
-			g_hash_table_insert(bluez_adapters[hci_dev_id].device_sep_map,
+		if ((seps = bluez_adapters_device_lookup(dev_id, &addr)) == NULL)
+			g_hash_table_insert(bluez_adapters[dev_id].device_sep_map,
 					g_memdup2(&addr, sizeof(addr)), seps = g_array_new(FALSE, FALSE, sizeof(sep)));
 
 		strncpy(sep.bluez_dbus_path, object_path, sizeof(sep.bluez_dbus_path) - 1);
