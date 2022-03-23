@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dpconf.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -334,9 +334,9 @@ static void dump_lc3plus(const void *blob, size_t size) {
 	printf("LC3plus <hex:%s> {\n", bintohex(blob, size));
 	printf_vendor(&lc3plus->info);
 	printf(""
-			"  <reserved>:4\n"
 			"  frame-duration:4 =%s%s%s\n"
-			"  channel-mode:2 =%s%s\n"
+			"  <reserved>:4\n"
+			"  channel-mode:8 =%s%s\n"
 			"  sampling-frequency:16 =%s%s\n"
 			"}\n",
 			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_025 ? " 2.5ms" : "",

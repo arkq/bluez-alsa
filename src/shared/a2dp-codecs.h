@@ -4,7 +4,7 @@
  *  Copyright (C) 2006-2010  Nokia Corporation
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *  Copyright (C) 2018       Pali Rohár <pali.rohar@gmail.com>
- *  Copyright (C) 2016-2021  Arkadiusz Bokowy
+ *  Copyright (C) 2016-2022  Arkadiusz Bokowy
  *
  *
  *  This library is free software; you can redistribute it and/or
@@ -474,8 +474,8 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
-	uint8_t frame_duration:4;
 	uint8_t rfa:4;
+	uint8_t frame_duration:4;
 	uint8_t channels;
 	uint8_t frequency1;
 	uint8_t frequency2;
@@ -588,8 +588,8 @@ typedef struct {
 
 typedef struct {
 	a2dp_vendor_codec_t info;
-	uint8_t rfa:4;
 	uint8_t frame_duration:4;
+	uint8_t rfa:4;
 	uint8_t channels;
 	uint8_t frequency1;
 	uint8_t frequency2;
