@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-aptx-hd.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -291,8 +291,10 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
+		rtp_a2dp_check_sequence(bt.data, &rtp_seq_number);
+
 		const uint8_t *rtp_payload;
-		if ((rtp_payload = rtp_a2dp_payload(bt.data, &rtp_seq_number)) == NULL)
+		if ((rtp_payload = rtp_a2dp_get_payload(bt.data)) == NULL)
 			continue;
 
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-aac.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -491,8 +491,10 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
+		rtp_a2dp_check_sequence(bt.data, &rtp_seq_number);
+
 		const uint8_t *rtp_latm;
-		if ((rtp_latm = rtp_a2dp_payload(bt.data, &rtp_seq_number)) == NULL)
+		if ((rtp_latm = rtp_a2dp_get_payload(bt.data)) == NULL)
 			continue;
 
 		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;

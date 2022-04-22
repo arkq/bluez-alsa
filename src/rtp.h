@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rtp.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -73,6 +73,7 @@ typedef struct rtp_mpeg_audio_header {
 } __attribute__ ((packed)) rtp_mpeg_audio_header_t;
 
 void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size);
-void *rtp_a2dp_payload(const rtp_header_t *hdr, uint16_t *seq_number);
+uint16_t rtp_a2dp_check_sequence(const rtp_header_t *hdr, uint16_t *counter);
+void *rtp_a2dp_get_payload(const rtp_header_t *hdr);
 
 #endif
