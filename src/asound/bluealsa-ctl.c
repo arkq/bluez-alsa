@@ -40,6 +40,7 @@
 enum ctl_elem_type {
 	CTL_ELEM_TYPE_SWITCH,
 	CTL_ELEM_TYPE_VOLUME,
+	CTL_ELEM_TYPE_SOFT_VOLUME,
 	CTL_ELEM_TYPE_CODEC,
 	CTL_ELEM_TYPE_BATTERY,
 };
@@ -51,6 +52,7 @@ struct ctl_elem {
 	struct bt_dev *dev;
 	struct ba_pcm *pcm;
 	char name[44 /* internal ALSA constraint */];
+	unsigned int index;
 	/* codec list for codec control element */
 	struct ba_pcm_codecs codecs;
 	/* if true, element is a playback control */
@@ -61,11 +63,13 @@ struct ctl_elem {
 };
 
 struct ctl_elem_update {
-	/* PCM associated with the element beeing updated. This pointer shall not
+	/* PCM associated with the element being updated. This pointer shall not
 	 * be dereferenced, because it might point to already freed memory region. */
 	const struct ba_pcm *pcm;
-	/* the name of the element beeing updated */
+	/* the name of the element being updated */
 	char name[sizeof(((struct ctl_elem *)0)->name)];
+	/* index of the element being updated */
+	unsigned int index;
 	int event_mask;
 };
 
@@ -122,6 +126,11 @@ struct bluealsa_ctl {
 	/* if true, this mixer adds/removes controls dynamically */
 	bool dynamic;
 
+};
+
+static const char *soft_volume_names[] = {
+	"pass-through",
+	"software",
 };
 
 static int str2bdaddr(const char *str, bdaddr_t *ba) {
@@ -355,6 +364,7 @@ static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
 	tmp[ctl->elem_update_list_size].event_mask = mask;
 	*stpncpy(tmp[ctl->elem_update_list_size].name, elem->name,
 			sizeof(tmp[ctl->elem_update_list_size].name) - 1) = '\0';
+	tmp[ctl->elem_update_list_size].index = elem->index;
 
 	ctl->elem_update_list = tmp;
 	ctl->elem_update_list_size++;
@@ -483,11 +493,13 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 		}
 
 		/* get the longest possible element label */
-		int label_max_len = sizeof(" - A2DP") - 1;
+		int label_max_len = sizeof(" A2DP") - 1;
 		if (ctl->show_bt_transport)
-			label_max_len = sizeof(" - SCO-HFP-AG") - 1;
-		else if (ctl->show_battery)
-			label_max_len = sizeof(" | Battery") - 1;
+			label_max_len = sizeof(" SCO-HFP-AG") - 1;
+		if (ctl->show_extended)
+			label_max_len += sizeof(" Mode") - 1;
+		if (ctl->show_battery)
+			label_max_len = MAX(label_max_len, sizeof(" | Battery") - 1);
 
 		/* Reserve space for the longest element type description. This applies
 		 * to all elements so the shortened device name will be consistent. */
@@ -503,13 +515,13 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 			switch (elem->pcm->transport) {
 			case BA_PCM_TRANSPORT_A2DP_SOURCE:
 			case BA_PCM_TRANSPORT_A2DP_SINK:
-				sprintf(elem->name, "%.*s%s - A2DP%s", len, name, no, transport);
+				sprintf(elem->name, "%.*s%s A2DP%s", len, name, no, transport);
 				break;
 			case BA_PCM_TRANSPORT_HFP_AG:
 			case BA_PCM_TRANSPORT_HFP_HF:
 			case BA_PCM_TRANSPORT_HSP_AG:
 			case BA_PCM_TRANSPORT_HSP_HS:
-				sprintf(elem->name, "%.*s%s - SCO%s", len, name, no, transport);
+				sprintf(elem->name, "%.*s%s SCO%s", len, name, no, transport);
 				break;
 			}
 		}
@@ -533,13 +545,17 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 			}
 	}
 
+	if (elem->type == CTL_ELEM_TYPE_CODEC)
+		strcat(elem->name, " Codec");
+
+	if (elem->type == CTL_ELEM_TYPE_SOFT_VOLUME)
+		strcat(elem->name, " Mode");
+
 	/* ALSA library determines the element type by checking it's
 	 * name suffix. This feature is not well documented, though.
 	 * A codec control is 'Global' (i.e. neither 'Playback' nor
 	 * 'Capture') so we omit the suffix in that case. */
-	if (elem->type == CTL_ELEM_TYPE_CODEC)
-		strcat(elem->name, " Codec");
-	else
+	if (elem->type != CTL_ELEM_TYPE_CODEC)
 		strcat(elem->name, elem->playback ? " Playback" : " Capture");
 
 	switch (elem->type) {
@@ -551,6 +567,7 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 		strcat(elem->name, " Volume");
 		break;
 	case CTL_ELEM_TYPE_CODEC:
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
 		strcat(elem->name, " Enum");
 		break;
 	}
@@ -576,23 +593,26 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 		struct ba_pcm_codecs *codecs, bool add_battery_elem) {
 
 	const char *name = ctl->single_device ? NULL : dev->name;
+	const bool playback = pcm->mode == BA_PCM_MODE_SINK;
 	size_t n = 0;
 
 	elem_list[n].type = CTL_ELEM_TYPE_VOLUME;
 	elem_list[n].dev = dev;
 	elem_list[n].pcm = pcm;
-	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
+	elem_list[n].playback = playback;
 	elem_list[n].active = true;
 	bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
+	elem_list[n].index = 0;
 
 	n++;
 
 	elem_list[n].type = CTL_ELEM_TYPE_SWITCH;
 	elem_list[n].dev = dev;
 	elem_list[n].pcm = pcm;
-	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
+	elem_list[n].playback = playback;
 	elem_list[n].active = true;
 	bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
+	elem_list[n].index = 0;
 
 	n++;
 
@@ -601,10 +621,28 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 		elem_list[n].type = CTL_ELEM_TYPE_CODEC;
 		elem_list[n].dev = dev;
 		elem_list[n].pcm = pcm;
-		elem_list[n].playback = true;
+		elem_list[n].playback = playback;
 		elem_list[n].active = true;
 		memcpy(&elem_list[n].codecs, codecs, sizeof(elem_list[n].codecs));
 		bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
+		elem_list[n].index = 0;
+
+		n++;
+	}
+
+	/* add special "software volume" element */
+	if (ctl->show_extended) {
+		elem_list[n].type = CTL_ELEM_TYPE_SOFT_VOLUME;
+		elem_list[n].dev = dev;
+		elem_list[n].pcm = pcm;
+		elem_list[n].playback = playback;
+		elem_list[n].active = true;
+		bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
+
+		/* ALSA library permits only one enumeration type control for
+		 * each simple control id. So we use different index numbers
+		 * for capture and playback to get different ids. */
+		elem_list[n].index = playback ? 0 : 1;
 
 		n++;
 	}
@@ -624,6 +662,7 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 		elem_list[n].playback = true;
 		elem_list[n].active = true;
 		bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
+		elem_list[n].index = 0;
 
 		n++;
 	}
@@ -659,7 +698,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 				count += 1;
 			/* If extended controls are enabled, we need additional elements. */
 			if (ctl->show_extended)
-				count += 1;
+				count += 2;
 		}
 
 		if ((elem_list = realloc(elem_list, count * sizeof(*elem_list))) == NULL)
@@ -773,6 +812,7 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 
 	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
 	snd_ctl_elem_id_set_name(id, ctl->elem_list[offset].name);
+	snd_ctl_elem_id_set_index(id, ctl->elem_list[offset].index);
 
 	return 0;
 }
@@ -786,10 +826,12 @@ static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_el
 		return numid - 1;
 
 	const char *name = snd_ctl_elem_id_get_name(id);
+	unsigned int index = snd_ctl_elem_id_get_index(id);
 	size_t i;
 
 	for (i = 0; i < ctl->elem_list_size; i++)
-		if (strcmp(ctl->elem_list[i].name, name) == 0)
+		if (strcmp(ctl->elem_list[i].name, name) == 0 &&
+				ctl->elem_list[i].index == index)
 			return i;
 
 	return SND_CTL_EXT_KEY_NOT_FOUND;
@@ -812,6 +854,11 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*count = 1;
 		break;
 	case CTL_ELEM_TYPE_CODEC:
+		*acc = SND_CTL_EXT_ACCESS_READWRITE;
+		*type = SND_CTL_ELEM_TYPE_ENUMERATED;
+		*count = 1;
+		break;
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
 		*acc = SND_CTL_EXT_ACCESS_READWRITE;
 		*type = SND_CTL_ELEM_TYPE_ENUMERATED;
 		*count = 1;
@@ -867,6 +914,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*istep = 1;
 		break;
 	case CTL_ELEM_TYPE_CODEC:
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
 	case CTL_ELEM_TYPE_SWITCH:
 		return -EINVAL;
 	}
@@ -899,6 +947,7 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 			value[1] = active ? pcm->volume.ch2_volume : 0;
 		break;
 	case CTL_ELEM_TYPE_CODEC:
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
 		return -EINVAL;
 	}
 
@@ -939,6 +988,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 			pcm->volume.ch2_volume = value[1];
 		break;
 	case CTL_ELEM_TYPE_CODEC:
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
 		return -EINVAL;
 	}
 
@@ -964,6 +1014,9 @@ int bluealsa_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, unsi
 	case CTL_ELEM_TYPE_CODEC:
 		*items = elem->codecs.codecs_len;
 		break;
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
+		*items = ARRAYSIZE(soft_volume_names);
+		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
 	case CTL_ELEM_TYPE_VOLUME:
@@ -987,6 +1040,12 @@ int bluealsa_get_enumerated_name(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		if (item >= elem->codecs.codecs_len)
 			return -EINVAL;
 		strncpy(name, elem->codecs.codecs[item].name, name_max_len - 1);
+		name[name_max_len - 1] = '\0';
+		break;
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
+		if (item >= ARRAYSIZE(soft_volume_names))
+			return -EINVAL;
+		strncpy(name, soft_volume_names[item], name_max_len - 1);
 		name[name_max_len - 1] = '\0';
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
@@ -1035,6 +1094,9 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		}
 		ret = -EINVAL;
 		break;
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
+		items[0] = pcm->soft_volume ? 1 : 0;
+		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
 	case CTL_ELEM_TYPE_VOLUME:
@@ -1066,6 +1128,16 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 					elem->codecs.codecs[items[0]].name, NULL, 0, NULL))
 			return -EIO;
 		memcpy(&pcm->codec, &elem->codecs.codecs[items[0]], sizeof(pcm->codec));
+		break;
+	case CTL_ELEM_TYPE_SOFT_VOLUME:
+		if (items[0] >= ARRAYSIZE(soft_volume_names))
+			return -EINVAL;
+		const bool soft_volume = items[0] == 1;
+		if (pcm->soft_volume == soft_volume)
+			return 0;
+		pcm->soft_volume = soft_volume;
+		if (!bluealsa_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_SOFT_VOLUME, NULL))
+			return -ENOMEM;
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
@@ -1320,6 +1392,7 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 
 		snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
 		snd_ctl_elem_id_set_name(id, ctl->elem_update_list[ctl->elem_update_event_i].name);
+		snd_ctl_elem_id_set_index(id, ctl->elem_update_list[ctl->elem_update_event_i].index);
 		*event_mask = ctl->elem_update_list[ctl->elem_update_event_i].event_mask;
 
 		if (++ctl->elem_update_event_i == ctl->elem_update_list_size) {

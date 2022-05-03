@@ -102,20 +102,20 @@ START_TEST(test_controls) {
 
 	ck_assert_int_eq(snd_ctl_elem_list_get_used(elems), 12);
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "12:34:56:78:9A:BC - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "12:34:56:78:9A:BC - A2DP Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "12:34:56:78:9A:BC - A2DP Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "12:34:56:78:9A:BC - A2DP Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "12:34:56:78:9A:BC A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "12:34:56:78:9A:BC A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "12:34:56:78:9A:BC A2DP Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "12:34:56:78:9A:BC A2DP Capture Volume");
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "12:34:56:78:9A:BC - SCO Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "12:34:56:78:9A:BC - SCO Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "12:34:56:78:9A:BC - SCO Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "12:34:56:78:9A:BC - SCO Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "12:34:56:78:9A:BC SCO Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "12:34:56:78:9A:BC SCO Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "12:34:56:78:9A:BC SCO Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "12:34:56:78:9A:BC SCO Capture Volume");
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB:CD - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:CD - A2DP Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "23:45:67:89:AB:CD - A2DP Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "23:45:67:89:AB:CD - A2DP Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB:CD A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:CD A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "23:45:67:89:AB:CD A2DP Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "23:45:67:89:AB:CD A2DP Capture Volume");
 
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
@@ -182,14 +182,14 @@ START_TEST(test_controls_extended) {
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
-	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 11);
-	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 11), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 15);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 15), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
 	/* codec control element shall be after playback/capture elements */
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "12:34:56:78:9A:BC - A2DP Codec Enum");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "12:34:56:78:9A:BC - SCO Codec Enum");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "23:45:67:89:AB:CD - A2DP Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "12:34:56:78:9A:BC A2DP Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "12:34:56:78:9A:BC SCO Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 14), "23:45:67:89:AB:CD A2DP Codec Enum");
 
 	bool has_msbc = false;
 #if ENABLE_MSBC
@@ -199,8 +199,8 @@ START_TEST(test_controls_extended) {
 	snd_ctl_elem_info_t *info;
 	snd_ctl_elem_info_alloca(&info);
 
-	/* 12:34:56:78:9A:BC - SCO Codec Enum */
-	snd_ctl_elem_info_set_numid(info, snd_ctl_elem_list_get_numid(elems, 7));
+	/* 12:34:56:78:9A:BC SCO Codec Enum */
+	snd_ctl_elem_info_set_numid(info, snd_ctl_elem_list_get_numid(elems, 10));
 	ck_assert_int_eq(snd_ctl_elem_info(ctl, info), 0);
 	ck_assert_int_eq(snd_ctl_elem_info_get_items(info), has_msbc ? 2 : 1);
 	snd_ctl_elem_info_set_item(info, 0);
@@ -215,8 +215,8 @@ START_TEST(test_controls_extended) {
 	snd_ctl_elem_value_t *elem;
 	snd_ctl_elem_value_alloca(&elem);
 
-	/* 12:34:56:78:9A:BC - A2DP Codec Enum */
-	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 2));
+	/* 12:34:56:78:9A:BC A2DP Codec Enum */
+	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 3));
 	/* get currently selected A2DP codec */
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
 	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0), 0);
@@ -225,8 +225,8 @@ START_TEST(test_controls_extended) {
 	/* write reports 0 because we are setting currently selected codec */
 	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), 0);
 
-	/* 12:34:56:78:9A:BC - SCO Codec Enum */
-	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 7));
+	/* 12:34:56:78:9A:BC SCO Codec Enum */
+	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 10));
 	/* get currently selected SCO codec */
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
 	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0), has_msbc ? 1 : 0);
@@ -266,12 +266,12 @@ START_TEST(test_bidirectional_a2dp) {
 	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 10), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "23:45:67:89:AB - A2DP-SRC Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "23:45:67:89:AB - A2DP-SRC Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "23:45:67:89:AB - A2DP-SRC Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "23:45:67:89:AB - A2DP-SRC Capture Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB - A2DP-SNK Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB - A2DP-SNK Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "23:45:67:89:AB:C A2DP-SRC Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "23:45:67:89:AB:C A2DP-SRC Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "23:45:67:89:AB:C A2DP-SRC Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "23:45:67:89:AB:C A2DP-SRC Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB:C A2DP-SNK Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:C A2DP-SNK Capture Volume");
 
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
@@ -302,10 +302,10 @@ START_TEST(test_device_name_duplicates) {
 	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 4), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "Long Bluetooth De #1 - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "Long Bluetooth De #1 - A2DP Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "Long Bluetooth De #2 - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth De #2 - A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "Long Bluetooth Devi #1 A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "Long Bluetooth Devi #1 A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "Long Bluetooth Devi #2 A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth Devi #2 A2DP Playback Volume");
 
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
@@ -321,7 +321,7 @@ START_TEST(test_mute_and_volume) {
 
 	snd_ctl_elem_value_t *elem_switch;
 	snd_ctl_elem_value_alloca(&elem_switch);
-	/* 23:45:67:89:AB:CD - A2DP Playback Switch */
+	/* 23:45:67:89:AB:CD A2DP Playback Switch */
 	snd_ctl_elem_value_set_numid(elem_switch, 9);
 
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem_switch), 0);
@@ -334,7 +334,7 @@ START_TEST(test_mute_and_volume) {
 
 	snd_ctl_elem_value_t *elem_volume;
 	snd_ctl_elem_value_alloca(&elem_volume);
-	/* 23:45:67:89:AB:CD - A2DP Playback Volume */
+	/* 23:45:67:89:AB:CD A2DP Playback Volume */
 	snd_ctl_elem_value_set_numid(elem_volume, 10);
 
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem_volume), 0);
@@ -363,7 +363,7 @@ START_TEST(test_volume_db_range) {
 
 	snd_ctl_elem_id_t *elem;
 	snd_ctl_elem_id_alloca(&elem);
-	/* 12:34:56:78:9A:BC - A2DP Playback Volume */
+	/* 12:34:56:78:9A:BC A2DP Playback Volume */
 	snd_ctl_elem_id_set_numid(elem, 2);
 
 	long min, max;
