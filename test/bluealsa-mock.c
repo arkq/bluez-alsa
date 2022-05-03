@@ -370,6 +370,9 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 
 	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, fds[0]);
 	t->sco.rfcomm->state = HFP_SLC_CONNECTED;
+#if ENABLE_MSBC
+	t->sco.rfcomm->codecs.msbc = true;
+#endif
 	t->acquire = mock_transport_acquire;
 
 	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n",
@@ -558,6 +561,10 @@ static void dbus_name_acquired_bluealsa(GDBusConnection *conn, const char *name,
 
 	/* emulate dummy test HCI device */
 	assert((a = ba_adapter_new(0)) != NULL);
+
+	/* make HCI mSBC-ready */
+	a->hci.features[2] = LMP_TRSP_SCO;
+	a->hci.features[3] = LMP_ESCO;
 
 	/* run actual BlueALSA mock thread */
 	g_thread_new(NULL, mock_bluealsa_service_thread, userdata);

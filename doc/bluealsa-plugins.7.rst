@@ -271,13 +271,16 @@ As a special case, a single device mixer can be opened with the address **00:00:
 The Predefined **bluealsa** CTL
 -------------------------------
 
-The **bluealsa** CTL has parameters DEV, BAT, BTT, DYN, and SRV. All the parameters have defaults.
+The **bluealsa** CTL has parameters DEV, EXT, BAT, BTT, DYN, and SRV. All the parameters have defaults.
 
 CTL Parameters
 ~~~~~~~~~~~~~~
 
   DEV
     The device Bluetooth address in the form XX:XX:XX:XX:XX:XX. Device names or aliases are not valid here. The default value is **FF:FF:FF:FF:FF:FF** which selects controls from all connected devices (see `Default Mode`_ above). Also accepts the special address **00:00:00:00:00:00** which selects the most recently connected device.
+
+  EXT
+    Causes the plugin to include controls for codec selection. If the value is **yes** then these additional controls are included. The default is **no**. See `CODEC SELECTION`_ below for more information on the Codec control.
 
   BAT
     Causes the plugin to include a (read-only) battery level indicator, provided the device supports this. If the value is **yes** then the battery indicator is enabled, any other value disables it. The default is **no**.
@@ -310,13 +313,14 @@ You can define your own ALSA CTL in the ALSA configuration. To do this, create a
   ctl.name {
     type bluealsa     # Bluetooth PCM
     [device STR]      # Device address (default "FF:FF:FF:FF:FF:FF")
+    [extended STR]    # Include additional controls (yes/no, default no)
     [battery STR]     # Include battery level indicator (yes/no, default no)
     [bttransport STR] # Append BT transport to element names (yes/no, default no)
     [dynamic STR]     # Enable dynamic operation (yes/no, default yes)
     [service STR]     # D-Bus name of service (default "org.bluealsa")
   }
 
-All the fields (except **type**) are optional. See the *CTL Parameters* section above for more information on each field. As for PCM definitions above, the default values for the optional fields are hard-coded into the plugin; they are not overridden by the configuration ``defaults.bluealsa.`` settings.
+All the fields (except **type**) are optional. See the `CTL Parameters`_ section above for more information on each field. As for PCM definitions above, the default values for the optional fields are hard-coded into the plugin; they are not overridden by the configuration ``defaults.bluealsa.`` settings.
 
 FILES
 =====
@@ -324,6 +328,11 @@ FILES
 /etc/alsa/conf.d/20-bluealsa.conf
     BlueALSA device configuration file.
     ALSA additional configuration, defines the ``bluealsa`` PCM and CTL devices.
+
+CODEC SELECTION
+===============
+
+Changing the codec used by a BlueALSA transport causes the PCM(s) running on that transport to terminate. Therefore using a Codec control can have undesirable consequences. Unfortunately the ``alsamixer(1)`` UI does not present a separate pick-list for enumerated types, so merely browsing the list of codecs using this control actually issues a Codec change request every time a different codec is displayed. This is not ideal, so the use of this control type with ``alsamixer(1)`` is not recommended. The control type does however work well with other mixer applications such as ``amixer(1)``.
 
 COPYRIGHT
 =========
@@ -335,7 +344,7 @@ The bluez-alsa project is licensed under the terms of the MIT license.
 SEE ALSO
 ========
 
-``alsamixer(1)``, ``aplay(1)``, ``bluealsa(8)``, ``bluetoothctl(1)``, ``bluetoothd(8)``
+``alsamixer(1)``, ``amixer(1)``, ``aplay(1)``, ``bluealsa(8)``, ``bluetoothctl(1)``, ``bluetoothd(8)``
 
 Project web site
   https://github.com/Arkq/bluez-alsa

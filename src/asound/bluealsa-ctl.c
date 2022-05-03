@@ -40,6 +40,7 @@
 enum ctl_elem_type {
 	CTL_ELEM_TYPE_SWITCH,
 	CTL_ELEM_TYPE_VOLUME,
+	CTL_ELEM_TYPE_CODEC,
 	CTL_ELEM_TYPE_BATTERY,
 };
 
@@ -50,6 +51,8 @@ struct ctl_elem {
 	struct bt_dev *dev;
 	struct ba_pcm *pcm;
 	char name[44 /* internal ALSA constraint */];
+	/* codec list for codec control element */
+	struct ba_pcm_codecs codecs;
 	/* if true, element is a playback control */
 	bool playback;
 	/* For single device mode, if true then the associated profile is connected.
@@ -112,6 +115,8 @@ struct bluealsa_ctl {
 	bool show_battery;
 	/* if true, append BT transport type to element names */
 	bool show_bt_transport;
+	/* if true, show additional controls */
+	bool show_extended;
 	/* if true, this mixer is for a single Bluetooth device */
 	bool single_device;
 	/* if true, this mixer adds/removes controls dynamically */
@@ -153,18 +158,18 @@ static int bluealsa_elem_cmp(const void *p1, const void *p2) {
 	}
 
 	/* Within a single device order elements by:
-	 *  - element type (keep battery last)
 	 *  - PCM transport type
-	 *  - playback/capture
+	 *  - playback/capture (if applicable)
 	 *  - element type
 	 * */
-	if (e1->type == CTL_ELEM_TYPE_BATTERY ||
-			e2->type == CTL_ELEM_TYPE_BATTERY)
-		return e1->type - e2->type;
 	if ((rv = e1->pcm->transport - e2->pcm->transport))
 		return rv;
-	if ((rv = e1->playback - e2->playback) != 0)
-		return -rv;
+	if (!(e1->type == CTL_ELEM_TYPE_CODEC ||
+				e1->type == CTL_ELEM_TYPE_BATTERY ||
+				e2->type == CTL_ELEM_TYPE_CODEC ||
+				e2->type == CTL_ELEM_TYPE_BATTERY))
+		if ((rv = e1->playback - e2->playback) != 0)
+			return -rv;
 	if ((rv = e1->type - e2->type) != 0)
 		return rv;
 	return 0;
@@ -259,6 +264,25 @@ static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *d
 
 	dbus_message_unref(rep);
 	return level;
+}
+
+static int bluealsa_pcm_fetch_codecs(struct bluealsa_ctl *ctl, struct ba_pcm *pcm,
+		struct ba_pcm_codecs *codecs) {
+
+	if (!bluealsa_dbus_pcm_get_codecs(&ctl->dbus_ctx, pcm->pcm_path, codecs, NULL))
+		return -1;
+
+	/* If the list of codecs could not be fetched, return currently
+	 * selected codec as the only one. This will at least allow the
+	 * user to see the currently selected codec. */
+	if (codecs->codecs_len == 0) {
+		if ((codecs->codecs = malloc(sizeof(*codecs->codecs))) == NULL)
+			return -1;
+		memcpy(codecs->codecs, &pcm->codec, sizeof(*codecs->codecs));
+		codecs->codecs_len = 1;
+	}
+
+	return codecs->codecs_len;
 }
 
 /**
@@ -503,8 +527,13 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 	}
 
 	/* ALSA library determines the element type by checking it's
-	 * name suffix. This feature is not well documented, though. */
-	strcat(elem->name, elem->playback ? " Playback" : " Capture");
+	 * name suffix. This feature is not well documented, though.
+	 * A codec control is 'Global' (i.e. neither 'Playback' nor
+	 * 'Capture') so we omit the suffix in that case. */
+	if (elem->type == CTL_ELEM_TYPE_CODEC)
+		strcat(elem->name, " Codec");
+	else
+		strcat(elem->name, elem->playback ? " Playback" : " Capture");
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_SWITCH:
@@ -513,6 +542,9 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_VOLUME:
 		strcat(elem->name, " Volume");
+		break;
+	case CTL_ELEM_TYPE_CODEC:
+		strcat(elem->name, " Enum");
 		break;
 	}
 
@@ -527,11 +559,14 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
  *   switch element and optional battery indicator element.
  * @param dev The BT device associated with created elements.
  * @param pcm The BlueALSA PCM associated with created elements.
+ * @param codecs The list of available PCM codecs. If not empty, additional
+ *   control element for codec selection will be created. The ownership of
+ *   the codec list structure is transferred to associated control element.
  * @param add_battery_elem If true, add battery level indicator element.
  * @return The number of elements added. */
 static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 		struct ctl_elem *elem_list, struct bt_dev *dev, struct ba_pcm *pcm,
-		bool add_battery_elem) {
+		struct ba_pcm_codecs *codecs, bool add_battery_elem) {
 
 	const char *name = ctl->single_device ? NULL : dev->name;
 	size_t n = 0;
@@ -553,6 +588,19 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 	bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
 
 	n++;
+
+	/* add special "codec" element */
+	if (codecs->codecs_len > 0) {
+		elem_list[n].type = CTL_ELEM_TYPE_CODEC;
+		elem_list[n].dev = dev;
+		elem_list[n].pcm = pcm;
+		elem_list[n].playback = true;
+		elem_list[n].active = true;
+		memcpy(&elem_list[n].codecs, codecs, sizeof(elem_list[n].codecs));
+		bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
+
+		n++;
+	}
 
 	/* add special battery level indicator element */
 	if (add_battery_elem &&
@@ -600,7 +648,11 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			/* It is possible, that BT device battery level will be exposed via
 			 * RFCOMM interface, so in order to account for a special "battery"
 			 * element we have to increment our element counter by one. */
-			count += 1;
+			if (ctl->show_battery)
+				count += 1;
+			/* If extended controls are enabled, we need additional elements. */
+			if (ctl->show_extended)
+				count += 1;
 		}
 
 		if ((elem_list = realloc(elem_list, count * sizeof(*elem_list))) == NULL)
@@ -620,7 +672,16 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 		struct ba_pcm *pcm = ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
+		struct ba_pcm_codecs codecs = { 0 };
 		bool add_battery_elem = false;
+
+		/* If Bluetooth transport is bi-directional it must have the same codec
+		 * for both sink and source. In case of such profiles we will only add
+		 * the codec control element for the main stream direction. */
+		if (ctl->show_extended && (
+					BA_PCM_A2DP_MAIN_CHANNEL(pcm) ||
+					BA_PCM_SCO_SPEAKER_CHANNEL(pcm)))
+			bluealsa_pcm_fetch_codecs(ctl, pcm, &codecs);
 
 		if (ctl->show_battery &&
 				!elem_list_dev_has_battery_elem(elem_list, count, dev)) {
@@ -629,7 +690,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 		}
 
 		count += bluealsa_elem_list_add_pcm_elems(ctl, &elem_list[count],
-				dev, pcm, add_battery_elem);
+				dev, pcm, &codecs, add_battery_elem);
 
 	}
 
@@ -662,12 +723,19 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	return count;
 }
 
+static void bluealsa_free_elem_list(struct bluealsa_ctl *ctl) {
+	for (size_t i = 0; i < ctl->elem_list_size; i++)
+		if (ctl->elem_list[i].type == CTL_ELEM_TYPE_CODEC)
+			bluealsa_dbus_pcm_codecs_free(&ctl->elem_list[i].codecs);
+}
+
 static void bluealsa_close(snd_ctl_ext_t *ext) {
 
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 	size_t i;
 
 	bluealsa_dbus_connection_ctx_free(&ctl->dbus_ctx);
+	bluealsa_free_elem_list(ctl);
 
 	if (ctl->pipefd[0] != -1)
 		close(ctl->pipefd[0]);
@@ -736,6 +804,11 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*type = SND_CTL_ELEM_TYPE_INTEGER;
 		*count = 1;
 		break;
+	case CTL_ELEM_TYPE_CODEC:
+		*acc = SND_CTL_EXT_ACCESS_READWRITE;
+		*type = SND_CTL_ELEM_TYPE_ENUMERATED;
+		*count = 1;
+		break;
 	case CTL_ELEM_TYPE_SWITCH:
 		*acc = SND_CTL_EXT_ACCESS_READWRITE;
 		*type = SND_CTL_ELEM_TYPE_BOOLEAN;
@@ -768,8 +841,6 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*imax = 100;
 		*istep = 1;
 		break;
-	case CTL_ELEM_TYPE_SWITCH:
-		return -EINVAL;
 	case CTL_ELEM_TYPE_VOLUME:
 		switch (elem->pcm->transport) {
 		case BA_PCM_TRANSPORT_A2DP_SOURCE:
@@ -788,6 +859,9 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*imin = 0;
 		*istep = 1;
 		break;
+	case CTL_ELEM_TYPE_CODEC:
+	case CTL_ELEM_TYPE_SWITCH:
+		return -EINVAL;
 	}
 
 	return 0;
@@ -817,6 +891,8 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		if (pcm->channels == 2)
 			value[1] = active ? pcm->volume.ch2_volume : 0;
 		break;
+	case CTL_ELEM_TYPE_CODEC:
+		return -EINVAL;
 	}
 
 	return 0;
@@ -855,6 +931,8 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		if (pcm->channels == 2)
 			pcm->volume.ch2_volume = value[1];
 		break;
+	case CTL_ELEM_TYPE_CODEC:
+		return -EINVAL;
 	}
 
 	/* check whether update is required */
@@ -863,6 +941,130 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 
 	if (!bluealsa_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_VOLUME, NULL))
 		return -ENOMEM;
+
+	return 1;
+}
+
+int bluealsa_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, unsigned int *items) {
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+
+	if (key > ctl->elem_list_size)
+		return -EINVAL;
+
+	const struct ctl_elem *elem = &ctl->elem_list[key];
+
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_CODEC:
+		*items = elem->codecs.codecs_len;
+		break;
+	case CTL_ELEM_TYPE_BATTERY:
+	case CTL_ELEM_TYPE_SWITCH:
+	case CTL_ELEM_TYPE_VOLUME:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int bluealsa_get_enumerated_name(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+		unsigned int item, char *name, size_t name_max_len) {
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+
+	if (key > ctl->elem_list_size)
+		return -EINVAL;
+
+	const struct ctl_elem *elem = &ctl->elem_list[key];
+
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_CODEC:
+		if (item >= elem->codecs.codecs_len)
+			return -EINVAL;
+		strncpy(name, elem->codecs.codecs[item].name, name_max_len - 1);
+		name[name_max_len - 1] = '\0';
+		break;
+	case CTL_ELEM_TYPE_BATTERY:
+	case CTL_ELEM_TYPE_SWITCH:
+	case CTL_ELEM_TYPE_VOLUME:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+		unsigned int *items) {
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+
+	if (key > ctl->elem_list_size)
+		return -EINVAL;
+
+	const struct ctl_elem *elem = &ctl->elem_list[key];
+	const struct ba_pcm *pcm = elem->pcm;
+	unsigned int i;
+	int ret = 0;
+
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_CODEC:
+		/* HFP codec is not known until a second or so after the profile
+		 * connection is established. In that case we *guess* that mSBC
+		 * will be used if available, or CVSD if not, since we do not
+		 * want "unknown" as an enumeration item. */
+		if (pcm->transport & BA_PCM_TRANSPORT_MASK_HFP &&
+				pcm->codec.name[0] == '\0') {
+			for (i = 0; i < elem->codecs.codecs_len; i++) {
+				if (strcmp("mSBC", elem->codecs.codecs[i].name) == 0) {
+					items[0] = i;
+					goto finish;
+				}
+			}
+			items[0] = 0;
+			break;
+		}
+		for (i = 0; i < elem->codecs.codecs_len; i++) {
+			if (strcmp(pcm->codec.name, elem->codecs.codecs[i].name) == 0) {
+				items[0] = i;
+				goto finish;
+			}
+		}
+		ret = -EINVAL;
+		break;
+	case CTL_ELEM_TYPE_BATTERY:
+	case CTL_ELEM_TYPE_SWITCH:
+	case CTL_ELEM_TYPE_VOLUME:
+		ret = -EINVAL;
+		break;
+	}
+
+finish:
+	return ret;
+}
+
+static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+		unsigned int *items) {
+	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+
+	if (key > ctl->elem_list_size)
+		return -EINVAL;
+
+	const struct ctl_elem *elem = &ctl->elem_list[key];
+	struct ba_pcm *pcm = elem->pcm;
+
+	switch (elem->type) {
+	case CTL_ELEM_TYPE_CODEC:
+		if (items[0] >= elem->codecs.codecs_len)
+			return -EINVAL;
+		if (strcmp(pcm->codec.name, elem->codecs.codecs[items[0]].name) == 0)
+			return 0;
+		if (!bluealsa_dbus_pcm_select_codec(&ctl->dbus_ctx, pcm->pcm_path,
+					elem->codecs.codecs[items[0]].name, NULL, 0, NULL))
+			return -EIO;
+		memcpy(&pcm->codec, &elem->codecs.codecs[items[0]], sizeof(pcm->codec));
+		break;
+	case CTL_ELEM_TYPE_BATTERY:
+	case CTL_ELEM_TYPE_SWITCH:
+	case CTL_ELEM_TYPE_VOLUME:
+		return -EINVAL;
+	}
 
 	return 1;
 }
@@ -1079,6 +1281,7 @@ remove_add:
 	for (i = 0; i < ctl->elem_list_size; i++)
 		bluealsa_event_elem_removed(ctl, &ctl->elem_list[i]);
 
+	bluealsa_free_elem_list(ctl);
 	bluealsa_create_elem_list(ctl);
 
 	for (i = 0; i < ctl->elem_list_size; i++)
@@ -1216,8 +1419,12 @@ static const snd_ctl_ext_callback_t bluealsa_snd_ctl_ext_callback = {
 	.find_elem = bluealsa_find_elem,
 	.get_attribute = bluealsa_get_attribute,
 	.get_integer_info = bluealsa_get_integer_info,
+	.get_enumerated_info = bluealsa_get_enumerated_info,
+	.get_enumerated_name = bluealsa_get_enumerated_name,
 	.read_integer = bluealsa_read_integer,
+	.read_enumerated = bluealsa_read_enumerated,
 	.write_integer = bluealsa_write_integer,
+	.write_enumerated = bluealsa_write_enumerated,
 	.subscribe_events = bluealsa_subscribe_events,
 	.read_event = bluealsa_read_event,
 	.poll_descriptors_count = bluealsa_poll_descriptors_count,
@@ -1299,6 +1506,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *device = NULL;
 	bool show_battery = false;
 	bool show_bt_transport = false;
+	bool show_extended = false;
 	bool dynamic = true;
 	struct bluealsa_ctl *ctl;
 	int ret;
@@ -1328,6 +1536,14 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
+			continue;
+		}
+		if (strcmp(id, "extended") == 0) {
+			if ((ret = snd_config_get_bool(n)) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			show_extended = !!ret;
 			continue;
 		}
 		if (strcmp(id, "battery") == 0) {
@@ -1396,6 +1612,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	ctl->show_battery = show_battery;
 	ctl->show_bt_transport = show_bt_transport;
+	ctl->show_extended = show_extended;
 	ctl->single_device = single_device_mode;
 	ctl->dynamic = dynamic;
 

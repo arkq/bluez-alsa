@@ -162,6 +162,84 @@ START_TEST(test_controls_battery) {
 
 } END_TEST
 
+START_TEST(test_controls_extended) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	snd_ctl_t *ctl = NULL;
+	pid_t pid = -1;
+
+	const char *service = "test";
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				"--profile=a2dp-source",
+				"--profile=hfp-ag",
+				NULL), -1);
+
+	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
+				"extended \"yes\"\n", 0), 0);
+
+	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_alloca(&elems);
+
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 11);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 11), 0);
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+
+	/* codec control element shall be after playback/capture elements */
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "12:34:56:78:9A:BC - A2DP Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "12:34:56:78:9A:BC - SCO Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "23:45:67:89:AB:CD - A2DP Codec Enum");
+
+	bool has_msbc = false;
+#if ENABLE_MSBC
+	has_msbc = true;
+#endif
+
+	snd_ctl_elem_info_t *info;
+	snd_ctl_elem_info_alloca(&info);
+
+	/* 12:34:56:78:9A:BC - SCO Codec Enum */
+	snd_ctl_elem_info_set_numid(info, snd_ctl_elem_list_get_numid(elems, 7));
+	ck_assert_int_eq(snd_ctl_elem_info(ctl, info), 0);
+	ck_assert_int_eq(snd_ctl_elem_info_get_items(info), has_msbc ? 2 : 1);
+	snd_ctl_elem_info_set_item(info, 0);
+	ck_assert_int_eq(snd_ctl_elem_info(ctl, info), 0);
+	ck_assert_str_eq(snd_ctl_elem_info_get_item_name(info), "CVSD");
+#if ENABLE_MSBC
+	snd_ctl_elem_info_set_item(info, 1);
+	ck_assert_int_eq(snd_ctl_elem_info(ctl, info), 0);
+	ck_assert_str_eq(snd_ctl_elem_info_get_item_name(info), "mSBC");
+#endif
+
+	snd_ctl_elem_value_t *elem;
+	snd_ctl_elem_value_alloca(&elem);
+
+	/* 12:34:56:78:9A:BC - A2DP Codec Enum */
+	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 2));
+	/* get currently selected A2DP codec */
+	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
+	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0), 0);
+	/* select A2DP SBC codec */
+	snd_ctl_elem_value_set_enumerated(elem, 0, 0);
+	/* write reports 0 because we are setting currently selected codec */
+	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), 0);
+
+	/* 12:34:56:78:9A:BC - SCO Codec Enum */
+	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 7));
+	/* get currently selected SCO codec */
+	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
+	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0), has_msbc ? 1 : 0);
+#if ENABLE_MSBC
+	/* select SCO CVSD codec */
+	snd_ctl_elem_value_set_enumerated(elem, 0, 0);
+	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), 1);
+#endif
+
+	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+
+} END_TEST
+
 START_TEST(test_bidirectional_a2dp) {
 #if ENABLE_FASTSTREAM
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
@@ -521,6 +599,7 @@ int main(int argc, char *argv[]) {
 
 	tcase_add_test(tc, test_controls);
 	tcase_add_test(tc, test_controls_battery);
+	tcase_add_test(tc, test_controls_extended);
 	tcase_add_test(tc, test_bidirectional_a2dp);
 	tcase_add_test(tc, test_device_name_duplicates);
 	tcase_add_test(tc, test_mute_and_volume);

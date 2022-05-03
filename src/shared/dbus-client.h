@@ -53,6 +53,20 @@
 #define BA_PCM_MODE_SINK             (1 << 1)
 
 /**
+ * Determine whether given PCM is transported
+ * over A2DP codec main-channel link. */
+#define BA_PCM_A2DP_MAIN_CHANNEL(pcm) ( \
+       ((pcm)->transport & BA_PCM_TRANSPORT_A2DP_SOURCE && (pcm)->mode & BA_PCM_MODE_SINK) || \
+       ((pcm)->transport & BA_PCM_TRANSPORT_A2DP_SINK && (pcm)->mode & BA_PCM_MODE_SOURCE))
+
+/**
+ * Determine whether given PCM is transported
+ * over HFP/HSP speaker channel link. */
+#define BA_PCM_SCO_SPEAKER_CHANNEL(pcm) ( \
+				((pcm)->transport & BA_PCM_TRANSPORT_MASK_AG && (pcm)->mode & BA_PCM_MODE_SINK) || \
+				((pcm)->transport & BA_PCM_TRANSPORT_MASK_HF && (pcm)->mode & BA_PCM_MODE_SOURCE))
+
+/**
  * Get max volume level for given PCM. */
 #define BA_PCM_VOLUME_MAX(pcm) \
 	((pcm)->transport & BA_PCM_TRANSPORT_MASK_A2DP ? 127 : 15)
