@@ -1,6 +1,6 @@
 /*
  * BlueALSA - defs.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_SHARED_DEFS_H_
 #define BLUEALSA_SHARED_DEFS_H_
 
@@ -16,6 +17,10 @@
 /**
  * Convenient macro for getting "on the stack" array size. */
 #define ARRAYSIZE(a) (sizeof(a) / sizeof(*(a)))
+
+/**
+ * Divide integers with rounding up. */
+#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 
 /**
  * Cleanup callback casting wrapper for the brevity's sake. */

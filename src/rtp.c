@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "shared/defs.h"
 #include "shared/log.h"
 
 /**
@@ -24,9 +25,8 @@ static unsigned int rtp_convert_clock_rate(
 		unsigned int rate_to) {
 	/* NOTE: In all our cases clockrates/samplerates are even numbers. In order
 	 *       to round-up converted value we are going to use halve rate_from in
-	 *       our arithmetic. Then we will use "(v + 1) / 2" for round-up. */
-	const unsigned int rate_from_2 = rate_from / 2;
-	return ((uint64_t)ticks * rate_to / rate_from_2 + 1) / 2;
+	 *       our arithmetic. */
+	return DIV_ROUND_UP((uint64_t)ticks * rate_to / (rate_from / 2), 2);
 }
 
 /**

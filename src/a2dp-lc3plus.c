@@ -319,7 +319,7 @@ static void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 			if (payload_len > payload_len_max) {
 				rtp_media_header->fragmented = 1;
 				rtp_media_header->first_fragment = 1;
-				rtp_media_header->frame_count = (payload_len + payload_len_max - 1) / payload_len_max;
+				rtp_media_header->frame_count = DIV_ROUND_UP(payload_len, payload_len_max);
 			}
 
 			for (;;) {
@@ -455,6 +455,10 @@ static void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 	/* RTP clock frequency equal to the RTP clock rate */
 	rtp_state_init(&rtp, samplerate, rtp_ts_clockrate);
 
+	/* If true, we should skip fragmented RTP media packets until we will see
+	 * not fragmented one or the first fragment of fragmented packet. */
+	bool rtp_media_fragment_skip = false;
+
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
@@ -471,11 +475,52 @@ static void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 			continue;
 
 		int missing_rtp_frames = 0;
-		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
+		int missing_pcm_frames = 0;
+		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, &missing_pcm_frames);
+
+		/* If missing RTP frame was reported and current RTP media frame is marked
+		 * as fragmented but it is not the first fragment it means that we are
+		 * missing the beginning of it. In such a case we will have to skip the
+		 * entire incomplete RTP media frame. */
+		if (missing_rtp_frames > 0 &&
+				rtp_media_header->fragmented && !rtp_media_header->first_fragment) {
+			rtp_media_fragment_skip = true;
+			ffb_rewind(&bt_payload);
+		}
 
 		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
 			rtp.synced = false;
 			continue;
+		}
+
+#if DEBUG
+		if (missing_pcm_frames > 0) {
+			size_t missing_lc3plus_frames = DIV_ROUND_UP(missing_pcm_frames, lc3plus_ch_samples);
+			debug("Missing LC3plus frames: %zu", missing_lc3plus_frames);
+		}
+#endif
+
+		while (missing_pcm_frames > 0) {
+
+			int32_t *out_buffers[2] = { pcm_ch1, pcm_ch2 };
+			lc3plus_dec24(handle, bt_payload.data, 0, out_buffers, 1);
+			audio_interleave_s24_4le(pcm_ch1, pcm_ch2, lc3plus_ch_samples, channels, pcm.data);
+
+			warn("Missing LC3plus data, loss concealment applied");
+
+			const size_t samples = lc3plus_frame_samples;
+			io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
+			if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+				error("FIFO write error: %s", strerror(errno));
+
+			missing_pcm_frames -= lc3plus_ch_samples;
+
+		}
+
+		if (rtp_media_fragment_skip) {
+			if (rtp_media_header->fragmented && !rtp_media_header->first_fragment)
+				continue;
+			rtp_media_fragment_skip = false;
 		}
 
 		const uint8_t *payload = (uint8_t *)(rtp_media_header + 1);
