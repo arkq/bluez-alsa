@@ -280,7 +280,7 @@ CTL Parameters
     The device Bluetooth address in the form XX:XX:XX:XX:XX:XX. Device names or aliases are not valid here. The default value is **FF:FF:FF:FF:FF:FF** which selects controls from all connected devices (see `Default Mode`_ above). Also accepts the special address **00:00:00:00:00:00** which selects the most recently connected device.
 
   EXT
-    Causes the plugin to include controls for codec selection. If the value is **yes** then these additional controls are included. The default is **no**. See `CODEC SELECTION`_ below for more information on the Codec control.
+    Causes the plugin to include controls for codec and software volume selection. If the value is **yes** then these additional controls are included. The default is **no**. The soft volume controls are called "Mode" and take values "software" and "pass-through"; the playback control has index 0 and capture contol index 1. See ``bluealsa(8)`` for more on the soft volume setting , and `CODEC SELECTION`_ below for more information on the Codec control.
 
   BAT
     Causes the plugin to include a (read-only) battery level indicator, provided the device supports this. If the value is **yes** then the battery indicator is enabled, any other value disables it. The default is **no**.

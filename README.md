@@ -159,7 +159,7 @@ where the control name is the name of a connected Bluetooth device with a contro
 e.g.:
 
 ```sh
-amixer -D bluealsa sset 'Jabra MOVE v2.3.0 - A2DP' 50%
+amixer -D bluealsa sset 'Jabra MOVE v2.3.0 A2DP' 50%
 ```
 
 For more advanced ALSA configuration, consult the [asoundrc on-line
