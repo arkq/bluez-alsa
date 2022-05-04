@@ -349,7 +349,13 @@ static void transport_threads_cancel(struct ba_transport *t) {
 
 	transport_thread_cancel(&t->thread_enc);
 	transport_thread_cancel(&t->thread_dec);
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
 	t->stopping = false;
+	pthread_cond_signal(&t->stopped);
+
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 
 }
 
@@ -486,6 +492,7 @@ static struct ba_transport *transport_new(
 
 	pthread_mutex_init(&t->type_mtx, NULL);
 	pthread_mutex_init(&t->bt_fd_mtx, NULL);
+	pthread_cond_init(&t->stopped, NULL);
 
 	t->bt_fd = -1;
 
@@ -907,6 +914,7 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (t->thread_manager_pipe[1] != -1)
 		close(t->thread_manager_pipe[1]);
 
+	pthread_cond_destroy(&t->stopped);
 	pthread_mutex_destroy(&t->bt_fd_mtx);
 	pthread_mutex_destroy(&t->type_mtx);
 	free(t->bluez_dbus_owner);
@@ -1238,11 +1246,10 @@ int ba_transport_acquire(struct ba_transport *t) {
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
 
-	if (t->stopping) {
-		debug("Couldn't acquire transport: %s", "Stopping in progress");
-		errno = EAGAIN;
-		goto final;
-	}
+	/* If we are in the middle of IO threads stopping, wait until all resources
+	 * are reclaimed, so we can acquire them in a clean way once more. */
+	while (t->stopping)
+		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
 
 	/* If BT socket file descriptor is still valid, we
 	 * can safely reuse it (e.g. in a keep-alive mode). */

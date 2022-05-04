@@ -259,6 +259,7 @@ struct ba_transport {
 	int thread_manager_pipe[2];
 
 	/* indicates IO threads stopping */
+	pthread_cond_t stopped;
 	bool stopping;
 
 	union {
