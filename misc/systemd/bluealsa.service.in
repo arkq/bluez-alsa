@@ -17,7 +17,7 @@ After=bluez.service
 [Service]
 Type=dbus
 BusName=org.bluealsa
-ExecStart=@bindir@/bluealsa
+ExecStart=@bindir@/bluealsa -p a2dp-source -p a2dp-sink
 Restart=on-failure
 
 # Sandboxing

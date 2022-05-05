@@ -14,7 +14,7 @@ Bluetooth Audio ALSA Backend
 SYNOPSIS
 ========
 
-**bluealsa** [*OPTION*] ...
+**bluealsa** -p *PROFILE* [*OPTION*]...
 
 DESCRIPTION
 ===========
@@ -49,13 +49,10 @@ OPTIONS
     Without this option, the default is to use all available HCI devices.
 
 -p NAME, --profile=NAME
-    Enable or disable *NAME* Bluetooth profile.
-    May be given multiple number of times to enable (or disable) multiple profiles.
+    Enable *NAME* Bluetooth profile.
+    May be given multiple number of times to enable multiple profiles.
 
-    In order to disable given profile (remove it from the list of profiles enabled
-    by default), the *NAME* has to be prefixed with **-** (minus) character.
-
-    Without this option, **bluealsa** enables **a2dp-source**, **hfp-ag** and **hsp-ag**.
+    It is mandatory to enable at least one Bluetooth profile.
     For the list of supported profiles see the PROFILES_ section below.
 
 -c NAME, --codec=NAME

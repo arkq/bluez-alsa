@@ -1,10 +1,11 @@
 unreleased
 ==========
 
+- changes in command line options (no backward compatibility)
 - optional support for A2DP FastStream codec (music & voice)
 - optional support for A2DP LC3plus codec (music & voice)
 - packet loss concealment (PLC) for HFP with mSBC codec
-- enable/disable BT profiles/codecs via command line options
+- enable/disable BT codecs via command line options
 - allow to select BT transport codec with ALSA configuration
 - allow to set PCM volume properties with ALSA configuration
 - optional single-device mode for ALSA control plug-in
