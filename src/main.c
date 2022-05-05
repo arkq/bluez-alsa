@@ -208,7 +208,7 @@ int main(int argc, char **argv) {
 
 		case 'h' /* --help */ :
 			printf("Usage:\n"
-					"  %s [OPTION]...\n"
+					"  %s -p PROFILE [OPTION]...\n"
 					"\nOptions:\n"
 					"  -h, --help\t\t\tprint this help and exit\n"
 					"  -V, --version\t\t\tprint version and exit\n"
@@ -257,10 +257,7 @@ int main(int argc, char **argv) {
 					"  a2dp-source:\t%s\n"
 					"  a2dp-sink:\t%s\n"
 					"  hfp-*:\t%s\n"
-					"\n"
-					"By default only output profiles are enabled, which includes A2DP Source and\n"
-					"HFP/HSP Audio Gateways. If one wants to enable other set of profiles, it is\n"
-					"required to enable (or disable) them using `-p NAME` options.\n",
+					"",
 					argv[0],
 					"v1.3", "v1.3",
 					"v1.7", "v1.7",
@@ -302,16 +299,10 @@ int main(int argc, char **argv) {
 				{ "hsp-ag", &config.profile.hsp_ag },
 			};
 
-			bool enable = true;
 			bool matched = false;
-			if (optarg[0] == '+' || optarg[0] == '-') {
-				enable = optarg[0] == '+' ? true : false;
-				optarg++;
-			}
-
 			for (size_t i = 0; i < ARRAYSIZE(map); i++)
 				if (strcasecmp(optarg, map[i].name) == 0) {
-					*map[i].ptr = enable;
+					*map[i].ptr = true;
 					matched = true;
 					break;
 				}
@@ -519,6 +510,16 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return EXIT_FAILURE;
 		}
+
+	/* check whether at leas one BT profile was enabled */
+	if (!(config.profile.a2dp_source || config.profile.a2dp_sink ||
+				config.profile.hfp_hf || config.profile.hfp_ag ||
+				config.profile.hsp_hs || config.profile.hsp_ag ||
+				config.profile.hfp_ofono)) {
+		error("It is required to enabled at least one BT profile");
+		fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+		return EXIT_FAILURE;
+	}
 
 #if ENABLE_OFONO
 	if ((config.profile.hfp_ag || config.profile.hfp_hf) && config.profile.hfp_ofono) {

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-config.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -22,11 +22,6 @@
 
 /* Initialize global configuration variable. */
 struct ba_config config = {
-
-	/* enable output profiles by default */
-	.profile.a2dp_source = true,
-	.profile.hfp_ag = true,
-	.profile.hsp_ag = true,
 
 	.adapters_mutex = PTHREAD_MUTEX_INITIALIZER,
 
