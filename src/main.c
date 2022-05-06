@@ -511,7 +511,7 @@ int main(int argc, char **argv) {
 			return EXIT_FAILURE;
 		}
 
-	/* check whether at leas one BT profile was enabled */
+	/* check whether at least one BT profile was enabled */
 	if (!(config.profile.a2dp_source || config.profile.a2dp_sink ||
 				config.profile.hfp_hf || config.profile.hfp_ag ||
 				config.profile.hsp_hs || config.profile.hsp_ag ||
