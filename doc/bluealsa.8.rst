@@ -52,7 +52,7 @@ OPTIONS
     Enable *NAME* Bluetooth profile.
     May be given multiple number of times to enable multiple profiles.
 
-    It is mandatory to enabled at leas one Bluetooth profile.
+    It is mandatory to enable at least one Bluetooth profile.
     For the list of supported profiles see the PROFILES_ section below.
 
 -c NAME, --codec=NAME
