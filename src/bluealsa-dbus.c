@@ -607,19 +607,40 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
+		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint16_t), 16);
 		size_t i;
+
 		for (i = 0; seps != NULL && i < seps->len; i++) {
 			const struct a2dp_sep *sep = &g_array_index(seps, struct a2dp_sep, i);
 			/* match complementary PCM directions, e.g. A2DP-source with SEP-sink */
 			if (t->a2dp.codec->dir == !sep->dir) {
+
+				bool duplicate = false;
+				size_t j;
+
+				for (j = 0; j < codec_ids->len; j++)
+					if (sep->codec_id == g_array_index(codec_ids, uint16_t, j)) {
+						duplicate = true;
+						break;
+					}
+
+				/* do not return duplicates */
+				if (duplicate)
+					continue;
+
+				g_array_append_val(codec_ids, sep->codec_id);
+
 				GVariantBuilder props;
 				if (ba_variant_populate_sep(&props, sep)) {
 					g_variant_builder_add(&codecs, "{sa{sv}}",
 							a2dp_codecs_codec_id_to_string(sep->codec_id), &props);
 					g_variant_builder_clear(&props);
 				}
+
 			}
 		}
+
+		g_array_free(codec_ids, TRUE);
 
 	}
 	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
