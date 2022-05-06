@@ -120,11 +120,18 @@ static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 	return found;
 }
 
+static int codec_cmp(const void *p1, const void *p2) {
+	return strcasecmp((const char *) p1, (const char *) p2);
+}
+
+
 static bool print_pcm_codecs(const char *path, DBusError *err) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
 	bool result = false;
-	int count = 0;
+	char (*codec_list)[sizeof(((struct ba_pcm *)0)->codec)] = NULL;
+	unsigned int count = 0;
+	unsigned int i;
 
 	printf("Available codecs:");
 
@@ -165,11 +172,31 @@ static bool print_pcm_codecs(const char *path, DBusError *err) {
 
 		const char *codec;
 		dbus_message_iter_get_basic(&iter_codecs_entry, &codec);
-		printf(" %s", codec);
+		/* skip duplicates */
+		bool duplicate = false;
+		for (i = 0; i < count; i++)
+			if (strcmp(codec_list[i], codec) == 0) {
+				duplicate = true;
+				break;
+			}
+		if (duplicate)
+			continue;
+		char (*tmp)[sizeof(*codec_list)] = realloc(codec_list, sizeof(*tmp) * (count + 1));
+		if (tmp == NULL) {
+			dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
+			goto fail;
+		}
+		codec_list = tmp;
+		strncpy(codec_list[count], codec, sizeof(*codec_list) - 1);
+		codec_list[count][sizeof(*codec_list) - 1] = '\0';
 		++count;
 
 		/* Ignore the properties field, get next codec. */
 	}
+	/* Sort the codec list alphabetically. */
+	qsort(codec_list, count, sizeof(*codec_list), codec_cmp);
+	for (i = 0; i < count; i++)
+		printf(" %s", codec_list[i]);
 	result = true;
 
 fail:
@@ -177,6 +204,7 @@ fail:
 		printf(" [ Unknown ]");
 	printf("\n");
 
+	free(codec_list);
 	if (msg != NULL)
 		dbus_message_unref(msg);
 	if (rep != NULL)
