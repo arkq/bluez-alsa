@@ -273,6 +273,10 @@ int main(int argc, char **argv) {
 
 		case 'B' /* --dbus=NAME */ :
 			snprintf(dbus_service, sizeof(dbus_service), BLUEALSA_SERVICE ".%s", optarg);
+			if (!g_dbus_is_name(dbus_service)) {
+				error("Invalid BlueALSA D-Bus service name: %s", dbus_service);
+				return EXIT_FAILURE;
+			}
 			break;
 
 		case 'S' /* --syslog */ :

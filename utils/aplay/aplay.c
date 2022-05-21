@@ -888,6 +888,10 @@ int main(int argc, char *argv[]) {
 
 		case 'B' /* --dbus=NAME */ :
 			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
+			if (!dbus_validate_bus_name(dbus_ba_service, NULL)) {
+				error("Invalid BlueALSA D-Bus service name: %s", dbus_ba_service);
+				return EXIT_FAILURE;
+			}
 			break;
 
 		case 'D' /* --pcm=NAME */ :
