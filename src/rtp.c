@@ -10,10 +10,24 @@
 
 #include "rtp.h"
 
+#include <endian.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "shared/log.h"
+
+/**
+ * Convert clock rate. */
+static unsigned int rtp_convert_clock_rate(
+		unsigned int ticks,
+		unsigned int rate_from,
+		unsigned int rate_to) {
+	/* NOTE: In all our cases clockrates/samplerates are even numbers. In order
+	 *       to round-up converted value we are going to use halve rate_from in
+	 *       our arithmetic. Then we will use "(v + 1) / 2" for round-up. */
+	const unsigned int rate_from_2 = rate_from / 2;
+	return ((uint64_t)ticks * rate_to / rate_from_2 + 1) / 2;
+}
 
 /**
  * Initialize RTP headers.
@@ -30,8 +44,6 @@ void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size) 
 	memset(header, 0, RTP_HEADER_LEN + phdr_size);
 	header->paytype = 96;
 	header->version = 2;
-	header->seq_number = random();
-	header->timestamp = random();
 
 	uint8_t *data = (uint8_t *)&header->csrc[header->cc];
 
@@ -39,32 +51,6 @@ void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size) 
 		*phdr = data;
 
 	return data + phdr_size;
-}
-
-/**
- * Check A2DP RTP header sequence number.
- *
- * @param hdr The pointer to data with RTP header.
- * @param counter The pointer to a local RTP sequence number counter.
- * @return This function returns the number of missing RTP frames. */
-uint16_t rtp_a2dp_check_sequence(const rtp_header_t *hdr, uint16_t *counter) {
-
-	uint16_t loc_seq_number = ++*counter;
-	uint16_t hdr_seq_number = be16toh(hdr->seq_number);
-	uint16_t missing = hdr_seq_number - loc_seq_number;
-
-	if (missing != 0) {
-		if (loc_seq_number == 1)
-			/* Do not report missing frames if the counter was set to zero prior
-			 * to the call to this function - counter initialization. */
-			missing = 0;
-		else
-			warn("Missing RTP packets [%u != %u]: %u",
-					hdr_seq_number, loc_seq_number, missing);
-		*counter = hdr_seq_number;
-	}
-
-	return missing;
 }
 
 /**
@@ -83,4 +69,110 @@ void *rtp_a2dp_get_payload(const rtp_header_t *hdr) {
 #endif
 
 	return (void *)&hdr->csrc[hdr->cc];
+}
+
+/**
+ * Initialize RTP local state.
+ *
+ * @param rtp Address of the RTP state structure.
+ * @param pcm_samplerate PCM audio sample rate used for driving RTP clock.
+ * @param rtp_clockrate Desired clock rate of the RTP clock. */
+void rtp_state_init(
+		struct rtp_state *rtp,
+		unsigned int pcm_samplerate,
+		unsigned int rtp_clockrate) {
+
+	rtp->synced = false;
+
+	rtp->seq_number = rand();
+
+	rtp->ts_pcm_frames = 0;
+	rtp->ts_pcm_samplerate = pcm_samplerate;
+	rtp->ts_rtp_clockrate = rtp_clockrate;
+	rtp->ts_offset = rand();
+
+}
+
+/**
+ * Generate new RTP frame.
+ *
+ * @param rtp The RTP state structure.
+ * @param hdr The RTP header which will be updated. */
+void rtp_state_new_frame(
+		struct rtp_state *rtp,
+		rtp_header_t *hdr) {
+
+	uint32_t timestamp = rtp_convert_clock_rate(rtp->ts_pcm_frames,
+			rtp->ts_pcm_samplerate, rtp->ts_rtp_clockrate) + rtp->ts_offset;
+
+	hdr->seq_number = htobe16(++rtp->seq_number);
+	hdr->timestamp = htobe32(timestamp);
+
+}
+
+/**
+ * Synchronize local RTP state with RTP stream.
+ *
+ * @param rtp The RTP state structure.
+ * @param hdr The RTP header of received RTP frame.
+ * @param missing_rtp_frames If not NULL, the number of missing RTP frames will
+ *   be stored at the given address.
+ * @param missing_pcm_frames If not NULL, the number of missing PCM frames will
+ *   be stored at the given address. */
+void rtp_state_sync_stream(
+		struct rtp_state *rtp,
+		const rtp_header_t *hdr,
+		int *missing_rtp_frames,
+		int *missing_pcm_frames) {
+
+	uint16_t hdr_seq_number = be16toh(hdr->seq_number);
+	uint32_t hdr_timestamp = be32toh(hdr->timestamp);
+
+	if (!rtp->synced) {
+		rtp->seq_number = hdr_seq_number;
+		rtp->ts_offset = hdr_timestamp;
+		rtp->synced = true;
+		return;
+	}
+
+	/* increment local RTP sequence number */
+	uint16_t expect_seq_number = ++rtp->seq_number;
+
+	/* check for missing RTP frames */
+	if (missing_rtp_frames != NULL) {
+		if ((*missing_rtp_frames = hdr_seq_number - expect_seq_number) != 0) {
+			warn("Missing RTP packets [%u != %u]: %d",
+					hdr_seq_number, expect_seq_number, *missing_rtp_frames);
+			rtp->seq_number = hdr_seq_number;
+		}
+	}
+
+	/* check for missing PCM frames */
+	if (missing_pcm_frames != NULL) {
+
+		/* calculate expected PCM frames based on local timestamp */
+		const uint32_t timestamp = hdr_timestamp - rtp->ts_offset;
+		unsigned int expect_pcm_frames = rtp_convert_clock_rate(timestamp,
+				rtp->ts_rtp_clockrate, rtp->ts_pcm_samplerate);
+
+		if ((*missing_pcm_frames = expect_pcm_frames - rtp->ts_pcm_frames) != 0) {
+			debug("Missing PCM frames [%u]: %d", hdr_timestamp, *missing_pcm_frames);
+			rtp->ts_pcm_frames = expect_pcm_frames;
+		}
+
+	}
+
+}
+
+/**
+ * Update local RTP state.
+ *
+ * @param rtp The RTP state structure.
+ * @param pcm_frames The number of transferred PCM frames. */
+void rtp_state_update(
+		struct rtp_state *rtp,
+		unsigned int pcm_frames) {
+
+	rtp->ts_pcm_frames += pcm_frames;
+
 }

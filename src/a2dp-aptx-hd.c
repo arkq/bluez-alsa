@@ -137,11 +137,12 @@ static void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 	}
 
 	rtp_header_t *rtp_header;
-
 	/* initialize RTP header and get anchor for payload */
 	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header, NULL, 0);
-	uint16_t seq_number = be16toh(rtp_header->seq_number);
-	uint32_t timestamp = be32toh(rtp_header->timestamp);
+
+	struct rtp_state rtp = { .synced = false };
+	/* RTP clock frequency equal to audio samplerate */
+	rtp_state_init(&rtp, samplerate, samplerate);
 
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
@@ -191,6 +192,8 @@ static void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 
 			}
 
+			rtp_state_new_frame(&rtp, rtp_header);
+
 			ssize_t len = ffb_blen_out(&bt);
 			if ((len = io_bt_write(th, bt.data, len)) <= 0) {
 				if (len == -1)
@@ -198,16 +201,14 @@ static void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 				goto fail;
 			}
 
-			/* keep data transfer at a constant bit rate */
 			unsigned int pcm_frames = pcm_samples / channels;
+			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, pcm_frames);
-			timestamp += pcm_frames * 10000 / samplerate;
+			/* move forward RTP timestamp clock */
+			rtp.ts_pcm_frames += pcm_frames;
 
 			/* update busy delay (encoding overhead) */
 			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
-
-			rtp_header->seq_number = htobe16(++seq_number);
-			rtp_header->timestamp = htobe32(timestamp);
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
@@ -242,7 +243,6 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	uint16_t rtp_seq_number = 0;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -257,6 +257,9 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhddec_destroy), handle);
 
+	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
+
 	/* Note, that we are allocating space for one extra output packed, which is
 	 * required by the aptx_decode_sync() function of libopenaptx library. */
 	if (ffb_init_int32_t(&pcm, (t->mtu_read / 6 + 1) * 8) == -1 ||
@@ -264,6 +267,10 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
+
+	struct rtp_state rtp = { .synced = false };
+	/* RTP clock frequency equal to audio samplerate */
+	rtp_state_init(&rtp, samplerate, samplerate);
 
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
@@ -280,10 +287,13 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 		if ((rtp_payload = rtp_a2dp_get_payload(rtp_header)) == NULL)
 			continue;
 
-		rtp_a2dp_check_sequence(rtp_header, &rtp_seq_number);
+		int missing_rtp_frames = 0;
+		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+			rtp.synced = false;
 			continue;
+		}
 
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
 
@@ -308,6 +318,9 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 		io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
 		if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
+
+		/* update local state with decoded PCM frames */
+		rtp_state_update(&rtp, samples / channels);
 
 	}
 

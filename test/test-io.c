@@ -158,6 +158,7 @@ static const char *input_pcm_file = NULL;
 static unsigned int aging_duration = 0;
 static bool enable_vbr_mode = false;
 static bool dump_data = false;
+static bool packet_loss = false;
 
 static struct bt_dump *btd = NULL;
 
@@ -317,14 +318,20 @@ static void bt_data_write(struct ba_transport *t) {
 
 	struct pollfd fds[] = {{ t->bt_fd, POLLOUT, 0 }};
 	struct bt_data *bt_data_head = &bt_data;
+	bool first_packet = true;
 	char buffer[2024];
 	ssize_t len;
 
 	if (input_bt_file != NULL) {
 
 		while ((len = bt_dump_read(btd, buffer, sizeof(buffer))) != -1) {
+			if (packet_loss && random() < INT32_MAX / 3 && !first_packet) {
+				debug("Simulating packet loss: Dropping BT packet!");
+				continue;
+			}
 			ck_assert_int_ne(poll(fds, ARRAYSIZE(fds), -1), -1);
 			ck_assert_int_eq(write(fds[0].fd, buffer, len), len);
+			first_packet = false;
 		}
 
 	}
@@ -332,8 +339,13 @@ static void bt_data_write(struct ba_transport *t) {
 
 		for (; bt_data_head != bt_data_end; bt_data_head = bt_data_head->next) {
 			len = bt_data_head->len;
+			if (packet_loss && random() < INT32_MAX / 3 && !first_packet) {
+				debug("Simulating packet loss: Dropping BT packet!");
+				continue;
+			}
 			ck_assert_int_ne(poll(fds, ARRAYSIZE(fds), -1), -1);
 			ck_assert_int_eq(write(fds[0].fd, bt_data_head->data, len), len);
+			first_packet = false;
 		}
 
 	}
@@ -995,11 +1007,12 @@ int main(int argc, char *argv[]) {
 	};
 
 	int opt;
-	const char *opts = "ha:d";
+	const char *opts = "ha:dl";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "aging", required_argument, NULL, 'a' },
 		{ "dump", no_argument, NULL, 'd' },
+		{ "packet-loss", no_argument, NULL, 'l' },
 		{ "input-bt", required_argument, NULL, 1 },
 		{ "input-pcm", required_argument, NULL, 2 },
 		{ "vbr", no_argument, NULL, 3 },
@@ -1015,6 +1028,7 @@ int main(int argc, char *argv[]) {
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -a, --aging=SEC\tperform aging test for SEC seconds\n"
 					"  -d, --dump\t\tdump PCM and Bluetooth data\n"
+					"  -l, --packet-loss\tsimulate packet loss events\n"
 					"  --input-bt=FILE\tload Bluetooth data from FILE\n"
 					"  --input-pcm=FILE\tload audio from FILE (via libsndfile)\n"
 					"  --vbr\t\t\tuse VBR if supported by the codec\n",
@@ -1025,6 +1039,9 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'd' /* --dump */ :
 			dump_data = true;
+			break;
+		case 'l' /* --packet-loss */ :
+			packet_loss = true;
 			break;
 		case 1 /* --input-bt=FILE */ :
 			input_bt_file = optarg;

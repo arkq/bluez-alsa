@@ -292,11 +292,12 @@ static void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 	}
 
 	rtp_header_t *rtp_header;
-
 	/* initialize RTP header and get anchor for payload */
 	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header, NULL, 0);
-	uint16_t seq_number = be16toh(rtp_header->seq_number);
-	uint32_t timestamp = be32toh(rtp_header->timestamp);
+
+	struct rtp_state rtp = { .synced = false };
+	/* RTP clock frequency equal to 90kHz */
+	rtp_state_init(&rtp, samplerate, 90000);
 
 	int in_bufferIdentifiers[] = { IN_AUDIO_DATA };
 	int out_bufferIdentifiers[] = { OUT_BITSTREAM_DATA };
@@ -344,7 +345,6 @@ static void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 
 				size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN;
 				size_t payload_len = out_args.numOutBytes;
-				rtp_header->timestamp = htobe32(timestamp);
 
 				/* If the size of the RTP packet exceeds writing MTU, the RTP payload
 				 * should be fragmented. According to the RFC 3016, fragmentation of
@@ -355,7 +355,7 @@ static void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 					size_t chunk_len;
 					chunk_len = payload_len > payload_len_max ? payload_len_max : payload_len;
 					rtp_header->markbit = payload_len <= payload_len_max;
-					rtp_header->seq_number = htobe16(++seq_number);
+					rtp_state_new_frame(&rtp, rtp_header);
 
 					ffb_rewind(&bt);
 					ffb_seek(&bt, RTP_HEADER_LEN + chunk_len);
@@ -382,11 +382,11 @@ static void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 
 			}
 
-			/* keep data transfer at a constant bit rate, also
-			 * get a timestamp for the next RTP frame */
 			unsigned int pcm_frames = out_args.numInSamples / channels;
+			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, pcm_frames);
-			timestamp += pcm_frames * 10000 / samplerate;
+			/* move forward RTP timestamp clock */
+			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
 			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
@@ -420,7 +420,6 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	uint16_t rtp_seq_number = 0;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_AACDECODER handle;
@@ -434,6 +433,8 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacDecoder_Close), handle);
 
 	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
+
 #ifdef AACDECODER_LIB_VL0
 	if ((err = aacDecoder_SetParam(handle, AAC_PCM_MIN_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
 		error("Couldn't set min output channels: %s", aacdec_strerror(err));
@@ -464,6 +465,10 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	struct rtp_state rtp = { .synced = false };
+	/* RTP clock frequency equal to 90kHz */
+	rtp_state_init(&rtp, samplerate, 90000);
+
 	int markbit_quirk = -3;
 
 	debug_transport_thread_loop(th, "START");
@@ -481,10 +486,13 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 		if ((rtp_latm = rtp_a2dp_get_payload(rtp_header)) == NULL)
 			continue;
 
-		rtp_a2dp_check_sequence(rtp_header, &rtp_seq_number);
+		int missing_rtp_frames = 0;
+		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+			rtp.synced = false;
 			continue;
+		}
 
 		size_t rtp_latm_len = len - (rtp_latm - (uint8_t *)bt.data);
 
@@ -512,7 +520,7 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 		}
 
 		if (markbit_quirk != 1 && !rtp_header->markbit) {
-			debug("Fragmented RTP packet [%u]: LATM len: %zd", rtp_seq_number, rtp_latm_len);
+			debug("Fragmented RTP packet [%u]: LATM len: %zd", rtp.seq_number, rtp_latm_len);
 			continue;
 		}
 
@@ -527,12 +535,18 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 		else if ((aacinf = aacDecoder_GetStreamInfo(handle)) == NULL)
 			error("Couldn't get AAC stream info");
 		else {
+
 			if ((unsigned int)aacinf->numChannels != channels)
 				warn("AAC channels mismatch: %u != %u", aacinf->numChannels, channels);
+
 			const size_t samples = (size_t)aacinf->frameSize * channels;
 			io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
 			if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
+
+			/* update local state with decoded PCM frames */
+			rtp_state_update(&rtp, aacinf->frameSize);
+
 		}
 
 		/* make room for new LATM frame */

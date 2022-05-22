@@ -17,6 +17,7 @@
 #endif
 
 #include <endian.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -73,7 +74,44 @@ typedef struct rtp_mpeg_audio_header {
 } __attribute__ ((packed)) rtp_mpeg_audio_header_t;
 
 void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size);
-uint16_t rtp_a2dp_check_sequence(const rtp_header_t *hdr, uint16_t *counter);
 void *rtp_a2dp_get_payload(const rtp_header_t *hdr);
+
+/* Structure for storing local state
+ * of the ongoing RTP transmission. */
+struct rtp_state {
+
+	/* If true, state was synced with incoming RTP frames. */
+	bool synced;
+
+	/* sequence number of RTP frame */
+	uint16_t seq_number;
+
+	/* RTP timestamp clock based on PCM sample rate according to the following
+	 * formula: RTP_ts = PCM_frames / PCM_samplerate * RTP_clockrate */
+	unsigned int ts_pcm_frames;
+	unsigned int ts_pcm_samplerate;
+	unsigned int ts_rtp_clockrate;
+	uint32_t ts_offset;
+
+};
+
+void rtp_state_init(
+		struct rtp_state *rtp,
+		unsigned int pcm_samplerate,
+		unsigned int rtp_clockrate);
+
+void rtp_state_new_frame(
+		struct rtp_state *rtp,
+		rtp_header_t *hdr);
+
+void rtp_state_sync_stream(
+		struct rtp_state *rtp,
+		const rtp_header_t *hdr,
+		int *missing_rtp_frames,
+		int *missing_pcm_frames);
+
+void rtp_state_update(
+		struct rtp_state *rtp,
+		unsigned int pcm_frames);
 
 #endif

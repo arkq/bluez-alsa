@@ -296,12 +296,13 @@ static void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 
 	rtp_header_t *rtp_header;
 	rtp_mpeg_audio_header_t *rtp_mpeg_audio_header;
-
 	/* initialize RTP headers and get anchor for payload */
 	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
 			(void **)&rtp_mpeg_audio_header, sizeof(*rtp_mpeg_audio_header));
-	uint16_t seq_number = be16toh(rtp_header->seq_number);
-	uint32_t timestamp = be32toh(rtp_header->timestamp);
+
+	struct rtp_state rtp = { .synced = false };
+	/* RTP clock frequency equal to 90kHz */
+	rtp_state_init(&rtp, samplerate, 90000);
 
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
@@ -336,14 +337,13 @@ static void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 			size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN - sizeof(*rtp_mpeg_audio_header);
 			size_t payload_len_total = len;
 			size_t payload_len = len;
-			rtp_header->timestamp = htobe32(timestamp);
 
 			for (;;) {
 
 				size_t chunk_len;
 				chunk_len = payload_len > payload_len_max ? payload_len_max : payload_len;
 				rtp_header->markbit = payload_len <= payload_len_max;
-				rtp_header->seq_number = htobe16(++seq_number);
+				rtp_state_new_frame(&rtp, rtp_header);
 				rtp_mpeg_audio_header->offset = payload_len_total - payload_len;
 
 				ffb_rewind(&bt);
@@ -371,10 +371,10 @@ static void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 
 		}
 
-		/* keep data transfer at a constant bit rate, also
-		 * get a timestamp for the next RTP frame */
+		/* keep data transfer at a constant bit rate */
 		asrsync_sync(&io.asrs, pcm_frames);
-		timestamp += pcm_frames * 10000 / samplerate;
+		/* move forward RTP timestamp clock */
+		rtp_state_update(&rtp, pcm_frames);
 
 		/* update busy delay (encoding overhead) */
 		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
@@ -409,7 +409,6 @@ static void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	uint16_t rtp_seq_number = 0;
 	struct io_poll io = { .timeout = -1 };
 
 #if ENABLE_MPG123
@@ -457,6 +456,7 @@ static void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 	}
 
 	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int samplerate = t->a2dp.pcm.sampling;
 	pthread_cleanup_push(PTHREAD_CLEANUP(hip_decode_exit), handle);
 
 	/* NOTE: Size of the output buffer is "hard-coded" in hip_decode(). What is
@@ -478,6 +478,10 @@ static void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
+	struct rtp_state rtp = { .synced = false };
+	/* RTP clock frequency equal to 90kHz */
+	rtp_state_init(&rtp, samplerate, 90000);
+
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_set_state_running(th);;) {
 
@@ -493,10 +497,13 @@ static void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 		if ((rtp_mpeg_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
 			continue;
 
-		rtp_a2dp_check_sequence(rtp_header, &rtp_seq_number);
+		int missing_rtp_frames = 0;
+		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+			rtp.synced = false;
 			continue;
+		}
 
 		uint8_t *rtp_mpeg = (uint8_t *)(rtp_mpeg_header + 1);
 		size_t rtp_mpeg_len = len - (rtp_mpeg - (uint8_t *)bt.data);
@@ -504,7 +511,7 @@ static void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 #if ENABLE_MPG123
 
 		long rate;
-		int channels;
+		int channels_;
 		int encoding;
 
 decode:
@@ -515,8 +522,8 @@ decode:
 		case MPG123_OK:
 			break;
 		case MPG123_NEW_FORMAT:
-			mpg123_getformat(handle, &rate, &channels, &encoding);
-			debug("MPG123 new format detected: r:%ld, ch:%d, enc:%#x", rate, channels, encoding);
+			mpg123_getformat(handle, &rate, &channels_, &encoding);
+			debug("MPG123 new format detected: r:%ld, ch:%d, enc:%#x", rate, channels_, encoding);
 			break;
 		default:
 			error("MPG123 decoding error: %s", mpg123_strerror(handle));
@@ -527,6 +534,9 @@ decode:
 		io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
 		if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
+
+		/* update local state with decoded PCM frames */
+		rtp_state_update(&rtp, samples / channels);
 
 		if (len > 0) {
 			rtp_mpeg_len = 0;
@@ -562,6 +572,9 @@ decode:
 				error("FIFO write error: %s", strerror(errno));
 
 		}
+
+		/* update local state with decoded PCM frames */
+		rtp_state_update(&rtp, samples / channels);
 
 #endif
 
