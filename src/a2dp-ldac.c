@@ -293,15 +293,6 @@ fail_open_ldac:
 }
 
 #if HAVE_LDAC_DECODE
-
-static enum ba_transport_thread_signal a2dp_ldac_dec_io_poll_signal_filter(
-		enum ba_transport_thread_signal signal, void *userdata) {
-	uint16_t *rtp_seq_number = userdata;
-	if (signal == BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE)
-		*rtp_seq_number = 0;
-	return signal;
-}
-
 static void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -309,11 +300,7 @@ static void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	uint16_t rtp_seq_number = 0;
-	struct io_poll io = {
-		.signal.filter = a2dp_ldac_dec_io_poll_signal_filter,
-		.signal.userdata = &rtp_seq_number,
-		.timeout = -1,
-	};
+	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_LDAC_BT handle;
 	if ((handle = ldacBT_get_handle()) == NULL) {
@@ -354,13 +341,14 @@ static void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
+		const rtp_header_t *rtp_header = bt.data;
+		const rtp_media_header_t *rtp_media_header;
+		if ((rtp_media_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
 			continue;
 
-		rtp_a2dp_check_sequence(bt.data, &rtp_seq_number);
+		rtp_a2dp_check_sequence(rtp_header, &rtp_seq_number);
 
-		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = rtp_a2dp_get_payload(bt.data)) == NULL)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		const uint8_t *rtp_payload = (uint8_t *)(rtp_media_header + 1);

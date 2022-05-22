@@ -10,6 +10,7 @@ TESTS = \
 	test-ba \
 	test-io \
 	test-rfcomm \
+	test-rtp \
 	test-utils
 
 check_PROGRAMS = \
@@ -22,6 +23,7 @@ check_PROGRAMS = \
 	test-ba \
 	test-io \
 	test-rfcomm \
+	test-rtp \
 	test-utils
 
 if ENABLE_MSBC
@@ -151,6 +153,11 @@ test_rfcomm_SOURCES = \
 	../src/hfp.c \
 	../src/utils.c \
 	test-rfcomm.c
+
+test_rtp_SOURCES = \
+	../src/shared/log.c \
+	../src/rtp.c \
+	test-rtp.c
 
 test_utils_SOURCES = \
 	../src/shared/ffb.c \

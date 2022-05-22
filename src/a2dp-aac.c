@@ -414,14 +414,6 @@ fail_open:
 	return NULL;
 }
 
-static enum ba_transport_thread_signal a2dp_aac_dec_io_poll_signal_filter(
-		enum ba_transport_thread_signal signal, void *userdata) {
-	uint16_t *rtp_seq_number = userdata;
-	if (signal == BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE)
-		*rtp_seq_number = 0;
-	return signal;
-}
-
 static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -429,11 +421,7 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	uint16_t rtp_seq_number = 0;
-	struct io_poll io = {
-		.signal.filter = a2dp_aac_dec_io_poll_signal_filter,
-		.signal.userdata = &rtp_seq_number,
-		.timeout = -1,
-	};
+	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_AACDECODER handle;
 	AAC_DECODER_ERROR err;
@@ -488,16 +476,16 @@ static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
+		const uint8_t *rtp_latm;
+		const rtp_header_t *rtp_header = bt.data;
+		if ((rtp_latm = rtp_a2dp_get_payload(rtp_header)) == NULL)
+			continue;
+
+		rtp_a2dp_check_sequence(rtp_header, &rtp_seq_number);
+
 		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
-		rtp_a2dp_check_sequence(bt.data, &rtp_seq_number);
-
-		const uint8_t *rtp_latm;
-		if ((rtp_latm = rtp_a2dp_get_payload(bt.data)) == NULL)
-			continue;
-
-		const rtp_header_t *rtp_header = (rtp_header_t *)bt.data;
 		size_t rtp_latm_len = len - (rtp_latm - (uint8_t *)bt.data);
 
 		/* If in the first N packets mark bit is not set, it might mean, that

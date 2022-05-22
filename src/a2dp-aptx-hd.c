@@ -236,15 +236,6 @@ fail_init:
 }
 
 #if HAVE_APTX_HD_DECODE
-
-static enum ba_transport_thread_signal a2dp_aptx_hd_dec_io_poll_signal_filter(
-		enum ba_transport_thread_signal signal, void *userdata) {
-	uint16_t *rtp_seq_number = userdata;
-	if (signal == BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE)
-		*rtp_seq_number = 0;
-	return signal;
-}
-
 static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -252,11 +243,7 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 	uint16_t rtp_seq_number = 0;
-	struct io_poll io = {
-		.signal.filter = a2dp_aptx_hd_dec_io_poll_signal_filter,
-		.signal.userdata = &rtp_seq_number,
-		.timeout = -1,
-	};
+	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
 	if ((handle = aptxhddec_init()) == NULL) {
@@ -288,13 +275,14 @@ static void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
+		const uint8_t *rtp_payload;
+		const rtp_header_t *rtp_header = bt.data;
+		if ((rtp_payload = rtp_a2dp_get_payload(rtp_header)) == NULL)
 			continue;
 
-		rtp_a2dp_check_sequence(bt.data, &rtp_seq_number);
+		rtp_a2dp_check_sequence(rtp_header, &rtp_seq_number);
 
-		const uint8_t *rtp_payload;
-		if ((rtp_payload = rtp_a2dp_get_payload(bt.data)) == NULL)
+		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
 			continue;
 
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
@@ -335,7 +323,6 @@ fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
-
 #endif
 
 int a2dp_aptx_hd_transport_start(struct ba_transport *t) {
