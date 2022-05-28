@@ -271,7 +271,7 @@ As a special case, a single device mixer can be opened with the address **00:00:
 The Predefined **bluealsa** CTL
 -------------------------------
 
-The **bluealsa** CTL has parameters DEV, BAT, and SRV. All the parameters have defaults.
+The **bluealsa** CTL has parameters DEV, BAT, DYN, and SRV. All the parameters have defaults.
 
 CTL Parameters
 ~~~~~~~~~~~~~~
@@ -280,7 +280,10 @@ CTL Parameters
     The device Bluetooth address in the form XX:XX:XX:XX:XX:XX. Device names or aliases are not valid here. The default value is **FF:FF:FF:FF:FF:FF** which selects controls from all connected devices (see `Default Mode` above). Also accepts the special address **00:00:00:00:00:00** which selects the most recently connected device.
 
   BAT
-    Causes the plugin to include a (read-only) battery level indicator, provided the device supports this. If the value is **yes** then the battery indicator is enabled, any other value disables it. The default is **yes**
+    Causes the plugin to include a (read-only) battery level indicator, provided the device supports this. If the value is **yes** then the battery indicator is enabled, any other value disables it. The default is **yes**.
+
+  DYN
+    Enables "dynamic" operation. The plugin will add and remove controls as profiles are connected or disconnected. This is the normal behaviour, so the default value is "**yes**". This argument is ignored in default mode; in that mode operation is always dynamic. There are some applications that are not programmed to handle dynamic addition or removal of controls, and can fail when such events occur. Setting this argument to "no" in single device mode with such applications can protect them from such failures. When dynamic operation is disabled, the plugin never adds or removes any controls. If a single profile is disconnected, then its associated volume control is put into an inactive state, i.e.: read-only with its value and playback/capture switch set to 0.
 
   SRV
     The D-Bus service name of the BlueALSA daemon. Defaults to **org.bluealsa**. See ``bluealsa(8)`` for more information.
@@ -303,6 +306,7 @@ You can define your own ALSA CTL in the ALSA configuration. To do this, create a
     type bluealsa # Bluetooth PCM
     [device STR]  # Device address (default "FF:FF:FF:FF:FF:FF")
     [battery STR] # Include battery level indicator (yes/no, default no)
+    [dynamic STR] # Enable dynamic operation (yes/no, default yes)
     [service STR] # D-Bus name of service (default "org.bluealsa")
   }
 
