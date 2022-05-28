@@ -45,6 +45,9 @@ struct ctl_elem {
 	char name[44 /* internal ALSA constraint */ + 1];
 	/* if true, element is a playback control */
 	bool playback;
+	/* For single device mode, if true then the associated profile is connected.
+	 * If false, the element value is zero, and writes are ignored. */
+	bool active;
 };
 
 struct ctl_elem_update {
@@ -88,10 +91,8 @@ struct bluealsa_ctl {
 	size_t elem_update_list_size;
 	size_t elem_update_event_i;
 
-	/* Disconnection event pipe.
-	 * This allows us to generate a POLLERR event by closing the read end
-	 * then polling the write end. No actual reads or writes are performed
-	 * on this pipe, so no risk of SIGPIPE.
+	/* Event pipe. Allows us to trigger events internally and to generate a
+	 * POLLERR event by closing the read end then polling the write end.
 	 * Many applications (including alsamixer) interpret POLLERR as
 	 * indicating the mixer device has been disconnected. */
 	int pipefd[2];
@@ -100,6 +101,8 @@ struct bluealsa_ctl {
 	bool show_battery;
 	/* if true, this mixer is for a single Bluetooth device */
 	bool single_device;
+	/* if true, this mixer adds/removes controls dynamically */
+	bool dynamic;
 
 };
 
@@ -308,6 +311,37 @@ static int bluealsa_pcm_remove(struct bluealsa_ctl *ctl, const char *path) {
 	return 0;
 }
 
+static int bluealsa_pcm_activate(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
+	size_t i;
+	for (i = 0; i < ctl->pcm_list_size; i++)
+		if (strcmp(ctl->pcm_list[i].pcm_path, pcm->pcm_path) == 0) {
+
+			/* update potentially stalled PCM data */
+			memcpy(&ctl->pcm_list[i], pcm, sizeof(ctl->pcm_list[i]));
+
+			size_t el;
+			/* activate associated elements */
+			for (el = 0; el < ctl->elem_list_size; el++)
+				if (ctl->elem_list[el].pcm == &ctl->pcm_list[i]) {
+					ctl->elem_list[el].active = true;
+					bluealsa_event_elem_updated(ctl, ctl->elem_list[el].name);
+				}
+
+			break;
+		}
+	return 0;
+}
+
+static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
+	size_t i;
+	for (i = 0; i < ctl->elem_list_size; i++)
+		if (strcmp(ctl->elem_list[i].pcm->pcm_path, path) == 0) {
+			ctl->elem_list[i].active = false;
+			bluealsa_event_elem_updated(ctl, ctl->elem_list[i].name);
+		}
+	return 0;
+}
+
 /**
  * Update element name based on given string and PCM type.
  *
@@ -417,6 +451,7 @@ static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev 
 	elem_list[n].dev = dev;
 	elem_list[n].pcm = pcm;
 	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
+	elem_list[n].active = true;
 	bluealsa_elem_set_name(&elem_list[n], name, -1);
 
 	n++;
@@ -425,6 +460,7 @@ static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev 
 	elem_list[n].dev = dev;
 	elem_list[n].pcm = pcm;
 	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
+	elem_list[n].active = true;
 	bluealsa_elem_set_name(&elem_list[n], name, -1);
 
 	n++;
@@ -442,6 +478,7 @@ static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev 
 		elem_list[n].dev = dev;
 		elem_list[n].pcm = pcm;
 		elem_list[n].playback = true;
+		elem_list[n].active = true;
 		bluealsa_elem_set_name(&elem_list[n], name, -1);
 
 		n++;
@@ -675,20 +712,21 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 
 	const struct ctl_elem *elem = &ctl->elem_list[key];
 	const struct ba_pcm *pcm = elem->pcm;
+	const bool active = elem->active;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
-		value[0] = elem->dev->battery_level;
+		value[0] = active ? elem->dev->battery_level : 0;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
-		value[0] = !pcm->volume.ch1_muted;
+		value[0] = active ? !pcm->volume.ch1_muted : 0;
 		if (pcm->channels == 2)
-			value[1] = !pcm->volume.ch2_muted;
+			value[1] = active ? !pcm->volume.ch2_muted : 0;
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		value[0] = pcm->volume.ch1_volume;
+		value[0] = active ? pcm->volume.ch1_volume : 0;
 		if (pcm->channels == 2)
-			value[1] = pcm->volume.ch2_volume;
+			value[1] = active ? pcm->volume.ch2_volume : 0;
 		break;
 	}
 
@@ -704,6 +742,16 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	struct ctl_elem *elem = &ctl->elem_list[key];
 	struct ba_pcm *pcm = elem->pcm;
 	uint16_t old = pcm->volume.raw;
+
+	if (!elem->active) {
+		/* Ignore the write request because the associated PCM profile has been
+		 * disconnected. Create an update event so the application is informed
+		 * that the value has been reset to zero. */
+		bluealsa_event_elem_updated(ctl, elem->name);
+		char ping = 1;
+		write(ctl->pipefd[1], &ping, sizeof(ping));
+		return 1;
+	}
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -735,9 +783,8 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
 	if (subscribe) {
-		if (!ctl->single_device)
-			bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-					DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded", "path_namespace='/org/bluealsa'");
+		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
+				DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded", "path_namespace='/org/bluealsa'");
 		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved", "path_namespace='/org/bluealsa'");
 		char dbus_args[50];
@@ -770,11 +817,20 @@ static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 		*stpncpy(dev->name, alias, sizeof(dev->name) - 1) = '\0';
 		dev->mask = BT_DEV_MASK_UPDATE;
 	}
-	if (strcmp(key, "Battery") == 0) {
+	else if (strcmp(key, "Battery") == 0) {
 		signed char level;
 		dbus_message_iter_get_basic(variant, &level);
-		dev->mask = dev->battery_level == -1 ? BT_DEV_MASK_ADD : BT_DEV_MASK_UPDATE;
+		dev->mask = BT_DEV_MASK_UPDATE;
+		if (dev->battery_level == -1)
+			dev->mask = BT_DEV_MASK_ADD | BT_DEV_MASK_UPDATE;
 		dev->battery_level = level;
+	}
+	else if (strcmp(key, "Connected") == 0) {
+		dbus_bool_t connected;
+		dbus_message_iter_get_basic(variant, &connected);
+		/* process device disconnected event only */
+		if (!connected)
+			dev->mask = BT_DEV_MASK_REMOVE;
 	}
 
 	return TRUE;
@@ -813,6 +869,14 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 							bluealsa_dbus_msg_update_dev, dev);
 					if (dev->mask & BT_DEV_MASK_UPDATE)
 						goto remove_add;
+					if (ctl->single_device &&
+							dev->mask & BT_DEV_MASK_REMOVE) {
+						/* Single device mode does not process PCM removes, however,
+						 * when the device disconnects we would like to simulate CTL
+						 * unplug event. */
+						ctl->pcm_list_size = 0;
+						goto remove_add;
+					}
 				}
 			}
 
@@ -824,7 +888,9 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 				if (strcmp(dev->rfcomm_path, path) == 0) {
 					bluealsa_dbus_message_iter_dict(&iter, NULL,
 							bluealsa_dbus_msg_update_dev, dev);
-					if (dev->mask & BT_DEV_MASK_ADD)
+					/* for non-dynamic mode we need to use update logic */
+					if (ctl->dynamic &&
+							dev->mask & BT_DEV_MASK_ADD)
 						goto remove_add;
 					if (elem->type != CTL_ELEM_TYPE_BATTERY)
 						continue;
@@ -849,21 +915,35 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 	}
 	else if (strcmp(interface, DBUS_INTERFACE_OBJECT_MANAGER) == 0) {
 
-		if (!ctl->single_device &&
-				strcmp(signal, "InterfacesAdded") == 0) {
+		if (strcmp(signal, "InterfacesAdded") == 0) {
 			struct ba_pcm pcm;
 			if (bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &pcm) &&
 					pcm.transport != BA_PCM_TRANSPORT_NONE) {
-				bluealsa_pcm_add(ctl, &pcm);
+
+				if (ctl->dynamic)
+					bluealsa_pcm_add(ctl, &pcm);
+				else
+					bluealsa_pcm_activate(ctl, &pcm);
+
 				goto remove_add;
+
 			}
 		}
 
 		if (strcmp(signal, "InterfacesRemoved") == 0) {
+
 			const char *pcm_path;
 			dbus_message_iter_get_basic(&iter, &pcm_path);
-			bluealsa_pcm_remove(ctl, pcm_path);
+
+			if (ctl->dynamic)
+				bluealsa_pcm_remove(ctl, pcm_path);
+			else
+				/* In the non-dynamic operation mode we never remove any elements,
+				 * we simply mark all elements of the removed PCM as inactive. */
+				bluealsa_pcm_deactivate(ctl, pcm_path);
+
 			goto remove_add;
+
 		}
 
 	}
@@ -890,7 +970,11 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 
 	return DBUS_HANDLER_RESULT_HANDLED;
 
-remove_add: {
+remove_add:
+
+	if (!ctl->dynamic)
+		/* non-dynamic mode SHALL not add/remove any elements */
+		goto final;
 
 	/* During a PCM name change, new PCM insertion and/or deletion, the name
 	 * of all control elements might have change, because of optional unique
@@ -906,6 +990,8 @@ remove_add: {
 	for (i = 0; i < ctl->elem_list_size; i++)
 		bluealsa_event_elem_added(ctl, ctl->elem_list[i].name);
 
+final:
+
 	if (ctl->single_device && ctl->pcm_list_size == 0) {
 		/* Trigger POLLERR by closing the read end of our pipe. This
 		 * simulates a CTL device being unplugged. */
@@ -914,7 +1000,7 @@ remove_add: {
 	}
 
 	return DBUS_HANDLER_RESULT_HANDLED;
-}}
+}
 
 static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsigned int *event_mask) {
 	struct bluealsa_ctl *ctl = ext->private_data;
@@ -950,6 +1036,11 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 	 * kind to actually call .poll_revents(), this code should remain as a
 	 * backward compatibility. */
 	bluealsa_dbus_connection_dispatch(&ctl->dbus_ctx);
+	/* For the same reason, we also need to clear any internal ping events. */
+	if (ctl->single_device) {
+		char buffer[16];
+		read(ctl->pipefd[0], buffer, sizeof(buffer));
+	}
 
 	if (ctl->elem_update_list_size)
 		return bluealsa_read_event(ext, id, event_mask);
@@ -962,33 +1053,40 @@ static int bluealsa_poll_descriptors_count(snd_ctl_ext_t *ext) {
 	nfds_t dbus_nfds = 0;
 	bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, NULL, &dbus_nfds);
 
-	return 1 + dbus_nfds;
+	return 2 + dbus_nfds;
 }
 
 static int bluealsa_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd,
 		unsigned int nfds) {
 	struct bluealsa_ctl *ctl = ext->private_data;
 
-	nfds_t dbus_nfds = nfds - 1;
+	nfds_t dbus_nfds = nfds - 2;
 
-	pfd[0].fd = ctl->pipefd[1];
-	/* For our internal PIPE we are not interested
+	pfd[0].fd = ctl->pipefd[0];
+	pfd[0].events = POLLIN;
+	pfd[1].fd = ctl->pipefd[1];
+	/* For the write end of our internal PIPE we are not interested
 	 * in any I/O events, only in error condition. */
-	pfd[0].events = 0;
+	pfd[1].events = 0;
 
-	if (!bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, &pfd[1], &dbus_nfds))
+	if (!bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, &pfd[2], &dbus_nfds))
 		return -EINVAL;
 
-	return 1 + dbus_nfds;
+	return 2 + dbus_nfds;
 }
 
 static int bluealsa_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd,
 		unsigned int nfds, unsigned short *revents) {
 	struct bluealsa_ctl *ctl = ext->private_data;
 
-	*revents = pfd[0].revents;
+	if (pfd[0].revents) {
+		char buffer[16];
+		read(ctl->pipefd[0], buffer, sizeof(buffer));
+	}
 
-	if (bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, &pfd[1], nfds - 1))
+	*revents = pfd[0].revents | pfd[1].revents;
+
+	if (bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, &pfd[2], nfds - 1))
 		*revents |= POLLIN;
 
 	return 0;
@@ -1082,7 +1180,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	DBusError err = DBUS_ERROR_INIT;
 	const char *service = BLUEALSA_SERVICE;
 	const char *device = NULL;
-	const char *battery = "no";
+	bool show_battery = false;
+	bool dynamic = true;
 	struct bluealsa_ctl *ctl;
 	int ret;
 
@@ -1114,10 +1213,19 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 			continue;
 		}
 		if (strcmp(id, "battery") == 0) {
-			if (snd_config_get_string(n, &battery) < 0) {
+			if ((ret = snd_config_get_bool(n)) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
+			show_battery = !!ret;
+			continue;
+		}
+		if (strcmp(id, "dynamic") == 0) {
+			if ((ret = snd_config_get_bool(n)) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			dynamic = !!ret;
 			continue;
 		}
 
@@ -1130,6 +1238,13 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		SNDERR("Invalid BT device address: %s", device);
 		return -EINVAL;
 	}
+
+	/* single Bluetooth device mode */
+	bool single_device_mode = bacmp(&ba_addr, BDADDR_ALL) != 0;
+
+	/* non-dynamic operation requires single device mode */
+	if (!single_device_mode)
+		dynamic = true;
 
 	if ((ctl = calloc(1, sizeof(*ctl))) == NULL)
 		return -ENOMEM;
@@ -1153,8 +1268,9 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	ctl->pipefd[0] = -1;
 	ctl->pipefd[1] = -1;
 
-	ctl->show_battery = snd_config_get_bool_ascii(battery) == 1;
-	ctl->single_device = false;
+	ctl->show_battery = show_battery;
+	ctl->single_device = single_device_mode;
+	ctl->dynamic = dynamic;
 
 	dbus_threads_init_default();
 
@@ -1176,11 +1292,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	if (bacmp(&ba_addr, BDADDR_ALL) != 0) {
-
-		/* single Bluetooth device mode */
-		ctl->single_device = true;
-
+	if (ctl->single_device) {
 		const size_t pcm_list_size = ctl->pcm_list_size;
 		struct ba_pcm *pcm_list = ctl->pcm_list;
 

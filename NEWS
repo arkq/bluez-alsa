@@ -1,6 +1,8 @@
 unreleased
 ==========
 
+Optional non-dynamic operation mode for ALSA control plug-in
+
 bluez-alsa v4.0.0 (2022-06-03)
 ==============================
 
