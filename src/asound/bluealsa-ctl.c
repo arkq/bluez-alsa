@@ -263,6 +263,29 @@ static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba
 	return dev;
 }
 
+static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
+		const char *elem_name, unsigned int mask) {
+
+	struct ctl_elem_update *tmp = ctl->elem_update_list;
+	if ((tmp = realloc(tmp, (ctl->elem_update_list_size + 1) * sizeof(*tmp))) == NULL)
+		return -1;
+
+	tmp[ctl->elem_update_list_size].event_mask = mask;
+	*stpncpy(tmp[ctl->elem_update_list_size].name, elem_name,
+			sizeof(tmp[ctl->elem_update_list_size].name) - 1) = '\0';
+
+	ctl->elem_update_list = tmp;
+	ctl->elem_update_list_size++;
+	return 0;
+}
+
+#define bluealsa_event_elem_added(ctl, elem) \
+	bluealsa_elem_update_list_add(ctl, elem, SND_CTL_EVENT_MASK_ADD)
+#define bluealsa_event_elem_removed(ctl, elem) \
+	bluealsa_elem_update_list_add(ctl, elem, SND_CTL_EVENT_MASK_REMOVE)
+#define bluealsa_event_elem_updated(ctl, elem) \
+	bluealsa_elem_update_list_add(ctl, elem, SND_CTL_EVENT_MASK_VALUE)
+
 static int bluealsa_pcm_add(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
 	struct ba_pcm *tmp = ctl->pcm_list;
 	if ((tmp = realloc(tmp, (ctl->pcm_list_size + 1) * sizeof(*tmp))) == NULL)
@@ -366,6 +389,57 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 
 }
 
+/**
+ * Create control elements for a given PCM.
+ *
+ * @param elem_list An address to the array of element structures. This array
+ *   must have sufficient space for new elements which includes volume element,
+ *   switch element and optional battery indicator element.
+ * @param dev The BT device associated with created elements.
+ * @param pcm The BlueALSA PCM associated with created elements.
+ * @param single_device If true, elements shall be created for the single
+ *   device mode.
+ * @param add_battery_elem If true, try to add an optional battery level
+ *   indicator element.
+ * @return The number of elements added. */
+static size_t bluealsa_add_pcm_elems(struct bluealsa_ctl *ctl,
+		struct ctl_elem *elem_list, struct bt_dev *dev, struct ba_pcm *pcm,
+		bool single_device, bool add_battery_elem) {
+
+	const char *name = single_device ? NULL : dev->name;
+	size_t n = 0;
+
+	elem_list[n].type = CTL_ELEM_TYPE_VOLUME;
+	elem_list[n].dev = dev;
+	elem_list[n].pcm = pcm;
+	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
+	bluealsa_elem_set_name(&elem_list[n], name, -1);
+
+	n++;
+
+	elem_list[n].type = CTL_ELEM_TYPE_SWITCH;
+	elem_list[n].dev = dev;
+	elem_list[n].pcm = pcm;
+	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
+	bluealsa_elem_set_name(&elem_list[n], name, -1);
+
+	n++;
+
+	/* try to add special battery level indicator element */
+	if (add_battery_elem && dev->battery_level == -1 &&
+			bluealsa_dev_fetch_battery(ctl, dev) != -1) {
+		elem_list[n].type = CTL_ELEM_TYPE_BATTERY;
+		elem_list[n].dev = dev;
+		elem_list[n].pcm = pcm;
+		elem_list[n].playback = true;
+		bluealsa_elem_set_name(&elem_list[n], name, -1);
+
+		n++;
+	}
+
+	return n;
+}
+
 static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 	size_t count = 0;
@@ -401,35 +475,9 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 		struct ba_pcm *pcm = &ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
-		const char *name = ctl->single_device ? NULL : dev->name;
 
-		elem_list[count].type = CTL_ELEM_TYPE_VOLUME;
-		elem_list[count].dev = dev;
-		elem_list[count].pcm = pcm;
-		elem_list[count].playback = pcm->mode == BA_PCM_MODE_SINK;
-		bluealsa_elem_set_name(&elem_list[count], name, -1);
-
-		count++;
-
-		elem_list[count].type = CTL_ELEM_TYPE_SWITCH;
-		elem_list[count].dev = dev;
-		elem_list[count].pcm = pcm;
-		elem_list[count].playback = pcm->mode == BA_PCM_MODE_SINK;
-		bluealsa_elem_set_name(&elem_list[count], name, -1);
-
-		count++;
-
-		/* Try to add special "battery" element. */
-		if (ctl->show_battery && dev->battery_level == -1 &&
-				bluealsa_dev_fetch_battery(ctl, dev) != -1) {
-			elem_list[count].type = CTL_ELEM_TYPE_BATTERY;
-			elem_list[count].dev = dev;
-			elem_list[count].pcm = pcm;
-			elem_list[count].playback = true;
-			bluealsa_elem_set_name(&elem_list[count], name, -1);
-
-			count++;
-		}
+		count += bluealsa_add_pcm_elems(ctl, &elem_list[count],
+				dev, pcm, ctl->single_device, ctl->show_battery);
 
 	}
 
@@ -682,29 +730,6 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 
 	dbus_connection_flush(ctl->dbus_ctx.conn);
 }
-
-static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
-		const char *elem_name, unsigned int mask) {
-
-	struct ctl_elem_update *tmp = ctl->elem_update_list;
-	if ((tmp = realloc(tmp, (ctl->elem_update_list_size + 1) * sizeof(*tmp))) == NULL)
-		return -1;
-
-	tmp[ctl->elem_update_list_size].event_mask = mask;
-	*stpncpy(tmp[ctl->elem_update_list_size].name, elem_name,
-			sizeof(tmp[ctl->elem_update_list_size].name) - 1) = '\0';
-
-	ctl->elem_update_list = tmp;
-	ctl->elem_update_list_size++;
-	return 0;
-}
-
-#define bluealsa_event_elem_added(ctl, elem) \
-	bluealsa_elem_update_list_add(ctl, elem, SND_CTL_EVENT_MASK_ADD)
-#define bluealsa_event_elem_removed(ctl, elem) \
-	bluealsa_elem_update_list_add(ctl, elem, SND_CTL_EVENT_MASK_REMOVE)
-#define bluealsa_event_elem_updated(ctl, elem) \
-	bluealsa_elem_update_list_add(ctl, elem, SND_CTL_EVENT_MASK_VALUE)
 
 static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 		DBusMessageIter *variant, void *userdata, DBusError *error) {
@@ -1179,15 +1204,15 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if (ctl->single_device) {
 
-		if (pipe2(ctl->pipefd, O_CLOEXEC) == -1) {
-			SNDERR("Couldn't create event pipe: %s", strerror(errno));
-			ret = -errno;
-			goto fail;
-		}
-
 		if (ctl->dev_list_size != 1) {
 			SNDERR("No such BlueALSA audio device: %s", device);
 			ret = -ENODEV;
+			goto fail;
+		}
+
+		if (pipe2(ctl->pipefd, O_CLOEXEC | O_NONBLOCK) == -1) {
+			SNDERR("Couldn't create event pipe: %s", strerror(errno));
+			ret = -errno;
 			goto fail;
 		}
 
