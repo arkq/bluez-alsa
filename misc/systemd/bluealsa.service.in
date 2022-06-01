@@ -2,7 +2,7 @@
 Description=BlueALSA service
 Documentation=man:bluealsa(8)
 Requisite=dbus.service
-After=bluez.service
+After=bluetooth.service
 
 # In order to customize BlueALSA D-Bus service one should create an override
 # for this systemd unit file. Please note, that in the override file one will
