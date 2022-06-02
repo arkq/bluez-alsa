@@ -320,6 +320,20 @@ AC_ARG_WITH([systemdsystemunitdir],
 	[systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])])
 AC_SUBST([SYSTEMD_SYSTEM_UNIT_DIR], [$systemdsystemunitdir])
 
+AC_ARG_WITH([systemdbluealsaargs],
+	AS_HELP_STRING([--with-systemdbluealsaargs=ARGS], [bluealsa arguments to be used in
+		bluealsa.service, defaults to '-p a2dp-source -p a2dp-sink' if not specified]),
+	[systemdbluealsaargs="${withval}"],
+	[systemdbluealsaargs="-p a2dp-source -p a2dp-sink"])
+AC_SUBST([SYSTEMD_BLUEALSA_ARGS], [$systemdbluealsaargs])
+
+AC_ARG_WITH([systemdbluealsaaplayargs],
+	AS_HELP_STRING([--with-systemdbluealsaaplayargs=ARGS], [bluealsa-aplay arguments to
+		be used in bluealsa-aplay.service, defaults to empty if not specified]),
+	[systemdbluealsaaplayargs="${withval}"],
+	[systemdbluealsaaplayargs=""])
+AC_SUBST([SYSTEMD_BLUEALSA_APLAY_ARGS], [$systemdbluealsaaplayargs])
+
 AC_CONFIG_FILES([
 	Makefile
 	doc/Makefile

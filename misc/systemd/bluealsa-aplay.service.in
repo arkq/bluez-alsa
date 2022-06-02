@@ -15,7 +15,7 @@ Requisite=dbus.service
 
 [Service]
 Type=simple
-ExecStart=@bindir@/bluealsa-aplay
+ExecStart=@bindir@/bluealsa-aplay @systemdbluealsaaplayargs@
 Restart=on-failure
 
 # Sandboxing
