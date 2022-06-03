@@ -1,9 +1,14 @@
 unreleased
 ==========
 
+bluez-alsa v4.0.0 (2022-06-03)
+==============================
+
 - changes in command line options (no backward compatibility)
+- implement D-Bus ObjectManager (deprecate org.bluealsa.Manger1)
 - optional support for A2DP FastStream codec (music & voice)
 - optional support for A2DP LC3plus codec (music & voice)
+- enhanced SBC XQ mode (XQ+) which bumps bitrate to 595 kbps
 - packet loss concealment (PLC) for HFP with mSBC codec
 - enable/disable BT codecs via command line options
 - allow to select BT transport codec with ALSA configuration
@@ -11,8 +16,11 @@ unreleased
 - optional single-device mode for ALSA control plug-in
 - export battery status/charge via BlueZ battery provider
 - connection keep-alive timeout for all BT profiles
+- better conformance with RTP specification for A2DP codecs
 - fix for rapid consecutive SCO link close(2)/connect(2)
 - bluealsa-aplay: forward PCM volume to ALSA mixer element
+- systemd service files for bluealsa and bluealsa-aplay
+- lots of fixes for ALSA PCM I/O and control plug-ins
 
 bluez-alsa v3.1.0 (2021-06-01)
 ==============================
