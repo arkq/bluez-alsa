@@ -43,9 +43,9 @@
 #define BA_PAUSE_STATE_PAUSED  (1 << 0)
 #define BA_PAUSE_STATE_PENDING (1 << 1)
 
-#if SND_LIB_VERSION >= 0x010104 && SND_LIB_VERSION <= 0x010205
+#if SND_LIB_VERSION >= 0x010104
 /**
- * alsa-lib releases 1.1.4 to 1.2.5.1 inclusive have a bug in the rate plugin
+ * alsa-lib releases from 1.1.4 have a bug in the rate plugin
  * which, when combined with the hw params refinement algorithm used by the
  * ioplug, can cause snd_pcm_avail() to return bogus values. This, in turn,
  * can trigger deadlock in applications built on the portaudio library
@@ -520,7 +520,7 @@ static int bluealsa_fix_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *par
 	if ((ret = snd_pcm_hw_params_set_buffer_size(io->pcm, refined_params, buffer_size)) < 0)
 		return ret;
 
-	memcpy(params, refined_params, snd_pcm_hw_params_sizeof());
+	snd_pcm_hw_params_copy(params, refined_params);
 
 	return ret;
 }
@@ -528,12 +528,14 @@ static int bluealsa_fix_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *par
 
 static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	(void)params;
+
 	debug2("Initializing HW");
 
 #if	BLUEALSA_HW_PARAMS_FIX
 	if (bluealsa_fix_hw_params(io, params) < 0)
 		debug2("Warning - unable to fix incorrect buffer size in hw parameters");
+#endif
+
 	snd_pcm_uframes_t period_size;
 	int ret;
 	if ((ret = snd_pcm_hw_params_get_period_size(params, &period_size, 0)) < 0)
@@ -541,7 +543,6 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	snd_pcm_uframes_t buffer_size;
 	if ((ret = snd_pcm_hw_params_get_buffer_size(params, &buffer_size)) < 0)
 		return ret;
-#endif
 
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
@@ -566,7 +567,6 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	debug2("FIFO buffer size: %zd frames", pcm->delay_fifo_size);
 
-#if BLUEALSA_HW_PARAMS_FIX
 	/* ALSA default for avail min is one period. */
 	pcm->io_avail_min = period_size;
 
@@ -574,15 +574,6 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 			buffer_size / period_size, pcm->frame_size * period_size,
 			period_size * (buffer_size / period_size) == buffer_size ? '=' : '<',
 			buffer_size * pcm->frame_size);
-#else
-	/* ALSA default for avail min is one period. */
-	pcm->io_avail_min = io->period_size;
-
-	debug2("Selected HW buffer: %zd periods x %zd bytes %c= %zd bytes",
-			io->buffer_size / io->period_size, pcm->frame_size * io->period_size,
-			io->period_size * (io->buffer_size / io->period_size) == io->buffer_size ? '=' : '<',
-			io->buffer_size * pcm->frame_size);
-#endif
 
 	return 0;
 }
