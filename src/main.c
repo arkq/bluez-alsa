@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
 			break;
 		}
 
-	log_open(argv[0], syslog, BLUEALSA_LOGTIME);
+	log_open(argv[0], syslog);
 
 	if (bluealsa_config_init() != 0) {
 		error("Couldn't initialize bluealsa config");

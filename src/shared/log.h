@@ -22,13 +22,7 @@
 
 #include "shared/defs.h"
 
-#if DEBUG_TIME
-# define BLUEALSA_LOGTIME true
-#else
-# define BLUEALSA_LOGTIME false
-#endif
-
-void log_open(const char *ident, bool syslog, bool time);
+void log_open(const char *ident, bool syslog);
 void log_message(int priority, const char *format, ...) __attribute__ ((format(printf, 2, 3)));
 
 #if DEBUG

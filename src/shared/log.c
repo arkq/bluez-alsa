@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -33,18 +33,26 @@
 static char *_ident = NULL;
 /* if true, system logging is enabled */
 static bool _syslog = false;
-/* if true, print logging time */
-static bool _time = BLUEALSA_LOGTIME;
 
-void log_open(const char *ident, bool syslog, bool time) {
+#if DEBUG_TIME
+
+/* point "zero" for relative time */
+static struct timespec _ts0;
+
+__attribute__ ((constructor))
+static void init_ts0(void) {
+	gettimestamp(&_ts0);
+}
+
+#endif
+
+void log_open(const char *ident, bool syslog) {
 
 	free(_ident);
 	_ident = strdup(ident);
 
 	if ((_syslog = syslog) == true)
 		openlog(ident, 0, LOG_USER);
-
-	_time = time;
 
 }
 
@@ -69,6 +77,12 @@ static void vlog(int priority, const char *format, va_list ap) {
 	 * has to be temporally disabled. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
+#if DEBUG_TIME
+	struct timespec ts;
+	gettimestamp(&ts);
+	timespecsub(&ts, &_ts0, &ts);
+#endif
+
 	if (_syslog) {
 		va_list ap_syslog;
 		va_copy(ap_syslog, ap);
@@ -80,11 +94,11 @@ static void vlog(int priority, const char *format, va_list ap) {
 
 	if (_ident != NULL)
 		fprintf(stderr, "%s: ", _ident);
-	if (_time) {
-		struct timespec ts;
-		gettimestamp(&ts);
-		fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
-	}
+
+#if DEBUG_TIME
+	fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
+#endif
+
 	fprintf(stderr, "%s: ", priority2str[priority]);
 	vfprintf(stderr, format, ap);
 	fputs("\n", stderr);

@@ -930,7 +930,7 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
-	log_open(argv[0], false, false);
+	log_open(argv[0], false);
 	dbus_threads_init_default();
 
 	DBusError err = DBUS_ERROR_INIT;
