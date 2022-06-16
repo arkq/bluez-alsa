@@ -54,8 +54,7 @@ OPTIONS
     Select ALSA playback PCM device to use for audio output.
     The default is ``default``.
 
-    Available ALSA PCM devices can be listed by running **aplay -L**. You must
-    use the full PCM device name eg `front:CARD=Generic_1,DEV=0` not just `front`.
+    On most Linux distributions, available ALSA PCM devices can be listed by running **aplay -L**.
 
     **bluealsa-aplay** does not perform any mixing of streams. If multiple devices
     are connected it opens a new connection to the ALSA PCM device for each stream.
