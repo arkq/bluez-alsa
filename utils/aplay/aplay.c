@@ -50,6 +50,7 @@ struct pcm_worker {
 	/* mixer for volume control */
 	snd_mixer_t *mixer;
 	snd_mixer_elem_t *mixer_elem;
+	bool mixer_has_mute_switch;
 	/* if true, playback is active */
 	bool active;
 	/* human-readable BT address */
@@ -70,6 +71,9 @@ static size_t ba_addrs_count = 0;
 static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
 static bool pcm_mixer = true;
+
+/* local PCM muted state for software mute */
+static bool pcm_muted = false;
 
 static struct ba_dbus_ctx dbus_ctx;
 static char dbus_ba_service[32] = BLUEALSA_SERVICE;
@@ -320,13 +324,20 @@ static int pcm_worker_mixer_volume_sync(
 	for (ch = 0; snd_mixer_selem_has_playback_channel(elem, ch) == 1; ch++) {
 
 		long ch_volume_db;
-		int ch_switch;
+		int ch_switch = 1;
 
 		int err;
-		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0 ||
-				(err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
-			error("Couldn't get playback volume: %s", snd_strerror(err));
+		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0) {
+			error("Couldn't get playback dB level: %s", snd_strerror(err));
 			return -1;
+		}
+
+		/* mute switch is an optional feature for a mixer element */
+		if ((worker->mixer_has_mute_switch = snd_mixer_selem_has_playback_switch(elem))) {
+			if ((err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
+				error("Couldn't get playback switch: %s", snd_strerror(err));
+				return -1;
+			}
 		}
 
 		volume_db_sum += ch_volume_db;
@@ -342,6 +353,11 @@ static int pcm_worker_mixer_volume_sync(
 	/* Convert dB to loudness using decibel formula and
 	 * round to the nearest integer. */
 	int volume = lround(pow(2, (0.01 * volume_db_sum / ch) / 10) * vmax);
+
+	/* If mixer element does not support playback switch,
+	 * use our global muted state. */
+	if (!worker->mixer_has_mute_switch)
+		muted = pcm_muted;
 
 	ba_pcm->volume.ch1_muted = muted;
 	ba_pcm->volume.ch1_volume = volume;
@@ -388,13 +404,22 @@ static int pcm_worker_mixer_volume_update(
 		muted = ba_pcm->volume.ch1_muted || ba_pcm->volume.ch2_muted;
 	}
 
+	/* keep local muted state up to date */
+	pcm_muted = muted;
+
 	/* convert loudness to dB using decibel formula */
 	long db = 10 * log2(1.0 * volume / vmax) * 100;
 
 	int err;
-	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0 ||
+	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0) {
+		error("Couldn't set playback dB level: %s", snd_strerror(err));
+		return -1;
+	}
+
+	/* mute switch is an optional feature for a mixer element */
+	if (worker->mixer_has_mute_switch &&
 			(err = snd_mixer_selem_set_playback_switch_all(elem, !muted)) != 0) {
-		error("Couldn't set playback volume: %s", snd_strerror(err));
+		error("Couldn't set playback mute switch: %s", snd_strerror(err));
 		return -1;
 	}
 
@@ -589,7 +614,11 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		ffb_seek(&buffer, ret / pcm_format_size);
 
 		/* calculate the overall number of frames in the buffer */
-		snd_pcm_sframes_t frames = ffb_len_out(&buffer) / w->ba_pcm.channels;
+		size_t samples = ffb_len_out(&buffer);
+		snd_pcm_sframes_t frames = samples / w->ba_pcm.channels;
+
+		if (!w->mixer_has_mute_switch && pcm_muted)
+			snd_pcm_format_set_silence(pcm_format, buffer.data, samples);
 
 		if ((frames = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
 			switch (-frames) {
