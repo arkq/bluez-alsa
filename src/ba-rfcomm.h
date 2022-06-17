@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -87,8 +87,9 @@ struct ba_rfcomm {
 	} codecs;
 
 	/* codec selection synchronization */
-	pthread_mutex_t codec_selection_completed_mtx;
-	pthread_cond_t codec_selection_completed;
+	pthread_mutex_t codec_selection_mtx;
+	pthread_cond_t codec_selection_cond;
+	bool codec_selection_done;
 
 	/* requested codec by the AG */
 	int codec;

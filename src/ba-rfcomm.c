@@ -455,33 +455,40 @@ static int rfcomm_handler_bcs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
-	int codec;
+	int rv;
 
+	pthread_mutex_lock(&r->codec_selection_mtx);
+
+	int codec;
 	if ((codec = atoi(at->value)) != r->codec) {
 		warn("Codec not acknowledged: %s != %d", at->value, r->codec);
-		if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
-			return -1;
+		rv = rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR");
 		goto final;
 	}
 
-	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
-		return -1;
+	if ((rv = rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK")) == -1)
+		goto final;
 
 	/* Codec negotiation process is complete. Update transport and
 	 * notify connected clients, that transport has been changed. */
 	ba_transport_set_codec(t_sco, codec);
 
 final:
-	pthread_cond_signal(&r->codec_selection_completed);
-	return 0;
+	r->codec_selection_done = true;
+	pthread_mutex_unlock(&r->codec_selection_mtx);
+	pthread_cond_signal(&r->codec_selection_cond);
+	return rv;
 }
 
 static int rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
+	int rv;
 
-	if (rfcomm_handler_resp_ok_cb(r, at) == -1)
-		return -1;
+	pthread_mutex_lock(&r->codec_selection_mtx);
+
+	if ((rv = rfcomm_handler_resp_ok_cb(r, at)) == -1)
+		goto final;
 
 	if (!r->handler_resp_ok_success) {
 		warn("Codec selection not finalized: %d", r->codec);
@@ -494,8 +501,10 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm *r, const struct bt_at
 	ba_transport_set_codec(t_sco, r->codec);
 
 final:
-	pthread_cond_signal(&r->codec_selection_completed);
-	return 0;
+	r->codec_selection_done = true;
+	pthread_mutex_unlock(&r->codec_selection_mtx);
+	pthread_cond_signal(&r->codec_selection_cond);
+	return rv;
 }
 
 /**
@@ -856,7 +865,10 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 		/* If codec selection was requested by some other thread by calling the
 		 * ba_transport_select_codec(), we have to signal it that the selection
 		 * procedure has been completed. */
-		pthread_cond_signal(&r->codec_selection_completed);
+		pthread_mutex_lock(&r->codec_selection_mtx);
+		r->codec_selection_done = true;
+		pthread_mutex_unlock(&r->codec_selection_mtx);
+		pthread_cond_signal(&r->codec_selection_cond);
 		return 0;
 	}
 
@@ -871,7 +883,10 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 	}
 
 	/* TODO: Send codec connection initialization request to AG. */
-	pthread_cond_signal(&r->codec_selection_completed);
+	pthread_mutex_lock(&r->codec_selection_mtx);
+	r->codec_selection_done = true;
+	pthread_mutex_unlock(&r->codec_selection_mtx);
+	pthread_cond_signal(&r->codec_selection_cond);
 	return 0;
 }
 #endif
@@ -1401,8 +1416,8 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 	if (pipe(r->sig_fd) == -1)
 		goto fail;
 
-	pthread_mutex_init(&r->codec_selection_completed_mtx, NULL);
-	pthread_cond_init(&r->codec_selection_completed, NULL);
+	pthread_mutex_init(&r->codec_selection_mtx, NULL);
+	pthread_cond_init(&r->codec_selection_cond, NULL);
 
 	if ((err = pthread_create(&r->thread, NULL, PTHREAD_ROUTINE(rfcomm_thread), r)) != 0) {
 		error("Couldn't create RFCOMM thread: %s", strerror(err));
@@ -1461,8 +1476,8 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 	if (r->ba_dbus_path != NULL)
 		g_free(r->ba_dbus_path);
 
-	pthread_mutex_destroy(&r->codec_selection_completed_mtx);
-	pthread_cond_destroy(&r->codec_selection_completed);
+	pthread_mutex_destroy(&r->codec_selection_mtx);
+	pthread_cond_destroy(&r->codec_selection_cond);
 
 	free(r);
 }

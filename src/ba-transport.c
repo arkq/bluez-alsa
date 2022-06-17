@@ -1006,15 +1006,31 @@ int ba_transport_select_codec_sco(
 		if (t->sco.rfcomm == NULL)
 			return errno = ENOTSUP, -1;
 
-		/* selecting new codec will change transport type */
+		/* Selecting new codec will change transport type. Please note, that
+		 * the codec ID will be set by the RFCOMM thread without this mutex
+		 * held. However, RFCOMM thread and current one will be synchronized
+		 * by the RFCOMM codec_selection_mtx mutex. */
 		pthread_mutex_lock(&t->type_mtx);
+
+		struct ba_rfcomm * const r = t->sco.rfcomm;
+		enum ba_rfcomm_signal rfcomm_signal;
+
+		pthread_mutex_lock(&r->codec_selection_mtx);
 
 		/* codec already selected, skip switching */
 		if (t->type.codec == codec_id)
 			goto final;
 
-		struct ba_rfcomm * const r = t->sco.rfcomm;
-		pthread_mutex_lock(&r->codec_selection_completed_mtx);
+		switch (codec_id) {
+		case HFP_CODEC_CVSD:
+			rfcomm_signal = BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD;
+			break;
+		case HFP_CODEC_MSBC:
+			rfcomm_signal = BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC;
+			break;
+		default:
+			g_assert_not_reached();
+		}
 
 		/* stop transport IO threads */
 		ba_transport_stop(t);
@@ -1025,24 +1041,21 @@ int ba_transport_select_codec_sco(
 		ba_transport_pcm_release(&t->sco.mic_pcm);
 		ba_transport_pcms_unlock(t);
 
-		switch (codec_id) {
-		case HFP_CODEC_CVSD:
-			ba_rfcomm_send_signal(r, BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD);
-			pthread_cond_wait(&r->codec_selection_completed, &r->codec_selection_completed_mtx);
-			break;
-		case HFP_CODEC_MSBC:
-			ba_rfcomm_send_signal(r, BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC);
-			pthread_cond_wait(&r->codec_selection_completed, &r->codec_selection_completed_mtx);
-			break;
-		}
+		r->codec_selection_done = false;
+		/* delegate set codec to RFCOMM thread */
+		ba_rfcomm_send_signal(r, rfcomm_signal);
 
-		pthread_mutex_unlock(&r->codec_selection_completed_mtx);
+		while (!r->codec_selection_done)
+			pthread_cond_wait(&r->codec_selection_cond, &r->codec_selection_mtx);
+
 		if (t->type.codec != codec_id) {
+			pthread_mutex_unlock(&r->codec_selection_mtx);
 			pthread_mutex_unlock(&t->type_mtx);
 			return errno = EIO, -1;
 		}
 
 final:
+		pthread_mutex_unlock(&r->codec_selection_mtx);
 		pthread_mutex_unlock(&t->type_mtx);
 		break;
 #endif
