@@ -213,12 +213,12 @@ static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *d
 	dbus_message_iter_init(rep, &iter);
 	dbus_message_iter_recurse(&iter, &iter_val);
 
-	char battery;
-	dbus_message_iter_get_basic(&iter_val, &battery);
-	dev->battery_level = battery;
+	signed char level;
+	dbus_message_iter_get_basic(&iter_val, &level);
+	dev->battery_level = level;
 
 	dbus_message_unref(rep);
-	return battery;
+	return level;
 }
 
 /**
@@ -720,10 +720,10 @@ static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 		dev->mask = SND_CTL_EVENT_MASK_ADD;
 	}
 	if (strcmp(key, "Battery") == 0) {
-		char battery_level;
-		dbus_message_iter_get_basic(variant, &battery_level);
+		signed char level;
+		dbus_message_iter_get_basic(variant, &level);
 		dev->mask = dev->battery_level == -1 ? SND_CTL_EVENT_MASK_ADD : SND_CTL_EVENT_MASK_VALUE;
-		dev->battery_level = battery_level;
+		dev->battery_level = level;
 	}
 
 	return TRUE;

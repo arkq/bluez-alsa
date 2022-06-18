@@ -231,7 +231,7 @@ static void *mock_bt_dump_thread(void *userdata) {
 		if (!dump_output)
 			continue;
 
-		for (ssize_t i = 0; i < len;i++)
+		for (ssize_t i = 0; i < len; i++)
 			fprintf(f_output, "%02x", buffer[i]);
 		fprintf(f_output, "\n");
 
@@ -291,42 +291,75 @@ static int mock_transport_acquire(struct ba_transport *t) {
 }
 
 static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac) {
-	struct ba_device *d;
+
 	bdaddr_t addr;
 	str2ba(btmac, &addr);
-	if ((d = ba_device_lookup(a, &addr)) == NULL)
+
+	struct ba_device *d;
+	if ((d = ba_device_lookup(a, &addr)) == NULL) {
 		d = ba_device_new(a, &addr);
+		d->battery.charge = 75;
+	}
+
 	return d;
 }
 
 static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 		uint16_t profile, const struct a2dp_codec *codec, const void *configuration) {
+
 	if (fuzzing)
 		usleep(FUZZING_SLEEP_MS * 1000);
+
 	struct ba_device *d = mock_device_new(a, device_btmac);
 	struct ba_transport_type type = { profile, codec->codec_id };
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
+
 	struct ba_transport *t = ba_transport_new_a2dp(d, type, ":test", path, codec, configuration);
+	t->acquire = mock_transport_acquire;
+
 	fprintf(stderr, "BLUEALSA_PCM_READY=A2DP:%s:%s\n",
 			device_btmac, a2dp_codecs_codec_id_to_string(t->type.codec));
-	t->acquire = mock_transport_acquire;
+
 	if (type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 		assert(ba_transport_acquire(t) == 0);
+
 	ba_device_unref(d);
 	return t;
 }
 
+static void *mock_transport_rfcomm_thread(void *userdata) {
+
+	int rfcomm_fd = GPOINTER_TO_INT(userdata);
+	char buffer[1024];
+	ssize_t len;
+
+	while ((len = read(rfcomm_fd, buffer, sizeof(buffer))) > 0)
+		fprintf(stderr, "RFCOMM [len: %zd]: %s\n", len, buffer);
+
+	close(rfcomm_fd);
+	return NULL;
+}
+
 static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 		uint16_t profile, uint16_t codec) {
+
 	if (fuzzing)
 		usleep(FUZZING_SLEEP_MS * 1000);
+
 	struct ba_device *d = mock_device_new(a, device_btmac);
 	struct ba_transport_type type = { profile, codec };
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
-	struct ba_transport *t = ba_transport_new_sco(d, type, ":test", path, -1);
+
+	int fds[2];
+	socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
+	g_thread_unref(g_thread_new(NULL, mock_transport_rfcomm_thread, GINT_TO_POINTER(fds[1])));
+
+	struct ba_transport *t = ba_transport_new_sco(d, type, ":test", path, fds[0]);
+	t->acquire = mock_transport_acquire;
+
 	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n",
 			device_btmac, hfp_codec_id_to_string(t->type.codec));
-	t->acquire = mock_transport_acquire;
+
 	ba_device_unref(d);
 	return t;
 }
