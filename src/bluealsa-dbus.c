@@ -322,74 +322,6 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	return true;
 }
 
-static void bluealsa_manager_get_pcms(GDBusMethodInvocation *inv, void *userdata) {
-	(void)userdata;
-
-	GVariantBuilder pcms;
-	g_variant_builder_init(&pcms, G_VARIANT_TYPE("a{oa{sv}}"));
-
-	struct ba_adapter *a;
-	size_t i;
-
-	for (i = 0; i < ARRAYSIZE(config.adapters); i++) {
-
-		if ((a = ba_adapter_lookup(i)) == NULL)
-			continue;
-
-		GHashTableIter iter_d, iter_t;
-		GVariantBuilder props;
-		struct ba_device *d;
-		struct ba_transport *t;
-
-		pthread_mutex_lock(&a->devices_mutex);
-		g_hash_table_iter_init(&iter_d, a->devices);
-		while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
-
-			pthread_mutex_lock(&d->transports_mutex);
-			g_hash_table_iter_init(&iter_t, d->transports);
-			while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t)) {
-
-				if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-
-					if (t->a2dp.pcm.ba_dbus_exported) {
-						ba_variant_populate_pcm(&props, &t->a2dp.pcm);
-						g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm.ba_dbus_path, &props);
-						g_variant_builder_clear(&props);
-					}
-
-					if (t->a2dp.pcm_bc.ba_dbus_exported) {
-						ba_variant_populate_pcm(&props, &t->a2dp.pcm_bc);
-						g_variant_builder_add(&pcms, "{oa{sv}}", t->a2dp.pcm_bc.ba_dbus_path, &props);
-						g_variant_builder_clear(&props);
-					}
-
-				}
-				else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-
-					ba_variant_populate_pcm(&props, &t->sco.spk_pcm);
-					g_variant_builder_add(&pcms, "{oa{sv}}", t->sco.spk_pcm.ba_dbus_path, &props);
-					g_variant_builder_clear(&props);
-
-					ba_variant_populate_pcm(&props, &t->sco.mic_pcm);
-					g_variant_builder_add(&pcms, "{oa{sv}}", t->sco.mic_pcm.ba_dbus_path, &props);
-					g_variant_builder_clear(&props);
-
-				}
-
-			}
-
-			pthread_mutex_unlock(&d->transports_mutex);
-		}
-
-		pthread_mutex_unlock(&a->devices_mutex);
-		ba_adapter_unref(a);
-
-	}
-
-	g_dbus_method_invocation_return_value(inv, g_variant_new("(a{oa{sv}})", &pcms));
-	g_variant_builder_clear(&pcms);
-}
-
 static GVariant *bluealsa_manager_get_property(const char *property,
 		GError **error, void *userdata) {
 	(void)error;
@@ -412,14 +344,7 @@ static GVariant *bluealsa_manager_get_property(const char *property,
  * Register BlueALSA D-Bus manager interfaces. */
 void bluealsa_dbus_register(void) {
 
-	static const GDBusMethodCallDispatcher dispatchers[] = {
-		{ .method = "GetPCMs",
-			.handler = bluealsa_manager_get_pcms },
-		{ 0 },
-	};
-
 	static const GDBusInterfaceSkeletonVTable vtable = {
-		.dispatchers = dispatchers,
 		.get_property = bluealsa_manager_get_property,
 	};
 
@@ -922,13 +847,6 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	g_dbus_object_manager_server_export(bluealsa_dbus_manager, skeleton);
 	pcm->ba_dbus_exported = true;
 
-	GVariantBuilder props;
-	ba_variant_populate_pcm(&props, pcm);
-	g_dbus_connection_emit_signal(config.dbus, NULL,
-			bluealsa_dbus_manager_path, BLUEALSA_IFACE_MANAGER, "PCMAdded",
-			g_variant_new("(oa{sv})", pcm->ba_dbus_path, &props), NULL);
-	g_variant_builder_clear(&props);
-
 fail:
 
 	if (skeleton != NULL)
@@ -972,10 +890,6 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 
 	g_dbus_object_manager_server_unexport(bluealsa_dbus_manager, pcm->ba_dbus_path);
 	pcm->ba_dbus_exported = false;
-
-	g_dbus_connection_emit_signal(config.dbus, NULL,
-			bluealsa_dbus_manager_path, BLUEALSA_IFACE_MANAGER, "PCMRemoved",
-			g_variant_new("(o)", pcm->ba_dbus_path), NULL);
 
 }
 

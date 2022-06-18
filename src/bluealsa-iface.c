@@ -24,81 +24,8 @@ static const GDBusArgInfo arg_fd = {
 	-1, "fd", "h", NULL
 };
 
-static const GDBusArgInfo arg_path = {
-	-1, "path", "o", NULL
-};
-
-static const GDBusArgInfo arg_PCMs = {
-	-1, "PCMs", "a{oa{sv}}", NULL
-};
-
 static const GDBusArgInfo arg_props = {
 	-1, "props", "a{sv}", NULL
-};
-
-static const GDBusAnnotationInfo ann_deprecated = {
-	-1, "org.freedesktop.DBus.Deprecated", "true", NULL
-};
-
-static const GDBusArgInfo *GetPCMs_out[] = {
-	&arg_PCMs,
-	NULL,
-};
-
-static const GDBusAnnotationInfo *GetPCMs_annotations[] = {
-	&ann_deprecated,
-	NULL,
-};
-
-static const GDBusMethodInfo bluealsa_iface_manager_GetPCMs = {
-	-1, "GetPCMs",
-	NULL,
-	(GDBusArgInfo **)GetPCMs_out,
-	(GDBusAnnotationInfo **)GetPCMs_annotations,
-};
-
-static const GDBusMethodInfo *bluealsa_iface_manager_methods[] = {
-	&bluealsa_iface_manager_GetPCMs,
-	NULL,
-};
-
-static const GDBusArgInfo *PCMAdded_args[] = {
-	&arg_path,
-	&arg_props,
-	NULL,
-};
-
-static const GDBusArgInfo *PCMRemoved_args[] = {
-	&arg_path,
-	NULL,
-};
-
-static const GDBusAnnotationInfo *PCMAdded_annotations[] = {
-	&ann_deprecated,
-	NULL,
-};
-
-static const GDBusSignalInfo bluealsa_iface_manager_PCMAdded = {
-	-1, "PCMAdded",
-	(GDBusArgInfo **)PCMAdded_args,
-	(GDBusAnnotationInfo **)PCMAdded_annotations,
-};
-
-static const GDBusAnnotationInfo *PCMRemoved_annotations[] = {
-	&ann_deprecated,
-	NULL,
-};
-
-static const GDBusSignalInfo bluealsa_iface_manager_PCMRemoved = {
-	-1, "PCMRemoved",
-	(GDBusArgInfo **)PCMRemoved_args,
-	(GDBusAnnotationInfo **)PCMRemoved_annotations,
-};
-
-static const GDBusSignalInfo *bluealsa_iface_manager_signals[] = {
-	&bluealsa_iface_manager_PCMAdded,
-	&bluealsa_iface_manager_PCMRemoved,
-	NULL,
 };
 
 static const GDBusPropertyInfo bluealsa_iface_manager_Version = {
@@ -273,8 +200,8 @@ static const GDBusPropertyInfo *bluealsa_iface_rfcomm_properties[] = {
 
 const GDBusInterfaceInfo bluealsa_iface_manager = {
 	-1, BLUEALSA_IFACE_MANAGER,
-	(GDBusMethodInfo **)bluealsa_iface_manager_methods,
-	(GDBusSignalInfo **)bluealsa_iface_manager_signals,
+	NULL,
+	NULL,
 	(GDBusPropertyInfo **)bluealsa_iface_manager_properties,
 	NULL,
 };
