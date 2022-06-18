@@ -53,7 +53,9 @@ AC_ARG_WITH([coverage],
 AM_CONDITIONAL([WITH_COVERAGE], [test "x$with_coverage" = "xyes"])
 AM_COND_IF([WITH_COVERAGE], [
 	AC_PATH_PROG([LCOV], [lcov])
+	AS_IF([test "x$LCOV" = "x"], [AC_MSG_ERROR([[--with-coverage requires lcov]])])
 	AC_PATH_PROG([GENHTML], [genhtml])
+	AS_IF([test "x$GENHTML" = "x"], [AC_MSG_ERROR([[--with-coverage requires genhtml]])])
 ])
 
 # in-place call-stack unwinding
