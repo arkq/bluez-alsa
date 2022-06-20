@@ -54,13 +54,17 @@ OPTIONS
     Select ALSA playback PCM device to use for audio output.
     The default is ``default``.
 
-    **bluealsa-aplay** does not perform any mixing of streams. If multiple devices
-    are connected it opens a new connection to the ALSA PCM device for each stream.
-    Therefore the PCM *NAME* must itself allow multiple open connections and
-    mix the streams together. See option **--single-audio** to change this
-    behavior. Similarly, **bluealsa-aplay** does not apply any
-    transformations to the stream. For this reason it is often necessary to use
-    the ALSA **dmix** and **plug** plugins in the *NAME* PCM.
+    Internally, **bluealsa-aplay** does not perform any audio transformations
+    nor streams mixing. If multiple Bluetooth devices are connected it simply
+    opens a new connection to the ALSA PCM device for each stream. Selected
+    hardware parameters like sampling frequency and number of channels are
+    taken from the audio profile of a particular Bluetooth connection. Note,
+    that each connection can have a different setup.
+
+    If playing multiple streams at the same time is not desired, it is possible
+    to change that behavior by using the **--single-audio** option.
+
+    For more information see the EXAMPLES_ section below.
 
 --pcm-buffer-time=INT
     Set the playback PCM buffer duration time to *INT* microseconds.
@@ -173,6 +177,48 @@ Alternatively we can define a PCM with the required setting:
         }
     }
 
+EXAMPLES
+========
+
+The simplest usage of **bluealsa-aplay** is to run it with no arguments. It
+will play audio from all connected Bluetooth devices to the ``default`` ALSA
+playback PCM.
+
+::
+
+    bluealsa-aplay
+
+If there is more than one sound card attached one can create a setup where the
+audio of a particular Bluetooth device is played to a specific sound card. The
+setup below shows how to do this using the ``--pcm=NAME`` option and known
+Bluetooth device addresses.
+
+Please note that in the following example we assume that the second card is
+named "USB" and the appropriate mixer control is named "Speaker". Real names
+of attached sound cards can be obtained by running **aplay -l**. A list of
+control names for a card called "USB" can be obtained by running
+**amixer -c USB scontrols**.
+
+::
+
+    bluealsa-aplay --pcm=default 94:B8:6D:AF:CD:EF F8:87:F1:B8:30:85 &
+    bluealsa-aplay --pcm=default:USB C8:F7:33:66:F0:DE &
+
+Also, it might be desired to specify ALSA mixer device and/or control element
+for each ALSA playback PCM device. This will be mostly useful when BlueALSA PCM
+does not use software volume (for more information see ``--a2dp-volume`` option
+of ``bluealsa(8)`` service daemon).
+
+::
+
+    bluealsa-aplay --pcm=default 94:B8:6D:AF:CD:EF F8:87:F1:B8:30:85 &
+    bluealsa-aplay --pcm=default:USB --mixer-device=hw:USB --mixer-name=Speaker C8:F7:33:66:F0:DE &
+
+Such setup will route ``94:B8:6D:AF:CD:EF`` and ``F8:87:F1:B8:30:85`` Bluetooth
+devices to the ``default`` ALSA playback PCM device and ``C8:F7:33:66:F0:DE``
+device to the USB sound card. For the USB sound card the ``Speaker`` control
+element will be used as a hardware volume control knob.
+
 COPYRIGHT
 =========
 
@@ -183,7 +229,7 @@ The bluez-alsa project is licensed under the terms of the MIT license.
 SEE ALSO
 ========
 
-``bluealsa(8)``, ``bluealsa-rfcomm(1)``
+``amixer(1)``, ``aplay(1)``, ``bluealsa(8)``, ``bluealsa-rfcomm(1)``
 
 Project web site
   https://github.com/Arkq/bluez-alsa
