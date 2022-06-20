@@ -54,13 +54,8 @@ OPTIONS
     Select ALSA playback PCM device to use for audio output.
     The default is ``default``.
 
-    **bluealsa-aplay** does not perform any mixing of streams. If multiple devices
-    are connected it opens a new connection to the ALSA PCM device for each stream.
-    Therefore the PCM *NAME* must itself allow multiple open connections and
-    mix the streams together. See option **--single-audio** to change this
-    behavior. Similarly, **bluealsa-aplay** does not apply any
-    transformations to the stream. For this reason it is often necessary to use
-    the ALSA **dmix** and **plug** plugins in the *NAME* PCM.
+    See the section `Selecting An ALSA Playback PCM`_ below for more information
+    on ALSA playback PCM devices.
 
 --pcm-buffer-time=INT
     Set the playback PCM buffer duration time to *INT* microseconds.
@@ -140,6 +135,98 @@ OPTIONS
     PCM to be able to mix audio from multiple sources (i.e., it can be opened
     more than once; for example the ALSA **dmix** plugin).
 
+Selecting An ALSA Playback PCM
+==============================
+
+**bluealsa-aplay** does not apply any transformations to the audio stream.
+For this reason it is often necessary to use the ALSA **plug** plugin in the
+ALSA playback PCM.
+
+**bluealsa-aplay** does not perform any mixing of streams. If multiple bluetooth
+devices are connected it opens a new connection to the ALSA PCM device for each
+stream. Therefore the ALSA playback PCM must itself allow multiple open
+connections and mix the streams together (see option **--single-audio** to
+change this behavior). For this reason it is often necessary to use the ALSA
+**dmix** plugin in the ALSA playback PCM.
+
+For most distributions, the installed definition of ``default`` for each sound
+card includes both ``dmix`` and ``plug`` where necessary, so is generally the
+best choice unless there is some specific reason to prefer some other device.
+If there is more than one sound card attached then the appropriate one can be
+selected with:
+
+::
+
+    bluealsa-aplay -D default:CARDNAME
+
+A list of attached sound card names can be obtained using **aplay -l**, for
+example:
+
+::
+
+    $ aplay -l
+    **** List of PLAYBACK Hardware Devices ****
+    card 0: PCH [HDA Intel PCH], device 0: ALC236 Analog [ALC236 Analog]
+      Subdevices: 1/1
+      Subdevice #0: subdevice #0
+    card 1: Device [USB Audio Device], device 0: USB Audio [USB Audio]
+      Subdevices: 1/1
+      Subdevice #0: subdevice #0
+
+Here the first word after the card number is the card name, so that to use the
+HDA Intel PCH card:
+
+::
+
+    bluealsa-aplay -D default:PCH
+
+and to use the USB card:
+
+::
+
+    bluealsa-aplay -D default:Device
+
+
+Some sound cards offer more than one playback PCM device. ALSA identifies these
+devices by using an index number for each. Such a card might produce **aplay -l**
+output like:
+
+::
+
+    $ aplay -l
+    **** List of PLAYBACK Hardware Devices ****
+    card 0: PCH [HDA Intel PCH], device 0: ALC236 Analog [ALC236 Analog]
+      Subdevices: 1/1
+      Subdevice #0: subdevice #0
+    card 0: PCH [HDA Intel PCH], device 3: HDMI 0 [HDMI 0]
+      Subdevices: 1/1
+      Subdevice #0: subdevice #0
+    card 0: PCH [HDA Intel PCH], device 7: HDMI 1 [HDMI 1]
+      Subdevices: 1/1
+      Subdevice #0: subdevice #0
+
+Here the device index number is given by ``device N``, so in this example
+the Analog output is used with:
+
+::
+
+    bluealsa-aplay -D default:PCH,0
+
+and the first HDMI port (``HDMI 0``) is used with:
+
+::
+
+    bluealsa-aplay -D default:PCH,3
+
+If the device index is not specified, the default is ``0``.
+
+There will be some cases where the ``default`` device is not sufficient. These
+are generally special cases, such as selecting a specific subset of channels
+from a multi-channel device or to duplicate the stream across multiple output
+devices etc. These cases generally require some additional configuration by the
+user, and it is recommended to seek advice from your distribution as this can be
+quite complex and is beyond the scope of this manual.
+
 DMIX
 ====
 
@@ -183,7 +270,7 @@ The bluez-alsa project is licensed under the terms of the MIT license.
 SEE ALSO
 ========
 
-``bluealsa(8)``, ``bluealsa-rfcomm(1)``
+``amixer(1)``, ``aplay(1)``, ``bluealsa(8)``, ``bluealsa-rfcomm(1)``
 
 Project web site
   https://github.com/Arkq/bluez-alsa
