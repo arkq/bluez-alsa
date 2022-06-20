@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple bluealsa player
 ------------------------
 
-:Date: November 2021
+:Date: June 2022
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -104,12 +104,20 @@ OPTIONS
     The default is ``default``.
 
 --mixer-name=NAME
-    Set the name of the mixer element.
+    Set the name of the ALSA simple mixer control to use.
     The default is ``Master``.
 
+    To work with ``bluealsa-aplay`` this simple control must provide decibel
+    scaling information for the volume control. Most, but not all, modern sound
+    cards do provide this information.
+
 --mixer-index=NUM
-    Set the index of the mixer channel.
+    Set the index of the ALSA simple mixer control.
     The default is ``0``.
+
+    This is required only if the simple mixer control name applies to multiple
+    simple controls on the same card. This is most common with HDMI devices
+    which may have many playback ports.
 
 --profile-a2dp
     Use A2DP profile (default).
