@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -223,12 +223,12 @@ static void print_bt_pcm_list(void) {
 		ba2str(&dev.bt_addr, bt_addr);
 
 		printf(
-				"bluealsa:SRV=%s,DEV=%s,PROFILE=%s\n"
+				"bluealsa:DEV=%s,PROFILE=%s,SRV=%s\n"
 				"    %s, %s%s, %s\n"
 				"    %s (%s): %s %d channel%s %d Hz\n",
-			dbus_ba_service,
 			bt_addr,
 			pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP ? "a2dp" : "sco",
+			dbus_ba_service,
 			dev.name,
 			dev.trusted ? "trusted ": "", dev.icon,
 			pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
