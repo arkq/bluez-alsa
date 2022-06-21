@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rfcomm.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -71,21 +71,10 @@ static char *strtrim(char *str) {
 	return str;
 }
 
-static char *build_rfcomm_command(const char *cmd) {
-
-	static char command[512];
-	bool at;
-
-	command[0] = '\0';
-	if (!(at = strncmp(cmd, "AT", 2) == 0))
-		strcpy(command, "\r\n");
-
-	strcat(command, cmd);
-	strcat(command, "\r");
-	if (!at)
-		strcat(command, "\n");
-
-	return command;
+static char *build_rfcomm_command(char *buffer, size_t size, const char *cmd) {
+	bool at = strncmp(cmd, "AT", 2) == 0;
+	snprintf(buffer, size, "%s%s%s", at ? "" : "\r\n", cmd, at ? "\r" : "\r\n");
+	return buffer;
 }
 
 static void rl_callback_handler(char *line) {
@@ -100,7 +89,9 @@ static void rl_callback_handler(char *line) {
 	if (strlen(line) == 0)
 		return;
 
-	char *cmd = build_rfcomm_command(line);
+	char cmd[512];
+	build_rfcomm_command(cmd, sizeof(cmd), line);
+
 	if (write(rfcomm_fd, cmd, strlen(cmd)) == -1)
 		warn("Couldn't send RFCOMM command: %s", strerror(errno));
 

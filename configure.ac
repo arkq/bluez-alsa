@@ -246,6 +246,10 @@ AM_CONDITIONAL([ENABLE_CLI], [test "x$enable_cli" = "xyes"])
 AC_ARG_ENABLE([rfcomm],
 	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
 AM_CONDITIONAL([ENABLE_RFCOMM], [test "x$enable_rfcomm" = "xyes"])
+AM_COND_IF([ENABLE_RFCOMM], [
+	AC_CHECK_HEADERS([readline/readline.h readline/history.h],
+		[], [AC_MSG_ERROR([readline header files not found])])
+])
 
 AC_ARG_ENABLE([a2dpconf],
 	[AS_HELP_STRING([--enable-a2dpconf], [enable building of a2dpconf tool])])
