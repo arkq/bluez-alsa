@@ -54,6 +54,16 @@ OPTIONS
     Select ALSA playback PCM device to use for audio output.
     The default is ``default``.
 
+    Internally, **bluealsa-aplay** does not perform any audio transformations
+    nor streams mixing. If multiple Bluetooth devices are connected it simply
+    opens a new connection to the ALSA PCM device for each stream. Selected
+    hardware parameters like sampling frequency and number of channels are
+    taken from the audio profile of a particular Bluetooth connection. Note,
+    that each connection can have a different setup.
+
+    If playing multiple streams at the same time is not desired, it is possible
+    to change that behavior by using the **--single-audio** option.
+
     See the section `Selecting An ALSA Playback PCM`_ below for more information
     on ALSA playback PCM devices.
 
