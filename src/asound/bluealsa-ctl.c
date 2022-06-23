@@ -52,6 +52,11 @@ struct ctl_elem_update {
 	int event_mask;
 };
 
+#define BT_DEV_MASK_NONE   (0)
+#define BT_DEV_MASK_ADD    (1 << 0)
+#define BT_DEV_MASK_REMOVE (1 << 1)
+#define BT_DEV_MASK_UPDATE (1 << 2)
+
 struct bt_dev {
 	char device_path[sizeof(((struct ba_pcm *)0)->device_path)];
 	char rfcomm_path[sizeof(((struct ba_pcm *)0)->device_path)];
@@ -402,9 +407,8 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
  * @param add_battery_elem If true, try to add an optional battery level
  *   indicator element.
  * @return The number of elements added. */
-static size_t bluealsa_add_pcm_elems(struct bluealsa_ctl *ctl,
-		struct ctl_elem *elem_list, struct bt_dev *dev, struct ba_pcm *pcm,
-		bool single_device, bool add_battery_elem) {
+static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev *dev,
+		struct ba_pcm *pcm, bool single_device, bool add_battery_elem) {
 
 	const char *name = single_device ? NULL : dev->name;
 	size_t n = 0;
@@ -425,9 +429,15 @@ static size_t bluealsa_add_pcm_elems(struct bluealsa_ctl *ctl,
 
 	n++;
 
-	/* try to add special battery level indicator element */
-	if (add_battery_elem && dev->battery_level == -1 &&
-			bluealsa_dev_fetch_battery(ctl, dev) != -1) {
+	/* add special battery level indicator element */
+	if (add_battery_elem &&
+			dev->battery_level != -1 &&
+			/* There has to be attached some PCM to an element structure. Since
+			 * battery level is set only when SCO profile is connected (battery
+			 * requires RFCOMM), for simplicity and convenience, we will bind
+			 * battery element with SCO sink PCM. */
+			pcm->transport & BA_PCM_TRANSPORT_MASK_SCO &&
+			pcm->mode == BA_PCM_MODE_SINK) {
 		elem_list[n].type = CTL_ELEM_TYPE_BATTERY;
 		elem_list[n].dev = dev;
 		elem_list[n].pcm = pcm;
@@ -438,6 +448,15 @@ static size_t bluealsa_add_pcm_elems(struct bluealsa_ctl *ctl,
 	}
 
 	return n;
+}
+
+static bool elem_list_dev_has_battery_elem(const struct ctl_elem *elem_list,
+		size_t elem_list_size, const struct bt_dev *dev) {
+	for (size_t i = 0; i < elem_list_size; i++)
+		if (elem_list[i].type == CTL_ELEM_TYPE_BATTERY &&
+				elem_list[i].dev == dev)
+			return true;
+	return false;
 }
 
 static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
@@ -466,7 +485,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	/* Clear device mask, so we can distinguish currently used and unused (old)
 	 * device entries - we are not invalidating device list after PCM remove. */
 	for (i = 0; i < ctl->dev_list_size; i++)
-		ctl->dev_list[i]->mask = 0;
+		ctl->dev_list[i]->mask = BT_DEV_MASK_NONE;
 
 	count = 0;
 
@@ -475,9 +494,16 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 		struct ba_pcm *pcm = &ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
+		bool add_battery_elem = false;
 
-		count += bluealsa_add_pcm_elems(ctl, &elem_list[count],
-				dev, pcm, ctl->single_device, ctl->show_battery);
+		if (ctl->show_battery &&
+				!elem_list_dev_has_battery_elem(elem_list, count, dev)) {
+			bluealsa_dev_fetch_battery(ctl, dev);
+			add_battery_elem = true;
+		}
+
+		count += elem_list_add_pcm_elems(&elem_list[count],
+				dev, pcm, ctl->single_device, add_battery_elem);
 
 	}
 
@@ -736,18 +762,18 @@ static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 	(void)error;
 
 	struct bt_dev *dev = (struct bt_dev *)userdata;
-	dev->mask = 0;
+	dev->mask = BT_DEV_MASK_NONE;
 
 	if (strcmp(key, "Alias") == 0) {
 		const char *alias;
 		dbus_message_iter_get_basic(variant, &alias);
 		*stpncpy(dev->name, alias, sizeof(dev->name) - 1) = '\0';
-		dev->mask = SND_CTL_EVENT_MASK_ADD;
+		dev->mask = BT_DEV_MASK_UPDATE;
 	}
 	if (strcmp(key, "Battery") == 0) {
 		signed char level;
 		dbus_message_iter_get_basic(variant, &level);
-		dev->mask = dev->battery_level == -1 ? SND_CTL_EVENT_MASK_ADD : SND_CTL_EVENT_MASK_VALUE;
+		dev->mask = dev->battery_level == -1 ? BT_DEV_MASK_ADD : BT_DEV_MASK_UPDATE;
 		dev->battery_level = level;
 	}
 
@@ -782,24 +808,28 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 		if (strcmp(updated_interface, "org.bluez.Device1") == 0)
 			for (i = 0; i < ctl->elem_list_size; i++) {
 				struct bt_dev *dev = ctl->elem_list[i].dev;
-				if (strcmp(dev->device_path, path) == 0)
+				if (strcmp(dev->device_path, path) == 0) {
 					bluealsa_dbus_message_iter_dict(&iter, NULL,
 							bluealsa_dbus_msg_update_dev, dev);
-				if (dev->mask & SND_CTL_EVENT_MASK_ADD)
-					goto remove_add;
+					if (dev->mask & BT_DEV_MASK_UPDATE)
+						goto remove_add;
+				}
 			}
 
 		/* handle BlueALSA RFCOMM properties update */
 		if (strcmp(updated_interface, BLUEALSA_INTERFACE_RFCOMM) == 0)
 			for (i = 0; i < ctl->elem_list_size; i++) {
-				struct bt_dev *dev = ctl->elem_list[i].dev;
+				struct ctl_elem *elem = &ctl->elem_list[i];
+				struct bt_dev *dev = elem->dev;
 				if (strcmp(dev->rfcomm_path, path) == 0) {
 					bluealsa_dbus_message_iter_dict(&iter, NULL,
 							bluealsa_dbus_msg_update_dev, dev);
-					if (dev->mask & SND_CTL_EVENT_MASK_ADD)
+					if (dev->mask & BT_DEV_MASK_ADD)
 						goto remove_add;
-					if (dev->mask & SND_CTL_EVENT_MASK_VALUE)
-						bluealsa_event_elem_updated(ctl, ctl->elem_list[i].name);
+					if (elem->type != CTL_ELEM_TYPE_BATTERY)
+						continue;
+					if (dev->mask & BT_DEV_MASK_UPDATE)
+						bluealsa_event_elem_updated(ctl, elem->name);
 				}
 			}
 
@@ -807,19 +837,12 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 		if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0)
 			for (i = 0; i < ctl->elem_list_size; i++) {
 				struct ctl_elem *elem = &ctl->elem_list[i];
-				if (strcmp(elem->pcm->pcm_path, path) == 0) {
-					if (elem->type == CTL_ELEM_TYPE_BATTERY) {
-						bluealsa_dbus_message_iter_dict(&iter, NULL,
-								bluealsa_dbus_msg_update_dev, elem->dev);
-						if (elem->dev->mask & SND_CTL_EVENT_MASK_ADD)
-							goto remove_add;
-						if (elem->dev->mask & SND_CTL_EVENT_MASK_VALUE)
-							bluealsa_event_elem_updated(ctl, ctl->elem_list[i].name);
-					}
-					else {
-						bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, elem->pcm);
-						bluealsa_event_elem_updated(ctl, elem->name);
-					}
+				struct ba_pcm *pcm = elem->pcm;
+				if (elem->type == CTL_ELEM_TYPE_BATTERY)
+					continue;
+				if (strcmp(pcm->pcm_path, path) == 0) {
+					bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm);
+					bluealsa_event_elem_updated(ctl, elem->name);
 				}
 			}
 
