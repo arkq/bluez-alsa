@@ -213,17 +213,12 @@ simultaneously to the same card. It needs an additional configuration file to us
 ``dmix`` and ``plughw`` with a device other than 0. The file should be similar to the example
 for **DMIX** below, substituting the card number and device number for ``hw:0,0``.
 
-**bluealsa-aplay** does not perform any mixing of streams. If multiple bluetooth
-devices are connected it opens a new connection to the ALSA PCM device for each
-stream. Therefore the ALSA playback PCM must itself allow multiple open
-connections and mix the streams together (see option **--single-audio** to
-change this behavior). For this the ALSA ``dmix`` plugin must be used.
-
-If ``dmix`` is not provided by ``default`` in your distribution or if you have a special
-case, such as selecting a specific subset of channels from a multi-channel device or
-to duplicate the stream across multiple output devices etc. you will need some
-additional configuration. It is recommended to seek advice from your distribution
-as this can be quite complex and is beyond the scope of this manual.
+There will be some cases where the ``default`` device is not sufficient. These
+are generally special cases, such as selecting a specific subset of channels
+from a multi-channel device or to duplicate the stream across multiple output
+devices etc. These cases generally require some additional configuration by the
+user, and it is recommended to seek advice from your distribution as this can be
+quite complex and is beyond the scope of this manual.
 
 DMIX
 ====
