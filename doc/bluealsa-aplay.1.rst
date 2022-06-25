@@ -201,19 +201,6 @@ output like:
       Subdevices: 1/1
       Subdevice #0: subdevice #0
 
-Here the device index number is given by ``device N``, so in this example
-the Analog output could be used with:
-
-::
-
-    bluealsa-aplay -D plughw:PCH,0
-
-and the first HDMI port (``HDMI 0``) is used with:
-
-::
-
-    bluealsa-aplay -D plughw:PCH,3
-
 For most distributions, the installed definition of ``default`` for most sound
 cards will automatically convert the samplerate and format of the BT audio to those
 supported by the playback card, using ALSA's  ``plughw`` plug-in.  ``default`` also refers
