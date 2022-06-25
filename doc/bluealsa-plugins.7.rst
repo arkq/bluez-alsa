@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: September 2021
+:Date: June 2022
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -315,6 +315,13 @@ FILES
     BlueALSA device configuration file.
     ALSA additional configuration, defines the ``bluealsa`` PCM and CTL devices.
 
+COPYRIGHT
+=========
+
+Copyright (c) 2016-2022 Arkadiusz Bokowy.
+
+The bluez-alsa project is licensed under the terms of the MIT license.
+
 SEE ALSO
 ========
 
@@ -328,10 +335,3 @@ ALSA configuration file syntax
 
 ALSA built-in PCM plugins reference
   https://www.alsa-project.org/alsa-doc/alsa-lib/pcm_plugins.html
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2021 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.

@@ -173,16 +173,17 @@ Alternatively we can define a PCM with the required setting:
         }
     }
 
+COPYRIGHT
+=========
+
+Copyright (c) 2016-2022 Arkadiusz Bokowy.
+
+The bluez-alsa project is licensed under the terms of the MIT license.
+
 SEE ALSO
 ========
 
 ``bluealsa(8)``, ``bluealsa-rfcomm(1)``
 
-Project web site at https://github.com/Arkq/bluez-alsa
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2021 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
+Project web site
+  https://github.com/Arkq/bluez-alsa

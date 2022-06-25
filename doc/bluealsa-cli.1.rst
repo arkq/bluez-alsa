@@ -6,7 +6,7 @@ bluealsa-cli
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: January 2022
+:Date: June 2022
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -166,16 +166,17 @@ open *PCM_PATH*
     output. The format, channels and sampling rate must match the properties
     of the PCM, as no format conversions are performed by this tool.
 
-SEE ALSO
-========
-
-``bluealsa(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
-
-Project web site at https://github.com/Arkq/bluez-alsa
-
 COPYRIGHT
 =========
 
 Copyright (c) 2016-2022 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
+
+SEE ALSO
+========
+
+``bluealsa(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
+
+Project web site
+  https://github.com/Arkq/bluez-alsa

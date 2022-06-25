@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: March 2022
+:Date: June 2022
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -35,7 +35,7 @@ OPTIONS
 -B NAME, --dbus=NAME
     BlueALSA D-Bus service name suffix.
     Without this option, **bluealsa** registers itself as an "org.bluealsa" D-Bus service.
-    For more information see the EXAMPLE_ below.
+    For more information see the EXAMPLES_ below.
 
 -S, --syslog
     Send output to system logger (``syslogd(8)``).
@@ -239,8 +239,8 @@ FILES
     only *root* to own this service, and only members of the *audio* group to
     exchange messages with it.
 
-EXAMPLE
-=======
+EXAMPLES
+========
 
 Emulate Bluetooth headset with A2DP and HSP support:
 
@@ -271,6 +271,13 @@ Please add following lines to the BlueALSA D-Bus policy:
     <allow send_destination="org.bluealsa.source" />
     ...
 
+COPYRIGHT
+=========
+
+Copyright (c) 2016-2022 Arkadiusz Bokowy.
+
+The bluez-alsa project is licensed under the terms of the MIT license.
+
 SEE ALSO
 ========
 
@@ -279,10 +286,3 @@ SEE ALSO
 
 Project web site
   https://github.com/Arkq/bluez-alsa
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2021 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.

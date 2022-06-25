@@ -6,7 +6,7 @@ bluealsa-rfcomm
 a simple RFCOMM terminal for bluealsa
 -------------------------------------
 
-:Date: August 2020
+:Date: June 2022
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -36,8 +36,8 @@ OPTIONS
     BlueALSA service name suffix. For more information see ``--dbus``
     option of ``bluealsa(8)`` service daemon.
 
-EXAMPLE
-=======
+EXAMPLES
+========
 
 ::
 
@@ -47,16 +47,17 @@ EXAMPLE
     > AT+CKPD=200
     disconnected
 
+COPYRIGHT
+=========
+
+Copyright (c) 2016-2022 Arkadiusz Bokowy.
+
+The bluez-alsa project is licensed under the terms of the MIT license.
+
 SEE ALSO
 ========
 
 ``bluealsa(8)``, ``bluealsa-aplay(1)``
 
-Project web site at https://github.com/Arkq/bluez-alsa
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2020 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
+Project web site
+  https://github.com/Arkq/bluez-alsa

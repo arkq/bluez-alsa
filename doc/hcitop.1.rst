@@ -6,7 +6,7 @@ hcitop
 a simple dynamic view of HCI activity
 -------------------------------------
 
-:Date: February 2021
+:Date: June 2022
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -91,18 +91,17 @@ Q
 X
     Raw mode is enabled.
 
+COPYRIGHT
+=========
+
+Copyright (c) 2016-2022 Arkadiusz Bokowy.
+
+The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
 ``btmon(1)``, ``hciconfig(1)``, ``hcitool(1)``
 
-**hcitop** is part of the **bluez-alsa** project.
-Project web site at https://github.com/Arkq/bluez-alsa
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2021 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
+Project web site
+  https://github.com/Arkq/bluez-alsa
