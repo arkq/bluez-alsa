@@ -1050,43 +1050,66 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 static int bluealsa_poll_descriptors_count(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = ext->private_data;
 
-	nfds_t dbus_nfds = 0;
-	bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, NULL, &dbus_nfds);
+	nfds_t nfds = 0;
+	bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, NULL, &nfds);
 
-	return 2 + dbus_nfds;
+	if (ctl->pipefd[0] > -1)
+		++nfds;
+	if (ctl->pipefd[1] > -1)
+		++nfds;
+	return nfds;
 }
 
 static int bluealsa_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd,
 		unsigned int nfds) {
 	struct bluealsa_ctl *ctl = ext->private_data;
 
-	nfds_t dbus_nfds = nfds - 2;
+	nfds_t pipe_nfds = 0;
 
-	pfd[0].fd = ctl->pipefd[0];
-	pfd[0].events = POLLIN;
-	pfd[1].fd = ctl->pipefd[1];
-	/* For the write end of our internal PIPE we are not interested
-	 * in any I/O events, only in error condition. */
-	pfd[1].events = 0;
+	/* Just in case some application (MPD ???) cannot handle a pfd with
+	 * .fd == -1, we omit each end of the pipe from the poll() if it is
+	 * already closed. */
+	if (ctl->pipefd[0] > -1) {
+		pfd[0].fd = ctl->pipefd[0];
+		pfd[0].events = POLLIN;
+		++pipe_nfds;
+	}
+	if (ctl->pipefd[1] > -1) {
+		pfd[pipe_nfds].fd = ctl->pipefd[1];
+		/* For the write end of our internal PIPE we are not interested
+		 * in any I/O events, only in error condition. */
+		pfd[pipe_nfds].events = 0;
+		++pipe_nfds;
+	}
+	nfds_t dbus_nfds = nfds - pipe_nfds;
 
-	if (!bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, &pfd[2], &dbus_nfds))
+	if (!bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, &pfd[pipe_nfds], &dbus_nfds))
 		return -EINVAL;
 
-	return 2 + dbus_nfds;
+	return pipe_nfds + dbus_nfds;
 }
 
 static int bluealsa_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd,
 		unsigned int nfds, unsigned short *revents) {
 	struct bluealsa_ctl *ctl = ext->private_data;
+	nfds_t pipe_nfds = 0;
 
-	if (pfd[0].revents) {
-		char buffer[16];
-		read(ctl->pipefd[0], buffer, sizeof(buffer));
+	*revents = 0;
+
+	if (ctl->pipefd[0] > -1) {
+		if (pfd[0].revents) {
+			char buffer[16];
+			read(ctl->pipefd[0], buffer, sizeof(buffer));
+		}
+		*revents |= pfd[0].revents;
+		++pipe_nfds;
+	}
+	if (ctl->pipefd[1] > -1) {
+		*revents |= pfd[pipe_nfds].revents;
+		++pipe_nfds;
 	}
 
-	*revents = pfd[0].revents | pfd[1].revents;
-
-	if (bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, &pfd[2], nfds - 1))
+	if (bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, &pfd[pipe_nfds], nfds - pipe_nfds))
 		*revents |= POLLIN;
 
 	return 0;
