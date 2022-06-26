@@ -58,10 +58,6 @@
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
 
-/**
- * Fuzzing sleep duration in milliseconds. */
-#define FUZZING_SLEEP_MS 250
-
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,
@@ -101,14 +97,14 @@ static struct ba_adapter *a = NULL;
 static char service[32] = BLUEALSA_SERVICE;
 static GMutex timeout_mutex = { 0 };
 static GCond timeout_cond = { 0 };
-static int timeout = 5;
 static bool a2dp_extra_codecs = false;
 static bool a2dp_source = false;
 static bool a2dp_sink = false;
 static bool sco_hfp = false;
 static bool sco_hsp = false;
 static bool dump_output = false;
-static bool fuzzing = false;
+static int timeout_ms = 5000;
+static int fuzzing_ms = 0;
 
 static gboolean main_loop_exit_handler(void *userdata) {
 	g_main_loop_quit((GMainLoop *)userdata);
@@ -116,10 +112,11 @@ static gboolean main_loop_exit_handler(void *userdata) {
 }
 
 static gboolean main_loop_timeout_handler(void *userdata) {
+	(void)userdata;
 	g_mutex_lock(&timeout_mutex);
-	*((int *)userdata) = -1;
-	g_cond_signal(&timeout_cond);
+	timeout_ms = 0;
 	g_mutex_unlock(&timeout_mutex);
+	g_cond_signal(&timeout_cond);
 	return G_SOURCE_REMOVE;
 }
 
@@ -307,14 +304,14 @@ static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac
 static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 		uint16_t profile, const struct a2dp_codec *codec, const void *configuration) {
 
-	if (fuzzing)
-		usleep(FUZZING_SLEEP_MS * 1000);
+	usleep(fuzzing_ms * 1000);
 
 	struct ba_device *d = mock_device_new(a, device_btmac);
 	struct ba_transport_type type = { profile, codec->codec_id };
+	const char *owner = g_dbus_connection_get_unique_name(config.dbus);
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
 
-	struct ba_transport *t = ba_transport_new_a2dp(d, type, ":test", path, codec, configuration);
+	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, codec, configuration);
 	t->acquire = mock_transport_acquire;
 
 	fprintf(stderr, "BLUEALSA_PCM_READY=A2DP:%s:%s\n",
@@ -343,18 +340,18 @@ static void *mock_transport_rfcomm_thread(void *userdata) {
 static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 		uint16_t profile, uint16_t codec) {
 
-	if (fuzzing)
-		usleep(FUZZING_SLEEP_MS * 1000);
+	usleep(fuzzing_ms * 1000);
 
 	struct ba_device *d = mock_device_new(a, device_btmac);
 	struct ba_transport_type type = { profile, codec };
+	const char *owner = g_dbus_connection_get_unique_name(config.dbus);
 	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
 
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
 	g_thread_unref(g_thread_new(NULL, mock_transport_rfcomm_thread, GINT_TO_POINTER(fds[1])));
 
-	struct ba_transport *t = ba_transport_new_sco(d, type, ":test", path, fds[0]);
+	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, fds[0]);
 	t->acquire = mock_transport_acquire;
 
 	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n",
@@ -438,7 +435,7 @@ void *mock_service_thread(void *userdata) {
 		g_ptr_array_add(tt, t = mock_transport_new_sco("12:34:56:78:9A:BC",
 					BA_TRANSPORT_PROFILE_HFP_AG, HFP_CODEC_UNDEFINED));
 
-		if (fuzzing) {
+		if (fuzzing_ms) {
 			t->type.codec = HFP_CODEC_CVSD;
 			bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
 					BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
@@ -454,18 +451,16 @@ void *mock_service_thread(void *userdata) {
 	}
 
 	g_mutex_lock(&timeout_mutex);
-	while (timeout > 0)
+	while (timeout_ms > 0)
 		g_cond_wait(&timeout_cond, &timeout_mutex);
 	g_mutex_unlock(&timeout_mutex);
 
 	for (i = 0; i < tt->len; i++) {
+		usleep(fuzzing_ms * 1000);
 		ba_transport_destroy(tt->pdata[i]);
-		if (fuzzing && i % 2 == 0)
-			usleep(FUZZING_SLEEP_MS * 1000);
 	}
 
-	if (fuzzing)
-		usleep(FUZZING_SLEEP_MS * 1000);
+	usleep(fuzzing_ms * 1000);
 
 	g_ptr_array_free(tt, TRUE);
 	g_main_loop_quit(loop);
@@ -495,7 +490,7 @@ static void dbus_name_acquired(GDBusConnection *conn, const char *name, void *us
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hb:t:F";
+	const char *opts = "hB:t:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "dbus", required_argument, NULL, 'B' },
@@ -506,7 +501,7 @@ int main(int argc, char *argv[]) {
 		{ "sco-hfp", no_argument, NULL, 4 },
 		{ "sco-hsp", no_argument, NULL, 5 },
 		{ "dump-output", no_argument, NULL, 6 },
-		{ "fuzzing", no_argument, NULL, 7 },
+		{ "fuzzing", required_argument, NULL, 7 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -518,21 +513,21 @@ int main(int argc, char *argv[]) {
 					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -B, --dbus=NAME\tBlueALSA service name suffix\n"
-					"  -t, --timeout=SEC\tmock server exit timeout\n"
+					"  -t, --timeout=MSEC\tmock server exit timeout\n"
 					"  --a2dp-extra-codecs\tregister non-mandatory A2DP codecs\n"
 					"  --a2dp-source\t\tregister source A2DP endpoints\n"
 					"  --a2dp-sink\t\tregister sink A2DP endpoints\n"
 					"  --sco-hfp\t\tregister HFP endpoints\n"
 					"  --sco-hsp\t\tregister HSP endpoints\n"
 					"  --dump-output\t\tdump Bluetooth transport data\n"
-					"  --fuzzing\t\tmock human actions with timings\n",
+					"  --fuzzing=MSEC\t\tmock human actions with timings\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 		case 'B' /* --dbus=NAME */ :
 			snprintf(service, sizeof(service), BLUEALSA_SERVICE ".%s", optarg);
 			break;
-		case 't' /* --timeout=SEC */ :
-			timeout = atoi(optarg);
+		case 't' /* --timeout=MSEC */ :
+			timeout_ms = atoi(optarg);
 			break;
 		case 1 /* --a2dp-extra-codecs */ :
 			a2dp_extra_codecs = true;
@@ -552,8 +547,8 @@ int main(int argc, char *argv[]) {
 		case 6 /* --dump-output */ :
 			dump_output = true;
 			break;
-		case 7 /* --fuzzing */ :
-			fuzzing = true;
+		case 7 /* --fuzzing=MSEC */ :
+			fuzzing_ms = atoi(optarg);
 			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
@@ -575,7 +570,7 @@ int main(int argc, char *argv[]) {
 
 	/* main loop with graceful termination handlers */
 	GMainLoop *loop = g_main_loop_new(NULL, FALSE);
-	g_timeout_add_seconds(timeout, main_loop_timeout_handler, &timeout);
+	g_timeout_add(timeout_ms, main_loop_timeout_handler, NULL);
 	g_unix_signal_add(SIGINT, main_loop_exit_handler, loop);
 	g_unix_signal_add(SIGTERM, main_loop_exit_handler, loop);
 

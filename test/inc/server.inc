@@ -92,34 +92,37 @@ char *bluealsa_mock_path = ".";
  * Spawn bluealsa server mock.
  *
  * @param service BlueALSA D-Bus service name.
- * @param timeout Timeout passed to the bluealsa-mock.
+ * @param timeout_ms Timeout passed to the bluealsa-mock.
  * @param wait_for_ready Block until PCMs are ready.
- * @param fuzzing Enable fuzzing - delayed startup.
+ * @param fuzzing_ms Enable fuzzing - delayed startup.
  * @param a2dp_source Start A2DP source.
  * @param a2dp_sink Start A2DP sink.
  * @param sco_hfp Start HFP audio gateway.
  * @param sco_hsp Start HSP audio gateway.
  * @return PID of the bluealsa server mock. */
-pid_t spawn_bluealsa_server(const char *service, unsigned int timeout,
-		bool wait_for_ready, bool fuzzing, bool a2dp_source, bool a2dp_sink,
-		bool sco_hfp, bool sco_hsp) {
+pid_t spawn_bluealsa_server(const char *service, unsigned int timeout_ms,
+		bool wait_for_ready, unsigned int fuzzing_ms, bool a2dp_source,
+		bool a2dp_sink, bool sco_hfp, bool sco_hsp) {
 
 	char arg_service[32] = "";
 	if (service != NULL)
 		sprintf(arg_service, "--dbus=%s", service);
 
 	char arg_timeout[16];
-	sprintf(arg_timeout, "--timeout=%d", timeout);
+	sprintf(arg_timeout, "--timeout=%u", timeout_ms);
+
+	char arg_fuzzing[16];
+	sprintf(arg_fuzzing, "--fuzzing=%u", fuzzing_ms);
 
 	char *argv[] = {
 		"bluealsa-mock",
 		arg_service,
 		arg_timeout,
+		arg_fuzzing,
 		a2dp_source ? "--a2dp-source" : "",
 		a2dp_sink ? "--a2dp-sink" : "",
 		sco_hfp ? "--sco-hfp" : "",
 		sco_hsp ? "--sco-hsp" : "",
-		fuzzing ? "--fuzzing" : "",
 		NULL,
 	};
 
