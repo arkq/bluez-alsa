@@ -253,6 +253,9 @@ Alternatively we can define a PCM with the required setting:
         }
     }
 
+EXAMPLES
+========
+
 COPYRIGHT
 =========
 
