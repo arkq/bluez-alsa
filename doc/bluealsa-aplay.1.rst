@@ -256,6 +256,37 @@ Alternatively we can define a PCM with the required setting:
 EXAMPLES
 ========
 
+By default **bluealsa-aplay** plays audio from all connected Bluetooth devices
+to the ``default`` ALSA playback PCM device. If there is more than one sound card
+attached one can create a setup where the audio of a particular Bluetooth device
+is played to a specific sound card. The setup below shows how to do this
+using the ``--pcm=NAME`` option and known Bluetooth device addresses.
+
+Please note that in the following example we assume that the second card is
+named "USB" and the appropriate mixer control is named "Speaker". Real names
+of attached sound cards can be obtained by running ``aplay -l``. A list of control
+names for a card called "USB" can be obtained by running ``amixer -c USB scontrols``.
+
+::
+
+    bluealsa-aplay --pcm=default 94:B8:6D:AF:CD:EF F8:87:F1:B8:30:85 &
+    bluealsa-aplay --pcm=default:USB C8:F7:33:66:F0:DE &
+
+Also, it might be desired to specify ALSA mixer device and/or control element
+for each ALSA playback PCM device. This will be mostly useful when BlueALSA PCM
+does not use software volume (for more information see ``--a2dp-volume`` option
+of ``bluealsa(8)`` service daemon).
+
+::
+
+    bluealsa-aplay --pcm=default 94:B8:6D:AF:CD:EF F8:87:F1:B8:30:85 &
+    bluealsa-aplay --pcm=default:USB --mixer-device=hw:USB --mixer-name=Speaker C8:F7:33:66:F0:DE &
+
+Such setup will route ``94:B8:6D:AF:CD:EF`` and ``F8:87:F1:B8:30:85`` Bluetooth
+devices to the ``default`` ALSA playback PCM device and ``C8:F7:33:66:F0:DE``
+device to the USB sound card. For the USB sound card the ``Speaker`` control
+element will be used as a hardware volume control knob.
+
 COPYRIGHT
 =========
 
