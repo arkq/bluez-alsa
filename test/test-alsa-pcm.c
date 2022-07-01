@@ -50,6 +50,8 @@ static int16_t buffer[1024 * 8];
 static int snd_pcm_open_bluealsa(
 		snd_pcm_t **pcmp,
 		const char *service,
+		const char *device,
+		const char *profile,
 		const char *extra_config,
 		snd_pcm_stream_t stream,
 		int mode) {
@@ -59,15 +61,19 @@ static int snd_pcm_open_bluealsa(
 	snd_input_t *input = NULL;
 	int err;
 
+	if (device == NULL)
+		device = "12:34:56:78:9A:BC";
+	if (profile == NULL)
+		profile = "a2dp";
+
 	sprintf(buffer,
 			"pcm.bluealsa {\n"
 			"  type bluealsa\n"
 			"  service \"org.bluealsa.%s\"\n"
-			"  device \"12:34:56:78:9A:BC\"\n"
-			"  profile \"a2dp\"\n"
-			"  delay 0\n"
+			"  device \"%s\"\n"
+			"  profile \"%s\"\n"
 			"  %s\n"
-			"}\n", service, extra_config);
+			"}\n", service, device, profile, extra_config);
 
 	if ((err = snd_config_top(&conf)) < 0)
 		goto fail;
@@ -170,7 +176,7 @@ static int test_pcm_open(pid_t *pid, snd_pcm_t **pcm, snd_pcm_stream_t stream) {
 					stream == SND_PCM_STREAM_CAPTURE,
 					false, false)) == -1)
 		return -1;
-	return snd_pcm_open_bluealsa(pcm, service, "", stream, 0);
+	return snd_pcm_open_bluealsa(pcm, service, NULL, NULL, "", stream, 0);
 }
 
 static int test_pcm_close(pid_t pid, snd_pcm_t *pcm) {
@@ -535,15 +541,31 @@ START_TEST(ba_test_playback_extra_setup) {
 	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1000, true, 0, true, false, false, false), -1);
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1000, true, 0,
+				true, false, true, false), -1);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "codec \"sbc\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
+				"codec \"SBC\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "volume \"50+\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
+				"codec \"SBC:ffff0822\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "softvol true", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, "sco",
+				"codec \"CVSD\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
+				"delay 10", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
+				"volume \"50+\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
+				"softvol true", SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(-1, pcm), 0);
 
 	ck_assert_int_eq(test_pcm_close(pid, NULL), 0);

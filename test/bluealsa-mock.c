@@ -326,12 +326,32 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 
 static void *mock_transport_rfcomm_thread(void *userdata) {
 
+	static const struct {
+		const char *command;
+		const char *response;
+	} responses[] = {
+		/* accept HFP codec selection */
+		{ "\r\n+BCS:1\r\n", "AT+BCS=1\r" },
+		{ "\r\n+BCS:2\r\n", "AT+BCS=2\r" },
+	};
+
 	int rfcomm_fd = GPOINTER_TO_INT(userdata);
 	char buffer[1024];
 	ssize_t len;
 
-	while ((len = read(rfcomm_fd, buffer, sizeof(buffer))) > 0)
-		fprintf(stderr, "RFCOMM [len: %zd]: %s\n", len, buffer);
+	while ((len = read(rfcomm_fd, buffer, sizeof(buffer))) > 0) {
+		hexdump("RFCOMM", buffer, len, true);
+
+		for (size_t i = 0; i < ARRAYSIZE(responses); i++) {
+			if (strncmp(buffer, responses[i].command, len) != 0)
+				continue;
+			len = strlen(responses[i].response);
+			if (write(rfcomm_fd, responses[i].response, len) != len)
+				warn("Couldn't write RFCOMM response: %s", strerror(errno));
+			break;
+		}
+
+	}
 
 	close(rfcomm_fd);
 	return NULL;
@@ -352,6 +372,7 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 	g_thread_unref(g_thread_new(NULL, mock_transport_rfcomm_thread, GINT_TO_POINTER(fds[1])));
 
 	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, fds[0]);
+	t->sco.rfcomm->state = HFP_SLC_CONNECTED;
 	t->acquire = mock_transport_acquire;
 
 	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n",
