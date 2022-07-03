@@ -5,6 +5,7 @@ on:
     branches: [ master ]
 jobs:
   coverage:
+    if: github.repository_owner == 'arkq'
     strategy:
       fail-fast: false
     runs-on: ubuntu-latest
@@ -24,7 +25,7 @@ jobs:
           libmpg123-dev \
           libsbc-dev \
           libspandsp-dev
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Create Build Environment
       run: |
         mkdir -p ${{ github.workspace }}/{build,m4}
@@ -47,6 +48,6 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: make cov
     - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v3
       with:
         files: build/cov.info

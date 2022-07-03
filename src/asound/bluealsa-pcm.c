@@ -134,7 +134,8 @@ static snd_pcm_uframes_t snd_pcm_ioplug_hw_avail(const snd_pcm_ioplug_t * const 
 		diff = io->buffer_size - hw_ptr + appl_ptr;
 	if (diff < 0)
 		diff += pcm->io_hw_boundary;
-	return diff <= io->buffer_size ? (snd_pcm_uframes_t) diff : 0;
+	snd_pcm_uframes_t diff_ = diff;
+	return diff_ <= io->buffer_size ? diff_ : 0;
 }
 #endif
 

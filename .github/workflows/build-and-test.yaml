@@ -35,7 +35,7 @@ jobs:
           libsbc-dev \
           libspandsp-dev \
           python-docutils
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Create Build Environment
       run: |
         mkdir -p ${{ github.workspace }}/{build,m4}
@@ -48,9 +48,9 @@ jobs:
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build
-      env:
-        CFLAGS: -Wall -Wextra -Werror
-      run: make && make check TESTS=
+      run: |
+        make CFLAGS="-Wall -Wextra -Werror"
+        make check TESTS=
     - name: Run Test
       working-directory: ${{ github.workspace }}/build
       run: make check
