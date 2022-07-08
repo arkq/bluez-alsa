@@ -3,6 +3,8 @@
 
 systemdbluealsaargs = $(SYSTEMD_BLUEALSA_ARGS)
 systemdbluealsaaplayargs = $(SYSTEMD_BLUEALSA_APLAY_ARGS)
+bluealsauser = $(BLUEALSA_USER)
+bluealsaaplayuser = $(BLUEALSA_APLAY_USER)
 
 systemdsystemunitdir = $(SYSTEMD_SYSTEM_UNIT_DIR)
 
@@ -16,7 +18,9 @@ MOSTLYCLEANFILES = $(dist_systemdsystemunit_DATA)
 SYSTEMD_SERVICE_SUBS = \
 	s,[@]bindir[@],$(bindir),g; \
 	s,[@]systemdbluealsaargs[@],$(systemdbluealsaargs),g; \
-	s,[@]systemdbluealsaaplayargs[@],$(systemdbluealsaaplayargs),g;
+	s,[@]systemdbluealsaaplayargs[@],$(systemdbluealsaaplayargs),g; \
+	s,[@]bluealsauser[@],$(bluealsauser),g; \
+	s,[@]bluealsaaplayuser[@],$(bluealsaaplayuser),g;
 
 .in:
 	$(SED) -e '$(SYSTEMD_SERVICE_SUBS)' < $< > $@

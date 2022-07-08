@@ -229,7 +229,8 @@ AM_COND_IF([ENABLE_UPOWER], [
 ])
 
 AC_ARG_ENABLE([payloadcheck],
-	[AS_HELP_STRING([--disable-payloadcheck], [disable RTP payload type check (workaround for a PulseAudio bug)])])
+	[AS_HELP_STRING([--disable-payloadcheck], [disable RTP payload type check (workaround
+		for PulseAudio < 13.0 bug)])])
 AM_CONDITIONAL([ENABLE_PAYLOADCHECK], [test "x$enable_payloadcheck" != "xno"])
 AM_COND_IF([ENABLE_PAYLOADCHECK], [
 	AC_DEFINE([ENABLE_PAYLOADCHECK], [1], [Define to 1 if PAYLOADCHECK is enabled.])
@@ -339,6 +340,22 @@ AC_ARG_WITH([systemdbluealsaaplayargs],
 	[systemdbluealsaaplayargs="${withval}"],
 	[systemdbluealsaaplayargs=""])
 AC_SUBST([SYSTEMD_BLUEALSA_APLAY_ARGS], [$systemdbluealsaaplayargs])
+
+AC_ARG_WITH([bluealsauser],
+	AS_HELP_STRING([--with-bluealsauser=USER], [set up installation to run bluealsa as user
+		USER, defaults to root if not specified. When used with bluez <= 5.50, USER must be a
+		member of the "bluetooth" group.]),
+	[bluealsauser="${withval}"],
+	[bluealsauser="root"])
+AC_SUBST([BLUEALSA_USER], [$bluealsauser])
+
+AC_ARG_WITH([bluealsaaplayuser],
+	AS_HELP_STRING([--with-bluealsaaplayuser=USER], [set up installation to run bluealsa-aplay
+		as user USER, defaults to root if not specified. USER must be a member of the "audio"
+		group.]),
+	[bluealsaaplayuser="${withval}"],
+	[bluealsaaplayuser="root"])
+AC_SUBST([BLUEALSA_APLAY_USER], [$bluealsaaplayuser])
 
 AC_CONFIG_FILES([
 	Makefile

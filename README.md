@@ -205,9 +205,8 @@ wiki page.
 
    Additionally, the cause of the "PCM not found" error might be an incorrect ALSA PCM name. Run
    `bluealsa-aplay --list-pcms` for the list of currently available ALSA PCM names - it might give
-   you a hint what is wrong with your `.asoundrc` entry. Also, take a look at the "[Using the
-   bluealsa ALSA pcm plugin](https://github.com/Arkq/bluez-alsa/wiki/Using-the-bluealsa-ALSA-pcm-plugin)"
-   bluez-alsa wiki page.
+   you a hint what is wrong with your `.asoundrc` entry. Also, take a look at the
+   [bluealsa-plugins man page](./doc/bluealsa-plugins.7.rst).
 
 ## Resources
 

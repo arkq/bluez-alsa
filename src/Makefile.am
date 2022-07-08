@@ -5,6 +5,7 @@ bin_PROGRAMS = bluealsa
 SUBDIRS = asound
 
 dbusconfdir = @DBUS_CONF_DIR@
+dbusbluealsauser = @BLUEALSA_USER@
 dist_dbusconf_DATA = bluealsa.conf
 
 bluealsa_SOURCES = \
@@ -127,3 +128,12 @@ LDADD = \
 	@MPG123_LIBS@ \
 	@SBC_LIBS@ \
 	@SPANDSP_LIBS@
+
+SUFFIXES = .conf.in .conf
+MOSTLYCLEANFILES = $(dist_dbusconf_DATA)
+
+DBUSCONF_SUBS = \
+	s,[@]bluealsauser[@],$(dbusbluealsauser),g;
+
+.conf.in.conf:
+	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@
