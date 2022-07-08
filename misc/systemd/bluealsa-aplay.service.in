@@ -15,6 +15,8 @@ Requisite=dbus.service
 
 [Service]
 Type=simple
+User=@bluealsaaplayuser@
+Group=audio
 ExecStart=@bindir@/bluealsa-aplay @systemdbluealsaaplayargs@
 Restart=on-failure
 

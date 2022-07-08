@@ -17,6 +17,7 @@ After=bluetooth.service
 [Service]
 Type=dbus
 BusName=org.bluealsa
+User=@bluealsauser@
 ExecStart=@bindir@/bluealsa @systemdbluealsaargs@
 Restart=on-failure
 
@@ -29,13 +30,16 @@ NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true
 PrivateUsers=true
+ProtectClock=true
 ProtectControlGroups=true
 ProtectHome=true
 ProtectHostname=true
 ProtectKernelLogs=true
 ProtectKernelModules=true
 ProtectKernelTunables=true
+ProtectProc=invisible
 ProtectSystem=strict
+RemoveIPC=true
 RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH
 RestrictNamespaces=true
 RestrictRealtime=true

@@ -340,6 +340,20 @@ AC_ARG_WITH([systemdbluealsaaplayargs],
 	[systemdbluealsaaplayargs=""])
 AC_SUBST([SYSTEMD_BLUEALSA_APLAY_ARGS], [$systemdbluealsaaplayargs])
 
+AC_ARG_WITH([bluealsauser],
+	AS_HELP_STRING([--with-bluealsauser=USER], [set up installation to run bluealsa as user
+		USER, defaults to root if not specified]),
+	[bluealsauser="${withval}"],
+	[bluealsauser="root"])
+AC_SUBST([BLUEALSA_USER], [$bluealsauser])
+
+AC_ARG_WITH([bluealsaaplayuser],
+	AS_HELP_STRING([--with-bluealsaaplayuser=USER], [set up installation to run bluealsa-aplay
+		as user USER, defaults to root if not specified]),
+	[bluealsaaplayuser="${withval}"],
+	[bluealsaaplayuser="root"])
+AC_SUBST([BLUEALSA_APLAY_USER], [$bluealsaaplayuser])
+
 AC_CONFIG_FILES([
 	Makefile
 	doc/Makefile

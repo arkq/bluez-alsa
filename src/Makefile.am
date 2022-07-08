@@ -7,6 +7,8 @@ SUBDIRS = asound
 dbusconfdir = @DBUS_CONF_DIR@
 dist_dbusconf_DATA = bluealsa.conf
 
+bluealsauser = $(BLUEALSA_USER)
+
 bluealsa_SOURCES = \
 	shared/a2dp-codecs.c \
 	shared/ffb.c \
@@ -127,3 +129,12 @@ LDADD = \
 	@MPG123_LIBS@ \
 	@SBC_LIBS@ \
 	@SPANDSP_LIBS@
+
+SUFFIXES = .in
+MOSTLYCLEANFILES = $(dist_dbusconf_DATA)
+
+DBUSCONF_SUBS = \
+	s,[@]bluealsauser[@],$(bluealsauser),g;
+
+.in:
+	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@
