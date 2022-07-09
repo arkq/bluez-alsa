@@ -10,6 +10,8 @@
   <policy user="@bluealsauser@">
     <allow own_prefix="org.bluealsa"/>
     <allow send_destination="org.bluealsa"/>
+	<!-- For bluez <= 5.50 -->
+	<allow send_destination="org.bluez"/> 
   </policy>
 
   <policy group="audio">
