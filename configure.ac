@@ -342,14 +342,15 @@ AC_SUBST([SYSTEMD_BLUEALSA_APLAY_ARGS], [$systemdbluealsaaplayargs])
 
 AC_ARG_WITH([bluealsauser],
 	AS_HELP_STRING([--with-bluealsauser=USER], [set up installation to run bluealsa as user
-		USER, defaults to root if not specified]),
+		USER, defaults to root if not specified. When used with bluez <= 5.50, USER must be
+		a member of the "bluetooth" group.]),
 	[bluealsauser="${withval}"],
 	[bluealsauser="root"])
 AC_SUBST([BLUEALSA_USER], [$bluealsauser])
 
 AC_ARG_WITH([bluealsaaplayuser],
 	AS_HELP_STRING([--with-bluealsaaplayuser=USER], [set up installation to run bluealsa-aplay
-		as user USER, defaults to root if not specified]),
+		as user USER, defaults to root if not specified. USER must be a member of the "audio" group.]),
 	[bluealsaaplayuser="${withval}"],
 	[bluealsaaplayuser="root"])
 AC_SUBST([BLUEALSA_APLAY_USER], [$bluealsaaplayuser])
