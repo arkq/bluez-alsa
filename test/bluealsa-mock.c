@@ -97,12 +97,8 @@ static struct ba_adapter *a = NULL;
 static char service[32] = BLUEALSA_SERVICE;
 static GMutex timeout_mutex = { 0 };
 static GCond timeout_cond = { 0 };
-static bool a2dp_extra_codecs = false;
-static bool a2dp_source = false;
-static bool a2dp_sink = false;
-static bool sco_hfp = false;
-static bool sco_hsp = false;
 static bool dump_output = false;
+static bool enable_extra_codecs = false;
 static int timeout_ms = 5000;
 static int fuzzing_ms = 0;
 
@@ -388,7 +384,7 @@ void *mock_service_thread(void *userdata) {
 	GPtrArray *tt = g_ptr_array_new();
 	size_t i;
 
-	if (a2dp_source) {
+	if (config.profile.a2dp_source) {
 
 		g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
 					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
@@ -398,7 +394,7 @@ void *mock_service_thread(void *userdata) {
 					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
 					&config_sbc_44100_stereo));
 
-		if (a2dp_extra_codecs) {
+		if (enable_extra_codecs) {
 
 #if ENABLE_APTX
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:00:00",
@@ -422,7 +418,7 @@ void *mock_service_thread(void *userdata) {
 
 	}
 
-	if (a2dp_sink) {
+	if (config.profile.a2dp_sink) {
 
 		g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
 						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
@@ -432,7 +428,7 @@ void *mock_service_thread(void *userdata) {
 						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
 						&config_sbc_44100_stereo));
 
-		if (a2dp_extra_codecs) {
+		if (enable_extra_codecs) {
 
 #if ENABLE_APTX
 			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:00:00",
@@ -450,7 +446,7 @@ void *mock_service_thread(void *userdata) {
 
 	}
 
-	if (sco_hfp) {
+	if (config.profile.hfp_ag) {
 
 		struct ba_transport *t;
 		g_ptr_array_add(tt, t = mock_transport_new_sco("12:34:56:78:9A:BC",
@@ -466,7 +462,7 @@ void *mock_service_thread(void *userdata) {
 
 	}
 
-	if (sco_hsp) {
+	if (config.profile.hsp_ag) {
 		g_ptr_array_add(tt, mock_transport_new_sco("23:45:67:89:AB:CD",
 					BA_TRANSPORT_PROFILE_HSP_AG, HFP_CODEC_UNDEFINED));
 	}
@@ -511,17 +507,14 @@ static void dbus_name_acquired(GDBusConnection *conn, const char *name, void *us
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hB:t:";
+	const char *opts = "hB:p:t:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "dbus", required_argument, NULL, 'B' },
+		{ "profile", required_argument, NULL, 'p' },
 		{ "timeout", required_argument, NULL, 't' },
-		{ "a2dp-extra-codecs", no_argument, NULL, 1 },
-		{ "a2dp-source", no_argument, NULL, 2 },
-		{ "a2dp-sink", no_argument, NULL, 3 },
-		{ "sco-hfp", no_argument, NULL, 4 },
-		{ "sco-hsp", no_argument, NULL, 5 },
 		{ "dump-output", no_argument, NULL, 6 },
+		{ "enable-extra-codecs", no_argument, NULL, 1 },
 		{ "fuzzing", required_argument, NULL, 7 },
 		{ 0, 0, 0, 0 },
 	};
@@ -534,39 +527,51 @@ int main(int argc, char *argv[]) {
 					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -B, --dbus=NAME\tBlueALSA service name suffix\n"
+					"  -p, --profile=NAME\tset enabled BT profiles\n"
 					"  -t, --timeout=MSEC\tmock server exit timeout\n"
-					"  --a2dp-extra-codecs\tregister non-mandatory A2DP codecs\n"
-					"  --a2dp-source\t\tregister source A2DP endpoints\n"
-					"  --a2dp-sink\t\tregister sink A2DP endpoints\n"
-					"  --sco-hfp\t\tregister HFP endpoints\n"
-					"  --sco-hsp\t\tregister HSP endpoints\n"
 					"  --dump-output\t\tdump Bluetooth transport data\n"
-					"  --fuzzing=MSEC\t\tmock human actions with timings\n",
+					"  --enable-extra-codecs\tregister non-mandatory codecs\n"
+					"  --fuzzing=MSEC\tmock human actions with timings\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 		case 'B' /* --dbus=NAME */ :
 			snprintf(service, sizeof(service), BLUEALSA_SERVICE ".%s", optarg);
 			break;
+		case 'p' /* --profile=NAME */ : {
+
+			static const struct {
+				const char *name;
+				bool *ptr;
+			} map[] = {
+				{ "a2dp-source", &config.profile.a2dp_source },
+				{ "a2dp-sink", &config.profile.a2dp_sink },
+				{ "hfp-ag", &config.profile.hfp_ag },
+				{ "hsp-ag", &config.profile.hsp_ag },
+			};
+
+			bool matched = false;
+			for (size_t i = 0; i < ARRAYSIZE(map); i++)
+				if (strcasecmp(optarg, map[i].name) == 0) {
+					*map[i].ptr = true;
+					matched = true;
+					break;
+				}
+
+			if (!matched) {
+				error("Invalid BT profile name: %s", optarg);
+				return EXIT_FAILURE;
+			}
+
+			break;
+		}
 		case 't' /* --timeout=MSEC */ :
 			timeout_ms = atoi(optarg);
 			break;
-		case 1 /* --a2dp-extra-codecs */ :
-			a2dp_extra_codecs = true;
-			break;
-		case 2 /* -a2dp-source */ :
-			a2dp_source = true;
-			break;
-		case 3 /* -a2dp-sink */ :
-			a2dp_sink = true;
-			break;
-		case 4 /* --sco-hfp */ :
-			sco_hfp = true;
-			break;
-		case 5 /* --sco-hsp */ :
-			sco_hsp = true;
-			break;
 		case 6 /* --dump-output */ :
 			dump_output = true;
+			break;
+		case 1 /* --enable-extra-codecs */ :
+			enable_extra_codecs = true;
 			break;
 		case 7 /* --fuzzing=MSEC */ :
 			fuzzing_ms = atoi(optarg);

@@ -2,7 +2,7 @@
  * server.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,6 +12,7 @@
 
 #include <ctype.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,39 +93,46 @@ char *bluealsa_mock_path = ".";
  * Spawn bluealsa server mock.
  *
  * @param service BlueALSA D-Bus service name.
- * @param timeout_ms Timeout passed to the bluealsa-mock.
  * @param wait_for_ready Block until PCMs are ready.
- * @param fuzzing_ms Enable fuzzing - delayed startup.
- * @param a2dp_source Start A2DP source.
- * @param a2dp_sink Start A2DP sink.
- * @param sco_hfp Start HFP audio gateway.
- * @param sco_hsp Start HSP audio gateway.
- * @return PID of the bluealsa server mock. */
-pid_t spawn_bluealsa_server(const char *service, unsigned int timeout_ms,
-		bool wait_for_ready, unsigned int fuzzing_ms, bool a2dp_source,
-		bool a2dp_sink, bool sco_hfp, bool sco_hsp) {
+ * @param ... Additional arguments to be passed to the bluealsa-mock. The list
+ *   shall be terminated by NULL.
+ * @return PID of the bluealsa-mock server. */
+pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
+
+	unsigned int count_a2dp = 0;
+	unsigned int count_sco = 0;
 
 	char arg_service[32] = "";
 	if (service != NULL)
 		sprintf(arg_service, "--dbus=%s", service);
 
-	char arg_timeout[16];
-	sprintf(arg_timeout, "--timeout=%u", timeout_ms);
-
-	char arg_fuzzing[16];
-	sprintf(arg_fuzzing, "--fuzzing=%u", fuzzing_ms);
-
-	char *argv[] = {
+	size_t n = 2;
+	char * argv[32] = {
 		"bluealsa-mock",
 		arg_service,
-		arg_timeout,
-		arg_fuzzing,
-		a2dp_source ? "--a2dp-source" : "",
-		a2dp_sink ? "--a2dp-sink" : "",
-		sco_hfp ? "--sco-hfp" : "",
-		sco_hsp ? "--sco-hsp" : "",
-		NULL,
 	};
+
+	va_list ap;
+	va_start(ap, wait_for_ready);
+
+	char *arg;
+	while ((arg = va_arg(ap, char *)) != NULL) {
+
+		argv[n++] = arg;
+		argv[n] = NULL;
+
+		if (strcmp(arg, "--profile=a2dp-source") == 0)
+			count_a2dp += 2;
+		if (strcmp(arg, "--profile=a2dp-sink") == 0)
+			count_a2dp += 2;
+		if (strcmp(arg, "--profile=hfp-ag") == 0)
+			count_sco += 1;
+		if (strcmp(arg, "--profile=hsp-ag") == 0)
+			count_sco += 1;
+
+	}
+
+	va_end(ap);
 
 	char path[256];
 	sprintf(path, "%s/bluealsa-mock", bluealsa_mock_path);
@@ -144,18 +152,6 @@ pid_t spawn_bluealsa_server(const char *service, unsigned int timeout_ms,
 	close(fds[1]);
 
 	struct spawn_bluealsa_data *data;
-	unsigned int count_a2dp = 0;
-	unsigned int count_sco = 0;
-
-	if (a2dp_source)
-		count_a2dp += 2;
-	if (a2dp_sink)
-		count_a2dp += 2;
-	if (sco_hfp)
-		count_sco += 1;
-	if (sco_hsp)
-		count_sco += 1;
-
 	if ((data = calloc(1, sizeof(*data))) == NULL)
 		return -1;
 

@@ -64,7 +64,12 @@ fail:
 
 static int test_ctl_open(pid_t *pid, snd_ctl_t **ctl, int mode) {
 	const char *service = "test";
-	if ((*pid = spawn_bluealsa_server(service, 1000, true, 0, true, true, true, false)) == -1)
+	if ((*pid = spawn_bluealsa_server(service, true,
+					"--timeout=1000",
+					"--profile=a2dp-source",
+					"--profile=a2dp-sink",
+					"--profile=hfp-ag",
+					NULL)) == -1)
 		return -1;
 	return snd_ctl_open_bluealsa(ctl, service, "", mode);
 }
@@ -189,8 +194,11 @@ START_TEST(test_single_device) {
 	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1000,
-				true, 0, true, true, false, false), -1);
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				"--profile=a2dp-source",
+				"--profile=a2dp-sink",
+				NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
 				"device \"00:00:00:00:00:00\"", 0), 0);
@@ -225,8 +233,9 @@ START_TEST(test_single_device_not_connected) {
 	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1000,
-				true, 0, false, false, false, false), -1);
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
 				"device \"00:00:00:00:00:00\"", 0), -ENODEV);
@@ -242,8 +251,10 @@ START_TEST(test_single_device_no_such_device) {
 	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 1000,
-				true, 0, true, false, false, false), -1);
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				"--profile=a2dp-source",
+				NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
 				"device \"DE:AD:12:34:56:78\"", 0), -ENODEV);
@@ -259,8 +270,12 @@ START_TEST(test_single_device_non_dynamic) {
 	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 0,
-				true, 500, false, true, false, true), -1);
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=0",
+				"--profile=a2dp-sink",
+				"--profile=hsp-ag",
+				"--fuzzing=500",
+				NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
 				"device \"23:45:67:89:AB:CD\"\n"
@@ -324,8 +339,12 @@ START_TEST(test_notifications) {
 	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, 0xFFFF,
-				false, 250, true, false, true, false), -1);
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, false,
+				"--timeout=10000",
+				"--profile=a2dp-source",
+				"--profile=hfp-ag",
+				"--fuzzing=250",
+				NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service, "", 0), 0);
 	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 1), 0);
