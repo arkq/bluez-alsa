@@ -46,6 +46,7 @@
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
 #include "bluez.h"
+#include "bluez-iface.h"
 #include "codec-sbc.h"
 #include "hfp.h"
 #include "io.h"
@@ -97,6 +98,7 @@ static struct ba_adapter *a = NULL;
 static char service[32] = BLUEALSA_SERVICE;
 static GMutex timeout_mutex = { 0 };
 static GCond timeout_cond = { 0 };
+static const char *devices[8] = { NULL };
 static bool dump_output = false;
 static bool enable_extra_codecs = false;
 static int timeout_ms = 5000;
@@ -378,7 +380,66 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 	return t;
 }
 
-void *mock_service_thread(void *userdata) {
+static GDBusPropertyInfo bluez_iface_device_Alias = {
+	-1, "Alias", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static GDBusPropertyInfo *bluez_iface_device_properties[] = {
+	&bluez_iface_device_Alias,
+	NULL,
+};
+
+static GDBusInterfaceInfo bluez_iface_device = {
+	-1, BLUEZ_IFACE_DEVICE,
+	NULL,
+	NULL,
+	bluez_iface_device_properties,
+	NULL,
+};
+
+static GVariant *bluez_device_get_property(GDBusConnection *conn,
+		const char *sender, const char *path, const char *iface,
+		const char *property, GError **error, void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)iface;
+	(void)error;
+	(void)userdata;
+
+	bdaddr_t addr;
+	char addrstr[18];
+	ba2str(g_dbus_bluez_object_path_to_bdaddr(path, &addr), addrstr);
+
+	if (strcmp(property, "Alias") == 0) {
+
+		for (size_t i = 0; i < ARRAYSIZE(devices); i++)
+			if (devices[i] != NULL &&
+					strncmp(devices[i], addrstr, sizeof(addrstr) - 1) == 0)
+				return g_variant_new_string(&devices[i][sizeof(addrstr)]);
+
+		*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_PROPERTY,
+				"Device alias/name not available");
+		return NULL;
+	}
+
+	g_assert_not_reached();
+	return NULL;
+}
+
+static const GDBusInterfaceVTable bluez_device_vtable = {
+	.get_property = bluez_device_get_property,
+};
+
+static void dbus_name_acquired_bluez(GDBusConnection *conn, const char *name, void *userdata) {
+	(void)conn;
+	(void)name;
+	g_dbus_connection_register_object(conn, "/org/bluez/hci0/dev_12_34_56_78_9A_BC",
+			&bluez_iface_device, &bluez_device_vtable, userdata, NULL, NULL);
+	g_dbus_connection_register_object(conn, "/org/bluez/hci0/dev_23_45_67_89_AB_CD",
+			&bluez_iface_device, &bluez_device_vtable, userdata, NULL, NULL);
+}
+
+static void *mock_bluealsa_service_thread(void *userdata) {
 
 	GMainLoop *loop = userdata;
 	GPtrArray *tt = g_ptr_array_new();
@@ -484,9 +545,8 @@ void *mock_service_thread(void *userdata) {
 	return NULL;
 }
 
-static void dbus_name_acquired(GDBusConnection *conn, const char *name, void *userdata) {
+static void dbus_name_acquired_bluealsa(GDBusConnection *conn, const char *name, void *userdata) {
 	(void)conn;
-	GMainLoop *loop = userdata;
 
 	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
 
@@ -500,7 +560,7 @@ static void dbus_name_acquired(GDBusConnection *conn, const char *name, void *us
 	assert((a = ba_adapter_new(0)) != NULL);
 
 	/* run actual BlueALSA mock thread */
-	g_thread_new(NULL, mock_service_thread, loop);
+	g_thread_new(NULL, mock_bluealsa_service_thread, userdata);
 
 }
 
@@ -513,6 +573,7 @@ int main(int argc, char *argv[]) {
 		{ "dbus", required_argument, NULL, 'B' },
 		{ "profile", required_argument, NULL, 'p' },
 		{ "timeout", required_argument, NULL, 't' },
+		{ "device-name", required_argument, NULL, 2 },
 		{ "dump-output", no_argument, NULL, 6 },
 		{ "enable-extra-codecs", no_argument, NULL, 1 },
 		{ "fuzzing", required_argument, NULL, 7 },
@@ -529,6 +590,7 @@ int main(int argc, char *argv[]) {
 					"  -B, --dbus=NAME\tBlueALSA service name suffix\n"
 					"  -p, --profile=NAME\tset enabled BT profiles\n"
 					"  -t, --timeout=MSEC\tmock server exit timeout\n"
+					"  --device-name=MAC:NAME\tmock BT device name\n"
 					"  --dump-output\t\tdump Bluetooth transport data\n"
 					"  --enable-extra-codecs\tregister non-mandatory codecs\n"
 					"  --fuzzing=MSEC\tmock human actions with timings\n",
@@ -567,6 +629,13 @@ int main(int argc, char *argv[]) {
 		case 't' /* --timeout=MSEC */ :
 			timeout_ms = atoi(optarg);
 			break;
+		case 2 /* --device-name=MAC:NAME */ :
+			for (size_t i = 0; i < ARRAYSIZE(devices); i++)
+				if (devices[i] == NULL) {
+					devices[i] = optarg;
+					break;
+				}
+			break;
 		case 6 /* --dump-output */ :
 			dump_output = true;
 			break;
@@ -601,8 +670,13 @@ int main(int argc, char *argv[]) {
 	g_unix_signal_add(SIGTERM, main_loop_exit_handler, loop);
 
 	bluealsa_dbus_register();
+
+	assert(g_bus_own_name_on_connection(config.dbus, BLUEZ_SERVICE,
+				G_BUS_NAME_OWNER_FLAGS_NONE, dbus_name_acquired_bluez, NULL,
+				loop, NULL) != 0);
 	assert(g_bus_own_name_on_connection(config.dbus, service,
-				G_BUS_NAME_OWNER_FLAGS_NONE, dbus_name_acquired, NULL, loop, NULL) != 0);
+				G_BUS_NAME_OWNER_FLAGS_NONE, dbus_name_acquired_bluealsa, NULL,
+				loop, NULL) != 0);
 
 	g_main_loop_run(loop);
 

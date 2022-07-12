@@ -42,7 +42,7 @@ struct ctl_elem {
 	enum ctl_elem_type type;
 	struct bt_dev *dev;
 	struct ba_pcm *pcm;
-	char name[44 /* internal ALSA constraint */ + 1];
+	char name[44 /* internal ALSA constraint */];
 	/* if true, element is a playback control */
 	bool playback;
 	/* For single device mode, if true then the associated profile is connected.
@@ -366,6 +366,7 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 		/* multi-device mixer - include device alias in control names */
 
 		const int name_len = strlen(name);
+		/* max name length with reserved space for ALSA suffix */
 		int len = sizeof(elem->name) - 16 - 1;
 		char no[16] = "";
 
@@ -374,10 +375,13 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 			len -= strlen(no);
 		}
 
+		/* Reserve space for the longest element type description. This applies
+		 * to all elements so the shortened device name will be consistent. */
+		len = MIN(len - (sizeof(" | Battery") - 1), name_len);
+		while (isspace(name[len - 1]))
+			len--;
+
 		if (elem->type == CTL_ELEM_TYPE_BATTERY) {
-			len = MIN(len - 10, name_len);
-			while (isspace(name[len - 1]))
-				len--;
 			sprintf(elem->name, "%.*s%s | Battery", len, name, no);
 		}
 		else {
@@ -385,18 +389,12 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 			switch (elem->pcm->transport) {
 			case BA_PCM_TRANSPORT_A2DP_SOURCE:
 			case BA_PCM_TRANSPORT_A2DP_SINK:
-				len = MIN(len - 7, name_len);
-				while (isspace(name[len - 1]))
-					len--;
 				sprintf(elem->name, "%.*s%s - A2DP", len, name, no);
 				break;
 			case BA_PCM_TRANSPORT_HFP_AG:
 			case BA_PCM_TRANSPORT_HFP_HF:
 			case BA_PCM_TRANSPORT_HSP_AG:
 			case BA_PCM_TRANSPORT_HSP_HS:
-				len = MIN(len - 6, name_len);
-				while (isspace(name[len - 1]))
-					len--;
 				sprintf(elem->name, "%.*s%s - SCO", len, name, no);
 				break;
 			}
@@ -562,19 +560,18 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	if (!ctl->single_device)
 		for (i = 0; i < count; i++) {
 
-			char tmp[sizeof(elem_list[0].name)];
 			bool duplicated = false;
 			size_t ii;
 
 			for (ii = i + 1; ii < count; ii++)
 				if (strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
-					bluealsa_elem_set_name(&elem_list[ii], strcpy(tmp, elem_list[ii].dev->name),
+					bluealsa_elem_set_name(&elem_list[ii], elem_list[ii].dev->name,
 							bluealsa_dev_get_id(ctl, elem_list[ii].pcm));
 					duplicated = true;
 				}
 
 			if (duplicated)
-				bluealsa_elem_set_name(&elem_list[i], strcpy(tmp, elem_list[i].dev->name),
+				bluealsa_elem_set_name(&elem_list[i], elem_list[i].dev->name,
 						bluealsa_dev_get_id(ctl, elem_list[i].pcm));
 
 		}

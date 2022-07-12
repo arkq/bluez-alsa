@@ -123,6 +123,39 @@ START_TEST(test_controls) {
 
 } END_TEST
 
+START_TEST(test_device_name_duplicates) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	snd_ctl_t *ctl = NULL;
+	pid_t pid = -1;
+
+	const char *service = "test";
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				"--profile=a2dp-source",
+				"--device-name=12:34:56:78:9A:BC:Long Bluetooth Device Name",
+				"--device-name=23:45:67:89:AB:CD:Long Bluetooth Device Name",
+				NULL), -1);
+
+	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service, "", 0), 0);
+
+	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_alloca(&elems);
+
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 4);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 4), 0);
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "Long Bluetooth #1 - A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "Long Bluetooth #2 - A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "Long Bluetooth #1 - A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth #2 - A2DP Playback Volume");
+
+	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+
+} END_TEST
+
 START_TEST(test_mute_and_volume) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
@@ -388,6 +421,7 @@ int main(int argc, char *argv[]) {
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_controls);
+	tcase_add_test(tc, test_device_name_duplicates);
 	tcase_add_test(tc, test_mute_and_volume);
 	tcase_add_test(tc, test_volume_db_range);
 	tcase_add_test(tc, test_single_device);
