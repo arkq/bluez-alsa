@@ -32,12 +32,19 @@
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
 
+/**
+ * Control element type.
+ *
+ * Note: The order of enum values is important - it
+ *       determines control elements ordering. */
 enum ctl_elem_type {
-	CTL_ELEM_TYPE_BATTERY,
 	CTL_ELEM_TYPE_SWITCH,
 	CTL_ELEM_TYPE_VOLUME,
+	CTL_ELEM_TYPE_BATTERY,
 };
 
+/**
+ * Control element. */
 struct ctl_elem {
 	enum ctl_elem_type type;
 	struct bt_dev *dev;
@@ -132,10 +139,29 @@ static int bluealsa_elem_cmp(const void *p1, const void *p2) {
 	const struct ctl_elem *e2 = (const struct ctl_elem *)p2;
 	int rv;
 
-	if ((rv = strcmp(e1->name, e2->name)) == 0)
-		rv = bacmp(&e1->pcm->addr, &e2->pcm->addr);
+	/* Sort elements by device names. In case were names
+	 * are the same sort by device addresses. */
+	if ((rv = bacmp(&e1->pcm->addr, &e2->pcm->addr)) != 0) {
+		const int dev_rv = strcmp(e1->dev->name, e2->dev->name);
+		return dev_rv != 0 ? dev_rv : rv;
+	}
 
-	return rv;
+	/* Within a single device order elements by:
+	 *  - element type (keep battery last)
+	 *  - PCM transport type
+	 *  - playback/capture
+	 *  - element type
+	 * */
+	if (e1->type == CTL_ELEM_TYPE_BATTERY ||
+			e2->type == CTL_ELEM_TYPE_BATTERY)
+		return e1->type - e2->type;
+	if ((rv = e1->pcm->transport - e2->pcm->transport))
+		return rv;
+	if ((rv = e1->playback - e2->playback) != 0)
+		return -rv;
+	if ((rv = e1->type - e2->type) != 0)
+		return rv;
+	return 0;
 }
 
 static DBusMessage *bluealsa_dbus_get_property(DBusConnection *conn,
@@ -552,7 +578,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 	}
 
-	/* Sort control elements alphabetically. */
+	/* Sort control elements according to our sorting rules. */
 	qsort(elem_list, count, sizeof(*elem_list), bluealsa_elem_cmp);
 
 	/* Detect element name duplicates and annotate them with the
