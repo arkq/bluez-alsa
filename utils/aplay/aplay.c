@@ -191,7 +191,7 @@ static void print_bt_device_list(void) {
 
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
 				bluealsa_get_profile(pcm),
-				pcm->codec,
+				pcm->codec.name,
 				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 				pcm->channels, pcm->channels != 1 ? "s" : "",
 				pcm->sampling);
@@ -233,7 +233,7 @@ static void print_bt_pcm_list(void) {
 			dev.trusted ? "trusted ": "", dev.icon,
 			pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
 			bluealsa_get_profile(pcm),
-			pcm->codec,
+			pcm->codec.name,
 			snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 			pcm->channels, pcm->channels != 1 ? "s" : "",
 			pcm->sampling);

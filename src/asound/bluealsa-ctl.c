@@ -837,21 +837,27 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 }
 
 static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
-		DBusMessageIter *variant, void *userdata, DBusError *error) {
+		DBusMessageIter *value, void *userdata, DBusError *error) {
 	(void)error;
 
 	struct bt_dev *dev = (struct bt_dev *)userdata;
 	dev->mask = BT_DEV_MASK_NONE;
 
+	if (dbus_message_iter_get_arg_type(value) != DBUS_TYPE_VARIANT)
+		return FALSE;
+
+	DBusMessageIter variant;
+	dbus_message_iter_recurse(value, &variant);
+
 	if (strcmp(key, "Alias") == 0) {
 		const char *alias;
-		dbus_message_iter_get_basic(variant, &alias);
+		dbus_message_iter_get_basic(&variant, &alias);
 		*stpncpy(dev->name, alias, sizeof(dev->name) - 1) = '\0';
 		dev->mask = BT_DEV_MASK_UPDATE;
 	}
 	else if (strcmp(key, "Battery") == 0) {
 		signed char level;
-		dbus_message_iter_get_basic(variant, &level);
+		dbus_message_iter_get_basic(&variant, &level);
 		dev->mask = BT_DEV_MASK_UPDATE;
 		if (dev->battery_level == -1)
 			dev->mask = BT_DEV_MASK_ADD | BT_DEV_MASK_UPDATE;
@@ -859,7 +865,7 @@ static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 	}
 	else if (strcmp(key, "Connected") == 0) {
 		dbus_bool_t connected;
-		dbus_message_iter_get_basic(variant, &connected);
+		dbus_message_iter_get_basic(&variant, &connected);
 		/* process device disconnected event only */
 		if (!connected)
 			dev->mask = BT_DEV_MASK_REMOVE;

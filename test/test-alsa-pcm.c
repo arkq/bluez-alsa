@@ -536,6 +536,28 @@ START_TEST(ba_test_playback_hw_constraints) {
 
 } END_TEST
 
+START_TEST(ba_test_playback_no_such_device) {
+
+	if (pcm_device != NULL)
+		return;
+
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	snd_pcm_t *pcm = NULL;
+	pid_t pid = -1;
+
+	const char *service = "test";
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				NULL), -1);
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "DE:AD:DE:AD:DE:AD", NULL,
+				"", SND_PCM_STREAM_PLAYBACK, 0), -ENODEV);
+
+	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+
+} END_TEST
+
 START_TEST(ba_test_playback_extra_setup) {
 
 	if (pcm_device != NULL)
@@ -1031,6 +1053,7 @@ int main(int argc, char *argv[]) {
 	TCase *tc_playback = tcase_create("playback");
 	tcase_add_test(tc_playback, dump_playback);
 	tcase_add_test(tc_playback, ba_test_playback_hw_constraints);
+	tcase_add_test(tc_playback, ba_test_playback_no_such_device);
 	tcase_add_test(tc_playback, ba_test_playback_extra_setup);
 	tcase_add_test(tc_playback, test_playback_hw_set_free);
 	tcase_add_test(tc_playback, test_playback_start);

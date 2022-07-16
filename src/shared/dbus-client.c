@@ -565,7 +565,69 @@ const char *bluealsa_dbus_pcm_get_codec_canonical_name(
 }
 
 /**
- * Select BlueALSA PCM Bluetooth codec. */
+ * Callback function for BlueALSA PCM codec list parser. */
+static dbus_bool_t bluealsa_dbus_message_iter_pcm_get_codecs_cb(const char *key,
+		DBusMessageIter *value, void *userdata, DBusError *error) {
+	(void)value;
+	(void)error;
+
+	struct ba_pcm_codecs *codecs = (struct ba_pcm_codecs *)userdata;
+	const size_t n = codecs->codecs_len;
+
+	strncpy(codecs->codecs[n].name, key, sizeof(codecs->codecs[n].name));
+	codecs->codecs[n].name[sizeof(codecs->codecs[n].name) - 1] = '\0';
+
+	/* TODO: Parse codec properties. */
+
+	codecs->codecs_len++;
+	return TRUE;
+}
+
+/**
+ * Get BlueALSA PCM Bluetooth audio codecs. */
+dbus_bool_t bluealsa_dbus_pcm_get_codecs(
+		struct ba_dbus_ctx *ctx,
+		const char *pcm_path,
+		struct ba_pcm_codecs *codecs,
+		DBusError *error) {
+
+	DBusMessage *msg = NULL, *rep = NULL;
+	dbus_bool_t rv = FALSE;
+
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
+					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
+		goto fail;
+
+	DBusMessageIter iter;
+	if (!dbus_message_iter_init(rep, &iter)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE, "Empty response message");
+		goto fail;
+	}
+
+	codecs->codecs_len = 0;
+
+	if (!bluealsa_dbus_message_iter_dict(&iter, error,
+				bluealsa_dbus_message_iter_pcm_get_codecs_cb, codecs))
+		goto fail;
+
+	rv = TRUE;
+
+fail:
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	return rv;
+}
+
+/**
+ * Select BlueALSA PCM Bluetooth audio codec. */
 dbus_bool_t bluealsa_dbus_pcm_select_codec(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
@@ -809,7 +871,6 @@ dbus_bool_t bluealsa_dbus_message_iter_dict(
 			dbus_message_iter_next(&iter_dict)) {
 
 		DBusMessageIter iter_entry;
-		DBusMessageIter iter_entry_val;
 		const char *key;
 
 		if (dbus_message_iter_get_arg_type(&iter_dict) != DBUS_TYPE_DICT_ENTRY)
@@ -818,12 +879,10 @@ dbus_bool_t bluealsa_dbus_message_iter_dict(
 		if (dbus_message_iter_get_arg_type(&iter_entry) != DBUS_TYPE_STRING)
 			goto fail;
 		dbus_message_iter_get_basic(&iter_entry, &key);
-		if (!dbus_message_iter_next(&iter_entry) ||
-				dbus_message_iter_get_arg_type(&iter_entry) != DBUS_TYPE_VARIANT)
+		if (!dbus_message_iter_next(&iter_entry))
 			goto fail;
-		dbus_message_iter_recurse(&iter_entry, &iter_entry_val);
 
-		if (!cb(key, &iter_entry_val, userdata, error))
+		if (!cb(key, &iter_entry, userdata, error))
 			return FALSE;
 
 	}
@@ -833,7 +892,7 @@ dbus_bool_t bluealsa_dbus_message_iter_dict(
 fail:
 	signature = dbus_message_iter_get_signature(iter);
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect signature: %s != a{sv}", signature);
+			"Incorrect signature: %s != a{s#}", signature);
 	dbus_free(signature);
 	return FALSE;
 }
@@ -905,29 +964,39 @@ fail:
 /**
  * Callback function for BlueALSA PCM properties parser. */
 static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
-		DBusMessageIter *variant, void *userdata, DBusError *error) {
+		DBusMessageIter *value, void *userdata, DBusError *error) {
 	struct ba_pcm *pcm = (struct ba_pcm *)userdata;
 
-	char type = dbus_message_iter_get_arg_type(variant);
+	char type;
+	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		return FALSE;
+	}
+
+	DBusMessageIter variant;
+	dbus_message_iter_recurse(value, &variant);
+	type = dbus_message_iter_get_arg_type(&variant);
+
 	char type_expected;
 	const char *tmp;
 
 	if (strcmp(key, "Device") == 0) {
 		if (type != (type_expected = DBUS_TYPE_OBJECT_PATH))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &tmp);
+		dbus_message_iter_get_basic(&variant, &tmp);
 		strncpy(pcm->device_path, tmp, sizeof(pcm->device_path) - 1);
 		path2ba(tmp, &pcm->addr);
 	}
 	else if (strcmp(key, "Sequence") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT32))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->sequence);
+		dbus_message_iter_get_basic(&variant, &pcm->sequence);
 	}
 	else if (strcmp(key, "Transport") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &tmp);
+		dbus_message_iter_get_basic(&variant, &tmp);
 		if (strstr(tmp, "A2DP-source") != NULL)
 			pcm->transport = BA_PCM_TRANSPORT_A2DP_SOURCE;
 		else if (strstr(tmp, "A2DP-sink") != NULL)
@@ -944,7 +1013,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 	else if (strcmp(key, "Mode") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &tmp);
+		dbus_message_iter_get_basic(&variant, &tmp);
 		if (strcmp(tmp, "source") == 0)
 			pcm->mode = BA_PCM_MODE_SOURCE;
 		else if (strcmp(tmp, "sink") == 0)
@@ -953,38 +1022,38 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 	else if (strcmp(key, "Format") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->format);
+		dbus_message_iter_get_basic(&variant, &pcm->format);
 	}
 	else if (strcmp(key, "Channels") == 0) {
 		if (type != (type_expected = DBUS_TYPE_BYTE))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->channels);
+		dbus_message_iter_get_basic(&variant, &pcm->channels);
 	}
 	else if (strcmp(key, "Sampling") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT32))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->sampling);
+		dbus_message_iter_get_basic(&variant, &pcm->sampling);
 	}
 	else if (strcmp(key, "Codec") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &tmp);
-		strncpy(pcm->codec, tmp, sizeof(pcm->codec) - 1);
+		dbus_message_iter_get_basic(&variant, &tmp);
+		strncpy(pcm->codec.name, tmp, sizeof(pcm->codec.name) - 1);
 	}
 	else if (strcmp(key, "Delay") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->delay);
+		dbus_message_iter_get_basic(&variant, &pcm->delay);
 	}
 	else if (strcmp(key, "SoftVolume") == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->soft_volume);
+		dbus_message_iter_get_basic(&variant, &pcm->soft_volume);
 	}
 	else if (strcmp(key, "Volume") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
-		dbus_message_iter_get_basic(variant, &pcm->volume.raw);
+		dbus_message_iter_get_basic(&variant, &pcm->volume.raw);
 	}
 
 	return TRUE;

@@ -96,6 +96,12 @@ enum ba_pcm_property {
 };
 
 /**
+ * BlueALSA PCM codec object. */
+struct ba_pcm_codec {
+	char name[16];
+};
+
+/**
  * BlueALSA PCM object. */
 struct ba_pcm {
 
@@ -122,7 +128,7 @@ struct ba_pcm {
 	/* device address */
 	bdaddr_t addr;
 	/* transport codec */
-	char codec[16];
+	struct ba_pcm_codec codec;
 	/* approximate PCM delay */
 	dbus_uint16_t delay;
 	/* software volume */
@@ -139,6 +145,13 @@ struct ba_pcm {
 		dbus_uint16_t raw;
 	} volume;
 
+};
+
+/**
+ * BlueALSA PCM codecs object. */
+struct ba_pcm_codecs {
+	struct ba_pcm_codec codecs[16];
+	size_t codecs_len;
 };
 
 dbus_bool_t bluealsa_dbus_connection_ctx_init(
@@ -204,6 +217,12 @@ dbus_bool_t bluealsa_dbus_pcm_open(
 
 const char *bluealsa_dbus_pcm_get_codec_canonical_name(
 		const char *alias);
+
+dbus_bool_t bluealsa_dbus_pcm_get_codecs(
+		struct ba_dbus_ctx *ctx,
+		const char *pcm_path,
+		struct ba_pcm_codecs *codecs,
+		DBusError *error);
 
 dbus_bool_t bluealsa_dbus_pcm_select_codec(
 		struct ba_dbus_ctx *ctx,

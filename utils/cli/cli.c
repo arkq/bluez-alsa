@@ -122,65 +122,23 @@ static bool get_pcm(const char *path, struct ba_pcm *pcm) {
 
 static bool print_pcm_codecs(const char *path, DBusError *err) {
 
-	DBusMessage *msg = NULL, *rep = NULL;
+	struct ba_pcm_codecs codecs = { 0 };
 	bool result = false;
-	int count = 0;
 
 	printf("Available codecs:");
 
-	if ((msg = dbus_message_new_method_call(dbus_ctx.ba_service, path,
-					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
-		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
+	if (!bluealsa_dbus_pcm_get_codecs(&dbus_ctx, path, &codecs, err))
 		goto fail;
-	}
 
-	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, err)) == NULL) {
-		goto fail;
-	}
+	for (size_t i = 0; i < codecs.codecs_len; i++)
+		printf(" %s", codecs.codecs[i].name);
 
-	DBusMessageIter iter;
-	if (!dbus_message_iter_init(rep, &iter)) {
-		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	DBusMessageIter iter_codecs;
-	for (dbus_message_iter_recurse(&iter, &iter_codecs);
-			dbus_message_iter_get_arg_type(&iter_codecs) != DBUS_TYPE_INVALID;
-			dbus_message_iter_next(&iter_codecs)) {
-
-		if (dbus_message_iter_get_arg_type(&iter_codecs) != DBUS_TYPE_DICT_ENTRY) {
-			dbus_set_error(err, DBUS_ERROR_FAILED, "Message corrupted");
-			goto fail;
-		}
-
-		DBusMessageIter iter_codecs_entry;
-		dbus_message_iter_recurse(&iter_codecs, &iter_codecs_entry);
-
-		if (dbus_message_iter_get_arg_type(&iter_codecs_entry) != DBUS_TYPE_STRING) {
-			dbus_set_error(err, DBUS_ERROR_FAILED, "Message corrupted");
-			goto fail;
-		}
-
-		const char *codec;
-		dbus_message_iter_get_basic(&iter_codecs_entry, &codec);
-		printf(" %s", codec);
-		++count;
-
-		/* Ignore the properties field, get next codec. */
-	}
 	result = true;
 
 fail:
-	if (count == 0)
+	if (codecs.codecs_len == 0)
 		printf(" [ Unknown ]");
 	printf("\n");
-
-	if (msg != NULL)
-		dbus_message_unref(msg);
-	if (rep != NULL)
-		dbus_message_unref(rep);
 	return result;
 }
 
@@ -227,7 +185,7 @@ static void print_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Channels: %d\n", pcm->channels);
 	printf("Sampling: %d Hz\n", pcm->sampling);
 	print_pcm_codecs(pcm->pcm_path, err);
-	printf("Selected codec: %s\n", pcm->codec);
+	printf("Selected codec: %s\n", pcm->codec.name);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
 	printf("SoftVolume: %s\n", pcm->soft_volume ? "Y" : "N");
 	print_volume(pcm);
@@ -414,7 +372,7 @@ static int cmd_codec(int argc, char *argv[]) {
 
 	if (argc == 2) {
 		print_pcm_codecs(path, &err);
-		printf("Selected codec: %s\n", pcm.codec);
+		printf("Selected codec: %s\n", pcm.codec.name);
 		return EXIT_SUCCESS;
 	}
 
