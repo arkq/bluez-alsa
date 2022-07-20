@@ -33,6 +33,7 @@
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h> /* IWYU pragma: keep */
 #include <bluetooth/hci_lib.h>
 
 #include <gio/gio.h>
@@ -129,7 +130,7 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 #endif
 
 	t->bt_fd = fd;
-	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, t->d->a);
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
 	ba_transport_set_codec(t, codec);
 
 	debug("New oFono SCO link (codec: %#x): %d", codec, fd);
@@ -826,7 +827,8 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	debug("New oFono SCO link (codec: %#x): %d", codec, fd);
 
 	t->bt_fd = fd;
-	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, t->d->a);
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd);
+
 	ba_transport_set_codec(t, codec);
 
 	pthread_mutex_unlock(&t->bt_fd_mtx);

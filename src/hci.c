@@ -23,9 +23,6 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
 
-#include "ba-adapter.h"
-#include "bluealsa-config.h"
-#include "shared/bluetooth.h"
 #include "shared/log.h"
 
 /**
@@ -112,44 +109,39 @@ int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
 /**
  * Get read/write MTU for given SCO socket.
  *
+ * Note that the SCO socket "MTU" reported by the Linux kernel is actually
+ * the response of the HCI HCI_Read_Buffer_Size command. The actual transfer
+ * size is determined by the underlying bus type, and this is not reported by
+ * the socket options. We use the socket option MTU as an upper bound for
+ * choosing the initial buffer size, but this is later optimized when we know
+ * the actual transfer size by reading the first incoming message.
+ *
  * @param sco_fd File descriptor of opened SCO socket.
- * @param a The adapter associated with sco_fd.
  * @return On success this function returns MTU value. Otherwise, 0 is returned and
  *   errno is set to indicate the error. */
-unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter *a) {
+unsigned int hci_sco_get_mtu(int sco_fd) {
 
+	int so_error;
 	struct sco_options options = { 0 };
-	struct bt_voice voice = { 0 };
 	socklen_t len;
 
 	struct pollfd pfd = { sco_fd, POLLOUT, 0 };
 	if (poll(&pfd, 1, -1) == -1)
 		warn("Couldn't wait for SCO connection: %s", strerror(errno));
 
+	len = sizeof(so_error);
+	if (getsockopt(sco_fd, SOL_SOCKET, SO_ERROR, &so_error, &len) == -1)
+		warn("Couldn't get SCO socket error: %s", strerror(errno));
+	if (so_error != 0) {
+		error("SCO socket connect error: %s", strerror(so_error));
+		return 0;
+	}
+
 	len = sizeof(options);
 	if (getsockopt(sco_fd, SOL_SCO, SCO_OPTIONS, &options, &len) == -1)
 		warn("Couldn't get SCO socket options: %s", strerror(errno));
 
-	len = sizeof(voice);
-	if (getsockopt(sco_fd, SOL_BLUETOOTH, BT_VOICE, &voice, &len) == -1)
-		warn("Couldn't get SCO voice options: %s", strerror(errno));
-
 	debug("SCO link socket MTU: %d: %u", sco_fd, options.mtu);
-
-	/* XXX: It seems, that the MTU value returned by kernel btusb driver
-	 *      is incorrect. */
-	if ((a->hci.type & 0x0F) == HCI_USB) {
-		options.mtu = 48;
-		if (voice.setting == BT_VOICE_TRANSPARENT) {
-			if (a->chip.manufacturer == 0)
-				hci_get_version(a->hci.dev_id, &a->chip);
-			if (!config.disable_realtek_usb_fix && a->chip.manufacturer == BT_COMPID_REALTEK)
-				options.mtu = 72;
-			else
-				options.mtu = 24;
-		}
-		debug("USB adjusted SCO MTU: %d: %u", sco_fd, options.mtu);
-	}
 
 	return options.mtu;
 }
