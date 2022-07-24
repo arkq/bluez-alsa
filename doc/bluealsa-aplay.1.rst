@@ -64,8 +64,7 @@ OPTIONS
     If playing multiple streams at the same time is not desired, it is possible
     to change that behavior by using the **--single-audio** option.
 
-    See the section `Selecting An ALSA Playback PCM`_ below for more information
-    on ALSA playback PCM devices.
+    For more information see the EXAMPLES_ section below.
 
 --pcm-buffer-time=INT
     Set the playback PCM buffer duration time to *INT* microseconds.
@@ -145,81 +144,6 @@ OPTIONS
     PCM to be able to mix audio from multiple sources (i.e., it can be opened
     more than once; for example the ALSA **dmix** plugin).
 
-Selecting An ALSA Playback PCM
-==============================
-
-If there is more than one sound card attached then the appropriate one can be
-selected with:
-
-::
-
-    bluealsa-aplay -D default:CARDNAME
-
-A list of attached sound card names can be obtained using **aplay -l**, for
-example:
-
-::
-
-    $ aplay -l
-    **** List of PLAYBACK Hardware Devices ****
-    card 0: PCH [HDA Intel PCH], device 0: ALC236 Analog [ALC236 Analog]
-      Subdevices: 1/1
-      Subdevice #0: subdevice #0
-    card 1: Device [USB Audio Device], device 0: USB Audio [USB Audio]
-      Subdevices: 1/1
-      Subdevice #0: subdevice #0
-
-Here the first word after the card number is the card name, so that to use the
-HDA Intel PCH card:
-
-::
-
-    bluealsa-aplay -D default:PCH
-
-or to use the USB card:
-
-::
-
-    bluealsa-aplay -D default:Device
-
-
-Some sound cards offer more than one playback PCM device. ALSA identifies these
-devices by using an index number for each. Such a card might produce **aplay -l**
-output like:
-
-::
-
-    $ aplay -l
-    **** List of PLAYBACK Hardware Devices ****
-    card 0: PCH [HDA Intel PCH], device 0: ALC236 Analog [ALC236 Analog]
-      Subdevices: 1/1
-      Subdevice #0: subdevice #0
-    card 0: PCH [HDA Intel PCH], device 3: HDMI 0 [HDMI 0]
-      Subdevices: 1/1
-      Subdevice #0: subdevice #0
-    card 0: PCH [HDA Intel PCH], device 7: HDMI 1 [HDMI 1]
-      Subdevices: 1/1
-      Subdevice #0: subdevice #0
-
-For most distributions, the installed definition of ``default`` for most sound
-cards will automatically convert the samplerate and format of the BT audio to those
-supported by the playback card, using ALSA's  ``plughw`` plug-in.  ``default`` also refers
-to device 0 so we have to explicitly use the ``plughw`` plugin for other devices to get
-automatic samplerate and format conversion.
-
-The ``default`` for each sound card often also includes ALSA's ``dmix`` plug-in so that
-multiple sound sources (from **bluealsa-aplay** and/or other applications) can play
-simultaneously to the same card. It needs an additional configuration file to use both
-``dmix`` and ``plughw`` with a device other than 0. The file should be similar to the example
-for **DMIX** below, substituting the card number and device number for ``hw:0,0``.
-
-There will be some cases where the ``default`` device is not sufficient. These
-are generally special cases, such as selecting a specific subset of channels
-from a multi-channel device or to duplicate the stream across multiple output
-devices etc. These cases generally require some additional configuration by the
-user, and it is recommended to seek advice from your distribution as this can be
-quite complex and is beyond the scope of this manual.
-
 DMIX
 ====
 
@@ -256,16 +180,24 @@ Alternatively we can define a PCM with the required setting:
 EXAMPLES
 ========
 
-By default **bluealsa-aplay** plays audio from all connected Bluetooth devices
-to the ``default`` ALSA playback PCM device. If there is more than one sound card
-attached one can create a setup where the audio of a particular Bluetooth device
-is played to a specific sound card. The setup below shows how to do this
-using the ``--pcm=NAME`` option and known Bluetooth device addresses.
+The simplest usage of **bluealsa-aplay** is to run it with no arguments. It
+will play audio from all connected Bluetooth devices to the ``default`` ALSA
+playback PCM.
+
+::
+
+    bluealsa-aplay
+
+If there is more than one sound card attached one can create a setup where the
+audio of a particular Bluetooth device is played to a specific sound card. The
+setup below shows how to do this using the ``--pcm=NAME`` option and known
+Bluetooth device addresses.
 
 Please note that in the following example we assume that the second card is
 named "USB" and the appropriate mixer control is named "Speaker". Real names
-of attached sound cards can be obtained by running ``aplay -l``. A list of control
-names for a card called "USB" can be obtained by running ``amixer -c USB scontrols``.
+of attached sound cards can be obtained by running **aplay -l**. A list of
+control names for a card called "USB" can be obtained by running
+**amixer -c USB scontrols**.
 
 ::
 
