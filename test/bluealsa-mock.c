@@ -100,7 +100,6 @@ static GMutex timeout_mutex = { 0 };
 static GCond timeout_cond = { 0 };
 static const char *devices[8] = { NULL };
 static bool dump_output = false;
-static bool enable_extra_codecs = false;
 static int timeout_ms = 5000;
 static int fuzzing_ms = 0;
 
@@ -447,63 +446,64 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 
 	if (config.profile.a2dp_source) {
 
-		g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
-					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
-					&config_sbc_44100_stereo));
-
-		g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
-					BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
-					&config_sbc_44100_stereo));
-
-		if (enable_extra_codecs) {
-
-#if ENABLE_APTX
-			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:00:00",
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_aptx_source,
-						&config_aptx_44100_stereo));
-#endif
+		if (a2dp_sbc_source.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
+						&config_sbc_44100_stereo));
 
 #if ENABLE_APTX_HD
-			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:88:DD",
+		if (a2dp_aptx_hd_source.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
 						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_aptx_hd_source,
 						&config_aptx_hd_48000_stereo));
+		else
 #endif
-
+#if ENABLE_APTX
+		if (a2dp_aptx_source.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_aptx_source,
+						&config_aptx_44100_stereo));
+		else
+#endif
 #if ENABLE_FASTSTREAM
-			g_ptr_array_add(tt, mock_transport_new_a2dp("FF:AA:55:77:00:00",
+		if (a2dp_faststream_source.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
 						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_faststream_source,
 						&config_faststream_44100_16000));
+		else
 #endif
-
-		}
+		if (a2dp_sbc_source.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, &a2dp_sbc_source,
+						&config_sbc_44100_stereo));
 
 	}
 
 	if (config.profile.a2dp_sink) {
 
-		g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
-						&config_sbc_44100_stereo));
-
-		g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
-						&config_sbc_44100_stereo));
-
-		if (enable_extra_codecs) {
-
-#if ENABLE_APTX
-			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:00:00",
-						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_aptx_sink,
-						&config_aptx_44100_stereo));
-#endif
-
 #if ENABLE_APTX_HD
-			g_ptr_array_add(tt, mock_transport_new_a2dp("AA:BB:CC:DD:88:DD",
+		if (a2dp_aptx_hd_sink.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
 						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_aptx_hd_sink,
 						&config_aptx_hd_48000_stereo));
+		else
 #endif
+#if ENABLE_APTX
+		if (a2dp_aptx_sink.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_aptx_sink,
+						&config_aptx_44100_stereo));
+		else
+#endif
+		if (a2dp_sbc_sink.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("12:34:56:78:9A:BC",
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
+						&config_sbc_44100_stereo));
 
-		}
+		if (a2dp_sbc_sink.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp("23:45:67:89:AB:CD",
+						BA_TRANSPORT_PROFILE_A2DP_SINK, &a2dp_sbc_sink,
+						&config_sbc_44100_stereo));
 
 	}
 
@@ -567,15 +567,15 @@ static void dbus_name_acquired_bluealsa(GDBusConnection *conn, const char *name,
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hB:p:t:";
+	const char *opts = "hB:p:c:t:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "dbus", required_argument, NULL, 'B' },
 		{ "profile", required_argument, NULL, 'p' },
+		{ "codec", required_argument, NULL, 'c' },
 		{ "timeout", required_argument, NULL, 't' },
 		{ "device-name", required_argument, NULL, 2 },
 		{ "dump-output", no_argument, NULL, 6 },
-		{ "enable-extra-codecs", no_argument, NULL, 1 },
 		{ "fuzzing", required_argument, NULL, 7 },
 		{ 0, 0, 0, 0 },
 	};
@@ -586,14 +586,14 @@ int main(int argc, char *argv[]) {
 			printf("Usage:\n"
 					"  %s [OPTION]...\n"
 					"\nOptions:\n"
-					"  -h, --help\t\tprint this help and exit\n"
-					"  -B, --dbus=NAME\tBlueALSA service name suffix\n"
-					"  -p, --profile=NAME\tset enabled BT profiles\n"
-					"  -t, --timeout=MSEC\tmock server exit timeout\n"
+					"  -h, --help\t\t\tprint this help and exit\n"
+					"  -B, --dbus=NAME\t\tBlueALSA service name suffix\n"
+					"  -p, --profile=NAME\t\tset enabled BT profiles\n"
+					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
+					"  -t, --timeout=MSEC\t\tmock server exit timeout\n"
 					"  --device-name=MAC:NAME\tmock BT device name\n"
-					"  --dump-output\t\tdump Bluetooth transport data\n"
-					"  --enable-extra-codecs\tregister non-mandatory codecs\n"
-					"  --fuzzing=MSEC\tmock human actions with timings\n",
+					"  --dump-output\t\t\tdump Bluetooth transport data\n"
+					"  --fuzzing=MSEC\t\tmock human actions with timings\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 		case 'B' /* --dbus=NAME */ :
@@ -626,6 +626,25 @@ int main(int argc, char *argv[]) {
 
 			break;
 		}
+		case 'c' /* --codec=NAME */ : {
+
+			uint16_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
+			bool matched = false;
+
+			struct a2dp_codec * const * cc = a2dp_codecs;
+			for (struct a2dp_codec *c = *cc; c != NULL; c = *++cc)
+				if (c->codec_id == codec_id) {
+					c->enabled = true;
+					matched = true;
+				}
+
+			if (!matched) {
+				error("Invalid BT codec name: %s", optarg);
+				return EXIT_FAILURE;
+			}
+
+			break;
+		}
 		case 't' /* --timeout=MSEC */ :
 			timeout_ms = atoi(optarg);
 			break;
@@ -638,9 +657,6 @@ int main(int argc, char *argv[]) {
 			break;
 		case 6 /* --dump-output */ :
 			dump_output = true;
-			break;
-		case 1 /* --enable-extra-codecs */ :
-			enable_extra_codecs = true;
 			break;
 		case 7 /* --fuzzing=MSEC */ :
 			fuzzing_ms = atoi(optarg);

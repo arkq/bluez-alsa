@@ -42,7 +42,6 @@ static int snd_ctl_open_bluealsa(
 			"ctl.bluealsa {\n"
 			"  type bluealsa\n"
 			"  service \"org.bluealsa.%s\"\n"
-			"  battery true\n"
 			"  %s\n"
 			"}\n", service, extra_config);
 
@@ -97,11 +96,11 @@ START_TEST(test_controls) {
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
-	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 13);
-	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 13), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 12);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 12), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
-	ck_assert_int_eq(snd_ctl_elem_list_get_used(elems), 13);
+	ck_assert_int_eq(snd_ctl_elem_list_get_used(elems), 12);
 
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "12:34:56:78:9A:BC - A2DP Playback Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "12:34:56:78:9A:BC - A2DP Playback Volume");
@@ -112,12 +111,52 @@ START_TEST(test_controls) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "12:34:56:78:9A:BC - SCO Playback Volume");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "12:34:56:78:9A:BC - SCO Capture Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "12:34:56:78:9A:BC - SCO Capture Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "12:34:56:78:9A:BC | Battery Playback Volume");
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:CD - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "23:45:67:89:AB:CD - A2DP Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "23:45:67:89:AB:CD - A2DP Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 12), "23:45:67:89:AB:CD - A2DP Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB:CD - A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:CD - A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "23:45:67:89:AB:CD - A2DP Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "23:45:67:89:AB:CD - A2DP Capture Volume");
+
+	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+
+} END_TEST
+
+START_TEST(test_controls_battery) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	snd_ctl_t *ctl = NULL;
+	pid_t pid = -1;
+
+	const char *service = "test";
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				"--profile=hsp-ag",
+				NULL), -1);
+
+	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
+				"battery \"yes\"\n", 0), 0);
+
+	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_alloca(&elems);
+
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 5);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 5), 0);
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+
+	ck_assert_int_eq(snd_ctl_elem_list_get_used(elems), 5);
+
+	/* battery control element shall be last */
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "23:45:67:89:AB:CD | Battery Playback Volume");
+
+	snd_ctl_elem_value_t *elem;
+	snd_ctl_elem_value_alloca(&elem);
+	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 4));
+
+	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
+	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem, 0), 75);
+	/* battery control element is read-only */
+	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), -EINVAL);
 
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
@@ -167,7 +206,7 @@ START_TEST(test_mute_and_volume) {
 	snd_ctl_elem_value_t *elem_switch;
 	snd_ctl_elem_value_alloca(&elem_switch);
 	/* 23:45:67:89:AB:CD - A2DP Playback Switch */
-	snd_ctl_elem_value_set_numid(elem_switch, 10);
+	snd_ctl_elem_value_set_numid(elem_switch, 9);
 
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem_switch), 0);
 	ck_assert_int_eq(snd_ctl_elem_value_get_boolean(elem_switch, 0), 1);
@@ -180,7 +219,7 @@ START_TEST(test_mute_and_volume) {
 	snd_ctl_elem_value_t *elem_volume;
 	snd_ctl_elem_value_alloca(&elem_volume);
 	/* 23:45:67:89:AB:CD - A2DP Playback Volume */
-	snd_ctl_elem_value_set_numid(elem_volume, 11);
+	snd_ctl_elem_value_set_numid(elem_volume, 10);
 
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem_volume), 0);
 	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 127);
@@ -312,7 +351,6 @@ START_TEST(test_single_device_non_dynamic) {
 
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
 				"device \"23:45:67:89:AB:CD\"\n"
-				"battery \"no\"\n"
 				"dynamic \"no\"\n", 0), 0);
 	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 1), 0);
 
@@ -379,11 +417,13 @@ START_TEST(test_notifications) {
 				"--fuzzing=250",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service, "", 0), 0);
-	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 1), 0);
+	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
+				"battery \"yes\"\n", 0), 0);
 
 	snd_ctl_event_t *event;
 	snd_ctl_event_malloc(&event);
+
+	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 1), 0);
 
 	size_t events = 0;
 	while (snd_ctl_wait(ctl, 500) == 1)
@@ -391,6 +431,8 @@ START_TEST(test_notifications) {
 			ck_assert_int_eq(snd_ctl_event_get_type(event), SND_CTL_EVENT_ELEM);
 			events++;
 		}
+
+	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 0), 0);
 
 	/* Processed events:
 	 * - 0 removes; 2 new elems (12:34:... A2DP)
@@ -402,6 +444,25 @@ START_TEST(test_notifications) {
 
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+
+} END_TEST
+
+START_TEST(test_alsa_high_level_control_interface) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	snd_ctl_t *ctl = NULL;
+	snd_hctl_t *hctl = NULL;
+	pid_t pid = -1;
+
+	ck_assert_int_eq(test_ctl_open(&pid, &ctl, 0), 0);
+	ck_assert_int_eq(snd_hctl_open_ctl(&hctl, ctl), 0);
+
+	ck_assert_int_eq(snd_hctl_load(hctl), 0);
+	ck_assert_int_eq(snd_hctl_get_count(hctl), 12);
+	ck_assert_int_eq(snd_hctl_free(hctl), 0);
+
+	ck_assert_int_eq(snd_hctl_close(hctl), 0);
+	ck_assert_int_eq(test_pcm_close(pid, NULL), 0);
 
 } END_TEST
 
@@ -421,6 +482,7 @@ int main(int argc, char *argv[]) {
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_controls);
+	tcase_add_test(tc, test_controls_battery);
 	tcase_add_test(tc, test_device_name_duplicates);
 	tcase_add_test(tc, test_mute_and_volume);
 	tcase_add_test(tc, test_volume_db_range);
@@ -429,6 +491,7 @@ int main(int argc, char *argv[]) {
 	tcase_add_test(tc, test_single_device_no_such_device);
 	tcase_add_test(tc, test_single_device_non_dynamic);
 	tcase_add_test(tc, test_notifications);
+	tcase_add_test(tc, test_alsa_high_level_control_interface);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
