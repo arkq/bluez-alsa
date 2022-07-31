@@ -148,6 +148,19 @@ jobs:
       with:
         files: ${{ github.workspace }}
 
+  shellcheck:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Run ShellCheck Scan
+      uses: redhat-plumbers-in-action/differential-shellcheck@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
   spellcheck:
     strategy:
       fail-fast: false

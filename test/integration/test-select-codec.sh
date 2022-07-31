@@ -31,8 +31,8 @@ fi
 
 # check for race condition in codec selection
 for CODEC in "${CODECS[@]}"; do
-	echo "Select codec: $CODEC"
-	bluealsa-cli codec "$1" "$CODEC" &
+	echo "Select codec: ${CODEC}"
+	bluealsa-cli codec "$1" "${CODEC}" &
 done
 wait
 
