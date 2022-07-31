@@ -19,14 +19,15 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-Capture audio streams from Bluetooth devices (via ``bluealsa(8)``) and play them to an ALSA
+Capture audio streams from Bluetooth devices (via ``bluealsa(8)``) and play
+them to an ALSA
 playback device.
 
-By default **bluealsa-aplay** captures audio from all connected Bluetooth devices.
-It is possible to select specific Bluetooth devices by providing a list of *BT-ADDR* MAC
-addresses.
-Using the special MAC address **00:00:00:00:00:00** will disable device filtering - the
-same as the default behavior.
+By default **bluealsa-aplay** captures audio from all connected Bluetooth
+devices.  It is possible to select specific Bluetooth devices by providing a
+list of *BT-ADDR* MAC addresses.
+Using the special MAC address **00:00:00:00:00:00** will disable device
+filtering - the same as the default behavior.
 
 OPTIONS
 =======
@@ -48,7 +49,8 @@ OPTIONS
 
 -B NAME, --dbus=NAME
     BlueALSA service name suffix.
-    For more information see ``--dbus=NAME`` option of ``bluealsa(8)`` service daemon.
+    For more information see ``--dbus=NAME`` option of ``bluealsa(8)`` service
+    daemon.
 
 -D NAME, --pcm=NAME
     Select ALSA playback PCM device to use for audio output.
@@ -87,16 +89,16 @@ OPTIONS
     The ALSA **rate** plugin, which may be invoked by **plug**, does not always
     produce the exact required effective sample rate because of rounding errors
     in the conversion between period time and period size. This can have a
-    significant impact on synchronization "drift", especially with small
-    period sizes, and can also result in stream underruns (if the effective
-    rate is too fast) or dropped A2DP frames in the **bluealsa(8)** server (if
-    the effective rate is too slow). This effect is avoided if the selected
-    period time results in an exact integer number of frames for both the source
-    rate (Bluetooth) and sink rate (hardware card). For example, in
-    the case of Bluetooth stream sampled at 44100Hz playing to a hardware
-    device that supports only 48000Hz, choosing a period time that is a
-    multiple of 10000 microseconds will result in zero rounding error.
-    (10000 µs at 44100Hz is 441 frames, and at 48000Hz is 480 frames).
+    significant impact on synchronization "drift", especially with small period
+    sizes, and can also result in stream underruns (if the effective rate is
+    too fast) or dropped A2DP frames in the **bluealsa(8)** server (if the
+    effective rate is too slow). This effect is avoided if the selected period
+    time results in an exact integer number of frames for both the source rate
+    (Bluetooth) and sink rate (hardware card). For example, in the case of
+    Bluetooth stream sampled at 44100Hz playing to a hardware device that
+    supports only 48000Hz, choosing a period time that is a multiple of 10000
+    microseconds will result in zero rounding error.  (10000 µs at 44100Hz is
+    441 frames, and at 48000Hz is 480 frames).
 
     See also DMIX_ section below for more information on rate calculation
     rounding errors.
@@ -150,10 +152,10 @@ DMIX
 The ALSA `dmix` plugin will ignore the period and buffer times selected by the
 application (because it has to allow connections from multiple applications).
 Instead it will choose its own values, which can lead to rounding errors in the
-period size calculation when used with the ALSA `rate` plugin. To avoid this, it
-is recommended to explicitly define the hardware period size and buffer size for
-dmix in your ALSA configuration. For example, suppose we want a period time of
-100000 µs and a buffer holding 5 periods with an Intel 'PCH' card:
+period size calculation when used with the ALSA `rate` plugin. To avoid this,
+it is recommended to explicitly define the hardware period size and buffer size
+for dmix in your ALSA configuration. For example, suppose we want a period time
+of 100000 µs and a buffer holding 5 periods with an Intel 'PCH' card:
 
 ::
 

@@ -20,8 +20,8 @@ DESCRIPTION
 ===========
 
 **bluealsa-cli** provides command-line access to the BlueALSA D-Bus API
-"org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus
-allows introspection and some control of BlueALSA PCMs while they are running.
+"org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus allows
+introspection and some control of BlueALSA PCMs while they are running.
 
 The *PCM_PATH* command argument, where required, must be a BlueALSA PCM D-Bus
 path.
@@ -119,8 +119,8 @@ mute *PCM_PATH* [y|n] [y|n]
     If no argument is given, print the current mute setting of the given PCM.
 
 soft-volume *PCM_PATH* [y|n]
-    If the y|n argument is given, set the SoftVolume property for the given PCM.
-    This property determines whether BlueALSA will make volume control
+    If the y|n argument is given, set the SoftVolume property for the given
+    PCM. This property determines whether BlueALSA will make volume control
     internally or will delegate this task to BlueALSA PCM client or connected
     Bluetooth device respectively for PCM sink or PCM source. The value 'y'
     enables SoftVolume, 'n' disables it.
@@ -151,9 +151,9 @@ monitor
 
     ``ServiceStopped SERVICE_NAME``
 
-    If the *--verbose* option is given then the properties of each added PCM are
-    printed after the PCMAdded line, one per line, in the same format as the
-    **info** command. In this case a blank line is printed after the last
+    If the *--verbose* option is given then the properties of each added PCM
+    are printed after the PCMAdded line, one per line, in the same format as
+    the **info** command. In this case a blank line is printed after the last
     property.
 
     When the monitor starts, it begins by printing a ``ServiceRunning`` or

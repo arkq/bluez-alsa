@@ -1,14 +1,18 @@
-name: CodeQL Analysis
+name: Code Scanning
+
 on:
   push:
   pull_request:
     branches: [ master ]
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
 jobs:
-  analyze:
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+
+  code-ql:
     strategy:
       matrix:
         language: [ 'cpp' ]
@@ -62,3 +66,26 @@ jobs:
       run: make
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
+
+  doc8-lint:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run reStructuredText Linter
+      uses: deep-entertainment/doc8-action@v4
+      with:
+        ignorePaths: ${{ github.workspace }}/doc/bluealsa-api.txt
+        scanPaths: ${{ github.workspace }}
+
+  markdown-lint:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run Markdown Linter
+      uses: nosborn/github-action-markdown-cli@v3
+      with:
+        files: ${{ github.workspace }}

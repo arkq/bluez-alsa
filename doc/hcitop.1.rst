@@ -61,8 +61,8 @@ FLAGS
 =====
 
 An array of flag characters indicating the current status of the HCI. The flags
-are shown in the following order. The indicated letter appears when that flag is
-"TRUE", a blank is shown when the flag is "FALSE".
+are shown in the following order. The indicated letter appears when that flag
+is "TRUE", a blank is shown when the flag is "FALSE".
 
 U
     The interface is "Up".

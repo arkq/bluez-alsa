@@ -19,9 +19,10 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-**bluealsa-rfcomm** provides access to HSP/HFP RFCOMM terminal for connected Bluetooth device
-specified by the *DEVICE-PATH*. The *DEVICE-PATH* can be either a Bluetooth device D-Bus
-path defined by BlueZ (org.bluez) or BlueALSA (org.bluealsa) service.
+**bluealsa-rfcomm** provides access to HSP/HFP RFCOMM terminal for connected
+Bluetooth device specified by the *DEVICE-PATH*. The *DEVICE-PATH* can be
+either a Bluetooth device D-Bus path defined by BlueZ (org.bluez) or BlueALSA
+(org.bluealsa) service.
 
 OPTIONS
 =======
