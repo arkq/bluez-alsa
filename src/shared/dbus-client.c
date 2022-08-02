@@ -246,7 +246,17 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
 		DBusMessageIter *value, void *userdata, DBusError *error) {
 	struct ba_service_props *props = (struct ba_service_props *)userdata;
 
-	char type = dbus_message_iter_get_arg_type(value);
+	char type;
+	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		return FALSE;
+	}
+
+	DBusMessageIter variant;
+	dbus_message_iter_recurse(value, &variant);
+	type = dbus_message_iter_get_arg_type(&variant);
+
 	char type_expected;
 
 	if (strcmp(key, "Version") == 0) {
@@ -255,7 +265,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
 			goto fail;
 
 		const char *tmp;
-		dbus_message_iter_get_basic(value, &tmp);
+		dbus_message_iter_get_basic(&variant, &tmp);
 		strncpy(props->version, tmp, sizeof(props->version) - 1);
 
 	}
@@ -266,7 +276,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
 
 		const char *tmp[ARRAYSIZE(props->adapters)];
 		size_t length = ARRAYSIZE(tmp);
-		if (!bluealsa_dbus_message_iter_array_get_strings(value, error, tmp, &length))
+		if (!bluealsa_dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
 			return FALSE;
 
 		props->adapters_len = MIN(length, ARRAYSIZE(tmp));
@@ -281,7 +291,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
 
 		const char *tmp[32];
 		size_t length = ARRAYSIZE(tmp);
-		if (!bluealsa_dbus_message_iter_array_get_strings(value, error, tmp, &length))
+		if (!bluealsa_dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
 			return FALSE;
 
 		props->profiles = malloc(length * sizeof(*props->profiles));
@@ -297,7 +307,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
 
 		const char *tmp[64];
 		size_t length = ARRAYSIZE(tmp);
-		if (!bluealsa_dbus_message_iter_array_get_strings(value, error, tmp, &length))
+		if (!bluealsa_dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
 			return FALSE;
 
 		props->codecs = malloc(length * sizeof(*props->codecs));
