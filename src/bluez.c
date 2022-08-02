@@ -1171,6 +1171,11 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 
 	pthread_mutex_lock(&bluez_mutex);
 
+	/* Check whether this interface belongs to a HCI which exists in our
+	 * local BlueZ adapter cache - HCI that matches our HCI filter. */
+	if (hci_dev_id == -1 || bluez_adapters[hci_dev_id].adapter == NULL)
+		goto final;
+
 	while (g_variant_iter_next(interfaces, "&s", &interface))
 		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
 
@@ -1201,9 +1206,9 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 
 		}
 
+final:
 	pthread_mutex_unlock(&bluez_mutex);
 	g_variant_iter_free(interfaces);
-
 }
 
 static void bluez_signal_transport_changed(GDBusConnection *conn, const char *sender,

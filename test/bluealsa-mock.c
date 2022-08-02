@@ -169,11 +169,11 @@ static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 
 	while (sigusr1_count == 0) {
 
-		int timout = 0;
+		int timeout = 0;
 		if (!ba_transport_pcm_is_active(t_a2dp_pcm))
-			timout = -1;
+			timeout = -1;
 
-		if (poll(fds, ARRAYSIZE(fds), timout) == 1 &&
+		if (poll(fds, ARRAYSIZE(fds), timeout) == 1 &&
 				fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 			enum ba_transport_thread_signal signal;
