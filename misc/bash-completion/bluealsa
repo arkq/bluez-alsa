@@ -1,5 +1,5 @@
+#!/bin/bash
 # bash completion for bluez-alsa project applications
-# vim: ft=sh
 
 # helper function gets available profiles
 # @param $1 the bluealsa executable name
@@ -222,7 +222,7 @@ _bluealsa() {
 			;;
 	esac
 
-	_bluealsa_complete_options $1
+	_bluealsa_complete_options "$1"
 }
 
 # completion function for bluealsa-aplay
@@ -270,7 +270,7 @@ _bluealsa_aplay() {
 			;;
 	esac
 
-	_bluealsa_complete_options $1
+	_bluealsa_complete_options "$1"
 }
 
 # completion function for bluealsa-cli
@@ -339,7 +339,7 @@ _bluealsa_cli() {
 			;;
 	esac
 
-	(( nonopt_offset > 0 )) || _bluealsa_complete_options $1
+	(( nonopt_offset > 0 )) || _bluealsa_complete_options "$1"
 }
 
 # completion function for bluealsa-rfcomm
@@ -374,7 +374,7 @@ _bluealsa_rfcomm() {
 	fi
 
 	# do not list options if path was found
-	(( $nonopt_offset > 0 )) || _bluealsa_complete_options $1
+	(( nonopt_offset > 0 )) || _bluealsa_complete_options "$1"
 }
 
 # completion function for a2dpconf and hcitop
@@ -387,7 +387,7 @@ _bluealsa_others() {
 			[[ ${COMP_WORDS[COMP_CWORD]} = = ]] && return
 			;;
 	esac
-	_bluealsa_complete_options $1
+	_bluealsa_complete_options "$1"
 }
 
 complete -F _bluealsa bluealsa
