@@ -60,6 +60,45 @@ START_TEST(test_a2dp_dir) {
 	ck_assert_int_eq(!A2DP_SOURCE, A2DP_SINK);
 } END_TEST
 
+START_TEST(test_a2dp_codec_cmp) {
+
+	struct a2dp_codec codec1 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_codec codec2 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
+	struct a2dp_codec codec3 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX };
+	struct a2dp_codec codec4 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_codec codec5 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
+
+	struct a2dp_codec * codecs[] = { &codec3, &codec1, &codec4, &codec5, &codec2 };
+	qsort(codecs, ARRAYSIZE(codecs), sizeof(*codecs), QSORT_COMPAR(a2dp_codec_ptr_cmp));
+
+	ck_assert_ptr_eq(codecs[0], &codec1);
+	ck_assert_ptr_eq(codecs[1], &codec2);
+	ck_assert_ptr_eq(codecs[2], &codec3);
+	ck_assert_ptr_eq(codecs[3], &codec4);
+	ck_assert_ptr_eq(codecs[4], &codec5);
+
+} END_TEST
+
+START_TEST(test_a2dp_sep_cmp) {
+
+	struct a2dp_sep seps[] = {
+		{ .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX },
+		{ .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
+		{ .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX },
+		{ .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 },
+		{ .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC } };
+	qsort(seps, ARRAYSIZE(seps), sizeof(*seps), QSORT_COMPAR(a2dp_sep_cmp));
+
+	ck_assert_int_eq(seps[0].codec_id, A2DP_CODEC_SBC);
+	ck_assert_int_eq(seps[1].codec_id, A2DP_CODEC_MPEG24);
+	ck_assert_int_eq(seps[2].codec_id, A2DP_CODEC_VENDOR_APTX);
+	ck_assert_int_eq(seps[3].dir, A2DP_SINK);
+	ck_assert_int_eq(seps[3].codec_id, A2DP_CODEC_SBC);
+	ck_assert_int_eq(seps[4].dir, A2DP_SINK);
+	ck_assert_int_eq(seps[4].codec_id, A2DP_CODEC_VENDOR_APTX);
+
+} END_TEST
+
 START_TEST(test_a2dp_codec_lookup) {
 	ck_assert_ptr_eq(a2dp_codec_lookup(A2DP_CODEC_SBC, A2DP_SOURCE), &a2dp_sbc_source);
 	ck_assert_ptr_eq(a2dp_codec_lookup(0xFFFF, A2DP_SOURCE), NULL);
@@ -188,6 +227,8 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_codecs_get_canonical_name);
 
 	tcase_add_test(tc, test_a2dp_dir);
+	tcase_add_test(tc, test_a2dp_codec_cmp);
+	tcase_add_test(tc, test_a2dp_sep_cmp);
 	tcase_add_test(tc, test_a2dp_codec_lookup);
 	tcase_add_test(tc, test_a2dp_get_vendor_codec_id);
 	tcase_add_test(tc, test_a2dp_check_configuration);

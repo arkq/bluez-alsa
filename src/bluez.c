@@ -1146,6 +1146,10 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 				a2dp_codecs_codec_id_to_string(sep.codec_id));
 		g_array_append_val(seps, sep);
 
+		/* Collected SEPs are exposed via BlueALSA D-Bus API. We will sort them
+		 * here, so the D-Bus API will return codecs in the defined order. */
+		g_array_sort(seps, (GCompareFunc)a2dp_sep_cmp);
+
 	}
 
 }

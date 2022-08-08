@@ -110,7 +110,8 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 	}
 
 	/* Expose A2DP codecs always in the same order. */
-	a2dp_codecs_qsort(a2dp_codecs_tmp, n);
+	qsort(a2dp_codecs_tmp, n, sizeof(*a2dp_codecs_tmp),
+			QSORT_COMPAR(a2dp_codec_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++) {
 		const char *profile = a2dp_codecs_tmp[i]->dir == A2DP_SOURCE ?

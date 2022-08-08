@@ -85,7 +85,9 @@ extern struct a2dp_codec * const a2dp_codecs[];
 
 int a2dp_codecs_init(void);
 
-void a2dp_codecs_qsort(const struct a2dp_codec ** codecs, size_t nmemb);
+int a2dp_codec_cmp(const struct a2dp_codec *a, const struct a2dp_codec *b);
+int a2dp_codec_ptr_cmp(const struct a2dp_codec **a, const struct a2dp_codec **b);
+int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b);
 
 const struct a2dp_codec *a2dp_codec_lookup(
 		uint16_t codec_id,

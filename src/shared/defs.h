@@ -31,6 +31,10 @@
 #define PTHREAD_ROUTINE(f) ((void *(*)(void *))(f))
 
 /**
+ * Qsort comparision function casting wrapper. */
+#define QSORT_COMPAR(f) ((int (*)(const void *, const void *))(f))
+
+/**
  * Convert macro value to string. */
 #define STRINGIZE(x) STRINGIZE_(x)
 #define STRINGIZE_(x) #x

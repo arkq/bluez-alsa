@@ -78,7 +78,8 @@ static char *get_a2dp_codecs(enum a2dp_dir dir) {
 	}
 
 	/* Sort A2DP codecs before displaying them. */
-	a2dp_codecs_qsort(a2dp_codecs_tmp, n);
+	qsort(a2dp_codecs_tmp, n, sizeof(*a2dp_codecs_tmp),
+			QSORT_COMPAR(a2dp_codec_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++)
 		strv[i] = a2dp_codecs_codec_id_to_string(a2dp_codecs_tmp[i]->codec_id);

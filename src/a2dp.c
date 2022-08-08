@@ -105,30 +105,39 @@ int a2dp_codecs_init(void) {
 	return 0;
 }
 
-static int a2dp_codecs_qsort_cmp(const void *a_, const void *b_) {
-	const struct a2dp_codec *a = *(const struct a2dp_codec **)a_;
-	const struct a2dp_codec *b = *(const struct a2dp_codec **)b_;
-	int ret;
-	if ((ret = a->dir - b->dir) != 0)
-		return ret;
-	if (a->codec_id >= A2DP_CODEC_VENDOR &&
-			b->codec_id >= A2DP_CODEC_VENDOR) {
-		const char *a_name = a2dp_codecs_codec_id_to_string(a->codec_id);
-		const char *b_name = a2dp_codecs_codec_id_to_string(b->codec_id);
-		return strcasecmp(a_name, b_name);
-	}
-	return a->codec_id - b->codec_id;
+static int a2dp_codec_id_cmp(uint16_t a, uint16_t b) {
+	if (a < A2DP_CODEC_VENDOR || b < A2DP_CODEC_VENDOR)
+		return a - b;
+	const char *a_name = a2dp_codecs_codec_id_to_string(a);
+	const char *b_name = a2dp_codecs_codec_id_to_string(b);
+	return strcasecmp(a_name, b_name);
 }
 
 /**
- * Sort A2DP codecs.
+ * Compare A2DP codecs.
  *
- * This function sorts A2DP codecs according to following rules:
- *  - sort codecs by A2DP direction
- *  - sort codecs by codec ID
- *  - sort vendor codecs alphabetically (case insensitive) */
-void a2dp_codecs_qsort(const struct a2dp_codec ** codecs, size_t nmemb) {
-	qsort(codecs, nmemb, sizeof(*codecs), a2dp_codecs_qsort_cmp);
+ * This function orders A2DP codecs according to following rules:
+ *  - order codecs by A2DP direction
+ *  - order codecs by codec ID
+ *  - order vendor codecs alphabetically (case insensitive) */
+int a2dp_codec_cmp(const struct a2dp_codec *a, const struct a2dp_codec *b) {
+	if (a->dir == b->dir)
+		return a2dp_codec_id_cmp(a->codec_id, b->codec_id);
+	return a->dir - b->dir;
+}
+
+/**
+ * Compare A2DP codecs. */
+int a2dp_codec_ptr_cmp(const struct a2dp_codec **a, const struct a2dp_codec **b) {
+	return a2dp_codec_cmp(*a, *b);
+}
+
+/**
+ * Compare A2DP SEPs. */
+int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b) {
+	if (a->dir == b->dir)
+		return a2dp_codec_id_cmp(a->codec_id, b->codec_id);
+	return a->dir - b->dir;
 }
 
 /**
