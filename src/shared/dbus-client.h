@@ -98,7 +98,13 @@ enum ba_pcm_property {
 /**
  * BlueALSA PCM codec object. */
 struct ba_pcm_codec {
+	/* codec canonical name */
 	char name[16];
+	/* Data associated with the codec. For A2DP transport it might
+	 * be a capabilities or a configuration blob respectively for
+	 * the list of available codecs or currently selected codec. */
+	uint8_t data[24];
+	size_t data_len;
 };
 
 /**
@@ -150,7 +156,7 @@ struct ba_pcm {
 /**
  * BlueALSA PCM codecs object. */
 struct ba_pcm_codecs {
-	struct ba_pcm_codec codecs[16];
+	struct ba_pcm_codec *codecs;
 	size_t codecs_len;
 };
 
@@ -223,6 +229,9 @@ dbus_bool_t bluealsa_dbus_pcm_get_codecs(
 		const char *pcm_path,
 		struct ba_pcm_codecs *codecs,
 		DBusError *error);
+
+void bluealsa_dbus_pcm_codecs_free(
+		struct ba_pcm_codecs *codecs);
 
 dbus_bool_t bluealsa_dbus_pcm_select_codec(
 		struct ba_dbus_ctx *ctx,

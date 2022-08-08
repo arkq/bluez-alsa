@@ -33,7 +33,7 @@ int cmd_mute(int argc, char *argv[]) {
 	}
 
 	if (argc == 2) {
-		cli_print_mute(&pcm);
+		cli_print_pcm_mute(&pcm);
 		return EXIT_SUCCESS;
 	}
 

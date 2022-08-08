@@ -31,7 +31,7 @@ int cmd_volume(int argc, char *argv[]) {
 	}
 
 	if (argc == 2) {
-		cli_print_volume(&pcm);
+		cli_print_pcm_volume(&pcm);
 		return EXIT_SUCCESS;
 	}
 

@@ -37,8 +37,8 @@ int cmd_codec(int argc, char *argv[]) {
 	}
 
 	if (argc == 2) {
-		cli_print_pcm_codecs(path, &err);
-		printf("Selected codec: %s\n", pcm.codec.name);
+		cli_print_pcm_available_codecs(&pcm, NULL);
+		cli_print_pcm_selected_codec(&pcm);
 		return EXIT_SUCCESS;
 	}
 

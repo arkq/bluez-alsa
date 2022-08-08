@@ -188,8 +188,9 @@ static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_AG);
 	if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_HS)
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_HS);
-	warn("Unsupported transport type: %#x", t->type.profile);
-	return g_variant_new_string("<null>");
+	error("Unsupported transport type: %#x", t->type.profile);
+	g_assert_not_reached();
+	return NULL;
 }
 
 static GVariant *ba_variant_new_rfcomm_features(const struct ba_rfcomm *r) {
@@ -223,7 +224,15 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 		codec = hfp_codec_id_to_string(t->type.codec);
 	if (codec != NULL)
 		return g_variant_new_string(codec);
-	return g_variant_new_string("<null>");
+	return NULL;
+}
+
+static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *pcm) {
+	const struct ba_transport *t = pcm->t;
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->a2dp.configuration,
+				t->a2dp.codec->capabilities_size, sizeof(uint8_t));
+	return NULL;
 }
 
 static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {
@@ -247,7 +256,10 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 }
 
 static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
+
+	GVariant *value;
 	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
+
 	g_variant_builder_add(props, "{sv}", "Device", ba_variant_new_device_path(pcm->t->d));
 	g_variant_builder_add(props, "{sv}", "Sequence", ba_variant_new_device_sequence(pcm->t->d));
 	g_variant_builder_add(props, "{sv}", "Transport", ba_variant_new_transport_type(pcm->t));
@@ -255,10 +267,14 @@ static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_tran
 	g_variant_builder_add(props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
 	g_variant_builder_add(props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
 	g_variant_builder_add(props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
-	g_variant_builder_add(props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
+	if ((value = ba_variant_new_pcm_codec(pcm)) != NULL)
+		g_variant_builder_add(props, "{sv}", "Codec", value);
+	if ((value = ba_variant_new_pcm_codec_config(pcm)) != NULL)
+		g_variant_builder_add(props, "{sv}", "CodecConfiguration", value);
 	g_variant_builder_add(props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	g_variant_builder_add(props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
+
 }
 
 static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_sep *sep) {
@@ -741,10 +757,10 @@ static GVariant *bluealsa_pcm_get_properties(void *userdata) {
 
 static GVariant *bluealsa_pcm_get_property(const char *property,
 		GError **error, void *userdata) {
-	(void)error;
 
 	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	struct ba_device *d = pcm->t->d;
+	GVariant *value;
 
 	if (strcmp(property, "Device") == 0)
 		return ba_variant_new_device_path(d);
@@ -760,8 +776,16 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 		return ba_variant_new_pcm_channels(pcm);
 	if (strcmp(property, "Sampling") == 0)
 		return ba_variant_new_pcm_sampling(pcm);
-	if (strcmp(property, "Codec") == 0)
-		return ba_variant_new_pcm_codec(pcm);
+	if (strcmp(property, "Codec") == 0) {
+		if ((value = ba_variant_new_pcm_codec(pcm)) == NULL)
+			goto unavailable;
+		return value;
+	}
+	if (strcmp(property, "CodecConfiguration") == 0) {
+		if ((value = ba_variant_new_pcm_codec_config(pcm)) == NULL)
+			goto unavailable;
+		return value;
+	}
 	if (strcmp(property, "Delay") == 0)
 		return ba_variant_new_pcm_delay(pcm);
 	if (strcmp(property, "SoftVolume") == 0)
@@ -770,6 +794,12 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 		return ba_variant_new_pcm_volume(pcm);
 
 	g_assert_not_reached();
+	return NULL;
+
+unavailable:
+	if (error != NULL)
+		*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+				"No such property '%s'", property);
 	return NULL;
 }
 
@@ -871,6 +901,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC)
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_CODEC_CONFIG)
+		g_variant_builder_add(&props, "{sv}", "CodecConfiguration", ba_variant_new_pcm_codec_config(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_DELAY)
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_SOFT_VOLUME)

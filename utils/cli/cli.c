@@ -91,6 +91,26 @@ static const char *pcm_format_to_string(int pcm_format) {
 	}
 }
 
+static const char *pcm_codec_to_string(const struct ba_pcm_codec *codec) {
+
+	static char buffer[128];
+
+	const size_t data_len = codec->data_len;
+	size_t n;
+
+	snprintf(buffer, sizeof(buffer), "%s", codec->name);
+
+	if (config.verbose && data_len > 0 &&
+			/* attach data blob if we can fit at least one hex-byte */
+			sizeof(buffer) - (n = strlen(buffer)) > 1 + 2) {
+		buffer[n++] = ':';
+		for (size_t i = 0; i < data_len && n < sizeof(buffer) - 2; i++, n += 2)
+			sprintf(&buffer[n], "%.2x", codec->data[i]);
+	}
+
+	return buffer;
+}
+
 void cli_get_ba_services(cli_get_ba_services_cb func, void *data, DBusError *err) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
@@ -162,24 +182,6 @@ bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm) {
 	return found;
 }
 
-
-void cli_print_pcm_codecs(const char *path, DBusError *err) {
-
-	printf("Available codecs:");
-
-	struct ba_pcm_codecs codecs = { 0 };
-	if (!bluealsa_dbus_pcm_get_codecs(&config.dbus, path, &codecs, err))
-		goto fail;
-
-	for (size_t i = 0; i < codecs.codecs_len; i++)
-		printf(" %s", codecs.codecs[i].name);
-
-fail:
-	if (codecs.codecs_len == 0)
-		printf(" [ Unknown ]");
-	printf("\n");
-}
-
 void cli_print_adapters(const struct ba_service_props *props) {
 	printf("Adapters:");
 	for (size_t i = 0; i < props->adapters_len; i++)
@@ -199,14 +201,37 @@ void cli_print_profiles_and_codecs(const struct ba_service_props *props) {
 	}
 }
 
-void cli_print_volume(const struct ba_pcm *pcm) {
+void cli_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err) {
+
+	printf("Available codecs:");
+
+	struct ba_pcm_codecs codecs = { 0 };
+	if (!bluealsa_dbus_pcm_get_codecs(&config.dbus, pcm->pcm_path, &codecs, err))
+		goto fail;
+
+	for (size_t i = 0; i < codecs.codecs_len; i++)
+		printf(" %s", pcm_codec_to_string(&codecs.codecs[i]));
+
+	bluealsa_dbus_pcm_codecs_free(&codecs);
+
+fail:
+	if (codecs.codecs_len == 0)
+		printf(" [ Unknown ]");
+	printf("\n");
+}
+
+void cli_print_pcm_selected_codec(const struct ba_pcm *pcm) {
+	printf("Selected codec: %s\n", pcm_codec_to_string(&pcm->codec));
+}
+
+void cli_print_pcm_volume(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
 		printf("Volume: L: %u R: %u\n", pcm->volume.ch1_volume, pcm->volume.ch2_volume);
 	else
 		printf("Volume: %u\n", pcm->volume.ch1_volume);
 }
 
-void cli_print_mute(const struct ba_pcm *pcm) {
+void cli_print_pcm_mute(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
 		printf("Muted: L: %c R: %c\n",
 				pcm->volume.ch1_muted ? 'Y' : 'N', pcm->volume.ch2_muted ? 'Y' : 'N');
@@ -214,7 +239,7 @@ void cli_print_mute(const struct ba_pcm *pcm) {
 		printf("Muted: %c\n", pcm->volume.ch1_muted ? 'Y' : 'N');
 }
 
-void cli_print_properties(const struct ba_pcm *pcm, DBusError *err) {
+void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Device: %s\n", pcm->device_path);
 	printf("Sequence: %u\n", pcm->sequence);
 	printf("Transport: %s\n", transport_code_to_string(pcm->transport));
@@ -222,12 +247,12 @@ void cli_print_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Format: %s\n", pcm_format_to_string(pcm->format));
 	printf("Channels: %d\n", pcm->channels);
 	printf("Sampling: %d Hz\n", pcm->sampling);
-	cli_print_pcm_codecs(pcm->pcm_path, err);
-	printf("Selected codec: %s\n", pcm->codec.name);
+	cli_print_pcm_available_codecs(pcm, err);
+	cli_print_pcm_selected_codec(pcm);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
 	printf("SoftVolume: %s\n", pcm->soft_volume ? "Y" : "N");
-	cli_print_volume(pcm);
-	cli_print_mute(pcm);
+	cli_print_pcm_volume(pcm);
+	cli_print_pcm_mute(pcm);
 }
 
 int cmd_list_services(int argc, char *argv[]);

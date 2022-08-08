@@ -575,21 +575,73 @@ const char *bluealsa_dbus_pcm_get_codec_canonical_name(
 }
 
 /**
+ * Callback function for BlueALSA PCM codec props parser. */
+static dbus_bool_t bluealsa_dbus_message_iter_pcm_get_codec_props_cb(const char *key,
+		DBusMessageIter *value, void *userdata, DBusError *error) {
+	struct ba_pcm_codec *codec = (struct ba_pcm_codec *)userdata;
+
+	char type;
+	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		return FALSE;
+	}
+
+	DBusMessageIter variant;
+	dbus_message_iter_recurse(value, &variant);
+	type = dbus_message_iter_get_arg_type(&variant);
+
+	char type_expected;
+
+	if (strcmp(key, "Capabilities") == 0) {
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+
+		DBusMessageIter iter;
+		uint8_t *data;
+		int len;
+
+		dbus_message_iter_recurse(&variant, &iter);
+		dbus_message_iter_get_fixed_array(&iter, &data, &len);
+
+		codec->data_len = MIN(len, sizeof(codec->data));
+		memcpy(codec->data, data, codec->data_len);
+
+	}
+
+	return TRUE;
+
+fail:
+	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+			"Incorrect variant for '%s': %c != %c", key, type, type_expected);
+	return FALSE;
+}
+
+/**
  * Callback function for BlueALSA PCM codec list parser. */
 static dbus_bool_t bluealsa_dbus_message_iter_pcm_get_codecs_cb(const char *key,
 		DBusMessageIter *value, void *userdata, DBusError *error) {
-	(void)value;
-	(void)error;
 
 	struct ba_pcm_codecs *codecs = (struct ba_pcm_codecs *)userdata;
-	const size_t n = codecs->codecs_len;
+	const size_t len = codecs->codecs_len;
 
-	strncpy(codecs->codecs[n].name, key, sizeof(codecs->codecs[n].name));
-	codecs->codecs[n].name[sizeof(codecs->codecs[n].name) - 1] = '\0';
+	struct ba_pcm_codec *tmp = codecs->codecs;
+	if ((tmp = realloc(tmp, (len + 1) * sizeof(*tmp))) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		return FALSE;
+	}
 
-	/* TODO: Parse codec properties. */
+	struct ba_pcm_codec *codec = &tmp[len];
+	codecs->codecs = tmp;
 
-	codecs->codecs_len++;
+	strncpy(codec->name, key, sizeof(codec->name));
+	codec->name[sizeof(codec->name) - 1] = '\0';
+
+	if (!bluealsa_dbus_message_iter_dict(value, error,
+				bluealsa_dbus_message_iter_pcm_get_codec_props_cb, codec))
+		return FALSE;
+
+	codecs->codecs_len = len + 1;
 	return TRUE;
 }
 
@@ -620,11 +672,14 @@ dbus_bool_t bluealsa_dbus_pcm_get_codecs(
 		goto fail;
 	}
 
+	codecs->codecs = NULL;
 	codecs->codecs_len = 0;
 
 	if (!bluealsa_dbus_message_iter_dict(&iter, error,
-				bluealsa_dbus_message_iter_pcm_get_codecs_cb, codecs))
+				bluealsa_dbus_message_iter_pcm_get_codecs_cb, codecs)) {
+		free(codecs->codecs);
 		goto fail;
+	}
 
 	rv = TRUE;
 
@@ -634,6 +689,14 @@ fail:
 	if (rep != NULL)
 		dbus_message_unref(rep);
 	return rv;
+}
+
+/**
+ * Free BlueALSA PCM codecs structure. */
+void bluealsa_dbus_pcm_codecs_free(
+		struct ba_pcm_codecs *codecs) {
+	free(codecs->codecs);
+	codecs->codecs = NULL;
 }
 
 /**
@@ -1049,6 +1112,21 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 			goto fail;
 		dbus_message_iter_get_basic(&variant, &tmp);
 		strncpy(pcm->codec.name, tmp, sizeof(pcm->codec.name) - 1);
+	}
+	else if (strcmp(key, "CodecConfiguration") == 0) {
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+
+		DBusMessageIter iter;
+		uint8_t *data;
+		int len;
+
+		dbus_message_iter_recurse(&variant, &iter);
+		dbus_message_iter_get_fixed_array(&iter, &data, &len);
+
+		pcm->codec.data_len = MIN(len, sizeof(pcm->codec.data));
+		memcpy(pcm->codec.data, data, pcm->codec.data_len);
+
 	}
 	else if (strcmp(key, "Delay") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))

@@ -109,7 +109,14 @@ Properties      object Device [readonly]
                 uint16 Codec [readonly]
 
                         Bluetooth transport codec. The meaning of this value
-                        depends on the Bluetooth transport type.
+                        depends on the Bluetooth transport type. This property
+                        is available only when transport codec is selected.
+
+                array{byte} CodecConfiguration [readonly]
+
+                        Optional. Bluetooth transport codec configuration blob.
+                        This property is available only for transports which
+                        support codec configuration (e.g. A2DP).
 
                 uint16 Delay [readonly]
 

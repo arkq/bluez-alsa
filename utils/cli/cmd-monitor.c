@@ -88,7 +88,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 							goto fail;
 						}
 
-						cli_print_properties(&pcm, &err);
+						cli_print_pcm_properties(&pcm, &err);
 						printf("\n");
 
 					}

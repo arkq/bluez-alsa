@@ -34,12 +34,13 @@ typedef bool (*cli_get_ba_services_cb)(const char *name, void *data);
 void cli_get_ba_services(cli_get_ba_services_cb func, void *data, DBusError *err);
 bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm);
 
-void cli_print_pcm_codecs(const char *path, DBusError *err);
 void cli_print_adapters(const struct ba_service_props *props);
 void cli_print_profiles_and_codecs(const struct ba_service_props *props);
-void cli_print_volume(const struct ba_pcm *pcm);
-void cli_print_mute(const struct ba_pcm *pcm);
-void cli_print_properties(const struct ba_pcm *pcm, DBusError *err);
+void cli_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err);
+void cli_print_pcm_selected_codec(const struct ba_pcm *pcm);
+void cli_print_pcm_volume(const struct ba_pcm *pcm);
+void cli_print_pcm_mute(const struct ba_pcm *pcm);
+void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err);
 
 #define cli_print_error(M, ...) \
 	if (!config.quiet) { error(M, ##__VA_ARGS__); }

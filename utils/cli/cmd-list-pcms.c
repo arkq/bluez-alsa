@@ -36,7 +36,7 @@ int cmd_list_pcms(int argc, char *argv[]) {
 	for (i = 0; i < pcms_count; i++) {
 		printf("%s\n", pcms[i].pcm_path);
 		if (config.verbose) {
-			cli_print_properties(&pcms[i], &err);
+			cli_print_pcm_properties(&pcms[i], &err);
 			printf("\n");
 		}
 	}

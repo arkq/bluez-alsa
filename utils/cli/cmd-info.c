@@ -32,7 +32,7 @@ int cmd_info(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	cli_print_properties(&pcm, &err);
+	cli_print_pcm_properties(&pcm, &err);
 	if (dbus_error_is_set(&err))
 		warn("Unable to read available codecs: %s", err.message);
 

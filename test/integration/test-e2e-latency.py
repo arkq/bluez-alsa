@@ -148,7 +148,7 @@ parser.add_argument('PCM_PATH', type=str,
 args = parser.parse_args()
 signal.alarm(args.timeout)
 
-options = []
+options = ["--verbose"]
 if args.dbus:
     options.append(f'--dbus={args.dbus}')
 
