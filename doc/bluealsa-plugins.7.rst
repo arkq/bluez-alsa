@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: June 2022
+:Date: August 2022
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -271,16 +271,21 @@ As a special case, a single device mixer can be opened with the address **00:00:
 The Predefined **bluealsa** CTL
 -------------------------------
 
-The **bluealsa** CTL has parameters DEV, BAT, DYN, and SRV. All the parameters have defaults.
+The **bluealsa** CTL has parameters DEV, BAT, BTT, DYN, and SRV. All the parameters have defaults.
 
 CTL Parameters
 ~~~~~~~~~~~~~~
 
   DEV
-    The device Bluetooth address in the form XX:XX:XX:XX:XX:XX. Device names or aliases are not valid here. The default value is **FF:FF:FF:FF:FF:FF** which selects controls from all connected devices (see `Default Mode` above). Also accepts the special address **00:00:00:00:00:00** which selects the most recently connected device.
+    The device Bluetooth address in the form XX:XX:XX:XX:XX:XX. Device names or aliases are not valid here. The default value is **FF:FF:FF:FF:FF:FF** which selects controls from all connected devices (see `Default Mode`_ above). Also accepts the special address **00:00:00:00:00:00** which selects the most recently connected device.
 
   BAT
-    Causes the plugin to include a (read-only) battery level indicator, provided the device supports this. If the value is **yes** then the battery indicator is enabled, any other value disables it. The default is **yes**.
+    Causes the plugin to include a (read-only) battery level indicator, provided the device supports this. If the value is **yes** then the battery indicator is enabled, any other value disables it. The default is **no**.
+
+  BTT
+    Appends Bluetooth transport type (e.g. "-SNK" or "-HFP-AG") to the control element names. When using with the `Default Mode`_ this will reduce the number of available characters for Bluetooth device name, so the default value is **no**.
+
+    In some rare circumstances, when more than one A2DP or HFP/HSP profile is connected with a single Bluetooth device, it might happen that the control element names for such device will not be unique. This might be problematic for control applications which use ALSA High Level Control Interface, e.g. ``amixer`` or ``alsamixer``. Such applications will report error or simply crash. This can be avoided by setting the BTT parameter to **yes**.
 
   DYN
     Enables "dynamic" operation. The plugin will add and remove controls as profiles are connected or disconnected. This is the normal behaviour, so the default value is "**yes**". This argument is ignored in default mode; in that mode operation is always dynamic. There are some applications that are not programmed to handle dynamic addition or removal of controls, and can fail when such events occur. Setting this argument to "no" in single device mode with such applications can protect them from such failures. When dynamic operation is disabled, the plugin never adds or removes any controls. If a single profile is disconnected, then its associated volume control is put into an inactive state, i.e.: read-only with its value and playback/capture switch set to 0.
@@ -303,14 +308,15 @@ You can define your own ALSA CTL in the ALSA configuration. To do this, create a
 ::
 
   ctl.name {
-    type bluealsa # Bluetooth PCM
-    [device STR]  # Device address (default "FF:FF:FF:FF:FF:FF")
-    [battery STR] # Include battery level indicator (yes/no, default no)
-    [dynamic STR] # Enable dynamic operation (yes/no, default yes)
-    [service STR] # D-Bus name of service (default "org.bluealsa")
+    type bluealsa     # Bluetooth PCM
+    [device STR]      # Device address (default "FF:FF:FF:FF:FF:FF")
+    [battery STR]     # Include battery level indicator (yes/no, default no)
+    [bttransport STR] # Append BT transport to element names (yes/no, default no)
+    [dynamic STR]     # Enable dynamic operation (yes/no, default yes)
+    [service STR]     # D-Bus name of service (default "org.bluealsa")
   }
 
-All the fields (except **type**) are optional. See the *CTL Parameters* section above for more information on each field. Note that the **battery** default value is **no** when used in this way. As for PCM definitions above, the default values for the optional fields are hard-coded into the plugin; they are not overridden by the configuration ``defaults.bluealsa.`` settings.
+All the fields (except **type**) are optional. See the *CTL Parameters* section above for more information on each field. As for PCM definitions above, the default values for the optional fields are hard-coded into the plugin; they are not overridden by the configuration ``defaults.bluealsa.`` settings.
 
 FILES
 =====

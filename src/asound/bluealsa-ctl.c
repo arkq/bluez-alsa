@@ -110,6 +110,8 @@ struct bluealsa_ctl {
 
 	/* if true, show battery meter */
 	bool show_battery;
+	/* if true, append BT transport type to element names */
+	bool show_bt_transport;
 	/* if true, this mixer is for a single Bluetooth device */
 	bool single_device;
 	/* if true, this mixer adds/removes controls dynamically */
@@ -401,6 +403,25 @@ static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
 	return 0;
 }
 
+static const char *transport2str(unsigned int transport) {
+	switch (transport) {
+	case BA_PCM_TRANSPORT_A2DP_SOURCE:
+		return "-SRC";
+	case BA_PCM_TRANSPORT_A2DP_SINK:
+		return "-SNK";
+	case BA_PCM_TRANSPORT_HFP_AG:
+		return "-HFP-AG";
+	case BA_PCM_TRANSPORT_HFP_HF:
+		return "-HFP-HF";
+	case BA_PCM_TRANSPORT_HSP_AG:
+		return "-HSP-AG";
+	case BA_PCM_TRANSPORT_HSP_HS:
+		return "-HSP-HS";
+	default:
+		return "";
+	}
+}
+
 /**
  * Update element name based on given string and PCM type.
  *
@@ -412,6 +433,10 @@ static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
  *   to the element name in order to prevent duplications. */
 static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *elem,
 		const char *name, bool with_device_id) {
+
+	const char *transport = "";
+	if (ctl->show_bt_transport)
+		transport = transport2str(elem->pcm->transport);
 
 	if (name != NULL) {
 		/* multi-device mixer - include device alias in control names */
@@ -428,7 +453,9 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 
 		/* get the longest possible element label */
 		int label_max_len = sizeof(" - A2DP") - 1;
-		if (ctl->show_battery)
+		if (ctl->show_bt_transport)
+			label_max_len = sizeof(" - SCO-HFP-AG") - 1;
+		else if (ctl->show_battery)
 			label_max_len = sizeof(" | Battery") - 1;
 
 		/* Reserve space for the longest element type description. This applies
@@ -445,13 +472,13 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 			switch (elem->pcm->transport) {
 			case BA_PCM_TRANSPORT_A2DP_SOURCE:
 			case BA_PCM_TRANSPORT_A2DP_SINK:
-				sprintf(elem->name, "%.*s%s - A2DP", len, name, no);
+				sprintf(elem->name, "%.*s%s - A2DP%s", len, name, no, transport);
 				break;
 			case BA_PCM_TRANSPORT_HFP_AG:
 			case BA_PCM_TRANSPORT_HFP_HF:
 			case BA_PCM_TRANSPORT_HSP_AG:
 			case BA_PCM_TRANSPORT_HSP_HS:
-				sprintf(elem->name, "%.*s%s - SCO", len, name, no);
+				sprintf(elem->name, "%.*s%s - SCO%s", len, name, no, transport);
 				break;
 			}
 		}
@@ -464,20 +491,19 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 			switch (elem->pcm->transport) {
 			case BA_PCM_TRANSPORT_A2DP_SOURCE:
 			case BA_PCM_TRANSPORT_A2DP_SINK:
-				strcpy(elem->name, "A2DP");
+				sprintf(elem->name, "A2DP%s", transport);
 				break;
 			case BA_PCM_TRANSPORT_HFP_AG:
 			case BA_PCM_TRANSPORT_HFP_HF:
 			case BA_PCM_TRANSPORT_HSP_AG:
 			case BA_PCM_TRANSPORT_HSP_HS:
-				strcpy(elem->name, "SCO");
+				sprintf(elem->name, "SCO%s", transport);
 				break;
 			}
 	}
 
 	/* ALSA library determines the element type by checking it's
 	 * name suffix. This feature is not well documented, though. */
-
 	strcat(elem->name, elem->playback ? " Playback" : " Capture");
 
 	switch (elem->type) {
@@ -619,7 +645,8 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			size_t ii;
 
 			for (ii = i + 1; ii < count; ii++)
-				if (strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
+				if (elem_list[i].dev != elem_list[ii].dev &&
+						strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
 					bluealsa_elem_set_name(ctl, &elem_list[ii], elem_list[ii].dev->name, true);
 					duplicated = true;
 				}
@@ -1271,6 +1298,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *service = BLUEALSA_SERVICE;
 	const char *device = NULL;
 	bool show_battery = false;
+	bool show_bt_transport = false;
 	bool dynamic = true;
 	struct bluealsa_ctl *ctl;
 	int ret;
@@ -1308,6 +1336,14 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 				return -EINVAL;
 			}
 			show_battery = !!ret;
+			continue;
+		}
+		if (strcmp(id, "bttransport") == 0) {
+			if ((ret = snd_config_get_bool(n)) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			show_bt_transport = !!ret;
 			continue;
 		}
 		if (strcmp(id, "dynamic") == 0) {
@@ -1359,6 +1395,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	ctl->pipefd[1] = -1;
 
 	ctl->show_battery = show_battery;
+	ctl->show_bt_transport = show_bt_transport;
 	ctl->single_device = single_device_mode;
 	ctl->dynamic = dynamic;
 

@@ -162,6 +162,44 @@ START_TEST(test_controls_battery) {
 
 } END_TEST
 
+START_TEST(test_bidirectional_a2dp) {
+#if ENABLE_FASTSTREAM
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	snd_ctl_t *ctl = NULL;
+	pid_t pid = -1;
+
+	const char *service = "test";
+	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+				"--timeout=1000",
+				"--profile=a2dp-source",
+				"--profile=a2dp-sink",
+				"--codec=FastStream",
+				NULL), -1);
+
+	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
+				"bttransport \"yes\"\n", 0), 0);
+
+	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_alloca(&elems);
+
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 10);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 10), 0);
+	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
+
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "23:45:67:89:AB - A2DP-SRC Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "23:45:67:89:AB - A2DP-SRC Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "23:45:67:89:AB - A2DP-SRC Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "23:45:67:89:AB - A2DP-SRC Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB - A2DP-SNK Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB - A2DP-SNK Capture Volume");
+
+	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+
+#endif
+} END_TEST
+
 START_TEST(test_device_name_duplicates) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
@@ -483,6 +521,7 @@ int main(int argc, char *argv[]) {
 
 	tcase_add_test(tc, test_controls);
 	tcase_add_test(tc, test_controls_battery);
+	tcase_add_test(tc, test_bidirectional_a2dp);
 	tcase_add_test(tc, test_device_name_duplicates);
 	tcase_add_test(tc, test_mute_and_volume);
 	tcase_add_test(tc, test_volume_db_range);
