@@ -381,12 +381,14 @@ static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
 /**
  * Update element name based on given string and PCM type.
  *
+ * @param ctl The BlueALSA controller context.
  * @param elem An address to the element structure.
  * @param name A string which should be used as a base for the element name. May
  *   be NULL if no base prefix is required.
- * @param id An unique ID number. If the ID is other than -1, it will be
- *   attached to the element name in order to prevent duplications. */
-static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int id) {
+ * @param with_device_id If true, Bluetooth device ID number will be attached
+ *   to the element name in order to prevent duplications. */
+static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *elem,
+		const char *name, bool with_device_id) {
 
 	if (name != NULL) {
 		/* multi-device mixer - include device alias in control names */
@@ -396,14 +398,19 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 		int len = sizeof(elem->name) - 16 - 1;
 		char no[16] = "";
 
-		if (id != -1) {
-			sprintf(no, " #%u", id);
+		if (with_device_id) {
+			sprintf(no, " #%u", bluealsa_dev_get_id(ctl, elem->pcm));
 			len -= strlen(no);
 		}
 
+		/* get the longest possible element label */
+		int label_max_len = sizeof(" - A2DP") - 1;
+		if (ctl->show_battery)
+			label_max_len = sizeof(" | Battery") - 1;
+
 		/* Reserve space for the longest element type description. This applies
 		 * to all elements so the shortened device name will be consistent. */
-		len = MIN(len - (sizeof(" | Battery") - 1), name_len);
+		len = MIN(len - label_max_len, name_len);
 		while (isspace(name[len - 1]))
 			len--;
 
@@ -465,20 +472,19 @@ static void bluealsa_elem_set_name(struct ctl_elem *elem, const char *name, int 
 /**
  * Create control elements for a given PCM.
  *
+ * @param ctl The BlueALSA controller context.
  * @param elem_list An address to the array of element structures. This array
  *   must have sufficient space for new elements which includes volume element,
  *   switch element and optional battery indicator element.
  * @param dev The BT device associated with created elements.
  * @param pcm The BlueALSA PCM associated with created elements.
- * @param single_device If true, elements shall be created for the single
- *   device mode.
- * @param add_battery_elem If true, try to add an optional battery level
- *   indicator element.
+ * @param add_battery_elem If true, add battery level indicator element.
  * @return The number of elements added. */
-static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev *dev,
-		struct ba_pcm *pcm, bool single_device, bool add_battery_elem) {
+static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
+		struct ctl_elem *elem_list, struct bt_dev *dev, struct ba_pcm *pcm,
+		bool add_battery_elem) {
 
-	const char *name = single_device ? NULL : dev->name;
+	const char *name = ctl->single_device ? NULL : dev->name;
 	size_t n = 0;
 
 	elem_list[n].type = CTL_ELEM_TYPE_VOLUME;
@@ -486,7 +492,7 @@ static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev 
 	elem_list[n].pcm = pcm;
 	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
 	elem_list[n].active = true;
-	bluealsa_elem_set_name(&elem_list[n], name, -1);
+	bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
 
 	n++;
 
@@ -495,7 +501,7 @@ static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev 
 	elem_list[n].pcm = pcm;
 	elem_list[n].playback = pcm->mode == BA_PCM_MODE_SINK;
 	elem_list[n].active = true;
-	bluealsa_elem_set_name(&elem_list[n], name, -1);
+	bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
 
 	n++;
 
@@ -513,7 +519,7 @@ static size_t elem_list_add_pcm_elems(struct ctl_elem *elem_list, struct bt_dev 
 		elem_list[n].pcm = pcm;
 		elem_list[n].playback = true;
 		elem_list[n].active = true;
-		bluealsa_elem_set_name(&elem_list[n], name, -1);
+		bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
 
 		n++;
 	}
@@ -573,8 +579,8 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			add_battery_elem = true;
 		}
 
-		count += elem_list_add_pcm_elems(&elem_list[count],
-				dev, pcm, ctl->single_device, add_battery_elem);
+		count += bluealsa_elem_list_add_pcm_elems(ctl, &elem_list[count],
+				dev, pcm, add_battery_elem);
 
 	}
 
@@ -591,14 +597,12 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 			for (ii = i + 1; ii < count; ii++)
 				if (strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
-					bluealsa_elem_set_name(&elem_list[ii], elem_list[ii].dev->name,
-							bluealsa_dev_get_id(ctl, elem_list[ii].pcm));
+					bluealsa_elem_set_name(ctl, &elem_list[ii], elem_list[ii].dev->name, true);
 					duplicated = true;
 				}
 
 			if (duplicated)
-				bluealsa_elem_set_name(&elem_list[i], elem_list[i].dev->name,
-						bluealsa_dev_get_id(ctl, elem_list[i].pcm));
+				bluealsa_elem_set_name(ctl, &elem_list[i], elem_list[i].dev->name, true);
 
 		}
 

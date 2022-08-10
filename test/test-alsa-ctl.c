@@ -186,10 +186,10 @@ START_TEST(test_device_name_duplicates) {
 	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 4), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "Long Bluetooth #1 - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "Long Bluetooth #1 - A2DP Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "Long Bluetooth #2 - A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth #2 - A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "Long Bluetooth De #1 - A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "Long Bluetooth De #1 - A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "Long Bluetooth De #2 - A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth De #2 - A2DP Playback Volume");
 
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
