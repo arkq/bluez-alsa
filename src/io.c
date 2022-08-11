@@ -239,7 +239,7 @@ ssize_t io_pcm_write(
 				goto final;
 			}
 
-		buffer += ret;
+		buffer = (uint8_t *)buffer + ret;
 		len -= ret;
 
 	} while (len != 0);
