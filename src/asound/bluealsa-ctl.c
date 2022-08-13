@@ -58,6 +58,10 @@ struct ctl_elem {
 };
 
 struct ctl_elem_update {
+	/* PCM associated with the element beeing updated. This pointer shall not
+	 * be dereferenced, because it might point to already freed memory region. */
+	const struct ba_pcm *pcm;
+	/* the name of the element beeing updated */
 	char name[sizeof(((struct ctl_elem *)0)->name)];
 	int event_mask;
 };
@@ -86,7 +90,7 @@ struct bluealsa_ctl {
 	size_t dev_list_size;
 
 	/* list of all BlueALSA PCMs */
-	struct ba_pcm *pcm_list;
+	struct ba_pcm **pcm_list;
 	size_t pcm_list_size;
 
 	/* list of ALSA control elements */
@@ -308,14 +312,15 @@ static ssize_t bluealsa_pipefd_flush(struct bluealsa_ctl *ctl) {
 }
 
 static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
-		const char *elem_name, unsigned int mask) {
+		const struct ctl_elem *elem, unsigned int mask) {
 
 	struct ctl_elem_update *tmp = ctl->elem_update_list;
 	if ((tmp = realloc(tmp, (ctl->elem_update_list_size + 1) * sizeof(*tmp))) == NULL)
 		return -1;
 
+	tmp[ctl->elem_update_list_size].pcm = elem->pcm;
 	tmp[ctl->elem_update_list_size].event_mask = mask;
-	*stpncpy(tmp[ctl->elem_update_list_size].name, elem_name,
+	*stpncpy(tmp[ctl->elem_update_list_size].name, elem->name,
 			sizeof(tmp[ctl->elem_update_list_size].name) - 1) = '\0';
 
 	ctl->elem_update_list = tmp;
@@ -330,37 +335,55 @@ static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
 #define bluealsa_event_elem_updated(ctl, elem) \
 	bluealsa_elem_update_list_add(ctl, elem, SND_CTL_EVENT_MASK_VALUE)
 
+/**
+ * Add new PCM to the list of known PCMs. */
 static int bluealsa_pcm_add(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
-	struct ba_pcm *tmp = ctl->pcm_list;
-	if ((tmp = realloc(tmp, (ctl->pcm_list_size + 1) * sizeof(*tmp))) == NULL)
+	struct ba_pcm **list = ctl->pcm_list;
+	const size_t list_size = ctl->pcm_list_size;
+	if ((list = realloc(list, (list_size + 1) * sizeof(*list))) == NULL)
 		return -1;
-	memcpy(&tmp[ctl->pcm_list_size++], pcm, sizeof(*tmp));
-	ctl->pcm_list = tmp;
+	ctl->pcm_list = list;
+	if ((list[list_size] = malloc(sizeof(*list[list_size]))) == NULL)
+		return -1;
+	memcpy(list[list_size], pcm, sizeof(*list[list_size]));
+	ctl->pcm_list_size++;
 	return 0;
 }
 
+/**
+ * Remove PCM from the list of known PCMs. */
 static int bluealsa_pcm_remove(struct bluealsa_ctl *ctl, const char *path) {
 	size_t i;
 	for (i = 0; i < ctl->pcm_list_size; i++)
-		if (strcmp(ctl->pcm_list[i].pcm_path, path) == 0)
-			memcpy(&ctl->pcm_list[i], &ctl->pcm_list[--ctl->pcm_list_size], sizeof(*ctl->pcm_list));
+		if (strcmp(ctl->pcm_list[i]->pcm_path, path) == 0) {
+
+			/* clear all pending events associated with removed PCM */
+			for (size_t ii = 0; ii < ctl->elem_update_list_size; ii++)
+				if (ctl->elem_update_list[ii].pcm == ctl->pcm_list[i])
+					ctl->elem_update_list[ii].event_mask = 0;
+
+			/* remove PCM from the list */
+			free(ctl->pcm_list[i]);
+			ctl->pcm_list[i] = ctl->pcm_list[--ctl->pcm_list_size];
+
+		}
 	return 0;
 }
 
 static int bluealsa_pcm_activate(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
 	size_t i;
 	for (i = 0; i < ctl->pcm_list_size; i++)
-		if (strcmp(ctl->pcm_list[i].pcm_path, pcm->pcm_path) == 0) {
+		if (strcmp(ctl->pcm_list[i]->pcm_path, pcm->pcm_path) == 0) {
 
 			/* update potentially stalled PCM data */
-			memcpy(&ctl->pcm_list[i], pcm, sizeof(ctl->pcm_list[i]));
+			memcpy(ctl->pcm_list[i], pcm, sizeof(*ctl->pcm_list[i]));
 
 			size_t el;
 			/* activate associated elements */
 			for (el = 0; el < ctl->elem_list_size; el++)
-				if (ctl->elem_list[el].pcm == &ctl->pcm_list[i]) {
+				if (ctl->elem_list[el].pcm == ctl->pcm_list[i]) {
 					ctl->elem_list[el].active = true;
-					bluealsa_event_elem_updated(ctl, ctl->elem_list[el].name);
+					bluealsa_event_elem_updated(ctl, &ctl->elem_list[el]);
 				}
 
 			break;
@@ -373,7 +396,7 @@ static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
 	for (i = 0; i < ctl->elem_list_size; i++)
 		if (strcmp(ctl->elem_list[i].pcm->pcm_path, path) == 0) {
 			ctl->elem_list[i].active = false;
-			bluealsa_event_elem_updated(ctl, ctl->elem_list[i].name);
+			bluealsa_event_elem_updated(ctl, &ctl->elem_list[i]);
 		}
 	return 0;
 }
@@ -569,7 +592,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	/* Construct control elements based on available PCMs. */
 	for (i = 0; i < ctl->pcm_list_size; i++) {
 
-		struct ba_pcm *pcm = &ctl->pcm_list[i];
+		struct ba_pcm *pcm = ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
 		bool add_battery_elem = false;
 
@@ -626,6 +649,8 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 
 	for (i = 0; i < ctl->dev_list_size; i++)
 		free(ctl->dev_list[i]);
+	for (i = 0; i < ctl->pcm_list_size; i++)
+		free(ctl->pcm_list[i]);
 	free(ctl->dev_list);
 	free(ctl->pcm_list);
 	free(ctl->elem_list);
@@ -784,7 +809,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		/* Ignore the write request because the associated PCM profile has been
 		 * disconnected. Create an update event so the application is informed
 		 * that the value has been reset to zero. */
-		bluealsa_event_elem_updated(ctl, elem->name);
+		bluealsa_event_elem_updated(ctl, elem);
 		bluealsa_pipefd_ping(ctl);
 		return 1;
 	}
@@ -937,7 +962,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 					if (elem->type != CTL_ELEM_TYPE_BATTERY)
 						continue;
 					if (dev->mask & BT_DEV_MASK_UPDATE)
-						bluealsa_event_elem_updated(ctl, elem->name);
+						bluealsa_event_elem_updated(ctl, elem);
 				}
 			}
 
@@ -950,7 +975,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 					continue;
 				if (strcmp(pcm->pcm_path, path) == 0) {
 					bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm);
-					bluealsa_event_elem_updated(ctl, elem->name);
+					bluealsa_event_elem_updated(ctl, elem);
 				}
 			}
 
@@ -1025,12 +1050,12 @@ remove_add:
 	 * and add new ones in order to update potential name changes. */
 
 	for (i = 0; i < ctl->elem_list_size; i++)
-		bluealsa_event_elem_removed(ctl, ctl->elem_list[i].name);
+		bluealsa_event_elem_removed(ctl, &ctl->elem_list[i]);
 
 	bluealsa_create_elem_list(ctl);
 
 	for (i = 0; i < ctl->elem_list_size; i++)
-		bluealsa_event_elem_added(ctl, ctl->elem_list[i].name);
+		bluealsa_event_elem_added(ctl, &ctl->elem_list[i]);
 
 final:
 
@@ -1337,6 +1362,9 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	ctl->single_device = single_device_mode;
 	ctl->dynamic = dynamic;
 
+	struct ba_pcm *pcm_list = NULL;
+	size_t pcm_list_size = 0;
+
 	dbus_threads_init_default();
 
 	if (!bluealsa_dbus_connection_ctx_init(&ctl->dbus_ctx, service, &err)) {
@@ -1351,15 +1379,13 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	if (!bluealsa_dbus_get_pcms(&ctl->dbus_ctx, &ctl->pcm_list, &ctl->pcm_list_size, &err)) {
+	if (!bluealsa_dbus_get_pcms(&ctl->dbus_ctx, &pcm_list, &pcm_list_size, &err)) {
 		SNDERR("Couldn't get BlueALSA PCM list: %s", err.message);
 		ret = -ENODEV;
 		goto fail;
 	}
 
 	if (ctl->single_device) {
-		const size_t pcm_list_size = ctl->pcm_list_size;
-		struct ba_pcm *pcm_list = ctl->pcm_list;
 
 		if (bacmp(&ba_addr, BDADDR_ANY) == 0) {
 			/* Interpret BT address ANY as a request for the most
@@ -1392,9 +1418,20 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		for (i = count = 0; i < pcm_list_size; i++)
 			if (bacmp(&ba_addr, &pcm_list[i].addr) == 0)
 				memmove(&pcm_list[count++], &pcm_list[i], sizeof(*pcm_list));
-		ctl->pcm_list_size = count;
+		pcm_list_size = count;
 
 	}
+
+	/* add PCMs to CTL internal PCM list */
+	for (size_t i = 0; i < pcm_list_size; i++)
+		if (bluealsa_pcm_add(ctl, &pcm_list[i]) == -1) {
+			SNDERR("Couldn't add BlueALSA PCM: %s", strerror(errno));
+			ret = -errno;
+			goto fail;
+		}
+
+	free(pcm_list);
+	pcm_list = NULL;
 
 	if (bluealsa_create_elem_list(ctl) == -1) {
 		SNDERR("Couldn't create control elements: %s", strerror(errno));
@@ -1431,6 +1468,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 fail:
 	bluealsa_close(&ctl->ext);
 	dbus_error_free(&err);
+	free(pcm_list);
 	return ret;
 }
 
