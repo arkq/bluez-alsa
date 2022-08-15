@@ -104,7 +104,7 @@ START_TEST(test_rfcomm) {
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for SLC established signals */
+	/* wait for codec selection (SLC established) signals */
 	while (transport_codec_updated_cnt < 0 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
@@ -146,25 +146,35 @@ START_TEST(test_rfcomm_esco) {
 	hf->sco.rfcomm->link_lost_quirk = false;
 
 #if ENABLE_MSBC
+
 	ck_assert_int_eq(ag->type.codec, HFP_CODEC_UNDEFINED);
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_UNDEFINED);
+
+	/* wait for SLC established */
+	while (ag->sco.rfcomm->state != HFP_SLC_CONNECTED)
+		usleep(10000);
+	while (hf->sco.rfcomm->state != HFP_SLC_CONNECTED)
+		usleep(10000);
+
 #else
+
 	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
-#endif
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for SLC established signals */
+	/* wait for codec selection (SLC establishment) signals */
 	while (transport_codec_updated_cnt < 0 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
+
+#endif
 
 	ck_assert_int_eq(device->ref_count, 1 + 2);
 
 #if ENABLE_MSBC
 	pthread_mutex_lock(&transport_codec_updated_mtx);
 	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 4 + (2 + 2))
+	while (transport_codec_updated_cnt < 0 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
 #endif
@@ -205,11 +215,8 @@ START_TEST(test_rfcomm_set_codec) {
 	hf->sco.rfcomm->link_lost_quirk = false;
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for SLC established signals */
-	while (transport_codec_updated_cnt < 0 + (2 + 2))
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 4 + (2 + 2))
+	while (transport_codec_updated_cnt < 0 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
 
@@ -228,7 +235,7 @@ START_TEST(test_rfcomm_set_codec) {
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
 	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 8 + (2 + 2))
+	while (transport_codec_updated_cnt < 4 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
 
@@ -246,7 +253,7 @@ START_TEST(test_rfcomm_set_codec) {
 
 	pthread_mutex_lock(&transport_codec_updated_mtx);
 	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 12 + (2 + 2))
+	while (transport_codec_updated_cnt < 8 + (2 + 2))
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
 

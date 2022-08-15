@@ -1124,10 +1124,14 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					rfcomm_set_hfp_state(r, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
-							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-					bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
-							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+					/* If codec was selected during the SLC establishment,
+					 * notify BlueALSA D-Bus clients about the change. */
+					if (t_sco->type.codec != HFP_CODEC_UNDEFINED) {
+						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
+								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
+								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+					}
 				}
 
 			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
@@ -1145,10 +1149,14 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					rfcomm_set_hfp_state(r, HFP_SLC_CONNECTED);
 					/* fall-through */
 				case HFP_SLC_CONNECTED:
-					bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
-							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-					bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
-							BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+					/* If codec was selected during the SLC establishment,
+					 * notify BlueALSA D-Bus clients about the change. */
+					if (t_sco->type.codec != HFP_CODEC_UNDEFINED) {
+						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
+								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
+								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+					}
 				}
 
 		}
