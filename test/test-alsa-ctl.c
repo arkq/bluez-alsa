@@ -582,9 +582,8 @@ START_TEST(test_alsa_high_level_control_interface) {
 
 } END_TEST
 
-int main(int argc, char *argv[]) {
-
-	preload(argc, argv, ".libs/aloader.so");
+int main(int argc, char *argv[], char *envp[]) {
+	preload(argc, argv, envp, ".libs/aloader.so");
 
 	/* test-alsa-ctl and bluealsa-mock shall
 	 * be placed in the same directory */

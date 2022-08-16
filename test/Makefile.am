@@ -215,6 +215,9 @@ bluealsa_mock_SOURCES += ../src/codec-msbc.c
 test_io_SOURCES += ../src/codec-msbc.c
 endif
 
+AM_TESTS_ENVIRONMENT = \
+	export G_DEBUG=fatal-warnings;
+
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@AAC_CFLAGS@ \
