@@ -65,7 +65,7 @@ struct ba_config config = {
 		HFP_AG_FEAT_ECC |
 		0,
 
-	/* build-in Apple accessory identification */
+	/* built-in Apple accessory identification */
 	.hfp.xapl_vendor_id = 0xB103,
 	.hfp.xapl_product_id = 0xA15A,
 	.hfp.xapl_software_version = "0300",

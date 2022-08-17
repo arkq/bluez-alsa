@@ -56,7 +56,7 @@ Methods         fd, fd Open()
                         ongoing stream (or PCM counterpart: sink, source) will
                         be terminated.
 
-                        For A2DP codecs, client can override build-in logic
+                        For A2DP codecs, client can override built-in logic
                         for selecting codec configuration by providing the
                         configuration blob via the "Configuration" property.
 
