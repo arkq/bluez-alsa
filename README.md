@@ -75,7 +75,7 @@ connected one can use the `bluealsa` virtual PCM device with ALSA applications j
 aplay -D bluealsa Bourree_in_E_minor.wav
 ```
 
-If there is more that one bluetooth device connected, the target one can be specified as an parameter to the PCM:
+If there is more than one bluetooth device connected, the target one can be specified as a parameter to the PCM:
 ```sh
 aplay -D bluealsa:XX:XX:XX:XX:XX:XX, Bourree_in_E_minor.wav
 ```
@@ -197,23 +197,24 @@ bluealsa-aplay -L
 
 ## Contributing
 
-> policy for accepting PRs, coding and design standards, anything to encourage useful code/doc contributions.
+This project welcomes contributions of code, documentation and testing. For code and manual page contributions, please use Github Pull Requests. There is no strict policy for PRs, each contribution will be evaluated individually. If you wish to help by testing PRs or by making review comments please do so by adding comments to the PR.
 
-   When preparing a pull request, if possible please configure with `--enable-test`, and compile with:
-   ```
-   make CFLAGS="-Wall -Wextra -Werror"
-   ```
-   to catch as many coding errors as possible, and then run
-   ```
-   make check
-   ```
-   to run the unit test suite
+When preparing a pull request, if possible please configure with `--enable-test`, and to catch as many coding errors as possible please compile with:
+```
+make CFLAGS="-Wall -Wextra -Werror"
+```
+and then run the unit test suite:
+```
+make check
+```
+
+The project wiki is "public" and contributions there are also welcome.
 
 ## Bug reports, feature requests, and requests for help
 
 Please search previous issues (both open and closed), to see if your question has already been answered or problem resolved, before raising a new issue. If reporting a problem, please clearly state the version of BlueALSA that you are using, and give sufficient information for readers to be able to reproduce the issue.
 
-Please also look at the (wiki)[https://github.com/Arkq/bluez-alsa/wiki] if you require help as there is a great deal of useful information there. Unfortunately the wiki is not indexed by web search engines, so searching on-line for your issue will not discover the information in there.
+Please also look at the [wiki](https://github.com/Arkq/bluez-alsa/wiki) if you require help as there is a great deal of useful information there. Unfortunately the wiki is not indexed by web search engines, so searching on-line for your issue will not discover the information in there.
 
 ## License
 
