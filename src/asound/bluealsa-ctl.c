@@ -269,8 +269,15 @@ static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *d
 static int bluealsa_pcm_fetch_codecs(struct bluealsa_ctl *ctl, struct ba_pcm *pcm,
 		struct ba_pcm_codecs *codecs) {
 
-	if (!bluealsa_dbus_pcm_get_codecs(&ctl->dbus_ctx, pcm->pcm_path, codecs, NULL))
-		return -1;
+	codecs->codecs = NULL;
+	codecs->codecs_len = 0;
+
+	/* Note: We are not checking for errors when calling this function. Failure
+	 *       most likely means that the PCM for which we are fetching codecs is
+	 *       already removed by the BlueALSA server. It will happen when server
+	 *       removes PCM but ALSA control plug-in was not yet able to process
+	 *       elem remove event. */
+	bluealsa_dbus_pcm_get_codecs(&ctl->dbus_ctx, pcm->pcm_path, codecs, NULL);
 
 	/* If the list of codecs could not be fetched, return currently
 	 * selected codec as the only one. This will at least allow the
