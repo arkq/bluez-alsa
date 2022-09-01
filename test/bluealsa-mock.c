@@ -27,6 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <gio/gio.h>
@@ -50,6 +52,7 @@
 #include "codec-sbc.h"
 #include "hfp.h"
 #include "io.h"
+#include "storage.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
@@ -58,6 +61,8 @@
 
 #include "inc/dbus.inc"
 #include "inc/sine.inc"
+
+#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-mock-storage"
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,
@@ -676,6 +681,9 @@ int main(int argc, char *argv[]) {
 	log_open(argv[0], false);
 	assert(bluealsa_config_init() == 0);
 	assert((config.dbus = g_test_dbus_connection_new_sync(NULL)) != NULL);
+
+	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
+	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);
 
 	/* receive EPIPE error code */
 	struct sigaction sigact = { .sa_handler = SIG_IGN };

@@ -86,6 +86,10 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
 	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
 	(void)error; return false; }
+int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
+int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
+int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
+int storage_pcm_data_update(const struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,

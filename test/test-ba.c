@@ -1,6 +1,6 @@
 /*
  * test-ba.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,9 +12,12 @@
 # include <config.h>
 #endif
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -30,10 +33,13 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "sco.h"
+#include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
 #include "../src/ba-transport.c"
+
+#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-test-ba-storage"
 
 void a2dp_aac_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_aac_transport_start(struct ba_transport *t) { (void)t; return 0; }
@@ -85,6 +91,7 @@ START_TEST(test_ba_adapter) {
 	ck_assert_str_eq(a->hci.name, "hci5");
 
 	ck_assert_ptr_eq(ba_adapter_lookup(5), a);
+	ba_adapter_unref(a);
 
 	ba_adapter_unref(a);
 
@@ -108,6 +115,7 @@ START_TEST(test_ba_device) {
 	ck_assert_str_eq(d->bluez_dbus_path, "/org/bluez/hci0/dev_AB_90_78_56_34_12");
 
 	ck_assert_ptr_eq(ba_device_lookup(a, &addr), d);
+	ba_device_unref(d);
 
 	ba_device_unref(d);
 
@@ -134,6 +142,7 @@ START_TEST(test_ba_transport) {
 	ck_assert_str_eq(t->bluez_dbus_path, "/path");
 
 	ck_assert_ptr_eq(ba_transport_lookup(d, "/path"), t);
+	ba_transport_unref(t);
 
 	ba_transport_unref(t);
 
@@ -225,7 +234,77 @@ START_TEST(test_cascade_free) {
 
 } END_TEST
 
+START_TEST(test_storage) {
+
+	const char *storage_path = TEST_BLUEALSA_STORAGE_DIR "/00:11:22:33:44:55";
+	const char *storage_data =
+		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/source]\n"
+		"SoftVolume=false\n"
+		"Volume=-5600;-4800;\n"
+		"Mute=false;true;\n";
+
+	FILE *f;
+	ck_assert_ptr_ne(f = fopen(storage_path, "w"), NULL);
+	ck_assert_int_eq(fwrite(storage_data, strlen(storage_data), 1, f), 1);
+	ck_assert_int_eq(fclose(f), 0);
+
+	struct ba_adapter *a;
+	struct ba_device *d;
+	struct ba_transport *t;
+
+	bdaddr_t addr;
+	str2ba(&storage_path[sizeof(TEST_BLUEALSA_STORAGE_DIR)], &addr);
+
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
+	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+
+	struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_A2DP_SINK };
+	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
+	ck_assert_ptr_ne(t = ba_transport_new_a2dp(d, ttype,
+				"/owner", "/path", &codec, &configuration), NULL);
+
+	/* check if persistent storage was loaded */
+	ck_assert_int_eq(t->a2dp.pcm.soft_volume, false);
+	ck_assert_int_eq(t->a2dp.pcm.volume[0].level, -5600);
+	ck_assert_int_eq(t->a2dp.pcm.volume[0].soft_mute, false);
+	ck_assert_int_eq(t->a2dp.pcm.volume[1].level, -4800);
+	ck_assert_int_eq(t->a2dp.pcm.volume[1].soft_mute, true);
+
+	bool muted = true;
+	int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, 100);
+	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, &muted, NULL);
+	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, &muted, NULL);
+
+	ba_transport_unref(t);
+	ba_adapter_unref(a);
+	ba_device_unref(d);
+
+	char buffer[1024] = { 0 };
+	ck_assert_ptr_ne(f = fopen(storage_path, "r"), NULL);
+	ck_assert_int_eq(fread(buffer, 1, sizeof(buffer), f), 212);
+	ck_assert_int_eq(fclose(f), 0);
+
+	const char *storage_data_new =
+		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/source]\n"
+		"SoftVolume=false\n"
+		"Volume=-344;-344;\n"
+		"Mute=true;true;\n"
+		"\n"
+		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/sink]\n"
+		"SoftVolume=true\n"
+		"Volume=0;0;\n"
+		"Mute=false;false;\n";
+
+	/* check if persistent storage was updated */
+	ck_assert_str_eq(buffer, storage_data_new);
+
+} END_TEST
+
 int main(void) {
+
+	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
+	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);
@@ -239,6 +318,7 @@ int main(void) {
 	tcase_add_test(tc, test_ba_transport_pcm_format);
 	tcase_add_test(tc, test_ba_transport_pcm_volume);
 	tcase_add_test(tc, test_cascade_free);
+	tcase_add_test(tc, test_storage);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

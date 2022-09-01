@@ -43,6 +43,7 @@
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
+#include "storage.h"
 #if ENABLE_UPOWER
 # include "upower.h"
 #endif
@@ -566,6 +567,8 @@ int main(int argc, char **argv) {
 	config.hfp.codecs.cvsd = true;
 
 	a2dp_codecs_init();
+
+	storage_init(BLUEALSA_STORAGE_DIR);
 
 	/* In order to receive EPIPE while writing to the pipe whose reading end
 	 * is closed, the SIGPIPE signal has to be handled. For more information

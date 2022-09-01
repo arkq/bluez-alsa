@@ -48,6 +48,7 @@
 #include "hci.h"
 #include "hfp.h"
 #include "sco.h"
+#include "storage.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
@@ -683,6 +684,9 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	ba_transport_set_codec(t, type.codec);
 
+	storage_pcm_data_sync(&t->a2dp.pcm);
+	storage_pcm_data_sync(&t->a2dp.pcm_bc);
+
 	if (t->a2dp.pcm.channels > 0)
 		bluealsa_dbus_pcm_register(&t->a2dp.pcm);
 	if (t->a2dp.pcm_bc.channels > 0)
@@ -791,6 +795,9 @@ struct ba_transport *ba_transport_new_sco(
 
 	ba_transport_set_codec(t, type.codec);
 
+	storage_pcm_data_sync(&t->sco.spk_pcm);
+	storage_pcm_data_sync(&t->sco.mic_pcm);
+
 	bluealsa_dbus_pcm_register(&t->sco.spk_pcm);
 	bluealsa_dbus_pcm_register(&t->sco.mic_pcm);
 
@@ -881,6 +888,15 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	if (ref_count > 0)
 		return;
+
+	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		storage_pcm_data_update(&t->a2dp.pcm);
+		storage_pcm_data_update(&t->a2dp.pcm_bc);
+	}
+	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		storage_pcm_data_update(&t->sco.spk_pcm);
+		storage_pcm_data_update(&t->sco.mic_pcm);
+	}
 
 	debug("Freeing transport: %s", ba_transport_type_to_string(t->type));
 	g_assert_cmpint(ref_count, ==, 0);

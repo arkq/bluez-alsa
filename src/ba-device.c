@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-device.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,6 +17,7 @@
 #include "ba-transport.h"
 #include "bluealsa-config.h"
 #include "hci.h"
+#include "storage.h"
 #include "shared/log.h"
 
 struct ba_device *ba_device_new(
@@ -48,6 +49,9 @@ struct ba_device *ba_device_new(
 	pthread_mutex_lock(&adapter->devices_mutex);
 	g_hash_table_insert(adapter->devices, &d->addr, d);
 	pthread_mutex_unlock(&adapter->devices_mutex);
+
+	/* load data from persistent storage */
+	storage_device_load(d);
 
 	return d;
 }
@@ -131,6 +135,9 @@ void ba_device_unref(struct ba_device *d) {
 
 	if (ref_count > 0)
 		return;
+
+	/* save persistent storage */
+	storage_device_save(d);
 
 	debug("Freeing device: %s", batostr_(&d->addr));
 	g_assert_cmpint(ref_count, ==, 0);

@@ -62,6 +62,7 @@ bluealsa_mock_SOURCES = \
 	../src/io.c \
 	../src/rtp.c \
 	../src/sco.c \
+	../src/storage.c \
 	../src/utils.c \
 	bluealsa-mock.c
 
@@ -108,6 +109,7 @@ test_ba_SOURCES = \
 	../src/bluealsa-config.c \
 	../src/dbus.c \
 	../src/hci.c \
+	../src/storage.c \
 	../src/utils.c \
 	test-ba.c
 

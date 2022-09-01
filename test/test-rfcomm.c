@@ -60,6 +60,10 @@ void a2dp_mpeg_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
+int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
+int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
+int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
+int storage_pcm_data_update(const struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
 
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm);

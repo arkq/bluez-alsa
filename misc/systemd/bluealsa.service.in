@@ -50,5 +50,9 @@ SystemCallFilter=@system-service
 SystemCallFilter=~@resources @privileged
 UMask=0077
 
+# Setup state directory for persistent storage
+ReadWritePaths=/var/lib/bluealsa
+StateDirectory=bluealsa
+
 [Install]
 WantedBy=bluetooth.target

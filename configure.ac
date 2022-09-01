@@ -299,13 +299,27 @@ AC_ARG_WITH([alsaplugindir],
 	[alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
 
+# If no --localstatedir and --prefix options were given, use the /var as a
+# default value for the local state directory.
+if test "$localstatedir" = "\${prefix}/var"; then
+	test "x$prefix" = xNONE && AC_SUBST([localstatedir], [/var])
+fi
+
+AC_SUBST([localstoragedir], [$localstatedir/lib])
+if test "$localstatedir" = "\${prefix}/var"; then
+	AC_SUBST([localstoragedir], [$prefix/var/lib])
+fi
+
 # Unfortunately, for ALSA >= 1.1.7 the directory for add-on configuration files
 # is hard-coded as /etc/alsa/conf.d (unless the distribution has patched the
 # source codes). So, we will use that value as a default, unless (for backwards
 # compatibility) the user overrides it with --prefix or --sysconfdir option.
 if test "$sysconfdir" = "\${prefix}/etc"; then
-	test "x$prefix" = xNONE && sysconfdir=/etc
+	test "x$prefix" = xNONE && AC_SUBST([sysconfdir], [/etc])
 fi
+
+AC_DEFINE_UNQUOTED(BLUEALSA_STORAGE_DIR, "${localstoragedir}/bluealsa",
+	[Directory for the storage files.])
 
 AC_ARG_WITH([alsaconfdir],
 	AS_HELP_STRING([--with-alsaconfdir=DIR], [path to ALSA add-on configuration files]),

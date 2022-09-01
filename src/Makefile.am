@@ -36,6 +36,7 @@ bluealsa_SOURCES = \
 	io.c \
 	rtp.c \
 	sco.c \
+	storage.c \
 	utils.c \
 	main.c
 
