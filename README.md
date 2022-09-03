@@ -212,9 +212,9 @@ The project wiki is "public" and contributions there are also welcome.
 
 ## Bug reports, feature requests, and requests for help
 
-Please search previous issues (both open and closed), to see if your question has already been answered or problem resolved, before raising a new issue. If reporting a problem, please clearly state the version of BlueALSA that you are using, and give sufficient information for readers to be able to reproduce the issue.
+Before raising a new issue, please search previous issues (both open and closed), to see if your question has already been answered or problem resolved. If reporting a problem, please clearly state the version of BlueALSA that you are using, and give sufficient information for readers to be able to reproduce the issue.
 
-Please also look at the [wiki](https://github.com/Arkq/bluez-alsa/wiki) if you require help as there is a great deal of useful information there. Unfortunately the wiki is not indexed by web search engines, so searching on-line for your issue will not discover the information in there.
+Please also look at the [wiki](https://github.com/Arkq/bluez-alsa/wiki) if you require help as there is a great deal of useful information. Unfortunately the wiki is not indexed by web search engines, so searching on-line for your issue will not discover the information in there.
 
 ## License
 
