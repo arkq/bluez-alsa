@@ -38,19 +38,18 @@ utilities. The basic context is shown in this diagram:
 
 ```mermaid
 flowchart TD
-    classDef external fill:#eee,stroke:#333,stroke-width:4px,color:black;
-    classDef bluealsa fill:#bbf,stroke:#333,stroke-width:4px,color:black;
+classDef external fill:#eee,stroke:#333,stroke-width:4px,color:black;
+classDef bluealsa fill:#bbf,stroke:#333,stroke-width:4px,color:black;
 
-    A[Bluetooth Adapter] <--> B((bluetoothd daemon))
-    A <---> C((bluealsa daemon))
-    B <--> C
-    C <--> D((bluealsa-aplay))
-    C <--> E(("ALSA clients
-(via plugin)"))
-    C <--> F((D-Bus clients))
+A[Bluetooth Adapter] <--> B((bluetoothd\ndaemon))
+A <--> C((bluealsa daemon))
+B <--> C
+C <--> D((bluealsa-aplay))
+C <--> E(("ALSA clients\n(via plugin)"))
+C <--> F((other\nD-Bus clients))
 
-    class A,B external;
-    class C,D,E,F bluealsa;
+class A,B external;
+class C,D,E,F bluealsa;
 ```
 
 The heart of BlueALSA is the daemon `bluealsa` which interfaces with the BlueZ
@@ -75,14 +74,13 @@ are:
 
 * bluealsa-rfcomm\
    a command-line application which provides access to the RFCOMM terminal for
-   HFP/HSP devices
+   HFP/HSP devices.
 
 ## Installation
 
-BlueALSA uses the GNU autoconf/automake build system. Build and install
-instructions are included in the file [INSTALL.md](INSTALL.md) and more
-detailed guidance is available in the
-[wiki](https://github.com/Arkq/bluez-alsa/wiki/Installation-from-source)
+Build and install instructions are included in the file
+[INSTALL.md](INSTALL.md) and more detailed guidance is available in the
+[wiki](https://github.com/Arkq/bluez-alsa/wiki/Installation-from-source).
 
 ## Usage
 
@@ -99,7 +97,7 @@ page](doc/bluealsa.8.rst).
 
 ### ALSA plug-ins
 
-In order to stream audio to the e.g. Bluetooth headset, firstly one has to
+In order to stream audio to e.g. a Bluetooth headset, firstly one has to
 connect the device. The most straightforward method is to use BlueZ CLI utility
 called `bluetoothctl`. When the device is connected one can use the `bluealsa`
 virtual PCM device with ALSA applications just like any other PCM device:
@@ -167,10 +165,10 @@ amixer -D bluealsa sset 'Jabra MOVE v2.3.0 A2DP' 50%
 ```
 
 For full details of the BlueALSA ALSA PCM device and mixer device consult the
-[BlueALSA plugins manual page](doc/bluealsa-plugins.7.rst).
+[BlueALSA plug-ins manual page](doc/bluealsa-plugins.7.rst).
 
 There are also a number of articles on the [bluez-alsa project wiki][] giving
-more examples of using these plugins.
+more examples of using these plug-ins.
 
 [bluez-alsa project wiki]: https://github.com/Arkq/bluez-alsa/wiki
 
@@ -215,7 +213,7 @@ bluealsa-aplay -L
    Bluetooth modules enabled; it is first necessary to disable Bluetooth in
    those applications.
 
-2. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3). ></=>
+2. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3).
 
    ALSA library versions 1.1.2 and 1.1.3 had a bug in their thread-safe API
    functions. This bug does not affect hardware audio devices, but it affects
