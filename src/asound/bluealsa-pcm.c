@@ -96,7 +96,7 @@ struct bluealsa_pcm {
 	snd_pcm_uframes_t delay_hw_ptr;
 	unsigned int delay_pcm_nread;
 	/* In the capture mode, delay_running indicates that frames are being
-	 * transfered to the FIFO by the server. In playback mode it indicates
+	 * transferred to the FIFO by the server. In playback mode it indicates
 	 * that the IO thread is transferring frames to the FIFO. */
 	bool delay_running;
 
@@ -278,7 +278,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		/* When used with the rate plugin the buffer might contain a fractional
 		 * number of periods. So if the leftover in the buffer is less than a
 		 * whole period size, adjust the number of frames which should be
-		 * transfered.  */
+		 * transferred.  */
 		if (io->buffer_size - offset < frames)
 			frames = io->buffer_size - offset;
 

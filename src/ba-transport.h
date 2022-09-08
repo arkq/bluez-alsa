@@ -125,7 +125,7 @@ struct ba_transport_pcm {
 		/* audio signal mute switches */
 		bool soft_mute;
 		bool hard_mute;
-		/* pre-calculated PCM scale factor based on decibel formula
+		/* calculated PCM scale factor based on decibel formula
 		 * pow(10, dB / 20); for muted channel it shall equal 0 */
 		double scale;
 	} volume[2];

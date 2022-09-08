@@ -146,7 +146,7 @@ void ba_transport_pcm_volume_set(
 	if (hard_mute != NULL)
 		volume->hard_mute = *hard_mute;
 
-	/* pre-calculate PCM scale factor */
+	/* calculate PCM scale factor */
 	const bool muted = volume->soft_mute || volume->hard_mute;
 	volume->scale = muted ? 0 : pow(10, (0.01 * volume->level) / 20);
 

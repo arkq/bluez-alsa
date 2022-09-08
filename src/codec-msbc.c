@@ -1,7 +1,7 @@
 /*
  * BlueALSA - codec-msbc.c
  * Copyright (c) 2016-2022 Arkadiusz Bokowy
- *               2017 Juha Kuikka
+ * Copyright (c) 2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
  *

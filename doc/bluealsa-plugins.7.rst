@@ -24,7 +24,7 @@ PCM PLUGIN
 
 The BlueALSA ALSA PCM plugin communicates with the ``bluealsa(8)`` service.
 It can be used to define ALSA PCMs in your own configuration file (e.g.
-~/.asoundrc), or you can use the pre-defined **bluealsa** PCM.
+~/.asoundrc), or you can use the predefined **bluealsa** PCM.
 
 The Predefined **bluealsa** PCM
 -------------------------------
@@ -174,7 +174,7 @@ this way; however the configuration defaults can be referenced by use of
 more information).
 
 When choosing a name for your PCM definition, the name **pcm.bluealsa** is
-pre-defined by the bluez-alsa installation (see section *The Predefined
+predefined by the bluez-alsa installation (see section *The Predefined
 bluealsa PCM* above), so it should not be used as a name for your own PCM
 devices as doing so will most likely have unexpected or undesirable results.
 
@@ -220,7 +220,7 @@ Now using ``aplay -L`` will include the following in its output:
       My Bluetooth headphones
   #
 
-If you are using the pre-defined bluealsa PCM, then you can create a "namehint"
+If you are using the predefined bluealsa PCM, then you can create a "namehint"
 entry in your ~/.asoundrc file like this:
 
 ::
@@ -300,7 +300,7 @@ CTL PLUGIN
 ==========
 
 The BlueALSA ALSA CTL plugin can be used to define ALSA CTLs (mixer devices) in
-your own configuration file (e.g. ~/.asoundrc), or you can use the pre-defined
+your own configuration file (e.g. ~/.asoundrc), or you can use the predefined
 configuration that is included in the bluez-alsa project.
 
 A BlueALSA CTL device has no associated soundcard, so ``alsamixer`` will not

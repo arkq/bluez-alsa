@@ -1,0 +1,112 @@
+# BlueALSA - spellcheck.yaml
+# Copyright (c) 2016-2022 Arkadiusz Bokowy
+#
+# This file provides PySpelling configuration for BlueALSA project. In order
+# to run spellcheck locally, do as follows:
+#
+#   pip install pyspelling
+#   pyspelling -c .github/spellcheck.yaml
+
+
+aspell: &aspell
+  ignore-case: true
+  run-together: true
+  run-together-limit: 4
+  lang: en
+
+dictionary: &dict
+  wordlists:
+  - .github/spellcheck-wordlist.txt
+
+matrix:
+
+- name: C
+  sources:
+  - 'src/**/*.{c,h}|!config.h'
+  aspell: *aspell
+  dictionary: *dict
+  pipeline:
+  - pyspelling.filters.url:
+  - pyspelling.filters.context:
+      context_visible_first: true
+      delimiters:
+      # Ignore filename in the project header
+      - open: '^[* ]+BlueALSA -'
+        close: '.(c|h)$'
+      # Ignore copyright text
+      - open: '(?i)^[* ]+copyright \(c\)'
+        close: '$'
+      # Ignore include statement
+      - open: '^# *include'
+        close: '$'
+  - pyspelling.filters.cpp:
+      prefix: c
+      strings: true
+  - pyspelling.filters.context:
+      context_visible_first: true
+      delimiters:
+      # Ignore parameter name in docstring
+      - open: '@param '
+        close: '\W'
+      # Ignore printf format placeholder
+      - open: '%'
+        content: '#?(l|z)'
+        close: 'd|u|x'
+      # Ignore D-Bus type format string
+      - open: '^a?[{(]+'
+        close: '[)}]+$'
+
+- name: Markdown
+  sources:
+  - '**/*.md'
+  aspell: *aspell
+  dictionary: *dict
+  pipeline:
+  - pyspelling.filters.url:
+  - pyspelling.filters.context:
+      context_visible_first: true
+      delimiters:
+      # Ignore multiline content between fences
+      - open: '(?s)^(?P<open> *```)[a-z]*$'
+        close: '^(?P=open)$'
+      # Ignore text between inline back ticks
+      - open: '(?P<open>`+)'
+        close: '(?P=open)'
+      # Ignore URL in hyperlinks [title](url)
+      - open: '\]\('
+        close: '\)'
+
+- name: reStructuredText
+  sources:
+  - '**/*.rst'
+  aspell: *aspell
+  dictionary: *dict
+  pipeline:
+  - pyspelling.filters.url:
+  - pyspelling.filters.context:
+      context_visible_first: true
+      delimiters:
+      # Ignore copyright text
+      - open: '(?i)^copyright \(c\)'
+        close: '$'
+      # Ignore multiline content in codeblock
+      - open: '(?s)^::\n\n  '
+        close: '^\n'
+      # Ignore text between inline asterisks or back ticks
+      - open: '(?P<open>[*`]+)'
+        close: '(?P=open)'
+
+- name: TXT
+  sources:
+  - '**/*.txt'
+  - NEWS
+  aspell: *aspell
+  dictionary: *dict
+  pipeline:
+  - pyspelling.filters.url:
+  - pyspelling.filters.context:
+      context_visible_first: true
+      delimiters:
+      # Ignore "at" references
+      - open: '@'
+        close: '\W'

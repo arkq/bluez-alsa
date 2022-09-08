@@ -1,7 +1,7 @@
 /*
  * BlueALSA - ofono.h
  * Copyright (c) 2016-2022 Arkadiusz Bokowy
- *               2018 Thierry Bultel
+ * Copyright (c) 2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
  *

@@ -1,7 +1,7 @@
 /*
  * BlueALSA - at.c
  * Copyright (c) 2016-2021 Arkadiusz Bokowy
- *               2017 Juha Kuikka
+ * Copyright (c) 2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
  *

@@ -40,7 +40,7 @@ double audio_loudness_to_decibel(double value) {
 }
 
 /**
- * Join channnels into interleaved S16 PCM signal. */
+ * Join channels into interleaved S16 PCM signal. */
 void audio_interleave_s16_2le(const int16_t *ch1, const int16_t *ch2,
 		size_t frames, unsigned int channels, int16_t *dest) {
 	const int16_t *src[] = { ch1, ch2 };
@@ -51,7 +51,7 @@ void audio_interleave_s16_2le(const int16_t *ch1, const int16_t *ch2,
 }
 
 /**
- * Join channnels into interleaved S32 PCM signal. */
+ * Join channels into interleaved S32 PCM signal. */
 void audio_interleave_s32_4le(const int32_t *ch1, const int32_t *ch2,
 		size_t frames, unsigned int channels, int32_t *dest) {
 	const int32_t *src[] = { ch1, ch2 };

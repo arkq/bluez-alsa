@@ -56,7 +56,7 @@ struct asrsync {
 
 	/* time-stamp from the previous sync */
 	struct timespec ts;
-	/* transfered frames since ts0 */
+	/* transferred frames since ts0 */
 	uint32_t frames;
 
 	/* time spent outside of the sync function */

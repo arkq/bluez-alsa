@@ -56,7 +56,7 @@ status
     ::
 
         Service: org.bluealsa
-        Version: v3.1.0-96-gc86142d
+        Version: v3.1.0
         Adapters: hci0 hci1
         Profiles:
           A2DP-source : SBC AAC
