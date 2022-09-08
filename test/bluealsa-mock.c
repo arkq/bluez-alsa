@@ -152,6 +152,7 @@ void bluez_battery_provider_update(struct ba_device *device) {
 
 static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
@@ -177,8 +178,11 @@ static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 		if (!ba_transport_pcm_is_active(t_a2dp_pcm))
 			timeout = -1;
 
-		if (poll(fds, ARRAYSIZE(fds), timeout) == 1 &&
-				fds[0].revents & POLLIN) {
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		int rv = poll(fds, ARRAYSIZE(fds), timeout);
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		if (rv == 1 && fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 			enum ba_transport_thread_signal signal;
 			ba_transport_thread_signal_recv(th, &signal);
