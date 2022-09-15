@@ -65,7 +65,7 @@ struct esco_msbc {
 	size_t frames;
 
 	/* packet loss concealment */
-	plc_state_t plc;
+	plc_state_t *plc;
 
 	/* Determine whether structure has been initialized. This field is
 	 * used for reinitialization - it makes msbc_init() idempotent. */

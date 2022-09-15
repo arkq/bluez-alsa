@@ -114,10 +114,10 @@ int msbc_init(struct esco_msbc *msbc) {
 	msbc->seq_number = 0;
 	msbc->frames = 0;
 
-	/* Initialize PLC context. When calling with non-NULL parameter,
-	 * this function does not allocate anything - there is no need
-	 * to call plc_free(). */
-	plc_init(&msbc->plc);
+	if (msbc->plc)
+		plc_init(msbc->plc);
+	else if (!(msbc->plc = plc_init(NULL)))
+		goto fail;
 
 	msbc->initialized = true;
 	return 0;
@@ -139,6 +139,8 @@ void msbc_finish(struct esco_msbc *msbc) {
 	ffb_free(&msbc->data);
 	ffb_free(&msbc->pcm);
 
+	plc_free(msbc->plc);
+	msbc->plc = NULL;
 }
 
 /**
@@ -183,7 +185,7 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 
 		msbc->seq_number = _seq;
 
-		plc_fillin(&msbc->plc, msbc->pcm.tail, missing * MSBC_CODESAMPLES);
+		plc_fillin(msbc->plc, msbc->pcm.tail, missing * MSBC_CODESAMPLES);
 		ffb_seek(&msbc->pcm, missing * MSBC_CODESAMPLES);
 		rv += missing * MSBC_CODESAMPLES;
 
@@ -200,7 +202,7 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 #if MSBC_DECODE_ERROR_PLC
 
 		warn("Couldn't decode mSBC frame: %s", sbc_strerror(len));
-		plc_fillin(&msbc->plc, msbc->pcm.tail, MSBC_CODESAMPLES);
+		plc_fillin(msbc->plc, msbc->pcm.tail, MSBC_CODESAMPLES);
 		ffb_seek(&msbc->pcm, MSBC_CODESAMPLES);
 		rv += MSBC_CODESAMPLES;
 
@@ -212,7 +214,7 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 	}
 
 	/* record PCM history and blend new data after PLC */
-	plc_rx(&msbc->plc, msbc->pcm.tail, MSBC_CODESAMPLES);
+	plc_rx(msbc->plc, msbc->pcm.tail, MSBC_CODESAMPLES);
 
 	ffb_seek(&msbc->pcm, MSBC_CODESAMPLES);
 	input += sizeof(*frame);
