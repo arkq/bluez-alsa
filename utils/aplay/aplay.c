@@ -184,17 +184,17 @@ static void print_bt_device_list(void) {
 				ba2str(&dev.bt_addr, bt_addr);
 
 				printf("%s: %s [%s], %s%s\n",
-					dev.hci_name, bt_addr, dev.name,
-					dev.trusted ? "trusted ": "", dev.icon);
+						dev.hci_name, bt_addr, dev.name,
+						dev.trusted ? "trusted " : "", dev.icon);
 
 			}
 
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
-				bluealsa_get_profile(pcm),
-				pcm->codec.name,
-				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
-				pcm->channels, pcm->channels != 1 ? "s" : "",
-				pcm->sampling);
+					bluealsa_get_profile(pcm),
+					pcm->codec.name,
+					snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
+					pcm->channels, pcm->channels != 1 ? "s" : "",
+					pcm->sampling);
 
 		}
 	}
@@ -226,17 +226,17 @@ static void print_bt_pcm_list(void) {
 				"bluealsa:DEV=%s,PROFILE=%s,SRV=%s\n"
 				"    %s, %s%s, %s\n"
 				"    %s (%s): %s %d channel%s %d Hz\n",
-			bt_addr,
-			pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP ? "a2dp" : "sco",
-			dbus_ba_service,
-			dev.name,
-			dev.trusted ? "trusted ": "", dev.icon,
-			pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
-			bluealsa_get_profile(pcm),
-			pcm->codec.name,
-			snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
-			pcm->channels, pcm->channels != 1 ? "s" : "",
-			pcm->sampling);
+				bt_addr,
+				pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP ? "a2dp" : "sco",
+				dbus_ba_service,
+				dev.name,
+				dev.trusted ? "trusted " : "", dev.icon,
+				pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
+				bluealsa_get_profile(pcm),
+				pcm->codec.name,
+				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
+				pcm->channels, pcm->channels != 1 ? "s" : "",
+				pcm->sampling);
 
 	}
 
@@ -526,7 +526,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
-		#define MIN(a,b) a < b ? a : b
+		#define MIN(a, b) a < b ? a : b
 		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
 		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
 			if (errno == EINTR)

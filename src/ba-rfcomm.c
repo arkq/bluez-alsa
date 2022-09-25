@@ -538,11 +538,11 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 		tmp += 1;
 		switch (atoi(tmp)) {
 		case HFP_CODEC_CVSD:
-				r->codecs.cvsd = true;
+			r->codecs.cvsd = true;
 			break;
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
-				r->codecs.msbc = true;
+			r->codecs.msbc = true;
 			break;
 #endif
 		}

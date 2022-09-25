@@ -19,7 +19,7 @@
 #include "shared/dbus-client.h"
 
 static bool print_service(const char *name, void *data) {
-	(void) data;
+	(void)data;
 	if (strncmp(name, BLUEALSA_SERVICE, sizeof(BLUEALSA_SERVICE) - 1) == 0)
 		printf("%s\n", name);
 	return true;

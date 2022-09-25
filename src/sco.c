@@ -402,7 +402,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 			pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* Move unprocessed data to the front of our linear
-			* buffer and clear the mSBC frame counter. */
+			 * buffer and clear the mSBC frame counter. */
 			ffb_shift(&msbc.data, ffb_blen_out(&msbc.data) - data_len);
 			msbc.frames = 0;
 

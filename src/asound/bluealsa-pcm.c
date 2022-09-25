@@ -422,7 +422,7 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	/* Any error returned here is translated to -EPIPE, SND_PCM_STATE_XRUN,
 	 * by ioplug; and that prevents snd_pcm_readi() and snd_pcm_writei()
 	 * from returning -ENODEV to the application on device disconnection.
-`	 * Instead, when the device is disconnected, we update the PCM state
+	 * Instead, when the device is disconnected, we update the PCM state
 	 * directly here but we do not return an error code. This ensures that
 	 * ioplug does not undo that state change. Both snd_pcm_readi() and
 	 * snd_pcm_writei() return -ENODEV when the PCM state is

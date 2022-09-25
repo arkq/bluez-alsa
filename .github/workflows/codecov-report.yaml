@@ -1,9 +1,12 @@
-name: Codecov - Upload Report
+name: Code Coverage
+
 on:
   push:
   pull_request:
     branches: [ master ]
+
 jobs:
+
   coverage:
     if: github.repository_owner == 'arkq'
     strategy:
