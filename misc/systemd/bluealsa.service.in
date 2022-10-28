@@ -22,14 +22,15 @@ ExecStart=@bindir@/bluealsa @systemdbluealsaargs@
 Restart=on-failure
 
 # Sandboxing
-CapabilityBoundingSet=
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
 IPAddressDeny=any
 LockPersonality=true
 MemoryDenyWriteExecute=true
 NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true
-PrivateUsers=true
+PrivateUsers=false
 ProtectClock=true
 ProtectControlGroups=true
 ProtectHome=true
