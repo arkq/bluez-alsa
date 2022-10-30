@@ -713,6 +713,9 @@ static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm
 	worker->ba_pcm_fd = -1;
 	worker->ba_pcm_ctrl_fd = -1;
 	worker->pcm = NULL;
+	worker->mixer = NULL;
+	worker->mixer_elem = NULL;
+	worker->mixer_has_mute_switch = false;
 
 	pthread_rwlock_unlock(&workers_lock);
 
