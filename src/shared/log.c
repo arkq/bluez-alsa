@@ -18,6 +18,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <time.h>
+#include <unistd.h>
 
 #if WITH_LIBUNWIND
 # define UNW_LOCAL_ONLY
@@ -97,6 +98,10 @@ static void vlog(int priority, const char *format, va_list ap) {
 
 #if DEBUG_TIME
 	fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
+#endif
+
+#if DEBUG
+	fprintf(stderr, "[%d] ", gettid());
 #endif
 
 	fprintf(stderr, "%s: ", priority2str[priority]);
