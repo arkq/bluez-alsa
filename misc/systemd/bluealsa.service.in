@@ -12,7 +12,7 @@ After=bluetooth.service
 # $ sudo systemctl edit bluealsa
 # [Service]
 # ExecStart=
-# ExecStart=@bindir@/bluealsa --keep-alive=5 -p a2dp-sink
+# ExecStart=@bindir@/bluealsa -S --keep-alive=5 -p a2dp-sink
 
 [Service]
 Type=dbus

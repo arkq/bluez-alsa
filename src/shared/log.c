@@ -49,26 +49,26 @@ static void init_ts0(void) {
 
 void log_open(const char *ident, bool syslog) {
 
-	free(_ident);
-	_ident = strdup(ident);
+	if (ident != NULL)
+		_ident = strdup(ident);
 
 	if ((_syslog = syslog) == true)
 		openlog(ident, 0, LOG_USER);
 
 }
 
-static void vlog(int priority, const char *format, va_list ap) {
+static const char *priority2str[] = {
+	[LOG_EMERG] = "X",
+	[LOG_ALERT] = "A",
+	[LOG_CRIT] = "C",
+	[LOG_ERR] = "E",
+	[LOG_WARNING] = "W",
+	[LOG_NOTICE] = "N",
+	[LOG_INFO] = "I",
+	[LOG_DEBUG] = "D",
+};
 
-	static const char *priority2str[] = {
-		[LOG_EMERG] = "X",
-		[LOG_ALERT] = "A",
-		[LOG_CRIT] = "C",
-		[LOG_ERR] = "E",
-		[LOG_WARNING] = "W",
-		[LOG_NOTICE] = "N",
-		[LOG_INFO] = "I",
-		[LOG_DEBUG] = "D",
-	};
+static void vlog(int priority, const char *format, va_list ap) {
 
 	int oldstate;
 
@@ -78,37 +78,42 @@ static void vlog(int priority, const char *format, va_list ap) {
 	 * has to be temporally disabled. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 
-#if DEBUG_TIME
-	struct timespec ts;
-	gettimestamp(&ts);
-	timespecsub(&ts, &_ts0, &ts);
-#endif
-
 	if (_syslog) {
+
 		va_list ap_syslog;
 		va_copy(ap_syslog, ap);
 		vsyslog(priority, format, ap_syslog);
 		va_end(ap_syslog);
+
 	}
-
-	flockfile(stderr);
-
-	if (_ident != NULL)
-		fprintf(stderr, "%s: ", _ident);
+	else {
 
 #if DEBUG_TIME
-	fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
+		struct timespec ts;
+		gettimestamp(&ts);
+		timespecsub(&ts, &_ts0, &ts);
+#endif
+
+		flockfile(stderr);
+
+		if (_ident != NULL)
+			fprintf(stderr, "%s: ", _ident);
+
+#if DEBUG_TIME
+		fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
 #endif
 
 #if DEBUG
-	fprintf(stderr, "[%d] ", gettid());
+		fprintf(stderr, "[%d] ", gettid());
 #endif
 
-	fprintf(stderr, "%s: ", priority2str[priority]);
-	vfprintf(stderr, format, ap);
-	fputs("\n", stderr);
+		fprintf(stderr, "%s: ", priority2str[priority]);
+		vfprintf(stderr, format, ap);
+		fputs("\n", stderr);
 
-	funlockfile(stderr);
+		funlockfile(stderr);
+
+	}
 
 	pthread_setcancelstate(oldstate, NULL);
 
