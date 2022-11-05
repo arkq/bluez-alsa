@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -25,7 +25,7 @@
 #define DBUS_IFACE_PROPERTIES       DBUS_SERVICE ".Properties"
 
 /* Compatibility patch for glib < 2.42. */
-#ifndef G_DBUS_ERROR_UNKNOWN_OBJECT
+#if !GLIB_CHECK_VERSION(2, 42, 0)
 # define G_DBUS_ERROR_UNKNOWN_OBJECT G_DBUS_ERROR_FAILED
 #endif
 
