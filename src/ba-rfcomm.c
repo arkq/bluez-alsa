@@ -1462,12 +1462,18 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 	 * RFCOMM thread during the destroy procedure. */
 	bluealsa_dbus_rfcomm_unregister(r);
 
-	if (!pthread_equal(r->thread, config.main_thread) &&
-			!pthread_equal(r->thread, pthread_self())) {
-		if ((err = pthread_cancel(r->thread)) != 0 && err != ESRCH)
-			warn("Couldn't cancel RFCOMM thread: %s", strerror(err));
-		if ((err = pthread_join(r->thread, NULL)) != 0)
-			warn("Couldn't join RFCOMM thread: %s", strerror(err));
+	if (!pthread_equal(r->thread, config.main_thread)) {
+		if (!pthread_equal(r->thread, pthread_self())) {
+			if ((err = pthread_cancel(r->thread)) != 0 && err != ESRCH)
+				warn("Couldn't cancel RFCOMM thread: %s", strerror(err));
+			if ((err = pthread_join(r->thread, NULL)) != 0)
+				warn("Couldn't join RFCOMM thread: %s", strerror(err));
+		}
+		else {
+			/* It seems that the thread is being destroyed by the link lost
+			 * quirk. Detach itself so we will not leak resources. */
+			pthread_detach(r->thread);
+		}
 	}
 
 	if (r->handler_fd != -1)

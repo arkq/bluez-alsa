@@ -12,10 +12,10 @@ if [[ $# -ne 1 ]]; then
 fi
 
 # open PCM and close it right away
-: |bluealsa-cli open "$1"
+: |bluealsa-cli open "$1" || exit
 
 # check if open is possible right after close
-if ! bluealsa-cli open "$1"; then
+if ! dd status=none if=/dev/zero count=10 |bluealsa-cli open "$1" ; then
 	echo "error: Couldn't open BlueALSA PCM"
 	exit 1
 fi

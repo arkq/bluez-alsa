@@ -510,11 +510,12 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	pcm->active = true;
 
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
+	g_io_channel_set_close_on_unref(ch, TRUE);
+	g_io_channel_set_encoding(ch, NULL, NULL);
+
 	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
 			bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
 			(GDestroyNotify)ba_transport_pcm_unref);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
 	g_io_channel_unref(ch);
 
 	/* notify our audio thread that the FIFO is ready */

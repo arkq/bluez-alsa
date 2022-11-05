@@ -17,6 +17,7 @@
 #endif
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -117,7 +118,7 @@ struct ba_rfcomm {
 	 * remove all references, otherwise resources will not be freed. If this
 	 * quirk workaround is enabled, RFCOMM link lost will trigger SCO transport
 	 * destroy rather than a simple unreferencing. */
-	bool link_lost_quirk;
+	atomic_bool link_lost_quirk;
 
 };
 

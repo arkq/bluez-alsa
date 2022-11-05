@@ -788,11 +788,6 @@ struct ba_transport *ba_transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	if (rfcomm_fd != -1) {
-		if ((t->sco.rfcomm = ba_rfcomm_new(t, rfcomm_fd)) == NULL)
-			goto fail;
-	}
-
 	ba_transport_set_codec(t, type.codec);
 
 	storage_pcm_data_sync(&t->sco.spk_pcm);
@@ -801,10 +796,17 @@ struct ba_transport *ba_transport_new_sco(
 	bluealsa_dbus_pcm_register(&t->sco.spk_pcm);
 	bluealsa_dbus_pcm_register(&t->sco.mic_pcm);
 
+	if (rfcomm_fd != -1) {
+		if ((t->sco.rfcomm = ba_rfcomm_new(t, rfcomm_fd)) == NULL)
+			goto fail;
+	}
+
 	return t;
 
 fail:
 	err = errno;
+	bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
+	bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
 	ba_transport_unref(t);
 	errno = err;
 	return NULL;
@@ -1341,7 +1343,10 @@ int ba_transport_set_a2dp_state(
 }
 
 bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) {
-	return pcm->fd != -1 && pcm->active;
+	pthread_mutex_lock(&pcm->mutex);
+	bool active = pcm->fd != -1 && pcm->active;
+	pthread_mutex_unlock(&pcm->mutex);
+	return active;
 }
 
 int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {

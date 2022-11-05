@@ -36,7 +36,8 @@
 #include "shared/log.h"
 
 static struct ba_adapter *adapter = NULL;
-static struct ba_device *device = NULL;
+static struct ba_device *device1 = NULL;
+static struct ba_device *device2 = NULL;
 
 static pthread_mutex_t transport_codec_updated_mtx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t transport_codec_updated = PTHREAD_COND_INITIALIZER;
@@ -100,9 +101,9 @@ START_TEST(test_rfcomm) {
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
 	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_sco(device, ttype_ag, ":test", "/sco/ag", fds[0]);
+	struct ba_transport *ag = ba_transport_new_sco(device1, ttype_ag, ":test", "/sco/ag", fds[0]);
 	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_sco(device, ttype_hf, ":test", "/sco/hf", fds[1]);
+	struct ba_transport *hf = ba_transport_new_sco(device2, ttype_hf, ":test", "/sco/hf", fds[1]);
 
 	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
@@ -113,7 +114,8 @@ START_TEST(test_rfcomm) {
 		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
 	pthread_mutex_unlock(&transport_codec_updated_mtx);
 
-	ck_assert_int_eq(device->ref_count, 1 + 2);
+	ck_assert_int_eq(device1->ref_count, 1 + 1);
+	ck_assert_int_eq(device2->ref_count, 1 + 1);
 
 	ck_assert_int_eq(ag->type.codec, HFP_CODEC_CVSD);
 	ck_assert_int_eq(hf->type.codec, HFP_CODEC_CVSD);
@@ -128,7 +130,8 @@ START_TEST(test_rfcomm) {
 	debug("Wait for asynchronous free");
 	usleep(100000);
 
-	ck_assert_int_eq(device->ref_count, 1);
+	ck_assert_int_eq(device1->ref_count, 1);
+	ck_assert_int_eq(device2->ref_count, 1);
 
 } END_TEST
 
@@ -142,9 +145,9 @@ START_TEST(test_rfcomm_esco) {
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
 	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_sco(device, ttype_ag, ":test", "/sco/ag", fds[0]);
+	struct ba_transport *ag = ba_transport_new_sco(device1, ttype_ag, ":test", "/sco/ag", fds[0]);
 	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_sco(device, ttype_hf, ":test", "/sco/hf", fds[1]);
+	struct ba_transport *hf = ba_transport_new_sco(device2, ttype_hf, ":test", "/sco/hf", fds[1]);
 
 	ag->sco.rfcomm->link_lost_quirk = false;
 	hf->sco.rfcomm->link_lost_quirk = false;
@@ -173,7 +176,8 @@ START_TEST(test_rfcomm_esco) {
 
 #endif
 
-	ck_assert_int_eq(device->ref_count, 1 + 2);
+	ck_assert_int_eq(device1->ref_count, 1 + 1);
+	ck_assert_int_eq(device2->ref_count, 1 + 1);
 
 #if ENABLE_MSBC
 	pthread_mutex_lock(&transport_codec_updated_mtx);
@@ -196,7 +200,8 @@ START_TEST(test_rfcomm_esco) {
 	debug("Hands Free destroying");
 	ba_transport_destroy(hf);
 
-	ck_assert_int_eq(device->ref_count, 1);
+	ck_assert_int_eq(device1->ref_count, 1);
+	ck_assert_int_eq(device2->ref_count, 1);
 
 } END_TEST
 
@@ -211,9 +216,9 @@ START_TEST(test_rfcomm_set_codec) {
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
 	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_sco(device, ttype_ag, ":test", "/sco/ag", fds[0]);
+	struct ba_transport *ag = ba_transport_new_sco(device1, ttype_ag, ":test", "/sco/ag", fds[0]);
 	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_sco(device, ttype_hf, ":test", "/sco/hf", fds[1]);
+	struct ba_transport *hf = ba_transport_new_sco(device2, ttype_hf, ":test", "/sco/hf", fds[1]);
 
 	ag->sco.rfcomm->link_lost_quirk = false;
 	hf->sco.rfcomm->link_lost_quirk = false;
@@ -272,9 +277,11 @@ int main(void) {
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	bdaddr_t addr = {{ 1, 2, 3, 4, 5, 6 }};
 	adapter = ba_adapter_new(0);
-	device = ba_device_new(adapter, &addr);
+	bdaddr_t addr1 = {{ 1, 1, 1, 1, 1, 1 }};
+	device1 = ba_device_new(adapter, &addr1);
+	bdaddr_t addr2 = {{ 2, 2, 2, 2, 2, 2 }};
+	device2 = ba_device_new(adapter, &addr2);
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);
