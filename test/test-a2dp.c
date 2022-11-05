@@ -67,8 +67,9 @@ START_TEST(test_a2dp_codec_cmp) {
 	struct a2dp_codec codec3 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX };
 	struct a2dp_codec codec4 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	struct a2dp_codec codec5 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
+	struct a2dp_codec codec6 = { .dir = A2DP_SINK, .codec_id = 0xFFFF };
 
-	struct a2dp_codec * codecs[] = { &codec3, &codec1, &codec4, &codec5, &codec2 };
+	struct a2dp_codec * codecs[] = { &codec3, &codec1, &codec6, &codec4, &codec5, &codec2 };
 	qsort(codecs, ARRAYSIZE(codecs), sizeof(*codecs), QSORT_COMPAR(a2dp_codec_ptr_cmp));
 
 	ck_assert_ptr_eq(codecs[0], &codec1);
@@ -76,6 +77,7 @@ START_TEST(test_a2dp_codec_cmp) {
 	ck_assert_ptr_eq(codecs[2], &codec3);
 	ck_assert_ptr_eq(codecs[3], &codec4);
 	ck_assert_ptr_eq(codecs[4], &codec5);
+	ck_assert_ptr_eq(codecs[5], &codec6);
 
 } END_TEST
 

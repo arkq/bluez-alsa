@@ -108,8 +108,12 @@ int a2dp_codecs_init(void) {
 static int a2dp_codec_id_cmp(uint16_t a, uint16_t b) {
 	if (a < A2DP_CODEC_VENDOR || b < A2DP_CODEC_VENDOR)
 		return a - b;
-	const char *a_name = a2dp_codecs_codec_id_to_string(a);
-	const char *b_name = a2dp_codecs_codec_id_to_string(b);
+	const char *a_name;
+	if ((a_name = a2dp_codecs_codec_id_to_string(a)) == NULL)
+		return 1;
+	const char *b_name;
+	if ((b_name = a2dp_codecs_codec_id_to_string(b)) == NULL)
+		return -1;
 	return strcasecmp(a_name, b_name);
 }
 
