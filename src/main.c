@@ -145,12 +145,12 @@ static void g_bus_name_lost(GDBusConnection *conn, const char *name, void *userd
 int main(int argc, char **argv) {
 
 	int opt;
-	const char *opts = "hVB:Si:p:c:";
+	const char *opts = "hVSB:i:p:c:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
-		{ "dbus", required_argument, NULL, 'B' },
 		{ "syslog", no_argument, NULL, 'S' },
+		{ "dbus", required_argument, NULL, 'B' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
 		{ "codec", required_argument, NULL, 'c' },
@@ -191,31 +191,14 @@ int main(int argc, char **argv) {
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'S' /* --syslog */ :
-			syslog = true;
-			break;
-		}
-
-	log_open(argv[0], syslog);
-
-	if (bluealsa_config_init() != 0) {
-		error("Couldn't initialize bluealsa config");
-		return EXIT_FAILURE;
-	}
-
-	/* parse options */
-	optind = 0; opterr = 1;
-	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
-		switch (opt) {
-
 		case 'h' /* --help */ :
 			printf("Usage:\n"
 					"  %s -p PROFILE [OPTION]...\n"
 					"\nOptions:\n"
 					"  -h, --help\t\t\tprint this help and exit\n"
 					"  -V, --version\t\t\tprint version and exit\n"
-					"  -B, --dbus=NAME\t\tD-Bus service name suffix\n"
 					"  -S, --syslog\t\t\tsend output to syslog\n"
+					"  -B, --dbus=NAME\t\tD-Bus service name suffix\n"
 					"  -i, --device=hciX\t\tHCI device(s) to use\n"
 					"  -p, --profile=NAME\t\tset enabled BT profiles\n"
 					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
@@ -273,15 +256,33 @@ int main(int argc, char **argv) {
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
+		case 'S' /* --syslog */ :
+			syslog = true;
+			break;
+		}
+
+	log_open(basename(argv[0]), syslog);
+
+	if (bluealsa_config_init() != 0) {
+		error("Couldn't initialize bluealsa config");
+		return EXIT_FAILURE;
+	}
+
+	/* parse options */
+	optind = 0; opterr = 1;
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h' /* --help */ :
+		case 'V' /* --version */ :
+		case 'S' /* --syslog */ :
+			break;
+
 		case 'B' /* --dbus=NAME */ :
 			snprintf(dbus_service, sizeof(dbus_service), BLUEALSA_SERVICE ".%s", optarg);
 			if (!g_dbus_is_name(dbus_service)) {
 				error("Invalid BlueALSA D-Bus service name: %s", dbus_service);
 				return EXIT_FAILURE;
 			}
-			break;
-
-		case 'S' /* --syslog */ :
 			break;
 
 		case 'i' /* --device=HCI */ :

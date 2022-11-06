@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: September 2022
+:Date: November 2022
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -33,14 +33,14 @@ OPTIONS
 -V, --version
     Output the version number and exit.
 
+-S, --syslog
+    Send output to system logger (``syslogd(8)``).
+    By default, log output is sent to stderr.
+
 -B NAME, --dbus=NAME
     BlueALSA D-Bus service name suffix.
     Without this option, **bluealsa** registers itself as an "org.bluealsa"
     D-Bus service.  For more information see the EXAMPLES_ below.
-
--S, --syslog
-    Send output to system logger (``syslogd(8)``).
-    By default, log output is sent to stderr.
 
 -i hciX, --device=hciX
     HCI device to use. Can be specified multiple times to select more than one

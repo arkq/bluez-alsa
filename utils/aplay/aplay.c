@@ -591,12 +591,12 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			pcm_open_retries = 0;
 
 			if (verbose >= 2) {
-				printf("Used configuration for %s:\n"
+				info("Used configuration for %s:\n"
 						"  PCM buffer time: %u us (%zu bytes)\n"
 						"  PCM period time: %u us (%zu bytes)\n"
 						"  PCM format: %s\n"
 						"  Sampling rate: %u Hz\n"
-						"  Channels: %u\n",
+						"  Channels: %u",
 						w->addr,
 						buffer_time, snd_pcm_frames_to_bytes(w->pcm, buffer_size),
 						period_time, snd_pcm_frames_to_bytes(w->pcm, period_size),
@@ -854,10 +854,11 @@ fail:
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVvlLB:D:M:";
+	const char *opts = "hVSvlLB:D:M:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
+		{ "syslog", no_argument, NULL, 'S' },
 		{ "verbose", no_argument, NULL, 'v' },
 		{ "list-devices", no_argument, NULL, 'l' },
 		{ "list-pcms", no_argument, NULL, 'L' },
@@ -874,6 +875,12 @@ int main(int argc, char *argv[]) {
 		{ 0, 0, 0, 0 },
 	};
 
+	bool syslog = false;
+
+	/* Check if syslog forwarding has been enabled. This check has to be
+	 * done before anything else, so we can log early stage warnings and
+	 * errors. */
+	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -882,6 +889,7 @@ int main(int argc, char *argv[]) {
 					"\nOptions:\n"
 					"  -h, --help\t\t\tprint this help and exit\n"
 					"  -V, --version\t\t\tprint version and exit\n"
+					"  -S, --syslog\t\t\tsend output to syslog\n"
 					"  -v, --verbose\t\t\tmake output more verbose\n"
 					"  -l, --list-devices\t\tlist available BT audio devices\n"
 					"  -L, --list-pcms\t\tlist available BT audio PCMs\n"
@@ -907,8 +915,26 @@ int main(int argc, char *argv[]) {
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
+		case 'S' /* --syslog */ :
+			syslog = true;
+			break;
+
 		case 'v' /* --verbose */ :
 			verbose++;
+			break;
+		}
+
+	log_open(basename(argv[0]), syslog);
+	dbus_threads_init_default();
+
+	/* parse options */
+	optind = 0; opterr = 1;
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h' /* --help */ :
+		case 'V' /* --version */ :
+		case 'S' /* --syslog */ :
+		case 'v' /* --verbose */ :
 			break;
 
 		case 'l' /* --list-devices */ :
@@ -962,9 +988,6 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
-	log_open(argv[0], false);
-	dbus_threads_init_default();
-
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
 		error("Couldn't initialize D-Bus context: %s", err.message);
@@ -1003,7 +1026,7 @@ int main(int argc, char *argv[]) {
 		for (i = 0; i < ba_addrs_count; i++, tmp += 19)
 			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
 
-		printf("Selected configuration:\n"
+		info("Selected configuration:\n"
 				"  BlueALSA service: %s\n"
 				"  PCM device: %s\n"
 				"  PCM buffer time: %u us\n"
@@ -1011,7 +1034,7 @@ int main(int argc, char *argv[]) {
 				"  ALSA mixer device: %s\n"
 				"  ALSA mixer element: '%s',%u\n"
 				"  Bluetooth device(s): %s\n"
-				"  Profile: %s\n",
+				"  Profile: %s",
 				dbus_ba_service,
 				pcm_device, pcm_buffer_time, pcm_period_time,
 				mixer_device, mixer_elem_name, mixer_elem_index,

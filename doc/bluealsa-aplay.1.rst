@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple bluealsa player
 ------------------------
 
-:Date: June 2022
+:Date: November 2022
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -37,6 +37,10 @@ OPTIONS
 
 -V, --version
     Output the version number and exit.
+
+-S, --syslog
+    Send output to system logger (``syslogd(8)``).
+    By default, log output is sent to stderr.
 
 -v, --verbose
     Make the output more verbose.

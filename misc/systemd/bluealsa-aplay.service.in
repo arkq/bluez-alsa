@@ -11,7 +11,7 @@ Requisite=dbus.service
 # $ sudo systemctl edit bluealsa-aplay
 # [Service]
 # ExecStart=
-# ExecStart=@bindir@/bluealsa-aplay --pcm=my-playback-pcm
+# ExecStart=@bindir@/bluealsa-aplay -S --pcm=my-playback-pcm
 
 [Service]
 Type=simple

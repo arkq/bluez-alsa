@@ -154,7 +154,7 @@ hfpag
 hfphf
 hspag
 hsphs
-hVB
+hVSB
 ioplug
 IPHONEACCEV
 iter

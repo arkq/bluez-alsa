@@ -350,9 +350,9 @@ AC_SUBST([SYSTEMD_BLUEALSA_ARGS], [$systemdbluealsaargs])
 
 AC_ARG_WITH([systemdbluealsaaplayargs],
 	AS_HELP_STRING([--with-systemdbluealsaaplayargs=ARGS], [bluealsa-aplay arguments to
-		be used in bluealsa-aplay.service, defaults to empty if not specified]),
+		be used in bluealsa-aplay.service, defaults to '-S' if not specified]),
 	[systemdbluealsaaplayargs="${withval}"],
-	[systemdbluealsaaplayargs=""])
+	[systemdbluealsaaplayargs="-S"])
 AC_SUBST([SYSTEMD_BLUEALSA_APLAY_ARGS], [$systemdbluealsaaplayargs])
 
 AC_ARG_WITH([bluealsauser],

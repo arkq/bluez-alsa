@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
 
 	char dbus_ba_service[32] = BLUEALSA_SERVICE;
 
-	log_open(argv[0], false);
+	log_open(basename(argv[0]), false);
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
