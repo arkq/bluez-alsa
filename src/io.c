@@ -324,8 +324,10 @@ repoll:
 	/* Allow escaping from the poll() by thread cancellation. */
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
+	pthread_mutex_lock(&pcm->mutex);
 	/* Add PCM socket to the poll if it is active. */
-	fds[1].fd = ba_transport_pcm_is_active(pcm) ? pcm->fd : -1;
+	fds[1].fd = pcm->active ? pcm->fd : -1;
+	pthread_mutex_unlock(&pcm->mutex);
 
 	/* Poll for reading with optional sync timeout. */
 	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {

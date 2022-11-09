@@ -442,10 +442,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 		g_assert_not_reached();
 	}
 
-	struct pollfd pfds[] = {{ t_pcm->fd, POLLIN, 0 }};
 	size_t decoded_samples_total = 0;
-	uint8_t buffer[2048];
-	ssize_t len;
 
 #if HAVE_SNDFILE
 	SNDFILE *sf = NULL;
@@ -483,8 +480,18 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_set_state_running(th);
-	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
+	for (ba_transport_thread_set_state_running(th);;) {
+
+		struct pollfd pfds[] = {{ -1, POLLIN, 0 }};
+		uint8_t buffer[2048];
+		ssize_t len;
+
+		pthread_mutex_lock(&t_pcm->mutex);
+		pfds[0].fd = t_pcm->fd;
+		pthread_mutex_unlock(&t_pcm->mutex);
+
+		if (poll(pfds, ARRAYSIZE(pfds), 500) <= 0)
+			break;
 
 		if ((len = read(pfds[0].fd, buffer, sizeof(buffer))) == -1) {
 			debug("PCM read error: %s", strerror(errno));

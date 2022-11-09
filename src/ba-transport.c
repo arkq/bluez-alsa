@@ -1087,10 +1087,9 @@ final:
 	return 0;
 }
 
-static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
-
-	const uint16_t codec_id = t->type.codec;
-
+static void ba_transport_set_codec_a2dp(
+		struct ba_transport *t,
+		uint16_t codec_id) {
 	switch (codec_id) {
 	case A2DP_CODEC_SBC:
 		a2dp_sbc_transport_init(t);
@@ -1134,12 +1133,11 @@ static void ba_transport_set_codec_a2dp(struct ba_transport *t) {
 		error("Unsupported A2DP codec: %#x", codec_id);
 		g_assert_not_reached();
 	}
-
 }
 
-static void ba_transport_set_codec_sco(struct ba_transport *t) {
-
-	const uint16_t codec_id = t->type.codec;
+static void ba_transport_set_codec_sco(
+		struct ba_transport *t,
+		uint16_t codec_id) {
 
 	t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.spk_pcm.channels = 1;
@@ -1187,10 +1185,10 @@ void ba_transport_set_codec(
 	t->type.codec = codec_id;
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		ba_transport_set_codec_a2dp(t);
+		ba_transport_set_codec_a2dp(t, codec_id);
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		ba_transport_set_codec_sco(t);
+		ba_transport_set_codec_sco(t, codec_id);
 
 }
 
