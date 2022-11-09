@@ -761,6 +761,21 @@ struct ba_transport *ba_transport_new_sco(
 	struct ba_transport *t;
 	int err;
 
+	/* BlueALSA can only support one SCO transport per device, so we arbitrarily
+	 * accept only the first profile connection, with no preference for HFP.
+	 * Most (all?) commercial devices prefer HFP over HSP, but we are unable to
+	 * emulate that with our current design (we would need to know all profiles
+	 * supported by the remote device before it connects). Fortunately BlueZ
+	 * appears to always connect HFP before HSP, so at least for connections
+	 * from commercial devices and for BlueALSA to BlueALSA connections we get
+	 * the desired result. */
+	if ((t = ba_transport_lookup(device, dbus_path)) != NULL) {
+		debug("SCO transport already connected: %s", ba_transport_type_to_string(t->type));
+		ba_transport_unref(t);
+		errno = EBUSY;
+		return NULL;
+	}
+
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 

@@ -148,6 +148,33 @@ START_TEST(test_ba_transport) {
 
 } END_TEST
 
+START_TEST(test_ba_transport_sco_one_only) {
+
+	struct ba_adapter *a;
+	struct ba_device *d;
+	struct ba_transport *t_sco_hsp;
+	struct ba_transport *t_sco_hfp;
+	bdaddr_t addr = { 0 };
+
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
+	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+
+	struct ba_transport_type ttype_sco_hsp = { .profile = BA_TRANSPORT_PROFILE_HSP_AG };
+	t_sco_hsp = ba_transport_new_sco(d, ttype_sco_hsp, "/owner", "/path/sco", -1);
+	ck_assert_ptr_ne(t_sco_hsp, NULL);
+
+	struct ba_transport_type ttype_sco_hfp = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
+	t_sco_hfp = ba_transport_new_sco(d, ttype_sco_hfp, "/owner", "/path/sco", -1);
+	ck_assert_ptr_eq(t_sco_hfp, NULL);
+	ck_assert_int_eq(errno, EBUSY);
+
+	ba_transport_unref(t_sco_hsp);
+
+	ba_adapter_unref(a);
+	ba_device_unref(d);
+
+} END_TEST
+
 START_TEST(test_ba_transport_pcm_format) {
 
 	uint16_t format_u8 = BA_TRANSPORT_PCM_FORMAT_U8;
@@ -182,10 +209,10 @@ START_TEST(test_ba_transport_pcm_volume) {
 	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d, ttype_a2dp,
-				"/owner", "/path", &codec, &configuration), NULL);
+				"/owner", "/path/a2dp", &codec, &configuration), NULL);
 
 	struct ba_transport_type ttype_sco = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path", -1), NULL);
+	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path/sco", -1), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -315,6 +342,7 @@ int main(void) {
 	tcase_add_test(tc, test_ba_adapter);
 	tcase_add_test(tc, test_ba_device);
 	tcase_add_test(tc, test_ba_transport);
+	tcase_add_test(tc, test_ba_transport_sco_one_only);
 	tcase_add_test(tc, test_ba_transport_pcm_format);
 	tcase_add_test(tc, test_ba_transport_pcm_volume);
 	tcase_add_test(tc, test_cascade_free);
