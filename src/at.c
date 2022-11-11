@@ -1,6 +1,6 @@
 /*
  * BlueALSA - at.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  * Copyright (c) 2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -20,6 +20,23 @@
 
 #include "shared/defs.h"
 #include "shared/log.h"
+
+/**
+ * Convert AT type into a human-readable string.
+ *
+ * @param type AT message type.
+ * @return Human-readable string. */
+const char *at_type2str(enum bt_at_type type) {
+	static const char *types[__AT_TYPE_MAX] = {
+		[AT_TYPE_RAW] = "RAW",
+		[AT_TYPE_CMD] = "CMD",
+		[AT_TYPE_CMD_GET] = "GET",
+		[AT_TYPE_CMD_SET] = "SET",
+		[AT_TYPE_CMD_TEST] = "TEST",
+		[AT_TYPE_RESP] = "RESP",
+	};
+	return types[type];
+}
 
 /**
  * Build AT message.
@@ -169,7 +186,7 @@ char *at_parse(const char *str, struct bt_at *at) {
  * @param str Command value string.
  * @param state Array with the state to be updated.
  * @return On success this function returns 0, otherwise -1 is returned. */
-int at_parse_bia(const char *str, bool state[__HFP_IND_MAX]) {
+int at_parse_set_bia(const char *str, bool state[__HFP_IND_MAX]) {
 
 	enum hfp_ind ind = HFP_IND_NULL + 1;
 	while (ind < __HFP_IND_MAX && *str != '\0') {
@@ -203,7 +220,7 @@ int at_parse_bia(const char *str, bool state[__HFP_IND_MAX]) {
  * @param map Address where the mapping between the indicator index and the
  *   HFP indicator type will be stored.
  * @return On success this function returns 0, otherwise -1 is returned. */
-int at_parse_cind(const char *str, enum hfp_ind map[20]) {
+int at_parse_get_cind(const char *str, enum hfp_ind map[20]) {
 
 	static const struct {
 		const char *str;
@@ -244,7 +261,7 @@ int at_parse_cind(const char *str, enum hfp_ind map[20]) {
  * @param str CMER command value string.
  * @param map Address where the CMER values will be stored.
  * @return On success this function returns 0, otherwise -1 is returned. */
-int at_parse_cmer(const char *str, unsigned int map[5]) {
+int at_parse_set_cmer(const char *str, unsigned int map[5]) {
 
 	char *tmp;
 	size_t i;
@@ -263,18 +280,29 @@ int at_parse_cmer(const char *str, unsigned int map[5]) {
 }
 
 /**
- * Convert AT type into a human-readable string.
+ * Parse AT +XAPL SET command value.
  *
- * @param type AT message type.
- * @return Human-readable string. */
-const char *at_type2str(enum bt_at_type type) {
-	static const char *types[__AT_TYPE_MAX] = {
-		[AT_TYPE_RAW] = "RAW",
-		[AT_TYPE_CMD] = "CMD",
-		[AT_TYPE_CMD_GET] = "GET",
-		[AT_TYPE_CMD_SET] = "SET",
-		[AT_TYPE_CMD_TEST] = "TEST",
-		[AT_TYPE_RESP] = "RESP",
-	};
-	return types[type];
+ * @param str XAPL command value string.
+ * @param vendor Address where the vendor ID will be stored.
+ * @param product Address where the product ID will be stored.
+ * @param version Address where the version number will be stored.
+ * @param features Address where the features bitmap will be stored.
+ * @return On success this function returns 0, otherwise -1 is returned. */
+int at_parse_set_xapl(const char *str, uint16_t *vendor, uint16_t *product,
+		uint16_t *version, uint8_t *features) {
+
+	unsigned int _vendor, _product, _version, _features;
+	int n = 0;
+
+	if (sscanf(str, "%x-%x-%x,%u%n", &_vendor, &_product, &_version, &_features, &n) != 4)
+		return -1;
+	if (str[n] != '\0')
+		return -1;
+
+	*vendor = _vendor;
+	*product = _product;
+	*version = _version;
+	*features = _features;
+
+	return 0;
 }

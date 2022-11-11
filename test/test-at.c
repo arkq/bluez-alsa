@@ -1,6 +1,6 @@
 /*
  * test-at.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,6 +15,11 @@
 
 #include "at.h"
 #include "hfp.h"
+
+START_TEST(test_at_type2str) {
+	ck_assert_str_eq(at_type2str(AT_TYPE_RAW), "RAW");
+	ck_assert_str_eq(at_type2str(AT_TYPE_RESP), "RESP");
+} END_TEST
 
 START_TEST(test_at_build) {
 
@@ -126,7 +131,7 @@ START_TEST(test_at_parse_multiple_cmds) {
 	ck_assert_str_eq(at.value, "OK");
 } END_TEST
 
-START_TEST(test_at_parse_bia) {
+START_TEST(test_at_parse_set_bia) {
 
 	const bool state_ok1[__HFP_IND_MAX] = { 0, true, true, true, true, true, true, true };
 	const bool state_ok2[__HFP_IND_MAX] = { 0, true, false, true, true, true, true, false };
@@ -134,72 +139,86 @@ START_TEST(test_at_parse_bia) {
 	const bool state_ok4[__HFP_IND_MAX] = { 0, true, true, false, false, true, true, true };
 	bool state[__HFP_IND_MAX] = { 0 };
 
-	ck_assert_int_eq(at_parse_bia("1,1,1,1,1,1,1", state), 0);
+	ck_assert_int_eq(at_parse_set_bia("1,1,1,1,1,1,1", state), 0);
 	ck_assert_int_eq(memcmp(state, state_ok1, sizeof(state)), 0);
 
-	ck_assert_int_eq(at_parse_bia("1,0,1,1,1,1,0", state), 0);
+	ck_assert_int_eq(at_parse_set_bia("1,0,1,1,1,1,0", state), 0);
 	ck_assert_int_eq(memcmp(state, state_ok2, sizeof(state)), 0);
 
 	/* omitted values shall not be changed */
-	ck_assert_int_eq(at_parse_bia(",,0,0,,,1", state), 0);
+	ck_assert_int_eq(at_parse_set_bia(",,0,0,,,1", state), 0);
 	ck_assert_int_eq(memcmp(state, state_ok3, sizeof(state)), 0);
 
 	/* truncated values shall not be changed */
-	ck_assert_int_eq(at_parse_bia("1,1", state), 0);
+	ck_assert_int_eq(at_parse_set_bia("1,1", state), 0);
 	ck_assert_int_eq(memcmp(state, state_ok4, sizeof(state)), 0);
 
 } END_TEST
 
-START_TEST(test_at_parse_cind) {
+START_TEST(test_at_parse_get_cind) {
 
 	enum hfp_ind indmap[20];
 	enum hfp_ind indmap_ok[20];
 
 	/* parse +CIND response result code */
-	ck_assert_int_eq(at_parse_cind("(\"call\",(0,1)),(\"xxx\",(0-3)),(\"signal\",(0-5))", indmap), 0);
+	ck_assert_int_eq(at_parse_get_cind("(\"call\",(0,1)),(\"xxx\",(0-3)),(\"signal\",(0-5))", indmap), 0);
 	memset(indmap_ok, HFP_IND_NULL, sizeof(indmap_ok));
 	indmap_ok[0] = HFP_IND_CALL;
 	indmap_ok[2] = HFP_IND_SIGNAL;
 	ck_assert_int_eq(memcmp(indmap, indmap_ok, sizeof(indmap)), 0);
 
 	/* parse +CIND response with white-spaces */
-	ck_assert_int_eq(at_parse_cind(" ( \"call\", ( 0, 1 ) ), ( \"signal\", ( 0-3 ) )", indmap), 0);
+	ck_assert_int_eq(at_parse_get_cind(" ( \"call\", ( 0, 1 ) ), ( \"signal\", ( 0-3 ) )", indmap), 0);
 
 	/* parse +CIND invalid response */
-	ck_assert_int_eq(at_parse_cind("(incorrect,1-2)", indmap), -1);
+	ck_assert_int_eq(at_parse_get_cind("(incorrect,1-2)", indmap), -1);
 
 } END_TEST
 
-START_TEST(test_at_parse_cmer) {
+START_TEST(test_at_parse_set_cmer) {
 
 	const unsigned int cmer_ok1[5] = { 3, 0, 0, 1, 0 };
 	const unsigned int cmer_ok2[5] = { 2, 0, 0, 1, 0 };
 	unsigned int cmer[5];
 
 	/* parse +CMER value */
-	ck_assert_int_eq(at_parse_cmer("3,0,0,1,0", cmer), 0);
+	ck_assert_int_eq(at_parse_set_cmer("3,0,0,1,0", cmer), 0);
 	ck_assert_int_eq(memcmp(cmer, cmer_ok1, sizeof(cmer)), 0);
 
 	/* parse +CMER value with white-spaces */
-	ck_assert_int_eq(at_parse_cmer("3, 0, 0 , 1 , 0", cmer), 0);
+	ck_assert_int_eq(at_parse_set_cmer("3, 0, 0 , 1 , 0", cmer), 0);
 	ck_assert_int_eq(memcmp(cmer, cmer_ok1, sizeof(cmer)), 0);
 
 	/* parse +CMER value with less elements */
-	ck_assert_int_eq(at_parse_cmer("2,0", cmer), 0);
+	ck_assert_int_eq(at_parse_set_cmer("2,0", cmer), 0);
 	ck_assert_int_eq(memcmp(cmer, cmer_ok2, sizeof(cmer)), 0);
 
 	/* parse +CMER empty value */
-	ck_assert_int_eq(at_parse_cmer("", cmer), 0);
+	ck_assert_int_eq(at_parse_set_cmer("", cmer), 0);
 	ck_assert_int_eq(memcmp(cmer, cmer_ok2, sizeof(cmer)), 0);
 
 	/* parse +CMER invalid value */
-	ck_assert_int_eq(at_parse_cmer("3,error", cmer), -1);
+	ck_assert_int_eq(at_parse_set_cmer("3,error", cmer), -1);
 
 } END_TEST
 
-START_TEST(test_at_type2str) {
-	ck_assert_str_eq(at_type2str(AT_TYPE_RAW), "RAW");
-	ck_assert_str_eq(at_type2str(AT_TYPE_RESP), "RESP");
+START_TEST(test_at_parse_set_xapl) {
+
+	uint16_t vendor, product, version;
+	uint8_t features;
+
+	ck_assert_int_eq(at_parse_set_xapl("ABCD-1234-0100,10", &vendor, &product, &version, &features), 0);
+	ck_assert_int_eq(vendor, 0xABCD);
+	ck_assert_int_eq(product, 0x1234);
+	ck_assert_int_eq(version, 0x0100);
+	ck_assert_int_eq(features, 10);
+
+	/* parse invalid feature value which shall be a 10-base number */
+	ck_assert_int_eq(at_parse_set_xapl("ABCD-1234-0100,1A", &vendor, &product, &version, &features), -1);
+
+	/* parse invalid number of parameters */
+	ck_assert_int_eq(at_parse_set_xapl("ABCD-1234,10", &vendor, &product, &version, &features), -1);
+
 } END_TEST
 
 int main(void) {
@@ -210,6 +229,7 @@ int main(void) {
 
 	suite_add_tcase(s, tc);
 
+	tcase_add_test(tc, test_at_type2str);
 	tcase_add_test(tc, test_at_build);
 	tcase_add_test(tc, test_at_parse_invalid);
 	tcase_add_test(tc, test_at_parse_cmd);
@@ -221,10 +241,10 @@ int main(void) {
 	tcase_add_test(tc, test_at_parse_resp_unsolicited);
 	tcase_add_test(tc, test_at_parse_case_sensitivity);
 	tcase_add_test(tc, test_at_parse_multiple_cmds);
-	tcase_add_test(tc, test_at_parse_bia);
-	tcase_add_test(tc, test_at_parse_cind);
-	tcase_add_test(tc, test_at_parse_cmer);
-	tcase_add_test(tc, test_at_type2str);
+	tcase_add_test(tc, test_at_parse_set_bia);
+	tcase_add_test(tc, test_at_parse_get_cind);
+	tcase_add_test(tc, test_at_parse_set_cmer);
+	tcase_add_test(tc, test_at_parse_set_xapl);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

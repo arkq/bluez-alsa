@@ -198,7 +198,7 @@ static int rfcomm_handler_cind_get_cb(struct ba_rfcomm *r, const struct bt_at *a
  * RESP: Standard indicator update AT command */
 static int rfcomm_handler_cind_resp_test_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	/* parse response for the +CIND TEST command */
-	if (at_parse_cind(at->value, r->hfp_ind_map) == -1)
+	if (at_parse_get_cind(at->value, r->hfp_ind_map) == -1)
 		warn("Couldn't parse AG indicators: %s", at->value);
 	if (r->state < HFP_SLC_CIND_TEST)
 		rfcomm_set_hfp_state(r, HFP_SLC_CIND_TEST);
@@ -240,7 +240,7 @@ static int rfcomm_handler_cmer_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 	const int fd = r->fd;
 	const char *resp = "OK";
 
-	if (at_parse_cmer(at->value, r->hfp_cmer) == -1) {
+	if (at_parse_set_cmer(at->value, r->hfp_cmer) == -1) {
 		warn("Couldn't parse CMER setup: %s", at->value);
 		resp = "ERROR";
 	}
@@ -286,7 +286,7 @@ static int rfcomm_handler_bia_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 	const int fd = r->fd;
 	const char *resp = "OK";
 
-	if (at_parse_bia(at->value, r->hfp_ind_state) == -1) {
+	if (at_parse_set_bia(at->value, r->hfp_ind_state) == -1) {
 		warn("Couldn't parse BIA indicators activation: %s", at->value);
 		resp = "ERROR";
 	}
@@ -692,30 +692,18 @@ static int rfcomm_handler_xapl_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 	struct ba_device * const d = r->sco->d;
 	const int fd = r->fd;
 
-	unsigned int vendor, product;
-	char version[sizeof(d->xapl.software_version)];
-	char resp[32];
-	char *tmp;
-
-	if ((tmp = strrchr(at->value, ',')) == NULL) {
+	if (at_parse_set_xapl(at->value, &d->xapl.vendor_id, &d->xapl.product_id,
+				&d->xapl.sw_version, &d->xapl.features) == -1) {
 		warn("Invalid +XAPL value: %s", at->value);
 		if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 			return -1;
 		return 0;
 	}
 
-	d->xapl.features = atoi(tmp + 1);
-	*tmp = '\0';
-
-	if (sscanf(at->value, "%x-%x-%7s", &vendor, &product, version) != 3)
-		warn("Couldn't parse +XAPL vendor and product: %s", at->value);
-
-	d->xapl.vendor_id = vendor;
-	d->xapl.product_id = product;
-	strcpy(d->xapl.software_version, version);
-
+	char resp[32];
 	snprintf(resp, sizeof(resp), "+XAPL=%s,%u",
 			config.hfp.xapl_product_name, config.hfp.xapl_features);
+
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, resp) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -1183,9 +1171,9 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					r->setup++;
 					break;
 				case HFP_SETUP_ACCESSORY_XAPL:
-					sprintf(tmp, "%04X-%04X-%s,%u",
+					sprintf(tmp, "%04X-%04X-%04X,%u",
 							config.hfp.xapl_vendor_id, config.hfp.xapl_product_id,
-							config.hfp.xapl_software_version, config.hfp.xapl_features);
+							config.hfp.xapl_sw_version, config.hfp.xapl_features);
 					if (rfcomm_write_at(r->fd, AT_TYPE_CMD_SET, "+XAPL", tmp) == -1)
 						goto ioerror;
 					r->handler = &rfcomm_handler_xapl_resp;
