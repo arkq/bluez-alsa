@@ -20,6 +20,24 @@
 #include "shared/dbus-client.h"
 #include "shared/log.h"
 
+enum {
+	PROPERTY_CODEC,
+	PROPERTY_SOFTVOL,
+	PROPERTY_VOLUME,
+};
+
+struct property {
+	const char *name;
+	bool enabled;
+};
+
+static bool monitor_properties = false;
+static struct property monitor_properties_set[] = {
+	[PROPERTY_CODEC] = { "Codec", false },
+	[PROPERTY_SOFTVOL] = { "SoftVolume", false },
+	[PROPERTY_VOLUME] = { "Volume", false },
+};
+
 static bool test_bluealsa_service(const char *name, void *data) {
 	bool *result = data;
 	if (strcmp(name, BLUEALSA_SERVICE) == 0) {
@@ -28,6 +46,55 @@ static bool test_bluealsa_service(const char *name, void *data) {
 	}
 	*result = false;
 	return true;
+}
+
+static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
+		DBusMessageIter *value, void *userdata, DBusError *error) {
+	const char *path = userdata;
+
+	char type;
+	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		return FALSE;
+	}
+
+	DBusMessageIter variant;
+	dbus_message_iter_recurse(value, &variant);
+	type = dbus_message_iter_get_arg_type(&variant);
+	char type_expected;
+
+	if (monitor_properties_set[PROPERTY_CODEC].enabled &&
+			strcmp(key, "Codec") == 0) {
+		if (type != (type_expected = DBUS_TYPE_STRING))
+			goto fail;
+		const char *codec;
+		dbus_message_iter_get_basic(&variant, &codec);
+		printf("PropertyChanged %s Codec %s\n", path, codec);
+	}
+	else if (monitor_properties_set[PROPERTY_SOFTVOL].enabled &&
+		strcmp(key, "SoftVolume") == 0) {
+		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
+			goto fail;
+		dbus_bool_t softvol;
+		dbus_message_iter_get_basic(&variant, &softvol);
+		printf("PropertyChanged %s SoftVolume %s\n", path, softvol ? "Y" : "N");
+	}
+	else if (monitor_properties_set[PROPERTY_VOLUME].enabled &&
+		strcmp(key, "Volume") == 0) {
+		if (type != (type_expected = DBUS_TYPE_UINT16))
+			goto fail;
+		dbus_uint16_t volume;
+		dbus_message_iter_get_basic(&variant, &volume);
+		printf("PropertyChanged %s Volume 0x%.4X\n", path, volume);
+	}
+
+	return TRUE;
+
+fail:
+	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+			"Incorrect variant for '%s': %c != %c", key, type, type_expected);
+	return FALSE;
 }
 
 static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *message, void *data) {
@@ -159,25 +226,78 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 	}
+	else if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0 &&
+			strcmp(signal, "PropertiesChanged") == 0) {
+
+		const char *updated_interface;
+		dbus_message_iter_get_basic(&iter, &updated_interface);
+		dbus_message_iter_next(&iter);
+
+		if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0) {
+
+			DBusError err = DBUS_ERROR_INIT;
+			const char *path = dbus_message_get_path(message);
+			if (!bluealsa_dbus_message_iter_dict(&iter, &err,
+						monitor_dbus_message_iter_get_pcm_props_cb, (void *)path)) {
+				error("Unexpected D-Bus signal: %s", err.message);
+				dbus_error_free(&err);
+				goto fail;
+			}
+
+			return DBUS_HANDLER_RESULT_HANDLED;
+		}
+	}
 
 fail:
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
+static bool parse_property_list(char *argv[], char *props) {
+
+	if (props == NULL) {
+		/* monitor all properties */
+		for (size_t i = 0; i < ARRAYSIZE(monitor_properties_set); i++)
+			monitor_properties_set[i].enabled = true;
+		return true;
+	}
+
+	char *prop = strtok(props, ",");
+	for (; prop; prop = strtok(NULL, ",")) {
+
+		size_t i;
+		for (i = 0; i < ARRAYSIZE(monitor_properties_set); i++) {
+			if (strcasecmp(prop, monitor_properties_set[i].name) == 0) {
+				monitor_properties_set[i].enabled = true;
+				break;
+			}
+		}
+
+		if (i == ARRAYSIZE(monitor_properties_set)) {
+			cmd_print_error("Unknown property '%s'", prop);
+			return false;
+		}
+
+	}
+
+	return true;
+}
+
 static void usage(const char *command) {
-	printf("Display PCMAdded & PCMRemoved signals.\n\n");
+	printf("Display D-Bus signals.\n\n");
 	cli_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
+			"  -h, --help\t\t\tShow this message and exit\n"
+			"  -p, --properties[=PROPS]\tShow PCM property changes\n"
 	);
 }
 
 static int cmd_monitor_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "h";
+	const char *opts = "hp::";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "properties", optional_argument, NULL, 'p' },
 		{ 0 },
 	};
 
@@ -187,6 +307,11 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 		case 'h' /* --help */ :
 			usage(argv[0]);
 			return EXIT_SUCCESS;
+		case 'p' /* --properties[=PROPS] */ :
+			monitor_properties = true;
+			if (!parse_property_list(argv, optarg))
+				return EXIT_FAILURE;
+			break;
 		default:
 			cmd_print_error("Invalid argument '%s'", argv[optind - 1]);
 			return EXIT_FAILURE;
@@ -217,6 +342,10 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 	bluealsa_dbus_connection_signal_match_add(&config.dbus,
 			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
 
+	if (monitor_properties)
+		bluealsa_dbus_connection_signal_match_add(&config.dbus, config.dbus.ba_service, NULL,
+				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_PCM"'");
+
 	if (!dbus_connection_add_filter(config.dbus.conn, dbus_signal_handler, NULL, NULL)) {
 		cmd_print_error("Couldn't add D-Bus filter");
 		return EXIT_FAILURE;
@@ -243,6 +372,6 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 
 const struct cli_command cmd_monitor = {
 	"monitor",
-	"Display PCMAdded & PCMRemoved signals",
+	"Display D-Bus signals",
 	cmd_monitor_func,
 };

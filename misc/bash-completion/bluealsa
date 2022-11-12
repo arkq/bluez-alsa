@@ -57,41 +57,41 @@ _bluealsa_pcm_codecs() {
 	done
 }
 
-# helper function gets options requiring a value ( --opt=val )
-# @param $1 the executable name
-_bluealsa_valopts() {
-	"$1" --help 2>/dev/null | while read -r line; do
-		[[ "$line" =~ --[^=]*= ]] || continue
-		line=${line/,/}
-		[[ "$line" =~ .*[^=]+= ]]
-		printf "%s" "${BASH_REMATCH[0]//=/}"
-	done
-}
+# helper function completes supported bluealsa-cli monitor properties
+_bluealsa_cli_properties() {
+	local properties=(
+		Codec
+		SoftVolume
+		Volume
+	)
 
-# helper function gets bluealsa-cli commands that do not take a pcm-path arg
-# @param $1 the bluealsa-cli executable name
-_bluealsa_cli_simple_commands() {
-	"$1" --help 2>/dev/null | while read -r line; do
-		[[ "$line" = "Commands:" ]] && start=yes && continue
-		[[ "$start" ]] || continue
-		[[ "$line" ]] || break
-		[[ $line =~ \<pcm-path\> ]] && continue
-		words=($line)
-		printf "%s" "${words[0]} "
-	done
-}
-
-# helper function gets bluealsa-cli commands that do take a pcm-path arg
-# @param $1 is the bluealsa-cli executable name
-_bluealsa_cli_path_commands() {
-	"$1" --help 2>/dev/null | while read -r line; do
-		[[ "$line" = "Commands:" ]] && start=yes && continue
-		[[ "$start" ]] || continue
-		[[ "$line" ]] || break
-		[[ $line =~ \<pcm-path\> ]] || continue
-		words=($line)
-		printf "${words[0]} "
-	done
+	if [[ "$cur" == *,* ]]; then
+		local realcur prefix chosen remaining
+		realcur="${cur##*,}"
+		prefix="${cur%,*}"
+		chosen=()
+		IFS=$',\n' read -ra chosen <<< "$prefix"
+		remaining=()
+		readarray -t remaining <<< "$(printf '%s\n' "${properties[@]}" "${chosen[@]}" | sort | uniq -u)"
+		if [[ ${#remaining[@]} -gt 0 ]]; then
+			COMPREPLY=( $(compgen -W "${remaining[*]}" -- "$realcur") )
+			if [[ ${#COMPREPLY[@]} -eq 1 ]] ; then
+				COMPREPLY[0]="$prefix,${COMPREPLY[0]}"
+			fi
+			if [[ ${#remaining[@]} -gt 0 && "$cur" == "${COMPREPLY[0]}" ]] ; then
+				COMPREPLY=( "${COMPREPLY[0]}," )
+			fi
+			if [[ ${#remaining[@]} -gt 1 ]]; then
+				compopt -o nospace
+			fi
+		fi
+	else
+		COMPREPLY=( $(compgen -W "${properties[*]}" -- "$cur") )
+		if [[ ${#COMPREPLY[@]} -eq 1 && "$cur" == "${COMPREPLY[0]}" ]]; then
+			COMPREPLY=("${COMPREPLY[0]},")
+		fi
+		compopt -o nospace
+	fi
 }
 
 # helper function gets ALSA pcms
@@ -120,7 +120,7 @@ _bluealsa_rfcomm_paths() {
 # puts offset of first non-option argument into variable nonopt_offset
 # @return 0 if no errors found, 1 if dbus check failed
 _bluealsa_util_init() {
-	local valopts=$(_bluealsa_valopts $1)
+	local valopts="-B --dbus"
 	service="org.bluealsa"
 	nonopt_offset=0
 	local i
@@ -284,62 +284,150 @@ _bluealsa_cli() {
 
 	_bluealsa_util_init $1 || return
 
-	# get the command names supported by this version of bluealsa-cli
-	local simple_commands="$(_bluealsa_cli_simple_commands $1)"
-	local path_commands="$(_bluealsa_cli_path_commands $1)"
+	# the command names supported by this version of bluealsa-cli
+	local simple_commands="list-pcms list-services monitor status"
+	local path_commands="codec info mute open soft-volume volume"
 
-	case "$prev" in
-		--dbus|-B)
-			_have dbus-send || return
-			list=$(_bluealsa_list_dbus_suffices)
-			COMPREPLY=( $(compgen -W "$list" -- $cur) )
+	# options that may appear before or after the command
+	local global_shortopts="-h"
+	local global_longopts="--help"
+
+	# options that may appear only before the command
+	local base_shortopts="-B -V -q -v"
+	local base_longopts="--dbus --version --quiet --verbose"
+
+	local command=
+	local path=
+
+	# process pre-command options
+	case "$nonopt_offset" in
+		0)
+			case "$prev" in
+				--dbus|-B)
+					_have dbus-send || return
+					list=$(_bluealsa_list_dbus_suffices)
+					COMPREPLY=( $(compgen -W "$list" -- $cur) )
+					return
+					;;
+			esac
+			case "$cur" in
+				-|--*)
+					COMPREPLY=( $(compgen -W "$global_longopts $base_longopts" -- "$cur") )
+					;;
+				-?)
+					COMPREPLY=( $(compgen -W "$global_shortopts $base_shortopts" -- "$cur") )
+					;;
+			esac
 			return
 			;;
-		--*)
-			[[ ${COMP_WORDS[COMP_CWORD]} = = ]] && return
-			;;
-	esac
-
-	case "$nonopt_offset" in
-		0) :
-		;;
 		"$COMP_CWORD")
 			# list available commands
 			COMPREPLY=( $(compgen -W "$simple_commands $path_commands" -- "$cur") )
 			return
 			;;
-		$((COMP_CWORD - 1)))
-			# if previous word was path command then list available paths
-			if [[ "$path_commands" =~ "$prev" ]]; then
-				COMPREPLY=( $(compgen -W "$("$1" $dbus_opt list-pcms 2>/dev/null)" -- $cur) )
-				return
-			fi
-			;;
-		$((COMP_CWORD - 2)))
-			# Attempt to enumerate command arguments
-			local path="$prev"
-			case ${COMP_WORDS[nonopt_offset]} in
-				codec)
-					COMPREPLY=( $(compgen -W "$(_bluealsa_pcm_codecs "$1" "$dbus_opt" "$path")" -- $cur) )
+	esac
+
+	# check for valid command
+	command="${COMP_WORDS[nonopt_offset]}"
+	[[ "$simple_commands $path_commands" =~ "$command" ]] || return
+
+	# process command-specific options
+	case "$command" in
+		monitor)
+			case "$prev" in
+				--properties)
+					_bluealsa_cli_properties
 					return
 					;;
-				mute|soft-volume)
-					COMPREPLY=( $(compgen -W "n y" -- $cur) )
+			esac
+			global_longopts+=" --properties"
+			global_shortopts+=" -p"
+			case "$cur" in
+				-p)
+					COMPREPLY=( "--properties" )
+					compopt -o nospace
 					return
 					;;
-				*)
+				-p?*)
+					COMPREPLY=( "--properties=${cur:2}" )
+					compopt -o nospace
+					return
+					;;
+				--properties)
+					COMPREPLY=( "--properties=" )
+					compopt -o nospace
+					return
+					;;
+				-)
+					COMPREPLY=( "--" )
+					compopt -o nospace
 					return
 					;;
 			esac
 			;;
-		$((COMP_CWORD - 3)))
-			[[ ${COMP_WORDS[nonopt_offset]} = mute ]] || return
-			COMPREPLY=( $(compgen -W "n y" -- $cur) )
-			return
-			;;
 	esac
 
-	(( nonopt_offset > 0 )) || _bluealsa_complete_options "$1"
+	# find path argument
+	for (( i=((nonopt_offset + 1)); i < COMP_CWORD; i++ )); do
+		[[ "${COMP_WORDS[i]}" == -* ]] && continue
+		path="${COMP_WORDS[i]}"
+		path_offset=i
+		break
+	done
+
+	# process global options and path
+	if [[ -z "$path" ]] ; then
+		case "$cur" in
+			-|--*)
+				COMPREPLY=( $(compgen -W "$global_longopts" -- $cur) )
+				[[ "${COMPREPLY[0]}" == --properties* ]] && compopt -o nospace
+				return
+				;;
+			-?)
+				COMPREPLY=( $(compgen -W "$global_shortopts" -- $cur) )
+				return
+				;;
+		esac
+		if [[ "$path_commands" =~ "$command" ]]; then
+			COMPREPLY=( $(compgen -W "$("$1" $dbus_opt list-pcms 2>/dev/null)" -- $cur) )
+			return
+		fi
+	fi
+
+	# process command positional arguments
+	case "$command" in
+		codec)
+			(( COMP_CWORD == path_offset + 1 )) && COMPREPLY=( $(compgen -W "$(_bluealsa_pcm_codecs "$1" "$dbus_opt" "$path")" -- $cur) )
+			;;
+		mute)
+			if (( COMP_CWORD < path_offset + 3 )) ; then
+				if [[ "$cur" == "" ]] ; then
+					COMPREPLY=( true false )
+				else
+					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- $cur) )
+				fi
+			fi
+			;;
+		soft-volume)
+			if (( COMP_CWORD < path_offset + 2 )) ; then
+				if [[ "$cur" == "" ]] ; then
+					COMPREPLY=( true false )
+				else
+					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- $cur) )
+				fi
+			fi
+			;;
+		monitor)
+			case "$prev" in
+				--properties)
+					_bluealsa_cli_properties
+					;;
+				-p)
+					return
+					;;
+			esac
+			;;
+	esac
 }
 
 # completion function for bluealsa-rfcomm

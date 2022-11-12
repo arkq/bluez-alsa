@@ -23,14 +23,13 @@ DESCRIPTION
 "org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus allows
 introspection and some control of BlueALSA PCMs while they are running.
 
-The *PCM_PATH* command argument, where required, must be a BlueALSA PCM D-Bus
-path.
-
 OPTIONS
 =======
 
 -h, --help
-    Output a usage message.
+    Output a usage message. When used before the *COMMAND* prints a list of
+    options and commands. When used as a *COMMAND* *ARG* prints help specific
+    to that *COMMAND*
 
 -V, --version
     Output the version number.
@@ -49,6 +48,12 @@ COMMANDS
 ========
 
 If no *COMMAND* is given, the default is **status**.
+
+All commands may be given the *ARG* **--help**, other *ARGs* are described
+against each command below.
+
+The *PCM_PATH* command argument, where required, must be a BlueALSA PCM D-Bus
+path. Use the command **list-pcms** to obtain a list of valid PCM D-Bus paths.
 
 status
     Print properties of the service: service name, build version, in-use
@@ -135,16 +140,22 @@ soft-volume *PCM_PATH* [*STATE*]
     for soft-volume on, or **off**, **no**, **false**, **n** or **0** for
     soft-volume off.
 
-monitor
+monitor [-p[PROPS] | --properties[=PROPS]]
     Listen for D-Bus signals indicating adding/removing BlueALSA interfaces.
-    Also detect service running and service stopped events. Print a line on
-    standard output for each one received.
+    Also detect service running and service stopped events, and optionally
+    PCM property change events. Print a line on standard output for each one
+    received.
 
     PCM event output lines are formed as:
 
     ``PCMAdded PCM_PATH``
 
     ``PCMRemoved PCM_PATH``
+
+    If the **--verbose** option is given then the properties of each added PCM
+    are printed after the PCMAdded line, one per line, in the same format as
+    the **info** command. In this case a blank line is printed after the last
+    property.
 
     RFCOMM event output lines are formed as:
 
@@ -158,13 +169,26 @@ monitor
 
     ``ServiceStopped SERVICE_NAME``
 
-    If the *--verbose* option is given then the properties of each added PCM
-    are printed after the PCMAdded line, one per line, in the same format as
-    the **info** command. In this case a blank line is printed after the last
-    property.
-
     When the monitor starts, it begins by printing a ``ServiceRunning`` or
     ``ServiceStopped`` message according to the current state of the service.
+
+    If the **-p** or **--properties** option is given then also detect changes
+    to certain PCM properties. Print a line on standard output for each
+    property change. The output lines are formed as:
+
+    ``PropertyChanged PCM_PATH PROPERTY_NAME VALUE``
+
+    Property names than can be monitored are **Codec**, **SoftVolume** and
+    **Volume**.
+
+    The value for Volume is a hexadecimal 16-bit encoding where data for
+    channel 1 is stored in the upper byte, channel 2 is stored in the lower
+    byte. The highest bit of both bytes determines whether channel is muted.
+
+    *PROPS* is an optional comma-separated list of property names to be
+    monitored. If given, only changes to those properties listed will be
+    printed. If this argument is not given then changes to any of the above
+    properties are printed.
 
 open *PCM_PATH*
     Transfer raw audio frames to or from the given PCM. For sink PCMs
