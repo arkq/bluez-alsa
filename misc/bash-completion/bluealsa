@@ -94,6 +94,43 @@ _bluealsa_cli_path_commands() {
 	done
 }
 
+# helper function completes supported bluealsa-cli monitor properties
+_bluealsa_cli_properties() {
+	local properties=(
+		Codec
+		SoftVolume
+		Volume
+	)
+
+	if [[ "$cur" == *,* ]]; then
+		local realcur prefix chosen remaining
+		realcur="${cur##*,}"
+		prefix="${cur%,*}"
+		chosen=()
+		IFS=$',\n' read -ra chosen <<< "$prefix"
+		remaining=()
+		readarray -t remaining <<< "$(printf '%s\n' "${properties[@]}" "${chosen[@]}" | sort | uniq -u)"
+		if [[ ${#remaining[@]} -gt 0 ]]; then
+			COMPREPLY=( $(compgen -W "${remaining[*]}" -- "$realcur") )
+			if [[ ${#COMPREPLY[@]} -eq 1 ]] ; then
+				COMPREPLY[0]="$prefix,${COMPREPLY[0]}"
+			fi
+			if [[ ${#remaining[@]} -gt 0 && "$cur" == "${COMPREPLY[0]}" ]] ; then
+				COMPREPLY=( "${COMPREPLY[0]}," )
+			fi
+			if [[ ${#remaining[@]} -gt 1 ]]; then
+				compopt -o nospace
+			fi
+		fi
+	else
+		COMPREPLY=( $(compgen -W "${properties[*]}" -- "$cur") )
+		if [[ ${#COMPREPLY[@]} -eq 1 && "$cur" == "${COMPREPLY[0]}" ]]; then
+			COMPREPLY=("${COMPREPLY[0]},")
+		fi
+		compopt -o nospace
+	fi
+}
+
 # helper function gets ALSA pcms
 # @param $1 is the current word to match
 _bluealsa_aplay_pcms() {
@@ -295,9 +332,6 @@ _bluealsa_cli() {
 			COMPREPLY=( $(compgen -W "$list" -- $cur) )
 			return
 			;;
-		--*)
-			[[ ${COMP_WORDS[COMP_CWORD]} = = ]] && return
-			;;
 	esac
 
 	case "$nonopt_offset" in
@@ -314,27 +348,46 @@ _bluealsa_cli() {
 				COMPREPLY=( $(compgen -W "$("$1" $dbus_opt list-pcms 2>/dev/null)" -- $cur) )
 				return
 			fi
+			if [[ "$prev" = monitor ]] ; then
+				COMPREPLY=( $(compgen -W "--properties=" -- $cur) )
+				compopt -o nospace
+				return
+			fi
 			;;
 		$((COMP_CWORD - 2)))
 			# Attempt to enumerate command arguments
-			local path="$prev"
 			case ${COMP_WORDS[nonopt_offset]} in
 				codec)
+					path="$prev"
 					COMPREPLY=( $(compgen -W "$(_bluealsa_pcm_codecs "$1" "$dbus_opt" "$path")" -- $cur) )
-					return
 					;;
 				mute|soft-volume)
 					COMPREPLY=( $(compgen -W "n y" -- $cur) )
-					return
 					;;
-				*)
-					return
+				monitor)
+					case "$prev" in
+						-p|--properties)
+							_bluealsa_cli_properties
+							;;
+					esac
 					;;
 			esac
+			return
 			;;
 		$((COMP_CWORD - 3)))
-			[[ ${COMP_WORDS[nonopt_offset]} = mute ]] || return
-			COMPREPLY=( $(compgen -W "n y" -- $cur) )
+			case ${COMP_WORDS[nonopt_offset]} in
+				mute)
+					COMPREPLY=( $(compgen -W "n y" -- $cur) )
+					;;
+				monitor)
+					case "$prev" in
+						-p|--properties)
+							_bluealsa_cli_properties
+							return
+							;;
+					esac
+					;;
+			esac
 			return
 			;;
 	esac

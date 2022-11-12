@@ -134,16 +134,22 @@ soft-volume *PCM_PATH* [*ON*]
     The *ON* value can be one of **on**, **yes**, **true**, **y** or **1** for
     mute on, or **off**, **no**, **false**, **n** or **0** for mute off.
 
-monitor
+monitor [--properties[=PROPS]]
     Listen for D-Bus signals indicating adding/removing BlueALSA interfaces.
-    Also detect service running and service stopped events. Print a line on
-    standard output for each one received.
+    Also detect service running and service stopped events, and optionally
+    PCM property change events. Print a line on standard output for each one
+    received.
 
     PCM event output lines are formed as:
 
     ``PCMAdded PCM_PATH``
 
     ``PCMRemoved PCM_PATH``
+
+    If the **--verbose** option is given then the properties of each added PCM
+    are printed after the PCMAdded line, one per line, in the same format as
+    the **info** command. In this case a blank line is printed after the last
+    property.
 
     RFCOMM event output lines are formed as:
 
@@ -157,13 +163,26 @@ monitor
 
     ``ServiceStopped SERVICE_NAME``
 
-    If the *--verbose* option is given then the properties of each added PCM
-    are printed after the PCMAdded line, one per line, in the same format as
-    the **info** command. In this case a blank line is printed after the last
-    property.
-
     When the monitor starts, it begins by printing a ``ServiceRunning`` or
     ``ServiceStopped`` message according to the current state of the service.
+
+    If the **--properties** option is given then also detect changes to certain
+    PCM properties. Print a line on standard output for each property change.
+    The output lines are formed as:
+
+    ``PropertyChanged PCM_PATH PROPERTY_NAME VALUE``
+
+    Property names than can be monitored are **Codec**, **SoftVolume** and
+    **Volume**.
+
+    The value for Volume is a hexadecimal 16-bit encoding where data for
+    channel 1 is stored in the upper byte, channel 2 is stored in the lower
+    byte. The highest bit of both bytes determines whether channel is muted.
+
+    *PROPS* is a comma-separated list of property names to be monitored. If
+    given, only changes to those properties listed will be printed. If this
+    argument is not given then changes to any of the above properties are
+    printed.
 
 open *PCM_PATH*
     Transfer raw audio frames to or from the given PCM. For sink PCMs

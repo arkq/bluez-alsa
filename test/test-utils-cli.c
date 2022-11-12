@@ -105,7 +105,7 @@ START_TEST(test_list_pcms) {
 	pid_t pid;
 	ck_assert_int_ne(pid = spawn_bluealsa_server("test", true,
 				"--profile=a2dp-sink",
-				"--profile=hfp-ag",
+				"--profile=hsp-ag",
 				NULL), -1);
 
 	char output[2048];
@@ -123,9 +123,9 @@ START_TEST(test_list_pcms) {
 	ck_assert_ptr_ne(strstr(output,
 				"/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsnk/source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/source"), NULL);
+				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink"), NULL);
+				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/sink"), NULL);
 	ck_assert_ptr_ne(strstr(output,
 				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/a2dpsnk/source"), NULL);
 
@@ -283,7 +283,7 @@ START_TEST(test_monitor) {
 				"--timeout=0",
 				"--fuzzing=200",
 				"--profile=a2dp-source",
-				"--profile=hsp-ag",
+				"--profile=hfp-ag",
 				NULL), -1);
 
 	char output[2048];
@@ -295,7 +295,7 @@ START_TEST(test_monitor) {
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check monitor command */
-	args = "-v monitor";
+	args = "-v monitor --properties=codec,volume";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 
 	/* notifications for service start/stop */
@@ -308,17 +308,23 @@ START_TEST(test_monitor) {
 	ck_assert_ptr_ne(strstr(output,
 				"PCMRemoved /org/bluealsa/hci0/dev_23_45_67_89_AB_CD/a2dpsrc/sink"), NULL);
 
-	/* notifications for RFCOMM add/remove (because HSP is enabled) */
+	/* notifications for RFCOMM add/remove (because HFP is enabled) */
 	ck_assert_ptr_ne(strstr(output,
-				"RFCOMMAdded /org/bluealsa/hci0/dev_23_45_67_89_AB_CD/rfcomm"), NULL);
+				"RFCOMMAdded /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"RFCOMMRemoved /org/bluealsa/hci0/dev_23_45_67_89_AB_CD/rfcomm"), NULL);
+				"RFCOMMRemoved /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
 
 	/* check verbose output */
 	ck_assert_ptr_ne(strstr(output,
 				"Device: /org/bluez/hci0/dev_12_34_56_78_9A_BC"), NULL);
 	ck_assert_ptr_ne(strstr(output,
 				"Device: /org/bluez/hci0/dev_23_45_67_89_AB_CD"), NULL);
+
+	/* notifications for property changed */
+	ck_assert_ptr_ne(strstr(output,
+				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink Codec CVSD"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"), NULL);
 
 	kill(pid, SIGTERM);
 	waitpid(pid, NULL, 0);
