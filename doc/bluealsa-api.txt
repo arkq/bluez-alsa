@@ -87,6 +87,11 @@ Properties      object Device [readonly]
 
                         Possible values: "sink" or "source"
 
+               boolean Running [readonly]
+
+                        This property is true when the Bluetooth transport for
+                        this PCM is acquired and able to transfer audio samples.
+
                 uint16 Format [readonly]
 
                         Stream format identifier. The highest two bits of the

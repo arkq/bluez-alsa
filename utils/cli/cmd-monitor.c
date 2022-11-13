@@ -24,6 +24,7 @@
 
 enum {
 	PROPERTY_CODEC,
+	PROPERTY_RUNNING,
 	PROPERTY_SOFTVOL,
 	PROPERTY_VOLUME,
 };
@@ -36,6 +37,7 @@ struct property {
 static bool monitor_properties = false;
 static struct property monitor_properties_set[] = {
 	[PROPERTY_CODEC] = { "Codec", false },
+	[PROPERTY_RUNNING] = { "Running", false },
 	[PROPERTY_SOFTVOL] = { "SoftVolume", false },
 	[PROPERTY_VOLUME] = { "Volume", false },
 };
@@ -74,13 +76,21 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		dbus_message_iter_get_basic(&variant, &codec);
 		printf("PropertyChanged %s Codec %s\n", path, codec);
 	}
+	else if (monitor_properties_set[PROPERTY_RUNNING].enabled &&
+			strcmp(key, "Running") == 0) {
+		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
+			goto fail;
+		dbus_bool_t running;
+		dbus_message_iter_get_basic(&variant, &running);
+		printf("PropertyChanged %s Running %s\n", path, running ? "true" : "false");
+	}
 	else if (monitor_properties_set[PROPERTY_SOFTVOL].enabled &&
 		strcmp(key, "SoftVolume") == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
 			goto fail;
 		dbus_bool_t softvol;
 		dbus_message_iter_get_basic(&variant, &softvol);
-		printf("PropertyChanged %s SoftVolume %s\n", path, softvol ? "Y" : "N");
+		printf("PropertyChanged %s SoftVolume %s\n", path, softvol ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_VOLUME].enabled &&
 		strcmp(key, "Volume") == 0) {

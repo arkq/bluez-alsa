@@ -276,6 +276,7 @@ void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Sequence: %u\n", pcm->sequence);
 	printf("Transport: %s\n", transport_code_to_string(pcm->transport));
 	printf("Mode: %s\n", pcm_mode_to_string(pcm->mode));
+	printf("Running: %s\n", pcm->running ? "true" : "false");
 	printf("Format: %s\n", pcm_format_to_string(pcm->format));
 	printf("Channels: %d\n", pcm->channels);
 	printf("Sampling: %d Hz\n", pcm->sampling);

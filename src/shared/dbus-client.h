@@ -137,6 +137,8 @@ struct ba_pcm {
 	unsigned int transport;
 	/* stream mode */
 	unsigned int mode;
+	/* transport running */
+	dbus_bool_t running;
 
 	/* PCM stream format */
 	dbus_uint16_t format;

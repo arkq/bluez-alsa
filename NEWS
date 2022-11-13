@@ -2,6 +2,7 @@ unreleased
 ==========
 
 - persistent storage for PCM volume and mute state
+- export transport running state via PCM D-Bus interface
 - optional non-dynamic operation mode for ALSA control plug-in
 - optional extended controls for ALSA control plug-in
 

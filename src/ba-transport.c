@@ -324,25 +324,26 @@ int ba_transport_thread_state_set(
 
 	pthread_mutex_lock(&th->mutex);
 
+	enum ba_transport_thread_state old_state = th->state;
 	/* Moving to the next state is always allowed. */
 	bool valid = state == th->state + 1;
 
 	/* Allow wrapping around the state machine. */
 	if (state == BA_TRANSPORT_THREAD_STATE_IDLE &&
-			th->state == BA_TRANSPORT_THREAD_STATE_TERMINATED)
+			old_state == BA_TRANSPORT_THREAD_STATE_TERMINATED)
 		valid = true;
 
 	/* Thread initialization failure: STARTING -> STOPPING */
 	if (state == BA_TRANSPORT_THREAD_STATE_STOPPING &&
-			th->state == BA_TRANSPORT_THREAD_STATE_STARTING)
+			old_state == BA_TRANSPORT_THREAD_STATE_STARTING)
 		valid = true;
 
 	/* Additionally, it is allowed to move to the TERMINATED state from
 	 * IDLE and STARTING. This transition indicates that the thread has
 	 * never been started or there was an error during the startup. */
 	if (state == BA_TRANSPORT_THREAD_STATE_TERMINATED && (
-				th->state == BA_TRANSPORT_THREAD_STATE_IDLE ||
-				th->state == BA_TRANSPORT_THREAD_STATE_STARTING))
+				old_state == BA_TRANSPORT_THREAD_STATE_IDLE ||
+				old_state == BA_TRANSPORT_THREAD_STATE_STARTING))
 		valid = true;
 
 	if (valid)
@@ -352,6 +353,12 @@ int ba_transport_thread_state_set(
 
 	if (!valid)
 		return errno = EINVAL, -1;
+
+	if (state != old_state && (
+				state == BA_TRANSPORT_THREAD_STATE_RUNNING ||
+				old_state == BA_TRANSPORT_THREAD_STATE_RUNNING)) {
+			bluealsa_dbus_pcm_update(th->pcm, BA_DBUS_PCM_UPDATE_RUNNING);
+	}
 
 	pthread_cond_broadcast(&th->cond);
 	return 0;

@@ -221,7 +221,7 @@ static int mock_transport_acquire_bt(struct ba_transport *t) {
 		/* Emulate asynchronous transport activation by BlueZ. */
 		g_timeout_add(10, G_SOURCE_FUNC(mock_transport_set_a2dp_state_active), t);
 
-	return 0;
+	return bt_fds[0];
 }
 
 static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac) {

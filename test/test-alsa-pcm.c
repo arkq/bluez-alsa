@@ -403,16 +403,19 @@ CK_START_TEST(test_capture_poll) {
 	unsigned short revents;
 	int count = snd_pcm_poll_descriptors_count(pcm);
 	ck_assert_int_eq(snd_pcm_poll_descriptors(pcm, pfds, ARRAYSIZE(pfds)), count);
+	int rv;
 
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
-	/* for a capture PCM just after prepare, the poll() call shall block
-	 * forever or at least the dispatched event shall be set to 0 */
-	ck_assert_int_ne(poll(pfds, count, 250), -1);
-	snd_pcm_poll_descriptors_revents(pcm, pfds, count, &revents);
-	ck_assert_int_eq(revents, 0);
-
-	/* make sure that further calls to poll() will actually block */
-	ck_assert_int_eq(poll(pfds, count, 250), 0);
+	/* For a capture PCM just after prepare, the poll() call shall block
+	 * forever or at least the dispatched event shall be set to 0. */
+	for (;;) {
+		ck_assert_int_ne(rv = poll(pfds, count, 250), -1);
+		/* make sure that at some point poll() will actually block */
+		if (rv == 0)
+			break;
+		snd_pcm_poll_descriptors_revents(pcm, pfds, count, &revents);
+		ck_assert_int_eq(revents, 0);
+	}
 
 	ck_assert_int_eq(snd_pcm_start(pcm), 0);
 	do { /* started capture PCM shall not block forever */

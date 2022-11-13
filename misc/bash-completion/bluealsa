@@ -61,6 +61,7 @@ _bluealsa_pcm_codecs() {
 _bluealsa_cli_properties() {
 	local properties=(
 		Codec
+		Running
 		SoftVolume
 		Volume
 	)
@@ -294,7 +295,7 @@ _bluealsa_cli() {
 
 	# options that may appear only before the command
 	local base_shortopts="-B -V -q -v"
-	local base_longopts="--dbus --version --quiet --verbose"
+	local base_longopts="--dbus= --version --quiet --verbose"
 
 	local command=
 	local path=
@@ -313,6 +314,7 @@ _bluealsa_cli() {
 			case "$cur" in
 				-|--*)
 					COMPREPLY=( $(compgen -W "$global_longopts $base_longopts" -- "$cur") )
+					[[ "${COMPREPLY[0]}" == *= ]] && compopt -o nospace
 					;;
 				-?)
 					COMPREPLY=( $(compgen -W "$global_shortopts $base_shortopts" -- "$cur") )
@@ -404,7 +406,7 @@ _bluealsa_cli() {
 				if [[ "$cur" == "" ]] ; then
 					COMPREPLY=( true false )
 				else
-					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- $cur) )
+					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- ${cur,,}) )
 				fi
 			fi
 			;;
@@ -413,7 +415,7 @@ _bluealsa_cli() {
 				if [[ "$cur" == "" ]] ; then
 					COMPREPLY=( true false )
 				else
-					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- $cur) )
+					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- ${cur,,}) )
 				fi
 			fi
 			;;

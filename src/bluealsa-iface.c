@@ -113,6 +113,10 @@ static const GDBusPropertyInfo bluealsa_iface_pcm_Mode = {
 	-1, "Mode", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
+static const GDBusPropertyInfo bluealsa_iface_pcm_Running = {
+	-1, "Running", "b", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static const GDBusPropertyInfo bluealsa_iface_pcm_Format = {
 	-1, "Format", "q", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
@@ -156,6 +160,7 @@ static const GDBusPropertyInfo *bluealsa_iface_pcm_properties[] = {
 	&bluealsa_iface_pcm_Sequence,
 	&bluealsa_iface_pcm_Transport,
 	&bluealsa_iface_pcm_Mode,
+	&bluealsa_iface_pcm_Running,
 	&bluealsa_iface_pcm_Format,
 	&bluealsa_iface_pcm_Channels,
 	&bluealsa_iface_pcm_Sampling,

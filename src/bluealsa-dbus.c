@@ -210,6 +210,10 @@ static GVariant *ba_variant_new_pcm_mode(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_string(BLUEALSA_PCM_MODE_SINK);
 }
 
+static GVariant *ba_variant_new_pcm_running(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_boolean(pcm->th->state == BA_TRANSPORT_THREAD_STATE_RUNNING);
+}
+
 static GVariant *ba_variant_new_pcm_format(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16(pcm->format);
 }
@@ -271,6 +275,7 @@ static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_tran
 	g_variant_builder_add(props, "{sv}", "Sequence", ba_variant_new_device_sequence(pcm->t->d));
 	g_variant_builder_add(props, "{sv}", "Transport", ba_variant_new_transport_type(pcm->t));
 	g_variant_builder_add(props, "{sv}", "Mode", ba_variant_new_pcm_mode(pcm));
+	g_variant_builder_add(props, "{sv}", "Running", ba_variant_new_pcm_running(pcm));
 	g_variant_builder_add(props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
 	g_variant_builder_add(props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
 	g_variant_builder_add(props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
@@ -786,6 +791,8 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 		return ba_variant_new_transport_type(pcm->t);
 	if (strcmp(property, "Mode") == 0)
 		return ba_variant_new_pcm_mode(pcm);
+	if (strcmp(property, "Running") == 0)
+		return ba_variant_new_pcm_running(pcm);
 	if (strcmp(property, "Format") == 0)
 		return ba_variant_new_pcm_format(pcm);
 	if (strcmp(property, "Channels") == 0)
@@ -911,6 +918,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 
+	if (mask & BA_DBUS_PCM_UPDATE_RUNNING)
+		g_variant_builder_add(&props, "{sv}", "Running", ba_variant_new_pcm_running(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_FORMAT)
 		g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CHANNELS)
