@@ -140,28 +140,23 @@ static snd_pcm_uframes_t snd_pcm_ioplug_hw_avail(const snd_pcm_ioplug_t * const 
 #endif
 
 /**
- * Helper function for closing PCM transport. */
-static int close_transport(struct bluealsa_pcm *pcm) {
-	int rv = 0;
-	pthread_mutex_lock(&pcm->mutex);
-	if (pcm->ba_pcm_fd != -1) {
-		rv |= close(pcm->ba_pcm_fd);
-		pcm->ba_pcm_fd = -1;
-	}
-	if (pcm->ba_pcm_ctrl_fd != -1) {
-		rv |= close(pcm->ba_pcm_ctrl_fd);
-		pcm->ba_pcm_ctrl_fd = -1;
-	}
-	pthread_mutex_unlock(&pcm->mutex);
-	pthread_cond_signal(&pcm->pause_cond);
-	return rv;
+ * Helper function for terminating IO thread. */
+static void io_thread_cancel(struct bluealsa_pcm *pcm) {
+
+	if (!pcm->io_started)
+		return;
+
+	pthread_cancel(pcm->io_thread);
+	pthread_join(pcm->io_thread, NULL);
+	pcm->io_started = false;
+
 }
 
 /**
- * Helper function for IO thread termination. */
+ * Helper function for logging IO thread termination. */
 static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
 	debug2("IO thread cleanup");
-	pcm->io_started = false;
+	(void)pcm;
 }
 
 /**
@@ -345,10 +340,20 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	}
 
 fail:
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_pop(1);
-	close_transport(pcm);
+
+	pthread_mutex_lock(&pcm->mutex);
+	pcm->pause_state = BA_PAUSE_STATE_PAUSED;
+	pthread_mutex_unlock(&pcm->mutex);
+	/* make sure we will not get stuck in the pause sync loop */
+	pthread_cond_signal(&pcm->pause_cond);
+
 	eventfd_write(pcm->event_fd, 0xDEAD0000);
+
+	/* wait for cancellation from main thread */
+	while (true)
+		sleep(3600);
+
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
@@ -392,11 +397,7 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug2("Stopping");
 
-	if (pcm->io_started) {
-		pcm->io_started = false;
-		pthread_cancel(pcm->io_thread);
-		pthread_join(pcm->io_thread, NULL);
-	}
+	io_thread_cancel(pcm);
 
 	pcm->delay_running = false;
 	pcm->delay_pcm_nread = 0;
@@ -582,9 +583,21 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug2("Freeing HW");
-	if (close_transport(pcm) == -1)
-		return -errno;
-	return 0;
+
+	/* Before closing PCM transport make sure that
+	 * the IO thread is terminated. */
+	io_thread_cancel(pcm);
+
+	int rv = 0;
+	if (pcm->ba_pcm_fd != -1)
+		rv |= close(pcm->ba_pcm_fd);
+	if (pcm->ba_pcm_ctrl_fd != -1)
+		rv |= close(pcm->ba_pcm_ctrl_fd);
+
+	pcm->ba_pcm_fd = -1;
+	pcm->ba_pcm_ctrl_fd = -1;
+
+	return rv == 0 ? 0 : -errno;
 }
 
 static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params) {

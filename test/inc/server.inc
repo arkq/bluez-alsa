@@ -105,6 +105,9 @@ char *bluealsa_mock_path = ".";
  * @return PID of the bluealsa-mock server. */
 pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 
+	/* bus address of D-Bus mock server */
+	static char dbus_bus_address[256];
+
 	unsigned int count_a2dp = 0;
 	unsigned int count_sco = 0;
 
@@ -175,7 +178,10 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 	/* wait for system bus address */
 	while (data->dbus_bus_address == NULL)
 		pthread_cond_wait(&data->data_updated, &data->data_mtx);
-	putenv(data->dbus_bus_address);
+
+	strncpy(dbus_bus_address, data->dbus_bus_address,
+			sizeof(dbus_bus_address) - 1);
+	putenv(dbus_bus_address);
 
 	/* wait for service name acquisition */
 	while (data->acquired_service_name == NULL)
