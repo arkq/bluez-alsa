@@ -75,8 +75,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC) {
 		pthread_mutex_lock(&transport_codec_updated_mtx);
 		transport_codec_updated_cnt++;
-		pthread_cond_signal(&transport_codec_updated);
-		pthread_mutex_unlock(&transport_codec_updated_mtx); }}
+		pthread_mutex_unlock(&transport_codec_updated_mtx);
+		pthread_cond_signal(&transport_codec_updated); }}
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); }
 int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {

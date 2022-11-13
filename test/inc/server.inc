@@ -55,32 +55,38 @@ static void *spawn_bluealsa_server_stderr_proxy(void *userdata) {
 	while (fgets(buffer, sizeof(buffer), data->f_stderr) != NULL) {
 		fputs(buffer, stderr);
 
+		bool updated = false;
+
 		pthread_mutex_lock(&data->data_mtx);
 
 		if ((tmp = strstr(buffer, "DBUS_SYSTEM_BUS_ADDRESS=")) != NULL) {
 			data->dbus_bus_address = strtrim(strdup(tmp));
-			pthread_cond_signal(&data->data_updated);
+			updated = true;
 		}
 		else if ((tmp = strstr(buffer, "BLUEALSA_DBUS_SERVICE_NAME=")) != NULL) {
 			data->acquired_service_name = strtrim(strdup(&tmp[27]));
-			pthread_cond_signal(&data->data_updated);
+			updated = true;
 		}
 		else if (strstr(buffer, "BLUEALSA_PCM_READY=A2DP:") != NULL) {
 			data->ready_count_a2dp++;
-			pthread_cond_signal(&data->data_updated);
+			updated = true;
 		}
 		else if (strstr(buffer, "BLUEALSA_PCM_READY=SCO:") != NULL) {
 			data->ready_count_sco++;
-			pthread_cond_signal(&data->data_updated);
+			updated = true;
 		}
 
 		pthread_mutex_unlock(&data->data_mtx);
+
+		if (updated)
+			pthread_cond_signal(&data->data_updated);
 
 	}
 
 	pthread_mutex_destroy(&data->data_mtx);
 	pthread_cond_destroy(&data->data_updated);
 	free(data->dbus_bus_address);
+	free(data->acquired_service_name);
 	fclose(data->f_stderr);
 	free(data);
 	return NULL;
@@ -162,6 +168,7 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 
 	pthread_t tid;
 	pthread_create(&tid, NULL, spawn_bluealsa_server_stderr_proxy, data);
+	pthread_detach(tid);
 
 	pthread_mutex_lock(&data->data_mtx);
 

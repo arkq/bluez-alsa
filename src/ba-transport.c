@@ -195,8 +195,10 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 	pthread_mutex_lock(&th->mutex);
 
 	pthread_t id = th->id;
-	if (pthread_equal(id, config.main_thread))
-		goto skip;
+	if (pthread_equal(id, config.main_thread)) {
+		pthread_mutex_unlock(&th->mutex);
+		return;
+	}
 
 	int err;
 	if ((err = pthread_cancel(id)) != 0 && err != ESRCH)
@@ -208,10 +210,12 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 	 * make sure, that after termination, this thread handler will not
 	 * be used anymore. */
 	th->id = config.main_thread;
+
+	pthread_mutex_unlock(&th->mutex);
+
+	/* notify that the thread has been terminated */
 	pthread_cond_signal(&th->changed);
 
-skip:
-	pthread_mutex_unlock(&th->mutex);
 }
 
 /**
@@ -243,6 +247,8 @@ int ba_transport_thread_set_state(
 		enum ba_transport_thread_state state,
 		bool force) {
 
+	bool skip = false;
+
 	pthread_mutex_lock(&th->state_mtx);
 
 	/* By default only a valid state transitions are allowed. In order
@@ -250,17 +256,20 @@ int ba_transport_thread_set_state(
 	 * to be set to true. */
 	if (!force) {
 		if (state <= th->state)
-			goto skip;
+			skip = true;
 		if (th->state == BA_TRANSPORT_THREAD_STATE_NONE &&
 			state != BA_TRANSPORT_THREAD_STATE_STARTING)
-			goto skip;
+			skip = true;
 	}
 
-	th->state = state;
-	pthread_cond_signal(&th->changed);
+	if (!skip)
+		th->state = state;
 
-skip:
 	pthread_mutex_unlock(&th->state_mtx);
+
+	if (!skip)
+		pthread_cond_signal(&th->changed);
+
 	return 0;
 }
 
@@ -352,11 +361,10 @@ static void transport_threads_cancel(struct ba_transport *t) {
 	transport_thread_cancel(&t->thread_dec);
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
-
 	t->stopping = false;
-	pthread_cond_signal(&t->stopped);
-
 	pthread_mutex_unlock(&t->bt_fd_mtx);
+
+	pthread_cond_signal(&t->stopped);
 
 }
 

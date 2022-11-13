@@ -153,6 +153,7 @@ static int close_transport(struct bluealsa_pcm *pcm) {
 		pcm->ba_pcm_ctrl_fd = -1;
 	}
 	pthread_mutex_unlock(&pcm->mutex);
+	pthread_cond_signal(&pcm->pause_cond);
 	return rv;
 }
 
@@ -233,8 +234,8 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 			pthread_mutex_lock(&pcm->mutex);
 			pcm->pause_state = BA_PAUSE_STATE_PAUSED;
-			pthread_cond_signal(&pcm->pause_cond);
 			pthread_mutex_unlock(&pcm->mutex);
+			pthread_cond_signal(&pcm->pause_cond);
 
 			int tmp;
 			sigwait(&sigset, &tmp);
@@ -348,7 +349,6 @@ fail:
 	pthread_cleanup_pop(1);
 	close_transport(pcm);
 	eventfd_write(pcm->event_fd, 0xDEAD0000);
-	pthread_cond_signal(&pcm->pause_cond);
 	return NULL;
 }
 
