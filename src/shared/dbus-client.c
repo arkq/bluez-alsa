@@ -1145,6 +1145,11 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		dbus_message_iter_get_basic(&variant, &pcm->volume.raw);
 	}
 
+	else if (strcmp(key, "Running") == 0) {
+		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
+			goto fail;
+		dbus_message_iter_get_basic(&variant, &pcm->running);
+	}
 	return TRUE;
 
 fail:

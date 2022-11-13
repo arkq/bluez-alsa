@@ -285,6 +285,7 @@ void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	cli_print_pcm_soft_volume(pcm);
 	cli_print_pcm_volume(pcm);
 	cli_print_pcm_mute(pcm);
+	printf("Running: %s\n", pcm->running ? "true" : "false");
 }
 
 static const char *progname = NULL;

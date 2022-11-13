@@ -165,6 +165,8 @@ struct ba_pcm {
 		dbus_uint16_t raw;
 	} volume;
 
+	/* transport running */
+	dbus_bool_t running;
 };
 
 /**

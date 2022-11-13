@@ -140,6 +140,11 @@ Properties      object Device [readonly]
                         Possible A2DP values: 0-127
                         Possible SCO values: 0-15
 
+               boolean Running [readonly]
+
+                        This property is true when the Bluetooth transport for
+                        this PCM is acquired and able to transfer audio samples.
+
 RFCOMM hierarchy
 ================
 

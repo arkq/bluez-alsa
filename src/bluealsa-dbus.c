@@ -262,6 +262,10 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
 }
 
+static GVariant *ba_variant_new_pcm_running(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_boolean(pcm->th->state == BA_TRANSPORT_THREAD_STATE_RUNNING);
+}
+
 static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
 
 	GVariant *value;
@@ -281,6 +285,7 @@ static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_tran
 	g_variant_builder_add(props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	g_variant_builder_add(props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
+	g_variant_builder_add(props, "{sv}", "Running", ba_variant_new_pcm_running(pcm));
 
 }
 
@@ -808,6 +813,8 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 		return ba_variant_new_pcm_soft_volume(pcm);
 	if (strcmp(property, "Volume") == 0)
 		return ba_variant_new_pcm_volume(pcm);
+	if (strcmp(property, "Running") == 0)
+		return ba_variant_new_pcm_running(pcm);
 
 	g_assert_not_reached();
 	return NULL;
@@ -925,6 +932,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_RUNNING)
+		g_variant_builder_add(&props, "{sv}", "Running", ba_variant_new_pcm_running(pcm));
 
 	g_dbus_connection_emit_properties_changed(config.dbus,
 			pcm->ba_dbus_path, BLUEALSA_IFACE_PCM, &props, NULL);

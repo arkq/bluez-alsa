@@ -61,6 +61,7 @@ _bluealsa_pcm_codecs() {
 _bluealsa_cli_properties() {
 	local properties=(
 		Codec
+		Running
 		SoftVolume
 		Volume
 	)

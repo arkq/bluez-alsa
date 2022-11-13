@@ -178,8 +178,8 @@ monitor [-p[PROPS] | --properties[=PROPS]]
 
     ``PropertyChanged PCM_PATH PROPERTY_NAME VALUE``
 
-    Property names than can be monitored are **Codec**, **SoftVolume** and
-    **Volume**.
+    Property names than can be monitored are **Codec**, **Running**,
+    **SoftVolume** and **Volume**.
 
     The value for Volume is a hexadecimal 16-bit encoding where data for
     channel 1 is stored in the upper byte, channel 2 is stored in the lower

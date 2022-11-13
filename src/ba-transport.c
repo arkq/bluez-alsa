@@ -99,6 +99,7 @@ static int transport_pcm_init(
 
 	pcm->t = t;
 	pcm->th = th;
+	pcm->th->pcm = pcm;
 	pcm->mode = mode;
 	pcm->fd = -1;
 	pcm->active = true;
@@ -215,6 +216,7 @@ static int transport_thread_init(
 
 	th->t = t;
 	th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+	th->pcm = NULL;
 	th->bt_fd = -1;
 	th->pipe[0] = -1;
 	th->pipe[1] = -1;
@@ -321,6 +323,8 @@ int ba_transport_thread_state_set(
 
 	pthread_mutex_lock(&th->mutex);
 
+	enum ba_transport_thread_state old_state = th->state;
+
 	/* Moving to the next state is always allowed. */
 	bool valid = state == th->state + 1;
 
@@ -351,6 +355,13 @@ int ba_transport_thread_state_set(
 		return errno = EINVAL, -1;
 
 	pthread_cond_broadcast(&th->cond);
+
+	if (state != old_state && th->pcm != NULL && th->pcm->ba_dbus_exported) {
+		if (old_state == BA_TRANSPORT_THREAD_STATE_RUNNING ||
+				state == BA_TRANSPORT_THREAD_STATE_RUNNING) {
+			bluealsa_dbus_pcm_update(th->pcm, BA_DBUS_PCM_UPDATE_RUNNING);
+		}
+	}
 	return 0;
 }
 
