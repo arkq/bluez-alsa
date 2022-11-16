@@ -1452,23 +1452,35 @@ final:
 }
 
 int ba_transport_pcm_pause(struct ba_transport_pcm *pcm) {
+
+	pthread_mutex_lock(&pcm->mutex);
+	debug("PCM pause: %d", pcm->fd);
 	pcm->active = false;
-	ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_PAUSE);
-	debug("PCM paused: %d", pcm->fd);
-	return 0;
+	pthread_mutex_unlock(&pcm->mutex);
+
+	return ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_PAUSE);
 }
 
 int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
+
+	pthread_mutex_lock(&pcm->mutex);
+	debug("PCM resume: %d", pcm->fd);
 	pcm->active = true;
-	ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME);
-	debug("PCM resumed: %d", pcm->fd);
-	return 0;
+	pthread_mutex_unlock(&pcm->mutex);
+
+	return ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME);
 }
 
 int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 
 	if (pthread_equal(pcm->th->id, config.main_thread))
 		return errno = ESRCH, -1;
+
+#if DEBUG
+	pthread_mutex_lock(&pcm->mutex);
+	debug("PCM drain: %d", pcm->fd);
+	pthread_mutex_unlock(&pcm->mutex);
+#endif
 
 	pthread_mutex_lock(&pcm->synced_mtx);
 
@@ -1487,14 +1499,17 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 	 * is not implemented - it requires a little bit of refactoring. */
 	usleep(200000);
 
-	debug("PCM drained: %d", pcm->fd);
+	debug("PCM drained");
 	return 0;
 }
 
 int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
-	ba_transport_thread_signal_send(&pcm->t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP);
-	debug("PCM dropped: %d", pcm->fd);
-	return 0;
+#if DEBUG
+	pthread_mutex_lock(&pcm->mutex);
+	debug("PCM drop: %d", pcm->fd);
+	pthread_mutex_unlock(&pcm->mutex);
+#endif
+	return ba_transport_thread_signal_send(&pcm->t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP);
 }
 
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {

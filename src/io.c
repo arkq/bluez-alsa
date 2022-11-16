@@ -147,7 +147,13 @@ void io_pcm_scale(
 /**
  * Flush read buffer of the transport PCM FIFO. */
 ssize_t io_pcm_flush(struct ba_transport_pcm *pcm) {
-	ssize_t rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
+
+	ssize_t rv;
+
+	pthread_mutex_lock(&pcm->mutex);
+	rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
+	pthread_mutex_unlock(&pcm->mutex);
+
 	if (rv > 0)
 		rv /= BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
 	else if (rv == -1 && errno == EAGAIN)
