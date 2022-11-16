@@ -1,6 +1,6 @@
 /*
  * bluealsa-pcm.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,6 +17,7 @@
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -77,15 +78,15 @@ struct bluealsa_pcm {
 	int event_fd;
 
 	/* virtual hardware - ring buffer */
-	char *io_hw_buffer;
+	char * _Atomic io_hw_buffer;
 	/* The IO thread is responsible for maintaining the hardware pointer
 	 * (pcm->io_hw_ptr), the application is responsible for the application
-	 * pointer (io->appl_ptr). These are both volatile as they are both
+	 * pointer (io->appl_ptr). These pointers should be atomic as they are
 	 * written in one thread and read in the other. */
-	volatile snd_pcm_sframes_t io_hw_ptr;
-	snd_pcm_uframes_t io_hw_boundary;
+	_Atomic snd_pcm_sframes_t io_hw_ptr;
+	_Atomic snd_pcm_uframes_t io_hw_boundary;
 	/* Permit the application to modify the frequency of poll() events. */
-	volatile snd_pcm_uframes_t io_avail_min;
+	_Atomic snd_pcm_uframes_t io_avail_min;
 	pthread_t io_thread;
 	bool io_started;
 
@@ -223,7 +224,11 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	debug2("Starting IO loop: %d", pcm->ba_pcm_fd);
 	for (;;) {
 
-		if (pcm->pause_state & BA_PAUSE_STATE_PENDING ||
+		pthread_mutex_lock(&pcm->mutex);
+		unsigned int is_pause_pending = pcm->pause_state & BA_PAUSE_STATE_PENDING;
+		pthread_mutex_unlock(&pcm->mutex);
+
+		if (is_pause_pending ||
 				pcm->io_hw_ptr == -1) {
 			debug2("Pausing IO thread");
 
@@ -604,7 +609,9 @@ static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug2("Initializing SW");
 
-	snd_pcm_sw_params_get_boundary(params, &pcm->io_hw_boundary);
+	snd_pcm_uframes_t boundary;
+	snd_pcm_sw_params_get_boundary(params, &boundary);
+	pcm->io_hw_boundary = boundary;
 
 	snd_pcm_uframes_t avail_min;
 	snd_pcm_sw_params_get_avail_min(params, &avail_min);
@@ -667,10 +674,6 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 
 	snd_pcm_sframes_t delay = 0;
 
-	/* if PCM is not started there should be no capture delay */
-	if (!pcm->delay_running && io->stream == SND_PCM_STREAM_CAPTURE)
-		return 0;
-
 	struct timespec now;
 	gettimestamp(&now);
 
@@ -690,6 +693,12 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 	}
 
 	pthread_mutex_lock(&pcm->mutex);
+
+	/* if PCM is not started there should be no capture delay */
+	if (!pcm->delay_running && io->stream == SND_PCM_STREAM_CAPTURE) {
+		pthread_mutex_unlock(&pcm->mutex);
+		return 0;
+	}
 
 	struct timespec diff;
 	timespecsub(&now, &pcm->delay_ts, &diff);
