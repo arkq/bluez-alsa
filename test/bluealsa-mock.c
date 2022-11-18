@@ -179,10 +179,10 @@ static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 			timeout = -1;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-		int rv = poll(fds, ARRAYSIZE(fds), timeout);
+		int poll_rv = poll(fds, ARRAYSIZE(fds), timeout);
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-		if (rv == 1 && fds[0].revents & POLLIN) {
+		if (poll_rv == 1 && fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 			enum ba_transport_thread_signal signal;
 			ba_transport_thread_signal_recv(th, &signal);

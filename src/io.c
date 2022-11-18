@@ -280,15 +280,15 @@ ssize_t io_poll_and_read_bt(
 		{ th->pipe[0], POLLIN, 0 },
 		{ th->bt_fd, POLLIN, 0 }};
 
-	/* Allow escaping from the poll() by thread cancellation. */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 repoll:
 
-	if (poll(fds, ARRAYSIZE(fds), io->timeout) == -1) {
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+	int poll_rv = poll(fds, ARRAYSIZE(fds), io->timeout);
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	if (poll_rv == -1) {
 		if (errno == EINTR)
 			goto repoll;
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 		return -1;
 	}
 
@@ -303,8 +303,6 @@ repoll:
 			goto repoll;
 		}
 	}
-
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	return io_bt_read(th, buffer, count);
 }
@@ -327,25 +325,24 @@ ssize_t io_poll_and_read_pcm(
 
 repoll:
 
-	/* Allow escaping from the poll() by thread cancellation. */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 	pthread_mutex_lock(&pcm->mutex);
 	/* Add PCM socket to the poll if it is active. */
 	fds[1].fd = pcm->active ? pcm->fd : -1;
 	pthread_mutex_unlock(&pcm->mutex);
 
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+	int poll_rv = poll(fds, ARRAYSIZE(fds), io->timeout);
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
 	/* Poll for reading with optional sync timeout. */
-	switch (poll(fds, ARRAYSIZE(fds), io->timeout)) {
+	switch (poll_rv) {
 	case 0:
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 		pthread_cond_signal(&pcm->synced);
 		io->timeout = -1;
 		return 0;
 	case -1:
 		if (errno == EINTR)
 			goto repoll;
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 		return -1;
 	}
 
@@ -374,8 +371,6 @@ repoll:
 			goto repoll;
 		}
 	}
-
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	ssize_t samples_read;
 	if ((samples_read = io_pcm_read(pcm, buffer, samples)) == -1) {

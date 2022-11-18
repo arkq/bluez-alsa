@@ -493,15 +493,17 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 
 	debug("Starting PCM loop");
 	while (main_loop_on) {
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-		ssize_t ret;
 
 		/* Reading from the FIFO won't block unless there is an open connection
 		 * on the writing side. However, the server does not open PCM FIFO until
 		 * a transport is created. With the A2DP, the transport is created when
 		 * some clients (BT device) requests audio transfer. */
-		switch (poll(pfds, ARRAYSIZE(pfds), timeout)) {
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		int poll_rv = poll(pfds, ARRAYSIZE(pfds), timeout);
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		switch (poll_rv) {
 		case -1:
 			if (errno == EINTR)
 				continue;
@@ -509,7 +511,6 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			goto fail;
 		case 0:
 			debug("Device marked as inactive: %s", w->addr);
-			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 			pcm_max_read_len = pcm_max_read_len_init;
 			pause_counter = pause_bytes = 0;
 			ffb_rewind(&buffer);
@@ -526,6 +527,8 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
+		ssize_t ret;
+
 		#define MIN(a, b) a < b ? a : b
 		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
 		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
@@ -534,8 +537,6 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			error("PCM FIFO read error: %s", strerror(errno));
 			goto fail;
 		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		/* If PCM mixer is disabled, check whether we should play audio. */
 		if (!pcm_mixer) {
@@ -639,7 +640,6 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	}
 
 fail:
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;

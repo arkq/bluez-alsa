@@ -81,15 +81,15 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 	for (;;) {
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		int poll_rv = poll(&data.pfd, 1, -1);
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-		if (poll(&data.pfd, 1, -1) == -1) {
+		if (poll_rv == -1) {
 			if (errno == EINTR)
 				continue;
 			error("SCO dispatcher poll error: %s", strerror(errno));
 			goto fail;
 		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		struct sockaddr_sco addr;
 		socklen_t addrlen = sizeof(addr);
@@ -150,7 +150,6 @@ cleanup:
 	}
 
 fail:
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
@@ -273,7 +272,6 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 exit:
 	debug_transport_thread_loop(th, "EXIT");
 	ba_transport_thread_set_state_stopping(th);
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 fail_init:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -331,7 +329,6 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 exit:
 	debug_transport_thread_loop(th, "EXIT");
 	ba_transport_thread_set_state_stopping(th);
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -413,7 +410,6 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 exit:
 	debug_transport_thread_loop(th, "EXIT");
 	ba_transport_thread_set_state_stopping(th);
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 fail_msbc:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -476,7 +472,6 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 exit:
 	debug_transport_thread_loop(th, "EXIT");
 	ba_transport_thread_set_state_stopping(th);
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 fail_msbc:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);

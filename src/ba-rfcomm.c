@@ -1235,11 +1235,14 @@ process:
 		if (reader.next != NULL)
 			goto read;
 
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
 		r->idle = false;
 		pfds[2].fd = r->handler_fd;
-		switch (poll(pfds, ARRAYSIZE(pfds), timeout)) {
+
+		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		int poll_rv = poll(pfds, ARRAYSIZE(pfds), timeout);
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		switch (poll_rv) {
 		case 0:
 			debug("RFCOMM poll timeout");
 			r->idle = true;
@@ -1250,8 +1253,6 @@ process:
 			error("RFCOMM poll error: %s", strerror(errno));
 			goto fail;
 		}
-
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
@@ -1379,7 +1380,6 @@ ioerror:
 	}
 
 fail:
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
