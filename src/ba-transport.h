@@ -151,6 +151,7 @@ enum ba_transport_thread_state {
 	BA_TRANSPORT_THREAD_STATE_STARTING,
 	BA_TRANSPORT_THREAD_STATE_RUNNING,
 	BA_TRANSPORT_THREAD_STATE_STOPPING,
+	BA_TRANSPORT_THREAD_STATE_JOINING,
 };
 
 enum ba_transport_thread_signal {
@@ -171,8 +172,6 @@ struct ba_transport_thread {
 	/* guard thread structure */
 	pthread_mutex_t mutex;
 
-	/* guard thread state */
-	pthread_mutex_t state_mtx;
 	/* current state of the thread */
 	enum ba_transport_thread_state state;
 

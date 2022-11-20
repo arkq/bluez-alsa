@@ -164,7 +164,6 @@ static int transport_thread_init(
 	th->pipe[1] = -1;
 
 	pthread_mutex_init(&th->mutex, NULL);
-	pthread_mutex_init(&th->state_mtx, NULL);
 	pthread_cond_init(&th->changed, NULL);
 
 	if (pipe(th->pipe) == -1)
@@ -191,7 +190,6 @@ static void transport_thread_cancel_prepare(struct ba_transport_thread *th) {
  * terminate, so join will not return either! */
 static void transport_thread_cancel(struct ba_transport_thread *th) {
 
-	/* we are going to modify thread ID */
 	pthread_mutex_lock(&th->mutex);
 
 	pthread_t id = th->id;
@@ -200,21 +198,39 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 		return;
 	}
 
+	/* If this function was called from more than one thread at the same time
+	 * (e.g. from transport thread manager thread and from main thread due to
+	 * SIGTERM signal), wait until the IO thread terminates - this function is
+	 * supposed to be synchronous. */
+	if (th->state == BA_TRANSPORT_THREAD_STATE_JOINING) {
+		while (!pthread_equal(id, config.main_thread))
+			pthread_cond_wait(&th->changed, &th->mutex);
+		pthread_mutex_unlock(&th->mutex);
+		return;
+	}
+
 	int err;
 	if ((err = pthread_cancel(id)) != 0 && err != ESRCH)
 		warn("Couldn't cancel transport thread: %s", strerror(err));
-	if ((err = pthread_join(id, NULL)) != 0)
-		warn("Couldn't join transport thread: %s", strerror(err));
 
-	/* Indicate that the thread has been successfully terminated. Also,
-	 * make sure, that after termination, this thread handler will not
-	 * be used anymore. */
-	th->id = config.main_thread;
+	/* Indicate that we are about to join the thread. */
+	th->state = BA_TRANSPORT_THREAD_STATE_JOINING;
 
 	pthread_mutex_unlock(&th->mutex);
 
-	/* notify that the thread has been terminated */
-	pthread_cond_signal(&th->changed);
+	if ((err = pthread_join(id, NULL)) != 0)
+		warn("Couldn't join transport thread: %s", strerror(err));
+
+	pthread_mutex_lock(&th->mutex);
+	/* Indicate that the thread has been successfully terminated. Also,
+	 * make sure, that after termination, this thread handler will not
+	 * be used anymore. */
+	th->state = BA_TRANSPORT_THREAD_STATE_NONE;
+	th->id = config.main_thread;
+	pthread_mutex_unlock(&th->mutex);
+
+	/* Notify others that the thread has been terminated. */
+	pthread_cond_broadcast(&th->changed);
 
 }
 
@@ -238,7 +254,6 @@ static void transport_thread_free(
 	if (th->pipe[1] != -1)
 		close(th->pipe[1]);
 	pthread_mutex_destroy(&th->mutex);
-	pthread_mutex_destroy(&th->state_mtx);
 	pthread_cond_destroy(&th->changed);
 }
 
@@ -249,7 +264,7 @@ int ba_transport_thread_set_state(
 
 	bool skip = false;
 
-	pthread_mutex_lock(&th->state_mtx);
+	pthread_mutex_lock(&th->mutex);
 
 	/* By default only a valid state transitions are allowed. In order
 	 * to set the state to an arbitrary value, the force parameter has
@@ -265,7 +280,7 @@ int ba_transport_thread_set_state(
 	if (!skip)
 		th->state = state;
 
-	pthread_mutex_unlock(&th->state_mtx);
+	pthread_mutex_unlock(&th->mutex);
 
 	if (!skip)
 		pthread_cond_signal(&th->changed);
@@ -327,12 +342,26 @@ int ba_transport_thread_bt_release(
 int ba_transport_thread_signal_send(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_signal signal) {
-	if (pthread_equal(th->id, config.main_thread))
-		return errno = ESRCH, -1;
-	if (write(th->pipe[1], &signal, sizeof(signal)) == sizeof(signal))
-		return 0;
-	warn("Couldn't write transport thread signal: %s", strerror(errno));
-	return -1;
+
+	int ret = -1;
+
+	pthread_mutex_lock(&th->mutex);
+
+	if (pthread_equal(th->id, config.main_thread)) {
+		errno = ESRCH;
+		goto fail;
+	}
+
+	if (write(th->pipe[1], &signal, sizeof(signal)) != sizeof(signal)) {
+		warn("Couldn't write transport thread signal: %s", strerror(errno));
+		goto fail;
+	}
+
+	ret = 0;
+
+fail:
+	pthread_mutex_unlock(&th->mutex);
+	return ret;
 }
 
 int ba_transport_thread_signal_recv(
