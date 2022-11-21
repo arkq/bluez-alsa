@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -192,19 +192,19 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 
 	pthread_mutex_lock(&th->mutex);
 
-	pthread_t id = th->id;
-	if (pthread_equal(id, config.main_thread)) {
-		pthread_mutex_unlock(&th->mutex);
-		return;
-	}
-
 	/* If this function was called from more than one thread at the same time
 	 * (e.g. from transport thread manager thread and from main thread due to
 	 * SIGTERM signal), wait until the IO thread terminates - this function is
 	 * supposed to be synchronous. */
 	if (th->state == BA_TRANSPORT_THREAD_STATE_JOINING) {
-		while (!pthread_equal(id, config.main_thread))
+		while (!pthread_equal(th->id, config.main_thread))
 			pthread_cond_wait(&th->changed, &th->mutex);
+		pthread_mutex_unlock(&th->mutex);
+		return;
+	}
+
+	pthread_t id = th->id;
+	if (pthread_equal(id, config.main_thread)) {
 		pthread_mutex_unlock(&th->mutex);
 		return;
 	}
@@ -259,23 +259,18 @@ static void transport_thread_free(
 
 int ba_transport_thread_set_state(
 		struct ba_transport_thread *th,
-		enum ba_transport_thread_state state,
-		bool force) {
+		enum ba_transport_thread_state state) {
 
 	bool skip = false;
 
 	pthread_mutex_lock(&th->mutex);
 
-	/* By default only a valid state transitions are allowed. In order
-	 * to set the state to an arbitrary value, the force parameter has
-	 * to be set to true. */
-	if (!force) {
-		if (state <= th->state)
-			skip = true;
-		if (th->state == BA_TRANSPORT_THREAD_STATE_NONE &&
+	/* only valid state transitions are allowed */
+	if (state <= th->state)
+		skip = true;
+	if (th->state == BA_TRANSPORT_THREAD_STATE_NONE &&
 			state != BA_TRANSPORT_THREAD_STATE_STARTING)
-			skip = true;
-	}
+		skip = true;
 
 	if (!skip)
 		th->state = state;
@@ -1583,7 +1578,7 @@ int ba_transport_thread_create(
 	ba_transport_thread_set_state_starting(th);
 	if ((ret = pthread_create(&th->id, NULL, PTHREAD_ROUTINE(routine), th)) != 0) {
 		error("Couldn't create transport thread: %s", strerror(ret));
-		ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_NONE, true);
+		th->state = BA_TRANSPORT_THREAD_STATE_NONE;
 		th->id = config.main_thread;
 		ba_transport_unref(t);
 		return -1;
@@ -1617,9 +1612,6 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 	pthread_getname_np(th->id, name, sizeof(name));
 	debug("Exiting IO thread [%s]: %s", name, ba_transport_type_to_string(t->type));
 #endif
-
-	/* Reset transport IO thread state back to NONE. */
-	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_NONE, true);
 
 	/* Remove reference which was taken by the ba_transport_thread_create(). */
 	ba_transport_unref(t);

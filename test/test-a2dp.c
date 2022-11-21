@@ -31,8 +31,8 @@ int ba_transport_thread_create(struct ba_transport_thread *th,
 		void *(*routine)(struct ba_transport_thread *), const char *name, bool master) {
 	(void)th; (void)routine; (void)name; (void)master; return -1; }
 int ba_transport_thread_set_state(struct ba_transport_thread *th,
-		enum ba_transport_thread_state state, bool force) {
-	(void)th; (void)state; (void)force; return -1; }
+		enum ba_transport_thread_state state) {
+	(void)th; (void)state; return -1; }
 int ba_transport_thread_signal_recv(struct ba_transport_thread *th,
 		enum ba_transport_thread_signal *signal) {
 	(void)th; (void)signal; return -1; }

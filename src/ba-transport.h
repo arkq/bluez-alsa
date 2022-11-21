@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -191,15 +191,14 @@ struct ba_transport_thread {
 
 int ba_transport_thread_set_state(
 		struct ba_transport_thread *th,
-		enum ba_transport_thread_state state,
-		bool force);
+		enum ba_transport_thread_state state);
 
 #define ba_transport_thread_set_state_starting(th) \
-	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STARTING, false)
+	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STARTING)
 #define ba_transport_thread_set_state_running(th) \
-	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_RUNNING, false)
+	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
 #define ba_transport_thread_set_state_stopping(th) \
-	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STOPPING, false)
+	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STOPPING)
 
 int ba_transport_thread_bt_acquire(
 		struct ba_transport_thread *th);
