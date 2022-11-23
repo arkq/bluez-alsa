@@ -25,6 +25,7 @@
 
 #include "a2dp.h"
 #include "ba-transport.h"
+#include "hfp.h"
 #include "io.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
@@ -193,27 +194,37 @@ fail:
 	return NULL;
 }
 
-static const char *transport_type_to_fname(struct ba_transport_type type) {
+static const char *transport_to_fname(const struct ba_transport *t) {
 
-	static char buffer[64];
-	char prev = '-';
-	size_t i = 0;
-
-	const char *ptr = ba_transport_type_to_string(type);
-	for (; *ptr != '\0'; ptr++) {
-		char c = *ptr;
-		if (!isalnum(c))
-			c = '-';
-		buffer[i++] = c;
-		if (c == '-' && prev == '-')
-			i--;
-		prev = c;
+	const char *profile = NULL;
+	const char *codec = NULL;
+	switch (t->type.profile) {
+	case BA_TRANSPORT_PROFILE_NONE:
+		return "none";
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		profile = "a2dp-source";
+		codec = a2dp_codecs_codec_id_to_string(t->type.codec);
+		break;
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		profile = "a2dp-sink";
+		codec = a2dp_codecs_codec_id_to_string(t->type.codec);
+		break;
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+		profile = "hfp-ag";
+		codec = hfp_codec_id_to_string(t->type.codec);
+		break;
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+		profile = "hfp-hf";
+		codec = hfp_codec_id_to_string(t->type.codec);
+		break;
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		return "hsp-ag-cvsd";
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		return "hsp-hs-cvsd";
 	}
 
-	if (prev == '-')
-		i--;
-	buffer[i] = '\0';
-
+	static char buffer[64];
+	snprintf(buffer, sizeof(buffer), "%s-%s", profile, codec);
 	return buffer;
 }
 
@@ -232,7 +243,7 @@ void *bt_dump_io_thread(struct ba_transport_thread *th) {
 	char fname[128];
 
 	snprintf(fname, sizeof(fname), "/tmp/bluealsa-%s.btd",
-			transport_type_to_fname(t->type));
+			transport_to_fname(t));
 
 	debug("Creating BT dump file: %s", fname);
 	if ((btd = bt_dump_create(fname, t)) == NULL) {

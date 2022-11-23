@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -207,15 +207,18 @@ gboolean g_bdaddr_equal(const void *v1, const void *v2) {
 	return bacmp(v1, v2) == 0;
 }
 
+#if DEBUG
 /**
- * Convert BlueALSA transport type into a human-readable string.
+ * Get BlueALSA transport type debug name.
  *
- * @param type Transport type structure.
+ * @param t Transport structure.
  * @return Human-readable string. */
-const char *ba_transport_type_to_string(struct ba_transport_type type) {
-	switch (type.profile) {
+const char *ba_transport_debug_name(const struct ba_transport *t) {
+	const uint16_t profile = t->type.profile;
+	const uint16_t codec_id = t->type.codec;
+	switch (profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		switch (type.codec) {
+		switch (codec_id) {
 		case A2DP_CODEC_SBC:
 			return "A2DP Source (SBC)";
 #if ENABLE_MPEG
@@ -250,7 +253,7 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 			return "A2DP Source";
 		}
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		switch (type.codec) {
+		switch (codec_id) {
 		case A2DP_CODEC_SBC:
 			return "A2DP Sink (SBC)";
 #if ENABLE_MPEG
@@ -285,7 +288,7 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 			return "A2DP Sink";
 		}
 	case BA_TRANSPORT_PROFILE_HFP_HF:
-		switch (type.codec) {
+		switch (codec_id) {
 		case HFP_CODEC_CVSD:
 			return "HFP Hands-Free (CVSD)";
 		case HFP_CODEC_MSBC:
@@ -294,7 +297,7 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 			return "HFP Hands-Free";
 		}
 	case BA_TRANSPORT_PROFILE_HFP_AG:
-		switch (type.codec) {
+		switch (codec_id) {
 		case HFP_CODEC_CVSD:
 			return "HFP Audio Gateway (CVSD)";
 		case HFP_CODEC_MSBC:
@@ -307,9 +310,10 @@ const char *ba_transport_type_to_string(struct ba_transport_type type) {
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return "HSP Audio Gateway";
 	}
-	debug("Unknown transport type: %#x %#x", type.profile, type.codec);
+	debug("Unknown transport type: %#x %#x", profile, codec_id);
 	return "N/A";
 }
+#endif
 
 #if ENABLE_MP3LAME
 /**

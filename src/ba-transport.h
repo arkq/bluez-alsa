@@ -403,6 +403,6 @@ int ba_transport_thread_create(
 void ba_transport_thread_cleanup(struct ba_transport_thread *th);
 
 #define debug_transport_thread_loop(th, tag) \
-	debug("IO loop: %s: %s: %s", tag, __func__, ba_transport_type_to_string((th)->t->type))
+	debug("IO loop: %s: %s: %s", tag, __func__, ba_transport_debug_name((th)->t))
 
 #endif

@@ -802,7 +802,7 @@ struct ba_transport *ba_transport_new_sco(
 	 * from commercial devices and for BlueALSA to BlueALSA connections we get
 	 * the desired result. */
 	if ((t = ba_transport_lookup(device, dbus_path)) != NULL) {
-		debug("SCO transport already connected: %s", ba_transport_type_to_string(t->type));
+		debug("SCO transport already connected: %s", ba_transport_debug_name(t));
 		ba_transport_unref(t);
 		errno = EBUSY;
 		return NULL;
@@ -947,7 +947,7 @@ void ba_transport_unref(struct ba_transport *t) {
 		storage_pcm_data_update(&t->sco.mic_pcm);
 	}
 
-	debug("Freeing transport: %s", ba_transport_type_to_string(t->type));
+	debug("Freeing transport: %s", ba_transport_debug_name(t));
 	g_assert_cmpint(ref_count, ==, 0);
 
 	if (t->bt_fd != -1)
@@ -1247,7 +1247,7 @@ int ba_transport_start(struct ba_transport *t) {
 		return -1;
 	}
 
-	debug("Starting transport: %s", ba_transport_type_to_string(t->type));
+	debug("Starting transport: %s", ba_transport_debug_name(t));
 
 	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		switch (t->type.codec) {
@@ -1586,7 +1586,7 @@ int ba_transport_thread_create(
 
 	pthread_setname_np(th->id, name);
 	debug("Created new IO thread [%s]: %s",
-			name, ba_transport_type_to_string(t->type));
+			name, ba_transport_debug_name(t));
 
 	return 0;
 }
@@ -1610,7 +1610,7 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 	 *      indicate the end of the transport IO thread. */
 	char name[32];
 	pthread_getname_np(th->id, name, sizeof(name));
-	debug("Exiting IO thread [%s]: %s", name, ba_transport_type_to_string(t->type));
+	debug("Exiting IO thread [%s]: %s", name, ba_transport_debug_name(t));
 #endif
 
 	/* Remove reference which was taken by the ba_transport_thread_create(). */

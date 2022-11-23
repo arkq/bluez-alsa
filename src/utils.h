@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2022 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,6 +8,7 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_UTILS_H_
 #define BLUEALSA_UTILS_H_
 
@@ -35,7 +36,9 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
 unsigned int g_bdaddr_hash(const void *v);
 gboolean g_bdaddr_equal(const void *v1, const void *v2);
 
-const char *ba_transport_type_to_string(struct ba_transport_type type);
+#if DEBUG
+const char *ba_transport_debug_name(const struct ba_transport *t);
+#endif
 
 #if ENABLE_MP3LAME
 int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask);

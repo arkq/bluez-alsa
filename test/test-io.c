@@ -383,7 +383,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_thread *th) {
 
 	if (dump_data) {
 		char fname[64];
-		sprintf(fname, "encoded-%s.btd", transport_type_to_fname(t->type));
+		sprintf(fname, "encoded-%s.btd", transport_to_fname(t));
 		ck_assert_ptr_ne(btd = bt_dump_create(fname, t), NULL);
 	}
 
@@ -472,7 +472,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 	if (dump_data) {
 #if HAVE_SNDFILE
 		char fname[64];
-		sprintf(fname, "decoded-%s.wav", transport_type_to_fname(t->type));
+		sprintf(fname, "decoded-%s.wav", transport_to_fname(t));
 		ck_assert_ptr_ne(sf = sf_open(fname, SFM_WRITE, &sf_info), NULL);
 #else
 		error("Dumping audio files requires sndfile library!");

@@ -311,7 +311,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	t->a2dp.volume = volume;
 
 	debug("%s configured for device %s",
-			ba_transport_type_to_string(t->type),
+			ba_transport_debug_name(t),
 			batostr_(&d->addr));
 	hexdump("A2DP selected configuration blob",
 			&configuration, codec->capabilities_size, true);
@@ -765,7 +765,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	}
 
 	debug("%s configured for device %s",
-			ba_transport_type_to_string(t->type),
+			ba_transport_debug_name(t),
 			batostr_(&d->addr));
 
 	dbus_obj->connected = true;

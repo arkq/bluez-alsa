@@ -125,7 +125,7 @@ retry:
  * HFP set state wrapper for debugging purposes. */
 static void rfcomm_set_hfp_state(struct ba_rfcomm *r, enum hfp_slc_state state) {
 	debug("RFCOMM: %s state transition: %d -> %d",
-			ba_transport_type_to_string(r->sco->type), r->state, state);
+			ba_transport_debug_name(r->sco), r->state, state);
 	r->state = state;
 }
 
@@ -845,7 +845,7 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 	char tmp[16];
 
 	debug("RFCOMM: %s setting codec: %s",
-			ba_transport_type_to_string(t_sco->type),
+			ba_transport_debug_name(t_sco),
 			hfp_codec_id_to_string(codec));
 
 	/* Codec selection can be requested only after SLC establishment. */
@@ -1014,7 +1014,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 		{ -1, POLLIN, 0 },
 	};
 
-	debug("Starting RFCOMM loop: %s", ba_transport_type_to_string(t_sco->type));
+	debug("Starting RFCOMM loop: %s", ba_transport_debug_name(t_sco));
 	for (;;) {
 
 		/* During normal operation, RFCOMM should block indefinitely. However,
@@ -1424,7 +1424,7 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 	const char *name = "ba-rfcomm";
 	pthread_setname_np(r->thread, name);
 	debug("Created new RFCOMM thread [%s]: %s",
-			name, ba_transport_type_to_string(sco->type));
+			name, ba_transport_debug_name(sco));
 
 	r->ba_dbus_path = g_strdup_printf("%s/rfcomm", sco->d->ba_dbus_path);
 	bluealsa_dbus_rfcomm_register(r);
