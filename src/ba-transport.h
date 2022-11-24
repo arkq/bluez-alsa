@@ -27,37 +27,6 @@
 #include "bluez.h"
 #include "shared/a2dp-codecs.h"
 
-#define BA_TRANSPORT_PROFILE_NONE        (0)
-#define BA_TRANSPORT_PROFILE_A2DP_SOURCE (1 << 0)
-#define BA_TRANSPORT_PROFILE_A2DP_SINK   (2 << 0)
-#define BA_TRANSPORT_PROFILE_HFP_HF      (1 << 2)
-#define BA_TRANSPORT_PROFILE_HFP_AG      (2 << 2)
-#define BA_TRANSPORT_PROFILE_HSP_HS      (1 << 4)
-#define BA_TRANSPORT_PROFILE_HSP_AG      (2 << 4)
-
-#define BA_TRANSPORT_PROFILE_MASK_A2DP \
-	(BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK)
-#define BA_TRANSPORT_PROFILE_MASK_HFP \
-	(BA_TRANSPORT_PROFILE_HFP_HF | BA_TRANSPORT_PROFILE_HFP_AG)
-#define BA_TRANSPORT_PROFILE_MASK_HSP \
-	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HSP_AG)
-#define BA_TRANSPORT_PROFILE_MASK_SCO \
-	(BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP)
-#define BA_TRANSPORT_PROFILE_MASK_AG \
-	(BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)
-#define BA_TRANSPORT_PROFILE_MASK_HF \
-	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)
-
-/**
- * Selected profile and audio codec.
- *
- * For A2DP vendor codecs the upper byte of the codec field
- * contains the lowest byte of the vendor ID. */
-struct ba_transport_type {
-	uint16_t profile;
-	uint16_t codec;
-};
-
 enum ba_transport_pcm_mode {
 	/* PCM used for capturing audio */
 	BA_TRANSPORT_PCM_MODE_SOURCE,
@@ -218,18 +187,44 @@ enum ba_transport_thread_manager_command {
 	BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS,
 };
 
+enum ba_transport_profile {
+	BA_TRANSPORT_PROFILE_NONE        = 0,
+	BA_TRANSPORT_PROFILE_A2DP_SOURCE = (1 << 0),
+	BA_TRANSPORT_PROFILE_A2DP_SINK   = (2 << 0),
+	BA_TRANSPORT_PROFILE_HFP_HF      = (1 << 2),
+	BA_TRANSPORT_PROFILE_HFP_AG      = (2 << 2),
+	BA_TRANSPORT_PROFILE_HSP_HS      = (1 << 4),
+	BA_TRANSPORT_PROFILE_HSP_AG      = (2 << 4),
+};
+
+#define BA_TRANSPORT_PROFILE_MASK_A2DP \
+	(BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK)
+#define BA_TRANSPORT_PROFILE_MASK_HFP \
+	(BA_TRANSPORT_PROFILE_HFP_HF | BA_TRANSPORT_PROFILE_HFP_AG)
+#define BA_TRANSPORT_PROFILE_MASK_HSP \
+	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HSP_AG)
+#define BA_TRANSPORT_PROFILE_MASK_SCO \
+	(BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP)
+#define BA_TRANSPORT_PROFILE_MASK_AG \
+	(BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)
+#define BA_TRANSPORT_PROFILE_MASK_HF \
+	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)
+
 struct ba_transport {
 
 	/* backward reference to device */
 	struct ba_device *d;
 
-	/* guard modifications of transport type, e.g. codec */
-	pthread_mutex_t type_mtx;
-
 	/* Transport structure covers all transports supported by BlueALSA. However,
 	 * every transport requires specific handling - link acquisition, transport
 	 * specific configuration, freeing resources, etc. */
-	struct ba_transport_type type;
+	enum ba_transport_profile profile;
+
+	/* guard modifications of transport codec */
+	pthread_mutex_t codec_id_mtx;
+	/* For A2DP vendor codecs the upper byte of the codec field
+	 * contains the lowest byte of the vendor ID. */
+	uint16_t codec_id;
 
 	/* data for D-Bus management */
 	char *bluez_dbus_owner;
@@ -322,14 +317,14 @@ struct ba_transport {
 
 struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
-		struct ba_transport_type type,
+		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
 		const struct a2dp_codec *codec,
 		const void *configuration);
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
-		struct ba_transport_type type,
+		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
 		int rfcomm_fd);

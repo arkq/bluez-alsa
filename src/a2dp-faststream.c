@@ -116,7 +116,7 @@ static void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 	struct io_poll io = { .timeout = -1 };
 
 	/* determine encoder operation mode: music or voice */
-	const bool is_voice = t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
+	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
 
 	sbc_t sbc;
@@ -235,7 +235,7 @@ static void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 	struct io_poll io = { .timeout = -1 };
 
 	/* determine decoder operation mode: music or voice */
-	const bool is_voice = t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE;
+	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE;
 	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
 
 	sbc_t sbc;
@@ -318,7 +318,7 @@ int a2dp_faststream_transport_start(struct ba_transport *t) {
 	struct ba_transport_thread *th_dec = &t->thread_dec;
 	int rv = 0;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
 			rv |= ba_transport_thread_create(th_enc, a2dp_faststream_enc_thread, "ba-a2dp-fs-m", true);
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
@@ -326,7 +326,7 @@ int a2dp_faststream_transport_start(struct ba_transport *t) {
 		return rv;
 	}
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
 			rv |= ba_transport_thread_create(th_dec, a2dp_faststream_dec_thread, "ba-a2dp-fs-m", true);
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)

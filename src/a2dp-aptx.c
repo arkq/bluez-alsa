@@ -300,11 +300,11 @@ fail_init:
 
 int a2dp_aptx_transport_start(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		return ba_transport_thread_create(&t->thread_enc, a2dp_aptx_enc_thread, "ba-a2dp-aptx", true);
 
 #if HAVE_APTX_DECODE
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
 		return ba_transport_thread_create(&t->thread_dec, a2dp_aptx_dec_thread, "ba-a2dp-aptx", true);
 #endif
 

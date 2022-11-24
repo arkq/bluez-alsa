@@ -569,10 +569,10 @@ fail_open:
 
 int a2dp_aac_transport_start(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		return ba_transport_thread_create(&t->thread_enc, a2dp_aac_enc_thread, "ba-a2dp-aac", true);
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
 		return ba_transport_thread_create(&t->thread_dec, a2dp_aac_dec_thread, "ba-a2dp-aac", true);
 
 	g_assert_not_reached();

@@ -93,9 +93,9 @@ void bluez_battery_provider_update(struct ba_device *device) {
 	debug("%s: %p", __func__, device); }
 
 static uint16_t get_codec_id(struct ba_transport *t) {
-	pthread_mutex_lock(&t->type_mtx);
-	uint16_t codec_id = t->type.codec;
-	pthread_mutex_unlock(&t->type_mtx);
+	pthread_mutex_lock(&t->codec_id_mtx);
+	uint16_t codec_id = t->codec_id;
+	pthread_mutex_unlock(&t->codec_id_mtx);
 	return codec_id;
 }
 
@@ -107,10 +107,10 @@ START_TEST(test_rfcomm) {
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
-	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_sco(device1, ttype_ag, ":test", "/sco/ag", fds[0]);
-	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_sco(device2, ttype_hf, ":test", "/sco/hf", fds[1]);
+	struct ba_transport *ag = ba_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco/ag", fds[0]);
+	struct ba_transport *hf = ba_transport_new_sco(device2,
+			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco/hf", fds[1]);
 
 	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
 	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
@@ -151,10 +151,10 @@ START_TEST(test_rfcomm_esco) {
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
-	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_sco(device1, ttype_ag, ":test", "/sco/ag", fds[0]);
-	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_sco(device2, ttype_hf, ":test", "/sco/hf", fds[1]);
+	struct ba_transport *ag = ba_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco/ag", fds[0]);
+	struct ba_transport *hf = ba_transport_new_sco(device2,
+			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco/hf", fds[1]);
 
 	ag->sco.rfcomm->link_lost_quirk = false;
 	hf->sco.rfcomm->link_lost_quirk = false;
@@ -222,10 +222,10 @@ START_TEST(test_rfcomm_set_codec) {
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
-	struct ba_transport_type ttype_ag = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	struct ba_transport *ag = ba_transport_new_sco(device1, ttype_ag, ":test", "/sco/ag", fds[0]);
-	struct ba_transport_type ttype_hf = { .profile = BA_TRANSPORT_PROFILE_HFP_HF };
-	struct ba_transport *hf = ba_transport_new_sco(device2, ttype_hf, ":test", "/sco/hf", fds[1]);
+	struct ba_transport *ag = ba_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco/ag", fds[0]);
+	struct ba_transport *hf = ba_transport_new_sco(device2,
+			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco/hf", fds[1]);
 
 	ag->sco.rfcomm->link_lost_quirk = false;
 	hf->sco.rfcomm->link_lost_quirk = false;

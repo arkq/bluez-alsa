@@ -116,7 +116,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 
 #if ENABLE_MSBC
 		struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
-		if (t->type.codec == HFP_CODEC_MSBC &&
+		if (t->codec_id == HFP_CODEC_MSBC &&
 				setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
 			error("Couldn't setup transparent voice: %s", strerror(errno));
 			goto cleanup;
@@ -480,7 +480,7 @@ fail_msbc:
 #endif
 
 void *sco_enc_thread(struct ba_transport_thread *th) {
-	switch (th->t->type.codec) {
+	switch (th->t->codec_id) {
 	case HFP_CODEC_CVSD:
 	default:
 		return sco_cvsd_enc_thread(th);
@@ -492,7 +492,7 @@ void *sco_enc_thread(struct ba_transport_thread *th) {
 }
 
 void *sco_dec_thread(struct ba_transport_thread *th) {
-	switch (th->t->type.codec) {
+	switch (th->t->codec_id) {
 	case HFP_CODEC_CVSD:
 	default:
 		return sco_cvsd_dec_thread(th);

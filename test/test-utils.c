@@ -57,55 +57,6 @@ START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
 
 } END_TEST
 
-START_TEST(test_dbus_profile_object_path) {
-
-	static const struct {
-		struct ba_transport_type ttype;
-		const char *path;
-	} profiles[] = {
-		/* test null/invalid path */
-		{ { 0, -1 }, "/" },
-		{ { 0, -1 }, "/Invalid" },
-		/* test A2DP profiles */
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC }, "/A2DP/SBC/source" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC }, "/A2DP/SBC/source/1" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_SBC }, "/A2DP/SBC/source/2" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_SBC }, "/A2DP/SBC/sink" },
-#if ENABLE_MPEG
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG12 }, "/A2DP/MPEG/source" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG12 }, "/A2DP/MPEG/sink" },
-#endif
-#if ENABLE_AAC
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_MPEG24 }, "/A2DP/AAC/source" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_MPEG24 }, "/A2DP/AAC/sink" },
-#endif
-#if ENABLE_APTX
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_APTX }, "/A2DP/aptX/source" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_APTX }, "/A2DP/aptX/sink" },
-#endif
-#if ENABLE_APTX_HD
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_APTX_HD }, "/A2DP/aptXHD/source" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_APTX_HD }, "/A2DP/aptXHD/sink" },
-#endif
-#if ENABLE_LDAC
-		{ { BA_TRANSPORT_PROFILE_A2DP_SOURCE, A2DP_CODEC_VENDOR_LDAC }, "/A2DP/LDAC/source" },
-		{ { BA_TRANSPORT_PROFILE_A2DP_SINK, A2DP_CODEC_VENDOR_LDAC }, "/A2DP/LDAC/sink" },
-#endif
-		/* test HSP/HFP profiles */
-		{ { BA_TRANSPORT_PROFILE_HSP_HS, HFP_CODEC_CVSD }, "/HSP/Headset" },
-		{ { BA_TRANSPORT_PROFILE_HSP_AG, HFP_CODEC_CVSD }, "/HSP/AudioGateway" },
-		{ { BA_TRANSPORT_PROFILE_HFP_HF, HFP_CODEC_UNDEFINED }, "/HFP/HandsFree" },
-		{ { BA_TRANSPORT_PROFILE_HFP_AG, HFP_CODEC_UNDEFINED }, "/HFP/AudioGateway" },
-	};
-
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(profiles); i++) {
-		const char *path = g_dbus_transport_type_to_bluez_object_path(profiles[i].ttype);
-		ck_assert_str_eq(strstr(profiles[i].path, path), profiles[i].path);
-	}
-
-} END_TEST
-
 START_TEST(test_g_variant_sanitize_object_path) {
 
 	char path1[] = "/some/valid_path/123";
@@ -350,7 +301,6 @@ int main(void) {
 
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_hci_dev_id);
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_bdaddr);
-	tcase_add_test(tc, test_dbus_profile_object_path);
 	tcase_add_test(tc, test_g_variant_sanitize_object_path);
 	tcase_add_test(tc, test_batostr_);
 

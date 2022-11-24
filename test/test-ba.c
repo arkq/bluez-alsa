@@ -137,7 +137,7 @@ START_TEST(test_ba_transport) {
 	ba_device_unref(d);
 
 	ck_assert_ptr_eq(t->d, d);
-	ck_assert_int_eq(t->type.profile, BA_TRANSPORT_PROFILE_NONE);
+	ck_assert_int_eq(t->profile, BA_TRANSPORT_PROFILE_NONE);
 	ck_assert_str_eq(t->bluez_dbus_owner, "/owner");
 	ck_assert_str_eq(t->bluez_dbus_path, "/path");
 
@@ -159,12 +159,10 @@ START_TEST(test_ba_transport_sco_one_only) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	struct ba_transport_type ttype_sco_hsp = { .profile = BA_TRANSPORT_PROFILE_HSP_AG };
-	t_sco_hsp = ba_transport_new_sco(d, ttype_sco_hsp, "/owner", "/path/sco", -1);
+	t_sco_hsp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
 	ck_assert_ptr_ne(t_sco_hsp, NULL);
 
-	struct ba_transport_type ttype_sco_hfp = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	t_sco_hfp = ba_transport_new_sco(d, ttype_sco_hfp, "/owner", "/path/sco", -1);
+	t_sco_hfp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
 	ck_assert_ptr_eq(t_sco_hfp, NULL);
 	ck_assert_int_eq(errno, EBUSY);
 
@@ -205,14 +203,14 @@ START_TEST(test_ba_transport_pcm_volume) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	struct ba_transport_type ttype_a2dp = { .profile = BA_TRANSPORT_PROFILE_A2DP_SINK };
 	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
-	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d, ttype_a2dp,
-				"/owner", "/path/a2dp", &codec, &configuration), NULL);
+	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d,
+				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &codec,
+				&configuration), NULL);
 
-	struct ba_transport_type ttype_sco = { .profile = BA_TRANSPORT_PROFILE_HFP_AG };
-	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d, ttype_sco, "/owner", "/path/sco", -1), NULL);
+	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d,
+				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -285,11 +283,11 @@ START_TEST(test_storage) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	struct ba_transport_type ttype = { .profile = BA_TRANSPORT_PROFILE_A2DP_SINK };
 	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
-	ck_assert_ptr_ne(t = ba_transport_new_a2dp(d, ttype,
-				"/owner", "/path", &codec, &configuration), NULL);
+	ck_assert_ptr_ne(t = ba_transport_new_a2dp(d,
+				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &codec,
+				&configuration), NULL);
 
 	/* check if persistent storage was loaded */
 	ck_assert_int_eq(t->a2dp.pcm.soft_volume, false);

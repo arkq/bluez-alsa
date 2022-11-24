@@ -56,8 +56,8 @@
 #include "shared/rt.h"
 
 static const char *transport_get_dbus_path_type(
-		struct ba_transport_type type) {
-	switch (type.profile) {
+		enum ba_transport_profile profile) {
+	switch (profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		return "a2dpsrc";
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
@@ -98,7 +98,7 @@ static int transport_pcm_init(
 	pthread_cond_init(&pcm->synced, NULL);
 
 	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
-			t->d->ba_dbus_path, transport_get_dbus_path_type(t->type),
+			t->d->ba_dbus_path, transport_get_dbus_path_type(t->profile),
 			mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
 
 	return 0;
@@ -407,22 +407,19 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 	if (t->stopping)
 		goto final;
 
-	switch (t->type.profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 		/* Release bidirectional A2DP transport only in case when there
 		 * is no active PCM connection - neither encoder nor decoder. */
 		if (t->a2dp.pcm.fd == -1 && t->a2dp.pcm_bc.fd == -1)
 			t->stopping = stop = true;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
+	}
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 		/* For Audio Gateway profile it is required to release SCO if we
 		 * are not transferring audio (not sending nor receiving), because
 		 * it will free Bluetooth bandwidth - headset will send microphone
 		 * signal even though we are not reading it! */
 		if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1)
 			t->stopping = stop = true;
-		break;
 	}
 
 	if (stop) {
@@ -519,11 +516,11 @@ static struct ba_transport *transport_new(
 		return NULL;
 
 	t->d = ba_device_ref(device);
-	t->type.profile = BA_TRANSPORT_PROFILE_NONE;
-	t->type.codec = -1;
+	t->profile = BA_TRANSPORT_PROFILE_NONE;
+	t->codec_id = -1;
 	t->ref_count = 1;
 
-	pthread_mutex_init(&t->type_mtx, NULL);
+	pthread_mutex_init(&t->codec_id_mtx, NULL);
 	pthread_mutex_init(&t->bt_fd_mtx, NULL);
 	pthread_cond_init(&t->stopped, NULL);
 
@@ -681,19 +678,19 @@ fail:
 
 struct ba_transport *ba_transport_new_a2dp(
 		struct ba_device *device,
-		struct ba_transport_type type,
+		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
 		const struct a2dp_codec *codec,
 		const void *configuration) {
 
-	const bool is_sink = type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
+	const bool is_sink = profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t;
 
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
-	t->type.profile = type.profile;
+	t->profile = profile;
 
 	t->a2dp.codec = codec;
 	memcpy(&t->a2dp.configuration, configuration, codec->capabilities_size);
@@ -714,7 +711,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	ba_transport_set_codec(t, type.codec);
+	ba_transport_set_codec(t, codec->codec_id);
 
 	storage_pcm_data_sync(&t->a2dp.pcm);
 	storage_pcm_data_sync(&t->a2dp.pcm_bc);
@@ -750,7 +747,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 	}
 
 	if (hci_sco_connect(fd, &d->addr,
-				t->type.codec == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
+				t->codec_id == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
 		error("Couldn't establish SCO link: %s", strerror(errno));
 		goto fail;
 	}
@@ -785,11 +782,12 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
-		struct ba_transport_type type,
+		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
 		int rfcomm_fd) {
 
+	uint16_t codec_id = HFP_CODEC_UNDEFINED;
 	struct ba_transport *t;
 	int err;
 
@@ -811,20 +809,7 @@ struct ba_transport *ba_transport_new_sco(
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
-	/* HSP supports CVSD only */
-	if (type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
-		type.codec = HFP_CODEC_CVSD;
-
-#if ENABLE_MSBC
-	/* Check whether support for codec other than
-	 * CVSD is possible with underlying adapter. */
-	if (!BA_TEST_ESCO_SUPPORT(device->a))
-		type.codec = HFP_CODEC_CVSD;
-#else
-	type.codec = HFP_CODEC_CVSD;
-#endif
-
-	t->type.profile = type.profile;
+	t->profile = profile;
 
 	transport_pcm_init(&t->sco.spk_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.spk_pcm.max_bt_volume = 15;
@@ -835,7 +820,20 @@ struct ba_transport *ba_transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	ba_transport_set_codec(t, type.codec);
+	/* HSP supports CVSD only */
+	if (profile & BA_TRANSPORT_PROFILE_MASK_HSP)
+		codec_id = HFP_CODEC_CVSD;
+
+#if ENABLE_MSBC
+	/* Check whether support for codec other than
+	 * CVSD is possible with underlying adapter. */
+	if (!BA_TEST_ESCO_SUPPORT(device->a))
+		codec_id = HFP_CODEC_CVSD;
+#else
+	codec_id = HFP_CODEC_CVSD;
+#endif
+
+	ba_transport_set_codec(t, codec_id);
 
 	storage_pcm_data_sync(&t->sco.spk_pcm);
 	storage_pcm_data_sync(&t->sco.mic_pcm);
@@ -889,11 +887,11 @@ void ba_transport_destroy(struct ba_transport *t) {
 
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm_bc);
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
 		bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
 		if (t->sco.rfcomm != NULL)
@@ -907,11 +905,11 @@ void ba_transport_destroy(struct ba_transport *t) {
 	ba_transport_pcms_lock(t);
 
 	/* terminate on-going PCM connections - exit PCM controllers */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		ba_transport_pcm_release(&t->a2dp.pcm);
 		ba_transport_pcm_release(&t->a2dp.pcm_bc);
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		ba_transport_pcm_release(&t->sco.spk_pcm);
 		ba_transport_pcm_release(&t->sco.mic_pcm);
 	}
@@ -938,11 +936,11 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (ref_count > 0)
 		return;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		storage_pcm_data_update(&t->a2dp.pcm);
 		storage_pcm_data_update(&t->a2dp.pcm_bc);
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		storage_pcm_data_update(&t->sco.spk_pcm);
 		storage_pcm_data_update(&t->sco.mic_pcm);
 	}
@@ -955,11 +953,11 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	ba_device_unref(d);
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		transport_pcm_free(&t->a2dp.pcm);
 		transport_pcm_free(&t->a2dp.pcm_bc);
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
 			ba_rfcomm_destroy(t->sco.rfcomm);
 		transport_pcm_free(&t->sco.spk_pcm);
@@ -981,7 +979,7 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	pthread_cond_destroy(&t->stopped);
 	pthread_mutex_destroy(&t->bt_fd_mtx);
-	pthread_mutex_destroy(&t->type_mtx);
+	pthread_mutex_destroy(&t->codec_id_mtx);
 	free(t->bluez_dbus_owner);
 	free(t->bluez_dbus_path);
 	free(t);
@@ -997,12 +995,12 @@ void ba_transport_pcm_unref(struct ba_transport_pcm *pcm) {
 }
 
 int ba_transport_pcms_lock(struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		pthread_mutex_lock(&t->a2dp.pcm.mutex);
 		pthread_mutex_lock(&t->a2dp.pcm_bc.mutex);
 		return 0;
 	}
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		pthread_mutex_lock(&t->sco.spk_pcm.mutex);
 		pthread_mutex_lock(&t->sco.mic_pcm.mutex);
 		return 0;
@@ -1012,12 +1010,12 @@ int ba_transport_pcms_lock(struct ba_transport *t) {
 }
 
 int ba_transport_pcms_unlock(struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		pthread_mutex_unlock(&t->a2dp.pcm.mutex);
 		pthread_mutex_unlock(&t->a2dp.pcm_bc.mutex);
 		return 0;
 	}
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		pthread_mutex_unlock(&t->sco.spk_pcm.mutex);
 		pthread_mutex_unlock(&t->sco.mic_pcm.mutex);
 		return 0;
@@ -1030,27 +1028,27 @@ int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
 		const struct a2dp_sep *sep) {
 
-	if (!(t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
+	if (!(t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
 		return errno = ENOTSUP, -1;
 
 	/* selecting new codec will change transport type */
-	pthread_mutex_lock(&t->type_mtx);
+	pthread_mutex_lock(&t->codec_id_mtx);
 
 	/* the same codec with the same configuration already selected */
-	if (t->type.codec == sep->codec_id &&
+	if (t->codec_id == sep->codec_id &&
 			memcmp(&sep->configuration, &t->a2dp.configuration, sep->capabilities_size) == 0)
 		goto final;
 
 	GError *err = NULL;
 	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path, sep, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
-		pthread_mutex_unlock(&t->type_mtx);
+		pthread_mutex_unlock(&t->codec_id_mtx);
 		g_error_free(err);
 		return errno = EIO, -1;
 	}
 
 final:
-	pthread_mutex_unlock(&t->type_mtx);
+	pthread_mutex_unlock(&t->codec_id_mtx);
 	return 0;
 }
 
@@ -1062,7 +1060,7 @@ int ba_transport_select_codec_sco(
 	(void)codec_id;
 #endif
 
-	switch (t->type.profile) {
+	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 #if ENABLE_MSBC
@@ -1075,7 +1073,7 @@ int ba_transport_select_codec_sco(
 		 * the codec ID will be set by the RFCOMM thread without this mutex
 		 * held. However, RFCOMM thread and current one will be synchronized
 		 * by the RFCOMM codec_selection_mtx mutex. */
-		pthread_mutex_lock(&t->type_mtx);
+		pthread_mutex_lock(&t->codec_id_mtx);
 
 		struct ba_rfcomm * const r = t->sco.rfcomm;
 		enum ba_rfcomm_signal rfcomm_signal;
@@ -1083,7 +1081,7 @@ int ba_transport_select_codec_sco(
 		pthread_mutex_lock(&r->codec_selection_mtx);
 
 		/* codec already selected, skip switching */
-		if (t->type.codec == codec_id)
+		if (t->codec_id == codec_id)
 			goto final;
 
 		switch (codec_id) {
@@ -1113,15 +1111,15 @@ int ba_transport_select_codec_sco(
 		while (!r->codec_selection_done)
 			pthread_cond_wait(&r->codec_selection_cond, &r->codec_selection_mtx);
 
-		if (t->type.codec != codec_id) {
+		if (t->codec_id != codec_id) {
 			pthread_mutex_unlock(&r->codec_selection_mtx);
-			pthread_mutex_unlock(&t->type_mtx);
+			pthread_mutex_unlock(&t->codec_id_mtx);
 			return errno = EIO, -1;
 		}
 
 final:
 		pthread_mutex_unlock(&r->codec_selection_mtx);
-		pthread_mutex_unlock(&t->type_mtx);
+		pthread_mutex_unlock(&t->codec_id_mtx);
 		break;
 #endif
 
@@ -1226,15 +1224,15 @@ void ba_transport_set_codec(
 		struct ba_transport *t,
 		uint16_t codec_id) {
 
-	if (t->type.codec == codec_id)
+	if (t->codec_id == codec_id)
 		return;
 
-	t->type.codec = codec_id;
+	t->codec_id = codec_id;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		ba_transport_set_codec_a2dp(t, codec_id);
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		ba_transport_set_codec_sco(t, codec_id);
 
 }
@@ -1249,8 +1247,8 @@ int ba_transport_start(struct ba_transport *t) {
 
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		switch (t->type.codec) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		switch (t->codec_id) {
 		case A2DP_CODEC_SBC:
 			return a2dp_sbc_transport_start(t);
 #if ENABLE_MPEG
@@ -1283,7 +1281,7 @@ int ba_transport_start(struct ba_transport *t) {
 #endif
 		}
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);
 		ba_transport_thread_create(&t->thread_dec, sco_dec_thread, "ba-sco-dec", false);
 		return 0;
@@ -1342,7 +1340,7 @@ final:
 
 	/* For SCO profiles we can start transport IO threads right away. There
 	 * is no asynchronous signaling from BlueZ like with A2DP profiles. */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO
 			&& fd != -1)
 		ba_transport_start(t);
 
@@ -1376,7 +1374,7 @@ int ba_transport_set_a2dp_state(
 		/* When transport is marked as pending, try to acquire transport, but only
 		 * if we are handing A2DP sink profile. For source profile, transport has
 		 * to be acquired by our controller (during the PCM open request). */
-		if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
+		if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 			return ba_transport_acquire(t);
 		return 0;
 	case BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE:
@@ -1396,9 +1394,9 @@ bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) {
 
 int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return t->a2dp.delay + pcm->delay;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		return pcm->delay + 10;
 	return pcm->delay;
 }
@@ -1424,11 +1422,11 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 	/* In case of A2DP Source or HSP/HFP Audio Gateway skip notifying Bluetooth
 	 * device if we are using software volume control. This will prevent volume
 	 * double scaling - firstly by us and then by Bluetooth headset/speaker. */
-	if (pcm->soft_volume && t->type.profile & (
+	if (pcm->soft_volume && t->profile & (
 				BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_MASK_AG))
 		goto final;
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* A2DP specification defines volume property as a single value - volume
 		 * for only one channel. For stereo audio we will use an average of left
@@ -1463,7 +1461,7 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 		}
 
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 			t->sco.rfcomm != NULL) {
 		/* notify associated RFCOMM transport */
 		ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
@@ -1539,7 +1537,7 @@ int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
 
 #if DEBUG
-	if (pcm->t->type.profile != BA_TRANSPORT_PROFILE_NONE)
+	if (pcm->t->profile != BA_TRANSPORT_PROFILE_NONE)
 		/* assert that we were called with the lock held */
 		g_assert_cmpint(pthread_mutex_trylock(&pcm->mutex), !=, 0);
 #endif

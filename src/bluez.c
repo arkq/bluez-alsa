@@ -59,8 +59,8 @@ struct bluez_dbus_object_data {
 	GDBusInterfaceSkeleton *ifs;
 	/* associated adapter */
 	int hci_dev_id;
-	/* the type of the transport */
-	struct ba_transport_type ttype;
+	/* registered profile */
+	enum ba_transport_profile profile;
 	/* media endpoint codec */
 	const struct a2dp_codec *codec;
 	/* determine whether object is registered in BlueZ */
@@ -144,6 +144,99 @@ static bool bluez_match_dbus_adapter(
 			return true;
 
 	return false;
+}
+
+/**
+ * Get BlueZ D-Bus object path for given transport profile. */
+static const char *bluez_transport_profile_to_bluez_object_path(
+		enum ba_transport_profile profile,
+		uint16_t codec_id) {
+	switch (profile) {
+	case BA_TRANSPORT_PROFILE_NONE:
+		return "/";
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		switch (codec_id) {
+		case A2DP_CODEC_SBC:
+			return "/A2DP/SBC/source";
+#if ENABLE_MPEG
+		case A2DP_CODEC_MPEG12:
+			return "/A2DP/MPEG/source";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "/A2DP/AAC/source";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "/A2DP/aptX/source";
+#endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "/A2DP/aptXHD/source";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "/A2DP/FastStream/source";
+#endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "/A2DP/LC3plus/source";
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			return "/A2DP/LDAC/source";
+#endif
+		default:
+			error("Unsupported A2DP codec: %#x", codec_id);
+			g_assert_not_reached();
+		}
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		switch (codec_id) {
+		case A2DP_CODEC_SBC:
+			return "/A2DP/SBC/sink";
+#if ENABLE_MPEG
+		case A2DP_CODEC_MPEG12:
+			return "/A2DP/MPEG/sink";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "/A2DP/AAC/sink";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "/A2DP/aptX/sink";
+#endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "/A2DP/aptXHD/sink";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "/A2DP/FastStream/sink";
+#endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "/A2DP/LC3plus/sink";
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			return "/A2DP/LDAC/sink";
+#endif
+		default:
+			error("Unsupported A2DP codec: %#x", codec_id);
+			g_assert_not_reached();
+		}
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+		return "/HFP/HandsFree";
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+		return "/HFP/AudioGateway";
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		return "/HSP/Headset";
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		return "/HSP/AudioGateway";
+	}
+	g_assert_not_reached();
+	return "/";
 }
 
 /**
@@ -291,7 +384,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		goto fail;
 	}
 
-	if ((t = ba_transport_new_a2dp(d, dbus_obj->ttype,
+	if ((t = ba_transport_new_a2dp(d, dbus_obj->profile,
 					sender, transport_path, codec, &configuration)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
@@ -299,7 +392,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	/* Skip volume level initialization in case of A2DP Source
 	 * profile and software volume control. */
-	if (!(t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
+	if (!(t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
 				t->a2dp.pcm.soft_volume)) {
 		int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
 		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL, NULL);
@@ -462,11 +555,8 @@ static void bluez_register_a2dp(
 		.dispatchers = dispatchers,
 	};
 
-	struct ba_transport_type ttype = {
-		.profile = codec->dir == A2DP_SOURCE ?
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE : BA_TRANSPORT_PROFILE_A2DP_SINK,
-		.codec = codec->codec_id,
-	};
+	enum ba_transport_profile profile = codec->dir == A2DP_SOURCE ?
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE : BA_TRANSPORT_PROFILE_A2DP_SINK;
 
 	int registered = 0;
 	int connected = 0;
@@ -480,7 +570,8 @@ static void bluez_register_a2dp(
 
 		char path[sizeof(dbus_obj->path)];
 		snprintf(path, sizeof(path), "/org/bluez/%s%s/%d", adapter->hci.name,
-				g_dbus_transport_type_to_bluez_object_path(ttype), ++registered);
+				bluez_transport_profile_to_bluez_object_path(profile, codec->codec_id),
+				++registered);
 
 		if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
 
@@ -500,7 +591,7 @@ static void bluez_register_a2dp(
 			strncpy(dbus_obj->path, path, sizeof(dbus_obj->path));
 			dbus_obj->hci_dev_id = adapter->hci.dev_id;
 			dbus_obj->codec = codec;
-			dbus_obj->ttype = ttype;
+			dbus_obj->profile = profile;
 			dbus_obj->ref_count = 2;
 
 			bluez_MediaEndpointIfaceSkeleton *ifs_endpoint;
@@ -753,7 +844,7 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if ((t = ba_transport_new_sco(d, dbus_obj->ttype,
+	if ((t = ba_transport_new_sco(d, dbus_obj->profile,
 					sender, device_path, fd)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
@@ -892,7 +983,7 @@ final:
  * Register Bluetooth Hands-Free Audio Profile. */
 static void bluez_register_hfp(
 		const char *uuid,
-		uint32_t profile,
+		enum ba_transport_profile profile,
 		uint16_t version,
 		uint16_t features) {
 
@@ -910,10 +1001,6 @@ static void bluez_register_hfp(
 		.dispatchers = dispatchers,
 	};
 
-	struct ba_transport_type ttype = {
-		.profile = profile,
-	};
-
 	pthread_mutex_lock(&bluez_mutex);
 
 	struct bluez_dbus_object_data *dbus_obj;
@@ -921,7 +1008,7 @@ static void bluez_register_hfp(
 
 	char path[sizeof(dbus_obj->path)];
 	snprintf(path, sizeof(path), "/org/bluez%s",
-			g_dbus_transport_type_to_bluez_object_path(ttype));
+			bluez_transport_profile_to_bluez_object_path(profile, -1));
 
 	if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
 
@@ -934,7 +1021,7 @@ static void bluez_register_hfp(
 
 		strncpy(dbus_obj->path, path, sizeof(dbus_obj->path));
 		dbus_obj->hci_dev_id = -1;
-		dbus_obj->ttype = ttype;
+		dbus_obj->profile = profile;
 		dbus_obj->ref_count = 2;
 
 		bluez_ProfileIfaceSkeleton *ifs_profile;
@@ -1269,7 +1356,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127] */
 			uint16_t volume = t->a2dp.volume = g_variant_get_uint16(value);
-			if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
+			if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
 					t->a2dp.pcm.soft_volume)
 				debug("Skipping A2DP volume update: %u", volume);
 			else {

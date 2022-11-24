@@ -153,13 +153,13 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
  *   set to indicated the cause of the error. */
 static struct ba_transport *ofono_transport_new(
 		struct ba_device *device,
-		struct ba_transport_type type,
+		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path) {
 
 	struct ba_transport *t;
 
-	if ((t = ba_transport_new_sco(device, type, dbus_owner, dbus_path, -1)) == NULL)
+	if ((t = ba_transport_new_sco(device, profile, dbus_owner, dbus_path, -1)) == NULL)
 		return NULL;
 
 	t->acquire = ofono_acquire_bt_sco;
@@ -210,17 +210,13 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	struct ba_device *d = NULL;
 	struct ba_transport *t = NULL;
 
+	enum ba_transport_profile profile = BA_TRANSPORT_PROFILE_HFP_HF;
 	struct ofono_card_data *ocd = NULL;
 	const char *key = NULL;
 	GVariant *value = NULL;
 	bdaddr_t addr_dev = { 0 };
 	bdaddr_t addr_hci = { 0 };
 	int hci_dev_id = -1;
-
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_HFP_HF,
-		.codec = HFP_CODEC_UNDEFINED,
-	};
 
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
 		if (strcmp(key, "RemoteAddress") == 0)
@@ -232,9 +228,9 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 		else if (strcmp(key, "Type") == 0) {
 			const char *type = g_variant_get_string(value, NULL);
 			if (strcmp(type, OFONO_AUDIO_CARD_TYPE_AG) == 0)
-				ttype.profile = BA_TRANSPORT_PROFILE_HFP_AG;
+				profile = BA_TRANSPORT_PROFILE_HFP_AG;
 			else if (strcmp(type, OFONO_AUDIO_CARD_TYPE_HF) == 0)
-				ttype.profile = BA_TRANSPORT_PROFILE_HFP_HF;
+				profile = BA_TRANSPORT_PROFILE_HFP_HF;
 			else {
 				error("Unsupported profile type: %s", type);
 				goto fail;
@@ -266,7 +262,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	ocd->bt_addr = addr_dev;
 	snprintf(ocd->transport_path, sizeof(ocd->transport_path), "/ofono%s", card);
 
-	if ((t = ofono_transport_new(d, ttype, dbus_sender, ocd->transport_path)) == NULL) {
+	if ((t = ofono_transport_new(d, profile, dbus_sender, ocd->transport_path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}

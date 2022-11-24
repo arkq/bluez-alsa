@@ -423,7 +423,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 	struct ba_transport *t = th->t;
 	struct ba_transport_pcm *t_pcm = NULL;
 
-	switch (t->type.profile) {
+	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		t_pcm = &t->a2dp.pcm;
 		break;
@@ -557,7 +557,7 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 	struct ba_transport_pcm *t_src_pcm = NULL;
 	struct ba_transport_pcm *t_snk_pcm = NULL;
 
-	switch (t_src->type.profile) {
+	switch (t_src->profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		t_src_pcm = &t_src->a2dp.pcm;
 		break;
@@ -576,7 +576,7 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 		g_assert_not_reached();
 	}
 
-	switch (t_snk->type.profile) {
+	switch (t_snk->profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		t_snk_pcm = &t_snk->a2dp.pcm_bc;
 		break;
@@ -656,7 +656,7 @@ static int test_transport_release_bt_a2dp(struct ba_transport *t) {
 
 static struct ba_transport *test_transport_new_a2dp(
 		struct ba_device *device,
-		struct ba_transport_type type,
+		enum ba_transport_profile profile,
 		const char *dbus_path,
 		const struct a2dp_codec *codec,
 		const void *configuration) {
@@ -664,7 +664,7 @@ static struct ba_transport *test_transport_new_a2dp(
 	if (input_bt_file != NULL)
 		configuration = &btd->a2dp_configuration;
 #endif
-	struct ba_transport *t = ba_transport_new_a2dp(device, type, ":test",
+	struct ba_transport *t = ba_transport_new_a2dp(device, profile, ":test",
 			dbus_path, codec, configuration);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release_bt_a2dp;
@@ -673,9 +673,9 @@ static struct ba_transport *test_transport_new_a2dp(
 
 static struct ba_transport *test_transport_new_sco(
 		struct ba_device *device,
-		struct ba_transport_type type,
+		enum ba_transport_profile profile,
 		const char *dbus_path) {
-	struct ba_transport *t = ba_transport_new_sco(device, type, ":test",
+	struct ba_transport *t = ba_transport_new_sco(device, profile, ":test",
 			dbus_path, -1);
 	t->acquire = test_transport_acquire;
 	return t;
@@ -683,14 +683,12 @@ static struct ba_transport *test_transport_new_sco(
 
 START_TEST(test_a2dp_sbc) {
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_SBC };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/sbc",
-			&a2dp_sbc_source, &config_sbc_44100_stereo);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/sbc",
-			&a2dp_sbc_sink, &config_sbc_44100_stereo);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
+			&config_sbc_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
+			&config_sbc_44100_stereo);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
@@ -713,14 +711,12 @@ START_TEST(test_a2dp_mp3) {
 
 	config_mp3_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_MPEG12 };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/mp3",
-			&a2dp_mpeg_source, &config_mp3_44100_stereo);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/mp3",
-			&a2dp_mpeg_sink, &config_mp3_44100_stereo);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/mp3", &a2dp_mpeg_source,
+			&config_mp3_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/mp3", &a2dp_mpeg_sink,
+			&config_mp3_44100_stereo);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
@@ -746,14 +742,12 @@ START_TEST(test_a2dp_aac) {
 	config.aac_prefer_vbr = enable_vbr_mode;
 	config_aac_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_MPEG24 };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/aac",
-			&a2dp_aac_source, &config_aac_44100_stereo);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/aac",
-			&a2dp_aac_sink, &config_aac_44100_stereo);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aac", &a2dp_aac_source,
+			&config_aac_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aac", &a2dp_aac_sink,
+			&config_aac_44100_stereo);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 450;
@@ -775,14 +769,12 @@ START_TEST(test_a2dp_aac) {
 #if ENABLE_APTX
 START_TEST(test_a2dp_aptx) {
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_VENDOR_APTX };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/aptx",
-			&a2dp_aptx_source, &config_aptx_44100_stereo);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/aptx",
-			&a2dp_aptx_sink, &config_aptx_44100_stereo);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aptx", &a2dp_aptx_source,
+			&config_aptx_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aptx", &a2dp_aptx_sink,
+			&config_aptx_44100_stereo);
 
 	if (aging_duration) {
 #if HAVE_APTX_DECODE
@@ -808,14 +800,12 @@ START_TEST(test_a2dp_aptx) {
 #if ENABLE_APTX_HD
 START_TEST(test_a2dp_aptx_hd) {
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_VENDOR_APTX_HD };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/aptxhd",
-			&a2dp_aptx_hd_source, &config_aptx_hd_44100_stereo);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/aptxhd",
-			&a2dp_aptx_hd_sink, &config_aptx_hd_44100_stereo);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aptxhd", &a2dp_aptx_hd_source,
+			&config_aptx_hd_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aptxhd", &a2dp_aptx_hd_sink,
+			&config_aptx_hd_44100_stereo);
 
 	if (aging_duration) {
 #if HAVE_APTX_HD_DECODE
@@ -841,14 +831,12 @@ START_TEST(test_a2dp_aptx_hd) {
 #if ENABLE_FASTSTREAM
 START_TEST(test_a2dp_faststream) {
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_VENDOR_FASTSTREAM };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/faststream",
-			&a2dp_faststream_source, &config_faststream_44100_16000);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/faststream",
-			&a2dp_faststream_sink, &config_faststream_44100_16000);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/faststream", &a2dp_faststream_source,
+			&config_faststream_44100_16000);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/faststream", &a2dp_faststream_sink,
+			&config_faststream_44100_16000);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
@@ -873,14 +861,12 @@ START_TEST(test_a2dp_faststream) {
 #if ENABLE_LC3PLUS
 START_TEST(test_a2dp_lc3plus) {
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_VENDOR_LC3PLUS };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/lc3plus",
-			&a2dp_lc3plus_source, &config_lc3plus_48000_stereo);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/lc3plus",
-			&a2dp_lc3plus_sink, &config_lc3plus_48000_stereo);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lc3plus", &a2dp_lc3plus_source,
+			&config_lc3plus_48000_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lc3plus", &a2dp_lc3plus_sink,
+			&config_lc3plus_48000_stereo);
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
@@ -907,14 +893,12 @@ START_TEST(test_a2dp_ldac) {
 	config.ldac_abr = true;
 	config.ldac_eqmid = LDACBT_EQMID_HQ;
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
-		.codec = A2DP_CODEC_VENDOR_LDAC };
-	struct ba_transport *t1 = test_transport_new_a2dp(device1, ttype, "/path/ldac",
-			&a2dp_ldac_source, &config_ldac_44100_stereo);
-	ttype.profile = BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t2 = test_transport_new_a2dp(device2, ttype, "/path/ldac",
-			&a2dp_ldac_sink, &config_ldac_44100_stereo);
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/ldac", &a2dp_ldac_source,
+			&config_ldac_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/ldac", &a2dp_ldac_sink,
+			&config_ldac_44100_stereo);
 
 	if (aging_duration) {
 #if HAVE_LDAC_DECODE
@@ -941,10 +925,10 @@ START_TEST(test_a2dp_ldac) {
 
 START_TEST(test_sco_cvsd) {
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_HSP_AG };
-	struct ba_transport *t1 = test_transport_new_sco(device1, ttype, "/path/sco/cvsd");
-	struct ba_transport *t2 = test_transport_new_sco(device2, ttype, "/path/sco/cvsd");
+	struct ba_transport *t1 = test_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HSP_AG, "/path/sco/cvsd");
+	struct ba_transport *t2 = test_transport_new_sco(device2,
+			BA_TRANSPORT_PROFILE_HSP_AG, "/path/sco/cvsd");
 
 	debug("\n\n*** SCO codec: CVSD ***");
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 48;
@@ -962,11 +946,12 @@ START_TEST(test_sco_msbc) {
 	adapter->hci.features[2] = LMP_TRSP_SCO;
 	adapter->hci.features[3] = LMP_ESCO;
 
-	struct ba_transport_type ttype = {
-		.profile = BA_TRANSPORT_PROFILE_HFP_AG,
-		.codec = HFP_CODEC_MSBC };
-	struct ba_transport *t1 = test_transport_new_sco(device1, ttype, "/path/sco/msbc");
-	struct ba_transport *t2 = test_transport_new_sco(device2, ttype, "/path/sco/msbc");
+	struct ba_transport *t1 = test_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/msbc");
+	ba_transport_set_codec(t1, HFP_CODEC_MSBC);
+	struct ba_transport *t2 = test_transport_new_sco(device2,
+			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/msbc");
+	ba_transport_set_codec(t2, HFP_CODEC_MSBC);
 
 	debug("\n\n*** SCO codec: mSBC ***");
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;

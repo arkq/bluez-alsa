@@ -597,14 +597,14 @@ fail_init:
 
 int a2dp_mpeg_transport_start(struct ba_transport *t) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 #if ENABLE_MP3LAME
 		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
 			return ba_transport_thread_create(&t->thread_enc, a2dp_mp3_enc_thread, "ba-a2dp-mp3", true);
 #endif
 	}
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 #if ENABLE_MPG123
 		return ba_transport_thread_create(&t->thread_dec, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg", true);
 #elif ENABLE_MP3LAME

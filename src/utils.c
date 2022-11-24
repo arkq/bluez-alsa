@@ -65,97 +65,6 @@ bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
 }
 
 /**
- * Get BlueZ D-Bus object path for given transport type.
- *
- * @param type Transport type structure.
- * @return This function returns BlueZ D-Bus object path. */
-const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type) {
-	switch (type.profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		switch (type.codec) {
-		case A2DP_CODEC_SBC:
-			return "/A2DP/SBC/source";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG/source";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "/A2DP/AAC/source";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/aptX/source";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/aptXHD/source";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "/A2DP/FastStream/source";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "/A2DP/LC3plus/source";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "/A2DP/LDAC/source";
-#endif
-		default:
-			error("Unsupported A2DP codec: %#x", type.codec);
-			g_assert_not_reached();
-		}
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		switch (type.codec) {
-		case A2DP_CODEC_SBC:
-			return "/A2DP/SBC/sink";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG/sink";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "/A2DP/AAC/sink";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/aptX/sink";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/aptXHD/sink";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "/A2DP/FastStream/sink";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "/A2DP/LC3plus/sink";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "/A2DP/LDAC/sink";
-#endif
-		default:
-			error("Unsupported A2DP codec: %#x", type.codec);
-			g_assert_not_reached();
-		}
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-		return "/HFP/HandsFree";
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-		return "/HFP/AudioGateway";
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		return "/HSP/Headset";
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		return "/HSP/AudioGateway";
-	}
-	return "/";
-}
-
-/**
  * Sanitize D-Bus object path.
  *
  * @param path D-Bus object path.
@@ -214,9 +123,11 @@ gboolean g_bdaddr_equal(const void *v1, const void *v2) {
  * @param t Transport structure.
  * @return Human-readable string. */
 const char *ba_transport_debug_name(const struct ba_transport *t) {
-	const uint16_t profile = t->type.profile;
-	const uint16_t codec_id = t->type.codec;
+	const enum ba_transport_profile profile = t->profile;
+	const uint16_t codec_id = t->codec_id;
 	switch (profile) {
+	case BA_TRANSPORT_PROFILE_NONE:
+		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		switch (codec_id) {
 		case A2DP_CODEC_SBC:

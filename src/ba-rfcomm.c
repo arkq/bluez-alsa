@@ -861,7 +861,7 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 	}
 
 	/* for AG request codec selection using unsolicited response code */
-	if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_AG) {
+	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG) {
 		sprintf(tmp, "%d", codec);
 		if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp) == -1)
 			return -1;
@@ -888,13 +888,13 @@ static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 	char tmp[32];
 
 	/* for HFP-AG return battery level indicator if reporting is enabled */
-	if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
 			r->hfp_cmer[3] > 0 && r->hfp_ind_state[HFP_IND_BATTCHG]) {
 		sprintf(tmp, "%d,%d", HFP_IND_BATTCHG, (config.battery.level + 1) / 17);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", tmp);
 	}
 
-	if (t_sco->type.profile & BA_TRANSPORT_PROFILE_MASK_HF &&
+	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HF &&
 			t_sco->d->xapl.features & (XAPL_FEATURE_BATTERY | XAPL_FEATURE_DOCKING)) {
 		sprintf(tmp, "2,1,%d,2,0", (config.battery.level + 1) / 10);
 		if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+IPHONEACCEV", tmp) == -1)
@@ -922,7 +922,7 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 	debug("Updating microphone gain: %d", gain);
 
 	/* for AG return unsolicited response code */
-	if (t_sco->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 		sprintf(tmp, "+VGM=%d", gain);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
 	}
@@ -952,7 +952,7 @@ static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 	debug("Updating speaker gain: %d", gain);
 
 	/* for AG return unsolicited response code */
-	if (t_sco->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 		sprintf(tmp, "+VGS=%d", gain);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
 	}
@@ -1048,12 +1048,12 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 				goto ioerror;
 			}
 
-			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_MASK_HSP)
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HSP)
 				/* There is not logic behind the HSP connection,
 				 * simply set status as connected. */
 				rfcomm_set_hfp_state(r, HFP_SLC_CONNECTED);
 
-			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_HF)
 				switch (r->state) {
 				case HFP_DISCONNECTED:
 					sprintf(tmp, "%u", ba_adapter_get_hfp_features_hf(t_sco->d->a));
@@ -1114,7 +1114,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 				case HFP_SLC_CONNECTED:
 					/* If codec was selected during the SLC establishment,
 					 * notify BlueALSA D-Bus clients about the change. */
-					if (t_sco->type.codec != HFP_CODEC_UNDEFINED) {
+					if (t_sco->codec_id != HFP_CODEC_UNDEFINED) {
 						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
@@ -1122,7 +1122,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					}
 				}
 
-			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG)
 				switch (r->state) {
 				case HFP_DISCONNECTED:
 				case HFP_SLC_BRSF_SET:
@@ -1139,7 +1139,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 				case HFP_SLC_CONNECTED:
 					/* If codec was selected during the SLC establishment,
 					 * notify BlueALSA D-Bus clients about the change. */
-					if (t_sco->type.codec != HFP_CODEC_UNDEFINED) {
+					if (t_sco->codec_id != HFP_CODEC_UNDEFINED) {
 						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
@@ -1150,7 +1150,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 		}
 		else if (r->setup != HFP_SETUP_COMPLETE) {
 
-			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HSP_AG)
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_HSP_AG)
 				/* We are not making any initialization setup with
 				 * HSP AG. Simply mark setup as completed. */
 				r->setup = HFP_SETUP_COMPLETE;
@@ -1158,7 +1158,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 			/* Notify audio gateway about our initial setup. This setup
 			 * is dedicated for HSP and HFP, because both profiles have
 			 * volume gain control and Apple accessory extension. */
-			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_MASK_HF)
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HF)
 				switch (r->setup) {
 				case HFP_SETUP_GAIN_MIC:
 					if (rfcomm_notify_volume_change_mic(r, true) == -1)
@@ -1191,15 +1191,15 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 
 			/* If HFP transport codec is already selected (e.g. device
 			 * does not support mSBC) mark setup as completed. */
-			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-					t_sco->type.codec != HFP_CODEC_UNDEFINED)
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+					t_sco->codec_id != HFP_CODEC_UNDEFINED)
 				r->setup = HFP_SETUP_COMPLETE;
 
 #if ENABLE_MSBC
 			/* Select HFP transport codec. Please note, that this setup
 			 * stage will be performed when the connection becomes idle. */
-			if (t_sco->type.profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-					t_sco->type.codec == HFP_CODEC_UNDEFINED &&
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
+					t_sco->codec_id == HFP_CODEC_UNDEFINED &&
 					r->idle) {
 				struct {
 					uint16_t codec_id;

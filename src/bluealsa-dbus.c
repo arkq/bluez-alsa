@@ -176,19 +176,23 @@ GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
 }
 
 static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+	switch (t->profile) {
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_A2DP_SINK);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_AG)
+	case BA_TRANSPORT_PROFILE_HFP_AG:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HFP_AG);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_HFP_HF)
+	case BA_TRANSPORT_PROFILE_HFP_HF:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HFP_HF);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_AG)
+	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_AG);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_HSP_HS)
+	case BA_TRANSPORT_PROFILE_HSP_HS:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_HS);
-	error("Unsupported transport type: %#x", t->type.profile);
+	case BA_TRANSPORT_PROFILE_NONE:
+		break;
+	}
+	error("Unsupported transport type: %#x", t->profile);
 	g_assert_not_reached();
 	return NULL;
 }
@@ -218,10 +222,10 @@ static GVariant *ba_variant_new_pcm_sampling(const struct ba_transport_pcm *pcm)
 static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	const char *codec = NULL;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		codec = a2dp_codecs_codec_id_to_string(t->type.codec);
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		codec = hfp_codec_id_to_string(t->type.codec);
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		codec = a2dp_codecs_codec_id_to_string(t->codec_id);
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		codec = hfp_codec_id_to_string(t->codec_id);
 	if (codec != NULL)
 		return g_variant_new_string(codec);
 	return NULL;
@@ -229,7 +233,7 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 
 static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->a2dp.configuration,
 				t->a2dp.codec->capabilities_size, sizeof(uint8_t));
 	return NULL;
@@ -445,8 +449,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	pthread_mutex_lock(&pcm->mutex);
 
 	/* preliminary check whether HFP codes is selected */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
-			t->type.codec == HFP_CODEC_UNDEFINED) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+			t->codec_id == HFP_CODEC_UNDEFINED) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
 		goto fail;
@@ -478,8 +482,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	 * headset will not run voltage converter (power-on its circuit board) until
 	 * the transport is acquired in order to extend battery life. For profiles
 	 * like A2DP Sink and HFP headset, we will wait for incoming connection. */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
-			t->type.profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
+			t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 
 		enum ba_transport_thread_state state;
 
@@ -548,7 +552,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	GVariantBuilder codecs;
 	g_variant_builder_init(&codecs, G_VARIANT_TYPE("a{sa{sv}}"));
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint16_t), 16);
 		size_t i;
@@ -586,7 +590,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		g_array_free(codec_ids, TRUE);
 
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 
 		if (config.hfp.codecs.cvsd)
 			g_variant_builder_add(&codecs, "{sa{sv}}",
@@ -643,7 +647,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		value = NULL;
 	}
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* support for Stream End-Points not enabled in BlueZ */
 		if (t->d->seps == NULL) {

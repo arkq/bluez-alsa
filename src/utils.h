@@ -27,7 +27,6 @@
 
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);
-const char *g_dbus_transport_type_to_bluez_object_path(struct ba_transport_type type);
 
 char *g_variant_sanitize_object_path(char *path);
 bool g_variant_validate_value(GVariant *value, const GVariantType *type,

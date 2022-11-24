@@ -103,7 +103,9 @@ struct bt_dump *bt_dump_create(
 	const void *a2dp_configuration = NULL;
 	size_t a2dp_configuration_size = 0;
 
-	switch (t->type.profile) {
+	switch (t->profile) {
+	case BA_TRANSPORT_PROFILE_NONE:
+		break;
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		a2dp_configuration = &t->a2dp.configuration;
 		a2dp_configuration_size = t->a2dp.codec->capabilities_size;
@@ -125,8 +127,8 @@ struct bt_dump *bt_dump_create(
 	unsigned int mode_ = mode;
 	fprintf(btd->file, "BA.dump-%1x.%1x.", BT_DUMP_CURRENT_VERSION, mode_);
 
-	btd->transport_codec_id = t->type.codec;
-	uint16_t id = htobe16(t->type.codec);
+	btd->transport_codec_id = t->codec_id;
+	uint16_t id = htobe16(t->codec_id);
 	if (bt_dump_write(btd, &id, sizeof(id)) == -1)
 		goto fail;
 
@@ -198,24 +200,24 @@ static const char *transport_to_fname(const struct ba_transport *t) {
 
 	const char *profile = NULL;
 	const char *codec = NULL;
-	switch (t->type.profile) {
+	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "none";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		profile = "a2dp-source";
-		codec = a2dp_codecs_codec_id_to_string(t->type.codec);
+		codec = a2dp_codecs_codec_id_to_string(t->codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		profile = "a2dp-sink";
-		codec = a2dp_codecs_codec_id_to_string(t->type.codec);
+		codec = a2dp_codecs_codec_id_to_string(t->codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 		profile = "hfp-ag";
-		codec = hfp_codec_id_to_string(t->type.codec);
+		codec = hfp_codec_id_to_string(t->codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		profile = "hfp-hf";
-		codec = hfp_codec_id_to_string(t->type.codec);
+		codec = hfp_codec_id_to_string(t->codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return "hsp-ag-cvsd";
@@ -240,7 +242,7 @@ void *bt_dump_io_thread(struct ba_transport_thread *th) {
 	ffb_t bt = { 0 };
 
 	struct bt_dump *btd = NULL;
-	char fname[128];
+	char fname[256];
 
 	snprintf(fname, sizeof(fname), "/tmp/bluealsa-%s.btd",
 			transport_to_fname(t));

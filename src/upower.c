@@ -82,7 +82,7 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 				pthread_mutex_lock(&d->transports_mutex);
 				g_hash_table_iter_init(&iter_t, d->transports);
 				while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t))
-					if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+					if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 							t->sco.rfcomm != NULL)
 						ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_BATTERY);
 				pthread_mutex_unlock(&d->transports_mutex);

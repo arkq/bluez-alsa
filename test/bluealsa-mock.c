@@ -159,7 +159,7 @@ static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 	struct ba_transport_pcm *t_a2dp_pcm = &t->a2dp.pcm;
 
 	/* use back-channel PCM for bidirectional codecs */
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		t_a2dp_pcm = &t->a2dp.pcm_bc;
 
 	const unsigned int channels = t_a2dp_pcm->channels;
@@ -248,12 +248,12 @@ static void *mock_bt_dump_thread(void *userdata) {
 
 static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 
-	if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 		g_thread_unref(g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(bt_fd)));
 		assert(ba_transport_start(t) == 0);
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
-		switch (t->type.codec) {
+	else if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
+		switch (t->codec_id) {
 		case A2DP_CODEC_SBC:
 			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_dec, "ba-a2dp-sbc", true) == 0);
 			break;
@@ -269,7 +269,7 @@ static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 #endif
 		}
 	}
-	else if (t->type.profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		assert(ba_transport_start(t) == 0);
 	}
 
@@ -313,17 +313,14 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 	usleep(fuzzing_ms * 1000);
 
 	struct ba_device *d = mock_device_new(a, device_btmac);
-	struct ba_transport_type type = { profile, codec->codec_id };
 	const char *owner = g_dbus_connection_get_unique_name(config.dbus);
-	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
-
-	struct ba_transport *t = ba_transport_new_a2dp(d, type, owner, path, codec, configuration);
+	struct ba_transport *t = ba_transport_new_a2dp(d, profile, owner, "/a2dp", codec, configuration);
 	t->acquire = mock_transport_acquire;
 
 	fprintf(stderr, "BLUEALSA_PCM_READY=A2DP:%s:%s\n",
-			device_btmac, a2dp_codecs_codec_id_to_string(t->type.codec));
+			device_btmac, a2dp_codecs_codec_id_to_string(t->codec_id));
 
-	if (type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
+	if (profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 		assert(ba_transport_acquire(t) == 0);
 
 	ba_device_unref(d);
@@ -364,20 +361,18 @@ static void *mock_transport_rfcomm_thread(void *userdata) {
 }
 
 static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
-		uint16_t profile, uint16_t codec) {
+		uint16_t profile) {
 
 	usleep(fuzzing_ms * 1000);
 
 	struct ba_device *d = mock_device_new(a, device_btmac);
-	struct ba_transport_type type = { profile, codec };
 	const char *owner = g_dbus_connection_get_unique_name(config.dbus);
-	const char *path = g_dbus_transport_type_to_bluez_object_path(type);
 
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
 	g_thread_unref(g_thread_new(NULL, mock_transport_rfcomm_thread, GINT_TO_POINTER(fds[1])));
 
-	struct ba_transport *t = ba_transport_new_sco(d, type, owner, path, fds[0]);
+	struct ba_transport *t = ba_transport_new_sco(d, profile, owner, "/sco", fds[0]);
 	t->sco.rfcomm->state = HFP_SLC_CONNECTED;
 #if ENABLE_MSBC
 	t->sco.rfcomm->codecs.msbc = true;
@@ -385,7 +380,7 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 	t->acquire = mock_transport_acquire;
 
 	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n",
-			device_btmac, hfp_codec_id_to_string(t->type.codec));
+			device_btmac, hfp_codec_id_to_string(t->codec_id));
 
 	ba_device_unref(d);
 	return t;
@@ -523,10 +518,10 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 
 		struct ba_transport *t;
 		g_ptr_array_add(tt, t = mock_transport_new_sco("12:34:56:78:9A:BC",
-					BA_TRANSPORT_PROFILE_HFP_AG, HFP_CODEC_UNDEFINED));
+					BA_TRANSPORT_PROFILE_HFP_AG));
 
 		if (fuzzing_ms) {
-			t->type.codec = HFP_CODEC_CVSD;
+			t->codec_id = HFP_CODEC_CVSD;
 			bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
 					BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 			bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
@@ -537,7 +532,7 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 
 	if (config.profile.hsp_ag) {
 		g_ptr_array_add(tt, mock_transport_new_sco("23:45:67:89:AB:CD",
-					BA_TRANSPORT_PROFILE_HSP_AG, HFP_CODEC_UNDEFINED));
+					BA_TRANSPORT_PROFILE_HSP_AG));
 	}
 
 	g_mutex_lock(&timeout_mutex);
