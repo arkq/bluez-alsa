@@ -225,6 +225,7 @@ START_TEST(dump_capture) {
 	ck_assert_int_eq(snd_pcm_dump(pcm, output), 0);
 
 	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+	ck_assert_int_eq(snd_output_close(output), 0);
 
 } END_TEST
 
@@ -458,6 +459,7 @@ START_TEST(dump_playback) {
 	dumprv(snd_pcm_hw_params_can_sync_start(params));
 
 	ck_assert_int_eq(test_pcm_close(pid, pcm), 0);
+	ck_assert_int_eq(snd_output_close(output), 0);
 
 } END_TEST
 
@@ -1011,6 +1013,10 @@ int main(int argc, char *argv[], char *envp[]) {
 		{ 0, 0, 0, 0 },
 	};
 
+	bool run_capture = false;
+	bool run_playback = false;
+	bool run_unplug = false;
+
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -1039,45 +1045,54 @@ int main(int argc, char *argv[], char *envp[]) {
 	char *argv_0 = strdup(argv[0]);
 	bluealsa_mock_path = dirname(argv_0);
 
-	Suite *s = suite_create(__FILE__);
-	SRunner *sr = srunner_create(s);
-
-	TCase *tc_capture = tcase_create("capture");
-	tcase_add_test(tc_capture, dump_capture);
-	tcase_add_test(tc_capture, test_capture_start);
-	tcase_add_test(tc_capture, test_capture_pause);
-	tcase_add_test(tc_capture, test_capture_overrun);
-	tcase_add_test(tc_capture, test_capture_poll);
-
-	TCase *tc_playback = tcase_create("playback");
-	tcase_add_test(tc_playback, dump_playback);
-	tcase_add_test(tc_playback, ba_test_playback_hw_constraints);
-	tcase_add_test(tc_playback, ba_test_playback_no_such_device);
-	tcase_add_test(tc_playback, ba_test_playback_extra_setup);
-	tcase_add_test(tc_playback, test_playback_hw_set_free);
-	tcase_add_test(tc_playback, test_playback_start);
-	tcase_add_test(tc_playback, test_playback_drain);
-	tcase_add_test(tc_playback, test_playback_pause);
-	tcase_add_test(tc_playback, test_playback_reset);
-	tcase_add_test(tc_playback, test_playback_underrun);
-	tcase_add_test(tc_playback, ba_test_playback_device_unplug);
-
-	TCase *tc_unplug = tcase_create("unplug");
-	tcase_add_test(tc_unplug, reference_playback_device_unplug);
-
 	if (argc == optind) {
-		suite_add_tcase(s, tc_capture);
-		suite_add_tcase(s, tc_playback);
+		run_capture = true;
+		run_playback = true;
 	}
 	else {
 		for (; optind < argc; optind++) {
 			if (strcmp(argv[optind], "capture") == 0)
-				suite_add_tcase(s, tc_capture);
+				run_capture = true;
 			else if (strcmp(argv[optind], "playback") == 0)
-				suite_add_tcase(s, tc_playback);
+				run_playback = true;
 			else if (strcmp(argv[optind], "unplug") == 0)
-				suite_add_tcase(s, tc_unplug);
+				run_unplug = true;
 		}
+	}
+
+	Suite *s = suite_create(__FILE__);
+	SRunner *sr = srunner_create(s);
+
+	if (run_capture) {
+		TCase *tc = tcase_create("capture");
+		tcase_add_test(tc, dump_capture);
+		tcase_add_test(tc, test_capture_start);
+		tcase_add_test(tc, test_capture_pause);
+		tcase_add_test(tc, test_capture_overrun);
+		tcase_add_test(tc, test_capture_poll);
+		suite_add_tcase(s, tc);
+	}
+
+	if (run_playback) {
+		TCase *tc = tcase_create("playback");
+		tcase_add_test(tc, dump_playback);
+		tcase_add_test(tc, ba_test_playback_hw_constraints);
+		tcase_add_test(tc, ba_test_playback_no_such_device);
+		tcase_add_test(tc, ba_test_playback_extra_setup);
+		tcase_add_test(tc, test_playback_hw_set_free);
+		tcase_add_test(tc, test_playback_start);
+		tcase_add_test(tc, test_playback_drain);
+		tcase_add_test(tc, test_playback_pause);
+		tcase_add_test(tc, test_playback_reset);
+		tcase_add_test(tc, test_playback_underrun);
+		tcase_add_test(tc, ba_test_playback_device_unplug);
+		suite_add_tcase(s, tc);
+	}
+
+	if (run_unplug) {
+		TCase *tc = tcase_create("unplug");
+		tcase_add_test(tc, reference_playback_device_unplug);
+		suite_add_tcase(s, tc);
 	}
 
 	srunner_run_all(sr, CK_ENV);

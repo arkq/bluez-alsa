@@ -624,7 +624,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	a2dp_t a2dp_configuration = {};
 	size_t a2dp_configuration_size = 0;
 
-	g_variant_get(params, "(sa{sv})", &codec_name, &properties);
+	g_variant_get(params, "(&sa{sv})", &codec_name, &properties);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 
 		if (strcmp(property, "Configuration") == 0 &&

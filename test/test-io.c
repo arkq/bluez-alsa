@@ -1104,7 +1104,7 @@ int main(int argc, char *argv[]) {
 
 	suite_add_tcase(s, tc);
 
-	tcase_set_timeout(tc, aging_duration + 5);
+	tcase_set_timeout(tc, aging_duration + 10);
 	if (input_bt_file != NULL || input_pcm_file != NULL)
 		tcase_set_timeout(tc, aging_duration + 3600);
 

@@ -117,6 +117,7 @@ START_TEST(test_controls) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "23:45:67:89:AB:CD A2DP Capture Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "23:45:67:89:AB:CD A2DP Capture Volume");
 
+	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
 } END_TEST
@@ -158,6 +159,7 @@ START_TEST(test_controls_battery) {
 	/* battery control element is read-only */
 	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), -EINVAL);
 
+	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
 } END_TEST
@@ -236,6 +238,7 @@ START_TEST(test_controls_extended) {
 	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), 1);
 #endif
 
+	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
 } END_TEST
@@ -273,6 +276,7 @@ START_TEST(test_bidirectional_a2dp) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB:C A2DP-SNK Capture Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:C A2DP-SNK Capture Volume");
 
+	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
 #endif
@@ -307,6 +311,7 @@ START_TEST(test_device_name_duplicates) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "Long Bluetooth Devi #2 A2DP Playback Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth Devi #2 A2DP Playback Volume");
 
+	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
 } END_TEST
@@ -410,6 +415,7 @@ START_TEST(test_single_device) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "A2DP Capture Switch");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "A2DP Capture Volume");
 
+	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
 
 } END_TEST
