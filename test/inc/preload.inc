@@ -18,13 +18,22 @@
 
 #include "shared/defs.h"
 
-#define LDPRELOAD "LD_PRELOAD"
+#define LD_PRELOAD           "LD_PRELOAD"
+#define LD_PRELOAD_SANITIZER "LD_PRELOAD_SANITIZER"
+
 int preload(int argc, char * const argv[], char * const envp[], const char *filename) {
 	(void)argc;
 
-	char *tmp;
-	if ((tmp = getenv(LDPRELOAD)) != NULL &&
-			strstr(tmp, filename) != NULL)
+	const char *env_preload;
+	if ((env_preload = getenv(LD_PRELOAD)) == NULL)
+		env_preload = "";
+
+	const char *env_preload_sanitizer;
+	if ((env_preload_sanitizer = getenv(LD_PRELOAD_SANITIZER)) == NULL)
+		env_preload_sanitizer = "";
+
+	/* if required library is already preloaded, do nothing */
+	if (strstr(env_preload, filename) != NULL)
 		return 0;
 
 	fprintf(stderr, "EXECV PRELOAD: %s\n", filename);
@@ -34,8 +43,8 @@ int preload(int argc, char * const argv[], char * const envp[], const char *file
 	char *envp2[128] = { preload, NULL };
 
 	char *dir = dirname(strncpy(app, argv[0], sizeof(app) - 1));
-	snprintf(preload, sizeof(preload), "%s=%s/%s:%s",
-			LDPRELOAD, dir, filename, tmp != NULL ? tmp : "");
+	snprintf(preload, sizeof(preload), "%s=%s:%s/%s:%s",
+			LD_PRELOAD, env_preload_sanitizer, dir, filename, env_preload);
 
 	size_t i = 1, j = 0;
 	while (i < ARRAYSIZE(envp2) - 1 && envp[j] != NULL)

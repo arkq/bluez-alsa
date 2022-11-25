@@ -62,21 +62,21 @@ void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
 void *sco_dec_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); return 0; }
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)pcm, mask); }
+	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask; }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); }
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
 struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
-	debug("%s: %p", __func__, (void *)sco); (void)fd; return NULL; }
+	debug("%s: %p", __func__, (void *)sco); (void)sco; (void)fd; return NULL; }
 void ba_rfcomm_destroy(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); }
+	debug("%s: %p", __func__, (void *)r); (void)r; }
 int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
-	debug("%s: %p: %#x", __func__, (void *)r, sig); return 0; }
+	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig; return 0; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
-	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
-	(void)error; return false; }
+	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
+	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
 
 START_TEST(test_ba_adapter) {
 

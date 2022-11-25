@@ -27,13 +27,11 @@ jobs:
           check \
           libasound2-dev \
           libbluetooth-dev \
-          libbsd-dev \
           libdbus-1-dev \
           libfdk-aac-dev \
           libglib2.0-dev \
           libmp3lame-dev \
           libmpg123-dev \
-          libncurses5-dev \
           libreadline-dev \
           libsbc-dev \
           libspandsp-dev \
@@ -51,13 +49,62 @@ jobs:
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build
-      run: |
-        make CFLAGS="-Wall -Wextra -Werror"
-        make check TESTS=
-    - name: Run Test
-      working-directory: ${{ github.workspace }}/build
-      run: make check
-    - name: Show Test Log
+      run: make check CFLAGS="-Wall -Wextra -Werror" TESTS=
+    - name: Run Tests
+      working-directory: ${{ github.workspace }}/build/test
+      run: make check-TESTS
+    - name: Show Tests Log
       if: ${{ always() }}
+      working-directory: ${{ github.workspace }}/build/test
+      run: find -name '*.log' ! -name test-suite.log -exec tail -n +1 {} +
+
+  sanitize:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install --yes --quiet --no-install-recommends \
+          check \
+          libasound2-dev \
+          libbluetooth-dev \
+          libdbus-1-dev \
+          libfdk-aac-dev \
+          libglib2.0-dev \
+          libmp3lame-dev \
+          libmpg123-dev \
+          libsbc-dev \
+          libspandsp-dev
+    - uses: actions/checkout@v3
+    - name: Create Build Environment
+      run: |
+        mkdir -p ${{ github.workspace }}/{build,m4}
+        autoreconf --install
+    - name: Configure GNU Automake
       working-directory: ${{ github.workspace }}/build
-      run: cat test/*.log
+      run: |
+        ${{ github.workspace }}/configure \
+          --enable-aac \
+          --enable-faststream \
+          --enable-mp3lame \
+          --enable-mpg123 \
+          --enable-msbc \
+          --enable-ofono \
+          --enable-upower \
+          --enable-test
+    - name: Build
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        make clean
+        make check CFLAGS="-g -O2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all" TESTS=
+    - name: Run Tests
+      working-directory: ${{ github.workspace }}/build/test
+      env:
+        LD_PRELOAD_SANITIZER: libasan.so.5
+      run: make check-TESTS
+    - name: Show Tests Log
+      if: ${{ always() }}
+      working-directory: ${{ github.workspace }}/build/test
+      run: find -name '*.log' ! -name test-suite.log -exec tail -n +1 {} +

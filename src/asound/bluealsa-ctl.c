@@ -740,8 +740,9 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 	}
 
-	/* Sort control elements according to our sorting rules. */
-	qsort(elem_list, count, sizeof(*elem_list), bluealsa_elem_cmp);
+	if (count > 0)
+		/* Sort control elements according to our sorting rules. */
+		qsort(elem_list, count, sizeof(*elem_list), bluealsa_elem_cmp);
 
 	/* Detect element name duplicates and annotate them with the
 	 * consecutive device ID number - make ALSA library happy. */

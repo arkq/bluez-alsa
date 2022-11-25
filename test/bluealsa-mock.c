@@ -141,13 +141,15 @@ static void mock_sigusr_handler(int sig) {
 
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
-	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
+	debug("%s: %s", __func__, current_dbus_sep_path);
+	(void)current_dbus_sep_path; (void)sep;
 	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED, "Not supported");
 	return false;
 }
 
 void bluez_battery_provider_update(struct ba_device *device) {
 	debug("%s: %p", __func__, device);
+	(void)device;
 }
 
 static void *mock_a2dp_dec(struct ba_transport_thread *th) {

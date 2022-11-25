@@ -71,26 +71,26 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	pcm->ba_dbus_exported = true;
 	return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)pcm, mask);
+	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm;
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC) {
 		pthread_mutex_lock(&transport_codec_updated_mtx);
 		transport_codec_updated_cnt++;
 		pthread_mutex_unlock(&transport_codec_updated_mtx);
 		pthread_cond_signal(&transport_codec_updated); }}
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); }
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
 int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); return 0; }
+	debug("%s: %p", __func__, (void *)r); (void)r; return 0; }
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)r, mask); }
+	debug("%s: %p %#x", __func__, (void *)r, mask); (void)r; (void)mask; }
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); }
+	debug("%s: %p", __func__, (void *)r); (void)r; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
-	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
-	(void)error; return false; }
+	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
+	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
 void bluez_battery_provider_update(struct ba_device *device) {
-	debug("%s: %p", __func__, device); }
+	debug("%s: %p", __func__, device); (void)device; }
 
 static uint16_t get_codec_id(struct ba_transport *t) {
 	pthread_mutex_lock(&t->codec_id_mtx);

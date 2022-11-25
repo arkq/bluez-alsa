@@ -71,21 +71,21 @@
 		(CHECK_MICRO_VERSION << 0 & 0x0000ff))
 
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); return 0; }
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)pcm, mask); }
+	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask; }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); }
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
 struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
-	debug("%s: %p", __func__, (void *)sco); (void)fd; return NULL; }
+	debug("%s: %p", __func__, (void *)sco); (void)sco; (void)fd; return NULL; }
 void ba_rfcomm_destroy(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); }
+	debug("%s: %p", __func__, (void *)r); (void)r; }
 int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
-	debug("%s: %p: %#x", __func__, (void *)r, sig); return 0; }
+	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig; return 0; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
-	debug("%s: %s", __func__, current_dbus_sep_path); (void)sep;
-	(void)error; return false; }
+	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
+	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
 int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
 int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
 int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
@@ -645,7 +645,7 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 }
 
 static int test_transport_acquire(struct ba_transport *t) {
-	debug("Acquire transport: %d", t->bt_fd);
+	debug("Acquire transport: %d", t->bt_fd); (void)t;
 	return 0;
 }
 
