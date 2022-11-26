@@ -60,8 +60,10 @@ struct ba_transport_pcm {
 	/* PCM stream operation mode */
 	enum ba_transport_pcm_mode mode;
 
-	/* PCM access guard */
+	/* guard PCM data updates */
 	pthread_mutex_t mutex;
+	/* updates notification */
+	pthread_cond_t cond;
 
 	/* FIFO file descriptor */
 	int fd;
@@ -79,6 +81,9 @@ struct ba_transport_pcm {
 	/* Overall PCM delay in 1/10 of millisecond, caused by
 	 * audio encoding or decoding and data transfer. */
 	unsigned int delay;
+
+	/* indicates whether FIFO buffer was synchronized */
+	bool synced;
 
 	/* internal software volume control */
 	bool soft_volume;
@@ -98,10 +103,6 @@ struct ba_transport_pcm {
 		 * pow(10, dB / 20); for muted channel it shall equal 0 */
 		double scale;
 	} volume[2];
-
-	/* data synchronization */
-	pthread_mutex_t synced_mtx;
-	pthread_cond_t synced;
 
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
@@ -138,8 +139,10 @@ struct ba_transport_thread {
 	/* backward reference to transport */
 	struct ba_transport *t;
 
-	/* guard thread structure */
+	/* guard transport thread data updates */
 	pthread_mutex_t mutex;
+	/* state/id updates notification */
+	pthread_cond_t cond;
 
 	/* current state of the thread */
 	enum ba_transport_thread_state state;
@@ -152,9 +155,6 @@ struct ba_transport_thread {
 	int bt_fd;
 	/* notification PIPE */
 	int pipe[2];
-
-	/* state/id changed notification */
-	pthread_cond_t changed;
 
 };
 

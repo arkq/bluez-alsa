@@ -496,7 +496,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 		/* wait until ready to process audio */
 		pthread_mutex_lock(&th->mutex);
 		while ((state = th->state) < BA_TRANSPORT_THREAD_STATE_RUNNING)
-			pthread_cond_wait(&th->changed, &th->mutex);
+			pthread_cond_wait(&th->cond, &th->mutex);
 		pthread_mutex_unlock(&th->mutex);
 
 		/* bail if something has gone wrong */

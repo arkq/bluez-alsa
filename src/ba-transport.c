@@ -94,8 +94,7 @@ static int transport_pcm_init(
 	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
 
 	pthread_mutex_init(&pcm->mutex, NULL);
-	pthread_mutex_init(&pcm->synced_mtx, NULL);
-	pthread_cond_init(&pcm->synced, NULL);
+	pthread_cond_init(&pcm->cond, NULL);
 
 	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
 			t->d->ba_dbus_path, transport_get_dbus_path_type(t->profile),
@@ -112,8 +111,7 @@ static void transport_pcm_free(
 	pthread_mutex_unlock(&pcm->mutex);
 
 	pthread_mutex_destroy(&pcm->mutex);
-	pthread_mutex_destroy(&pcm->synced_mtx);
-	pthread_cond_destroy(&pcm->synced);
+	pthread_cond_destroy(&pcm->cond);
 
 	if (pcm->ba_dbus_path != NULL)
 		g_free(pcm->ba_dbus_path);
@@ -164,7 +162,7 @@ static int transport_thread_init(
 	th->pipe[1] = -1;
 
 	pthread_mutex_init(&th->mutex, NULL);
-	pthread_cond_init(&th->changed, NULL);
+	pthread_cond_init(&th->cond, NULL);
 
 	if (pipe(th->pipe) == -1)
 		return -1;
@@ -198,7 +196,7 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 	 * supposed to be synchronous. */
 	if (th->state == BA_TRANSPORT_THREAD_STATE_JOINING) {
 		while (!pthread_equal(th->id, config.main_thread))
-			pthread_cond_wait(&th->changed, &th->mutex);
+			pthread_cond_wait(&th->cond, &th->mutex);
 		pthread_mutex_unlock(&th->mutex);
 		return;
 	}
@@ -230,7 +228,7 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 	pthread_mutex_unlock(&th->mutex);
 
 	/* Notify others that the thread has been terminated. */
-	pthread_cond_broadcast(&th->changed);
+	pthread_cond_broadcast(&th->cond);
 
 }
 
@@ -239,7 +237,7 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 static void transport_thread_cancel_wait(struct ba_transport_thread *th) {
 	pthread_mutex_lock(&th->mutex);
 	while (!pthread_equal(th->id, config.main_thread))
-		pthread_cond_wait(&th->changed, &th->mutex);
+		pthread_cond_wait(&th->cond, &th->mutex);
 	pthread_mutex_unlock(&th->mutex);
 }
 
@@ -254,7 +252,7 @@ static void transport_thread_free(
 	if (th->pipe[1] != -1)
 		close(th->pipe[1]);
 	pthread_mutex_destroy(&th->mutex);
-	pthread_cond_destroy(&th->changed);
+	pthread_cond_destroy(&th->cond);
 }
 
 int ba_transport_thread_set_state(
@@ -278,7 +276,7 @@ int ba_transport_thread_set_state(
 	pthread_mutex_unlock(&th->mutex);
 
 	if (!skip)
-		pthread_cond_signal(&th->changed);
+		pthread_cond_signal(&th->cond);
 
 	return 0;
 }
@@ -1498,18 +1496,17 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 	if (pthread_equal(pcm->th->id, config.main_thread))
 		return errno = ESRCH, -1;
 
-#if DEBUG
 	pthread_mutex_lock(&pcm->mutex);
+
 	debug("PCM drain: %d", pcm->fd);
-	pthread_mutex_unlock(&pcm->mutex);
-#endif
 
-	pthread_mutex_lock(&pcm->synced_mtx);
-
+	pcm->synced = false;
 	ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC);
-	pthread_cond_wait(&pcm->synced, &pcm->synced_mtx);
 
-	pthread_mutex_unlock(&pcm->synced_mtx);
+	while (!pcm->synced)
+		pthread_cond_wait(&pcm->cond, &pcm->mutex);
+
+	pthread_mutex_unlock(&pcm->mutex);
 
 	/* TODO: Asynchronous transport release.
 	 *

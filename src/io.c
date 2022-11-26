@@ -181,7 +181,7 @@ ssize_t io_pcm_read(
 				errno == EINTR)
 			continue;
 		if (ret == 0) {
-			debug("PCM has been closed: %d", fd);
+			debug("PCM client closed connection: %d", fd);
 			ba_transport_pcm_release(pcm);
 		}
 	}
@@ -237,7 +237,7 @@ ssize_t io_pcm_write(
 			case EPIPE:
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
-				debug("PCM has been closed: %d", fd);
+				debug("PCM client closed connection: %d", fd);
 				ba_transport_pcm_release(pcm);
 				ret = 0;
 				/* fall-through */
@@ -337,7 +337,10 @@ repoll:
 	/* Poll for reading with optional sync timeout. */
 	switch (poll_rv) {
 	case 0:
-		pthread_cond_signal(&pcm->synced);
+		pthread_mutex_lock(&pcm->mutex);
+		pcm->synced = true;
+		pthread_mutex_unlock(&pcm->mutex);
+		pthread_cond_signal(&pcm->cond);
 		io->timeout = -1;
 		return 0;
 	case -1:
