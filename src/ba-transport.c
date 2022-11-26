@@ -94,6 +94,7 @@ static int transport_pcm_init(
 	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
 
 	pthread_mutex_init(&pcm->mutex, NULL);
+	pthread_mutex_init(&pcm->client_mtx, NULL);
 	pthread_cond_init(&pcm->cond, NULL);
 
 	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
@@ -111,6 +112,7 @@ static void transport_pcm_free(
 	pthread_mutex_unlock(&pcm->mutex);
 
 	pthread_mutex_destroy(&pcm->mutex);
+	pthread_mutex_destroy(&pcm->client_mtx);
 	pthread_cond_destroy(&pcm->cond);
 
 	if (pcm->ba_dbus_path != NULL)
@@ -148,6 +150,48 @@ void ba_transport_pcm_volume_set(
 	const bool muted = volume->soft_mute || volume->hard_mute;
 	volume->scale = muted ? 0 : pow(10, (0.01 * volume->level) / 20);
 
+}
+
+static int ba_transport_pcms_full_lock(struct ba_transport *t) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		/* lock client mutexes first to avoid deadlock */
+		pthread_mutex_lock(&t->a2dp.pcm.client_mtx);
+		pthread_mutex_lock(&t->a2dp.pcm_bc.client_mtx);
+		/* lock PCM data mutexes */
+		pthread_mutex_lock(&t->a2dp.pcm.mutex);
+		pthread_mutex_lock(&t->a2dp.pcm_bc.mutex);
+		return 0;
+	}
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		/* lock client mutexes first to avoid deadlock */
+		pthread_mutex_lock(&t->sco.spk_pcm.client_mtx);
+		pthread_mutex_lock(&t->sco.mic_pcm.client_mtx);
+		/* lock PCM data mutexes */
+		pthread_mutex_lock(&t->sco.spk_pcm.mutex);
+		pthread_mutex_lock(&t->sco.mic_pcm.mutex);
+		return 0;
+	}
+	errno = EINVAL;
+	return -1;
+}
+
+static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		pthread_mutex_unlock(&t->a2dp.pcm.mutex);
+		pthread_mutex_unlock(&t->a2dp.pcm_bc.mutex);
+		pthread_mutex_unlock(&t->a2dp.pcm.client_mtx);
+		pthread_mutex_unlock(&t->a2dp.pcm_bc.client_mtx);
+		return 0;
+	}
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		pthread_mutex_unlock(&t->sco.spk_pcm.mutex);
+		pthread_mutex_unlock(&t->sco.mic_pcm.mutex);
+		pthread_mutex_unlock(&t->sco.spk_pcm.client_mtx);
+		pthread_mutex_unlock(&t->sco.mic_pcm.client_mtx);
+		return 0;
+	}
+	errno = EINVAL;
+	return -1;
 }
 
 static int transport_thread_init(
@@ -392,9 +436,11 @@ static void transport_threads_cancel(struct ba_transport *t) {
 
 static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 
-	/* Hold PCM locks, so no client will open a PCM in
-	 * the middle of our PCM inactivity check. */
-	ba_transport_pcms_lock(t);
+	/* Hold PCM client and data locks. The data lock is required because we
+	 * are going to check the PCM FIFO file descriptor. The client lock is
+	 * required to prevent PCM clients from opening PCM in the middle of our
+	 * inactivity check. */
+	ba_transport_pcms_full_lock(t);
 
 	/* Hold BT lock, because we are going to modify
 	 * the IO transports stopping flag. */
@@ -428,7 +474,7 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 
 final:
 	pthread_mutex_unlock(&t->bt_fd_mtx);
-	ba_transport_pcms_unlock(t);
+	ba_transport_pcms_full_unlock(t);
 
 	if (stop) {
 		transport_threads_cancel(t);
@@ -900,7 +946,7 @@ void ba_transport_destroy(struct ba_transport *t) {
 	/* stop transport IO threads */
 	ba_transport_stop(t);
 
-	ba_transport_pcms_lock(t);
+	ba_transport_pcms_full_lock(t);
 
 	/* terminate on-going PCM connections - exit PCM controllers */
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
@@ -915,7 +961,7 @@ void ba_transport_destroy(struct ba_transport *t) {
 	/* make sure that transport is released */
 	ba_transport_release(t);
 
-	ba_transport_pcms_unlock(t);
+	ba_transport_pcms_full_unlock(t);
 
 	ba_transport_unref(t);
 }
@@ -992,36 +1038,6 @@ void ba_transport_pcm_unref(struct ba_transport_pcm *pcm) {
 	ba_transport_unref(pcm->t);
 }
 
-int ba_transport_pcms_lock(struct ba_transport *t) {
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		pthread_mutex_lock(&t->a2dp.pcm.mutex);
-		pthread_mutex_lock(&t->a2dp.pcm_bc.mutex);
-		return 0;
-	}
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		pthread_mutex_lock(&t->sco.spk_pcm.mutex);
-		pthread_mutex_lock(&t->sco.mic_pcm.mutex);
-		return 0;
-	}
-	errno = EINVAL;
-	return -1;
-}
-
-int ba_transport_pcms_unlock(struct ba_transport *t) {
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		pthread_mutex_unlock(&t->a2dp.pcm.mutex);
-		pthread_mutex_unlock(&t->a2dp.pcm_bc.mutex);
-		return 0;
-	}
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		pthread_mutex_unlock(&t->sco.spk_pcm.mutex);
-		pthread_mutex_unlock(&t->sco.mic_pcm.mutex);
-		return 0;
-	}
-	errno = EINVAL;
-	return -1;
-}
-
 int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
 		const struct a2dp_sep *sep) {
@@ -1096,11 +1112,11 @@ int ba_transport_select_codec_sco(
 		/* stop transport IO threads */
 		ba_transport_stop(t);
 
-		ba_transport_pcms_lock(t);
+		ba_transport_pcms_full_lock(t);
 		/* release ongoing PCM connections */
 		ba_transport_pcm_release(&t->sco.spk_pcm);
 		ba_transport_pcm_release(&t->sco.mic_pcm);
-		ba_transport_pcms_unlock(t);
+		ba_transport_pcms_full_unlock(t);
 
 		r->codec_selection_done = false;
 		/* delegate set codec to RFCOMM thread */

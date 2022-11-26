@@ -446,17 +446,25 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	/* Prevent two (or more) clients trying to
 	 * open the same PCM at the same time. */
-	pthread_mutex_lock(&pcm->mutex);
+	pthread_mutex_lock(&pcm->client_mtx);
+
+	pthread_mutex_lock(&t->codec_id_mtx);
+	const uint16_t codec_id = t->codec_id;
+	pthread_mutex_unlock(&t->codec_id_mtx);
 
 	/* preliminary check whether HFP codes is selected */
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
-			t->codec_id == HFP_CODEC_UNDEFINED) {
+			codec_id == HFP_CODEC_UNDEFINED) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
 		goto fail;
 	}
 
-	if (pcm->fd != -1) {
+	pthread_mutex_lock(&pcm->mutex);
+	const int pcm_fd = pcm->fd;
+	pthread_mutex_unlock(&pcm->mutex);
+
+	if (pcm_fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "%s", strerror(EBUSY));
 		goto fail;
@@ -508,10 +516,12 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	}
 
+	pthread_mutex_lock(&pcm->mutex);
 	/* get correct PIPE endpoint - PIPE is unidirectional */
 	pcm->fd = pcm_fds[is_sink ? 0 : 1];
 	/* set newly opened PCM as active */
 	pcm->active = true;
+	pthread_mutex_unlock(&pcm->mutex);
 
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
 	g_io_channel_set_close_on_unref(ch, TRUE);
@@ -525,18 +535,17 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	/* notify our audio thread that the FIFO is ready */
 	ba_transport_thread_signal_send(th, BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN);
 
-	pthread_mutex_unlock(&pcm->mutex);
-
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);
 	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
 			g_variant_new("(hh)", 0, 1), fd_list);
 	g_object_unref(fd_list);
 
+	pthread_mutex_unlock(&pcm->client_mtx);
 	return;
 
 fail:
-	pthread_mutex_unlock(&pcm->mutex);
+	pthread_mutex_unlock(&pcm->client_mtx);
 	/* clean up created file descriptors */
 	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
 		if (pcm_fds[i] != -1)

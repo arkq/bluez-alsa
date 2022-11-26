@@ -104,6 +104,9 @@ struct ba_transport_pcm {
 		double scale;
 	} volume[2];
 
+	/* new PCM client mutex */
+	pthread_mutex_t client_mtx;
+
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
 	bool ba_dbus_exported;
@@ -340,9 +343,6 @@ void ba_transport_unref(struct ba_transport *t);
 
 struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm);
 void ba_transport_pcm_unref(struct ba_transport_pcm *pcm);
-
-int ba_transport_pcms_lock(struct ba_transport *t);
-int ba_transport_pcms_unlock(struct ba_transport *t);
 
 int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
