@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  MAKEFLAGS: -j8
+
 jobs:
 
   coverage:
@@ -45,6 +48,7 @@ jobs:
           --enable-msbc \
           --enable-ofono \
           --enable-upower \
+          --enable-cli \
           --enable-test \
           --with-coverage
     - name: Generate Coverage Report

@@ -634,6 +634,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_pcm_get_codecs_cb(const char *key,
 	struct ba_pcm_codec *codec = &tmp[len];
 	codecs->codecs = tmp;
 
+	memset(codec, 0, sizeof(*codec));
 	strncpy(codec->name, key, sizeof(codec->name));
 	codec->name[sizeof(codec->name) - 1] = '\0';
 

@@ -31,6 +31,11 @@ TESTS += test-msbc
 check_PROGRAMS += test-msbc
 endif
 
+if ENABLE_CLI
+TESTS += test-utils-cli
+check_PROGRAMS += test-utils-cli
+endif
+
 check_LTLIBRARIES = \
 	aloader.la
 aloader_la_LDFLAGS = \

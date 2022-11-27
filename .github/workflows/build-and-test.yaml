@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  MAKEFLAGS: -j8
+
 jobs:
 
   check:
@@ -86,6 +89,7 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: |
         ${{ github.workspace }}/configure \
+          --disable-aplay \
           --enable-aac \
           --enable-faststream \
           --enable-mp3lame \
@@ -93,6 +97,7 @@ jobs:
           --enable-msbc \
           --enable-ofono \
           --enable-upower \
+          --enable-cli \
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build
@@ -102,6 +107,7 @@ jobs:
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       env:
+        CK_DEFAULT_TIMEOUT: 15
         LD_PRELOAD_SANITIZER: libasan.so.5
       run: make check-TESTS
     - name: Show Tests Log

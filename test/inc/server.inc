@@ -92,8 +92,9 @@ static void *spawn_bluealsa_server_stderr_proxy(void *userdata) {
 	return NULL;
 }
 
-/* path with the bluealsa-mock binary */
-char *bluealsa_mock_path = ".";
+/**
+ * Full path to the bluealsa-mock executable. */
+char bluealsa_mock_path[256] = "bluealsa-mock";
 
 /**
  * Spawn bluealsa server mock.
@@ -143,9 +144,6 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 
 	va_end(ap);
 
-	char path[256];
-	sprintf(path, "%s/bluealsa-mock", bluealsa_mock_path);
-
 	int fds[2];
 	if (pipe(fds) == -1)
 		return -1;
@@ -155,7 +153,7 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 		dup2(fds[1], 2);
 		close(fds[0]);
 		close(fds[1]);
-		execv(path, argv);
+		execv(bluealsa_mock_path, argv);
 	}
 
 	close(fds[1]);

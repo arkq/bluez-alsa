@@ -1040,10 +1040,9 @@ int main(int argc, char *argv[], char *envp[]) {
 			return 1;
 		}
 
-	/* test-alsa-pcm and bluealsa-mock shall
-	 * be placed in the same directory */
 	char *argv_0 = strdup(argv[0]);
-	bluealsa_mock_path = dirname(argv_0);
+	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
+			"%s/bluealsa-mock", dirname(argv_0));
 
 	if (argc == optind) {
 		run_capture = true;
