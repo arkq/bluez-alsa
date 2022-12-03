@@ -199,16 +199,15 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(io_thread_cleanup), pcm);
 
 	sigset_t sigset;
-	sigemptyset(&sigset);
-
-	/* Block signal, which will be used for pause/resume actions. */
-	sigaddset(&sigset, SIGIO);
-	/* Block SIGPIPE, so we could receive EPIPE while writing to the pipe
-	 * whose reading end has been closed. This will allow clean playback
-	 * termination. */
-	sigaddset(&sigset, SIGPIPE);
-
-	if ((errno = pthread_sigmask(SIG_BLOCK, &sigset, NULL)) != 0) {
+	/* Block all signals in the IO thread.
+	 * Especially, we need to block SIGPIPE, so we could receive EPIPE while
+	 * writing to the pipe which reading end was closed by the server. This
+	 * will allow clean playback termination. Also, we need to block SIGIO,
+	 * which is used for pause/resume actions. The rest of the signals are
+	 * blocked because we are using thread cancellation and we do not want
+	 * any interference from signal handlers. */
+	sigfillset(&sigset);
+	if ((errno = pthread_sigmask(SIG_SETMASK, &sigset, NULL)) != 0) {
 		SNDERR("Thread signal mask error: %s", strerror(errno));
 		goto fail;
 	}

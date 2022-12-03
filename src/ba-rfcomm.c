@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1005,6 +1006,12 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(rfcomm_thread_cleanup), r);
+
+	sigset_t sigset;
+	/* See the ba_transport_thread_create() function for information
+	 * why we have to mask all signals. */
+	sigfillset(&sigset);
+	pthread_sigmask(SIG_SETMASK, &sigset, NULL);
 
 	struct ba_transport * const t_sco = r->sco;
 	struct at_reader reader = { .next = NULL };

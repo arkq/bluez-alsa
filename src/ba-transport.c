@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <math.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1575,6 +1576,7 @@ int ba_transport_thread_create(
 		bool master) {
 
 	struct ba_transport *t = th->t;
+	sigset_t sigset, oldset;
 	int ret;
 
 	th->master = master;
@@ -1586,20 +1588,35 @@ int ba_transport_thread_create(
 
 	ba_transport_ref(t);
 
+	/* Before creating a new thread, we have to block all signals (new thread
+	 * will inherit signal mask). This is required, because we are using thread
+	 * cancellation for stopping transport thread, and it seems that the
+	 * cancellation can deadlock if some signal handler, which uses POSIX API
+	 * which is a cancellation point, is called during the initial phase of the
+	 * thread cancellation. On top of that BlueALSA uses g_unix_signal_add()
+	 * for handling signals, which internally uses signal handler function which
+	 * calls write() for notifying the main loop about the signal. All that can
+	 * lead to deadlock during SIGTERM handling. */
+	sigfillset(&sigset);
+	if ((ret = pthread_sigmask(SIG_SETMASK, &sigset, &oldset)) != 0)
+		warn("Couldn't set signal mask: %s", strerror(ret));
+
 	ba_transport_thread_set_state_starting(th);
 	if ((ret = pthread_create(&th->id, NULL, PTHREAD_ROUTINE(routine), th)) != 0) {
 		error("Couldn't create transport thread: %s", strerror(ret));
 		th->state = BA_TRANSPORT_THREAD_STATE_NONE;
 		th->id = config.main_thread;
 		ba_transport_unref(t);
-		return -1;
+		goto fail;
 	}
 
 	pthread_setname_np(th->id, name);
 	debug("Created new IO thread [%s]: %s",
 			name, ba_transport_debug_name(t));
 
-	return 0;
+fail:
+	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+	return ret == 0 ? 0 : -1;
 }
 
 /**

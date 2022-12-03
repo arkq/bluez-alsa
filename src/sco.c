@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -58,6 +59,12 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sco_dispatcher_cleanup), &data);
+
+	sigset_t sigset;
+	/* See the ba_transport_thread_create() function for information
+	 * why we have to mask all signals. */
+	sigfillset(&sigset);
+	pthread_sigmask(SIG_SETMASK, &sigset, NULL);
 
 	if ((data.pfd.fd = hci_sco_open(data.a->hci.dev_id)) == -1) {
 		error("Couldn't open SCO socket: %s", strerror(errno));
