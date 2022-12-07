@@ -69,7 +69,7 @@ list-services
 list-pcms
     Print a list of BlueALSA PCM D-Bus paths, one per line.
 
-    If the *--verbose* option is given then the properties of each connected
+    If the **--verbose** option is given then the properties of each connected
     PCM are printed after each path, one per line, in the same format as the
     **info** command.
 
@@ -84,6 +84,8 @@ info *PCM_PATH*
     The list of available codecs requires BlueZ SEP support (BlueZ >= 5.52)
 
 codec *PCM_PATH* [*CODEC* [*CONFIG*]]
+    Get or set the Bluetooth codec used by the given PCM.
+
     If *CODEC* is given, change the codec to be used by the given PCM. This
     command will terminate the PCM if it is currently running.
 
@@ -98,35 +100,39 @@ codec *PCM_PATH* [*CODEC* [*CONFIG*]]
     Selecting a codec and listing available codecs requires BlueZ SEP support
     (BlueZ >= 5.52).
 
-volume *PCM_PATH* [*N*] [*N*]
-    If *N* is given, set the loudness component of the volume property of the
-    given PCM.
+volume *PCM_PATH* [*VOLUME* [*VOLUME*]]
+    Get or set the volume value of the given PCM.
 
-    If only one value *N* is given it is applied to all channels.
-    For stereo (2-channel) PCMs the first value *N* is applied to channel 1
-    (Left), and the second value *N* is applied to channel 2 (Right).
-    For mono (1-channel) PCMs the second value *N* is ignored.
+    If *VOLUME* is given, set the loudness component of the volume property of
+    the given PCM.
 
-    Valid A2DP values for *N* are 0-127, valid HFP/HSP values are 0-15.
+    If only one value *VOLUME* is given it is applied to all channels.
+    For stereo (2-channel) PCMs the first value *VOLUME* is applied to channel
+    1 (Left), and the second value *VOLUME* is applied to channel 2 (Right).
+    For mono (1-channel) PCMs the second value *VOLUME* is ignored.
 
-    If no *N* is given, print the current volume setting of the given PCM.
+    Valid A2DP values for *VOLUME* are 0-127, valid HFP/HSP values are 0-15.
 
-mute *PCM_PATH* [y|n] [y|n]
-    If y|n argument(s) are given, set mute component of the volume property of
-    the given PCM - 'y' mutes the volume, 'n' unmutes it. The second y|n
-    argument is used for stereo PCMs as described for ``volume``.
+mute *PCM_PATH* [*ON* [*ON*]]
+    Get or set the mute switch of the given PCM.
 
-    If no argument is given, print the current mute setting of the given PCM.
+    If *ON* argument(s) are given, set mute component of the volume property of
+    the given PCM. The second *ON* argument is used for stereo PCMs as
+    described for the **volume** command.
 
-soft-volume *PCM_PATH* [y|n]
-    If the y|n argument is given, set the SoftVolume property for the given
+    The *ON* value can be one of **on**, **yes**, **true**, **y** or **1** for
+    mute on, or **off**, **no**, **false**, **n** or **0** for mute off.
+
+soft-volume *PCM_PATH* [*ON*]
+    Get or set the SoftVolume property of the given PCM.
+
+    If the *ON* argument is given, set the SoftVolume property for the given
     PCM. This property determines whether BlueALSA will make volume control
     internally or will delegate this task to BlueALSA PCM client or connected
-    Bluetooth device respectively for PCM sink or PCM source. The value 'y'
-    enables SoftVolume, 'n' disables it.
+    Bluetooth device respectively for PCM sink or PCM source.
 
-    If no argument is given, print the current SoftVolume property of the given
-    PCM.
+    The *ON* value can be one of **on**, **yes**, **true**, **y** or **1** for
+    mute on, or **off**, **no**, **false**, **n** or **0** for mute off.
 
 monitor
     Listen for D-Bus signals indicating adding/removing BlueALSA interfaces.

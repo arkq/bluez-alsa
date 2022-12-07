@@ -8,44 +8,76 @@
  *
  */
 
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 
 #include <dbus/dbus.h>
 
 #include "cli.h"
 #include "shared/dbus-client.h"
 
-int cmd_softvol(int argc, char *argv[]) {
+static void usage(const char *command) {
+	printf("Get or set the SoftVolume property of the given PCM.\n\n");
+	cli_print_usage("%s [OPTION]... PCM-PATH [ON]", command);
+	printf("\nOptions:\n"
+			"  -h, --help\t\tShow this message and exit\n"
+			"\nPositional arguments:\n"
+			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
+			"  ON\t\tEnable or disable SoftVolume property\n"
+	);
+}
 
-	if (argc < 2 || argc > 3) {
+static int cmd_softvol_func(int argc, char *argv[]) {
+
+	int opt;
+	const char *opts = "h";
+	const struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h' },
+		{ 0 },
+	};
+
+	opterr = 0;
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h' /* --help */ :
+			usage(argv[0]);
+			return EXIT_SUCCESS;
+		default:
+			cmd_print_error("Invalid argument '%s'", argv[optind - 1]);
+			return EXIT_FAILURE;
+		}
+
+	if (argc - optind < 1) {
+		cmd_print_error("Missing BlueALSA PCM path argument");
+		return EXIT_FAILURE;
+	}
+	if (argc - optind > 2) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
 	}
 
-	const char *path = argv[1];
-
 	struct ba_pcm pcm;
+	const char *path = argv[optind];
 	if (!cli_get_ba_pcm(path, &pcm)) {
 		cmd_print_error("Invalid BlueALSA PCM path: %s", path);
 		return EXIT_FAILURE;
 	}
 
-	if (argc == 2) {
+	if (argc - optind == 1) {
 		printf("SoftVolume: %c\n", pcm.soft_volume ? 'Y' : 'N');
 		return EXIT_SUCCESS;
 	}
 
-	if (strcasecmp(argv[2], "y") == 0)
-		pcm.soft_volume = true;
-	else if (strcasecmp(argv[2], "n") == 0)
-		pcm.soft_volume = false;
-	else {
-		cmd_print_error("Invalid argument [y|n]: %s", argv[2]);
+	bool enabled;
+	const char *value = argv[optind + 1];
+	if (!cli_parse_value_on_off(value, &enabled)) {
+		cmd_print_error("Invalid argument: %s", value);
 		return EXIT_FAILURE;
 	}
+
+	pcm.soft_volume = enabled;
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
@@ -55,3 +87,9 @@ int cmd_softvol(int argc, char *argv[]) {
 
 	return EXIT_SUCCESS;
 }
+
+const struct cli_command cmd_softvol = {
+	"soft-volume",
+	"Get or set PCM SoftVolume property",
+	cmd_softvol_func,
+};

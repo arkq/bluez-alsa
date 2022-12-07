@@ -8,6 +8,7 @@
  *
  */
 
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -163,9 +164,35 @@ fail:
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-int cmd_monitor(int argc, char *argv[]) {
+static void usage(const char *command) {
+	printf("Display PCMAdded & PCMRemoved signals.\n\n");
+	cli_print_usage("%s [OPTION]...", command);
+	printf("\nOptions:\n"
+			"  -h, --help\t\tShow this message and exit\n"
+	);
+}
 
-	if (argc != 1) {
+static int cmd_monitor_func(int argc, char *argv[]) {
+
+	int opt;
+	const char *opts = "h";
+	const struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h' },
+		{ 0 },
+	};
+
+	opterr = 0;
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h' /* --help */ :
+			usage(argv[0]);
+			return EXIT_SUCCESS;
+		default:
+			cmd_print_error("Invalid argument '%s'", argv[optind - 1]);
+			return EXIT_FAILURE;
+		}
+
+	if (argc != optind) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
 	}
@@ -213,3 +240,9 @@ int cmd_monitor(int argc, char *argv[]) {
 
 	return EXIT_SUCCESS;
 }
+
+const struct cli_command cmd_monitor = {
+	"monitor",
+	"Display PCMAdded & PCMRemoved signals",
+	cmd_monitor_func,
+};

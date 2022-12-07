@@ -8,6 +8,7 @@
  *
  */
 
+#include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -17,14 +18,46 @@
 #include "cli.h"
 #include "shared/dbus-client.h"
 
-int cmd_open(int argc, char *argv[]) {
+static void usage(const char *command) {
+	printf("Transfer raw PCM data via stdin or stdout.\n\n");
+	cli_print_usage("%s [OPTION]... PCM-PATH", command);
+	printf("\nOptions:\n"
+			"  -h, --help\t\tShow this message and exit\n"
+			"\nPositional arguments:\n"
+			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
+	);
+}
 
-	if (argc != 2) {
+static int cmd_open_func(int argc, char *argv[]) {
+
+	int opt;
+	const char *opts = "h";
+	const struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h' },
+		{ 0 },
+	};
+
+	opterr = 0;
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h' /* --help */ :
+			usage(argv[0]);
+			return EXIT_SUCCESS;
+		default:
+			cmd_print_error("Invalid argument '%s'", argv[optind - 1]);
+			return EXIT_FAILURE;
+		}
+
+	if (argc - optind < 1) {
+		cmd_print_error("Missing BlueALSA PCM path argument");
+		return EXIT_FAILURE;
+	}
+	if (argc - optind > 2) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
 	}
 
-	const char *path = argv[1];
+	const char *path = argv[optind];
 	if (!dbus_validate_path(path, NULL)) {
 		cmd_print_error("Invalid PCM path: %s", path);
 		return EXIT_FAILURE;
@@ -72,3 +105,9 @@ finish:
 	close(fd_pcm_ctrl);
 	return EXIT_SUCCESS;
 }
+
+const struct cli_command cmd_open = {
+	"open",
+	"Transfer raw PCM via stdin or stdout",
+	cmd_open_func,
+};
