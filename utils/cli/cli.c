@@ -13,10 +13,12 @@
 #endif
 
 #include <getopt.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/param.h>
 
 #include <dbus/dbus.h>
@@ -182,6 +184,26 @@ bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm) {
 	return found;
 }
 
+bool cli_parse_value_on_off(const char *value, bool *out) {
+
+	static const char * const value_on[] = { "on", "yes", "true", "y", "1" };
+	static const char * const value_off[] = { "off", "no", "false", "n", "0" };
+
+	for (size_t i = 0; i < ARRAYSIZE(value_on); i++)
+		if (strcasecmp(value, value_on[i]) == 0) {
+			*out = true;
+			return true;
+		}
+
+	for (size_t i = 0; i < ARRAYSIZE(value_off); i++)
+		if (strcasecmp(value, value_off[i]) == 0) {
+			*out = false;
+			return true;
+		}
+
+	return false;
+}
+
 void cli_print_adapters(const struct ba_service_props *props) {
 	printf("Adapters:");
 	for (size_t i = 0; i < props->adapters_len; i++)
@@ -224,6 +246,10 @@ void cli_print_pcm_selected_codec(const struct ba_pcm *pcm) {
 	printf("Selected codec: %s\n", pcm_codec_to_string(&pcm->codec));
 }
 
+void cli_print_pcm_soft_volume(const struct ba_pcm *pcm) {
+	printf("SoftVolume: %s\n", pcm->soft_volume ? "true" : "false");
+}
+
 void cli_print_pcm_volume(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
 		printf("Volume: L: %u R: %u\n", pcm->volume.ch1_volume, pcm->volume.ch2_volume);
@@ -233,10 +259,10 @@ void cli_print_pcm_volume(const struct ba_pcm *pcm) {
 
 void cli_print_pcm_mute(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
-		printf("Muted: L: %c R: %c\n",
-				pcm->volume.ch1_muted ? 'Y' : 'N', pcm->volume.ch2_muted ? 'Y' : 'N');
+		printf("Muted: L: %s R: %s\n", pcm->volume.ch1_muted ? "true" : "false",
+				pcm->volume.ch2_muted ? "true" : "false");
 	else
-		printf("Muted: %c\n", pcm->volume.ch1_muted ? 'Y' : 'N');
+		printf("Muted: %s\n", pcm->volume.ch1_muted ? "true" : "false");
 }
 
 void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
@@ -250,76 +276,74 @@ void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	cli_print_pcm_available_codecs(pcm, err);
 	cli_print_pcm_selected_codec(pcm);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
-	printf("SoftVolume: %s\n", pcm->soft_volume ? "Y" : "N");
+	cli_print_pcm_soft_volume(pcm);
 	cli_print_pcm_volume(pcm);
 	cli_print_pcm_mute(pcm);
 }
 
-int cmd_list_services(int argc, char *argv[]);
-int cmd_list_pcms(int argc, char *argv[]);
-int cmd_status(int argc, char *argv[]);
-int cmd_info(int argc, char *argv[]);
-int cmd_codec(int argc, char *argv[]);
-int cmd_monitor(int argc, char *argv[]);
-int cmd_mute(int argc, char *argv[]);
-int cmd_open(int argc, char *argv[]);
-int cmd_softvol(int argc, char *argv[]);
-int cmd_volume(int argc, char *argv[]);
+static const char *progname = NULL;
+void cli_print_usage(const char *format, ...) {
 
-static struct command {
-	const char *name;
-	int (*func)(int argc, char *arg[]);
-	const char *args;
-	const char *help;
-	unsigned int name_len;
-	unsigned int args_len;
-} commands[] = {
-#define CMD(name, f, args, help) { name, f, args, help, sizeof(name), sizeof(args) }
-	CMD("list-services", cmd_list_services, "", "List all BlueALSA services"),
-	CMD("list-pcms", cmd_list_pcms, "", "List all BlueALSA PCM paths"),
-	CMD("status", cmd_status, "", "Show service runtime properties"),
-	CMD("info", cmd_info, "<pcm-path>", "Show PCM properties etc"),
-	CMD("codec", cmd_codec, "<pcm-path> [<codec>] [<config>]", "Change codec used by PCM"),
-	CMD("volume", cmd_volume, "<pcm-path> [<val>] [<val>]", "Set audio volume"),
-	CMD("mute", cmd_mute, "<pcm-path> [y|n] [y|n]", "Mute/unmute audio"),
-	CMD("soft-volume", cmd_softvol, "<pcm-path> [y|n]", "Enable/disable SoftVolume property"),
-	CMD("monitor", cmd_monitor, "", "Display PCMAdded & PCMRemoved signals"),
-	CMD("open", cmd_open, "<pcm-path>", "Transfer raw PCM via stdin or stdout"),
+	char usage[256];
+	va_list va;
+
+	va_start(va, format);
+	vsnprintf(usage, sizeof(usage), format, va);
+	va_end(va);
+
+	printf("Usage:\n  %s %s\n", progname, usage);
+}
+
+extern const struct cli_command cmd_list_services;
+extern const struct cli_command cmd_list_pcms;
+extern const struct cli_command cmd_status;
+extern const struct cli_command cmd_info;
+extern const struct cli_command cmd_codec;
+extern const struct cli_command cmd_monitor;
+extern const struct cli_command cmd_mute;
+extern const struct cli_command cmd_open;
+extern const struct cli_command cmd_softvol;
+extern const struct cli_command cmd_volume;
+
+static const struct cli_command *commands[] = {
+	&cmd_list_services,
+	&cmd_list_pcms,
+	&cmd_status,
+	&cmd_info,
+	&cmd_codec,
+	&cmd_volume,
+	&cmd_mute,
+	&cmd_softvol,
+	&cmd_monitor,
+	&cmd_open,
 };
 
-static void usage(const char *progname) {
+static void usage(const char *name) {
 
-	unsigned int max_len = 0;
-	size_t i;
+	size_t command_name_max_len = 0;
+	for (size_t i = 0; i < ARRAYSIZE(commands); i++) {
+		size_t len = strlen(commands[i]->name);
+		command_name_max_len = MAX(command_name_max_len, len);
+	}
 
-	for (i = 0; i < ARRAYSIZE(commands); i++)
-		max_len = MAX(max_len, commands[i].name_len + commands[i].args_len);
-
-	printf("%s - Utility to issue BlueALSA API commands\n", progname);
-	printf("\nUsage:\n  %s [options] <command> [command-args]\n", progname);
+	printf("%s - Utility to issue BlueALSA API commands\n\n", name);
+	cli_print_usage("[OPTION]... COMMAND [COMMAND-ARGS]");
 	printf("\nOptions:\n");
-	printf("  -h, --help          Show this help\n");
-	printf("  -V, --version       Show version\n");
+	printf("  -h, --help          Show this message and exit\n");
+	printf("  -V, --version       Show version and exit\n");
 	printf("  -B, --dbus=NAME     BlueALSA service name suffix\n");
 	printf("  -q, --quiet         Do not print any error messages\n");
 	printf("  -v, --verbose       Show extra information\n");
 	printf("\nCommands:\n");
-	for (i = 0; i < ARRAYSIZE(commands); i++)
-		printf("  %s %-*s%s\n", commands[i].name,
-				max_len - commands[i].name_len, commands[i].args,
-				commands[i].help);
-	printf("\nNotes:\n");
-	printf("   1. <pcm-path> must be a valid BlueALSA PCM path as returned by "
-	       "the list-pcms command.\n");
-	printf("   2. For commands that accept optional arguments, if no such "
-	       "argument is given then the current status of the associated "
-	       "attribute is printed.\n");
-	printf("   3. The codec command requires BlueZ version >= 5.52 "
-	       "for SEP support.\n");
+	for (size_t i = 0; i < ARRAYSIZE(commands); i++)
+		printf("  %-*s  %s\n", (int)(command_name_max_len),
+				commands[i]->name, commands[i]->description);
 
 }
 
 int main(int argc, char *argv[]) {
+
+	progname = argv[0];
 
 	int opt;
 	const char *opts = "+B:Vhqv";
@@ -369,17 +393,21 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	if (argc == optind) {
+	argc -= optind;
+	argv += optind;
+	optind = 0;
+
+	if (argc == 0) {
 		/* show "status" information by default */
 		char *status_argv[] = { "status", NULL };
-		return cmd_status(1, status_argv);
+		return cmd_status.func(1, status_argv);
 	}
 
 	size_t i;
 	for (i = 0; i < ARRAYSIZE(commands); i++)
-		if (strcmp(argv[optind], commands[i].name) == 0)
-			return commands[i].func(argc - optind, &argv[optind]);
+		if (strcmp(argv[0], commands[i]->name) == 0)
+			return commands[i]->func(argc, argv);
 
-	cli_print_error("Invalid command: %s", argv[optind]);
+	cli_print_error("Invalid command: %s", argv[0]);
 	return EXIT_FAILURE;
 }

@@ -8,6 +8,7 @@
  *
  */
 
+#include <getopt.h>
 #include <stdlib.h>
 
 #include <dbus/dbus.h>
@@ -16,15 +17,47 @@
 #include "shared/dbus-client.h"
 #include "shared/log.h"
 
-int cmd_info(int argc, char *argv[]) {
+static void usage(const char *command) {
+	printf("Show PCM properties.\n\n");
+	cli_print_usage("%s [OPTION]... PCM-PATH", command);
+	printf("\nOptions:\n"
+			"  -h, --help\t\tShow this message and exit\n"
+			"\nPositional arguments:\n"
+			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
+	);
+}
 
-	if (argc != 2) {
+static int cmd_info_func(int argc, char *argv[]) {
+
+	int opt;
+	const char *opts = "h";
+	const struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h' },
+		{ 0 },
+	};
+
+	opterr = 0;
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+		switch (opt) {
+		case 'h' /* --help */ :
+			usage(argv[0]);
+			return EXIT_SUCCESS;
+		default:
+			cmd_print_error("Invalid argument '%s'", argv[optind - 1]);
+			return EXIT_FAILURE;
+		}
+
+	if (argc - optind < 1) {
+		cmd_print_error("Missing BlueALSA PCM path argument");
+		return EXIT_FAILURE;
+	}
+	if (argc - optind > 1) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	const char *path = argv[1];
+	const char *path = argv[optind];
 
 	struct ba_pcm pcm;
 	if (!cli_get_ba_pcm(path, &pcm)) {
@@ -38,3 +71,9 @@ int cmd_info(int argc, char *argv[]) {
 
 	return EXIT_SUCCESS;
 }
+
+const struct cli_command cmd_info = {
+	"info",
+	"Show PCM properties",
+	cmd_info_func,
+};

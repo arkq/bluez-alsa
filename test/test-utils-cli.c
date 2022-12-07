@@ -52,9 +52,16 @@ START_TEST(test_status) {
 				NULL), -1);
 
 	char output[512];
+	const char *args;
 
 	/* check printing help text */
-	ck_assert_int_eq(run_bluealsa_cli("--help", output, sizeof(output)), 0);
+	args = "-qv --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check printing help text */
+	args = "status --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check default command */
@@ -75,9 +82,16 @@ START_TEST(test_list_services) {
 	ck_assert_int_ne(pid = spawn_bluealsa_server("test", true, NULL), -1);
 
 	char output[512];
-	const char *args = "list-services";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	const char *args;
 
+	/* check printing help text */
+	args = "list-services --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check service listing */
+	args = "list-services";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 	ck_assert_ptr_ne(strstr(output, "org.bluealsa.test"), NULL);
 
 	kill(pid, SIGTERM);
@@ -89,13 +103,21 @@ START_TEST(test_list_pcms) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server(NULL, true,
+	ck_assert_int_ne(pid = spawn_bluealsa_server("test", true,
 				"--profile=a2dp-sink",
 				"--profile=hfp-ag",
 				NULL), -1);
 
 	char output[2048];
-	const char *args = "--verbose list-pcms";
+	const char *args;
+
+	/* check printing help text */
+	args = "list-pcms --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check BlueALSA PCM listing */
+	args = "--dbus=test --verbose list-pcms";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 
 	ck_assert_ptr_ne(strstr(output,
@@ -127,7 +149,15 @@ START_TEST(test_info) {
 				NULL), -1);
 
 	char output[512];
-	const char *args = "info /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
+	const char *args;
+
+	/* check printing help text */
+	args = "info --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check BlueALSA PCM info */
+	args = "info /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 
 	ck_assert_ptr_ne(strstr(output,
@@ -153,6 +183,12 @@ START_TEST(test_codec) {
 	char output[512];
 	const char *args;
 
+	/* check printing help text */
+	args = "codec --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check BlueALSA PCM codec get/set */
 	args = "-v codec /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 	ck_assert_ptr_ne(strstr(output, "Available codecs: CVSD"), NULL);
@@ -187,6 +223,17 @@ START_TEST(test_volume) {
 	char output[512];
 	const char *args;
 
+	/* check printing help text */
+	args = "mute --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	args = "soft-volume --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	args = "volume --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
 	/* check default volume */
 	args = "volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
@@ -195,12 +242,12 @@ START_TEST(test_volume) {
 	/* check default mute */
 	args = "mute /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	ck_assert_ptr_ne(strstr(output, "Muted: L: N R: N"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: false"), NULL);
 
 	/* check default soft-volume */
 	args = "soft-volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	ck_assert_ptr_ne(strstr(output, "SoftVolume: Y"), NULL);
+	ck_assert_ptr_ne(strstr(output, "SoftVolume: true"), NULL);
 
 	/* check setting volume */
 	args = "volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink 10 50";
@@ -210,18 +257,18 @@ START_TEST(test_volume) {
 	ck_assert_ptr_ne(strstr(output, "Volume: L: 10 R: 50"), NULL);
 
 	/* check setting mute */
-	args = "mute /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink N Y";
+	args = "mute /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink off on";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 	args = "mute /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	ck_assert_ptr_ne(strstr(output, "Muted: L: N R: Y"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: true"), NULL);
 
 	/* check setting soft-volume */
-	args = "soft-volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink N";
+	args = "soft-volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink off";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 	args = "soft-volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	ck_assert_ptr_ne(strstr(output, "SoftVolume: N"), NULL);
+	ck_assert_ptr_ne(strstr(output, "SoftVolume: false"), NULL);
 
 	kill(pid, SIGTERM);
 	waitpid(pid, NULL, 0);
@@ -240,7 +287,15 @@ START_TEST(test_monitor) {
 				NULL), -1);
 
 	char output[2048];
-	const char *args = "-v monitor";
+	const char *args;
+
+	/* check printing help text */
+	args = "monitor --help";
+	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check monitor command */
+	args = "-v monitor";
 	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
 
 	/* notifications for service start/stop */
