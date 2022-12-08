@@ -132,7 +132,8 @@ soft-volume *PCM_PATH* [*ON*]
     Bluetooth device respectively for PCM sink or PCM source.
 
     The *ON* value can be one of **on**, **yes**, **true**, **y** or **1** for
-    mute on, or **off**, **no**, **false**, **n** or **0** for mute off.
+    soft-volume on, or **off**, **no**, **false**, **n** or **0** for
+    soft-volume off.
 
 monitor [--properties[=PROPS]]
     Listen for D-Bus signals indicating adding/removing BlueALSA interfaces.

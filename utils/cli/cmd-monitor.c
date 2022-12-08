@@ -283,10 +283,12 @@ static bool parse_property_list(char *argv[], char *props) {
 }
 
 static void usage(const char *command) {
-	printf("Display PCMAdded & PCMRemoved signals.\n\n");
+	printf("Display D-Bus signals.\n\n");
 	cli_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\t\tShow this message and exit\n"
+			"  -q, --quiet\t\t\tDo not print any error messages\n"
+			"  -v, --verbose\t\t\tShow extra information\n"
 			"  -p, --properties[=PROPS]\tShow PCM property changes\n"
 	);
 }
@@ -294,9 +296,11 @@ static void usage(const char *command) {
 static int cmd_monitor_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hp::";
+	const char *opts = "hqvp::";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "quiet", no_argument, NULL, 'q' },
+		{ "verbose", no_argument, NULL, 'v' },
 		{ "properties", optional_argument, NULL, 'p' },
 		{ 0 },
 	};
@@ -307,6 +311,12 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 		case 'h' /* --help */ :
 			usage(argv[0]);
 			return EXIT_SUCCESS;
+		case 'q' /* --quiet */ :
+			config.quiet = true;
+			break;
+		case 'v' /* --verbose */ :
+			config.verbose = true;
+			break;
 		case 'p' /* --properties[=PROPS] */ :
 			monitor_properties = true;
 			if (!parse_property_list(argv, optarg))
