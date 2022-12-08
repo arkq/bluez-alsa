@@ -361,7 +361,7 @@ _bluealsa_cli() {
 	esac
 
 	# process path option
-	for (( i=((nonopt_offset + 1)); i < COMP_WORD; i++ )); do
+	for (( i=((nonopt_offset + 1)); i < COMP_CWORD; i++ )); do
 		[[ "${COMP_WORDS[i]}" == -* ]] && continue
 		path="${COMP_WORDS[i]}"
 	done
@@ -383,7 +383,6 @@ _bluealsa_cli() {
 	# process command positional arguments
 	case "$command" in
 		codec)
-			path="$prev"
 			COMPREPLY=( $(compgen -W "$(_bluealsa_pcm_codecs "$1" "$dbus_opt" "$path")" -- $cur) )
 			;;
 		mute|soft-volume)
