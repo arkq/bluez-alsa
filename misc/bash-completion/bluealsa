@@ -289,12 +289,12 @@ _bluealsa_cli() {
 	local path_commands="codec info mute open soft-volume volume"
 
 	# options that may appear before or after the command
-	local global_shortopts="-h -q -v"
-	local global_longopts="--help --quiet --verbose"
+	local global_shortopts="-h"
+	local global_longopts="--help"
 
 	# options that may appear only before the command
-	local base_shortopts="-B -V"
-	local base_longopts="--dbus --version"
+	local base_shortopts="-B -V -q -v"
+	local base_longopts="--dbus --version --quiet --verbose"
 
 	local command=
 	local path=
