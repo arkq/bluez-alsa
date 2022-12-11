@@ -89,7 +89,7 @@ static struct pcm_worker *workers = NULL;
 static size_t workers_count = 0;
 static size_t workers_size = 0;
 
-static bool main_loop_on = true;
+static atomic_bool main_loop_on = true;
 static void main_loop_stop(int sig) {
 	/* Call to this handler restores the default action, so on the
 	 * second call the program will be forcefully terminated. */

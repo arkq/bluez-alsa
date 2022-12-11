@@ -18,7 +18,7 @@ jobs:
         - --enable-debug --enable-aac --enable-msbc
         - --enable-debug --enable-mp3lame --enable-mpg123
         - --enable-faststream --enable-mp3lame
-        - --enable-ofono --enable-upower
+        - --enable-aplay --enable-ofono --enable-upower
         - --enable-cli --enable-rfcomm --enable-manpages
       fail-fast: false
     runs-on: ubuntu-20.04
@@ -56,13 +56,18 @@ jobs:
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       run: make check-TESTS
-    - name: Show Tests Log
+    - name: Upload Tests Log
+      uses: actions/upload-artifact@v3
       if: ${{ always() }}
-      working-directory: ${{ github.workspace }}/build/test
-      run: find -name '*.log' ! -name test-suite.log -exec tail -n +1 {} +
+      with:
+        name: ${{ github.job }} (${{ matrix.features }}) logs
+        path: ${{ github.workspace }}/build/test/*.log
 
   sanitize:
     strategy:
+      matrix:
+        sanitize:
+        - address alignment bool bounds nonnull-attribute shift undefined
       fail-fast: false
     runs-on: ubuntu-20.04
     steps:
@@ -89,7 +94,6 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: |
         ${{ github.workspace }}/configure \
-          --disable-aplay \
           --enable-aac \
           --enable-faststream \
           --enable-mp3lame \
@@ -97,20 +101,24 @@ jobs:
           --enable-msbc \
           --enable-ofono \
           --enable-upower \
+          --enable-aplay \
           --enable-cli \
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build
       run: |
         make clean
-        make check CFLAGS="-g -O2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all" TESTS=
+        SANITIZERS=$(for x in ${{ matrix.sanitize }}; do echo -n " -fsanitize=$x"; done)
+        make check CFLAGS="-g -O2 $SANITIZERS -fno-sanitize-recover=all" TESTS=
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       env:
         CK_DEFAULT_TIMEOUT: 15
         LD_PRELOAD_SANITIZER: libasan.so.5
       run: make check-TESTS
-    - name: Show Tests Log
+    - name: Upload Tests Log
+      uses: actions/upload-artifact@v3
       if: ${{ always() }}
-      working-directory: ${{ github.workspace }}/build/test
-      run: find -name '*.log' ! -name test-suite.log -exec tail -n +1 {} +
+      with:
+        name: ${{ github.job }} (${{ matrix.sanitize }}) logs
+        path: ${{ github.workspace }}/build/test/*.log

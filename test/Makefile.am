@@ -31,6 +31,11 @@ TESTS += test-msbc
 check_PROGRAMS += test-msbc
 endif
 
+if ENABLE_APLAY
+TESTS += test-utils-aplay
+check_PROGRAMS += test-utils-aplay
+endif
+
 if ENABLE_CLI
 TESTS += test-utils-cli
 check_PROGRAMS += test-utils-cli

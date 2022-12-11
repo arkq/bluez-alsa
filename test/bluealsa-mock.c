@@ -52,6 +52,7 @@
 #include "codec-sbc.h"
 #include "hfp.h"
 #include "io.h"
+#include "sco.h"
 #include "storage.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
@@ -152,20 +153,37 @@ void bluez_battery_provider_update(struct ba_device *device) {
 	(void)device;
 }
 
-static void *mock_a2dp_dec(struct ba_transport_thread *th) {
+static void *mock_dec(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_a2dp_pcm = &t->a2dp.pcm;
+	struct ba_transport_pcm *t_pcm = NULL;
 
-	/* use back-channel PCM for bidirectional codecs */
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		t_a2dp_pcm = &t->a2dp.pcm_bc;
+	switch (t->profile) {
+	case BA_TRANSPORT_PROFILE_NONE:
+		g_assert_not_reached();
+		break;
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		/* use back-channel PCM for bidirectional codecs */
+		t_pcm = &t->a2dp.pcm_bc;
+		break;
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		t_pcm = &t->a2dp.pcm;
+		break;
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		t_pcm = &t->sco.mic_pcm;
+		break;
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		t_pcm = &t->sco.spk_pcm;
+		break;
+	}
 
-	const unsigned int channels = t_a2dp_pcm->channels;
-	const unsigned int samplerate = t_a2dp_pcm->sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 	struct pollfd fds[1] = {{ th->pipe[0], POLLIN, 0 }};
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
@@ -177,7 +195,7 @@ static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 	while (sigusr1_count == 0) {
 
 		int timeout = 0;
-		if (!ba_transport_pcm_is_active(t_a2dp_pcm))
+		if (!ba_transport_pcm_is_active(t_pcm))
 			timeout = -1;
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -207,8 +225,8 @@ static void *mock_a2dp_dec(struct ba_transport_thread *th) {
 		const size_t frames = samples / channels;
 		x = snd_pcm_sine_s16_2le(buffer, frames, channels, x, 1.0 / 128);
 
-		io_pcm_scale(t_a2dp_pcm, buffer, samples);
-		if (io_pcm_write(t_a2dp_pcm, buffer, samples) == -1)
+		io_pcm_scale(t_pcm, buffer, samples);
+		if (io_pcm_write(t_pcm, buffer, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		/* maintain constant speed */
@@ -257,22 +275,23 @@ static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 	else if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 		switch (t->codec_id) {
 		case A2DP_CODEC_SBC:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_dec, "ba-a2dp-sbc", true) == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-a2dp-sbc", true) == 0);
 			break;
 #if ENABLE_APTX
 		case A2DP_CODEC_VENDOR_APTX:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_dec, "ba-a2dp-aptx", true) == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-a2dp-aptx", true) == 0);
 			break;
 #endif
 #if ENABLE_APTX_HD
 		case A2DP_CODEC_VENDOR_APTX_HD:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_a2dp_dec, "ba-a2dp-aptx-hd", true) == 0);
+			assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-a2dp-aptx-hd", true) == 0);
 			break;
 #endif
 		}
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		assert(ba_transport_start(t) == 0);
+		ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);
+		ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-sco-dec", false);
 	}
 
 }
@@ -388,12 +407,32 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 	return t;
 }
 
+static GDBusPropertyInfo bluez_iface_device_Adapter = {
+	-1, "Adapter", "o", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static GDBusPropertyInfo bluez_iface_device_Alias = {
 	-1, "Alias", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
+static GDBusPropertyInfo bluez_iface_device_Class = {
+	-1, "Class", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static GDBusPropertyInfo bluez_iface_device_Icon = {
+	-1, "Icon", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
+static GDBusPropertyInfo bluez_iface_device_Connected = {
+	-1, "Connected", "s", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+};
+
 static GDBusPropertyInfo *bluez_iface_device_properties[] = {
+	&bluez_iface_device_Adapter,
 	&bluez_iface_device_Alias,
+	&bluez_iface_device_Class,
+	&bluez_iface_device_Icon,
+	&bluez_iface_device_Connected,
 	NULL,
 };
 
@@ -411,12 +450,20 @@ static GVariant *bluez_device_get_property(GDBusConnection *conn,
 	(void)conn;
 	(void)sender;
 	(void)iface;
-	(void)error;
 	(void)userdata;
 
 	bdaddr_t addr;
 	char addrstr[18];
 	ba2str(g_dbus_bluez_object_path_to_bdaddr(path, &addr), addrstr);
+
+	if (strcmp(property, "Adapter") == 0)
+		return g_variant_new_object_path("/org/bluez/hci0");
+	if (strcmp(property, "Class") == 0)
+		return g_variant_new_uint32(0x240404);
+	if (strcmp(property, "Icon") == 0)
+		return g_variant_new_string("audio-card");
+	if (strcmp(property, "Connected") == 0)
+		return g_variant_new_boolean(TRUE);
 
 	if (strcmp(property, "Alias") == 0) {
 
@@ -425,8 +472,9 @@ static GVariant *bluez_device_get_property(GDBusConnection *conn,
 					strncmp(devices[i], addrstr, sizeof(addrstr) - 1) == 0)
 				return g_variant_new_string(&devices[i][sizeof(addrstr)]);
 
-		*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_PROPERTY,
-				"Device alias/name not available");
+		if (error != NULL)
+			*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_PROPERTY,
+					"Device alias/name not available");
 		return NULL;
 	}
 

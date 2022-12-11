@@ -40,7 +40,6 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: |
         ${{ github.workspace }}/configure \
-          --disable-aplay \
           --enable-aac \
           --enable-faststream \
           --enable-mp3lame \
@@ -48,6 +47,7 @@ jobs:
           --enable-msbc \
           --enable-ofono \
           --enable-upower \
+          --enable-aplay \
           --enable-cli \
           --enable-test \
           --with-coverage
