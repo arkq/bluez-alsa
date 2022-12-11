@@ -24,8 +24,8 @@
 
 #include "shared/defs.h"
 
+#include "inc/mock.inc"
 #include "inc/preload.inc"
-#include "inc/server.inc"
 
 static int snd_ctl_open_bluealsa(
 		snd_ctl_t **ctlp,
@@ -61,25 +61,25 @@ fail:
 	return err;
 }
 
-static int test_ctl_open(pid_t *pid, snd_ctl_t **ctl, int mode) {
+static int test_ctl_open(struct spawn_process *sp_ba_mock, snd_ctl_t **ctl, int mode) {
 	const char *service = "test";
-	if ((*pid = spawn_bluealsa_server(service, true,
-					"--timeout=1000",
-					"--profile=a2dp-source",
-					"--profile=a2dp-sink",
-					"--profile=hfp-ag",
-					NULL)) == -1)
+	if (spawn_bluealsa_mock(sp_ba_mock, service, true,
+				"--timeout=1000",
+				"--profile=a2dp-source",
+				"--profile=a2dp-sink",
+				"--profile=hfp-ag",
+				NULL) == -1)
 		return -1;
 	return snd_ctl_open_bluealsa(ctl, service, "", mode);
 }
 
-static int test_pcm_close(pid_t pid, snd_ctl_t *ctl) {
+static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_ctl_t *ctl) {
 	int rv = 0;
 	if (ctl != NULL)
 		rv = snd_ctl_close(ctl);
-	if (pid != -1) {
-		kill(pid, SIGTERM);
-		waitpid(pid, NULL, 0);
+	if (sp_ba_mock != NULL) {
+		spawn_terminate(sp_ba_mock, 0);
+		spawn_close(sp_ba_mock);
 	}
 	return rv;
 }
@@ -87,10 +87,10 @@ static int test_pcm_close(pid_t pid, snd_ctl_t *ctl) {
 START_TEST(test_controls) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
-	ck_assert_int_eq(test_ctl_open(&pid, &ctl, 0), 0);
+	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 
 	snd_ctl_elem_list_t *elems;
 	snd_ctl_elem_list_alloca(&elems);
@@ -118,18 +118,18 @@ START_TEST(test_controls) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "23:45:67:89:AB:CD A2DP Capture Volume");
 
 	snd_ctl_elem_list_free_space(elems);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_controls_battery) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=1000",
 				"--profile=hsp-ag",
 				NULL), -1);
@@ -160,18 +160,18 @@ START_TEST(test_controls_battery) {
 	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), -EINVAL);
 
 	snd_ctl_elem_list_free_space(elems);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_controls_extended) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=hfp-ag",
@@ -239,7 +239,7 @@ START_TEST(test_controls_extended) {
 #endif
 
 	snd_ctl_elem_list_free_space(elems);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
@@ -247,11 +247,11 @@ START_TEST(test_bidirectional_a2dp) {
 #if ENABLE_FASTSTREAM
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=a2dp-sink",
@@ -277,7 +277,7 @@ START_TEST(test_bidirectional_a2dp) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:C A2DP-SNK Capture Volume");
 
 	snd_ctl_elem_list_free_space(elems);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 #endif
 } END_TEST
@@ -285,11 +285,11 @@ START_TEST(test_bidirectional_a2dp) {
 START_TEST(test_device_name_duplicates) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--device-name=12:34:56:78:9A:BC:Long Bluetooth Device Name",
@@ -312,17 +312,17 @@ START_TEST(test_device_name_duplicates) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth Devi #2 A2DP Playback Volume");
 
 	snd_ctl_elem_list_free_space(elems);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_mute_and_volume) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
-	ck_assert_int_eq(test_ctl_open(&pid, &ctl, 0), 0);
+	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 
 	snd_ctl_elem_value_t *elem_switch;
 	snd_ctl_elem_value_alloca(&elem_switch);
@@ -354,17 +354,17 @@ START_TEST(test_mute_and_volume) {
 	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 42);
 	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 1), 42);
 
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_volume_db_range) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
-	ck_assert_int_eq(test_ctl_open(&pid, &ctl, 0), 0);
+	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 
 	snd_ctl_elem_id_t *elem;
 	snd_ctl_elem_id_alloca(&elem);
@@ -376,18 +376,18 @@ START_TEST(test_volume_db_range) {
 	ck_assert_int_eq(min, -9600);
 	ck_assert_int_eq(max, 0);
 
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_single_device) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=a2dp-sink",
@@ -416,36 +416,36 @@ START_TEST(test_single_device) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "A2DP Capture Volume");
 
 	snd_ctl_elem_list_free_space(elems);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_single_device_not_connected) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=1000",
 				NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
 				"device \"00:00:00:00:00:00\"", 0), -ENODEV);
 
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_single_device_no_such_device) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				NULL), -1);
@@ -453,18 +453,18 @@ START_TEST(test_single_device_no_such_device) {
 	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
 				"device \"DE:AD:12:34:56:78\"", 0), -ENODEV);
 
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_single_device_non_dynamic) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
 				"--timeout=0",
 				"--profile=a2dp-sink",
 				"--profile=hsp-ag",
@@ -521,18 +521,18 @@ START_TEST(test_single_device_non_dynamic) {
 	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 0);
 
 	snd_ctl_event_free(event);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_notifications) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
-	pid_t pid = -1;
 
 	const char *service = "test";
-	ck_assert_int_ne(pid = spawn_bluealsa_server(service, false,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, false,
 				"--timeout=10000",
 				"--profile=a2dp-source",
 				"--profile=hfp-ag",
@@ -565,18 +565,18 @@ START_TEST(test_notifications) {
 	ck_assert_int_eq(events, (0 + 2) + (2 + 4) + (4 + 7) + (7 + 9) + 4);
 
 	snd_ctl_event_free(event);
-	ck_assert_int_eq(test_pcm_close(pid, ctl), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 } END_TEST
 
 START_TEST(test_alsa_high_level_control_interface) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
+	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 	snd_hctl_t *hctl = NULL;
-	pid_t pid = -1;
 
-	ck_assert_int_eq(test_ctl_open(&pid, &ctl, 0), 0);
+	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 	ck_assert_int_eq(snd_hctl_open_ctl(&hctl, ctl), 0);
 
 	ck_assert_int_eq(snd_hctl_load(hctl), 0);
@@ -584,7 +584,7 @@ START_TEST(test_alsa_high_level_control_interface) {
 	ck_assert_int_eq(snd_hctl_free(hctl), 0);
 
 	ck_assert_int_eq(snd_hctl_close(hctl), 0);
-	ck_assert_int_eq(test_pcm_close(pid, NULL), 0);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, NULL), 0);
 
 } END_TEST
 

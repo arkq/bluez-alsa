@@ -15,110 +15,130 @@
 #include <libgen.h>
 #include <limits.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/wait.h>
 
 #include <check.h>
 
+#include "inc/mock.inc"
 #include "inc/preload.inc"
-#include "inc/server.inc"
+#include "inc/spawn.inc"
 
 static char bluealsa_cli_path[256];
-static int run_bluealsa_cli(const char *arguments, char *output, size_t size) {
+static int run_bluealsa_cli(char *output, size_t size, ...) {
 
-	FILE *f;
-	char command[1024];
+	char * argv[32] = { bluealsa_cli_path };
+	size_t n = 1;
 
-	snprintf(command, sizeof(command), "%s %s", bluealsa_cli_path,
-			arguments != NULL ? arguments : "");
-	ck_assert_ptr_ne(f = popen(command, "r"), NULL);
+	va_list ap;
+	va_start(ap, size);
 
-	size_t len = fread(output, 1, size - 1, f);
+	char *arg;
+	while ((arg = va_arg(ap, char *)) != NULL) {
+		argv[n++] = arg;
+		argv[n] = NULL;
+	}
+
+	va_end(ap);
+
+	struct spawn_process sp;
+	if (spawn(&sp, argv, SPAWN_FLAG_REDIRECT_STDOUT) == -1)
+		return -1;
+
+	size_t len = fread(output, 1, size - 1, sp.f_stdout);
 	output[len] = '\0';
 
 	fprintf(stderr, "%s", output);
 
-	return pclose(f);
+	spawn_close(&sp);
+	return 0;
 }
+
+START_TEST(test_help) {
+	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+
+	char output[512];
+
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"-qv", "--help", NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+} END_TEST
 
 START_TEST(test_status) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
-	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server(NULL, true,
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--profile=a2dp-source",
 				"--profile=hfp-ag",
 				NULL), -1);
 
 	char output[512];
-	const char *args;
 
 	/* check printing help text */
-	args = "-qv --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
-
-	/* check printing help text */
-	args = "status --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"status", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check default command */
-	ck_assert_int_eq(run_bluealsa_cli(NULL, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Service: org.bluealsa"), NULL);
 	ck_assert_ptr_ne(strstr(output, "A2DP-source"), NULL);
 	ck_assert_ptr_ne(strstr(output, "HFP-AG"), NULL);
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock);
 
 } END_TEST
 
 START_TEST(test_list_services) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
-	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server("test", true, NULL), -1);
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true, NULL), -1);
 
 	char output[512];
-	const char *args;
 
 	/* check printing help text */
-	args = "list-services --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"list-services", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check service listing */
-	args = "list-services";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"list-services",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "org.bluealsa.test"), NULL);
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock);
 
 } END_TEST
 
 START_TEST(test_list_pcms) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
-	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server("test", true,
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true,
 				"--profile=a2dp-sink",
 				"--profile=hsp-ag",
 				NULL), -1);
 
 	char output[2048];
-	const char *args;
 
 	/* check printing help text */
-	args = "list-pcms --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"list-pcms", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check BlueALSA PCM listing */
-	args = "--dbus=test --verbose list-pcms";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"--dbus=test", "--verbose", "list-pcms",
+				NULL), 0);
 
 	ck_assert_ptr_ne(strstr(output,
 				"/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsnk/source"), NULL);
@@ -135,30 +155,30 @@ START_TEST(test_list_pcms) {
 	ck_assert_ptr_ne(strstr(output,
 				"Device: /org/bluez/hci0/dev_23_45_67_89_AB_CD"), NULL);
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock);
 
 } END_TEST
 
 START_TEST(test_info) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
-	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server(NULL, true,
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--profile=a2dp-source",
 				NULL), -1);
 
 	char output[512];
-	const char *args;
 
 	/* check printing help text */
-	args = "info --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"info", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check BlueALSA PCM info */
-	args = "info /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"info", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
 
 	ck_assert_ptr_ne(strstr(output,
 				"Device: /org/bluez/hci0/dev_12_34_56_78_9A_BC"), NULL);
@@ -167,30 +187,30 @@ START_TEST(test_info) {
 	ck_assert_ptr_ne(strstr(output,
 				"Selected codec: SBC"), NULL);
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock);
 
 } END_TEST
 
 START_TEST(test_codec) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
-	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server(NULL, true,
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--profile=hfp-ag",
 				NULL), -1);
 
 	char output[512];
-	const char *args;
 
 	/* check printing help text */
-	args = "codec --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"codec", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check BlueALSA PCM codec get/set */
-	args = "-v codec /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"-v", "codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Available codecs: CVSD"), NULL);
 
 #if !ENABLE_MSBC
@@ -199,87 +219,97 @@ START_TEST(test_codec) {
 #endif
 
 #if ENABLE_MSBC
-	args = "codec /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink mSBC";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink", "mSBC",
+				NULL), 0);
 
-	args = "-v codec /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"-v", "codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Selected codec: mSBC"), NULL);
 #endif
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock);
 
 } END_TEST
 
 START_TEST(test_volume) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
-	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server(NULL, true,
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--profile=a2dp-source",
 				NULL), -1);
 
 	char output[512];
-	const char *args;
 
 	/* check printing help text */
-	args = "mute --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"mute", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
-	args = "soft-volume --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"soft-volume", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
-	args = "volume --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"volume", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check default volume */
-	args = "volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Volume: L: 127 R: 127"), NULL);
 
 	/* check default mute */
-	args = "mute /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"mute", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: false"), NULL);
 
 	/* check default soft-volume */
-	args = "soft-volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"soft-volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "SoftVolume: true"), NULL);
 
 	/* check setting volume */
-	args = "volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink 10 50";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	args = "volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "10", "50",
+				NULL), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Volume: L: 10 R: 50"), NULL);
 
 	/* check setting mute */
-	args = "mute /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink off on";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	args = "mute /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"mute", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off", "on",
+				NULL), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"mute", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: true"), NULL);
 
 	/* check setting soft-volume */
-	args = "soft-volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink off";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
-	args = "soft-volume /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"soft-volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off",
+				NULL), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"soft-volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "SoftVolume: false"), NULL);
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock);
 
 } END_TEST
 
 START_TEST(test_monitor) {
 	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
-	pid_t pid;
-	ck_assert_int_ne(pid = spawn_bluealsa_server(NULL, false,
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, false,
 				"--timeout=0",
 				"--fuzzing=200",
 				"--profile=a2dp-source",
@@ -287,16 +317,16 @@ START_TEST(test_monitor) {
 				NULL), -1);
 
 	char output[2048];
-	const char *args;
 
 	/* check printing help text */
-	args = "monitor --help";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"monitor", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	/* check monitor command */
-	args = "-v monitor --properties=codec,volume";
-	ck_assert_int_eq(run_bluealsa_cli(args, output, sizeof(output)), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"-v", "monitor", "--properties=codec,volume",
+				NULL), 0);
 
 	/* notifications for service start/stop */
 	ck_assert_ptr_ne(strstr(output, "ServiceRunning org.bluealsa"), NULL);
@@ -326,8 +356,8 @@ START_TEST(test_monitor) {
 	ck_assert_ptr_ne(strstr(output,
 				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"), NULL);
 
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock);
 
 } END_TEST
 
@@ -348,6 +378,7 @@ int main(int argc, char *argv[], char *envp[]) {
 
 	suite_add_tcase(s, tc);
 
+	tcase_add_test(tc, test_help);
 	tcase_add_test(tc, test_status);
 	tcase_add_test(tc, test_list_services);
 	tcase_add_test(tc, test_list_pcms);

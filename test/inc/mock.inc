@@ -1,5 +1,5 @@
 /*
- * server.inc
+ * mock.inc
  * vim: ft=c
  *
  * Copyright (c) 2016-2022 Arkadiusz Bokowy
@@ -10,6 +10,10 @@
  *
  */
 
+#pragma once
+#ifndef BLUEALSA_TEST_INC_MOCK_H_
+#define BLUEALSA_TEST_INC_MOCK_H_
+
 #include <ctype.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -18,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "spawn.inc"
 
 struct spawn_bluealsa_data {
 
@@ -46,7 +52,7 @@ static char *strtrim(char *str) {
 	return str;
 }
 
-static void *spawn_bluealsa_server_stderr_proxy(void *userdata) {
+static void *spawn_bluealsa_mock_stderr_proxy(void *userdata) {
 
 	struct spawn_bluealsa_data *data = userdata;
 	char buffer[512];
@@ -97,14 +103,18 @@ static void *spawn_bluealsa_server_stderr_proxy(void *userdata) {
 char bluealsa_mock_path[256] = "bluealsa-mock";
 
 /**
- * Spawn bluealsa server mock.
+ * Spawn BlueALSA mock service.
  *
+ * @param process Pointer to the structure which will be filled with spawned
+ *   process information, i.e. PID, stdout and stderr file descriptors.
  * @param service BlueALSA D-Bus service name.
  * @param wait_for_ready Block until PCMs are ready.
  * @param ... Additional arguments to be passed to the bluealsa-mock. The list
  *   shall be terminated by NULL.
- * @return PID of the bluealsa-mock server. */
-pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
+ * @return On success this function returns 0. Otherwise -1 is returned and
+ *  errno is set appropriately. */
+int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
+		bool wait_for_ready, ...) {
 
 	/* bus address of D-Bus mock server */
 	static char dbus_bus_address[256];
@@ -118,7 +128,7 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 
 	size_t n = 2;
 	char * argv[32] = {
-		"bluealsa-mock",
+		bluealsa_mock_path,
 		arg_service,
 	};
 
@@ -144,19 +154,8 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 
 	va_end(ap);
 
-	int fds[2];
-	if (pipe(fds) == -1)
+	if (spawn(sp, argv, SPAWN_FLAG_REDIRECT_STDERR) == -1)
 		return -1;
-
-	pid_t pid;
-	if ((pid = fork()) == 0) {
-		dup2(fds[1], 2);
-		close(fds[0]);
-		close(fds[1]);
-		execv(bluealsa_mock_path, argv);
-	}
-
-	close(fds[1]);
 
 	struct spawn_bluealsa_data *data;
 	if ((data = calloc(1, sizeof(*data))) == NULL)
@@ -164,11 +163,12 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 
 	pthread_mutex_init(&data->data_mtx, NULL);
 	pthread_cond_init(&data->data_updated, NULL);
-	if ((data->f_stderr = fdopen(fds[0], "r")) == NULL)
-		return -1;
+
+	data->f_stderr = sp->f_stderr;
+	sp->f_stderr = NULL;
 
 	pthread_t tid;
-	pthread_create(&tid, NULL, spawn_bluealsa_server_stderr_proxy, data);
+	pthread_create(&tid, NULL, spawn_bluealsa_mock_stderr_proxy, data);
 	pthread_detach(tid);
 
 	pthread_mutex_lock(&data->data_mtx);
@@ -192,5 +192,7 @@ pid_t spawn_bluealsa_server(const char *service, bool wait_for_ready, ...) {
 
 	pthread_mutex_unlock(&data->data_mtx);
 
-	return pid;
+	return 0;
 }
+
+#endif
