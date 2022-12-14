@@ -90,6 +90,9 @@ struct bluealsa_pcm {
 	pthread_t io_thread;
 	bool io_started;
 
+	/* Indicates that the server is connected. */
+	atomic_bool connected;
+
 	/* ALSA operates on frames, we on bytes */
 	size_t frame_size;
 
@@ -345,10 +348,19 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 fail:
 
-	pthread_mutex_lock(&pcm->mutex);
-	pcm->pause_state = BA_PAUSE_STATE_PAUSED;
-	pthread_mutex_unlock(&pcm->mutex);
+	if (pcm->ba_pcm_fd != -1) {
+		close(pcm->ba_pcm_fd);
+		pcm->ba_pcm_fd = -1;
+	}
+	if (pcm->ba_pcm_ctrl_fd != -1) {
+		close(pcm->ba_pcm_ctrl_fd);
+		pcm->ba_pcm_ctrl_fd = -1;
+	}
+
 	/* make sure we will not get stuck in the pause sync loop */
+	pthread_mutex_lock(&pcm->mutex);
+	pcm->connected = false;
+	pthread_mutex_unlock(&pcm->mutex);
 	pthread_cond_signal(&pcm->pause_cond);
 
 	eventfd_write(pcm->event_fd, 0xDEAD0000);
@@ -434,7 +446,7 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	 * SND_PCM_STATE_DISCONNECTED after their internal call to
 	 * snd_pcm_avail_update(), which will be the case when we set it here.
 	 */
-	if (pcm->ba_pcm_fd == -1)
+	if (!pcm->connected)
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 
 #ifndef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
@@ -559,6 +571,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		dbus_error_free(&err);
 		return -EBUSY;
 	}
+	pcm->connected = true;
 
 	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK)
 		/* By default, the size of the pipe buffer is set to a too large value for
@@ -591,6 +604,8 @@ static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	/* Before closing PCM transport make sure that
 	 * the IO thread is terminated. */
 	io_thread_cancel(pcm);
+
+	pcm->connected = false;
 
 	int rv = 0;
 	if (pcm->ba_pcm_fd != -1)
@@ -626,7 +641,7 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
 	/* if PCM FIFO is not opened, report it right away */
-	if (pcm->ba_pcm_fd == -1) {
+	if (!pcm->connected) {
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 		return -ENODEV;
 	}
@@ -770,9 +785,15 @@ static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 		 * the server will not be paused while we are processing a transfer. */
 		pthread_mutex_lock(&pcm->mutex);
 		pcm->pause_state |= BA_PAUSE_STATE_PENDING;
-		while (!(pcm->pause_state & BA_PAUSE_STATE_PAUSED) && pcm->ba_pcm_fd != -1)
+		while (!(pcm->pause_state & BA_PAUSE_STATE_PAUSED) && pcm->connected)
 			pthread_cond_wait(&pcm->pause_cond, &pcm->mutex);
 		pthread_mutex_unlock(&pcm->mutex);
+	}
+
+	if (!pcm->connected) {
+		pcm->pause_state = BA_PAUSE_STATE_RUNNING;
+		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
+		return -ENODEV;
 	}
 
 	if (!bluealsa_dbus_pcm_ctrl_send(pcm->ba_pcm_ctrl_fd,
@@ -802,7 +823,7 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 	/* alsa-lib commits the PCM setup only if bluealsa_hw_params() returned
 	 * success, so we only dump the ALSA PCM parameters if the BlueALSA PCM
 	 * connection is established. */
-	if (pcm->ba_pcm_fd >= 0) {
+	if (pcm->connected) {
 		snd_output_printf(out, "Its setup is:\n");
 		snd_pcm_dump_setup(io->pcm, out);
 	}
@@ -811,7 +832,7 @@ static void bluealsa_dump(snd_pcm_ioplug_t *io, snd_output_t *out) {
 static int bluealsa_delay(snd_pcm_ioplug_t *io, snd_pcm_sframes_t *delayp) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	if (pcm->ba_pcm_fd == -1) {
+	if (!pcm->connected) {
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 		return -ENODEV;
 	}
@@ -877,7 +898,7 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		continue;
 	gettimestamp(&pcm->dbus_dispatch_ts);
 
-	if (pcm->ba_pcm_fd == -1)
+	if (!pcm->connected)
 		goto fail;
 
 	if (pfd[0].revents & POLLIN) {
