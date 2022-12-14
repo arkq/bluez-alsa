@@ -668,7 +668,53 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 
 static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	bluealsa_dbus_pcm_ctrl_send_drain(pcm->ba_pcm_ctrl_fd, NULL);
+	int err;
+
+	debug2("Draining");
+
+	if (!pcm->connected) {
+		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
+		return -ENODEV;
+	}
+
+	/* A bug in the ioplug drain implementation means that snd_pcm_drain()
+	 * always either finishes in state SND_PCM_STATE_SETUP or returns an error.
+	 * It is not possible to finish in state SND_PCM_STATE_DRAINING and return
+	 * success; therefore is is impossible to correctly implement capture
+	 * drain logic. So for capture PCMs we do nothing and return success. */
+
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		/* We must ensure that all remaining frames in the ring buffer are
+		 * flushed to the FIFO by the I/O thread. It is possible that the
+		 * client has called snd_pcm_drain() without the start_threshold
+		 * having been reached, or while paused, so we must first ensure that
+		 * the IO thread is running. */
+		if (bluealsa_start(io) < 0)
+			return 0;
+
+		/* Block until the drain is complete. */
+		struct pollfd pfd = {
+			.events = POLLIN,
+			.fd = pcm->event_fd,
+		};
+		while (bluealsa_pointer(io) >= 0 && io->state == SND_PCM_STATE_DRAINING) {
+			err = poll(&pfd, 1, -1);
+			if (err < 0) {
+				if (errno == EINTR)
+					continue;
+				break;
+			}
+			if (pfd.revents & POLLIN) {
+				eventfd_t event;
+				eventfd_read(pcm->event_fd, &event);
+				if (event & 0xDEAD0000)
+					break;
+			}
+		}
+
+		bluealsa_dbus_pcm_ctrl_send_drain(pcm->ba_pcm_ctrl_fd, NULL);
+	}
+
 	/* We cannot recover from an error here. By returning zero we ensure that
 	 * ioplug stops the pcm. Returning an error code would be interpreted by
 	 * ioplug as an incomplete drain and would it leave the pcm running. */
