@@ -479,14 +479,14 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	 * will be opened, this value will be adjusted to one period size. */
 	size_t pcm_max_read_len_init = pcm_1s_samples / 100 * pcm_format_size;
 	size_t pcm_max_read_len = pcm_max_read_len_init;
+
+	/* Intervals in seconds between consecutive PCM open retry attempts. */
+	const unsigned int pcm_open_retry_intervals[] = { 1, 1, 2, 3, 5 };
+	size_t pcm_open_retry_pcm_samples = 0;
 	size_t pcm_open_retries = 0;
 
-	/* These variables determine how and when the pause command will be send
-	 * to the device player. In order not to flood BT connection with AVRCP
-	 * packets, we are going to send pause command every 0.5 second. */
-	size_t pause_threshold = pcm_1s_samples / 2 * pcm_format_size;
-	size_t pause_counter = 0;
-	size_t pause_bytes = 0;
+	size_t pause_retry_pcm_samples = pcm_1s_samples;
+	size_t pause_retries = 0;
 
 	struct pollfd pfds[] = {{ w->ba_pcm_fd, POLLIN, 0 }};
 	int timeout = -1;
@@ -512,7 +512,8 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		case 0:
 			debug("Device marked as inactive: %s", w->addr);
 			pcm_max_read_len = pcm_max_read_len_init;
-			pause_counter = pause_bytes = 0;
+			pause_retry_pcm_samples = pcm_1s_samples;
+			pause_retries = 0;
 			ffb_rewind(&buffer);
 			if (w->pcm != NULL) {
 				snd_pcm_close(w->pcm);
@@ -527,10 +528,10 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
-		ssize_t ret;
-
 		#define MIN(a, b) a < b ? a : b
 		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
+
+		ssize_t ret;
 		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
 			if (errno == EINTR)
 				continue;
@@ -538,16 +539,24 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			goto fail;
 		}
 
+		/* Calculate the number of read samples. */
+		size_t read_samples = ret / pcm_format_size;
+		if (ret % pcm_format_size != 0)
+			warn("Invalid read from PCM FIFO: %zd %% %zd != 0", ret, pcm_format_size);
+
 		/* If PCM mixer is disabled, check whether we should play audio. */
 		if (!pcm_mixer) {
 			struct pcm_worker *worker = get_active_worker();
 			if (worker != NULL && worker != w) {
-				if (pause_counter < 5 && (pause_bytes += ret) > pause_threshold) {
+				/* In order not to flood BT connection with AVRCP packets,
+				 * we are going to send pause command every 0.5 second. */
+				if (pause_retries < 5 &&
+						(pause_retry_pcm_samples += read_samples) > pcm_1s_samples / 2) {
 					if (pause_device_player(&w->ba_pcm) == -1)
 						/* pause command does not work, stop further requests */
-						pause_counter = 5;
-					pause_counter++;
-					pause_bytes = 0;
+						pause_retries = 5;
+					pause_retry_pcm_samples = 0;
+					pause_retries++;
 					timeout = 100;
 				}
 				continue;
@@ -562,18 +571,23 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			snd_pcm_uframes_t period_size;
 			char *tmp;
 
-			/* After PCM open failure wait one second before retry. This can not be
-			 * done with a single sleep() call, because we have to drain PCM FIFO. */
-			if (pcm_open_retries++ % 20 != 0) {
-				usleep(50000);
-				continue;
+			if (pcm_open_retries > 0) {
+				/* After PCM open failure wait some time before retry. This can not be
+				 * done with a sleep() call, because we have to drain PCM FIFO, so it
+				 * will not have any stale data. */
+				unsigned int interval = pcm_open_retries > ARRAYSIZE(pcm_open_retry_intervals) ?
+					pcm_open_retry_intervals[ARRAYSIZE(pcm_open_retry_intervals) - 1] :
+					pcm_open_retry_intervals[pcm_open_retries - 1];
+				if ((pcm_open_retry_pcm_samples += read_samples) <= interval * pcm_1s_samples)
+					continue;
 			}
 
 			if (alsa_pcm_open(&w->pcm, pcm_device, pcm_format, w->ba_pcm.channels,
 						w->ba_pcm.sampling, &buffer_time, &period_time, &tmp) != 0) {
 				warn("Couldn't open PCM: %s", tmp);
 				pcm_max_read_len = pcm_max_read_len_init;
-				usleep(50000);
+				pcm_open_retry_pcm_samples = 0;
+				pcm_open_retries++;
 				free(tmp);
 				continue;
 			}
@@ -612,7 +626,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		w->active = true;
 		timeout = 500;
 
-		ffb_seek(&buffer, ret / pcm_format_size);
+		ffb_seek(&buffer, read_samples);
 
 		/* calculate the overall number of frames in the buffer */
 		size_t samples = ffb_len_out(&buffer);
