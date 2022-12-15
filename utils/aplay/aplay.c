@@ -19,6 +19,7 @@
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,7 +53,7 @@ struct pcm_worker {
 	snd_mixer_elem_t *mixer_elem;
 	bool mixer_has_mute_switch;
 	/* if true, playback is active */
-	bool active;
+	atomic_bool active;
 	/* human-readable BT address */
 	char addr[18];
 };
@@ -70,7 +71,6 @@ static bdaddr_t *ba_addrs = NULL;
 static size_t ba_addrs_count = 0;
 static unsigned int pcm_buffer_time = 500000;
 static unsigned int pcm_period_time = 100000;
-static bool pcm_mixer = true;
 
 /* local PCM muted state for software mute */
 static bool pcm_muted = false;
@@ -80,6 +80,9 @@ static char dbus_ba_service[32] = BLUEALSA_SERVICE;
 
 static struct ba_pcm *ba_pcms = NULL;
 static size_t ba_pcms_count = 0;
+
+static pthread_mutex_t single_playback_mutex = PTHREAD_MUTEX_INITIALIZER;
+static bool force_single_playback = false;
 
 static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
 static struct pcm_worker *workers = NULL;
@@ -480,6 +483,9 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	size_t pcm_max_read_len_init = pcm_1s_samples / 100 * pcm_format_size;
 	size_t pcm_max_read_len = pcm_max_read_len_init;
 
+	/* Track the lock state of the single playback mutex within this thread. */
+	bool single_playback_mutex_locked = false;
+
 	/* Intervals in seconds between consecutive PCM open retry attempts. */
 	const unsigned int pcm_open_retry_intervals[] = { 1, 1, 2, 3, 5 };
 	size_t pcm_open_retry_pcm_samples = 0;
@@ -493,6 +499,11 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 
 	debug("Starting PCM loop");
 	while (main_loop_on) {
+
+		if (single_playback_mutex_locked) {
+			pthread_mutex_unlock(&single_playback_mutex);
+			single_playback_mutex_locked = false;
+		}
 
 		/* Reading from the FIFO won't block unless there is an open connection
 		 * on the writing side. However, the server does not open PCM FIFO until
@@ -519,6 +530,11 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 				snd_pcm_close(w->pcm);
 				w->pcm = NULL;
 			}
+			if (w->mixer != NULL) {
+				snd_mixer_close(w->mixer);
+				w->mixer_elem = NULL;
+				w->mixer = NULL;
+			}
 			w->active = false;
 			timeout = -1;
 			continue;
@@ -544,10 +560,18 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		if (ret % pcm_format_size != 0)
 			warn("Invalid read from PCM FIFO: %zd %% %zd != 0", ret, pcm_format_size);
 
-		/* If PCM mixer is disabled, check whether we should play audio. */
-		if (!pcm_mixer) {
-			struct pcm_worker *worker = get_active_worker();
-			if (worker != NULL && worker != w) {
+		/* If current worker is not active and the single playback mode was
+		 * enabled, we have to check if there is any other active worker. */
+		if (force_single_playback && !w->active) {
+
+			/* Before checking active worker, we need to lock the single playback
+			 * mutex. It is required to lock it, because the active state is changed
+			 * in the worker thread after opening the PCM device, so we have to
+			 * synchronize all threads at this point. */
+			pthread_mutex_lock(&single_playback_mutex);
+			single_playback_mutex_locked = true;
+
+			if (get_active_worker() != NULL) {
 				/* In order not to flood BT connection with AVRCP packets,
 				 * we are going to send pause command every 0.5 second. */
 				if (pause_retries < 5 &&
@@ -561,6 +585,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 				}
 				continue;
 			}
+
 		}
 
 		if (w->pcm == NULL) {
@@ -625,6 +650,13 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		/* mark device as active and set timeout to 500ms */
 		w->active = true;
 		timeout = 500;
+
+		/* Current worker was marked as active, so we can safely
+		 * release the single playback mutex if it was locked. */
+		if (single_playback_mutex_locked) {
+			pthread_mutex_unlock(&single_playback_mutex);
+			single_playback_mutex_locked = false;
+		}
 
 		ffb_seek(&buffer, read_samples);
 
@@ -723,13 +755,13 @@ static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm
 	struct pcm_worker *worker = &workers[workers_count - 1];
 	memcpy(&worker->ba_pcm, ba_pcm, sizeof(worker->ba_pcm));
 	ba2str(&worker->ba_pcm.addr, worker->addr);
-	worker->active = false;
 	worker->ba_pcm_fd = -1;
 	worker->ba_pcm_ctrl_fd = -1;
 	worker->pcm = NULL;
 	worker->mixer = NULL;
 	worker->mixer_elem = NULL;
 	worker->mixer_has_mute_switch = false;
+	worker->active = false;
 
 	pthread_rwlock_unlock(&workers_lock);
 
@@ -994,7 +1026,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 5 /* --single-audio */ :
-			pcm_mixer = false;
+			force_single_playback = true;
 			break;
 
 		default:
