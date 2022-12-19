@@ -1054,6 +1054,14 @@ int ba_transport_select_codec_a2dp(
 			memcmp(&sep->configuration, &t->a2dp.configuration, sep->capabilities_size) == 0)
 		goto final;
 
+	/* A2DP codec selection is in fact a transport recreation - new transport
+	 * with new codec is created and the current one is released. Since normally
+	 * the storage is updated only when the transport is released, we need to
+	 * update it manually here. Otherwise, new transport might be created with
+	 * stale storage data. */
+	storage_pcm_data_update(&t->a2dp.pcm);
+	storage_pcm_data_update(&t->a2dp.pcm_bc);
+
 	GError *err = NULL;
 	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path, sep, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
