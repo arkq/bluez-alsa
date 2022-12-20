@@ -250,8 +250,6 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 			if (pcm->io_hw_ptr == -1)
 				continue;
-			if (pcm->ba_pcm_fd == -1)
-				goto fail;
 
 			asrsync_init(&asrs, io->rate);
 			io_hw_ptr = pcm->io_hw_ptr;
@@ -304,14 +302,17 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 					if (errno == EINTR)
 						continue;
 					SNDERR("PCM FIFO read error: %s", strerror(errno));
+					pcm->connected = false;
 					goto fail;
 				}
 				head += ret;
 				len -= ret;
 			}
 
-			if (ret == 0)
+			if (ret == 0) {
+				pcm->connected = false;
 				goto fail;
+			}
 
 			io_thread_update_delay(pcm, io_hw_ptr);
 
@@ -325,6 +326,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 						continue;
 					if (errno != EPIPE)
 						SNDERR("PCM FIFO write error: %s", strerror(errno));
+					pcm->connected = false;
 					goto fail;
 				}
 				head += ret;
@@ -348,18 +350,9 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 fail:
 
-	if (pcm->ba_pcm_fd != -1) {
-		close(pcm->ba_pcm_fd);
-		pcm->ba_pcm_fd = -1;
-	}
-	if (pcm->ba_pcm_ctrl_fd != -1) {
-		close(pcm->ba_pcm_ctrl_fd);
-		pcm->ba_pcm_ctrl_fd = -1;
-	}
-
 	/* make sure we will not get stuck in the pause sync loop */
 	pthread_mutex_lock(&pcm->mutex);
-	pcm->connected = false;
+	pcm->pause_state = BA_PAUSE_STATE_PAUSED;
 	pthread_mutex_unlock(&pcm->mutex);
 	pthread_cond_signal(&pcm->pause_cond);
 
@@ -837,7 +830,6 @@ static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	}
 
 	if (!pcm->connected) {
-		pcm->pause_state = BA_PAUSE_STATE_RUNNING;
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 		return -ENODEV;
 	}
