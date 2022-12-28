@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: November 2022
+:Date: January 2023
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -22,7 +22,7 @@ DESCRIPTION
 **bluealsa** is a Linux daemon to give applications access to Bluetooth audio
 streams using the Bluetooth A2DP, HFP and/or HSP profiles.
 It provides a D-Bus API to applications, and can be used by ALSA applications
-via libasound plugins.
+via libasound plugins (see **bluealsa-plugins(7)** for details).
 
 OPTIONS
 =======
@@ -45,7 +45,7 @@ OPTIONS
 -i hciX, --device=hciX
     HCI device to use. Can be specified multiple times to select more than one
     HCI.  Because HCI numbering can change after a system reboot, this option
-    also accepts HCI MAC address for the *hciX* value, e.g.:
+    also accepts HCI MAC address for the *hciX* value, for example:
     ``--device=00:11:22:33:44:55``
 
     Without this option, the default is to use all available HCI devices.
@@ -55,7 +55,8 @@ OPTIONS
     May be given multiple number of times to enable multiple profiles.
 
     It is mandatory to enable at least one Bluetooth profile.
-    For the list of supported profiles see the PROFILES_ section below.
+    For the list of supported profiles see Profiles_ in the **NOTES** section
+    below.
 
 -c NAME, --codec=NAME
     Enable or disable *NAME* Bluetooth audio codec.
@@ -73,16 +74,18 @@ OPTIONS
     section of the **bluealsa** command-line help message.
 
 --initial-volume=NUM
-    Set the initial volume to *NUM* % when the device is connected.
+    Set the initial volume to *NUM* % when a device is first connected.
     *NUM* must be an integer in the range from **0** to **100**.
-    The default value is **100** (full volume).
 
-    Having headphones volume reset to max whenever they connect can lead to
-    an unpleasant experience. This option allows the user to choose an
-    alternative initial volume level. Only one value can be specified and
-    each device on connect will have the volume level of all its PCMs set
-    to this value (%). However, a device with native volume control may
-    then immediately override this level.
+    By default the volume of all PCMs of a device is set to 100% (full volume)
+    when the device is first connected. For some devices, particularly
+    headphones, this can lead to an unpleasant experience. This option allows
+    the user to choose an alternative initial volume level. Only one value can
+    be specified and each device on first connect will have the volume level of
+    all its PCMs set to this value. However, a device with native volume
+    control may then immediately override this level. On subsequent connects
+    the volume will be set to the remembered value from the last disconnection.
+    See `Volume control`_ in the **NOTES** section below for more information.
 
 --keep-alive=SEC
     Keep Bluetooth transport alive for *SEC* number of seconds after streaming
@@ -112,7 +115,10 @@ OPTIONS
     By default **bluealsa** will use its own internal scaling algorithm to
     attenuate the volume.  This option disables that internal scaling and
     instead passes the volume change request to the A2DP device.
-    This feature can also be controlled during runtime via BlueALSA D-Bus API.
+    This feature can also be controlled during runtime for individual PCMs via
+    the BlueALSA D-Bus API or by the BlueALSA ALSA plugins; and if so the
+    changed setting will be remembered. See `Volume control`_ in the **NOTES**
+    section below for more information.
     Note that this feature might not work with all Bluetooth headsets.
 
 --sbc-quality=MODE
@@ -190,7 +196,7 @@ OPTIONS
     specification.
     Enabling it should result in an enhanced audio quality, but will for sure
     produce fragmented RTP frames.
-    If RTP fragmentation is not supported by used A2DP sink device (e.g.
+    If RTP fragmentation is not supported by used A2DP sink device (e.g.,
     headphones) one might hear clearly audible clicks in the playback audio.
     In such case, please do not enable this option.
 
@@ -222,18 +228,45 @@ OPTIONS
 --xapl-resp-name=NAME
     Set the product name send in the XAPL response message.
     By default, the name is set as "BlueALSA".
-    However, some devices (reported with e.g.: Sony WM-1000XM4) will not
+    However, some devices (reported with e.g., Sony WM-1000XM4) will not
     provide battery level notification unless the product name is set as
     "iPhone".
 
-PROFILES
-========
+NOTES
+=====
+
+Profiles
+--------
 
 BlueALSA provides support for Bluetooth Advanced Audio Distribution Profile
 (A2DP), Hands-Free Profile (HFP) and Headset Profile (HSP).
-A2DP profile is dedicated for streaming music (i.e. stereo, 48 kHz or more
+A2DP profile is dedicated for streaming music (i.e., stereo, 48 kHz or more
 sampling frequency), while HFP and HSP for two-way voice transmission (mono, 8
 kHz or 16 kHz sampling frequency).
+
+The Bluetooth audio profiles are not peer-to-peer; they each have a source or
+gateway role (a2dp-source, hfp-ag, or hsp-ag) and a sink or target role
+(a2dp-sink, hfp-hf, hsp-hs). The source/gateway role is the audio player (e.g.,
+mobile phone), the sink/target role is the audio renderer (e.g., headphones or
+speaker). The **bluealsa** daemon can perform any combination of profiles and
+roles, although it is most common to use it either as a source/gateway:
+
+::
+
+    bluealsa -p a2dp-source -p hfp-ag -p hsp-ag
+
+or as a sink/target, either with oFono:
+
+::
+
+    bluealsa -p a2dp-sink -p hfp-ofono
+
+or without oFono:
+
+::
+
+    bluealsa -p a2dp-sink -p hfp-hf -p hsp-hs
+
 With A2DP, BlueALSA includes mandatory SBC codec and various optional codecs
 like AAC, aptX, and other.
 The full list of available optional codecs, which depends on selected
@@ -253,6 +286,90 @@ The **hfp-ofono** is available only when **bluealsa** was compiled with oFono
 support. Enabling HFP over oFono will automatically disable **hfp-hf** and
 **hfp-ag**.
 
+Bluez permits only one service to register the HSP and HFP profiles, and that
+service is automatically registered with every HCI device.
+
+For the A2DP profile, Bluez allows each HCI device to be registered to a
+different service, so it is possible to have multiple instances of
+**bluealsa** offering A2DP support, each with a unique service name given with
+the ``--dbus=`` option, so long as they are registered to different HCI devices
+using the ``--device=`` option. See the EXAMPLES_ below.
+
+A profile connection does not immediately initiate the audio stream(s); audio
+can only flow when the profile transport is "acquired". Acquisition can only be
+performed by the source/gateway role. When acting as source/gateway,
+**bluealsa** acquires the profile transport (i.e., initiates the audio
+connection) when a client opens a PCM. When **bluealsa** is acting as target,
+a client can open a PCM as soon as the profile is connected, but the audio
+stream(s) will not begin until the remote source/gateway has acquired the
+transport.
+
+Volume control
+--------------
+
+The Bluetooth specifications for HFP and HSP include optional support
+for volume control of the target by the gateway device. For A2DP, volume
+control is optionally provided by the AVRCP profile. **bluealsa** provides a
+single, consistent, abstracted interface for volume control of PCMs. This
+interface can use the native Bluetooth features or alternatively **bluealsa**
+also implements its own internal volume control, called "soft-volume". For A2DP
+the default is to use soft-volume, but this can be overridden to use the
+Bluetooth native support where available by using the ``--a2dp-volume`` command
+line option. For HFP/HSP the default is to use Bluetooth native volume control.
+
+When using soft-volume, **bluealsa** scales PCM samples before encoding, and
+after decoding, and does not interact with the Bluetooth AVRCP volume property
+or HFP/HSP volume control. Volume can only be modified by local clients. (Note
+that Bluetooth headphones or speakers with their own volume controls will still
+be able to alter their own volume, but this change will not be notified to
+**bluealsa** local clients, they will only see the soft-volume setting).
+
+When using native volume control, **bluealsa** links the PCM volume setting to
+the AVRCP volume property or HFP/HSP volume control. No scaling of PCM samples
+is applied. Volume can be modified by both local clients and the remote device.
+Local clients will be notified of volume changes made by controls on the
+remote device.
+
+A2DP native volume control does not permit independent values for left and
+right channels, so when a client sets such values **bluealsa** will set the
+Bluetooth volume as the average of the two channels.
+
+Volume level, mute status, and soft-volume selection can all be controlled for
+each PCM by using the D-Bus API (or by using ALSA plugins, see
+**bluealsa-plugins(7)** for more information). The current value of these
+settings for each PCM is stored in the filesystem so that the device can be
+disconnected and later re-connected without losing its volume settings.
+
+When a device is connected, the volume level of its PCMs is set according to
+the following criteria (highest priority first):
+
+    #. saved value from previous connection of the device
+    #. value set by the ``--initial-volume`` command line option
+    #. **100%**
+
+its mute status according to:
+
+    #. saved value from previous connection
+    #. **false**
+
+and its soft-volume status according to:
+
+    #. saved value from previous connection
+    #. **false** for SCO (i.e., use native volume control).
+    #. **false** for A2DP if the ``--a2dp-volume`` command line option is given
+    #. **true** for A2DP (i.e., use soft-volume control).
+
+When native volume control is enabled, then the remote device may also
+modify the volume level after this initial setting. Mute and soft-volume are
+implemented locally by the **bluealsa** daemon and cannot be modified by the
+remote device.
+
+Note that **bluealsa** relies on support from Bluez to implement native volume
+control for A2DP using AVRCP, and Bluez has not always provided robust support
+here. It is recommended to use Bluez release 5.65 or later to be certain that
+native A2DP volume control will always be available with those devices which
+provide it.
+
 FILES
 =====
 
@@ -262,6 +379,10 @@ FILES
     unless permission is granted by a policy file. The default file permits
     only *root* to own this service, and only members of the *audio* group to
     exchange messages with it.
+
+/var/lib/bluealsa/*XX:XX:XX:XX:XX:XX*
+    BlueALSA volume persistent state storage. Files are named after the
+    bluetooth device address to which they refer.
 
 EXAMPLES
 ========
@@ -298,15 +419,15 @@ Please add following lines to the BlueALSA D-Bus policy:
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2022 Arkadiusz Bokowy.
+Copyright (c) 2016-2023 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluetoothctl(1)``, ``bluetoothd(8)``, ``bluealsa-aplay(1)``,
-``bluealsa-cli(1)``, ``bluealsa-plugins(7)``, ``bluealsa-rfcomm(1)``
+``bluealsa-aplay(1)``, ``bluealsa-cli(1)``, ``bluealsa-rfcomm(1)``,
+``bluetoothctl(1)``, ``bluealsa-plugins(7)``, ``bluetoothd(8)``
 
 Project web site
   https://github.com/Arkq/bluez-alsa

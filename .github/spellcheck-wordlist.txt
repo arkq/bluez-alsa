@@ -183,6 +183,7 @@ ptr
 qsort
 readi
 readline
+renderer
 revents
 RST
 RVLC

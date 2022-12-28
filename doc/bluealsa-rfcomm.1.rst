@@ -6,7 +6,7 @@ bluealsa-rfcomm
 a simple RFCOMM terminal for bluealsa
 -------------------------------------
 
-:Date: June 2022
+:Date: January 2023
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -51,14 +51,14 @@ EXAMPLES
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2022 Arkadiusz Bokowy.
+Copyright (c) 2016-2023 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluealsa(8)``, ``bluealsa-aplay(1)``
+``bluealsa-aplay(1)`` ``bluealsa(8)``
 
 Project web site
   https://github.com/Arkq/bluez-alsa
