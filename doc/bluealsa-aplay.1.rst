@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple bluealsa player
 ------------------------
 
-:Date: November 2022
+:Date: January 2023
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -104,14 +104,17 @@ OPTIONS
     microseconds will result in zero rounding error.  (10000 µs at 44100Hz is
     441 frames, and at 48000Hz is 480 frames).
 
-    See also DMIX_ section below for more information on rate calculation
-    rounding errors.
+    See also dmix_ in the **NOTES** section below for more information on
+    rate calculation rounding errors.
 
 -M NAME, --mixer-device=NAME
     Select ALSA mixer device to use for controlling audio output mute state
     and volume level.
     In order to use this feature, BlueALSA PCM can not use software volume.
     The default is ``default``.
+
+    See `Volume control`_ in the **NOTES** section below for more information
+    on volume control.
 
 --mixer-name=NAME
     Set the name of the ALSA simple mixer control to use.
@@ -150,8 +153,30 @@ OPTIONS
     PCM to be able to mix audio from multiple sources (i.e., it can be opened
     more than once; for example the ALSA **dmix** plugin).
 
-DMIX
-====
+NOTES
+=====
+
+Volume control
+--------------
+
+If the BlueALSA PCM is using native Bluetooth volume control, then
+**bluealsa-aplay** operates its given ALSA mixer control to implement volume
+change requests received from the remote Bluetooth device.
+
+If the Bluetooth PCM is using soft-volume volume control, then volume
+adjustment will have been applied to the PCM stream within the **bluealsa**
+daemon; so **bluealsa-aplay** does not operate the mixer control in this case.
+
+Native Bluetooth volume control for A2DP relies on AVRCP volume control in
+BlueZ, which has not always been reliably implemented. It is recommended to use
+BlueZ release 5.65 or later to be certain that native A2DP volume control will
+always be available with those devices which provide it.
+
+See ``bluealsa(8)`` for more information on native and soft-volume volume
+control.
+
+dmix
+----
 
 The ALSA `dmix` plugin will ignore the period and buffer times selected by the
 application (because it has to allow connections from multiple applications).
@@ -228,14 +253,14 @@ element will be used as a hardware volume control knob.
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2022 Arkadiusz Bokowy.
+Copyright (c) 2016-2023 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``amixer(1)``, ``aplay(1)``, ``bluealsa(8)``, ``bluealsa-rfcomm(1)``
+``amixer(1)``, ``aplay(1)``, ``bluealsa-rfcomm(1)``, ``bluealsa(8)``
 
 Project web site
   https://github.com/Arkq/bluez-alsa

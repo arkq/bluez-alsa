@@ -5,13 +5,13 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: August 2022
+:Date: January 2023
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
 
-SYNOPSIS
-========
+DESCRIPTION
+===========
 
 BlueALSA permits applications to access Bluetooth audio devices using the ALSA
 alsa-lib API. Users of those applications can then use Bluetooth speakers,
@@ -416,8 +416,8 @@ CTL Parameters
     included. The default is **no**. The soft volume controls are called "Mode"
     and take values "software" and "pass-through"; the playback control has
     index 0 and capture control index 1. See ``bluealsa(8)`` for more on the
-    soft volume setting , and `CODEC SELECTION`_ below for more information on
-    the Codec control.
+    soft volume setting , and `Codec selection`_ in the **NOTES** section below
+    for more information on the Codec control.
 
   BAT
     Causes the plugin to include a (read-only) battery level indicator,
@@ -443,7 +443,7 @@ CTL Parameters
     the default value is "**yes**". This argument is ignored in default mode;
     in that mode operation is always dynamic. There are some applications that
     are not programmed to handle dynamic addition or removal of controls, and
-    can fail when such events occur. Setting this argument to "no" in single
+    can fail when such events occur. Setting this argument to **no** in single
     device mode with such applications can protect them from such failures.
     When dynamic operation is disabled, the plugin never adds or removes any
     controls. If a single profile is disconnected, then its associated volume
@@ -460,6 +460,9 @@ The default values can be overridden in the ALSA configuration, for example:
 
   defaults.bluealsa.ctl.device "00:11:22:33:44:55"
   defaults.bluealsa.ctl.battery "no"
+  defaults.bluealsa.ctl.bttransport "no"
+  defaults.bluealsa.ctl.dynamic "yes"
+  defaults.bluealsa.ctl.extended "no"
 
 Defining BlueALSA CTLs
 ----------------------
@@ -485,16 +488,11 @@ section above for more information on each field. As for PCM definitions above,
 the default values for the optional fields are hard-coded into the plugin; they
 are not overridden by the configuration ``defaults.bluealsa.`` settings.
 
-FILES
+NOTES
 =====
 
-/etc/alsa/conf.d/20-bluealsa.conf
-    BlueALSA device configuration file.
-    ALSA additional configuration, defines the ``bluealsa`` PCM and CTL
-    devices.
-
-CODEC SELECTION
-===============
+Codec selection
+---------------
 
 Changing the codec used by a BlueALSA transport causes the PCM(s) running on
 that transport to terminate. Therefore using a Codec control can have
@@ -505,18 +503,46 @@ a different codec is displayed. This is not ideal, so the use of this control
 type with ``alsamixer(1)`` is not recommended. The control type does however
 work well with other mixer applications such as ``amixer(1)``.
 
+Transport Acquisition
+---------------------
+
+The audio connection of a profile is not established immediately that a device
+connects. The A2DP source device, or HFP/HSP gateway device, must first
+"acquire" the profile transport.
+
+When the BlueALSA PCM plugin is used on a source A2DP or gateway HFP/HSP node,
+then **bluealsa(8)** will automatically acquire the transport and begin audio
+transfer when the plugin starts the PCM.
+
+When used on an A2DP sink or HFP/HSP target node then **bluealsa(8)** must wait
+for the remote device to acquire the transport. During this waiting time the
+PCM plugin behaves as if the device "clock" is stopped, it does not generate
+any poll() events, and the application will be blocked when writing or reading
+to/from the PCM. For applications playing audio from a file or recording audio
+to a file this is not normally an issue; but when streaming between some other
+device and a BlueALSA device this may lead to very large latency (delay) or
+trigger underruns or overruns in the other device.
+
+FILES
+=====
+
+/etc/alsa/conf.d/20-bluealsa.conf
+    BlueALSA device configuration file.
+    ALSA additional configuration, defines the ``bluealsa`` PCM and CTL
+    devices.
+
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2022 Arkadiusz Bokowy.
+Copyright (c) 2016-2023 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``alsamixer(1)``, ``amixer(1)``, ``aplay(1)``, ``bluealsa(8)``,
-``bluetoothctl(1)``, ``bluetoothd(8)``
+``alsamixer(1)``, ``amixer(1)``, ``aplay(1)``, ``bluetoothctl(1)``,
+``bluealsa(8)``, ``bluetoothd(8)``
 
 Project web site
   https://github.com/Arkq/bluez-alsa
