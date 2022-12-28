@@ -51,6 +51,8 @@ struct ctl_elem {
 	enum ctl_elem_type type;
 	struct bt_dev *dev;
 	struct ba_pcm *pcm;
+	/* element ID exposed by ALSA */
+	int numid;
 	char name[44 /* internal ALSA constraint */];
 	unsigned int index;
 	/* codec list for codec control element */
@@ -66,6 +68,8 @@ struct ctl_elem_update {
 	/* PCM associated with the element being updated. This pointer shall not
 	 * be dereferenced, because it might point to already freed memory region. */
 	const struct ba_pcm *pcm;
+	/* the ID of the element */
+	int numid;
 	/* the name of the element being updated */
 	char name[sizeof(((struct ctl_elem *)0)->name)];
 	/* index of the element being updated */
@@ -360,6 +364,7 @@ static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
 	if ((tmp = realloc(tmp, (ctl->elem_update_list_size + 1) * sizeof(*tmp))) == NULL)
 		return -1;
 
+	tmp[ctl->elem_update_list_size].numid = elem->numid;
 	tmp[ctl->elem_update_list_size].pcm = elem->pcm;
 	tmp[ctl->elem_update_list_size].event_mask = mask;
 	*stpncpy(tmp[ctl->elem_update_list_size].name, elem->name,
@@ -764,6 +769,15 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 		}
 
+	/* Annotate elements with ALSA fake ID (see ALSA lib snd_ctl_ext_elem_list()
+	 * function for reference). These IDs will not be used by the ALSA lib when
+	 * the elem_list callback is called. However, we need them to be consistent
+	 * with ALSA internal fake IDs, because we will use them when creating new
+	 * elements by SND_CTL_EVENT_MASK_ADD events. Otherwise, these elements will
+	 * not behave properly. */
+	for (i = 0; i < count; i++)
+		elem_list[i].numid = i + 1;
+
 	ctl->elem_list = elem_list;
 	ctl->elem_list_size = count;
 
@@ -811,6 +825,7 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 	if (offset > ctl->elem_list_size)
 		return -EINVAL;
 
+	snd_ctl_elem_id_set_numid(id, ctl->elem_list[offset].numid);
 	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
 	snd_ctl_elem_id_set_name(id, ctl->elem_list[offset].name);
 	snd_ctl_elem_id_set_index(id, ctl->elem_list[offset].index);
@@ -1391,10 +1406,13 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 
 	if (ctl->elem_update_list_size) {
 
+		const struct ctl_elem_update *update = &ctl->elem_update_list[ctl->elem_update_event_i];
+
+		snd_ctl_elem_id_set_numid(id, update->numid);
 		snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
-		snd_ctl_elem_id_set_name(id, ctl->elem_update_list[ctl->elem_update_event_i].name);
-		snd_ctl_elem_id_set_index(id, ctl->elem_update_list[ctl->elem_update_event_i].index);
-		*event_mask = ctl->elem_update_list[ctl->elem_update_event_i].event_mask;
+		snd_ctl_elem_id_set_name(id, update->name);
+		snd_ctl_elem_id_set_index(id, update->index);
+		*event_mask = update->event_mask;
 
 		if (++ctl->elem_update_event_i == ctl->elem_update_list_size) {
 			ctl->elem_update_list_size = 0;
