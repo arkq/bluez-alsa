@@ -168,8 +168,8 @@ adjustment will have been applied to the PCM stream within the **bluealsa**
 daemon; so **bluealsa-aplay** does not operate the mixer control in this case.
 
 Native Bluetooth volume control for A2DP relies on AVRCP volume control in
-Bluez, which has not always been reliably implemented. It is recommended to use
-Bluez release 5.65 or later to be certain that native A2DP volume control will
+BlueZ, which has not always been reliably implemented. It is recommended to use
+BlueZ release 5.65 or later to be certain that native A2DP volume control will
 always be available with those devices which provide it.
 
 See ``bluealsa(8)`` for more information on native and soft-volume volume

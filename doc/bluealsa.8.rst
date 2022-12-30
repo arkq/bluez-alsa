@@ -286,10 +286,10 @@ The **hfp-ofono** is available only when **bluealsa** was compiled with oFono
 support. Enabling HFP over oFono will automatically disable **hfp-hf** and
 **hfp-ag**.
 
-Bluez permits only one service to register the HSP and HFP profiles, and that
+BlueZ permits only one service to register the HSP and HFP profiles, and that
 service is automatically registered with every HCI device.
 
-For the A2DP profile, Bluez allows each HCI device to be registered to a
+For the A2DP profile, BlueZ allows each HCI device to be registered to a
 different service, so it is possible to have multiple instances of
 **bluealsa** offering A2DP support, each with a unique service name given with
 the ``--dbus=`` option, so long as they are registered to different HCI devices
@@ -364,9 +364,9 @@ modify the volume level after this initial setting. Mute and soft-volume are
 implemented locally by the **bluealsa** daemon and cannot be modified by the
 remote device.
 
-Note that **bluealsa** relies on support from Bluez to implement native volume
-control for A2DP using AVRCP, and Bluez has not always provided robust support
-here. It is recommended to use Bluez release 5.65 or later to be certain that
+Note that **bluealsa** relies on support from BlueZ to implement native volume
+control for A2DP using AVRCP, and BlueZ has not always provided robust support
+here. It is recommended to use BlueZ release 5.65 or later to be certain that
 native A2DP volume control will always be available with those devices which
 provide it.
 
@@ -382,7 +382,7 @@ FILES
 
 /var/lib/bluealsa/*XX:XX:XX:XX:XX:XX*
     BlueALSA volume persistent state storage. Files are named after the
-    bluetooth device address to which they refer.
+    Bluetooth device address to which they refer.
 
 EXAMPLES
 ========
