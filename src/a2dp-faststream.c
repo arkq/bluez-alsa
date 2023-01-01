@@ -216,7 +216,6 @@ static void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 
 fail:
 	debug_transport_thread_loop(th, "EXIT");
-	ba_transport_thread_set_state_stopping(th);
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -302,7 +301,6 @@ static void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 
 fail:
 	debug_transport_thread_loop(th, "EXIT");
-	ba_transport_thread_set_state_stopping(th);
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);

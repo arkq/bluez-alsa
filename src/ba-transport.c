@@ -1633,6 +1633,8 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 
+	ba_transport_thread_set_state_stopping(th);
+
 	/* Release BT socket file descriptor duplicate created either in the
 	 * ba_transport_thread_create() function or in the IO thread itself. */
 	ba_transport_thread_bt_release(th);

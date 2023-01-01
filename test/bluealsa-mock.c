@@ -234,7 +234,6 @@ static void *mock_dec(struct ba_transport_thread *th) {
 
 	}
 
-	ba_transport_thread_set_state_stopping(th);
 	pthread_cleanup_pop(1);
 	return NULL;
 }

@@ -278,7 +278,6 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 
 exit:
 	debug_transport_thread_loop(th, "EXIT");
-	ba_transport_thread_set_state_stopping(th);
 fail_init:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -335,7 +334,6 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 
 exit:
 	debug_transport_thread_loop(th, "EXIT");
-	ba_transport_thread_set_state_stopping(th);
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -416,7 +414,6 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 
 exit:
 	debug_transport_thread_loop(th, "EXIT");
-	ba_transport_thread_set_state_stopping(th);
 fail_msbc:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -478,7 +475,6 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 
 exit:
 	debug_transport_thread_loop(th, "EXIT");
-	ba_transport_thread_set_state_stopping(th);
 fail_msbc:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
