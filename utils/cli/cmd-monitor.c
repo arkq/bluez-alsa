@@ -82,7 +82,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 			goto fail;
 		dbus_bool_t running;
 		dbus_message_iter_get_basic(&variant, &running);
-		printf("PropertyChanged %s Running %s\n", path, running ? "Y" : "N");
+		printf("PropertyChanged %s Running %s\n", path, running ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_SOFTVOL].enabled &&
 		strcmp(key, "SoftVolume") == 0) {
@@ -90,7 +90,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 			goto fail;
 		dbus_bool_t softvol;
 		dbus_message_iter_get_basic(&variant, &softvol);
-		printf("PropertyChanged %s SoftVolume %s\n", path, softvol ? "Y" : "N");
+		printf("PropertyChanged %s SoftVolume %s\n", path, softvol ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_VOLUME].enabled &&
 		strcmp(key, "Volume") == 0) {
