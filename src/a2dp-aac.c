@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-aac.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -63,7 +63,7 @@ struct a2dp_codec a2dp_aac_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable are
+		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
 		 *       not supported by the FDK-AAC library. */
 		.object_type =
 			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
@@ -99,7 +99,7 @@ struct a2dp_codec a2dp_aac_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable are
+		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
 		 *       not supported by the FDK-AAC library. */
 		.object_type =
 			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
@@ -132,6 +132,21 @@ struct a2dp_codec a2dp_aac_source = {
 };
 
 void a2dp_aac_init(void) {
+
+	LIB_INFO info[16] = { 0 };
+	info[ARRAYSIZE(info) - 1].module_id = ~FDK_NONE;
+
+	aacDecoder_GetLibInfo(info);
+	aacEncGetLibInfo(info);
+
+	unsigned int caps_dec = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
+	unsigned int caps_enc = FDKlibInfo_getCapabilities(info, FDK_AACENC);
+	debug("FDK-AAC lib capabilities: dec:%#x enc:%#x", caps_dec, caps_enc);
+
+	if (caps_dec & CAPF_ER_AAC_SCAL)
+		a2dp_aac_sink.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+	if (caps_enc & CAPF_ER_AAC_SCAL)
+		a2dp_aac_source.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
 
 	if (config.a2dp.force_mono)
 		a2dp_aac_source.capabilities.aac.channels = AAC_CHANNELS_1;

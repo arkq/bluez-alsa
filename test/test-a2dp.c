@@ -17,6 +17,7 @@
 #include <glib.h>
 
 #include "a2dp.h"
+#include "a2dp-aac.h"
 #include "a2dp-sbc.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
@@ -58,6 +59,10 @@ START_TEST(test_a2dp_codecs_get_canonical_name) {
 START_TEST(test_a2dp_dir) {
 	ck_assert_int_eq(A2DP_SOURCE, !A2DP_SINK);
 	ck_assert_int_eq(!A2DP_SOURCE, A2DP_SINK);
+} END_TEST
+
+START_TEST(test_a2dp_codecs_init) {
+	a2dp_codecs_init();
 } END_TEST
 
 START_TEST(test_a2dp_codec_cmp) {
@@ -161,6 +166,9 @@ START_TEST(test_a2dp_filter_capabilities) {
 		.max_bitpool = 255,
 	};
 
+	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source, &cfg, sizeof(cfg) + 1), -1);
+	ck_assert_int_eq(errno, EINVAL);
+
 	hexdump("Capabilities original", &cfg, sizeof(cfg), true);
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
 
@@ -203,6 +211,12 @@ START_TEST(test_a2dp_select_configuration) {
 	ck_assert_int_eq(cfg.max_bitpool, 250);
 
 	cfg = cfg_;
+	config.a2dp.force_mono = true;
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_MONO);
+
+	cfg = cfg_;
+	config.a2dp.force_mono = false;
 	config.a2dp.force_44100 = true;
 	config.sbc_quality = SBC_QUALITY_XQ;
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
@@ -213,6 +227,15 @@ START_TEST(test_a2dp_select_configuration) {
 	ck_assert_int_eq(cfg.allocation_method, SBC_ALLOCATION_LOUDNESS);
 	ck_assert_int_eq(cfg.min_bitpool, 42);
 	ck_assert_int_eq(cfg.max_bitpool, 250);
+
+#if ENABLE_AAC
+	a2dp_aac_t cfg_aac = {
+		/* FDK-AAC encoder does not support AAC Long Term Prediction */
+		.object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP,
+		AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100 | AAC_SAMPLING_FREQ_96000)
+		.channels = AAC_CHANNELS_1 };
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), -1);
+#endif
 
 } END_TEST
 
@@ -229,6 +252,7 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_codecs_get_canonical_name);
 
 	tcase_add_test(tc, test_a2dp_dir);
+	tcase_add_test(tc, test_a2dp_codecs_init);
 	tcase_add_test(tc, test_a2dp_codec_cmp);
 	tcase_add_test(tc, test_a2dp_sep_cmp);
 	tcase_add_test(tc, test_a2dp_codec_lookup);
