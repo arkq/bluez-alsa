@@ -1,6 +1,6 @@
 /*
  * test-rtp.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,7 +17,9 @@
 #include "rtp.h"
 #include "shared/defs.h"
 
-START_TEST(test_rtp_a2dp_init) {
+#include "inc/check.inc"
+
+CK_START_TEST(test_rtp_a2dp_init) {
 
 	uint8_t buffer[RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 16];
 	for (size_t i = 0; i < sizeof(buffer); i++)
@@ -33,9 +35,9 @@ START_TEST(test_rtp_a2dp_init) {
 	ck_assert_ptr_ne(payload, NULL);
 	ck_assert_int_eq(payload[0], 13);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_rtp_a2dp_get_payload) {
+CK_START_TEST(test_rtp_a2dp_get_payload) {
 
 	uint8_t buffer[RTP_HEADER_LEN + 16];
 	for (size_t i = 0; i < sizeof(buffer); i++)
@@ -54,9 +56,9 @@ START_TEST(test_rtp_a2dp_get_payload) {
 	ck_assert_ptr_ne(payload, NULL);
 	ck_assert_int_eq(payload[0], 12);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_rtp_state_new_frame) {
+CK_START_TEST(test_rtp_state_new_frame) {
 
 	struct rtp_state rtp;
 	rtp_state_init(&rtp, 8000, 8000);
@@ -71,9 +73,9 @@ START_TEST(test_rtp_state_new_frame) {
 		ck_assert_int_eq(be32toh(header.timestamp), ts_offset);
 	}
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_rtp_state_sync_stream) {
+CK_START_TEST(test_rtp_state_sync_stream) {
 
 	struct rtp_state rtp;
 	rtp_state_init(&rtp, 8000, 8000);
@@ -153,9 +155,9 @@ START_TEST(test_rtp_state_sync_stream) {
 
 	}
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_rtp_state_update) {
+CK_START_TEST(test_rtp_state_update) {
 
 	struct rtp_state rtp;
 	rtp_state_init(&rtp, 8000, 8000);
@@ -165,7 +167,7 @@ START_TEST(test_rtp_state_update) {
 
 	ck_assert_int_eq(rtp.ts_pcm_frames, 10 * 16);
 
-} END_TEST
+} CK_END_TEST
 
 int main(void) {
 

@@ -1,6 +1,6 @@
 /*
  * test-ba.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -38,6 +38,7 @@
 #include "shared/log.h"
 
 #include "../src/ba-transport.c"
+#include "inc/check.inc"
 
 #define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-test-ba-storage"
 
@@ -78,7 +79,7 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
 
-START_TEST(test_ba_adapter) {
+CK_START_TEST(test_ba_adapter) {
 
 	struct ba_adapter *a;
 
@@ -95,9 +96,9 @@ START_TEST(test_ba_adapter) {
 
 	ba_adapter_unref(a);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_ba_device) {
+CK_START_TEST(test_ba_device) {
 
 	struct ba_adapter *a;
 	struct ba_device *d;
@@ -119,9 +120,9 @@ START_TEST(test_ba_device) {
 
 	ba_device_unref(d);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_ba_transport) {
+CK_START_TEST(test_ba_transport) {
 
 	struct ba_adapter *a;
 	struct ba_device *d;
@@ -146,9 +147,9 @@ START_TEST(test_ba_transport) {
 
 	ba_transport_unref(t);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_ba_transport_sco_one_only) {
+CK_START_TEST(test_ba_transport_sco_one_only) {
 
 	struct ba_adapter *a;
 	struct ba_device *d;
@@ -171,9 +172,9 @@ START_TEST(test_ba_transport_sco_one_only) {
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_ba_transport_pcm_format) {
+CK_START_TEST(test_ba_transport_pcm_format) {
 
 	uint16_t format_u8 = BA_TRANSPORT_PCM_FORMAT_U8;
 	uint16_t format_s32_4le = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
@@ -190,9 +191,9 @@ START_TEST(test_ba_transport_pcm_format) {
 	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_BYTES(format_s32_4le), 4);
 	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_ENDIAN(format_s32_4le), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_ba_transport_pcm_volume) {
+CK_START_TEST(test_ba_transport_pcm_volume) {
 
 	struct ba_adapter *a;
 	struct ba_device *d;
@@ -236,13 +237,13 @@ START_TEST(test_ba_transport_pcm_volume) {
 	ba_transport_unref(t_a2dp);
 	ba_transport_unref(t_sco);
 
-} END_TEST
+} CK_END_TEST
 
 static int test_cascade_free_transport_unref(struct ba_transport *t) {
 	return ba_transport_unref(t), 0;
 }
 
-START_TEST(test_cascade_free) {
+CK_START_TEST(test_cascade_free) {
 
 	struct ba_adapter *a;
 	struct ba_device *d;
@@ -257,9 +258,9 @@ START_TEST(test_cascade_free) {
 	ba_device_unref(d);
 	ba_adapter_destroy(a);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_storage) {
+CK_START_TEST(test_storage) {
 
 	const char *storage_path = TEST_BLUEALSA_STORAGE_DIR "/00:11:22:33:44:55";
 	const char *storage_data =
@@ -324,7 +325,7 @@ START_TEST(test_storage) {
 	/* check if persistent storage was updated */
 	ck_assert_str_eq(buffer, storage_data_new);
 
-} END_TEST
+} CK_END_TEST
 
 int main(void) {
 

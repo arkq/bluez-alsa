@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -63,6 +63,7 @@
 #include "../src/a2dp-sbc.c"
 #include "../src/ba-transport.c"
 #include "inc/btd.inc"
+#include "inc/check.inc"
 #include "inc/sine.inc"
 
 #define CHECK_VERSION ( \
@@ -681,7 +682,7 @@ static struct ba_transport *test_transport_new_sco(
 	return t;
 }
 
-START_TEST(test_a2dp_sbc) {
+CK_START_TEST(test_a2dp_sbc) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
@@ -695,7 +696,6 @@ START_TEST(test_a2dp_sbc) {
 		test_io(t1, t2, a2dp_sbc_enc_thread, a2dp_sbc_dec_thread, 4 * 1024);
 	}
 	else {
-		debug("\n\n*** A2DP codec: SBC ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
 		test_io(t1, t2, a2dp_sbc_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_sbc_dec_thread, 2 * 1024);
@@ -704,10 +704,10 @@ START_TEST(test_a2dp_sbc) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 
 #if ENABLE_MP3LAME
-START_TEST(test_a2dp_mp3) {
+CK_START_TEST(test_a2dp_mp3) {
 
 	config_mp3_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 
@@ -723,7 +723,6 @@ START_TEST(test_a2dp_mp3) {
 		test_io(t1, t2, a2dp_mp3_enc_thread, a2dp_mpeg_dec_thread, 4 * 1024);
 	}
 	else {
-		debug("\n\n*** A2DP codec: MP3 ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 512;
 		test_io(t1, t2, a2dp_mp3_enc_thread, test_io_thread_dump_bt, 3 * 1024);
 		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_mpeg_dec_thread, 3 * 1024);
@@ -732,11 +731,11 @@ START_TEST(test_a2dp_mp3) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 #if ENABLE_AAC
-START_TEST(test_a2dp_aac) {
+CK_START_TEST(test_a2dp_aac) {
 
 	config.aac_afterburner = true;
 	config.aac_prefer_vbr = enable_vbr_mode;
@@ -754,7 +753,6 @@ START_TEST(test_a2dp_aac) {
 		test_io(t1, t2, a2dp_aac_enc_thread, a2dp_aac_dec_thread, 4 * 1024);
 	}
 	else {
-		debug("\n\n*** A2DP codec: AAC ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 190;
 		test_io(t1, t2, a2dp_aac_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_aac_dec_thread, 2 * 1024);
@@ -763,11 +761,11 @@ START_TEST(test_a2dp_aac) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 #if ENABLE_APTX
-START_TEST(test_a2dp_aptx) {
+CK_START_TEST(test_a2dp_aptx) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aptx", &a2dp_aptx_source,
@@ -783,7 +781,6 @@ START_TEST(test_a2dp_aptx) {
 #endif
 	}
 	else {
-		debug("\n\n*** A2DP codec: apt-X ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 40;
 		test_io(t1, t2, a2dp_aptx_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 #if HAVE_APTX_DECODE
@@ -794,11 +791,11 @@ START_TEST(test_a2dp_aptx) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 #if ENABLE_APTX_HD
-START_TEST(test_a2dp_aptx_hd) {
+CK_START_TEST(test_a2dp_aptx_hd) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aptxhd", &a2dp_aptx_hd_source,
@@ -814,7 +811,6 @@ START_TEST(test_a2dp_aptx_hd) {
 #endif
 	}
 	else {
-		debug("\n\n*** A2DP codec: apt-X HD ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
 		test_io(t1, t2, a2dp_aptx_hd_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 #if HAVE_APTX_HD_DECODE
@@ -825,11 +821,11 @@ START_TEST(test_a2dp_aptx_hd) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 #if ENABLE_FASTSTREAM
-START_TEST(test_a2dp_faststream) {
+CK_START_TEST(test_a2dp_faststream_music) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/faststream", &a2dp_faststream_source,
@@ -844,10 +840,32 @@ START_TEST(test_a2dp_faststream) {
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
-		debug("\n\n*** A2DP codec: FastStream MUSIC ***");
 		test_io(t1, t2, a2dp_faststream_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1, t2, test_io_thread_dump_pcm, a2dp_faststream_dec_thread, 2 * 1024);
-		debug("\n\n*** A2DP codec: FastStream VOICE ***");
+	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
+} CK_END_TEST
+#endif
+
+#if ENABLE_FASTSTREAM
+CK_START_TEST(test_a2dp_faststream_voice) {
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/faststream", &a2dp_faststream_source,
+			&config_faststream_44100_16000);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/faststream", &a2dp_faststream_sink,
+			&config_faststream_44100_16000);
+
+	if (aging_duration) {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
+		test_io(t2, t1, a2dp_faststream_enc_thread, a2dp_faststream_dec_thread, 4 * 1024);
+	}
+	else {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
 		test_io(t2, t1, a2dp_faststream_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t2, t1, test_io_thread_dump_pcm, a2dp_faststream_dec_thread, 2 * 1024);
 	}
@@ -855,11 +873,11 @@ START_TEST(test_a2dp_faststream) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 #if ENABLE_LC3PLUS
-START_TEST(test_a2dp_lc3plus) {
+CK_START_TEST(test_a2dp_lc3plus) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lc3plus", &a2dp_lc3plus_source,
@@ -874,7 +892,6 @@ START_TEST(test_a2dp_lc3plus) {
 		test_io(t1, t2, a2dp_lc3plus_enc_thread, a2dp_lc3plus_dec_thread, 4 * 1024);
 	}
 	else {
-		debug("\n\n*** A2DP codec: LC3plus ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
 			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 300;
 		test_io(t1, t2, a2dp_lc3plus_enc_thread, test_io_thread_dump_bt, 2 * 1024);
@@ -884,11 +901,11 @@ START_TEST(test_a2dp_lc3plus) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 #if ENABLE_LDAC
-START_TEST(test_a2dp_ldac) {
+CK_START_TEST(test_a2dp_ldac) {
 
 	config.ldac_abr = true;
 	config.ldac_eqmid = LDACBT_EQMID_HQ;
@@ -908,7 +925,6 @@ START_TEST(test_a2dp_ldac) {
 #endif
 	}
 	else {
-		debug("\n\n*** A2DP codec: LDAC ***");
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
 			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
 		test_io(t1, t2, a2dp_ldac_enc_thread, test_io_thread_dump_bt, 2 * 1024);
@@ -920,17 +936,16 @@ START_TEST(test_a2dp_ldac) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
-START_TEST(test_sco_cvsd) {
+CK_START_TEST(test_sco_cvsd) {
 
 	struct ba_transport *t1 = test_transport_new_sco(device1,
 			BA_TRANSPORT_PROFILE_HSP_AG, "/path/sco/cvsd");
 	struct ba_transport *t2 = test_transport_new_sco(device2,
 			BA_TRANSPORT_PROFILE_HSP_AG, "/path/sco/cvsd");
 
-	debug("\n\n*** SCO codec: CVSD ***");
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 48;
 	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 600);
 	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 600);
@@ -938,10 +953,10 @@ START_TEST(test_sco_cvsd) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 
 #if ENABLE_MSBC
-START_TEST(test_sco_msbc) {
+CK_START_TEST(test_sco_msbc) {
 
 	adapter->hci.features[2] = LMP_TRSP_SCO;
 	adapter->hci.features[3] = LMP_ESCO;
@@ -953,7 +968,6 @@ START_TEST(test_sco_msbc) {
 			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/msbc");
 	ba_transport_set_codec(t2, HFP_CODEC_MSBC);
 
-	debug("\n\n*** SCO codec: mSBC ***");
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
 	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 600);
 	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 600);
@@ -961,7 +975,7 @@ START_TEST(test_sco_msbc) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 int main(int argc, char *argv[]) {
@@ -988,7 +1002,8 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX_HD), test_a2dp_aptx_hd },
 #endif
 #if ENABLE_FASTSTREAM
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), test_a2dp_faststream },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), test_a2dp_faststream_music },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), test_a2dp_faststream_voice },
 #endif
 #if ENABLE_LC3PLUS
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LC3PLUS), test_a2dp_lc3plus },

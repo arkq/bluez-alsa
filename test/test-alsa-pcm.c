@@ -1,6 +1,6 @@
 /*
  * test-alsa-pcm.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -34,6 +34,7 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+#include "inc/check.inc"
 #include "inc/mock.inc"
 #include "inc/preload.inc"
 #include "inc/sine.inc"
@@ -213,8 +214,7 @@ static snd_pcm_state_t snd_pcm_state_runtime(snd_pcm_t *pcm) {
 	return snd_pcm_status_get_state(status);
 }
 
-START_TEST(dump_capture) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(dump_capture) {
 
 	snd_output_t *output;
 	struct spawn_process sp_ba_mock;
@@ -228,10 +228,9 @@ START_TEST(dump_capture) {
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 	ck_assert_int_eq(snd_output_close(output), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_capture_start) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_capture_start) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -281,10 +280,9 @@ START_TEST(test_capture_start) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_capture_pause) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_capture_pause) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -345,10 +343,9 @@ START_TEST(test_capture_pause) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_capture_overrun) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_capture_overrun) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -390,10 +387,9 @@ START_TEST(test_capture_overrun) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_capture_poll) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_capture_poll) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -429,10 +425,9 @@ START_TEST(test_capture_poll) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(dump_playback) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(dump_playback) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -462,14 +457,12 @@ START_TEST(dump_playback) {
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 	ck_assert_int_eq(snd_output_close(output), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(ba_test_playback_hw_constraints) {
+CK_START_TEST(ba_test_playback_hw_constraints) {
 
 	if (pcm_device != NULL)
 		return;
-
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	/* hard-coded values used in the bluealsa-mock */
 	const unsigned int server_channels = 2;
@@ -537,14 +530,12 @@ START_TEST(ba_test_playback_hw_constraints) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(ba_test_playback_no_such_device) {
+CK_START_TEST(ba_test_playback_no_such_device) {
 
 	if (pcm_device != NULL)
 		return;
-
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
@@ -559,14 +550,12 @@ START_TEST(ba_test_playback_no_such_device) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(ba_test_playback_extra_setup) {
+CK_START_TEST(ba_test_playback_extra_setup) {
 
 	if (pcm_device != NULL)
 		return;
-
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
@@ -605,10 +594,9 @@ START_TEST(ba_test_playback_extra_setup) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_playback_hw_set_free) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_playback_hw_set_free) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -635,10 +623,9 @@ START_TEST(test_playback_hw_set_free) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_playback_start) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_playback_start) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -677,10 +664,9 @@ START_TEST(test_playback_start) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_playback_drain) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_playback_drain) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -715,10 +701,9 @@ START_TEST(test_playback_drain) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_playback_pause) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_playback_pause) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -780,10 +765,9 @@ START_TEST(test_playback_pause) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_playback_reset) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_playback_reset) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -837,10 +821,9 @@ retry:
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_playback_underrun) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_playback_underrun) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -882,7 +865,7 @@ START_TEST(test_playback_underrun) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
 /**
  * Make reference test for device unplug.
@@ -906,8 +889,7 @@ START_TEST(test_playback_underrun) {
  * - snd_pcm_wait(pcm, 10) = -19
  * - snd_pcm_close(pcm) = 0
  */
-START_TEST(reference_playback_device_unplug) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(reference_playback_device_unplug) {
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -947,14 +929,12 @@ START_TEST(reference_playback_device_unplug) {
 	dumprv(snd_pcm_wait(pcm, 10));
 	dumprv(snd_pcm_close(pcm));
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(ba_test_playback_device_unplug) {
+CK_START_TEST(ba_test_playback_device_unplug) {
 
 	if (pcm_device != NULL)
 		return;
-
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	unsigned int buffer_time = 200000;
 	unsigned int period_time = 25000;
@@ -999,7 +979,7 @@ START_TEST(ba_test_playback_device_unplug) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
-} END_TEST
+} CK_END_TEST
 
 int main(int argc, char *argv[], char *envp[]) {
 	preload(argc, argv, envp, ".libs/aloader.so");

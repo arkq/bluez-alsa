@@ -1,6 +1,6 @@
 /*
  * test-a2dp.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -24,6 +24,8 @@
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
+#include "inc/check.inc"
+
 bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) { (void)pcm; return false; }
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
@@ -39,33 +41,33 @@ int ba_transport_thread_signal_recv(struct ba_transport_thread *th,
 	(void)th; (void)signal; return -1; }
 void ba_transport_thread_cleanup(struct ba_transport_thread *th) { (void)th; }
 
-START_TEST(test_a2dp_codecs_codec_id_from_string) {
+CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {
 	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);
 	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("apt-x"), A2DP_CODEC_VENDOR_APTX);
 	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("unknown"), 0xFFFF);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_codecs_codec_id_to_string) {
+CK_START_TEST(test_a2dp_codecs_codec_id_to_string) {
 	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), "SBC");
 	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), "aptX");
 	ck_assert_ptr_eq(a2dp_codecs_codec_id_to_string(0xFFFF), NULL);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_codecs_get_canonical_name) {
+CK_START_TEST(test_a2dp_codecs_get_canonical_name) {
 	ck_assert_str_eq(a2dp_codecs_get_canonical_name("apt-x"), "aptX");
 	ck_assert_str_eq(a2dp_codecs_get_canonical_name("Foo-Bar"), "Foo-Bar");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_dir) {
+CK_START_TEST(test_a2dp_dir) {
 	ck_assert_int_eq(A2DP_SOURCE, !A2DP_SINK);
 	ck_assert_int_eq(!A2DP_SOURCE, A2DP_SINK);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_codecs_init) {
+CK_START_TEST(test_a2dp_codecs_init) {
 	a2dp_codecs_init();
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_codec_cmp) {
+CK_START_TEST(test_a2dp_codec_cmp) {
 
 	struct a2dp_codec codec1 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
 	struct a2dp_codec codec2 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
@@ -84,9 +86,9 @@ START_TEST(test_a2dp_codec_cmp) {
 	ck_assert_ptr_eq(codecs[4], &codec5);
 	ck_assert_ptr_eq(codecs[5], &codec6);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_sep_cmp) {
+CK_START_TEST(test_a2dp_sep_cmp) {
 
 	struct a2dp_sep seps[] = {
 		{ .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX },
@@ -104,14 +106,14 @@ START_TEST(test_a2dp_sep_cmp) {
 	ck_assert_int_eq(seps[4].dir, A2DP_SINK);
 	ck_assert_int_eq(seps[4].codec_id, A2DP_CODEC_VENDOR_APTX);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_codec_lookup) {
+CK_START_TEST(test_a2dp_codec_lookup) {
 	ck_assert_ptr_eq(a2dp_codec_lookup(A2DP_CODEC_SBC, A2DP_SOURCE), &a2dp_sbc_source);
 	ck_assert_ptr_eq(a2dp_codec_lookup(0xFFFF, A2DP_SOURCE), NULL);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_get_vendor_codec_id) {
+CK_START_TEST(test_a2dp_get_vendor_codec_id) {
 
 	uint8_t cfg0[4] = { 0xDE, 0xAD, 0xB0, 0xBE };
 	ck_assert_int_eq(a2dp_get_vendor_codec_id(cfg0, sizeof(cfg0)), 0xFFFF);
@@ -124,9 +126,9 @@ START_TEST(test_a2dp_get_vendor_codec_id) {
 	ck_assert_int_eq(a2dp_get_vendor_codec_id(&cfg2, sizeof(cfg2)), 0xFFFF);
 	ck_assert_int_eq(errno, ENOTSUP);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_check_configuration) {
+CK_START_TEST(test_a2dp_check_configuration) {
 
 	const a2dp_sbc_t cfg_valid = {
 		.frequency = SBC_SAMPLING_FREQ_44100,
@@ -152,9 +154,9 @@ START_TEST(test_a2dp_check_configuration) {
 				&cfg_invalid, sizeof(cfg_invalid)),
 			A2DP_CHECK_ERR_SAMPLING | A2DP_CHECK_ERR_CHANNELS | A2DP_CHECK_ERR_SBC_SUB_BANDS);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_filter_capabilities) {
+CK_START_TEST(test_a2dp_filter_capabilities) {
 
 	a2dp_sbc_t cfg = {
 		.frequency = SBC_SAMPLING_FREQ_44100,
@@ -181,9 +183,9 @@ START_TEST(test_a2dp_filter_capabilities) {
 	ck_assert_int_eq(cfg.min_bitpool, MAX(SBC_MIN_BITPOOL, 42));
 	ck_assert_int_eq(cfg.max_bitpool, MIN(SBC_MAX_BITPOOL, 255));
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_a2dp_select_configuration) {
+CK_START_TEST(test_a2dp_select_configuration) {
 
 	a2dp_sbc_t cfg;
 	const a2dp_sbc_t cfg_ = {
@@ -237,7 +239,7 @@ START_TEST(test_a2dp_select_configuration) {
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), -1);
 #endif
 
-} END_TEST
+} CK_END_TEST
 
 int main(void) {
 

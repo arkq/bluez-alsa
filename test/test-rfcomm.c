@@ -1,6 +1,6 @@
 /*
  * test-rfcomm.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -34,6 +34,8 @@
 #include "bluez.h"
 #include "hfp.h"
 #include "shared/log.h"
+
+#include "inc/check.inc"
 
 static struct ba_adapter *adapter = NULL;
 static struct ba_device *device1 = NULL;
@@ -99,7 +101,7 @@ static uint16_t get_codec_id(struct ba_transport *t) {
 	return codec_id;
 }
 
-START_TEST(test_rfcomm) {
+CK_START_TEST(test_rfcomm) {
 
 	transport_codec_updated_cnt = 0;
 	memset(adapter->hci.features, 0, sizeof(adapter->hci.features));
@@ -140,9 +142,9 @@ START_TEST(test_rfcomm) {
 	ck_assert_int_eq(device1->ref_count, 1);
 	ck_assert_int_eq(device2->ref_count, 1);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_rfcomm_esco) {
+CK_START_TEST(test_rfcomm_esco) {
 
 	transport_codec_updated_cnt = 0;
 	adapter->hci.features[2] = LMP_TRSP_SCO;
@@ -210,10 +212,10 @@ START_TEST(test_rfcomm_esco) {
 	ck_assert_int_eq(device1->ref_count, 1);
 	ck_assert_int_eq(device2->ref_count, 1);
 
-} END_TEST
+} CK_END_TEST
 
 #if ENABLE_MSBC
-START_TEST(test_rfcomm_set_codec) {
+CK_START_TEST(test_rfcomm_set_codec) {
 
 	transport_codec_updated_cnt = 0;
 	adapter->hci.features[2] = LMP_TRSP_SCO;
@@ -276,7 +278,7 @@ START_TEST(test_rfcomm_set_codec) {
 	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_MSBC);
 	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_MSBC);
 
-} END_TEST
+} CK_END_TEST
 #endif
 
 int main(void) {

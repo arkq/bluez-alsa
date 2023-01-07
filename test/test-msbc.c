@@ -1,6 +1,6 @@
 /*
  * test-msbc.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -21,10 +21,11 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 
-#include "inc/sine.inc"
 #include "../src/codec-msbc.c"
+#include "inc/check.inc"
+#include "inc/sine.inc"
 
-START_TEST(test_msbc_init) {
+CK_START_TEST(test_msbc_init) {
 
 	struct esco_msbc msbc = { .initialized = false };
 
@@ -41,9 +42,9 @@ START_TEST(test_msbc_init) {
 
 	msbc_finish(&msbc);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_msbc_find_h2_header) {
+CK_START_TEST(test_msbc_find_h2_header) {
 
 	static const uint8_t raw[][10] = {
 		{ 0 },
@@ -84,9 +85,9 @@ START_TEST(test_msbc_find_h2_header) {
 	ck_assert_ptr_eq(msbc_find_h2_header(raw[5], &len), NULL);
 	ck_assert_int_eq(len, 1);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_msbc_encode_decode) {
+CK_START_TEST(test_msbc_encode_decode) {
 
 	int16_t sine[8 * MSBC_CODESAMPLES];
 	snd_pcm_sine_s16_2le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
@@ -146,9 +147,9 @@ START_TEST(test_msbc_encode_decode) {
 
 	msbc_finish(&msbc);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_msbc_decode_plc) {
+CK_START_TEST(test_msbc_decode_plc) {
 
 	int16_t sine[18 * MSBC_CODESAMPLES];
 	snd_pcm_sine_s16_2le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
@@ -222,7 +223,7 @@ START_TEST(test_msbc_decode_plc) {
 
 	msbc_finish(&msbc);
 
-} END_TEST
+} CK_END_TEST
 
 int main(void) {
 

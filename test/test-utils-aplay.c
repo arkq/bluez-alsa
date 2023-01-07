@@ -1,6 +1,6 @@
 /*
  * test-utils-aplay.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -23,6 +23,7 @@
 
 #include <check.h>
 
+#include "inc/check.inc"
 #include "inc/mock.inc"
 #include "inc/preload.inc"
 #include "inc/spawn.inc"
@@ -48,8 +49,7 @@ static int spawn_bluealsa_aplay(struct spawn_process *sp, ...) {
 	return spawn(sp, argv, flags);
 }
 
-START_TEST(test_help) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_help) {
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
@@ -63,10 +63,9 @@ START_TEST(test_help) {
 
 	spawn_close(&sp_ba_aplay);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_configuration) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_configuration) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "foo", true,
@@ -105,10 +104,9 @@ START_TEST(test_configuration) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_list_devices) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_list_devices) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
@@ -133,10 +131,9 @@ START_TEST(test_list_devices) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_list_pcms) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_list_pcms) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "foo", true,
@@ -162,10 +159,9 @@ START_TEST(test_list_pcms) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_play_all) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_play_all) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
@@ -194,10 +190,9 @@ START_TEST(test_play_all) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_play_single_audio) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_play_single_audio) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
@@ -235,7 +230,7 @@ START_TEST(test_play_single_audio) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock);
 
-} END_TEST
+} CK_END_TEST
 
 int main(int argc, char *argv[], char *envp[]) {
 	preload(argc, argv, envp, ".libs/aloader.so");

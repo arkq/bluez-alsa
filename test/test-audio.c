@@ -1,6 +1,6 @@
 /*
  * test-audio.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,7 +16,9 @@
 #include "audio.h"
 #include "shared/defs.h"
 
-START_TEST(test_audio_interleave_deinterleave_s16_2le) {
+#include "inc/check.inc"
+
+CK_START_TEST(test_audio_interleave_deinterleave_s16_2le) {
 
 	const int16_t ch1[] = { 0x0123, 0x1234, 0x2345, 0x3456 };
 	const int16_t ch2[] = { 0x4567, 0x5678, 0x6789, 0x789A };
@@ -35,9 +37,9 @@ START_TEST(test_audio_interleave_deinterleave_s16_2le) {
 	ck_assert_int_eq(memcmp(dest_ch1, ch1, sizeof(ch1)), 0);
 	ck_assert_int_eq(memcmp(dest_ch2, ch2, sizeof(ch1)), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_audio_interleave_deinterleave_s32_4le) {
+CK_START_TEST(test_audio_interleave_deinterleave_s32_4le) {
 
 	const int32_t ch1[] = { 0x01234567, 0x12345678, 0x23456789, 0x3456789A };
 	const int32_t ch2[] = { 0x456789AB, 0x56789ABC, 0x6789ABCD, 0x789ABCDE };
@@ -56,9 +58,9 @@ START_TEST(test_audio_interleave_deinterleave_s32_4le) {
 	ck_assert_int_eq(memcmp(dest_ch1, ch1, sizeof(ch1)), 0);
 	ck_assert_int_eq(memcmp(dest_ch2, ch2, sizeof(ch1)), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_audio_scale_s16_2le) {
+CK_START_TEST(test_audio_scale_s16_2le) {
 
 	const int16_t mute[] = { 0x0000, 0x0000, 0x0000, 0x0000 };
 	const int16_t mute_l[] = { 0x0000, 0x2345, 0x0000, (int16_t)0xCDEF };
@@ -97,9 +99,9 @@ START_TEST(test_audio_scale_s16_2le) {
 	audio_scale_s16_2le(tmp, ARRAYSIZE(tmp) / 2, 2, 1.0, 0.5);
 	ck_assert_int_eq(memcmp(tmp, half_r, sizeof(half_r)), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_audio_scale_s32_4le) {
+CK_START_TEST(test_audio_scale_s32_4le) {
 
 	const int32_t mute[] = { 0, 0, 0, 0 };
 	const int32_t mute_l[] = { 0, 0x23456789, 0, 0x00ABCDEF };
@@ -124,7 +126,7 @@ START_TEST(test_audio_scale_s32_4le) {
 	audio_scale_s32_4le(tmp, ARRAYSIZE(tmp) / 2, 2, 1.0, 0.5);
 	ck_assert_int_eq(memcmp(tmp, half_r, sizeof(half_r)), 0);
 
-} END_TEST
+} CK_END_TEST
 
 int main(void) {
 

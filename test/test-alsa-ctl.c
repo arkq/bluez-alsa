@@ -1,6 +1,6 @@
 /*
  * test-alsa-ctl.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -24,6 +24,7 @@
 
 #include "shared/defs.h"
 
+#include "inc/check.inc"
 #include "inc/mock.inc"
 #include "inc/preload.inc"
 
@@ -84,8 +85,7 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_ctl_t *ctl) {
 	return rv;
 }
 
-START_TEST(test_controls) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_controls) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -120,10 +120,9 @@ START_TEST(test_controls) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_controls_battery) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_controls_battery) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -162,10 +161,9 @@ START_TEST(test_controls_battery) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_controls_extended) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_controls_extended) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -241,11 +239,10 @@ START_TEST(test_controls_extended) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_bidirectional_a2dp) {
+CK_START_TEST(test_bidirectional_a2dp) {
 #if ENABLE_FASTSTREAM
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -280,10 +277,9 @@ START_TEST(test_bidirectional_a2dp) {
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 #endif
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_device_name_duplicates) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_device_name_duplicates) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -314,10 +310,9 @@ START_TEST(test_device_name_duplicates) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_mute_and_volume) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_mute_and_volume) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -356,10 +351,9 @@ START_TEST(test_mute_and_volume) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_volume_db_range) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_volume_db_range) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -378,10 +372,9 @@ START_TEST(test_volume_db_range) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_single_device) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_single_device) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -418,10 +411,9 @@ START_TEST(test_single_device) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_single_device_not_connected) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_single_device_not_connected) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -436,10 +428,9 @@ START_TEST(test_single_device_not_connected) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_single_device_no_such_device) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_single_device_no_such_device) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -455,10 +446,9 @@ START_TEST(test_single_device_no_such_device) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_single_device_non_dynamic) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_single_device_non_dynamic) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -523,10 +513,9 @@ START_TEST(test_single_device_non_dynamic) {
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_notifications) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_notifications) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -567,10 +556,9 @@ START_TEST(test_notifications) {
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_alsa_high_level_control_interface) {
-	fprintf(stderr, "\nSTART TEST: %s (%s:%d)\n", __func__, __FILE__, __LINE__);
+CK_START_TEST(test_alsa_high_level_control_interface) {
 
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
@@ -586,7 +574,7 @@ START_TEST(test_alsa_high_level_control_interface) {
 	ck_assert_int_eq(snd_hctl_close(hctl), 0);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, NULL), 0);
 
-} END_TEST
+} CK_END_TEST
 
 int main(int argc, char *argv[], char *envp[]) {
 	preload(argc, argv, envp, ".libs/aloader.so");

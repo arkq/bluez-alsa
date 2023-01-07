@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -31,15 +31,17 @@
 #include "shared/nv.h"
 #include "shared/rt.h"
 
-START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
+#include "inc/check.inc"
+
+CK_START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
 
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez"), -1);
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci0"), 0);
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci5"), 5);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
+CK_START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
 
 	bdaddr_t addr_ok = {{ 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12 }};
 	bdaddr_t addr;
@@ -55,9 +57,9 @@ START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
 	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr(
 				"/org/bluez/dev_12_34_56_78_9A_XX", &addr), NULL);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_g_variant_sanitize_object_path) {
+CK_START_TEST(test_g_variant_sanitize_object_path) {
 
 	char path1[] = "/some/valid_path/123";
 	char path2[] = "/a#$*/invalid-path";
@@ -65,9 +67,9 @@ START_TEST(test_g_variant_sanitize_object_path) {
 	ck_assert_str_eq(g_variant_sanitize_object_path(path1), "/some/valid_path/123");
 	ck_assert_str_eq(g_variant_sanitize_object_path(path2), "/a___/invalid_path");
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_batostr_) {
+CK_START_TEST(test_batostr_) {
 
 	const bdaddr_t ba = {{ 1, 2, 3, 4, 5, 6 }};
 	char tmp[18];
@@ -75,9 +77,9 @@ START_TEST(test_batostr_) {
 	ba2str(&ba, tmp);
 	ck_assert_str_eq(batostr_(&ba), tmp);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_nv_find) {
+CK_START_TEST(test_nv_find) {
 
 	const nv_entry_t entries[] = {
 		{ "name1", .v.i = 1 },
@@ -88,9 +90,9 @@ START_TEST(test_nv_find) {
 	ck_assert_ptr_eq(nv_find(entries, "invalid"), NULL);
 	ck_assert_ptr_eq(nv_find(entries, "name2"), &entries[1]);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_nv_join_names) {
+CK_START_TEST(test_nv_join_names) {
 
 	const nv_entry_t entries_zero[] = {{ 0 }};
 	const nv_entry_t entries[] = {
@@ -107,9 +109,9 @@ START_TEST(test_nv_join_names) {
 	ck_assert_str_eq(tmp = nv_join_names(entries), "name1, name2");
 	free(tmp);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_difftimespec) {
+CK_START_TEST(test_difftimespec) {
 
 	struct timespec ts1, ts2, ts;
 
@@ -167,9 +169,9 @@ START_TEST(test_difftimespec) {
 	ck_assert_int_eq(ts.tv_sec, 2);
 	ck_assert_int_eq(ts.tv_nsec, 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_ffb) {
+CK_START_TEST(test_ffb) {
 
 	ffb_t ffb_u8 = { 0 };
 	ffb_t ffb_16 = { 0 };
@@ -225,9 +227,9 @@ START_TEST(test_ffb) {
 	ffb_free(&ffb_16);
 	ck_assert_ptr_eq(ffb_16.data, NULL);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_ffb_resize) {
+CK_START_TEST(test_ffb_resize) {
 
 	const char *data = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	const size_t data_len = strlen(data);
@@ -250,9 +252,9 @@ START_TEST(test_ffb_resize) {
 
 	ffb_free(&ffb);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_bin2hex) {
+CK_START_TEST(test_bin2hex) {
 
 	const uint8_t bin[] = { 0xDE, 0xAD, 0xBE, 0xEF };
 	char hex[sizeof(bin) * 2 + 1];
@@ -260,9 +262,9 @@ START_TEST(test_bin2hex) {
 	ck_assert_int_eq(bin2hex(bin, hex, sizeof(bin)), 8);
 	ck_assert_str_eq(hex, "deadbeef");
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_hex2bin) {
+CK_START_TEST(test_hex2bin) {
 
 	const uint8_t bin_ok[] = { 0xDE, 0xAD, 0xBE, 0xEF };
 	const char *hex = "DEADbeef";
@@ -274,7 +276,7 @@ START_TEST(test_hex2bin) {
 	ck_assert_int_eq(hex2bin(hex, bin, 3), -1);
 	ck_assert_int_eq(errno, EINVAL);
 
-} END_TEST
+} CK_END_TEST
 
 int main(void) {
 

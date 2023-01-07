@@ -1,6 +1,6 @@
 /*
  * test-at.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,12 +16,14 @@
 #include "at.h"
 #include "hfp.h"
 
-START_TEST(test_at_type2str) {
+#include "inc/check.inc"
+
+CK_START_TEST(test_at_type2str) {
 	ck_assert_str_eq(at_type2str(AT_TYPE_RAW), "RAW");
 	ck_assert_str_eq(at_type2str(AT_TYPE_RESP), "RESP");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_build) {
+CK_START_TEST(test_at_build) {
 
 	char buffer[256];
 
@@ -38,90 +40,90 @@ START_TEST(test_at_build) {
 	/* build unsolicited result code */
 	ck_assert_str_eq(at_build(buffer, sizeof(buffer), AT_TYPE_RESP, NULL, "OK"), "\r\nOK\r\n");
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_invalid) {
+CK_START_TEST(test_at_parse_invalid) {
 	struct bt_at at;
 	/* invalid AT command lines */
 	ck_assert_ptr_eq(at_parse("ABC\r", &at), NULL);
 	ck_assert_ptr_eq(at_parse("AT+CLCK?", &at), NULL);
 	ck_assert_ptr_eq(at_parse("\r\r", &at), NULL);
 	ck_assert_ptr_eq(at_parse("\r\nOK", &at), NULL);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_cmd) {
+CK_START_TEST(test_at_parse_cmd) {
 	struct bt_at at;
 	/* parse AT plain command */
 	ck_assert_ptr_ne(at_parse("AT+CLCC\r", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_CMD);
 	ck_assert_str_eq(at.command, "+CLCC");
 	ck_assert_ptr_eq(at.value, NULL);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_cmd_get) {
+CK_START_TEST(test_at_parse_cmd_get) {
 	struct bt_at at;
 	/* parse AT GET command */
 	ck_assert_ptr_ne(at_parse("AT+COPS?\r", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_CMD_GET);
 	ck_assert_str_eq(at.command, "+COPS");
 	ck_assert_ptr_eq(at.value, NULL);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_cmd_set) {
+CK_START_TEST(test_at_parse_cmd_set) {
 	struct bt_at at;
 	/* parse AT SET command */
 	ck_assert_ptr_ne(at_parse("AT+CLCK=\"SC\",0,\"1234\"\r", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_CMD_SET);
 	ck_assert_str_eq(at.command, "+CLCK");
 	ck_assert_str_eq(at.value, "\"SC\",0,\"1234\"");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_cmd_test) {
+CK_START_TEST(test_at_parse_cmd_test) {
 	struct bt_at at;
 	/* parse AT TEST command */
 	ck_assert_ptr_ne(at_parse("AT+COPS=?\r", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_CMD_TEST);
 	ck_assert_str_eq(at.command, "+COPS");
 	ck_assert_ptr_eq(at.value, NULL);
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_resp) {
+CK_START_TEST(test_at_parse_resp) {
 	struct bt_at at;
 	/* parse response result code */
 	ck_assert_ptr_ne(at_parse("\r\n+CIND:0,0,1,4,0,4,0\r\n", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_RESP);
 	ck_assert_str_eq(at.command, "+CIND");
 	ck_assert_str_eq(at.value, "0,0,1,4,0,4,0");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_resp_empty) {
+CK_START_TEST(test_at_parse_resp_empty) {
 	struct bt_at at;
 	/* parse response result code with empty value */
 	ck_assert_ptr_ne(at_parse("\r\n+CIND:\r\n", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_RESP);
 	ck_assert_str_eq(at.command, "+CIND");
 	ck_assert_str_eq(at.value, "");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_resp_unsolicited) {
+CK_START_TEST(test_at_parse_resp_unsolicited) {
 	struct bt_at at;
 	/* parse unsolicited result code */
 	ck_assert_ptr_ne(at_parse("\r\nRING\r\n", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_RESP);
 	ck_assert_str_eq(at.command, "");
 	ck_assert_str_eq(at.value, "RING");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_case_sensitivity) {
+CK_START_TEST(test_at_parse_case_sensitivity) {
 	struct bt_at at;
 	/* case-insensitive command and case-sensitive value */
 	ck_assert_ptr_ne(at_parse("aT+tEsT=VaLuE\r", &at), NULL);
 	ck_assert_int_eq(at.type, AT_TYPE_CMD_SET);
 	ck_assert_str_eq(at.command, "+TEST");
 	ck_assert_str_eq(at.value, "VaLuE");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_multiple_cmds) {
+CK_START_TEST(test_at_parse_multiple_cmds) {
 	struct bt_at at;
 	/* concatenated commands */
 	const char *cmd = "\r\nOK\r\n\r\n+COPS:1\r\n";
@@ -129,9 +131,9 @@ START_TEST(test_at_parse_multiple_cmds) {
 	ck_assert_int_eq(at.type, AT_TYPE_RESP);
 	ck_assert_str_eq(at.command, "");
 	ck_assert_str_eq(at.value, "OK");
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_set_bia) {
+CK_START_TEST(test_at_parse_set_bia) {
 
 	const bool state_ok1[__HFP_IND_MAX] = { 0, true, true, true, true, true, true, true };
 	const bool state_ok2[__HFP_IND_MAX] = { 0, true, false, true, true, true, true, false };
@@ -153,9 +155,9 @@ START_TEST(test_at_parse_set_bia) {
 	ck_assert_int_eq(at_parse_set_bia("1,1", state), 0);
 	ck_assert_int_eq(memcmp(state, state_ok4, sizeof(state)), 0);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_get_cind) {
+CK_START_TEST(test_at_parse_get_cind) {
 
 	enum hfp_ind indmap[20];
 	enum hfp_ind indmap_ok[20];
@@ -173,9 +175,9 @@ START_TEST(test_at_parse_get_cind) {
 	/* parse +CIND invalid response */
 	ck_assert_int_eq(at_parse_get_cind("(incorrect,1-2)", indmap), -1);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_set_cmer) {
+CK_START_TEST(test_at_parse_set_cmer) {
 
 	const unsigned int cmer_ok1[5] = { 3, 0, 0, 1, 0 };
 	const unsigned int cmer_ok2[5] = { 2, 0, 0, 1, 0 };
@@ -200,9 +202,9 @@ START_TEST(test_at_parse_set_cmer) {
 	/* parse +CMER invalid value */
 	ck_assert_int_eq(at_parse_set_cmer("3,error", cmer), -1);
 
-} END_TEST
+} CK_END_TEST
 
-START_TEST(test_at_parse_set_xapl) {
+CK_START_TEST(test_at_parse_set_xapl) {
 
 	uint16_t vendor, product, version;
 	uint8_t features;
@@ -219,7 +221,7 @@ START_TEST(test_at_parse_set_xapl) {
 	/* parse invalid number of parameters */
 	ck_assert_int_eq(at_parse_set_xapl("ABCD-1234,10", &vendor, &product, &version, &features), -1);
 
-} END_TEST
+} CK_END_TEST
 
 int main(void) {
 
