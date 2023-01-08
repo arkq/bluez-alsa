@@ -37,6 +37,14 @@
 #endif
 
 #include "a2dp.h"
+#include "a2dp-aac.h"
+#include "a2dp-aptx.h"
+#include "a2dp-aptx-hd.h"
+#include "a2dp-faststream.h"
+#include "a2dp-lc3plus.h"
+#include "a2dp-ldac.h"
+#include "a2dp-mpeg.h"
+#include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
@@ -53,14 +61,6 @@
 #include "shared/log.h"
 
 #include "../src/a2dp.c"
-#include "../src/a2dp-aac.c"
-#include "../src/a2dp-aptx-hd.c"
-#include "../src/a2dp-aptx.c"
-#include "../src/a2dp-faststream.c"
-#include "../src/a2dp-lc3plus.c"
-#include "../src/a2dp-ldac.c"
-#include "../src/a2dp-mpeg.c"
-#include "../src/a2dp-sbc.c"
 #include "../src/ba-transport.c"
 #include "inc/btd.inc"
 #include "inc/check.inc"
@@ -70,6 +70,25 @@
 		(CHECK_MAJOR_VERSION << 16 & 0xff0000) | \
 		(CHECK_MINOR_VERSION << 8 & 0x00ff00) | \
 		(CHECK_MICRO_VERSION << 0 & 0x0000ff))
+
+void *a2dp_aac_dec_thread(struct ba_transport_thread *th);
+void *a2dp_aac_enc_thread(struct ba_transport_thread *th);
+void *a2dp_aptx_dec_thread(struct ba_transport_thread *th);
+void *a2dp_aptx_enc_thread(struct ba_transport_thread *th);
+void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th);
+void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th);
+void *a2dp_faststream_dec_thread(struct ba_transport_thread *th);
+void *a2dp_faststream_enc_thread(struct ba_transport_thread *th);
+void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th);
+void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th);
+void *a2dp_ldac_dec_thread(struct ba_transport_thread *th);
+void *a2dp_ldac_enc_thread(struct ba_transport_thread *th);
+void *a2dp_mp3_enc_thread(struct ba_transport_thread *th);
+void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th);
+void *a2dp_sbc_dec_thread(struct ba_transport_thread *th);
+void *a2dp_sbc_enc_thread(struct ba_transport_thread *th);
+void *sco_dec_thread(struct ba_transport_thread *th);
+void *sco_enc_thread(struct ba_transport_thread *th);
 
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
@@ -706,6 +725,28 @@ CK_START_TEST(test_a2dp_sbc) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_a2dp_sbc_invalid_config) {
+
+	const a2dp_sbc_t config_sbc_invalid = { 0 };
+	struct ba_transport *t = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
+			&config_sbc_invalid);
+
+	int bt_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
+	t->mtu_read = t->mtu_write = 153 * 3;
+	t->bt_fd = bt_fds[1];
+
+	struct ba_transport_thread *th = &t->thread_enc;
+	ck_assert_int_eq(ba_transport_thread_create(th, a2dp_sbc_enc_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_thread_running_wait(th), -1);
+
+	ba_transport_destroy(t);
+	close(bt_fds[0]);
+
+} CK_END_TEST
+
 #if ENABLE_MP3LAME
 CK_START_TEST(test_a2dp_mp3) {
 
@@ -989,6 +1030,7 @@ int main(int argc, char *argv[]) {
 #endif
 	} codecs[] = {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_invalid_config },
 #if ENABLE_MP3LAME
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },
 #endif

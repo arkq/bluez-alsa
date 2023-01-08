@@ -188,7 +188,7 @@ static unsigned int a2dp_aac_get_fdk_vbr_mode(
 	return 5;
 }
 
-static void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
+void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
@@ -427,7 +427,7 @@ fail_open:
 	return NULL;
 }
 
-static void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
+void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);

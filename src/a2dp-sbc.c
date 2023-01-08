@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-sbc.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -154,7 +154,7 @@ void a2dp_sbc_transport_init(struct ba_transport *t) {
 
 }
 
-static void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
+void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
@@ -312,7 +312,7 @@ fail_init:
 	return NULL;
 }
 
-static void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
+void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */

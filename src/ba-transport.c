@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -324,6 +324,27 @@ int ba_transport_thread_set_state(
 		pthread_cond_signal(&th->cond);
 
 	return 0;
+}
+
+/**
+ * Wait until transport thread is running. */
+int ba_transport_thread_running_wait(
+		struct ba_transport_thread *th) {
+
+	enum ba_transport_thread_state state;
+
+	pthread_mutex_lock(&th->mutex);
+	/* Wait until the IO thread is ready to process audio or it is marked
+	 * for termination due to initialization failure. */
+	while ((state = th->state) < BA_TRANSPORT_THREAD_STATE_RUNNING)
+		pthread_cond_wait(&th->cond, &th->mutex);
+	pthread_mutex_unlock(&th->mutex);
+
+	if (state == BA_TRANSPORT_THREAD_STATE_RUNNING)
+		return 0;
+
+	errno = EIO;
+	return -1;
 }
 
 int ba_transport_thread_bt_acquire(
@@ -1304,13 +1325,10 @@ int ba_transport_start(struct ba_transport *t) {
 #endif
 		}
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);
-		ba_transport_thread_create(&t->thread_dec, sco_dec_thread, "ba-sco-dec", false);
-		return 0;
-	}
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		return sco_transport_start(t);
 
-	errno = ENOTSUP;
+	g_assert_not_reached();
 	return -1;
 }
 
@@ -1339,6 +1357,7 @@ int ba_transport_stop_if_no_clients(struct ba_transport *t) {
 
 int ba_transport_acquire(struct ba_transport *t) {
 
+	bool acquired = false;
 	int fd = -1;
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
@@ -1357,6 +1376,7 @@ int ba_transport_acquire(struct ba_transport *t) {
 
 	/* Call transport specific acquire callback. */
 	fd = t->acquire(t);
+	acquired = true;
 
 final:
 	pthread_mutex_unlock(&t->bt_fd_mtx);
@@ -1364,8 +1384,13 @@ final:
 	/* For SCO profiles we can start transport IO threads right away. There
 	 * is no asynchronous signaling from BlueZ like with A2DP profiles. */
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO
-			&& fd != -1)
-		ba_transport_start(t);
+			&& fd != -1) {
+		if (ba_transport_start(t) == -1) {
+			if (acquired)
+				t->release(t);
+			return -1;
+		}
+	}
 
 	return fd;
 }

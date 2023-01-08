@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2022 Arkadiusz Bokowy
+# Copyright (c) 2016-2023 Arkadiusz Bokowy
 
 TESTS = \
 	test-a2dp \
@@ -128,6 +128,7 @@ test_io_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
+	../src/a2dp-sbc.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
@@ -184,16 +185,19 @@ test_utils_SOURCES = \
 if ENABLE_AAC
 bluealsa_mock_SOURCES += ../src/a2dp-aac.c
 test_a2dp_SOURCES += ../src/a2dp-aac.c
+test_io_SOURCES += ../src/a2dp-aac.c
 endif
 
 if ENABLE_APTX
 bluealsa_mock_SOURCES += ../src/a2dp-aptx.c
 test_a2dp_SOURCES += ../src/a2dp-aptx.c
+test_io_SOURCES += ../src/a2dp-aptx.c
 endif
 
 if ENABLE_APTX_HD
 bluealsa_mock_SOURCES += ../src/a2dp-aptx-hd.c
 test_a2dp_SOURCES += ../src/a2dp-aptx-hd.c
+test_io_SOURCES += ../src/a2dp-aptx-hd.c
 endif
 
 if ENABLE_APTX_OR_APTX_HD
@@ -205,21 +209,25 @@ endif
 if ENABLE_FASTSTREAM
 bluealsa_mock_SOURCES += ../src/a2dp-faststream.c
 test_a2dp_SOURCES += ../src/a2dp-faststream.c
+test_io_SOURCES += ../src/a2dp-faststream.c
 endif
 
 if ENABLE_LC3PLUS
 bluealsa_mock_SOURCES += ../src/a2dp-lc3plus.c
 test_a2dp_SOURCES += ../src/a2dp-lc3plus.c
+test_io_SOURCES += ../src/a2dp-lc3plus.c
 endif
 
 if ENABLE_LDAC
 bluealsa_mock_SOURCES += ../src/a2dp-ldac.c
 test_a2dp_SOURCES += ../src/a2dp-ldac.c
+test_io_SOURCES += ../src/a2dp-ldac.c
 endif
 
 if ENABLE_MPEG
 bluealsa_mock_SOURCES += ../src/a2dp-mpeg.c
 test_a2dp_SOURCES += ../src/a2dp-mpeg.c
+test_io_SOURCES += ../src/a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC

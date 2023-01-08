@@ -493,24 +493,16 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
 			t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 
-		enum ba_transport_thread_state state;
-
 		if (ba_transport_acquire(t) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-					G_DBUS_ERROR_FAILED, "Acquire transport: %s", strerror(errno));
+					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(errno));
 			goto fail;
 		}
 
-		/* wait until ready to process audio */
-		pthread_mutex_lock(&th->mutex);
-		while ((state = th->state) < BA_TRANSPORT_THREAD_STATE_RUNNING)
-			pthread_cond_wait(&th->cond, &th->mutex);
-		pthread_mutex_unlock(&th->mutex);
-
-		/* bail if something has gone wrong */
-		if (state != BA_TRANSPORT_THREAD_STATE_RUNNING) {
+		/* Wait until ready to process audio. */
+		if (ba_transport_thread_running_wait(th) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(EIO));
+					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(errno));
 			goto fail;
 		}
 

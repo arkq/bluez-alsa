@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-lc3plus.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -169,7 +169,7 @@ static int a2dp_lc3plus_get_frame_dms(const a2dp_lc3plus_t *conf) {
 	}
 }
 
-static void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
+void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
@@ -387,7 +387,7 @@ fail_init:
 	return NULL;
 }
 
-static void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
+void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */

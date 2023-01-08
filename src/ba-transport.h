@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -171,6 +171,9 @@ int ba_transport_thread_set_state(
 	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
 #define ba_transport_thread_set_state_stopping(th) \
 	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STOPPING)
+
+int ba_transport_thread_running_wait(
+		struct ba_transport_thread *th);
 
 int ba_transport_thread_bt_acquire(
 		struct ba_transport_thread *th);

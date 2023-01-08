@@ -265,6 +265,7 @@ static void *mock_bt_dump_thread(void *userdata) {
 	return NULL;
 }
 
+void *sco_enc_thread(struct ba_transport_thread *th);
 static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
@@ -289,8 +290,8 @@ static void mock_transport_start(struct ba_transport *t, int bt_fd) {
 		}
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);
-		ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-sco-dec", false);
+		assert(ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true) == 0);
+		assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-sco-dec", false) == 0);
 	}
 
 }

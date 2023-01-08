@@ -58,10 +58,9 @@ void a2dp_mpeg_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
+int sco_transport_start(struct ba_transport *t) { (void)t; return 0; }
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
-void *sco_enc_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
-void *sco_dec_thread(struct ba_transport_thread *th) { return sleep(3600), th; }
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-ldac.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -118,7 +118,7 @@ void a2dp_ldac_transport_init(struct ba_transport *t) {
 
 }
 
-static void *a2dp_ldac_enc_thread(struct ba_transport_thread *th) {
+void *a2dp_ldac_enc_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
@@ -288,7 +288,7 @@ fail_open_ldac:
 }
 
 #if HAVE_LDAC_DECODE
-static void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
+void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);

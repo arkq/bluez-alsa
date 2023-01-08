@@ -1,6 +1,6 @@
 /*
  * BlueALSA - sco.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -504,4 +504,24 @@ void *sco_dec_thread(struct ba_transport_thread *th) {
 		return sco_msbc_dec_thread(th);
 #endif
 	}
+}
+
+int sco_transport_start(struct ba_transport *t) {
+
+	int rv = 0;
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+		rv |= ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);
+		rv |= ba_transport_thread_create(&t->thread_dec, sco_dec_thread, "ba-sco-dec", false);
+		return rv;
+	}
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_HF) {
+		rv |= ba_transport_thread_create(&t->thread_dec, sco_dec_thread, "ba-sco-dec", true);
+		rv |= ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", false);
+		return rv;
+	}
+
+	g_assert_not_reached();
+	return -1;
 }
