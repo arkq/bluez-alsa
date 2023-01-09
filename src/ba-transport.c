@@ -1114,6 +1114,8 @@ struct ba_transport *ba_transport_ref(
 	return t;
 }
 
+/**
+ * Unregister D-Bus interfaces, stop IO threads and release transport. */
 void ba_transport_destroy(struct ba_transport *t) {
 
 	/* Remove D-Bus interfaces, so no one will access

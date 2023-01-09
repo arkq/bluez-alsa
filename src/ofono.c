@@ -413,30 +413,20 @@ final:
 static void ofono_remove_all_cards(void) {
 
 	GHashTableIter iter;
-	struct ofono_card_data *ocd;
+	const char *card = NULL;
 
 	g_hash_table_iter_init(&iter, ofono_card_data_map);
-	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&ocd)) {
+	while (g_hash_table_iter_next(&iter, (gpointer)&card, NULL)) {
 
-		struct ba_adapter *a = NULL;
-		struct ba_device *d = NULL;
+		debug("Removing oFono card: %s", card);
+
 		struct ba_transport *t;
+		if ((t = ofono_transport_lookup(card)) != NULL)
+			ba_transport_destroy(t);
 
-		if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
-			goto fail;
-		if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
-			goto fail;
-		if ((t = ba_transport_lookup(d, ocd->modem_path)) == NULL)
-			goto fail;
-
-		ba_transport_destroy(t);
-
-fail:
-		if (a != NULL)
-			ba_adapter_unref(a);
-		if (d != NULL)
-			ba_device_unref(d);
 	}
+
+	g_hash_table_remove_all(ofono_card_data_map);
 
 }
 
@@ -632,14 +622,13 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 	const char *card = NULL;
 	g_variant_get(params, "(&o)", &card);
 
-	struct ba_transport *t = NULL;
-	if ((t = ofono_transport_lookup(card)) == NULL) {
-		error("Couldn't lookup transport: %s: %s", card, strerror(errno));
-		return;
-	}
-
 	debug("Removing oFono card: %s", card);
-	ba_transport_destroy(t);
+
+	struct ba_transport *t;
+	if ((t = ofono_transport_lookup(card)) != NULL)
+		ba_transport_destroy(t);
+
+	g_hash_table_remove(ofono_card_data_map, card);
 
 }
 
@@ -678,7 +667,7 @@ int ofono_init(void) {
 		return 0;
 
 	if (ofono_card_data_map == NULL)
-		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, free);
 
 	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
 			OFONO_IFACE_HF_AUDIO_MANAGER, "CardAdded", NULL, NULL,

@@ -95,6 +95,7 @@ unmute
 unmutes
 unref
 unreferencing
+unregister
 utils
 
 # Others
