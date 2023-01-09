@@ -530,7 +530,7 @@ When the BlueALSA PCM plugin is used on a source A2DP or gateway HFP/HSP node,
 then **bluealsa(8)** will automatically acquire the transport and begin audio
 transfer when the plugin starts the PCM.
 
-When used on an A2DP sink or HFP/HSP target node then **bluealsa(8)** must wait
+When used on an A2DP sink or HFP/HSP HF/HS node then **bluealsa(8)** must wait
 for the remote device to acquire the transport. During this waiting time the
 PCM plugin behaves as if the device "clock" is stopped, it does not generate
 any poll() events, and the application will be blocked when writing or reading

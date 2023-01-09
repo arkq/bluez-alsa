@@ -20,7 +20,6 @@
 /* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
-#include <poll.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -47,6 +46,7 @@
 #include "bluealsa-config.h"
 #include "dbus.h"
 #include "hci.h"
+#include "hfp.h"
 #include "ofono-iface.h"
 #include "ofono-skeleton.h"
 #include "shared/log.h"
@@ -67,28 +67,6 @@ struct ofono_card_data {
 static GHashTable *ofono_card_data_map = NULL;
 static const char *dbus_agent_object_path = "/org/bluez/HFP/oFono";
 static ofono_HFAudioAgentIfaceSkeleton *dbus_hf_agent = NULL;
-
-/**
- * Authorize oFono SCO connection.
- *
- * @param fd SCO socket file descriptor.
- * @return On success this function returns 0. Otherwise, -1 is returned and
- *	 errno is set to indicate the error. */
-static int ofono_sco_socket_authorize(int fd) {
-
-	struct pollfd pfd = { fd, POLLOUT, 0 };
-	char c;
-
-	if (poll(&pfd, 1, 0) == -1)
-		return -1;
-
-	/* If socket is not writable, it means that it is in the defer setup
-	 * state, so it needs to be read to authorize the connection. */
-	if (!(pfd.revents & POLLOUT) && read(fd, &c, 1) == -1)
-		return -1;
-
-	return 0;
-}
 
 /**
  * Ask oFono to connect to a card. */
@@ -132,6 +110,21 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	GUnixFDList *fd_list = g_dbus_message_get_unix_fd_list(rep);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1)
 		goto fail;
+
+#if ENABLE_MSBC
+	if (codec != ba_transport_get_codec(t)) {
+		/* Although this connection has succeeded, it is not the codec expected
+		 * by the client. So we have to return an error ... */
+		error("Rejecting oFono SCO link: %s", "Codec mismatch");
+		/* ... but still update the codec ready for next client request. */
+		ba_transport_set_codec(t, codec);
+		if (fd != -1) {
+			shutdown(fd, SHUT_RDWR);
+			close(fd);
+		}
+		goto fail;
+	}
+#endif
 
 	t->bt_fd = fd;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, t->d->a->hci.type);
@@ -237,6 +230,52 @@ fail:
 		ba_device_unref(d);
 	return t;
 }
+
+#if ENABLE_MSBC
+static void ofono_new_connection_finish(GObject *source, GAsyncResult *result,
+		void *userdata) {
+	(void)userdata;
+
+	GError *err = NULL;
+	GDBusMessage *rep = g_dbus_connection_send_message_with_reply_finish(
+			G_DBUS_CONNECTION(source), result, &err);
+	if (rep != NULL &&
+			g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
+		g_dbus_message_to_gerror(rep, &err);
+
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't establish oFono SCO link: %s", err->message);
+		g_error_free(err);
+	}
+
+}
+
+/**
+ * Ask oFono to create an HFP codec connection.
+ *
+ * Codec selection can take a long time with oFono (up to 20 seconds with
+ * some devices) so we make the request asynchronously. oFono will invoke
+ * the HandsFreeAudioAgent NewConnection method when the codec selection is
+ * complete. */
+static void ofono_new_connection_request(struct ba_transport *t) {
+
+	GDBusMessage *msg;
+
+	const char *ofono_dbus_path = t->bluez_dbus_path;
+	debug("Requesting new oFono SCO link: %s", ofono_dbus_path);
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, ofono_dbus_path,
+			OFONO_IFACE_HF_AUDIO_CARD, "Connect");
+
+	g_dbus_connection_send_message_with_reply(config.dbus, msg,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
+			ofono_new_connection_finish, NULL);
+
+	g_object_unref(msg);
+
+}
+#endif
 
 /**
  * Link oFono card with a modem. */
@@ -409,6 +448,13 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 		goto fail;
 	}
 
+#if ENABLE_MSBC
+	if (config.hfp.codecs.msbc &&
+			profile == BA_TRANSPORT_PROFILE_HFP_AG &&
+			ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED)
+		ofono_new_connection_request(t);
+#endif
+
 	g_hash_table_insert(ofono_card_data_map, ocd->card, ocd);
 	ocd = NULL;
 
@@ -523,10 +569,41 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 		goto fail;
 	}
 
-	if (ofono_sco_socket_authorize(fd) == -1) {
-		error("Couldn't authorize oFono SCO link: %s", strerror(errno));
-		goto fail;
+#if ENABLE_MSBC
+	/* In AG mode, we obtain the codec when the device connects by
+	 * performing a temporary acquisition. The response to that initial
+	 * acquisition request is the only situation in which this function
+	 * is called with the transport codec not yet set. */
+	if (config.hfp.codecs.msbc &&
+			t->profile == BA_TRANSPORT_PROFILE_HFP_AG &&
+			ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED) {
+
+		/* Immediately release the SCO connection to save battery: we are only
+		 * interested in the selected codec here. */
+		if (fd != -1) {
+			shutdown(fd, SHUT_RDWR);
+			close(fd);
+		}
+
+		debug("Initialized oFono SCO link codec: %#x", codec);
+		ba_transport_set_codec(t, codec);
+		ba_transport_unref(t);
+
+		g_dbus_method_invocation_return_value(inv, NULL);
+		return;
 	}
+
+	/* For HF, oFono does not authorize after setting the voice option, so we
+	 * have to do it ourselves here. */
+	if (t->profile == BA_TRANSPORT_PROFILE_HFP_HF &&
+			codec == HFP_CODEC_MSBC) {
+		uint8_t auth;
+		if (read(fd, &auth, sizeof(auth)) == -1) {
+			error("Couldn't authorize oFono SCO link: %s", strerror(errno));
+			goto fail;
+		}
+	}
+#endif
 
 	ba_transport_stop(t);
 
@@ -550,8 +627,10 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 fail:
 	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 		G_DBUS_ERROR_INVALID_ARGS, "Unable to get connection");
-	if (fd != -1)
+	if (fd != -1) {
+		shutdown(fd, SHUT_RDWR);
 		close(fd);
+	}
 
 final:
 	if (t != NULL)

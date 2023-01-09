@@ -238,7 +238,7 @@ NOTES
 Profiles
 --------
 
-BlueALSA provides support for Bluetooth Advanced Audio Distribution Profile
+**bluealsa** provides support for Bluetooth Advanced Audio Distribution Profile
 (A2DP), Hands-Free Profile (HFP) and Headset Profile (HSP).
 A2DP profile is dedicated for streaming music (i.e., stereo, 48 kHz or more
 sampling frequency), while HFP and HSP for two-way voice transmission (mono, 8
@@ -255,20 +255,32 @@ roles, although it is most common to use it either as a source/gateway:
 
     bluealsa -p a2dp-source -p hfp-ag -p hsp-ag
 
-or as a sink/target, either with oFono:
-
-::
-
-    bluealsa -p a2dp-sink -p hfp-ofono
-
-or without oFono:
+or as a sink/target:
 
 ::
 
     bluealsa -p a2dp-sink -p hfp-hf -p hsp-hs
 
-With A2DP, BlueALSA includes mandatory SBC codec and various optional codecs
-like AAC, aptX, and other.
+or with oFono for HFP support,
+
+source/gateway:
+
+::
+
+    bluealsa -p a2dp-source -p hfp-ofono -p hsp-ag
+
+sink/target:
+
+::
+
+    bluealsa -p a2dp-sink -p hfp-ofono -p hsp-hs
+
+With A2DP, **bluealsa** always includes the mandatory SBC codec and may also
+include various optional codecs like AAC, aptX, and other.
+
+With HFP, **bluealsa** always includes the mandatory CVSD codec and may also
+include the optional mSBC codec.
+
 The full list of available optional codecs, which depends on selected
 compilation options, will be shown with **bluealsa** command-line help message.
 
