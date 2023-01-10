@@ -161,7 +161,8 @@ int ba_adapter_get_hfp_features_hf(struct ba_adapter *a) {
 	int features = config.hfp.features_rfcomm_hf;
 	if (BA_TEST_ESCO_SUPPORT(a)) {
 #if ENABLE_MSBC
-		features |= HFP_HF_FEAT_CODEC;
+		if (config.hfp.codecs.msbc)
+			features |= HFP_HF_FEAT_CODEC;
 #endif
 		features |= HFP_HF_FEAT_ESCO;
 	}
@@ -172,7 +173,8 @@ int ba_adapter_get_hfp_features_ag(struct ba_adapter *a) {
 	int features = config.hfp.features_rfcomm_ag;
 	if (BA_TEST_ESCO_SUPPORT(a)) {
 #if ENABLE_MSBC
-		features |= HFP_AG_FEAT_CODEC;
+		if (config.hfp.codecs.msbc)
+			features |= HFP_AG_FEAT_CODEC;
 #endif
 		features |= HFP_AG_FEAT_ESCO;
 	}

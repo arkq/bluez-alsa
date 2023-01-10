@@ -182,6 +182,53 @@ CK_START_TEST(test_ba_transport_sco_one_only) {
 
 } CK_END_TEST
 
+static uint16_t get_codec_id(struct ba_transport *t) {
+	pthread_mutex_lock(&t->codec_id_mtx);
+	uint16_t codec_id = t->codec_id;
+	pthread_mutex_unlock(&t->codec_id_mtx);
+	return codec_id;
+}
+
+CK_START_TEST(test_ba_transport_sco_default_codec) {
+
+	struct ba_adapter *a;
+	struct ba_device *d;
+	struct ba_transport *t_sco;
+	bdaddr_t addr = { 0 };
+
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
+	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
+	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_CVSD);
+	ba_transport_unref(t_sco);
+
+#if ENABLE_MSBC
+
+	a->hci.features[2] = LMP_TRSP_SCO;
+	a->hci.features[3] = LMP_ESCO;
+
+	config.hfp.codecs.msbc = true;
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
+	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_UNDEFINED);
+	ba_transport_unref(t_sco);
+
+	config.hfp.codecs.msbc = false;
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
+	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_CVSD);
+	ba_transport_unref(t_sco);
+
+#else
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
+	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_CVSD);
+	ba_transport_unref(t_sco);
+#endif
+
+	ba_adapter_unref(a);
+	ba_device_unref(d);
+
+} CK_END_TEST
+
 static void *cleanup_thread(struct ba_transport_thread *th) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	ba_transport_thread_cleanup(th);
@@ -388,6 +435,7 @@ int main(void) {
 	tcase_add_test(tc, test_ba_device);
 	tcase_add_test(tc, test_ba_transport);
 	tcase_add_test(tc, test_ba_transport_sco_one_only);
+	tcase_add_test(tc, test_ba_transport_sco_default_codec);
 	tcase_add_test(tc, test_ba_transport_threads_sync_termination);
 	tcase_add_test(tc, test_ba_transport_pcm_format);
 	tcase_add_test(tc, test_ba_transport_pcm_volume);
