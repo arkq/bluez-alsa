@@ -1406,17 +1406,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->io.callback = &bluealsa_callback;
 	pcm->io.private_data = pcm;
 
-#if SND_LIB_VERSION >= 0x010102 && SND_LIB_VERSION <= 0x010103
-	/* ALSA library thread-safe API functionality does not play well with ALSA
-	 * IO-plug plug-ins. It causes deadlocks which often make our PCM plug-in
-	 * unusable. As a workaround we are going to disable this functionality. */
-	if (setenv("LIBASOUND_THREAD_SAFE", "0", 0) == -1)
-		SNDERR("Couldn't disable ALSA thread-safe API: %s", strerror(errno));
-#endif
-
-	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
-		goto fail;
-
 	if (codec != NULL && codec[0] != '\0') {
 		if (bluealsa_select_pcm_codec(pcm, codec, &err)) {
 			/* Changing the codec may change the audio format, sampling rate and/or
@@ -1435,10 +1424,26 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 	}
 
-	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0) {
-		snd_pcm_ioplug_delete(&pcm->io);
-		return ret;
+	/* If the BT transport codec is not known (which means that PCM sampling
+	 * rate is also not know), we cannot construct useful constraints. */
+	if (pcm->ba_pcm.sampling == 0) {
+		ret = -EAGAIN;
+		goto fail;
 	}
+
+#if SND_LIB_VERSION >= 0x010102 && SND_LIB_VERSION <= 0x010103
+	/* ALSA library thread-safe API functionality does not play well with ALSA
+	 * IO-plug plug-ins. It causes deadlocks which often make our PCM plug-in
+	 * unusable. As a workaround we are going to disable this functionality. */
+	if (setenv("LIBASOUND_THREAD_SAFE", "0", 0) == -1)
+		SNDERR("Couldn't disable ALSA thread-safe API: %s", strerror(errno));
+#endif
+
+	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
+		goto fail;
+
+	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0)
+		goto fail;
 
 	if (!bluealsa_update_pcm_softvol(pcm, pcm_softvol, &err)) {
 		SNDERR("Couldn't set BlueALSA PCM soft-volume: %s", err.message);
@@ -1458,6 +1463,8 @@ fail:
 	dbus_error_free(&err);
 	if (pcm->event_fd != -1)
 		close(pcm->event_fd);
+	pthread_mutex_destroy(&pcm->mutex);
+	pthread_cond_destroy(&pcm->pause_cond);
 	free(pcm);
 	return ret;
 }

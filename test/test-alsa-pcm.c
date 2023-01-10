@@ -534,6 +534,32 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 
 } CK_END_TEST
 
+CK_START_TEST(ba_test_playback_no_codec_selected) {
+
+	if (pcm_device != NULL)
+		return;
+
+	struct spawn_process sp_ba_mock;
+	snd_pcm_t *pcm = NULL;
+
+	const char *service = "test";
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+				"--timeout=1000",
+				"--profile=hfp-ag",
+				NULL), -1);
+
+	int rv = 0;
+#if ENABLE_MSBC
+	rv = -EAGAIN;
+#endif
+
+	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, "sco",
+				"", SND_PCM_STREAM_PLAYBACK, 0), rv);
+
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
+
+} CK_END_TEST
+
 CK_START_TEST(ba_test_playback_no_such_device) {
 
 	if (pcm_device != NULL)
@@ -1060,6 +1086,7 @@ int main(int argc, char *argv[], char *envp[]) {
 		TCase *tc = tcase_create("playback");
 		tcase_add_test(tc, dump_playback);
 		tcase_add_test(tc, ba_test_playback_hw_constraints);
+		tcase_add_test(tc, ba_test_playback_no_codec_selected);
 		tcase_add_test(tc, ba_test_playback_no_such_device);
 		tcase_add_test(tc, ba_test_playback_extra_setup);
 		tcase_add_test(tc, test_playback_hw_set_free);

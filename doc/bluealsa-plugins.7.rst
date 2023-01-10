@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: January 2023
+:Date: March 2023
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -76,7 +76,6 @@ PCM Parameters
     ::
 
       CODEC=aptx:4f0000000100ff
-
 
   VOL
     Specifies the initial volume for the PCM when opened. The default value is
@@ -498,6 +497,14 @@ NOTES
 =====
 
 Codec selection
+---------------
+
+When used on a HFP gateway node, there may be a brief delay with HFP PCMs
+after connection until the codec is selected. This delay is typically less
+than two seconds. During this time interval it is not possible to open the
+PCM plugin, it will fail with "Resource temporarily unavailable" (EAGAIN).
+
+Codec switching
 ---------------
 
 Changing the codec used by a BlueALSA transport causes the PCM(s) running on

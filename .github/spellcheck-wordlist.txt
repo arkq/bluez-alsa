@@ -140,6 +140,7 @@ docutils
 dpsnk
 dpsrc
 DYN
+EAGAIN
 EINVAL
 ENODEV
 EP
