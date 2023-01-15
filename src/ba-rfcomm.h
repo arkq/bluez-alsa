@@ -87,6 +87,9 @@ struct ba_rfcomm {
 #endif
 	} codecs;
 
+	/* HF supported codecs encoded for BAC command and BCS error response. */
+	char hf_bac_bcs_string[4];
+
 	/* Synchronization primitives for codec selection. The condition variable
 	 * shall be used with the codec_id mutex from the associated transport. */
 	pthread_cond_t codec_selection_cond;

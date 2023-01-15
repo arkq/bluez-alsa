@@ -63,6 +63,12 @@ PCM Parameters
     **APTX** are all accepted. If the specified codec is not available the
     plugin issues a warning and uses the default value instead.
 
+    BlueALSA does not support changing the HFP codec from a HFP-HF node, only
+    the HFP-AG node can change the HFP codec.
+
+    oFono does not permit the audio agent to select the codec, so this
+    parameter has no effect when BlueALSA is used with oFono for HFP support.
+
     For the A2DP profile it is possible to also specify a "configuration" for
     the codec by appending the configuration as a hex string separated from the
     codec name by a colon. For example:
@@ -503,7 +509,10 @@ a different codec is displayed. This is not ideal, so the use of this control
 type with ``alsamixer(1)`` is not recommended. The control type does however
 work well with other mixer applications such as ``amixer(1)``.
 
-Transport Acquisition
+Note that BlueALSA does not support changing the HFP codec from a HFP-HF node,
+only the HFP-AG node can change the HFP codec.
+
+Transport acquisition
 ---------------------
 
 The audio connection of a profile is not established immediately that a device

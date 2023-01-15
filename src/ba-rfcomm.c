@@ -532,15 +532,33 @@ final:
  * RESP: Bluetooth Codec Selection */
 static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
-	static const struct ba_rfcomm_handler handler = {
+	static const struct ba_rfcomm_handler handler_supported = {
 		AT_TYPE_RESP, "", rfcomm_handler_resp_bcs_ok_cb };
-	const int fd = r->fd;
+	static const struct ba_rfcomm_handler handler_unsupported = {
+		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb };
 
-	r->codec = atoi(at->value);
+	const int fd = r->fd;
+	const int codec = atoi(at->value);
+	bool codec_supported = codec == HFP_CODEC_CVSD;
+
+#ifdef ENABLE_MSBC
+	if (config.hfp.codecs.msbc && codec == HFP_CODEC_MSBC)
+		codec_supported = true;
+#endif
+
+	if (!codec_supported) {
+		/* If the requested codec is not supported, we must reply with the
+		 * list of codecs that we do support. */
+		if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BAC", r->hf_bac_bcs_string) == -1)
+			return -1;
+		r->handler = &handler_unsupported;
+		return 0;
+	}
+
+	r->codec = codec;
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
 		return -1;
-	r->handler = &handler;
-
+	r->handler = &handler_supported;
 	return 0;
 }
 
@@ -550,6 +568,7 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	const int fd = r->fd;
 	char *tmp = at->value - 1;
+	int rv;
 
 	/* We shall use the information on codecs available in HF
 	 * from the most recently received AT+BAC command. */
@@ -569,13 +588,19 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 		}
 	} while ((tmp = strchr(tmp, ',')) != NULL);
 
-	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
-		return -1;
+	if ((rv = rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK")) == -1)
+		goto final;
 
 	if (r->state < HFP_SLC_BAC_SET_OK)
 		rfcomm_set_hfp_state(r, HFP_SLC_BAC_SET_OK);
 
-	return 0;
+final:
+	if (r->state == HFP_SLC_CONNECTED)
+		/* We can receive the AT+BAC command as a response to AT+BSC in case of
+		 * invalid codec selection. In such case, we shall finalize current codec
+		 * selection procedure. */
+		rfcomm_finalize_codec_selection(r);
+	return rv;
 }
 
 /**
@@ -866,34 +891,34 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
-	char tmp[16];
+	int rv = 0;
 
 	debug("RFCOMM: %s setting codec: %s",
 			ba_transport_debug_name(t_sco),
 			hfp_codec_id_to_string(codec));
 
 	/* Codec selection can be requested only after SLC establishment. */
-	if (r->state != HFP_SLC_CONNECTED) {
-		/* If codec selection was requested by some other thread by calling the
-		 * ba_transport_select_codec(), we have to signal it that the selection
-		 * procedure has been completed. */
-		rfcomm_finalize_codec_selection(r);
-		return 0;
-	}
+	if (r->state != HFP_SLC_CONNECTED)
+		goto final;
 
 	/* for AG request codec selection using unsolicited response code */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG) {
+
+		char tmp[16];
 		sprintf(tmp, "%d", codec);
-		if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp) == -1)
-			return -1;
+		if ((rv = rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp)) == -1)
+			goto final;
+
 		r->codec = codec;
 		r->handler = &rfcomm_handler_bcs_set;
 		return 0;
 	}
 
 	/* TODO: Send codec connection initialization request to AG. */
+
+final:
 	rfcomm_finalize_codec_selection(r);
-	return 0;
+	return rv;
 }
 #endif
 
@@ -1091,7 +1116,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					break;
 				case HFP_SLC_BRSF_SET_OK:
 					if (r->hfp_features & HFP_AG_FEAT_CODEC) {
-						char *ptr = tmp;
+						char *ptr = r->hf_bac_bcs_string;
 						if (config.hfp.codecs.cvsd)
 							ptr += sprintf(ptr, "%u", HFP_CODEC_CVSD);
 #if ENABLE_MSBC
@@ -1099,7 +1124,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 							ptr += sprintf(ptr, "%s%u", ptr != tmp ? "," : "", HFP_CODEC_MSBC);
 #endif
 						/* advertise which HFP codecs we are supporting */
-						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", tmp) == -1)
+						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", r->hf_bac_bcs_string) == -1)
 							goto ioerror;
 						r->handler = &rfcomm_handler_resp_ok;
 						r->handler_resp_ok_new_state = HFP_SLC_BAC_SET_OK;
@@ -1283,13 +1308,15 @@ process:
 			switch (rfcomm_recv_signal(r)) {
 #if ENABLE_MSBC
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD:
-				if (config.hfp.codecs.cvsd &&
-						rfcomm_set_hfp_codec(r, HFP_CODEC_CVSD) == -1)
+				if (!config.hfp.codecs.cvsd || !(r->hfp_features & HFP_HF_FEAT_CODEC))
+					rfcomm_finalize_codec_selection(r);
+				else if (rfcomm_set_hfp_codec(r, HFP_CODEC_CVSD) == -1)
 					goto ioerror;
 				break;
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC:
-				if (config.hfp.codecs.msbc &&
-						rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
+				if (!config.hfp.codecs.msbc || !(r->hfp_features & HFP_HF_FEAT_CODEC))
+					rfcomm_finalize_codec_selection(r);
+				else if (rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
 				break;
 #endif

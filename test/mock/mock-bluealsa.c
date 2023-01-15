@@ -308,6 +308,7 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 	t->sco.rfcomm->state = HFP_SLC_CONNECTED;
 #if ENABLE_MSBC
 	t->sco.rfcomm->codecs.msbc = true;
+	t->sco.rfcomm->hfp_features |= HFP_HF_FEAT_CODEC;
 #endif
 	t->acquire = mock_transport_acquire_bt;
 

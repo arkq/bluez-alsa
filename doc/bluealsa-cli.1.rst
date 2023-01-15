@@ -6,7 +6,7 @@ bluealsa-cli
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: December 2022
+:Date: January 2023
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -86,7 +86,8 @@ info *PCM_PATH*
 
     ``Volume: L: 127 R: 127``
 
-    The list of available codecs requires BlueZ SEP support (BlueZ >= 5.52)
+    The list of available A2DP codecs requires BlueZ SEP support
+    (BlueZ >= 5.52)
 
 codec *PCM_PATH* [*CODEC* [*CONFIG*]]
     Get or set the Bluetooth codec used by the given PCM.
@@ -102,8 +103,15 @@ codec *PCM_PATH* [*CODEC* [*CONFIG*]]
     this parameter is omitted, BlueALSA will select default configuration based
     on codec capabilities of connected Bluetooth device.
 
-    Selecting a codec and listing available codecs requires BlueZ SEP support
-    (BlueZ >= 5.52).
+    Selecting an A2DP codec and listing available A2DP codecs requires BlueZ
+    SEP support (BlueZ >= 5.52).
+
+    BlueALSA does not support changing the HFP codec from an HFP-HF node. The
+    codec can only be changed from the HFP-AG node. Using the
+    **bluealsa-cli codec** command to set the codec from an HFP-HF node fails,
+    reporting an input/output error.
+
+    Selecting the HFP codec when using oFono is not supported.
 
 volume *PCM_PATH* [*VOLUME* [*VOLUME*]]
     Get or set the volume value of the given PCM.
@@ -200,7 +208,7 @@ open *PCM_PATH*
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2022 Arkadiusz Bokowy.
+Copyright (c) 2016-2023 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 

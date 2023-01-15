@@ -69,7 +69,7 @@ OPTIONS
     are mandatory for A2DP and HFP/HSP respectively.
 
     By default BlueALSA enables SBC, AAC (if AAC support is compiled-in), CVSD
-    and mSBC.
+    and mSBC (if mSBC support is compiled-in).
     For the list of supported audio codecs see the "Available BT audio codecs"
     section of the **bluealsa** command-line help message.
 
