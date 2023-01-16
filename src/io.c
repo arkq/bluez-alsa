@@ -14,6 +14,8 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 

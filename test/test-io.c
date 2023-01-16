@@ -55,7 +55,7 @@
 #include "hfp.h"
 #include "io.h"
 #include "rtp.h"
-#include "sco.h"
+#include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"

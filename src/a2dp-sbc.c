@@ -9,8 +9,8 @@
  */
 
 #include "a2dp-sbc.h"
+/* IWYU pragma: no_include "config.h" */
 
-#include <endian.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -28,7 +28,6 @@
 #include "codec-sbc.h"
 #include "io.h"
 #include "rtp.h"
-#include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"

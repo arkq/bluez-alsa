@@ -13,11 +13,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <dbus/dbus.h>
 
 #include "cli.h"
 #include "shared/dbus-client.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 enum {

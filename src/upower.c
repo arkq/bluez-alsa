@@ -15,7 +15,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include <bluetooth/bluetooth.h>
+#include <bluetooth/bluetooth.h> /* IWYU pragma: keep */
 #include <bluetooth/hci.h>
 
 #include <gio/gio.h>

@@ -9,11 +9,9 @@
  */
 
 #include "a2dp-mpeg.h"
-
-#if ENABLE_MPEG
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
-#include <endian.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -614,5 +612,3 @@ int a2dp_mpeg_transport_start(struct ba_transport *t) {
 	g_assert_not_reached();
 	return -1;
 }
-
-#endif

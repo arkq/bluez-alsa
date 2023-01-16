@@ -80,6 +80,63 @@ jobs:
         ignorePaths: ${{ github.workspace }}/doc/bluealsa-api.txt
         scanPaths: ${{ github.workspace }}
 
+  include-what-you-use:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        # XXX: iwyu package depends on clang-14, but is built with clang-13
+        sudo apt install --yes --quiet --no-install-recommends \
+          bear \
+          iwyu libclang-13-dev \
+          libasound2-dev \
+          libbluetooth-dev \
+          libbsd-dev \
+          libdbus-1-dev \
+          libfdk-aac-dev \
+          libglib2.0-dev \
+          libmp3lame-dev \
+          libmpg123-dev \
+          libncurses5-dev \
+          libreadline-dev \
+          libsbc-dev \
+          libspandsp-dev
+    - uses: actions/checkout@v3
+    - name: Create Build Environment
+      run: |
+        mkdir -p ${{ github.workspace }}/{build,m4}
+        autoreconf --install
+    - name: Configure GNU Automake
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        ${{ github.workspace }}/configure \
+          --enable-aac \
+          --enable-debug \
+          --enable-debug-time \
+          --enable-faststream \
+          --enable-mp3lame \
+          --enable-mpg123 \
+          --enable-msbc \
+          --enable-ofono \
+          --enable-upower \
+          --enable-aplay \
+          --enable-cli \
+          --enable-rfcomm \
+          --enable-a2dpconf \
+          --enable-hcitop
+    - name: Build
+      working-directory: ${{ github.workspace }}/build
+      run: bear -- make check TESTS=
+    - name: Run IWYU Check
+      run: |
+        iwyu_tool -p ${{ github.workspace }}/build -- \
+          -Xiwyu --mapping_file=${{ github.workspace }}/.github/iwyu.imp \
+          -Xiwyu --keep=*/config.h \
+          -Xiwyu --no_fwd_decls
+
   markdown-lint:
     strategy:
       fail-fast: false

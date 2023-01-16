@@ -9,13 +9,13 @@
  */
 
 #include "ba-adapter.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 

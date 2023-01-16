@@ -9,10 +9,12 @@
  */
 
 #include "codec-aptx.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <endian.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 

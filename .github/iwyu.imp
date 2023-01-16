@@ -1,0 +1,34 @@
+[
+
+	{ include: [ '<bits/getopt_core.h>', private, '<getopt.h>', public ] },
+	{ include: [ '<bsd/libutil.h>', private, '<bsd/stdlib.h>', public ] },
+	{ include: [ '<bsd/sys/time.h>', private, '<sys/time.h>', public ] },
+	{ symbol: [ 'sig_atomic_t', private, '<signal.h>', public ] },
+
+	{ include: [ '<alsa/conf.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/control.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/error.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/global.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/input.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/mixer.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/output.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/pcm.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/pcm_ioplug.h>', private, '<alsa/pcm_external.h>', public ] },
+	{ include: [ '<alsa/version.h>', private, '<alsa/asoundlib.h>', public ] },
+
+	{ include: [ '"dbus/dbus-memory.h"', private, '<dbus/dbus.h>', public ] },
+	{ include: [ '"dbus/dbus-protocol.h"', private, '<dbus/dbus.h>', public ] },
+	{ include: [ '"dbus/dbus-shared.h"', private, '<dbus/dbus.h>', public ] },
+
+	{ include: [ '<fdk-aac/FDK_audio.h>', private, '<fdk-aac/aacenc_lib.h>', public ] },
+
+	{ include: [ '<glib/gtypes.h>', private, '<glib.h>', public ] },
+	{ include: [ '"gio/gdbusinterfaceskeleton.h"', private, '<gio/gio.h>', public ] },
+	{ include: [ '"gio/gdbusobjectmanagerserver.h"', private, '<gio/gio.h>', public ] },
+	{ include: [ '"gio/gdbusobjectskeleton.h"', private, '<gio/gio.h>', public ] },
+
+	{ include: [ '<fmt123.h>', private, '<mpg123.h>', public ] },
+
+	{ include: [ '<spandsp/plc.h>', private, '<spandsp.h>', public ] },
+
+]

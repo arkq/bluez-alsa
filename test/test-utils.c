@@ -14,18 +14,15 @@
 
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #include <bluetooth/bluetooth.h>
 #include <check.h>
 
-#include "ba-transport.h"
 #include "hci.h"
-#include "hfp.h"
 #include "utils.h"
-#include "shared/a2dp-codecs.h"
-#include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/hex.h"
 #include "shared/nv.h"

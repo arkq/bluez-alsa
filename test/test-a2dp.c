@@ -8,10 +8,15 @@
  *
  */
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <check.h>
 #include <glib.h>
@@ -19,13 +24,16 @@
 #include "a2dp.h"
 #include "a2dp-aac.h"
 #include "a2dp-sbc.h"
+#include "ba-transport.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 #include "inc/check.inc"
 
+const char *ba_transport_debug_name(const struct ba_transport *t) { (void)t; return "x"; }
 bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) { (void)pcm; return false; }
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }

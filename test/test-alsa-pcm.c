@@ -17,13 +17,11 @@
 #include <getopt.h>
 #include <libgen.h>
 #include <poll.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -38,6 +36,7 @@
 #include "inc/mock.inc"
 #include "inc/preload.inc"
 #include "inc/sine.inc"
+#include "inc/spawn.inc"
 
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 

@@ -20,10 +20,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 #include "a2dp.h"
 #include "ba-device.h"
-#include "ba-rfcomm.h"
 #include "bluez.h"
 #include "shared/a2dp-codecs.h"
 
@@ -334,6 +334,11 @@ struct ba_transport *ba_transport_new_sco(
 		const char *dbus_owner,
 		const char *dbus_path,
 		int rfcomm_fd);
+
+#if DEBUG
+const char *ba_transport_debug_name(
+		const struct ba_transport *t);
+#endif
 
 struct ba_transport *ba_transport_lookup(
 		struct ba_device *device,

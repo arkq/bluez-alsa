@@ -25,6 +25,7 @@
 #include <check.h>
 #include <glib.h>
 
+#include "a2dp.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"

@@ -16,6 +16,7 @@
 
 #include <signal.h>
 #include <stdio.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #define SPAWN_FLAG_NONE 0

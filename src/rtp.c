@@ -9,6 +9,7 @@
  */
 
 #include "rtp.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <endian.h>
 #include <stdlib.h>

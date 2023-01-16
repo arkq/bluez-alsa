@@ -9,6 +9,7 @@
  */
 
 #include "codec-sbc.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <stdbool.h>

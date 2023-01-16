@@ -9,15 +9,14 @@
  */
 
 #include "a2dp-lc3plus.h"
+/* IWYU pragma: no_include "config.h" */
 
-#if ENABLE_LC3PLUS
-
-#include <endian.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -28,7 +27,6 @@
 #include "a2dp.h"
 #include "audio.h"
 #include "bluealsa-config.h"
-#include "codec-sbc.h"
 #include "io.h"
 #include "rtp.h"
 #include "utils.h"
@@ -609,5 +607,3 @@ int a2dp_lc3plus_transport_start(struct ba_transport *t) {
 	g_assert_not_reached();
 	return -1;
 }
-
-#endif

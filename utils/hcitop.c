@@ -17,10 +17,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <ncurses.h>
+#include <curses.h>
 #include <bsd/stdlib.h>
 
-#include <bluetooth/bluetooth.h>
+#include <bluetooth/bluetooth.h> /* IWYU pragma: keep */
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 

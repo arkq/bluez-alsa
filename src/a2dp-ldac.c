@@ -10,10 +10,7 @@
 
 #include "a2dp-ldac.h"
 
-#if ENABLE_LDAC
-
 #include <errno.h>
-#include <endian.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -408,5 +405,3 @@ int a2dp_ldac_transport_start(struct ba_transport *t) {
 	g_assert_not_reached();
 	return -1;
 }
-
-#endif

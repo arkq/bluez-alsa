@@ -13,12 +13,13 @@
 #endif
 
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -26,6 +27,14 @@
 #include <glib.h>
 
 #include "a2dp.h"
+#include "a2dp-aac.h"
+#include "a2dp-aptx-hd.h"
+#include "a2dp-aptx.h"
+#include "a2dp-faststream.h"
+#include "a2dp-lc3plus.h"
+#include "a2dp-ldac.h"
+#include "a2dp-mpeg.h"
+#include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"

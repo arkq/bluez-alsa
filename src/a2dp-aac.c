@@ -10,10 +10,7 @@
 
 #include "a2dp-aac.h"
 
-#if ENABLE_AAC
-
 #include <errno.h>
-#include <endian.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -591,5 +588,3 @@ int a2dp_aac_transport_start(struct ba_transport *t) {
 	g_assert_not_reached();
 	return -1;
 }
-
-#endif

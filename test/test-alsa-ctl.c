@@ -12,21 +12,20 @@
 # include <config.h>
 #endif
 
+#include <errno.h>
 #include <libgen.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 
 #include <check.h>
 #include <alsa/asoundlib.h>
 
-#include "shared/defs.h"
-
 #include "inc/check.inc"
 #include "inc/mock.inc"
 #include "inc/preload.inc"
+#include "inc/spawn.inc"
 
 static int snd_ctl_open_bluealsa(
 		snd_ctl_t **ctlp,

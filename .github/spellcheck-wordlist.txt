@@ -58,6 +58,7 @@ ATRAC
 BlueALSA
 BlueZ
 Fraunhofer
+IWYU
 LDAC
 MPD
 oFono
@@ -83,6 +84,7 @@ mutex
 natively
 param
 params
+pragma
 proc
 reinitialization
 scalable

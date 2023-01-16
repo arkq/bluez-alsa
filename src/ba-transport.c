@@ -9,6 +9,7 @@
  */
 
 #include "ba-transport.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <math.h>
@@ -18,25 +19,39 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
 #include <glib-object.h>
 #include <glib.h>
 
-#include "a2dp-aac.h"
-#include "a2dp-aptx-hd.h"
-#include "a2dp-aptx.h"
-#include "a2dp-faststream.h"
-#include "a2dp-lc3plus.h"
-#include "a2dp-ldac.h"
-#include "a2dp-mpeg.h"
+#if ENABLE_AAC
+# include "a2dp-aac.h"
+#endif
+#if ENABLE_APTX
+# include "a2dp-aptx.h"
+#endif
+#if ENABLE_APTX_HD
+# include "a2dp-aptx-hd.h"
+#endif
+#if ENABLE_FASTSTREAM
+# include "a2dp-faststream.h"
+#endif
+#if ENABLE_LC3PLUS
+# include "a2dp-lc3plus.h"
+#endif
+#if ENABLE_LDAC
+# include "a2dp-ldac.h"
+#endif
+#if ENABLE_MPEG
+# include "a2dp-mpeg.h"
+#endif
 #include "a2dp-sbc.h"
 #include "audio.h"
 #include "ba-adapter.h"
@@ -50,7 +65,6 @@
 #include "hfp.h"
 #include "sco.h"
 #include "storage.h"
-#include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -922,6 +936,113 @@ fail:
 	errno = err;
 	return NULL;
 }
+
+#if DEBUG
+/**
+ * Get BlueALSA transport type debug name.
+ *
+ * @param t Transport structure.
+ * @return Human-readable string. */
+const char *ba_transport_debug_name(
+		const struct ba_transport *t) {
+	const enum ba_transport_profile profile = t->profile;
+	const uint16_t codec_id = t->codec_id;
+	switch (profile) {
+	case BA_TRANSPORT_PROFILE_NONE:
+		return "NONE";
+	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
+		switch (codec_id) {
+		case A2DP_CODEC_SBC:
+			return "A2DP Source (SBC)";
+#if ENABLE_MPEG
+		case A2DP_CODEC_MPEG12:
+			return "A2DP Source (MP3)";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "A2DP Source (AAC)";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "A2DP Source (aptX)";
+#endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "A2DP Source (aptX HD)";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "A2DP Source (FastStream)";
+#endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "A2DP Source (LC3plus)";
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			return "A2DP Source (LDAC)";
+#endif
+		} break;
+	case BA_TRANSPORT_PROFILE_A2DP_SINK:
+		switch (codec_id) {
+		case A2DP_CODEC_SBC:
+			return "A2DP Sink (SBC)";
+#if ENABLE_MPEG
+		case A2DP_CODEC_MPEG12:
+			return "A2DP Sink (MP3)";
+#endif
+#if ENABLE_AAC
+		case A2DP_CODEC_MPEG24:
+			return "A2DP Sink (AAC)";
+#endif
+#if ENABLE_APTX
+		case A2DP_CODEC_VENDOR_APTX:
+			return "A2DP Sink (aptX)";
+#endif
+#if ENABLE_APTX_HD
+		case A2DP_CODEC_VENDOR_APTX_HD:
+			return "A2DP Sink (aptX HD)";
+#endif
+#if ENABLE_FASTSTREAM
+		case A2DP_CODEC_VENDOR_FASTSTREAM:
+			return "A2DP Sink (FastStream)";
+#endif
+#if ENABLE_LC3PLUS
+		case A2DP_CODEC_VENDOR_LC3PLUS:
+			return "A2DP Sink (LC3plus)";
+#endif
+#if ENABLE_LDAC
+		case A2DP_CODEC_VENDOR_LDAC:
+			return "A2DP Sink (LDAC)";
+#endif
+		} break;
+	case BA_TRANSPORT_PROFILE_HFP_HF:
+		switch (codec_id) {
+		case HFP_CODEC_UNDEFINED:
+			return "HFP Hands-Free (...)";
+		case HFP_CODEC_CVSD:
+			return "HFP Hands-Free (CVSD)";
+		case HFP_CODEC_MSBC:
+			return "HFP Hands-Free (mSBC)";
+		} break;
+	case BA_TRANSPORT_PROFILE_HFP_AG:
+		switch (codec_id) {
+		case HFP_CODEC_UNDEFINED:
+			return "HFP Audio Gateway (...)";
+		case HFP_CODEC_CVSD:
+			return "HFP Audio Gateway (CVSD)";
+		case HFP_CODEC_MSBC:
+			return "HFP Audio Gateway (mSBC)";
+		} break;
+	case BA_TRANSPORT_PROFILE_HSP_HS:
+		return "HSP Headset";
+	case BA_TRANSPORT_PROFILE_HSP_AG:
+		return "HSP Audio Gateway";
+	}
+	debug("Unknown transport: profile:%#x codec:%#x", profile, codec_id);
+	return "N/A";
+}
+#endif
 
 struct ba_transport *ba_transport_lookup(
 		struct ba_device *device,

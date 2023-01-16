@@ -12,11 +12,10 @@
 #ifndef BLUEALSA_HCI_H_
 #define BLUEALSA_HCI_H_
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
+#include <bluetooth/hci.h> /* IWYU pragma: keep */
 #include <bluetooth/hci_lib.h>
 
 /**

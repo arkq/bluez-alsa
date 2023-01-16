@@ -17,6 +17,7 @@
  */
 
 #include "ofono.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <poll.h>
@@ -44,7 +45,6 @@
 #include "bluealsa-config.h"
 #include "dbus.h"
 #include "hci.h"
-#include "hfp.h"
 #include "ofono-iface.h"
 #include "ofono-skeleton.h"
 #include "shared/log.h"

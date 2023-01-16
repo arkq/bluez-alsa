@@ -26,23 +26,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
+
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
 
 #include <gio/gio.h>
 #include <glib-unix.h>
 #include <glib.h>
 
 #include "a2dp.h"
-#include "a2dp-aac.h"
 #include "a2dp-aptx.h"
 #include "a2dp-aptx-hd.h"
 #include "a2dp-faststream.h"
 #include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
+#include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
@@ -52,7 +55,6 @@
 #include "codec-sbc.h"
 #include "hfp.h"
 #include "io.h"
-#include "sco.h"
 #include "storage.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"

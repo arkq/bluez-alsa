@@ -9,6 +9,7 @@
  */
 
 #include "sco.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <poll.h>
@@ -25,6 +26,8 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
 
+#include <glib.h>
+
 #include "ba-device.h"
 #include "bluealsa-config.h"
 #if ENABLE_MSBC
@@ -34,7 +37,6 @@
 #include "hci.h"
 #include "hfp.h"
 #include "io.h"
-#include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"

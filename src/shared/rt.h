@@ -17,11 +17,10 @@
 #endif
 
 #include <stdint.h>
-#include <sys/time.h>
 #include <time.h>
 
 #if HAVE_LIBBSD
-# include <bsd/sys/time.h>
+# include <bsd/sys/time.h> /* IWYU pragma: keep */
 #else
 # define timespecadd(ts_a, ts_b, dest) do { \
 		(dest)->tv_sec = (ts_a)->tv_sec + (ts_b)->tv_sec; \

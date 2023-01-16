@@ -10,6 +10,7 @@
  */
 
 #include "codec-msbc.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <endian.h>
 #include <errno.h>

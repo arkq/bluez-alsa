@@ -9,6 +9,7 @@
  */
 
 #include "a2dp.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <limits.h>
@@ -18,19 +19,32 @@
 
 #include <glib.h>
 
-#include "a2dp-aac.h"
-#include "a2dp-aptx-hd.h"
-#include "a2dp-aptx.h"
-#include "a2dp-faststream.h"
-#include "a2dp-lc3plus.h"
-#include "a2dp-ldac.h"
-#include "a2dp-mpeg.h"
+#if ENABLE_AAC
+# include "a2dp-aac.h"
+#endif
+#if ENABLE_APTX
+# include "a2dp-aptx.h"
+#endif
+#if ENABLE_APTX_HD
+# include "a2dp-aptx-hd.h"
+#endif
+#if ENABLE_FASTSTREAM
+# include "a2dp-faststream.h"
+#endif
+#if ENABLE_LC3PLUS
+# include "a2dp-lc3plus.h"
+#endif
+#if ENABLE_LDAC
+# include "a2dp-ldac.h"
+#endif
+#if ENABLE_MPEG
+# include "a2dp-mpeg.h"
+#endif
 #include "a2dp-sbc.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "hci.h"
 #include "shared/a2dp-codecs.h"
-#include "shared/defs.h"
 #include "shared/log.h"
 
 struct a2dp_codec * const a2dp_codecs[] = {

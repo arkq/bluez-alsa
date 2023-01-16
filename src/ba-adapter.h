@@ -15,11 +15,12 @@
 # include <config.h>
 #endif
 
+#include <stdint.h>
 #include <pthread.h>
 
 #include <glib.h>
 
-#include <bluetooth/bluetooth.h>
+#include <bluetooth/bluetooth.h> /* IWYU pragma: keep */
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 

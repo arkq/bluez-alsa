@@ -16,7 +16,7 @@
 # include <config.h>
 #endif
 
-#include <stddef.h>
+#include <sys/types.h>
 
 #include "ba-transport.h"
 #include "shared/rt.h"

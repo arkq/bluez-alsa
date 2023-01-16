@@ -9,6 +9,7 @@
  */
 
 #include "ba-rfcomm.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <poll.h>
@@ -29,7 +30,6 @@
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
-#include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 

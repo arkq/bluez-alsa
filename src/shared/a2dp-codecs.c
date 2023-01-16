@@ -10,7 +10,6 @@
 
 #include "shared/a2dp-codecs.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <strings.h>

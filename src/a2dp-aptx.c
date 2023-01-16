@@ -9,8 +9,7 @@
  */
 
 #include "a2dp-aptx.h"
-
-#if ENABLE_APTX
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <pthread.h>
@@ -25,7 +24,6 @@
 #include "a2dp.h"
 #include "codec-aptx.h"
 #include "io.h"
-#include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -309,5 +307,3 @@ int a2dp_aptx_transport_start(struct ba_transport *t) {
 	g_assert_not_reached();
 	return -1;
 }
-
-#endif

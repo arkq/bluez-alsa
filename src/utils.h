@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -23,8 +23,6 @@
 
 #include <glib.h>
 
-#include "ba-transport.h"
-
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);
 
@@ -34,10 +32,6 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
 
 unsigned int g_bdaddr_hash(const void *v);
 gboolean g_bdaddr_equal(const void *v1, const void *v2);
-
-#if DEBUG
-const char *ba_transport_debug_name(const struct ba_transport *t);
-#endif
 
 #if ENABLE_MP3LAME
 int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask);

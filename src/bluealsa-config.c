@@ -9,6 +9,7 @@
  */
 
 #include "bluealsa-config.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <fcntl.h>
 #include <stdbool.h>

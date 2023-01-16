@@ -9,6 +9,7 @@
  */
 
 #include "shared/log.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <pthread.h>
 #include <stdarg.h>
@@ -16,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>

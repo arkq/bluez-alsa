@@ -8,7 +8,12 @@
  *
  */
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <endian.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 

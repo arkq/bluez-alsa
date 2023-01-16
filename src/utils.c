@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,6 +9,7 @@
  */
 
 #include "utils.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -22,8 +23,6 @@
 # include "ldacBT.h"
 #endif
 
-#include "hfp.h"
-#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -115,116 +114,6 @@ unsigned int g_bdaddr_hash(const void *v) {
 gboolean g_bdaddr_equal(const void *v1, const void *v2) {
 	return bacmp(v1, v2) == 0;
 }
-
-#if DEBUG
-/**
- * Get BlueALSA transport type debug name.
- *
- * @param t Transport structure.
- * @return Human-readable string. */
-const char *ba_transport_debug_name(const struct ba_transport *t) {
-	const enum ba_transport_profile profile = t->profile;
-	const uint16_t codec_id = t->codec_id;
-	switch (profile) {
-	case BA_TRANSPORT_PROFILE_NONE:
-		return "NONE";
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		switch (codec_id) {
-		case A2DP_CODEC_SBC:
-			return "A2DP Source (SBC)";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "A2DP Source (MP3)";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "A2DP Source (AAC)";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Source (aptX)";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "A2DP Source (aptX HD)";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "A2DP Source (FastStream)";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "A2DP Source (LC3plus)";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "A2DP Source (LDAC)";
-#endif
-		default:
-			return "A2DP Source";
-		}
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		switch (codec_id) {
-		case A2DP_CODEC_SBC:
-			return "A2DP Sink (SBC)";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "A2DP Sink (MP3)";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "A2DP Sink (AAC)";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Sink (aptX)";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "A2DP Sink (aptX HD)";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "A2DP Sink (FastStream)";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "A2DP Sink (LC3plus)";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "A2DP Sink (LDAC)";
-#endif
-		default:
-			return "A2DP Sink";
-		}
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-		switch (codec_id) {
-		case HFP_CODEC_CVSD:
-			return "HFP Hands-Free (CVSD)";
-		case HFP_CODEC_MSBC:
-			return "HFP Hands-Free (mSBC)";
-		default:
-			return "HFP Hands-Free";
-		}
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-		switch (codec_id) {
-		case HFP_CODEC_CVSD:
-			return "HFP Audio Gateway (CVSD)";
-		case HFP_CODEC_MSBC:
-			return "HFP Audio Gateway (mSBC)";
-		default:
-			return "HFP Audio Gateway";
-		}
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		return "HSP Headset";
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		return "HSP Audio Gateway";
-	}
-	debug("Unknown transport type: %#x %#x", profile, codec_id);
-	return "N/A";
-}
-#endif
 
 #if ENABLE_MP3LAME
 /**

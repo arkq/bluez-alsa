@@ -10,8 +10,6 @@
 
 #include "a2dp-faststream.h"
 
-#if ENABLE_FASTSTREAM
-
 #include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -27,7 +25,6 @@
 #include "a2dp.h"
 #include "codec-sbc.h"
 #include "io.h"
-#include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -335,5 +332,3 @@ int a2dp_faststream_transport_start(struct ba_transport *t) {
 	g_assert_not_reached();
 	return -1;
 }
-
-#endif
