@@ -1,6 +1,6 @@
 /*
  * BlueALSA - storage.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,6 +11,7 @@
 #include "storage.h"
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +37,7 @@ struct storage {
 };
 
 static char storage_root_dir[128];
+static pthread_mutex_t storage_mutex = PTHREAD_MUTEX_INITIALIZER;
 static GHashTable *storage_map = NULL;
 
 static struct storage *storage_lookup(const bdaddr_t *addr) {
@@ -47,10 +49,10 @@ static struct storage *storage_new(const bdaddr_t *addr) {
 	struct storage *st;
 	/* return existing storage if it exists */
 	if ((st = storage_lookup(addr)) != NULL)
-		return st;
+		goto final;
 
 	if ((st = malloc(sizeof(*st))) == NULL)
-		return NULL;
+		goto final;
 
 	bacpy(&st->addr, addr);
 	st->keyfile = g_key_file_new();
@@ -61,6 +63,7 @@ static struct storage *storage_new(const bdaddr_t *addr) {
 	 * pointer might/will be used to access the new value! */
 	g_hash_table_insert(storage_map, &st->addr, st);
 
+final:
 	return st;
 }
 
@@ -97,22 +100,29 @@ int storage_device_load(const struct ba_device *d) {
 	char path[sizeof(storage_root_dir) + sizeof(addrstr)];
 	ba2str(&d->addr, addrstr);
 	snprintf(path, sizeof(path), "%s/%s", storage_root_dir, addrstr);
+	int rv = -1;
+
+	pthread_mutex_lock(&storage_mutex);
 
 	debug("Loading storage: %s", path);
 
 	struct storage *st;
 	if ((st = storage_new(&d->addr)) == NULL)
-		return -1;
+		goto final;
 
 	GError *err = NULL;
 	if (!g_key_file_load_from_file(st->keyfile, path, G_KEY_FILE_NONE, &err)) {
 		if (err->code != G_FILE_ERROR_NOENT)
 			warn("Couldn't load storage: %s", err->message);
 		g_error_free(err);
-		return -1;
+		goto final;
 	}
 
-	return 0;
+	rv = 0;
+
+final:
+	pthread_mutex_unlock(&storage_mutex);
+	return rv;
 }
 
 /**
@@ -123,10 +133,13 @@ int storage_device_save(const struct ba_device *d) {
 	char path[sizeof(storage_root_dir) + sizeof(addrstr)];
 	ba2str(&d->addr, addrstr);
 	snprintf(path, sizeof(path), "%s/%s", storage_root_dir, addrstr);
+	int rv = -1;
+
+	pthread_mutex_lock(&storage_mutex);
 
 	struct storage *st;
 	if ((st = storage_lookup(&d->addr)) == NULL)
-		return -1;
+		goto final;
 
 	debug("Saving storage: %s", path);
 
@@ -134,13 +147,17 @@ int storage_device_save(const struct ba_device *d) {
 	if (!g_key_file_save_to_file(st->keyfile, path, &err)) {
 		error("Couldn't save storage: %s", err->message);
 		g_error_free(err);
-		return -1;
+		goto final;
 	}
 
 	/* remove the storage from the map */
 	g_hash_table_remove(storage_map, &d->addr);
 
-	return 0;
+	rv = 0;
+
+final:
+	pthread_mutex_unlock(&storage_mutex);
+	return rv;
 }
 
 /**
@@ -154,6 +171,8 @@ int storage_pcm_data_sync(struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	const struct ba_device *d = t->d;
 	int rv = 0;
+
+	pthread_mutex_lock(&storage_mutex);
 
 	struct storage *st;
 	if ((st = storage_lookup(&d->addr)) == NULL)
@@ -199,6 +218,7 @@ int storage_pcm_data_sync(struct ba_transport_pcm *pcm) {
 	}
 
 final:
+	pthread_mutex_unlock(&storage_mutex);
 	return rv;
 }
 
@@ -211,11 +231,14 @@ int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
 	const struct ba_device *d = t->d;
+	int rv = -1;
+
+	pthread_mutex_lock(&storage_mutex);
 
 	struct storage *st;
 	if ((st = storage_lookup(&d->addr)) == NULL)
 		if ((st = storage_new(&d->addr)) == NULL)
-			return -1;
+			goto final;
 
 	GKeyFile *keyfile = st->keyfile;
 	const char *group = pcm->ba_dbus_path;
@@ -229,5 +252,9 @@ int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
 	gboolean mute[2] = { pcm->volume[0].soft_mute, pcm->volume[1].soft_mute };
 	g_key_file_set_boolean_list(keyfile, group, BA_STORAGE_KEY_MUTE, mute, 2);
 
-	return 0;
+	rv = 0;
+
+final:
+	pthread_mutex_unlock(&storage_mutex);
+	return rv;
 }
