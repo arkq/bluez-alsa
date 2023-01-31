@@ -1,0 +1,11 @@
+# BlueALSA - dependabot.yaml
+# Copyright (c) 2016-2023 Arkadiusz Bokowy
+
+version: 2
+updates:
+
+  # Check for updates to GitHub Actions every week
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

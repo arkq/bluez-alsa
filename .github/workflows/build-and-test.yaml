@@ -7,6 +7,7 @@ on:
 
 env:
   MAKEFLAGS: -j8
+  SANITIZE_THREAD_LIBS: ${{ github.workspace }}/sanitize-thread-libs
 
 jobs:
 
@@ -21,24 +22,24 @@ jobs:
         - --enable-aplay --enable-ofono --enable-upower
         - --enable-cli --enable-rfcomm --enable-manpages
       fail-fast: false
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Install Dependencies
-      run: |
-        sudo apt update
-        sudo apt install --yes --quiet --no-install-recommends \
-          check \
-          libasound2-dev \
-          libbluetooth-dev \
-          libdbus-1-dev \
-          libfdk-aac-dev \
-          libglib2.0-dev \
-          libmp3lame-dev \
-          libmpg123-dev \
-          libreadline-dev \
-          libsbc-dev \
-          libspandsp-dev \
-          python-docutils
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: >
+          check
+          libasound2-dev
+          libbluetooth-dev
+          libdbus-1-dev
+          libfdk-aac-dev
+          libglib2.0-dev
+          libmp3lame-dev
+          libmpg123-dev
+          libreadline-dev
+          libsbc-dev
+          libspandsp-dev
+          python3-docutils
     - uses: actions/checkout@v3
     - name: Create Build Environment
       run: |
@@ -63,27 +64,63 @@ jobs:
         name: ${{ github.job }} (${{ matrix.features }}) logs
         path: ${{ github.workspace }}/build/test/*.log
 
+  sanitize-prepare:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/cache@v3
+      id: cache
+      with:
+        key: sanitize-env
+        path: ${{ env.SANITIZE_THREAD_LIBS }}
+    - name: Create Build Environment
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        sudo apt install --yes --quiet --no-install-recommends meson
+        mkdir -p ${{ env.SANITIZE_THREAD_LIBS }}
+    - name: Compile Patched GCC Thread Sanitizer Library
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth=1 --branch=releases/gcc-11.3.0 https://github.com/gcc-mirror/gcc.git
+        # GCC (and Clang) skips interception in case when the call is made while the
+        # thread is waiting on a blocking system call. In most cases this is a case
+        # when the call is made from a signal handler. However, BlueALSA uses thread
+        # cancellation to stop the thread, which operates in a similar way. Therefore,
+        # we need to patch the thread sanitizer library to not skip the interception.
+        sed -i 's/|| thr->ignore_interceptors//' gcc/libsanitizer/tsan/tsan_interceptors.h
+        mkdir libstdc++-v3 && cd $_ && ../gcc/libstdc++-v3/configure --disable-multilib && make && cd -
+        mkdir libsanitizer && cd $_ && ../gcc/libsanitizer/configure --disable-multilib && make && cd -
+        mv libsanitizer/tsan/.libs/libtsan.so* ${{ env.SANITIZE_THREAD_LIBS }}
+    - name: Compile glib-2.0 with Thread Sanitizer
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth=1 --branch=2.72.4 https://github.com/GNOME/glib.git
+        CFLAGS="-O2 -g -fsanitize=thread" meson glib/build glib
+        DESTDIR=../build-image ninja -C glib/build install
+        mv glib/build-image/usr/local/lib/x86_64-linux-gnu/lib* ${{ env.SANITIZE_THREAD_LIBS }}
+
   sanitize:
     strategy:
       matrix:
         sanitize:
         - address alignment bool bounds nonnull-attribute shift undefined
+        - thread
       fail-fast: false
-    runs-on: ubuntu-20.04
+    needs: sanitize-prepare
+    runs-on: ubuntu-22.04
     steps:
     - name: Install Dependencies
-      run: |
-        sudo apt update
-        sudo apt install --yes --quiet --no-install-recommends \
-          check \
-          libasound2-dev \
-          libbluetooth-dev \
-          libdbus-1-dev \
-          libfdk-aac-dev \
-          libglib2.0-dev \
-          libmp3lame-dev \
-          libmpg123-dev \
-          libsbc-dev \
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: >
+          check
+          libasound2-dev
+          libbluetooth-dev
+          libdbus-1-dev
+          libfdk-aac-dev
+          libglib2.0-dev
+          libmp3lame-dev
+          libmpg123-dev
+          libsbc-dev
           libspandsp-dev
     - uses: actions/checkout@v3
     - name: Create Build Environment
@@ -110,12 +147,28 @@ jobs:
         make clean
         SANITIZERS=$(for x in ${{ matrix.sanitize }}; do echo -n " -fsanitize=$x"; done)
         make check CFLAGS="-g -O2 $SANITIZERS -fno-sanitize-recover=all" TESTS=
+    - uses: actions/cache/restore@v3
+      if: ${{ matrix.sanitize == 'thread' }}
+      with:
+        key: sanitize-env
+        path: ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       env:
         CK_DEFAULT_TIMEOUT: 15
-        LD_PRELOAD_SANITIZER: libasan.so.5
-      run: make check-TESTS
+        ASAN_OPTIONS: detect_stack_use_after_return=1
+        TSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/tsan-supressions.txt
+      run: |
+        case "${{ matrix.sanitize }}" in
+          *address*)
+            export LD_PRELOAD_SANITIZER="libasan.so.6" ;;
+          *thread*)
+            # As for now, not all tests pass with thread sanitizer enabled...
+            export XFAIL_TESTS="test-alsa-ctl test-alsa-pcm test-rfcomm test-utils-cli"
+            export LD_LIBRARY_PATH="${{ env.SANITIZE_THREAD_LIBS }}:$LD_LIBRARY_PATH"
+            export LD_PRELOAD_SANITIZER="libtsan.so.0" ;;
+        esac
+        make check-TESTS
     - name: Upload Tests Log
       uses: actions/upload-artifact@v3
       if: ${{ always() }}

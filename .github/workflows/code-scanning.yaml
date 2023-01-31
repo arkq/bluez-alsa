@@ -16,25 +16,23 @@ permissions:
 jobs:
 
   code-ql:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
     steps:
     - name: Install Dependencies
-      run: |
-        sudo apt update
-        sudo apt install --yes --quiet --no-install-recommends \
-          libasound2-dev \
-          libbluetooth-dev \
-          libbsd-dev \
-          libdbus-1-dev \
-          libfdk-aac-dev \
-          libglib2.0-dev \
-          libmp3lame-dev \
-          libmpg123-dev \
-          libncurses5-dev \
-          libreadline-dev \
-          libsbc-dev \
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: >
+          libasound2-dev
+          libbluetooth-dev
+          libbsd-dev
+          libdbus-1-dev
+          libfdk-aac-dev
+          libglib2.0-dev
+          libmp3lame-dev
+          libmpg123-dev
+          libncurses5-dev
+          libreadline-dev
+          libsbc-dev
           libspandsp-dev
     - uses: actions/checkout@v3
     - name: Initialize CodeQL
@@ -69,8 +67,6 @@ jobs:
       uses: github/codeql-action/analyze@v2
 
   doc8-lint:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -81,28 +77,26 @@ jobs:
         scanPaths: ${{ github.workspace }}
 
   include-what-you-use:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
     steps:
     - name: Install Dependencies
-      run: |
-        sudo apt update
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
         # XXX: iwyu package depends on clang-14, but is built with clang-13
-        sudo apt install --yes --quiet --no-install-recommends \
-          bear \
-          iwyu libclang-13-dev \
-          libasound2-dev \
-          libbluetooth-dev \
-          libbsd-dev \
-          libdbus-1-dev \
-          libfdk-aac-dev \
-          libglib2.0-dev \
-          libmp3lame-dev \
-          libmpg123-dev \
-          libncurses5-dev \
-          libreadline-dev \
-          libsbc-dev \
+        packages: >
+          bear
+          iwyu libclang-13-dev
+          libasound2-dev
+          libbluetooth-dev
+          libbsd-dev
+          libdbus-1-dev
+          libfdk-aac-dev
+          libglib2.0-dev
+          libmp3lame-dev
+          libmpg123-dev
+          libncurses5-dev
+          libreadline-dev
+          libsbc-dev
           libspandsp-dev
     - uses: actions/checkout@v3
     - name: Create Build Environment
@@ -138,8 +132,6 @@ jobs:
           -Xiwyu --no_fwd_decls
 
   markdown-lint:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -149,8 +141,6 @@ jobs:
         files: ${{ github.workspace }}
 
   shellcheck:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -162,8 +152,6 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
   spellcheck:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
