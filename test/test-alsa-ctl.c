@@ -79,7 +79,7 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_ctl_t *ctl) {
 		rv = snd_ctl_close(ctl);
 	if (sp_ba_mock != NULL) {
 		spawn_terminate(sp_ba_mock, 0);
-		spawn_close(sp_ba_mock);
+		spawn_close(sp_ba_mock, NULL);
 	}
 	return rv;
 }

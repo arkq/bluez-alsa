@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 
 #include <check.h>
 
@@ -52,8 +53,9 @@ static int run_bluealsa_cli(char *output, size_t size, ...) {
 
 	fprintf(stderr, "%s", output);
 
-	spawn_close(&sp);
-	return 0;
+	int wstatus = 0;
+	spawn_close(&sp, &wstatus);
+	return WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1;
 }
 
 CK_START_TEST(test_help) {
@@ -89,7 +91,7 @@ CK_START_TEST(test_status) {
 	ck_assert_ptr_ne(strstr(output, "HFP-AG"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -112,7 +114,7 @@ CK_START_TEST(test_list_services) {
 	ck_assert_ptr_ne(strstr(output, "org.bluealsa.test"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -152,7 +154,7 @@ CK_START_TEST(test_list_pcms) {
 				"Device: /org/bluez/hci0/dev_23_45_67_89_AB_CD"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -170,6 +172,11 @@ CK_START_TEST(test_info) {
 				"info", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
+	/* check not existing BlueALSA PCM path */
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"info", "/org/bluealsa/hci0/dev_FF_FF_FF_FF_FF_FF/a2dpsrc/sink",
+				NULL), EXIT_FAILURE);
+
 	/* check BlueALSA PCM info */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
 				"info", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
@@ -183,7 +190,7 @@ CK_START_TEST(test_info) {
 				"Selected codec: SBC"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -224,7 +231,7 @@ CK_START_TEST(test_codec) {
 #endif
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -294,7 +301,7 @@ CK_START_TEST(test_volume) {
 	ck_assert_ptr_ne(strstr(output, "SoftVolume: false"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -349,7 +356,7 @@ CK_START_TEST(test_monitor) {
 				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cmd-softvol.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -58,10 +58,12 @@ static int cmd_softvol_func(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	struct ba_pcm pcm;
+	DBusError err = DBUS_ERROR_INIT;
 	const char *path = argv[optind];
-	if (!cli_get_ba_pcm(path, &pcm)) {
-		cmd_print_error("Invalid BlueALSA PCM path: %s", path);
+
+	struct ba_pcm pcm;
+	if (!cli_get_ba_pcm(path, &pcm, &err)) {
+		cmd_print_error("Couldn't get BlueALSA PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -79,7 +81,6 @@ static int cmd_softvol_func(int argc, char *argv[]) {
 
 	pcm.soft_volume = state;
 
-	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
 		cmd_print_error("SoftVolume update failed: %s", err.message);
 		return EXIT_FAILURE;

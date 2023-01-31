@@ -192,7 +192,7 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
 		rv = snd_pcm_close(pcm);
 	if (sp_ba_mock != NULL) {
 		spawn_terminate(sp_ba_mock, 0);
-		spawn_close(sp_ba_mock);
+		spawn_close(sp_ba_mock, NULL);
 	}
 	return rv;
 }
@@ -591,7 +591,7 @@ CK_START_TEST(ba_test_playback_extra_setup) {
 	ck_assert_int_eq(test_pcm_close(NULL, pcm), 0);
 
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 

@@ -135,11 +135,11 @@ int spawn_terminate(struct spawn_process *sp, unsigned int delay_msec) {
 	return 0;
 }
 
-void spawn_close(struct spawn_process *sp) {
+void spawn_close(struct spawn_process *sp, int *wstatus) {
 	if (sp->term_delay_msec != 0)
 		pthread_join(sp->term_thread, NULL);
 	if (sp->pid != -1)
-		waitpid(sp->pid, NULL, 0);
+		waitpid(sp->pid, wstatus, 0);
 	if (sp->f_stdout != NULL)
 		fclose(sp->f_stdout);
 	if (sp->f_stderr != NULL)

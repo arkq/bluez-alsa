@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cmd-codec.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -68,8 +68,8 @@ static int cmd_codec_func(int argc, char *argv[]) {
 	const char *path = argv[optind];
 
 	struct ba_pcm pcm;
-	if (!cli_get_ba_pcm(path, &pcm)) {
-		cmd_print_error("Invalid BlueALSA PCM path: %s", path);
+	if (!cli_get_ba_pcm(path, &pcm, &err)) {
+		cmd_print_error("Couldn't get BlueALSA PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
 

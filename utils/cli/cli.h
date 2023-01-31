@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cli.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -38,7 +38,7 @@ struct cli_command {
 typedef bool (*cli_get_ba_services_cb)(const char *name, void *data);
 
 void cli_get_ba_services(cli_get_ba_services_cb func, void *data, DBusError *err);
-bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm);
+bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err);
 
 bool cli_parse_value_on_off(const char *value, bool *out);
 

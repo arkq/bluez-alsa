@@ -59,7 +59,7 @@ CK_START_TEST(test_help) {
 
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
-	spawn_close(&sp_ba_aplay);
+	spawn_close(&sp_ba_aplay, NULL);
 
 } CK_END_TEST
 
@@ -98,9 +98,9 @@ CK_START_TEST(test_configuration) {
 	ck_assert_ptr_ne(strstr(output, "  Bluetooth device(s): 12:34:56:78:90:AB"), NULL);
 	ck_assert_ptr_ne(strstr(output, "  Profile: SCO"), NULL);
 
-	spawn_close(&sp_ba_aplay);
+	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -125,9 +125,9 @@ CK_START_TEST(test_list_devices) {
 	ck_assert_ptr_ne(strstr(output,
 				"hci0: 23:45:67:89:AB:CD [Speaker], audio-card"), NULL);
 
-	spawn_close(&sp_ba_aplay);
+	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -153,9 +153,9 @@ CK_START_TEST(test_list_pcms) {
 	ck_assert_ptr_ne(strstr(output,
 				"bluealsa:DEV=23:45:67:89:AB:CD,PROFILE=sco,SRV=org.bluealsa.foo"), NULL);
 
-	spawn_close(&sp_ba_aplay);
+	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -184,9 +184,9 @@ CK_START_TEST(test_play_all) {
 	ck_assert_ptr_ne(strstr(output,
 				"Used configuration for 23:45:67:89:AB:CD"), NULL);
 
-	spawn_close(&sp_ba_aplay);
+	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 
@@ -224,9 +224,9 @@ CK_START_TEST(test_play_single_audio) {
 	bool d2_ok = strstr(output, "Used configuration for 23:45:67:89:AB:CD") != NULL;
 	ck_assert_int_eq(d1_ok != d2_ok, true);
 
-	spawn_close(&sp_ba_aplay);
+	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
-	spawn_close(&sp_ba_mock);
+	spawn_close(&sp_ba_mock, NULL);
 
 } CK_END_TEST
 

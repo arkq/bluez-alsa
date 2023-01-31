@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cli.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -163,18 +163,19 @@ fail:
 		dbus_message_unref(rep);
 }
 
-bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm) {
+bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
 
 	struct ba_pcm *pcms = NULL;
 	size_t pcms_count = 0;
-	bool found = false;
-	size_t i;
 
-	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_get_pcms(&config.dbus, &pcms, &pcms_count, &err))
+	if (!dbus_validate_path(path, err))
 		return false;
 
-	for (i = 0; i < pcms_count; i++)
+	if (!bluealsa_dbus_get_pcms(&config.dbus, &pcms, &pcms_count, err))
+		return false;
+
+	bool found = false;
+	for (size_t i = 0; i < pcms_count; i++)
 		if (strcmp(pcms[i].pcm_path, path) == 0) {
 			memcpy(pcm, &pcms[i], sizeof(*pcm));
 			found = true;
@@ -182,6 +183,10 @@ bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm) {
 		}
 
 	free(pcms);
+
+	if (!found)
+		dbus_set_error(err, DBUS_ERROR_UNKNOWN_OBJECT,
+				"Object path not found: '%s'", path);
 	return found;
 }
 
