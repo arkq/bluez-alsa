@@ -87,8 +87,8 @@ struct ba_rfcomm {
 #endif
 	} codecs;
 
-	/* codec selection synchronization */
-	pthread_mutex_t codec_selection_mtx;
+	/* Synchronization primitives for codec selection. The condition variable
+	 * shall be used with the codec_id mutex from the associated transport. */
 	pthread_cond_t codec_selection_cond;
 	bool codec_selection_done;
 

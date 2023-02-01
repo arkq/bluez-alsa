@@ -625,6 +625,12 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	const char *codec_name;
 	const char *property;
 
+	/* Since transport can provide more than one PCM interface, i.e., source
+	 * and sink for bi-directional transports like HSP/HFP. In such case, both
+	 * PCMs should use the same codec. Given that, we need to lock codec
+	 * selection on the transport level. */
+	pthread_mutex_lock(&t->codec_select_client_mtx);
+
 	a2dp_t a2dp_configuration = {};
 	size_t a2dp_configuration_size = 0;
 
@@ -722,6 +728,7 @@ fail:
 			G_DBUS_ERROR_FAILED, "%s", errmsg);
 
 final:
+	pthread_mutex_unlock(&t->codec_select_client_mtx);
 	g_variant_iter_free(properties);
 	if (value != NULL)
 		g_variant_unref(value);

@@ -601,6 +601,7 @@ static struct ba_transport *transport_new(
 	t->ref_count = 1;
 
 	pthread_mutex_init(&t->codec_id_mtx, NULL);
+	pthread_mutex_init(&t->codec_select_client_mtx, NULL);
 	pthread_mutex_init(&t->bt_fd_mtx, NULL);
 	pthread_cond_init(&t->stopped, NULL);
 
@@ -1166,6 +1167,7 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	pthread_cond_destroy(&t->stopped);
 	pthread_mutex_destroy(&t->bt_fd_mtx);
+	pthread_mutex_destroy(&t->codec_select_client_mtx);
 	pthread_mutex_destroy(&t->codec_id_mtx);
 	free(t->bluez_dbus_owner);
 	free(t->bluez_dbus_path);
@@ -1188,7 +1190,6 @@ int ba_transport_select_codec_a2dp(
 	if (!(t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
 		return errno = ENOTSUP, -1;
 
-	/* selecting new codec will change transport type */
 	pthread_mutex_lock(&t->codec_id_mtx);
 
 	/* the same codec with the same configuration already selected */
@@ -1234,16 +1235,14 @@ int ba_transport_select_codec_sco(
 		if (t->sco.rfcomm == NULL)
 			return errno = ENOTSUP, -1;
 
-		/* Selecting new codec will change transport type. Please note, that
-		 * the codec ID will be set by the RFCOMM thread without this mutex
-		 * held. However, RFCOMM thread and current one will be synchronized
-		 * by the RFCOMM codec_selection_mtx mutex. */
+		/* Lock the mutex because we are about to change the codec ID. The codec
+		 * ID itself will be set by the RFCOMM thread. The RFCOMM thread and the
+		 * current one will be synchronized by the RFCOMM codec selection
+		 * condition variable. */
 		pthread_mutex_lock(&t->codec_id_mtx);
 
 		struct ba_rfcomm * const r = t->sco.rfcomm;
 		enum ba_rfcomm_signal rfcomm_signal;
-
-		pthread_mutex_lock(&r->codec_selection_mtx);
 
 		/* codec already selected, skip switching */
 		if (t->codec_id == codec_id)
@@ -1274,16 +1273,14 @@ int ba_transport_select_codec_sco(
 		ba_rfcomm_send_signal(r, rfcomm_signal);
 
 		while (!r->codec_selection_done)
-			pthread_cond_wait(&r->codec_selection_cond, &r->codec_selection_mtx);
+			pthread_cond_wait(&r->codec_selection_cond, &t->codec_id_mtx);
 
 		if (t->codec_id != codec_id) {
-			pthread_mutex_unlock(&r->codec_selection_mtx);
 			pthread_mutex_unlock(&t->codec_id_mtx);
 			return errno = EIO, -1;
 		}
 
 final:
-		pthread_mutex_unlock(&r->codec_selection_mtx);
 		pthread_mutex_unlock(&t->codec_id_mtx);
 		break;
 #endif
@@ -1389,15 +1386,19 @@ void ba_transport_set_codec(
 		struct ba_transport *t,
 		uint16_t codec_id) {
 
-	if (t->codec_id == codec_id)
-		return;
+	pthread_mutex_lock(&t->codec_id_mtx);
 
+	bool changed = t->codec_id != codec_id;
 	t->codec_id = codec_id;
+
+	pthread_mutex_unlock(&t->codec_id_mtx);
+
+	if (!changed)
+		return;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		ba_transport_set_codec_a2dp(t, codec_id);
-
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		ba_transport_set_codec_sco(t, codec_id);
 
 }

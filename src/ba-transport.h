@@ -232,6 +232,9 @@ struct ba_transport {
 	 * contains the lowest byte of the vendor ID. */
 	uint16_t codec_id;
 
+	/* synchronization for codec selection */
+	pthread_mutex_t codec_select_client_mtx;
+
 	/* data for D-Bus management */
 	char *bluez_dbus_owner;
 	char *bluez_dbus_path;
