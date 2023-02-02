@@ -566,24 +566,17 @@ final:
 static int rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	int rv;
 
-	if ((rv = rfcomm_handler_resp_ok_cb(r, at)) == -1)
-		goto final;
+	if ((rfcomm_handler_resp_ok_cb(r, at)) == -1)
+		return -1;
 
 	if (!r->handler_resp_ok_success) {
 		warn("Codec selection not finalized: %d", r->codec);
-		goto final;
+		ba_transport_set_codec(t_sco, HFP_CODEC_UNDEFINED);
+		rfcomm_finalize_codec_selection(r);
 	}
 
-	/* Notify connected clients, that transport has been changed. Note, that
-	 * this event might be emitted for an active transport - codec switching
-	 * initiated by Audio Gateway. */
-	ba_transport_set_codec(t_sco, r->codec);
-
-final:
-	rfcomm_finalize_codec_selection(r);
-	return rv;
+	return 0;
 }
 
 /**
@@ -619,6 +612,16 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
 		return -1;
 	r->handler = &handler_supported;
+
+	/* The oFono AG, and possibly other AG implementations too, does not
+	 * send the "OK" confirmation until it has successfully connected a
+	 * SCO socket. So to support such an AG we must set the selected codec
+	 * here and notify connected clients, that the transport has been
+	 * changed. Note, that this event might be emitted for an active
+	 * transport - codec switching initiated by Audio Gateway. */
+	ba_transport_set_codec(r->sco, r->codec);
+	rfcomm_finalize_codec_selection(r);
+
 	return 0;
 }
 
