@@ -41,7 +41,7 @@ int ba_transport_thread_bt_release(struct ba_transport_thread *th) { (void)th; r
 int ba_transport_thread_create(struct ba_transport_thread *th,
 		void *(*routine)(struct ba_transport_thread *), const char *name, bool master) {
 	(void)th; (void)routine; (void)name; (void)master; return -1; }
-int ba_transport_thread_set_state(struct ba_transport_thread *th,
+int ba_transport_thread_state_set(struct ba_transport_thread *th,
 		enum ba_transport_thread_state state) {
 	(void)th; (void)state; return -1; }
 int ba_transport_thread_signal_recv(struct ba_transport_thread *th,

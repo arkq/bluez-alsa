@@ -138,6 +138,7 @@ docutils
 dpsnk
 dpsrc
 DYN
+EINVAL
 ENODEV
 EP
 EPIPE

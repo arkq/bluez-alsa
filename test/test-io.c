@@ -408,7 +408,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	ba_transport_thread_set_state_running(th);
+	ba_transport_thread_state_set_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
 		if ((len = io_bt_read(th, buffer, sizeof(buffer))) <= 0) {
@@ -500,7 +500,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		struct pollfd pfds[] = {{ -1, POLLIN, 0 }};
 		uint8_t buffer[2048];
@@ -652,14 +652,14 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 	ba_transport_pcm_release(t_src_pcm);
 	pthread_mutex_unlock(&t_src_pcm->mutex);
 
-	transport_thread_cancel_prepare(&t_src->thread_enc);
+	ba_transport_thread_state_set_stopping(&t_src->thread_enc);
 	transport_thread_cancel(&t_src->thread_enc);
 
 	pthread_mutex_lock(&t_snk_pcm->mutex);
 	ba_transport_pcm_release(t_snk_pcm);
 	pthread_mutex_unlock(&t_snk_pcm->mutex);
 
-	transport_thread_cancel_prepare(&t_snk->thread_dec);
+	ba_transport_thread_state_set_stopping(&t_snk->thread_dec);
 	transport_thread_cancel(&t_snk->thread_dec);
 
 }
@@ -740,7 +740,7 @@ CK_START_TEST(test_a2dp_sbc_invalid_config) {
 
 	struct ba_transport_thread *th = &t->thread_enc;
 	ck_assert_int_eq(ba_transport_thread_create(th, a2dp_sbc_enc_thread, "sbc", true), 0);
-	ck_assert_int_eq(ba_transport_thread_running_wait(th), -1);
+	ck_assert_int_eq(ba_transport_thread_state_wait_running(th), -1);
 
 	ba_transport_destroy(t);
 	close(bt_fds[0]);

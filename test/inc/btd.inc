@@ -262,7 +262,7 @@ void *bt_dump_io_thread(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&bt);
 		if ((len = io_poll_and_read_bt(&io, th, bt.data, len)) <= 0) {

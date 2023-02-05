@@ -120,11 +120,12 @@ void ba_transport_pcm_volume_set(
 		const bool *hard_mute);
 
 enum ba_transport_thread_state {
-	BA_TRANSPORT_THREAD_STATE_NONE,
+	BA_TRANSPORT_THREAD_STATE_IDLE,
 	BA_TRANSPORT_THREAD_STATE_STARTING,
 	BA_TRANSPORT_THREAD_STATE_RUNNING,
 	BA_TRANSPORT_THREAD_STATE_STOPPING,
 	BA_TRANSPORT_THREAD_STATE_JOINING,
+	BA_TRANSPORT_THREAD_STATE_TERMINATED,
 };
 
 enum ba_transport_thread_signal {
@@ -165,19 +166,25 @@ struct ba_transport_thread {
  * Encoder/decoder transport thread IO function. */
 typedef void *(*ba_transport_thread_func)(struct ba_transport_thread *);
 
-int ba_transport_thread_set_state(
+int ba_transport_thread_state_set(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_state state);
 
-#define ba_transport_thread_set_state_starting(th) \
-	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STARTING)
-#define ba_transport_thread_set_state_running(th) \
-	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
-#define ba_transport_thread_set_state_stopping(th) \
-	ba_transport_thread_set_state(th, BA_TRANSPORT_THREAD_STATE_STOPPING)
+#define ba_transport_thread_state_set_idle(th) \
+	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_IDLE)
+#define ba_transport_thread_state_set_running(th) \
+	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
+#define ba_transport_thread_state_set_stopping(th) \
+	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_STOPPING)
 
-int ba_transport_thread_running_wait(
-		struct ba_transport_thread *th);
+int ba_transport_thread_state_wait(
+		struct ba_transport_thread *th,
+		enum ba_transport_thread_state state);
+
+#define ba_transport_thread_state_wait_running(th) \
+	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
+#define ba_transport_thread_state_wait_terminated(th) \
+	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
 
 int ba_transport_thread_bt_acquire(
 		struct ba_transport_thread *th);

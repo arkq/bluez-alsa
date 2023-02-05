@@ -137,7 +137,7 @@ static void *mock_dec(struct ba_transport_thread *th) {
 	int x = 0;
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		int timeout = 0;
 		if (!ba_transport_pcm_is_active(t_pcm))

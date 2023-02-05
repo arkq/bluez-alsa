@@ -502,8 +502,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 			goto fail;
 		}
 
-		/* Wait until ready to process audio. */
-		if (ba_transport_thread_running_wait(th) == -1) {
+		/* Wait until transport thread is ready to process audio. */
+		if (ba_transport_thread_state_wait_running(th) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(errno));
 			goto fail;

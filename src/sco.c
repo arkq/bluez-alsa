@@ -146,6 +146,8 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 
 		pthread_mutex_unlock(&t->bt_fd_mtx);
 
+		ba_transport_thread_state_set_idle(&t->thread_enc);
+		ba_transport_thread_state_set_idle(&t->thread_dec);
 		ba_transport_start(t);
 
 cleanup:
@@ -238,7 +240,7 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&buffer);
 		if ((samples = io_poll_and_read_pcm(&io, pcm, buffer.tail, samples)) <= 0) {
@@ -307,7 +309,7 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&buffer);
 		if ((len = io_poll_and_read_bt(&io, th, buffer.tail, len)) == -1)
@@ -362,7 +364,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&msbc.pcm);
 		if ((samples = io_poll_and_read_pcm(&io, pcm, msbc.pcm.tail, samples)) <= 0) {
@@ -442,7 +444,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 	}
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&msbc.data);
 		if ((len = io_poll_and_read_bt(&io, th, msbc.data.tail, len)) == -1)

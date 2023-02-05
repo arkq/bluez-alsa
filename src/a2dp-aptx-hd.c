@@ -142,7 +142,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 	rtp_state_init(&rtp, samplerate, samplerate);
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples;
 		if ((samples = io_poll_and_read_pcm(&io, &t->a2dp.pcm,
@@ -269,7 +269,7 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 	rtp_state_init(&rtp, samplerate, samplerate);
 
 	debug_transport_thread_loop(th, "START");
-	for (ba_transport_thread_set_state_running(th);;) {
+	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&bt);
 		if ((len = io_poll_and_read_bt(&io, th, bt.data, len)) <= 0) {

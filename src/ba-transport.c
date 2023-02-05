@@ -214,8 +214,7 @@ static int transport_thread_init(
 		struct ba_transport *t) {
 
 	th->t = t;
-	th->state = BA_TRANSPORT_THREAD_STATE_NONE;
-	th->id = config.main_thread;
+	th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
 	th->bt_fd = -1;
 	th->pipe[0] = -1;
 	th->pipe[1] = -1;
@@ -230,15 +229,6 @@ static int transport_thread_init(
 }
 
 /**
- * Prepare synchronous transport thread cancellation.
- *
- * Please note that it is required to call this function before thread
- * synchronous cancellation (cancel + join). */
-static void transport_thread_cancel_prepare(struct ba_transport_thread *th) {
-	ba_transport_thread_set_state_stopping(th);
-}
-
-/**
  * Synchronous transport thread cancellation.
  *
  * Please be aware that when using this function caller shall not hold
@@ -249,28 +239,42 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 
 	pthread_mutex_lock(&th->mutex);
 
+	/* If the transport thread is in the idle state (i.e. it is not running),
+	 * we can mark it as terminated right away. */
+	if (th->state == BA_TRANSPORT_THREAD_STATE_IDLE) {
+		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+		pthread_mutex_unlock(&th->mutex);
+		pthread_cond_broadcast(&th->cond);
+		return;
+	}
+
 	/* If this function was called from more than one thread at the same time
 	 * (e.g. from transport thread manager thread and from main thread due to
 	 * SIGTERM signal), wait until the IO thread terminates - this function is
 	 * supposed to be synchronous. */
 	if (th->state == BA_TRANSPORT_THREAD_STATE_JOINING) {
-		while (!pthread_equal(th->id, config.main_thread))
+		while (th->state != BA_TRANSPORT_THREAD_STATE_TERMINATED)
 			pthread_cond_wait(&th->cond, &th->mutex);
 		pthread_mutex_unlock(&th->mutex);
 		return;
 	}
 
-	pthread_t id = th->id;
-	if (pthread_equal(id, config.main_thread)) {
+	if (th->state == BA_TRANSPORT_THREAD_STATE_TERMINATED) {
 		pthread_mutex_unlock(&th->mutex);
 		return;
 	}
 
+	/* The transport thread has to be marked for stopping. If at this point
+	 * the state is not STOPPING, it is a programming error. */
+	g_assert_cmpint(th->state, ==, BA_TRANSPORT_THREAD_STATE_STOPPING);
+
 	int err;
+	pthread_t id = th->id;
 	if ((err = pthread_cancel(id)) != 0 && err != ESRCH)
 		warn("Couldn't cancel transport thread: %s", strerror(err));
 
-	/* Indicate that we are about to join the thread. */
+	/* Set the state to JOINING before unlocking the mutex. This will
+	 * prevent calling the pthread_cancel() function once again. */
 	th->state = BA_TRANSPORT_THREAD_STATE_JOINING;
 
 	pthread_mutex_unlock(&th->mutex);
@@ -279,25 +283,12 @@ static void transport_thread_cancel(struct ba_transport_thread *th) {
 		warn("Couldn't join transport thread: %s", strerror(err));
 
 	pthread_mutex_lock(&th->mutex);
-	/* Indicate that the thread has been successfully terminated. Also,
-	 * make sure, that after termination, this thread handler will not
-	 * be used anymore. */
-	th->state = BA_TRANSPORT_THREAD_STATE_NONE;
-	th->id = config.main_thread;
+	th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
 	pthread_mutex_unlock(&th->mutex);
 
 	/* Notify others that the thread has been terminated. */
 	pthread_cond_broadcast(&th->cond);
 
-}
-
-/**
- * Wait until transport thread is terminated. */
-static void transport_thread_cancel_wait(struct ba_transport_thread *th) {
-	pthread_mutex_lock(&th->mutex);
-	while (!pthread_equal(th->id, config.main_thread))
-		pthread_cond_wait(&th->cond, &th->mutex);
-	pthread_mutex_unlock(&th->mutex);
 }
 
 /**
@@ -314,47 +305,69 @@ static void transport_thread_free(
 	pthread_cond_destroy(&th->cond);
 }
 
-int ba_transport_thread_set_state(
+/**
+ * Set transport thread state.
+ *
+ * It is only allowed to set the new state according to the state machine.
+ * For details, see comments in this function body.
+ *
+ * @param th Transport thread.
+ * @param state New transport thread state.
+ * @return If state transition was successful, 0 is returned. Otherwise, -1 is
+ *   returned and errno is set to EINVAL. */
+int ba_transport_thread_state_set(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_state state) {
 
-	bool skip = false;
-
 	pthread_mutex_lock(&th->mutex);
 
-	/* only valid state transitions are allowed */
-	if (state <= th->state)
-		skip = true;
-	if (th->state == BA_TRANSPORT_THREAD_STATE_NONE &&
-			state != BA_TRANSPORT_THREAD_STATE_STARTING)
-		skip = true;
+	/* Moving to the next state is always allowed. */
+	bool valid = state == th->state + 1;
 
-	if (!skip)
+	/* Allow wrapping around the state machine. */
+	if (state == BA_TRANSPORT_THREAD_STATE_IDLE &&
+			th->state == BA_TRANSPORT_THREAD_STATE_TERMINATED)
+		valid = true;
+
+	/* Thread initialization failure: STARTING -> STOPPING */
+	if (state == BA_TRANSPORT_THREAD_STATE_STOPPING &&
+			th->state == BA_TRANSPORT_THREAD_STATE_STARTING)
+		valid = true;
+
+	/* Additionally, it is allowed to move to the TERMINATED state from
+	 * IDLE and STARTING. This transition indicates that the thread has
+	 * never been started or there was an error during the startup. */
+	if (state == BA_TRANSPORT_THREAD_STATE_TERMINATED && (
+				th->state == BA_TRANSPORT_THREAD_STATE_IDLE ||
+				th->state == BA_TRANSPORT_THREAD_STATE_STARTING))
+		valid = true;
+
+	if (valid)
 		th->state = state;
 
 	pthread_mutex_unlock(&th->mutex);
 
-	if (!skip)
-		pthread_cond_signal(&th->cond);
+	if (!valid)
+		return errno = EINVAL, -1;
 
+	pthread_cond_signal(&th->cond);
 	return 0;
 }
 
 /**
- * Wait until transport thread is running. */
-int ba_transport_thread_running_wait(
-		struct ba_transport_thread *th) {
+ * Wait until transport thread reaches given state. */
+int ba_transport_thread_state_wait(
+		struct ba_transport_thread *th,
+		enum ba_transport_thread_state state) {
 
-	enum ba_transport_thread_state state;
+	enum ba_transport_thread_state tmp;
 
 	pthread_mutex_lock(&th->mutex);
-	/* Wait until the IO thread is ready to process audio or it is marked
-	 * for termination due to initialization failure. */
-	while ((state = th->state) < BA_TRANSPORT_THREAD_STATE_RUNNING)
+	while ((tmp = th->state) < state)
 		pthread_cond_wait(&th->cond, &th->mutex);
 	pthread_mutex_unlock(&th->mutex);
 
-	if (state == BA_TRANSPORT_THREAD_STATE_RUNNING)
+	if (tmp == state)
 		return 0;
 
 	errno = EIO;
@@ -420,7 +433,7 @@ int ba_transport_thread_signal_send(
 
 	pthread_mutex_lock(&th->mutex);
 
-	if (pthread_equal(th->id, config.main_thread)) {
+	if (th->state != BA_TRANSPORT_THREAD_STATE_RUNNING) {
 		errno = ESRCH;
 		goto fail;
 	}
@@ -455,9 +468,6 @@ int ba_transport_thread_signal_recv(
 }
 
 static void transport_threads_cancel(struct ba_transport *t) {
-
-	transport_thread_cancel_prepare(&t->thread_enc);
-	transport_thread_cancel_prepare(&t->thread_dec);
 
 	transport_thread_cancel(&t->thread_enc);
 	transport_thread_cancel(&t->thread_dec);
@@ -502,14 +512,16 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 			t->stopping = stop = true;
 	}
 
+final:
+
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+
 	if (stop) {
 		debug("Stopping transport: %s", "No PCM clients");
-		transport_thread_cancel_prepare(&t->thread_enc);
-		transport_thread_cancel_prepare(&t->thread_dec);
+		ba_transport_thread_state_set_stopping(&t->thread_enc);
+		ba_transport_thread_state_set_stopping(&t->thread_dec);
 	}
 
-final:
-	pthread_mutex_unlock(&t->bt_fd_mtx);
 	ba_transport_pcms_full_unlock(t);
 
 	if (stop) {
@@ -1403,13 +1415,27 @@ void ba_transport_set_codec(
 
 }
 
+/**
+ * Start transport IO threads.
+ *
+ * This function requires transport threads to be in the IDLE state. If any of
+ * the threads is not in the IDLE state, then this function will fail and the
+ * errno will be set to EINVAL.
+ *
+ * @param t Transport structure.
+ * @return On success this function returns 0. Otherwise -1 is returned and
+ *   errno is set to indicate the error. */
 int ba_transport_start(struct ba_transport *t) {
 
-	if (!pthread_equal(t->thread_enc.id, config.main_thread) ||
-			!pthread_equal(t->thread_dec.id, config.main_thread)) {
-		errno = EEXIST;
-		return -1;
-	}
+	pthread_mutex_lock(&t->thread_enc.mutex);
+	bool is_enc_idle = t->thread_enc.state == BA_TRANSPORT_THREAD_STATE_IDLE;
+	pthread_mutex_unlock(&t->thread_enc.mutex);
+	pthread_mutex_lock(&t->thread_dec.mutex);
+	bool is_dec_idle = t->thread_dec.state == BA_TRANSPORT_THREAD_STATE_IDLE;
+	pthread_mutex_unlock(&t->thread_dec.mutex);
+
+	if (!is_enc_idle || !is_dec_idle)
+		return errno = EINVAL, -1;
 
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
@@ -1460,10 +1486,18 @@ int ba_transport_start(struct ba_transport *t) {
  * This function waits for transport IO threads termination. It is not safe
  * to call it from IO thread itself - it will cause deadlock! */
 int ba_transport_stop(struct ba_transport *t) {
-	transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS);
-	transport_thread_cancel_wait(&t->thread_enc);
-	transport_thread_cancel_wait(&t->thread_dec);
-	return 0;
+
+	ba_transport_thread_state_set_stopping(&t->thread_enc);
+	ba_transport_thread_state_set_stopping(&t->thread_dec);
+
+	if (transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS) != 0)
+		return -1;
+
+	int rv = 0;
+	rv |= ba_transport_thread_state_wait_terminated(&t->thread_enc);
+	rv |= ba_transport_thread_state_wait_terminated(&t->thread_dec);
+
+	return rv;
 }
 
 /**
@@ -1497,21 +1531,26 @@ int ba_transport_acquire(struct ba_transport *t) {
 	}
 
 	/* Call transport specific acquire callback. */
-	fd = t->acquire(t);
-	acquired = true;
+	if ((fd = t->acquire(t)) != -1)
+		acquired = true;
 
 final:
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-	/* For SCO profiles we can start transport IO threads right away. There
-	 * is no asynchronous signaling from BlueZ like with A2DP profiles. */
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO
-			&& fd != -1) {
-		if (ba_transport_start(t) == -1) {
-			if (acquired)
+	if (acquired) {
+
+		ba_transport_thread_state_set_idle(&t->thread_enc);
+		ba_transport_thread_state_set_idle(&t->thread_dec);
+
+		/* For SCO profiles we can start transport IO threads right away. There
+		 * is no asynchronous signaling from BlueZ like with A2DP profiles. */
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+			if (ba_transport_start(t) == -1) {
 				t->release(t);
-			return -1;
+				return -1;
+			}
 		}
+
 	}
 
 	return fd;
@@ -1665,7 +1704,7 @@ int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
 
 int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 
-	if (pthread_equal(pcm->th->id, config.main_thread))
+	if (pcm->th->state != BA_TRANSPORT_THREAD_STATE_RUNNING)
 		return errno = ESRCH, -1;
 
 	pthread_mutex_lock(&pcm->mutex);
@@ -1734,12 +1773,17 @@ int ba_transport_thread_create(
 	sigset_t sigset, oldset;
 	int ret;
 
+	pthread_mutex_lock(&th->mutex);
+
 	th->master = master;
+	th->state = BA_TRANSPORT_THREAD_STATE_STARTING;
 
 	/* Please note, this call here does not guarantee that the BT socket
 	 * will be acquired, because transport might not be opened yet. */
-	if (ba_transport_thread_bt_acquire(th) == -1)
-		return -1;
+	if (ba_transport_thread_bt_acquire(th) == -1) {
+		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+		goto fail;
+	}
 
 	ba_transport_ref(t);
 
@@ -1756,21 +1800,22 @@ int ba_transport_thread_create(
 	if ((ret = pthread_sigmask(SIG_SETMASK, &sigset, &oldset)) != 0)
 		warn("Couldn't set signal mask: %s", strerror(ret));
 
-	ba_transport_thread_set_state_starting(th);
 	if ((ret = pthread_create(&th->id, NULL, PTHREAD_FUNC(th_func), th)) != 0) {
 		error("Couldn't create transport thread: %s", strerror(ret));
-		th->state = BA_TRANSPORT_THREAD_STATE_NONE;
-		th->id = config.main_thread;
+		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+		pthread_sigmask(SIG_SETMASK, &oldset, NULL);
 		ba_transport_unref(t);
 		goto fail;
 	}
 
+	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+
 	pthread_setname_np(th->id, name);
-	debug("Created new IO thread [%s]: %s",
-			name, ba_transport_debug_name(t));
+	debug("Created new IO thread [%s]: %s", name, ba_transport_debug_name(t));
 
 fail:
-	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+	pthread_mutex_unlock(&th->mutex);
+	pthread_cond_signal(&th->cond);
 	return ret == 0 ? 0 : -1;
 }
 
@@ -1780,7 +1825,7 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 
-	ba_transport_thread_set_state_stopping(th);
+	ba_transport_thread_state_set_stopping(th);
 
 	/* Release BT socket file descriptor duplicate created either in the
 	 * ba_transport_thread_create() function or in the IO thread itself. */
