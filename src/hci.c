@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hci.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,6 +9,7 @@
  */
 
 #include "hci.h"
+/* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
 #include <poll.h>
@@ -221,6 +222,7 @@ int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t clock,
 	return 0;
 }
 
+#if DEBUG
 /**
  * Convert Bluetooth address into a human-readable string.
  *
@@ -240,3 +242,4 @@ const char *batostr_(const bdaddr_t *ba) {
 		return addr;
 	return NULL;
 }
+#endif

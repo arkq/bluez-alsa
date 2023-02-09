@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hci.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,6 +11,10 @@
 #pragma once
 #ifndef BLUEALSA_HCI_H_
 #define BLUEALSA_HCI_H_
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <stdint.h>
 
@@ -71,6 +75,8 @@ int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *clock,
 int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t clock,
 		uint8_t frame, uint8_t sync, uint8_t clk, int to);
 
+#if DEBUG
 const char *batostr_(const bdaddr_t *ba);
+#endif
 
 #endif

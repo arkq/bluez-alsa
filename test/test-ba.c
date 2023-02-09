@@ -14,6 +14,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -41,7 +42,6 @@
 #include "ba-transport.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
-#include "sco.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
@@ -67,7 +67,7 @@ void a2dp_mpeg_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
-int sco_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void *sco_enc_thread(struct ba_transport_thread *th);
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
@@ -177,6 +177,44 @@ CK_START_TEST(test_ba_transport_sco_one_only) {
 
 	ba_transport_unref(t_sco_hsp);
 
+	ba_adapter_unref(a);
+	ba_device_unref(d);
+
+} CK_END_TEST
+
+static void *cleanup_thread(struct ba_transport_thread *th) {
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	ba_transport_thread_cleanup(th);
+	return NULL;
+}
+
+CK_START_TEST(test_ba_transport_threads_sync_termination) {
+
+	struct ba_adapter *a;
+	struct ba_device *d;
+	struct ba_transport *t_sco;
+	bdaddr_t addr = { 0 };
+
+	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
+	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
+	ck_assert_ptr_ne(t_sco, NULL);
+
+	t_sco->bt_fd = 0;
+	t_sco->mtu_read = 48;
+	t_sco->mtu_write = 48;
+
+	ck_assert_int_eq(ba_transport_thread_create(&t_sco->thread_enc, sco_enc_thread, "enc", true), 0);
+	ck_assert_int_eq(ba_transport_thread_state_wait_running(&t_sco->thread_enc), 0);
+
+	ck_assert_int_eq(ba_transport_thread_create(&t_sco->thread_dec, cleanup_thread, "dec", false), 0);
+	ck_assert_int_eq(ba_transport_thread_state_wait_running(&t_sco->thread_dec), -1);
+
+	ck_assert_int_eq(ba_transport_thread_state_wait_terminated(&t_sco->thread_enc), 0);
+	ck_assert_int_eq(ba_transport_thread_state_wait_terminated(&t_sco->thread_dec), 0);
+
+	ba_transport_unref(t_sco);
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
@@ -350,6 +388,7 @@ int main(void) {
 	tcase_add_test(tc, test_ba_device);
 	tcase_add_test(tc, test_ba_transport);
 	tcase_add_test(tc, test_ba_transport_sco_one_only);
+	tcase_add_test(tc, test_ba_transport_threads_sync_termination);
 	tcase_add_test(tc, test_ba_transport_pcm_format);
 	tcase_add_test(tc, test_ba_transport_pcm_volume);
 	tcase_add_test(tc, test_cascade_free);

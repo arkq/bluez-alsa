@@ -66,6 +66,7 @@ CK_START_TEST(test_g_variant_sanitize_object_path) {
 
 } CK_END_TEST
 
+#if DEBUG
 CK_START_TEST(test_batostr_) {
 
 	const bdaddr_t ba = {{ 1, 2, 3, 4, 5, 6 }};
@@ -75,6 +76,7 @@ CK_START_TEST(test_batostr_) {
 	ck_assert_str_eq(batostr_(&ba), tmp);
 
 } CK_END_TEST
+#endif
 
 CK_START_TEST(test_nv_find) {
 
@@ -301,7 +303,9 @@ int main(void) {
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_hci_dev_id);
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_bdaddr);
 	tcase_add_test(tc, test_g_variant_sanitize_object_path);
+#if DEBUG
 	tcase_add_test(tc, test_batostr_);
+#endif
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

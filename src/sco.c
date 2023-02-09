@@ -104,6 +104,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		socklen_t addrlen = sizeof(addr);
 		struct ba_device *d = NULL;
 		struct ba_transport *t = NULL;
+		char addrstr[18];
 		int fd = -1;
 
 		if ((fd = accept(data.pfd.fd, (struct sockaddr *)&addr, &addrlen)) == -1) {
@@ -111,10 +112,11 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 			goto cleanup;
 		}
 
-		debug("New incoming SCO link: %s: %d", batostr_(&addr.sco_bdaddr), fd);
+		ba2str(&addr.sco_bdaddr, addrstr);
+		debug("New incoming SCO link: %s: %d", addrstr, fd);
 
 		if ((d = ba_device_lookup(data.a, &addr.sco_bdaddr)) == NULL) {
-			error("Couldn't lookup device: %s", batostr_(&addr.sco_bdaddr));
+			error("Couldn't lookup device: %s", addrstr);
 			goto cleanup;
 		}
 

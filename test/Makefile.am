@@ -84,14 +84,18 @@ test_audio_SOURCES = \
 	test-audio.c
 
 test_ba_SOURCES = \
+	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
 	../src/bluealsa-config.c \
+	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
+	../src/io.c \
+	../src/sco.c \
 	../src/storage.c \
 	../src/utils.c \
 	test-ba.c
@@ -196,6 +200,7 @@ test_io_SOURCES += ../src/a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC
+test_ba_SOURCES += ../src/codec-msbc.c
 test_io_SOURCES += ../src/codec-msbc.c
 endif
 

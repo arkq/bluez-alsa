@@ -350,7 +350,7 @@ int ba_transport_thread_state_set(
 	if (!valid)
 		return errno = EINVAL, -1;
 
-	pthread_cond_signal(&th->cond);
+	pthread_cond_broadcast(&th->cond);
 	return 0;
 }
 
@@ -417,7 +417,11 @@ int ba_transport_thread_bt_release(
 		struct ba_transport_thread *th) {
 
 	if (th->bt_fd != -1) {
+#if DEBUG
+		pthread_mutex_lock(&th->t->bt_fd_mtx);
 		debug("Closing BT socket duplicate [%d]: %d", th->t->bt_fd, th->bt_fd);
+		pthread_mutex_unlock(&th->t->bt_fd_mtx);
+#endif
 		close(th->bt_fd);
 		th->bt_fd = -1;
 	}
@@ -1164,6 +1168,22 @@ void ba_transport_unref(struct ba_transport *t) {
 		transport_pcm_free(&t->sco.mic_pcm);
 	}
 
+#if DEBUG
+	/* If IO threads are not terminated yet, we can not go any further.
+	 * Such situation may occur when the transport is about to be freed from one
+	 * of the transport IO threads. The transport thread cleanup function sends
+	 * a command to the manager to terminate all other threads. In such case, we
+	 * will stuck here, because we are about to wait for the transport thread
+	 * manager to terminate. But the manager will not terminate, because it is
+	 * waiting for a transport thread to terminate - which is us... */
+	pthread_mutex_lock(&t->thread_enc.mutex);
+	g_assert_cmpint(t->thread_enc.state, ==, BA_TRANSPORT_THREAD_STATE_TERMINATED);
+	pthread_mutex_unlock(&t->thread_enc.mutex);
+	pthread_mutex_lock(&t->thread_dec.mutex);
+	g_assert_cmpint(t->thread_dec.state, ==, BA_TRANSPORT_THREAD_STATE_TERMINATED);
+	pthread_mutex_unlock(&t->thread_dec.mutex);
+#endif
+
 	if (!pthread_equal(t->thread_manager_thread_id, config.main_thread)) {
 		transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_TERMINATE);
 		pthread_join(t->thread_manager_thread_id, NULL);
@@ -1771,7 +1791,7 @@ int ba_transport_thread_create(
 
 	struct ba_transport *t = th->t;
 	sigset_t sigset, oldset;
-	int ret;
+	int ret = -1;
 
 	pthread_mutex_lock(&th->mutex);
 
@@ -1815,7 +1835,7 @@ int ba_transport_thread_create(
 
 fail:
 	pthread_mutex_unlock(&th->mutex);
-	pthread_cond_signal(&th->cond);
+	pthread_cond_broadcast(&th->cond);
 	return ret == 0 ? 0 : -1;
 }
 
@@ -1825,7 +1845,12 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 
-	ba_transport_thread_state_set_stopping(th);
+	/* For proper functioning of the transport, all threads have to be
+	 * operational. Therefore, if one of the threads is being cancelled,
+	 * we have to cancel all other threads. */
+	ba_transport_thread_state_set_stopping(&t->thread_enc);
+	ba_transport_thread_state_set_stopping(&t->thread_dec);
+	transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS);
 
 	/* Release BT socket file descriptor duplicate created either in the
 	 * ba_transport_thread_create() function or in the IO thread itself. */
