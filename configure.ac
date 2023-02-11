@@ -1,5 +1,5 @@
 # BlueALSA - configure.ac
-# Copyright (c) 2016-2022 Arkadiusz Bokowy
+# Copyright (c) 2016-2023 Arkadiusz Bokowy
 
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
@@ -382,7 +382,8 @@ AC_CONFIG_FILES([
 	utils/aplay/Makefile
 	utils/cli/Makefile
 	utils/rfcomm/Makefile
-	test/Makefile])
+	test/Makefile
+	test/mock/Makefile])
 AC_OUTPUT
 
 # warn user that alsa-lib thread-safety makes troubles

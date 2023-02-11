@@ -53,7 +53,7 @@ CK_START_TEST(test_help) {
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
 				"-v", "--help", NULL), -1);
 
-	char output[2048] = "";
+	char output[4096] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stdout), 0);
 	fprintf(stderr, "%s", output);
 
@@ -84,7 +84,7 @@ CK_START_TEST(test_configuration) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 100);
 
-	char output[1024] = "";
+	char output[4096] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
 	fprintf(stderr, "%s", output);
 
@@ -118,7 +118,7 @@ CK_START_TEST(test_list_devices) {
 				"--list-devices",
 				NULL), -1);
 
-	char output[1024] = "";
+	char output[4096] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stdout), 0);
 	fprintf(stderr, "%s", output);
 
@@ -146,7 +146,7 @@ CK_START_TEST(test_list_pcms) {
 				"--list-pcms",
 				NULL), -1);
 
-	char output[1024] = "";
+	char output[4096] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stdout), 0);
 	fprintf(stderr, "%s", output);
 
@@ -174,7 +174,7 @@ CK_START_TEST(test_play_all) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[2048] = "";
+	char output[4096] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
 	fprintf(stderr, "%s", output);
 
@@ -206,7 +206,7 @@ CK_START_TEST(test_play_single_audio) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[2048] = "";
+	char output[4096] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
 	fprintf(stderr, "%s", output);
 
@@ -237,7 +237,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	char *argv_0_dir = dirname(argv_0);
 
 	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
-			"%s/bluealsa-mock", argv_0_dir);
+			"%s/mock/bluealsa-mock", argv_0_dir);
 	snprintf(bluealsa_aplay_path, sizeof(bluealsa_aplay_path),
 			"%s/../utils/aplay/bluealsa-aplay", argv_0_dir);
 

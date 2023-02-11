@@ -580,7 +580,7 @@ int main(int argc, char *argv[], char *envp[]) {
 
 	char *argv_0 = strdup(argv[0]);
 	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
-			"%s/bluealsa-mock", dirname(argv_0));
+			"%s/mock/bluealsa-mock", dirname(argv_0));
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

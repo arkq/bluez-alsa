@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 
 #include <check.h>
 
@@ -60,7 +59,7 @@ static int run_bluealsa_cli(char *output, size_t size, ...) {
 
 CK_START_TEST(test_help) {
 
-	char output[512];
+	char output[4096];
 
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
 				"-qv", "--help", NULL), 0);
@@ -76,7 +75,7 @@ CK_START_TEST(test_status) {
 				"--profile=hfp-ag",
 				NULL), -1);
 
-	char output[512];
+	char output[4096];
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
@@ -100,7 +99,7 @@ CK_START_TEST(test_list_services) {
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true, NULL), -1);
 
-	char output[512];
+	char output[4096];
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
@@ -126,7 +125,7 @@ CK_START_TEST(test_list_pcms) {
 				"--profile=hsp-ag",
 				NULL), -1);
 
-	char output[2048];
+	char output[4096];
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
@@ -165,7 +164,7 @@ CK_START_TEST(test_info) {
 				"--profile=a2dp-source",
 				NULL), -1);
 
-	char output[512];
+	char output[4096];
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
@@ -201,7 +200,7 @@ CK_START_TEST(test_codec) {
 				"--profile=hfp-ag",
 				NULL), -1);
 
-	char output[512];
+	char output[4096];
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
@@ -242,7 +241,7 @@ CK_START_TEST(test_volume) {
 				"--profile=a2dp-source",
 				NULL), -1);
 
-	char output[512];
+	char output[4096];
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
@@ -315,7 +314,7 @@ CK_START_TEST(test_monitor) {
 				"--profile=hfp-ag",
 				NULL), -1);
 
-	char output[2048];
+	char output[4096];
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
@@ -367,7 +366,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	char *argv_0_dir = dirname(argv_0);
 
 	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
-			"%s/bluealsa-mock", argv_0_dir);
+			"%s/mock/bluealsa-mock", argv_0_dir);
 	snprintf(bluealsa_cli_path, sizeof(bluealsa_cli_path),
 			"%s/../utils/cli/bluealsa-cli", argv_0_dir);
 

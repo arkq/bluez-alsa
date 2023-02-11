@@ -1,6 +1,8 @@
 # BlueALSA - Makefile.am
 # Copyright (c) 2016-2023 Arkadiusz Bokowy
 
+SUBDIRS = mock
+
 TESTS = \
 	test-a2dp \
 	test-alsa-ctl \
@@ -14,7 +16,6 @@ TESTS = \
 	test-utils
 
 check_PROGRAMS = \
-	bluealsa-mock \
 	test-a2dp \
 	test-alsa-ctl \
 	test-alsa-pcm \
@@ -47,34 +48,6 @@ aloader_la_LDFLAGS = \
 	-rpath /nowhere \
 	-avoid-version \
 	-shared -module
-
-bluealsa_mock_SOURCES = \
-	../src/shared/a2dp-codecs.c \
-	../src/shared/ffb.c \
-	../src/shared/log.c \
-	../src/shared/rt.c \
-	../src/a2dp.c \
-	../src/a2dp-sbc.c \
-	../src/at.c \
-	../src/audio.c \
-	../src/ba-adapter.c \
-	../src/ba-device.c \
-	../src/ba-rfcomm.c \
-	../src/ba-transport.c \
-	../src/bluealsa-config.c \
-	../src/bluealsa-dbus.c \
-	../src/bluealsa-iface.c \
-	../src/bluealsa-skeleton.c \
-	../src/codec-sbc.c \
-	../src/dbus.c \
-	../src/hci.c \
-	../src/hfp.c \
-	../src/io.c \
-	../src/rtp.c \
-	../src/sco.c \
-	../src/storage.c \
-	../src/utils.c \
-	bluealsa-mock.c
 
 test_a2dp_SOURCES = \
 	../src/shared/a2dp-codecs.c \
@@ -183,55 +156,46 @@ test_utils_SOURCES = \
 	test-utils.c
 
 if ENABLE_AAC
-bluealsa_mock_SOURCES += ../src/a2dp-aac.c
 test_a2dp_SOURCES += ../src/a2dp-aac.c
 test_io_SOURCES += ../src/a2dp-aac.c
 endif
 
 if ENABLE_APTX
-bluealsa_mock_SOURCES += ../src/a2dp-aptx.c
 test_a2dp_SOURCES += ../src/a2dp-aptx.c
 test_io_SOURCES += ../src/a2dp-aptx.c
 endif
 
 if ENABLE_APTX_HD
-bluealsa_mock_SOURCES += ../src/a2dp-aptx-hd.c
 test_a2dp_SOURCES += ../src/a2dp-aptx-hd.c
 test_io_SOURCES += ../src/a2dp-aptx-hd.c
 endif
 
 if ENABLE_APTX_OR_APTX_HD
-bluealsa_mock_SOURCES += ../src/codec-aptx.c
 test_a2dp_SOURCES += ../src/codec-aptx.c
 test_io_SOURCES += ../src/codec-aptx.c
 endif
 
 if ENABLE_FASTSTREAM
-bluealsa_mock_SOURCES += ../src/a2dp-faststream.c
 test_a2dp_SOURCES += ../src/a2dp-faststream.c
 test_io_SOURCES += ../src/a2dp-faststream.c
 endif
 
 if ENABLE_LC3PLUS
-bluealsa_mock_SOURCES += ../src/a2dp-lc3plus.c
 test_a2dp_SOURCES += ../src/a2dp-lc3plus.c
 test_io_SOURCES += ../src/a2dp-lc3plus.c
 endif
 
 if ENABLE_LDAC
-bluealsa_mock_SOURCES += ../src/a2dp-ldac.c
 test_a2dp_SOURCES += ../src/a2dp-ldac.c
 test_io_SOURCES += ../src/a2dp-ldac.c
 endif
 
 if ENABLE_MPEG
-bluealsa_mock_SOURCES += ../src/a2dp-mpeg.c
 test_a2dp_SOURCES += ../src/a2dp-mpeg.c
 test_io_SOURCES += ../src/a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC
-bluealsa_mock_SOURCES += ../src/codec-msbc.c
 test_io_SOURCES += ../src/codec-msbc.c
 endif
 
