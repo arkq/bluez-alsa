@@ -317,7 +317,11 @@ struct ba_transport {
 
 			/* Speaker and microphone signals should to be exposed as
 			 * a separate PCM devices. Hence, there is a requirement
-			 * for separate configurations. */
+			 * for separate configurations.
+			 *
+			 * NOTE: The speaker/microphone notation always refers to the whole
+			 *       AG/HS setup. For AG the speaker is an outgoing audio stream,
+			 *       while for HS the speaker is an incoming audio stream. */
 			struct ba_transport_pcm spk_pcm;
 			struct ba_transport_pcm mic_pcm;
 

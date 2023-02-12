@@ -894,6 +894,7 @@ struct ba_transport *ba_transport_new_sco(
 		const char *dbus_path,
 		int rfcomm_fd) {
 
+	const bool is_ag = profile & BA_TRANSPORT_PROFILE_MASK_AG;
 	uint16_t codec_id = HFP_CODEC_UNDEFINED;
 	struct ba_transport *t;
 	int err;
@@ -918,10 +919,14 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->profile = profile;
 
-	transport_pcm_init(&t->sco.spk_pcm, &t->thread_enc, BA_TRANSPORT_PCM_MODE_SINK);
+	transport_pcm_init(&t->sco.spk_pcm,
+			is_ag ? &t->thread_enc : &t->thread_dec,
+			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->sco.spk_pcm.max_bt_volume = 15;
 
-	transport_pcm_init(&t->sco.mic_pcm, &t->thread_dec, BA_TRANSPORT_PCM_MODE_SOURCE);
+	transport_pcm_init(&t->sco.mic_pcm,
+			is_ag ? &t->thread_dec : &t->thread_enc,
+			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 	t->sco.mic_pcm.max_bt_volume = 15;
 
 	t->acquire = transport_acquire_bt_sco;
