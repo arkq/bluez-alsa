@@ -1419,7 +1419,7 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 
 	pthread_cond_init(&r->codec_selection_cond, NULL);
 
-	if ((err = pthread_create(&r->thread, NULL, PTHREAD_ROUTINE(rfcomm_thread), r)) != 0) {
+	if ((err = pthread_create(&r->thread, NULL, PTHREAD_FUNC(rfcomm_thread), r)) != 0) {
 		error("Couldn't create RFCOMM thread: %s", strerror(err));
 		r->thread = config.main_thread;
 		goto fail;

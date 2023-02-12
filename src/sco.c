@@ -204,7 +204,7 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 	 * during the whole live-span of the thread, because the thread is canceled
 	 * in the adapter cleanup routine. See the ba_adapter_unref() function. */
 	if ((ret = pthread_create(&a->sco_dispatcher, NULL,
-					PTHREAD_ROUTINE(sco_dispatcher_thread), a)) != 0) {
+					PTHREAD_FUNC(sco_dispatcher_thread), a)) != 0) {
 		error("Couldn't create SCO dispatcher: %s", strerror(ret));
 		a->sco_dispatcher = config.main_thread;
 		return -1;
@@ -496,6 +496,7 @@ void *sco_enc_thread(struct ba_transport_thread *th) {
 	}
 }
 
+__attribute__ ((weak))
 void *sco_dec_thread(struct ba_transport_thread *th) {
 	switch (th->t->codec_id) {
 	case HFP_CODEC_CVSD:

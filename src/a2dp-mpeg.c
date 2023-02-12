@@ -399,6 +399,7 @@ fail_init:
 #endif
 
 #if ENABLE_MP3LAME || ENABLE_MPG123
+__attribute__ ((weak))
 void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);

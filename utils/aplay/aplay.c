@@ -768,7 +768,7 @@ static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm
 	debug("Creating PCM worker %s", worker->addr);
 
 	if ((errno = pthread_create(&worker->thread, NULL,
-					PTHREAD_ROUTINE(pcm_worker_routine), worker)) != 0) {
+					PTHREAD_FUNC(pcm_worker_routine), worker)) != 0) {
 		error("Couldn't create PCM worker %s: %s", worker->addr, strerror(errno));
 		workers_count--;
 		return NULL;

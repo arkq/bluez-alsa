@@ -424,6 +424,7 @@ fail_open:
 	return NULL;
 }
 
+__attribute__ ((weak))
 void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);

@@ -285,6 +285,7 @@ fail_open_ldac:
 }
 
 #if HAVE_LDAC_DECODE
+__attribute__ ((weak))
 void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);

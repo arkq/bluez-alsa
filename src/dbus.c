@@ -80,7 +80,7 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 
 			void *ptr = g_memdup2(&data, sizeof(data));
 			if ((ret = pthread_create(&thread, NULL,
-							PTHREAD_ROUTINE(dispatch_method_caller), ptr)) != 0) {
+							PTHREAD_FUNC(dispatch_method_caller), ptr)) != 0) {
 				error("Couldn't create D-Bus call dispatcher: %s", strerror(ret));
 				return false;
 			}

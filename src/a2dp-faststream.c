@@ -222,6 +222,7 @@ fail_init:
 	return NULL;
 }
 
+__attribute__ ((weak))
 void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);

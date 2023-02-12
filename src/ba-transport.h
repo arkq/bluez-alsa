@@ -161,6 +161,10 @@ struct ba_transport_thread {
 
 };
 
+/**
+ * Encoder/decoder transport thread IO function. */
+typedef void *(*ba_transport_thread_func)(struct ba_transport_thread *);
+
 int ba_transport_thread_set_state(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_state state);
@@ -402,7 +406,7 @@ int ba_transport_pcm_release(struct ba_transport_pcm *pcm);
 
 int ba_transport_thread_create(
 		struct ba_transport_thread *th,
-		void *(*routine)(struct ba_transport_thread *),
+		ba_transport_thread_func th_func,
 		const char *name,
 		bool master);
 

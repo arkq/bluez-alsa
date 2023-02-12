@@ -395,7 +395,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	/* start the IO thread */
 	pcm->io_started = true;
 	if ((errno = pthread_create(&pcm->io_thread, NULL,
-					PTHREAD_ROUTINE(io_thread), io)) != 0) {
+					PTHREAD_FUNC(io_thread), io)) != 0) {
 		debug2("Couldn't create IO thread: %s", strerror(errno));
 		pcm->io_started = false;
 		return -errno;

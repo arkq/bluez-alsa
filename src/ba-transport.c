@@ -620,7 +620,7 @@ static struct ba_transport *transport_new(
 	if (pipe(t->thread_manager_pipe) == -1)
 		goto fail;
 	if ((errno = pthread_create(&t->thread_manager_thread_id,
-			NULL, PTHREAD_ROUTINE(transport_thread_manager), t)) != 0) {
+			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
 		t->thread_manager_thread_id = config.main_thread;
 		goto fail;
 	}
@@ -1726,7 +1726,7 @@ final:
  * Create transport thread. */
 int ba_transport_thread_create(
 		struct ba_transport_thread *th,
-		void *(*routine)(struct ba_transport_thread *),
+		ba_transport_thread_func th_func,
 		const char *name,
 		bool master) {
 
@@ -1757,7 +1757,7 @@ int ba_transport_thread_create(
 		warn("Couldn't set signal mask: %s", strerror(ret));
 
 	ba_transport_thread_set_state_starting(th);
-	if ((ret = pthread_create(&th->id, NULL, PTHREAD_ROUTINE(routine), th)) != 0) {
+	if ((ret = pthread_create(&th->id, NULL, PTHREAD_FUNC(th_func), th)) != 0) {
 		error("Couldn't create transport thread: %s", strerror(ret));
 		th->state = BA_TRANSPORT_THREAD_STATE_NONE;
 		th->id = config.main_thread;

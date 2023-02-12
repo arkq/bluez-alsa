@@ -311,6 +311,7 @@ fail_init:
 	return NULL;
 }
 
+__attribute__ ((weak))
 void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 
 	/* Cancellation should be possible only in the carefully selected place

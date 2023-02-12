@@ -15,7 +15,6 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -184,6 +183,14 @@ static void *mock_dec(struct ba_transport_thread *th) {
 	return NULL;
 }
 
+void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+void *a2dp_aac_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+void *a2dp_aptx_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+void *sco_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+
 static void *mock_bt_dump_thread(void *userdata) {
 
 	int bt_fd = GPOINTER_TO_INT(userdata);
@@ -194,7 +201,9 @@ static void *mock_bt_dump_thread(void *userdata) {
 	if (mock_dump_output)
 		f_output = fopen("bluealsa-mock.dump", "w");
 
+	debug("IO loop: START: %s", __func__);
 	while ((len = read(bt_fd, buffer, sizeof(buffer))) > 0) {
+		fprintf(stderr, "#");
 
 		if (!mock_dump_output)
 			continue;
@@ -205,41 +214,16 @@ static void *mock_bt_dump_thread(void *userdata) {
 
 	}
 
+	debug("IO loop: EXIT: %s", __func__);
 	if (f_output != NULL)
 		fclose(f_output);
 	close(bt_fd);
 	return NULL;
 }
 
-void *sco_enc_thread(struct ba_transport_thread *th);
-static void mock_transport_start(struct ba_transport *t, int bt_fd) {
-
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
-		g_thread_unref(g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(bt_fd)));
-		assert(ba_transport_start(t) == 0);
-	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
-		switch (t->codec_id) {
-		case A2DP_CODEC_SBC:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-a2dp-sbc", true) == 0);
-			break;
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-a2dp-aptx", true) == 0);
-			break;
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-a2dp-aptx-hd", true) == 0);
-			break;
-#endif
-		}
-	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		assert(ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true) == 0);
-		assert(ba_transport_thread_create(&t->thread_dec, mock_dec, "ba-sco-dec", false) == 0);
-	}
-
+static int mock_transport_set_a2dp_state_active(struct ba_transport *t) {
+	ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE);
+	return G_SOURCE_REMOVE;
 }
 
 static int mock_transport_acquire_bt(struct ba_transport *t) {
@@ -253,9 +237,11 @@ static int mock_transport_acquire_bt(struct ba_transport *t) {
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 
-	pthread_mutex_unlock(&t->bt_fd_mtx);
-	mock_transport_start(t, bt_fds[1]);
-	pthread_mutex_lock(&t->bt_fd_mtx);
+	g_thread_unref(g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		/* Emulate asynchronous transport activation by BlueZ. */
+		g_timeout_add(10, G_SOURCE_FUNC(mock_transport_set_a2dp_state_active), t);
 
 	return 0;
 }
@@ -367,18 +353,18 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_1,
 						&a2dp_sbc_source, &config_sbc_44100_stereo));
 
-#if ENABLE_APTX_HD
-		if (a2dp_aptx_hd_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
-						&a2dp_aptx_hd_source, &config_aptx_hd_48000_stereo));
-		else
-#endif
 #if ENABLE_APTX
 		if (a2dp_aptx_source.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
 						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
 						&a2dp_aptx_source, &config_aptx_44100_stereo));
+		else
+#endif
+#if ENABLE_APTX_HD
+		if (a2dp_aptx_hd_source.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
+						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
+						&a2dp_aptx_hd_source, &config_aptx_hd_48000_stereo));
 		else
 #endif
 #if ENABLE_FASTSTREAM

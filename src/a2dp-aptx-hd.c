@@ -232,6 +232,7 @@ fail_init:
 }
 
 #if HAVE_APTX_HD_DECODE
+__attribute__ ((weak))
 void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);

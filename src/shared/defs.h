@@ -27,8 +27,8 @@
 #define PTHREAD_CLEANUP(f) ((void (*)(void *))(void (*)(void))(f))
 
 /**
- * Thread routing callback casting wrapper. */
-#define PTHREAD_ROUTINE(f) ((void *(*)(void *))(f))
+ * Thread function callback casting wrapper. */
+#define PTHREAD_FUNC(f) ((void *(*)(void *))(f))
 
 /**
  * Qsort comparision function casting wrapper. */
