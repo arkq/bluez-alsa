@@ -154,7 +154,7 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 
 	va_end(ap);
 
-	if (spawn(sp, argv, SPAWN_FLAG_REDIRECT_STDERR) == -1)
+	if (spawn(sp, argv, NULL, SPAWN_FLAG_REDIRECT_STDERR) == -1)
 		return -1;
 
 	struct spawn_bluealsa_data *data;

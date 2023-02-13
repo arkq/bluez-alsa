@@ -46,10 +46,12 @@ struct spawn_process {
  *   information, i.e. PID, stdout and stderr file descriptors.
  * @param argv List of arguments to be passed to the process. The list shall be
  *   terminated by NULL. The first argument is the name of the executable.
+ * @param f_stdin FILE stream to be used as stdin for the process. If NULL,
+ *   then the stdin from the parent process will be used.
  * @param flags Bitwise OR of the SPAWN_FLAG_* flags.
  * @return On success this function returns 0. Otherwise -1 is returned and
  *   errno is set appropriately. */
-int spawn(struct spawn_process *sp, char *argv[], int flags) {
+int spawn(struct spawn_process *sp, char *argv[], FILE *f_stdin, int flags) {
 
 	int pipe_stdout[2] = { -1, -1 };
 	int pipe_stderr[2] = { -1, -1 };
@@ -74,6 +76,9 @@ int spawn(struct spawn_process *sp, char *argv[], int flags) {
 	}
 
 	if ((sp->pid = fork()) == 0) {
+
+		if (f_stdin != NULL)
+			dup2(fileno(f_stdin), 0);
 
 		if (flags & SPAWN_FLAG_REDIRECT_STDOUT) {
 			dup2(pipe_stdout[1], 1);

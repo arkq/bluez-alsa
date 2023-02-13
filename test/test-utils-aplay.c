@@ -44,7 +44,7 @@ static int spawn_bluealsa_aplay(struct spawn_process *sp, ...) {
 	va_end(ap);
 
 	const int flags = SPAWN_FLAG_REDIRECT_STDOUT | SPAWN_FLAG_REDIRECT_STDERR;
-	return spawn(sp, argv, flags);
+	return spawn(sp, argv, NULL, flags);
 }
 
 CK_START_TEST(test_help) {

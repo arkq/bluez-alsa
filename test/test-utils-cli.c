@@ -44,7 +44,7 @@ static int run_bluealsa_cli(char *output, size_t size, ...) {
 	va_end(ap);
 
 	struct spawn_process sp;
-	if (spawn(&sp, argv, SPAWN_FLAG_REDIRECT_STDOUT) == -1)
+	if (spawn(&sp, argv, NULL, SPAWN_FLAG_REDIRECT_STDOUT) == -1)
 		return -1;
 
 	size_t len = fread(output, 1, size - 1, sp.f_stdout);
@@ -359,6 +359,49 @@ CK_START_TEST(test_monitor) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_open) {
+
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+				"--profile=hsp-ag",
+				NULL), -1);
+
+	char * ba_cli_in_argv[32] = {
+		bluealsa_cli_path, "open",
+		"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/source",
+		NULL };
+	char * ba_cli_out_argv[32] = {
+		bluealsa_cli_path, "open",
+		"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/sink",
+		NULL };
+
+	struct spawn_process sp_ba_cli_in;
+	ck_assert_int_ne(spawn(&sp_ba_cli_in, ba_cli_in_argv,
+				NULL, SPAWN_FLAG_REDIRECT_STDOUT), -1);
+
+	struct spawn_process sp_ba_cli_out;
+	ck_assert_int_ne(spawn(&sp_ba_cli_out, ba_cli_out_argv,
+				sp_ba_cli_in.f_stdout, SPAWN_FLAG_NONE), -1);
+
+	/* let it run for a while */
+	sleep(1);
+
+	spawn_terminate(&sp_ba_cli_in, 0);
+	spawn_terminate(&sp_ba_cli_out, 0);
+
+	int wstatus = 0;
+	/* Make sure that both bluealsa-cli instances have been terminated by
+	 * us (SIGTERM) and not by premature exit or any other reason. */
+	spawn_close(&sp_ba_cli_in, &wstatus);
+	ck_assert_int_eq(WTERMSIG(wstatus), SIGTERM);
+	spawn_close(&sp_ba_cli_out, &wstatus);
+	ck_assert_int_eq(WTERMSIG(wstatus), SIGTERM);
+
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock, NULL);
+
+} CK_END_TEST
+
 int main(int argc, char *argv[], char *envp[]) {
 	preload(argc, argv, envp, ".libs/aloader.so");
 
@@ -384,6 +427,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	tcase_add_test(tc, test_codec);
 	tcase_add_test(tc, test_volume);
 	tcase_add_test(tc, test_monitor);
+	tcase_add_test(tc, test_open);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
