@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -395,9 +395,14 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	 * profile and software volume control. */
 	if (!(t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
 				t->a2dp.pcm.soft_volume)) {
+
 		int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+
+		pthread_mutex_lock(&t->a2dp.pcm.mutex);
 		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL, NULL);
 		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, NULL, NULL);
+		pthread_mutex_unlock(&t->a2dp.pcm.mutex);
+
 	}
 
 	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
@@ -1361,11 +1366,17 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 					t->a2dp.pcm.soft_volume)
 				debug("Skipping A2DP volume update: %u", volume);
 			else {
+
 				int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
 				debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
+
+				pthread_mutex_lock(&t->a2dp.pcm.mutex);
 				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL, NULL);
 				ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, NULL, NULL);
+				pthread_mutex_unlock(&t->a2dp.pcm.mutex);
+
 				bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
 			}
 		}
 

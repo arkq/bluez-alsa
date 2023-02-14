@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -55,7 +55,7 @@ ssize_t io_bt_write(
 		size_t count);
 
 void io_pcm_scale(
-		const struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t samples);
 

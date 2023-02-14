@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -103,26 +103,34 @@ retry:
 /**
  * Scale PCM signal according to the volume configuration. */
 void io_pcm_scale(
-		const struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t samples) {
 
-	const unsigned int channels = pcm->channels;
-	size_t frames = samples / channels;
+	pthread_mutex_lock(&pcm->mutex);
 
-	if (!pcm->soft_volume) {
+	const unsigned int channels = pcm->channels;
+	const bool pcm_soft_volume = pcm->soft_volume;
+	const double pcm_volume_ch_scales[2] = {
+		pcm->volume[0].scale,
+		pcm->volume[1].scale,
+	};
+
+	pthread_mutex_unlock(&pcm->mutex);
+
+	if (!pcm_soft_volume) {
 		/* In case of hardware volume control we will perform mute operation,
 		 * because hardware muting is an equivalent of gain=0 which with some
 		 * headsets does not entirely silence audio. */
 		switch (pcm->format) {
 		case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-			audio_silence_s16_2le(buffer, frames, channels,
-					pcm->volume[0].scale == 0, pcm->volume[1].scale == 0);
+			audio_silence_s16_2le(buffer, samples / channels, channels,
+					pcm_volume_ch_scales[0] == 0, pcm_volume_ch_scales[1] == 0);
 			break;
 		case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
 		case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-			audio_silence_s32_4le(buffer, frames, channels,
-					pcm->volume[0].scale == 0, pcm->volume[1].scale == 0);
+			audio_silence_s32_4le(buffer, samples / channels, channels,
+					pcm_volume_ch_scales[0] == 0, pcm_volume_ch_scales[1] == 0);
 			break;
 		default:
 			g_assert_not_reached();
@@ -132,13 +140,13 @@ void io_pcm_scale(
 
 	switch (pcm->format) {
 	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-		audio_scale_s16_2le(buffer, frames, channels,
-				pcm->volume[0].scale, pcm->volume[1].scale);
+		audio_scale_s16_2le(buffer, samples / channels, channels,
+				pcm_volume_ch_scales[0], pcm_volume_ch_scales[1]);
 		break;
 	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
 	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-		audio_scale_s32_4le(buffer, frames, channels,
-				pcm->volume[0].scale, pcm->volume[1].scale);
+		audio_scale_s32_4le(buffer, samples / channels, channels,
+				pcm_volume_ch_scales[0], pcm_volume_ch_scales[1]);
 		break;
 	default:
 		g_assert_not_reached();

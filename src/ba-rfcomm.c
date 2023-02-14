@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -379,7 +379,11 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
+
+	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
+	pthread_mutex_unlock(&pcm->mutex);
+
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -396,7 +400,11 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
+
+	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
+	pthread_mutex_unlock(&pcm->mutex);
+
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	return 0;
@@ -416,7 +424,11 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
+
+	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
+	pthread_mutex_unlock(&pcm->mutex);
+
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -433,7 +445,11 @@ static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
+
+	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
+	pthread_mutex_unlock(&pcm->mutex);
+
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	return 0;
@@ -571,10 +587,13 @@ static int rfcomm_handler_android_set_xhsmicmute(struct ba_rfcomm *r, char *valu
 
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
+	const bool muted = value[0] == '0' ? false : true;
 	const int fd = r->fd;
 
-	bool muted = value[0] == '0' ? false : true;
+	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL, &muted);
+	pthread_mutex_unlock(&pcm->mutex);
+
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
