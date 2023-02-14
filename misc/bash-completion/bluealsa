@@ -314,7 +314,7 @@ _bluealsa_cli() {
 			case "$cur" in
 				-|--*)
 					COMPREPLY=( $(compgen -W "$global_longopts $base_longopts" -- "$cur") )
-					[[ "$COMPREPLY" == *= ]] && compopt -o nospace
+					[[ "${COMPREPLY[0]}" == *= ]] && compopt -o nospace
 					;;
 				-?)
 					COMPREPLY=( $(compgen -W "$global_shortopts $base_shortopts" -- "$cur") )
