@@ -406,13 +406,14 @@ CK_START_TEST(test_capture_poll) {
 
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 	/* for a capture PCM just after prepare, the poll() call shall block
-	 * forever or at least the dispatched event shall be set to 0 */
+	 * forever or at least the dispatched event shall be set to 0. The PCM
+	 * "Running" property change signal is delivered at some indeterminate
+	 * time after the mock server starts, so we cannot guarantee that poll()
+	 * will have cleared that event within the timeout period of this test,
+	 * and therefore we cannot test the "block forever" requirement. */
 	ck_assert_int_ne(poll(pfds, count, 250), -1);
 	snd_pcm_poll_descriptors_revents(pcm, pfds, count, &revents);
 	ck_assert_int_eq(revents, 0);
-
-	/* make sure that further calls to poll() will actually block */
-	ck_assert_int_eq(poll(pfds, count, 250), 0);
 
 	ck_assert_int_eq(snd_pcm_start(pcm), 0);
 	do { /* started capture PCM shall not block forever */
