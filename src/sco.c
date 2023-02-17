@@ -226,7 +226,7 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *pcm = &t->sco.spk_pcm;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	const size_t mtu_samples = t->mtu_write / sizeof(int16_t);
@@ -245,7 +245,7 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&buffer);
-		if ((samples = io_poll_and_read_pcm(&io, pcm, buffer.tail, samples)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm, buffer.tail, samples)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			else if (samples == 0)
@@ -274,7 +274,7 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, mtu_samples);
 			/* update busy delay (encoding overhead) */
-			pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		}
 
@@ -296,7 +296,7 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *pcm = &t->sco.mic_pcm;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	const size_t mtu_samples = t->mtu_read / sizeof(int16_t);
@@ -326,12 +326,12 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 				error("Couldn't resize CVSD read buffer: %s", strerror(errno));
 		}
 
-		if (!ba_transport_pcm_is_active(pcm))
+		if (!ba_transport_pcm_is_active(t_pcm))
 			continue;
 
 		ssize_t samples = len / sizeof(int16_t);
-		io_pcm_scale(pcm, buffer.data, samples);
-		if ((samples = io_pcm_write(pcm, buffer.data, samples)) == -1)
+		io_pcm_scale(t_pcm, buffer.data, samples);
+		if ((samples = io_pcm_write(t_pcm, buffer.data, samples)) == -1)
 			error("FIFO write error: %s", strerror(errno));
 		else if (samples == 0)
 			ba_transport_stop_if_no_clients(t);
@@ -353,7 +353,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *pcm = &t->sco.spk_pcm;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 	const size_t mtu_write = t->mtu_write;
 
@@ -369,7 +369,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&msbc.pcm);
-		if ((samples = io_poll_and_read_pcm(&io, pcm, msbc.pcm.tail, samples)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm, msbc.pcm.tail, samples)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			else if (samples == 0)
@@ -407,7 +407,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, msbc.frames * MSBC_CODESAMPLES);
 			/* update busy delay (encoding overhead) */
-			pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* Move unprocessed data to the front of our linear
 			 * buffer and clear the mSBC frame counter. */
@@ -434,7 +434,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *pcm = &t->sco.mic_pcm;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	struct esco_msbc msbc = { .initialized = false };
@@ -454,7 +454,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 		else if (len == 0)
 			goto exit;
 
-		if (!ba_transport_pcm_is_active(pcm))
+		if (!ba_transport_pcm_is_active(t_pcm))
 			continue;
 
 		ffb_seek(&msbc.data, len);
@@ -469,8 +469,8 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 		if ((samples = ffb_len_out(&msbc.pcm)) <= 0)
 			continue;
 
-		io_pcm_scale(pcm, msbc.pcm.data, samples);
-		if ((samples = io_pcm_write(pcm, msbc.pcm.data, samples)) == -1)
+		io_pcm_scale(t_pcm, msbc.pcm.data, samples);
+		if ((samples = io_pcm_write(t_pcm, msbc.pcm.data, samples)) == -1)
 			error("FIFO write error: %s", strerror(errno));
 		else if (samples == 0)
 			ba_transport_stop_if_no_clients(t);

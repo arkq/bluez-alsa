@@ -107,6 +107,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -121,8 +122,8 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhdenc_destroy), handle);
 
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 	const size_t aptx_pcm_samples = 4 * channels;
 	const size_t aptx_code_len = 2 * 3 * sizeof(uint8_t);
 	const size_t mtu_write = t->mtu_write;
@@ -145,7 +146,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, &t->a2dp.pcm,
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
 						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
@@ -205,7 +206,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th) {
 			rtp.ts_pcm_frames += pcm_frames;
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
@@ -239,6 +240,7 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -253,8 +255,8 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(aptxhddec_destroy), handle);
 
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 	/* Note, that we are allocating space for one extra output packed, which is
 	 * required by the aptx_decode_sync() function of libopenaptx library. */
@@ -286,7 +288,7 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+		if (!ba_transport_pcm_is_active(t_pcm)) {
 			rtp.synced = false;
 			continue;
 		}
@@ -311,8 +313,8 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 		}
 
 		const size_t samples = ffb_len_out(&pcm);
-		io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
-		if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+		io_pcm_scale(t_pcm, pcm.data, samples);
+		if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		/* update local state with decoded PCM frames */

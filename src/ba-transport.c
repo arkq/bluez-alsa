@@ -98,10 +98,13 @@ static int transport_pcm_init(
 	struct ba_transport *t = th->t;
 
 	pcm->t = t;
-	pcm->th = th;
 	pcm->mode = mode;
 	pcm->fd = -1;
 	pcm->active = true;
+
+	/* link PCM and transport thread */
+	pcm->th = th;
+	th->pcm = pcm;
 
 	pcm->volume[0].level = config.volume_init_level;
 	pcm->volume[1].level = config.volume_init_level;

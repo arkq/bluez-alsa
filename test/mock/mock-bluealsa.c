@@ -105,29 +105,7 @@ static void *mock_dec(struct ba_transport_thread *th) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = NULL;
-
-	switch (t->profile) {
-	case BA_TRANSPORT_PROFILE_NONE:
-		g_assert_not_reached();
-		break;
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		/* use back-channel PCM for bidirectional codecs */
-		t_pcm = &t->a2dp.pcm_bc;
-		break;
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		t_pcm = &t->a2dp.pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		t_pcm = &t->sco.mic_pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		t_pcm = &t->sco.spk_pcm;
-		break;
-	}
+	struct ba_transport_pcm *t_pcm = th->pcm;
 
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int samplerate = t_pcm->sampling;

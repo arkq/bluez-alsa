@@ -142,6 +142,8 @@ struct ba_transport_thread {
 
 	/* backward reference to transport */
 	struct ba_transport *t;
+	/* associated PCM */
+	struct ba_transport_pcm *pcm;
 
 	/* guard transport thread data updates */
 	pthread_mutex_t mutex;

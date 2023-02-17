@@ -193,6 +193,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	lame_t handle;
@@ -204,8 +205,8 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(lame_close), handle);
 
 	const a2dp_mpeg_t *configuration = &t->a2dp.configuration.mpeg;
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 	MPEG_mode mode = NOT_SET;
 
 	lame_set_num_channels(handle, channels);
@@ -306,7 +307,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, &t->a2dp.pcm,
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
 						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
@@ -375,7 +376,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 		rtp_state_update(&rtp, pcm_frames);
 
 		/* update busy delay (encoding overhead) */
-		t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+		t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		/* If the input buffer was not consumed (due to frame alignment), we
 		 * have to append new data to the existing one. Since we do not use
@@ -406,6 +407,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 #if ENABLE_MPG123
@@ -422,8 +424,8 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(mpg123_delete), handle);
 
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 	mpg123_param(handle, MPG123_RESYNC_LIMIT, -1, 0);
 	mpg123_param(handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0);
@@ -452,8 +454,8 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 		goto fail_init;
 	}
 
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 	pthread_cleanup_push(PTHREAD_CLEANUP(hip_decode_exit), handle);
 
 	/* NOTE: Size of the output buffer is "hard-coded" in hip_decode(). What is
@@ -497,7 +499,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+		if (!ba_transport_pcm_is_active(t_pcm)) {
 			rtp.synced = false;
 			continue;
 		}
@@ -528,8 +530,8 @@ decode:
 		}
 
 		const size_t samples = len / sizeof(int16_t);
-		io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
-		if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+		io_pcm_scale(t_pcm, pcm.data, samples);
+		if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 		/* update local state with decoded PCM frames */
@@ -552,8 +554,8 @@ decode:
 		}
 
 		if (channels == 1) {
-			io_pcm_scale(&t->a2dp.pcm, pcm_l, samples);
-			if (io_pcm_write(&t->a2dp.pcm, pcm_l, samples) == -1)
+			io_pcm_scale(t_pcm, pcm_l, samples);
+			if (io_pcm_write(t_pcm, pcm_l, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 		}
 		else {
@@ -564,8 +566,8 @@ decode:
 				((int16_t *)pcm.data)[i * 2 + 1] = pcm_r[i];
 			}
 
-			io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
-			if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+			io_pcm_scale(t_pcm, pcm.data, samples);
+			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 		}
