@@ -106,6 +106,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -120,7 +121,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(aptxenc_destroy), handle);
 
-	const unsigned int channels = t->a2dp.pcm.channels;
+	const unsigned int channels = t_pcm->channels;
 	const size_t aptx_pcm_samples = 4 * channels;
 	const size_t aptx_code_len = 2 * sizeof(uint16_t);
 	const size_t mtu_write = t->mtu_write;
@@ -135,7 +136,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, &t->a2dp.pcm,
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
 						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
@@ -187,7 +188,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_thread *th) {
 			asrsync_sync(&io.asrs, pcm_samples / channels);
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
@@ -221,6 +222,7 @@ void *a2dp_aptx_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -253,7 +255,7 @@ void *a2dp_aptx_dec_thread(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm))
+		if (!ba_transport_pcm_is_active(t_pcm))
 			continue;
 
 		uint8_t *input = bt.data;
@@ -277,8 +279,8 @@ void *a2dp_aptx_dec_thread(struct ba_transport_thread *th) {
 		}
 
 		const size_t samples = ffb_len_out(&pcm);
-		io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
-		if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+		io_pcm_scale(t_pcm, pcm.data, samples);
+		if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 			error("FIFO write error: %s", strerror(errno));
 
 	}

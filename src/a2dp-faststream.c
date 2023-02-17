@@ -110,11 +110,11 @@ void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	/* determine encoder operation mode: music or voice */
 	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
 
 	sbc_t sbc;
 	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, &t->a2dp.configuration.faststream,
@@ -129,7 +129,7 @@ void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
-	const unsigned int channels = t_a2dp_pcm->channels;
+	const unsigned int channels = t_pcm->channels;
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 
@@ -144,7 +144,7 @@ void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 
 
 		ssize_t samples = ffb_len_in(&pcm);
-		if ((samples = io_poll_and_read_pcm(&io, t_a2dp_pcm, pcm.tail, samples)) <= 0) {
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
 			ba_transport_stop_if_no_clients(t);
@@ -199,7 +199,7 @@ void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 			asrsync_sync(&io.asrs, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_a2dp_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed (due to codesize limit), we
 			 * have to append new data to the existing one. Since we do not use
@@ -229,11 +229,11 @@ void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	/* determine decoder operation mode: music or voice */
 	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE;
-	struct ba_transport_pcm *t_a2dp_pcm = is_voice ? &t->a2dp.pcm_bc : &t->a2dp.pcm;
 
 	sbc_t sbc;
 	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, &t->a2dp.configuration.faststream,
@@ -267,7 +267,7 @@ void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 			goto fail;
 		}
 
-		if (!ba_transport_pcm_is_active(t_a2dp_pcm))
+		if (!ba_transport_pcm_is_active(t_pcm))
 			continue;
 
 		uint8_t *input = bt.data;
@@ -289,8 +289,8 @@ void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 			input_len -= len;
 
 			const size_t samples = decoded / sizeof(int16_t);
-			io_pcm_scale(t_a2dp_pcm, pcm.data, samples);
-			if (io_pcm_write(t_a2dp_pcm, pcm.data, samples) == -1)
+			io_pcm_scale(t_pcm, pcm.data, samples);
+			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 		}

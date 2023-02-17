@@ -159,6 +159,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	sbc_t sbc;
@@ -176,8 +177,8 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 
 	const a2dp_sbc_t *configuration = &t->a2dp.configuration.sbc;
 	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 	/* initialize SBC encoder bit-pool */
 	sbc.bitpool = sbc_a2dp_get_bitpool(configuration, config.sbc_quality);
@@ -223,7 +224,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, &t->a2dp.pcm,
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
 						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
@@ -288,7 +289,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed (due to codesize limit), we
 			 * have to append new data to the existing one. Since we do not use
@@ -320,6 +321,7 @@ void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	sbc_t sbc;
@@ -335,8 +337,8 @@ void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 	if (ffb_init_int16_t(&pcm, sbc_get_codesize(&sbc)) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
@@ -370,7 +372,7 @@ void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+		if (!ba_transport_pcm_is_active(t_pcm)) {
 			rtp.synced = false;
 			continue;
 		}
@@ -402,8 +404,8 @@ void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 			rtp_payload_len -= len;
 
 			const size_t samples = decoded / sizeof(int16_t);
-			io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
-			if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+			io_pcm_scale(t_pcm, pcm.data, samples);
+			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 			/* update local state with decoded PCM frames */

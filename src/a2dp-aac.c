@@ -191,6 +191,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_AACENCODER handle;
@@ -199,8 +200,8 @@ void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 
 	const a2dp_aac_t *configuration = &t->a2dp.configuration.aac;
 	const unsigned int bitrate = AAC_GET_BITRATE(*configuration);
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 	/* create AAC encoder without the Meta Data module */
 	if ((err = aacEncOpen(&handle, 0x07, channels)) != AACENC_OK) {
@@ -296,7 +297,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
 	const unsigned int aac_frame_size = aacinf.inputChannels * aacinf.frameLength;
-	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	if (ffb_init(&pcm, aac_frame_size, sample_size) == -1 ||
 			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
@@ -339,7 +340,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, &t->a2dp.pcm,
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
 						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
@@ -401,7 +402,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed, we have to append new data to
 			 * the existing one. Since we do not use ring buffer, we will simply
@@ -431,6 +432,7 @@ void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_AACDECODER handle;
@@ -443,8 +445,8 @@ void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacDecoder_Close), handle);
 
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 #ifdef AACDECODER_LIB_VL0
 	if ((err = aacDecoder_SetParam(handle, AAC_PCM_MIN_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
@@ -500,7 +502,7 @@ void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+		if (!ba_transport_pcm_is_active(t_pcm)) {
 			rtp.synced = false;
 			continue;
 		}
@@ -551,8 +553,8 @@ void *a2dp_aac_dec_thread(struct ba_transport_thread *th) {
 				warn("AAC channels mismatch: %u != %u", aacinf->numChannels, channels);
 
 			const size_t samples = (size_t)aacinf->frameSize * channels;
-			io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
-			if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+			io_pcm_scale(t_pcm, pcm.data, samples);
+			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 			/* update local state with decoded PCM frames */

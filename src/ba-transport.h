@@ -142,6 +142,8 @@ struct ba_transport_thread {
 
 	/* backward reference to transport */
 	struct ba_transport *t;
+	/* associated PCM */
+	struct ba_transport_pcm *pcm;
 
 	/* associated pcm */
 	struct ba_transport_pcm *pcm;

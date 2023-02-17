@@ -121,6 +121,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_LDAC_BT handle;
@@ -140,9 +141,9 @@ void *a2dp_ldac_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
 	const a2dp_ldac_t *configuration = &t->a2dp.configuration.ldac;
-	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
 
 	if (ldacBT_init_handle_encode(handle, t->mtu_write, config.ldac_eqmid,
@@ -185,7 +186,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, &t->a2dp.pcm,
+		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
 						pcm.tail, ffb_len_in(&pcm))) <= 0) {
 			if (samples == -1)
 				error("PCM poll and read error: %s", strerror(errno));
@@ -258,7 +259,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_thread *th) {
 			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t->a2dp.pcm.delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		}
 
@@ -292,6 +293,7 @@ void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
 	struct ba_transport *t = th->t;
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_LDAC_BT handle;
@@ -303,9 +305,9 @@ void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
 
 	const a2dp_ldac_t *configuration = &t->a2dp.configuration.ldac;
-	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t->a2dp.pcm.format);
-	const unsigned int channels = t->a2dp.pcm.channels;
-	const unsigned int samplerate = t->a2dp.pcm.sampling;
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 	if (ldacBT_init_handle_decode(handle, configuration->channel_mode, samplerate, 0, 0, 0) == -1) {
 		error("Couldn't initialize LDAC decoder: %s", ldacBT_strerror(ldacBT_get_error_code(handle)));
@@ -345,7 +347,7 @@ void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);
 
-		if (!ba_transport_pcm_is_active(&t->a2dp.pcm)) {
+		if (!ba_transport_pcm_is_active(t_pcm)) {
 			rtp.synced = false;
 			continue;
 		}
@@ -369,8 +371,8 @@ void *a2dp_ldac_dec_thread(struct ba_transport_thread *th) {
 			rtp_payload_len -= used;
 
 			const size_t samples = decoded / sample_size;
-			io_pcm_scale(&t->a2dp.pcm, pcm.data, samples);
-			if (io_pcm_write(&t->a2dp.pcm, pcm.data, samples) == -1)
+			io_pcm_scale(t_pcm, pcm.data, samples);
+			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("FIFO write error: %s", strerror(errno));
 
 			/* update local state with decoded PCM frames */

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -849,8 +849,10 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 		int ch2_level = ba_transport_pcm_volume_bt_to_level(pcm, ch2 & 0x7F);
 		bool ch2_muted = !!(ch2 & 0x80);
 
+		pthread_mutex_lock(&pcm->mutex);
 		ba_transport_pcm_volume_set(&pcm->volume[0], &ch1_level, &ch1_muted, NULL);
 		ba_transport_pcm_volume_set(&pcm->volume[1], &ch2_level, &ch2_muted, NULL);
+		pthread_mutex_unlock(&pcm->mutex);
 
 		debug("Setting volume: %u [%.2f dB] %c%c %u [%.2f dB]",
 				ch1 & 0x7F, 0.01 * ch1_level, ch1_muted ? 'x' : '<',

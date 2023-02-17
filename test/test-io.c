@@ -440,28 +440,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = NULL;
-
-	switch (t->profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		t_pcm = &t->a2dp.pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		t_pcm = &t->a2dp.pcm_bc;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		t_pcm = &t->sco.spk_pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		t_pcm = &t->sco.mic_pcm;
-		break;
-	default:
-		g_assert_not_reached();
-	}
-
+	struct ba_transport_pcm *t_pcm = th->pcm;
 	size_t decoded_samples_total = 0;
 
 #if HAVE_SNDFILE
@@ -492,7 +471,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 	if (dump_data) {
 #if HAVE_SNDFILE
 		char fname[64];
-		sprintf(fname, "decoded-%s.wav", transport_to_fname(t));
+		sprintf(fname, "decoded-%s.wav", transport_to_fname(th->t));
 		ck_assert_ptr_ne(sf = sf_open(fname, SFM_WRITE, &sf_info), NULL);
 #else
 		error("Dumping audio files requires sndfile library!");
@@ -574,46 +553,8 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 	if (dec == test_io_thread_dump_bt && input_bt_file != NULL)
 		return;
 
-	struct ba_transport_pcm *t_src_pcm = NULL;
-	struct ba_transport_pcm *t_snk_pcm = NULL;
-
-	switch (t_src->profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		t_src_pcm = &t_src->a2dp.pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		t_src_pcm = &t_src->a2dp.pcm_bc;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		t_src_pcm = &t_src->sco.spk_pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		t_src_pcm = &t_src->sco.mic_pcm;
-		break;
-	default:
-		g_assert_not_reached();
-	}
-
-	switch (t_snk->profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		t_snk_pcm = &t_snk->a2dp.pcm_bc;
-		break;
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		t_snk_pcm = &t_snk->a2dp.pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		t_snk_pcm = &t_snk->sco.mic_pcm;
-		break;
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		t_snk_pcm = &t_snk->sco.spk_pcm;
-		break;
-	default:
-		g_assert_not_reached();
-	}
+	struct ba_transport_pcm *t_src_pcm = t_src->thread_enc.pcm;
+	struct ba_transport_pcm *t_snk_pcm = t_snk->thread_dec.pcm;
 
 	int bt_fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
