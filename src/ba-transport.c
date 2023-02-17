@@ -218,7 +218,6 @@ static int transport_thread_init(
 
 	th->t = t;
 	th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
-	th->pcm = NULL;
 	th->bt_fd = -1;
 	th->pipe[0] = -1;
 	th->pipe[1] = -1;

@@ -145,9 +145,6 @@ struct ba_transport_thread {
 	/* associated PCM */
 	struct ba_transport_pcm *pcm;
 
-	/* associated pcm */
-	struct ba_transport_pcm *pcm;
-
 	/* guard transport thread data updates */
 	pthread_mutex_t mutex;
 	/* state/id updates notification */
