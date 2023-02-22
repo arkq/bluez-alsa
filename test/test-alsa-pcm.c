@@ -409,7 +409,7 @@ CK_START_TEST(test_capture_poll) {
 	/* For a capture PCM just after prepare, the poll() call shall block
 	 * forever or at least the dispatched event shall be set to 0. */
 	for (;;) {
-		ck_assert_int_ne(rv = poll(pfds, count, 250), -1);
+		ck_assert_int_ne(rv = poll(pfds, count, 750), -1);
 		/* make sure that at some point poll() will actually block */
 		if (rv == 0)
 			break;
