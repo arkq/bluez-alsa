@@ -235,15 +235,13 @@ ssize_t io_pcm_write(
 			case EINTR:
 				continue;
 			case EAGAIN:
-				/* In order to provide a way of escaping from the infinite poll()
-				 * we have to temporally re-enable thread cancellation. */
-				pthread_cleanup_push(PTHREAD_CLEANUP(pthread_mutex_unlock), &pcm->mutex);
-				pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-				struct pollfd pfd = { fd, POLLOUT, 0 };
-				poll(&pfd, 1, -1);
-				pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-				pthread_cleanup_pop(0);
-				continue;
+				/* If the client is so slow that the FIFO fills up, then it
+				 * is inevitable that audio frames will be eventually be
+				 * dropped in the bluetooth controller if we block here.
+				 * It is better that we discard frames here so that the
+				 * decoder is not interrupted. */
+				ret = len;
+				break;
 			case EPIPE:
 				/* This errno value will be received only, when the SIGPIPE
 				 * signal is caught, blocked or ignored. */
