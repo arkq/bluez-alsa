@@ -37,6 +37,7 @@ AC_ARG_ENABLE([debug],
 	AS_HELP_STRING([--enable-debug], [enable debugging support]))
 AM_CONDITIONAL([ENABLE_DEBUG], [test "x$enable_debug" = "xyes"])
 AM_COND_IF([ENABLE_DEBUG], [
+	AC_CHECK_FUNCS([gettid])
 	AC_CHECK_LIB([SegFault], [backtrace])
 	AC_DEFINE([DEBUG], [1], [Define to 1 if the debugging is enabled.])
 ])

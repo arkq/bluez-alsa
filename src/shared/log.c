@@ -1,6 +1,6 @@
 /*
  * BlueALSA - log.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -105,7 +105,7 @@ static void vlog(int priority, const char *format, va_list ap) {
 		fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
 #endif
 
-#if DEBUG
+#if DEBUG && HAVE_GETTID
 		fprintf(stderr, "[%d] ", gettid());
 #endif
 
