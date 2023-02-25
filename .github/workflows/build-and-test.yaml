@@ -53,7 +53,7 @@ jobs:
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build
-      run: make check CFLAGS="-Wall -Wextra -Werror" TESTS=
+      run: make check CFLAGS="-Wall -Wextra -Werror -Wshadow" TESTS=
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       run: make check-TESTS

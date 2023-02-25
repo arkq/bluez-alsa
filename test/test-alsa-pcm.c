@@ -45,7 +45,7 @@ static unsigned int pcm_channels = 2;
 static unsigned int pcm_sampling = 44100;
 static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
 /* big enough buffer to keep one period of data */
-static int16_t buffer[1024 * 8];
+static int16_t pcm_buffer[1024 * 8];
 
 static int snd_pcm_open_bluealsa(
 		snd_pcm_t **pcmp,
@@ -199,9 +199,9 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
 
 static int16_t *test_sine_s16le(snd_pcm_uframes_t size) {
 	static size_t x = 0;
-	assert(ARRAYSIZE(buffer) >= size * pcm_channels);
-	x = snd_pcm_sine_s16_2le(buffer, size, pcm_channels, x, 441.0 / pcm_sampling);
-	return buffer;
+	assert(ARRAYSIZE(pcm_buffer) >= size * pcm_channels);
+	x = snd_pcm_sine_s16_2le(pcm_buffer, size, pcm_channels, x, 441.0 / pcm_sampling);
+	return pcm_buffer;
 }
 
 static snd_pcm_state_t snd_pcm_state_runtime(snd_pcm_t *pcm) {
@@ -268,7 +268,7 @@ CK_START_TEST(test_capture_start) {
 
 	/* read few periods from capture PCM */
 	for (i = 0; i < buffer_size / period_size; i++)
-		ck_assert_int_eq(snd_pcm_readi(pcm, buffer, period_size), period_size);
+		ck_assert_int_eq(snd_pcm_readi(pcm, pcm_buffer, period_size), period_size);
 
 	/* after reading there should be no more than one period of data in buffer */
 	snd_pcm_sframes_t avail;
@@ -363,7 +363,7 @@ CK_START_TEST(test_capture_overrun) {
 
 	/* check that PCM is running and we can read from it */
 	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
-	ck_assert_int_eq(snd_pcm_readi(pcm, buffer, period_size), period_size);
+	ck_assert_int_eq(snd_pcm_readi(pcm, pcm_buffer, period_size), period_size);
 
 	/* allow overrun to occur */
 	usleep(buffer_time + period_time);
@@ -382,7 +382,7 @@ CK_START_TEST(test_capture_overrun) {
 
 	/* make sure that PCM is indeed readable */
 	for (i = 0; i < buffer_size / period_size; i++)
-		ck_assert_int_eq(snd_pcm_readi(pcm, buffer, period_size), period_size);
+		ck_assert_int_eq(snd_pcm_readi(pcm, pcm_buffer, period_size), period_size);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
@@ -887,7 +887,7 @@ CK_START_TEST(test_playback_underrun) {
  * - snd_pcm_resume(pcm) = -38
  * - snd_pcm_avail(pcm) = -19
  * - snd_pcm_avail_update(pcm) = 15081
- * - snd_pcm_writei(pcm, buffer, frames) = -19
+ * - snd_pcm_writei(pcm, pcm_buffer, frames) = -19
  * - snd_pcm_wait(pcm, 10) = -19
  * - snd_pcm_close(pcm) = 0
  */

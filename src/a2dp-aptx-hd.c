@@ -299,8 +299,6 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) {
 		while (rtp_payload_len >= 6) {
 
 			size_t decoded = ffb_len_in(&pcm);
-			ssize_t len;
-
 			if ((len = aptxhddec_decode(handle, rtp_payload, rtp_payload_len, pcm.tail, &decoded)) <= 0) {
 				error("Apt-X decoding error: %s", strerror(errno));
 				continue;

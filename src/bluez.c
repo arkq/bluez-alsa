@@ -1090,6 +1090,26 @@ static void bluez_register_hfp_all(void) {
  * Register to the BlueZ service. */
 static void bluez_register(void) {
 
+	const struct {
+		const char *uuid;
+		enum ba_transport_profile profile;
+		bool enabled;
+		bool global;
+	} uuids[] = {
+		{ BLUETOOTH_UUID_A2DP_SOURCE, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+			config.profile.a2dp_source, false },
+		{ BLUETOOTH_UUID_A2DP_SINK, BA_TRANSPORT_PROFILE_A2DP_SINK,
+			config.profile.a2dp_sink, false },
+		{ BLUETOOTH_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS,
+			config.profile.hsp_hs, true },
+		{ BLUETOOTH_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG,
+			config.profile.hsp_ag, true },
+		{ BLUETOOTH_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
+			config.profile.hfp_hf, true },
+		{ BLUETOOTH_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
+			config.profile.hfp_ag, true },
+	};
+
 	GError *err = NULL;
 	GVariantIter *objects = NULL;
 	if ((objects = g_dbus_get_managed_objects(config.dbus, BLUEZ_SERVICE, "/", &err)) == NULL) {
@@ -1099,6 +1119,8 @@ static void bluez_register(void) {
 	}
 
 	bool adapters[HCI_MAX_DEV] = { 0 };
+	unsigned int adapters_profiles[HCI_MAX_DEV] = { 0 };
+	unsigned int profiles = 0;
 
 	GVariantIter *interfaces;
 	GVariantIter *properties;
@@ -1109,14 +1131,33 @@ static void bluez_register(void) {
 
 	while (g_variant_iter_next(objects, "{&oa{sa{sv}}}", &object_path, &interfaces)) {
 		while (g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
-			if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0)
+			if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
+
+				int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
+				unsigned int adapter_profiles = 0;
+				bool valid = false;
+
 				while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
-					if (strcmp(property, "Address") == 0 &&
-							bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL)))
-						/* mark adapter as valid for registration */
-						adapters[g_dbus_bluez_object_path_to_hci_dev_id(object_path)] = true;
+					if (strcmp(property, "Address") == 0)
+						/* check if adapter as valid for registration */
+						valid = bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL));
+					else if (strcmp(property, "UUIDs") == 0) {
+						const char **value_uuids = g_variant_get_strv(value, NULL);
+						/* map UUIDs to BlueALSA transport profile mask */
+						for (size_t i = 0; value_uuids[i] != NULL; i++)
+							for (size_t ii = 0; ii < ARRAYSIZE(uuids); ii++)
+								if (strcasecmp(value_uuids[i], uuids[ii].uuid) == 0)
+									adapter_profiles |= uuids[ii].profile;
+						g_free(value_uuids);
+					}
 					g_variant_unref(value);
 				}
+
+				adapters[hci_dev_id] = valid;
+				adapters_profiles[hci_dev_id] = adapter_profiles;
+				profiles |= adapter_profiles;
+
+			}
 			g_variant_iter_free(properties);
 		}
 		g_variant_iter_free(interfaces);
@@ -1128,8 +1169,19 @@ static void bluez_register(void) {
 	for (i = 0; i < ARRAYSIZE(adapters); i++)
 		if (adapters[i] &&
 				(a = ba_adapter_new(i)) != NULL) {
+
+			for (size_t ii = 0; ii < ARRAYSIZE(uuids); ii++)
+				if (uuids[ii].enabled && !uuids[ii].global && adapters_profiles[i] & uuids[ii].profile)
+					warn("UUID already registered in BlueZ [%s]: %s", a->hci.name, uuids[ii].uuid);
+
+			/* register media endpoints */
 			bluez_adapter_new(a);
+
 		}
+
+	for (size_t ii = 0; ii < ARRAYSIZE(uuids); ii++)
+		if (uuids[ii].enabled && uuids[ii].global && profiles & uuids[ii].profile)
+			warn("UUID already registered in BlueZ: %s", uuids[ii].uuid);
 
 	/* HFP has to be registered globally */
 	bluez_register_hfp_all();

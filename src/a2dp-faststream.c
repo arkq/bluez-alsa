@@ -276,9 +276,7 @@ void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) {
 		/* decode retrieved SBC frames */
 		while (input_len >= sbc_frame_len) {
 
-			ssize_t len;
 			size_t decoded;
-
 			if ((len = sbc_decode(&sbc, input, input_len,
 							pcm.data, ffb_blen_in(&pcm), &decoded)) < 0) {
 				error("FastStream SBC decoding error: %s", sbc_strerror(len));

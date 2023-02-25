@@ -265,8 +265,6 @@ void *a2dp_aptx_dec_thread(struct ba_transport_thread *th) {
 		while (input_len >= 4) {
 
 			size_t decoded = ffb_len_in(&pcm);
-			ssize_t len;
-
 			if ((len = aptxdec_decode(handle, input, input_len, pcm.tail, &decoded)) <= 0) {
 				error("Apt-X decoding error: %s", strerror(errno));
 				continue;

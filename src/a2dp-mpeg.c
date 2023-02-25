@@ -348,7 +348,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 				ffb_rewind(&bt);
 				ffb_seek(&bt, RTP_HEADER_LEN + sizeof(*rtp_mpeg_audio_header) + chunk_len);
 
-				ssize_t len = ffb_blen_out(&bt);
+				len = ffb_blen_out(&bt);
 				if ((len = io_bt_write(th, bt.data, len)) <= 0) {
 					if (len == -1)
 						error("BT write error: %s", strerror(errno));

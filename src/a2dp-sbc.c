@@ -384,9 +384,7 @@ void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 		size_t frames = rtp_media_header->frame_count;
 		while (frames--) {
 
-			ssize_t len;
 			size_t decoded;
-
 			if ((len = sbc_decode(&sbc, rtp_payload, rtp_payload_len,
 							pcm.data, ffb_blen_in(&pcm), &decoded)) < 0) {
 				error("SBC decoding error: %s", sbc_strerror(len));

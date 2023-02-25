@@ -184,7 +184,8 @@ static bool enable_vbr_mode = false;
 static bool dump_data = false;
 static bool packet_loss = false;
 
-static struct bt_dump *btd = NULL;
+/* input BT dump file */
+static struct bt_dump *btdin = NULL;
 
 #if HAVE_SNDFILE
 static void *pcm_write_frames_sndfile_async(void *userdata) {
@@ -348,7 +349,7 @@ static void bt_data_write(struct ba_transport *t) {
 
 	if (input_bt_file != NULL) {
 
-		while ((len = bt_dump_read(btd, buffer, sizeof(buffer))) != -1) {
+		while ((len = bt_dump_read(btdin, buffer, sizeof(buffer))) != -1) {
 			if (packet_loss && random() < INT32_MAX / 3 && !first_packet) {
 				debug("Simulating packet loss: Dropping BT packet!");
 				continue;
@@ -623,7 +624,7 @@ static struct ba_transport *test_transport_new_a2dp(
 		const void *configuration) {
 #if DEBUG
 	if (input_bt_file != NULL)
-		configuration = &btd->a2dp_configuration;
+		configuration = &btdin->a2dp_configuration;
 #endif
 	struct ba_transport *t = ba_transport_new_a2dp(device, profile, ":test",
 			dbus_path, codec, configuration);
@@ -1063,23 +1064,23 @@ int main(int argc, char *argv[]) {
 
 	if (input_bt_file != NULL) {
 
-		if ((btd = bt_dump_open(input_bt_file)) == NULL) {
+		if ((btdin = bt_dump_open(input_bt_file)) == NULL) {
 			error("Couldn't open input BT dump file: %s", strerror(errno));
 			return EXIT_FAILURE;
 		}
 
 		const char *codec = "";
-		switch (btd->mode) {
+		switch (btdin->mode) {
 		case BT_DUMP_MODE_A2DP_SOURCE:
 		case BT_DUMP_MODE_A2DP_SINK:
-			codec = a2dp_codecs_codec_id_to_string(btd->transport_codec_id);
-			debug("BT dump A2DP codec: %s (%#x)", codec, btd->transport_codec_id);
+			codec = a2dp_codecs_codec_id_to_string(btdin->transport_codec_id);
+			debug("BT dump A2DP codec: %s (%#x)", codec, btdin->transport_codec_id);
 			hexdump("BT dump A2DP configuration",
-					&btd->a2dp_configuration, btd->a2dp_configuration_size, true);
+					&btdin->a2dp_configuration, btdin->a2dp_configuration_size, true);
 			break;
 		case BT_DUMP_MODE_SCO:
-			codec = hfp_codec_id_to_string(btd->transport_codec_id);
-			debug("BT dump HFP codec: %s (%#x)", codec, btd->transport_codec_id);
+			codec = hfp_codec_id_to_string(btdin->transport_codec_id);
+			debug("BT dump HFP codec: %s (%#x)", codec, btdin->transport_codec_id);
 			break;
 		}
 
