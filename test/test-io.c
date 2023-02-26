@@ -596,6 +596,7 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 
 	ba_transport_thread_state_set_stopping(&t_src->thread_enc);
 	transport_thread_cancel(&t_src->thread_enc);
+	ba_transport_thread_state_wait_terminated(&t_src->thread_enc);
 
 	pthread_mutex_lock(&t_snk_pcm->mutex);
 	ba_transport_pcm_release(t_snk_pcm);
@@ -603,6 +604,7 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 
 	ba_transport_thread_state_set_stopping(&t_snk->thread_dec);
 	transport_thread_cancel(&t_snk->thread_dec);
+	ba_transport_thread_state_wait_terminated(&t_snk->thread_dec);
 
 }
 
