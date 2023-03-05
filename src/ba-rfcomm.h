@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -76,8 +76,10 @@ struct ba_rfcomm {
 	/* number of failed communication attempts */
 	int retries;
 
-	/* AG/HF supported features bitmask */
-	uint32_t hfp_features;
+	/* AG supported features bitmask */
+	uint32_t ag_features;
+	/* HF supported features bitmask */
+	uint32_t hf_features;
 
 	/* HF supported HFP codecs */
 	struct {

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hfp.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  * Copyright (c) 2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -20,49 +20,58 @@
 #define HFP_CODEC_CVSD      0x01
 #define HFP_CODEC_MSBC      0x02
 
-/* SDP AG feature flags */
-#define SDP_HFP_AG_FEAT_TWC    (1 << 0)
-#define SDP_HFP_AG_FEAT_ECNR   (1 << 1)
-#define SDP_HFP_AG_FEAT_VREC   (1 << 2)
-#define SDP_HFP_AG_FEAT_RING   (1 << 3)
-#define SDP_HFP_AG_FEAT_VTAG   (1 << 4)
-#define SDP_HFP_AG_FEAT_WBAND  (1 << 5)
+/**
+ * SDP AG feature flags */
+#define SDP_HFP_AG_FEAT_TWC    (1 << 0) /* three-way calling */
+#define SDP_HFP_AG_FEAT_ECNR   (1 << 1) /* EC and/or NR function */
+#define SDP_HFP_AG_FEAT_VREC   (1 << 2) /* voice recognition function */
+#define SDP_HFP_AG_FEAT_RING   (1 << 3) /* in-band ring tone capability */
+#define SDP_HFP_AG_FEAT_VTAG   (1 << 4) /* attach a number to a voice tag */
+#define SDP_HFP_AG_FEAT_WBAND  (1 << 5) /* wide band speech support */
 
-/* SDP HF feature flags */
-#define SDP_HFP_HF_FEAT_ECNR   (1 << 0)
-#define SDP_HFP_HF_FEAT_TWC    (1 << 1)
-#define SDP_HFP_HF_FEAT_CLI    (1 << 2)
-#define SDP_HFP_HF_FEAT_VREC   (1 << 3)
-#define SDP_HFP_HF_FEAT_VOLUME (1 << 4)
-#define SDP_HFP_HF_FEAT_WBAND  (1 << 5)
+/**
+ * SDP HF feature flags */
+#define SDP_HFP_HF_FEAT_ECNR   (1 << 0) /* EC and/or NR function */
+#define SDP_HFP_HF_FEAT_TWC    (1 << 1) /* three-way calling */
+#define SDP_HFP_HF_FEAT_CLI    (1 << 2) /* CLI presentation capability */
+#define SDP_HFP_HF_FEAT_VREC   (1 << 3) /* voice recognition activation */
+#define SDP_HFP_HF_FEAT_VOLUME (1 << 4) /* remote volume control */
+#define SDP_HFP_HF_FEAT_WBAND  (1 << 5) /* wide band speech support */
 
-/* AG feature flags */
-#define HFP_AG_FEAT_3WC    (1 << 0)
-#define HFP_AG_FEAT_ECNR   (1 << 1)
-#define HFP_AG_FEAT_VOICE  (1 << 2)
-#define HFP_AG_FEAT_RING   (1 << 3)
-#define HFP_AG_FEAT_VTAG   (1 << 4)
-#define HFP_AG_FEAT_REJECT (1 << 5)
-#define HFP_AG_FEAT_ECS    (1 << 6)
-#define HFP_AG_FEAT_ECC    (1 << 7)
-#define HFP_AG_FEAT_EERC   (1 << 8)
-#define HFP_AG_FEAT_CODEC  (1 << 9)
-#define HFP_AG_FEAT_HFIND  (1 << 10)
-#define HFP_AG_FEAT_ESCO   (1 << 11)
+/**
+ * AG feature flags */
+#define HFP_AG_FEAT_3WC    (1 << 0)  /* three-way calling */
+#define HFP_AG_FEAT_ECNR   (1 << 1)  /* EC and/or NR function */
+#define HFP_AG_FEAT_VOICE  (1 << 2)  /* voice recognition function */
+#define HFP_AG_FEAT_RING   (1 << 3)  /* in-band ring tone capability */
+#define HFP_AG_FEAT_VTAG   (1 << 4)  /* attach a number to a voice tag */
+#define HFP_AG_FEAT_REJECT (1 << 5)  /* ability to reject a call */
+#define HFP_AG_FEAT_ECS    (1 << 6)  /* enhanced call status */
+#define HFP_AG_FEAT_ECC    (1 << 7)  /* enhanced call control */
+#define HFP_AG_FEAT_EERC   (1 << 8)  /* extended error result codes */
+#define HFP_AG_FEAT_CODEC  (1 << 9)  /* codec negotiation */
+#define HFP_AG_FEAT_HF_IND (1 << 10) /* HF indicators */
+#define HFP_AG_FEAT_ESCO   (1 << 11) /* enhanced SCO S4 settings supported */
+#define HFP_AG_FEAT_EVRS   (1 << 12) /* enhanced voice recognition status */
+#define HFP_AG_FEAT_VR_TXT (1 << 13) /* voice recognition text */
 
-/* HF feature flags */
-#define HFP_HF_FEAT_ECNR   (1 << 0)
-#define HFP_HF_FEAT_3WC    (1 << 1)
-#define HFP_HF_FEAT_CLI    (1 << 2)
-#define HFP_HF_FEAT_VOICE  (1 << 3)
-#define HFP_HF_FEAT_VOLUME (1 << 4)
-#define HFP_HF_FEAT_ECS    (1 << 5)
-#define HFP_HF_FEAT_ECC    (1 << 6)
-#define HFP_HF_FEAT_CODEC  (1 << 7)
-#define HFP_HF_FEAT_HFIND  (1 << 8)
-#define HFP_HF_FEAT_ESCO   (1 << 9)
+/**
+ * HF feature flags */
+#define HFP_HF_FEAT_ECNR   (1 << 0)  /* EC and/or NR function */
+#define HFP_HF_FEAT_3WC    (1 << 1)  /* three-way calling */
+#define HFP_HF_FEAT_CLI    (1 << 2)  /* CLI presentation capability */
+#define HFP_HF_FEAT_VOICE  (1 << 3)  /* voice recognition activation */
+#define HFP_HF_FEAT_VOLUME (1 << 4)  /* remote volume control */
+#define HFP_HF_FEAT_ECS    (1 << 5)  /* enhanced call status */
+#define HFP_HF_FEAT_ECC    (1 << 6)  /* enhanced call control */
+#define HFP_HF_FEAT_CODEC  (1 << 7)  /* codec negotiation */
+#define HFP_HF_FEAT_HF_IND (1 << 8)  /* HF indicators */
+#define HFP_HF_FEAT_ESCO   (1 << 9)  /* enhanced SCO S4 settings supported */
+#define HFP_HF_FEAT_EVRS   (1 << 10) /* enhanced voice recognition status */
+#define HFP_HF_FEAT_VR_TXT (1 << 11) /* voice recognition text */
 
-/* Apple's extension feature flags */
+/**
+ * Apple's extension feature flags */
 #define XAPL_FEATURE_BATTERY (1 << 1)
 #define XAPL_FEATURE_DOCKING (1 << 2)
 #define XAPL_FEATURE_SIRI    (1 << 3)

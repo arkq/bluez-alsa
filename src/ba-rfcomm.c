@@ -168,12 +168,12 @@ static int rfcomm_handler_cind_test_cb(struct ba_rfcomm *r, const struct bt_at *
 	/* NOTE: The order of indicators in the CIND response message
 	 *       has to be consistent with the hfp_ind enumeration. */
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND",
-				"(\"service\",(0-1))"
+				"(\"service\",(0,1))"
 				",(\"call\",(0,1))"
 				",(\"callsetup\",(0-3))"
 				",(\"callheld\",(0-2))"
 				",(\"signal\",(0-5))"
-				",(\"roam\",(0-1))"
+				",(\"roam\",(0,1))"
 				",(\"battchg\",(0-5))"
 			) == -1)
 		return -1;
@@ -317,14 +317,14 @@ static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 	const int fd = r->fd;
 	char tmp[16];
 
-	r->hfp_features = atoi(at->value);
+	r->hf_features = atoi(at->value);
 
 	/* If codec negotiation is not supported in the HF, the AT+BAC
 	 * command will not be sent. So, we can assume default codec. */
-	if (!(r->hfp_features & HFP_HF_FEAT_CODEC))
+	if (!(r->hf_features & HFP_HF_FEAT_CODEC))
 		ba_transport_set_codec(t_sco, HFP_CODEC_CVSD);
 
-	sprintf(tmp, "%u", ba_adapter_get_hfp_features_ag(t_sco->d->a));
+	sprintf(tmp, "%u", r->ag_features);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BRSF", tmp) == -1)
 		return -1;
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
@@ -341,10 +341,10 @@ static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_brsf_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	r->hfp_features = atoi(at->value);
+	r->ag_features = atoi(at->value);
 
 	/* codec negotiation is not supported in the AG */
-	if (!(r->hfp_features & HFP_AG_FEAT_CODEC))
+	if (!(r->ag_features & HFP_AG_FEAT_CODEC))
 		ba_transport_set_codec(t_sco, HFP_CODEC_CVSD);
 
 	if (r->state < HFP_SLC_BRSF_SET)
@@ -539,8 +539,10 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	const int fd = r->fd;
 	const int codec = atoi(at->value);
-	bool codec_supported = codec == HFP_CODEC_CVSD;
+	bool codec_supported = false;
 
+	if (config.hfp.codecs.cvsd && codec == HFP_CODEC_CVSD)
+		codec_supported = true;
 #ifdef ENABLE_MSBC
 	if (config.hfp.codecs.msbc && codec == HFP_CODEC_MSBC)
 		codec_supported = true;
@@ -933,13 +935,15 @@ static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 	/* for HFP-AG return battery level indicator if reporting is enabled */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
 			r->hfp_cmer[3] > 0 && r->hfp_ind_state[HFP_IND_BATTCHG]) {
-		sprintf(tmp, "%d,%d", HFP_IND_BATTCHG, (config.battery.level + 1) / 17);
+		const unsigned int level = config.battery.level * 6 / 100;
+		sprintf(tmp, "%d,%d", HFP_IND_BATTCHG, MIN(level, 5));
 		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", tmp);
 	}
 
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HF &&
 			t_sco->d->xapl.features & (XAPL_FEATURE_BATTERY | XAPL_FEATURE_DOCKING)) {
-		sprintf(tmp, "2,1,%d,2,0", (config.battery.level + 1) / 10);
+		const unsigned int level = config.battery.level * 10 / 100;
+		sprintf(tmp, "2,1,%d,2,0", MIN(level, 9));
 		if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+IPHONEACCEV", tmp) == -1)
 			return -1;
 		r->handler = &rfcomm_handler_resp_ok;
@@ -1097,15 +1101,17 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 				goto ioerror;
 			}
 
-			if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HSP)
+			if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HSP) {
 				/* There is not logic behind the HSP connection,
 				 * simply set status as connected. */
 				rfcomm_set_hfp_state(r, HFP_SLC_CONNECTED);
+				goto setup;
+			}
 
 			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_HF)
 				switch (r->state) {
 				case HFP_DISCONNECTED:
-					sprintf(tmp, "%u", ba_adapter_get_hfp_features_hf(t_sco->d->a));
+					sprintf(tmp, "%u", r->hf_features);
 					if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BRSF", tmp) == -1)
 						goto ioerror;
 					r->handler = &rfcomm_handler_brsf_resp;
@@ -1115,15 +1121,19 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					r->handler_resp_ok_new_state = HFP_SLC_BRSF_SET_OK;
 					break;
 				case HFP_SLC_BRSF_SET_OK:
-					if (r->hfp_features & HFP_AG_FEAT_CODEC) {
+					/* Process with codecs advertisement only if both
+					 * sides support the codec negotiation feature. */
+					if (r->ag_features & HFP_AG_FEAT_CODEC &&
+							r->hf_features & HFP_HF_FEAT_CODEC) {
 						char *ptr = r->hf_bac_bcs_string;
 						if (config.hfp.codecs.cvsd)
 							ptr += sprintf(ptr, "%u", HFP_CODEC_CVSD);
 #if ENABLE_MSBC
-						if (config.hfp.codecs.msbc && BA_TEST_ESCO_SUPPORT(t_sco->d->a))
+						/* Before advertising mSBC codec, check whether the eSCO
+						 * link is supported by us. */
+						if (config.hfp.codecs.msbc && r->hf_features & HFP_HF_FEAT_ESCO)
 							ptr += sprintf(ptr, "%s%u", ptr != tmp ? "," : "", HFP_CODEC_MSBC);
 #endif
-						/* advertise which HFP codecs we are supporting */
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", r->hf_bac_bcs_string) == -1)
 							goto ioerror;
 						r->handler = &rfcomm_handler_resp_ok;
@@ -1198,6 +1208,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 
 		}
 		else if (r->setup != HFP_SETUP_COMPLETE) {
+setup:
 
 			if (t_sco->profile & BA_TRANSPORT_PROFILE_HSP_AG)
 				/* We are not making any initialization setup with
@@ -1233,7 +1244,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 							rfcomm_notify_battery_level_change(r) == -1)
 						goto ioerror;
 					r->setup++;
-					break;
+					/* fall-through */
 				case HFP_SETUP_COMPLETE:
 					debug("Initial connection setup completed");
 				}
@@ -1308,13 +1319,19 @@ process:
 			switch (rfcomm_recv_signal(r)) {
 #if ENABLE_MSBC
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD:
-				if (!config.hfp.codecs.cvsd || !(r->hfp_features & HFP_HF_FEAT_CODEC))
+				if (!config.hfp.codecs.cvsd || !(
+							r->ag_features & HFP_AG_FEAT_CODEC &&
+							r->hf_features & HFP_HF_FEAT_CODEC))
 					rfcomm_finalize_codec_selection(r);
 				else if (rfcomm_set_hfp_codec(r, HFP_CODEC_CVSD) == -1)
 					goto ioerror;
 				break;
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC:
-				if (!config.hfp.codecs.msbc || !(r->hfp_features & HFP_HF_FEAT_CODEC))
+				if (!config.hfp.codecs.msbc || !(
+							r->ag_features & HFP_AG_FEAT_CODEC &&
+							r->ag_features & HFP_AG_FEAT_ESCO &&
+							r->hf_features & HFP_HF_FEAT_CODEC &&
+							r->hf_features & HFP_HF_FEAT_ESCO))
 					rfcomm_finalize_codec_selection(r);
 				else if (rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
@@ -1453,6 +1470,11 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 	r->codec = HFP_CODEC_UNDEFINED;
 	r->sco = ba_transport_ref(sco);
 	r->link_lost_quirk = true;
+
+	/* Initialize HFP feature bitmasks. The value for the remote device will
+	 * be updated during the service level connection establishment. */
+	r->ag_features = ba_adapter_get_hfp_features_ag(sco->d->a);
+	r->hf_features = ba_adapter_get_hfp_features_hf(sco->d->a);
 
 	/* initialize data used for synchronization */
 	r->gain_mic = ba_transport_pcm_volume_level_to_bt(

@@ -937,9 +937,11 @@ struct ba_transport *ba_transport_new_sco(
 		codec_id = HFP_CODEC_CVSD;
 
 #if ENABLE_MSBC
+	if (!config.hfp.codecs.msbc)
+		codec_id = HFP_CODEC_CVSD;
 	/* Check whether support for codec other than
 	 * CVSD is possible with underlying adapter. */
-	if (!config.hfp.codecs.msbc || !BA_TEST_ESCO_SUPPORT(device->a))
+	if (!BA_TEST_ESCO_SUPPORT(device->a))
 		codec_id = HFP_CODEC_CVSD;
 #else
 	codec_id = HFP_CODEC_CVSD;

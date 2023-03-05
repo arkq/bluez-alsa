@@ -42,9 +42,20 @@ static struct ba_adapter *adapter = NULL;
 static struct ba_device *device1 = NULL;
 static struct ba_device *device2 = NULL;
 
-static pthread_mutex_t transport_codec_updated_mtx = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t transport_codec_updated = PTHREAD_COND_INITIALIZER;
-static unsigned int transport_codec_updated_cnt = 0;
+static pthread_mutex_t dbus_update_mtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t dbus_update_cond = PTHREAD_COND_INITIALIZER;
+static struct {
+	unsigned int codec;
+	unsigned int volume;
+	unsigned int battery;
+} dbus_update_counters;
+
+static void dbus_update_counters_wait(unsigned int *counter, unsigned int value) {
+	pthread_mutex_lock(&dbus_update_mtx);
+	while (*counter != value)
+		pthread_cond_wait(&dbus_update_cond, &dbus_update_mtx);
+	pthread_mutex_unlock(&dbus_update_mtx);
+}
 
 void a2dp_aac_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_aac_transport_start(struct ba_transport *t) { (void)t; return 0; }
@@ -74,17 +85,21 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	return 0; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm;
-	if (mask & BA_DBUS_PCM_UPDATE_CODEC) {
-		pthread_mutex_lock(&transport_codec_updated_mtx);
-		transport_codec_updated_cnt++;
-		pthread_mutex_unlock(&transport_codec_updated_mtx);
-		pthread_cond_signal(&transport_codec_updated); }}
+	pthread_mutex_lock(&dbus_update_mtx);
+	dbus_update_counters.codec += !!(mask & BA_DBUS_PCM_UPDATE_CODEC);
+	dbus_update_counters.volume += !!(mask & BA_DBUS_PCM_UPDATE_VOLUME);
+	pthread_mutex_unlock(&dbus_update_mtx);
+	pthread_cond_signal(&dbus_update_cond); }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
 int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); (void)r; return 0; }
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)r, mask); (void)r; (void)mask; }
+	debug("%s: %p %#x", __func__, (void *)r, mask); (void)r;
+	pthread_mutex_lock(&dbus_update_mtx);
+	dbus_update_counters.battery += !!(mask & BA_DBUS_RFCOMM_UPDATE_BATTERY);
+	pthread_mutex_unlock(&dbus_update_mtx);
+	pthread_cond_signal(&dbus_update_cond); }
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); (void)r; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
@@ -94,6 +109,280 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 void bluez_battery_provider_update(struct ba_device *device) {
 	debug("%s: %p", __func__, device); (void)device; }
 
+#define ck_assert_rfcomm_recv(fd, command) { \
+	char buffer[sizeof(command)] = { 0 }; \
+	const ssize_t len = strlen(command); \
+	ck_assert_int_eq(read(fd, buffer, sizeof(buffer) - 1), len); \
+	ck_assert_str_eq(buffer, command); }
+
+#define ck_assert_rfcomm_send(fd, command) { \
+	const ssize_t len = strlen(command); \
+	ck_assert_int_eq(write(fd, command, len), len); }
+
+CK_START_TEST(test_rfcomm_hsp_ag) {
+
+	int fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+	struct ba_transport *sco = ba_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HSP_AG, ":test", "/sco", fds[0]);
+	const int fd = fds[1];
+
+	/* check support for setting microphone gain */
+	ck_assert_rfcomm_send(fd, "AT+VGM=10\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.volume, 1);
+
+	/* check support for setting speaker gain */
+	ck_assert_rfcomm_send(fd, "AT+VGS=13\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.volume, 2);
+
+	/* check support for button press */
+	ck_assert_rfcomm_send(fd, "AT+CKPD=200\r");
+	ck_assert_rfcomm_recv(fd, "\r\nERROR\r\n");
+
+	/* check vendor-specific command for battery level notification */
+	ck_assert_rfcomm_send(fd, "AT+IPHONEACCEV=1,1,8\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.battery, 1);
+
+	ba_transport_destroy(sco);
+	close(fd);
+
+} CK_END_TEST
+
+CK_START_TEST(test_rfcomm_hsp_hs) {
+
+	int fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+	struct ba_transport *sco = ba_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HSP_HS, ":test", "/sco", fds[0]);
+	const int fd = fds[1];
+
+	/* wait for initial microphone gain */
+	ck_assert_rfcomm_recv(fd, "AT+VGM=15\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+	/* wait for initial speaker gain */
+	ck_assert_rfcomm_recv(fd, "AT+VGS=15\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+	/* wait for initial vendor-specific battery level */
+	ck_assert_rfcomm_recv(fd, "AT+XAPL=DEAD-C0DE-1234,6\r");
+	ck_assert_rfcomm_send(fd, "\r\n+XAPL:TEST,6\r\n");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+	ck_assert_rfcomm_recv(fd, "AT+IPHONEACCEV=2,1,8,2,0\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+	/* check support for setting speaker gain */
+	ck_assert_rfcomm_send(fd, "\r\n+VGS=13\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.volume, 1);
+
+	/* check support for setting microphone gain */
+	ck_assert_rfcomm_send(fd, "\r\n+VGM=10\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.volume, 2);
+
+	/* check support for RING command */
+	ck_assert_rfcomm_send(fd, "\r\nRING\r\n");
+	usleep(5000);
+
+	ba_transport_destroy(sco);
+	close(fd);
+
+} CK_END_TEST
+
+void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
+	struct ba_transport *sco = userdata;
+	/* the test code rejects first codec selection request for mSBC */
+	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_CVSD), 0);
+	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_MSBC), -1);
+	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_MSBC), 0);
+	return NULL;
+}
+
+CK_START_TEST(test_rfcomm_hfp_ag) {
+
+	int fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+	struct ba_transport *sco = ba_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco", fds[0]);
+	const int fd = fds[1];
+
+	/* SLC initialization shall be started by the HF */
+
+	/* supported features exchange: volume, codec, eSCO */
+	ck_assert_int_eq(HFP_HF_FEAT_VOLUME | HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO, 656);
+	ck_assert_rfcomm_send(fd, "AT+BRSF=656\r");
+#ifdef ENABLE_MSBC
+	ck_assert_rfcomm_recv(fd, "\r\n+BRSF:2784\r\n");
+#else
+	ck_assert_rfcomm_recv(fd, "\r\n+BRSF:2272\r\n");
+#endif
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+#if ENABLE_MSBC
+	/* verify that AG supports codec negotiation and eSCO */
+	ck_assert_int_ne(2784 & (HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO), 0);
+	/* codec negotiation */
+	ck_assert_rfcomm_send(fd, "AT+BAC=1,2\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+#endif
+
+	/* AG indicators: retrieve supported indicators and their ordering */
+	ck_assert_rfcomm_send(fd, "AT+CIND=?\r");
+	ck_assert_rfcomm_recv(fd,
+			"\r\n+CIND:(\"service\",(0,1)),(\"call\",(0,1)),(\"callsetup\",(0-3)),"
+			"(\"callheld\",(0-2)),(\"signal\",(0-5)),(\"roam\",(0,1)),(\"battchg\",(0-5))\r\n");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+	/* AG indicators: retrieve the current status of the indicators */
+	ck_assert_rfcomm_send(fd, "AT+CIND?\r");
+	ck_assert_rfcomm_recv(fd, "\r\n+CIND:0,0,0,0,0,0,4\r\n");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+	/* enable indicator status update */
+	ck_assert_rfcomm_send(fd, "AT+CMER=3,0,0,1\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+	/* SLC has been established */
+
+	/* check support for setting microphone gain */
+	ck_assert_rfcomm_send(fd, "AT+VGM=10\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.volume, 1);
+
+	/* check vendor-specific command for microphone mute */
+	ck_assert_rfcomm_send(fd, "AT+ANDROID=XHSMICMUTE,1\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.volume, 2);
+
+	/* check support for setting speaker gain */
+	ck_assert_rfcomm_send(fd, "AT+VGS=13\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.volume, 3);
+
+#if ENABLE_MSBC
+	/* wait for codec selection */
+	ck_assert_rfcomm_recv(fd, "\r\n+BCS:2\r\n");
+	ck_assert_rfcomm_send(fd, "AT+BCS=2\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.codec, 2);
+#endif
+
+#if ENABLE_MSBC
+
+	/* use internal API to select the codec */
+	GThread *th = g_thread_new(NULL, test_rfcomm_hfp_ag_switch_codecs, sco);
+
+	ck_assert_rfcomm_recv(fd, "\r\n+BCS:1\r\n");
+	ck_assert_rfcomm_send(fd, "AT+BCS=1\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+	/* reject codec selection request */
+	ck_assert_rfcomm_recv(fd, "\r\n+BCS:2\r\n");
+	ck_assert_rfcomm_send(fd, "AT+BAC=1,2\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+	ck_assert_rfcomm_recv(fd, "\r\n+BCS:2\r\n");
+	ck_assert_rfcomm_send(fd, "AT+BCS=2\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+	g_thread_join(th);
+
+#endif
+
+	ba_transport_destroy(sco);
+	close(fd);
+
+} CK_END_TEST
+
+CK_START_TEST(test_rfcomm_hfp_hf) {
+
+	int fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+	struct ba_transport *sco = ba_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco", fds[0]);
+	const int fd = fds[1];
+
+	/* SLC initialization shall be started by the HF */
+
+	/* supported features exchange */
+#if ENABLE_MSBC
+	ck_assert_rfcomm_recv(fd, "AT+BRSF=756\r");
+#else
+	ck_assert_rfcomm_recv(fd, "AT+BRSF=628\r");
+#endif
+	ck_assert_int_eq(HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO, 2560);
+	ck_assert_rfcomm_send(fd, "\r\n+BRSF:2560\r\n");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+#if ENABLE_MSBC
+	/* verify that HF supports codec negotiation and eSCO */
+	ck_assert_int_ne(756 & (HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO), 0);
+	/* codec negotiation */
+	ck_assert_rfcomm_recv(fd, "AT+BAC=1,2\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+#endif
+
+	/* AG indicators: retrieve supported indicators and their ordering */
+	ck_assert_rfcomm_recv(fd, "AT+CIND=?\r");
+	ck_assert_rfcomm_send(fd,
+			"\r\n+CIND:(\"service\",(0,1)),(\"call\",(0,1)),(\"callsetup\",(0-3)),"
+			"(\"callheld\",(0-2)),(\"signal\",(0-5)),(\"roam\",(0,1)),(\"battchg\",(0-5))\r\n");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+	/* AG indicators: retrieve the current status of the indicators */
+	ck_assert_rfcomm_recv(fd, "AT+CIND?\r");
+	ck_assert_rfcomm_send(fd, "\r\n+CIND:0,0,0,0,0,0,4\r\n");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.battery, 1);
+
+	/* enable indicator status update */
+	ck_assert_rfcomm_recv(fd, "AT+CMER=3,0,0,1,0\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+	/* SLC has been established */
+
+	/* wait for initial microphone gain */
+	ck_assert_rfcomm_recv(fd, "AT+VGM=15\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+	/* wait for initial speaker gain */
+	ck_assert_rfcomm_recv(fd, "AT+VGS=15\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+	/* wait for initial vendor-specific battery level */
+	ck_assert_rfcomm_recv(fd, "AT+XAPL=DEAD-C0DE-1234,6\r");
+	ck_assert_rfcomm_send(fd, "\r\n+XAPL:TEST,6\r\n");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+	ck_assert_rfcomm_recv(fd, "AT+IPHONEACCEV=2,1,8,2,0\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
+#if ENABLE_MSBC
+
+	/* codec selection */
+	ck_assert_rfcomm_send(fd, "\r\n+BCS:1\r\n");
+	ck_assert_rfcomm_recv(fd, "AT+BCS=1\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.codec, 2);
+
+	/* codec selection: initial codec */
+	ck_assert_rfcomm_send(fd, "\r\n+BCS:3\r\n");
+	ck_assert_rfcomm_recv(fd, "AT+BAC=1,2\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.codec, 2);
+
+#endif
+
+	/* check support for RING command */
+	ck_assert_rfcomm_send(fd, "\r\nRING\r\n");
+	usleep(5000);
+
+	ba_transport_destroy(sco);
+	close(fd);
+
+} CK_END_TEST
+
 static uint16_t get_codec_id(struct ba_transport *t) {
 	pthread_mutex_lock(&t->codec_id_mtx);
 	uint16_t codec_id = t->codec_id;
@@ -101,10 +390,11 @@ static uint16_t get_codec_id(struct ba_transport *t) {
 	return codec_id;
 }
 
-CK_START_TEST(test_rfcomm) {
+CK_START_TEST(test_rfcomm_self_hfp_slc) {
 
-	transport_codec_updated_cnt = 0;
-	memset(adapter->hci.features, 0, sizeof(adapter->hci.features));
+	/* disable eSCO, so that codec negotiation is not performed */
+	adapter->hci.features[2] &= ~LMP_TRSP_SCO;
+	adapter->hci.features[3] &= ~LMP_ESCO;
 
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
@@ -117,14 +407,13 @@ CK_START_TEST(test_rfcomm) {
 	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
 	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
 
-	pthread_mutex_lock(&transport_codec_updated_mtx);
 	/* wait for codec selection (SLC established) signals */
-	while (transport_codec_updated_cnt < 0 + (2 + 2))
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	pthread_mutex_unlock(&transport_codec_updated_mtx);
+	dbus_update_counters_wait(&dbus_update_counters.codec, 0 + (2 + 2));
 
+	pthread_mutex_lock(&adapter->devices_mutex);
 	ck_assert_int_eq(device1->ref_count, 1 + 1);
 	ck_assert_int_eq(device2->ref_count, 1 + 1);
+	pthread_mutex_unlock(&adapter->devices_mutex);
 
 	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
 	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
@@ -139,147 +428,29 @@ CK_START_TEST(test_rfcomm) {
 	debug("Wait for asynchronous free");
 	usleep(100000);
 
+	pthread_mutex_lock(&adapter->devices_mutex);
 	ck_assert_int_eq(device1->ref_count, 1);
 	ck_assert_int_eq(device2->ref_count, 1);
+	pthread_mutex_unlock(&adapter->devices_mutex);
 
 } CK_END_TEST
 
-CK_START_TEST(test_rfcomm_esco) {
+void tc_setup(void) {
 
-	transport_codec_updated_cnt = 0;
+	config.battery.available = true;
+	config.battery.level = 80;
+
+	config.hfp.xapl_vendor_id = 0xDEAD,
+	config.hfp.xapl_product_id = 0xC0DE,
+	config.hfp.xapl_sw_version = 0x1234,
+
+	memset(adapter->hci.features, 0, sizeof(adapter->hci.features));
 	adapter->hci.features[2] = LMP_TRSP_SCO;
 	adapter->hci.features[3] = LMP_ESCO;
 
-	int fds[2];
-	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+	memset(&dbus_update_counters, 0, sizeof(dbus_update_counters));
 
-	struct ba_transport *ag = ba_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco/ag", fds[0]);
-	struct ba_transport *hf = ba_transport_new_sco(device2,
-			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco/hf", fds[1]);
-
-	ag->sco.rfcomm->link_lost_quirk = false;
-	hf->sco.rfcomm->link_lost_quirk = false;
-
-#if ENABLE_MSBC
-
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_UNDEFINED);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_UNDEFINED);
-
-	/* wait for SLC established */
-	while (ag->sco.rfcomm->state != HFP_SLC_CONNECTED)
-		usleep(10000);
-	while (hf->sco.rfcomm->state != HFP_SLC_CONNECTED)
-		usleep(10000);
-
-#else
-
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
-
-	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for codec selection (SLC establishment) signals */
-	while (transport_codec_updated_cnt < 0 + (2 + 2))
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	pthread_mutex_unlock(&transport_codec_updated_mtx);
-
-#endif
-
-	ck_assert_int_eq(device1->ref_count, 1 + 1);
-	ck_assert_int_eq(device2->ref_count, 1 + 1);
-
-#if ENABLE_MSBC
-	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 0 + (2 + 2))
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	pthread_mutex_unlock(&transport_codec_updated_mtx);
-#endif
-
-#if ENABLE_MSBC
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_MSBC);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_MSBC);
-#else
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
-#endif
-
-	debug("Audio gateway destroying");
-	ba_transport_destroy(ag);
-	debug("Hands Free destroying");
-	ba_transport_destroy(hf);
-
-	ck_assert_int_eq(device1->ref_count, 1);
-	ck_assert_int_eq(device2->ref_count, 1);
-
-} CK_END_TEST
-
-#if ENABLE_MSBC
-CK_START_TEST(test_rfcomm_set_codec) {
-
-	transport_codec_updated_cnt = 0;
-	adapter->hci.features[2] = LMP_TRSP_SCO;
-	adapter->hci.features[3] = LMP_ESCO;
-
-	int fds[2];
-	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-
-	struct ba_transport *ag = ba_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco/ag", fds[0]);
-	struct ba_transport *hf = ba_transport_new_sco(device2,
-			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco/hf", fds[1]);
-
-	ag->sco.rfcomm->link_lost_quirk = false;
-	hf->sco.rfcomm->link_lost_quirk = false;
-
-	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 0 + (2 + 2))
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	pthread_mutex_unlock(&transport_codec_updated_mtx);
-
-	/* Allow RFCOMM thread to finalize internal codec selection. This sleep is
-	 * required, because we are waiting on "codec-updated" signal which is sent
-	 * by the RFCOMM thread before the codec selection completeness signal. And
-	 * this latter signal might prematurely wake ba_transport_select_codec_sco()
-	 * function. */
-	usleep(10000);
-
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_MSBC);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_MSBC);
-
-	/* select different audio codec */
-	ck_assert_int_eq(ba_transport_select_codec_sco(ag, HFP_CODEC_CVSD), 0);
-
-	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 4 + (2 + 2))
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	pthread_mutex_unlock(&transport_codec_updated_mtx);
-
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
-
-	/* select already selected audio codec */
-	ck_assert_int_eq(ba_transport_select_codec_sco(ag, HFP_CODEC_CVSD), 0);
-
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
-
-	/* switch back audio codec */
-	ck_assert_int_eq(ba_transport_select_codec_sco(ag, HFP_CODEC_MSBC), 0);
-
-	pthread_mutex_lock(&transport_codec_updated_mtx);
-	/* wait for codec selection signals */
-	while (transport_codec_updated_cnt < 8 + (2 + 2))
-		pthread_cond_wait(&transport_codec_updated, &transport_codec_updated_mtx);
-	pthread_mutex_unlock(&transport_codec_updated_mtx);
-
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_MSBC);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_MSBC);
-
-} CK_END_TEST
-#endif
+}
 
 int main(void) {
 
@@ -297,16 +468,14 @@ int main(void) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
+	tcase_add_checked_fixture(tc, tc_setup, NULL);
 	tcase_set_timeout(tc, 10);
 
-	config.battery.available = true;
-	config.battery.level = 80;
-
-	tcase_add_test(tc, test_rfcomm);
-	tcase_add_test(tc, test_rfcomm_esco);
-#if ENABLE_MSBC
-	tcase_add_test(tc, test_rfcomm_set_codec);
-#endif
+	tcase_add_test(tc, test_rfcomm_hsp_ag);
+	tcase_add_test(tc, test_rfcomm_hsp_hs);
+	tcase_add_test(tc, test_rfcomm_hfp_ag);
+	tcase_add_test(tc, test_rfcomm_hfp_hf);
+	tcase_add_test(tc, test_rfcomm_self_hfp_slc);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

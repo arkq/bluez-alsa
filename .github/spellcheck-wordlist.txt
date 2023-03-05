@@ -119,6 +119,7 @@ BlueALSA's
 bluetoothctl
 bluetoothd
 BRSF
+BSC
 btmon
 BTRH
 BTT
