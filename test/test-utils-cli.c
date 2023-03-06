@@ -229,6 +229,11 @@ CK_START_TEST(test_codec) {
 	ck_assert_ptr_ne(strstr(output, "Selected codec: mSBC"), NULL);
 #endif
 
+	/* check selecting not available codec */
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink", "SBC",
+				NULL), EXIT_FAILURE);
+
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 

@@ -716,7 +716,12 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	}
 	else {
 
-		uint16_t codec_id = hfp_codec_id_from_string(codec_name);
+		uint16_t codec_id;
+		if ((codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED) {
+			errmsg = "HFP codec not available";
+			goto fail;
+		}
+
 		if (ba_transport_select_codec_sco(t, codec_id) == -1)
 			goto fail;
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hfp.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -28,14 +28,15 @@ static const struct {
  * Get BlueALSA HFP codec ID from string representation.
  *
  * @param alias Alias of HFP audio codec name.
- * @return BlueALSA audio codec ID or 0xFFFF if there was no match. */
+ * @return BlueALSA HFP audio codec ID or HFP_CODEC_UNDEFINED if there was no
+ *   match. */
 uint16_t hfp_codec_id_from_string(const char *alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
 					strcasecmp(codecs[i].aliases[n], alias) == 0)
 				return codecs[i].codec_id;
-	return 0xFFFF;
+	return HFP_CODEC_UNDEFINED;
 }
 
 /**
