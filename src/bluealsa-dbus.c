@@ -610,13 +610,26 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 
-		if (config.hfp.codecs.cvsd)
+		const struct ba_rfcomm *t_sco_rfcomm = t->sco.rfcomm;
+
+		/* HFP codec is selected by the AG. Because of that, HF is not aware of
+		 * AG supported codecs until the codec is actually selected. Anyway, we
+		 * will try to provide some heuristic here.
+		 * For built-in HFP profiles we will mark given codec as available, if
+		 * both AG and HF can support it. When HFP is provided by an external
+		 * application like oFono, we will mark given codec as available, if it
+		 * is enabled by our global configuration. */
+
+		if ((t_sco_rfcomm != NULL &&
+					t_sco_rfcomm->ag_codecs.cvsd && t_sco_rfcomm->hf_codecs.cvsd) ||
+				(t_sco_rfcomm == NULL && config.hfp.codecs.cvsd))
 			g_variant_builder_add(&codecs, "{sa{sv}}",
 					hfp_codec_id_to_string(HFP_CODEC_CVSD), NULL);
 
 #if ENABLE_MSBC
-		if (config.hfp.codecs.msbc &&
-				t->sco.rfcomm != NULL && t->sco.rfcomm->codecs.msbc)
+		if ((t_sco_rfcomm != NULL &&
+					t_sco_rfcomm->ag_codecs.msbc && t_sco_rfcomm->hf_codecs.msbc) ||
+				(t_sco_rfcomm == NULL && config.hfp.codecs.msbc))
 			g_variant_builder_add(&codecs, "{sa{sv}}",
 					hfp_codec_id_to_string(HFP_CODEC_MSBC), NULL);
 #endif

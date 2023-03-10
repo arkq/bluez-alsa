@@ -40,6 +40,13 @@ enum ba_rfcomm_signal {
 	BA_RFCOMM_SIGNAL_UPDATE_VOLUME,
 };
 
+struct ba_rfcomm_hfp_codecs {
+	bool cvsd;
+#if ENABLE_MSBC
+	bool msbc;
+#endif
+};
+
 /**
  * Data associated with RFCOMM communication. */
 struct ba_rfcomm {
@@ -76,18 +83,15 @@ struct ba_rfcomm {
 	/* number of failed communication attempts */
 	int retries;
 
-	/* AG supported features bitmask */
+	/* AG supported feature mask */
 	uint32_t ag_features;
-	/* HF supported features bitmask */
+	/* HF supported feature mask */
 	uint32_t hf_features;
 
-	/* HF supported HFP codecs */
-	struct {
-		bool cvsd;
-#if ENABLE_MSBC
-		bool msbc;
-#endif
-	} codecs;
+	/* AG supported codecs */
+	struct ba_rfcomm_hfp_codecs ag_codecs;
+	/* HF supported codecs */
+	struct ba_rfcomm_hfp_codecs hf_codecs;
 
 	/* HF supported codecs encoded for BAC command and BCS error response. */
 	char hf_bac_bcs_string[4];

@@ -348,8 +348,24 @@ static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	/* If codec negotiation is not supported in the HF, the AT+BAC
 	 * command will not be sent. So, we can assume default codec. */
-	if (!(r->hf_features & HFP_HF_FEAT_CODEC))
+	if (!(r->hf_features & HFP_HF_FEAT_CODEC)) {
 		ba_transport_set_codec(t_sco, HFP_CODEC_CVSD);
+		r->hf_codecs.cvsd = true;
+	}
+
+	/* If codec negotiation is not supported on our side, the AT+BAC
+	 * command will not be sent as well. In that case we will have to
+	 * use some heuristic for determining which codecs are supported. */
+	if (!(r->ag_features & HFP_AG_FEAT_CODEC)) {
+		/* Assume that mandatory codec is supported. */
+		r->hf_codecs.cvsd = true;
+#if ENABLE_MSBC
+		/* If codec selection is supported assume that
+		 * mSBC is supported as well. */
+		if (r->hf_features & HFP_HF_FEAT_CODEC)
+			r->hf_codecs.msbc = true;
+#endif
+	}
 
 	sprintf(tmp, "%u", r->ag_features);
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, "+BRSF", tmp) == -1)
@@ -377,6 +393,17 @@ static int rfcomm_handler_brsf_resp_cb(struct ba_rfcomm *r, const struct bt_at *
 	/* codec negotiation is not supported in the AG */
 	if (!(r->ag_features & HFP_AG_FEAT_CODEC))
 		ba_transport_set_codec(t_sco, HFP_CODEC_CVSD);
+
+	/* Since CVSD is a mandatory codec,
+	 * we can assume that AG supports it. */
+	r->ag_codecs.cvsd = true;
+
+#if ENABLE_MSBC
+	/* If codec selection is supported in the AG, we
+	 * can assume that mSBC is supported as well. */
+	if (r->ag_features & HFP_AG_FEAT_CODEC)
+		r->ag_codecs.msbc = true;
+#endif
 
 	if (r->state < HFP_SLC_BRSF_SET)
 		rfcomm_set_hfp_state(r, HFP_SLC_BRSF_SET);
@@ -572,10 +599,10 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	const int codec = atoi(at->value);
 	bool codec_supported = false;
 
-	if (config.hfp.codecs.cvsd && codec == HFP_CODEC_CVSD)
+	if (r->hf_codecs.cvsd && codec == HFP_CODEC_CVSD)
 		codec_supported = true;
 #ifdef ENABLE_MSBC
-	if (config.hfp.codecs.msbc && codec == HFP_CODEC_MSBC)
+	if (r->hf_codecs.msbc && codec == HFP_CODEC_MSBC)
 		codec_supported = true;
 #endif
 
@@ -605,17 +632,17 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	/* We shall use the information on codecs available in HF
 	 * from the most recently received AT+BAC command. */
-	memset(&r->codecs, 0, sizeof(r->codecs));
+	memset(&r->hf_codecs, 0, sizeof(r->hf_codecs));
 
 	do {
 		tmp += 1;
 		switch (atoi(tmp)) {
 		case HFP_CODEC_CVSD:
-			r->codecs.cvsd = true;
+			r->hf_codecs.cvsd = true;
 			break;
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
-			r->codecs.msbc = true;
+			r->hf_codecs.msbc = true;
 			break;
 #endif
 		}
@@ -968,7 +995,7 @@ static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 			r->hfp_cmer[3] > 0 && r->hfp_ind_state[HFP_IND_BATTCHG]) {
 		const unsigned int level = config.battery.level * 6 / 100;
 		sprintf(tmp, "%d,%d", HFP_IND_BATTCHG, MIN(level, 5));
-		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND", tmp);
+		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIEV", tmp);
 	}
 
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HF &&
@@ -1156,15 +1183,6 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					 * sides support the codec negotiation feature. */
 					if (r->ag_features & HFP_AG_FEAT_CODEC &&
 							r->hf_features & HFP_HF_FEAT_CODEC) {
-						char *ptr = r->hf_bac_bcs_string;
-						if (config.hfp.codecs.cvsd)
-							ptr += sprintf(ptr, "%u", HFP_CODEC_CVSD);
-#if ENABLE_MSBC
-						/* Before advertising mSBC codec, check whether the eSCO
-						 * link is supported by us. */
-						if (config.hfp.codecs.msbc && r->hf_features & HFP_HF_FEAT_ESCO)
-							ptr += sprintf(ptr, "%s%u", ptr != tmp ? "," : "", HFP_CODEC_MSBC);
-#endif
 						if (rfcomm_write_at(pfds[1].fd, AT_TYPE_CMD_SET, "+BAC", r->hf_bac_bcs_string) == -1)
 							goto ioerror;
 						r->handler = &rfcomm_handler_resp_ok;
@@ -1296,8 +1314,8 @@ setup:
 					uint16_t codec_id;
 					bool is_supported;
 				} codecs[] = {
-					{ HFP_CODEC_MSBC, config.hfp.codecs.msbc && r->codecs.msbc },
-					{ HFP_CODEC_CVSD, config.hfp.codecs.cvsd && r->codecs.cvsd },
+					{ HFP_CODEC_MSBC, r->ag_codecs.msbc && r->hf_codecs.msbc },
+					{ HFP_CODEC_CVSD, r->ag_codecs.cvsd && r->hf_codecs.cvsd },
 				};
 				for (size_t i = 0; i < ARRAYSIZE(codecs); i++) {
 					if (!codecs[i].is_supported)
@@ -1502,16 +1520,57 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 	r->sco = ba_transport_ref(sco);
 	r->link_lost_quirk = true;
 
-	/* Initialize HFP feature bitmasks. The value for the remote device will
-	 * be updated during the service level connection establishment. */
-	r->ag_features = ba_adapter_get_hfp_features_ag(sco->d->a);
-	r->hf_features = ba_adapter_get_hfp_features_hf(sco->d->a);
+	/* Initialize HFP feature masks and codec flags. Values for the remote
+	 * device will be set during the SLC establishment. */
 
-	/* initialize data used for synchronization */
+	if (sco->profile & BA_TRANSPORT_PROFILE_HFP_AG)
+		r->ag_features = ba_adapter_get_hfp_features_ag(sco->d->a);
+	if (sco->profile & BA_TRANSPORT_PROFILE_HFP_HF)
+		r->hf_features = ba_adapter_get_hfp_features_hf(sco->d->a);
+
+	/* HSP does not support codec negotiation, so we can set the codec
+	 * flag right away. */
+	if (sco->profile & BA_TRANSPORT_PROFILE_MASK_HSP) {
+		r->ag_codecs.cvsd = true;
+		r->hf_codecs.cvsd = true;
+	}
+
+	if (sco->profile & BA_TRANSPORT_PROFILE_HFP_AG) {
+		if (config.hfp.codecs.cvsd)
+			r->ag_codecs.cvsd = true;
+#if ENABLE_MSBC
+		if (config.hfp.codecs.msbc && r->ag_features & HFP_AG_FEAT_ESCO)
+			r->ag_codecs.msbc = true;
+#endif
+	}
+
+	if (sco->profile & BA_TRANSPORT_PROFILE_HFP_HF) {
+
+		char *ptr = r->hf_bac_bcs_string;
+
+		if (config.hfp.codecs.cvsd) {
+			ptr += sprintf(ptr, "%u", HFP_CODEC_CVSD);
+			r->hf_codecs.cvsd = true;
+		}
+
+#if ENABLE_MSBC
+		if (config.hfp.codecs.msbc && r->hf_features & HFP_HF_FEAT_ESCO) {
+			const bool first = ptr == r->hf_bac_bcs_string;
+			ptr += sprintf(ptr, "%s%u", first ? "" : ",", HFP_CODEC_MSBC);
+			r->hf_codecs.msbc = true;
+		}
+#endif
+
+	}
+
+	/* By default, all indicators are enabled. */
+	memset(&r->hfp_ind_state, 1, sizeof(r->hfp_ind_state));
+
+	/* Initialize data used for volume gain synchronization. */
 	r->gain_mic = ba_transport_pcm_volume_level_to_bt(
-			&r->sco->sco.mic_pcm, r->sco->sco.mic_pcm.volume[0].level);
+			&sco->sco.mic_pcm, sco->sco.mic_pcm.volume[0].level);
 	r->gain_spk = ba_transport_pcm_volume_level_to_bt(
-			&r->sco->sco.spk_pcm, r->sco->sco.spk_pcm.volume[0].level);
+			&sco->sco.spk_pcm, sco->sco.spk_pcm.volume[0].level);
 
 	if (pipe(r->sig_fd) == -1)
 		goto fail;

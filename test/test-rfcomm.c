@@ -142,7 +142,7 @@ CK_START_TEST(test_rfcomm_hsp_ag) {
 	ck_assert_rfcomm_recv(fd, "\r\nERROR\r\n");
 
 	/* check vendor-specific command for battery level notification */
-	ck_assert_rfcomm_send(fd, "AT+IPHONEACCEV=1,1,8\r");
+	ck_assert_rfcomm_send(fd, "AT+IPHONEACCEV=2,1,8,2,1\r");
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 	dbus_update_counters_wait(&dbus_update_counters.battery, 1);
 
@@ -191,7 +191,8 @@ CK_START_TEST(test_rfcomm_hsp_hs) {
 
 } CK_END_TEST
 
-void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
+#if ENABLE_MSBC
+static void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
 	struct ba_transport *sco = userdata;
 	/* the test code rejects first codec selection request for mSBC */
 	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_CVSD), 0);
@@ -199,6 +200,7 @@ void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
 	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_MSBC), 0);
 	return NULL;
 }
+#endif
 
 CK_START_TEST(test_rfcomm_hfp_ag) {
 
@@ -256,6 +258,10 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 	dbus_update_counters_wait(&dbus_update_counters.volume, 2);
 
+	/* check vendor-specific command for ... */
+	ck_assert_rfcomm_send(fd, "AT+ANDROID=BOOM\r");
+	ck_assert_rfcomm_recv(fd, "\r\nERROR\r\n");
+
 	/* check support for setting speaker gain */
 	ck_assert_rfcomm_send(fd, "AT+VGS=13\r");
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
@@ -290,6 +296,28 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	g_thread_join(th);
 
 #endif
+
+	config.battery.level = 100;
+	/* use internal API to update battery level */
+	ba_rfcomm_send_signal(sco->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_BATTERY);
+	ck_assert_rfcomm_recv(fd, "\r\n+CIEV:7,5\r\n");
+
+	/* disable all indicators */
+	ck_assert_rfcomm_send(fd, "AT+BIA=0,0,0,0,0,0,0,0,0,0\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
+
+	/* battery level indicator shall not be reported */
+	ba_rfcomm_send_signal(sco->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_BATTERY);
+	ck_assert_rfcomm_recv(fd, "");
+
+	const int level = -1000;
+	struct ba_transport_pcm *pcm = &sco->sco.spk_pcm;
+	pthread_mutex_lock(&pcm->mutex);
+	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
+	pthread_mutex_unlock(&pcm->mutex);
+	/* use internal API to update volume */
+	ba_transport_pcm_volume_update(pcm);
+	ck_assert_rfcomm_recv(fd, "\r\n+VGS=7\r\n");
 
 	ba_transport_destroy(sco);
 	close(fd);
@@ -342,6 +370,12 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
 
 	/* SLC has been established */
+
+	/* report service, current signal strength and battery level */
+	ck_assert_rfcomm_send(fd, "\r\n+CIEV:1,1\r\n");
+	ck_assert_rfcomm_send(fd, "\r\n+CIEV:5,4\r\n");
+	ck_assert_rfcomm_send(fd, "\r\n+CIEV:7,5\r\n");
+	dbus_update_counters_wait(&dbus_update_counters.battery, 2);
 
 	/* wait for initial microphone gain */
 	ck_assert_rfcomm_recv(fd, "AT+VGM=15\r");
