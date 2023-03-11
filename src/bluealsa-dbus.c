@@ -201,12 +201,16 @@ static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
 }
 
 static GVariant *ba_variant_new_rfcomm_features(const struct ba_rfcomm *r) {
+
+	const char *strv[32];
+	size_t n = 0;
+
 	if (r->sco->profile & BA_TRANSPORT_PROFILE_HFP_AG)
-		return g_variant_new_uint32(r->hf_features);
+		n = hfp_hf_features_to_strings(r->hf_features, strv, ARRAYSIZE(strv));
 	if (r->sco->profile & BA_TRANSPORT_PROFILE_HFP_HF)
-		return g_variant_new_uint32(r->ag_features);
-	/* HSP does not support RFCOMM features */
-	return g_variant_new_uint32(0);
+		n = hfp_ag_features_to_strings(r->ag_features, strv, ARRAYSIZE(strv));
+
+	return g_variant_new_strv(strv, n);
 }
 
 static GVariant *ba_variant_new_pcm_mode(const struct ba_transport_pcm *pcm) {

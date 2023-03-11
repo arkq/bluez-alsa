@@ -14,6 +14,7 @@
 #define BLUEALSA_HFP_H_
 
 #include <stdint.h>
+#include <sys/types.h>
 
 /* HFP codec IDs */
 #define HFP_CODEC_UNDEFINED 0x00
@@ -142,6 +143,9 @@ enum __attribute__ ((packed)) hfp_ind {
 #define HFP_IND_ROAM_NONE           0
 /* a roaming is active */
 #define HFP_IND_ROAM_ACTIVE         1
+
+ssize_t hfp_ag_features_to_strings(uint32_t features, const char **out, size_t size);
+ssize_t hfp_hf_features_to_strings(uint32_t features, const char **out, size_t size);
 
 uint16_t hfp_codec_id_from_string(const char *alias);
 const char *hfp_codec_id_to_string(uint16_t codec_id);

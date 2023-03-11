@@ -168,10 +168,9 @@ Properties      string Transport [readonly]
                         Possible values: "HFP-AG", "HFP-HF", "HSP-AG" or
                                          "HSP-HS"
 
-                uint32 Features [readonly]
+                array{string} Features [readonly]
 
-                        HFP feature bitmask. Note, that this value depends on
-                        the connection mode.
+                        List of features supported by the remote device.
 
                 byte Battery [readonly]
 

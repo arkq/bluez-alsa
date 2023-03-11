@@ -194,7 +194,7 @@ static const GDBusPropertyInfo bluealsa_iface_rfcomm_Transport = {
 };
 
 static const GDBusPropertyInfo bluealsa_iface_rfcomm_Features = {
-	-1, "Features", "u", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
+	-1, "Features", "as", G_DBUS_PROPERTY_INFO_FLAGS_READABLE, NULL
 };
 
 static const GDBusPropertyInfo bluealsa_iface_rfcomm_Battery = {

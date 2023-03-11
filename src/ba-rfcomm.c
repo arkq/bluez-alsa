@@ -309,6 +309,30 @@ static int rfcomm_handler_bia_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 	return 0;
 }
 
+#if !DEBUG
+# define debug_ag_features(features)
+#else
+static void debug_ag_features(uint32_t features) {
+	const char *names[32] = { NULL };
+	hfp_ag_features_to_strings(features, names, ARRAYSIZE(names));
+	char *tmp = g_strjoinv(", ", (char **)names);
+	debug("AG features [%u]: %s", features, tmp);
+	g_free(tmp);
+}
+#endif
+
+#if !DEBUG
+# define debug_hf_features(features)
+#else
+static void debug_hf_features(uint32_t features) {
+	const char *names[32] = { NULL };
+	hfp_hf_features_to_strings(features, names, ARRAYSIZE(names));
+	char *tmp = g_strjoinv(", ", (char **)names);
+	debug("HF features [%u]: %s", features, tmp);
+	g_free(tmp);
+}
+#endif
+
 /**
  * SET: Bluetooth Retrieve Supported Features */
 static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
@@ -318,6 +342,9 @@ static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 	char tmp[16];
 
 	r->hf_features = atoi(at->value);
+
+	debug_ag_features(r->ag_features);
+	debug_hf_features(r->hf_features);
 
 	/* If codec negotiation is not supported in the HF, the AT+BAC
 	 * command will not be sent. So, we can assume default codec. */
@@ -341,7 +368,11 @@ static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_brsf_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
+
 	r->ag_features = atoi(at->value);
+
+	debug_ag_features(r->ag_features);
+	debug_hf_features(r->hf_features);
 
 	/* codec negotiation is not supported in the AG */
 	if (!(r->ag_features & HFP_AG_FEAT_CODEC))
