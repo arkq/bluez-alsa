@@ -103,6 +103,18 @@ struct ba_service_props {
 };
 
 /**
+ * BlueALSA RFCOMM property object. */
+struct ba_rfcomm_props {
+	/* BlueALSA transport type */
+	char transport[7];
+	/* remote device supported features */
+	char **features;
+	size_t features_len;
+	/* remote device battery level */
+	int battery;
+};
+
+/**
  * BlueALSA PCM object property. */
 enum ba_pcm_property {
 	BLUEALSA_PCM_SOFT_VOLUME,
@@ -215,6 +227,15 @@ dbus_bool_t bluealsa_dbus_get_props(
 
 void bluealsa_dbus_props_free(
 		struct ba_service_props *props);
+
+dbus_bool_t bluealsa_dbus_get_rfcomm_props(
+		struct ba_dbus_ctx *ctx,
+		const char *rfcomm_path,
+		struct ba_rfcomm_props *props,
+		DBusError *error);
+
+void bluealsa_dbus_rfcomm_props_free(
+		struct ba_rfcomm_props *props);
 
 dbus_bool_t bluealsa_dbus_get_pcms(
 		struct ba_dbus_ctx *ctx,

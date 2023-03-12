@@ -6,7 +6,7 @@ bluealsa-rfcomm
 a simple RFCOMM terminal for bluealsa
 -------------------------------------
 
-:Date: January 2023
+:Date: March 2023
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -36,6 +36,9 @@ OPTIONS
 -B NAME, --dbus=NAME
     BlueALSA service name suffix. For more information see ``--dbus``
     option of ``bluealsa(8)`` service daemon.
+
+-p, --properties
+    Print the properties of the given *DEVICE-PATH*
 
 EXAMPLES
 ========

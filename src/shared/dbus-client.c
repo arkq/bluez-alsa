@@ -240,9 +240,55 @@ dbus_bool_t bluealsa_dbus_connection_poll_dispatch(
 	return rv;
 }
 
+static dbus_bool_t bluealsa_dbus_props_get_all(
+		struct ba_dbus_ctx *ctx,
+		const char *path,
+		const char *interface,
+		DBusError *error,
+		dbus_bool_t (*cb)(const char *key, DBusMessageIter *val, void *data, DBusError *err),
+		void *userdata) {
+
+	DBusMessage *msg = NULL, *rep = NULL;
+	dbus_bool_t rv = FALSE;
+
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, path,
+					DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	dbus_message_iter_init_append(msg, &iter);
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface)) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
+		goto fail;
+
+	if (!dbus_message_iter_init(rep, &iter)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE, "Empty response message");
+		goto fail;
+	}
+
+	if (!bluealsa_dbus_message_iter_dict(&iter, error, cb, userdata))
+		goto fail;
+
+	rv = TRUE;
+
+fail:
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	return rv;
+}
+
 /**
- * Callback function for BlueALSA service properties parser. */
-static dbus_bool_t bluealsa_dbus_message_iter_get_props_cb(const char *key,
+ * Callback function for manager object properties parser. */
+static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char *key,
 		DBusMessageIter *value, void *userdata, DBusError *error) {
 	struct ba_service_props *props = (struct ba_service_props *)userdata;
 
@@ -335,49 +381,14 @@ dbus_bool_t bluealsa_dbus_get_props(
 		struct ba_service_props *props,
 		DBusError *error) {
 
-	static const char *interface = BLUEALSA_INTERFACE_MANAGER;
-	DBusMessage *msg = NULL, *rep = NULL;
-	dbus_bool_t rv = FALSE;
-
 	props->profiles = NULL;
 	props->profiles_len = 0;
 	props->codecs = NULL;
 	props->codecs_len = 0;
 
-	if ((msg = dbus_message_new_method_call(ctx->ba_service, "/org/bluealsa",
-					DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	DBusMessageIter iter;
-	dbus_message_iter_init_append(msg, &iter);
-	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
-		goto fail;
-
-	if (!dbus_message_iter_init(rep, &iter)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE, "Empty response message");
-		goto fail;
-	}
-
-	if (!bluealsa_dbus_message_iter_dict(&iter, error,
-				bluealsa_dbus_message_iter_get_props_cb, props))
-		goto fail;
-
-	rv = TRUE;
-
-fail:
-	if (rep != NULL)
-		dbus_message_unref(rep);
-	if (msg != NULL)
-		dbus_message_unref(msg);
-	return rv;
+	return bluealsa_dbus_props_get_all(ctx,
+			"/org/bluealsa", BLUEALSA_INTERFACE_MANAGER, error,
+			bluealsa_dbus_message_iter_get_manager_props_cb, props);
 }
 
 /**
@@ -395,6 +406,101 @@ void bluealsa_dbus_props_free(
 			free(props->codecs[i]);
 		free(props->codecs);
 		props->codecs = NULL;
+	}
+}
+
+/**
+ * Callback function for rfcomm object properties parser. */
+static dbus_bool_t bluealsa_dbus_message_iter_get_rfcomm_props_cb(const char *key,
+		DBusMessageIter *value, void *userdata, DBusError *error) {
+	struct ba_rfcomm_props *props = (struct ba_rfcomm_props *)userdata;
+
+	char type;
+	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		return FALSE;
+	}
+
+	DBusMessageIter variant;
+	dbus_message_iter_recurse(value, &variant);
+	type = dbus_message_iter_get_arg_type(&variant);
+
+	char type_expected;
+
+	if (strcmp(key, "Transport") == 0) {
+
+		if (type != (type_expected = DBUS_TYPE_STRING))
+			goto fail;
+
+		const char *tmp;
+		dbus_message_iter_get_basic(&variant, &tmp);
+		strncpy(props->transport, tmp, sizeof(props->transport) - 1);
+
+	}
+	else if (strcmp(key, "Features") == 0) {
+
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+
+		const char *tmp[32];
+		size_t length = ARRAYSIZE(tmp);
+		if (!bluealsa_dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
+			return FALSE;
+
+		props->features = malloc(length * sizeof(*props->features));
+		props->features_len = MIN(length, ARRAYSIZE(tmp));
+		for (size_t i = 0; i < length; i++)
+			props->features[i] = strdup(tmp[i]);
+
+	}
+	else if (strcmp(key, "Battery") == 0) {
+
+		if (type != (type_expected = DBUS_TYPE_BYTE))
+			goto fail;
+
+		signed char level;
+		dbus_message_iter_get_basic(&variant, &level);
+		props->battery = level;
+
+	}
+
+	return TRUE;
+
+fail:
+	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
+			"Incorrect variant for '%s': %c != %c", key, type, type_expected);
+	return FALSE;
+}
+
+/**
+ * Get properties of BlueALSA RFCOMM object.
+ *
+ * This function allocates resources within the properties structure, which
+ * shall be freed with the bluealsa_dbus_rfcomm_props_free() function. */
+dbus_bool_t bluealsa_dbus_get_rfcomm_props(
+		struct ba_dbus_ctx *ctx,
+		const char *rfcomm_path,
+		struct ba_rfcomm_props *props,
+		DBusError *error) {
+
+	props->features = NULL;
+	props->features_len = 0;
+
+	return bluealsa_dbus_props_get_all(ctx,
+			rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, error,
+			bluealsa_dbus_message_iter_get_rfcomm_props_cb, props);
+}
+
+/**
+ * Free BlueALSA RFCOMM properties structure. */
+void bluealsa_dbus_rfcomm_props_free(
+		struct ba_rfcomm_props *props) {
+	if (props->features != NULL) {
+		for (size_t i = 0; i < props->features_len; i++)
+			free(props->features[i]);
+		free(props->features);
+		props->features = NULL;
 	}
 }
 
