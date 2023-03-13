@@ -1028,7 +1028,8 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 
 	/* for AG return unsolicited response code */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
-		sprintf(tmp, "+VGM=%d", gain);
+		bool is_hsp = t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HSP;
+		sprintf(tmp, "+VGM%c%d", is_hsp ? '=' : ':', gain);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
 	}
 
@@ -1058,7 +1059,8 @@ static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 
 	/* for AG return unsolicited response code */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
-		sprintf(tmp, "+VGS=%d", gain);
+		bool is_hsp = t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HSP;
+		sprintf(tmp, "+VGS%c%d", is_hsp ? '=' : ':', gain);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, tmp);
 	}
 
