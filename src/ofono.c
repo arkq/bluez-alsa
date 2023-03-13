@@ -54,7 +54,8 @@
 struct ofono_card_data {
 	int hci_dev_id;
 	bdaddr_t bt_addr;
-	char transport_path[32];
+	/* object path of a modem associated with this card */
+	char modem_path[64];
 };
 
 static GHashTable *ofono_card_data_map = NULL;
@@ -190,7 +191,7 @@ static struct ba_transport *ofono_transport_lookup(const char *card) {
 		goto fail;
 	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
 		goto fail;
-	if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
+	if ((t = ba_transport_lookup(d, ocd->modem_path)) == NULL)
 		goto fail;
 
 fail:
@@ -199,6 +200,75 @@ fail:
 	if (d != NULL)
 		ba_device_unref(d);
 	return t;
+}
+
+/**
+ * Link oFono card with HFP modem. */
+static int ofono_card_link_modem_hfp(struct ofono_card_data *ocd) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+	int ret = -1;
+
+	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
+			OFONO_IFACE_MANAGER, "GetModems");
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+	GVariant *body = g_dbus_message_get_body(rep);
+
+	GVariantIter *modems;
+	GVariantIter *properties;
+	const char *modem;
+
+	g_variant_get(body, "(a(oa{sv}))", &modems);
+	while (g_variant_iter_next(modems, "(&oa{sv})", &modem, &properties)) {
+
+		bdaddr_t bt_addr = { 0 };
+		bool is_hfp = false;
+		const char *key;
+		GVariant *value;
+
+		while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
+			if (strcmp(key, "Serial") == 0)
+				str2ba(g_variant_get_string(value, NULL), &bt_addr);
+			else if (strcmp(key, "Type") == 0)
+				is_hfp = strcmp(g_variant_get_string(value, NULL), "hfp") == 0;
+			g_variant_unref(value);
+		}
+
+		g_variant_iter_free(properties);
+
+		if (is_hfp && bacmp(&bt_addr, &ocd->bt_addr) == 0) {
+			debug("Linking oFono card with modem: %s", modem);
+			strncpy(ocd->modem_path, modem, sizeof(ocd->modem_path) - 1);
+			ocd->modem_path[sizeof(ocd->modem_path) - 1] = '\0';
+			ret = 0;
+			break;
+		}
+
+	}
+
+	g_variant_iter_free(modems);
+
+fail:
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't get oFono modems: %s", err->message);
+		g_error_free(err);
+	}
+
+	return ret;
 }
 
 /**
@@ -260,9 +330,13 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	ocd->hci_dev_id = hci_dev_id;
 	ocd->bt_addr = addr_dev;
-	snprintf(ocd->transport_path, sizeof(ocd->transport_path), "/ofono%s", card);
 
-	if ((t = ofono_transport_new(d, profile, dbus_sender, ocd->transport_path)) == NULL) {
+	if (ofono_card_link_modem_hfp(ocd) == -1) {
+		error("Couldn't link oFono card with modem: %s", card);
+		goto fail;
+	}
+
+	if ((t = ofono_transport_new(d, profile, dbus_sender, ocd->modem_path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -306,13 +380,16 @@ static int ofono_get_all_cards(void) {
 	GVariant *body = g_dbus_message_get_body(rep);
 
 	GVariantIter *cards;
-	GVariantIter *properties = NULL;
+	GVariantIter *properties;
 	const char *card;
 
 	g_variant_get(body, "(a(oa{sv}))", &cards);
-	while (g_variant_iter_next(cards, "(&oa{sv})", &card, &properties))
+	while (g_variant_iter_next(cards, "(&oa{sv})", &card, &properties)) {
 		ofono_card_add(sender, card, properties);
+		g_variant_iter_free(properties);
+	}
 
+	g_variant_iter_free(cards);
 	goto final;
 
 fail:
@@ -349,7 +426,7 @@ static void ofono_remove_all_cards(void) {
 			goto fail;
 		if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
 			goto fail;
-		if ((t = ba_transport_lookup(d, ocd->transport_path)) == NULL)
+		if ((t = ba_transport_lookup(d, ocd->modem_path)) == NULL)
 			goto fail;
 
 		ba_transport_destroy(t);

@@ -594,5 +594,8 @@ int main(int argc, char **argv) {
 	for (size_t i = 0; i < ARRAYSIZE(config.adapters); i++)
 		ba_adapter_destroy(config.adapters[i]);
 
+	g_main_loop_unref(loop);
+	g_free(address);
+
 	return retval;
 }
