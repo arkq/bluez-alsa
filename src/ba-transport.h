@@ -179,6 +179,13 @@ int ba_transport_thread_state_set(
 #define ba_transport_thread_state_set_stopping(th) \
 	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_STOPPING)
 
+bool ba_transport_thread_state_check(
+		struct ba_transport_thread *th,
+		enum ba_transport_thread_state state);
+
+#define ba_transport_thread_state_check_terminated(th) \
+	ba_transport_thread_state_check(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
+
 int ba_transport_thread_state_wait(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_state state);

@@ -365,6 +365,17 @@ int ba_transport_thread_state_set(
 }
 
 /**
+ * Check if transport thread is in given state. */
+bool ba_transport_thread_state_check(
+		struct ba_transport_thread *th,
+		enum ba_transport_thread_state state) {
+	pthread_mutex_lock(&th->mutex);
+	bool ok = th->state == state;
+	pthread_mutex_unlock(&th->mutex);
+	return ok;
+}
+
+/**
  * Wait until transport thread reaches given state. */
 int ba_transport_thread_state_wait(
 		struct ba_transport_thread *th,
@@ -1523,6 +1534,10 @@ int ba_transport_start(struct ba_transport *t) {
  * This function waits for transport IO threads termination. It is not safe
  * to call it from IO thread itself - it will cause deadlock! */
 int ba_transport_stop(struct ba_transport *t) {
+
+	if (ba_transport_thread_state_check_terminated(&t->thread_enc) &&
+			ba_transport_thread_state_check_terminated(&t->thread_dec))
+		return 0;
 
 	ba_transport_thread_state_set_stopping(&t->thread_enc);
 	ba_transport_thread_state_set_stopping(&t->thread_dec);
