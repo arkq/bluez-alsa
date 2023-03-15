@@ -321,7 +321,7 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 
 		if ((size_t)len == buffer.nmemb * buffer.size) {
 			debug("Resizing CVSD read buffer: %zd -> %zd",
-					buffer.nmemb * buffer.size, buffer.nmemb * buffer.size * 2);
+					buffer.nmemb * buffer.size, buffer.nmemb * 2 * buffer.size);
 			if (ffb_init_int16_t(&buffer, buffer.nmemb * 2) == -1)
 				error("Couldn't resize CVSD read buffer: %s", strerror(errno));
 		}
@@ -329,12 +329,20 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 		if (!ba_transport_pcm_is_active(t_pcm))
 			continue;
 
-		ssize_t samples = len / sizeof(int16_t);
+		if (len > 0)
+			ffb_seek(&buffer, len / buffer.size);
+
+		ssize_t samples;
+		if ((samples = ffb_len_out(&buffer)) <= 0)
+			continue;
+
 		io_pcm_scale(t_pcm, buffer.data, samples);
 		if ((samples = io_pcm_write(t_pcm, buffer.data, samples)) == -1)
 			error("FIFO write error: %s", strerror(errno));
 		else if (samples == 0)
 			ba_transport_stop_if_no_clients(t);
+
+		ffb_shift(&buffer, samples);
 
 	}
 
@@ -457,7 +465,8 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 		if (!ba_transport_pcm_is_active(t_pcm))
 			continue;
 
-		ffb_seek(&msbc.data, len);
+		if (len > 0)
+			ffb_seek(&msbc.data, len);
 
 		int err;
 		if ((err = msbc_decode(&msbc)) < 0) {
