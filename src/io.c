@@ -45,6 +45,7 @@ ssize_t io_bt_read(
 	if (ret == -1 && (
 				errno == ECONNABORTED ||
 				errno == ECONNRESET ||
+				errno == ENOTCONN ||
 				errno == ETIMEDOUT)) {
 		error("BT socket disconnected: %s", strerror(errno));
 		ret = 0;
