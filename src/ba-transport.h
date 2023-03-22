@@ -386,6 +386,8 @@ int ba_transport_select_codec_sco(
 		struct ba_transport *t,
 		uint16_t codec_id);
 
+uint16_t ba_transport_get_codec(
+		struct ba_transport *t);
 void ba_transport_set_codec(
 		struct ba_transport *t,
 		uint16_t codec_id);

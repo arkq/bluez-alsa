@@ -525,14 +525,24 @@ static int rfcomm_handler_btrh_get_cb(struct ba_rfcomm *r, const struct bt_at *a
 	return 0;
 }
 
+#if ENABLE_MSBC
+static int rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r);
+#endif
+
 /**
  * SET: Bluetooth Codec Connection */
 static int rfcomm_handler_bcc_cmd_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
 	const int fd = r->fd;
-	/* TODO: Start Codec Connection procedure because HF wants to send audio. */
+#if ENABLE_MSBC
+	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
+		return -1;
+	if (rfcomm_hfp_setup_codec_connection(r) == -1)
+		return -1;
+#else
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR") == -1)
 		return -1;
+#endif
 	return 0;
 }
 
@@ -948,9 +958,10 @@ static enum ba_rfcomm_signal rfcomm_recv_signal(struct ba_rfcomm *r) {
 }
 
 #if ENABLE_MSBC
+
 /**
- * Try to setup HFP codec connection. */
-static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
+ * Set HFP codec for the given Service Level Connection. */
+static int rfcomm_hfp_set_codec(struct ba_rfcomm *r, uint16_t codec) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
@@ -960,29 +971,72 @@ static int rfcomm_set_hfp_codec(struct ba_rfcomm *r, uint16_t codec) {
 			ba_transport_debug_name(t_sco),
 			hfp_codec_id_to_string(codec));
 
-	/* Codec selection can be requested only after SLC establishment. */
+	/* SLC is required for codec connection */
 	if (r->state != HFP_SLC_CONNECTED)
-		goto final;
+		goto fail;
 
-	/* for AG request codec selection using unsolicited response code */
-	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG) {
+	/* only AG can set codec */
+	if (!(t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG))
+		goto fail;
 
-		char tmp[16];
-		sprintf(tmp, "%d", codec);
-		if ((rv = rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp)) == -1)
-			goto final;
+	char tmp[16];
+	sprintf(tmp, "%d", codec);
+	if ((rv = rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp)) == -1)
+		goto fail;
 
-		r->codec = codec;
-		r->handler = &rfcomm_handler_bcs_set;
-		return 0;
-	}
+	r->codec = codec;
+	r->handler = &rfcomm_handler_bcs_set;
+	return 0;
 
-	/* TODO: Send codec connection initialization request to AG. */
-
-final:
+fail:
 	rfcomm_finalize_codec_selection(r);
 	return rv;
 }
+
+/**
+ * Try to setup HFP codec connection. */
+static int rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r) {
+
+	struct {
+		uint16_t codec_id;
+		bool is_supported;
+	} codecs[] = {
+		{ HFP_CODEC_MSBC, r->ag_codecs.msbc && r->hf_codecs.msbc },
+		{ HFP_CODEC_CVSD, r->ag_codecs.cvsd && r->hf_codecs.cvsd },
+	};
+
+	struct ba_transport * const t_sco = r->sco;
+	const int fd = r->fd;
+	int rv;
+
+	/* SLC is required for codec connection */
+	if (r->state != HFP_SLC_CONNECTED)
+		return 0;
+
+	/* nothing to do if codec is already selected */
+	if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED)
+		return 0;
+
+	/* Only AG can initialize codec connection. So, for HF we need to request
+	 * codec selection from AG by sending AT+BCC command. */
+	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_HF) {
+		if ((rv = rfcomm_write_at(fd, AT_TYPE_CMD, "+BCC", NULL)) == -1)
+			return -1;
+		r->handler = &rfcomm_handler_resp_ok;
+		return 0;
+	}
+
+	for (size_t i = 0; i < ARRAYSIZE(codecs); i++) {
+		if (!codecs[i].is_supported)
+			continue;
+		if ((rv = rfcomm_hfp_set_codec(r, codecs[i].codec_id)) == -1)
+			return -1;
+		break;
+	}
+
+	return 0;
+}
+
 #endif
 
 /**
@@ -992,6 +1046,9 @@ static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
 	char tmp[32];
+
+	if (!config.battery.available)
+		return 0;
 
 	/* for HFP-AG return battery level indicator if reporting is enabled */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
@@ -1227,7 +1284,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 				case HFP_SLC_CONNECTED:
 					/* If codec was selected during the SLC establishment,
 					 * notify BlueALSA D-Bus clients about the change. */
-					if (t_sco->codec_id != HFP_CODEC_UNDEFINED) {
+					if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
 						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
@@ -1252,7 +1309,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 				case HFP_SLC_CONNECTED:
 					/* If codec was selected during the SLC establishment,
 					 * notify BlueALSA D-Bus clients about the change. */
-					if (t_sco->codec_id != HFP_CODEC_UNDEFINED) {
+					if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
 						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
@@ -1294,10 +1351,20 @@ setup:
 					r->setup++;
 					break;
 				case HFP_SETUP_ACCESSORY_BATT:
-					if (config.battery.available &&
-							rfcomm_notify_battery_level_change(r) == -1)
+					if (rfcomm_notify_battery_level_change(r) == -1)
 						goto ioerror;
 					r->setup++;
+					break;
+				case HFP_SETUP_SELECT_CODEC:
+#if ENABLE_MSBC
+					if (r->idle) {
+						if (rfcomm_hfp_setup_codec_connection(r) == -1)
+							goto ioerror;
+						r->setup++;
+					}
+#else
+					r->setup++;
+#endif
 					/* fall-through */
 				case HFP_SETUP_COMPLETE:
 					debug("Initial connection setup completed");
@@ -1306,29 +1373,16 @@ setup:
 			/* If HFP transport codec is already selected (e.g. device
 			 * does not support mSBC) mark setup as completed. */
 			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-					t_sco->codec_id != HFP_CODEC_UNDEFINED)
+					ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED)
 				r->setup = HFP_SETUP_COMPLETE;
 
 #if ENABLE_MSBC
 			/* Select HFP transport codec. Please note, that this setup
 			 * stage will be performed when the connection becomes idle. */
 			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-					t_sco->codec_id == HFP_CODEC_UNDEFINED &&
 					r->idle) {
-				struct {
-					uint16_t codec_id;
-					bool is_supported;
-				} codecs[] = {
-					{ HFP_CODEC_MSBC, r->ag_codecs.msbc && r->hf_codecs.msbc },
-					{ HFP_CODEC_CVSD, r->ag_codecs.cvsd && r->hf_codecs.cvsd },
-				};
-				for (size_t i = 0; i < ARRAYSIZE(codecs); i++) {
-					if (!codecs[i].is_supported)
-						continue;
-					if (rfcomm_set_hfp_codec(r, codecs[i].codec_id) == -1)
-						goto ioerror;
-					break;
-				}
+				if (rfcomm_hfp_setup_codec_connection(r) == -1)
+					goto ioerror;
 				r->setup = HFP_SETUP_COMPLETE;
 			}
 #endif
@@ -1377,7 +1431,7 @@ process:
 							r->ag_features & HFP_AG_FEAT_CODEC &&
 							r->hf_features & HFP_HF_FEAT_CODEC))
 					rfcomm_finalize_codec_selection(r);
-				else if (rfcomm_set_hfp_codec(r, HFP_CODEC_CVSD) == -1)
+				else if (rfcomm_hfp_set_codec(r, HFP_CODEC_CVSD) == -1)
 					goto ioerror;
 				break;
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC:
@@ -1387,7 +1441,7 @@ process:
 							r->hf_features & HFP_HF_FEAT_CODEC &&
 							r->hf_features & HFP_HF_FEAT_ESCO))
 					rfcomm_finalize_codec_selection(r);
-				else if (rfcomm_set_hfp_codec(r, HFP_CODEC_MSBC) == -1)
+				else if (rfcomm_hfp_set_codec(r, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
 				break;
 #endif

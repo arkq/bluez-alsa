@@ -268,6 +268,9 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	dbus_update_counters_wait(&dbus_update_counters.volume, 3);
 
 #if ENABLE_MSBC
+	/* request codec connection setup */
+	ck_assert_rfcomm_send(fd, "AT+BCC\r");
+	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 	/* wait for codec selection */
 	ck_assert_rfcomm_recv(fd, "\r\n+BCS:2\r\n");
 	ck_assert_rfcomm_send(fd, "AT+BCS=2\r");
@@ -394,6 +397,10 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 
 #if ENABLE_MSBC
 
+	/* wait for codec selection request */
+	ck_assert_rfcomm_recv(fd, "AT+BCC\r");
+	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
+
 	/* codec selection */
 	ck_assert_rfcomm_send(fd, "\r\n+BCS:1\r\n");
 	ck_assert_rfcomm_recv(fd, "AT+BCS=1\r");
@@ -417,13 +424,6 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 
 } CK_END_TEST
 
-static uint16_t get_codec_id(struct ba_transport *t) {
-	pthread_mutex_lock(&t->codec_id_mtx);
-	uint16_t codec_id = t->codec_id;
-	pthread_mutex_unlock(&t->codec_id_mtx);
-	return codec_id;
-}
-
 CK_START_TEST(test_rfcomm_self_hfp_slc) {
 
 	/* disable eSCO, so that codec negotiation is not performed */
@@ -438,8 +438,8 @@ CK_START_TEST(test_rfcomm_self_hfp_slc) {
 	struct ba_transport *hf = ba_transport_new_sco(device2,
 			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco/hf", fds[1]);
 
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
+	ck_assert_int_eq(ba_transport_get_codec(ag), HFP_CODEC_CVSD);
+	ck_assert_int_eq(ba_transport_get_codec(hf), HFP_CODEC_CVSD);
 
 	/* wait for codec selection (SLC established) signals */
 	dbus_update_counters_wait(&dbus_update_counters.codec, 0 + (2 + 2));
@@ -449,8 +449,8 @@ CK_START_TEST(test_rfcomm_self_hfp_slc) {
 	ck_assert_int_eq(device2->ref_count, 1 + 1);
 	pthread_mutex_unlock(&adapter->devices_mutex);
 
-	ck_assert_int_eq(get_codec_id(ag), HFP_CODEC_CVSD);
-	ck_assert_int_eq(get_codec_id(hf), HFP_CODEC_CVSD);
+	ck_assert_int_eq(ba_transport_get_codec(ag), HFP_CODEC_CVSD);
+	ck_assert_int_eq(ba_transport_get_codec(hf), HFP_CODEC_CVSD);
 
 	debug("Audio gateway destroying");
 	ba_transport_destroy(ag);

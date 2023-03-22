@@ -1442,6 +1442,14 @@ static void ba_transport_set_codec_sco(
 
 }
 
+uint16_t ba_transport_get_codec(
+		struct ba_transport *t) {
+	pthread_mutex_lock(&t->codec_id_mtx);
+	uint16_t codec_id = t->codec_id;
+	pthread_mutex_unlock(&t->codec_id_mtx);
+	return codec_id;
+}
+
 void ba_transport_set_codec(
 		struct ba_transport *t,
 		uint16_t codec_id) {
