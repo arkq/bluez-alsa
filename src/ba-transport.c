@@ -501,7 +501,7 @@ static void transport_threads_cancel(struct ba_transport *t) {
 	t->stopping = false;
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-	pthread_cond_signal(&t->stopped);
+	pthread_cond_broadcast(&t->stopped);
 
 }
 
@@ -519,25 +519,22 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 
 	bool stop = false;
 
-	if (t->stopping)
-		goto final;
-
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
-		/* Release bidirectional A2DP transport only in case when there
-		 * is no active PCM connection - neither encoder nor decoder. */
-		if (t->a2dp.pcm.fd == -1 && t->a2dp.pcm_bc.fd == -1)
-			t->stopping = stop = true;
+	if (!t->stopping) {
+		if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+			/* Release bidirectional A2DP transport only in case when there
+			 * is no active PCM connection - neither encoder nor decoder. */
+			if (t->a2dp.pcm.fd == -1 && t->a2dp.pcm_bc.fd == -1)
+				t->stopping = stop = true;
+		}
+		else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+			/* For Audio Gateway profile it is required to release SCO if we
+			 * are not transferring audio (not sending nor receiving), because
+			 * it will free Bluetooth bandwidth - headset will send microphone
+			 * signal even though we are not reading it! */
+			if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1)
+				t->stopping = stop = true;
+		}
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
-		/* For Audio Gateway profile it is required to release SCO if we
-		 * are not transferring audio (not sending nor receiving), because
-		 * it will free Bluetooth bandwidth - headset will send microphone
-		 * signal even though we are not reading it! */
-		if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1)
-			t->stopping = stop = true;
-	}
-
-final:
 
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
@@ -1537,6 +1534,39 @@ int ba_transport_start(struct ba_transport *t) {
 }
 
 /**
+ * Schedule transport IO threads cancellation. */
+static int ba_transport_stop_async(struct ba_transport *t) {
+
+#if DEBUG
+	/* Assert that we were called with the lock held, so we
+	 * can safely check and modify the stopping flag. */
+	g_assert_cmpint(pthread_mutex_trylock(&t->bt_fd_mtx), !=, 0);
+#endif
+
+	if (t->stopping)
+		return 0;
+
+	t->stopping = true;
+
+	/* Unlock the mutex before updating thread states. This is necessary to avoid
+	 * lock order inversion with the code in the ba_transport_thread_bt_acquire()
+	 * function. It is safe to do so, because we have already set the stopping
+	 * flag, so the transport_threads_cancel() function will not be called before
+	 * we acquire the lock again. */
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+
+	ba_transport_thread_state_set_stopping(&t->thread_enc);
+	ba_transport_thread_state_set_stopping(&t->thread_dec);
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	if (transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS) != 0)
+		return -1;
+
+	return 0;
+}
+
+/**
  * Stop transport IO threads.
  *
  * This function waits for transport IO threads termination. It is not safe
@@ -1547,16 +1577,17 @@ int ba_transport_stop(struct ba_transport *t) {
 			ba_transport_thread_state_check_terminated(&t->thread_dec))
 		return 0;
 
-	ba_transport_thread_state_set_stopping(&t->thread_enc);
-	ba_transport_thread_state_set_stopping(&t->thread_dec);
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
-	if (transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS) != 0)
-		return -1;
+	int rv;
+	if ((rv = ba_transport_stop_async(t)) == -1)
+		goto fail;
 
-	int rv = 0;
-	rv |= ba_transport_thread_state_wait_terminated(&t->thread_enc);
-	rv |= ba_transport_thread_state_wait_terminated(&t->thread_dec);
+	while (t->stopping)
+		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
 
+fail:
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 	return rv;
 }
 
@@ -1888,9 +1919,9 @@ void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
 	/* For proper functioning of the transport, all threads have to be
 	 * operational. Therefore, if one of the threads is being cancelled,
 	 * we have to cancel all other threads. */
-	ba_transport_thread_state_set_stopping(&t->thread_enc);
-	ba_transport_thread_state_set_stopping(&t->thread_dec);
-	transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS);
+	pthread_mutex_lock(&t->bt_fd_mtx);
+	ba_transport_stop_async(t);
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 
 	/* Release BT socket file descriptor duplicate created either in the
 	 * ba_transport_thread_create() function or in the IO thread itself. */
