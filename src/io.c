@@ -36,19 +36,20 @@ ssize_t io_bt_read(
 	const int fd = th->bt_fd;
 	ssize_t ret;
 
-	if (fd == -1)
-		return errno = EBADFD, -1;
-
-	while ((ret = read(fd, buffer, count)) == -1 &&
-			errno == EINTR)
-		continue;
-	if (ret == -1 && (
-				errno == ECONNABORTED ||
-				errno == ECONNRESET ||
-				errno == ENOTCONN ||
-				errno == ETIMEDOUT)) {
-		error("BT socket disconnected: %s", strerror(errno));
-		ret = 0;
+retry:
+	if ((ret = read(fd, buffer, count)) == -1)
+		switch (errno) {
+		case EINTR:
+			goto retry;
+		case ECONNRESET:
+		case ENOTCONN:
+			debug("BT socket disconnected: %s", strerror(errno));
+			ret = 0;
+			break;
+		case ECONNABORTED:
+		case ETIMEDOUT:
+			error("BT read error: %s", strerror(errno));
+			ret = 0;
 	}
 
 	if (ret == 0)
@@ -67,14 +68,10 @@ ssize_t io_bt_write(
 		const void *buffer,
 		size_t count) {
 
+	const int fd = th->bt_fd;
 	ssize_t ret;
-	int fd;
 
 retry:
-
-	if ((fd = th->bt_fd) == -1)
-		return errno = EBADFD, -1;
-
 	if ((ret = write(fd, buffer, count)) == -1)
 		switch (errno) {
 		case EINTR:
@@ -87,11 +84,14 @@ retry:
 			poll(&pfd, 1, -1);
 			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 			goto retry;
-		case ECONNABORTED:
 		case ECONNRESET:
 		case ENOTCONN:
+			debug("BT socket disconnected: %s", strerror(errno));
+			ret = 0;
+			break;
+		case ECONNABORTED:
 		case ETIMEDOUT:
-			error("BT socket disconnected: %s", strerror(errno));
+			error("BT write error: %s", strerror(errno));
 			ret = 0;
 		}
 
@@ -181,20 +181,17 @@ ssize_t io_pcm_read(
 
 	pthread_mutex_lock(&pcm->mutex);
 
-	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
 	const int fd = pcm->fd;
-	ssize_t ret = -1;
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
+	ssize_t ret;
 
-	if (fd == -1)
-		errno = EBADFD;
-	else {
-		while ((ret = read(fd, buffer, samples * sample_size)) == -1 &&
-				errno == EINTR)
-			continue;
-		if (ret == 0) {
-			debug("PCM client closed connection: %d", fd);
-			ba_transport_pcm_release(pcm);
-		}
+	while ((ret = read(fd, buffer, samples * sample_size)) == -1 &&
+			errno == EINTR)
+		continue;
+
+	if (ret == 0) {
+		debug("PCM client closed connection: %d", fd);
+		ba_transport_pcm_release(pcm);
 	}
 
 	pthread_mutex_unlock(&pcm->mutex);
@@ -208,10 +205,7 @@ ssize_t io_pcm_read(
 }
 
 /**
- * Write PCM signal to the transport PCM FIFO.
- *
- * Note:
- * This function may temporally re-enable thread cancellation! */
+ * Write PCM signal to the transport PCM FIFO. */
 ssize_t io_pcm_write(
 		struct ba_transport_pcm *pcm,
 		const void *buffer,
@@ -219,19 +213,14 @@ ssize_t io_pcm_write(
 
 	pthread_mutex_lock(&pcm->mutex);
 
+	const int fd = pcm->fd;
+	const uint8_t *buffer_ = buffer;
 	size_t len = samples * BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
 	ssize_t ret;
 
 	do {
 
-		const int fd = pcm->fd;
-		if (fd == -1) {
-			errno = EBADFD;
-			ret = -1;
-			goto final;
-		}
-
-		if ((ret = write(fd, buffer, len)) == -1)
+		if ((ret = write(fd, buffer_, len)) == -1)
 			switch (errno) {
 			case EINTR:
 				continue;
@@ -254,7 +243,7 @@ ssize_t io_pcm_write(
 				goto final;
 			}
 
-		buffer = (uint8_t *)buffer + ret;
+		buffer_ += ret;
 		len -= ret;
 
 	} while (len != 0);
@@ -384,11 +373,14 @@ repoll:
 		}
 	}
 
+	if (fds[1].revents == 0)
+		return 0;
+
 	ssize_t samples_read;
 	if ((samples_read = io_pcm_read(pcm, buffer, samples)) == -1) {
 		if (errno == EAGAIN)
 			goto repoll;
-		if (errno != EBADFD)
+		if (errno != EBADF)
 			return -1;
 		samples_read = 0;
 	}
