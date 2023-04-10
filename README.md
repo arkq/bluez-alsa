@@ -30,8 +30,11 @@ BlueALSA is designed specifically for use on small, low-powered, dedicated
 audio or audio/visual systems where the high-level audio management features of
 PulseAudio or PipeWire are not required. The target system must be able to
 function correctly with all its audio applications interfacing directly with
-ALSA. In such systems BlueALSA adds Bluetooth audio support to the existing
-ALSA sound card support.
+ALSA, with only one application at a time using each Bluetooth audio stream.
+In such systems BlueALSA adds Bluetooth audio support to the existing
+ALSA sound card support. Note this means that the applications are constrained
+by the capabilities of the ALSA API, and the higher-level audio processing
+features of audio servers such as PulseAudio and Pipewire are not available.
 
 BlueALSA consists of the daemon `bluealsa`, ALSA plug-ins, and a number of
 utilities. The basic context is shown in this diagram:
@@ -45,11 +48,16 @@ A[Bluetooth Adapter] <--> B((bluetoothd\ndaemon))
 A <--> C((bluealsa daemon))
 B <--> C
 C <--> D((bluealsa-aplay))
-C <--> E(("ALSA clients\n(via plugin)"))
-C <--> F((other\nD-Bus clients))
+D --> E([ALSA libasound])
+E --> K[Speakers]
+C <--> F((bluealsa\nALSA plug-ins))
+C <--> G((bluealsa-cli))
+F <--> H([ALSA libasound])
+H <--> I((ALSA\napplications))
+C <--> J((other\nD-Bus clients))
 
-class A,B external;
-class C,D,E,F bluealsa;
+class A,B,E,H,I,J,K external;
+class C,D,F,G bluealsa;
 ```
 
 The heart of BlueALSA is the daemon `bluealsa` which interfaces with the BlueZ
@@ -92,14 +100,19 @@ program shall be run as a root during system startup. It will register
 configured audio devices. In general, BlueALSA acts as a proxy between BlueZ
 and ALSA.
 
+The `bluealsa` daemon must be running in order to pair, connect, and use
+remote Bluetooth audio devices. In order to stream audio to e.g. a Bluetooth
+headset, firstly one has to connect the device. If you are not familiar with
+the Bluetooth pairing and connecting procedures on Linux, there is a basic
+guide in the wiki:
+[Bluetooth pairing and connecting](https://github.com/arkq/bluez-alsa/wiki/Bluetooth-Pairing-And-Connecting).
+
 For details of command-line options to `bluealsa`, consult the [bluealsa manual
 page](doc/bluealsa.8.rst).
 
 ### ALSA plug-ins
 
-In order to stream audio to e.g. a Bluetooth headset, firstly one has to
-connect the device. The most straightforward method is to use BlueZ CLI utility
-called `bluetoothctl`. When the device is connected one can use the `bluealsa`
+When a Bluetooth audio device is connected one can use the `bluealsa`
 virtual PCM device with ALSA applications just like any other PCM device:
 
 ```sh
@@ -114,7 +127,8 @@ aplay -D bluealsa:XX:XX:XX:XX:XX:XX, Bourree_in_E_minor.wav
 ```
 
 Please note that this PCM device is based on the [ALSA software PCM I/O
-plug-in][] - it will not be available in the [ALSA Kernel proc interface][].
+plug-in][] - it has no associated sound card, and it will not be available in
+the [ALSA Kernel proc interface][].
 
 [ALSA software PCM I/O plug-in]: https://www.alsa-project.org/alsa-doc/alsa-lib/pcm_external_plugins.html
 [ALSA Kernel proc interface]: https://www.kernel.org/doc/html/latest/sound/designs/procfile.html
@@ -261,7 +275,7 @@ When preparing a pull request, if possible please configure with
 with:
 
 ```sh
-make CFLAGS="-Wall -Wextra -Werror"
+make CFLAGS="-Wall -Wextra -Wshadow -Werror"
 ```
 
 and then run the unit test suite:
@@ -276,9 +290,16 @@ The project wiki is "public" and contributions there are also welcome.
 
 Before raising a new issue, please search previous issues (both open and
 closed), to see if your question has already been answered or problem resolved.
-If reporting a problem, please clearly state the version of BlueALSA that you
-are using, and give sufficient information for readers to be able to reproduce
-the issue.
+If reporting a problem, please clearly state:
+
+* the version of BlueALSA that you are using (`bluealsa --version`),
+* if self-built from source, please state the branch and commit
+(`git log -1 --oneline`) and the configure options used,
+* the OS distribution and version you are using,
+* the version of Bluez (`bluetoothd --version`)
+and the version of ALSA (`aplay --version`),
+* sufficient additional information for readers to be able to reproduce the
+issue.
 
 Please also look at the [wiki](https://github.com/Arkq/bluez-alsa/wiki) if you
 require help as there is a great deal of useful information. Unfortunately the
