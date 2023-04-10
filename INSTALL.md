@@ -7,7 +7,7 @@ be covered fully here. For a comprehensive installation guide, please look at
 the [Installation from source][] project wiki page. If you've found something
 missing or incorrect, feel free to make a wiki contribution.
 
-[Installation from source]: https://github.com/Arkq/bluez-alsa/wiki/Installation-from-source
+[Installation from source]: https://github.com/arkq/bluez-alsa/wiki/Installation-from-source
 
 ## Configuration
 
@@ -44,7 +44,7 @@ Dependencies:
   `--enable-mp3lame`)
 - [mpg123](https://www.mpg123.org/) (when MPEG decoding support is enabled with
   `--enable-mpg123`)
-- [openaptx](https://github.com/Arkq/openaptx) (when apt-X support is enabled
+- [openaptx](https://github.com/arkq/openaptx) (when apt-X support is enabled
   with `--enable-aptx` and/or `--enable-aptx-hd`)
 - [spandsp](https://www.soft-switch.org) (when mSBC support is enabled with
   `--enable-msbc`)

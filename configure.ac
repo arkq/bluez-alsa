@@ -4,7 +4,7 @@
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
 	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v4.0.0]))],
-	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/Arkq/bluez-alsa])
+	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
 AC_CONFIG_SRCDIR([src/bluealsa-config.c])
