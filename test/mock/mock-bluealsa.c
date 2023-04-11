@@ -29,16 +29,21 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#include "a2dp-aptx.h"
-#include "a2dp-aptx-hd.h"
-#include "a2dp-faststream.h"
+#if ENABLE_APTX
+# include "a2dp-aptx.h"
+#endif
+#if ENABLE_APTX_HD
+# include "a2dp-aptx-hd.h"
+#endif
+#if ENABLE_FASTSTREAM
+# include "a2dp-faststream.h"
+#endif
 #include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "bluealsa-config.h"
-#include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "codec-sbc.h"
 #include "hfp.h"
@@ -212,6 +217,9 @@ static int mock_transport_acquire_bt(struct ba_transport *t) {
 	t->bt_fd = bt_fds[0];
 	t->mtu_read = 256;
 	t->mtu_write = 256;
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		t->mtu_read = t->mtu_write = 48;
 
 	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
 
@@ -398,13 +406,8 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 		g_ptr_array_add(tt, t = mock_transport_new_sco(MOCK_DEVICE_1,
 					BA_TRANSPORT_PROFILE_HFP_AG, MOCK_BLUEZ_SCO_PATH_1));
 
-		if (mock_fuzzing_ms) {
-			t->codec_id = HFP_CODEC_CVSD;
-			bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
-					BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-			bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
-					BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-		}
+		if (mock_fuzzing_ms)
+			ba_transport_set_codec(t, HFP_CODEC_CVSD);
 
 	}
 

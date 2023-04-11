@@ -37,13 +37,27 @@
 #endif
 
 #include "a2dp.h"
-#include "a2dp-aac.h"
-#include "a2dp-aptx.h"
-#include "a2dp-aptx-hd.h"
-#include "a2dp-faststream.h"
-#include "a2dp-lc3plus.h"
-#include "a2dp-ldac.h"
-#include "a2dp-mpeg.h"
+#if ENABLE_AAC
+# include "a2dp-aac.h"
+#endif
+#if ENABLE_APTX
+# include "a2dp-aptx.h"
+#endif
+#if ENABLE_APTX_HD
+# include "a2dp-aptx-hd.h"
+#endif
+#if ENABLE_FASTSTREAM
+# include "a2dp-faststream.h"
+#endif
+#if ENABLE_LC3PLUS
+# include "a2dp-lc3plus.h"
+#endif
+#if ENABLE_LDAC
+# include "a2dp-ldac.h"
+#endif
+#if ENABLE_MPEG
+# include "a2dp-mpeg.h"
+#endif
 #include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
@@ -54,7 +68,9 @@
 #include "bluez.h"
 #include "hfp.h"
 #include "io.h"
-#include "rtp.h"
+#if ENABLE_LC3PLUS || ENABLE_LDAC
+# include "rtp.h"
+#endif
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"

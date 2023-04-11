@@ -1,6 +1,6 @@
 /*
  * BlueALSA - alsa-pcm.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -162,4 +162,11 @@ fail:
 	if (tmp != NULL)
 		free(tmp);
 	return err;
+}
+
+void alsa_pcm_dump(snd_pcm_t *pcm, FILE *fp) {
+	snd_output_t *out;
+	snd_output_stdio_attach(&out, fp, 0);
+	snd_pcm_dump(pcm, out);
+	snd_output_close(out);
 }

@@ -85,6 +85,7 @@ jobs:
         # XXX: iwyu package depends on clang-14, but is built with clang-13
         packages: >
           bear
+          check
           iwyu libclang-13-dev
           libasound2-dev
           libbluetooth-dev
@@ -120,7 +121,8 @@ jobs:
           --enable-cli \
           --enable-rfcomm \
           --enable-a2dpconf \
-          --enable-hcitop
+          --enable-hcitop \
+          --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build
       run: bear -- make check TESTS=

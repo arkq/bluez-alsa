@@ -90,9 +90,9 @@ CK_START_TEST(test_configuration) {
 
 	/* check selected configuration */
 	ck_assert_ptr_ne(strstr(output, "  BlueALSA service: org.bluealsa.foo"), NULL);
-	ck_assert_ptr_ne(strstr(output, "  PCM device: TestPCM"), NULL);
-	ck_assert_ptr_ne(strstr(output, "  PCM buffer time: 10000 us"), NULL);
-	ck_assert_ptr_ne(strstr(output, "  PCM period time: 500 us"), NULL);
+	ck_assert_ptr_ne(strstr(output, "  ALSA PCM device: TestPCM"), NULL);
+	ck_assert_ptr_ne(strstr(output, "  ALSA PCM buffer time: 10000 us"), NULL);
+	ck_assert_ptr_ne(strstr(output, "  ALSA PCM period time: 500 us"), NULL);
 	ck_assert_ptr_ne(strstr(output, "  ALSA mixer device: TestMixer"), NULL);
 	ck_assert_ptr_ne(strstr(output, "  ALSA mixer element: 'TestMixerName',1"), NULL);
 	ck_assert_ptr_ne(strstr(output, "  Bluetooth device(s): 12:34:56:78:90:AB"), NULL);
@@ -202,7 +202,7 @@ CK_START_TEST(test_play_single_audio) {
 				"--single-audio",
 				"--profile-a2dp",
 				"--pcm=null",
-				"-vv",
+				"-vvv",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
@@ -215,9 +215,9 @@ CK_START_TEST(test_play_single_audio) {
 
 #if DEBUG
 	ck_assert_ptr_ne(strstr(output,
-				"Creating PCM worker 12:34:56:78:9A:BC"), NULL);
+				"Creating IO worker 12:34:56:78:9A:BC"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"Creating PCM worker 23:45:67:89:AB:CD"), NULL);
+				"Creating IO worker 23:45:67:89:AB:CD"), NULL);
 #endif
 
 	bool d1_ok = strstr(output, "Used configuration for 12:34:56:78:9A:BC") != NULL;

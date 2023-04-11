@@ -13,11 +13,13 @@
 #endif
 
 #include <libgen.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <check.h>
 
@@ -353,11 +355,13 @@ CK_START_TEST(test_monitor) {
 	ck_assert_ptr_ne(strstr(output,
 				"Device: /org/bluez/hci0/dev_23_45_67_89_AB_CD"), NULL);
 
+#if ENABLE_MSBC
 	/* notifications for property changed */
 	ck_assert_ptr_ne(strstr(output,
 				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink Codec CVSD"), NULL);
 	ck_assert_ptr_ne(strstr(output,
 				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"), NULL);
+#endif
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);

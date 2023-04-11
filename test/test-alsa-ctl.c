@@ -544,12 +544,17 @@ CK_START_TEST(test_notifications) {
 
 	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 0), 0);
 
+	size_t events_update_codec = 0;
+#if ENABLE_MSBC
+	events_update_codec += 4;
+#endif
+
 	/* Processed events:
 	 * - 0 removes; 2 new elems (12:34:... A2DP)
 	 * - 2 removes; 4 new elems (12:34:... A2DP, 23:45:... A2DP)
 	 * - 4 removes; 7 new elems (2x A2DP, SCO playback, battery)
 	 * - 7 removes; 9 new elems (2x A2DP, SCO playback/capture, battery)
-	 * - 4 updates (SCO codec update)
+	 * - 4 updates (SCO codec update if mSBC is supported)
 	 *
 	 * XXX: It is possible that the battery element (RFCOMM D-Bus path) will not
 	 *      be exported in time. In such case, the number of events will be less
@@ -557,9 +562,10 @@ CK_START_TEST(test_notifications) {
 	 *      addition and less by another 1 when the path is not available during
 	 *      the capture SCO addition. We shall account for this in the test, as
 	 *      it is not an error. */
-	if (events == (39 - 2) || events == (39 - 2 - 1))
-		events = 39;
-	ck_assert_int_eq(events, (0 + 2) + (2 + 4) + (4 + 7) + (7 + 9) + 4);
+	if (events == (35 + events_update_codec - 2) ||
+			events == (35 + events_update_codec - 2 - 1))
+		events = 35 + events_update_codec;
+	ck_assert_int_eq(events, (0 + 2) + (2 + 4) + (4 + 7) + (7 + 9) + events_update_codec);
 
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);

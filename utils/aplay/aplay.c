@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
@@ -38,7 +39,7 @@
 #include "alsa-pcm.h"
 #include "dbus.h"
 
-struct pcm_worker {
+struct io_worker {
 	pthread_t thread;
 	/* used BlueALSA PCM device */
 	struct ba_pcm ba_pcm;
@@ -47,10 +48,10 @@ struct pcm_worker {
 	/* file descriptor of PCM control */
 	int ba_pcm_ctrl_fd;
 	/* opened playback PCM device */
-	snd_pcm_t *pcm;
+	snd_pcm_t *snd_pcm;
 	/* mixer for volume control */
-	snd_mixer_t *mixer;
-	snd_mixer_elem_t *mixer_elem;
+	snd_mixer_t *snd_mixer;
+	snd_mixer_elem_t *snd_mixer_elem;
 	bool mixer_has_mute_switch;
 	/* if true, playback is active */
 	atomic_bool active;
@@ -85,7 +86,7 @@ static pthread_mutex_t single_playback_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool force_single_playback = false;
 
 static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
-static struct pcm_worker *workers = NULL;
+static struct io_worker *workers = NULL;
 static size_t workers_count = 0;
 static size_t workers_size = 0;
 
@@ -256,9 +257,9 @@ static struct ba_pcm *get_ba_pcm(const char *path) {
 	return NULL;
 }
 
-static struct pcm_worker *get_active_worker(void) {
+static struct io_worker *get_active_io_worker(void) {
 
-	struct pcm_worker *w = NULL;
+	struct io_worker *w = NULL;
 	size_t i;
 
 	pthread_rwlock_rdlock(&workers_lock);
@@ -307,17 +308,19 @@ final:
 
 /**
  * Synchronize BlueALSA PCM volume with ALSA mixer element. */
-static int pcm_worker_mixer_volume_sync(
-		struct pcm_worker *worker,
+static int io_worker_mixer_volume_sync(
+		struct io_worker *worker,
 		struct ba_pcm *ba_pcm) {
 
 	/* skip sync in case of software volume */
 	if (ba_pcm->soft_volume)
 		return 0;
 
-	snd_mixer_elem_t *elem = worker->mixer_elem;
+	snd_mixer_elem_t *elem = worker->snd_mixer_elem;
 	if (elem == NULL)
 		return 0;
+
+	debug("Synchronizing volume: %s", ba_pcm->device_path);
 
 	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
 	long long volume_db_sum = 0;
@@ -331,14 +334,14 @@ static int pcm_worker_mixer_volume_sync(
 
 		int err;
 		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0) {
-			error("Couldn't get playback dB level: %s", snd_strerror(err));
+			error("Couldn't get ALSA mixer playback dB level: %s", snd_strerror(err));
 			return -1;
 		}
 
 		/* mute switch is an optional feature for a mixer element */
 		if ((worker->mixer_has_mute_switch = snd_mixer_selem_has_playback_switch(elem))) {
 			if ((err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
-				error("Couldn't get playback switch: %s", snd_strerror(err));
+				error("Couldn't get ALSA mixer playback switch: %s", snd_strerror(err));
 				return -1;
 			}
 		}
@@ -369,7 +372,7 @@ static int pcm_worker_mixer_volume_sync(
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!bluealsa_dbus_pcm_update(&dbus_ctx, ba_pcm, BLUEALSA_PCM_VOLUME, &err)) {
-		error("Couldn't update PCM: %s", err.message);
+		error("Couldn't update BlueALSA source PCM: %s", err.message);
 		dbus_error_free(&err);
 		return -1;
 	}
@@ -379,15 +382,15 @@ static int pcm_worker_mixer_volume_sync(
 
 /**
  * Update ALSA mixer element according to BlueALSA PCM volume. */
-static int pcm_worker_mixer_volume_update(
-		struct pcm_worker *worker,
+static int io_worker_mixer_volume_update(
+		struct io_worker *worker,
 		struct ba_pcm *ba_pcm) {
 
 	/* skip update in case of software volume */
 	if (ba_pcm->soft_volume)
 		return 0;
 
-	snd_mixer_elem_t *elem = worker->mixer_elem;
+	snd_mixer_elem_t *elem = worker->snd_mixer_elem;
 	if (elem == NULL)
 		return 0;
 
@@ -415,21 +418,21 @@ static int pcm_worker_mixer_volume_update(
 
 	int err;
 	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0) {
-		error("Couldn't set playback dB level: %s", snd_strerror(err));
+		error("Couldn't set ALSA mixer playback dB level: %s", snd_strerror(err));
 		return -1;
 	}
 
 	/* mute switch is an optional feature for a mixer element */
 	if (worker->mixer_has_mute_switch &&
 			(err = snd_mixer_selem_set_playback_switch_all(elem, !muted)) != 0) {
-		error("Couldn't set playback mute switch: %s", snd_strerror(err));
+		error("Couldn't set ALSA mixer playback mute switch: %s", snd_strerror(err));
 		return -1;
 	}
 
 	return 0;
 }
 
-static void pcm_worker_routine_exit(struct pcm_worker *worker) {
+static void io_worker_routine_exit(struct io_worker *worker) {
 	if (worker->ba_pcm_fd != -1) {
 		close(worker->ba_pcm_fd);
 		worker->ba_pcm_fd = -1;
@@ -438,19 +441,19 @@ static void pcm_worker_routine_exit(struct pcm_worker *worker) {
 		close(worker->ba_pcm_ctrl_fd);
 		worker->ba_pcm_ctrl_fd = -1;
 	}
-	if (worker->pcm != NULL) {
-		snd_pcm_close(worker->pcm);
-		worker->pcm = NULL;
+	if (worker->snd_pcm != NULL) {
+		snd_pcm_close(worker->snd_pcm);
+		worker->snd_pcm = NULL;
 	}
-	if (worker->mixer != NULL) {
-		snd_mixer_close(worker->mixer);
-		worker->mixer_elem = NULL;
-		worker->mixer = NULL;
+	if (worker->snd_mixer != NULL) {
+		snd_mixer_close(worker->snd_mixer);
+		worker->snd_mixer_elem = NULL;
+		worker->snd_mixer = NULL;
 	}
-	debug("Exiting PCM worker %s", worker->addr);
+	debug("Exiting IO worker %s", worker->addr);
 }
 
-static void *pcm_worker_routine(struct pcm_worker *w) {
+static void *io_worker_routine(struct io_worker *w) {
 
 	snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
 	ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
@@ -461,7 +464,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(pcm_worker_routine_exit), w);
+	pthread_cleanup_push(PTHREAD_CLEANUP(io_worker_routine_exit), w);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
 
 	/* create buffer big enough to hold 100 ms of PCM data */
@@ -471,9 +474,10 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
+	debug("Opening BlueALSA source PCM: %s", w->ba_pcm.pcm_path);
 	if (!bluealsa_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path,
 				&w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
-		error("Couldn't open PCM: %s", err.message);
+		error("Couldn't open BlueALSA source PCM: %s", err.message);
 		dbus_error_free(&err);
 		goto fail;
 	}
@@ -497,7 +501,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 	struct pollfd pfds[] = {{ w->ba_pcm_fd, POLLIN, 0 }};
 	int timeout = -1;
 
-	debug("Starting PCM loop");
+	debug("Starting IO loop");
 	while (main_loop_on) {
 
 		if (single_playback_mutex_locked) {
@@ -518,22 +522,22 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		case -1:
 			if (errno == EINTR)
 				continue;
-			error("PCM FIFO poll error: %s", strerror(errno));
+			error("IO loop poll error: %s", strerror(errno));
 			goto fail;
 		case 0:
-			debug("Device marked as inactive: %s", w->addr);
+			debug("BT device marked as inactive: %s", w->addr);
 			pcm_max_read_len = pcm_max_read_len_init;
 			pause_retry_pcm_samples = pcm_1s_samples;
 			pause_retries = 0;
 			ffb_rewind(&buffer);
-			if (w->pcm != NULL) {
-				snd_pcm_close(w->pcm);
-				w->pcm = NULL;
+			if (w->snd_pcm != NULL) {
+				snd_pcm_close(w->snd_pcm);
+				w->snd_pcm = NULL;
 			}
-			if (w->mixer != NULL) {
-				snd_mixer_close(w->mixer);
-				w->mixer_elem = NULL;
-				w->mixer = NULL;
+			if (w->snd_mixer != NULL) {
+				snd_mixer_close(w->snd_mixer);
+				w->snd_mixer_elem = NULL;
+				w->snd_mixer = NULL;
 			}
 			w->active = false;
 			timeout = -1;
@@ -544,21 +548,19 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		if (pfds[0].revents & POLLHUP)
 			break;
 
-		#define MIN(a, b) a < b ? a : b
-		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
-
 		ssize_t ret;
+		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
 		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
 			if (errno == EINTR)
 				continue;
-			error("PCM FIFO read error: %s", strerror(errno));
+			error("Couldn't read from BlueALSA source PCM: %s", strerror(errno));
 			goto fail;
 		}
 
 		/* Calculate the number of read samples. */
 		size_t read_samples = ret / pcm_format_size;
 		if (ret % pcm_format_size != 0)
-			warn("Invalid read from PCM FIFO: %zd %% %zd != 0", ret, pcm_format_size);
+			warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
 
 		/* If current worker is not active and the single playback mode was
 		 * enabled, we have to check if there is any other active worker. */
@@ -571,7 +573,7 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 			pthread_mutex_lock(&single_playback_mutex);
 			single_playback_mutex_locked = true;
 
-			if (get_active_worker() != NULL) {
+			if (get_active_io_worker() != NULL) {
 				/* In order not to flood BT connection with AVRCP packets,
 				 * we are going to send pause command every 0.5 second. */
 				if (pause_retries < 5 &&
@@ -588,12 +590,13 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 
 		}
 
-		if (w->pcm == NULL) {
+		if (w->snd_pcm == NULL &&
+				read_samples > 0) {
 
 			unsigned int buffer_time = pcm_buffer_time;
 			unsigned int period_time = pcm_period_time;
-			snd_pcm_uframes_t buffer_size;
-			snd_pcm_uframes_t period_size;
+			snd_pcm_uframes_t buffer_frames;
+			snd_pcm_uframes_t period_frames;
 			char *tmp;
 
 			if (pcm_open_retries > 0) {
@@ -607,9 +610,11 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 					continue;
 			}
 
-			if (alsa_pcm_open(&w->pcm, pcm_device, pcm_format, w->ba_pcm.channels,
+			debug("Opening ALSA playback PCM: name=%s channels=%u rate=%u",
+					pcm_device, w->ba_pcm.channels, w->ba_pcm.sampling);
+			if (alsa_pcm_open(&w->snd_pcm, pcm_device, pcm_format, w->ba_pcm.channels,
 						w->ba_pcm.sampling, &buffer_time, &period_time, &tmp) != 0) {
-				warn("Couldn't open PCM: %s", tmp);
+				warn("Couldn't open ALSA playback PCM: %s", tmp);
 				pcm_max_read_len = pcm_max_read_len_init;
 				pcm_open_retry_pcm_samples = 0;
 				pcm_open_retries++;
@@ -617,33 +622,39 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 				continue;
 			}
 
-			if (alsa_mixer_open(&w->mixer, &w->mixer_elem,
+			snd_pcm_get_params(w->snd_pcm, &buffer_frames, &period_frames);
+			pcm_max_read_len = period_frames * w->ba_pcm.channels * pcm_format_size;
+
+			debug("Opening ALSA mixer: name=%s elem=%s index=%u",
+					mixer_device, mixer_elem_name, mixer_elem_index);
+			if (alsa_mixer_open(&w->snd_mixer, &w->snd_mixer_elem,
 						mixer_device, mixer_elem_name, mixer_elem_index, &tmp) != 0) {
-				warn("Couldn't open mixer: %s", tmp);
+				warn("Couldn't open ALSA mixer: %s", tmp);
 				free(tmp);
 			}
 
 			/* initial volume synchronization */
-			pcm_worker_mixer_volume_sync(w, &w->ba_pcm);
+			io_worker_mixer_volume_sync(w, &w->ba_pcm);
 
-			snd_pcm_get_params(w->pcm, &buffer_size, &period_size);
-			pcm_max_read_len = period_size * w->ba_pcm.channels * pcm_format_size;
 			pcm_open_retries = 0;
 
 			if (verbose >= 2) {
 				info("Used configuration for %s:\n"
-						"  PCM buffer time: %u us (%zu bytes)\n"
-						"  PCM period time: %u us (%zu bytes)\n"
+						"  ALSA PCM buffer time: %u us (%zu bytes)\n"
+						"  ALSA PCM period time: %u us (%zu bytes)\n"
 						"  PCM format: %s\n"
 						"  Sampling rate: %u Hz\n"
 						"  Channels: %u",
 						w->addr,
-						buffer_time, snd_pcm_frames_to_bytes(w->pcm, buffer_size),
-						period_time, snd_pcm_frames_to_bytes(w->pcm, period_size),
+						buffer_time, snd_pcm_frames_to_bytes(w->snd_pcm, buffer_frames),
+						period_time, snd_pcm_frames_to_bytes(w->snd_pcm, period_frames),
 						snd_pcm_format_name(pcm_format),
 						w->ba_pcm.sampling,
 						w->ba_pcm.channels);
 			}
+
+			if (verbose >= 3)
+				alsa_pcm_dump(w->snd_pcm, stderr);
 
 		}
 
@@ -659,24 +670,25 @@ static void *pcm_worker_routine(struct pcm_worker *w) {
 		}
 
 		ffb_seek(&buffer, read_samples);
-
-		/* calculate the overall number of frames in the buffer */
 		size_t samples = ffb_len_out(&buffer);
-		snd_pcm_sframes_t frames = samples / w->ba_pcm.channels;
 
 		if (!w->mixer_has_mute_switch && pcm_muted)
 			snd_pcm_format_set_silence(pcm_format, buffer.data, samples);
 
-		if ((frames = snd_pcm_writei(w->pcm, buffer.data, frames)) < 0)
+		snd_pcm_sframes_t frames;
+
+retry_alsa_write:
+		frames = samples / w->ba_pcm.channels;
+		if ((frames = snd_pcm_writei(w->snd_pcm, buffer.data, frames)) < 0)
 			switch (-frames) {
+			case EINTR:
+				goto retry_alsa_write;
 			case EPIPE:
-				debug("An underrun has occurred");
-				snd_pcm_prepare(w->pcm);
-				usleep(50000);
-				frames = 0;
-				break;
+				debug("ALSA playback PCM underrun");
+				snd_pcm_prepare(w->snd_pcm);
+				goto retry_alsa_write;
 			default:
-				error("Couldn't write to PCM: %s", snd_strerror(frames));
+				error("ALSA playback PCM write error: %s", snd_strerror(frames));
 				goto fail;
 			}
 
@@ -705,7 +717,7 @@ static bool pcm_hw_params_equal(
 
 /**
  * Stop the worker thread at workers[index]. */
-static void pcm_worker_stop(size_t index) {
+static void io_worker_stop(size_t index) {
 
 	/* Safety check for out-of-bounds read. */
 	assert(index < workers_count);
@@ -724,7 +736,7 @@ static void pcm_worker_stop(size_t index) {
 
 }
 
-static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm) {
+static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) {
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
@@ -733,7 +745,7 @@ static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm
 			 * audio format may have changed. If it has, the worker thread
 			 * needs to be restarted. */
 			if (!pcm_hw_params_equal(&workers[i].ba_pcm, ba_pcm))
-				pcm_worker_stop(i);
+				io_worker_stop(i);
 			else
 				return &workers[i];
 		}
@@ -742,34 +754,34 @@ static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm
 
 	workers_count++;
 	if (workers_size < workers_count) {
-		struct pcm_worker *tmp = workers;
+		struct io_worker *tmp = workers;
 		workers_size += 4;  /* coarse-grained realloc */
 		if ((workers = realloc(workers, sizeof(*workers) * workers_size)) == NULL) {
-			error("Couldn't (re)allocate memory for PCM workers: %s", strerror(ENOMEM));
+			error("Couldn't (re)allocate memory for IO workers: %s", strerror(ENOMEM));
 			workers = tmp;
 			pthread_rwlock_unlock(&workers_lock);
 			return NULL;
 		}
 	}
 
-	struct pcm_worker *worker = &workers[workers_count - 1];
+	struct io_worker *worker = &workers[workers_count - 1];
 	memcpy(&worker->ba_pcm, ba_pcm, sizeof(worker->ba_pcm));
 	ba2str(&worker->ba_pcm.addr, worker->addr);
 	worker->ba_pcm_fd = -1;
 	worker->ba_pcm_ctrl_fd = -1;
-	worker->pcm = NULL;
-	worker->mixer = NULL;
-	worker->mixer_elem = NULL;
+	worker->snd_pcm = NULL;
+	worker->snd_mixer = NULL;
+	worker->snd_mixer_elem = NULL;
 	worker->mixer_has_mute_switch = false;
 	worker->active = false;
 
 	pthread_rwlock_unlock(&workers_lock);
 
-	debug("Creating PCM worker %s", worker->addr);
+	debug("Creating IO worker %s", worker->addr);
 
 	if ((errno = pthread_create(&worker->thread, NULL,
-					PTHREAD_FUNC(pcm_worker_routine), worker)) != 0) {
-		error("Couldn't create PCM worker %s: %s", worker->addr, strerror(errno));
+					PTHREAD_FUNC(io_worker_routine), worker)) != 0) {
+		error("Couldn't create IO worker %s: %s", worker->addr, strerror(errno));
 		workers_count--;
 		return NULL;
 	}
@@ -777,17 +789,17 @@ static struct pcm_worker *supervise_pcm_worker_start(const struct ba_pcm *ba_pcm
 	return worker;
 }
 
-static struct pcm_worker *supervise_pcm_worker_stop(const struct ba_pcm *ba_pcm) {
+static struct io_worker *supervise_io_worker_stop(const struct ba_pcm *ba_pcm) {
 
 	size_t i;
 	for (i = 0; i < workers_count; i++)
 		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
-			pcm_worker_stop(i);
+			io_worker_stop(i);
 
 	return NULL;
 }
 
-static struct pcm_worker *supervise_pcm_worker(const struct ba_pcm *ba_pcm) {
+static struct io_worker *supervise_io_worker(const struct ba_pcm *ba_pcm) {
 
 	if (ba_pcm == NULL)
 		return NULL;
@@ -815,9 +827,9 @@ static struct pcm_worker *supervise_pcm_worker(const struct ba_pcm *ba_pcm) {
 			goto start;
 
 stop:
-	return supervise_pcm_worker_stop(ba_pcm);
+	return supervise_io_worker_stop(ba_pcm);
 start:
-	return supervise_pcm_worker_start(ba_pcm);
+	return supervise_io_worker_start(ba_pcm);
 }
 
 static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *message, void *data) {
@@ -832,7 +844,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 	const char *signal = dbus_message_get_member(message);
 
 	DBusMessageIter iter;
-	struct pcm_worker *worker;
+	struct io_worker *worker;
 
 	if (strcmp(interface, DBUS_INTERFACE_OBJECT_MANAGER) == 0) {
 
@@ -842,7 +854,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 			struct ba_pcm pcm;
 			DBusError err = DBUS_ERROR_INIT;
 			if (!bluealsa_dbus_message_iter_get_pcm(&iter, &err, &pcm)) {
-				error("Couldn't add new PCM: %s", err.message);
+				error("Couldn't add new BlueALSA PCM: %s", err.message);
 				dbus_error_free(&err);
 				goto fail;
 			}
@@ -850,26 +862,26 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 				goto fail;
 			struct ba_pcm *tmp = ba_pcms;
 			if ((ba_pcms = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL) {
-				error("Couldn't add new PCM: %s", strerror(ENOMEM));
+				error("Couldn't add new BlueALSA PCM: %s", strerror(ENOMEM));
 				ba_pcms = tmp;
 				goto fail;
 			}
 			memcpy(&ba_pcms[ba_pcms_count++], &pcm, sizeof(*ba_pcms));
-			supervise_pcm_worker(&pcm);
+			supervise_io_worker(&pcm);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 
 		if (strcmp(signal, "InterfacesRemoved") == 0) {
 			if (!dbus_message_iter_init(message, &iter) ||
 					dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH) {
-				error("Couldn't remove PCM: %s", "Invalid signal signature");
+				error("Couldn't remove BlueALSA PCM: %s", "Invalid signal signature");
 				goto fail;
 			}
 			dbus_message_iter_get_basic(&iter, &path);
 			struct ba_pcm *pcm;
 			if ((pcm = get_ba_pcm(path)) == NULL)
 				goto fail;
-			supervise_pcm_worker_stop(pcm);
+			supervise_io_worker_stop(pcm);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 
@@ -881,15 +893,15 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 			goto fail;
 		if (!dbus_message_iter_init(message, &iter) ||
 				dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING) {
-			error("Couldn't update PCM: %s", "Invalid signal signature");
+			error("Couldn't update BlueALSA PCM: %s", "Invalid signal signature");
 			goto fail;
 		}
 		dbus_message_iter_get_basic(&iter, &interface);
 		dbus_message_iter_next(&iter);
 		if (!bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm))
 			goto fail;
-		if ((worker = supervise_pcm_worker(pcm)) != NULL)
-			pcm_worker_mixer_volume_update(worker, pcm);
+		if ((worker = supervise_io_worker(pcm)) != NULL)
+			io_worker_mixer_volume_update(worker, pcm);
 		return DBUS_HANDLER_RESULT_HANDLED;
 	}
 
@@ -1074,9 +1086,9 @@ int main(int argc, char *argv[]) {
 
 		info("Selected configuration:\n"
 				"  BlueALSA service: %s\n"
-				"  PCM device: %s\n"
-				"  PCM buffer time: %u us\n"
-				"  PCM period time: %u us\n"
+				"  ALSA PCM device: %s\n"
+				"  ALSA PCM buffer time: %u us\n"
+				"  ALSA PCM period time: %u us\n"
 				"  ALSA mixer device: %s\n"
 				"  ALSA mixer element: '%s',%u\n"
 				"  Bluetooth device(s): %s\n"
@@ -1110,7 +1122,7 @@ int main(int argc, char *argv[]) {
 
 	size_t i;
 	for (i = 0; i < ba_pcms_count; i++)
-		supervise_pcm_worker(&ba_pcms[i]);
+		supervise_io_worker(&ba_pcms[i]);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
 	sigaction(SIGTERM, &sigact, NULL);
