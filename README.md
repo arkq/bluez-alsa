@@ -264,27 +264,9 @@ bluealsa-aplay -L
 
 ## Contributing
 
-This project welcomes contributions of code, documentation and testing. For
-code and manual page contributions, please use GitHub Pull Requests. There is
-no strict policy for PRs, each contribution will be evaluated individually. If
-you wish to help by testing PRs or by making review comments please do so by
-adding comments to the PR.
+This project welcomes contributions of code, documentation and testing.
 
-When preparing a pull request, if possible please configure with
-`--enable-test`, and to catch as many coding errors as possible please compile
-with:
-
-```sh
-make CFLAGS="-Wall -Wextra -Wshadow -Werror"
-```
-
-and then run the unit test suite:
-
-```sh
-make check
-```
-
-The project wiki is "public" and contributions there are also welcome.
+Please see the [CONTRIBUTING](./CONTRIBUTING.md) guide for details.
 
 ## Bug reports, feature requests, and requests for help
 
