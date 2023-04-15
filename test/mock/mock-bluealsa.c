@@ -151,7 +151,7 @@ static void *mock_dec(struct ba_transport_thread *th) {
 
 		const size_t samples = ARRAYSIZE(buffer);
 		const size_t frames = samples / channels;
-		x = snd_pcm_sine_s16_2le(buffer, frames, channels, x, 1.0 / 128);
+		x = snd_pcm_sine_s16_2le(buffer, frames, channels, x, 146.83 / samplerate);
 
 		io_pcm_scale(t_pcm, buffer, samples);
 		if (io_pcm_write(t_pcm, buffer, samples) == -1)

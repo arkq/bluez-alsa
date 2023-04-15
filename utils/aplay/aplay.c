@@ -526,22 +526,11 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto fail;
 		case 0:
 			debug("BT device marked as inactive: %s", w->addr);
-			pcm_max_read_len = pcm_max_read_len_init;
 			pause_retry_pcm_samples = pcm_1s_samples;
 			pause_retries = 0;
-			ffb_rewind(&buffer);
-			if (w->snd_pcm != NULL) {
-				snd_pcm_close(w->snd_pcm);
-				w->snd_pcm = NULL;
-			}
-			if (w->snd_mixer != NULL) {
-				snd_mixer_close(w->snd_mixer);
-				w->snd_mixer_elem = NULL;
-				w->snd_mixer = NULL;
-			}
 			w->active = false;
 			timeout = -1;
-			continue;
+			goto close_alsa;
 		}
 
 		/* FIFO has been terminated on the writing side */
@@ -553,7 +542,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
 			if (errno == EINTR)
 				continue;
-			error("Couldn't read from BlueALSA source PCM: %s", strerror(errno));
+			error("BlueALSA source PCM read error: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -636,6 +625,8 @@ static void *io_worker_routine(struct io_worker *w) {
 			/* initial volume synchronization */
 			io_worker_mixer_volume_sync(w, &w->ba_pcm);
 
+			/* reset retry counters */
+			pcm_open_retry_pcm_samples = 0;
 			pcm_open_retries = 0;
 
 			if (verbose >= 2) {
@@ -689,12 +680,26 @@ retry_alsa_write:
 				goto retry_alsa_write;
 			default:
 				error("ALSA playback PCM write error: %s", snd_strerror(frames));
-				goto fail;
+				goto close_alsa;
 			}
 
 		/* move leftovers to the beginning and reposition tail */
 		ffb_shift(&buffer, frames * w->ba_pcm.channels);
 
+		continue;
+
+close_alsa:
+		ffb_rewind(&buffer);
+		pcm_max_read_len = pcm_max_read_len_init;
+		if (w->snd_pcm != NULL) {
+			snd_pcm_close(w->snd_pcm);
+			w->snd_pcm = NULL;
+		}
+		if (w->snd_mixer != NULL) {
+			snd_mixer_close(w->snd_mixer);
+			w->snd_mixer_elem = NULL;
+			w->snd_mixer = NULL;
+		}
 	}
 
 fail:
