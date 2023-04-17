@@ -4,6 +4,9 @@ about: Create a report to help improve bluez-alsa.
 title:
 ---
 
+> Please read the [troubleshooting guide](../blob/master/TROUBLESHOOTING.md)
+> before raising a new issue.
+
 ### Problem
 
 > A clear and concise description of what the bug is.
@@ -20,9 +23,10 @@ title:
 
 > - the OS distribution and version
 > - the version of BlueALSA (`bluealsa --version`)
-> - if self-built from source, please state the branch, commit and used configure options
 > - the version of BlueZ (`bluetoothd --version`)
 > - the version of ALSA (`aplay --version`)
+> - if self-built from source, please state the branch and commit
+> (`git log -1 --oneline`), and the used configure options.
 
 ### Additional context
 

@@ -217,51 +217,6 @@ follows:
 bluealsa-aplay -L
 ```
 
-## Troubleshooting
-
-1. Using BlueALSA alongside PulseAudio or PipeWire.
-
-   Due to BlueZ limitations, only one program can register as provider of
-   Bluetooth audio profile implementation. So it is not possible to use
-   BlueALSA if either PulseAudio or PipeWire are also running with their own
-   Bluetooth modules enabled; it is first necessary to disable Bluetooth in
-   those applications.
-
-2. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3).
-
-   ALSA library versions 1.1.2 and 1.1.3 had a bug in their thread-safe API
-   functions. This bug does not affect hardware audio devices, but it affects
-   many software plug-ins. Random deadlocks are inevitable. The best advice is
-   to use a more recent alsa-lib release, or if that is not possible then
-   disable the thread locking code via an environment variable, as follows:
-   `export LIBASOUND_THREAD_SAFE=0`.
-
-3. Couldn't acquire D-Bus name: org.bluealsa
-
-   It is not possible to run more than one instance of the BlueALSA server per
-   D-Bus interface. If one tries to run second instance, it will fail with the
-   `"Couldn't acquire D-Bus name: org.bluealsa"` error message. This message
-   might also appear when D-Bus policy does not allow acquiring "org.bluealsa"
-   name for a particular user - by default only root is allowed to start
-   BlueALSA server.
-
-4. Couldn't get BlueALSA PCM: PCM not found
-
-   In contrast to standard ALSA sound cards, BlueALSA does not expose all PCMs
-   right away. In the first place it is required to connect remote Bluetooth
-   device with desired Bluetooth profile - run `bluealsa --help` for the list
-   of available profiles. For querying currently connected audio profiles (and
-   connected devices), run `bluealsa-aplay --list-devices`. The common
-   misconception is an attempt to use A2DP playback device as a capture one in
-   case where A2DP is not listed in the "List of CAPTURE Bluetooth Devices"
-   section.
-
-   Additionally, the cause of the "PCM not found" error might be an incorrect
-   ALSA PCM name. Run `bluealsa-aplay --list-pcms` for the list of currently
-   available ALSA PCM names - it might give you a hint what is wrong with your
-   `.asoundrc` entry. Also, take a look at the [bluealsa-plugins manual
-   page](doc/bluealsa-plugins.7.rst).
-
 ## Contributing
 
 This project welcomes contributions of code, documentation and testing.
@@ -270,23 +225,25 @@ Please see the [CONTRIBUTING](CONTRIBUTING.md) guide for details.
 
 ## Bug reports, feature requests, and requests for help
 
-Before raising a new issue, please search previous issues (both open and
-closed), to see if your question has already been answered or problem resolved.
-If reporting a problem, please clearly state:
+The most commonly encountered errors are discussed in the
+[TROUBLESHOOTING] guide. Please check that file to see if there is already a
+solution for your issue.
 
-* the OS distribution and version you are using,
-* the version of BlueALSA that you are using (`bluealsa --version`),
-* if self-built from source, please state the branch and commit
-  (`git log -1 --oneline`) and the configure options used,
-* the version of BlueZ (`bluetoothd --version`),
-* the version of ALSA (`aplay --version`),
-* sufficient additional information for readers to be able to reproduce the
-issue.
+If you are unable to find a solution in that document or by reading the
+[manual pages][], then please search [previous issues][] (both open and
+closed), and consult the [wiki][] before raising a new issue. Unfortunately
+the wiki is not indexed by web search engines, so searching on-line for your
+issue will not discover the information in there.
 
-Please also look at the [wiki](https://github.com/arkq/bluez-alsa/wiki) if you
-require help as there is a great deal of useful information. Unfortunately the
-wiki is not indexed by web search engines, so searching on-line for your issue
-will not discover the information in there.
+If reporting a problem as a new issue, please use the appropriate
+[bluez-alsa GitHub issue reporting template][] and complete each section of
+the template as fully as possible.
+
+[TROUBLESHOOTING]: ./TROUBLESHOOTING.md
+[manual pages]: doc/
+[previous issues]: https://github.com/arkq/bluez-alsa/issues
+[wiki]: https://github.com/arkq/bluez-alsa/wiki
+[bluez-alsa GitHub issue reporting template]: https://github.com/arkq/bluez-alsa/issues/new/choose
 
 ## License
 
