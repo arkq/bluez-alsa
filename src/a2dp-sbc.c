@@ -163,8 +163,8 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	struct io_poll io = { .timeout = -1 };
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp(&sbc, 0, &t->a2dp.configuration.sbc,
-					sizeof(t->a2dp.configuration.sbc))) != 0) {
+	const a2dp_sbc_t *configuration = &t->a2dp.configuration.sbc;
+	if ((errno = -sbc_init_a2dp(&sbc, 0, configuration, sizeof(*configuration))) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -175,7 +175,6 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
-	const a2dp_sbc_t *configuration = &t->a2dp.configuration.sbc;
 	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int samplerate = t_pcm->sampling;
@@ -223,11 +222,18 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
-		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
-						pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("PCM poll and read error: %s", strerror(errno));
+		ssize_t samples = ffb_len_in(&pcm);
+		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		case -1:
+			if (errno == ESTALE) {
+				sbc_reinit_a2dp(&sbc, 0, configuration, sizeof(*configuration));
+				sbc.bitpool = sbc_a2dp_get_bitpool(configuration, config.sbc_quality);
+				ffb_rewind(&pcm);
+				continue;
+			}
+			error("PCM poll and read error: %s", strerror(errno));
+			/* fall-through */
+		case 0:
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}

@@ -141,6 +141,7 @@ test_rfcomm_SOURCES = \
 	../src/dbus.c \
 	../src/hci.c \
 	../src/hfp.c \
+	../src/io.c \
 	../src/utils.c \
 	test-rfcomm.c
 

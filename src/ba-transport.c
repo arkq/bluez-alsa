@@ -63,6 +63,7 @@
 #include "dbus.h"
 #include "hci.h"
 #include "hfp.h"
+#include "io.h"
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
@@ -1527,7 +1528,7 @@ int ba_transport_start(struct ba_transport *t) {
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		switch (t->codec_id) {
+		switch (ba_transport_get_codec(t)) {
 		case A2DP_CODEC_SBC:
 			return a2dp_sbc_transport_start(t);
 #if ENABLE_MPEG
@@ -1827,10 +1828,12 @@ int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
 
 int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 
-	if (pcm->th->state != BA_TRANSPORT_THREAD_STATE_RUNNING)
-		return errno = ESRCH, -1;
-
 	pthread_mutex_lock(&pcm->mutex);
+
+	if (!ba_transport_thread_state_check_running(pcm->th)) {
+		pthread_mutex_unlock(&pcm->mutex);
+		return errno = ESRCH, -1;
+	}
 
 	debug("PCM drain: %d", pcm->fd);
 
@@ -1857,12 +1860,21 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 }
 
 int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
+
 #if DEBUG
 	pthread_mutex_lock(&pcm->mutex);
 	debug("PCM drop: %d", pcm->fd);
 	pthread_mutex_unlock(&pcm->mutex);
 #endif
-	return ba_transport_thread_signal_send(&pcm->t->thread_enc, BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP);
+
+	if (io_pcm_flush(pcm) == -1)
+		return -1;
+
+	int rv = ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP);
+	if (rv == -1 && errno == ESRCH)
+		rv = 0;
+
+	return rv;
 }
 
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {

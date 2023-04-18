@@ -339,11 +339,20 @@ void *a2dp_aac_enc_thread(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
-		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
-						pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("PCM poll and read error: %s", strerror(errno));
+		ssize_t samples = ffb_len_in(&pcm);
+		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		case -1:
+			if (errno == ESTALE) {
+				in_args.numInSamples = -1;
+				/* flush encoder internal buffers */
+				while (aacEncEncode(handle, NULL, &out_buf, &in_args, &out_args) == AACENC_OK)
+					continue;
+				ffb_rewind(&pcm);
+				continue;
+			}
+			error("PCM poll and read error: %s", strerror(errno));
+			/* fall-through */
+		case 0:
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}

@@ -127,7 +127,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 
 #if ENABLE_MSBC
 		struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
-		if (t->codec_id == HFP_CODEC_MSBC &&
+		if (ba_transport_get_codec(t) == HFP_CODEC_MSBC &&
 				setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
 			error("Couldn't setup transparent voice: %s", strerror(errno));
 			goto cleanup;
@@ -245,11 +245,16 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&buffer);
-		if ((samples = io_poll_and_read_pcm(&io, t_pcm, buffer.tail, samples)) <= 0) {
-			if (samples == -1)
-				error("PCM poll and read error: %s", strerror(errno));
-			else if (samples == 0)
-				ba_transport_stop_if_no_clients(t);
+		switch (samples = io_poll_and_read_pcm(&io, t_pcm, buffer.tail, samples)) {
+		case -1:
+			if (errno == ESTALE) {
+				ffb_rewind(&buffer);
+				continue;
+			}
+			error("PCM poll and read error: %s", strerror(errno));
+			/* fall-through */
+		case 0:
+			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
 
@@ -377,11 +382,17 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&msbc.pcm);
-		if ((samples = io_poll_and_read_pcm(&io, t_pcm, msbc.pcm.tail, samples)) <= 0) {
-			if (samples == -1)
-				error("PCM poll and read error: %s", strerror(errno));
-			else if (samples == 0)
-				ba_transport_stop_if_no_clients(t);
+		switch (samples = io_poll_and_read_pcm(&io, t_pcm, msbc.pcm.tail, samples)) {
+		case -1:
+			if (errno == ESTALE) {
+				/* reinitialize mSBC encoder */
+				msbc_init(&msbc);
+				continue;
+			}
+			error("PCM poll and read error: %s", strerror(errno));
+			/* fall-through */
+		case 0:
+			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
 
@@ -498,7 +509,7 @@ fail_msbc:
 #endif
 
 void *sco_enc_thread(struct ba_transport_thread *th) {
-	switch (th->t->codec_id) {
+	switch (ba_transport_get_codec(th->t)) {
 	case HFP_CODEC_CVSD:
 	default:
 		return sco_cvsd_enc_thread(th);
@@ -511,7 +522,7 @@ void *sco_enc_thread(struct ba_transport_thread *th) {
 
 __attribute__ ((weak))
 void *sco_dec_thread(struct ba_transport_thread *th) {
-	switch (th->t->codec_id) {
+	switch (ba_transport_get_codec(th->t)) {
 	case HFP_CODEC_CVSD:
 	default:
 		return sco_cvsd_dec_thread(th);

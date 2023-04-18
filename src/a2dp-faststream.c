@@ -117,8 +117,9 @@ void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, &t->a2dp.configuration.faststream,
-					sizeof(t->a2dp.configuration.faststream), is_voice)) != 0) {
+	const a2dp_faststream_t *configuration = &t->a2dp.configuration.faststream;
+	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, configuration,
+					sizeof(*configuration), is_voice)) != 0) {
 		error("Couldn't initialize FastStream SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -142,11 +143,18 @@ void *a2dp_faststream_enc_thread(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
-
 		ssize_t samples = ffb_len_in(&pcm);
-		if ((samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) <= 0) {
-			if (samples == -1)
-				error("PCM poll and read error: %s", strerror(errno));
+		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		case -1:
+			if (errno == ESTALE) {
+				sbc_reinit_a2dp_faststream(&sbc, 0, configuration,
+						sizeof(*configuration), is_voice);
+				ffb_rewind(&pcm);
+				continue;
+			}
+			error("PCM poll and read error: %s", strerror(errno));
+			/* fall-through */
+		case 0:
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}

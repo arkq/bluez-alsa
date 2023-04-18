@@ -81,7 +81,6 @@ endif
 
 if ENABLE_LC3PLUS
 bluealsa_mock_SOURCES += ../../src/a2dp-lc3plus.c
-bluealsa_mock_CFLAGS += @LC3PLUS_CFLAGS@
 bluealsa_mock_LDADD += @LC3PLUS_LIBS@
 endif
 

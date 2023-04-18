@@ -159,17 +159,25 @@ void io_pcm_scale(
  * Flush read buffer of the transport PCM FIFO. */
 ssize_t io_pcm_flush(struct ba_transport_pcm *pcm) {
 
+	ssize_t samples = 0;
 	ssize_t rv;
 
 	pthread_mutex_lock(&pcm->mutex);
-	rv = splice(pcm->fd, NULL, config.null_fd, NULL, 1024 * 32, SPLICE_F_NONBLOCK);
+
+	const int fd = pcm->fd;
+	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
+
+	while ((rv = splice(fd, NULL, config.null_fd, NULL, 32 * 1024, SPLICE_F_NONBLOCK)) > 0) {
+		debug("Flushed PCM samples [%d]: %zd", fd, rv / sample_size);
+		samples += rv / sample_size;
+	}
+
 	pthread_mutex_unlock(&pcm->mutex);
 
-	if (rv > 0)
-		rv /= BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
-	else if (rv == -1 && errno == EAGAIN)
-		rv = 0;
-	return rv;
+	if (rv == -1 && errno != EAGAIN)
+		return rv;
+
+	return samples;
 }
 
 /**
@@ -366,8 +374,10 @@ repoll:
 			io->timeout = 100;
 			goto repoll;
 		case BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP:
-			io_pcm_flush(pcm);
-			goto repoll;
+			/* Notify caller that the PCM FIFO has been dropped. This will give
+			 * the caller a chance to reinitialize its internal state. */
+			errno = ESTALE;
+			return -1;
 		default:
 			goto repoll;
 		}

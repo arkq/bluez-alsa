@@ -235,6 +235,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 
 	int32_t *pcm_ch1 = malloc(lc3plus_ch_samples * sizeof(int32_t));
 	int32_t *pcm_ch2 = malloc(lc3plus_ch_samples * sizeof(int32_t));
+	int32_t *pcm_ch_buffers[2] = { pcm_ch1, pcm_ch2 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch1);
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch2);
 
@@ -258,11 +259,21 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
-		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
-						pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("PCM poll and read error: %s", strerror(errno));
+		ssize_t samples = ffb_len_in(&pcm);
+		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		case -1:
+			if (errno == ESTALE) {
+				int encoded = 0;
+				memset(pcm_ch1, 0, lc3plus_ch_samples * sizeof(*pcm_ch1));
+				memset(pcm_ch2, 0, lc3plus_ch_samples * sizeof(*pcm_ch2));
+				/* flush encoder internal buffers by feeding it with silence */
+				lc3plus_enc24(handle, pcm_ch_buffers, rtp_payload, &encoded);
+				ffb_rewind(&pcm);
+				continue;
+			}
+			error("PCM poll and read error: %s", strerror(errno));
+			/* fall-through */
+		case 0:
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
@@ -288,9 +299,8 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 				lc3plus_frames < ((1 << 4) - 1)) {
 
 			int encoded = 0;
-			int32_t *in_buffers[2] = { pcm_ch1, pcm_ch2 };
 			audio_deinterleave_s24_4le(input, lc3plus_ch_samples, channels, pcm_ch1, pcm_ch2);
-			if ((err = lc3plus_enc24(handle, in_buffers, bt.tail, &encoded)) != LC3PLUS_OK) {
+			if ((err = lc3plus_enc24(handle, pcm_ch_buffers, bt.tail, &encoded)) != LC3PLUS_OK) {
 				error("LC3plus encoding error: %s", lc3plus_strerror(err));
 				break;
 			}
@@ -439,6 +449,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 
 	int32_t *pcm_ch1 = malloc(lc3plus_ch_samples * sizeof(int32_t));
 	int32_t *pcm_ch2 = malloc(lc3plus_ch_samples * sizeof(int32_t));
+	int32_t *pcm_ch_buffers[2] = { pcm_ch1, pcm_ch2 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch1);
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch2);
 
@@ -501,8 +512,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 
 		while (missing_pcm_frames > 0) {
 
-			int32_t *out_buffers[2] = { pcm_ch1, pcm_ch2 };
-			lc3plus_dec24(handle, bt_payload.data, 0, out_buffers, 1);
+			lc3plus_dec24(handle, bt_payload.data, 0, pcm_ch_buffers, 1);
 			audio_interleave_s24_4le(pcm_ch1, pcm_ch2, lc3plus_ch_samples, channels, pcm.data);
 
 			warn("Missing LC3plus data, loss concealment applied");
@@ -556,8 +566,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 		/* Decode retrieved LC3plus frames. */
 		while (lc3plus_frames--) {
 
-			int32_t *out_buffers[2] = { pcm_ch1, pcm_ch2 };
-			err = lc3plus_dec24(handle, lc3plus_payload, lc3plus_frame_len, out_buffers, 0);
+			err = lc3plus_dec24(handle, lc3plus_payload, lc3plus_frame_len, pcm_ch_buffers, 0);
 			audio_interleave_s24_4le(pcm_ch1, pcm_ch2, lc3plus_ch_samples, channels, pcm.data);
 
 			if (err == LC3PLUS_DECODE_ERROR)

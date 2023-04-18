@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-sbc.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -34,6 +34,8 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality);
 
 #if ENABLE_FASTSTREAM
 int sbc_init_a2dp_faststream(sbc_t *sbc, unsigned long flags,
+		const void *conf, size_t size, bool voice);
+int sbc_reinit_a2dp_faststream(sbc_t *sbc, unsigned long flags,
 		const void *conf, size_t size, bool voice);
 #endif
 

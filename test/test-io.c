@@ -13,6 +13,7 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <poll.h>
 #include <pthread.h>
@@ -708,6 +709,118 @@ CK_START_TEST(test_a2dp_sbc_invalid_config) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_a2dp_sbc_pcm_drop) {
+
+	int16_t pcm_zero[90] = { 0 };
+	int16_t pcm_rand[ARRAYSIZE(pcm_zero)];
+	for (size_t i = 0; i < ARRAYSIZE(pcm_rand); i++)
+		pcm_rand[i] = rand();
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
+			&config_sbc_44100_stereo);
+
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
+			&config_sbc_44100_stereo);
+
+	struct ba_transport_thread *th1 = &t1->thread_enc;
+	struct ba_transport_thread *th2 = &t2->thread_dec;
+
+	int bt_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
+	t1->mtu_read = t1->mtu_write = 256;
+	t2->mtu_read = t2->mtu_write = 256;
+	t1->bt_fd = bt_fds[1];
+	t2->bt_fd = bt_fds[0];
+
+	int pcm_snk_fds[2];
+	ck_assert_int_eq(pipe2(pcm_snk_fds, O_NONBLOCK), 0);
+	debug("Created PCM pipe pair: %d, %d", pcm_snk_fds[0], pcm_snk_fds[1]);
+	th1->pcm->fd = pcm_snk_fds[0];
+	th1->pcm->active = true;
+
+	int pcm_src_fds[2];
+	ck_assert_int_eq(pipe2(pcm_src_fds, O_NONBLOCK), 0);
+	debug("Created PCM pipe pair: %d, %d", pcm_src_fds[0], pcm_src_fds[1]);
+	th2->pcm->fd = pcm_src_fds[1];
+	th2->pcm->active = true;
+
+	/* sink PCM */
+	struct ba_transport_pcm *pcm = th1->pcm;
+
+	/* write zero samples to PCM FIFO until it is full */
+	while (write(pcm_snk_fds[1], pcm_zero, sizeof(pcm_zero)) > 0)
+		continue;
+
+	/* drop PCM samples before IO thread was started */
+	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
+
+	/* start IO thread and make sure it is running */
+	ck_assert_int_eq(ba_transport_thread_create(th1, a2dp_sbc_enc_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_thread_state_wait_running(th1), 0);
+
+	/* wait for 50 ms - let the thread to run for a while */
+	usleep(50000);
+
+	uint8_t bt_buffer[1024];
+	/* try to read data from BT socket - it should be empty because
+	 * the PCM has been dropped before the thread was started */
+	ck_assert_int_eq(read(bt_fds[0], bt_buffer, sizeof(bt_buffer)), -1);
+	ck_assert_int_eq(errno, EAGAIN);
+
+	/* write non-zero samples to PCM FIFO and process some of it */
+	while (write(pcm_snk_fds[1], pcm_rand, sizeof(pcm_rand)) > 0)
+		continue;
+	usleep(50000);
+
+	/* drop PCM samples */
+	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
+
+	/* write a little bit of non-zero samples and wait for processing; the
+	 * number of samples shall be small enough to not produce a single codec
+	 * frame, but enough to fill-in internal buffers */
+	ck_assert_int_gt(write(pcm_snk_fds[1], pcm_rand, sizeof(pcm_rand)), 0);
+	usleep(10000);
+
+	/* again drop PCM samples */
+	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
+
+	/* flush already processed data */
+	while (read(bt_fds[0], bt_buffer, sizeof(bt_buffer)) > 0)
+		continue;
+
+	/* After PCM has been dropped, IO thread should not process any more
+	 * non-zero samples. We will check this by writing zero samples and
+	 * checking if decoded data is all silence. */
+
+	ck_assert_int_eq(ba_transport_thread_create(th2, a2dp_sbc_dec_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_thread_state_wait_running(th2), 0);
+
+	/* write some zero samples to PCM FIFO and process them */
+	for (size_t i = 0; i < 100; i++)
+		if (write(pcm_snk_fds[1], pcm_zero, sizeof(pcm_zero)) <= 0)
+			break;
+	usleep(250000);
+
+	ssize_t rv;
+	int16_t pcm_buffer[1024];
+	/* read decoded data and check if it is all silence */
+	while ((rv = read(pcm_src_fds[0], pcm_buffer, sizeof(pcm_buffer))) > 0) {
+		const size_t samples = rv / sizeof(pcm_buffer[0]);
+		for (size_t i = 0; i < samples; i++)
+			ck_assert_int_eq(pcm_buffer[i], 0);
+	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+	close(pcm_snk_fds[0]);
+	close(pcm_src_fds[1]);
+	close(bt_fds[0]);
+
+} CK_END_TEST
+
 #if ENABLE_MP3LAME
 CK_START_TEST(test_a2dp_mp3) {
 
@@ -992,6 +1105,7 @@ int main(int argc, char *argv[]) {
 	} codecs[] = {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_invalid_config },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drop },
 #if ENABLE_MP3LAME
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },
 #endif
@@ -1106,9 +1220,11 @@ int main(int argc, char *argv[]) {
 		enabled_codecs = 0;
 		for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 			if (strcmp(codec, codecs[i].name) == 0)
-				enabled_codecs = 1 << i;
+				enabled_codecs |= 1 << i;
 
 	}
+
+	bluealsa_config_init();
 
 	bdaddr_t addr1 = {{ 1, 2, 3, 4, 5, 6 }};
 	bdaddr_t addr2 = {{ 1, 2, 3, 7, 8, 9 }};

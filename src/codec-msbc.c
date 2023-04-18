@@ -115,7 +115,7 @@ int msbc_init(struct esco_msbc *msbc) {
 	msbc->seq_number = 0;
 	msbc->frames = 0;
 
-	if (msbc->plc)
+	if (msbc->plc != NULL)
 		plc_init(msbc->plc);
 	else if (!(msbc->plc = plc_init(NULL)))
 		goto fail;

@@ -189,13 +189,6 @@ CK_START_TEST(test_ba_transport_sco_one_only) {
 
 } CK_END_TEST
 
-static uint16_t get_codec_id(struct ba_transport *t) {
-	pthread_mutex_lock(&t->codec_id_mtx);
-	uint16_t codec_id = t->codec_id;
-	pthread_mutex_unlock(&t->codec_id_mtx);
-	return codec_id;
-}
-
 CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 	struct ba_adapter *a;
@@ -207,7 +200,7 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
-	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_CVSD);
+	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
 
 #if ENABLE_MSBC
@@ -217,17 +210,17 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 	config.hfp.codecs.msbc = true;
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
-	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_UNDEFINED);
+	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_UNDEFINED);
 	ba_transport_unref(t_sco);
 
 	config.hfp.codecs.msbc = false;
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
-	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_CVSD);
+	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
 
 #else
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
-	ck_assert_int_eq(get_codec_id(t_sco), HFP_CODEC_CVSD);
+	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
 #endif
 

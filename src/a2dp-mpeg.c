@@ -283,9 +283,10 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 
 	const size_t mpeg_pcm_samples = lame_get_framesize(handle);
 	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_mpeg_audio_header_t);
-	/* It is hard to tell the size of the buffer required, but
-	 * empirical test shows that 2KB should be sufficient. */
-	const size_t mpeg_frame_len = 2048;
+	/* It is hard to tell the size of the buffer required, but empirical test
+	 * shows that 2KB should be sufficient for encoding. However, encoder flush
+	 * function requires a little bit more space. */
+	const size_t mpeg_frame_len = 4 * 1024;
 
 	if (ffb_init_int16_t(&pcm, mpeg_pcm_samples) == -1 ||
 			ffb_init_uint8_t(&bt, rtp_headers_len + mpeg_frame_len) == -1) {
@@ -306,11 +307,17 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 	debug_transport_thread_loop(th, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
-		ssize_t samples;
-		if ((samples = io_poll_and_read_pcm(&io, t_pcm,
-						pcm.tail, ffb_len_in(&pcm))) <= 0) {
-			if (samples == -1)
-				error("PCM poll and read error: %s", strerror(errno));
+		ssize_t samples = ffb_len_in(&pcm);
+		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		case -1:
+			if (errno == ESTALE) {
+				lame_encode_flush(handle, rtp_payload, mpeg_frame_len);
+				ffb_rewind(&pcm);
+				continue;
+			}
+			error("PCM poll and read error: %s", strerror(errno));
+			/* fall-through */
+		case 0:
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}

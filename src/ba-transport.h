@@ -183,6 +183,8 @@ bool ba_transport_thread_state_check(
 		struct ba_transport_thread *th,
 		enum ba_transport_thread_state state);
 
+#define ba_transport_thread_state_check_running(th) \
+	ba_transport_thread_state_check(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
 #define ba_transport_thread_state_check_terminated(th) \
 	ba_transport_thread_state_check(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
 
