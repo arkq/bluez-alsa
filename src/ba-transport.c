@@ -696,7 +696,6 @@ fail:
 static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 
 	GDBusMessage *msg, *rep;
-	GUnixFDList *fd_list;
 	GError *err = NULL;
 	int fd = -1;
 
@@ -717,12 +716,13 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	g_variant_get(g_dbus_message_get_body(rep), "(hqq)",
 			NULL, &mtu_read, &mtu_write);
 
+	GUnixFDList *fd_list = g_dbus_message_get_unix_fd_list(rep);
+	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1)
+		goto fail;
+
+	t->bt_fd = fd;
 	t->mtu_read = mtu_read;
 	t->mtu_write = mtu_write;
-
-	fd_list = g_dbus_message_get_unix_fd_list(rep);
-	fd = g_unix_fd_list_get(fd_list, 0, &err);
-	t->bt_fd = fd;
 
 	/* Minimize audio delay and increase responsiveness (seeking, stopping) by
 	 * decreasing the BT socket output buffer. We will use a tripled write MTU
@@ -902,7 +902,7 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
-	/* Keep the time-stamp when the SCO link has been close. It will be used
+	/* Keep the time-stamp when the SCO link has been closed. It will be used
 	 * for calculating close-connect quirk delay in the acquire function. */
 	gettimestamp(&t->sco.closed_at);
 

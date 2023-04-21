@@ -824,13 +824,12 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 
 	const char *device_path;
 	GVariantIter *properties;
-	GUnixFDList *fd_list;
 	GError *err = NULL;
 	int fd = -1;
 
-	g_variant_get(params, "(&oha{sv})", &device_path, &fd, &properties);
+	g_variant_get(params, "(&oha{sv})", &device_path, NULL, &properties);
 
-	fd_list = g_dbus_message_get_unix_fd_list(msg);
+	GUnixFDList *fd_list = g_dbus_message_get_unix_fd_list(msg);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1) {
 		error("Couldn't obtain RFCOMM socket: %s", err->message);
 		goto fail;

@@ -28,6 +28,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -48,6 +50,7 @@
 #include "ofono-iface.h"
 #include "ofono-skeleton.h"
 #include "shared/log.h"
+#include "shared/rt.h"
 
 /**
  * Lookup data associated with oFono card. */
@@ -88,17 +91,31 @@ static int ofono_sco_socket_authorize(int fd) {
 }
 
 /**
- * Ask oFono to connect to a card (in return it will call NewConnection). */
+ * Ask oFono to connect to a card. */
 static int ofono_acquire_bt_sco(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
+	uint8_t codec;
+	int fd = -1;
 	int ret = 0;
 
 	const char *ofono_dbus_path = t->bluez_dbus_path;
-	debug("Requesting new oFono SCO connection: %s", ofono_dbus_path);
+	debug("Requesting new oFono SCO link: %s", ofono_dbus_path);
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, ofono_dbus_path,
-			OFONO_IFACE_HF_AUDIO_CARD, "Connect");
+			OFONO_IFACE_HF_AUDIO_CARD, "Acquire");
+
+	struct timespec now;
+	struct timespec delay = {
+		.tv_nsec = HCI_SCO_CLOSE_CONNECT_QUIRK_DELAY * 1000000 };
+
+	gettimestamp(&now);
+	timespecadd(&t->sco.closed_at, &delay, &delay);
+	if (difftimespec(&now, &delay, &delay) > 0) {
+		info("SCO link close-connect quirk delay: %d ms",
+				(int)(delay.tv_nsec / 1000000));
+		nanosleep(&delay, NULL);
+	}
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
@@ -108,6 +125,19 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 		g_dbus_message_to_gerror(rep, &err);
 		goto fail;
 	}
+
+	GVariant *body = g_dbus_message_get_body(rep);
+	g_variant_get(body, "(hy)", NULL, &codec);
+
+	GUnixFDList *fd_list = g_dbus_message_get_unix_fd_list(rep);
+	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1)
+		goto fail;
+
+	t->bt_fd = fd;
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, t->d->a->hci.type);
+	ba_transport_set_codec(t, codec);
+
+	debug("New oFono SCO link (codec: %#x): %d", codec, fd);
 
 	goto final;
 
@@ -120,7 +150,7 @@ final:
 	if (rep != NULL)
 		g_object_unref(rep);
 	if (err != NULL) {
-		warn("Couldn't connect to card: %s", err->message);
+		error("Couldn't establish oFono SCO link: %s", err->message);
 		g_error_free(err);
 	}
 
@@ -141,6 +171,10 @@ static int ofono_release_bt_sco(struct ba_transport *t) {
 	shutdown(t->bt_fd, SHUT_RDWR);
 	close(t->bt_fd);
 	t->bt_fd = -1;
+
+	/* Keep the time-stamp when the SCO link has been closed. It will be used
+	 * for calculating close-connect quirk delay in the acquire function. */
+	gettimestamp(&t->sco.closed_at);
 
 	return 0;
 }
@@ -472,16 +506,15 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	struct ba_transport *t = NULL;
 	GError *err = NULL;
-	GUnixFDList *fd_list;
 	const char *card;
 	uint8_t codec;
 	int fd;
 
-	g_variant_get(params, "(&ohy)", &card, &fd, &codec);
+	g_variant_get(params, "(&ohy)", &card, NULL, &codec);
 
-	fd_list = g_dbus_message_get_unix_fd_list(msg);
+	GUnixFDList *fd_list = g_dbus_message_get_unix_fd_list(msg);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1) {
-		error("Couldn't obtain SCO socket: %s", err->message);
+		error("Couldn't obtain oFono SCO link socket: %s", err->message);
 		goto fail;
 	}
 
@@ -491,7 +524,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	}
 
 	if (ofono_sco_socket_authorize(fd) == -1) {
-		error("Couldn't authorize SCO connection: %s", strerror(errno));
+		error("Couldn't authorize oFono SCO link: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -499,7 +532,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
 
-	debug("New oFono SCO connection (codec: %#x): %d", codec, fd);
+	debug("New oFono SCO link (codec: %#x): %d", codec, fd);
 
 	t->bt_fd = fd;
 	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, t->d->a->hci.type);
