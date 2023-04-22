@@ -263,6 +263,10 @@ struct ba_transport {
 	 * and the IO threads stopping flag */
 	pthread_mutex_t bt_fd_mtx;
 
+	/* Ensure BT file descriptor acquisition procedure
+	 * is completed atomically. */
+	pthread_mutex_t acquisition_mtx;
+
 	/* This field stores a file descriptor (socket) associated with the BlueZ
 	 * side of the transport. The role of this socket depends on the transport
 	 * type - it can be either A2DP or SCO link. */

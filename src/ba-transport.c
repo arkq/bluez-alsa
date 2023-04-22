@@ -637,6 +637,7 @@ static struct ba_transport *transport_new(
 	pthread_mutex_init(&t->codec_id_mtx, NULL);
 	pthread_mutex_init(&t->codec_select_client_mtx, NULL);
 	pthread_mutex_init(&t->bt_fd_mtx, NULL);
+	pthread_mutex_init(&t->acquisition_mtx, NULL);
 	pthread_cond_init(&t->stopped, NULL);
 
 	t->bt_fd = -1;
@@ -1224,6 +1225,7 @@ void ba_transport_unref(struct ba_transport *t) {
 
 	pthread_cond_destroy(&t->stopped);
 	pthread_mutex_destroy(&t->bt_fd_mtx);
+	pthread_mutex_destroy(&t->acquisition_mtx);
 	pthread_mutex_destroy(&t->codec_select_client_mtx);
 	pthread_mutex_destroy(&t->codec_id_mtx);
 	free(t->bluez_dbus_owner);
@@ -1607,6 +1609,8 @@ int ba_transport_acquire(struct ba_transport *t) {
 	bool acquired = false;
 	int fd = -1;
 
+	pthread_mutex_lock(&t->acquisition_mtx);
+
 	pthread_mutex_lock(&t->bt_fd_mtx);
 
 	/* If we are in the middle of IO threads stopping, wait until all resources
@@ -1643,6 +1647,8 @@ final:
 		}
 
 	}
+
+	pthread_mutex_unlock(&t->acquisition_mtx);
 
 	return fd;
 }
