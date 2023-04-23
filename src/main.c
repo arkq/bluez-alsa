@@ -569,7 +569,13 @@ int main(int argc, char **argv) {
 
 	a2dp_codecs_init();
 
-	storage_init(BLUEALSA_STORAGE_DIR);
+	const char *storage_base_dir = BLUEALSA_STORAGE_DIR;
+#if ENABLE_SYSTEMD
+	const char *systemd_state_dir;
+	if ((systemd_state_dir = getenv("STATE_DIRECTORY")) != NULL)
+		storage_base_dir = systemd_state_dir;
+#endif
+	storage_init(storage_base_dir);
 
 	/* In order to receive EPIPE while writing to the pipe whose reading end
 	 * is closed, the SIGPIPE signal has to be handled. For more information

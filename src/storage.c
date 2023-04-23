@@ -81,6 +81,7 @@ static void storage_free(struct storage *st) {
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int storage_init(const char *root) {
 
+	debug("Initializing persistent storage: %s", root);
 	strncpy(storage_root_dir, root, sizeof(storage_root_dir) - 1);
 	if (mkdir(storage_root_dir, S_IRWXU) == -1 && errno != EEXIST)
 		warn("Couldn't create storage directory: %s", strerror(errno));
