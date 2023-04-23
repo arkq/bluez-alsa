@@ -325,6 +325,7 @@ int ba_transport_thread_state_set(
 	pthread_mutex_lock(&th->mutex);
 
 	enum ba_transport_thread_state old_state = th->state;
+
 	/* Moving to the next state is always allowed. */
 	bool valid = state == th->state + 1;
 
@@ -1482,12 +1483,24 @@ void ba_transport_set_codec(
  *   errno is set to indicate the error. */
 int ba_transport_start(struct ba_transport *t) {
 
+	/* For A2DP Source profile only, it is possible that BlueZ will
+	 * activate the transport following a D-Bus "Acquire" request before the
+	 * client thread has completed the acquisition procedure by initializing
+	 * the I/O threads state. So in that case we must ensure that the
+	 * acquisition procedure is not still in progress before we check the
+	 * threads' state. */
+	if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+		pthread_mutex_lock(&t->acquisition_mtx);
+
 	pthread_mutex_lock(&t->thread_enc.mutex);
 	bool is_enc_idle = t->thread_enc.state == BA_TRANSPORT_THREAD_STATE_IDLE;
 	pthread_mutex_unlock(&t->thread_enc.mutex);
 	pthread_mutex_lock(&t->thread_dec.mutex);
 	bool is_dec_idle = t->thread_dec.state == BA_TRANSPORT_THREAD_STATE_IDLE;
 	pthread_mutex_unlock(&t->thread_dec.mutex);
+
+	if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE)
+		pthread_mutex_unlock(&t->acquisition_mtx);
 
 	if (!is_enc_idle || !is_dec_idle)
 		return errno = EINVAL, -1;
