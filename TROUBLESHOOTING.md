@@ -1,8 +1,55 @@
 # Troubleshooting BlueALSA
 
-Solutions to some of the most commonly encountered errors when using BlueALSA.
+## Introduction
 
-## Couldn't acquire D-Bus name: org.bluealsa
+This document presents solutions to some of the most commonly encountered
+errors when using BlueALSA.
+
+If you have a problem with BlueALSA, and are unable to find a solution in this
+document or by reading the [manual pages][], then please search
+[previous issues][] (both open and closed), and consult the [wiki][] before
+raising a new issue.
+
+[manual pages]: doc/
+[previous issues]: https://github.com/arkq/bluez-alsa/issues
+[wiki]: https://github.com/arkq/bluez-alsa/wiki
+
+If reporting a problem as a new issue, please clearly state:
+
+- the OS distribution and version you are using,
+- the version of BlueALSA that you are using:
+
+   ```shell
+   bluealsa --version
+   ```
+
+- the version of BlueZ:
+
+   ```shell
+   bluetoothd --version
+   ```
+
+- the version of ALSA:
+
+   ```shell
+   aplay --version
+   ```
+
+- if self-built from source, please state the branch and commit, and the
+configure options used:
+
+   ```shell
+   git log -1 --oneline
+   # in your build directory:
+   ./config.status --config
+   ```
+
+- sufficient additional information for readers to be able to reproduce the
+issue.
+
+## Common Errors
+
+### 1. Couldn't acquire D-Bus name: org.bluealsa
 
 The BlueALSA server registers a unique "well-known service name" with D-Bus,
 which is used by client applications to identify the correct service instance.
@@ -62,7 +109,7 @@ systemctl reload dbus.service
 
 [bluealsa(8)]: doc/bluealsa.8.rst
 
-## Couldn't get BlueALSA PCM: PCM not found
+### 2. Couldn't get BlueALSA PCM: PCM not found
 
 In contrast to standard ALSA sound cards, BlueALSA does not expose all PCMs
 right away. In the first place it is required to connect remote Bluetooth
@@ -79,7 +126,7 @@ available ALSA PCM names - it might give you a hint what is wrong with your
 `.asoundrc` entry. Also, take a look at the [bluealsa-plugins manual
 page](doc/bluealsa-plugins.7.rst).
 
-## Couldn't get BlueALSA PCM: Rejected send message
+### 3. Couldn't get BlueALSA PCM: Rejected send message
 
 This error message indicates that the user does not have permission to use
 the BlueALSA service. BlueALSA client applications require permission from
@@ -108,7 +155,7 @@ In a default install, the file should be
 documentation in case D-Bus uses a different location on your system.
 Re-install BlueALSA if the file is missing.
 
-## Using BlueALSA alongside PulseAudio or PipeWire
+### 4. Using BlueALSA alongside PulseAudio or PipeWire
 
 It is not advisable to run BlueALSA if either PulseAudio or PipeWire are also
 running with their own Bluetooth modules enabled. If one would like to have a
@@ -134,11 +181,14 @@ modules in the wiki: [PulseAudio integration][]
 
 [PulseAudio integration]: https://github.com/arkq/bluez-alsa/wiki/PulseAudio-integration
 
-## ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
+### 5. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
 
 ALSA library versions 1.1.2 and 1.1.3 had a bug in their thread-safe API
 functions. This bug does not affect hardware audio devices, but it affects
 many software plug-ins. Random deadlocks are inevitable. The best advice is
 to use a more recent alsa-lib release, or if that is not possible then
 disable the thread locking code via an environment variable, as follows:
-`export LIBASOUND_THREAD_SAFE=0`.
+
+```shell
+export LIBASOUND_THREAD_SAFE=0
+```

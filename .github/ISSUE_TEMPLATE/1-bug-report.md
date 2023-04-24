@@ -4,6 +4,9 @@ about: Create a report to help improve bluez-alsa.
 title:
 ---
 
+> Please read the [troubleshooting guide](../blob/master/TROUBLESHOOTING.md)
+> before raising a new issue.
+
 ### Problem
 
 > A clear and concise description of what the bug is.
