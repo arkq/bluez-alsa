@@ -8,8 +8,8 @@ _bluealsa_profiles() {
 		[[ "$line" = "Available BT profiles:" ]] && start=yes && continue
 		[[ "$start" ]] || continue
 		[[ "$line" ]] || break
-		words=($line)
-		printf "%s" "${words[1]} "
+		read -ra words <<< "$line"
+		echo "${words[1]}"
 	done
 }
 
@@ -21,8 +21,8 @@ _bluealsa_codecs() {
 		[[ "$start" ]] || continue
 		[[ "$line" ]] || break
 		line=${line,,}
-		words=(${line//,/})
-		echo ${words[@]:1}
+		IFS=", " read -ra words <<< "${line,,}"
+		echo "${words[@]:1}"
 	done
 }
 
@@ -31,7 +31,8 @@ _bluealsa_codecs() {
 # @param $2 the bluealsa option to inspect
 _bluealsa_enum_values() {
 	"$1" "${2}=" 2>&1 | while read -r line; do
-		[[ $line =~ \{([^}]*)\} ]] && printf "${BASH_REMATCH[1]//,/}"
+		[[ $line =~ \{([^}]*)\} ]] || continue
+		echo "${BASH_REMATCH[1]//,/}"
 	done
 }
 
@@ -43,39 +44,32 @@ _bluealsa_list_dbus_suffices() {
 	          org.freedesktop.DBus.ListNames 2>/dev/null | \
 		while read -r line; do
 			[[ $line =~ org\.bluealsa\.([^'"']+) ]] || continue
-			printf "%s" "${BASH_REMATCH[1]} "
+			echo "${BASH_REMATCH[1]}"
 		done
 }
 
 # helper function gets codecs for given pcm
-# @param $1 the executable name
-# @param $2 dbus option ( --dbus=aaa )
-# @param $3 pcm path
+# before calling this function, make sure that the bautil_args was properly
+# initialized with the _bluealsa_util_init function
+# @param $1 pcm path
 _bluealsa_pcm_codecs() {
-	"$1" $2 codec "$3" | while read -r line; do
-		[[ $line =~ ^Available\ codecs:\ ([^[]+$) ]] && printf "${BASH_REMATCH[1]}"
+	"${bautil_args[@]}" codec "$1" | while read -r line; do
+		[[ $line =~ ^Available\ codecs:\ ([^[]+$) ]] || continue
+		echo "${BASH_REMATCH[1]}"
 	done
 }
 
 # helper function completes supported bluealsa-cli monitor properties
 _bluealsa_cli_properties() {
-	local properties=(
-		Codec
-		Running
-		SoftVolume
-		Volume
-	)
-
+	local properties=( codec running softvolume volume )
 	if [[ "$cur" == *,* ]]; then
 		local realcur prefix chosen remaining
 		realcur="${cur##*,}"
 		prefix="${cur%,*}"
-		chosen=()
-		IFS=$',\n' read -ra chosen <<< "$prefix"
-		remaining=()
-		readarray -t remaining <<< "$(printf '%s\n' "${properties[@]}" "${chosen[@]}" | sort | uniq -u)"
+		IFS="," read -ra chosen <<< "${prefix,,}"
+		readarray -t remaining < <(printf '%s\n' "${properties[@]}" "${chosen[@]}" | sort | uniq -u)
 		if [[ ${#remaining[@]} -gt 0 ]]; then
-			COMPREPLY=( $(compgen -W "${remaining[*]}" -- "$realcur") )
+			readarray -t COMPREPLY < <(compgen -W "${remaining[*]}" -- "$realcur")
 			if [[ ${#COMPREPLY[@]} -eq 1 ]] ; then
 				COMPREPLY[0]="$prefix,${COMPREPLY[0]}"
 			fi
@@ -87,7 +81,7 @@ _bluealsa_cli_properties() {
 			fi
 		fi
 	else
-		COMPREPLY=( $(compgen -W "${properties[*]}" -- "$cur") )
+		readarray -t COMPREPLY < <(compgen -W "${properties[*]}" -- "$cur")
 		if [[ ${#COMPREPLY[@]} -eq 1 && "$cur" == "${COMPREPLY[0]}" ]]; then
 			COMPREPLY=("${COMPREPLY[0]},")
 		fi
@@ -103,25 +97,28 @@ _bluealsa_aplay_pcms() {
 	while read -r; do
 		[[ "$REPLY" == " "* ]] && continue
 		[[ "$REPLY" == "$cur"* ]] || continue
-		printf "%s\n" "${REPLY// /\\ }"
-	done <<< $(aplay -L 2>/dev/null)
+		echo "${REPLY// /\\ }"
+	done < <(aplay -L 2>/dev/null)
 }
 
 # helper function gets rfcomm dbus paths
 # @param $1 the full bluealsa service name ( org.bluealsa* )
 _bluealsa_rfcomm_paths() {
 	busctl --list tree "$1" 2>/dev/null | while read -r line; do
-		[[ "$line" = /org/bluealsa/hci[0-9]/dev*/rfcomm ]] && printf "%s" "${line/\/rfcomm/}"
+		[[ "$line" = /org/bluealsa/hci[0-9]/dev*/rfcomm ]] || continue
+		echo "${line/\/rfcomm/}"
 	done
 }
 
-# helper function - Loop through words of command line.
-# puts dbus arg ( --dbus=aaa ) into variable dbus_opt
+# helper function gets options from command line
+# @param $1 the executable name
+# puts exec and dbus arg ( --dbus=aaa ) into array variable bautil_args
 # puts service name ( org.bluealsa.aaa ) into variable service
 # puts offset of first non-option argument into variable nonopt_offset
 # @return 0 if no errors found, 1 if dbus check failed
 _bluealsa_util_init() {
 	local valopts="-B --dbus"
+	bautil_args=( "$1" )
 	service="org.bluealsa"
 	nonopt_offset=0
 	local i
@@ -132,14 +129,14 @@ _bluealsa_util_init() {
 					break
 				elif (( i == COMP_CWORD - 1 )) ; then
 					[[ "${COMP_WORDS[i+1]}" = = ]] && break
-					dbus_opt="--dbus=${COMP_WORDS[i+1]}"
+					bautil_args+=( "--dbus=${COMP_WORDS[i+1]}" )
 					service="org.bluealsa.${COMP_WORDS[i+1]}"
 					break
 				else
 					[[ "${COMP_WORDS[i+1]}" = = ]] && (( i++ ))
 					if [[ "${COMP_WORDS[i+1]}" ]] ; then
 						(( i++ ))
-						dbus_opt="--dbus=${COMP_WORDS[i]}"
+						bautil_args+=( "--dbus=${COMP_WORDS[i]}" )
 						service="org.bluealsa.${COMP_WORDS[i]}"
 						continue
 					fi
@@ -149,13 +146,13 @@ _bluealsa_util_init() {
 				if (( i == COMP_CWORD )) ; then
 					break
 				elif (( i == COMP_CWORD - 1 )) ; then
-					dbus_opt="--dbus=${COMP_WORDS[i+1]}"
+					bautil_args+=( "--dbus=${COMP_WORDS[i+1]}" )
 					service="org.bluealsa.${COMP_WORDS[i+1]}"
 					break
 				else
 					if [[ "${COMP_WORDS[i+1]}" ]] ; then
 						(( i++ ))
-						dbus_opt="--dbus=${COMP_WORDS[i]}"
+						bautil_args+=( "--dbus=${COMP_WORDS[i]}" )
 						service="org.bluealsa.${COMP_WORDS[i]}"
 						continue
 					fi
@@ -179,43 +176,44 @@ _bluealsa_util_init() {
 
 # helper function completes options
 _bluealsa_complete_options() {
-	COMPREPLY=( $(compgen -W "$(_parse_help $1)" -- $cur) )
-	[[ $COMPREPLY == *= ]] && compopt -o nospace
+	readarray -t COMPREPLY < <(compgen -W "$(_parse_help "$1")" -- "$cur")
+	[[ ${COMPREPLY[0]} == *= ]] && compopt -o nospace
 }
 
 # completion function for bluealsa
 # complete available devices and profiles in addition to options
 _bluealsa() {
-	local cur prev words cword split list
-	local prefix
 
+	local cur prev words cword split
 	_init_completion -s || return
+
+	local prefix list
 
 	case "$prev" in
 		--device|-i)
-			COMPREPLY=( $(compgen -W "$(ls -I *:* /sys/class/bluetooth)" -- $cur) )
+			readarray -t list < <(ls -I '*:*' /sys/class/bluetooth)
+			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
 			;;
 		--profile|-p)
 			[[ $cur =~ ^[+-].* ]] && prefix=${cur:0:1} && cur=${cur:1}
-			COMPREPLY=( $(compgen -P "$prefix" -W "$(_bluealsa_profiles $1)" -- $cur) )
+			readarray -t list < <(_bluealsa_profiles "$1")
+			readarray -t COMPREPLY < <(compgen -P "$prefix" -W "${list[*]}" -- "$cur")
 			return
 			;;
 		--codec|-c)
 			[[ $cur =~ ^[+-].* ]] && prefix=${cur:0:1} && cur=${cur:1}
-			COMPREPLY=( $(compgen -P "$prefix" -W "$(_bluealsa_codecs $1)" -- $cur) )
+			readarray -t list < <(_bluealsa_codecs "$1")
+			readarray -t COMPREPLY < <(compgen -P "$prefix" -W "${list[*]}" -- "$cur")
 			return
 			;;
-		--sbc-quality|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality)
-			COMPREPLY=( $(compgen -W "$(_bluealsa_enum_values $1 $prev)" -- $cur) )
-			return
-			;;
-		--aac-latm-version)
-			COMPREPLY=( $(compgen -W "0 1" -- $cur) )
+		--sbc-quality|--aac-latm-version|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality)
+			readarray -t list < <(_bluealsa_enum_values "$1" "$prev")
+			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
 			;;
 		--xapl-resp-name)
-			COMPREPLY=( $(compgen -W "BlueALSA iPhone" -- $cur) )
+			readarray -t COMPREPLY < <(compgen -W "BlueALSA iPhone" -- "$cur")
 			return
 			;;
 		--*)
@@ -231,15 +229,17 @@ _bluealsa() {
 # - does not complete MAC addresses
 # requires aplay to list ALSA pcms
 _bluealsa_aplay() {
-	local cur prev words cword split
 
+	local cur prev words cword split
 	_init_completion -s -n : || return
+
+	local list
 
 	case "$prev" in
 		--dbus|-B)
 			_have dbus-send || return
-			list=$(_bluealsa_list_dbus_suffices)
-			COMPREPLY=( $(compgen -W "$list" -- $cur) )
+			readarray -t list < <(_bluealsa_list_dbus_suffices)
+			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
 			;;
 		--pcm|-D)
@@ -248,8 +248,7 @@ _bluealsa_aplay() {
 			# do not attempt completion on words containing ' or "
 			[[ "$cur" =~ [\'\"] ]] && return
 
-			local IFS=$'\n'
-			COMPREPLY=( $(_bluealsa_aplay_pcms "$cur" ) )
+			readarray -t COMPREPLY < <(_bluealsa_aplay_pcms "$cur")
 
 			# ALSA pcm names can contain '=' and ':', both of which cause
 			# problems for bash completion if it considers them to be word
@@ -260,7 +259,7 @@ _bluealsa_aplay() {
 				local equal_prefix=${cur%"${cur##*=}"}
 				local i=${#COMPREPLY[*]}
 				while [[ $((--i)) -ge 0 ]]; do
-					COMPREPLY[$i]=${COMPREPLY[$i]#"$equal_prefix"}
+					COMPREPLY[i]=${COMPREPLY[$i]#"$equal_prefix"}
 				done
 			fi
 			__ltrim_colon_completions "$cur"
@@ -277,13 +276,13 @@ _bluealsa_aplay() {
 # completion function for bluealsa-cli
 # complete available dbus suffices, command names and pcm paths in addition to options
 _bluealsa_cli() {
-	local cur prev words cword split
-	local dbus_opt service
-	local -i nonopt_offset
 
+	local cur prev words cword split
 	_init_completion -s || return
 
-	_bluealsa_util_init $1 || return
+	local bautil_args service
+	local -i nonopt_offset
+	_bluealsa_util_init "$1" || return
 
 	# the command names supported by this version of bluealsa-cli
 	local simple_commands="list-pcms list-services monitor status"
@@ -297,8 +296,7 @@ _bluealsa_cli() {
 	local base_shortopts="-B -V -q -v"
 	local base_longopts="--dbus= --version --quiet --verbose"
 
-	local command=
-	local path=
+	local command path list
 
 	# process pre-command options
 	case "$nonopt_offset" in
@@ -306,32 +304,32 @@ _bluealsa_cli() {
 			case "$prev" in
 				--dbus|-B)
 					_have dbus-send || return
-					list=$(_bluealsa_list_dbus_suffices)
-					COMPREPLY=( $(compgen -W "$list" -- $cur) )
+					readarray -t list < <(_bluealsa_list_dbus_suffices)
+					readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 					return
 					;;
 			esac
 			case "$cur" in
 				-|--*)
-					COMPREPLY=( $(compgen -W "$global_longopts $base_longopts" -- "$cur") )
+					readarray -t COMPREPLY < <(compgen -W "$global_longopts $base_longopts" -- "$cur")
 					[[ "${COMPREPLY[0]}" == *= ]] && compopt -o nospace
 					;;
 				-?)
-					COMPREPLY=( $(compgen -W "$global_shortopts $base_shortopts" -- "$cur") )
+					readarray -t COMPREPLY < <(compgen -W "$global_shortopts $base_shortopts" -- "$cur")
 					;;
 			esac
 			return
 			;;
 		"$COMP_CWORD")
 			# list available commands
-			COMPREPLY=( $(compgen -W "$simple_commands $path_commands" -- "$cur") )
+			readarray -t COMPREPLY < <(compgen -W "$simple_commands $path_commands" -- "$cur")
 			return
 			;;
 	esac
 
 	# check for valid command
 	command="${COMP_WORDS[nonopt_offset]}"
-	[[ "$simple_commands $path_commands" =~ "$command" ]] || return
+	[[ "$simple_commands $path_commands" =~ $command ]] || return
 
 	# process command-specific options
 	case "$command" in
@@ -370,7 +368,7 @@ _bluealsa_cli() {
 	esac
 
 	# find path argument
-	for (( i=((nonopt_offset + 1)); i < COMP_CWORD; i++ )); do
+	for (( i=(nonopt_offset + 1); i < COMP_CWORD; i++ )); do
 		[[ "${COMP_WORDS[i]}" == -* ]] && continue
 		path="${COMP_WORDS[i]}"
 		path_offset=i
@@ -381,17 +379,18 @@ _bluealsa_cli() {
 	if [[ -z "$path" ]] ; then
 		case "$cur" in
 			-|--*)
-				COMPREPLY=( $(compgen -W "$global_longopts" -- $cur) )
+				readarray -t COMPREPLY < <(compgen -W "$global_longopts" -- "$cur")
 				[[ "${COMPREPLY[0]}" == --properties* ]] && compopt -o nospace
 				return
 				;;
 			-?)
-				COMPREPLY=( $(compgen -W "$global_shortopts" -- $cur) )
+				readarray -t COMPREPLY < <(compgen -W "$global_shortopts" -- "$cur")
 				return
 				;;
 		esac
-		if [[ "$path_commands" =~ "$command" ]]; then
-			COMPREPLY=( $(compgen -W "$("$1" $dbus_opt list-pcms 2>/dev/null)" -- $cur) )
+		if [[ "$path_commands" =~ $command ]]; then
+			readarray -t list < <("${bautil_args[@]}" list-pcms 2>/dev/null)
+			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
 		fi
 	fi
@@ -399,14 +398,17 @@ _bluealsa_cli() {
 	# process command positional arguments
 	case "$command" in
 		codec)
-			(( COMP_CWORD == path_offset + 1 )) && COMPREPLY=( $(compgen -W "$(_bluealsa_pcm_codecs "$1" "$dbus_opt" "$path")" -- $cur) )
+			if (( COMP_CWORD == path_offset + 1 )) ; then
+				readarray -t list < <(_bluealsa_pcm_codecs "$path")
+				readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
+			fi
 			;;
 		mute)
 			if (( COMP_CWORD < path_offset + 3 )) ; then
 				if [[ "$cur" == "" ]] ; then
 					COMPREPLY=( true false )
 				else
-					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- ${cur,,}) )
+					readarray -t COMPREPLY < <(compgen -W "on yes true 1 off no false 0" -- "${cur,,}")
 				fi
 			fi
 			;;
@@ -415,7 +417,7 @@ _bluealsa_cli() {
 				if [[ "$cur" == "" ]] ; then
 					COMPREPLY=( true false )
 				else
-					COMPREPLY=( $(compgen -W "on yes true 1 off no false 0" -- ${cur,,}) )
+					readarray -t COMPREPLY < <(compgen -W "on yes true 1 off no false 0" -- "${cur,,}")
 				fi
 			fi
 			;;
@@ -436,20 +438,22 @@ _bluealsa_cli() {
 # complete available dbus suffices and device paths in addition to options
 # requires busctl (part of elogind or systemd) to list device paths
 _bluealsa_rfcomm() {
-	local cur prev words cword split
-	local dbus_opt service
-	local -i nonopt_offset
 
+	local cur prev words cword split
 	_init_completion -s || return
 
-	_bluealsa_util_init $1 || return
+	local bautil_args service
+	local -i nonopt_offset
+	_bluealsa_util_init "$1" || return
+
+	local list
 
 	# check for dbus service suffix first
 	case "$prev" in
 		--dbus|-B)
 			_have dbus-send || return
-			list=$(_bluealsa_list_dbus_suffices)
-			COMPREPLY=( $(compgen -W "$list" -- $cur) )
+			readarray -t list < <(_bluealsa_list_dbus_suffices)
+			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
 			;;
 		--*)
@@ -459,17 +463,21 @@ _bluealsa_rfcomm() {
 
 	if (( nonopt_offset == COMP_CWORD )) ; then
 		_have busctl || return
-		COMPREPLY=( $(compgen -W "$(_bluealsa_rfcomm_paths $service)" -- $cur) )
+		readarray -t list < <(_bluealsa_rfcomm_paths "$service")
+		readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 		return
 	fi
 
 	# do not list options if path was found
-	(( nonopt_offset > 0 )) || _bluealsa_complete_options "$1"
+	(( nonopt_offset > 0 )) && return
+
+	_bluealsa_complete_options "$1"
 }
 
 # completion function for a2dpconf and hcitop
 # complete only the options
 _bluealsa_others() {
+	# shellcheck disable=SC2034
 	local cur prev words cword split
 	_init_completion -s || return
 	case "$prev" in

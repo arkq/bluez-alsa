@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cmd-monitor.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -69,7 +69,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 	char type_expected;
 
 	if (monitor_properties_set[PROPERTY_CODEC].enabled &&
-			strcmp(key, "Codec") == 0) {
+			strcmp(key, monitor_properties_set[PROPERTY_CODEC].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
 		const char *codec;
@@ -77,7 +77,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		printf("PropertyChanged %s Codec %s\n", path, codec);
 	}
 	else if (monitor_properties_set[PROPERTY_RUNNING].enabled &&
-			strcmp(key, "Running") == 0) {
+			strcmp(key, monitor_properties_set[PROPERTY_RUNNING].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
 			goto fail;
 		dbus_bool_t running;
@@ -85,7 +85,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		printf("PropertyChanged %s Running %s\n", path, running ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_SOFTVOL].enabled &&
-		strcmp(key, "SoftVolume") == 0) {
+			strcmp(key, monitor_properties_set[PROPERTY_SOFTVOL].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
 			goto fail;
 		dbus_bool_t softvol;
@@ -93,7 +93,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		printf("PropertyChanged %s SoftVolume %s\n", path, softvol ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_VOLUME].enabled &&
-		strcmp(key, "Volume") == 0) {
+			strcmp(key, monitor_properties_set[PROPERTY_VOLUME].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
 		dbus_uint16_t volume;

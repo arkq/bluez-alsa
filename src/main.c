@@ -418,13 +418,15 @@ int main(int argc, char **argv) {
 		case 5 /* --aac-bitrate=BPS */ :
 			config.aac_bitrate = atoi(optarg);
 			break;
-		case 15 /* --aac-latm-version=NUM */ :
-			config.aac_latm_version = atoi(optarg);
-			if (config.aac_latm_version > 2) {
-				error("Invalid LATM version [0, 2]: %s", optarg);
+		case 15 /* --aac-latm-version=NUM */ : {
+			char *tmp;
+			config.aac_latm_version = strtoul(optarg, &tmp, 10);
+			if (config.aac_latm_version > 2 || optarg == tmp || *tmp != '\0') {
+				error("Invalid LATM version {0, 1, 2}: %s", optarg);
 				return EXIT_FAILURE;
 			}
 			break;
+		}
 		case 18 /* --aac-true-bps */ :
 			config.aac_true_bps = true;
 			break;
