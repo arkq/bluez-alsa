@@ -139,6 +139,20 @@ static void transport_pcm_free(
 }
 
 /**
+ * Convert PCM volume level to [0, max] range. */
+int ba_transport_pcm_volume_level_to_range(int value, int max) {
+	int volume = audio_decibel_to_loudness(value / 100.0) * max;
+	return MIN(MAX(volume, 0), max);
+}
+
+/**
+ * Convert [0, max] range to PCM volume level. */
+int ba_transport_pcm_volume_range_to_level(int value, int max) {
+	double level = audio_loudness_to_decibel(1.0 * value / max);
+	return MIN(MAX(level, -96.0), 96.0) * 100;
+}
+
+/**
  * Set PCM volume level/mute.
  *
  * One shall use this function instead of directly writing to PCM volume
@@ -817,13 +831,11 @@ struct ba_transport *ba_transport_new_a2dp(
 			is_sink ? &t->thread_dec : &t->thread_enc,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
-	t->a2dp.pcm.max_bt_volume = 127;
 
 	transport_pcm_init(&t->a2dp.pcm_bc,
 			is_sink ? &t->thread_enc : &t->thread_dec,
 			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
-	t->a2dp.pcm_bc.max_bt_volume = 127;
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -932,12 +944,10 @@ struct ba_transport *ba_transport_new_sco(
 	transport_pcm_init(&t->sco.spk_pcm,
 			is_ag ? &t->thread_enc : &t->thread_dec,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
-	t->sco.spk_pcm.max_bt_volume = 15;
 
 	transport_pcm_init(&t->sco.mic_pcm,
 			is_ag ? &t->thread_dec : &t->thread_enc,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
-	t->sco.mic_pcm.max_bt_volume = 15;
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
@@ -1722,20 +1732,6 @@ int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 	return pcm->delay;
 }
 
-unsigned int ba_transport_pcm_volume_level_to_bt(
-		const struct ba_transport_pcm *pcm,
-		int value) {
-	int volume = audio_decibel_to_loudness(value / 100.0) * pcm->max_bt_volume;
-	return MIN((unsigned int)MAX(volume, 0), pcm->max_bt_volume);
-}
-
-int ba_transport_pcm_volume_bt_to_level(
-		const struct ba_transport_pcm *pcm,
-		unsigned int value) {
-	double level = audio_loudness_to_decibel(1.0 * value / pcm->max_bt_volume);
-	return MIN(MAX(level, -96.0), 96.0) * 100;
-}
-
 int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 
 	struct ba_transport *t = pcm->t;
@@ -1756,11 +1752,13 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 		unsigned int volume;
 		switch (pcm->channels) {
 		case 1:
-			volume = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
+			volume = ba_transport_pcm_volume_level_to_range(
+					pcm->volume[0].level, BLUEZ_A2DP_VOLUME_MAX);
 			break;
 		case 2:
-			volume = ba_transport_pcm_volume_level_to_bt(pcm,
-					(pcm->volume[0].level + pcm->volume[1].level) / 2);
+			volume = ba_transport_pcm_volume_level_to_range(
+					(pcm->volume[0].level + pcm->volume[1].level) / 2,
+					BLUEZ_A2DP_VOLUME_MAX);
 			break;
 		default:
 			g_assert_not_reached();

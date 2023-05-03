@@ -436,7 +436,7 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
 
 	r->gain_mic = atoi(at->value);
-	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
+	int level = ba_transport_pcm_volume_range_to_level(r->gain_mic, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
@@ -457,7 +457,7 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
 
 	r->gain_mic = atoi(at->value);
-	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_mic);
+	int level = ba_transport_pcm_volume_range_to_level(r->gain_mic, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
@@ -481,7 +481,7 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
 
 	r->gain_spk = atoi(at->value);
-	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
+	int level = ba_transport_pcm_volume_range_to_level(r->gain_spk, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
@@ -502,7 +502,7 @@ static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
 
 	r->gain_spk = atoi(at->value);
-	int level = ba_transport_pcm_volume_bt_to_level(pcm, r->gain_spk);
+	int level = ba_transport_pcm_volume_range_to_level(r->gain_spk, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
@@ -1079,7 +1079,8 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 	const int fd = r->fd;
 	char tmp[24];
 
-	int gain = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
+	int gain = ba_transport_pcm_volume_level_to_range(
+			pcm->volume[0].level, HFP_VOLUME_GAIN_MAX);
 	if (!force && r->gain_mic == gain)
 		return 0;
 
@@ -1110,7 +1111,8 @@ static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 	const int fd = r->fd;
 	char tmp[24];
 
-	int gain = ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level);
+	int gain = ba_transport_pcm_volume_level_to_range(
+			pcm->volume[0].level, HFP_VOLUME_GAIN_MAX);
 	if (!force && r->gain_spk == gain)
 		return 0;
 
@@ -1626,10 +1628,10 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 	memset(&r->hfp_ind_state, 1, sizeof(r->hfp_ind_state));
 
 	/* Initialize data used for volume gain synchronization. */
-	r->gain_mic = ba_transport_pcm_volume_level_to_bt(
-			&sco->sco.mic_pcm, sco->sco.mic_pcm.volume[0].level);
-	r->gain_spk = ba_transport_pcm_volume_level_to_bt(
-			&sco->sco.spk_pcm, sco->sco.spk_pcm.volume[0].level);
+	r->gain_mic = ba_transport_pcm_volume_level_to_range(
+			sco->sco.mic_pcm.volume[0].level, HFP_VOLUME_GAIN_MAX);
+	r->gain_spk = ba_transport_pcm_volume_level_to_range(
+			sco->sco.spk_pcm.volume[0].level, HFP_VOLUME_GAIN_MAX);
 
 	if (pipe(r->sig_fd) == -1)
 		goto fail;

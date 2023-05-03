@@ -396,7 +396,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	if (!(t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
 				t->a2dp.pcm.soft_volume)) {
 
-		int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+		int level = ba_transport_pcm_volume_range_to_level(volume, BLUEZ_A2DP_VOLUME_MAX);
 
 		pthread_mutex_lock(&t->a2dp.pcm.mutex);
 		ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, NULL, NULL);
@@ -1419,7 +1419,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 				debug("Skipping A2DP volume update: %u", volume);
 			else {
 
-				int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, volume);
+				int level = ba_transport_pcm_volume_range_to_level(volume, BLUEZ_A2DP_VOLUME_MAX);
 				debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
 
 				pthread_mutex_lock(&t->a2dp.pcm.mutex);

@@ -36,6 +36,7 @@
 #include "bluealsa-config.h"
 #include "bluealsa-iface.h"
 #include "bluealsa-skeleton.h"
+#include "bluez.h"
 #include "dbus.h"
 #include "hfp.h"
 #include "utils.h"
@@ -268,10 +269,12 @@ static uint8_t ba_volume_pack_dbus_volume(bool muted, int value) {
 }
 
 static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
+	const bool is_sco = pcm->t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
+	const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
 	uint8_t ch1 = ba_volume_pack_dbus_volume(pcm->volume[0].scale == 0,
-			ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[0].level));
+			ba_transport_pcm_volume_level_to_range(pcm->volume[0].level, max));
 	uint8_t ch2 = ba_volume_pack_dbus_volume(pcm->volume[1].scale == 0,
-			ba_transport_pcm_volume_level_to_bt(pcm, pcm->volume[1].level));
+			ba_transport_pcm_volume_level_to_range(pcm->volume[1].level, max));
 	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
 }
 
@@ -867,13 +870,16 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 
 	if (strcmp(property, "Volume") == 0) {
 
+		const bool is_sco = pcm->t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
+		const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
+
 		uint16_t packed = g_variant_get_uint16(value);
 		uint8_t ch1 = packed >> 8;
 		uint8_t ch2 = packed & 0xFF;
 
-		int ch1_level = ba_transport_pcm_volume_bt_to_level(pcm, ch1 & 0x7F);
+		int ch1_level = ba_transport_pcm_volume_range_to_level(ch1 & 0x7F, max);
 		bool ch1_muted = !!(ch1 & 0x80);
-		int ch2_level = ba_transport_pcm_volume_bt_to_level(pcm, ch2 & 0x7F);
+		int ch2_level = ba_transport_pcm_volume_range_to_level(ch2 & 0x7F, max);
 		bool ch2_muted = !!(ch2 & 0x80);
 
 		pthread_mutex_lock(&pcm->mutex);

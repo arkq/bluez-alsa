@@ -311,23 +311,17 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
-	ck_assert_int_eq(t_a2dp->a2dp.pcm.max_bt_volume, 127);
-	ck_assert_int_eq(t_a2dp->a2dp.pcm_bc.max_bt_volume, 127);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0, BLUEZ_A2DP_VOLUME_MAX), -9600);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600, BLUEZ_A2DP_VOLUME_MAX), 0);
 
-	ck_assert_int_eq(t_sco->sco.spk_pcm.max_bt_volume, 15);
-	ck_assert_int_eq(t_sco->sco.mic_pcm.max_bt_volume, 15);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(127, BLUEZ_A2DP_VOLUME_MAX), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(0, BLUEZ_A2DP_VOLUME_MAX), 127);
 
-	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_a2dp->a2dp.pcm, 0), -9600);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_a2dp->a2dp.pcm, -9600), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0, HFP_VOLUME_GAIN_MAX), -9600);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600, HFP_VOLUME_GAIN_MAX), 0);
 
-	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_a2dp->a2dp.pcm, 127), 0);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_a2dp->a2dp.pcm, 0), 127);
-
-	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_sco->sco.spk_pcm, 0), -9600);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_sco->sco.spk_pcm, -9600), 0);
-
-	ck_assert_int_eq(ba_transport_pcm_volume_bt_to_level(&t_sco->sco.spk_pcm, 15), 0);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_bt(&t_sco->sco.spk_pcm, 0), 15);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(15, HFP_VOLUME_GAIN_MAX), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(0, HFP_VOLUME_GAIN_MAX), 15);
 
 	ba_transport_unref(t_a2dp);
 	ba_transport_unref(t_sco);
@@ -393,7 +387,7 @@ CK_START_TEST(test_storage) {
 	ck_assert_int_eq(t->a2dp.pcm.volume[1].soft_mute, true);
 
 	bool muted = true;
-	int level = ba_transport_pcm_volume_bt_to_level(&t->a2dp.pcm, 100);
+	int level = ba_transport_pcm_volume_range_to_level(100, BLUEZ_A2DP_VOLUME_MAX);
 	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, &muted, NULL);
 	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, &muted, NULL);
 

@@ -88,9 +88,6 @@ struct ba_transport_pcm {
 	/* internal software volume control */
 	bool soft_volume;
 
-	/* maximal possible Bluetooth volume */
-	unsigned int max_bt_volume;
-
 	/* Volume configuration for channel left [0] and right [1]. In case of
 	 * a monophonic sound, only the left [0] channel shall be used. */
 	struct ba_transport_pcm_volume {
@@ -112,6 +109,9 @@ struct ba_transport_pcm {
 	bool ba_dbus_exported;
 
 };
+
+int ba_transport_pcm_volume_level_to_range(int value, int max);
+int ba_transport_pcm_volume_range_to_level(int value, int max);
 
 void ba_transport_pcm_volume_set(
 		struct ba_transport_pcm_volume *volume,
@@ -412,13 +412,6 @@ bool ba_transport_pcm_is_active(
 
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);
-
-unsigned int ba_transport_pcm_volume_level_to_bt(
-		const struct ba_transport_pcm *pcm,
-		int value);
-int ba_transport_pcm_volume_bt_to_level(
-		const struct ba_transport_pcm *pcm,
-		unsigned int value);
 
 int ba_transport_pcm_volume_update(
 		struct ba_transport_pcm *pcm);

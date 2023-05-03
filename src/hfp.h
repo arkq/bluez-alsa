@@ -22,6 +22,11 @@
 #define HFP_CODEC_MSBC      0x02
 
 /**
+ * HSP/HFP volume gain range */
+#define HFP_VOLUME_GAIN_MIN 0
+#define HFP_VOLUME_GAIN_MAX 15
+
+/**
  * SDP AG feature flags */
 #define SDP_HFP_AG_FEAT_TWC    (1 << 0) /* three-way calling */
 #define SDP_HFP_AG_FEAT_ECNR   (1 << 1) /* EC and/or NR function */
