@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,31 +10,12 @@
 
 #include "dbus.h"
 
-#include <pthread.h>
 #include <stdbool.h>
 #include <string.h>
 
 #include <glib-object.h>
 
-#include "shared/defs.h"
 #include "shared/log.h"
-
-/* Compatibility patch for glib < 2.68. */
-#if !GLIB_CHECK_VERSION(2, 68, 0)
-# define g_memdup2 g_memdup
-#endif
-
-struct dispatch_method_caller_data {
-	void (*handler)(GDBusMethodInvocation *, void *);
-	GDBusMethodInvocation *invocation;
-	void *userdata;
-};
-
-static void *dispatch_method_caller(struct dispatch_method_caller_data *data) {
-	data->handler(data->invocation, data->userdata);
-	g_free(data);
-	return NULL;
-}
 
 /**
  * Dispatch incoming D-Bus method call.
@@ -64,33 +45,7 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 			continue;
 
 		debug("Called: %s.%s() on %s", interface, method, path);
-
-		if (!dispatcher->asynchronous_call)
-			dispatcher->handler(invocation, userdata);
-		else {
-
-			struct dispatch_method_caller_data data = {
-				.handler = dispatcher->handler,
-				.invocation = invocation,
-				.userdata = userdata,
-			};
-
-			pthread_t thread;
-			int ret;
-
-			void *ptr = g_memdup2(&data, sizeof(data));
-			if ((ret = pthread_create(&thread, NULL,
-							PTHREAD_FUNC(dispatch_method_caller), ptr)) != 0) {
-				error("Couldn't create D-Bus call dispatcher: %s", strerror(ret));
-				return false;
-			}
-
-			if ((ret = pthread_detach(thread)) != 0) {
-				error("Couldn't detach D-Bus call dispatcher: %s", strerror(ret));
-				return false;
-			}
-
-		}
+		dispatcher->handler(invocation, userdata);
 
 		return true;
 	}

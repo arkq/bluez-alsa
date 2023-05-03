@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -37,8 +37,6 @@ typedef struct _GDBusMethodCallDispatcher {
 	const char *interface;
 	const char *method;
 	void (*handler)(GDBusMethodInvocation *, void *);
-	/* if true, handler will be called in a separate thread */
-	bool asynchronous_call;
 } GDBusMethodCallDispatcher;
 
 typedef struct _GDBusInterfaceSkeletonVTable {
