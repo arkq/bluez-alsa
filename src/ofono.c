@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  * Copyright (c) 2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -44,11 +44,13 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "bluealsa-config.h"
+#include "bluealsa-dbus.h"
 #include "dbus.h"
 #include "hci.h"
 #include "hfp.h"
 #include "ofono-iface.h"
 #include "ofono-skeleton.h"
+#include "utils.h"
 #include "shared/log.h"
 #include "shared/rt.h"
 
@@ -236,6 +238,26 @@ static struct ba_transport *ofono_transport_lookup_card(const char *card) {
 	return NULL;
 }
 
+/**
+ * Lookup a transport associated with oFono modem.
+ *
+ * @param modem A path associated with oFono modem.
+ * @return On success this function returns a transport associated with
+ *   a given oFono modem path. Otherwise, NULL is returned. */
+static struct ba_transport *ofono_transport_lookup_modem(const char *modem) {
+
+	GHashTableIter iter;
+	struct ofono_card_data *ocd;
+
+	g_hash_table_iter_init(&iter, ofono_card_data_map);
+	while (g_hash_table_iter_next(&iter, NULL, (void *)&ocd)) {
+		if (strcmp(ocd->modem_path, modem) == 0)
+			return ofono_transport_lookup(ocd);
+	}
+
+	return NULL;
+}
+
 #if ENABLE_MSBC
 static void ofono_new_connection_finish(GObject *source, GAsyncResult *result,
 		void *userdata) {
@@ -380,6 +402,137 @@ fail:
 	return ret;
 }
 
+#define OFONO_CALL_VOLUME_NONE       (0)
+#define OFONO_CALL_VOLUME_SPEAKER    (1 << 0)
+#define OFONO_CALL_VOLUME_MICROPHONE (1 << 1)
+
+static unsigned int ofono_call_volume_property_sync(struct ba_transport *t,
+		const char *property, GVariant *value) {
+
+	struct ba_transport_pcm *spk = &t->sco.spk_pcm;
+	struct ba_transport_pcm *mic = &t->sco.mic_pcm;
+	unsigned int mask = OFONO_CALL_VOLUME_NONE;
+
+	if (strcmp(property, "Muted") == 0 &&
+			g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
+
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG &&
+				mic->soft_volume) {
+			debug("Skipping SCO microphone mute update: %s", "Software volume enabled");
+			goto final;
+		}
+
+		bool muted = g_variant_get_boolean(value);
+		debug("Updating SCO microphone mute: %s", muted ? "true" : "false");
+		mask |= OFONO_CALL_VOLUME_MICROPHONE;
+
+		pthread_mutex_lock(&mic->mutex);
+		ba_transport_pcm_volume_set(&mic->volume[0], NULL, &muted, NULL);
+		pthread_mutex_unlock(&mic->mutex);
+
+	}
+	else if (strcmp(property, "SpeakerVolume") == 0 &&
+			g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
+		/* received volume is in range [0, 100] */
+
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG &&
+				spk->soft_volume) {
+			debug("Skipping SCO speaker volume update: %s", "Software volume enabled");
+			goto final;
+		}
+
+		uint8_t volume = g_variant_get_byte(value);
+		int level = ba_transport_pcm_volume_range_to_level(volume, 100);
+		debug("Updating SCO speaker volume: %u [%.2f dB]", volume, 0.01 * level);
+		mask |= OFONO_CALL_VOLUME_SPEAKER;
+
+		pthread_mutex_lock(&spk->mutex);
+		ba_transport_pcm_volume_set(&spk->volume[0], &level, NULL, NULL);
+		pthread_mutex_unlock(&spk->mutex);
+
+	}
+	else if (strcmp(property, "MicrophoneVolume") == 0 &&
+			g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
+		/* received volume is in range [0, 100] */
+
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG &&
+				mic->soft_volume) {
+			debug("Skipping SCO microphone volume update: %s", "Software volume enabled");
+			goto final;
+		}
+
+		uint8_t volume = g_variant_get_byte(value);
+		int level = ba_transport_pcm_volume_range_to_level(volume, 100);
+		debug("Updating SCO microphone volume: %u [%.2f dB]", volume, 0.01 * level);
+		mask |= OFONO_CALL_VOLUME_MICROPHONE;
+
+		pthread_mutex_lock(&mic->mutex);
+		ba_transport_pcm_volume_set(&mic->volume[0], &level, NULL, NULL);
+		pthread_mutex_unlock(&mic->mutex);
+
+	}
+
+final:
+	return mask;
+}
+
+/**
+ * Get all oFono call volume properties and update transport volumes. */
+static int ofono_call_volume_get_properties(struct ba_transport *t,
+		const char *modem_path) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GError *err = NULL;
+	int ret = 0;
+
+	msg = g_dbus_message_new_method_call(OFONO_SERVICE, modem_path,
+			OFONO_IFACE_CALL_VOLUME, "GetProperties");
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, &err);
+		goto fail;
+	}
+
+	GVariantIter *properties;
+	g_variant_get(g_dbus_message_get_body(rep), "(a{sv})", &properties);
+
+	const char *property;
+	GVariant *value;
+
+	unsigned int mask = OFONO_CALL_VOLUME_NONE;
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+		mask |= ofono_call_volume_property_sync(t, property, value);
+		g_variant_unref(value);
+	}
+
+	if (mask & OFONO_CALL_VOLUME_SPEAKER)
+		bluealsa_dbus_pcm_update(&t->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	if (mask & OFONO_CALL_VOLUME_MICROPHONE)
+		bluealsa_dbus_pcm_update(&t->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
+	g_variant_iter_free(properties);
+	goto final;
+
+fail:
+	ret = -1;
+
+final:
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't get oFono call volume: %s", err->message);
+		g_error_free(err);
+	}
+
+	return ret;
+}
+
 /**
  * Add new oFono card (phone). */
 static void ofono_card_add(const char *dbus_sender, const char *card,
@@ -459,6 +612,9 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 			ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED)
 		ofono_new_connection_request(t);
 #endif
+
+	/* initialize speaker and microphone volumes */
+	ofono_call_volume_get_properties(t, ocd->modem_path);
 
 	g_hash_table_insert(ofono_card_data_map, ocd->card, ocd);
 	ocd = NULL;
@@ -741,7 +897,6 @@ final:
 static void ofono_signal_card_added(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *signal, GVariant *params,
 		void *userdata) {
-	debug("Signal: %s.%s()", interface, signal);
 	(void)conn;
 	(void)path;
 	(void)interface;
@@ -752,9 +907,12 @@ static void ofono_signal_card_added(GDBusConnection *conn, const char *sender,
 	GVariantIter *properties = NULL;
 
 	g_variant_get(params, "(&oa{sv})", &card, &properties);
+	debug("Signal: %s.%s(%s, ...)", interface, signal, card);
+
 	ofono_card_add(sender, card, properties);
 
 	g_variant_iter_free(properties);
+
 }
 
 /**
@@ -762,7 +920,6 @@ static void ofono_signal_card_added(GDBusConnection *conn, const char *sender,
 static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 		const char *path, const char *interface, const char *signal, GVariant *params,
 		void *userdata) {
-	debug("Signal: %s.%s()", interface, signal);
 	(void)conn;
 	(void)sender;
 	(void)path;
@@ -772,14 +929,47 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 
 	const char *card = NULL;
 	g_variant_get(params, "(&o)", &card);
-
-	debug("Removing oFono card: %s", card);
+	debug("Signal: %s.%s(%s)", interface, signal, card);
 
 	struct ba_transport *t;
 	if ((t = ofono_transport_lookup_card(card)) != NULL)
 		ba_transport_destroy(t);
 
 	g_hash_table_remove(ofono_card_data_map, card);
+
+}
+
+/**
+ * Callback for the PropertyChanged signal on the CallVolume interface. */
+static void ofono_signal_volume_changed(GDBusConnection *conn, const char *sender,
+		const char *modem_path, const char *interface, const char *signal, GVariant *params,
+		void *userdata) {
+	(void)conn;
+	(void)sender;
+	(void)interface;
+	(void)signal;
+	(void)userdata;
+
+	struct ba_transport *t;
+	if ((t = ofono_transport_lookup_modem(modem_path)) == NULL) {
+		error("Couldn't lookup transport: %s: %s", modem_path, strerror(errno));
+		return;
+	}
+
+	const char *property;
+	GVariant *value;
+
+	g_variant_get(params, "(&sv)", &property, &value);
+	debug("Signal: %s.%s(%s, ...)", interface, signal, property);
+
+	unsigned int mask = ofono_call_volume_property_sync(t, property, value);
+	if (mask & OFONO_CALL_VOLUME_SPEAKER)
+		bluealsa_dbus_pcm_update(&t->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	if (mask & OFONO_CALL_VOLUME_MICROPHONE)
+		bluealsa_dbus_pcm_update(&t->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+
+	g_variant_unref(value);
+	ba_transport_unref(t);
 
 }
 
@@ -826,6 +1016,10 @@ int ofono_init(void) {
 	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
 			OFONO_IFACE_HF_AUDIO_MANAGER, "CardRemoved", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_card_removed, NULL, NULL);
+
+	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
+			OFONO_IFACE_CALL_VOLUME, "PropertyChanged", NULL, NULL,
+			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_volume_changed, NULL, NULL);
 
 	g_bus_watch_name_on_connection(config.dbus, OFONO_SERVICE,
 			G_BUS_NAME_WATCHER_FLAGS_NONE, ofono_appeared, ofono_disappeared,

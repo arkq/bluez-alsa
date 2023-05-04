@@ -1375,25 +1375,25 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(transport_path);
 	if ((a = ba_adapter_lookup(hci_dev_id)) == NULL) {
 		error("Adapter not available: %s", transport_path);
-		return;
+		goto fail;
 	}
-
-	GVariantIter *properties = NULL;
-	const char *interface;
-	const char *property;
-	GVariant *value;
 
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(transport_path, &addr);
 	if ((d = ba_device_lookup(a, &addr)) == NULL) {
 		error("Device not available: %s", transport_path);
-		goto final;
+		goto fail;
 	}
 
 	if ((t = ba_transport_lookup(d, transport_path)) == NULL) {
 		error("Transport not available: %s", transport_path);
-		goto final;
+		goto fail;
 	}
+
+	GVariantIter *properties;
+	const char *interface;
+	const char *property;
+	GVariant *value;
 
 	g_variant_get(params, "(&sa{sv}as)", &interface, &properties, NULL);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
@@ -1435,7 +1435,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 	}
 	g_variant_iter_free(properties);
 
-final:
+fail:
 	if (a != NULL)
 		ba_adapter_unref(a);
 	if (d != NULL)

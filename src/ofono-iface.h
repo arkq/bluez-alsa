@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono-iface.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  * Copyright (c) 2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -20,6 +20,7 @@
 #define OFONO_IFACE_HF_AUDIO_AGENT   OFONO_SERVICE ".HandsfreeAudioAgent"
 #define OFONO_IFACE_HF_AUDIO_CARD    OFONO_SERVICE ".HandsfreeAudioCard"
 #define OFONO_IFACE_HF_AUDIO_MANAGER OFONO_SERVICE ".HandsfreeAudioManager"
+#define OFONO_IFACE_CALL_VOLUME      OFONO_SERVICE ".CallVolume"
 
 #define OFONO_AUDIO_CARD_TYPE_AG "gateway"
 #define OFONO_AUDIO_CARD_TYPE_HF "handsfree"
