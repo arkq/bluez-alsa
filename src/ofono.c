@@ -52,8 +52,11 @@
 /**
  * Lookup data associated with oFono card. */
 struct ofono_card_data {
+	char card[64];
 	int hci_dev_id;
 	bdaddr_t bt_addr;
+	/* if true, card is an HFP AG */
+	bool is_gateway;
 	/* object path of a modem associated with this card */
 	char modem_path[64];
 };
@@ -92,9 +95,8 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	GError *err = NULL;
 	int ret = 0;
 
-	debug("Requesting new oFono SCO connection: %s", t->bluez_dbus_path);
-
-	const char *ofono_dbus_path = &t->bluez_dbus_path[6];
+	const char *ofono_dbus_path = t->bluez_dbus_path;
+	debug("Requesting new oFono SCO connection: %s", ofono_dbus_path);
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, ofono_dbus_path,
 			OFONO_IFACE_HF_AUDIO_CARD, "Connect");
 
@@ -191,7 +193,7 @@ static struct ba_transport *ofono_transport_lookup(const char *card) {
 		goto fail;
 	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
 		goto fail;
-	if ((t = ba_transport_lookup(d, ocd->modem_path)) == NULL)
+	if ((t = ba_transport_lookup(d, card)) == NULL)
 		goto fail;
 
 fail:
@@ -203,8 +205,8 @@ fail:
 }
 
 /**
- * Link oFono card with HFP modem. */
-static int ofono_card_link_modem_hfp(struct ofono_card_data *ocd) {
+ * Link oFono card with a modem. */
+static int ofono_card_link_modem(struct ofono_card_data *ocd) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
@@ -232,27 +234,56 @@ static int ofono_card_link_modem_hfp(struct ofono_card_data *ocd) {
 	while (g_variant_iter_next(modems, "(&oa{sv})", &modem, &properties)) {
 
 		bdaddr_t bt_addr = { 0 };
-		bool is_hfp = false;
+		bool is_powered = false;
+		bool is_bt_device = false;
+		const char *serial = "";
 		const char *key;
 		GVariant *value;
 
 		while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
-			if (strcmp(key, "Serial") == 0)
-				str2ba(g_variant_get_string(value, NULL), &bt_addr);
-			else if (strcmp(key, "Type") == 0)
-				is_hfp = strcmp(g_variant_get_string(value, NULL), "hfp") == 0;
+			if (strcmp(key, "Powered") == 0)
+				is_powered = g_variant_get_boolean(value);
+			else if (strcmp(key, "Type") == 0) {
+				const char *type = g_variant_get_string(value, NULL);
+				if (strcmp(type, OFONO_MODEM_TYPE_HFP) == 0 ||
+						strcmp(type, OFONO_MODEM_TYPE_SAP) == 0)
+					is_bt_device = true;
+			}
+			else if (strcmp(key, "Serial") == 0)
+				serial = g_variant_get_string(value, NULL);
 			g_variant_unref(value);
 		}
 
+		if (is_bt_device)
+			str2ba(serial, &bt_addr);
+
 		g_variant_iter_free(properties);
 
-		if (is_hfp && bacmp(&bt_addr, &ocd->bt_addr) == 0) {
-			debug("Linking oFono card with modem: %s", modem);
-			strncpy(ocd->modem_path, modem, sizeof(ocd->modem_path) - 1);
-			ocd->modem_path[sizeof(ocd->modem_path) - 1] = '\0';
-			ret = 0;
-			break;
-		}
+		if (!is_powered)
+			continue;
+
+		/* In case of HFP AG, we are looking for a modem which is not a BT device.
+		 * Unfortunately, oFono does not link card (Bluetooth HF device) with a
+		 * particular modem. In case where more than one card is connected oFono
+		 * uses all of them for call notification... However, in our setup we need
+		 * a 1:1 mapping between card and modem. So, we will link the first modem
+		 * which is not a BT device.
+		 *
+		 * TODO: Find a better way to link oFono card with a modem. */
+		if (ocd->is_gateway && is_bt_device)
+			continue;
+
+		/* In case of HFP HF, we are looking for a modem which is a BT device and
+		 * its serial number matches with the card BT address. */
+		if (!ocd->is_gateway &&
+				!(is_bt_device && bacmp(&bt_addr, &ocd->bt_addr) == 0))
+			continue;
+
+		debug("Linking oFono card with modem: %s", modem);
+		strncpy(ocd->modem_path, modem, sizeof(ocd->modem_path) - 1);
+		ocd->modem_path[sizeof(ocd->modem_path) - 1] = '\0';
+		ret = 0;
+		break;
 
 	}
 
@@ -280,7 +311,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	struct ba_device *d = NULL;
 	struct ba_transport *t = NULL;
 
-	enum ba_transport_profile profile = BA_TRANSPORT_PROFILE_HFP_HF;
+	enum ba_transport_profile profile = BA_TRANSPORT_PROFILE_NONE;
 	struct ofono_card_data *ocd = NULL;
 	const char *key = NULL;
 	GVariant *value = NULL;
@@ -330,18 +361,21 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 
 	ocd->hci_dev_id = hci_dev_id;
 	ocd->bt_addr = addr_dev;
+	ocd->is_gateway = profile & BA_TRANSPORT_PROFILE_MASK_AG;
+	strncpy(ocd->card, card, sizeof(ocd->card) - 1);
+	ocd->card[sizeof(ocd->card) - 1] = '\0';
 
-	if (ofono_card_link_modem_hfp(ocd) == -1) {
+	if (ofono_card_link_modem(ocd) == -1) {
 		error("Couldn't link oFono card with modem: %s", card);
 		goto fail;
 	}
 
-	if ((t = ofono_transport_new(d, profile, dbus_sender, ocd->modem_path)) == NULL) {
+	if ((t = ofono_transport_new(d, profile, dbus_sender, card)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
-	g_hash_table_insert(ofono_card_data_map, g_strdup(card), ocd);
+	g_hash_table_insert(ofono_card_data_map, ocd->card, ocd);
 	ocd = NULL;
 
 fail:
@@ -667,7 +701,7 @@ int ofono_init(void) {
 		return 0;
 
 	if (ofono_card_data_map == NULL)
-		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, free);
+		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, free);
 
 	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
 			OFONO_IFACE_HF_AUDIO_MANAGER, "CardAdded", NULL, NULL,

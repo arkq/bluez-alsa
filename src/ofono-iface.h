@@ -27,6 +27,10 @@
 #define OFONO_AUDIO_CODEC_CVSD 0x01
 #define OFONO_AUDIO_CODEC_MSBC 0x02
 
+#define OFONO_MODEM_TYPE_HARDWARE "hardware"
+#define OFONO_MODEM_TYPE_HFP      "hfp"
+#define OFONO_MODEM_TYPE_SAP      "sap"
+
 extern const GDBusInterfaceInfo ofono_iface_hf_audio_agent;
 
 #endif
