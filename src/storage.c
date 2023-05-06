@@ -94,6 +94,15 @@ int storage_init(const char *root) {
 }
 
 /**
+ * Cleanup resources allocated by the persistent storage. */
+void storage_destroy(void) {
+	if (storage_map == NULL)
+		return;
+	g_hash_table_destroy(storage_map);
+	storage_map = NULL;
+}
+
+/**
  * Load persistent storage file for the given BT device. */
 int storage_device_load(const struct ba_device *d) {
 

@@ -602,6 +602,7 @@ int main(int argc, char **argv) {
 	for (size_t i = 0; i < ARRAYSIZE(config.adapters); i++)
 		ba_adapter_destroy(config.adapters[i]);
 
+	storage_destroy();
 	g_dbus_connection_close_sync(config.dbus, NULL, NULL);
 	g_main_loop_unref(loop);
 	g_free(address);

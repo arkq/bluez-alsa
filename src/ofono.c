@@ -199,29 +199,18 @@ static struct ba_transport *ofono_transport_new(
 }
 
 /**
- * Lookup a transport associated with oFono card.
- *
- * @param card A path associated with oFono card.
- * @return On success this function returns a transport associated with
- *   a given oFono card path. Otherwise, NULL is returned. */
-static struct ba_transport *ofono_transport_lookup(const char *card) {
+ * Lookup a transport associated with oFono card data. */
+static struct ba_transport *ofono_transport_lookup(struct ofono_card_data *ocd) {
 
 	struct ba_adapter *a = NULL;
 	struct ba_device *d = NULL;
 	struct ba_transport *t = NULL;
 
-	struct ofono_card_data *ocd;
-	if ((ocd = g_hash_table_lookup(ofono_card_data_map, card)) == NULL) {
-		error("Couldn't lookup oFono card data: %s", card);
-		goto fail;
-	}
-
 	if ((a = ba_adapter_lookup(ocd->hci_dev_id)) == NULL)
 		goto fail;
 	if ((d = ba_device_lookup(a, &ocd->bt_addr)) == NULL)
 		goto fail;
-	if ((t = ba_transport_lookup(d, card)) == NULL)
-		goto fail;
+	t = ba_transport_lookup(d, ocd->card);
 
 fail:
 	if (a != NULL)
@@ -229,6 +218,22 @@ fail:
 	if (d != NULL)
 		ba_device_unref(d);
 	return t;
+}
+
+/**
+ * Lookup a transport associated with oFono card.
+ *
+ * @param card A path associated with oFono card.
+ * @return On success this function returns a transport associated with
+ *   a given oFono card path. Otherwise, NULL is returned. */
+static struct ba_transport *ofono_transport_lookup_card(const char *card) {
+
+	struct ofono_card_data *ocd;
+	if ((ocd = g_hash_table_lookup(ofono_card_data_map, card)) != NULL)
+		return ofono_transport_lookup(ocd);
+
+	error("Couldn't lookup oFono card data: %s", card);
+	return NULL;
 }
 
 #if ENABLE_MSBC
@@ -527,15 +532,15 @@ final:
 static void ofono_remove_all_cards(void) {
 
 	GHashTableIter iter;
-	const char *card = NULL;
+	struct ofono_card_data *ocd;
 
 	g_hash_table_iter_init(&iter, ofono_card_data_map);
-	while (g_hash_table_iter_next(&iter, (gpointer)&card, NULL)) {
+	while (g_hash_table_iter_next(&iter, NULL, (void *)&ocd)) {
 
-		debug("Removing oFono card: %s", card);
+		debug("Removing oFono card: %s", ocd->card);
 
 		struct ba_transport *t;
-		if ((t = ofono_transport_lookup(card)) != NULL)
+		if ((t = ofono_transport_lookup(ocd)) != NULL)
 			ba_transport_destroy(t);
 
 	}
@@ -564,7 +569,7 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 		goto fail;
 	}
 
-	if ((t = ofono_transport_lookup(card)) == NULL) {
+	if ((t = ofono_transport_lookup_card(card)) == NULL) {
 		error("Couldn't lookup transport: %s: %s", card, strerror(errno));
 		goto fail;
 	}
@@ -771,7 +776,7 @@ static void ofono_signal_card_removed(GDBusConnection *conn, const char *sender,
 	debug("Removing oFono card: %s", card);
 
 	struct ba_transport *t;
-	if ((t = ofono_transport_lookup(card)) != NULL)
+	if ((t = ofono_transport_lookup_card(card)) != NULL)
 		ba_transport_destroy(t);
 
 	g_hash_table_remove(ofono_card_data_map, card);
