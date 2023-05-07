@@ -63,6 +63,9 @@
 #include "dbus.h"
 #include "hci.h"
 #include "hfp.h"
+#if ENABLE_OFONO
+# include "ofono.h"
+#endif
 #include "sco.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
@@ -1205,6 +1208,10 @@ void ba_transport_unref(struct ba_transport *t) {
 			ba_rfcomm_destroy(t->sco.rfcomm);
 		transport_pcm_free(&t->sco.spk_pcm);
 		transport_pcm_free(&t->sco.mic_pcm);
+#if ENABLE_OFONO
+		free(t->sco.ofono_dbus_path_card);
+		free(t->sco.ofono_dbus_path_modem);
+#endif
 	}
 
 #if DEBUG
@@ -1780,10 +1787,16 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 		}
 
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
-			t->sco.rfcomm != NULL) {
-		/* notify associated RFCOMM transport */
-		ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
+	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+
+		if (t->sco.rfcomm != NULL)
+			/* notify associated RFCOMM transport */
+			ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
+#if ENABLE_OFONO
+		else
+			ofono_call_volume_update(t);
+#endif
+
 	}
 
 final:

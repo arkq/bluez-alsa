@@ -105,6 +105,12 @@ void bluez_battery_provider_update(struct ba_device *device) {
 	(void)device;
 }
 
+int ofono_call_volume_update(struct ba_transport *transport) {
+	debug("%s: %p", __func__, transport);
+	(void)transport;
+	return 0;
+}
+
 static void *mock_dec(struct ba_transport_thread *th) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);

@@ -19,7 +19,11 @@
 
 #include <stdbool.h>
 
+#include "ba-transport.h"
+
 int ofono_init(void);
 bool ofono_detect_service(void);
+
+int ofono_call_volume_update(struct ba_transport *t);
 
 #endif

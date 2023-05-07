@@ -44,6 +44,9 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"
+#if ENABLE_OFONO
+# include "ofono.h"
+#endif
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
@@ -88,6 +91,8 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
+int ofono_call_volume_update(struct ba_transport *t) {
+	debug("%s: %p", __func__, t); (void)t; return 0; }
 
 CK_START_TEST(test_ba_adapter) {
 

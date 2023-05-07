@@ -51,6 +51,7 @@
 #include "ofono-iface.h"
 #include "ofono-skeleton.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
 
@@ -80,10 +81,9 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	int fd = -1;
 	int ret = 0;
 
-	const char *ofono_dbus_path = t->bluez_dbus_path;
-	debug("Requesting new oFono SCO link: %s", ofono_dbus_path);
-	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, ofono_dbus_path,
-			OFONO_IFACE_HF_AUDIO_CARD, "Acquire");
+	debug("Requesting new oFono SCO link: %s", t->sco.ofono_dbus_path_card);
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
+			t->sco.ofono_dbus_path_card, OFONO_IFACE_HF_AUDIO_CARD, "Acquire");
 
 	struct timespec now;
 	struct timespec delay = {
@@ -187,17 +187,30 @@ static struct ba_transport *ofono_transport_new(
 		struct ba_device *device,
 		enum ba_transport_profile profile,
 		const char *dbus_owner,
-		const char *dbus_path) {
+		const char *dbus_path_card,
+		const char *dbus_path_modem) {
 
 	struct ba_transport *t;
+	int err;
 
-	if ((t = ba_transport_new_sco(device, profile, dbus_owner, dbus_path, -1)) == NULL)
+	if ((t = ba_transport_new_sco(device, profile, dbus_owner, dbus_path_card, -1)) == NULL)
 		return NULL;
+
+	if ((t->sco.ofono_dbus_path_card = strdup(dbus_path_card)) == NULL)
+		goto fail;
+	if ((t->sco.ofono_dbus_path_modem = strdup(dbus_path_modem)) == NULL)
+		goto fail;
 
 	t->acquire = ofono_acquire_bt_sco;
 	t->release = ofono_release_bt_sco;
 
 	return t;
+
+fail:
+	err = errno;
+	ba_transport_unref(t);
+	errno = err;
+	return NULL;
 }
 
 /**
@@ -290,10 +303,9 @@ static void ofono_new_connection_request(struct ba_transport *t) {
 
 	GDBusMessage *msg;
 
-	const char *ofono_dbus_path = t->bluez_dbus_path;
-	debug("Requesting new oFono SCO link: %s", ofono_dbus_path);
-	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, ofono_dbus_path,
-			OFONO_IFACE_HF_AUDIO_CARD, "Connect");
+	debug("Requesting new oFono SCO link: %s", t->sco.ofono_dbus_path_card);
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
+			t->sco.ofono_dbus_path_card, OFONO_IFACE_HF_AUDIO_CARD, "Connect");
 
 	g_dbus_connection_send_message_with_reply(config.dbus, msg,
 			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
@@ -441,8 +453,8 @@ static unsigned int ofono_call_volume_property_sync(struct ba_transport *t,
 			goto final;
 		}
 
-		uint8_t volume = g_variant_get_byte(value);
-		int level = ba_transport_pcm_volume_range_to_level(volume, 100);
+		uint8_t volume = g_variant_get_byte(value) * HFP_VOLUME_GAIN_MAX / 100;
+		int level = ba_transport_pcm_volume_range_to_level(volume, HFP_VOLUME_GAIN_MAX);
 		debug("Updating SCO speaker volume: %u [%.2f dB]", volume, 0.01 * level);
 		mask |= OFONO_CALL_VOLUME_SPEAKER;
 
@@ -461,8 +473,8 @@ static unsigned int ofono_call_volume_property_sync(struct ba_transport *t,
 			goto final;
 		}
 
-		uint8_t volume = g_variant_get_byte(value);
-		int level = ba_transport_pcm_volume_range_to_level(volume, 100);
+		uint8_t volume = g_variant_get_byte(value) * HFP_VOLUME_GAIN_MAX / 100;
+		int level = ba_transport_pcm_volume_range_to_level(volume, HFP_VOLUME_GAIN_MAX);
 		debug("Updating SCO microphone volume: %u [%.2f dB]", volume, 0.01 * level);
 		mask |= OFONO_CALL_VOLUME_MICROPHONE;
 
@@ -478,15 +490,14 @@ final:
 
 /**
  * Get all oFono call volume properties and update transport volumes. */
-static int ofono_call_volume_get_properties(struct ba_transport *t,
-		const char *modem_path) {
+static int ofono_call_volume_get_properties(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
 	int ret = 0;
 
-	msg = g_dbus_message_new_method_call(OFONO_SERVICE, modem_path,
-			OFONO_IFACE_CALL_VOLUME, "GetProperties");
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
+			t->sco.ofono_dbus_path_modem, OFONO_IFACE_CALL_VOLUME, "GetProperties");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
@@ -530,6 +541,41 @@ final:
 		g_error_free(err);
 	}
 
+	return ret;
+}
+
+/**
+ * Set oFono call volume property. */
+static int ofono_call_volume_set_property(struct ba_transport *t,
+		const char *property, GVariant *value, GError **error) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	int ret = 0;
+
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
+			t->sco.ofono_dbus_path_modem, OFONO_IFACE_CALL_VOLUME, "SetProperty");
+
+	g_dbus_message_set_body(msg, g_variant_new("(sv)", property, value));
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
+		goto fail;
+
+	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
+		g_dbus_message_to_gerror(rep, error);
+		goto fail;
+	}
+
+	goto final;
+
+fail:
+	ret = -1;
+
+final:
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
 	return ret;
 }
 
@@ -601,7 +647,8 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 		goto fail;
 	}
 
-	if ((t = ofono_transport_new(d, profile, dbus_sender, card)) == NULL) {
+	if ((t = ofono_transport_new(d, profile, dbus_sender,
+				card, ocd->modem_path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -614,7 +661,7 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 #endif
 
 	/* initialize speaker and microphone volumes */
-	ofono_call_volume_get_properties(t, ocd->modem_path);
+	ofono_call_volume_get_properties(t);
 
 	g_hash_table_insert(ofono_card_data_map, ocd->card, ocd);
 	ocd = NULL;
@@ -1050,4 +1097,38 @@ bool ofono_detect_service(void) {
 		g_object_unref(rep);
 
 	return status;
+}
+
+/**
+ * Update oFono call volume properties. */
+int ofono_call_volume_update(struct ba_transport *t) {
+
+	struct ba_transport_pcm *spk = &t->sco.spk_pcm;
+	struct ba_transport_pcm *mic = &t->sco.mic_pcm;
+	int ret = 0;
+
+	struct {
+		const char *name;
+		GVariant *value;
+	} props[] = {
+		{ "Muted",
+			g_variant_new_boolean(mic->volume[0].scale == 0) },
+		{ "SpeakerVolume",
+			g_variant_new_byte(MIN(100,
+					ba_transport_pcm_volume_level_to_range(spk->volume[0].level, 106))) },
+		{ "MicrophoneVolume",
+			g_variant_new_byte(MIN(100,
+					ba_transport_pcm_volume_level_to_range(mic->volume[0].level, 106))) },
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(props); i++) {
+		GError *err = NULL;
+		if (ofono_call_volume_set_property(t, props[i].name, props[i].value, &err) == -1) {
+			error("Couldn't set oFono call volume: %s: %s", props[i].name, err->message);
+			g_error_free(err);
+			ret = -1;
+		}
+	}
+
+	return ret;
 }

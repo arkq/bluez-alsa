@@ -323,8 +323,16 @@ struct ba_transport {
 
 		struct {
 
-			/* associated RFCOMM thread */
+			/* Associated RFCOMM thread for SCO transport handled by local
+			 * HSP/HFP implementation. Otherwise, this field is set to NULL. */
 			struct ba_rfcomm *rfcomm;
+
+#if ENABLE_OFONO
+			/* Associated oFono card and modem paths. In case when SCO transport
+			 * is not oFono-based, these fields are set to NULL. */
+			char *ofono_dbus_path_card;
+			char *ofono_dbus_path_modem;
+#endif
 
 			/* Speaker and microphone signals should to be exposed as
 			 * a separate PCM devices. Hence, there is a requirement

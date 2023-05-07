@@ -108,6 +108,8 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
 void bluez_battery_provider_update(struct ba_device *device) {
 	debug("%s: %p", __func__, device); (void)device; }
+int ofono_call_volume_update(struct ba_transport *t) {
+	debug("%s: %p", __func__, t); (void)t; return 0; }
 
 #define ck_assert_rfcomm_recv(fd, command) { \
 	char buffer[sizeof(command)] = { 0 }; \

@@ -68,6 +68,9 @@
 #include "bluez.h"
 #include "hfp.h"
 #include "io.h"
+#if ENABLE_OFONO
+# include "ofono.h"
+#endif
 #if ENABLE_LC3PLUS || ENABLE_LDAC
 # include "rtp.h"
 #endif
@@ -122,6 +125,8 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 		const struct a2dp_sep *sep, GError **error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
+int ofono_call_volume_update(struct ba_transport *t) {
+	debug("%s: %p", __func__, t); (void)t; return 0; }
 int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
 int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
 int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
