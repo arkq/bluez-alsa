@@ -132,13 +132,14 @@ necessary to manually create the directory used by BlueALSA for persistent
 state storage. This directory should be called `bluealsa` and be located under
 the system local state directory, which is normally `/var/lib`. The directory
 owner must be the user account that the `bluealsa` daemon is run under, and
-permissions should be `rwxr-xr-x`. For example, on a standard file hierarchy,
-with the `bluealsa` daemon running as user `bluealsa`
+to prevent accidental corruption of the state files the permissions should be
+`rwx------`. For example, on a standard file hierarchy, with the `bluealsa`
+daemon running as user `bluealsa`:
 
 ```sh
 sudo mkdir /var/lib/bluealsa
 sudo chown bluealsa /var/lib/bluealsa
-sudo chmod 0755 /var/lib/bluealsa
+sudo chmod 0700 /var/lib/bluealsa
 ```
 
 ### User accounts
