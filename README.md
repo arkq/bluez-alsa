@@ -226,26 +226,24 @@ Please see the [CONTRIBUTING](CONTRIBUTING.md) guide for details.
 ## Bug reports, feature requests, and requests for help
 
 The most commonly encountered errors are discussed in the
-[troubleshooting guide](TROUBLESHOOTING.md).
-Please check that file to see if there is already a resolution for your issue.
+[TROUBLESHOOTING] guide. Please check that file to see if there is already a
+solution for your issue.
 
-Before raising a new issue, please search previous issues (both open and
-closed), to see if your question has already been answered or problem resolved.
-If reporting a problem, please clearly state:
+If you are unable to find a solution in that document or by reading the
+[manual pages][], then please search [previous issues][] (both open and
+closed), and consult the [wiki][] before raising a new issue. Unfortunately
+the wiki is not indexed by web search engines, so searching on-line for your
+issue will not discover the information in there.
 
-* the OS distribution and version you are using,
-* the version of BlueALSA that you are using (`bluealsa --version`),
-* if self-built from source, please state the branch and commit
-  (`git log -1 --oneline`) and the configure options used,
-* the version of BlueZ (`bluetoothd --version`),
-* the version of ALSA (`aplay --version`),
-* sufficient additional information for readers to be able to reproduce the
-issue.
+If reporting a problem as a new issue, please use the appropriate
+[bluez-alsa GitHub issue reporting template][] and complete each section of
+the template as fully as possible.
 
-Please also look at the [wiki](https://github.com/arkq/bluez-alsa/wiki) if you
-require help as there is a great deal of useful information. Unfortunately the
-wiki is not indexed by web search engines, so searching on-line for your issue
-will not discover the information in there.
+[TROUBLESHOOTING]: ./TROUBLESHOOTING.md
+[manual pages]: doc/
+[previous issues]: https://github.com/arkq/bluez-alsa/issues
+[wiki]: https://github.com/arkq/bluez-alsa/wiki
+[bluez-alsa GitHub issue reporting template]: https://github.com/arkq/bluez-alsa/issues/new/choose
 
 ## License
 

@@ -23,9 +23,10 @@ title:
 
 > - the OS distribution and version
 > - the version of BlueALSA (`bluealsa --version`)
-> - if self-built from source, please state the branch, commit and used configure options
 > - the version of BlueZ (`bluetoothd --version`)
 > - the version of ALSA (`aplay --version`)
+> - if self-built from source, please state the branch and commit
+> (`git log -1 --oneline`), and the used configure options.
 
 ### Additional context
 
