@@ -264,8 +264,8 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 			codec, configuration);
 	t->acquire = mock_transport_acquire_bt;
 
-	fprintf(stderr, "BLUEALSA_PCM_READY=A2DP:%s:%s\n",
-			device_btmac, a2dp_codecs_codec_id_to_string(t->codec_id));
+	fprintf(stderr, "BLUEALSA_PCM_READY=A2DP:%s:%s\n", device_btmac,
+			a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t)));
 
 	ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_PENDING);
 
@@ -330,8 +330,8 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 #endif
 	t->acquire = mock_transport_acquire_bt;
 
-	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n",
-			device_btmac, hfp_codec_id_to_string(t->codec_id));
+	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n", device_btmac,
+			hfp_codec_id_to_string(ba_transport_get_codec(t)));
 
 	ba_device_unref(d);
 	return t;

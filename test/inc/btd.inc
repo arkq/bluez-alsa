@@ -90,7 +90,7 @@ void bt_dump_close(struct bt_dump *btd) {
  * Create BT dump file. */
 struct bt_dump *bt_dump_create(
 		const char *path,
-		const struct ba_transport *t) {
+		struct ba_transport *t) {
 
 	struct bt_dump *btd;
 	if ((btd = calloc(1, sizeof(*btd))) == NULL)
@@ -127,8 +127,8 @@ struct bt_dump *bt_dump_create(
 	unsigned int mode_ = mode;
 	fprintf(btd->file, "BA.dump-%1x.%1x.", BT_DUMP_CURRENT_VERSION, mode_);
 
-	btd->transport_codec_id = t->codec_id;
-	uint16_t id = htobe16(t->codec_id);
+	btd->transport_codec_id = ba_transport_get_codec(t);
+	uint16_t id = htobe16(btd->transport_codec_id);
 	if (bt_dump_write(btd, &id, sizeof(id)) == -1)
 		goto fail;
 
@@ -196,7 +196,7 @@ fail:
 	return NULL;
 }
 
-static const char *transport_to_fname(const struct ba_transport *t) {
+static const char *transport_to_fname(struct ba_transport *t) {
 
 	const char *profile = NULL;
 	const char *codec = NULL;
@@ -205,19 +205,19 @@ static const char *transport_to_fname(const struct ba_transport *t) {
 		return "none";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		profile = "a2dp-source";
-		codec = a2dp_codecs_codec_id_to_string(t->codec_id);
+		codec = a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t));
 		break;
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		profile = "a2dp-sink";
-		codec = a2dp_codecs_codec_id_to_string(t->codec_id);
+		codec = a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t));
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 		profile = "hfp-ag";
-		codec = hfp_codec_id_to_string(t->codec_id);
+		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		profile = "hfp-hf";
-		codec = hfp_codec_id_to_string(t->codec_id);
+		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
 		break;
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return "hsp-ag-cvsd";

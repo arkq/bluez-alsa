@@ -468,13 +468,9 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	 * open the same PCM at the same time. */
 	pthread_mutex_lock(&pcm->client_mtx);
 
-	pthread_mutex_lock(&t->codec_id_mtx);
-	const uint16_t codec_id = t->codec_id;
-	pthread_mutex_unlock(&t->codec_id_mtx);
-
 	/* preliminary check whether HFP codes is selected */
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
-			codec_id == HFP_CODEC_UNDEFINED) {
+			ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
 		goto fail;
