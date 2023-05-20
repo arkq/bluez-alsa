@@ -1,7 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2021 Arkadiusz Bokowy
-
-EXTRA_DIST = 20-bluealsa.conf
+# Copyright (c) 2016-2023 Arkadiusz Bokowy
 
 asound_module_ctl_LTLIBRARIES = libasound_module_ctl_bluealsa.la
 asound_module_pcm_LTLIBRARIES = libasound_module_pcm_bluealsa.la
@@ -40,3 +38,9 @@ libasound_module_pcm_bluealsa_la_LIBADD = \
 	@ALSA_LIBS@ \
 	@DBUS1_LIBS@ \
 	@LIBUNWIND_LIBS@
+
+SUFFIXES = .conf.in .conf
+MOSTLYCLEANFILES = $(asound_module_conf_DATA)
+
+.conf.in.conf:
+	$(SED) -e '' < $< > $@

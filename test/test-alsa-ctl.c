@@ -27,50 +27,15 @@
 #include "inc/preload.inc"
 #include "inc/spawn.inc"
 
-static int snd_ctl_open_bluealsa(
-		snd_ctl_t **ctlp,
-		const char *service,
-		const char *extra_config,
-		int mode) {
-
-	char buffer[256];
-	snd_config_t *conf = NULL;
-	snd_input_t *input = NULL;
-	int err;
-
-	sprintf(buffer,
-			"ctl.bluealsa {\n"
-			"  type bluealsa\n"
-			"  service \"org.bluealsa.%s\"\n"
-			"  %s\n"
-			"}\n", service, extra_config);
-
-	if ((err = snd_config_top(&conf)) < 0)
-		goto fail;
-	if ((err = snd_input_buffer_open(&input, buffer, strlen(buffer))) != 0)
-		goto fail;
-	if ((err = snd_config_load(conf, input)) != 0)
-		goto fail;
-	err = snd_ctl_open_lconf(ctlp, "bluealsa", mode, conf);
-
-fail:
-	if (conf != NULL)
-		snd_config_delete(conf);
-	if (input != NULL)
-		snd_input_close(input);
-	return err;
-}
-
 static int test_ctl_open(struct spawn_process *sp_ba_mock, snd_ctl_t **ctl, int mode) {
-	const char *service = "test";
-	if (spawn_bluealsa_mock(sp_ba_mock, service, true,
+	if (spawn_bluealsa_mock(sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=a2dp-sink",
 				"--profile=hfp-ag",
 				NULL) == -1)
 		return -1;
-	return snd_ctl_open_bluealsa(ctl, service, "", mode);
+	return snd_ctl_open(ctl, "bluealsa", mode);
 }
 
 static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_ctl_t *ctl) {
@@ -126,14 +91,12 @@ CK_START_TEST(test_controls_battery) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=hsp-ag",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"battery \"yes\"\n", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:BAT=yes", 0), 0);
 
 	snd_ctl_elem_list_t *elems;
 	snd_ctl_elem_list_alloca(&elems);
@@ -167,15 +130,13 @@ CK_START_TEST(test_controls_extended) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=hfp-ag",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"extended \"yes\"\n", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:EXT=yes", 0), 0);
 
 	snd_ctl_elem_list_t *elems;
 	snd_ctl_elem_list_alloca(&elems);
@@ -246,16 +207,14 @@ CK_START_TEST(test_bidirectional_a2dp) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=a2dp-sink",
 				"--codec=FastStream",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"bttransport \"yes\"\n", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:BTT=yes", 0), 0);
 
 	snd_ctl_elem_list_t *elems;
 	snd_ctl_elem_list_alloca(&elems);
@@ -283,15 +242,14 @@ CK_START_TEST(test_device_name_duplicates) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--device-name=12:34:56:78:9A:BC:Long Bluetooth Device Name",
 				"--device-name=23:45:67:89:AB:CD:Long Bluetooth Device Name",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service, "", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa", 0), 0);
 
 	snd_ctl_elem_list_t *elems;
 	snd_ctl_elem_list_alloca(&elems);
@@ -378,15 +336,14 @@ CK_START_TEST(test_single_device) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=a2dp-sink",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"device \"00:00:00:00:00:00\"", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl,
+				"bluealsa:DEV=00:00:00:00:00:00,SRV=org.bluealsa.test", 0), 0);
 
 	snd_ctl_card_info_t *info;
 	snd_ctl_card_info_alloca(&info);
@@ -417,13 +374,12 @@ CK_START_TEST(test_single_device_not_connected) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"device \"00:00:00:00:00:00\"", 0), -ENODEV);
+	ck_assert_int_eq(snd_ctl_open(&ctl,
+				"bluealsa:DEV=00:00:00:00:00:00", 0), -ENODEV);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
@@ -434,14 +390,13 @@ CK_START_TEST(test_single_device_no_such_device) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"device \"DE:AD:12:34:56:78\"", 0), -ENODEV);
+	ck_assert_int_eq(snd_ctl_open(&ctl,
+				"bluealsa:DEV=DE:AD:12:34:56:78", 0), -ENODEV);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
@@ -452,17 +407,15 @@ CK_START_TEST(test_single_device_non_dynamic) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=0",
 				"--profile=a2dp-sink",
 				"--profile=hsp-ag",
 				"--fuzzing=500",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"device \"23:45:67:89:AB:CD\"\n"
-				"dynamic \"no\"\n", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl,
+				"bluealsa:DEV=23:45:67:89:AB:CD,DYN=no", 0), 0);
 	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 1), 0);
 
 	snd_ctl_elem_list_t *elems;
@@ -519,16 +472,14 @@ CK_START_TEST(test_notifications) {
 	struct spawn_process sp_ba_mock;
 	snd_ctl_t *ctl = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, false,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, false,
 				"--timeout=10000",
 				"--profile=a2dp-source",
 				"--profile=hfp-ag",
 				"--fuzzing=250",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open_bluealsa(&ctl, service,
-				"battery \"yes\"\n", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:BAT=yes", 0), 0);
 
 	snd_ctl_event_t *event;
 	snd_ctl_event_malloc(&event);

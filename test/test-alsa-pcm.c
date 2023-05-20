@@ -47,50 +47,6 @@ static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
 /* big enough buffer to keep one period of data */
 static int16_t pcm_buffer[1024 * 8];
 
-static int snd_pcm_open_bluealsa(
-		snd_pcm_t **pcmp,
-		const char *service,
-		const char *device,
-		const char *profile,
-		const char *extra_config,
-		snd_pcm_stream_t stream,
-		int mode) {
-
-	char buffer[256];
-	snd_config_t *conf = NULL;
-	snd_input_t *input = NULL;
-	int err;
-
-	if (device == NULL)
-		device = "12:34:56:78:9A:BC";
-	if (profile == NULL)
-		profile = "a2dp";
-
-	sprintf(buffer,
-			"pcm.bluealsa {\n"
-			"  type bluealsa\n"
-			"  service \"org.bluealsa.%s\"\n"
-			"  device \"%s\"\n"
-			"  profile \"%s\"\n"
-			"  %s\n"
-			"}\n", service, device, profile, extra_config);
-
-	if ((err = snd_config_top(&conf)) < 0)
-		goto fail;
-	if ((err = snd_input_buffer_open(&input, buffer, strlen(buffer))) != 0)
-		goto fail;
-	if ((err = snd_config_load(conf, input)) != 0)
-		goto fail;
-	err = snd_pcm_open_lconf(pcmp, "bluealsa", stream, mode, conf);
-
-fail:
-	if (conf != NULL)
-		snd_config_delete(conf);
-	if (input != NULL)
-		snd_input_close(input);
-	return err;
-}
-
 static int set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int channels,
 		int rate, unsigned int *buffer_time, unsigned int *period_time) {
 
@@ -177,13 +133,13 @@ static int test_pcm_open(struct spawn_process *sp_ba_mock, snd_pcm_t **pcm,
 	if (stream == SND_PCM_STREAM_CAPTURE)
 		profile = "--profile=a2dp-sink";
 
-	const char *service = "test";
-	if (spawn_bluealsa_mock(sp_ba_mock, service, true,
+	if (spawn_bluealsa_mock(sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				profile,
 				NULL) == -1)
 		return -1;
-	return snd_pcm_open_bluealsa(pcm, service, NULL, NULL, "", stream, 0);
+
+	return snd_pcm_open(pcm, "bluealsa:DEV=12:34:56:78:9A:BC", stream, 0);
 }
 
 static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
@@ -472,10 +428,33 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
+
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+				"--timeout=1000",
+				"--profile=a2dp-source",
+				NULL), -1);
+
+	snd_config_t *top;
+	ck_assert_int_ge(snd_config_top(&top), 0);
+
+	const char *config =
+		"pcm.ba-direct {\n"
+		"  type bluealsa\n"
+		"  device \"12:34:56:78:9A:BC\"\n"
+		"  profile \"a2dp\"\n"
+		"}\n";
+	snd_input_t *input;
+	ck_assert_int_eq(snd_input_buffer_open(&input, config, strlen(config)), 0);
+	ck_assert_int_eq(snd_config_load(top, input), 0);
+
+	ck_assert_int_eq(snd_pcm_open_lconf(&pcm,
+				"ba-direct", SND_PCM_STREAM_PLAYBACK, 0, top), 0);
+
+	snd_config_delete(top);
+	snd_input_close(input);
+
 	snd_pcm_hw_params_t *params;
 	int d;
-
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 
 	snd_pcm_hw_params_alloca(&params);
 	snd_pcm_hw_params_any(pcm, params);
@@ -542,8 +521,7 @@ CK_START_TEST(ba_test_playback_no_codec_selected) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=hfp-ag",
 				NULL), -1);
@@ -553,8 +531,9 @@ CK_START_TEST(ba_test_playback_no_codec_selected) {
 	rv = -EAGAIN;
 #endif
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, "sco",
-				"", SND_PCM_STREAM_PLAYBACK, 0), rv);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=12:34:56:78:9A:BC,PROFILE=sco",
+				SND_PCM_STREAM_PLAYBACK, 0), rv);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
@@ -568,13 +547,13 @@ CK_START_TEST(ba_test_playback_no_such_device) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true,
 				"--timeout=1000",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, "DE:AD:DE:AD:DE:AD", NULL,
-				"", SND_PCM_STREAM_PLAYBACK, 0), -ENODEV);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=DE:AD:DE:AD:DE:AD,SRV=org.bluealsa.test",
+				SND_PCM_STREAM_PLAYBACK, 0), -ENODEV);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
@@ -588,35 +567,40 @@ CK_START_TEST(ba_test_playback_extra_setup) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	const char *service = "test";
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, service, true,
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--timeout=1000",
 				"--profile=a2dp-source",
 				"--profile=hfp-ag",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
-				"codec \"SBC\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=12:34:56:78:9A:BC,CODEC=SBC",
+				SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(NULL, pcm), 0);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
-				"codec \"SBC:ffff0822\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=12:34:56:78:9A:BC,CODEC=SBC:ffff0822",
+				SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(NULL, pcm), 0);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, "sco",
-				"codec \"CVSD\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=12:34:56:78:9A:BC,PROFILE=sco,CODEC=CVSD",
+				SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(NULL, pcm), 0);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
-				"delay 10", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=12:34:56:78:9A:BC,DELAY=10",
+				SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(NULL, pcm), 0);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
-				"volume \"50+\"", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=12:34:56:78:9A:BC,VOL=50+",
+				SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(NULL, pcm), 0);
 
-	ck_assert_int_eq(snd_pcm_open_bluealsa(&pcm, service, NULL, NULL,
-				"softvol true", SND_PCM_STREAM_PLAYBACK, 0), 0);
+	ck_assert_int_eq(snd_pcm_open(&pcm,
+				"bluealsa:DEV=12:34:56:78:9A:BC,SOFTVOL=true",
+				SND_PCM_STREAM_PLAYBACK, 0), 0);
 	ck_assert_int_eq(test_pcm_close(NULL, pcm), 0);
 
 	spawn_terminate(&sp_ba_mock, 0);

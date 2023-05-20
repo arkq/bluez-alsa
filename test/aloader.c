@@ -1,6 +1,6 @@
 /*
  * aloader.c
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,33 +15,115 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <libgen.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
-typedef void *(*dlopen_t)(const char *filename, int flags);
+#include <alsa/asoundlib.h>
 
+typedef void *(*dlopen_t)(const char *, int);
 static dlopen_t dlopen_orig = NULL;
-static char program_invocation_path[1024];
 
-void *dlopen(const char *filename, int flags) {
+typedef int (*snd_ctl_open_t)(snd_ctl_t **, const char *, int);
+static snd_ctl_open_t snd_ctl_open_orig = NULL;
 
-	if (dlopen_orig == NULL) {
+typedef int (*snd_pcm_open_t)(snd_pcm_t **, const char *, snd_pcm_stream_t, int);
+static snd_pcm_open_t snd_pcm_open_orig = NULL;
 
-		*(void **)(&dlopen_orig) = dlsym(RTLD_NEXT, __func__);
+__attribute__ ((constructor))
+static void init(void) {
+	*(void **)(&dlopen_orig) = dlsym(RTLD_NEXT, "dlopen");
+	*(void **)(&snd_ctl_open_orig) = dlsym(RTLD_NEXT, "snd_ctl_open");
+	*(void **)(&snd_pcm_open_orig) = dlsym(RTLD_NEXT, "snd_pcm_open");
+}
+
+/**
+ * Get build root directory. */
+static const char *buildrootdir() {
+
+	static char buffer[1024] = "";
+
+	if (buffer[0] == '\0') {
 
 		char *tmp = strdup(program_invocation_name);
-		strcpy(program_invocation_path, dirname(tmp));
+		snprintf(buffer, sizeof(buffer), "%s/..", dirname(tmp));
 		free(tmp);
+
+		if (strstr(buffer, "../utils/aplay") != NULL ||
+				strstr(buffer, "../utils/cli") != NULL)
+			strcat(buffer, "/..");
 
 	}
 
-	char buffer[1024 + 128];
-	strcpy(buffer, program_invocation_path);
+	return buffer;
+}
+
+void *dlopen(const char *filename, int flags) {
+
+	char tmp[PATH_MAX];
+	snprintf(tmp, sizeof(tmp), "%s", buildrootdir());
 
 	if (strstr(filename, "libasound_module_ctl_bluealsa.so") != NULL)
-		filename = strcat(buffer, "/../src/asound/.libs/libasound_module_ctl_bluealsa.so");
+		filename = strcat(tmp, "/src/asound/.libs/libasound_module_ctl_bluealsa.so");
 	if (strstr(filename, "libasound_module_pcm_bluealsa.so") != NULL)
-		filename = strcat(buffer, "/../src/asound/.libs/libasound_module_pcm_bluealsa.so");
+		filename = strcat(tmp, "/src/asound/.libs/libasound_module_pcm_bluealsa.so");
 
 	return dlopen_orig(filename, flags);
+}
+
+int snd_ctl_open(snd_ctl_t **ctl, const char *name, int mode) {
+
+	if (strstr(name, "bluealsa") == NULL)
+		return snd_ctl_open_orig(ctl, name, mode);
+
+	char tmp[PATH_MAX];
+	snprintf(tmp, sizeof(tmp), "%s/src/asound/20-bluealsa.conf", buildrootdir());
+
+	snd_config_t *top = NULL;
+	snd_input_t *input = NULL;
+	int err;
+
+	if ((err = snd_config_update_ref(&top)) < 0)
+		goto fail;
+	if ((err = snd_input_stdio_open(&input, tmp, "r")) != 0)
+		goto fail;
+	if ((err = snd_config_load(top, input)) != 0)
+		goto fail;
+	err = snd_ctl_open_lconf(ctl, name, mode, top);
+
+fail:
+	if (top != NULL)
+		snd_config_unref(top);
+	if (input != NULL)
+		snd_input_close(input);
+	return err;
+}
+
+int snd_pcm_open(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int mode) {
+
+	if (strstr(name, "bluealsa") == NULL)
+		return snd_pcm_open_orig(pcm, name, stream, mode);
+
+	char tmp[PATH_MAX];
+	snprintf(tmp, sizeof(tmp), "%s/src/asound/20-bluealsa.conf", buildrootdir());
+
+	snd_config_t *top = NULL;
+	snd_input_t *input = NULL;
+	int err;
+
+	if ((err = snd_config_update_ref(&top)) < 0)
+		goto fail;
+	if ((err = snd_input_stdio_open(&input, tmp, "r")) != 0)
+		goto fail;
+	if ((err = snd_config_load(top, input)) != 0)
+		goto fail;
+	err = snd_pcm_open_lconf(pcm, name, stream, mode, top);
+
+fail:
+	if (top != NULL)
+		snd_config_unref(top);
+	if (input != NULL)
+		snd_input_close(input);
+	return err;
 }
