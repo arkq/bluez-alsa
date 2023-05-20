@@ -912,6 +912,9 @@ static int bluealsa_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 		unsigned int nfds) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
+	if (nfds < 1)
+		return -EINVAL;
+
 	nfds_t dbus_nfds = nfds - 1;
 	if (!bluealsa_dbus_connection_poll_fds(&pcm->dbus_ctx, &pfd[1], &dbus_nfds))
 		return -EINVAL;
@@ -929,6 +932,9 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 
 	*revents = 0;
 	int ret = 0;
+
+	if (nfds < 1)
+		return -EINVAL;
 
 	bluealsa_dbus_connection_poll_dispatch(&pcm->dbus_ctx, &pfd[1], nfds - 1);
 	while (dbus_connection_dispatch(pcm->dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)

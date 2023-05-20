@@ -12,6 +12,7 @@
 # include <config.h>
 #endif
 
+#include <alloca.h>
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
@@ -307,21 +308,12 @@ final:
 }
 
 /**
- * Synchronize BlueALSA PCM volume with ALSA mixer element. */
-static int io_worker_mixer_volume_sync(
+ * Update BlueALSA PCM volume according to ALSA mixer element. */
+static int io_worker_mixer_volume_sync_ba_pcm(
 		struct io_worker *worker,
 		struct ba_pcm *ba_pcm) {
 
-	/* skip sync in case of software volume */
-	if (ba_pcm->soft_volume)
-		return 0;
-
 	snd_mixer_elem_t *elem = worker->snd_mixer_elem;
-	if (elem == NULL)
-		return 0;
-
-	debug("Synchronizing volume: %s", ba_pcm->device_path);
-
 	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
 	long long volume_db_sum = 0;
 	bool muted = true;
@@ -382,7 +374,7 @@ static int io_worker_mixer_volume_sync(
 
 /**
  * Update ALSA mixer element according to BlueALSA PCM volume. */
-static int io_worker_mixer_volume_update(
+static int io_worker_mixer_volume_sync_snd_mixer_elem(
 		struct io_worker *worker,
 		struct ba_pcm *ba_pcm) {
 
@@ -428,6 +420,37 @@ static int io_worker_mixer_volume_update(
 		error("Couldn't set ALSA mixer playback mute switch: %s", snd_strerror(err));
 		return -1;
 	}
+
+	return 0;
+}
+
+int io_worker_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
+	struct io_worker *worker = snd_mixer_elem_get_callback_private(elem);
+	if (mask & SND_CTL_EVENT_MASK_VALUE)
+		io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
+	return 0;
+}
+
+/**
+ * Setup volume synchronization between ALSA mixer and BlueALSA PCM. */
+static int io_worker_mixer_volume_sync_setup(
+		struct io_worker *worker) {
+
+	/* skip setup in case of software volume */
+	if (worker->ba_pcm.soft_volume)
+		return 0;
+
+	snd_mixer_elem_t *elem = worker->snd_mixer_elem;
+	if (elem == NULL)
+		return 0;
+
+	debug("Setting up ALSA mixer volume synchronization");
+
+	snd_mixer_elem_set_callback(elem, io_worker_mixer_elem_callback);
+	snd_mixer_elem_set_callback_private(elem, worker);
+
+	/* initial synchronization */
+	io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
 
 	return 0;
 }
@@ -498,7 +521,6 @@ static void *io_worker_routine(struct io_worker *w) {
 	size_t pause_retry_pcm_samples = pcm_1s_samples;
 	size_t pause_retries = 0;
 
-	struct pollfd pfds[] = {{ w->ba_pcm_fd, POLLIN, 0 }};
 	int timeout = -1;
 
 	debug("Starting IO loop");
@@ -509,13 +531,26 @@ static void *io_worker_routine(struct io_worker *w) {
 			single_playback_mutex_locked = false;
 		}
 
+		struct pollfd *fds;
+		nfds_t nfds = 1;
+
+		if (w->snd_mixer != NULL)
+			nfds += snd_mixer_poll_descriptors_count(w->snd_mixer);
+
+		fds = alloca(sizeof(*fds) * nfds);
+		fds[0].fd = w->ba_pcm_fd;
+		fds[0].events = POLLIN;
+
+		if (w->snd_mixer != NULL)
+			snd_mixer_poll_descriptors(w->snd_mixer, fds + 1, nfds - 1);
+
 		/* Reading from the FIFO won't block unless there is an open connection
 		 * on the writing side. However, the server does not open PCM FIFO until
 		 * a transport is created. With the A2DP, the transport is created when
 		 * some clients (BT device) requests audio transfer. */
 
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-		int poll_rv = poll(pfds, ARRAYSIZE(pfds), timeout);
+		int poll_rv = poll(fds, nfds, timeout);
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		switch (poll_rv) {
@@ -533,23 +568,36 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto close_alsa;
 		}
 
-		/* FIFO has been terminated on the writing side */
-		if (pfds[0].revents & POLLHUP)
-			break;
+		if (w->snd_mixer != NULL)
+			snd_mixer_handle_events(w->snd_mixer);
 
-		ssize_t ret;
-		size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
-		if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
-			if (errno == EINTR)
-				continue;
-			error("BlueALSA source PCM read error: %s", strerror(errno));
-			goto fail;
+		size_t read_samples = 0;
+		if (fds[0].revents & POLLIN) {
+
+			ssize_t ret;
+			size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
+			if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
+				if (errno == EINTR)
+					continue;
+				error("BlueALSA source PCM read error: %s", strerror(errno));
+				goto fail;
+			}
+
+			read_samples = ret / pcm_format_size;
+			if (ret % pcm_format_size != 0)
+				warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
+
 		}
+		else if (fds[0].revents & POLLHUP) {
+			/* source PCM FIFO has been terminated on the writing side */
+			debug("BlueALSA source PCM disconnected: %s", w->ba_pcm.pcm_path);
+			break;
+		}
+		else if (fds[0].revents)
+			error("Unexpected BlueALSA source PCM poll event: %#x", fds[0].revents);
 
-		/* Calculate the number of read samples. */
-		size_t read_samples = ret / pcm_format_size;
-		if (ret % pcm_format_size != 0)
-			warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
+		if (read_samples == 0)
+			continue;
 
 		/* If current worker is not active and the single playback mode was
 		 * enabled, we have to check if there is any other active worker. */
@@ -579,8 +627,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 		}
 
-		if (w->snd_pcm == NULL &&
-				read_samples > 0) {
+		if (w->snd_pcm == NULL) {
 
 			unsigned int buffer_time = pcm_buffer_time;
 			unsigned int period_time = pcm_period_time;
@@ -622,8 +669,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				free(tmp);
 			}
 
-			/* initial volume synchronization */
-			io_worker_mixer_volume_sync(w, &w->ba_pcm);
+			io_worker_mixer_volume_sync_setup(w);
 
 			/* reset retry counters */
 			pcm_open_retry_pcm_samples = 0;
@@ -906,7 +952,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 		if (!bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm))
 			goto fail;
 		if ((worker = supervise_io_worker(pcm)) != NULL)
-			io_worker_mixer_volume_update(worker, pcm);
+			io_worker_mixer_volume_sync_snd_mixer_elem(worker, pcm);
 		return DBUS_HANDLER_RESULT_HANDLED;
 	}
 

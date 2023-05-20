@@ -230,6 +230,41 @@ CK_START_TEST(test_play_single_audio) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_play_mixer_setup) {
+
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+				"--device-name=23:45:67:89:AB:CD:Headset",
+				"--profile=hsp-ag",
+				NULL), -1);
+
+	struct spawn_process sp_ba_aplay;
+	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
+				"--profile-sco",
+				"--pcm=bluealsa:PROFILE=sco",
+				"--mixer-device=bluealsa:DEV=23:45:67:89:AB:CD",
+				"--mixer-name=SCO",
+				"-v",
+				NULL), -1);
+	spawn_terminate(&sp_ba_aplay, 500);
+
+	char output[4096] = "";
+	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
+	fprintf(stderr, "%s", output);
+
+#if DEBUG
+	ck_assert_ptr_ne(strstr(output,
+				"Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"Setting up ALSA mixer volume synchronization"), NULL);
+#endif
+
+	spawn_close(&sp_ba_aplay, NULL);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock, NULL);
+
+} CK_END_TEST
+
 int main(int argc, char *argv[], char *envp[]) {
 	preload(argc, argv, envp, ".libs/aloader.so");
 
@@ -253,6 +288,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	tcase_add_test(tc, test_list_pcms);
 	tcase_add_test(tc, test_play_all);
 	tcase_add_test(tc, test_play_single_audio);
+	tcase_add_test(tc, test_play_mixer_setup);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
