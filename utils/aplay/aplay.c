@@ -12,7 +12,6 @@
 # include <config.h>
 #endif
 
-#include <alloca.h>
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
@@ -531,15 +530,16 @@ static void *io_worker_routine(struct io_worker *w) {
 			single_playback_mutex_locked = false;
 		}
 
-		struct pollfd *fds;
+		struct pollfd fds[16] = {{ w->ba_pcm_fd, POLLIN, 0 }};
 		nfds_t nfds = 1;
 
 		if (w->snd_mixer != NULL)
 			nfds += snd_mixer_poll_descriptors_count(w->snd_mixer);
 
-		fds = alloca(sizeof(*fds) * nfds);
-		fds[0].fd = w->ba_pcm_fd;
-		fds[0].events = POLLIN;
+		if (nfds > ARRAYSIZE(fds)) {
+			error("Poll FD array size exceeded: %zu > %zu", nfds, ARRAYSIZE(fds));
+			goto fail;
+		}
 
 		if (w->snd_mixer != NULL)
 			snd_mixer_poll_descriptors(w->snd_mixer, fds + 1, nfds - 1);
@@ -1171,8 +1171,7 @@ int main(int argc, char *argv[]) {
 	if (!bluealsa_dbus_get_pcms(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err))
 		warn("Couldn't get BlueALSA PCM list: %s", err.message);
 
-	size_t i;
-	for (i = 0; i < ba_pcms_count; i++)
+	for (size_t i = 0; i < ba_pcms_count; i++)
 		supervise_io_worker(&ba_pcms[i]);
 
 	struct sigaction sigact = { .sa_handler = main_loop_stop };
@@ -1200,5 +1199,10 @@ int main(int argc, char *argv[]) {
 
 	}
 
+	for (size_t i = 0; i < workers_count; i++)
+		io_worker_stop(i);
+	free(workers);
+
+	bluealsa_dbus_connection_ctx_free(&dbus_ctx);
 	return EXIT_SUCCESS;
 }
