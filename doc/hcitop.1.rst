@@ -104,4 +104,4 @@ SEE ALSO
 ``btmon(1)``, ``hciconfig(1)``, ``hcitool(1)``
 
 Project web site
-  https://github.com/Arkq/bluez-alsa
+  https://github.com/arkq/bluez-alsa

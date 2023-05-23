@@ -64,4 +64,4 @@ SEE ALSO
 ``bluealsa-aplay(1)`` ``bluealsa(8)``
 
 Project web site
-  https://github.com/Arkq/bluez-alsa
+  https://github.com/arkq/bluez-alsa

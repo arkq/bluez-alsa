@@ -218,4 +218,4 @@ SEE ALSO
 ``bluealsa(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
 
 Project web site
-  https://github.com/Arkq/bluez-alsa
+  https://github.com/arkq/bluez-alsa

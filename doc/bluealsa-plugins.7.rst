@@ -561,7 +561,7 @@ SEE ALSO
 ``bluealsa(8)``, ``bluetoothd(8)``
 
 Project web site
-  https://github.com/Arkq/bluez-alsa
+  https://github.com/arkq/bluez-alsa
 
 ALSA configuration file syntax
   https://www.alsa-project.org/alsa-doc/alsa-lib/conf.html

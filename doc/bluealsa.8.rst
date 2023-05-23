@@ -442,4 +442,4 @@ SEE ALSO
 ``bluetoothctl(1)``, ``bluealsa-plugins(7)``, ``bluetoothd(8)``
 
 Project web site
-  https://github.com/Arkq/bluez-alsa
+  https://github.com/arkq/bluez-alsa

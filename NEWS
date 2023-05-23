@@ -1,14 +1,23 @@
 unreleased
 ==========
 
+bluez-alsa v4.1.0 (2023-05-23)
+==============================
+
+- removed deprecated org.bluealsa.Manger1 D-Bus interface
 - persistent storage for PCM volume and mute state
 - PCM volume control with oFono HFP-AG and HFP-HF profiles
-- export transport running state via PCM D-Bus interface
+- transport running state exported in PCM D-Bus interface
+- A2DP codec configuration blob exported in PCM D-Bus interface
 - optional non-dynamic operation mode for ALSA control plug-in
 - optional extended controls for ALSA control plug-in
-- change RFCOMM D-Bus API features property to array of strings
+- changed RFCOMM D-Bus API features property to array of strings
 - fix for SCO link establishment for oFono HFP-AG profile
 - fix for volume control for HSP-HS and HFP-HF profiles
+- stability fixes for ALSA PCM I/O and control plug-ins
+- bluealsa-aplay: fix for volume synchronization
+- lots of fixes for race conditions (TSAN)
+- lots of updates to the manual pages
 
 bluez-alsa v4.0.0 (2022-06-03)
 ==============================
