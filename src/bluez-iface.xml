@@ -27,6 +27,10 @@
 		</method>
 		<method name="Release">
 		</method>
+		<property name="UUID" type="s" access="read"/>
+		<property name="Codec" type="y" access="read"/>
+		<property name="Capabilities" type="ay" access="read"/>
+		<property name="DelayReporting" type="b" access="read"/>
 	</interface>
 
 	<interface name="org.bluez.Profile1">

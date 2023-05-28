@@ -388,7 +388,7 @@ void bluealsa_dbus_register(void) {
 		.get_property = bluealsa_manager_get_property,
 	};
 
-	debug("Registering D-Bus manager: %s", bluealsa_dbus_manager_path);
+	debug("Registering BlueALSA D-Bus manager: %s", bluealsa_dbus_manager_path);
 
 	OrgBluealsaManager1Skeleton *ifs_manager;
 	ifs_manager = org_bluealsa_manager1_skeleton_new(&vtable, NULL, NULL);
