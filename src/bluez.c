@@ -119,6 +119,10 @@ static void bluez_dbus_object_data_unref(
 		struct bluez_dbus_object_data *obj) {
 	if (atomic_fetch_sub_explicit(&obj->ref_count, 1, memory_order_relaxed) > 1)
 		return;
+	if (obj->ifs != NULL) {
+		g_dbus_interface_skeleton_unexport(obj->ifs);
+		g_object_unref(obj->ifs);
+	}
 	free(obj);
 }
 
@@ -1330,12 +1334,11 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 			GHashTableIter iter;
 			struct bluez_dbus_object_data *dbus_obj;
 			g_hash_table_iter_init(&iter, dbus_object_data_map);
-			while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj))
-				if (dbus_obj->hci_dev_id == hci_dev_id) {
-					g_dbus_interface_skeleton_unexport(dbus_obj->ifs);
-					g_object_unref(dbus_obj->ifs);
-					g_hash_table_iter_remove(&iter);
-				}
+			while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj)) {
+				if (dbus_obj->hci_dev_id != hci_dev_id)
+					continue;
+				g_hash_table_iter_remove(&iter);
+			}
 
 			bluez_adapter_free(&bluez_adapters[hci_dev_id]);
 
@@ -1458,17 +1461,9 @@ static void bluez_disappeared(GDBusConnection *conn, const char *name,
 
 	pthread_mutex_lock(&bluez_mutex);
 
-	GHashTableIter iter;
-	struct bluez_dbus_object_data *dbus_obj;
-	g_hash_table_iter_init(&iter, dbus_object_data_map);
-	while (g_hash_table_iter_next(&iter, NULL, (gpointer)&dbus_obj)) {
-		g_dbus_interface_skeleton_unexport(dbus_obj->ifs);
-		g_object_unref(dbus_obj->ifs);
-		g_hash_table_iter_remove(&iter);
-	}
+	g_hash_table_remove_all(dbus_object_data_map);
 
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(bluez_adapters); i++)
+	for (size_t i = 0; i < ARRAYSIZE(bluez_adapters); i++)
 		bluez_adapter_free(&bluez_adapters[i]);
 
 	pthread_mutex_unlock(&bluez_mutex);
