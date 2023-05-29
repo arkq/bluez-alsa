@@ -87,6 +87,7 @@ jobs:
           bear
           check
           iwyu libclang-13-dev
+          jq
           libasound2-dev
           libbluetooth-dev
           libbsd-dev
@@ -128,6 +129,9 @@ jobs:
       run: bear -- make check TESTS=
     - name: Run IWYU Check
       run: |
+        jq 'del(.[] | select(.file | endswith("-iface.c")))' \
+          ${{ github.workspace }}/build/compile_commands.json > tmp.json \
+          && mv tmp.json ${{ github.workspace }}/build/compile_commands.json
         iwyu_tool -p ${{ github.workspace }}/build -- \
           -Xiwyu --mapping_file=${{ github.workspace }}/.github/iwyu.imp \
           -Xiwyu --keep=*/config.h \

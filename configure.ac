@@ -92,6 +92,9 @@ PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
 PKG_CHECK_MODULES([GLIB2], [glib-2.0 >= 2.32])
 PKG_CHECK_MODULES([SBC], [sbc >= 1.2])
 
+AC_PATH_PROGS([GDBUS_CODEGEN], [gdbus-codegen])
+AS_IF([test "x$GDBUS_CODEGEN" = "x"], [AC_MSG_ERROR([[gdbus-codegen not found]])])
+
 PKG_CHECK_MODULES([LIBBSD], [libbsd >= 0.8],
 	AC_DEFINE([HAVE_LIBBSD], [1], [Define to 1 if you have the libbsd library.]), [:])
 

@@ -43,6 +43,6 @@ ofono_HFAudioAgentIfaceSkeleton *ofono_hf_audio_agent_iface_skeleton_new(
 		GDestroyNotify userdata_free_func) {
 	const GType type = ofono_hf_audio_agent_iface_skeleton_get_type();
 	return g_dbus_interface_skeleton_ex_new(type,
-			(GDBusInterfaceInfo *)&ofono_iface_hf_audio_agent,
+			(GDBusInterfaceInfo *)&org_ofono_handsfree_audio_agent_interface,
 			vtable, userdata, userdata_free_func);
 }

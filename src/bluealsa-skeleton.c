@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-skeleton.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -43,7 +43,7 @@ bluealsa_ManagerIfaceSkeleton *bluealsa_manager_iface_skeleton_new(
 		GDestroyNotify userdata_free_func) {
 	const GType type = bluealsa_manager_iface_skeleton_get_type();
 	return g_dbus_interface_skeleton_ex_new(type,
-			(GDBusInterfaceInfo *)&bluealsa_iface_manager,
+			(GDBusInterfaceInfo *)&org_bluealsa_manager1_interface,
 			vtable, userdata, userdata_free_func);
 }
 
@@ -75,7 +75,7 @@ bluealsa_PCMIfaceSkeleton *bluealsa_pcm_iface_skeleton_new(
 		GDestroyNotify userdata_free_func) {
 	const GType type = bluealsa_pcm_iface_skeleton_get_type();
 	return g_dbus_interface_skeleton_ex_new(type,
-			(GDBusInterfaceInfo *)&bluealsa_iface_pcm,
+			(GDBusInterfaceInfo *)&org_bluealsa_pcm1_interface,
 			vtable, userdata, userdata_free_func);
 }
 
@@ -106,6 +106,6 @@ bluealsa_RFCOMMIfaceSkeleton *bluealsa_rfcomm_iface_skeleton_new(
 		GDestroyNotify userdata_free_func) {
 	const GType type = bluealsa_rfcomm_iface_skeleton_get_type();
 	return g_dbus_interface_skeleton_ex_new(type,
-			(GDBusInterfaceInfo *)&bluealsa_iface_rfcomm,
+			(GDBusInterfaceInfo *)&org_bluealsa_rfcomm1_interface,
 			vtable, userdata, userdata_free_func);
 }

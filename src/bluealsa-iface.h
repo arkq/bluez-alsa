@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-iface.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -39,8 +39,8 @@
 #define BLUEALSA_PCM_MODE_SINK   "sink"
 #define BLUEALSA_PCM_MODE_SOURCE "source"
 
-extern const GDBusInterfaceInfo bluealsa_iface_manager;
-extern const GDBusInterfaceInfo bluealsa_iface_pcm;
-extern const GDBusInterfaceInfo bluealsa_iface_rfcomm;
+extern const GDBusInterfaceInfo org_bluealsa_manager1_interface;
+extern const GDBusInterfaceInfo org_bluealsa_pcm1_interface;
+extern const GDBusInterfaceInfo org_bluealsa_rfcomm1_interface;
 
 #endif

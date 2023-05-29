@@ -1,0 +1,20 @@
+<!-- BlueALSA - ofono-iface.xml
+     Copyright (c) 2016-2023 Arkadiusz Bokowy
+
+     This file is a part of bluez-alsa.
+
+     This project is licensed under the terms of the MIT license.
+-->
+<node>
+
+	<interface name="org.ofono.HandsfreeAudioAgent">
+		<method name="NewConnection">
+			<arg direction="in" type="o" name="card"/>
+			<arg direction="in" type="h" name="fd"/>
+			<arg direction="in" type="y" name="codec"/>
+		</method>
+		<method name="Release">
+		</method>
+	</interface>
+
+</node>

@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2022 Arkadiusz Bokowy
+# Copyright (c) 2016-2023 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
 SUBDIRS = asound
@@ -7,6 +7,15 @@ SUBDIRS = asound
 dbusconfdir = @DBUS_CONF_DIR@
 dbusbluealsauser = @BLUEALSA_USER@
 dist_dbusconf_DATA = bluealsa.conf
+
+BUILT_SOURCES = \
+	bluealsa-iface.c \
+	bluez-iface.c \
+	ofono-iface.c
+
+MOSTLYCLEANFILES = \
+	$(dist_dbusconf_DATA) \
+	$(BUILT_SOURCES)
 
 bluealsa_SOURCES = \
 	shared/a2dp-codecs.c \
@@ -24,10 +33,10 @@ bluealsa_SOURCES = \
 	ba-transport.c \
 	bluealsa-config.c \
 	bluealsa-dbus.c \
-	bluealsa-iface.c \
+	bluealsa-iface.xml \
 	bluealsa-skeleton.c \
 	bluez.c \
-	bluez-iface.c \
+	bluez-iface.xml \
 	bluez-skeleton.c \
 	codec-sbc.c \
 	dbus.c \
@@ -88,7 +97,7 @@ endif
 if ENABLE_OFONO
 bluealsa_SOURCES += \
 	ofono.c \
-	ofono-iface.c \
+	ofono-iface.xml \
 	ofono-skeleton.c
 endif
 
@@ -131,10 +140,12 @@ LDADD = \
 	@SPANDSP_LIBS@
 
 SUFFIXES = .conf.in .conf
-MOSTLYCLEANFILES = $(dist_dbusconf_DATA)
 
 DBUSCONF_SUBS = \
 	s,[@]bluealsauser[@],$(dbusbluealsauser),g;
 
 .conf.in.conf:
 	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@
+
+.xml.c:
+	$(GDBUS_CODEGEN) --interface-info-body --output $@ $<

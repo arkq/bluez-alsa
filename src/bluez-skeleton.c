@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-skeleton.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -43,7 +43,7 @@ bluez_BatteryProviderIfaceSkeleton *bluez_battery_provider_iface_skeleton_new(
 		GDestroyNotify userdata_free_func) {
 	const GType type = bluez_battery_provider_iface_skeleton_get_type();
 	return g_dbus_interface_skeleton_ex_new(type,
-			(GDBusInterfaceInfo *)&bluez_iface_battery_provider,
+			(GDBusInterfaceInfo *)&org_bluez_battery_provider1_interface,
 			vtable, userdata, userdata_free_func);
 }
 
@@ -74,7 +74,7 @@ bluez_MediaEndpointIfaceSkeleton *bluez_media_endpoint_iface_skeleton_new(
 		GDestroyNotify userdata_free_func) {
 	const GType type = bluez_media_endpoint_iface_skeleton_get_type();
 	return g_dbus_interface_skeleton_ex_new(type,
-			(GDBusInterfaceInfo *)&bluez_iface_media_endpoint,
+			(GDBusInterfaceInfo *)&org_bluez_media_endpoint1_interface,
 			vtable, userdata, userdata_free_func);
 }
 
@@ -105,6 +105,6 @@ bluez_ProfileIfaceSkeleton *bluez_profile_iface_skeleton_new(
 		GDestroyNotify userdata_free_func) {
 	const GType type = bluez_profile_iface_skeleton_get_type();
 	return g_dbus_interface_skeleton_ex_new(type,
-			(GDBusInterfaceInfo *)&bluez_iface_profile,
+			(GDBusInterfaceInfo *)&org_bluez_profile1_interface,
 			vtable, userdata, userdata_free_func);
 }

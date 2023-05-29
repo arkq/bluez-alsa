@@ -1,0 +1,45 @@
+<!-- BlueALSA - bluez-iface.xml
+     Copyright (c) 2016-2023 Arkadiusz Bokowy
+
+     This file is a part of bluez-alsa.
+
+     This project is licensed under the terms of the MIT license.
+-->
+<node>
+
+	<interface name="org.bluez.BatteryProvider1">
+		<property name="Device" type="o" access="read"/>
+		<property name="Percentage" type="y" access="read"/>
+		<property name="Source" type="s" access="read"/>
+	</interface>
+
+	<interface name="org.bluez.MediaEndpoint1">
+		<method name="SelectConfiguration">
+			<arg direction="in" type="ay" name="capabilities"/>
+			<arg direction="out" type="ay" name="configuration"/>
+		</method>
+		<method name="SetConfiguration">
+			<arg direction="in" type="o" name="transport"/>
+			<arg direction="in" type="a{sv}" name="properties"/>
+		</method>
+		<method name="ClearConfiguration">
+			<arg direction="in" type="o" name="transport"/>
+		</method>
+		<method name="Release">
+		</method>
+	</interface>
+
+	<interface name="org.bluez.Profile1">
+		<method name="NewConnection">
+			<arg direction="in" type="o" name="device"/>
+			<arg direction="in" type="h" name="fd"/>
+			<arg direction="in" type="a{sv}" name="properties"/>
+		</method>
+		<method name="RequestDisconnection">
+			<arg direction="in" type="o" name="device"/>
+		</method>
+		<method name="Release">
+		</method>
+	</interface>
+
+</node>

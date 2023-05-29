@@ -32,6 +32,6 @@
 #define OFONO_MODEM_TYPE_HFP      "hfp"
 #define OFONO_MODEM_TYPE_SAP      "sap"
 
-extern const GDBusInterfaceInfo ofono_iface_hf_audio_agent;
+extern const GDBusInterfaceInfo org_ofono_handsfree_audio_agent_interface;
 
 #endif
