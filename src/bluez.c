@@ -43,6 +43,7 @@
 #include "sco.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/bluetooth.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -653,11 +654,11 @@ static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
 		switch (c->dir) {
 		case A2DP_SOURCE:
 			if (config.profile.a2dp_source && c->enabled)
-				bluez_register_a2dp(adapter, c, BLUETOOTH_UUID_A2DP_SOURCE);
+				bluez_register_a2dp(adapter, c, BT_UUID_A2DP_SOURCE);
 			break;
 		case A2DP_SINK:
 			if (config.profile.a2dp_sink && c->enabled)
-				bluez_register_a2dp(adapter, c, BLUETOOTH_UUID_A2DP_SINK);
+				bluez_register_a2dp(adapter, c, BT_UUID_A2DP_SINK);
 			break;
 		}
 	}
@@ -1076,16 +1077,16 @@ fail:
  * this function will do nothing. */
 static void bluez_register_hfp_all(void) {
 	if (config.profile.hsp_hs)
-		bluez_register_hfp(BLUETOOTH_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS,
+		bluez_register_hfp(BT_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS,
 				0x0102 /* HSP 1.2 */, 0x1 /* remote audio volume control */);
 	if (config.profile.hsp_ag)
-		bluez_register_hfp(BLUETOOTH_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG,
+		bluez_register_hfp(BT_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG,
 				0x0102 /* HSP 1.2 */, 0x0);
 	if (config.profile.hfp_hf)
-		bluez_register_hfp(BLUETOOTH_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
+		bluez_register_hfp(BT_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_hf);
 	if (config.profile.hfp_ag)
-		bluez_register_hfp(BLUETOOTH_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
+		bluez_register_hfp(BT_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
 				0x0107 /* HFP 1.7 */, config.hfp.features_sdp_ag);
 }
 
@@ -1099,17 +1100,17 @@ static void bluez_register(void) {
 		bool enabled;
 		bool global;
 	} uuids[] = {
-		{ BLUETOOTH_UUID_A2DP_SOURCE, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+		{ BT_UUID_A2DP_SOURCE, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 			config.profile.a2dp_source, false },
-		{ BLUETOOTH_UUID_A2DP_SINK, BA_TRANSPORT_PROFILE_A2DP_SINK,
+		{ BT_UUID_A2DP_SINK, BA_TRANSPORT_PROFILE_A2DP_SINK,
 			config.profile.a2dp_sink, false },
-		{ BLUETOOTH_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS,
+		{ BT_UUID_HSP_HS, BA_TRANSPORT_PROFILE_HSP_HS,
 			config.profile.hsp_hs, true },
-		{ BLUETOOTH_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG,
+		{ BT_UUID_HSP_AG, BA_TRANSPORT_PROFILE_HSP_AG,
 			config.profile.hsp_ag, true },
-		{ BLUETOOTH_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
+		{ BT_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
 			config.profile.hfp_hf, true },
-		{ BLUETOOTH_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
+		{ BT_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
 			config.profile.hfp_ag, true },
 	};
 
@@ -1238,7 +1239,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 				if (strcmp(property, "UUID") == 0) {
 					const char *uuid = g_variant_get_string(value, NULL);
-					if (strcasecmp(uuid, BLUETOOTH_UUID_A2DP_SINK) == 0)
+					if (strcasecmp(uuid, BT_UUID_A2DP_SINK) == 0)
 						sep.dir = A2DP_SINK;
 				}
 				else if (strcmp(property, "Codec") == 0)

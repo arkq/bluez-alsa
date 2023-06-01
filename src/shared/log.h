@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <syslog.h>
 
-#include "shared/defs.h"
+#include "defs.h"
 
 void log_open(const char *ident, bool syslog);
 void log_message(int priority, const char *format, ...) __attribute__ ((format(printf, 2, 3)));

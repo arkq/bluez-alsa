@@ -37,6 +37,7 @@
 #include "hci.h"
 #include "hfp.h"
 #include "io.h"
+#include "shared/bluetooth.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"

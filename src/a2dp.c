@@ -43,8 +43,8 @@
 #include "a2dp-sbc.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
-#include "hci.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/bluetooth.h"
 #include "shared/log.h"
 
 struct a2dp_codec * const a2dp_codecs[] = {

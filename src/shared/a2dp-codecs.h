@@ -34,7 +34,7 @@
 #include <endian.h>
 #include <stdint.h>
 
-#include "hci.h"
+#include "bluetooth.h"
 
 #define A2DP_CODEC_SBC      0x00
 #define A2DP_CODEC_MPEG12   0x01
