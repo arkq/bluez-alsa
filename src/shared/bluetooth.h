@@ -21,6 +21,7 @@
 #define BT_COMPID_BROADCOM           0x000F
 #define BT_COMPID_APPLE              0x004C
 #define BT_COMPID_APT                0x004F
+#define BT_COMPID_REALTEK            0x005D
 #define BT_COMPID_SAMSUNG_ELEC       0x0075
 #define BT_COMPID_QUALCOMM_TECH      0x00D7
 #define BT_COMPID_SONY               0x012D

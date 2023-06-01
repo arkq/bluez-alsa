@@ -68,6 +68,9 @@ struct ba_config {
 	/* the initial volume level */
 	int volume_init_level;
 
+	/* disable alt-3 MTU for mSBC with Realtek USB adapters */
+	bool disable_realtek_usb_fix;
+
 	struct {
 
 		/* available HFP codecs */

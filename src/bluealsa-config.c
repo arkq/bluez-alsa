@@ -34,6 +34,8 @@ struct ba_config config = {
 
 	.volume_init_level = 0,
 
+	.disable_realtek_usb_fix = false,
+
 	/* CVSD is a mandatory codec */
 	.hfp.codecs.cvsd = true,
 #if ENABLE_MSBC

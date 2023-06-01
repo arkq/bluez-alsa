@@ -156,6 +156,7 @@ test_utils_SOURCES = \
 	../src/shared/log.c \
 	../src/shared/nv.c \
 	../src/shared/rt.c \
+	../src/bluealsa-config.c \
 	../src/hci.c \
 	../src/utils.c \
 	test-utils.c

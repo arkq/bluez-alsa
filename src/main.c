@@ -156,6 +156,7 @@ int main(int argc, char **argv) {
 		{ "codec", required_argument, NULL, 'c' },
 		{ "initial-volume", required_argument, NULL, 17 },
 		{ "keep-alive", required_argument, NULL, 8 },
+		{ "disable-realtek-usb-fix", no_argument, NULL, 21 },
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
 		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
 		{ "a2dp-volume", no_argument, NULL, 9 },
@@ -204,6 +205,7 @@ int main(int argc, char **argv) {
 					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
 					"  --initial-volume=NUM\t\tinitial volume level [0-100]\n"
 					"  --keep-alive=SEC\t\tkeep Bluetooth transport alive\n"
+					"  --disable-realtek-usb-fix\tdisable fix for mSBC on Realtek USB\n"
 					"  --a2dp-force-mono\t\ttry to force monophonic sound\n"
 					"  --a2dp-force-audio-cd\t\ttry to force 44.1 kHz sampling\n"
 					"  --a2dp-volume\t\t\tnative volume control by default\n"
@@ -377,6 +379,10 @@ int main(int argc, char **argv) {
 
 		case 8 /* --keep-alive=SEC */ :
 			config.keep_alive_time = atof(optarg) * 1000;
+			break;
+
+		case 21 /* --disable-realtek-usb-fix */ :
+			config.disable_realtek_usb_fix = true;
 			break;
 
 		case 6 /* --a2dp-force-mono */ :

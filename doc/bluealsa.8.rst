@@ -100,6 +100,11 @@ OPTIONS
     It will reduce the gap between playbacks caused by Bluetooth audio
     transport acquisition.
 
+--disable-realtek-usb-fix
+    Since Linux kernel 5.14 Realtek USB adapters have required **bluealsa** to
+    apply a fix for mSBC. This option disables that fix and may be necessary
+    when using an earlier kernel.
+
 --a2dp-force-mono
     Force monophonic sound for A2DP profile.
 

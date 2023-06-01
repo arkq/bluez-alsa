@@ -23,6 +23,9 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/sco.h>
 
+#include "ba-adapter.h"
+#include "bluealsa-config.h"
+#include "shared/bluetooth.h"
 #include "shared/log.h"
 
 /**
@@ -110,10 +113,10 @@ int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
  * Get read/write MTU for given SCO socket.
  *
  * @param sco_fd File descriptor of opened SCO socket.
- * @param hci_type The type of the HCI returned by hci_devinfo().
+ * @param a The adapter associated with sco_fd.
  * @return On success this function returns MTU value. Otherwise, 0 is returned and
  *   errno is set to indicate the error. */
-unsigned int hci_sco_get_mtu(int sco_fd, int hci_type) {
+unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter *a) {
 
 	struct sco_options options = { 0 };
 	struct bt_voice voice = { 0 };
@@ -135,10 +138,16 @@ unsigned int hci_sco_get_mtu(int sco_fd, int hci_type) {
 
 	/* XXX: It seems, that the MTU value returned by kernel btusb driver
 	 *      is incorrect. */
-	if ((hci_type & 0x0F) == HCI_USB) {
+	if ((a->hci.type & 0x0F) == HCI_USB) {
 		options.mtu = 48;
-		if (voice.setting == BT_VOICE_TRANSPARENT)
-			options.mtu = 24;
+		if (voice.setting == BT_VOICE_TRANSPARENT) {
+			if (a->chip.manufacturer == 0)
+				hci_get_version(a->hci.dev_id, &a->chip);
+			if (!config.disable_realtek_usb_fix && a->chip.manufacturer == BT_COMPID_REALTEK)
+				options.mtu = 72;
+			else
+				options.mtu = 24;
+		}
 		debug("USB adjusted SCO MTU: %d: %u", sco_fd, options.mtu);
 	}
 

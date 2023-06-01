@@ -887,7 +887,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	debug("New SCO link: %s: %d", batostr_(&d->addr), fd);
 
-	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, d->a->hci.type);
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, d->a);
 	t->bt_fd = fd;
 
 	return fd;
