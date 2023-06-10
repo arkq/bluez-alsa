@@ -1,6 +1,9 @@
 unreleased
 ==========
 
+- fix for oFono HF role SCO socket authorization
+- fix for mSBC MTU adjustment for Realtek USB adapters
+
 bluez-alsa v4.1.0 (2023-05-23)
 ==============================
 

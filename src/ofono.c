@@ -20,6 +20,7 @@
 /* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -799,18 +800,24 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 		g_dbus_method_invocation_return_value(inv, NULL);
 		return;
 	}
+#endif
 
 	/* For HF, oFono does not authorize after setting the voice option, so we
-	 * have to do it ourselves here. */
-	if (t->profile == BA_TRANSPORT_PROFILE_HFP_HF &&
-			codec == HFP_CODEC_MSBC) {
+	 * may have to do it ourselves here. oFono always tries to set the
+	 * BT_DEFER_SETUP option, but may not always succeed. So we must first
+	 * check if the socket is in deferred setup state before authorizing. */
+	if (t->profile == BA_TRANSPORT_PROFILE_HFP_HF) {
+		/* If socket is not writable, it means that it is in the defer setup
+		 * state, so it needs to be read to authorize the connection. */
+		struct pollfd pfd = { fd, POLLOUT, 0 };
 		uint8_t auth;
-		if (read(fd, &auth, sizeof(auth)) == -1) {
+		if (poll(&pfd, 1, 0) == -1)
+			goto fail;
+		if (!(pfd.revents & POLLOUT) && read(fd, &auth, sizeof(auth)) == -1) {
 			error("Couldn't authorize oFono SCO link: %s", strerror(errno));
 			goto fail;
 		}
 	}
-#endif
 
 	ba_transport_stop(t);
 
