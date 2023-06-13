@@ -40,3 +40,8 @@
 Makefile.in
 config.h.in
 *~
+
+# Generated source files
+/src/bluealsa-iface.c
+/src/bluez-iface.c
+/src/ofono-iface.c
