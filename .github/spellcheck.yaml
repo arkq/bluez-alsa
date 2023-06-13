@@ -22,7 +22,7 @@ matrix:
 
 - name: C
   sources:
-  - 'src/**/*.{c,h}|!config.h'
+  - 'src/**/*.{c,h}|!config.h|!src/*-iface.c'
   aspell: *aspell
   dictionary: *dict
   pipeline:
