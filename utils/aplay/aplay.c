@@ -911,13 +911,19 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 			}
 			if (pcm.transport == BA_PCM_TRANSPORT_NONE)
 				goto fail;
-			struct ba_pcm *tmp = ba_pcms;
-			if ((ba_pcms = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL) {
-				error("Couldn't add new BlueALSA PCM: %s", strerror(ENOMEM));
-				ba_pcms = tmp;
-				goto fail;
+
+			struct ba_pcm *stored_pcm;
+			if ((stored_pcm = get_ba_pcm(pcm.pcm_path)) == NULL) {
+				struct ba_pcm *tmp = ba_pcms;
+				if ((ba_pcms = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL) {
+					error("Couldn't add new BlueALSA PCM: %s", strerror(ENOMEM));
+					ba_pcms = tmp;
+					goto fail;
+				}
+				stored_pcm = &ba_pcms[ba_pcms_count++];
 			}
-			memcpy(&ba_pcms[ba_pcms_count++], &pcm, sizeof(*ba_pcms));
+
+			memcpy(stored_pcm, &pcm, sizeof(*ba_pcms));
 			supervise_io_worker(&pcm);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
