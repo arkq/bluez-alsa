@@ -29,7 +29,7 @@ Dependencies:
 - [alsa-lib](https://www.alsa-project.org/)
 - [bluez](http://www.bluez.org/) >= 5.0
 - [glib](https://wiki.gnome.org/Projects/GLib) with GIO support
-- [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git)
+- [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git) >= 1.5
 - [docutils](https://docutils.sourceforge.io) (when man pages build is enabled
   with `--enable-manpages`)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled
