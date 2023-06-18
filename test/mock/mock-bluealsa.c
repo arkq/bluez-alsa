@@ -415,6 +415,13 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 		if (mock_fuzzing_ms)
 			ba_transport_set_codec(t, HFP_CODEC_CVSD);
 
+#if ENABLE_MSBC
+		if (mock_fuzzing_ms) {
+			usleep(mock_fuzzing_ms * 1000);
+			ba_transport_set_codec(t, HFP_CODEC_MSBC);
+		}
+#endif
+
 	}
 
 	if (config.profile.hsp_ag) {

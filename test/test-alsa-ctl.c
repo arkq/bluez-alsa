@@ -497,7 +497,7 @@ CK_START_TEST(test_notifications) {
 
 	size_t events_update_codec = 0;
 #if ENABLE_MSBC
-	events_update_codec += 4;
+	events_update_codec += 8;
 #endif
 
 	/* Processed events:
@@ -505,7 +505,7 @@ CK_START_TEST(test_notifications) {
 	 * - 2 removes; 4 new elems (12:34:... A2DP, 23:45:... A2DP)
 	 * - 4 removes; 7 new elems (2x A2DP, SCO playback, battery)
 	 * - 7 removes; 9 new elems (2x A2DP, SCO playback/capture, battery)
-	 * - 4 updates (SCO codec update if mSBC is supported)
+	 * - 8 updates (SCO codec updates if mSBC is supported)
 	 *
 	 * XXX: It is possible that the battery element (RFCOMM D-Bus path) will not
 	 *      be exported in time. In such case, the number of events will be less

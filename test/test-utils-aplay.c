@@ -174,7 +174,7 @@ CK_START_TEST(test_play_all) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[4096] = "";
+	char output[8192] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
 	fprintf(stderr, "%s", output);
 
@@ -206,7 +206,7 @@ CK_START_TEST(test_play_single_audio) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[4096] = "";
+	char output[8192] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
 	fprintf(stderr, "%s", output);
 
@@ -248,7 +248,7 @@ CK_START_TEST(test_play_mixer_setup) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[4096] = "";
+	char output[8192] = "";
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
 	fprintf(stderr, "%s", output);
 
@@ -257,6 +257,53 @@ CK_START_TEST(test_play_mixer_setup) {
 				"Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"), NULL);
 	ck_assert_ptr_ne(strstr(output,
 				"Setting up ALSA mixer volume synchronization"), NULL);
+#endif
+
+	spawn_close(&sp_ba_aplay, NULL);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock, NULL);
+
+} CK_END_TEST
+
+CK_START_TEST(test_play_dbus_signals) {
+
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, false,
+				"--timeout=0",
+				"--profile=hfp-ag",
+				"--fuzzing=250",
+				NULL), -1);
+
+	struct spawn_process sp_ba_aplay;
+	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
+				"--profile-sco",
+				"--pcm=null",
+				"-vv",
+				NULL), -1);
+	spawn_terminate(&sp_ba_aplay, 1500);
+
+	char output[8192] = "";
+	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
+	fprintf(stderr, "%s", output);
+
+#if ENABLE_MSBC && DEBUG
+	/* with mSBC support, codec is not selected right away */
+	ck_assert_ptr_ne(strstr(output,
+				"Skipping SCO with codec not selected"), NULL);
+#endif
+
+	ck_assert_ptr_ne(strstr(output,
+				"Used configuration for 12:34:56:78:9A:BC"), NULL);
+	/* check proper sampling rate for CVSD codec */
+	ck_assert_ptr_ne(strstr(output,
+				"Sampling rate: 8000 Hz"), NULL);
+
+#if ENABLE_MSBC
+	ck_assert_ptr_ne(strstr(output,
+				"Used configuration for 12:34:56:78:9A:BC"), NULL);
+	/* check proper sampling rate for mSBC codec */
+	ck_assert_ptr_ne(strstr(output,
+				"Sampling rate: 16000 Hz"), NULL);
 #endif
 
 	spawn_close(&sp_ba_aplay, NULL);
@@ -289,6 +336,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	tcase_add_test(tc, test_play_all);
 	tcase_add_test(tc, test_play_single_audio);
 	tcase_add_test(tc, test_play_mixer_setup);
+	tcase_add_test(tc, test_play_dbus_signals);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

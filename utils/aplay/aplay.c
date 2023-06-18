@@ -246,15 +246,30 @@ static void print_bt_pcm_list(void) {
 
 }
 
-static struct ba_pcm *get_ba_pcm(const char *path) {
+static struct ba_pcm *ba_pcm_add(const struct ba_pcm *pcm) {
+	struct ba_pcm *tmp;
+	if ((tmp = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL)
+		return NULL;
+	ba_pcms = tmp;
+	memcpy(&ba_pcms[ba_pcms_count], pcm, sizeof(*ba_pcms));
+	return &ba_pcms[ba_pcms_count++];
+}
 
-	size_t i;
-
-	for (i = 0; i < ba_pcms_count; i++)
+static struct ba_pcm *ba_pcm_get(const char *path) {
+	for (size_t i = 0; i < ba_pcms_count; i++)
 		if (strcmp(ba_pcms[i].pcm_path, path) == 0)
 			return &ba_pcms[i];
-
 	return NULL;
+}
+
+static void ba_pcm_remove(const char *path) {
+	for (size_t i = 0; i < ba_pcms_count; i++)
+		if (strcmp(ba_pcms[i].pcm_path, path) == 0) {
+			memmove(&ba_pcms[i], &ba_pcms[i + 1],
+					(ba_pcms_count - i - 1) * sizeof(*ba_pcms));
+			ba_pcms_count--;
+			break;
+		}
 }
 
 static struct io_worker *get_active_io_worker(void) {
@@ -911,13 +926,10 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 			}
 			if (pcm.transport == BA_PCM_TRANSPORT_NONE)
 				goto fail;
-			struct ba_pcm *tmp = ba_pcms;
-			if ((ba_pcms = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL) {
-				error("Couldn't add new BlueALSA PCM: %s", strerror(ENOMEM));
-				ba_pcms = tmp;
+			if (ba_pcm_add(&pcm) == NULL) {
+				error("Couldn't add new BlueALSA PCM: %s", strerror(errno));
 				goto fail;
 			}
-			memcpy(&ba_pcms[ba_pcms_count++], &pcm, sizeof(*ba_pcms));
 			supervise_io_worker(&pcm);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
@@ -930,9 +942,10 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 			}
 			dbus_message_iter_get_basic(&iter, &path);
 			struct ba_pcm *pcm;
-			if ((pcm = get_ba_pcm(path)) == NULL)
+			if ((pcm = ba_pcm_get(path)) == NULL)
 				goto fail;
 			supervise_io_worker_stop(pcm);
+			ba_pcm_remove(path);
 			return DBUS_HANDLER_RESULT_HANDLED;
 		}
 
@@ -940,7 +953,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 	if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0) {
 		struct ba_pcm *pcm;
-		if ((pcm = get_ba_pcm(path)) == NULL)
+		if ((pcm = ba_pcm_get(path)) == NULL)
 			goto fail;
 		if (!dbus_message_iter_init(message, &iter) ||
 				dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING) {
