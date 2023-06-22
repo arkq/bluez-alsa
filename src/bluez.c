@@ -13,7 +13,6 @@
 
 #include <errno.h>
 #include <pthread.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -69,8 +68,6 @@ struct bluez_dbus_object_data {
 	bool registered;
 	/* determine whether object is used */
 	bool connected;
-	/* memory self-management */
-	atomic_int ref_count;
 };
 
 /**
@@ -116,10 +113,8 @@ static void bluez_adapter_free(struct bluez_adapter *adapter) {
 	adapter->adapter = NULL;
 }
 
-static void bluez_dbus_object_data_unref(
+static void bluez_dbus_object_data_free(
 		struct bluez_dbus_object_data *obj) {
-	if (atomic_fetch_sub_explicit(&obj->ref_count, 1, memory_order_relaxed) > 1)
-		return;
 	if (obj->ifs != NULL) {
 		g_dbus_interface_skeleton_unexport(obj->ifs);
 		g_object_unref(obj->ifs);
@@ -603,11 +598,10 @@ static void bluez_register_a2dp(
 			dbus_obj->hci_dev_id = adapter->hci.dev_id;
 			dbus_obj->codec = codec;
 			dbus_obj->profile = profile;
-			dbus_obj->ref_count = 2;
 
 			bluez_MediaEndpointIfaceSkeleton *ifs_endpoint;
 			if ((ifs_endpoint = bluez_media_endpoint_iface_skeleton_new(&vtable,
-							dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref)) == NULL) {
+							dbus_obj, NULL)) == NULL) {
 				free(dbus_obj);
 				goto fail;
 			}
@@ -1032,11 +1026,10 @@ static void bluez_register_hfp(
 		strncpy(dbus_obj->path, path, sizeof(dbus_obj->path));
 		dbus_obj->hci_dev_id = -1;
 		dbus_obj->profile = profile;
-		dbus_obj->ref_count = 2;
 
 		bluez_ProfileIfaceSkeleton *ifs_profile;
 		if ((ifs_profile = bluez_profile_iface_skeleton_new(&vtable,
-						dbus_obj, (GDestroyNotify)bluez_dbus_object_data_unref)) == NULL) {
+						dbus_obj, NULL)) == NULL) {
 			free(dbus_obj);
 			goto fail;
 		}
@@ -1500,7 +1493,7 @@ int bluez_init(void) {
 
 	if (dbus_object_data_map == NULL)
 		dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal,
-				NULL, (GDestroyNotify)bluez_dbus_object_data_unref);
+				NULL, (GDestroyNotify)bluez_dbus_object_data_free);
 
 	bluez_subscribe_signals();
 	bluez_register();
