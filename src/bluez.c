@@ -85,11 +85,6 @@ static pthread_mutex_t bluez_mutex = PTHREAD_MUTEX_INITIALIZER;
 static GHashTable *dbus_object_data_map = NULL;
 static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { 0 };
 
-#define bluez_adapters_device_lookup(hci_dev_id, addr) \
-	g_hash_table_lookup(bluez_adapters[hci_dev_id].device_sep_map, addr)
-#define bluez_adapters_device_get_sep(seps, i) \
-	g_array_index(seps, struct a2dp_sep, i)
-
 static void bluez_register_a2dp_all(struct ba_adapter *);
 static void bluez_register_battery_provider_manager(struct bluez_adapter *);
 
@@ -102,15 +97,28 @@ static struct bluez_adapter *bluez_adapter_new(struct ba_adapter *a) {
 	return &bluez_adapters[a->hci.dev_id];
 }
 
-static void bluez_adapter_free(struct bluez_adapter *adapter) {
-	if (adapter->adapter == NULL)
+static void bluez_adapter_free(struct bluez_adapter *b_adapter) {
+	if (b_adapter->adapter == NULL)
 		return;
-	g_hash_table_destroy(adapter->device_sep_map);
-	adapter->device_sep_map = NULL;
-	g_object_unref(adapter->battery_manager);
-	adapter->battery_manager = NULL;
-	ba_adapter_destroy(adapter->adapter);
-	adapter->adapter = NULL;
+	g_hash_table_destroy(b_adapter->device_sep_map);
+	b_adapter->device_sep_map = NULL;
+	g_object_unref(b_adapter->battery_manager);
+	b_adapter->battery_manager = NULL;
+	ba_adapter_destroy(b_adapter->adapter);
+	b_adapter->adapter = NULL;
+}
+
+/**
+ * Get Stream End-Points (SEPs) associated with the given device. */
+static GArray *bluez_adapter_get_device_seps(
+		struct bluez_adapter *b_adapter,
+		const bdaddr_t *addr) {
+	GArray *seps;
+	if ((seps = g_hash_table_lookup(b_adapter->device_sep_map, addr)) != NULL)
+		return seps;
+	seps = g_array_new(FALSE, FALSE, sizeof(struct a2dp_sep));
+	g_hash_table_insert(b_adapter->device_sep_map, g_memdup2(addr, sizeof(*addr)), seps);
+	return seps;
 }
 
 static void bluez_dbus_object_data_free(
@@ -378,7 +386,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	}
 
 	if (d->seps == NULL)
-		d->seps = bluez_adapters_device_lookup(a->hci.dev_id, &addr);
+		d->seps = bluez_adapter_get_device_seps(&bluez_adapters[a->hci.dev_id], &addr);
 
 	if (ba_transport_lookup(d, transport_path) != NULL) {
 		error("Transport already configured: %s", transport_path);
@@ -1275,17 +1283,14 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 		g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
 		int dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 
-		GArray *seps;
-		if ((seps = bluez_adapters_device_lookup(dev_id, &addr)) == NULL)
-			g_hash_table_insert(bluez_adapters[dev_id].device_sep_map,
-					g_memdup2(&addr, sizeof(addr)), seps = g_array_new(FALSE, FALSE, sizeof(sep)));
-
 		strncpy(sep.bluez_dbus_path, object_path, sizeof(sep.bluez_dbus_path) - 1);
 		if (sep.codec_id == A2DP_CODEC_VENDOR)
 			sep.codec_id = a2dp_get_vendor_codec_id(&sep.capabilities, sep.capabilities_size);
 
 		debug("Adding new Stream End-Point: %s: %s", batostr_(&addr),
 				a2dp_codecs_codec_id_to_string(sep.codec_id));
+
+		GArray *seps = bluez_adapter_get_device_seps(&bluez_adapters[dev_id], &addr);
 		g_array_append_val(seps, sep);
 
 		/* Collected SEPs are exposed via BlueALSA D-Bus API. We will sort them
@@ -1339,15 +1344,13 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 		}
 		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0) {
 
-			GArray *seps;
 			bdaddr_t addr;
-			size_t i;
-
 			g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
-			if ((seps = bluez_adapters_device_lookup(hci_dev_id, &addr)) != NULL)
-				for (i = 0; i < seps->len; i++)
-					if (strcmp(bluez_adapters_device_get_sep(seps, i).bluez_dbus_path, object_path) == 0)
-						g_array_remove_index_fast(seps, i);
+			GArray *seps = bluez_adapter_get_device_seps(&bluez_adapters[hci_dev_id], &addr);
+
+			for (size_t i = 0; i < seps->len; i++)
+				if (strcmp(g_array_index(seps, struct a2dp_sep, i).bluez_dbus_path, object_path) == 0)
+					g_array_remove_index_fast(seps, i);
 
 		}
 
