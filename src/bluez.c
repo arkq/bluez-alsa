@@ -1287,7 +1287,8 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 		if (sep.codec_id == A2DP_CODEC_VENDOR)
 			sep.codec_id = a2dp_get_vendor_codec_id(&sep.capabilities, sep.capabilities_size);
 
-		debug("Adding new Stream End-Point: %s: %s", batostr_(&addr),
+		debug("Adding new Stream End-Point: %s: %s: %s",
+				batostr_(&addr), sep.dir == A2DP_SOURCE ? "SRC" : "SNK",
 				a2dp_codecs_codec_id_to_string(sep.codec_id));
 
 		GArray *seps = bluez_adapter_get_device_seps(&bluez_adapters[dev_id], &addr);
@@ -1348,9 +1349,15 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 			g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
 			GArray *seps = bluez_adapter_get_device_seps(&bluez_adapters[hci_dev_id], &addr);
 
-			for (size_t i = 0; i < seps->len; i++)
-				if (strcmp(g_array_index(seps, struct a2dp_sep, i).bluez_dbus_path, object_path) == 0)
+			for (size_t i = 0; i < seps->len; i++) {
+				const struct a2dp_sep *sep = &g_array_index(seps, struct a2dp_sep, i);
+				if (strcmp(sep->bluez_dbus_path, object_path) == 0) {
+					debug("Removing Stream End-Point: %s: %s: %s",
+							batostr_(&addr), sep->dir == A2DP_SOURCE ? "SRC" : "SNK",
+							a2dp_codecs_codec_id_to_string(sep->codec_id));
 					g_array_remove_index_fast(seps, i);
+				}
+			}
 
 		}
 

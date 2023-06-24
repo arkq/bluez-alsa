@@ -1,8 +1,12 @@
 unreleased
 ==========
 
+bluez-alsa v4.1.1 (2023-06-24)
+==============================
+
 - fix for oFono HF role SCO socket authorization
 - fix for mSBC MTU adjustment for Realtek USB adapters
+- bluealsa-aplay: fix playback after BT codec update
 
 bluez-alsa v4.1.0 (2023-05-23)
 ==============================
