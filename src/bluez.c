@@ -36,7 +36,6 @@
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
-#include "bluez-skeleton.h"
 #include "dbus.h"
 #include "hci.h"
 #include "sco.h"
@@ -607,8 +606,8 @@ static void bluez_register_a2dp(
 			dbus_obj->codec = codec;
 			dbus_obj->profile = profile;
 
-			bluez_MediaEndpointIfaceSkeleton *ifs_endpoint;
-			if ((ifs_endpoint = bluez_media_endpoint_iface_skeleton_new(&vtable,
+			OrgBluezMediaEndpoint1Skeleton *ifs_endpoint;
+			if ((ifs_endpoint = org_bluez_media_endpoint1_skeleton_new(&vtable,
 							dbus_obj, NULL)) == NULL) {
 				free(dbus_obj);
 				goto fail;
@@ -715,13 +714,13 @@ static bool bluez_battery_provider_manager_add(struct ba_device *device) {
 		return true;
 
 	GDBusObjectSkeleton *skeleton = NULL;
-	bluez_BatteryProviderIfaceSkeleton *ifs_battery_provider = NULL;
+	OrgBluezBatteryProvider1Skeleton *ifs_battery_provider = NULL;
 
 	char *path = g_strdup_printf("/org/bluez/%s/battery/%s",
 			a->hci.name, device->addr_dbus_str);
 	if ((skeleton = g_dbus_object_skeleton_new(path)) == NULL)
 		goto fail;
-	if ((ifs_battery_provider = bluez_battery_provider_iface_skeleton_new(&vtable,
+	if ((ifs_battery_provider = org_bluez_battery_provider1_skeleton_new(&vtable,
 				device, (GDestroyNotify)ba_device_unref)) == NULL)
 		goto fail;
 
@@ -1035,8 +1034,8 @@ static void bluez_register_hfp(
 		dbus_obj->hci_dev_id = -1;
 		dbus_obj->profile = profile;
 
-		bluez_ProfileIfaceSkeleton *ifs_profile;
-		if ((ifs_profile = bluez_profile_iface_skeleton_new(&vtable,
+		OrgBluezProfile1Skeleton *ifs_profile;
+		if ((ifs_profile = org_bluez_profile1_skeleton_new(&vtable,
 						dbus_obj, NULL)) == NULL) {
 			free(dbus_obj);
 			goto fail;

@@ -13,6 +13,9 @@
 #define BLUEALSA_BLUEZIFACE_H_
 
 #include <gio/gio.h>
+#include <glib.h>
+
+#include "dbus.h"
 
 #define BLUEZ_SERVICE "org.bluez"
 
@@ -29,6 +32,30 @@
 #define BLUEZ_TRANSPORT_STATE_IDLE    "idle"
 #define BLUEZ_TRANSPORT_STATE_PENDING "pending"
 #define BLUEZ_TRANSPORT_STATE_ACTIVE  "active"
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgBluezBatteryProvider1Skeleton;
+
+OrgBluezBatteryProvider1Skeleton *org_bluez_battery_provider1_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgBluezMediaEndpoint1Skeleton;
+
+OrgBluezMediaEndpoint1Skeleton *org_bluez_media_endpoint1_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgBluezProfile1Skeleton;
+
+OrgBluezProfile1Skeleton *org_bluez_profile1_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
 
 extern const GDBusInterfaceInfo org_bluez_battery_provider1_interface;
 extern const GDBusInterfaceInfo org_bluez_media_endpoint1_interface;

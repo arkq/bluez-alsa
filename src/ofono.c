@@ -49,7 +49,6 @@
 #include "hci.h"
 #include "hfp.h"
 #include "ofono-iface.h"
-#include "ofono-skeleton.h"
 #include "utils.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -69,7 +68,7 @@ struct ofono_card_data {
 
 static GHashTable *ofono_card_data_map = NULL;
 static const char *dbus_agent_object_path = "/org/bluez/HFP/oFono";
-static ofono_HFAudioAgentIfaceSkeleton *dbus_hf_agent = NULL;
+static OrgOfonoHandsfreeAudioAgentSkeleton *dbus_hf_agent = NULL;
 
 /**
  * Ask oFono to connect to a card. */
@@ -889,8 +888,8 @@ int ofono_register(void) {
 	debug("Registering oFono audio agent: %s", dbus_agent_object_path);
 
 	if (dbus_hf_agent == NULL) {
-		ofono_HFAudioAgentIfaceSkeleton *ifs_hf_agent;
-		if ((ifs_hf_agent = ofono_hf_audio_agent_iface_skeleton_new(&vtable, NULL, NULL)) == NULL)
+		OrgOfonoHandsfreeAudioAgentSkeleton *ifs_hf_agent;
+		if ((ifs_hf_agent = org_ofono_handsfree_audio_agent_skeleton_new(&vtable, NULL, NULL)) == NULL)
 			goto fail;
 		GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_hf_agent);
 		if (!g_dbus_interface_skeleton_export(ifs, config.dbus, dbus_agent_object_path, &err)) {

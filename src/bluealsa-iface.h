@@ -13,6 +13,9 @@
 #define BLUEALSA_BLUEALSAIFACE_H_
 
 #include <gio/gio.h>
+#include <glib.h>
+
+#include "dbus.h"
 
 #define BLUEALSA_SERVICE "org.bluealsa"
 
@@ -38,6 +41,30 @@
 
 #define BLUEALSA_PCM_MODE_SINK   "sink"
 #define BLUEALSA_PCM_MODE_SOURCE "source"
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgBluealsaManager1Skeleton;
+
+OrgBluealsaManager1Skeleton *org_bluealsa_manager1_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgBluealsaPcm1Skeleton;
+
+OrgBluealsaPcm1Skeleton *org_bluealsa_pcm1_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgBluealsaRfcomm1Skeleton;
+
+OrgBluealsaRfcomm1Skeleton *org_bluealsa_rfcomm1_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
 
 extern const GDBusInterfaceInfo org_bluealsa_manager1_interface;
 extern const GDBusInterfaceInfo org_bluealsa_pcm1_interface;

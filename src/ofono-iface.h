@@ -13,6 +13,9 @@
 #define BLUEALSA_OFONOIFACE_H_
 
 #include <gio/gio.h>
+#include <glib.h>
+
+#include "dbus.h"
 
 #define OFONO_SERVICE "org.ofono"
 
@@ -31,6 +34,14 @@
 #define OFONO_MODEM_TYPE_HARDWARE "hardware"
 #define OFONO_MODEM_TYPE_HFP      "hfp"
 #define OFONO_MODEM_TYPE_SAP      "sap"
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgOfonoHandsfreeAudioAgentSkeleton;
+
+OrgOfonoHandsfreeAudioAgentSkeleton *org_ofono_handsfree_audio_agent_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
 
 extern const GDBusInterfaceInfo org_ofono_handsfree_audio_agent_interface;
 

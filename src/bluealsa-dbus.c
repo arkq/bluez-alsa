@@ -35,7 +35,6 @@
 #include "ba-transport.h"
 #include "bluealsa-config.h"
 #include "bluealsa-iface.h"
-#include "bluealsa-skeleton.h"
 #include "bluez.h"
 #include "dbus.h"
 #include "hfp.h"
@@ -391,8 +390,8 @@ void bluealsa_dbus_register(void) {
 
 	debug("Registering D-Bus manager: %s", bluealsa_dbus_manager_path);
 
-	bluealsa_ManagerIfaceSkeleton *ifs_manager;
-	ifs_manager = bluealsa_manager_iface_skeleton_new(&vtable, NULL, NULL);
+	OrgBluealsaManager1Skeleton *ifs_manager;
+	ifs_manager = org_bluealsa_manager1_skeleton_new(&vtable, NULL, NULL);
 	g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(ifs_manager),
 			config.dbus, bluealsa_dbus_manager_path, NULL);
 
@@ -917,14 +916,17 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	};
 
 	GDBusObjectSkeleton *skeleton = NULL;
-	bluealsa_PCMIfaceSkeleton *ifs_pcm = NULL;
+	OrgBluealsaPcm1Skeleton *ifs_pcm = NULL;
 
 	if ((skeleton = g_dbus_object_skeleton_new(pcm->ba_dbus_path)) == NULL)
 		goto fail;
 
-	if ((ifs_pcm = bluealsa_pcm_iface_skeleton_new(&vtable,
+	if ((ifs_pcm = org_bluealsa_pcm1_skeleton_new(&vtable,
 					pcm, (GDestroyNotify)ba_transport_pcm_unref)) == NULL)
 		goto fail;
+
+	g_dbus_interface_skeleton_set_flags(G_DBUS_INTERFACE_SKELETON(ifs_pcm),
+			G_DBUS_INTERFACE_SKELETON_FLAGS_HANDLE_METHOD_INVOCATIONS_IN_THREAD);
 
 	ba_transport_pcm_ref(pcm);
 
@@ -1034,12 +1036,12 @@ int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
 	};
 
 	GDBusObjectSkeleton *skeleton = NULL;
-	bluealsa_RFCOMMIfaceSkeleton *ifs_rfcomm = NULL;
+	OrgBluealsaRfcomm1Skeleton *ifs_rfcomm = NULL;
 
 	if ((skeleton = g_dbus_object_skeleton_new(r->ba_dbus_path)) == NULL)
 		goto fail;
 
-	if ((ifs_rfcomm = bluealsa_rfcomm_iface_skeleton_new(&vtable,
+	if ((ifs_rfcomm = org_bluealsa_rfcomm1_skeleton_new(&vtable,
 					r, NULL)) == NULL)
 		goto fail;
 

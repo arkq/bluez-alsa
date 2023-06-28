@@ -20,7 +20,6 @@ bluealsa_mock_SOURCES = \
 	../../src/bluealsa-config.c \
 	../../src/bluealsa-dbus.c \
 	../../src/bluealsa-iface.c \
-	../../src/bluealsa-skeleton.c \
 	../../src/codec-sbc.c \
 	../../src/dbus.c \
 	../../src/hci.c \

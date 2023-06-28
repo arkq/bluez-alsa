@@ -34,10 +34,8 @@ bluealsa_SOURCES = \
 	bluealsa-config.c \
 	bluealsa-dbus.c \
 	bluealsa-iface.xml \
-	bluealsa-skeleton.c \
 	bluez.c \
 	bluez-iface.xml \
-	bluez-skeleton.c \
 	codec-sbc.c \
 	dbus.c \
 	hci.c \
@@ -97,8 +95,7 @@ endif
 if ENABLE_OFONO
 bluealsa_SOURCES += \
 	ofono.c \
-	ofono-iface.xml \
-	ofono-skeleton.c
+	ofono-iface.xml
 endif
 
 if ENABLE_UPOWER
@@ -149,3 +146,4 @@ DBUSCONF_SUBS = \
 
 .xml.c:
 	$(GDBUS_CODEGEN) --interface-info-body --output $@ $<
+	$(srcdir)/dbus-codegen.py --interface-skeleton-body -a --output $@ $<
