@@ -111,11 +111,10 @@ Properties      object Device [readonly]
 
                         Sampling frequency.
 
-                uint16 Codec [readonly]
+                string Codec [readonly]
 
-                        Bluetooth transport codec. The meaning of this value
-                        depends on the Bluetooth transport type. This property
-                        is available only when transport codec is selected.
+                        Bluetooth transport codec. This property is available
+                        only when transport codec is selected.
 
                 array{byte} CodecConfiguration [readonly]
 
