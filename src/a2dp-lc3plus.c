@@ -124,8 +124,9 @@ static bool a2dp_lc3plus_supported(int samplerate, int channels) {
 
 static LC3PLUS_Enc *a2dp_lc3plus_enc_init(int samplerate, int channels) {
 	LC3PLUS_Enc *handle;
+	int32_t lfe_channel_array[1] = { 0 };
 	if ((handle = malloc(lc3plus_enc_get_size(samplerate, channels))) != NULL &&
-			lc3plus_enc_init(handle, samplerate, channels) == LC3PLUS_OK)
+			lc3plus_enc_init(handle, samplerate, channels, 1, lfe_channel_array) == LC3PLUS_OK)
 		return handle;
 	free(handle);
 	return NULL;
@@ -141,7 +142,7 @@ static void a2dp_lc3plus_enc_free(LC3PLUS_Enc *handle) {
 static LC3PLUS_Dec *a2dp_lc3plus_dec_init(int samplerate, int channels) {
 	LC3PLUS_Dec *handle;
 	if ((handle = malloc(lc3plus_dec_get_size(samplerate, channels))) != NULL &&
-			lc3plus_dec_init(handle, samplerate, channels, LC3PLUS_PLC_ADVANCED) == LC3PLUS_OK)
+			lc3plus_dec_init(handle, samplerate, channels, LC3PLUS_PLC_ADVANCED, 1) == LC3PLUS_OK)
 		return handle;
 	free(handle);
 	return NULL;
@@ -198,12 +199,8 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(a2dp_lc3plus_enc_free), handle);
 
-	if ((err = lc3plus_enc_set_frame_ms(handle, lc3plus_frame_dms * 0.1)) != LC3PLUS_OK) {
+	if ((err = lc3plus_enc_set_frame_dms(handle, lc3plus_frame_dms)) != LC3PLUS_OK) {
 		error("Couldn't set frame length: %s", lc3plus_strerror(err));
-		goto fail_setup;
-	}
-	if ((err = lc3plus_enc_set_hrmode(handle, 1)) != LC3PLUS_OK) {
-		error("Couldn't set hi-resolution mode: %s", lc3plus_strerror(err));
 		goto fail_setup;
 	}
 	if ((err = lc3plus_enc_set_bitrate(handle, config.lc3plus_bitrate)) != LC3PLUS_OK) {
@@ -264,10 +261,11 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 		case -1:
 			if (errno == ESTALE) {
 				int encoded = 0;
+				void *scratch = NULL;
 				memset(pcm_ch1, 0, lc3plus_ch_samples * sizeof(*pcm_ch1));
 				memset(pcm_ch2, 0, lc3plus_ch_samples * sizeof(*pcm_ch2));
 				/* flush encoder internal buffers by feeding it with silence */
-				lc3plus_enc24(handle, pcm_ch_buffers, rtp_payload, &encoded);
+				lc3plus_enc24(handle, pcm_ch_buffers, rtp_payload, &encoded, scratch);
 				ffb_rewind(&pcm);
 				continue;
 			}
@@ -299,8 +297,9 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th) {
 				lc3plus_frames < ((1 << 4) - 1)) {
 
 			int encoded = 0;
+			void *scratch = NULL;
 			audio_deinterleave_s24_4le(input, lc3plus_ch_samples, channels, pcm_ch1, pcm_ch2);
-			if ((err = lc3plus_enc24(handle, pcm_ch_buffers, bt.tail, &encoded)) != LC3PLUS_OK) {
+			if ((err = lc3plus_enc24(handle, pcm_ch_buffers, bt.tail, &encoded, scratch)) != LC3PLUS_OK) {
 				error("LC3plus encoding error: %s", lc3plus_strerror(err));
 				break;
 			}
@@ -428,12 +427,8 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(a2dp_lc3plus_dec_free), handle);
 
 	const int frame_dms = a2dp_lc3plus_get_frame_dms(configuration);
-	if ((err = lc3plus_dec_set_frame_ms(handle, frame_dms * 0.1)) != LC3PLUS_OK) {
+	if ((err = lc3plus_dec_set_frame_dms(handle, frame_dms)) != LC3PLUS_OK) {
 		error("Couldn't set frame length: %s", lc3plus_strerror(err));
-		goto fail_setup;
-	}
-	if ((err = lc3plus_dec_set_hrmode(handle, 1)) != LC3PLUS_OK) {
-		error("Couldn't set hi-resolution mode: %s", lc3plus_strerror(err));
 		goto fail_setup;
 	}
 
@@ -512,7 +507,8 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 
 		while (missing_pcm_frames > 0) {
 
-			lc3plus_dec24(handle, bt_payload.data, 0, pcm_ch_buffers, 1);
+			void *scratch = NULL;
+			lc3plus_dec24(handle, bt_payload.data, 0, pcm_ch_buffers, scratch, 1);
 			audio_interleave_s24_4le(pcm_ch1, pcm_ch2, lc3plus_ch_samples, channels, pcm.data);
 
 			warn("Missing LC3plus data, loss concealment applied");
@@ -566,7 +562,8 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th) {
 		/* Decode retrieved LC3plus frames. */
 		while (lc3plus_frames--) {
 
-			err = lc3plus_dec24(handle, lc3plus_payload, lc3plus_frame_len, pcm_ch_buffers, 0);
+			void *scratch = NULL;
+			err = lc3plus_dec24(handle, lc3plus_payload, lc3plus_frame_len, pcm_ch_buffers, scratch, 0);
 			audio_interleave_s24_4le(pcm_ch1, pcm_ch2, lc3plus_ch_samples, channels, pcm.data);
 
 			if (err == LC3PLUS_DECODE_ERROR)

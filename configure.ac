@@ -164,7 +164,10 @@ AM_CONDITIONAL([ENABLE_LC3PLUS], [test "x$enable_lc3plus" = "xyes"])
 AM_COND_IF([ENABLE_LC3PLUS], [
 	AC_CHECK_HEADERS([lc3.h],
 		[], [AC_MSG_ERROR([LC3plus header file not found])])
-	AC_CHECK_LIB([LC3plus], [lc3plus_version],
+	# There is no pkg-config support for LC3plus, so we have to check the library
+	# version manually. We will check for the symbols that are available in the
+	# v1.4.1 API. If the library is older the check will fail.
+	AC_CHECK_LIB([LC3plus], [lc3plus_version, lc3plus_enc_set_frame_dms],
 		[AC_SUBST([LC3PLUS_LIBS], [-lLC3plus])], [AC_MSG_ERROR([LC3plus library not found])])
 	AC_DEFINE([ENABLE_LC3PLUS], [1], [Define to 1 if LC3plus is enabled.])
 ])
