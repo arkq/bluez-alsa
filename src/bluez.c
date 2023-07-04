@@ -12,6 +12,7 @@
 /* IWYU pragma: no_include "config.h" */
 
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -53,6 +54,7 @@
 /**
  * Data associated with registered D-Bus object. */
 struct bluez_dbus_object_data {
+	unsigned int index;
 	/* D-Bus object registration path */
 	char path[64];
 	/* exported interface skeleton */
@@ -682,8 +684,8 @@ static void bluez_export_a2dp(
 	enum ba_transport_profile profile = codec->dir == A2DP_SOURCE ?
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE : BA_TRANSPORT_PROFILE_A2DP_SINK;
 
-	int exported = 0;
-	int connected = 0;
+	unsigned int connected = 0;
+	unsigned int index = 0;
 
 	for (;;) {
 
@@ -691,15 +693,15 @@ static void bluez_export_a2dp(
 		GError *err = NULL;
 
 		char path[sizeof(dbus_obj->path)];
-		snprintf(path, sizeof(path), "/org/bluez/%s%s/%d", adapter->hci.name,
+		snprintf(path, sizeof(path), "/org/bluez/%s%s/%u", adapter->hci.name,
 				bluez_transport_profile_to_bluez_object_path(profile, codec->codec_id),
-				++exported);
+				++index);
 
 		if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
 
 			/* End the loop if all previously created media endpoints are exported
 			 * and we've got at least N not connected endpoints. */
-			if (exported > connected + 2)
+			if (index > connected + 2)
 				break;
 
 			debug("Exporting media endpoint object: %s", path);
@@ -710,6 +712,7 @@ static void bluez_export_a2dp(
 			}
 
 			strncpy(dbus_obj->path, path, sizeof(dbus_obj->path));
+			dbus_obj->index = index;
 			dbus_obj->hci_dev_id = adapter->hci.dev_id;
 			dbus_obj->codec = codec;
 			dbus_obj->profile = profile;
@@ -1586,6 +1589,7 @@ bool bluez_a2dp_set_configuration(
 		GError **error) {
 
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(sep->bluez_dbus_path);
+	unsigned int index = UINT_MAX;
 	const char *endpoint = NULL;
 	GDBusMessage *msg = NULL;
 	GDBusMessage *rep = NULL;
@@ -1619,8 +1623,12 @@ bool bluez_a2dp_set_configuration(
 				break;
 			}
 
-			if (!dbus_obj->connected)
+			/* select not connected endpoint with the lowest index */
+			if (!dbus_obj->connected &&
+					dbus_obj->index < index) {
 				endpoint = dbus_obj->path;
+				index = dbus_obj->index;
+			}
 
 		}
 
