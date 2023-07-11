@@ -11,6 +11,7 @@ bluealsa_cli_SOURCES = \
 	../../src/shared/hex.c \
 	../../src/shared/log.c \
 	cmd-codec.c \
+	cmd-delay-adjustment.c \
 	cmd-info.c \
 	cmd-list-pcms.c \
 	cmd-list-services.c \

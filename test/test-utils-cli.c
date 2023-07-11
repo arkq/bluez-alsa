@@ -241,6 +241,40 @@ CK_START_TEST(test_codec) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_delay_adjustment) {
+
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+				"--profile=a2dp-source",
+				NULL), -1);
+
+	char output[4096];
+
+	/* check printing help text */
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"delay-adjustment", "--help", NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check default delay adjustment */
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"delay-adjustment", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "DelayAdjustment: 0.0 ms"), NULL);
+
+	/* check setting delay adjustment */
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"delay-adjustment", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "-7.5",
+				NULL), 0);
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"delay-adjustment", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "DelayAdjustment: -7.5 ms"), NULL);
+
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock, NULL);
+
+} CK_END_TEST
+
 CK_START_TEST(test_volume) {
 
 	struct spawn_process sp_ba_mock;
@@ -434,6 +468,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	tcase_add_test(tc, test_list_pcms);
 	tcase_add_test(tc, test_info);
 	tcase_add_test(tc, test_codec);
+	tcase_add_test(tc, test_delay_adjustment);
 	tcase_add_test(tc, test_volume);
 	tcase_add_test(tc, test_monitor);
 	tcase_add_test(tc, test_open);

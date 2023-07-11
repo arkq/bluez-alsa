@@ -6,7 +6,7 @@ bluealsa-cli
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: January 2023
+:Date: July 2023
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -61,7 +61,7 @@ status
     ::
 
         Service: org.bluealsa
-        Version: v3.1.0
+        Version: v4.1.1
         Adapters: hci0 hci1
         Profiles:
           A2DP-source : SBC AAC
@@ -147,6 +147,19 @@ soft-volume *PCM_PATH* [*STATE*]
     The *STATE* value can be one of **on**, **yes**, **true**, **y** or **1**
     for soft-volume on, or **off**, **no**, **false**, **n** or **0** for
     soft-volume off.
+
+delay-adjustment *PCM_PATH* [*ADJUSTMENT*]
+    Get or set the DelayAdjustment property of the given PCM for the current
+    codec.
+
+    If the *ADJUSTMENT* argument is given, set the DelayAdjustment property for
+    the current codec in the given PCM. This property may be used by clients to
+    adjust the reported audio delay and may be useful with PCM devices that do
+    not report an accurate Delay property.
+
+    The *ADJUSTMENT* value is in milliseconds and must be a decimal number with
+    optional sign prefix (e.g. **250**, **-500**, **+360.4**). The permitted
+    range is [-3276.8, 3276.7].
 
 monitor [-p[PROPS] | --properties[=PROPS]]
     Listen for D-Bus signals indicating adding/removing BlueALSA interfaces.

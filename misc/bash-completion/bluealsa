@@ -286,7 +286,7 @@ _bluealsa_cli() {
 
 	# the command names supported by this version of bluealsa-cli
 	local simple_commands="list-pcms list-services monitor status"
-	local path_commands="codec info mute open soft-volume volume"
+	local path_commands="codec delay-adjustment info mute open soft-volume volume"
 
 	# options that may appear before or after the command
 	local global_shortopts="-h"

@@ -283,6 +283,7 @@ void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	cli_print_pcm_available_codecs(pcm, err);
 	cli_print_pcm_selected_codec(pcm);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
+	printf("DelayAdjustment: %#.1f ms\n", (double)pcm->delay_adjustment / 10);
 	cli_print_pcm_soft_volume(pcm);
 	cli_print_pcm_volume(pcm);
 	cli_print_pcm_mute(pcm);
@@ -306,6 +307,7 @@ extern const struct cli_command cmd_list_pcms;
 extern const struct cli_command cmd_status;
 extern const struct cli_command cmd_info;
 extern const struct cli_command cmd_codec;
+extern const struct cli_command cmd_delay_adjustment;
 extern const struct cli_command cmd_monitor;
 extern const struct cli_command cmd_mute;
 extern const struct cli_command cmd_open;
@@ -318,6 +320,7 @@ static const struct cli_command *commands[] = {
 	&cmd_status,
 	&cmd_info,
 	&cmd_codec,
+	&cmd_delay_adjustment,
 	&cmd_volume,
 	&cmd_mute,
 	&cmd_softvol,
