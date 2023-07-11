@@ -33,6 +33,11 @@
 #include "shared/dbus-client.h"
 #include "shared/defs.h"
 
+#define DELAY_SYNC_STEP 250
+#define DELAY_SYNC_MIN_VALUE (INT16_MIN / DELAY_SYNC_STEP * DELAY_SYNC_STEP)
+#define DELAY_SYNC_MAX_VALUE (INT16_MAX / DELAY_SYNC_STEP * DELAY_SYNC_STEP)
+#define DELAY_SYNC_NUM_VALUES (1 + (DELAY_SYNC_MAX_VALUE - DELAY_SYNC_MIN_VALUE) / DELAY_SYNC_STEP)
+
 /**
  * Control element type.
  *
@@ -43,6 +48,7 @@ enum ctl_elem_type {
 	CTL_ELEM_TYPE_VOLUME,
 	CTL_ELEM_TYPE_VOLUME_MODE,
 	CTL_ELEM_TYPE_CODEC,
+	CTL_ELEM_TYPE_DELAY_SYNC,
 	CTL_ELEM_TYPE_BATTERY,
 };
 
@@ -124,6 +130,8 @@ struct bluealsa_ctl {
 	bool show_codec;
 	/* if true, show volume mode control */
 	bool show_vol_mode;
+	/* if true, show delay adjustment sync control */
+	bool show_delay_sync;
 	/* if true, show battery level indicator */
 	bool show_battery;
 	/* if true, append BT transport type to element names */
@@ -472,9 +480,9 @@ static const char *transport2str(unsigned int transport) {
 }
 
 static int parse_extended(const char *extended,
-		bool *show_codec, bool *show_vol_mode, bool *show_battery) {
+		bool *show_codec, bool *show_vol_mode, bool *show_delay_sync, bool *show_battery) {
 
-	bool codec = false, vol_mode = false, battery = false;
+	bool codec = false, vol_mode = false, sync = false, battery = false;
 	int ret = 0;
 
 	switch (snd_config_get_bool_ascii(extended)) {
@@ -483,6 +491,7 @@ static int parse_extended(const char *extended,
 	case 1:
 		codec = true;
 		vol_mode = true;
+		sync = true;
 		battery = true;
 		break;
 	default: {
@@ -495,6 +504,8 @@ static int parse_extended(const char *extended,
 				codec = true;
 			else if (strcasecmp(next, "mode") == 0)
 				vol_mode = true;
+			else if (strcasecmp(next, "sync") == 0)
+				sync = true;
 			else if (strcasecmp(next, "battery") == 0)
 				battery = true;
 			else {
@@ -507,6 +518,7 @@ static int parse_extended(const char *extended,
 	if (ret != -1) {
 		*show_codec = codec;
 		*show_vol_mode = vol_mode;
+		*show_delay_sync = sync;
 		*show_battery = battery;
 	}
 
@@ -548,6 +560,8 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 			label_max_len = sizeof(" SCO-HFP-AG") - 1;
 		if (ctl->show_vol_mode)
 			label_max_len += sizeof(" Mode") - 1;
+		else if (ctl->show_delay_sync)
+			label_max_len += sizeof(" Sync") - 1;
 		if (ctl->show_battery)
 			label_max_len = MAX(label_max_len, sizeof(" | Battery") - 1);
 
@@ -601,6 +615,9 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 	if (elem->type == CTL_ELEM_TYPE_VOLUME_MODE)
 		strcat(elem->name, " Mode");
 
+	if (elem->type == CTL_ELEM_TYPE_DELAY_SYNC)
+		strcat(elem->name, " Sync");
+
 	/* ALSA library determines the element type by checking it's
 	 * name suffix. This feature is not well documented, though.
 	 * A codec control is 'Global' (i.e. neither 'Playback' nor
@@ -618,6 +635,7 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 		break;
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
+	case CTL_ELEM_TYPE_DELAY_SYNC:
 		strcat(elem->name, " Enum");
 		break;
 	}
@@ -697,6 +715,23 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 		n++;
 	}
 
+	/* add special delay adjustment "sync" element */
+	if (ctl->show_delay_sync) {
+		elem_list[n].type = CTL_ELEM_TYPE_DELAY_SYNC;
+		elem_list[n].dev = dev;
+		elem_list[n].pcm = pcm;
+		elem_list[n].playback = playback;
+		elem_list[n].active = true;
+		bluealsa_elem_set_name(ctl, &elem_list[n], name, false);
+
+		/* ALSA library permits only one enumeration type control for
+		 * each simple control id. So we use different index numbers
+		 * for capture and playback to get different ids. */
+		elem_list[n].index = playback ? 0 : 1;
+
+		n++;
+	}
+
 	/* add special battery level indicator element */
 	if (add_battery_elem &&
 			dev->battery_level != -1 &&
@@ -750,6 +785,8 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			if (ctl->show_codec)
 				count += 1;
 			if (ctl->show_vol_mode)
+				count += 1;
+			if (ctl->show_delay_sync)
 				count += 1;
 		}
 
@@ -926,6 +963,11 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*type = SND_CTL_ELEM_TYPE_ENUMERATED;
 		*count = 1;
 		break;
+	case CTL_ELEM_TYPE_DELAY_SYNC:
+		*acc = SND_CTL_EXT_ACCESS_READWRITE;
+		*type = SND_CTL_ELEM_TYPE_ENUMERATED;
+		*count = 1;
+		break;
 	case CTL_ELEM_TYPE_SWITCH:
 		*acc = SND_CTL_EXT_ACCESS_READWRITE;
 		*type = SND_CTL_ELEM_TYPE_BOOLEAN;
@@ -979,6 +1021,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
 	case CTL_ELEM_TYPE_SWITCH:
+	case CTL_ELEM_TYPE_DELAY_SYNC:
 		return -EINVAL;
 	}
 
@@ -1011,6 +1054,7 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		break;
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
+	case CTL_ELEM_TYPE_DELAY_SYNC:
 		return -EINVAL;
 	}
 
@@ -1052,6 +1096,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		break;
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
+	case CTL_ELEM_TYPE_DELAY_SYNC:
 		return -EINVAL;
 	}
 
@@ -1079,6 +1124,9 @@ int bluealsa_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, unsi
 		break;
 	case CTL_ELEM_TYPE_VOLUME_MODE:
 		*items = ARRAYSIZE(soft_volume_names);
+		break;
+	case CTL_ELEM_TYPE_DELAY_SYNC:
+		*items = DELAY_SYNC_NUM_VALUES;
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
@@ -1110,6 +1158,12 @@ int bluealsa_get_enumerated_name(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 			return -EINVAL;
 		strncpy(name, soft_volume_names[item], name_max_len - 1);
 		name[name_max_len - 1] = '\0';
+		break;
+	case CTL_ELEM_TYPE_DELAY_SYNC:
+		if (item >= DELAY_SYNC_NUM_VALUES)
+			return -EINVAL;
+		const int16_t value = (item * DELAY_SYNC_STEP) + DELAY_SYNC_MIN_VALUE;
+		snprintf(name, name_max_len, "%+d ms", value / 10);
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
@@ -1160,6 +1214,9 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	case CTL_ELEM_TYPE_VOLUME_MODE:
 		items[0] = pcm->soft_volume ? 1 : 0;
 		break;
+	case CTL_ELEM_TYPE_DELAY_SYNC:
+		items[0] = DIV_ROUND(pcm->delay_adjustment - INT16_MIN, DELAY_SYNC_STEP);
+		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
 	case CTL_ELEM_TYPE_VOLUME:
@@ -1169,6 +1226,17 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 
 finish:
 	return ret;
+}
+
+static void process_events(snd_ctl_ext_t *ext) {
+
+	snd_ctl_elem_id_t *elem_id;
+	snd_ctl_elem_id_alloca(&elem_id);
+
+	unsigned int event_mask;
+	while (ext->callback->read_event(ext, elem_id, &event_mask) > 0)
+		continue;
+
 }
 
 static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
@@ -1190,7 +1258,7 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		if (!bluealsa_dbus_pcm_select_codec(&ctl->dbus_ctx, pcm->pcm_path,
 					elem->codecs.codecs[items[0]].name, NULL, 0, NULL))
 			return -EIO;
-		memcpy(&pcm->codec, &elem->codecs.codecs[items[0]], sizeof(pcm->codec));
+		process_events(&ctl->ext);
 		break;
 	case CTL_ELEM_TYPE_VOLUME_MODE:
 		if (items[0] >= ARRAYSIZE(soft_volume_names))
@@ -1201,6 +1269,17 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		pcm->soft_volume = soft_volume;
 		if (!bluealsa_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_SOFT_VOLUME, NULL))
 			return -ENOMEM;
+		break;
+	case CTL_ELEM_TYPE_DELAY_SYNC:
+		if (items[0] >= DELAY_SYNC_NUM_VALUES)
+			return -EINVAL;
+		const int16_t delay_adjustment = items[0] * DELAY_SYNC_STEP + DELAY_SYNC_MIN_VALUE;
+		if (pcm->delay_adjustment == delay_adjustment)
+			return 0;
+		if (!bluealsa_dbus_pcm_set_delay_adjustment(&ctl->dbus_ctx, pcm->pcm_path,
+					pcm->codec.name, delay_adjustment, NULL))
+			return -EIO;
+		process_events(&ctl->ext);
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
@@ -1655,6 +1734,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	bool show_bt_transport = false;
 	bool show_codec = false;
 	bool show_vol_mode = false;
+	bool show_delay_sync = false;
 	bool dynamic = true;
 	struct bluealsa_ctl *ctl;
 	int ret;
@@ -1691,7 +1771,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
-			if (parse_extended(extended, &show_codec, &show_vol_mode, &show_battery) < 0) {
+			if (parse_extended(extended, &show_codec, &show_vol_mode,
+						&show_delay_sync, &show_battery) < 0) {
 				SNDERR("Invalid extended options: %s", extended);
 				return -EINVAL;
 			}
@@ -1755,6 +1836,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	ctl->show_codec = show_codec;
 	ctl->show_vol_mode = show_vol_mode;
+	ctl->show_delay_sync = show_delay_sync;
 	ctl->show_battery = show_battery;
 	ctl->show_bt_transport = show_bt_transport;
 	ctl->single_device = single_device_mode;

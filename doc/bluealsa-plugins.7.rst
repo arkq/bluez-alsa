@@ -98,9 +98,11 @@ PCM Parameters
     softvol value. The default value is **unchanged**.
 
   DELAY
-    An integer number which is added to the reported latency value in order to
-    manually adjust the audio synchronization. It is not normally required and
-    defaults to **0**.
+    An integer number which is added to the reported delay (latency) value in
+    order to manually adjust the audio synchronization. It is not normally
+    required and defaults to **0**. See the **EXT** parameter of the CTL plugin
+    in the `CTL Parameters`_ section below for a more flexible and convenient
+    method of manually adjusting the reported delay by using a mixer control.
 
   SRV
     The D-Bus service name of the BlueALSA daemon. Defaults to
@@ -420,15 +422,15 @@ CTL Parameters
 
   EXT
     Causes the plugin to include extra controls. These are the controls for
-    Bluetooth codec selection, volume mode selection and/or battery level
-    indicator.
+    Bluetooth codec selection, volume mode selection, delay adjustment (sync)
+    and/or battery level indicator.
     If the value is **yes** then all of these additional controls are included;
     if the value is **no** then none of them are included. The default is
     **no**.
 
     This parameter can also select individual controls by using a colon (':')
     separated list of control names. The control names are **codec**, **mode**,
-    and **battery**. For example:
+    **sync** and **battery**. For example:
 
     ::
 
@@ -442,6 +444,19 @@ CTL Parameters
     playback control has index 0 and capture control has index 1.
     See the `Volume control` section in the ``bluealsa(8)`` for more
     information on the software volume setting.
+
+    The delay adjustment controls are called "Sync". They can be used to apply
+    a fixed adjustment to the delay reported by the associated PCM to the
+    application, and may be useful with applications that need to synchronize
+    the bluetooth audio stream with some some other stream, such as a video.
+    The values are in milliseconds from ``-3275 ms`` to ``+3275 ms`` in steps
+    of ``25 ms``. The playback control has index 0 and the capture control has
+    index 1. Each codec supported by a PCM has its own delay adjustment value.
+    Note that this control changes only the delay value reported to the
+    application by ALSA, it does not affect the actual delay (latency) of the
+    PCM stream. Values set by this control type are saved in the BlueALSA
+    persistent state files, and so are remembered and automatically applied
+    each time the PCM is used.
 
     The read-only battery level indicator will be shown only if the device
     supports battery level reporting.

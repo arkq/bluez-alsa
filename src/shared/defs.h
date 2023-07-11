@@ -19,6 +19,10 @@
 #define ARRAYSIZE(a) (sizeof(a) / sizeof(*(a)))
 
 /**
+ * Divide integers with rounding. */
+#define DIV_ROUND(n, d) (((n) + (d) / 2) / (d))
+
+/**
  * Divide integers with rounding up. */
 #define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 

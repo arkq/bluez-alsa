@@ -142,14 +142,14 @@ CK_START_TEST(test_controls_extended) {
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
-	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 16);
-	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 16), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 20);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 20), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
 	/* codec control element shall be after playback/capture elements */
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "12:34:56:78:9A:BC A2DP Codec Enum");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "12:34:56:78:9A:BC SCO Codec Enum");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 15), "23:45:67:89:AB:CD A2DP Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "12:34:56:78:9A:BC SCO Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 18), "23:45:67:89:AB:CD A2DP Codec Enum");
 
 	bool has_msbc = false;
 #if ENABLE_MSBC
@@ -160,7 +160,7 @@ CK_START_TEST(test_controls_extended) {
 	snd_ctl_elem_info_alloca(&info);
 
 	/* 12:34:56:78:9A:BC SCO Codec Enum */
-	snd_ctl_elem_info_set_numid(info, snd_ctl_elem_list_get_numid(elems, 10));
+	snd_ctl_elem_info_set_numid(info, snd_ctl_elem_list_get_numid(elems, 11));
 	ck_assert_int_eq(snd_ctl_elem_info(ctl, info), 0);
 	ck_assert_int_eq(snd_ctl_elem_info_get_items(info), has_msbc ? 2 : 1);
 	snd_ctl_elem_info_set_item(info, 0);
@@ -186,7 +186,7 @@ CK_START_TEST(test_controls_extended) {
 	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), 0);
 
 	/* 12:34:56:78:9A:BC SCO Codec Enum */
-	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 10));
+	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 11));
 	/* get currently selected SCO codec */
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
 	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0), has_msbc ? 1 : 0);
