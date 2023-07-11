@@ -873,6 +873,44 @@ fail:
 	return rv;
 }
 
+dbus_bool_t bluealsa_dbus_pcm_set_delay_adjustment(
+		struct ba_dbus_ctx *ctx,
+		const char *pcm_path,
+		const char *codec,
+		int16_t adjustment,
+		DBusError *error) {
+
+	DBusMessage *msg = NULL, *rep = NULL;
+	dbus_bool_t rv = FALSE;
+
+	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
+					BLUEALSA_INTERFACE_PCM, "SetDelayAdjustment")) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	DBusMessageIter iter;
+	dbus_message_iter_init_append(msg, &iter);
+	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec) ||
+			!dbus_message_iter_append_basic(&iter, DBUS_TYPE_INT16, &adjustment)) {
+		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		goto fail;
+	}
+
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
+					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
+		goto fail;
+
+	rv = TRUE;
+
+fail:
+	if (msg != NULL)
+		dbus_message_unref(msg);
+	if (rep != NULL)
+		dbus_message_unref(rep);
+	return rv;
+}
+
 /**
  * Open BlueALSA RFCOMM socket for dispatching AT commands. */
 dbus_bool_t bluealsa_dbus_open_rfcomm(
@@ -1244,6 +1282,11 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_pcm_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
 		dbus_message_iter_get_basic(&variant, &pcm->delay);
+	}
+	else if (strcmp(key, "DelayAdjustment") == 0) {
+		if (type != (type_expected = DBUS_TYPE_INT16))
+			goto fail;
+		dbus_message_iter_get_basic(&variant, &pcm->delay_adjustment);
 	}
 	else if (strcmp(key, "SoftVolume") == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))

@@ -165,6 +165,8 @@ struct ba_pcm {
 	struct ba_pcm_codec codec;
 	/* approximate PCM delay */
 	dbus_uint16_t delay;
+	/* manual delay adjustment */
+	dbus_int16_t delay_adjustment;
 	/* software volume */
 	dbus_bool_t soft_volume;
 
@@ -276,6 +278,13 @@ dbus_bool_t bluealsa_dbus_pcm_select_codec(
 		const char *codec,
 		const void *configuration,
 		size_t configuration_len,
+		DBusError *error);
+
+dbus_bool_t bluealsa_dbus_pcm_set_delay_adjustment(
+		struct ba_dbus_ctx *ctx,
+		const char *pcm_path,
+		const char *codec,
+		int16_t adjustment,
 		DBusError *error);
 
 dbus_bool_t bluealsa_dbus_open_rfcomm(

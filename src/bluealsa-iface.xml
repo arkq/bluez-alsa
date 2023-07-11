@@ -26,6 +26,13 @@
 			<arg direction="in" type="s" name="codec"/>
 			<arg direction="in" type="a{sv}" name="props"/>
 		</method>
+		<method name="SetDelayAdjustment">
+			<arg direction="in" type="s" name="codec"/>
+			<arg direction="in" type="n" name="adjustment"/>
+		</method>
+		<method name="GetDelayAdjustments">
+			<arg direction="out" type="a{sn}" name="adjustments"/>
+		</method>
 		<property name="Device" type="o" access="read"/>
 		<property name="Sequence" type="u" access="read"/>
 		<property name="Transport" type="s" access="read"/>
@@ -37,6 +44,7 @@
 		<property name="Codec" type="s" access="read"/>
 		<property name="CodecConfiguration" type="ay" access="read"/>
 		<property name="Delay" type="q" access="read"/>
+		<property name="DelayAdjustment" type="n" access="read"/>
 		<property name="SoftVolume" type="b" access="readwrite"/>
 		<property name="Volume" type="q" access="readwrite"/>
 	</interface>

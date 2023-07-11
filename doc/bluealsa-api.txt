@@ -64,6 +64,23 @@ Methods         fd, fd Open()
                                          dbus.Error.NotSupported
                                          dbus.Error.Failed
 
+                void SetDelayAdjustment(string codec, int16 adjustment)
+
+                        Set an arbitrary adjustment (+/-) to the reported Delay
+                        in 1/10 of millisecond for a specific codec. This
+                        adjustment is applied to the Delay property when that
+                        codec is selected, and can be used to compensate for
+                        devices that do not report accurate Delay values.
+
+                        Possible Errors: dbus.Error.InvalidArguments
+
+               array{string, int16} GetDelayAdjustments()
+
+                        Return the array of currently set delay adjustments.
+                        Each entry of the array gives the name of a codec and
+                        the adjustment that the PCM will apply to the Delay
+                        property when that codec is selected.
+
 Properties      object Device [readonly]
 
                         BlueZ device object path.
@@ -125,6 +142,12 @@ Properties      object Device [readonly]
                 uint16 Delay [readonly]
 
                         Approximate PCM delay in 1/10 of millisecond.
+
+                int16 DelayAdjustment [readonly]
+
+                        An adjustment (+/-) included within the reported Delay
+                        in 1/10 of millisecond to compensate for devices that
+                        do not report accurate delay values.
 
                 boolean SoftVolume [readwrite]
 

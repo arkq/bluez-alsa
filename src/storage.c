@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,12 +23,16 @@
 
 #include <glib.h>
 
+#include "hfp.h"
 #include "utils.h"
+#include "shared/a2dp-codecs.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
-#define BA_STORAGE_KEY_SOFT_VOLUME "SoftVolume"
-#define BA_STORAGE_KEY_VOLUME      "Volume"
-#define BA_STORAGE_KEY_MUTE        "Mute"
+#define BA_STORAGE_KEY_DELAY_ADJUSTMENT "DelayAdjustments"
+#define BA_STORAGE_KEY_SOFT_VOLUME      "SoftVolume"
+#define BA_STORAGE_KEY_VOLUME           "Volume"
+#define BA_STORAGE_KEY_MUTE             "Mute"
 
 struct storage {
 	/* remote BT device address */
@@ -194,6 +199,30 @@ int storage_pcm_data_sync(struct ba_transport_pcm *pcm) {
 	if (!g_key_file_has_group(keyfile, group))
 		goto final;
 
+	if (g_key_file_has_key(keyfile, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT, NULL)) {
+		gsize length;
+		char **adjustments = g_key_file_get_string_list(keyfile, group,
+				BA_STORAGE_KEY_DELAY_ADJUSTMENT, &length, NULL);
+		for (gsize index = 0; index < length; index++) {
+			char *codec_name = adjustments[index];
+			char *value = strchr(adjustments[index], ':');
+			if (value == NULL)
+				continue;
+			*value++ = '\0';
+			uint16_t codec_id = 0xFFFF;
+			if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
+					(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFF)
+				continue;
+			if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+					(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
+				continue;
+			int16_t adjustment = atoi(value);
+			ba_transport_pcm_delay_adjustment_set(pcm, codec_id, adjustment);
+		}
+		g_strfreev(adjustments);
+		rv = 1;
+	}
+
 	if (g_key_file_has_key(keyfile, group, BA_STORAGE_KEY_SOFT_VOLUME, NULL)) {
 		pcm->soft_volume = g_key_file_get_boolean(keyfile, group,
 				BA_STORAGE_KEY_SOFT_VOLUME, NULL);
@@ -252,6 +281,38 @@ int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
 
 	GKeyFile *keyfile = st->keyfile;
 	const char *group = pcm->ba_dbus_path;
+
+	const size_t num_codecs = g_hash_table_size(pcm->delay_adjustments);
+	char **list = calloc(num_codecs + 1, sizeof(char *));
+
+	pthread_mutex_lock(MUTABLE(&pcm->delay_adjustments_mtx));
+
+	GHashTableIter iter;
+	g_hash_table_iter_init(&iter, pcm->delay_adjustments);
+
+	size_t index = 0;
+	void *key, *value;
+	while (g_hash_table_iter_next(&iter, &key, &value)) {
+		const char *codec = NULL;
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+			codec = a2dp_codecs_codec_id_to_string(GPOINTER_TO_INT(key));
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+			codec = hfp_codec_id_to_string(GPOINTER_TO_INT(key));
+		if (codec == NULL)
+			continue;
+		list[index] = malloc(strlen(codec) + 1 + 6 + 1);
+		sprintf(list[index], "%s:%d", codec, GPOINTER_TO_INT(value));
+		index++;
+	}
+
+	pthread_mutex_unlock(MUTABLE(&pcm->delay_adjustments_mtx));
+
+	g_key_file_set_string_list(keyfile, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT,
+		(const char * const *)list, num_codecs);
+
+	for (index = 0; index < num_codecs; index++)
+		free(list[index]);
+	free(list);
 
 	g_key_file_set_boolean(keyfile, group, BA_STORAGE_KEY_SOFT_VOLUME,
 			pcm->soft_volume);

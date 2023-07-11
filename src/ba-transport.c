@@ -17,6 +17,7 @@
 #include <sched.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -117,8 +118,11 @@ static int transport_pcm_init(
 	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
 
 	pthread_mutex_init(&pcm->mutex, NULL);
+	pthread_mutex_init(&pcm->delay_adjustments_mtx, NULL);
 	pthread_mutex_init(&pcm->client_mtx, NULL);
 	pthread_cond_init(&pcm->cond, NULL);
+
+	pcm->delay_adjustments = g_hash_table_new(NULL, NULL);
 
 	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
 			t->d->ba_dbus_path, transport_get_dbus_path_type(t->profile),
@@ -135,8 +139,11 @@ static void transport_pcm_free(
 	pthread_mutex_unlock(&pcm->mutex);
 
 	pthread_mutex_destroy(&pcm->mutex);
+	pthread_mutex_destroy(&pcm->delay_adjustments_mtx);
 	pthread_mutex_destroy(&pcm->client_mtx);
 	pthread_cond_destroy(&pcm->cond);
+
+	g_hash_table_unref(pcm->delay_adjustments);
 
 	if (pcm->ba_dbus_path != NULL)
 		g_free(pcm->ba_dbus_path);
@@ -1456,11 +1463,15 @@ static void ba_transport_set_codec_sco(
 
 	if (t->sco.spk_pcm.ba_dbus_exported)
 		bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
-				BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+				BA_DBUS_PCM_UPDATE_SAMPLING |
+				BA_DBUS_PCM_UPDATE_CODEC |
+				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
 
 	if (t->sco.mic_pcm.ba_dbus_exported)
 		bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
-				BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+				BA_DBUS_PCM_UPDATE_SAMPLING |
+				BA_DBUS_PCM_UPDATE_CODEC |
+				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
 
 }
 
@@ -1734,12 +1745,43 @@ bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) {
 }
 
 int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
+
 	const struct ba_transport *t = pcm->t;
+	int delay = pcm->delay + ba_transport_pcm_delay_adjustment_get(pcm);
+
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return t->a2dp.delay + pcm->delay;
+		delay += t->a2dp.delay;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		return pcm->delay + 10;
-	return pcm->delay;
+		delay += 10;
+
+	return delay;
+}
+
+int16_t ba_transport_pcm_delay_adjustment_get(
+		const struct ba_transport_pcm *pcm) {
+
+	struct ba_transport *t = pcm->t;
+	uint16_t codec_id = ba_transport_get_codec(t);
+	int16_t adjustment = 0;
+
+	pthread_mutex_lock(MUTABLE(&pcm->delay_adjustments_mtx));
+	void *val = g_hash_table_lookup(pcm->delay_adjustments, GINT_TO_POINTER(codec_id));
+	pthread_mutex_unlock(MUTABLE(&pcm->delay_adjustments_mtx));
+
+	if (val != NULL)
+		adjustment = GPOINTER_TO_INT(val);
+
+	return adjustment;
+}
+
+void ba_transport_pcm_delay_adjustment_set(
+		struct ba_transport_pcm *pcm,
+		uint16_t codec_id,
+		int16_t adjustment) {
+	pthread_mutex_lock(&pcm->delay_adjustments_mtx);
+	g_hash_table_insert(pcm->delay_adjustments,
+			GINT_TO_POINTER(codec_id), GINT_TO_POINTER(adjustment));
+	pthread_mutex_unlock(&pcm->delay_adjustments_mtx);
 }
 
 int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {

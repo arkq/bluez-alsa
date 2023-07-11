@@ -22,6 +22,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <glib.h>
+
 #include "a2dp.h"
 #include "ba-device.h"
 #include "bluez.h"
@@ -81,6 +83,12 @@ struct ba_transport_pcm {
 	/* Overall PCM delay in 1/10 of millisecond, caused by
 	 * audio encoding or decoding and data transfer. */
 	unsigned int delay;
+
+	/* guard delay adjustments access */
+	pthread_mutex_t delay_adjustments_mtx;
+	/* PCM delay adjustments in 1/10 of millisecond, set by client API to allow
+	 * user correction of delay reporting inaccuracy. */
+	GHashTable *delay_adjustments;
 
 	/* indicates whether FIFO buffer was synchronized */
 	bool synced;
@@ -422,6 +430,13 @@ bool ba_transport_pcm_is_active(
 
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);
+
+int16_t ba_transport_pcm_delay_adjustment_get(
+		const struct ba_transport_pcm *pcm);
+void ba_transport_pcm_delay_adjustment_set(
+		struct ba_transport_pcm *pcm,
+		uint16_t codec_id,
+		int16_t adjustment);
 
 int ba_transport_pcm_volume_update(
 		struct ba_transport_pcm *pcm);

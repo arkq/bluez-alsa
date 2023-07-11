@@ -84,6 +84,7 @@ test_audio_SOURCES = \
 	test-audio.c
 
 test_ba_SOURCES = \
+	../src/shared/a2dp-codecs.c \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
@@ -94,6 +95,7 @@ test_ba_SOURCES = \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
+	../src/hfp.c \
 	../src/io.c \
 	../src/sco.c \
 	../src/storage.c \
@@ -129,6 +131,7 @@ test_msbc_SOURCES = \
 endif
 
 test_rfcomm_SOURCES = \
+	../src/shared/a2dp-codecs.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
 	../src/at.c \
