@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: March 2023
+:Date: July 2023
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -122,6 +122,9 @@ own configuration (e.g. in ~/.asoundrc.conf) for example:
   defaults.bluealsa.softvol off
   defaults.bluealsa.delay 5000
   defaults.bluealsa.service "org.bluealsa.source"
+
+Note that **volume** takes a string value and so the default must be enclosed
+in quotation marks.
 
 Positional Parameters
 ~~~~~~~~~~~~~~~~~~~~~
@@ -402,7 +405,7 @@ connected.
 The Predefined **bluealsa** CTL
 -------------------------------
 
-The **bluealsa** CTL has parameters DEV, EXT, BAT, BTT, DYN, and SRV. All the
+The **bluealsa** CTL has parameters DEV, EXT, BTT, DYN, and SRV. All the
 parameters have defaults.
 
 CTL Parameters
@@ -416,18 +419,32 @@ CTL Parameters
     selects the most recently connected device.
 
   EXT
-    Causes the plugin to include controls for codec and software volume
-    selection. If the value is **yes** then these additional controls are
-    included. The default is **no**. The soft volume controls are called "Mode"
-    and take values "software" and "pass-through"; the playback control has
-    index 0 and capture control index 1. See ``bluealsa(8)`` for more on the
-    soft volume setting , and `Codec selection`_ in the **NOTES** section below
-    for more information on the Codec control.
+    Causes the plugin to include extra controls. These are the controls for
+    Bluetooth codec selection, volume mode selection and/or battery level
+    indicator.
+    If the value is **yes** then all of these additional controls are included;
+    if the value is **no** then none of them are included. The default is
+    **no**.
 
-  BAT
-    Causes the plugin to include a (read-only) battery level indicator,
-    provided the device supports this. If the value is **yes** then the battery
-    indicator is enabled, any other value disables it. The default is **no**.
+    This parameter can also select individual controls by using a colon (':')
+    separated list of control names. The control names are **codec**, **mode**,
+    and **battery**. For example:
+
+    ::
+
+        EXT=codec
+        EXT=mode:battery
+
+    See `Codec switching`_ in the **NOTES** section below for more information
+    on the codec selection control.
+
+    The volume mode controls take values "software" and "pass-through"; the
+    playback control has index 0 and capture control has index 1.
+    See the `Volume control` section in the ``bluealsa(8)`` for more
+    information on the software volume setting.
+
+    The read-only battery level indicator will be shown only if the device
+    supports battery level reporting.
 
   BTT
     Appends Bluetooth transport type (e.g. "-SNK" or "-HFP-AG") to the control
@@ -464,7 +481,6 @@ The default values can be overridden in the ALSA configuration, for example:
 ::
 
   defaults.bluealsa.ctl.device "00:11:22:33:44:55"
-  defaults.bluealsa.ctl.battery "no"
   defaults.bluealsa.ctl.bttransport "no"
   defaults.bluealsa.ctl.dynamic "yes"
   defaults.bluealsa.ctl.extended "no"
@@ -481,8 +497,7 @@ configuration node has the following fields:
   ctl.name {
     type bluealsa     # Bluetooth PCM
     [device STR]      # Device address (default "FF:FF:FF:FF:FF:FF")
-    [extended STR]    # Include additional controls (yes/no, default no)
-    [battery STR]     # Include battery level indicator (yes/no, default no)
+    [extended STR]    # Include additional controls (default no)
     [bttransport STR] # Append BT transport to element names (yes/no, default no)
     [dynamic STR]     # Enable dynamic operation (yes/no, default yes)
     [service STR]     # D-Bus name of service (default "org.bluealsa")

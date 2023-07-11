@@ -22,6 +22,8 @@
 
 #include <alsa/asoundlib.h>
 
+#include "shared/defs.h"
+
 typedef void *(*dlopen_t)(const char *, int);
 static dlopen_t dlopen_orig = NULL;
 
@@ -72,6 +74,23 @@ void *dlopen(const char *filename, int flags) {
 	return dlopen_orig(filename, flags);
 }
 
+/**
+ * Remove any pre-existing bluealsa configuration nodes. */
+static void snd_config_ba_cleanup(snd_config_t *config) {
+
+	const char *nodes[] = {
+		"defaults.bluealsa",
+		"pcm.bluealsa",
+		"ctl.bluealsa",
+	};
+
+	snd_config_t *node;
+	for (size_t i = 0; i < ARRAYSIZE(nodes); i++)
+		if (snd_config_search(config, nodes[i], &node) == 0)
+			snd_config_delete(node);
+
+}
+
 int snd_ctl_open(snd_ctl_t **ctl, const char *name, int mode) {
 
 	if (strstr(name, "bluealsa") == NULL)
@@ -86,6 +105,7 @@ int snd_ctl_open(snd_ctl_t **ctl, const char *name, int mode) {
 
 	if ((err = snd_config_update_ref(&top)) < 0)
 		goto fail;
+	snd_config_ba_cleanup(top);
 	if ((err = snd_input_stdio_open(&input, tmp, "r")) != 0)
 		goto fail;
 	if ((err = snd_config_load(top, input)) != 0)
@@ -114,6 +134,7 @@ int snd_pcm_open(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int
 
 	if ((err = snd_config_update_ref(&top)) < 0)
 		goto fail;
+	snd_config_ba_cleanup(top);
 	if ((err = snd_input_stdio_open(&input, tmp, "r")) != 0)
 		goto fail;
 	if ((err = snd_config_load(top, input)) != 0)

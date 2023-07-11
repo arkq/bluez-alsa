@@ -2,6 +2,7 @@ unreleased
 ==========
 
 - command line option to set real-time priority for IO threads
+- allow to select individual extended controls in ALSA plug-in
 
 bluez-alsa v4.1.1 (2023-06-24)
 ==============================

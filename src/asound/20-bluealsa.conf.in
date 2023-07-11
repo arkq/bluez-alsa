@@ -26,12 +26,11 @@ defaults.bluealsa.ctl.device "FF:FF:FF:FF:FF:FF"
 # read the documentation for "bluealsa" control plugin before
 # enabling this option.
 defaults.bluealsa.ctl.extended "no"
-defaults.bluealsa.ctl.battery "no"
 defaults.bluealsa.ctl.bttransport "no"
 defaults.bluealsa.ctl.dynamic "yes"
 
 ctl.bluealsa {
-	@args [ DEV EXT BAT BTT DYN SRV ]
+	@args [ DEV EXT BTT DYN SRV ]
 	@args.DEV {
 		type string
 		default {
@@ -44,13 +43,6 @@ ctl.bluealsa {
 		default {
 			@func refer
 			name defaults.bluealsa.ctl.extended
-		}
-	}
-	@args.BAT {
-		type string
-		default {
-			@func refer
-			name defaults.bluealsa.ctl.battery
 		}
 	}
 	@args.BTT {
@@ -77,7 +69,6 @@ ctl.bluealsa {
 	type bluealsa
 	device $DEV
 	extended $EXT
-	battery $BAT
 	bttransport $BTT
 	dynamic $DYN
 	service $SRV

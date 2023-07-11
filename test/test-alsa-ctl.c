@@ -96,7 +96,7 @@ CK_START_TEST(test_controls_battery) {
 				"--profile=hsp-ag",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:BAT=yes", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:EXT=battery", 0), 0);
 
 	snd_ctl_elem_list_t *elems;
 	snd_ctl_elem_list_alloca(&elems);
@@ -142,14 +142,14 @@ CK_START_TEST(test_controls_extended) {
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
-	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 15);
-	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 15), 0);
+	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 16);
+	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 16), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
 	/* codec control element shall be after playback/capture elements */
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "12:34:56:78:9A:BC A2DP Codec Enum");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 10), "12:34:56:78:9A:BC SCO Codec Enum");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 14), "23:45:67:89:AB:CD A2DP Codec Enum");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 15), "23:45:67:89:AB:CD A2DP Codec Enum");
 
 	bool has_msbc = false;
 #if ENABLE_MSBC
@@ -479,7 +479,7 @@ CK_START_TEST(test_notifications) {
 				"--fuzzing=250",
 				NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:BAT=yes", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:EXT=battery", 0), 0);
 
 	snd_ctl_event_t *event;
 	snd_ctl_event_malloc(&event);
@@ -506,17 +506,19 @@ CK_START_TEST(test_notifications) {
 	 * - 4 removes; 7 new elems (2x A2DP, SCO playback, battery)
 	 * - 7 removes; 9 new elems (2x A2DP, SCO playback/capture, battery)
 	 * - 8 updates (SCO codec updates if mSBC is supported)
-	 *
-	 * XXX: It is possible that the battery element (RFCOMM D-Bus path) will not
+	 */
+	size_t expected_events = (0 + 2) + (2 + 4) + (4 + 7) + (7 + 9) + events_update_codec;
+
+	/* XXX: It is possible that the battery element (RFCOMM D-Bus path) will not
 	 *      be exported in time. In such case, the number of events will be less
 	 *      by 2 when RFCOMM D-Bus path is not available during the playback SCO
 	 *      addition and less by another 1 when the path is not available during
 	 *      the capture SCO addition. We shall account for this in the test, as
 	 *      it is not an error. */
-	if (events == (35 + events_update_codec - 2) ||
-			events == (35 + events_update_codec - 2 - 1))
-		events = 35 + events_update_codec;
-	ck_assert_int_eq(events, (0 + 2) + (2 + 4) + (4 + 7) + (7 + 9) + events_update_codec);
+	int result = events == expected_events ||
+					events == expected_events - 2 ||
+					events == expected_events - 3;
+	ck_assert_int_eq(result, 1);
 
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);

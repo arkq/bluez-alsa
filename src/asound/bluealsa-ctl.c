@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/param.h>
 #include <unistd.h>
 
@@ -40,7 +41,7 @@
 enum ctl_elem_type {
 	CTL_ELEM_TYPE_SWITCH,
 	CTL_ELEM_TYPE_VOLUME,
-	CTL_ELEM_TYPE_SOFT_VOLUME,
+	CTL_ELEM_TYPE_VOLUME_MODE,
 	CTL_ELEM_TYPE_CODEC,
 	CTL_ELEM_TYPE_BATTERY,
 };
@@ -119,12 +120,14 @@ struct bluealsa_ctl {
 	 * indicating the mixer device has been disconnected. */
 	int pipefd[2];
 
-	/* if true, show battery meter */
+	/* if true, show codec control */
+	bool show_codec;
+	/* if true, show volume mode control */
+	bool show_vol_mode;
+	/* if true, show battery level indicator */
 	bool show_battery;
 	/* if true, append BT transport type to element names */
 	bool show_bt_transport;
-	/* if true, show additional controls */
-	bool show_extended;
 	/* if true, this mixer is for a single Bluetooth device */
 	bool single_device;
 	/* if true, this mixer adds/removes controls dynamically */
@@ -468,6 +471,48 @@ static const char *transport2str(unsigned int transport) {
 	}
 }
 
+static int parse_extended(const char *extended,
+		bool *show_codec, bool *show_vol_mode, bool *show_battery) {
+
+	bool codec = false, vol_mode = false, battery = false;
+	int ret = 0;
+
+	switch (snd_config_get_bool_ascii(extended)) {
+	case 0:
+		break;
+	case 1:
+		codec = true;
+		vol_mode = true;
+		battery = true;
+		break;
+	default: {
+		char *next, *ptr = NULL;
+		char *buffer = strdupa(extended);
+		for (next = strtok_r(buffer, ":", &ptr);
+				next != NULL;
+				next = strtok_r(NULL, ":", &ptr)) {
+			if (strcasecmp(next, "codec") == 0)
+				codec = true;
+			else if (strcasecmp(next, "mode") == 0)
+				vol_mode = true;
+			else if (strcasecmp(next, "battery") == 0)
+				battery = true;
+			else {
+				ret = -1;
+				break;
+			}
+		}
+	}}
+
+	if (ret != -1) {
+		*show_codec = codec;
+		*show_vol_mode = vol_mode;
+		*show_battery = battery;
+	}
+
+	return ret;
+}
+
 /**
  * Update element name based on given string and PCM type.
  *
@@ -501,7 +546,7 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 		int label_max_len = sizeof(" A2DP") - 1;
 		if (ctl->show_bt_transport)
 			label_max_len = sizeof(" SCO-HFP-AG") - 1;
-		if (ctl->show_extended)
+		if (ctl->show_vol_mode)
 			label_max_len += sizeof(" Mode") - 1;
 		if (ctl->show_battery)
 			label_max_len = MAX(label_max_len, sizeof(" | Battery") - 1);
@@ -553,7 +598,7 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 	if (elem->type == CTL_ELEM_TYPE_CODEC)
 		strcat(elem->name, " Codec");
 
-	if (elem->type == CTL_ELEM_TYPE_SOFT_VOLUME)
+	if (elem->type == CTL_ELEM_TYPE_VOLUME_MODE)
 		strcat(elem->name, " Mode");
 
 	/* ALSA library determines the element type by checking it's
@@ -572,7 +617,7 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 		strcat(elem->name, " Volume");
 		break;
 	case CTL_ELEM_TYPE_CODEC:
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		strcat(elem->name, " Enum");
 		break;
 	}
@@ -635,9 +680,9 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 		n++;
 	}
 
-	/* add special "software volume" element */
-	if (ctl->show_extended) {
-		elem_list[n].type = CTL_ELEM_TYPE_SOFT_VOLUME;
+	/* add special "volume mode" element */
+	if (ctl->show_vol_mode) {
+		elem_list[n].type = CTL_ELEM_TYPE_VOLUME_MODE;
 		elem_list[n].dev = dev;
 		elem_list[n].pcm = pcm;
 		elem_list[n].playback = playback;
@@ -702,8 +747,10 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			if (ctl->show_battery)
 				count += 1;
 			/* If extended controls are enabled, we need additional elements. */
-			if (ctl->show_extended)
-				count += 2;
+			if (ctl->show_codec)
+				count += 1;
+			if (ctl->show_vol_mode)
+				count += 1;
 		}
 
 		if ((elem_list = realloc(elem_list, count * sizeof(*elem_list))) == NULL)
@@ -729,7 +776,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 		/* If Bluetooth transport is bi-directional it must have the same codec
 		 * for both sink and source. In case of such profiles we will only add
 		 * the codec control element for the main stream direction. */
-		if (ctl->show_extended && (
+		if (ctl->show_codec && (
 					BA_PCM_A2DP_MAIN_CHANNEL(pcm) ||
 					BA_PCM_SCO_SPEAKER_CHANNEL(pcm)))
 			bluealsa_pcm_fetch_codecs(ctl, pcm, &codecs);
@@ -874,7 +921,7 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*type = SND_CTL_ELEM_TYPE_ENUMERATED;
 		*count = 1;
 		break;
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		*acc = SND_CTL_EXT_ACCESS_READWRITE;
 		*type = SND_CTL_ELEM_TYPE_ENUMERATED;
 		*count = 1;
@@ -930,7 +977,7 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		*istep = 1;
 		break;
 	case CTL_ELEM_TYPE_CODEC:
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 	case CTL_ELEM_TYPE_SWITCH:
 		return -EINVAL;
 	}
@@ -963,7 +1010,7 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 			value[1] = active ? pcm->volume.ch2_volume : 0;
 		break;
 	case CTL_ELEM_TYPE_CODEC:
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		return -EINVAL;
 	}
 
@@ -1004,7 +1051,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 			pcm->volume.ch2_volume = value[1];
 		break;
 	case CTL_ELEM_TYPE_CODEC:
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		return -EINVAL;
 	}
 
@@ -1030,7 +1077,7 @@ int bluealsa_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, unsi
 	case CTL_ELEM_TYPE_CODEC:
 		*items = elem->codecs.codecs_len;
 		break;
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		*items = ARRAYSIZE(soft_volume_names);
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
@@ -1058,7 +1105,7 @@ int bluealsa_get_enumerated_name(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		strncpy(name, elem->codecs.codecs[item].name, name_max_len - 1);
 		name[name_max_len - 1] = '\0';
 		break;
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		if (item >= ARRAYSIZE(soft_volume_names))
 			return -EINVAL;
 		strncpy(name, soft_volume_names[item], name_max_len - 1);
@@ -1110,7 +1157,7 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		}
 		ret = -EINVAL;
 		break;
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		items[0] = pcm->soft_volume ? 1 : 0;
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
@@ -1145,7 +1192,7 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 			return -EIO;
 		memcpy(&pcm->codec, &elem->codecs.codecs[items[0]], sizeof(pcm->codec));
 		break;
-	case CTL_ELEM_TYPE_SOFT_VOLUME:
+	case CTL_ELEM_TYPE_VOLUME_MODE:
 		if (items[0] >= ARRAYSIZE(soft_volume_names))
 			return -EINVAL;
 		const bool soft_volume = items[0] == 1;
@@ -1603,9 +1650,11 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	DBusError err = DBUS_ERROR_INIT;
 	const char *service = BLUEALSA_SERVICE;
 	const char *device = NULL;
+	const char *extended = NULL;
 	bool show_battery = false;
 	bool show_bt_transport = false;
-	bool show_extended = false;
+	bool show_codec = false;
+	bool show_vol_mode = false;
 	bool dynamic = true;
 	struct bluealsa_ctl *ctl;
 	int ret;
@@ -1638,19 +1687,14 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 			continue;
 		}
 		if (strcmp(id, "extended") == 0) {
-			if ((ret = snd_config_get_bool(n)) < 0) {
+			if ((ret = snd_config_get_string(n, &extended)) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
 			}
-			show_extended = !!ret;
-			continue;
-		}
-		if (strcmp(id, "battery") == 0) {
-			if ((ret = snd_config_get_bool(n)) < 0) {
-				SNDERR("Invalid type for %s", id);
+			if (parse_extended(extended, &show_codec, &show_vol_mode, &show_battery) < 0) {
+				SNDERR("Invalid extended options: %s", extended);
 				return -EINVAL;
 			}
-			show_battery = !!ret;
 			continue;
 		}
 		if (strcmp(id, "bttransport") == 0) {
@@ -1709,9 +1753,10 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	ctl->pipefd[0] = -1;
 	ctl->pipefd[1] = -1;
 
+	ctl->show_codec = show_codec;
+	ctl->show_vol_mode = show_vol_mode;
 	ctl->show_battery = show_battery;
 	ctl->show_bt_transport = show_bt_transport;
-	ctl->show_extended = show_extended;
 	ctl->single_device = single_device_mode;
 	ctl->dynamic = dynamic;
 
