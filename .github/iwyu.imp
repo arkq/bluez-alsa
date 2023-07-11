@@ -1,6 +1,7 @@
 [
 
 	{ include: [ '<bits/getopt_core.h>', private, '<getopt.h>', public ] },
+	{ include: [ '<bits/types/struct_sched_param.h>', private, '<sched.h>', public ] },
 	{ include: [ '<bsd/libutil.h>', private, '<bsd/stdlib.h>', public ] },
 	{ include: [ '<bsd/sys/time.h>', private, '<sys/time.h>', public ] },
 	{ symbol: [ 'sig_atomic_t', private, '<signal.h>', public ] },

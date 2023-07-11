@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-config.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -31,6 +31,8 @@ struct ba_config config = {
 	.null_fd = -1,
 
 	.keep_alive_time = 0,
+
+	.io_thread_rt_priority = 0,
 
 	.volume_init_level = 0,
 

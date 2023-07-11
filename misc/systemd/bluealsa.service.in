@@ -14,6 +14,18 @@ After=bluetooth.service
 # ExecStart=
 # ExecStart=@bindir@/bluealsa -S --keep-alive=5 -p a2dp-sink
 
+# When using low latency audio profile like HSP/HFP, it is recommended to set
+# real-time scheduling priority for IO threads with the --io-rt-priority=NUM
+# option. However, in order to allow BlueALSA to modify scheduling priority,
+# one has to relax sandboxing rules.
+#
+# $ sudo systemctl edit bluealsa
+# [Service]
+# AmbientCapabilities=CAP_SYS_NICE
+# CapabilityBoundingSet=CAP_SYS_NICE
+# RestrictRealtime=false
+# SystemCallFilter=@resources
+
 [Service]
 Type=dbus
 BusName=org.bluealsa

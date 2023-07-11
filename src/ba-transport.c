@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <math.h>
 #include <poll.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -1936,11 +1937,19 @@ int ba_transport_thread_create(
 		warn("Couldn't set signal mask: %s", strerror(ret));
 
 	if ((ret = pthread_create(&th->id, NULL, PTHREAD_FUNC(th_func), th)) != 0) {
-		error("Couldn't create transport thread: %s", strerror(ret));
+		error("Couldn't create IO thread: %s", strerror(ret));
 		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
 		pthread_sigmask(SIG_SETMASK, &oldset, NULL);
 		ba_transport_unref(t);
 		goto fail;
+	}
+
+	if (config.io_thread_rt_priority != 0) {
+		struct sched_param param = { .sched_priority = config.io_thread_rt_priority };
+		if ((ret = pthread_setschedparam(th->id, SCHED_FIFO, &param)) != 0)
+			warn("Couldn't set IO thread RT priority: %s", strerror(ret));
+		/* It's not a fatal error if we can't set thread priority. */
+		ret = 0;
 	}
 
 	pthread_sigmask(SIG_SETMASK, &oldset, NULL);

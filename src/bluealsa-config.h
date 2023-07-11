@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-config.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -64,6 +64,9 @@ struct ba_config {
 	 * PCM has been closed. One might set this value to negative number for
 	 * infinite time. This option applies for the source profile only. */
 	int keep_alive_time;
+
+	/* real-time scheduling priority of transport IO threads */
+	int io_thread_rt_priority;
 
 	/* the initial volume level */
 	int volume_init_level;

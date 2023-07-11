@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: January 2023
+:Date: July 2023
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -99,6 +99,22 @@ OPTIONS
     It can also be useful when playing short audio files in quick succession.
     It will reduce the gap between playbacks caused by Bluetooth audio
     transport acquisition.
+
+--io-rt-priority=NUM
+    Set the FIFO scheduler real-time priority of the I/O threads to *NUM*.
+
+    By default all I/O threads run at the same priority as the main thread.
+    This option allows the user to increase the priority of the I/O threads.
+    This can be useful when playing audio with a low latency requirement.
+
+    It is recommended to use this option when using the HFP profile with the
+    mSBC codec, as the Linux kernel does not provide any buffering for the mSBC
+    SCO socket. If the data are not read from the socket in time, the kernel
+    will drop them. This can lead to lots of "Missing mSBC packets" warnings
+    which will be audible as clicks in the audio.
+
+    For more information about scheduling policies and priorities see
+    ``sched(7)``.
 
 --disable-realtek-usb-fix
     Since Linux kernel 5.14 Realtek USB adapters have required **bluealsa** to

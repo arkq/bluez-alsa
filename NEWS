@@ -1,6 +1,8 @@
 unreleased
 ==========
 
+- command line option to set real-time priority for IO threads
+
 bluez-alsa v4.1.1 (2023-06-24)
 ==============================
 

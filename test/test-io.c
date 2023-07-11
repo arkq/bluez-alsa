@@ -1075,6 +1075,7 @@ CK_START_TEST(test_sco_msbc) {
 
 	adapter->hci.features[2] = LMP_TRSP_SCO;
 	adapter->hci.features[3] = LMP_ESCO;
+	config.io_thread_rt_priority = 10;
 
 	struct ba_transport *t1 = test_transport_new_sco(device1,
 			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/msbc");

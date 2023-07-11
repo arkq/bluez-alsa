@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -13,6 +13,7 @@
 #endif
 
 #include <getopt.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -156,6 +157,7 @@ int main(int argc, char **argv) {
 		{ "codec", required_argument, NULL, 'c' },
 		{ "initial-volume", required_argument, NULL, 17 },
 		{ "keep-alive", required_argument, NULL, 8 },
+		{ "io-rt-priority", required_argument, NULL, 3 },
 		{ "disable-realtek-usb-fix", no_argument, NULL, 21 },
 		{ "a2dp-force-mono", no_argument, NULL, 6 },
 		{ "a2dp-force-audio-cd", no_argument, NULL, 7 },
@@ -205,6 +207,7 @@ int main(int argc, char **argv) {
 					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
 					"  --initial-volume=NUM\t\tinitial volume level [0-100]\n"
 					"  --keep-alive=SEC\t\tkeep Bluetooth transport alive\n"
+					"  --io-rt-priority=NUM\t\treal-time priority for IO threads\n"
 					"  --disable-realtek-usb-fix\tdisable fix for mSBC on Realtek USB\n"
 					"  --a2dp-force-mono\t\ttry to force monophonic sound\n"
 					"  --a2dp-force-audio-cd\t\ttry to force 44.1 kHz sampling\n"
@@ -379,6 +382,16 @@ int main(int argc, char **argv) {
 
 		case 8 /* --keep-alive=SEC */ :
 			config.keep_alive_time = atof(optarg) * 1000;
+			break;
+
+		case 3 /* --io-rt-priority=NUM */ :
+			config.io_thread_rt_priority = atoi(optarg);
+			const int min = sched_get_priority_min(SCHED_FIFO);
+			const int max = sched_get_priority_max(SCHED_FIFO);
+			if (config.io_thread_rt_priority < min || max < config.io_thread_rt_priority) {
+				error("Invalid IO thread RT priority [%d, %d]: %s", min, max, optarg);
+				return EXIT_FAILURE;
+			}
 			break;
 
 		case 21 /* --disable-realtek-usb-fix */ :
