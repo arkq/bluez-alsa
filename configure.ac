@@ -342,7 +342,7 @@ AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 AC_ARG_WITH([dbusconfdir],
 	AS_HELP_STRING([--with-dbusconfdir=DIR], [path to D-Bus system bus configuration files]),
 	[dbusconfdir="${withval}"],
-	[dbusconfdir=$($PKG_CONFIG --variable=sysconfdir dbus-1)/dbus-1/system.d])
+	[dbusconfdir=$($PKG_CONFIG --variable=datadir dbus-1)/dbus-1/system.d])
 AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 
 AC_ARG_WITH([systemdsystemunitdir],
