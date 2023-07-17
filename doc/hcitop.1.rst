@@ -6,7 +6,7 @@ hcitop
 a simple dynamic view of HCI activity
 -------------------------------------
 
-:Date: June 2022
+:Date: July 2023
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -42,6 +42,12 @@ COLUMNS
 HCI
     The HCI name ("hci0", etc.).
 
+BUS
+    The bus name ("UART", "USB", etc.).
+
+ADDR
+    The Bluetooth device address.
+
 FLAGS
     Status flags of the HCI. See ``FLAGS`` below.
 
@@ -67,7 +73,7 @@ is "TRUE", a blank is shown when the flag is "FALSE".
 U
     The interface is "Up".
 
-I
+N
     The interface is initializing.
 
 R
@@ -94,7 +100,7 @@ X
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2022 Arkadiusz Bokowy.
+Copyright (c) 2016-2023 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
