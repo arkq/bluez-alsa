@@ -481,7 +481,12 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 			ffb_seek(&msbc.data, len);
 
 		int err;
-		if ((err = msbc_decode(&msbc)) < 0) {
+		/* Process data until there is no more mSBC frames to decode. This loop
+		 * ensures that for MTU values bigger than the mSBC frame size, the input
+		 * buffer will not fill up causing short reads and mSBC frame losses. */
+		while ((err = msbc_decode(&msbc)) > 0)
+			continue;
+		if (err < 0) {
 			error("mSBC decoding error: %s", sbc_strerror(err));
 			continue;
 		}
