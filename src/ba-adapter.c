@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-adapter.c
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -28,14 +28,11 @@
 
 struct ba_adapter *ba_adapter_new(int dev_id) {
 
-	struct ba_adapter *a;
-
 	/* make sure we are within array boundaries */
-	if (dev_id < 0 || dev_id >= HCI_MAX_DEV) {
-		errno = EINVAL;
-		return NULL;
-	}
+	if (dev_id < 0 || dev_id >= HCI_MAX_DEV)
+		return errno = EINVAL, NULL;
 
+	struct ba_adapter *a;
 	if ((a = calloc(1, sizeof(*a))) == NULL)
 		return NULL;
 
@@ -73,7 +70,7 @@ struct ba_adapter *ba_adapter_new(int dev_id) {
 struct ba_adapter *ba_adapter_lookup(int dev_id) {
 
 	if (dev_id < 0 || dev_id >= HCI_MAX_DEV)
-		return NULL;
+		return errno = EINVAL, NULL;
 
 	struct ba_adapter *a;
 

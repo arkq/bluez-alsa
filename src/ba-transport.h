@@ -180,7 +180,7 @@ int ba_transport_thread_state_set(
 	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_STOPPING)
 
 bool ba_transport_thread_state_check(
-		struct ba_transport_thread *th,
+		const struct ba_transport_thread *th,
 		enum ba_transport_thread_state state);
 
 #define ba_transport_thread_state_check_running(th) \
@@ -189,7 +189,7 @@ bool ba_transport_thread_state_check(
 	ba_transport_thread_state_check(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
 
 int ba_transport_thread_state_wait(
-		struct ba_transport_thread *th,
+		const struct ba_transport_thread *th,
 		enum ba_transport_thread_state state);
 
 #define ba_transport_thread_state_wait_running(th) \
@@ -382,7 +382,7 @@ const char *ba_transport_debug_name(
 #endif
 
 struct ba_transport *ba_transport_lookup(
-		struct ba_device *device,
+		const struct ba_device *device,
 		const char *dbus_path);
 struct ba_transport *ba_transport_ref(
 		struct ba_transport *t);
@@ -401,7 +401,7 @@ int ba_transport_select_codec_sco(
 		uint16_t codec_id);
 
 uint16_t ba_transport_get_codec(
-		struct ba_transport *t);
+		const struct ba_transport *t);
 void ba_transport_set_codec(
 		struct ba_transport *t,
 		uint16_t codec_id);
@@ -418,7 +418,7 @@ int ba_transport_set_a2dp_state(
 		enum bluez_a2dp_transport_state state);
 
 bool ba_transport_pcm_is_active(
-		struct ba_transport_pcm *pcm);
+		const struct ba_transport_pcm *pcm);
 
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);

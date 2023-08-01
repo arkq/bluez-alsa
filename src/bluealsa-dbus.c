@@ -220,7 +220,7 @@ static GVariant *ba_variant_new_pcm_mode(const struct ba_transport_pcm *pcm) {
 }
 
 static GVariant *ba_variant_new_pcm_running(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_boolean(pcm->th->state == BA_TRANSPORT_THREAD_STATE_RUNNING);
+	return g_variant_new_boolean(ba_transport_thread_state_check_running(pcm->th));
 }
 
 static GVariant *ba_variant_new_pcm_format(const struct ba_transport_pcm *pcm) {
@@ -239,9 +239,9 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	const char *codec = NULL;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		codec = a2dp_codecs_codec_id_to_string(t->codec_id);
+		codec = a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t));
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		codec = hfp_codec_id_to_string(t->codec_id);
+		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
 	if (codec != NULL)
 		return g_variant_new_string(codec);
 	return NULL;

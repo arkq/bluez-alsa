@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-device.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -78,7 +78,7 @@ struct ba_device *ba_device_new(
 		const bdaddr_t *addr);
 
 struct ba_device *ba_device_lookup(
-		struct ba_adapter *adapter,
+		const struct ba_adapter *adapter,
 		const bdaddr_t *addr);
 struct ba_device *ba_device_ref(
 		struct ba_device *d);

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - defs.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -21,6 +21,10 @@
 /**
  * Divide integers with rounding up. */
 #define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+
+/**
+ * Convert any pointer to a mutable pointer. */
+#define MUTABLE(v) ((void *)(v))
 
 /**
  * Cleanup callback casting wrapper for the brevity's sake. */

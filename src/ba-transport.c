@@ -387,26 +387,26 @@ int ba_transport_thread_state_set(
 /**
  * Check if transport thread is in given state. */
 bool ba_transport_thread_state_check(
-		struct ba_transport_thread *th,
+		const struct ba_transport_thread *th,
 		enum ba_transport_thread_state state) {
-	pthread_mutex_lock(&th->mutex);
+	pthread_mutex_lock(MUTABLE(&th->mutex));
 	bool ok = th->state == state;
-	pthread_mutex_unlock(&th->mutex);
+	pthread_mutex_unlock(MUTABLE(&th->mutex));
 	return ok;
 }
 
 /**
  * Wait until transport thread reaches given state. */
 int ba_transport_thread_state_wait(
-		struct ba_transport_thread *th,
+		const struct ba_transport_thread *th,
 		enum ba_transport_thread_state state) {
 
 	enum ba_transport_thread_state tmp;
 
-	pthread_mutex_lock(&th->mutex);
+	pthread_mutex_lock(MUTABLE(&th->mutex));
 	while ((tmp = th->state) < state)
-		pthread_cond_wait(&th->cond, &th->mutex);
-	pthread_mutex_unlock(&th->mutex);
+		pthread_cond_wait(MUTABLE(&th->cond), MUTABLE(&th->mutex));
+	pthread_mutex_unlock(MUTABLE(&th->mutex));
 
 	if (tmp == state)
 		return 0;
@@ -880,8 +880,9 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 		nanosleep(&delay, NULL);
 	}
 
+	const uint16_t codec_id = ba_transport_get_codec(t);
 	if (hci_sco_connect(fd, &d->addr,
-				t->codec_id == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
+				codec_id == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
 		error("Couldn't establish SCO link: %s", strerror(errno));
 		goto fail;
 	}
@@ -1005,7 +1006,7 @@ fail:
 const char *ba_transport_debug_name(
 		const struct ba_transport *t) {
 	const enum ba_transport_profile profile = t->profile;
-	const uint16_t codec_id = t->codec_id;
+	const uint16_t codec_id = ba_transport_get_codec(t);
 	switch (profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "NONE";
@@ -1104,15 +1105,15 @@ const char *ba_transport_debug_name(
 #endif
 
 struct ba_transport *ba_transport_lookup(
-		struct ba_device *device,
+		const struct ba_device *device,
 		const char *dbus_path) {
 
 	struct ba_transport *t;
 
-	pthread_mutex_lock(&device->transports_mutex);
+	pthread_mutex_lock(MUTABLE(&device->transports_mutex));
 	if ((t = g_hash_table_lookup(device->transports, dbus_path)) != NULL)
 		t->ref_count++;
-	pthread_mutex_unlock(&device->transports_mutex);
+	pthread_mutex_unlock(MUTABLE(&device->transports_mutex));
 
 	return t;
 }
@@ -1464,10 +1465,10 @@ static void ba_transport_set_codec_sco(
 }
 
 uint16_t ba_transport_get_codec(
-		struct ba_transport *t) {
-	pthread_mutex_lock(&t->codec_id_mtx);
+		const struct ba_transport *t) {
+	pthread_mutex_lock(MUTABLE(&t->codec_id_mtx));
 	uint16_t codec_id = t->codec_id;
-	pthread_mutex_unlock(&t->codec_id_mtx);
+	pthread_mutex_unlock(MUTABLE(&t->codec_id_mtx));
 	return codec_id;
 }
 
@@ -1725,10 +1726,10 @@ int ba_transport_set_a2dp_state(
 	}
 }
 
-bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) {
-	pthread_mutex_lock(&pcm->mutex);
+bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) {
+	pthread_mutex_lock(MUTABLE(&pcm->mutex));
 	bool active = pcm->fd != -1 && pcm->active;
-	pthread_mutex_unlock(&pcm->mutex);
+	pthread_mutex_unlock(MUTABLE(&pcm->mutex));
 	return active;
 }
 

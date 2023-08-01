@@ -34,7 +34,7 @@
 #include "inc/check.inc"
 
 const char *ba_transport_debug_name(const struct ba_transport *t) { (void)t; return "x"; }
-bool ba_transport_pcm_is_active(struct ba_transport_pcm *pcm) { (void)pcm; return false; }
+bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) { (void)pcm; return false; }
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
 int ba_transport_thread_bt_release(struct ba_transport_thread *th) { (void)th; return -1; }

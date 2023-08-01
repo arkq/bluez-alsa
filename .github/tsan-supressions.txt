@@ -2,6 +2,10 @@
 # https://gitlab.gnome.org/GNOME/glib/-/issues/1672
 race:glib/gslice.c
 
+# TSAN detects a cycle in lock order graph when the connection dispatch
+# is called after dbus_bus_get_private... and we can do nothing about it
+called_from_lib:libdbus-1.so
+
 # We are not interested in data races in PulseAudio
 called_from_lib:libpulsecommon-*.so
 called_from_lib:libpulse.so.0

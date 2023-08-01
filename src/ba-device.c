@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-device.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -18,6 +18,7 @@
 #include "bluealsa-config.h"
 #include "hci.h"
 #include "storage.h"
+#include "shared/defs.h"
 #include "shared/log.h"
 
 struct ba_device *ba_device_new(
@@ -57,15 +58,15 @@ struct ba_device *ba_device_new(
 }
 
 struct ba_device *ba_device_lookup(
-		struct ba_adapter *adapter,
+		const struct ba_adapter *adapter,
 		const bdaddr_t *addr) {
 
 	struct ba_device *d;
 
-	pthread_mutex_lock(&adapter->devices_mutex);
+	pthread_mutex_lock(MUTABLE(&adapter->devices_mutex));
 	if ((d = g_hash_table_lookup(adapter->devices, addr)) != NULL)
 		d->ref_count++;
-	pthread_mutex_unlock(&adapter->devices_mutex);
+	pthread_mutex_unlock(MUTABLE(&adapter->devices_mutex));
 
 	return d;
 }
