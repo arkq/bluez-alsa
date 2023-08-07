@@ -350,6 +350,7 @@ uint32_t a2dp_check_configuration(
 	unsigned int cap_freq = 0, cap_freq_bc = 0;
 	uint32_t ret = A2DP_CHECK_OK;
 
+	/* prevent out-of-bounds memory access */
 	if (size != codec->capabilities_size)
 		return A2DP_CHECK_ERR_SIZE;
 

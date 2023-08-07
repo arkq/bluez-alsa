@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -108,18 +108,18 @@ uint16_t a2dp_get_vendor_codec_id(
 		size_t size);
 
 #define A2DP_CHECK_OK                    0
-#define A2DP_CHECK_ERR_SIZE              0xFFFFFFFF
-#define A2DP_CHECK_ERR_CHANNELS          (1 << 0)
-#define A2DP_CHECK_ERR_CHANNELS_BC       (1 << 1)
-#define A2DP_CHECK_ERR_SAMPLING          (1 << 2)
-#define A2DP_CHECK_ERR_SAMPLING_BC       (1 << 3)
-#define A2DP_CHECK_ERR_SBC_ALLOCATION    (1 << 4)
-#define A2DP_CHECK_ERR_SBC_SUB_BANDS     (1 << 5)
-#define A2DP_CHECK_ERR_SBC_BLOCK_LENGTH  (1 << 6)
-#define A2DP_CHECK_ERR_MPEG_LAYER        (1 << 7)
-#define A2DP_CHECK_ERR_AAC_OBJ_TYPE      (1 << 8)
-#define A2DP_CHECK_ERR_FASTSTREAM_DIR    (1 << 9)
-#define A2DP_CHECK_ERR_LC3PLUS_DURATION  (1 << 10)
+#define A2DP_CHECK_ERR_SIZE              (1 << 0)
+#define A2DP_CHECK_ERR_CHANNELS          (1 << 1)
+#define A2DP_CHECK_ERR_CHANNELS_BC       (1 << 2)
+#define A2DP_CHECK_ERR_SAMPLING          (1 << 3)
+#define A2DP_CHECK_ERR_SAMPLING_BC       (1 << 4)
+#define A2DP_CHECK_ERR_SBC_ALLOCATION    (1 << 5)
+#define A2DP_CHECK_ERR_SBC_SUB_BANDS     (1 << 6)
+#define A2DP_CHECK_ERR_SBC_BLOCK_LENGTH  (1 << 7)
+#define A2DP_CHECK_ERR_MPEG_LAYER        (1 << 8)
+#define A2DP_CHECK_ERR_AAC_OBJ_TYPE      (1 << 9)
+#define A2DP_CHECK_ERR_FASTSTREAM_DIR    (1 << 10)
+#define A2DP_CHECK_ERR_LC3PLUS_DURATION  (1 << 11)
 
 uint32_t a2dp_check_configuration(
 		const struct a2dp_codec *codec,

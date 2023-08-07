@@ -727,8 +727,10 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 		/* use codec configuration blob provided by user */
 		if (a2dp_configuration_size != 0) {
-			if (a2dp_check_configuration(codec, &a2dp_configuration,
-						a2dp_configuration_size) != A2DP_CHECK_OK) {
+			uint32_t rv;
+			if ((rv = a2dp_check_configuration(codec, &a2dp_configuration,
+						a2dp_configuration_size)) != A2DP_CHECK_OK) {
+				error("Invalid configuration: %s: %#x", "Invalid configuration blob", rv);
 				errmsg = "Invalid configuration blob";
 				goto fail;
 			}

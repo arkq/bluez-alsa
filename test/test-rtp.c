@@ -44,7 +44,7 @@ CK_START_TEST(test_rtp_a2dp_init) {
 
 CK_START_TEST(test_rtp_a2dp_get_payload) {
 
-	uint8_t buffer[RTP_HEADER_LEN + 16];
+	uint8_t buffer[sizeof(rtp_header_t) + 16];
 	for (size_t i = 0; i < sizeof(buffer); i++)
 		buffer[i] = i;
 
