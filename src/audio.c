@@ -101,14 +101,18 @@ void audio_scale_s16_2le(int16_t *buffer, size_t frames,
 	switch (channels) {
 	case 1:
 		if (ch1 != 0 && ch1 != 1)
-			while (frames--)
-				buffer[frames] *= ch1;
+			while (frames--) {
+				int16_t s1 = (int16_t)le16toh(buffer[frames]) * ch1;
+				buffer[frames] = htole16(s1);
+			}
 		break;
 	case 2:
 		if ((ch1 != 0 && ch1 != 1) || (ch2 != 0 && ch2 != 1))
 			while (frames--) {
-				buffer[2 * frames] *= ch1;
-				buffer[2 * frames + 1] *= ch2;
+				int16_t s1 = (int16_t)le16toh(buffer[2 * frames]) * ch1;
+				buffer[2 * frames] = htole16(s1);
+				int16_t s2 = (int16_t)le16toh(buffer[2 * frames + 1]) * ch2;
+				buffer[2 * frames + 1] = htole16(s2);
 			}
 		break;
 	default:
@@ -124,14 +128,18 @@ void audio_scale_s32_4le(int32_t *buffer, size_t frames,
 	switch (channels) {
 	case 1:
 		if (ch1 != 0 && ch1 != 1)
-			while (frames--)
-				buffer[frames] *= ch1;
+			while (frames--) {
+				int32_t s1 = (int32_t)le32toh(buffer[frames]) * ch1;
+				buffer[frames] = htole32(s1);
+			}
 		break;
 	case 2:
 		if ((ch1 != 0 && ch1 != 1) || (ch2 != 0 && ch2 != 1))
 			while (frames--) {
-				buffer[2 * frames] *= ch1;
-				buffer[2 * frames + 1] *= ch2;
+				int32_t s1 = (int32_t)le32toh(buffer[2 * frames]) * ch1;
+				buffer[2 * frames] = htole32(s1);
+				int32_t s2 = (int32_t)le32toh(buffer[2 * frames + 1]) * ch2;
+				buffer[2 * frames + 1] = htole32(s2);
 			}
 		break;
 	default:

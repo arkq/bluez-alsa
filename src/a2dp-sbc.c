@@ -181,6 +181,8 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 
 	/* initialize SBC encoder bit-pool */
 	sbc.bitpool = sbc_a2dp_get_bitpool(configuration, config.sbc_quality);
+	/* ensure libsbc uses little-endian PCM on all architectures */
+	sbc.endian = SBC_LE;
 
 #if DEBUG
 	sbc_print_internals(&sbc);
@@ -228,6 +230,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_thread *th) {
 			if (errno == ESTALE) {
 				sbc_reinit_a2dp(&sbc, 0, configuration, sizeof(*configuration));
 				sbc.bitpool = sbc_a2dp_get_bitpool(configuration, config.sbc_quality);
+				sbc.endian = SBC_LE;
 				ffb_rewind(&pcm);
 				continue;
 			}
@@ -336,6 +339,9 @@ void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
+
+	/* ensure libsbc uses little-endian PCM on all architectures */
+	sbc.endian = SBC_LE;
 
 	ffb_t bt = { 0 };
 	ffb_t pcm = { 0 };

@@ -121,6 +121,8 @@ static int sbc_set_a2dp_faststream(sbc_t *sbc,
 	sbc->blocks = SBC_BLK_16;
 	sbc->subbands = SBC_SB_8;
 	sbc->allocation = SBC_AM_LOUDNESS;
+	/* ensure libsbc uses little-endian PCM on all architectures */
+	sbc->endian = SBC_LE;
 
 	if (voice) {
 

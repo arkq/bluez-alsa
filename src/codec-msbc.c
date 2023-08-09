@@ -94,6 +94,9 @@ int msbc_init(struct esco_msbc *msbc) {
 	if ((errno = -sbc_reinit_msbc(&msbc->sbc, 0)) != 0)
 		return -1;
 
+	/* ensure libsbc uses little-endian PCM on all architectures */
+	msbc->sbc.endian = SBC_LE;
+
 #if DEBUG
 	size_t len;
 	if ((len = sbc_get_frame_length(&msbc->sbc)) > MSBC_FRAMELEN) {

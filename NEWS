@@ -4,6 +4,7 @@ unreleased
 - command line option to set real-time priority for IO threads
 - allow to select individual extended controls in ALSA plug-in
 - codec-specific delay adjustment with ALSA control and persistency
+- fix for SBC codec and audio scaling on big-endian platforms
 - fix mSBC decode for MTU > 60 bytes (e.g. Realtek USB adapters)
 
 bluez-alsa v4.1.1 (2023-06-24)

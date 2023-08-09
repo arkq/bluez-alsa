@@ -12,9 +12,15 @@
 #ifndef BLUEALSA_SHARED_DBUSCLIENT_H_
 #define BLUEALSA_SHARED_DBUSCLIENT_H_
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#include <endian.h>
 #include <poll.h>
 #include <stddef.h>
 #include <stdint.h>
+
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <dbus/dbus.h>
@@ -173,10 +179,19 @@ struct ba_pcm {
 	/* 16-bit packed PCM volume */
 	union {
 		struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
 			dbus_uint16_t ch2_volume:7;
 			dbus_uint16_t ch2_muted:1;
 			dbus_uint16_t ch1_volume:7;
 			dbus_uint16_t ch1_muted:1;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+			dbus_uint16_t ch1_muted:1;
+			dbus_uint16_t ch1_volume:7;
+			dbus_uint16_t ch2_muted:1;
+			dbus_uint16_t ch2_volume:7;
+#else
+# error "Unknown byte order"
+#endif
 		};
 		dbus_uint16_t raw;
 	} volume;
