@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 					"  --disable-realtek-usb-fix\tdisable fix for mSBC on Realtek USB\n"
 					"  --a2dp-force-mono\t\ttry to force monophonic sound\n"
 					"  --a2dp-force-audio-cd\t\ttry to force 44.1 kHz sampling\n"
-					"  --a2dp-volume\t\t\tnative volume control by default\n"
+					"  --native-volume\t\t\tnative volume control by default\n"
 					"  --sbc-quality=MODE\t\tset SBC encoder quality mode\n"
 #if ENABLE_AAC
 					"  --aac-afterburner\t\tenable FDK AAC afterburner\n"
@@ -404,8 +404,8 @@ int main(int argc, char **argv) {
 		case 7 /* --a2dp-force-audio-cd */ :
 			config.a2dp.force_44100 = true;
 			break;
-		case 9 /* --a2dp-volume */ :
-			config.a2dp.volume = true;
+		case 9 /* --native-volume */ :
+			config.volume = true;
 			break;
 
 		case 14 /* --sbc-quality=MODE */ : {

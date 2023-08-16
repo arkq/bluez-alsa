@@ -85,7 +85,8 @@ struct ba_config config = {
 	.battery.available = false,
 	.battery.level = 100,
 
-	.a2dp.volume = false,
+	.volume = false,
+
 	.a2dp.force_mono = false,
 	.a2dp.force_44100 = false,
 

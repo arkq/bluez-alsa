@@ -112,10 +112,6 @@ struct ba_config {
 		/* NULL-terminated list of available A2DP codecs */
 		const struct bluez_a2dp_codec **codecs;
 
-		/* Control audio volume natively by the connected device. The disadvantage
-		 * of this control type is a monophonic volume change. */
-		bool volume;
-
 		/* Support for monophonic sound in the A2DP profile is mandatory for
 		 * sink and semi-mandatory for source. So, if one wants only the bare
 		 * minimum, it would be possible - e.g. due to bandwidth limitations. */
@@ -126,6 +122,10 @@ struct ba_config {
 		bool force_44100;
 
 	} a2dp;
+
+	/* Control audio volume natively by the connected device. The disadvantage
+	 * of this control type is a monophonic volume change. */
+	bool volume;
 
 	/* BlueALSA supports 5 SBC qualities: low, medium, high, XQ and XQ+. The XQ
 	 * mode uses 44.1 kHz sampling rate, dual channel mode with bitpool 38, 16

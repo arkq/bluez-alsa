@@ -842,12 +842,12 @@ struct ba_transport *ba_transport_new_a2dp(
 	transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? &t->thread_dec : &t->thread_enc,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
-	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
+	t->a2dp.pcm.soft_volume = !config.volume;
 
 	transport_pcm_init(&t->a2dp.pcm_bc,
 			is_sink ? &t->thread_enc : &t->thread_dec,
 			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
-	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
+	t->a2dp.pcm_bc.soft_volume = !config.volume;
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -957,10 +957,12 @@ struct ba_transport *ba_transport_new_sco(
 	transport_pcm_init(&t->sco.spk_pcm,
 			is_ag ? &t->thread_enc : &t->thread_dec,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
+	t->sco.spk_pcm.soft_volume = !config.volume;
 
 	transport_pcm_init(&t->sco.mic_pcm,
 			is_ag ? &t->thread_dec : &t->thread_enc,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
+	t->sco.mic_pcm.soft_volume = !config.volume;
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
