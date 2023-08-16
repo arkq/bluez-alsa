@@ -99,6 +99,8 @@ struct ba_config {
 		const char *xapl_product_name;
 		unsigned int xapl_features;
 
+		/* Control audio volume natively by the connected device. */
+		bool volume;
 	} hfp;
 
 	struct {
@@ -124,7 +126,6 @@ struct ba_config {
 		 * for sink endpoint and semi-mandatory for source. It is then possible
 		 * to force lower sampling in order to save Bluetooth bandwidth. */
 		bool force_44100;
-
 	} a2dp;
 
 	/* BlueALSA supports 5 SBC qualities: low, medium, high, XQ and XQ+. The XQ
