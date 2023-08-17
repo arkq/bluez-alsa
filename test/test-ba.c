@@ -40,6 +40,7 @@
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
@@ -72,7 +73,7 @@ void a2dp_mpeg_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
 int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void *sco_enc_thread(struct ba_transport_thread *th);
+void *sco_enc_thread(struct ba_transport_pcm *t_pcm);
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
@@ -229,9 +230,9 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 } CK_END_TEST
 
-static void *cleanup_thread(struct ba_transport_thread *th) {
+static void *cleanup_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	ba_transport_thread_cleanup(th);
+	ba_transport_pcm_thread_cleanup(t_pcm);
 	return NULL;
 }
 
@@ -252,10 +253,10 @@ CK_START_TEST(test_ba_transport_threads_sync_termination) {
 	t_sco->mtu_read = 48;
 	t_sco->mtu_write = 48;
 
-	ck_assert_int_eq(ba_transport_thread_create(&t_sco->thread_enc, sco_enc_thread, "enc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(t_sco->thread_enc.pcm, sco_enc_thread, "enc", true), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(&t_sco->thread_enc), 0);
 
-	ck_assert_int_eq(ba_transport_thread_create(&t_sco->thread_dec, cleanup_thread, "dec", false), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(t_sco->thread_dec.pcm, cleanup_thread, "dec", false), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(&t_sco->thread_dec), -1);
 
 	ck_assert_int_eq(ba_transport_thread_state_wait_terminated(&t_sco->thread_enc), 0);

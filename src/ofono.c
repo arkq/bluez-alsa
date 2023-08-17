@@ -43,6 +43,7 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "dbus.h"
@@ -420,8 +421,8 @@ fail:
 static unsigned int ofono_call_volume_property_sync(struct ba_transport *t,
 		const char *property, GVariant *value) {
 
-	struct ba_transport_pcm *spk = &t->sco.spk_pcm;
-	struct ba_transport_pcm *mic = &t->sco.mic_pcm;
+	struct ba_transport_pcm *spk = &t->sco.pcm_spk;
+	struct ba_transport_pcm *mic = &t->sco.pcm_mic;
 	unsigned int mask = OFONO_CALL_VOLUME_NONE;
 
 	if (strcmp(property, "Muted") == 0 &&
@@ -520,9 +521,9 @@ static int ofono_call_volume_get_properties(struct ba_transport *t) {
 	}
 
 	if (mask & OFONO_CALL_VOLUME_SPEAKER)
-		bluealsa_dbus_pcm_update(&t->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+		bluealsa_dbus_pcm_update(&t->sco.pcm_spk, BA_DBUS_PCM_UPDATE_VOLUME);
 	if (mask & OFONO_CALL_VOLUME_MICROPHONE)
-		bluealsa_dbus_pcm_update(&t->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+		bluealsa_dbus_pcm_update(&t->sco.pcm_mic, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	g_variant_iter_free(properties);
 	goto final;
@@ -1016,9 +1017,9 @@ static void ofono_signal_volume_changed(GDBusConnection *conn, const char *sende
 
 	unsigned int mask = ofono_call_volume_property_sync(t, property, value);
 	if (mask & OFONO_CALL_VOLUME_SPEAKER)
-		bluealsa_dbus_pcm_update(&t->sco.spk_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+		bluealsa_dbus_pcm_update(&t->sco.pcm_spk, BA_DBUS_PCM_UPDATE_VOLUME);
 	if (mask & OFONO_CALL_VOLUME_MICROPHONE)
-		bluealsa_dbus_pcm_update(&t->sco.mic_pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+		bluealsa_dbus_pcm_update(&t->sco.pcm_mic, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	g_variant_unref(value);
 	ba_transport_unref(t);
@@ -1108,8 +1109,8 @@ bool ofono_detect_service(void) {
  * Update oFono call volume properties. */
 int ofono_call_volume_update(struct ba_transport *t) {
 
-	struct ba_transport_pcm *spk = &t->sco.spk_pcm;
-	struct ba_transport_pcm *mic = &t->sco.mic_pcm;
+	struct ba_transport_pcm *spk = &t->sco.pcm_spk;
+	struct ba_transport_pcm *mic = &t->sco.pcm_mic;
 	int ret = 0;
 
 	struct {

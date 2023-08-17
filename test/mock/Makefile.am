@@ -17,6 +17,7 @@ bluealsa_mock_SOURCES = \
 	../../src/ba-device.c \
 	../../src/ba-rfcomm.c \
 	../../src/ba-transport.c \
+	../../src/ba-transport-pcm.c \
 	../../src/bluealsa-config.c \
 	../../src/bluealsa-dbus.c \
 	../../src/bluealsa-iface.c \

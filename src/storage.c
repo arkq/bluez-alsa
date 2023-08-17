@@ -23,6 +23,7 @@
 
 #include <glib.h>
 
+#include "ba-transport.h"
 #include "hfp.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"

@@ -20,7 +20,7 @@
 
 #include "ba-rfcomm.h"
 #include "ba-device.h"
-#include "ba-transport.h"
+#include "ba-transport-pcm.h"
 
 #define BA_DBUS_PCM_UPDATE_FORMAT           (1 << 0)
 #define BA_DBUS_PCM_UPDATE_CHANNELS         (1 << 1)

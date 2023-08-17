@@ -17,7 +17,7 @@
 #endif
 
 #include "ba-device.h"
-#include "ba-transport.h"
+#include "ba-transport-pcm.h"
 
 int storage_init(const char *root);
 void storage_destroy(void);

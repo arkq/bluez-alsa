@@ -64,6 +64,7 @@
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
@@ -91,24 +92,24 @@
 		(CHECK_MINOR_VERSION << 8 & 0x00ff00) | \
 		(CHECK_MICRO_VERSION << 0 & 0x0000ff))
 
-void *a2dp_aac_dec_thread(struct ba_transport_thread *th);
-void *a2dp_aac_enc_thread(struct ba_transport_thread *th);
-void *a2dp_aptx_dec_thread(struct ba_transport_thread *th);
-void *a2dp_aptx_enc_thread(struct ba_transport_thread *th);
-void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th);
-void *a2dp_aptx_hd_enc_thread(struct ba_transport_thread *th);
-void *a2dp_faststream_dec_thread(struct ba_transport_thread *th);
-void *a2dp_faststream_enc_thread(struct ba_transport_thread *th);
-void *a2dp_lc3plus_dec_thread(struct ba_transport_thread *th);
-void *a2dp_lc3plus_enc_thread(struct ba_transport_thread *th);
-void *a2dp_ldac_dec_thread(struct ba_transport_thread *th);
-void *a2dp_ldac_enc_thread(struct ba_transport_thread *th);
-void *a2dp_mp3_enc_thread(struct ba_transport_thread *th);
-void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th);
-void *a2dp_sbc_dec_thread(struct ba_transport_thread *th);
-void *a2dp_sbc_enc_thread(struct ba_transport_thread *th);
-void *sco_dec_thread(struct ba_transport_thread *th);
-void *sco_enc_thread(struct ba_transport_thread *th);
+void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_faststream_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_faststream_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_sbc_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm);
+void *sco_dec_thread(struct ba_transport_pcm *t_pcm);
+void *sco_enc_thread(struct ba_transport_pcm *t_pcm);
 
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
@@ -414,11 +415,12 @@ static void test_start_terminate_timer(unsigned int delay) {
 	pthread_detach(thread);
 }
 
-static void *test_io_thread_dump_bt(struct ba_transport_thread *th) {
+static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct pollfd pfds[] = {{ th->bt_fd, POLLIN, 0 }};
 	struct bt_dump *btd = NULL;
 	uint8_t buffer[1024];
@@ -430,7 +432,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_thread *th) {
 		ck_assert_ptr_ne(btd = bt_dump_create(fname, t), NULL);
 	}
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	ba_transport_thread_state_set_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
@@ -459,11 +461,11 @@ static void *test_io_thread_dump_bt(struct ba_transport_thread *th) {
 	return NULL;
 }
 
-static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
+static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport_thread *th = t_pcm->th;
 	size_t decoded_samples_total = 0;
 
 #if HAVE_SNDFILE
@@ -501,7 +503,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 #endif
 	}
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		struct pollfd pfds[] = {{ -1, POLLIN, 0 }};
@@ -565,7 +567,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_thread *th) {
 /**
  * Drive PCM signal through source/sink loop. */
 static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
-		void *(*enc)(struct ba_transport_thread *), void *(*dec)(struct ba_transport_thread *),
+		ba_transport_pcm_thread_func enc, ba_transport_pcm_thread_func dec,
 		size_t pcm_write_frames_count) {
 
 	const char *enc_name = enc == test_io_thread_dump_pcm ? "dump-pcm" : "encode";
@@ -598,13 +600,13 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 		test_start_terminate_timer(aging_duration);
 
 	if (enc == test_io_thread_dump_pcm) {
-		ck_assert_int_eq(ba_transport_thread_create(&t_snk->thread_dec, dec, dec_name, true), 0);
-		ck_assert_int_eq(ba_transport_thread_create(&t_src->thread_enc, enc, enc_name, true), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_snk->thread_dec.pcm, dec, dec_name, true), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_src->thread_enc.pcm, enc, enc_name, true), 0);
 		bt_data_write(t_src);
 	}
 	else {
-		ck_assert_int_eq(ba_transport_thread_create(&t_src->thread_enc, enc, enc_name, true), 0);
-		ck_assert_int_eq(ba_transport_thread_create(&t_snk->thread_dec, dec, dec_name, true), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_src->thread_enc.pcm, enc, enc_name, true), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_snk->thread_dec.pcm, dec, dec_name, true), 0);
 		pcm_write_frames(t_snk_pcm, pcm_write_frames_count);
 	}
 
@@ -701,7 +703,7 @@ CK_START_TEST(test_a2dp_sbc_invalid_config) {
 	t->bt_fd = bt_fds[1];
 
 	struct ba_transport_thread *th = &t->thread_enc;
-	ck_assert_int_eq(ba_transport_thread_create(th, a2dp_sbc_enc_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(th->pcm, a2dp_sbc_enc_thread, "sbc", true), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(th), -1);
 
 	ba_transport_destroy(t);
@@ -758,7 +760,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
 
 	/* start IO thread and make sure it is running */
-	ck_assert_int_eq(ba_transport_thread_create(th1, a2dp_sbc_enc_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(th1->pcm, a2dp_sbc_enc_thread, "sbc", true), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(th1), 0);
 
 	/* wait for 50 ms - let the thread to run for a while */
@@ -795,7 +797,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	 * non-zero samples. We will check this by writing zero samples and
 	 * checking if decoded data is all silence. */
 
-	ck_assert_int_eq(ba_transport_thread_create(th2, a2dp_sbc_dec_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(th2->pcm, a2dp_sbc_dec_thread, "sbc", true), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(th2), 0);
 
 	/* write some zero samples to PCM FIFO and process them */

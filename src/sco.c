@@ -29,6 +29,7 @@
 #include <glib.h>
 
 #include "ba-device.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #if ENABLE_MSBC
 # include "codec-msbc.h"
@@ -64,7 +65,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(sco_dispatcher_cleanup), &data);
 
 	sigset_t sigset;
-	/* See the ba_transport_thread_create() function for information
+	/* See the ba_transport_pcm_start() function for information
 	 * why we have to mask all signals. */
 	sigfillset(&sigset);
 	pthread_sigmask(SIG_SETMASK, &sigset, NULL);
@@ -221,13 +222,13 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 	return 0;
 }
 
-static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
+static void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 
 	const size_t mtu_samples = t->mtu_write / sizeof(int16_t);
@@ -242,7 +243,7 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 		goto fail_init;
 	}
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&buffer);
@@ -289,20 +290,20 @@ static void *sco_cvsd_enc_thread(struct ba_transport_thread *th) {
 	}
 
 exit:
-	debug_transport_thread_loop(th, "EXIT");
+	debug_transport_pcm_thread_loop(t_pcm, "EXIT");
 fail_init:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;
 }
 
-static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
+static void *sco_cvsd_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 
 	const size_t mtu_samples = t->mtu_read / sizeof(int16_t);
@@ -316,7 +317,7 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&buffer);
@@ -353,7 +354,7 @@ static void *sco_cvsd_dec_thread(struct ba_transport_thread *th) {
 	}
 
 exit:
-	debug_transport_thread_loop(th, "EXIT");
+	debug_transport_pcm_thread_loop(t_pcm, "EXIT");
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -361,13 +362,13 @@ fail_ffb:
 }
 
 #if ENABLE_MSBC
-static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
+static void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 	const size_t mtu_write = t->mtu_write;
 
@@ -379,7 +380,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 		goto fail_msbc;
 	}
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&msbc.pcm);
@@ -439,7 +440,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_thread *th) {
 	}
 
 exit:
-	debug_transport_thread_loop(th, "EXIT");
+	debug_transport_pcm_thread_loop(t_pcm, "EXIT");
 fail_msbc:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -448,13 +449,13 @@ fail_msbc:
 #endif
 
 #if ENABLE_MSBC
-static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
+static void *sco_msbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 
 	struct esco_msbc msbc = { .initialized = false };
@@ -465,7 +466,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 		goto fail_msbc;
 	}
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&msbc.data);
@@ -506,7 +507,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_thread *th) {
 	}
 
 exit:
-	debug_transport_thread_loop(th, "EXIT");
+	debug_transport_pcm_thread_loop(t_pcm, "EXIT");
 fail_msbc:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -514,27 +515,27 @@ fail_msbc:
 }
 #endif
 
-void *sco_enc_thread(struct ba_transport_thread *th) {
-	switch (ba_transport_get_codec(th->t)) {
+void *sco_enc_thread(struct ba_transport_pcm *pcm) {
+	switch (ba_transport_get_codec(pcm->t)) {
 	case HFP_CODEC_CVSD:
 	default:
-		return sco_cvsd_enc_thread(th);
+		return sco_cvsd_enc_thread(pcm);
 #if ENABLE_MSBC
 	case HFP_CODEC_MSBC:
-		return sco_msbc_enc_thread(th);
+		return sco_msbc_enc_thread(pcm);
 #endif
 	}
 }
 
 __attribute__ ((weak))
-void *sco_dec_thread(struct ba_transport_thread *th) {
-	switch (ba_transport_get_codec(th->t)) {
+void *sco_dec_thread(struct ba_transport_pcm *pcm) {
+	switch (ba_transport_get_codec(pcm->t)) {
 	case HFP_CODEC_CVSD:
 	default:
-		return sco_cvsd_dec_thread(th);
+		return sco_cvsd_dec_thread(pcm);
 #if ENABLE_MSBC
 	case HFP_CODEC_MSBC:
-		return sco_msbc_dec_thread(th);
+		return sco_msbc_dec_thread(pcm);
 #endif
 	}
 }
@@ -544,14 +545,14 @@ int sco_transport_start(struct ba_transport *t) {
 	int rv = 0;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
-		rv |= ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", true);
-		rv |= ba_transport_thread_create(&t->thread_dec, sco_dec_thread, "ba-sco-dec", false);
+		rv |= ba_transport_pcm_start(&t->sco.pcm_spk, sco_enc_thread, "ba-sco-enc", true);
+		rv |= ba_transport_pcm_start(&t->sco.pcm_mic, sco_dec_thread, "ba-sco-dec", false);
 		return rv;
 	}
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_HF) {
-		rv |= ba_transport_thread_create(&t->thread_dec, sco_dec_thread, "ba-sco-dec", true);
-		rv |= ba_transport_thread_create(&t->thread_enc, sco_enc_thread, "ba-sco-enc", false);
+		rv |= ba_transport_pcm_start(&t->sco.pcm_spk, sco_dec_thread, "ba-sco-dec", true);
+		rv |= ba_transport_pcm_start(&t->sco.pcm_mic, sco_enc_thread, "ba-sco-enc", false);
 		return rv;
 	}
 

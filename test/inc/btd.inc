@@ -232,12 +232,13 @@ static const char *transport_to_fname(struct ba_transport *t) {
 
 /**
  * Dump incoming BT data to a BT dump file. */
-void *bt_dump_io_thread(struct ba_transport_thread *th) {
+void *bt_dump_io_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 	ffb_t bt = { 0 };
 
@@ -261,7 +262,7 @@ void *bt_dump_io_thread(struct ba_transport_thread *th) {
 		goto fail_ffb;
 	}
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&bt);
@@ -277,7 +278,7 @@ void *bt_dump_io_thread(struct ba_transport_thread *th) {
 	}
 
 fail:
-	debug_transport_thread_loop(th, "EXIT");
+	debug_transport_pcm_thread_loop(t_pcm, "EXIT");
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);

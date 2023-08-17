@@ -25,6 +25,7 @@
 #include "a2dp-aac.h"
 #include "a2dp-sbc.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "codec-sbc.h"
 #include "shared/a2dp-codecs.h"
@@ -38,16 +39,16 @@ bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) { (void)pcm;
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
 int ba_transport_thread_bt_release(struct ba_transport_thread *th) { (void)th; return -1; }
-int ba_transport_thread_create(struct ba_transport_thread *th,
-		void *(*routine)(struct ba_transport_thread *), const char *name, bool master) {
-	(void)th; (void)routine; (void)name; (void)master; return -1; }
+int ba_transport_pcm_start(struct ba_transport_pcm *pcm,
+		ba_transport_pcm_thread_func th_func, const char *name, bool master) {
+	(void)pcm; (void)th_func; (void)name; (void)master; return -1; }
 int ba_transport_thread_state_set(struct ba_transport_thread *th,
 		enum ba_transport_thread_state state) {
 	(void)th; (void)state; return -1; }
 int ba_transport_thread_signal_recv(struct ba_transport_thread *th,
 		enum ba_transport_thread_signal *signal) {
 	(void)th; (void)signal; return -1; }
-void ba_transport_thread_cleanup(struct ba_transport_thread *th) { (void)th; }
+void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; }
 
 CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {
 	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);

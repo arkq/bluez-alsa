@@ -19,6 +19,7 @@
 #include <sys/types.h>
 
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "shared/rt.h"
 
 /**

@@ -27,6 +27,7 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
@@ -428,7 +429,7 @@ static int rfcomm_handler_nrec_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
+	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
 	const int fd = r->fd;
 
 	/* skip update in case of software volume */
@@ -454,7 +455,7 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
+	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
 
 	r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_range_to_level(r->gain_mic, HFP_VOLUME_GAIN_MAX);
@@ -473,7 +474,7 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
+	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
 	const int fd = r->fd;
 
 	/* skip update in case of software volume */
@@ -499,7 +500,7 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
+	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
 
 	r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_range_to_level(r->gain_spk, HFP_VOLUME_GAIN_MAX);
@@ -684,7 +685,7 @@ static int rfcomm_handler_android_set_xhsmicmute(struct ba_rfcomm *r, char *valu
 		return errno = EINVAL, -1;
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
+	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
 	const bool muted = value[0] == '0' ? false : true;
 	const int fd = r->fd;
 
@@ -1075,7 +1076,7 @@ static int rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.mic_pcm;
+	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
 	const int fd = r->fd;
 	char tmp[24];
 
@@ -1107,7 +1108,7 @@ static int rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
 static int rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.spk_pcm;
+	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
 	const int fd = r->fd;
 	char tmp[24];
 
@@ -1176,7 +1177,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(rfcomm_thread_cleanup), r);
 
 	sigset_t sigset;
-	/* See the ba_transport_thread_create() function for information
+	/* See the ba_transport_pcm_start() function for information
 	 * why we have to mask all signals. */
 	sigfillset(&sigset);
 	pthread_sigmask(SIG_SETMASK, &sigset, NULL);
@@ -1287,9 +1288,9 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					/* If codec was selected during the SLC establishment,
 					 * notify BlueALSA D-Bus clients about the change. */
 					if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
-						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
+						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_spk,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
+						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_mic,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 					}
 				}
@@ -1312,9 +1313,9 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					/* If codec was selected during the SLC establishment,
 					 * notify BlueALSA D-Bus clients about the change. */
 					if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
-						bluealsa_dbus_pcm_update(&t_sco->sco.spk_pcm,
+						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_spk,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
-						bluealsa_dbus_pcm_update(&t_sco->sco.mic_pcm,
+						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_mic,
 								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
 					}
 				}
@@ -1629,9 +1630,9 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 
 	/* Initialize data used for volume gain synchronization. */
 	r->gain_mic = ba_transport_pcm_volume_level_to_range(
-			sco->sco.mic_pcm.volume[0].level, HFP_VOLUME_GAIN_MAX);
+			sco->sco.pcm_mic.volume[0].level, HFP_VOLUME_GAIN_MAX);
 	r->gain_spk = ba_transport_pcm_volume_level_to_range(
-			sco->sco.spk_pcm.volume[0].level, HFP_VOLUME_GAIN_MAX);
+			sco->sco.pcm_spk.volume[0].level, HFP_VOLUME_GAIN_MAX);
 
 	if (pipe(r->sig_fd) == -1)
 		goto fail;

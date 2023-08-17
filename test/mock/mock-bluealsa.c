@@ -43,6 +43,7 @@
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluez.h"
 #include "codec-sbc.h"
@@ -111,12 +112,12 @@ int ofono_call_volume_update(struct ba_transport *transport) {
 	return 0;
 }
 
-static void *mock_dec(struct ba_transport_thread *th) {
+static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport_thread *th = t_pcm->th;
 
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int samplerate = t_pcm->sampling;
@@ -125,7 +126,7 @@ static void *mock_dec(struct ba_transport_thread *th) {
 	int16_t buffer[1024 * 2];
 	int x = 0;
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		int timeout = 0;
@@ -172,13 +173,13 @@ static void *mock_dec(struct ba_transport_thread *th) {
 	return NULL;
 }
 
-void *a2dp_sbc_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
-void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
-void *a2dp_aac_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
-void *a2dp_aptx_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
-void *a2dp_aptx_hd_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
-void *a2dp_faststream_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
-void *sco_dec_thread(struct ba_transport_thread *th) { return mock_dec(th); }
+void *a2dp_sbc_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void *a2dp_faststream_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void *sco_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 
 static void *mock_bt_dump_thread(void *userdata) {
 

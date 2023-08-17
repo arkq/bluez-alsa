@@ -31,6 +31,7 @@ bluealsa_SOURCES = \
 	ba-device.c \
 	ba-rfcomm.c \
 	ba-transport.c \
+	ba-transport-pcm.c \
 	bluealsa-config.c \
 	bluealsa-dbus.c \
 	bluealsa-iface.xml \

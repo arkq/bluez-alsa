@@ -30,6 +30,7 @@
 
 #include "a2dp.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "io.h"
 #include "rtp.h"
@@ -187,13 +188,13 @@ void a2dp_mpeg_transport_init(struct ba_transport *t) {
 }
 
 #if ENABLE_MP3LAME
-void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
+void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 
 	lame_t handle;
@@ -304,7 +305,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 	/* RTP clock frequency equal to 90kHz */
 	rtp_state_init(&rtp, samplerate, 90000);
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t samples = ffb_len_in(&pcm);
@@ -394,7 +395,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_thread *th) {
 	}
 
 fail:
-	debug_transport_thread_loop(th, "EXIT");
+	debug_transport_pcm_thread_loop(t_pcm, "EXIT");
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -408,13 +409,13 @@ fail_init:
 
 #if ENABLE_MP3LAME || ENABLE_MPG123
 __attribute__ ((weak))
-void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
+void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_thread_cleanup), th);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = th->t;
-	struct ba_transport_pcm *t_pcm = th->pcm;
+	struct ba_transport *t = t_pcm->t;
+	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 
 #if ENABLE_MPG123
@@ -488,7 +489,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_thread *th) {
 	/* RTP clock frequency equal to 90kHz */
 	rtp_state_init(&rtp, samplerate, 90000);
 
-	debug_transport_thread_loop(th, "START");
+	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&bt);
@@ -587,7 +588,7 @@ decode:
 	}
 
 fail:
-	debug_transport_thread_loop(th, "EXIT");
+	debug_transport_pcm_thread_loop(t_pcm, "EXIT");
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
@@ -606,16 +607,16 @@ int a2dp_mpeg_transport_start(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 #if ENABLE_MP3LAME
 		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
-			return ba_transport_thread_create(&t->thread_enc, a2dp_mp3_enc_thread, "ba-a2dp-mp3", true);
+			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mp3_enc_thread, "ba-a2dp-mp3", true);
 #endif
 	}
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 #if ENABLE_MPG123
-		return ba_transport_thread_create(&t->thread_dec, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg", true);
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg", true);
 #elif ENABLE_MP3LAME
 		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
-			return ba_transport_thread_create(&t->thread_dec, a2dp_mpeg_dec_thread, "ba-a2dp-mp3", true);
+			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mp3", true);
 #endif
 	}
 

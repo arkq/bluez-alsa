@@ -91,6 +91,7 @@ test_ba_SOURCES = \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
+	../src/ba-transport-pcm.c \
 	../src/bluealsa-config.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
@@ -111,6 +112,7 @@ test_io_SOURCES = \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
+	../src/ba-transport-pcm.c \
 	../src/bluealsa-config.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
@@ -140,6 +142,7 @@ test_rfcomm_SOURCES = \
 	../src/ba-device.c \
 	../src/ba-rfcomm.c \
 	../src/ba-transport.c \
+	../src/ba-transport-pcm.c \
 	../src/bluealsa-config.c \
 	../src/dbus.c \
 	../src/hci.c \

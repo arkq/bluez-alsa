@@ -9,20 +9,20 @@
  */
 
 #include "ba-transport.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
-#include <math.h>
 #include <poll.h>
-#include <sched.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <sys/time.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -55,146 +55,21 @@
 # include "a2dp-mpeg.h"
 #endif
 #include "a2dp-sbc.h"
-#include "audio.h"
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "bluez.h"
-#include "dbus.h"
 #include "hci.h"
 #include "hfp.h"
-#include "io.h"
-#if ENABLE_OFONO
-# include "ofono.h"
-#endif
 #include "sco.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
-
-static const char *transport_get_dbus_path_type(
-		enum ba_transport_profile profile) {
-	switch (profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		return "a2dpsrc";
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		return "a2dpsnk";
-	case BA_TRANSPORT_PROFILE_HFP_HF:
-		return "hfphf";
-	case BA_TRANSPORT_PROFILE_HFP_AG:
-		return "hfpag";
-	case BA_TRANSPORT_PROFILE_HSP_HS:
-		return "hsphs";
-	case BA_TRANSPORT_PROFILE_HSP_AG:
-		return "hspag";
-	default:
-		return NULL;
-	}
-}
-
-static int transport_pcm_init(
-		struct ba_transport_pcm *pcm,
-		struct ba_transport_thread *th,
-		enum ba_transport_pcm_mode mode) {
-
-	struct ba_transport *t = th->t;
-
-	pcm->t = t;
-	pcm->mode = mode;
-	pcm->fd = -1;
-	pcm->active = true;
-
-	/* link PCM and transport thread */
-	pcm->th = th;
-	th->pcm = pcm;
-
-	pcm->volume[0].level = config.volume_init_level;
-	pcm->volume[1].level = config.volume_init_level;
-	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL, NULL);
-	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
-
-	pthread_mutex_init(&pcm->mutex, NULL);
-	pthread_mutex_init(&pcm->delay_adjustments_mtx, NULL);
-	pthread_mutex_init(&pcm->client_mtx, NULL);
-	pthread_cond_init(&pcm->cond, NULL);
-
-	pcm->delay_adjustments = g_hash_table_new(NULL, NULL);
-
-	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
-			t->d->ba_dbus_path, transport_get_dbus_path_type(t->profile),
-			mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
-
-	return 0;
-}
-
-static void transport_pcm_free(
-		struct ba_transport_pcm *pcm) {
-
-	pthread_mutex_lock(&pcm->mutex);
-	ba_transport_pcm_release(pcm);
-	pthread_mutex_unlock(&pcm->mutex);
-
-	pthread_mutex_destroy(&pcm->mutex);
-	pthread_mutex_destroy(&pcm->delay_adjustments_mtx);
-	pthread_mutex_destroy(&pcm->client_mtx);
-	pthread_cond_destroy(&pcm->cond);
-
-	g_hash_table_unref(pcm->delay_adjustments);
-
-	if (pcm->ba_dbus_path != NULL)
-		g_free(pcm->ba_dbus_path);
-
-}
-
-/**
- * Convert PCM volume level to [0, max] range. */
-int ba_transport_pcm_volume_level_to_range(int value, int max) {
-	int volume = audio_decibel_to_loudness(value / 100.0) * max;
-	return MIN(MAX(volume, 0), max);
-}
-
-/**
- * Convert [0, max] range to PCM volume level. */
-int ba_transport_pcm_volume_range_to_level(int value, int max) {
-	double level = audio_loudness_to_decibel(1.0 * value / max);
-	return MIN(MAX(level, -96.0), 96.0) * 100;
-}
-
-/**
- * Set PCM volume level/mute.
- *
- * One shall use this function instead of directly writing to PCM volume
- * structure fields.
- *
- * @param level If not NULL, new PCM volume level in "dB * 100".
- * @param soft_mute If not NULL, change software mute state.
- * @param hard_mute If not NULL, change hardware mute state. */
-void ba_transport_pcm_volume_set(
-		struct ba_transport_pcm_volume *volume,
-		const int *level,
-		const bool *soft_mute,
-		const bool *hard_mute) {
-
-	if (level != NULL)
-		volume->level = *level;
-	/* Allow software mute state modifications only if hardware mute
-	 * was not enabled or we are updating software and hardware mute
-	 * at the same time. */
-	if (soft_mute != NULL &&
-			(!volume->hard_mute || hard_mute != NULL))
-		volume->soft_mute = *soft_mute;
-	if (hard_mute != NULL)
-		volume->hard_mute = *hard_mute;
-
-	/* calculate PCM scale factor */
-	const bool muted = volume->soft_mute || volume->hard_mute;
-	volume->scale = muted ? 0 : pow(10, (0.01 * volume->level) / 20);
-
-}
 
 static int ba_transport_pcms_full_lock(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
@@ -208,11 +83,11 @@ static int ba_transport_pcms_full_lock(struct ba_transport *t) {
 	}
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		/* lock client mutexes first to avoid deadlock */
-		pthread_mutex_lock(&t->sco.spk_pcm.client_mtx);
-		pthread_mutex_lock(&t->sco.mic_pcm.client_mtx);
+		pthread_mutex_lock(&t->sco.pcm_spk.client_mtx);
+		pthread_mutex_lock(&t->sco.pcm_mic.client_mtx);
 		/* lock PCM data mutexes */
-		pthread_mutex_lock(&t->sco.spk_pcm.mutex);
-		pthread_mutex_lock(&t->sco.mic_pcm.mutex);
+		pthread_mutex_lock(&t->sco.pcm_spk.mutex);
+		pthread_mutex_lock(&t->sco.pcm_mic.mutex);
 		return 0;
 	}
 	errno = EINVAL;
@@ -228,10 +103,10 @@ static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
 		return 0;
 	}
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		pthread_mutex_unlock(&t->sco.spk_pcm.mutex);
-		pthread_mutex_unlock(&t->sco.mic_pcm.mutex);
-		pthread_mutex_unlock(&t->sco.spk_pcm.client_mtx);
-		pthread_mutex_unlock(&t->sco.mic_pcm.client_mtx);
+		pthread_mutex_unlock(&t->sco.pcm_spk.mutex);
+		pthread_mutex_unlock(&t->sco.pcm_mic.mutex);
+		pthread_mutex_unlock(&t->sco.pcm_spk.client_mtx);
+		pthread_mutex_unlock(&t->sco.pcm_mic.client_mtx);
 		return 0;
 	}
 	errno = EINVAL;
@@ -558,7 +433,7 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 			 * are not transferring audio (not sending nor receiving), because
 			 * it will free Bluetooth bandwidth - headset will send microphone
 			 * signal even though we are not reading it! */
-			if (t->sco.spk_pcm.fd == -1 && t->sco.mic_pcm.fd == -1)
+			if (t->sco.pcm_spk.fd == -1 && t->sco.pcm_mic.fd == -1)
 				t->stopping = stop = true;
 		}
 	}
@@ -954,11 +829,11 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->profile = profile;
 
-	transport_pcm_init(&t->sco.spk_pcm,
+	transport_pcm_init(&t->sco.pcm_spk,
 			is_ag ? &t->thread_enc : &t->thread_dec,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE);
 
-	transport_pcm_init(&t->sco.mic_pcm,
+	transport_pcm_init(&t->sco.pcm_mic,
 			is_ag ? &t->thread_dec : &t->thread_enc,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK);
 
@@ -982,11 +857,11 @@ struct ba_transport *ba_transport_new_sco(
 
 	ba_transport_set_codec(t, codec_id);
 
-	storage_pcm_data_sync(&t->sco.spk_pcm);
-	storage_pcm_data_sync(&t->sco.mic_pcm);
+	storage_pcm_data_sync(&t->sco.pcm_spk);
+	storage_pcm_data_sync(&t->sco.pcm_mic);
 
-	bluealsa_dbus_pcm_register(&t->sco.spk_pcm);
-	bluealsa_dbus_pcm_register(&t->sco.mic_pcm);
+	bluealsa_dbus_pcm_register(&t->sco.pcm_spk);
+	bluealsa_dbus_pcm_register(&t->sco.pcm_mic);
 
 	if (rfcomm_fd != -1) {
 		if ((t->sco.rfcomm = ba_rfcomm_new(t, rfcomm_fd)) == NULL)
@@ -997,8 +872,8 @@ struct ba_transport *ba_transport_new_sco(
 
 fail:
 	err = errno;
-	bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
-	bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
+	bluealsa_dbus_pcm_unregister(&t->sco.pcm_spk);
+	bluealsa_dbus_pcm_unregister(&t->sco.pcm_mic);
 	ba_transport_unref(t);
 	errno = err;
 	return NULL;
@@ -1148,8 +1023,8 @@ void ba_transport_destroy(struct ba_transport *t) {
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		bluealsa_dbus_pcm_unregister(&t->sco.spk_pcm);
-		bluealsa_dbus_pcm_unregister(&t->sco.mic_pcm);
+		bluealsa_dbus_pcm_unregister(&t->sco.pcm_spk);
+		bluealsa_dbus_pcm_unregister(&t->sco.pcm_mic);
 		if (t->sco.rfcomm != NULL)
 			ba_rfcomm_destroy(t->sco.rfcomm);
 		t->sco.rfcomm = NULL;
@@ -1166,8 +1041,8 @@ void ba_transport_destroy(struct ba_transport *t) {
 		ba_transport_pcm_release(&t->a2dp.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		ba_transport_pcm_release(&t->sco.spk_pcm);
-		ba_transport_pcm_release(&t->sco.mic_pcm);
+		ba_transport_pcm_release(&t->sco.pcm_spk);
+		ba_transport_pcm_release(&t->sco.pcm_mic);
 	}
 
 	/* make sure that transport is released */
@@ -1197,8 +1072,8 @@ void ba_transport_unref(struct ba_transport *t) {
 		storage_pcm_data_update(&t->a2dp.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		storage_pcm_data_update(&t->sco.spk_pcm);
-		storage_pcm_data_update(&t->sco.mic_pcm);
+		storage_pcm_data_update(&t->sco.pcm_spk);
+		storage_pcm_data_update(&t->sco.pcm_mic);
 	}
 
 	debug("Freeing transport: %s", ba_transport_debug_name(t));
@@ -1216,8 +1091,8 @@ void ba_transport_unref(struct ba_transport *t) {
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
 			ba_rfcomm_destroy(t->sco.rfcomm);
-		transport_pcm_free(&t->sco.spk_pcm);
-		transport_pcm_free(&t->sco.mic_pcm);
+		transport_pcm_free(&t->sco.pcm_spk);
+		transport_pcm_free(&t->sco.pcm_mic);
 #if ENABLE_OFONO
 		free(t->sco.ofono_dbus_path_card);
 		free(t->sco.ofono_dbus_path_modem);
@@ -1261,15 +1136,6 @@ void ba_transport_unref(struct ba_transport *t) {
 	free(t->bluez_dbus_owner);
 	free(t->bluez_dbus_path);
 	free(t);
-}
-
-struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm) {
-	ba_transport_ref(pcm->t);
-	return pcm;
-}
-
-void ba_transport_pcm_unref(struct ba_transport_pcm *pcm) {
-	ba_transport_unref(pcm->t);
 }
 
 int ba_transport_select_codec_a2dp(
@@ -1353,8 +1219,8 @@ int ba_transport_select_codec_sco(
 
 		ba_transport_pcms_full_lock(t);
 		/* release ongoing PCM connections */
-		ba_transport_pcm_release(&t->sco.spk_pcm);
-		ba_transport_pcm_release(&t->sco.mic_pcm);
+		ba_transport_pcm_release(&t->sco.pcm_spk);
+		ba_transport_pcm_release(&t->sco.pcm_mic);
 		ba_transport_pcms_full_unlock(t);
 
 		r->codec_selection_done = false;
@@ -1435,25 +1301,25 @@ static void ba_transport_set_codec_sco(
 		struct ba_transport *t,
 		uint16_t codec_id) {
 
-	t->sco.spk_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->sco.spk_pcm.channels = 1;
+	t->sco.pcm_spk.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->sco.pcm_spk.channels = 1;
 
-	t->sco.mic_pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->sco.mic_pcm.channels = 1;
+	t->sco.pcm_mic.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->sco.pcm_mic.channels = 1;
 
 	switch (codec_id) {
 	case HFP_CODEC_UNDEFINED:
-		t->sco.spk_pcm.sampling = 0;
-		t->sco.mic_pcm.sampling = 0;
+		t->sco.pcm_spk.sampling = 0;
+		t->sco.pcm_mic.sampling = 0;
 		break;
 	case HFP_CODEC_CVSD:
-		t->sco.spk_pcm.sampling = 8000;
-		t->sco.mic_pcm.sampling = 8000;
+		t->sco.pcm_spk.sampling = 8000;
+		t->sco.pcm_mic.sampling = 8000;
 		break;
 #if ENABLE_MSBC
 	case HFP_CODEC_MSBC:
-		t->sco.spk_pcm.sampling = 16000;
-		t->sco.mic_pcm.sampling = 16000;
+		t->sco.pcm_spk.sampling = 16000;
+		t->sco.pcm_mic.sampling = 16000;
 		break;
 #endif
 	default:
@@ -1461,14 +1327,14 @@ static void ba_transport_set_codec_sco(
 		g_assert_not_reached();
 	}
 
-	if (t->sco.spk_pcm.ba_dbus_exported)
-		bluealsa_dbus_pcm_update(&t->sco.spk_pcm,
+	if (t->sco.pcm_spk.ba_dbus_exported)
+		bluealsa_dbus_pcm_update(&t->sco.pcm_spk,
 				BA_DBUS_PCM_UPDATE_SAMPLING |
 				BA_DBUS_PCM_UPDATE_CODEC |
 				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
 
-	if (t->sco.mic_pcm.ba_dbus_exported)
-		bluealsa_dbus_pcm_update(&t->sco.mic_pcm,
+	if (t->sco.pcm_mic.ba_dbus_exported)
+		bluealsa_dbus_pcm_update(&t->sco.pcm_mic,
 				BA_DBUS_PCM_UPDATE_SAMPLING |
 				BA_DBUS_PCM_UPDATE_CODEC |
 				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
@@ -1525,12 +1391,8 @@ int ba_transport_start(struct ba_transport *t) {
 	if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		pthread_mutex_lock(&t->acquisition_mtx);
 
-	pthread_mutex_lock(&t->thread_enc.mutex);
-	bool is_enc_idle = t->thread_enc.state == BA_TRANSPORT_THREAD_STATE_IDLE;
-	pthread_mutex_unlock(&t->thread_enc.mutex);
-	pthread_mutex_lock(&t->thread_dec.mutex);
-	bool is_dec_idle = t->thread_dec.state == BA_TRANSPORT_THREAD_STATE_IDLE;
-	pthread_mutex_unlock(&t->thread_dec.mutex);
+	bool is_enc_idle = ba_transport_thread_state_check_idle(&t->thread_enc);
+	bool is_dec_idle = ba_transport_thread_state_check_idle(&t->thread_dec);
 
 	if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		pthread_mutex_unlock(&t->acquisition_mtx);
@@ -1582,8 +1444,33 @@ int ba_transport_start(struct ba_transport *t) {
 }
 
 /**
+ * Stop transport IO threads.
+ *
+ * This function waits for transport IO threads termination. It is not safe
+ * to call it from IO thread itself - it will cause deadlock! */
+int ba_transport_stop(struct ba_transport *t) {
+
+	if (ba_transport_thread_state_check_terminated(&t->thread_enc) &&
+			ba_transport_thread_state_check_terminated(&t->thread_dec))
+		return 0;
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	int rv;
+	if ((rv = ba_transport_stop_async(t)) == -1)
+		goto fail;
+
+	while (t->stopping)
+		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
+
+fail:
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+	return rv;
+}
+
+/**
  * Schedule transport IO threads cancellation. */
-static int ba_transport_stop_async(struct ba_transport *t) {
+int ba_transport_stop_async(struct ba_transport *t) {
 
 #if DEBUG
 	/* Assert that we were called with the lock held, so we
@@ -1612,31 +1499,6 @@ static int ba_transport_stop_async(struct ba_transport *t) {
 		return -1;
 
 	return 0;
-}
-
-/**
- * Stop transport IO threads.
- *
- * This function waits for transport IO threads termination. It is not safe
- * to call it from IO thread itself - it will cause deadlock! */
-int ba_transport_stop(struct ba_transport *t) {
-
-	if (ba_transport_thread_state_check_terminated(&t->thread_enc) &&
-			ba_transport_thread_state_check_terminated(&t->thread_dec))
-		return 0;
-
-	pthread_mutex_lock(&t->bt_fd_mtx);
-
-	int rv;
-	if ((rv = ba_transport_stop_async(t)) == -1)
-		goto fail;
-
-	while (t->stopping)
-		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
-
-fail:
-	pthread_mutex_unlock(&t->bt_fd_mtx);
-	return rv;
 }
 
 /**
@@ -1735,306 +1597,4 @@ int ba_transport_set_a2dp_state(
 	default:
 		return ba_transport_stop(t);
 	}
-}
-
-bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) {
-	pthread_mutex_lock(MUTABLE(&pcm->mutex));
-	bool active = pcm->fd != -1 && pcm->active;
-	pthread_mutex_unlock(MUTABLE(&pcm->mutex));
-	return active;
-}
-
-int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
-
-	const struct ba_transport *t = pcm->t;
-	int delay = pcm->delay + ba_transport_pcm_delay_adjustment_get(pcm);
-
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		delay += t->a2dp.delay;
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		delay += 10;
-
-	return delay;
-}
-
-int16_t ba_transport_pcm_delay_adjustment_get(
-		const struct ba_transport_pcm *pcm) {
-
-	struct ba_transport *t = pcm->t;
-	uint16_t codec_id = ba_transport_get_codec(t);
-	int16_t adjustment = 0;
-
-	pthread_mutex_lock(MUTABLE(&pcm->delay_adjustments_mtx));
-	void *val = g_hash_table_lookup(pcm->delay_adjustments, GINT_TO_POINTER(codec_id));
-	pthread_mutex_unlock(MUTABLE(&pcm->delay_adjustments_mtx));
-
-	if (val != NULL)
-		adjustment = GPOINTER_TO_INT(val);
-
-	return adjustment;
-}
-
-void ba_transport_pcm_delay_adjustment_set(
-		struct ba_transport_pcm *pcm,
-		uint16_t codec_id,
-		int16_t adjustment) {
-	pthread_mutex_lock(&pcm->delay_adjustments_mtx);
-	g_hash_table_insert(pcm->delay_adjustments,
-			GINT_TO_POINTER(codec_id), GINT_TO_POINTER(adjustment));
-	pthread_mutex_unlock(&pcm->delay_adjustments_mtx);
-}
-
-int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
-
-	struct ba_transport *t = pcm->t;
-
-	/* In case of A2DP Source or HSP/HFP Audio Gateway skip notifying Bluetooth
-	 * device if we are using software volume control. This will prevent volume
-	 * double scaling - firstly by us and then by Bluetooth headset/speaker. */
-	if (pcm->soft_volume && t->profile & (
-				BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_MASK_AG))
-		goto final;
-
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-
-		/* A2DP specification defines volume property as a single value - volume
-		 * for only one channel. For stereo audio we will use an average of left
-		 * and right PCM channels. */
-
-		unsigned int volume;
-		switch (pcm->channels) {
-		case 1:
-			volume = ba_transport_pcm_volume_level_to_range(
-					pcm->volume[0].level, BLUEZ_A2DP_VOLUME_MAX);
-			break;
-		case 2:
-			volume = ba_transport_pcm_volume_level_to_range(
-					(pcm->volume[0].level + pcm->volume[1].level) / 2,
-					BLUEZ_A2DP_VOLUME_MAX);
-			break;
-		default:
-			g_assert_not_reached();
-		}
-
-		/* skip update if nothing has changed */
-		if (volume != t->a2dp.volume) {
-
-			GError *err = NULL;
-			t->a2dp.volume = volume;
-			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
-					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
-
-			if (err != NULL) {
-				warn("Couldn't set BT device volume: %s", err->message);
-				g_error_free(err);
-			}
-
-		}
-
-	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-
-		if (t->sco.rfcomm != NULL)
-			/* notify associated RFCOMM transport */
-			ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_VOLUME);
-#if ENABLE_OFONO
-		else
-			ofono_call_volume_update(t);
-#endif
-
-	}
-
-final:
-	/* notify connected clients (including requester) */
-	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
-	return 0;
-}
-
-int ba_transport_pcm_pause(struct ba_transport_pcm *pcm) {
-
-	pthread_mutex_lock(&pcm->mutex);
-	debug("PCM pause: %d", pcm->fd);
-	pcm->active = false;
-	pthread_mutex_unlock(&pcm->mutex);
-
-	return ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_PAUSE);
-}
-
-int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
-
-	pthread_mutex_lock(&pcm->mutex);
-	debug("PCM resume: %d", pcm->fd);
-	pcm->active = true;
-	pthread_mutex_unlock(&pcm->mutex);
-
-	return ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME);
-}
-
-int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
-
-	pthread_mutex_lock(&pcm->mutex);
-
-	if (!ba_transport_thread_state_check_running(pcm->th)) {
-		pthread_mutex_unlock(&pcm->mutex);
-		return errno = ESRCH, -1;
-	}
-
-	debug("PCM drain: %d", pcm->fd);
-
-	pcm->synced = false;
-	ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC);
-
-	while (!pcm->synced)
-		pthread_cond_wait(&pcm->cond, &pcm->mutex);
-
-	pthread_mutex_unlock(&pcm->mutex);
-
-	/* TODO: Asynchronous transport release.
-	 *
-	 * Unfortunately, BlueZ does not provide API for internal buffer drain.
-	 * Also, there is no specification for Bluetooth playback drain. In order
-	 * to make sure, that all samples are played out, we have to wait some
-	 * arbitrary time before releasing transport. In order to make it right,
-	 * there is a requirement for an asynchronous release mechanism, which
-	 * is not implemented - it requires a little bit of refactoring. */
-	usleep(200000);
-
-	debug("PCM drained");
-	return 0;
-}
-
-int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
-
-#if DEBUG
-	pthread_mutex_lock(&pcm->mutex);
-	debug("PCM drop: %d", pcm->fd);
-	pthread_mutex_unlock(&pcm->mutex);
-#endif
-
-	if (io_pcm_flush(pcm) == -1)
-		return -1;
-
-	int rv = ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP);
-	if (rv == -1 && errno == ESRCH)
-		rv = 0;
-
-	return rv;
-}
-
-int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
-
-#if DEBUG
-	if (pcm->t->profile != BA_TRANSPORT_PROFILE_NONE)
-		/* assert that we were called with the lock held */
-		g_assert_cmpint(pthread_mutex_trylock(&pcm->mutex), !=, 0);
-#endif
-
-	if (pcm->fd == -1)
-		goto final;
-
-	debug("Closing PCM: %d", pcm->fd);
-	close(pcm->fd);
-	pcm->fd = -1;
-
-final:
-	return 0;
-}
-
-/**
- * Create transport thread. */
-int ba_transport_thread_create(
-		struct ba_transport_thread *th,
-		ba_transport_thread_func th_func,
-		const char *name,
-		bool master) {
-
-	struct ba_transport *t = th->t;
-	sigset_t sigset, oldset;
-	int ret = -1;
-
-	pthread_mutex_lock(&th->mutex);
-
-	th->master = master;
-	th->state = BA_TRANSPORT_THREAD_STATE_STARTING;
-
-	/* Please note, this call here does not guarantee that the BT socket
-	 * will be acquired, because transport might not be opened yet. */
-	if (ba_transport_thread_bt_acquire(th) == -1) {
-		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
-		goto fail;
-	}
-
-	ba_transport_ref(t);
-
-	/* Before creating a new thread, we have to block all signals (new thread
-	 * will inherit signal mask). This is required, because we are using thread
-	 * cancellation for stopping transport thread, and it seems that the
-	 * cancellation can deadlock if some signal handler, which uses POSIX API
-	 * which is a cancellation point, is called during the initial phase of the
-	 * thread cancellation. On top of that BlueALSA uses g_unix_signal_add()
-	 * for handling signals, which internally uses signal handler function which
-	 * calls write() for notifying the main loop about the signal. All that can
-	 * lead to deadlock during SIGTERM handling. */
-	sigfillset(&sigset);
-	if ((ret = pthread_sigmask(SIG_SETMASK, &sigset, &oldset)) != 0)
-		warn("Couldn't set signal mask: %s", strerror(ret));
-
-	if ((ret = pthread_create(&th->id, NULL, PTHREAD_FUNC(th_func), th)) != 0) {
-		error("Couldn't create IO thread: %s", strerror(ret));
-		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
-		pthread_sigmask(SIG_SETMASK, &oldset, NULL);
-		ba_transport_unref(t);
-		goto fail;
-	}
-
-	if (config.io_thread_rt_priority != 0) {
-		struct sched_param param = { .sched_priority = config.io_thread_rt_priority };
-		if ((ret = pthread_setschedparam(th->id, SCHED_FIFO, &param)) != 0)
-			warn("Couldn't set IO thread RT priority: %s", strerror(ret));
-		/* It's not a fatal error if we can't set thread priority. */
-		ret = 0;
-	}
-
-	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
-
-	pthread_setname_np(th->id, name);
-	debug("Created new IO thread [%s]: %s", name, ba_transport_debug_name(t));
-
-fail:
-	pthread_mutex_unlock(&th->mutex);
-	pthread_cond_broadcast(&th->cond);
-	return ret == 0 ? 0 : -1;
-}
-
-/**
- * Transport IO thread cleanup function for pthread cleanup. */
-void ba_transport_thread_cleanup(struct ba_transport_thread *th) {
-
-	struct ba_transport *t = th->t;
-
-	/* For proper functioning of the transport, all threads have to be
-	 * operational. Therefore, if one of the threads is being cancelled,
-	 * we have to cancel all other threads. */
-	pthread_mutex_lock(&t->bt_fd_mtx);
-	ba_transport_stop_async(t);
-	pthread_mutex_unlock(&t->bt_fd_mtx);
-
-	/* Release BT socket file descriptor duplicate created either in the
-	 * ba_transport_thread_create() function or in the IO thread itself. */
-	ba_transport_thread_bt_release(th);
-
-	/* If we are closing master thread, release underlying BT transport. */
-	if (th->master)
-		ba_transport_release(t);
-
-#if DEBUG
-	/* XXX: If the order of the cleanup push is right, this function will
-	 *      indicate the end of the transport IO thread. */
-	char name[32];
-	pthread_getname_np(th->id, name, sizeof(name));
-	debug("Exiting IO thread [%s]: %s", name, ba_transport_debug_name(t));
-#endif
-
-	/* Remove reference which was taken by the ba_transport_thread_create(). */
-	ba_transport_unref(t);
 }

@@ -30,6 +30,7 @@
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
@@ -316,7 +317,7 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ck_assert_rfcomm_recv(fd, "");
 
 	const int level = -1000;
-	struct ba_transport_pcm *pcm = &sco->sco.spk_pcm;
+	struct ba_transport_pcm *pcm = &sco->sco.pcm_spk;
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
 	pthread_mutex_unlock(&pcm->mutex);
