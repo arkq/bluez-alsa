@@ -82,6 +82,7 @@ duplications
 endian
 endianness
 enum
+getter
 init
 middleware
 mutex

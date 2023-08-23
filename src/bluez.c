@@ -9,7 +9,10 @@
  */
 
 #include "bluez.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <limits.h>
@@ -640,21 +643,6 @@ static GVariant *bluez_media_endpoint_iface_get_property(
 	return NULL;
 }
 
-static GVariant *bluez_media_endpoint_iface_get_properties(
-		void *userdata) {
-
-	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
-
-	const char * const names[] = {
-		"UUID", "Codec", "Capabilities", "DelayReporting" };
-	for (size_t i = 0; i < ARRAYSIZE(names); i++)
-		g_variant_builder_add(&props, "{sv}", names[i],
-				bluez_media_endpoint_iface_get_property(names[i], NULL, userdata));
-
-	return g_variant_builder_end(&props);
-}
-
 /**
  * Export A2DP endpoint. */
 static void bluez_export_a2dp(
@@ -675,7 +663,6 @@ static void bluez_export_a2dp(
 
 	static const GDBusInterfaceSkeletonVTable vtable = {
 		.dispatchers = dispatchers,
-		.get_properties = bluez_media_endpoint_iface_get_properties,
 		.get_property = bluez_media_endpoint_iface_get_property,
 	};
 
@@ -780,21 +767,6 @@ static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
 
 }
 
-static GVariant *bluez_battery_provider_iface_skeleton_get_properties(
-		void *userdata) {
-
-	const struct ba_device *d = userdata;
-
-	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
-
-	g_variant_builder_add(&props, "{sv}", "Device", ba_variant_new_device_path(d));
-	g_variant_builder_add(&props, "{sv}", "Percentage", ba_variant_new_device_battery(d));
-	g_variant_builder_add(&props, "{sv}", "Source", g_variant_new_string("BlueALSA"));
-
-	return g_variant_builder_end(&props);
-}
-
 static GVariant *bluez_battery_provider_iface_skeleton_get_property(
 		const char *property, GError **error, void *userdata) {
 	(void)error;
@@ -817,7 +789,6 @@ static GVariant *bluez_battery_provider_iface_skeleton_get_property(
 static bool bluez_manager_battery_add(struct ba_device *device) {
 
 	static const GDBusInterfaceSkeletonVTable vtable = {
-		.get_properties = bluez_battery_provider_iface_skeleton_get_properties,
 		.get_property = bluez_battery_provider_iface_skeleton_get_property,
 	};
 

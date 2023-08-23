@@ -98,7 +98,21 @@ GDBusInterfaceVTable *g_dbus_interface_skeleton_ex_class_get_vtable(
 GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
 		GDBusInterfaceSkeleton *interface_skeleton) {
 	GDBusInterfaceSkeletonEx *iface = (GDBusInterfaceSkeletonEx *)interface_skeleton;
-	return iface->vtable.get_properties(iface->userdata);
+
+	if (iface->vtable.get_properties != NULL)
+		/* use custom properties getter if provided */
+		return iface->vtable.get_properties(iface->userdata);
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+	GVariant *v;
+	GDBusPropertyInfo **pp = iface->interface_info->properties;
+	for (const GDBusPropertyInfo *p = *pp; *pp != NULL; p = *(++pp))
+		if ((v = iface->vtable.get_property(p->name, NULL, iface->userdata)) != NULL)
+			g_variant_builder_add(&props, "{sv}", p->name, v);
+
+	return g_variant_builder_end(&props);
 }
 
 /**

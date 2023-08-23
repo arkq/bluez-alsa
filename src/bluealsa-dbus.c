@@ -9,7 +9,10 @@
  */
 
 #include "bluealsa-dbus.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <fcntl.h>
@@ -281,30 +284,6 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
 }
 
-static void ba_variant_populate_pcm(GVariantBuilder *props, const struct ba_transport_pcm *pcm) {
-
-	GVariant *value;
-	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
-
-	g_variant_builder_add(props, "{sv}", "Device", ba_variant_new_device_path(pcm->t->d));
-	g_variant_builder_add(props, "{sv}", "Sequence", ba_variant_new_device_sequence(pcm->t->d));
-	g_variant_builder_add(props, "{sv}", "Transport", ba_variant_new_transport_type(pcm->t));
-	g_variant_builder_add(props, "{sv}", "Mode", ba_variant_new_pcm_mode(pcm));
-	g_variant_builder_add(props, "{sv}", "Running", ba_variant_new_pcm_running(pcm));
-	g_variant_builder_add(props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
-	g_variant_builder_add(props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
-	g_variant_builder_add(props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
-	if ((value = ba_variant_new_pcm_codec(pcm)) != NULL)
-		g_variant_builder_add(props, "{sv}", "Codec", value);
-	if ((value = ba_variant_new_pcm_codec_config(pcm)) != NULL)
-		g_variant_builder_add(props, "{sv}", "CodecConfiguration", value);
-	g_variant_builder_add(props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
-	g_variant_builder_add(props, "{sv}", "DelayAdjustment", ba_variant_new_pcm_delay_adjustment(pcm));
-	g_variant_builder_add(props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
-	g_variant_builder_add(props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
-
-}
-
 static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_sep *sep) {
 
 	const struct a2dp_codec *codec;
@@ -409,7 +388,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		void *userdata) {
 	(void)condition;
 
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport_pcm *pcm = userdata;
 	char command[32];
 	size_t len;
 
@@ -461,7 +440,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 
 static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport_pcm *pcm = userdata;
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
 	struct ba_transport_thread *th = pcm->th;
 	struct ba_transport *t = pcm->t;
@@ -566,7 +545,7 @@ fail:
 
 static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) {
 
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport_pcm *pcm = userdata;
 	const struct ba_transport *t = pcm->t;
 	const GArray *seps = t->d->seps;
 
@@ -647,7 +626,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata) {
 
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport_pcm *pcm = userdata;
 	struct ba_transport *t = pcm->t;
 	GVariantIter *properties;
 	GVariant *value = NULL;
@@ -773,8 +752,8 @@ final:
 
 static void bluealsa_pcm_set_delay_adjustment(GDBusMethodInvocation *inv, void *userdata) {
 
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
+	struct ba_transport_pcm *pcm = userdata;
 	const struct ba_transport *t = pcm->t;
 
 	const char *codec;
@@ -808,7 +787,7 @@ static void bluealsa_pcm_set_delay_adjustment(GDBusMethodInvocation *inv, void *
 
 static void bluealsa_pcm_get_delay_adjustments(GDBusMethodInvocation *inv, void *userdata) {
 
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport_pcm *pcm = userdata;
 	const struct ba_transport *t = pcm->t;
 
 	GVariantBuilder adjustments;
@@ -841,7 +820,7 @@ static void bluealsa_pcm_get_delay_adjustments(GDBusMethodInvocation *inv, void 
 
 static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 
-	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
+	struct ba_rfcomm *r = userdata;
 	int fds[2] = { -1, -1 };
 
 	if (r->handler_fd != -1) {
@@ -865,21 +844,10 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(fd_list);
 }
 
-static GVariant *bluealsa_pcm_get_properties(void *userdata) {
-
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
-
-	GVariantBuilder props;
-
-	ba_variant_populate_pcm(&props, pcm);
-
-	return g_variant_builder_end(&props);
-}
-
 static GVariant *bluealsa_pcm_get_property(const char *property,
 		GError **error, void *userdata) {
 
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport_pcm *pcm = userdata;
 	struct ba_device *d = pcm->t->d;
 	GVariant *value;
 
@@ -932,7 +900,7 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 		GError **error, void *userdata) {
 	(void)error;
 
-	struct ba_transport_pcm *pcm = (struct ba_transport_pcm *)userdata;
+	struct ba_transport_pcm *pcm = userdata;
 
 	if (strcmp(property, "SoftVolume") == 0) {
 		pcm->soft_volume = g_variant_get_boolean(value);
@@ -991,7 +959,6 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 
 	static const GDBusInterfaceSkeletonVTable vtable = {
 		.dispatchers = dispatchers,
-		.get_properties = bluealsa_pcm_get_properties,
 		.get_property = bluealsa_pcm_get_property,
 		.set_property = bluealsa_pcm_set_property,
 	};
@@ -1067,27 +1034,11 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 
 }
 
-static GVariant *bluealsa_rfcomm_get_properties(void *userdata) {
-
-	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
-	struct ba_transport *t = r->sco;
-	struct ba_device *d = t->d;
-
-	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
-
-	g_variant_builder_add(&props, "{sv}", "Transport", ba_variant_new_transport_type(t));
-	g_variant_builder_add(&props, "{sv}", "Features", ba_variant_new_rfcomm_features(r));
-	g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(d));
-
-	return g_variant_builder_end(&props);
-}
-
 static GVariant *bluealsa_rfcomm_get_property(const char *property,
 		GError **error, void *userdata) {
 	(void)error;
 
-	struct ba_rfcomm *r = (struct ba_rfcomm *)userdata;
+	struct ba_rfcomm *r = userdata;
 	struct ba_transport *t = r->sco;
 	struct ba_device *d = t->d;
 
@@ -1114,7 +1065,6 @@ int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
 
 	static const GDBusInterfaceSkeletonVTable vtable = {
 		.dispatchers = dispatchers,
-		.get_properties = bluealsa_rfcomm_get_properties,
 		.get_property = bluealsa_rfcomm_get_property,
 	};
 
