@@ -58,23 +58,8 @@ static void dbus_update_counters_wait(unsigned int *counter, unsigned int value)
 	pthread_mutex_unlock(&dbus_update_mtx);
 }
 
-void a2dp_aac_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_aac_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_aptx_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_aptx_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_aptx_hd_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_aptx_hd_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_faststream_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_lc3plus_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_lc3plus_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_ldac_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_ldac_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_mpeg_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
-int sco_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_transport_init(struct ba_transport *t) { (void)t; }
+int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
 int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
 int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
 int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }

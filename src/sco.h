@@ -20,6 +20,7 @@
 #include "ba-transport.h"
 
 int sco_setup_connection_dispatcher(struct ba_adapter *a);
+void sco_transport_init(struct ba_transport *t);
 int sco_transport_start(struct ba_transport *t);
 
 #endif

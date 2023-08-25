@@ -35,6 +35,7 @@
 #include "inc/check.inc"
 
 const char *ba_transport_debug_name(const struct ba_transport *t) { (void)t; return "x"; }
+uint16_t ba_transport_get_codec(const struct ba_transport *t) { (void)t; return 0; }
 bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) { (void)pcm; return false; }
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }

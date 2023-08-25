@@ -9,7 +9,10 @@
  */
 
 #include "sco.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <poll.h>
@@ -31,6 +34,7 @@
 #include "ba-device.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
+#include "bluealsa-dbus.h"
 #if ENABLE_MSBC
 # include "codec-msbc.h"
 #endif
@@ -538,6 +542,49 @@ void *sco_dec_thread(struct ba_transport_pcm *pcm) {
 		return sco_msbc_dec_thread(pcm);
 #endif
 	}
+}
+
+void sco_transport_init(struct ba_transport *t) {
+
+	t->sco.pcm_spk.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->sco.pcm_spk.channels = 1;
+
+	t->sco.pcm_mic.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->sco.pcm_mic.channels = 1;
+
+	uint16_t codec_id;
+	switch (codec_id = ba_transport_get_codec(t)) {
+	case HFP_CODEC_UNDEFINED:
+		t->sco.pcm_spk.sampling = 0;
+		t->sco.pcm_mic.sampling = 0;
+		break;
+	case HFP_CODEC_CVSD:
+		t->sco.pcm_spk.sampling = 8000;
+		t->sco.pcm_mic.sampling = 8000;
+		break;
+#if ENABLE_MSBC
+	case HFP_CODEC_MSBC:
+		t->sco.pcm_spk.sampling = 16000;
+		t->sco.pcm_mic.sampling = 16000;
+		break;
+#endif
+	default:
+		debug("Unsupported SCO codec: %#x", codec_id);
+		g_assert_not_reached();
+	}
+
+	if (t->sco.pcm_spk.ba_dbus_exported)
+		bluealsa_dbus_pcm_update(&t->sco.pcm_spk,
+				BA_DBUS_PCM_UPDATE_SAMPLING |
+				BA_DBUS_PCM_UPDATE_CODEC |
+				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
+
+	if (t->sco.pcm_mic.ba_dbus_exported)
+		bluealsa_dbus_pcm_update(&t->sco.pcm_mic,
+				BA_DBUS_PCM_UPDATE_SAMPLING |
+				BA_DBUS_PCM_UPDATE_CODEC |
+				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
+
 }
 
 int sco_transport_start(struct ba_transport *t) {

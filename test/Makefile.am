@@ -134,6 +134,7 @@ endif
 
 test_rfcomm_SOURCES = \
 	../src/shared/a2dp-codecs.c \
+	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
 	../src/at.c \
@@ -148,6 +149,7 @@ test_rfcomm_SOURCES = \
 	../src/hci.c \
 	../src/hfp.c \
 	../src/io.c \
+	../src/sco.c \
 	../src/utils.c \
 	test-rfcomm.c
 
@@ -210,6 +212,9 @@ endif
 if ENABLE_MSBC
 test_ba_SOURCES += ../src/codec-msbc.c
 test_io_SOURCES += ../src/codec-msbc.c
+test_rfcomm_SOURCES += \
+	../src/codec-msbc.c \
+	../src/codec-sbc.c
 endif
 
 AM_TESTS_ENVIRONMENT = \

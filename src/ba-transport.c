@@ -33,28 +33,6 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#if ENABLE_AAC
-# include "a2dp-aac.h"
-#endif
-#if ENABLE_APTX
-# include "a2dp-aptx.h"
-#endif
-#if ENABLE_APTX_HD
-# include "a2dp-aptx-hd.h"
-#endif
-#if ENABLE_FASTSTREAM
-# include "a2dp-faststream.h"
-#endif
-#if ENABLE_LC3PLUS
-# include "a2dp-lc3plus.h"
-#endif
-#if ENABLE_LDAC
-# include "a2dp-ldac.h"
-#endif
-#if ENABLE_MPEG
-# include "a2dp-mpeg.h"
-#endif
-#include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
 #include "ba-transport-pcm.h"
@@ -1249,98 +1227,6 @@ final:
 	return 0;
 }
 
-static void ba_transport_set_codec_a2dp(
-		struct ba_transport *t,
-		uint16_t codec_id) {
-	switch (codec_id) {
-	case A2DP_CODEC_SBC:
-		a2dp_sbc_transport_init(t);
-		break;
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12:
-		a2dp_mpeg_transport_init(t);
-		break;
-#endif
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24:
-		a2dp_aac_transport_init(t);
-		break;
-#endif
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX:
-		a2dp_aptx_transport_init(t);
-		break;
-#endif
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		a2dp_aptx_hd_transport_init(t);
-		break;
-#endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		a2dp_faststream_transport_init(t);
-		break;
-#endif
-#if ENABLE_LC3PLUS
-	case A2DP_CODEC_VENDOR_LC3PLUS:
-		a2dp_lc3plus_transport_init(t);
-		break;
-#endif
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		a2dp_ldac_transport_init(t);
-		break;
-#endif
-	default:
-		error("Unsupported A2DP codec: %#x", codec_id);
-		g_assert_not_reached();
-	}
-}
-
-static void ba_transport_set_codec_sco(
-		struct ba_transport *t,
-		uint16_t codec_id) {
-
-	t->sco.pcm_spk.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->sco.pcm_spk.channels = 1;
-
-	t->sco.pcm_mic.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->sco.pcm_mic.channels = 1;
-
-	switch (codec_id) {
-	case HFP_CODEC_UNDEFINED:
-		t->sco.pcm_spk.sampling = 0;
-		t->sco.pcm_mic.sampling = 0;
-		break;
-	case HFP_CODEC_CVSD:
-		t->sco.pcm_spk.sampling = 8000;
-		t->sco.pcm_mic.sampling = 8000;
-		break;
-#if ENABLE_MSBC
-	case HFP_CODEC_MSBC:
-		t->sco.pcm_spk.sampling = 16000;
-		t->sco.pcm_mic.sampling = 16000;
-		break;
-#endif
-	default:
-		debug("Unsupported SCO codec: %#x", codec_id);
-		g_assert_not_reached();
-	}
-
-	if (t->sco.pcm_spk.ba_dbus_exported)
-		bluealsa_dbus_pcm_update(&t->sco.pcm_spk,
-				BA_DBUS_PCM_UPDATE_SAMPLING |
-				BA_DBUS_PCM_UPDATE_CODEC |
-				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
-
-	if (t->sco.pcm_mic.ba_dbus_exported)
-		bluealsa_dbus_pcm_update(&t->sco.pcm_mic,
-				BA_DBUS_PCM_UPDATE_SAMPLING |
-				BA_DBUS_PCM_UPDATE_CODEC |
-				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
-
-}
-
 uint16_t ba_transport_get_codec(
 		const struct ba_transport *t) {
 	pthread_mutex_lock(MUTABLE(&t->codec_id_mtx));
@@ -1364,9 +1250,9 @@ void ba_transport_set_codec(
 		return;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		ba_transport_set_codec_a2dp(t, codec_id);
+		a2dp_transport_init(t);
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		ba_transport_set_codec_sco(t, codec_id);
+		sco_transport_init(t);
 
 }
 
@@ -1403,38 +1289,7 @@ int ba_transport_start(struct ba_transport *t) {
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		switch (ba_transport_get_codec(t)) {
-		case A2DP_CODEC_SBC:
-			return a2dp_sbc_transport_start(t);
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return a2dp_mpeg_transport_start(t);
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return a2dp_aac_transport_start(t);
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return a2dp_aptx_transport_start(t);
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return a2dp_aptx_hd_transport_start(t);
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return a2dp_faststream_transport_start(t);
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return a2dp_lc3plus_transport_start(t);
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return a2dp_ldac_transport_start(t);
-#endif
-		}
+		return a2dp_transport_start(t);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		return sco_transport_start(t);

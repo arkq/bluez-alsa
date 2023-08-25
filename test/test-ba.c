@@ -28,14 +28,6 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#include "a2dp-aac.h"
-#include "a2dp-aptx-hd.h"
-#include "a2dp-aptx.h"
-#include "a2dp-faststream.h"
-#include "a2dp-lc3plus.h"
-#include "a2dp-ldac.h"
-#include "a2dp-mpeg.h"
-#include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
@@ -57,22 +49,8 @@
 
 #define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-test-ba-storage"
 
-void a2dp_aac_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_aac_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_aptx_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_aptx_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_aptx_hd_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_aptx_hd_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_faststream_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_faststream_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_lc3plus_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_lc3plus_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_ldac_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_ldac_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_mpeg_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_mpeg_transport_start(struct ba_transport *t) { (void)t; return 0; }
-void a2dp_sbc_transport_init(struct ba_transport *t) { (void)t; }
-int a2dp_sbc_transport_start(struct ba_transport *t) { (void)t; return 0; }
+void a2dp_transport_init(struct ba_transport *t) { (void)t; }
+int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_pcm *t_pcm);
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }

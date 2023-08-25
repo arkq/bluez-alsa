@@ -136,4 +136,12 @@ int a2dp_select_configuration(
 		void *capabilities,
 		size_t size);
 
+/* XXX: avoid circular dependency */
+struct ba_transport;
+
+void a2dp_transport_init(
+		struct ba_transport *t);
+int a2dp_transport_start(
+		struct ba_transport *t);
+
 #endif
