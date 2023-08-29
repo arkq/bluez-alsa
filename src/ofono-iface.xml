@@ -7,6 +7,10 @@
 -->
 <node>
 
+	<!-- NOTE: Due to a bug in gdbus-codegen in glib prior to 2.61.0,
+	           the first interface must have at least one method.
+	-->
+
 	<interface name="org.ofono.HandsfreeAudioAgent">
 		<method name="NewConnection">
 			<arg direction="in" type="o" name="card"/>

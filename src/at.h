@@ -9,10 +9,10 @@
  *
  */
 
+#pragma once
 #ifndef BLUEALSA_AT_H_
 #define BLUEALSA_AT_H_
 
-#pragma once
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

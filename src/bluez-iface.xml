@@ -7,11 +7,9 @@
 -->
 <node>
 
-	<interface name="org.bluez.BatteryProvider1">
-		<property name="Device" type="o" access="read"/>
-		<property name="Percentage" type="y" access="read"/>
-		<property name="Source" type="s" access="read"/>
-	</interface>
+	<!-- NOTE: Due to a bug in gdbus-codegen in glib prior to 2.61.0,
+	           the first interface must have at least one method.
+	-->
 
 	<interface name="org.bluez.MediaEndpoint1">
 		<method name="SelectConfiguration">
@@ -31,6 +29,12 @@
 		<property name="Codec" type="y" access="read"/>
 		<property name="Capabilities" type="ay" access="read"/>
 		<property name="DelayReporting" type="b" access="read"/>
+	</interface>
+
+	<interface name="org.bluez.BatteryProvider1">
+		<property name="Device" type="o" access="read"/>
+		<property name="Percentage" type="y" access="read"/>
+		<property name="Source" type="s" access="read"/>
 	</interface>
 
 	<interface name="org.bluez.Profile1">
