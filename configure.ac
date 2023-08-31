@@ -209,6 +209,13 @@ AM_COND_IF([ENABLE_LDAC], [
 	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
 ])
 
+AC_ARG_ENABLE([midi],
+	[AS_HELP_STRING([--enable-midi], [enable Bluetooth LE MIDI support])])
+AM_CONDITIONAL([ENABLE_MIDI], [test "x$enable_midi" = "xyes"])
+AM_COND_IF([ENABLE_MIDI], [
+	AC_DEFINE([ENABLE_MIDI], [1], [Define to 1 if Bluetooth LE MIDI is enabled.])
+])
+
 AC_ARG_ENABLE([mp3lame],
 	[AS_HELP_STRING([--enable-mp3lame], [enable MP3 support])])
 AM_CONDITIONAL([ENABLE_MP3LAME], [test "x$enable_mp3lame" = "xyes"])

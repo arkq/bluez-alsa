@@ -18,7 +18,7 @@ jobs:
         - --enable-debug
         - --enable-debug --enable-aac --enable-msbc
         - --enable-debug --enable-mp3lame --enable-mpg123
-        - --enable-faststream --enable-mp3lame
+        - --enable-faststream --enable-midi --enable-mp3lame
         - --enable-aplay --enable-ofono --enable-upower
         - --enable-cli --enable-rfcomm --enable-manpages
         - --enable-aptx --enable-aptx-hd --with-libopenaptx
@@ -139,6 +139,7 @@ jobs:
           --enable-aptx-hd \
           --with-libopenaptx \
           --enable-faststream \
+          --enable-midi \
           --enable-mp3lame \
           --enable-mpg123 \
           --enable-msbc \

@@ -29,11 +29,6 @@ check_PROGRAMS = \
 	test-rtp \
 	test-utils
 
-if ENABLE_MSBC
-TESTS += test-msbc
-check_PROGRAMS += test-msbc
-endif
-
 if ENABLE_APLAY
 TESTS += test-utils-aplay
 check_PROGRAMS += test-utils-aplay
@@ -42,6 +37,16 @@ endif
 if ENABLE_CLI
 TESTS += test-utils-cli
 check_PROGRAMS += test-utils-cli
+endif
+
+if ENABLE_MIDI
+TESTS += test-ble-midi
+check_PROGRAMS += test-ble-midi
+endif
+
+if ENABLE_MSBC
+TESTS += test-msbc
+check_PROGRAMS += test-msbc
 endif
 
 check_LTLIBRARIES = \
@@ -132,6 +137,13 @@ test_io_SOURCES = \
 	../src/sco.c \
 	../src/utils.c \
 	test-io.c
+
+if ENABLE_MIDI
+test_ble_midi_SOURCES = \
+	../src/shared/log.c \
+	../src/ble-midi.c \
+	test-ble-midi.c
+endif
 
 if ENABLE_MSBC
 test_msbc_SOURCES = \
