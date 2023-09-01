@@ -35,9 +35,17 @@
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
+#include "shared/nv.h"
 #include "alsa-mixer.h"
 #include "alsa-pcm.h"
 #include "dbus.h"
+
+enum volume_type {
+	VOL_TYPE_AUTO,
+	VOL_TYPE_MIXER,
+	VOL_TYPE_SOFTWARE,
+	VOL_TYPE_NONE,
+};
 
 struct io_worker {
 	pthread_t thread;
@@ -63,6 +71,7 @@ static unsigned int verbose = 0;
 static bool list_bt_devices = false;
 static bool list_bt_pcms = false;
 static const char *pcm_device = "default";
+static enum volume_type volume_type = VOL_TYPE_AUTO;
 static const char *mixer_device = "default";
 static const char *mixer_elem_name = "Master";
 static unsigned int mixer_elem_index = 0;
@@ -511,6 +520,23 @@ static void *io_worker_routine(struct io_worker *w) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
+
+	/* initialize the PCM soft_volume setting */
+	if (volume_type != VOL_TYPE_AUTO) {
+		bool softvol = (volume_type == VOL_TYPE_SOFTWARE);
+		debug("Setting BlueALSA source PCM volume mode: %s: %s",
+				w->ba_pcm.pcm_path, softvol ? "software" : "pass-through");
+		if (softvol != w->ba_pcm.soft_volume) {
+			w->ba_pcm.soft_volume = softvol;
+			if (!bluealsa_dbus_pcm_update(&dbus_ctx, &w->ba_pcm,
+						BLUEALSA_PCM_SOFT_VOLUME, &err)) {
+				error("Couldn't set BlueALSA source PCM volume mode: %s", err.message);
+				dbus_error_free(&err);
+				goto fail;
+			}
+		}
+	}
+
 	debug("Opening BlueALSA source PCM: %s", w->ba_pcm.pcm_path);
 	if (!bluealsa_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path,
 				&w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
@@ -676,12 +702,14 @@ static void *io_worker_routine(struct io_worker *w) {
 			snd_pcm_get_params(w->snd_pcm, &buffer_frames, &period_frames);
 			pcm_max_read_len = period_frames * w->ba_pcm.channels * pcm_format_size;
 
-			debug("Opening ALSA mixer: name=%s elem=%s index=%u",
-					mixer_device, mixer_elem_name, mixer_elem_index);
-			if (alsa_mixer_open(&w->snd_mixer, &w->snd_mixer_elem,
-						mixer_device, mixer_elem_name, mixer_elem_index, &tmp) != 0) {
-				warn("Couldn't open ALSA mixer: %s", tmp);
-				free(tmp);
+			if (mixer_device != NULL) {
+				debug("Opening ALSA mixer: name=%s elem=%s index=%u",
+						mixer_device, mixer_elem_name, mixer_elem_index);
+				if (alsa_mixer_open(&w->snd_mixer, &w->snd_mixer_elem,
+							mixer_device, mixer_elem_name, mixer_elem_index, &tmp) != 0) {
+					warn("Couldn't open ALSA mixer: %s", tmp);
+					free(tmp);
+				}
 			}
 
 			io_worker_mixer_volume_sync_setup(w);
@@ -988,6 +1016,7 @@ int main(int argc, char *argv[]) {
 		{ "pcm", required_argument, NULL, 'D' },
 		{ "pcm-buffer-time", required_argument, NULL, 3 },
 		{ "pcm-period-time", required_argument, NULL, 4 },
+		{ "volume", required_argument, NULL, '8' },
 		{ "mixer-device", required_argument, NULL, 'M' },
 		{ "mixer-name", required_argument, NULL, 6 },
 		{ "mixer-index", required_argument, NULL, 7 },
@@ -998,6 +1027,7 @@ int main(int argc, char *argv[]) {
 	};
 
 	bool syslog = false;
+	const char *volume_type_str = "auto";
 
 	/* Check if syslog forwarding has been enabled. This check has to be
 	 * done before anything else, so we can log early stage warnings and
@@ -1019,9 +1049,10 @@ int main(int argc, char *argv[]) {
 					"  -D, --pcm=NAME\t\tplayback PCM device to use\n"
 					"  --pcm-buffer-time=INT\t\tplayback PCM buffer time\n"
 					"  --pcm-period-time=INT\t\tplayback PCM period time\n"
+					"  --volume=TYPE\t\t\tvolume control type [auto|mixer|none|software]\n"
 					"  -M, --mixer-device=NAME\tmixer device to use\n"
 					"  --mixer-name=NAME\t\tmixer element name\n"
-					"  --mixer-index=NUM\t\tmixer element channel index\n"
+					"  --mixer-index=NUM\t\tmixer element index\n"
 					"  --profile-a2dp\t\tuse A2DP profile (default)\n"
 					"  --profile-sco\t\t\tuse SCO profile\n"
 					"  --single-audio\t\tsingle audio mode\n"
@@ -1084,6 +1115,28 @@ int main(int argc, char *argv[]) {
 			pcm_period_time = atoi(optarg);
 			break;
 
+		case '8' /* --volume */ : {
+
+			static const nv_entry_t values[] = {
+				{ "auto", .v.ui = VOL_TYPE_AUTO },
+				{ "mixer", .v.ui = VOL_TYPE_MIXER },
+				{ "software", .v.ui = VOL_TYPE_SOFTWARE },
+				{ "none", .v.ui = VOL_TYPE_NONE },
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid volume control type {%s}: %s",
+						nv_join_names(values), optarg);
+				return EXIT_FAILURE;
+			}
+
+			volume_type_str = optarg;
+			volume_type = entry->v.ui;
+			break;
+		}
+
 		case 'M' /* --mixer-device=NAME */ :
 			mixer_device = optarg;
 			break;
@@ -1139,6 +1192,9 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	if (volume_type == VOL_TYPE_NONE || volume_type == VOL_TYPE_SOFTWARE)
+		mixer_device = NULL;
+
 	if (verbose >= 1) {
 
 		char *ba_str = malloc(19 * ba_addrs_count + 1);
@@ -1148,18 +1204,29 @@ int main(int argc, char *argv[]) {
 		for (i = 0; i < ba_addrs_count; i++, tmp += 19)
 			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
 
+		const char *mixer_device_str = "(not used)";
+		char mixer_element_str[128] = "(not used)";
+		if (mixer_device != NULL) {
+			mixer_device_str = mixer_device;
+			snprintf(mixer_element_str, sizeof(mixer_element_str), "'%s',%u",
+					mixer_elem_name, mixer_elem_index);
+		}
+
 		info("Selected configuration:\n"
 				"  BlueALSA service: %s\n"
 				"  ALSA PCM device: %s\n"
 				"  ALSA PCM buffer time: %u us\n"
 				"  ALSA PCM period time: %u us\n"
+				"  Volume control type: %s\n"
 				"  ALSA mixer device: %s\n"
-				"  ALSA mixer element: '%s',%u\n"
+				"  ALSA mixer element: %s\n"
 				"  Bluetooth device(s): %s\n"
 				"  Profile: %s",
 				dbus_ba_service,
 				pcm_device, pcm_buffer_time, pcm_period_time,
-				mixer_device, mixer_elem_name, mixer_elem_index,
+				volume_type_str,
+				mixer_device_str,
+				mixer_element_str,
 				ba_addr_any ? "ANY" : &ba_str[2],
 				ba_profile_a2dp ? "A2DP" : "SCO");
 

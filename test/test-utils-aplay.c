@@ -242,6 +242,7 @@ CK_START_TEST(test_play_mixer_setup) {
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
 				"--profile-sco",
 				"--pcm=bluealsa:PROFILE=sco",
+				"--volume=mixer",
 				"--mixer-device=bluealsa:DEV=23:45:67:89:AB:CD",
 				"--mixer-name=SCO",
 				"-v",

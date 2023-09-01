@@ -265,6 +265,11 @@ _bluealsa_aplay() {
 			__ltrim_colon_completions "$cur"
 			return
 			;;
+		--volume)
+			readarray -t list < <(_bluealsa_enum_values "$1" "$prev")
+			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
+			return
+			;;
 		--*)
 			[[ ${COMP_WORDS[COMP_CWORD]} = = ]] && return
 			;;

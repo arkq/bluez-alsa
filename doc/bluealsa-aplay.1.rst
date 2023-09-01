@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple bluealsa player
 ------------------------
 
-:Date: January 2023
+:Date: September 2023
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -20,8 +20,7 @@ DESCRIPTION
 ===========
 
 Capture audio streams from Bluetooth devices (via ``bluealsa(8)``) and play
-them to an ALSA
-playback device.
+them to an ALSA playback device.
 
 By default **bluealsa-aplay** captures audio from all connected Bluetooth
 devices.  It is possible to select specific Bluetooth devices by providing a
@@ -107,20 +106,45 @@ OPTIONS
     See also dmix_ in the **NOTES** section below for more information on
     rate calculation rounding errors.
 
+--volume=TYPE
+    Select the desired method of implementing remote volume control. *TYPE* may
+    be one of four values:
+
+    - **auto** - the volume control method is determined by the BlueALSA PCM.
+      This is the default when this option is not given. **bluealsa-aplay**
+      operates its configured ALSA mixer control to apply volume change
+      requests received from the remote Bluetooth device if and only if the PCM
+      is using native ("pass-through") volume control.
+
+    - **mixer** - **bluealsa-aplay** will force the BlueALSA PCM volume mode
+      setting to native ("pass-through") before starting the PCM stream, and
+      then operate the same as for **auto** above.
+
+    - **none** - **bluealsa-aplay** will force the BlueALSA PCM volume mode
+      setting to native ("pass-through") before starting the PCM
+      stream.  It will not operate its configured ALSA mixer. This can be used
+      to effectively disable remote volume control; or it can be used to allow
+      some other application to apply remote volume change requests.
+
+    - **software** - **bluealsa-aplay** will force the BlueALSA PCM volume mode
+      setting to soft-volume ("software") and then will not operate its
+      configured ALSA mixer. This can be used to enable remote volume control
+      without using an ALSA mixer.
+
+    See `Volume control`_ in the **NOTES** section below for more information
+    on volume control.
+
 -M NAME, --mixer-device=NAME
     Select ALSA mixer device to use for controlling audio output mute state
     and volume level.
     In order to use this feature, BlueALSA PCM can not use software volume.
     The default is ``default``.
 
-    See `Volume control`_ in the **NOTES** section below for more information
-    on volume control.
-
 --mixer-name=NAME
     Set the name of the ALSA simple mixer control to use.
     The default is ``Master``.
 
-    To work with ``bluealsa-aplay`` this simple control must provide decibel
+    To work with **bluealsa-aplay** this simple control must provide decibel
     scaling information for the volume control. Most, but not all, modern sound
     cards do provide this information.
 
@@ -130,7 +154,7 @@ OPTIONS
 
     This is required only if the simple mixer control name applies to multiple
     simple controls on the same card. This is most common with HDMI devices
-    which may have many playback ports.
+    for which the index indicates the controlled HDMI PCM device.
 
 --profile-a2dp
     Use A2DP profile (default).
@@ -159,13 +183,21 @@ NOTES
 Volume control
 --------------
 
-If the BlueALSA PCM is using native Bluetooth volume control, then
-**bluealsa-aplay** operates its given ALSA mixer control to implement volume
-change requests received from the remote Bluetooth device.
-
-If the Bluetooth PCM is using soft-volume volume control, then volume
+If the Bluetooth PCM is using BlueALSA soft-volume volume control, then volume
 adjustment will have been applied to the PCM stream within the **bluealsa**
 daemon; so **bluealsa-aplay** does not operate the mixer control in this case.
+
+When using ``--volume=none`` or ``--volume=software``, then the mixer options
+``--mixer-device``, ``--mixer-name`` and ``--mixer-index`` are ignored, and
+**bluealsa-aplay** will not operate any mixer controls, even if some other
+application changes the PCM volume mode to native while in use.
+
+When using ``--volume=auto`` or ``--volume=mixer`` the ALSA mixer control will
+be operated only when the PCM stream is active, (i.e., the remote device is
+sending audio). If a connected remote device requests a volume change when no
+active stream is playing, then **bluealsa-aplay** will ignore that request.
+When the audio stream starts then **bluealsa-aplay** will change the Bluetooth
+volume to match the current setting of the ALSA mixer control.
 
 Native Bluetooth volume control for A2DP relies on AVRCP volume control in
 BlueZ, which has not always been reliably implemented. It is recommended to use
@@ -237,8 +269,8 @@ control names for a card called "USB" can be obtained by running
 
 Also, it might be desired to specify ALSA mixer device and/or control element
 for each ALSA playback PCM device. This will be mostly useful when BlueALSA PCM
-does not use software volume (for more information see ``--a2dp-volume`` option
-of ``bluealsa(8)`` service daemon).
+does not use software volume (for more information see ``--volume`` option
+above).
 
 ::
 

@@ -6,6 +6,7 @@ unreleased
 - codec-specific delay adjustment with ALSA control and persistency
 - fix for SBC codec and audio scaling on big-endian platforms
 - fix mSBC decode for MTU > 60 bytes (e.g. Realtek USB adapters)
+- bluealsa-aplay: option to auto-select volume mode for used PCM
 
 bluez-alsa v4.1.1 (2023-06-24)
 ==============================
