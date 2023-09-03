@@ -42,6 +42,9 @@ enum ba_transport_profile {
 	BA_TRANSPORT_PROFILE_HFP_AG      = (2 << 2),
 	BA_TRANSPORT_PROFILE_HSP_HS      = (1 << 4),
 	BA_TRANSPORT_PROFILE_HSP_AG      = (2 << 4),
+#if ENABLE_MIDI
+	BA_TRANSPORT_PROFILE_MIDI        = (1 << 6),
+#endif
 };
 
 #define BA_TRANSPORT_PROFILE_MASK_A2DP \
@@ -166,6 +169,17 @@ struct ba_transport {
 
 		} sco;
 
+#if ENABLE_MIDI
+		struct {
+
+			/* BLE-MIDI input link */
+			int ble_fd_write;
+			/* BLE-MIDI output (notification) link */
+			int ble_fd_notify;
+
+		} midi;
+#endif
+
 	};
 
 	/* callback functions for self-management */
@@ -190,6 +204,13 @@ struct ba_transport *ba_transport_new_sco(
 		const char *dbus_owner,
 		const char *dbus_path,
 		int rfcomm_fd);
+#if ENABLE_MIDI
+struct ba_transport *ba_transport_new_midi(
+		struct ba_device *device,
+		enum ba_transport_profile profile,
+		const char *dbus_owner,
+		const char *dbus_path);
+#endif
 
 #if DEBUG
 const char *ba_transport_debug_name(

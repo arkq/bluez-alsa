@@ -13,6 +13,10 @@
 
 #include "mock.h"
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
@@ -114,6 +118,9 @@ int main(int argc, char *argv[]) {
 				{ "a2dp-sink", &config.profile.a2dp_sink },
 				{ "hfp-ag", &config.profile.hfp_ag },
 				{ "hsp-ag", &config.profile.hsp_ag },
+#if ENABLE_MIDI
+				{ "midi", &config.profile.midi },
+#endif
 			};
 
 			bool matched = false;

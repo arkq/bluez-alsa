@@ -83,6 +83,11 @@ bluealsa_SOURCES += \
 	a2dp-ldac.c
 endif
 
+if ENABLE_MIDI
+bluealsa_SOURCES += \
+	bluez-midi.c
+endif
+
 if ENABLE_MPEG
 bluealsa_SOURCES += \
 	a2dp-mpeg.c
@@ -146,6 +151,9 @@ DBUSCONF_SUBS = \
 	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@
 
 CODEGEN_DEFS =
+if ENABLE_MIDI
+CODEGEN_DEFS += --define=ENABLE_MIDI
+endif
 
 .xml.c:
 	$(srcdir)/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \

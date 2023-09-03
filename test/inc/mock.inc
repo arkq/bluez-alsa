@@ -2,7 +2,7 @@
  * mock.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -36,6 +36,7 @@ struct spawn_bluealsa_data {
 	char *dbus_bus_address;
 	char *acquired_service_name;
 	unsigned int ready_count_a2dp;
+	unsigned int ready_count_midi;
 	unsigned int ready_count_sco;
 
 };
@@ -73,11 +74,15 @@ static void *spawn_bluealsa_mock_stderr_proxy(void *userdata) {
 			data->acquired_service_name = strtrim(strdup(&tmp[27]));
 			updated = true;
 		}
-		else if (strstr(buffer, "BLUEALSA_PCM_READY=A2DP:") != NULL) {
+		else if (strstr(buffer, "BLUEALSA_READY=A2DP:") != NULL) {
 			data->ready_count_a2dp++;
 			updated = true;
 		}
-		else if (strstr(buffer, "BLUEALSA_PCM_READY=SCO:") != NULL) {
+		else if (strstr(buffer, "BLUEALSA_READY=MIDI:") != NULL) {
+			data->ready_count_midi++;
+			updated = true;
+		}
+		else if (strstr(buffer, "BLUEALSA_READY=SCO:") != NULL) {
 			data->ready_count_sco++;
 			updated = true;
 		}
@@ -120,6 +125,7 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 	static char dbus_bus_address[256];
 
 	unsigned int count_a2dp = 0;
+	unsigned int count_midi = 0;
 	unsigned int count_sco = 0;
 
 	char arg_service[32] = "";
@@ -149,6 +155,8 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 			count_sco += 1;
 		if (strcmp(arg, "--profile=hsp-ag") == 0)
 			count_sco += 1;
+		if (strcmp(arg, "--profile=midi") == 0)
+			count_midi += 1;
 
 	}
 
@@ -187,6 +195,7 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 
 	while (wait_for_ready && (
 				data->ready_count_a2dp < count_a2dp ||
+				data->ready_count_midi < count_midi ||
 				data->ready_count_sco < count_sco))
 		pthread_cond_wait(&data->data_updated, &data->data_mtx);
 

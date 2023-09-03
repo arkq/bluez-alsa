@@ -2,7 +2,7 @@
  * btd.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,6 +11,10 @@
  */
 
 #pragma once
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <ctype.h>
 #include <endian.h>
@@ -105,6 +109,9 @@ struct bt_dump *bt_dump_create(
 
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
+#if ENABLE_MIDI
+	case BA_TRANSPORT_PROFILE_MIDI:
+#endif
 		break;
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		a2dp_configuration = &t->a2dp.configuration;
@@ -223,6 +230,10 @@ static const char *transport_to_fname(struct ba_transport *t) {
 		return "hsp-ag-cvsd";
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 		return "hsp-hs-cvsd";
+#if ENABLE_MIDI
+	case BA_TRANSPORT_PROFILE_MIDI:
+		return "midi";
+#endif
 	}
 
 	static char buffer[64];

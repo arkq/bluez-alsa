@@ -88,6 +88,9 @@ static GVariant *ba_variant_new_bluealsa_profiles(void) {
 		{ BLUEALSA_TRANSPORT_TYPE_HFP_HF, config.profile.hfp_hf },
 		{ BLUEALSA_TRANSPORT_TYPE_HSP_AG, config.profile.hsp_ag },
 		{ BLUEALSA_TRANSPORT_TYPE_HSP_HS, config.profile.hsp_hs },
+#if ENABLE_MIDI
+		{ BLUEALSA_TRANSPORT_TYPE_MIDI, config.profile.midi },
+#endif
 	};
 
 	const char *strv[ARRAYSIZE(profiles)];
@@ -196,6 +199,10 @@ static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_AG);
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_HSP_HS);
+#if ENABLE_MIDI
+	case BA_TRANSPORT_PROFILE_MIDI:
+		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_MIDI);
+#endif
 	case BA_TRANSPORT_PROFILE_NONE:
 		break;
 	}

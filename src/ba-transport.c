@@ -594,6 +594,50 @@ fail:
 	return NULL;
 }
 
+#if ENABLE_MIDI
+
+static int transport_acquire_bt_midi(struct ba_transport *t) {
+	(void)t;
+	return 0;
+}
+
+static int transport_release_bt_midi(struct ba_transport *t) {
+
+	if (t->midi.ble_fd_write != -1) {
+		debug("Releasing BLE-MIDI write link: %d", t->midi.ble_fd_write);
+		close(t->midi.ble_fd_write);
+		t->midi.ble_fd_write = -1;
+	}
+
+	if (t->midi.ble_fd_notify != -1) {
+		debug("Releasing BLE-MIDI notify link: %d", t->midi.ble_fd_notify);
+		close(t->midi.ble_fd_notify);
+		t->midi.ble_fd_notify = -1;
+	}
+
+	return 0;
+}
+
+struct ba_transport *ba_transport_new_midi(
+		struct ba_device *device,
+		enum ba_transport_profile profile,
+		const char *dbus_owner,
+		const char *dbus_path) {
+
+	struct ba_transport *t;
+	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
+		return NULL;
+
+	t->profile = profile;
+
+	t->acquire = transport_acquire_bt_midi;
+	t->release = transport_release_bt_midi;
+
+	return t;
+}
+
+#endif
+
 #if DEBUG
 /**
  * Get BlueALSA transport type debug name.
@@ -632,6 +676,10 @@ const char *ba_transport_debug_name(
 		return "HSP Headset";
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return "HSP Audio Gateway";
+#if ENABLE_MIDI
+	case BA_TRANSPORT_PROFILE_MIDI:
+		return "MIDI";
+#endif
 	}
 	debug("Unknown transport: profile:%#x codec:%#x", profile, codec_id);
 	return "N/A";

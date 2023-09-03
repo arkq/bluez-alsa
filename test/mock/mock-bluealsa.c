@@ -9,7 +9,10 @@
  */
 
 #include "mock.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <assert.h>
 #include <errno.h>
@@ -261,7 +264,7 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 			codec, configuration);
 	t->acquire = mock_transport_acquire_bt;
 
-	fprintf(stderr, "BLUEALSA_PCM_READY=A2DP:%s:%s\n", device_btmac,
+	fprintf(stderr, "BLUEALSA_READY=A2DP:%s:%s\n", device_btmac,
 			a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t)));
 
 	ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_PENDING);
@@ -327,12 +330,29 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 #endif
 	t->acquire = mock_transport_acquire_bt;
 
-	fprintf(stderr, "BLUEALSA_PCM_READY=SCO:%s:%s\n", device_btmac,
+	fprintf(stderr, "BLUEALSA_READY=SCO:%s:%s\n", device_btmac,
 			hfp_codec_id_to_string(ba_transport_get_codec(t)));
 
 	ba_device_unref(d);
 	return t;
 }
+
+#if ENABLE_MIDI
+static struct ba_transport *mock_transport_new_midi(const char *device_btmac,
+		uint16_t profile, const char *dbus_path) {
+
+	usleep(mock_fuzzing_ms * 1000);
+
+	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
+	const char *dbus_owner = g_dbus_connection_get_unique_name(config.dbus);
+
+	struct ba_transport *t = ba_transport_new_midi(d, profile, dbus_owner, dbus_path);
+	fprintf(stderr, "BLUEALSA_READY=MIDI:%s\n", device_btmac);
+
+	ba_device_unref(d);
+	return t;
+}
+#endif
 
 static void *mock_bluealsa_service_thread(void *userdata) {
 	(void)userdata;
@@ -425,6 +445,13 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 		g_ptr_array_add(tt, mock_transport_new_sco(MOCK_DEVICE_2,
 					BA_TRANSPORT_PROFILE_HSP_AG, MOCK_BLUEZ_SCO_PATH_2));
 	}
+
+#if ENABLE_MIDI
+	if (config.profile.midi) {
+		g_ptr_array_add(tt, mock_transport_new_midi(MOCK_DEVICE_1,
+					BA_TRANSPORT_PROFILE_MIDI, MOCK_BLUEZ_MIDI_PATH_1));
+	}
+#endif
 
 	mock_sem_wait(mock_sem_timeout);
 

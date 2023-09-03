@@ -241,6 +241,9 @@ int main(int argc, char **argv) {
 					"  - hfp-hf\tHands-Free (v1.7)\n"
 					"  - hsp-ag\tHeadset Audio Gateway (v1.2)\n"
 					"  - hsp-hs\tHeadset (v1.2)\n"
+#if ENABLE_MIDI
+					"  - midi\tBluetooth LE MIDI (v1.0)\n"
+#endif
 					"\n"
 					"Available BT audio codecs:\n"
 					"  a2dp-source:\t%s\n"
@@ -305,6 +308,9 @@ int main(int argc, char **argv) {
 				{ "hfp-ag", &config.profile.hfp_ag },
 				{ "hsp-hs", &config.profile.hsp_hs },
 				{ "hsp-ag", &config.profile.hsp_ag },
+#if ENABLE_MIDI
+				{ "midi", &config.profile.midi },
+#endif
 			};
 
 			bool matched = false;
@@ -539,7 +545,7 @@ int main(int argc, char **argv) {
 	if (!(config.profile.a2dp_source || config.profile.a2dp_sink ||
 				config.profile.hfp_hf || config.profile.hfp_ag ||
 				config.profile.hsp_hs || config.profile.hsp_ag ||
-				config.profile.hfp_ofono)) {
+				config.profile.hfp_ofono || config.profile.midi)) {
 		error("It is required to enabled at least one BT profile");
 		fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 		return EXIT_FAILURE;

@@ -38,6 +38,7 @@ struct ba_config {
 		bool hfp_ag;
 		bool hsp_hs;
 		bool hsp_ag;
+		bool midi;
 	} profile;
 
 	/* established D-Bus connection */
