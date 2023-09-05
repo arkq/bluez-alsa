@@ -117,8 +117,8 @@ struct ba_transport_pcm {
 
 int transport_pcm_init(
 		struct ba_transport_pcm *pcm,
-		struct ba_transport_thread *th,
-		enum ba_transport_pcm_mode mode);
+		enum ba_transport_pcm_mode mode,
+		struct ba_transport_thread *th);
 void transport_pcm_free(
 		struct ba_transport_pcm *pcm);
 

@@ -145,6 +145,8 @@ DBUSCONF_SUBS = \
 .conf.in.conf:
 	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@
 
+CODEGEN_DEFS =
+
 .xml.c:
-	$(GDBUS_CODEGEN) --interface-info-body --output $@ $<
-	$(srcdir)/dbus-codegen.py --interface-skeleton-body -a --output $@ $<
+	$(srcdir)/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \
+		--interface-info-body --interface-skeleton-body $<

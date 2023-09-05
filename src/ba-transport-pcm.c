@@ -64,8 +64,8 @@ static const char *transport_get_dbus_path_type(
 
 int transport_pcm_init(
 		struct ba_transport_pcm *pcm,
-		struct ba_transport_thread *th,
-		enum ba_transport_pcm_mode mode) {
+		enum ba_transport_pcm_mode mode,
+		struct ba_transport_thread *th) {
 
 	struct ba_transport *t = th->t;
 
@@ -110,9 +110,7 @@ void transport_pcm_free(
 	pthread_cond_destroy(&pcm->cond);
 
 	g_hash_table_unref(pcm->delay_adjustments);
-
-	if (pcm->ba_dbus_path != NULL)
-		g_free(pcm->ba_dbus_path);
+	g_free(pcm->ba_dbus_path);
 
 }
 

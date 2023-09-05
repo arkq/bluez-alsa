@@ -29,7 +29,7 @@ jobs:
           libmpg123-dev
           libsbc-dev
           libspandsp-dev
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Create Build Environment
       run: |
         mkdir -p ${{ github.workspace }}/{build,m4}

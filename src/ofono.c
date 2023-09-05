@@ -215,7 +215,8 @@ fail:
 
 /**
  * Lookup a transport associated with oFono card data. */
-static struct ba_transport *ofono_transport_lookup(struct ofono_card_data *ocd) {
+static struct ba_transport *ofono_transport_lookup(
+		const struct ofono_card_data *ocd) {
 
 	struct ba_adapter *a = NULL;
 	struct ba_device *d = NULL;

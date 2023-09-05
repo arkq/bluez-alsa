@@ -233,15 +233,15 @@ int main(int argc, char **argv) {
 #endif
 					"  --xapl-resp-name=NAME\t\tset product name used by XAPL\n"
 					"\nAvailable BT profiles:\n"
-					"  - a2dp-source\tAdvanced Audio Source (%s)\n"
-					"  - a2dp-sink\tAdvanced Audio Sink (%s)\n"
+					"  - a2dp-source\tAdvanced Audio Source (v1.3)\n"
+					"  - a2dp-sink\tAdvanced Audio Sink (v1.3)\n"
 #if ENABLE_OFONO
 					"  - hfp-ofono\tHands-Free AG/HF handled by oFono\n"
 #endif
-					"  - hfp-ag\tHands-Free Audio Gateway (%s)\n"
-					"  - hfp-hf\tHands-Free (%s)\n"
-					"  - hsp-ag\tHeadset Audio Gateway (%s)\n"
-					"  - hsp-hs\tHeadset (%s)\n"
+					"  - hfp-ag\tHands-Free Audio Gateway (v1.7)\n"
+					"  - hfp-hf\tHands-Free (v1.7)\n"
+					"  - hsp-ag\tHeadset Audio Gateway (v1.2)\n"
+					"  - hsp-hs\tHeadset (v1.2)\n"
 					"\n"
 					"Available BT audio codecs:\n"
 					"  a2dp-source:\t%s\n"
@@ -249,9 +249,6 @@ int main(int argc, char **argv) {
 					"  hfp-*:\t%s\n"
 					"",
 					argv[0],
-					"v1.3", "v1.3",
-					"v1.7", "v1.7",
-					"v1.2", "v1.2",
 					get_a2dp_codecs(A2DP_SOURCE),
 					get_a2dp_codecs(A2DP_SINK),
 					get_hfp_codecs());

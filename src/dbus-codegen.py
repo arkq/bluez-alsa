@@ -9,6 +9,8 @@
 import argparse
 import os.path
 import re
+import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 
 TEMPLATE_HEADER_PREAMBLE = '''/*
@@ -90,10 +92,16 @@ static void {func}_skeleton_init(G_GNUC_UNUSED {struct}Skeleton *ifs) {{
 '''
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--interface-info-header', action='store_true',
+                    help='Generate GDBusInterfaceInfo header')
+parser.add_argument('--interface-info-body', action='store_true',
+                    help='Generate GDBusInterfaceInfo body')
 parser.add_argument('--interface-skeleton-header', action='store_true',
                     help='Generate GDBusInterfaceSkeletonEx header')
 parser.add_argument('--interface-skeleton-body', action='store_true',
                     help='Generate GDBusInterfaceSkeletonEx body')
+parser.add_argument('-D', '--define', action='append', default=[],
+                    metavar='NAME', help='Define preprocessor macro')
 parser.add_argument('-a', '--append', action='store_true',
                     help='Append instead of overwriting the output file')
 parser.add_argument('--output', type=str, metavar='FILE',
@@ -103,9 +111,32 @@ parser.add_argument('input', type=str, metavar='FILE',
 
 args = parser.parse_args()
 
+# Check for "CPP.if" annotations and remove unwanted interfaces.
+xml = ET.parse(args.input).getroot()
+parents = {n: p for p in xml.iter() for n in p}
+for ann in xml.findall('.//annotation[@name="org.gtk.GDBus.CPP.if"]'):
+    if ann.get('value') not in args.define:
+        node = parents[ann]  # get parent of annotation
+        parents[node].remove(node)  # remove node from its parent
+
 output_basename = os.path.basename(args.output)
 output_header = os.path.splitext(output_basename)[0] + '.h'
 output_ifdef = output_basename.upper().replace('.', '_').replace('-', '_')
+
+# Generate interface info header and/or body with upstream tool.
+if args.interface_info_header or args.interface_info_body:
+    # Save modified XML tree into a temporary file for further processing
+    # with upstream code generator.
+    with tempfile.NamedTemporaryFile(mode='w') as f:
+        ET.ElementTree(xml).write(f.name)
+        f.flush()
+        command = ['gdbus-codegen', '--output', args.output]
+        if args.interface_info_header:
+            command += ['--interface-info-header']
+        if args.interface_info_body:
+            command += ['--interface-info-body']
+        subprocess.call(command + [f.name])
+        args.append = True
 
 with open(args.output, 'a' if args.append else 'w') as f:
 
@@ -114,7 +145,7 @@ with open(args.output, 'a' if args.append else 'w') as f:
     if args.interface_skeleton_body:
         f.write(TEMPLATE_BODY_PREAMBLE.format(header=output_header))
 
-    for iface in ET.parse(args.input).getroot():
+    for iface in xml:
 
         iface = iface.attrib['name']
         iface_ = re.sub(r'([a-z])([A-Z])', r'\1.\2', iface)

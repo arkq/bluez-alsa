@@ -57,8 +57,4 @@ OrgBluezProfile1Skeleton *org_bluez_profile1_skeleton_new(
 		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
 		GDestroyNotify userdata_free_func);
 
-extern const GDBusInterfaceInfo org_bluez_battery_provider1_interface;
-extern const GDBusInterfaceInfo org_bluez_media_endpoint1_interface;
-extern const GDBusInterfaceInfo org_bluez_profile1_interface;
-
 #endif

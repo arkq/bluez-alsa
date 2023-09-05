@@ -43,6 +43,4 @@ OrgOfonoHandsfreeAudioAgentSkeleton *org_ofono_handsfree_audio_agent_skeleton_ne
 		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
 		GDestroyNotify userdata_free_func);
 
-extern const GDBusInterfaceInfo org_ofono_handsfree_audio_agent_interface;
-
 #endif

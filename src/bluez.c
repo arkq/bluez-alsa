@@ -281,14 +281,10 @@ static bool bluez_match_dbus_adapter(
 	return false;
 }
 
-/**
- * Get BlueZ D-Bus object path for given transport profile. */
-static const char *bluez_transport_profile_to_bluez_object_path(
+static const char *bluez_get_media_endpoint_object_path(
 		enum ba_transport_profile profile,
 		uint16_t codec_id) {
 	switch (profile) {
-	case BA_TRANSPORT_PROFILE_NONE:
-		return "/";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		switch (codec_id) {
 		case A2DP_CODEC_SBC:
@@ -361,6 +357,15 @@ static const char *bluez_transport_profile_to_bluez_object_path(
 			error("Unsupported A2DP codec: %#x", codec_id);
 			g_assert_not_reached();
 		}
+	default:
+		g_assert_not_reached();
+		return "/";
+	}
+}
+
+static const char *bluez_get_profile_object_path(
+		enum ba_transport_profile profile) {
+	switch (profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		return "/HFP/HandsFree";
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -369,9 +374,10 @@ static const char *bluez_transport_profile_to_bluez_object_path(
 		return "/HSP/Headset";
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return "/HSP/AudioGateway";
+	default:
+		g_assert_not_reached();
+		return "/";
 	}
-	g_assert_not_reached();
-	return "/";
 }
 
 /**
@@ -682,7 +688,7 @@ static void bluez_export_a2dp(
 
 		char path[sizeof(dbus_obj->path)];
 		snprintf(path, sizeof(path), "/org/bluez/%s%s/%u", adapter->hci.name,
-				bluez_transport_profile_to_bluez_object_path(profile, codec->codec_id),
+				bluez_get_media_endpoint_object_path(profile, codec->codec_id),
 				++index);
 
 		if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
@@ -1055,7 +1061,7 @@ static void bluez_register_hfp(
 
 	char path[sizeof(dbus_obj->path)];
 	snprintf(path, sizeof(path), "/org/bluez%s",
-			bluez_transport_profile_to_bluez_object_path(profile, -1));
+			bluez_get_profile_object_path(profile));
 
 	if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
 
