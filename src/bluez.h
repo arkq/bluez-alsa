@@ -29,6 +29,7 @@ enum bluez_a2dp_transport_state {
 };
 
 int bluez_init(void);
+void bluez_destroy(void);
 
 bool bluez_a2dp_set_configuration(
 		const char *dbus_current_sep_path,

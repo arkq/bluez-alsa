@@ -104,7 +104,7 @@ int storage_init(const char *root) {
 void storage_destroy(void) {
 	if (storage_map == NULL)
 		return;
-	g_hash_table_destroy(storage_map);
+	g_hash_table_unref(storage_map);
 	storage_map = NULL;
 }
 

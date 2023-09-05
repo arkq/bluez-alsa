@@ -220,7 +220,7 @@ static struct bluez_adapter *bluez_adapter_new(struct ba_adapter *a) {
 static void bluez_adapter_free(struct bluez_adapter *b_adapter) {
 	if (b_adapter->adapter == NULL)
 		return;
-	g_hash_table_destroy(b_adapter->device_sep_map);
+	g_hash_table_unref(b_adapter->device_sep_map);
 	b_adapter->device_sep_map = NULL;
 	if (b_adapter->manager_media_application != NULL) {
 		g_object_unref(b_adapter->manager_media_application);
@@ -1517,25 +1517,37 @@ static void bluez_disappeared(GDBusConnection *conn, const char *name,
 
 }
 
+static unsigned int bluez_sig_sub_id_iface_added = 0;
+static unsigned int bluez_sig_sub_id_iface_removed = 0;
+static unsigned int bluez_sig_sub_id_prop_changed = 0;
+static unsigned int bluez_bus_watch_id = 0;
+
 /**
  * Subscribe to BlueZ signals. */
-static void bluez_subscribe_signals(void) {
+static void bluez_signals_subscribe(void) {
 
-	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
-			DBUS_IFACE_OBJECT_MANAGER, "InterfacesAdded", NULL, NULL,
+	bluez_sig_sub_id_iface_added = g_dbus_connection_signal_subscribe(config.dbus,
+			BLUEZ_SERVICE, DBUS_IFACE_OBJECT_MANAGER, "InterfacesAdded", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_interfaces_added, NULL, NULL);
-	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
-			DBUS_IFACE_OBJECT_MANAGER, "InterfacesRemoved", NULL, NULL,
+	bluez_sig_sub_id_iface_removed = g_dbus_connection_signal_subscribe(config.dbus,
+			BLUEZ_SERVICE, DBUS_IFACE_OBJECT_MANAGER, "InterfacesRemoved", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_interfaces_removed, NULL, NULL);
 
-	g_dbus_connection_signal_subscribe(config.dbus, BLUEZ_SERVICE,
-			DBUS_IFACE_PROPERTIES, "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
+	bluez_sig_sub_id_prop_changed = g_dbus_connection_signal_subscribe(config.dbus,
+			BLUEZ_SERVICE, DBUS_IFACE_PROPERTIES, "PropertiesChanged", NULL, BLUEZ_IFACE_MEDIA_TRANSPORT,
 			G_DBUS_SIGNAL_FLAGS_NONE, bluez_signal_transport_changed, NULL, NULL);
 
-	g_bus_watch_name_on_connection(config.dbus, BLUEZ_SERVICE,
-			G_BUS_NAME_WATCHER_FLAGS_NONE, NULL, bluez_disappeared,
+	bluez_bus_watch_id = g_bus_watch_name_on_connection(config.dbus,
+			BLUEZ_SERVICE, G_BUS_NAME_WATCHER_FLAGS_NONE, NULL, bluez_disappeared,
 			NULL, NULL);
 
+}
+
+static void bluez_signals_unsubscribe(void) {
+	g_dbus_connection_signal_unsubscribe(config.dbus, bluez_sig_sub_id_iface_added);
+	g_dbus_connection_signal_unsubscribe(config.dbus, bluez_sig_sub_id_iface_removed);
+	g_dbus_connection_signal_unsubscribe(config.dbus, bluez_sig_sub_id_prop_changed);
+	g_bus_unwatch_name(bluez_bus_watch_id);
 }
 
 /**
@@ -1544,14 +1556,35 @@ static void bluez_subscribe_signals(void) {
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int bluez_init(void) {
 
-	if (dbus_object_data_map == NULL)
-		dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal,
-				NULL, (GDestroyNotify)bluez_dbus_object_data_free);
+	dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal,
+			NULL, (GDestroyNotify)bluez_dbus_object_data_free);
 
-	bluez_subscribe_signals();
+	bluez_signals_subscribe();
 	bluez_register();
 
 	return 0;
+}
+
+/**
+ * Release resources associated with BlueZ service integration.
+ *
+ * Please note that this function does not perform full cleanup. It does not
+ * unregister objects exported to the BlueZ service, so it is not possible to
+ * initialize BlueZ integration again. This function should be called only to
+ * release resources before exiting the application. */
+void bluez_destroy(void) {
+
+	if (dbus_object_data_map == NULL)
+		return;
+
+	bluez_signals_unsubscribe();
+
+	for (size_t i = 0; i < ARRAYSIZE(bluez_adapters); i++)
+		bluez_adapter_free(&bluez_adapters[i]);
+
+	g_hash_table_unref(dbus_object_data_map);
+	dbus_object_data_map = NULL;
+
 }
 
 /**

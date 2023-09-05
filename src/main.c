@@ -34,7 +34,6 @@
 #include "a2dp.h"
 #include "a2dp-sbc.h"
 #include "audio.h"
-#include "ba-adapter.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
@@ -615,8 +614,7 @@ int main(int argc, char **argv) {
 	g_main_loop_run(loop);
 
 	/* cleanup internal structures */
-	for (size_t i = 0; i < ARRAYSIZE(config.adapters); i++)
-		ba_adapter_destroy(config.adapters[i]);
+	bluez_destroy();
 
 	storage_destroy();
 	g_dbus_connection_close_sync(config.dbus, NULL, NULL);
