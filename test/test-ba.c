@@ -79,7 +79,9 @@ CK_START_TEST(test_ba_adapter) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_str_eq(a->hci.name, "hci0");
+
 	ba_adapter_unref(a);
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 	ck_assert_ptr_ne(a = ba_adapter_new(5), NULL);
 	ck_assert_int_eq(a->hci.dev_id, 5);
@@ -89,6 +91,7 @@ CK_START_TEST(test_ba_adapter) {
 	ba_adapter_unref(a);
 
 	ba_adapter_unref(a);
+	ck_assert_ptr_eq(ba_adapter_lookup(5), NULL);
 
 } CK_END_TEST
 
@@ -113,6 +116,7 @@ CK_START_TEST(test_ba_device) {
 	ba_device_unref(d);
 
 	ba_device_unref(d);
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 } CK_END_TEST
 
@@ -140,6 +144,7 @@ CK_START_TEST(test_ba_transport) {
 	ba_transport_unref(t);
 
 	ba_transport_unref(t);
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 } CK_END_TEST
 
@@ -165,6 +170,7 @@ CK_START_TEST(test_ba_transport_sco_one_only) {
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 } CK_END_TEST
 
@@ -205,6 +211,7 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 } CK_END_TEST
 
@@ -240,9 +247,10 @@ CK_START_TEST(test_ba_transport_threads_sync_termination) {
 	ck_assert_int_eq(ba_transport_thread_state_wait_terminated(&t_sco->thread_enc), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_terminated(&t_sco->thread_dec), 0);
 
-	ba_transport_unref(t_sco);
 	ba_adapter_unref(a);
 	ba_device_unref(d);
+	ba_transport_unref(t_sco);
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 } CK_END_TEST
 
@@ -303,6 +311,8 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 	ba_transport_unref(t_a2dp);
 	ba_transport_unref(t_sco);
 
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+
 } CK_END_TEST
 
 static int test_cascade_free_transport_unref(struct ba_transport *t) {
@@ -319,10 +329,15 @@ CK_START_TEST(test_cascade_free) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_ptr_ne(t = transport_new(d, "/owner", "/path"), NULL);
+
+	t->bt_fd = 0;  /* release() is called for acquired transport only */
 	t->release = test_cascade_free_transport_unref;
 
 	ba_device_unref(d);
 	ba_adapter_destroy(a);
+
+	/* verify that cascade free was performed */
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 } CK_END_TEST
 
@@ -371,9 +386,10 @@ CK_START_TEST(test_storage) {
 	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, &muted, NULL);
 	ba_transport_pcm_delay_adjustment_set(&t->a2dp.pcm, A2DP_CODEC_SBC, 140);
 
-	ba_transport_unref(t);
 	ba_adapter_unref(a);
 	ba_device_unref(d);
+	ba_transport_unref(t);
+	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
 
 	char buffer[1024] = { 0 };
 	ck_assert_ptr_ne(f = fopen(storage_path, "r"), NULL);
