@@ -286,7 +286,7 @@ AM_CONDITIONAL([ENABLE_TEST], [test "x$enable_test" = "xyes"])
 AM_COND_IF([ENABLE_TEST], [
 	AC_SEARCH_LIBS([dlsym], [dl],
 		[], [AC_MSG_ERROR([unable to find dlsym() function])])
-	PKG_CHECK_MODULES([CHECK], [check >= 0.9.10])
+	PKG_CHECK_MODULES([CHECK], [check >= 0.11.0])
 	PKG_CHECK_MODULES([SNDFILE], [sndfile >= 1.0],
 		AC_DEFINE([HAVE_SNDFILE], [1], [Define to 1 if you have the sndfile library.]), [:])
 ])

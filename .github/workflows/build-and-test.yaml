@@ -155,7 +155,7 @@ jobs:
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       env:
-        CK_DEFAULT_TIMEOUT: 15
+        CK_DEFAULT_TIMEOUT: 20
         ASAN_OPTIONS: detect_stack_use_after_return=1
         TSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/tsan-supressions.txt
       run: |

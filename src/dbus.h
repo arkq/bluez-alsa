@@ -56,10 +56,6 @@ typedef struct _GDBusInterfaceSkeletonEx {
 	void *userdata;
 } GDBusInterfaceSkeletonEx;
 
-bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
-		const char *sender, const char *path, const char *interface, const char *method,
-		GDBusMethodInvocation *invocation, void *userdata);
-
 GDBusInterfaceInfo *g_dbus_interface_skeleton_ex_class_get_info(
 		GDBusInterfaceSkeleton *interface_skeleton);
 

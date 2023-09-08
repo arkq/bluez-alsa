@@ -28,7 +28,7 @@
  * @param invocation D-Bus method invocation structure.
  * @param userdata Data to pass to the handler function.
  * @return On success this function returns true. */
-bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
+static bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 		const char *sender, const char *path, const char *interface, const char *method,
 		GDBusMethodInvocation *invocation, void *userdata) {
 
@@ -50,6 +50,8 @@ bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
 		return true;
 	}
 
+	/* make sure that we will not leak the invocation object */
+	g_dbus_method_invocation_return_value(invocation, NULL);
 	return false;
 }
 

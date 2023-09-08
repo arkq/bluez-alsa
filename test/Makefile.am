@@ -10,6 +10,7 @@ TESTS = \
 	test-at \
 	test-audio \
 	test-ba \
+	test-dbus \
 	test-io \
 	test-rfcomm \
 	test-rtp \
@@ -22,6 +23,7 @@ check_PROGRAMS = \
 	test-at \
 	test-audio \
 	test-ba \
+	test-dbus \
 	test-io \
 	test-rfcomm \
 	test-rtp \
@@ -102,6 +104,12 @@ test_ba_SOURCES = \
 	../src/storage.c \
 	../src/utils.c \
 	test-ba.c
+
+test_dbus_SOURCES = \
+	../src/shared/log.c \
+	../src/dbus.c \
+	test-dbus-iface.c \
+	test-dbus.c
 
 test_io_SOURCES = \
 	../src/shared/a2dp-codecs.c \
@@ -259,3 +267,7 @@ LDADD = \
 	@SBC_LIBS@ \
 	@SNDFILE_LIBS@ \
 	@SPANDSP_LIBS@
+
+.xml.c:
+	$(top_srcdir)/src/dbus-codegen.py --output $@ \
+		--interface-info-body --interface-skeleton-body $<

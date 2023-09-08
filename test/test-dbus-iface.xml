@@ -1,0 +1,14 @@
+<!-- BlueALSA - test-dbus-iface.xml
+     Copyright (c) 2016-2023 Arkadiusz Bokowy
+
+     This file is a part of bluez-alsa.
+
+     This project is licensed under the terms of the MIT license.
+-->
+<node>
+	<interface name="org.example.Foo">
+		<property name="Bar" type="b" access="readwrite"/>
+		<method name="Boom"/>
+		<method name="Ping"/>
+	</interface>
+</node>
