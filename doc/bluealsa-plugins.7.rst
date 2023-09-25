@@ -569,6 +569,21 @@ to a file this is not normally an issue; but when streaming between some other
 device and a BlueALSA device this may lead to very large latency (delay) or
 trigger underruns or overruns in the other device.
 
+PCM drain and non-blocking operation
+------------------------------------
+
+The BlueALSA PCM plugin does not support draining of capture PCMs. For a
+capture PCM `snd_pcm_drain()` has the same effect as `snd_pcm_drop()`. This is
+a limitation of the ALSA `ioplug` external plugin API.
+
+For playback PCMs, BlueALSA has support for the drain operation in both
+blocking and non-blocking modes. In blocking mode the drain operation will wait
+until the BlueALSA server has played out the final audio frame. In non-blocking
+mode the plugin will inform the application of drain completion as soon as the
+ALSA ring buffer has been flushed; this means that some audio frames at the end
+of the stream may be lost in non-blocking mode as the PCM may stop before the
+server has had time to encode and play out all the frames.
+
 FILES
 =====
 

@@ -146,6 +146,8 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
 	int rv = 0;
 	if (pcm != NULL)
 		rv = snd_pcm_close(pcm);
+	if (pcm_device != NULL)
+		return rv;
 	if (sp_ba_mock != NULL) {
 		spawn_terminate(sp_ba_mock, 0);
 		spawn_close(sp_ba_mock, NULL);
@@ -232,6 +234,27 @@ CK_START_TEST(test_capture_start) {
 	/* but there may be more data in the FIFO */
 	ck_assert_int_eq(snd_pcm_delay(pcm, &delay), 0);
 	ck_assert_int_ge(delay, avail);
+
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
+
+} CK_END_TEST
+
+CK_START_TEST(test_capture_drain) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	struct spawn_process sp_ba_mock;
+	snd_pcm_t *pcm = NULL;
+
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+	ck_assert_int_eq(snd_pcm_start(pcm), 0);
+
+	/* drain PCM buffer and stop capture */
+	ck_assert_int_eq(snd_pcm_drain(pcm), 0);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_SETUP);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
@@ -687,7 +710,6 @@ CK_START_TEST(test_playback_drain) {
 	struct timespec t0, t, diff;
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
-	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
@@ -699,11 +721,96 @@ CK_START_TEST(test_playback_drain) {
 	gettimestamp(&t0);
 
 	/* fill-in entire PCM buffer */
-	for (i = 0; i <= buffer_size / period_size; i++)
+	for (size_t i = 0; i <= buffer_size / period_size; i++)
 		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
 
 	/* drain PCM buffer and stop playback */
 	ck_assert_int_eq(snd_pcm_drain(pcm), 0);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_SETUP);
+
+	gettimestamp(&t);
+	difftimespec(&t0, &t, &diff);
+	/* verify whether elapsed time is at least PCM buffer time length */
+	ck_assert_uint_gt(diff.tv_sec * 1000000 + diff.tv_nsec / 1000, buffer_time);
+
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
+
+} CK_END_TEST
+
+CK_START_TEST(test_playback_drain_not_started) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	struct spawn_process sp_ba_mock;
+	snd_pcm_t *pcm = NULL;
+
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	/* setup PCM to be started by writing the last period of data */
+	ck_assert_int_eq(set_sw_params(pcm, buffer_size, period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	/* fill-in buffer without starting playback */
+	for (size_t i = 0; i < (buffer_size - 10) / period_size; i++)
+		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+
+	/* drain PCM buffer and stop playback */
+	ck_assert_int_eq(snd_pcm_drain(pcm), 0);
+	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_SETUP);
+
+	/* verify whether PCM buffer is empty */
+	ck_assert_int_le(snd_pcm_avail(pcm), buffer_size);
+
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
+
+} CK_END_TEST
+
+CK_START_TEST(test_playback_drain_nonblock) {
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	snd_pcm_uframes_t buffer_size;
+	snd_pcm_uframes_t period_size;
+	struct timespec t0, t, diff;
+	struct spawn_process sp_ba_mock;
+	snd_pcm_t *pcm = NULL;
+
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	struct pollfd pfds[8];
+	unsigned short revents;
+	int count = snd_pcm_poll_descriptors_count(pcm);
+	ck_assert_int_eq(snd_pcm_poll_descriptors(pcm, pfds, ARRAYSIZE(pfds)), count);
+
+	/* get current timestamp */
+	gettimestamp(&t0);
+
+	/* fill-in entire PCM buffer */
+	for (size_t i = 0; i <= buffer_size / period_size; i++)
+		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
+
+	/* set the PCM nonblock flag */
+	ck_assert_int_eq(snd_pcm_nonblock(pcm, 1), 0);
+
+	/* initiate drain of PCM buffer */
+	ck_assert_int_eq(snd_pcm_drain(pcm), -EAGAIN);
+
+	do { /* draining PCM shall emit POLLOUT event when drained */
+		ck_assert_int_gt(poll(pfds, count, -1), 0);
+		snd_pcm_poll_descriptors_revents(pcm, pfds, count, &revents);
+	} while (revents == 0);
+	/* we should get write event flag set */
+	ck_assert_int_eq(revents & POLLOUT, POLLOUT);
+
+	/* verify that the drain did complete */
 	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_SETUP);
 
 	gettimestamp(&t);
@@ -1060,6 +1167,7 @@ int main(int argc, char *argv[], char *envp[]) {
 		TCase *tc = tcase_create("capture");
 		tcase_add_test(tc, dump_capture);
 		tcase_add_test(tc, test_capture_start);
+		tcase_add_test(tc, test_capture_drain);
 		tcase_add_test(tc, test_capture_pause);
 		tcase_add_test(tc, test_capture_overrun);
 		tcase_add_test(tc, test_capture_poll);
@@ -1076,6 +1184,8 @@ int main(int argc, char *argv[], char *envp[]) {
 		tcase_add_test(tc, test_playback_hw_set_free);
 		tcase_add_test(tc, test_playback_start);
 		tcase_add_test(tc, test_playback_drain);
+		tcase_add_test(tc, test_playback_drain_not_started);
+		tcase_add_test(tc, test_playback_drain_nonblock);
 		tcase_add_test(tc, test_playback_pause);
 		tcase_add_test(tc, test_playback_reset);
 		tcase_add_test(tc, test_playback_underrun);

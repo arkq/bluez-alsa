@@ -675,42 +675,94 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	 * always either finishes in state SND_PCM_STATE_SETUP or returns an error.
 	 * It is not possible to finish in state SND_PCM_STATE_DRAINING and return
 	 * success; therefore is is impossible to correctly implement capture
-	 * drain logic. So for capture PCMs we do nothing and return success. */
+	 * drain logic. So for capture PCMs we do nothing and return success;
+	 * ioplug will stop the PCM. */
+	if (io->stream == SND_PCM_STREAM_CAPTURE)
+		return 0;
 
-	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+	/* We must ensure that all remaining frames in the ring buffer are flushed
+	 * to the FIFO by the I/O thread. It is possible that the client has called
+	 * snd_pcm_drain() without the start_threshold having been reached, or
+	 * while paused, so we must first ensure that the IO thread is running. */
+	if (bluealsa_start(io) < 0) {
+		/* Insufficient resources to start a new thread - so we have no choice
+		 * but to drop this stream. */
+		bluealsa_stop(io);
+		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_SETUP);
+		return -EIO;
+	}
 
-		/* We must ensure that all remaining frames in the ring buffer are
-		 * flushed to the FIFO by the I/O thread. It is possible that the
-		 * client has called snd_pcm_drain() without the start_threshold
-		 * having been reached, or while paused, so we must first ensure that
-		 * the IO thread is running. */
-		if (bluealsa_start(io) < 0)
-			return 0;
+	/* For a non-blocking drain, we do not wait for the drain to complete. */
+	if (io->nonblock == 1)
+		return -EAGAIN;
 
-		/* Block until the drain is complete. */
-		struct pollfd pfd = { pcm->event_fd, POLLIN, 0 };
-		while (bluealsa_pointer(io) >= 0 && io->state == SND_PCM_STATE_DRAINING) {
-			if (poll(&pfd, 1, -1) == -1) {
-				if (errno == EINTR)
+	struct pollfd pfd = { pcm->event_fd, POLLIN, 0 };
+	bool aborted = false;
+	int ret = 0;
+
+	snd_pcm_sframes_t hw_ptr;
+	while ((hw_ptr = bluealsa_pointer(io)) >= 0 && io->state == SND_PCM_STATE_DRAINING) {
+
+		snd_pcm_uframes_t avail = snd_pcm_ioplug_hw_avail(io, hw_ptr, io->appl_ptr);
+
+		/* If the buffer is empty then the local drain is complete. */
+		if (avail == 0)
+			break;
+
+		/* We set a timeout to ensure that the plugin cannot block forever in
+		 * case the server has stopped reading from the FIFO. Allow enough time
+		 * to drain the available frames as full periods, plus 100 ms:
+		 * e.g. one or less periods in buffer, allow 100ms + one period, more
+		 *      than one but not more than two, allow 100ms + two periods, etc.
+		 * If the wait is re-started after being interrupted by a signal then
+		 * we must re-calculate the maximum waiting time that remains. */
+		int timeout = 100 + (((avail - 1) / io->period_size) + 1) * io->period_size * 1000 / io->rate;
+
+		int nready = poll(&pfd, 1, timeout);
+		if (nready == -1) {
+			if (errno == EINTR) {
+				/* It is not well documented by ALSA, but if the application has
+				 * requested that the PCM should be aborted by a signal then the
+				 * ioplug nonblock flag is set to the special value 2. */
+				if (io->nonblock != 2)
 					continue;
-				break;
+				/* Application has aborted the drain. */
+				debug2("Drain aborted by signal");
+				aborted = true;
 			}
-			if (pfd.revents & POLLIN) {
-				eventfd_t event;
-				eventfd_read(pcm->event_fd, &event);
-				if (event & 0xDEAD0000)
-					break;
+			else {
+				debug2("Drain poll error: %s", strerror(errno));
+				bluealsa_stop(io);
+				snd_pcm_ioplug_set_state(io, SND_PCM_STATE_SETUP);
+				ret = -EIO;
 			}
+
+			break;
+		}
+		if (nready == 0) {
+			/* Timeout - do not wait any longer. */
+			SNDERR("Drain timed out: Possible Bluetooth transport failure");
+			bluealsa_stop(io);
+			io->state = SND_PCM_STATE_SETUP;
+			ret = -EIO;
+			break;
 		}
 
-		bluealsa_dbus_pcm_ctrl_send_drain(pcm->ba_pcm_ctrl_fd, NULL);
+		if (pfd.revents & POLLIN) {
+			eventfd_t event;
+			eventfd_read(pcm->event_fd, &event);
+		}
 
 	}
 
-	/* We cannot recover from an error here. By returning zero we ensure that
-	 * ioplug stops the pcm. Returning an error code would be interpreted by
-	 * ioplug as an incomplete drain and would it leave the pcm running. */
-	return 0;
+	if (io->state == SND_PCM_STATE_DRAINING && !aborted)
+		if (!bluealsa_dbus_pcm_ctrl_send_drain(pcm->ba_pcm_ctrl_fd, NULL)) {
+			bluealsa_stop(io);
+			io->state = SND_PCM_STATE_SETUP;
+			ret = -EIO;
+		}
+
+	return ret;
 }
 
 /**
@@ -953,7 +1005,8 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 			goto fail;
 
 		/* This call synchronizes the ring buffer pointers and updates the
-		 * ioplug state. */
+		 * ioplug state. For non-blocking drains it also causes ioplug to drop
+		 * the stream when the buffer is empty. */
 		snd_pcm_sframes_t avail = snd_pcm_avail(io->pcm);
 
 		/* ALSA expects that the event will match stream direction, e.g.
@@ -966,8 +1019,13 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 
 		switch (io->state) {
 			case SND_PCM_STATE_SETUP:
+				/* To support non-blocking drain we must report a POLLOUT event
+				 * for playback PCMs here, because the above call to
+				 * snd_pcm_avail() may have changed the state to
+				 * SND_PCM_STATE_SETUP. */
+				if (io->stream == SND_PCM_STREAM_CAPTURE)
+					*revents = 0;
 				ready = false;
-				*revents = 0;
 				break;
 			case SND_PCM_STATE_PREPARED:
 				/* capture poll should block forever */
@@ -978,6 +1036,15 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 				break;
 			case SND_PCM_STATE_RUNNING:
 				if ((snd_pcm_uframes_t)avail < pcm->io_avail_min) {
+					ready = false;
+					*revents = 0;
+				}
+				break;
+			case SND_PCM_STATE_DRAINING:
+				/* BlueALSA does not drain capture PCMs. So this state only
+				 * occurs with playback PCMs. Do not wake the application until
+				 * the buffer is empty. */
+				if ((snd_pcm_uframes_t)avail < io->buffer_size) {
 					ready = false;
 					*revents = 0;
 				}
