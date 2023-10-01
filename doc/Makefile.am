@@ -1,8 +1,14 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2021 Arkadiusz Bokowy
+# Copyright (c) 2016-2023 Arkadiusz Bokowy
 
 man1_MANS =
-man7_MANS = bluealsa-plugins.7
+
+man7_MANS = \
+	bluealsa-plugins.7 \
+	org.bluealsa.Manager1.7 \
+	org.bluealsa.PCM1.7 \
+	org.bluealsa.RFCOMM1.7
+
 man8_MANS = bluealsa.8
 
 if ENABLE_APLAY
