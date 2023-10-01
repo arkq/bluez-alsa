@@ -210,8 +210,8 @@ articles on the [bluez-alsa project wiki][] giving examples of its use.
 
 The list of available BlueALSA PCMs (provided by connected Bluetooth devices
 with audio capabilities) can be obtained directly from [BlueALSA D-Bus
-API](doc/bluealsa-api.txt) or using `bluealsa-aplay` as a convenient wrapper as
-follows:
+API](doc/org.bluealsa.PCM1.7.rst) or using `bluealsa-aplay` as a convenient
+wrapper as follows:
 
 ```sh
 bluealsa-aplay -L

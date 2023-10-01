@@ -73,7 +73,6 @@ jobs:
     - name: Run reStructuredText Linter
       uses: deep-entertainment/doc8-action@v4
       with:
-        ignorePaths: ${{ github.workspace }}/doc/bluealsa-api.txt
         scanPaths: ${{ github.workspace }}
 
   include-what-you-use:
