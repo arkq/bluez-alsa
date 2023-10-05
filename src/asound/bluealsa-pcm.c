@@ -395,7 +395,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 
 	if (!bluealsa_dbus_pcm_ctrl_send_resume(pcm->ba_pcm_ctrl_fd, NULL)) {
 		debug2("Couldn't start PCM: %s", strerror(errno));
-		return -errno;
+		return -EIO;
 	}
 
 	/* Initialize delay calculation - capture reception begins immediately,
@@ -410,7 +410,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 					PTHREAD_FUNC(io_thread), io)) != 0) {
 		debug2("Couldn't create IO thread: %s", strerror(errno));
 		pcm->io_started = false;
-		return -errno;
+		return -EIO;
 	}
 
 	pthread_setname_np(pcm->io_thread, "pcm-io");
@@ -432,7 +432,7 @@ static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	pcm->io_hw_ptr = 0;
 
 	if (!bluealsa_dbus_pcm_ctrl_send_drop(pcm->ba_pcm_ctrl_fd, NULL))
-		return -errno;
+		return -EIO;
 
 	/* Applications that call poll() after snd_pcm_drain() will be blocked
 	 * forever unless we generate a poll() event here. */
@@ -899,7 +899,7 @@ static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 
 	if (!bluealsa_dbus_pcm_ctrl_send(pcm->ba_pcm_ctrl_fd,
 				enable ? "Pause" : "Resume", NULL))
-		return -errno;
+		return -EIO;
 
 	if (enable == 0)
 		pthread_kill(pcm->io_thread, SIGIO);
