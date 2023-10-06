@@ -18,6 +18,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/param.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "shared/a2dp-codecs.h"
@@ -1009,7 +1010,7 @@ dbus_bool_t bluealsa_dbus_pcm_ctrl_send(
 		DBusError *error) {
 
 	ssize_t len = strlen(command);
-	if (write(fd_pcm_ctrl, command, len) == -1) {
+	if (send(fd_pcm_ctrl, command, len, MSG_NOSIGNAL) == -1) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Write: %s", strerror(errno));
 		return FALSE;
 	}
