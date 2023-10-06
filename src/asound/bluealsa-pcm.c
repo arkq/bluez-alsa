@@ -705,7 +705,7 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	}
 
 	/* For a non-blocking drain, we do not wait for the drain to complete. */
-	if (io->nonblock == 1)
+	if (io->nonblock)
 		return -EAGAIN;
 
 	struct pollfd pfd = { pcm->event_fd, POLLIN, 0 };
