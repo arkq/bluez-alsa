@@ -1007,18 +1007,30 @@ fail:
 dbus_bool_t bluealsa_dbus_pcm_ctrl_send(
 		int fd_pcm_ctrl,
 		const char *command,
+		int timeout,
 		DBusError *error) {
 
 	ssize_t len = strlen(command);
 	if (send(fd_pcm_ctrl, command, len, MSG_NOSIGNAL) == -1) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "Write: %s", strerror(errno));
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Send: %s", strerror(errno));
 		return FALSE;
 	}
 
 	/* PCM controller socket is created in the non-blocking
-	 * mode, so we have to poll for reading by ourself. */
+	 * mode, so we have to poll for reading by ourself. If interrupted we
+	 * cannot report error EINTR here because the command has already been
+	 * sent; so we must wait for the response or else this is a fatal error. */
 	struct pollfd pfd = { fd_pcm_ctrl, POLLIN, 0 };
-	poll(&pfd, 1, -1);
+	int res;
+	while ((res = poll(&pfd, 1, timeout)) == -1 && errno == EINTR)
+		continue;
+
+	if (res == 0) {
+		/* poll() timeout - the server has stopped responding to commands */
+		errno = EIO;
+		dbus_set_error(error, DBUS_ERROR_IO_ERROR, "Read: %s", strerror(errno));
+		return FALSE;
+	}
 
 	char rep[32];
 	if ((len = read(fd_pcm_ctrl, rep, sizeof(rep))) == -1) {

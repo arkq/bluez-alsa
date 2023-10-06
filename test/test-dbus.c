@@ -249,6 +249,7 @@ CK_START_TEST(test_g_dbus_connection_emit_properties_changed) {
 
 	g_variant_builder_clear(&props);
 	test_dbus_connection_free(tc);
+	sync_barrier_free(&sb);
 
 } CK_END_TEST
 
