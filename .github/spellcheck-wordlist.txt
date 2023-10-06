@@ -146,6 +146,7 @@ dpsnk
 dpsrc
 DYN
 EAGAIN
+EINTR
 EINVAL
 ENODEV
 EP

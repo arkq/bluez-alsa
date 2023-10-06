@@ -898,7 +898,7 @@ static int bluealsa_pause(snd_pcm_ioplug_t *io, int enable) {
 	}
 
 	if (!bluealsa_dbus_pcm_ctrl_send(pcm->ba_pcm_ctrl_fd,
-				enable ? "Pause" : "Resume", NULL))
+				enable ? "Pause" : "Resume", 200, NULL))
 		return -EIO;
 
 	if (enable == 0)

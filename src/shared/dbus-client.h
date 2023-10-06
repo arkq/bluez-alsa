@@ -317,19 +317,20 @@ dbus_bool_t bluealsa_dbus_pcm_update(
 dbus_bool_t bluealsa_dbus_pcm_ctrl_send(
 		int fd_pcm_ctrl,
 		const char *command,
+		int timeout,
 		DBusError *error);
 
 #define bluealsa_dbus_pcm_ctrl_send_drain(fd, err) \
-	bluealsa_dbus_pcm_ctrl_send(fd, "Drain", err)
+	bluealsa_dbus_pcm_ctrl_send(fd, "Drain", 3000, err)
 
 #define bluealsa_dbus_pcm_ctrl_send_drop(fd, err) \
-	bluealsa_dbus_pcm_ctrl_send(fd, "Drop", err)
+	bluealsa_dbus_pcm_ctrl_send(fd, "Drop", 200, err)
 
 #define bluealsa_dbus_pcm_ctrl_send_pause(fd, err) \
-	bluealsa_dbus_pcm_ctrl_send(fd, "Pause", err)
+	bluealsa_dbus_pcm_ctrl_send(fd, "Pause", 200, err)
 
 #define bluealsa_dbus_pcm_ctrl_send_resume(fd, err) \
-	bluealsa_dbus_pcm_ctrl_send(fd, "Resume", err)
+	bluealsa_dbus_pcm_ctrl_send(fd, "Resume", 200, err)
 
 dbus_bool_t bluealsa_dbus_message_iter_array_get_strings(
 		DBusMessageIter *iter,
