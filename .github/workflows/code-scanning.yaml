@@ -15,6 +15,17 @@ permissions:
 
 jobs:
 
+  cccc:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run cccc analysis
+      uses: sarnold/cccc-action@main
+    - uses: actions/upload-artifact@v3
+      with:
+        name: ${{ github.job }} logs
+        path: metrics
+
   code-ql:
     runs-on: ubuntu-latest
     steps:
@@ -152,7 +163,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Run ShellCheck Scan
-      uses: redhat-plumbers-in-action/differential-shellcheck@v4
+      uses: redhat-plumbers-in-action/differential-shellcheck@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
 
