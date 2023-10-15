@@ -226,6 +226,14 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 
 	struct ba_transport *t = pcm->t;
 
+	/* The thread may have been cancelled while a PCM drain operation
+	 * is in progress. To prevent ba_transport_pcm_drain() from blocking
+	 * forever, we signal that drain is no longer in progress. */
+	pthread_mutex_lock(&pcm->mutex);
+	pcm->synced = true;
+	pthread_mutex_unlock(&pcm->mutex);
+	pthread_cond_signal(&pcm->cond);
+
 	/* For proper functioning of the transport, all threads have to be
 	 * operational. Therefore, if one of the threads is being cancelled,
 	 * we have to cancel all other threads. */

@@ -797,6 +797,53 @@ CK_START_TEST(test_a2dp_sbc_pcm_drain) {
 
 } CK_END_TEST
 
+static void *test_transport_destroy(void *userdata) {
+	struct ba_transport *t = userdata;
+	usleep(10000);
+	ba_transport_destroy(t);
+	return NULL;
+}
+
+CK_START_TEST(test_a2dp_sbc_pcm_drain_and_close) {
+
+	int16_t pcm_zero[90] = { 0 };
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
+			&config_sbc_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
+			&config_sbc_44100_stereo);
+
+	int fd_pcm_snk = -1;
+	int fd_pcm_src = -1;
+	setup_a2dp_link(t1, t2, 256, &fd_pcm_snk, &fd_pcm_src);
+
+	/* start sink PCM IO thread and make sure it is running */
+	struct ba_transport_pcm *pcm = &t1->a2dp.pcm;
+	ck_assert_int_eq(ba_transport_pcm_start(pcm, a2dp_sbc_enc_thread, "sbc"), 0);
+	ck_assert_int_eq(ba_transport_pcm_state_wait_running(pcm), 0);
+
+	/* write zero samples to sink PCM until it is full */
+	while (write(fd_pcm_snk, pcm_zero, sizeof(pcm_zero)) > 0)
+		continue;
+
+	pthread_t thread;
+	/* schedule transport destruction to kick in during PCM drain */
+	pthread_create(&thread, NULL, test_transport_destroy, ba_transport_ref(t1));
+
+	/* drain PCM samples */
+	ck_assert_int_eq(ba_transport_pcm_drain(pcm), 0);
+
+	pthread_join(thread, NULL);
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+	close(fd_pcm_snk);
+	close(fd_pcm_src);
+
+} CK_END_TEST
+
 CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 
 	int16_t pcm_zero[90] = { 0 };
@@ -1228,6 +1275,7 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_invalid_config },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain_and_close },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drop },
 #if ENABLE_MP3LAME
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },
