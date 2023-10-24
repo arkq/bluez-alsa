@@ -255,9 +255,23 @@ const char *sbc_strerror(int err) {
 #if DEBUG
 void sbc_print_internals(const sbc_t *sbc) {
 
-	const char *mode[] = { "Mono", "DualChannel", "Stereo", "JointStereo" };
-	const char *allocation[] = { "SNR", "Loudness" };
-	const unsigned int frequency[] = { 16000, 32000, 44100, 48000 };
+	static const char *mode[] = {
+		[SBC_MODE_MONO] = "Mono",
+		[SBC_MODE_DUAL_CHANNEL] = "DualChannel",
+		[SBC_MODE_STEREO] = "Stereo",
+		[SBC_MODE_JOINT_STEREO] = "JointStereo",
+	};
+	static const char *allocation[] = {
+		[SBC_AM_LOUDNESS] = "Loudness",
+		[SBC_AM_SNR] = "SNR",
+	};
+	static const unsigned int frequency[] = {
+		[SBC_SAMPLING_FREQ_16000] = 16000,
+		[SBC_SAMPLING_FREQ_32000] = 32000,
+		[SBC_SAMPLING_FREQ_44100] = 44100,
+		[SBC_SAMPLING_FREQ_48000] = 48000,
+	};
+
 	const unsigned int br = 8 * sbc_get_frame_length((sbc_t *)sbc) * frequency[sbc->frequency] /
 		((sbc->subbands + 1) * 4) / ((sbc->blocks + 1) * 4);
 
