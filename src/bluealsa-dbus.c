@@ -36,6 +36,7 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-iface.h"
 #include "bluez.h"
@@ -389,12 +390,16 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	(void)condition;
 
 	struct ba_transport_pcm *pcm = userdata;
+	GError *err = NULL;
 	char command[32];
 	size_t len;
 
-	switch (g_io_channel_read_chars(ch, command, sizeof(command), &len, NULL)) {
+	switch (g_io_channel_read_chars(ch, command, sizeof(command), &len, &err)) {
+	case G_IO_STATUS_AGAIN:
+		return TRUE;
 	case G_IO_STATUS_ERROR:
-		error("Couldn't read controller channel");
+		error("PCM controller read error: %s", err->message);
+		g_error_free(err);
 		return TRUE;
 	case G_IO_STATUS_NORMAL:
 		if (strncmp(command, BLUEALSA_PCM_CTRL_DRAIN, len) == 0) {
@@ -420,8 +425,6 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 			g_io_channel_write_chars(ch, "Invalid", -1, &len, NULL);
 		}
 		g_io_channel_flush(ch, NULL);
-		return TRUE;
-	case G_IO_STATUS_AGAIN:
 		return TRUE;
 	case G_IO_STATUS_EOF:
 		pthread_mutex_lock(&pcm->mutex);
@@ -517,6 +520,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
 	g_io_channel_set_close_on_unref(ch, TRUE);
 	g_io_channel_set_encoding(ch, NULL, NULL);
+	g_io_channel_set_buffered(ch, FALSE);
 
 	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
 			bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
