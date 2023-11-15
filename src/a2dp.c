@@ -276,12 +276,16 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 		} break;
 	case BT_COMPID_SAVITECH:
 		switch (codec_id) {
-		case LHDC_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LHDC;
-		case LHDC_LL_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LHDC_LL;
 		case LHDC_V1_CODEC_ID:
 			return A2DP_CODEC_VENDOR_LHDC_V1;
+		case LHDC_V2_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC_V2;
+		case LHDC_V3_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC_V3;
+		case LHDC_V5_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC_V5;
+		case LHDC_LL_CODEC_ID:
+			return A2DP_CODEC_VENDOR_LHDC_LL;
 		} break;
 	case BT_COMPID_FRAUNHOFER_IIS:
 		switch (codec_id) {

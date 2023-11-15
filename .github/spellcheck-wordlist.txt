@@ -63,6 +63,7 @@ BlueZ
 Fraunhofer
 IWYU
 LDAC
+LHDC
 MPD
 oFono
 PipeWire
@@ -174,7 +175,6 @@ iter
 keyp
 LF
 LFE
-LHDC
 libasound
 libbsd
 libdbus

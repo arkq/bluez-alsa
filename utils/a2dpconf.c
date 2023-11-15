@@ -371,44 +371,17 @@ static void dump_ldac(const void *blob, size_t size) {
 			ldac->channel_mode & LDAC_CHANNEL_MODE_MONO ? " Mono" : "");
 }
 
-static int lhdc_get_max_bit_rate(const a2dp_lhdc_t *lhdc) {
-	if (lhdc->max_bit_rate == LHDC_MAX_BIT_RATE_400K)
+static int lhdc_get_max_bit_rate(unsigned int value) {
+	switch (value) {
+	case LHDC_MAX_BIT_RATE_400K:
 		return 400;
-	if (lhdc->max_bit_rate == LHDC_MAX_BIT_RATE_500K)
+	case LHDC_MAX_BIT_RATE_500K:
 		return 500;
-	if (lhdc->max_bit_rate == LHDC_MAX_BIT_RATE_900K)
+	case LHDC_MAX_BIT_RATE_900K:
 		return 900;
-	return -1;
-}
-
-static void dump_lhdc(const void *blob, size_t size) {
-	const a2dp_lhdc_t *lhdc = blob;
-	if (check_blob_size(sizeof(*lhdc), size) == -1)
-		return;
-	printf("LHDC <hex:%s> {\n", bintohex(blob, size));
-	printf_vendor(&lhdc->info);
-	printf(""
-			"  <reserved>:2\n"
-			"  bit-depth:2 =%s%s\n"
-			"  frequency:2 =%s%s%s%s\n"
-			"  low-latency:1 = %s\n"
-			"  max-bit-rate:3 = %d\n"
-			"  version:4 = %u\n"
-			"  <reserved>:4\n"
-			"  ch-split-mode:4 =%s%s%s\n"
-			"}\n",
-			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
-			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
-			lhdc->low_latency ? "true" : "false",
-			lhdc_get_max_bit_rate(lhdc),
-			lhdc->version,
-			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS_PLUS ? " TWS+" : "",
-			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS ? " TWS" : "",
-			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_NONE ? " None" : "");
+	default:
+		return -1;
+	}
 }
 
 static void dump_lhdc_v1(const void *blob, size_t size) {
@@ -432,6 +405,91 @@ static void dump_lhdc_v1(const void *blob, size_t size) {
 			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "");
 }
 
+static void dump_lhdc_v2(const void *blob, size_t size) {
+	const a2dp_lhdc_v2_t *lhdc = blob;
+	if (check_blob_size(sizeof(*lhdc), size) == -1)
+		return;
+	printf("LHDC v2 <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&lhdc->info);
+	printf(""
+			"  <reserved>:2\n"
+			"  bit-depth:2 =%s%s\n"
+			"  frequency:4 =%s%s%s%s\n"
+			"  low-latency:1 = %s\n"
+			"  max-bit-rate:3 = %d\n"
+			"  version:4 = %u\n"
+			"  <reserved>:4\n"
+			"  ch-split-mode:4 =%s%s%s\n"
+			"}\n",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			lhdc->low_latency ? "true" : "false",
+			lhdc_get_max_bit_rate(lhdc->max_bit_rate),
+			lhdc->version,
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS_PLUS ? " TWS+" : "",
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS ? " TWS" : "",
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_NONE ? " None" : "");
+}
+
+static void dump_lhdc_v3(const void *blob, size_t size) {
+	const a2dp_lhdc_v3_t *lhdc = blob;
+	if (check_blob_size(sizeof(*lhdc), size) == -1)
+		return;
+	printf("LHDC v3 <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&lhdc->info);
+	printf(""
+			"  ar:1 = %s\n"
+			"  jas:1 = %s\n"
+			"  bit-depth:2 =%s%s\n"
+			"  frequency:4 =%s%s%s%s\n"
+			"  llac:1 = %s\n"
+			"  low-latency:1 = %s\n"
+			"  max-bit-rate:2 = %d\n"
+			"  version:4 = %u\n"
+			"  lhdc-v4:1 = %s\n"
+			"  larc:1 = %s\n"
+			"  min-bit-rate:1 = %s\n"
+			"  meta:1 = %s\n"
+			"  ch-split-mode:4 =%s%s%s\n"
+			"}\n",
+			lhdc->ar ? "true" : "false",
+			lhdc->jas ? "true" : "false",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
+			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			lhdc->llac ? "true" : "false",
+			lhdc->low_latency ? "true" : "false",
+			lhdc_get_max_bit_rate(lhdc->max_bit_rate),
+			lhdc->version,
+			lhdc->lhdc_v4 ? "true" : "false",
+			lhdc->larc ? "true" : "false",
+			lhdc->min_bit_rate ? "true" : "false",
+			lhdc->meta ? "true" : "false",
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS_PLUS ? " TWS+" : "",
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_TWS ? " TWS" : "",
+			lhdc->ch_split_mode & LHDC_CH_SPLIT_MODE_NONE ? " None" : "");
+}
+
+static void dump_lhdc_v5(const void *blob, size_t size) {
+	const a2dp_lhdc_v5_t *lhdc = blob;
+	if (check_blob_size(sizeof(*lhdc), size) == -1)
+		return;
+	printf("LHDC v5 <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&lhdc->info);
+	printf(""
+			"  data:%zu = hex:%s\n"
+			"}\n",
+			sizeof(*lhdc) - sizeof(lhdc->info),
+			bintohex(blob + sizeof(lhdc->info), sizeof(*lhdc) - sizeof(lhdc->info)));
+}
+
 static struct {
 	uint16_t codec_id;
 	size_t blob_size;
@@ -450,9 +508,11 @@ static struct {
 	{ A2DP_CODEC_VENDOR_FASTSTREAM, sizeof(a2dp_faststream_t), dump_faststream },
 	{ A2DP_CODEC_VENDOR_LC3PLUS, sizeof(a2dp_lc3plus_t), dump_lc3plus },
 	{ A2DP_CODEC_VENDOR_LDAC, sizeof(a2dp_ldac_t), dump_ldac },
-	{ A2DP_CODEC_VENDOR_LHDC, sizeof(a2dp_lhdc_t), dump_lhdc },
-	{ A2DP_CODEC_VENDOR_LHDC_LL, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_LHDC_V1, sizeof(a2dp_lhdc_v1_t), dump_lhdc_v1 },
+	{ A2DP_CODEC_VENDOR_LHDC_V2, sizeof(a2dp_lhdc_v2_t), dump_lhdc_v2 },
+	{ A2DP_CODEC_VENDOR_LHDC_V3, sizeof(a2dp_lhdc_v3_t), dump_lhdc_v3 },
+	{ A2DP_CODEC_VENDOR_LHDC_V5, sizeof(a2dp_lhdc_v5_t), dump_lhdc_v5 },
+	{ A2DP_CODEC_VENDOR_LHDC_LL, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, -1, dump_vendor },
 };
