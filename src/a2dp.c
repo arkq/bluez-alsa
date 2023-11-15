@@ -35,6 +35,9 @@
 #if ENABLE_LDAC
 # include "a2dp-ldac.h"
 #endif
+#if ENABLE_LHDC
+# include "a2dp-lhdc.h"
+#endif
 #if ENABLE_MPEG
 # include "a2dp-mpeg.h"
 #endif
@@ -185,6 +188,10 @@ struct a2dp_sep * const a2dp_seps[] = {
 #if ENABLE_LC3PLUS
 	&a2dp_lc3plus_source,
 	&a2dp_lc3plus_sink,
+#endif
+#if ENABLE_LHDC
+	&a2dp_lhdc_source,
+	&a2dp_lhdc_sink,
 #endif
 #if ENABLE_LDAC
 	&a2dp_ldac_source,
