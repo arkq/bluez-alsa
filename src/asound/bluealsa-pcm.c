@@ -12,7 +12,6 @@
 # include <config.h>
 #endif
 
-#include <alloca.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -45,11 +44,12 @@
 #define BA_PAUSE_STATE_PAUSED  (1 << 0)
 #define BA_PAUSE_STATE_PENDING (1 << 1)
 
-#if SND_LIB_VERSION >= 0x010104
+#if SND_LIB_VERSION >= 0x010104 && SND_LIB_VERSION < 0x010206
+#include <alloca.h>
 /**
- * alsa-lib releases from 1.1.4 have a bug in the rate plugin
- * which, when combined with the hw params refinement algorithm used by the
- * ioplug, can cause snd_pcm_avail() to return bogus values. This, in turn,
+ * alsa-lib releases from 1.1.4 to 1.2.5.1 inclusive have a bug in the rate
+ * plugin which, when combined with the hw params refinement algorithm used by
+ * the ioplug, can cause snd_pcm_avail() to return bogus values. This, in turn,
  * can trigger deadlock in applications built on the portaudio library
  * (e.g. audacity) and possibly cause faults in other applications too.
  *
@@ -279,69 +279,79 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		if (frames > avail)
 			frames = avail;
 
-		/* When used with the rate plugin the buffer might contain a fractional
-		 * number of periods. So if the leftover in the buffer is less than a
-		 * whole period size, adjust the number of frames which should be
-		 * transferred.  */
-		if (io->buffer_size - offset < frames)
-			frames = io->buffer_size - offset;
-
-		/* IO operation size in bytes */
-		size_t len = frames * pcm->frame_size;
-		char *head = pcm->io_hw_buffer + offset * pcm->frame_size;
-
 		/* Increment the HW pointer (with boundary wrap). */
 		io_hw_ptr += frames;
 		if ((snd_pcm_uframes_t)io_hw_ptr >= pcm->io_hw_boundary)
 			io_hw_ptr -= pcm->io_hw_boundary;
 
-		ssize_t ret = 0;
-		if (io->stream == SND_PCM_STREAM_CAPTURE) {
+		/* When used with the rate plugin the buffer size may not be an
+		 * integer multiple of the period size. If so, the current period may
+		 * be split, part at the end of the buffer and the remainder at the
+		 * start. In this case we must perform the transfer in two chunks to
+		 * make up a full period.  */
+		snd_pcm_uframes_t chunk = frames;
+		if (io->buffer_size - offset < frames)
+			chunk = io->buffer_size - offset;
 
-			/* Read the whole period "atomically". This will assure, that frames
-			 * are not fragmented, so the pointer can be correctly updated. */
-			while (len != 0 && (ret = read(pcm->ba_pcm_fd, head, len)) != 0) {
-				if (ret == -1) {
-					if (errno == EINTR)
-						continue;
-					SNDERR("PCM FIFO read error: %s", strerror(errno));
+		snd_pcm_uframes_t frames_transfered = 0;
+		while (frames_transfered < frames) {
+			/* IO operation size in bytes */
+			size_t len = chunk * pcm->frame_size;
+			char *head = pcm->io_hw_buffer + offset * pcm->frame_size;
+
+			ssize_t ret = 0;
+			if (io->stream == SND_PCM_STREAM_CAPTURE) {
+
+				/* Read the whole chunk "atomically". This will assure, that
+				 * frames are not fragmented, so the pointer can be correctly
+				 * updated. */
+				while (len != 0 && (ret = read(pcm->ba_pcm_fd, head, len)) != 0) {
+					if (ret == -1) {
+						if (errno == EINTR)
+							continue;
+						SNDERR("PCM FIFO read error: %s", strerror(errno));
+						pcm->connected = false;
+						goto fail;
+					}
+					head += ret;
+					len -= ret;
+				}
+
+				if (ret == 0) {
 					pcm->connected = false;
 					goto fail;
 				}
-				head += ret;
-				len -= ret;
+
+			}
+			else {
+
+				/* Perform atomic write - see the explanation above. */
+				do {
+					if ((ret = write(pcm->ba_pcm_fd, head, len)) == -1) {
+						if (errno == EINTR)
+							continue;
+						if (errno != EPIPE)
+							SNDERR("PCM FIFO write error: %s", strerror(errno));
+						pcm->connected = false;
+						goto fail;
+					}
+					head += ret;
+					len -= ret;
+				} while (len != 0);
+
 			}
 
-			if (ret == 0) {
-				pcm->connected = false;
-				goto fail;
-			}
-
-			io_thread_update_delay(pcm, io_hw_ptr);
-
+			frames_transfered += chunk;
+			offset = 0;
+			chunk = frames - chunk;
 		}
-		else {
 
-			/* Perform atomic write - see the explanation above. */
-			do {
-				if ((ret = write(pcm->ba_pcm_fd, head, len)) == -1) {
-					if (errno == EINTR)
-						continue;
-					if (errno != EPIPE)
-						SNDERR("PCM FIFO write error: %s", strerror(errno));
-					pcm->connected = false;
-					goto fail;
-				}
-				head += ret;
-				len -= ret;
-			} while (len != 0);
+		io_thread_update_delay(pcm, io_hw_ptr);
 
-			io_thread_update_delay(pcm, io_hw_ptr);
-
-			/* synchronize playback time */
+		/* synchronize playback time */
+		if (io->stream == SND_PCM_STREAM_PLAYBACK)
 			asrsync_sync(&asrs, frames);
 
-		}
 
 		/* Make the new HW pointer value visible to the ioplug. */
 		pcm->io_hw_ptr = io_hw_ptr;
@@ -622,7 +632,6 @@ static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 	snd_pcm_uframes_t boundary;
 	snd_pcm_sw_params_get_boundary(params, &boundary);
 	pcm->io_hw_boundary = boundary;
-
 	snd_pcm_uframes_t avail_min;
 	snd_pcm_sw_params_get_avail_min(params, &avail_min);
 	if (avail_min != pcm->io_avail_min) {
