@@ -520,7 +520,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	if (d->seps == NULL)
 		d->seps = bluez_adapter_get_device_seps(&bluez_adapters[a->hci.dev_id], &addr);
 
-	if (ba_transport_lookup(d, transport_path) != NULL) {
+	if ((t = ba_transport_lookup(d, transport_path)) != NULL) {
 		error("Transport already configured: %s", transport_path);
 		goto fail;
 	}
