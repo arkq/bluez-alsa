@@ -35,9 +35,11 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
+#include "ble-midi.h"
 #include "bluealsa-config.h"
 #include "bluez-iface.h"
 #include "dbus.h"
+#include "midi.h"
 #include "utils.h"
 #include "shared/bluetooth.h"
 #include "shared/defs.h"
@@ -208,6 +210,8 @@ static void bluez_midi_characteristic_acquire_write(
 
 	/* TODO: Find a way to detect "device" disconnection condition. */
 
+	midi_transport_start_watch_ble_midi(t);
+
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
 	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
 			g_variant_new("(hq)", 0, mtu), fd_list);
@@ -262,6 +266,7 @@ static void bluez_midi_characteristic_acquire_notify(
 	debug("New BLE-MIDI notify link (MTU: %u): %d", mtu, fds[0]);
 	app->notify_acquired = true;
 	t->midi.ble_fd_notify = fds[0];
+	ble_midi_encode_set_mtu(&t->midi.ble_encoder, mtu);
 	t->mtu_write = mtu;
 
 	/* Setup IO watch for checking HUP condition on the socket. HUP means
@@ -384,6 +389,8 @@ GDBusObjectManagerServer *bluez_midi_app_new(
 		error("Couldn't create local MIDI transport: %s", strerror(errno));
 	else if (ba_transport_acquire(t) == -1)
 		error("Couldn't acquire local MIDI transport: %s", strerror(errno));
+	else if (ba_transport_start(t) == -1)
+		error("Couldn't start local MIDI transport: %s", strerror(errno));
 	app->t = t;
 
 	GDBusObjectManagerServer *manager = g_dbus_object_manager_server_new(path);

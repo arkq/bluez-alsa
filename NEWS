@@ -1,6 +1,7 @@
 unreleased
 ==========
 
+- optional support for BLE MIDI 1.0 profile as a GATT server
 - command line option to set real-time priority for IO threads
 - allow to select individual extended controls in ALSA plug-in
 - codec-specific delay adjustment with ALSA control and persistency

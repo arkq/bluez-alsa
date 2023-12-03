@@ -5,6 +5,7 @@
 	{ include: [ '<bsd/libutil.h>', private, '<bsd/stdlib.h>', public ] },
 	{ include: [ '<bsd/sys/time.h>', private, '<sys/time.h>', public ] },
 	{ symbol: [ 'sig_atomic_t', private, '<signal.h>', public ] },
+	{ symbol: [ 'S_IRWXU', private, '<sys/stat.h>', public ] },
 
 	{ include: [ '<alsa/conf.h>', private, '<alsa/asoundlib.h>', public ] },
 	{ include: [ '<alsa/control.h>', private, '<alsa/asoundlib.h>', public ] },
@@ -15,6 +16,10 @@
 	{ include: [ '<alsa/output.h>', private, '<alsa/asoundlib.h>', public ] },
 	{ include: [ '<alsa/pcm.h>', private, '<alsa/asoundlib.h>', public ] },
 	{ include: [ '<alsa/pcm_ioplug.h>', private, '<alsa/pcm_external.h>', public ] },
+	{ include: [ '<alsa/seq.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/seq_event.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/seq_midi_event.h>', private, '<alsa/asoundlib.h>', public ] },
+	{ include: [ '<alsa/seqmid.h>', private, '<alsa/asoundlib.h>', public ] },
 	{ include: [ '<alsa/version.h>', private, '<alsa/asoundlib.h>', public ] },
 
 	{ include: [ '"dbus/dbus-memory.h"', private, '<dbus/dbus.h>', public ] },

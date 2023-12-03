@@ -37,9 +37,8 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"
-#if ENABLE_OFONO
-# include "ofono.h"
-#endif
+#include "midi.h"
+#include "ofono.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
@@ -50,6 +49,10 @@
 
 int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
 int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_stop(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_pcm *t_pcm);
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }

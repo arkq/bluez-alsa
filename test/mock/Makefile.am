@@ -37,6 +37,7 @@ bluealsa_mock_SOURCES = \
 bluealsa_mock_CFLAGS = \
 	-I$(top_srcdir)/src \
 	-I$(top_srcdir)/test \
+	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
@@ -46,6 +47,7 @@ bluealsa_mock_CFLAGS = \
 	@SPANDSP_CFLAGS@
 
 bluealsa_mock_LDADD = \
+	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@ \
@@ -88,6 +90,12 @@ if ENABLE_LDAC
 bluealsa_mock_SOURCES += ../../src/a2dp-ldac.c
 bluealsa_mock_CFLAGS += @LDAC_ABR_CFLAGS@ @LDAC_DEC_CFLAGS@ @LDAC_ENC_CFLAGS@
 bluealsa_mock_LDADD += @LDAC_ABR_LIBS@ @LDAC_DEC_LIBS@ @LDAC_ENC_LIBS@
+endif
+
+if ENABLE_MIDI
+bluealsa_mock_SOURCES += \
+	../../src/ble-midi.c \
+	../../src/midi.c
 endif
 
 if ENABLE_MPEG

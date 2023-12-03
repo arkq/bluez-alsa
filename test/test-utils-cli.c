@@ -75,6 +75,9 @@ CK_START_TEST(test_status) {
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--profile=a2dp-source",
 				"--profile=hfp-ag",
+#if ENABLE_MIDI
+				"--profile=midi",
+#endif
 				NULL), -1);
 
 	char output[4096];
@@ -90,6 +93,9 @@ CK_START_TEST(test_status) {
 	ck_assert_ptr_ne(strstr(output, "Service: org.bluealsa"), NULL);
 	ck_assert_ptr_ne(strstr(output, "A2DP-source"), NULL);
 	ck_assert_ptr_ne(strstr(output, "HFP-AG"), NULL);
+#if ENABLE_MIDI
+	ck_assert_ptr_ne(strstr(output, "MIDI"), NULL);
+#endif
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);

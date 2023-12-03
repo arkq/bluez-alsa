@@ -70,6 +70,7 @@
 #include "bluez.h"
 #include "hfp.h"
 #include "io.h"
+#include "midi.h"
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
@@ -129,6 +130,10 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
 int ofono_call_volume_update(struct ba_transport *t) {
 	debug("%s: %p", __func__, t); (void)t; return 0; }
+int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_stop(struct ba_transport *t) { (void)t; return 0; }
 int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
 int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
 int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }

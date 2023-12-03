@@ -60,6 +60,10 @@ static void dbus_update_counters_wait(unsigned int *counter, unsigned int value)
 
 int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
 int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_stop(struct ba_transport *t) { (void)t; return 0; }
 int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
 int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
 int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }

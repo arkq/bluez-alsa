@@ -22,9 +22,13 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <alsa/asoundlib.h>
+#include <glib.h>
+
 #include "a2dp.h"
 #include "ba-device.h"
 #include "ba-transport-pcm.h"
+#include "ble-midi.h"
 #include "bluez.h"
 #include "shared/a2dp-codecs.h"
 
@@ -172,10 +176,28 @@ struct ba_transport {
 #if ENABLE_MIDI
 		struct {
 
+			/* ALSA sequencer. */
+			snd_seq_t *seq;
+			/* Associated sequencer port. */
+			int seq_port;
+
+			/* ALSA MIDI event parser. */
+			snd_midi_event_t *seq_parser;
+
 			/* BLE-MIDI input link */
 			int ble_fd_write;
 			/* BLE-MIDI output (notification) link */
 			int ble_fd_notify;
+
+			/* BLE-MIDI parser for the incoming data. */
+			struct ble_midi_dec ble_decoder;
+			/* BLE-MIDI parser for the outgoing data. */
+			struct ble_midi_enc ble_encoder;
+
+			/* Watch associated with the BLE-MIDI link. */
+			GSource *watch_ble;
+			/* Watch associated with ALSA sequencer. */
+			GSource *watch_seq;
 
 		} midi;
 #endif

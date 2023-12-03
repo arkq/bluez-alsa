@@ -85,7 +85,9 @@ endif
 
 if ENABLE_MIDI
 bluealsa_SOURCES += \
-	bluez-midi.c
+	ble-midi.c \
+	bluez-midi.c \
+	midi.c
 endif
 
 if ENABLE_MPEG
@@ -111,6 +113,7 @@ endif
 
 AM_CFLAGS = \
 	@AAC_CFLAGS@ \
+	@ALSA_CFLAGS@ \
 	@APTX_CFLAGS@ \
 	@APTX_HD_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
@@ -127,6 +130,7 @@ AM_CFLAGS = \
 
 LDADD = \
 	@AAC_LIBS@ \
+	@ALSA_LIBS@ \
 	@APTX_HD_LIBS@ \
 	@APTX_LIBS@ \
 	@BLUEZ_LIBS@ \
