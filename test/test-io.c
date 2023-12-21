@@ -1064,6 +1064,7 @@ CK_START_TEST(test_sco_cvsd) {
 			BA_TRANSPORT_PROFILE_HSP_AG, "/path/sco/cvsd");
 
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 48;
+	t1->sco.transfer_bytes = 48;
 	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 600);
 	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 600);
 
@@ -1087,6 +1088,12 @@ CK_START_TEST(test_sco_msbc) {
 	ba_transport_set_codec(t2, HFP_CODEC_MSBC);
 
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
+	/* The test PCM source closes as soon as it has written the test samples.
+	 * For mSBC this can be a problem, as the encoder may then stop before it
+	 * has written all encoded data if the SCO message size is less than the
+	 * the size of a single mSBC frame. Therefore we test using a SCO message
+	 * size that is not less than 60. */
+	t1->sco.transfer_bytes = 72;
 	test_io(t1, t2, sco_enc_thread, test_io_thread_dump_bt, 600);
 	test_io(t1, t2, test_io_thread_dump_pcm, sco_dec_thread, 600);
 

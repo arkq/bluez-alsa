@@ -298,6 +298,9 @@ repoll:
 		return -1;
 	}
 
+	if (poll_rv == 0)
+		return errno = ETIME, -1;
+
 	if (fds[0].revents & POLLIN) {
 		/* dispatch incoming event */
 		io_poll_signal_filter *filter = io->signal.filter != NULL ?

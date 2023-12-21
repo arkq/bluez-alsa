@@ -17,6 +17,7 @@
 #endif
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -256,6 +257,8 @@ struct ba_transport {
 			/* time-stamp when the SCO link has been closed */
 			struct timespec closed_at;
 
+			/* The SCO socket message size may differ from the reported MTU */
+			atomic_uint transfer_bytes;
 		} sco;
 
 	};
