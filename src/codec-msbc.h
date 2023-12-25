@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-msbc.h
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -78,5 +78,7 @@ void msbc_finish(struct esco_msbc *msbc);
 
 ssize_t msbc_decode(struct esco_msbc *msbc);
 ssize_t msbc_encode(struct esco_msbc *msbc);
+
+const char *msbc_strerror(int err);
 
 #endif

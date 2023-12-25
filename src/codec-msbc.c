@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-msbc.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2023 Arkadiusz Bokowy
  * Copyright (c) 2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -10,7 +10,10 @@
  */
 
 #include "codec-msbc.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <endian.h>
 #include <errno.h>
@@ -75,24 +78,33 @@ final:
 	return ptr;
 }
 
+/**
+ * Initialize mSBC codec structure.
+ *
+ * This function is idempotent, so it can be called multiple times in order
+ * to reinitialize the codec structure.
+ *
+ * @param msbc Codec structure which shall be initialized.
+ * @return This function returns 0 on success or a negative error value
+ *   in case of initialization failure. */
 int msbc_init(struct esco_msbc *msbc) {
-
-	int err;
 
 	if (!msbc->initialized) {
 		debug("Initializing mSBC codec");
-		if ((errno = -sbc_init_msbc(&msbc->sbc, 0)) != 0)
-			goto fail;
 		if (ffb_init_uint8_t(&msbc->data, sizeof(esco_msbc_frame_t) * 3) == -1)
-			goto fail;
+			goto fail_init;
 		/* Allocate buffer for 1 decoded frame, optional 3 PLC frames and
 		 * some extra frames to account for async PCM samples reading. */
 		if (ffb_init_int16_t(&msbc->pcm, MSBC_CODESAMPLES * 6) == -1)
-			goto fail;
+			goto fail_init;
+		if ((errno = -sbc_init_msbc(&msbc->sbc, 0)) != 0)
+			goto fail_init;
 	}
-
-	if ((errno = -sbc_reinit_msbc(&msbc->sbc, 0)) != 0)
-		return -1;
+	else {
+		debug("Re-initializing mSBC codec");
+		if ((errno = -sbc_reinit_msbc(&msbc->sbc, 0)) != 0)
+			goto fail_init;
+	}
 
 	/* ensure libsbc uses little-endian PCM on all architectures */
 	msbc->sbc.endian = SBC_LE;
@@ -127,10 +139,11 @@ int msbc_init(struct esco_msbc *msbc) {
 	return 0;
 
 fail:
-	err = errno;
-	msbc_finish(msbc);
-	errno = err;
-	return -1;
+	sbc_finish(&msbc->sbc);
+fail_init:
+	ffb_free(&msbc->data);
+	ffb_free(&msbc->pcm);
+	return -errno;
 }
 
 void msbc_finish(struct esco_msbc *msbc) {
@@ -265,4 +278,13 @@ ssize_t msbc_encode(struct esco_msbc *msbc) {
 	ffb_shift(&msbc->pcm, input + MSBC_CODESAMPLES - (int16_t *)msbc->pcm.data);
 
 	return sizeof(*frame);
+}
+
+/**
+ * Get string representation of the mSBC encode/decode error.
+ *
+ * @param err The encode/decode error code.
+ * @return Human-readable string. */
+const char *msbc_strerror(int err) {
+	return sbc_strerror(err);
 }

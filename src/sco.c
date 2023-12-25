@@ -35,10 +35,7 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
-#if ENABLE_MSBC
-# include "codec-msbc.h"
-#endif
-#include "codec-sbc.h"
+#include "codec-msbc.h"
 #include "hci.h"
 #include "hfp.h"
 #include "io.h"
@@ -379,7 +376,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct esco_msbc msbc = { .initialized = false };
 	pthread_cleanup_push(PTHREAD_CLEANUP(msbc_finish), &msbc);
 
-	if (msbc_init(&msbc) != 0) {
+	if ((errno = -msbc_init(&msbc)) != 0) {
 		error("Couldn't initialize mSBC codec: %s", strerror(errno));
 		goto fail_msbc;
 	}
@@ -408,7 +405,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			int err;
 			if ((err = msbc_encode(&msbc)) < 0) {
-				error("mSBC encoding error: %s", sbc_strerror(err));
+				error("mSBC encoding error: %s", msbc_strerror(err));
 				break;
 			}
 
@@ -465,7 +462,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	struct esco_msbc msbc = { .initialized = false };
 	pthread_cleanup_push(PTHREAD_CLEANUP(msbc_finish), &msbc);
 
-	if (msbc_init(&msbc) != 0) {
+	if ((errno = -msbc_init(&msbc)) != 0) {
 		error("Couldn't initialize mSBC codec: %s", strerror(errno));
 		goto fail_msbc;
 	}
@@ -492,7 +489,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 		while ((err = msbc_decode(&msbc)) > 0)
 			continue;
 		if (err < 0) {
-			error("mSBC decoding error: %s", sbc_strerror(err));
+			error("mSBC decoding error: %s", msbc_strerror(err));
 			continue;
 		}
 
