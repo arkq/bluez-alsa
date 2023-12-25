@@ -72,6 +72,7 @@ int transport_pcm_init(
 	pcm->t = t;
 	pcm->mode = mode;
 	pcm->fd = -1;
+	pcm->fd_bt = -1;
 	pcm->active = true;
 
 	/* link PCM and transport thread */
@@ -139,7 +140,7 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 
 	/* Release BT socket file descriptor duplicate created either in the
 	 * ba_transport_pcm_start() function or in the IO thread itself. */
-	ba_transport_thread_bt_release(th);
+	ba_transport_pcm_bt_release(pcm);
 
 	/* If we are closing master thread, release underlying BT transport. */
 	if (th->master)
@@ -155,6 +156,59 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 
 	/* Remove reference which was taken by the ba_transport_pcm_start(). */
 	ba_transport_unref(t);
+}
+
+int ba_transport_pcm_bt_acquire(struct ba_transport_pcm *pcm) {
+
+	struct ba_transport *t = pcm->t;
+	int ret = -1;
+
+	if (pcm->fd_bt != -1)
+		return 0;
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	const int bt_fd = t->bt_fd;
+
+	/* check if BT socket file descriptor is valid */
+	if (bt_fd == -1) {
+		error("Invalid BT socket: %d", bt_fd);
+		goto fail;
+	}
+
+	/* check for invalid (i.e. not set) MTU values */
+	if (t->mtu_read == 0 || t->mtu_write == 0) {
+		error("Invalid BT socket MTU [%d]: R:%zu W:%zu", bt_fd,
+				t->mtu_read, t->mtu_write);
+		goto fail;
+	}
+
+	if ((pcm->fd_bt = dup(bt_fd)) == -1) {
+		error("Couldn't duplicate BT socket [%d]: %s", bt_fd, strerror(errno));
+		goto fail;
+	}
+
+	debug("Created BT socket duplicate: [%d]: %d", bt_fd, pcm->fd_bt);
+	ret = 0;
+
+fail:
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+	return ret;
+}
+
+int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) {
+
+	if (pcm->fd_bt != -1) {
+#if DEBUG
+		pthread_mutex_lock(&pcm->t->bt_fd_mtx);
+		debug("Closing BT socket duplicate [%d]: %d", pcm->t->bt_fd, pcm->fd_bt);
+		pthread_mutex_unlock(&pcm->t->bt_fd_mtx);
+#endif
+		close(pcm->fd_bt);
+		pcm->fd_bt = -1;
+	}
+
+	return 0;
 }
 
 /**
@@ -177,7 +231,7 @@ int ba_transport_pcm_start(
 
 	/* Please note, this call here does not guarantee that the BT socket
 	 * will be acquired, because transport might not be opened yet. */
-	if (ba_transport_thread_bt_acquire(th) == -1) {
+	if (ba_transport_pcm_bt_acquire(pcm) == -1) {
 		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
 		goto fail;
 	}
@@ -222,6 +276,72 @@ fail:
 	pthread_mutex_unlock(&th->mutex);
 	pthread_cond_broadcast(&th->cond);
 	return ret == 0 ? 0 : -1;
+}
+
+/**
+ * Stop transport PCM thread in a synchronous manner.
+ *
+ * Please be aware that when using this function caller shall not hold
+ * any mutex which might be used in the IO thread. Mutex locking is not
+ * a cancellation point, so the IO thread might get stuck - it will not
+ * terminate, so join will not return either! */
+void ba_transport_pcm_stop(
+		struct ba_transport_pcm *pcm) {
+
+	struct ba_transport_thread *th = pcm->th;
+
+	pthread_mutex_lock(&th->mutex);
+
+	/* If the transport thread is in the idle state (i.e. it is not running),
+	 * we can mark it as terminated right away. */
+	if (th->state == BA_TRANSPORT_THREAD_STATE_IDLE) {
+		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+		pthread_mutex_unlock(&th->mutex);
+		pthread_cond_broadcast(&th->cond);
+		return;
+	}
+
+	/* If this function was called from more than one thread at the same time
+	 * (e.g. from transport thread manager thread and from main thread due to
+	 * SIGTERM signal), wait until the IO thread terminates - this function is
+	 * supposed to be synchronous. */
+	if (th->state == BA_TRANSPORT_THREAD_STATE_JOINING) {
+		while (th->state != BA_TRANSPORT_THREAD_STATE_TERMINATED)
+			pthread_cond_wait(&th->cond, &th->mutex);
+		pthread_mutex_unlock(&th->mutex);
+		return;
+	}
+
+	if (th->state == BA_TRANSPORT_THREAD_STATE_TERMINATED) {
+		pthread_mutex_unlock(&th->mutex);
+		return;
+	}
+
+	/* The transport thread has to be marked for stopping. If at this point
+	 * the state is not STOPPING, it is a programming error. */
+	g_assert_cmpint(th->state, ==, BA_TRANSPORT_THREAD_STATE_STOPPING);
+
+	int err;
+	pthread_t id = th->id;
+	if ((err = pthread_cancel(id)) != 0 && err != ESRCH)
+		warn("Couldn't cancel IO thread: %s", strerror(err));
+
+	/* Set the state to JOINING before unlocking the mutex. This will
+	 * prevent calling the pthread_cancel() function once again. */
+	th->state = BA_TRANSPORT_THREAD_STATE_JOINING;
+
+	pthread_mutex_unlock(&th->mutex);
+
+	if ((err = pthread_join(id, NULL)) != 0)
+		warn("Couldn't join IO thread: %s", strerror(err));
+
+	pthread_mutex_lock(&th->mutex);
+	th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+	pthread_mutex_unlock(&th->mutex);
+
+	/* Notify others that the thread has been terminated. */
+	pthread_cond_broadcast(&th->cond);
+
 }
 
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {

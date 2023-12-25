@@ -29,11 +29,11 @@
 /**
  * Read data from the BT transport (SCO or SEQPACKET) socket. */
 ssize_t io_bt_read(
-		struct ba_transport_thread *th,
+		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t count) {
 
-	const int fd = th->bt_fd;
+	const int fd = pcm->fd_bt;
 	ssize_t ret;
 
 retry:
@@ -53,7 +53,7 @@ retry:
 	}
 
 	if (ret == 0)
-		ba_transport_thread_bt_release(th);
+		ba_transport_pcm_bt_release(pcm);
 
 	return ret;
 }
@@ -64,11 +64,11 @@ retry:
  * Note:
  * This function may temporally re-enable thread cancellation! */
 ssize_t io_bt_write(
-		struct ba_transport_thread *th,
+		struct ba_transport_pcm *pcm,
 		const void *buffer,
 		size_t count) {
 
-	const int fd = th->bt_fd;
+	const int fd = pcm->fd_bt;
 	ssize_t ret;
 
 retry:
@@ -96,7 +96,7 @@ retry:
 		}
 
 	if (ret == 0)
-		ba_transport_thread_bt_release(th);
+		ba_transport_pcm_bt_release(pcm);
 
 	return ret;
 }
@@ -278,13 +278,14 @@ static enum ba_transport_thread_signal io_poll_signal_filter_none(
  * This function temporally re-enables thread cancellation! */
 ssize_t io_poll_and_read_bt(
 		struct io_poll *io,
-		struct ba_transport_thread *th,
+		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t count) {
 
+	struct ba_transport_thread *th = pcm->th;
 	struct pollfd fds[2] = {
 		{ th->pipe[0], POLLIN, 0 },
-		{ th->bt_fd, POLLIN, 0 }};
+		{ pcm->fd_bt, POLLIN, 0 }};
 
 repoll:
 
@@ -310,7 +311,7 @@ repoll:
 		}
 	}
 
-	return io_bt_read(th, buffer, count);
+	return io_bt_read(pcm, buffer, count);
 }
 
 /**

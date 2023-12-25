@@ -270,7 +270,7 @@ static void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 		while (input_samples >= mtu_samples) {
 
 			ssize_t ret;
-			if ((ret = io_bt_write(th, input, mtu_write)) <= 0) {
+			if ((ret = io_bt_write(t_pcm, input, mtu_write)) <= 0) {
 				if (ret == -1)
 					error("BT write error: %s", strerror(errno));
 				goto exit;
@@ -322,7 +322,7 @@ static void *sco_cvsd_dec_thread(struct ba_transport_pcm *t_pcm) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&buffer);
-		if ((len = io_poll_and_read_bt(&io, th, buffer.tail, len)) == -1)
+		if ((len = io_poll_and_read_bt(&io, t_pcm, buffer.tail, len)) == -1)
 			error("BT poll and read error: %s", strerror(errno));
 		else if (len == 0)
 			goto exit;
@@ -415,7 +415,7 @@ static void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 			while (data_len >= mtu_write) {
 
 				ssize_t len;
-				if ((len = io_bt_write(th, data, mtu_write)) <= 0) {
+				if ((len = io_bt_write(t_pcm, data, mtu_write)) <= 0) {
 					if (len == -1)
 						error("BT write error: %s", strerror(errno));
 					goto exit;
@@ -471,7 +471,7 @@ static void *sco_msbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&msbc.data);
-		if ((len = io_poll_and_read_bt(&io, th, msbc.data.tail, len)) == -1)
+		if ((len = io_poll_and_read_bt(&io, t_pcm, msbc.data.tail, len)) == -1)
 			error("BT poll and read error: %s", strerror(errno));
 		else if (len == 0)
 			goto exit;

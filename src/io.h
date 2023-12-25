@@ -46,12 +46,12 @@ struct io_poll {
 };
 
 ssize_t io_bt_read(
-		struct ba_transport_thread *th,
+		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t count);
 
 ssize_t io_bt_write(
-		struct ba_transport_thread *th,
+		struct ba_transport_pcm *pcm,
 		const void *buffer,
 		size_t count);
 
@@ -75,7 +75,7 @@ ssize_t io_pcm_write(
 
 ssize_t io_poll_and_read_bt(
 		struct io_poll *io,
-		struct ba_transport_thread *th,
+		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t count);
 

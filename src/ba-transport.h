@@ -66,8 +66,6 @@ struct ba_transport_thread {
 	pthread_t id;
 	/* indicates a master thread */
 	bool master;
-	/* clone of BT socket */
-	int bt_fd;
 	/* notification PIPE */
 	int pipe[2];
 
@@ -103,11 +101,6 @@ int ba_transport_thread_state_wait(
 	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
 #define ba_transport_thread_state_wait_terminated(th) \
 	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
-
-int ba_transport_thread_bt_acquire(
-		struct ba_transport_thread *th);
-int ba_transport_thread_bt_release(
-		struct ba_transport_thread *th);
 
 int ba_transport_thread_signal_send(
 		struct ba_transport_thread *th,

@@ -75,6 +75,8 @@ struct ba_transport_pcm {
 
 	/* FIFO file descriptor */
 	int fd;
+	/* clone of BT socket */
+	int fd_bt;
 
 	/* indicates whether PCM shall be active */
 	bool active;
@@ -134,11 +136,16 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm);
 struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm);
 void ba_transport_pcm_unref(struct ba_transport_pcm *pcm);
 
+int ba_transport_pcm_bt_acquire(struct ba_transport_pcm *pcm);
+int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm);
+
 int ba_transport_pcm_start(
 		struct ba_transport_pcm *pcm,
 		ba_transport_pcm_thread_func th_func,
 		const char *name,
 		bool master);
+void ba_transport_pcm_stop(
+		struct ba_transport_pcm *pcm);
 
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm);
 

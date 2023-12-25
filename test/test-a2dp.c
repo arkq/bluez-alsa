@@ -39,7 +39,7 @@ uint16_t ba_transport_get_codec(const struct ba_transport *t) { (void)t; return 
 bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) { (void)pcm; return false; }
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
-int ba_transport_thread_bt_release(struct ba_transport_thread *th) { (void)th; return -1; }
+int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_pcm_start(struct ba_transport_pcm *pcm,
 		ba_transport_pcm_thread_func th_func, const char *name, bool master) {
 	(void)pcm; (void)th_func; (void)name; (void)master; return -1; }

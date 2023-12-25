@@ -421,7 +421,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 
 	struct ba_transport *t = t_pcm->t;
 	struct ba_transport_thread *th = t_pcm->th;
-	struct pollfd pfds[] = {{ th->bt_fd, POLLIN, 0 }};
+	struct pollfd pfds[] = {{ t_pcm->fd_bt, POLLIN, 0 }};
 	struct bt_dump *btd = NULL;
 	uint8_t buffer[1024];
 	ssize_t len;
@@ -436,7 +436,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 	ba_transport_thread_state_set_running(th);
 	while (poll(pfds, ARRAYSIZE(pfds), 500) > 0) {
 
-		if ((len = io_bt_read(th, buffer, sizeof(buffer))) <= 0) {
+		if ((len = io_bt_read(t_pcm, buffer, sizeof(buffer))) <= 0) {
 			if (len == -1)
 				error("BT read error: %s", strerror(errno));
 			break;

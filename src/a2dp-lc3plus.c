@@ -341,7 +341,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 				ffb_seek(&bt, rtp_headers_len + chunk_len);
 
 				ssize_t len = ffb_blen_out(&bt);
-				if ((len = io_bt_write(th, bt.data, len)) <= 0) {
+				if ((len = io_bt_write(t_pcm, bt.data, len)) <= 0) {
 					if (len == -1)
 						error("BT write error: %s", strerror(errno));
 					goto fail;
@@ -469,7 +469,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 	for (ba_transport_thread_state_set_running(th);;) {
 
 		ssize_t len = ffb_blen_in(&bt);
-		if ((len = io_poll_and_read_bt(&io, th, bt.data, len)) <= 0) {
+		if ((len = io_poll_and_read_bt(&io, t_pcm, bt.data, len)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;
