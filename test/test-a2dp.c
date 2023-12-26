@@ -41,14 +41,13 @@ int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
 int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_pcm_start(struct ba_transport_pcm *pcm,
-		ba_transport_pcm_thread_func th_func, const char *name, bool master) {
-	(void)pcm; (void)th_func; (void)name; (void)master; return -1; }
+		ba_transport_pcm_thread_func th_func, const char *name) {
+	(void)pcm; (void)th_func; (void)name; return -1; }
 int ba_transport_thread_state_set(struct ba_transport_thread *th,
 		enum ba_transport_thread_state state) {
 	(void)th; (void)state; return -1; }
-int ba_transport_thread_signal_recv(struct ba_transport_thread *th,
-		enum ba_transport_thread_signal *signal) {
-	(void)th; (void)signal; return -1; }
+enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(struct ba_transport_pcm *pcm) {
+	(void)pcm; return -1; }
 void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; }
 
 CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {

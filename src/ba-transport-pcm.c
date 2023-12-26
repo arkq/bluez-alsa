@@ -65,15 +65,18 @@ static const char *transport_get_dbus_path_type(
 int transport_pcm_init(
 		struct ba_transport_pcm *pcm,
 		enum ba_transport_pcm_mode mode,
-		struct ba_transport_thread *th) {
+		struct ba_transport_thread *th,
+		bool master) {
 
 	struct ba_transport *t = th->t;
 
 	pcm->t = t;
 	pcm->mode = mode;
+	pcm->master = master;
 	pcm->fd = -1;
 	pcm->fd_bt = -1;
-	pcm->active = true;
+	pcm->pipe[0] = -1;
+	pcm->pipe[1] = -1;
 
 	/* link PCM and transport thread */
 	pcm->th = th;
@@ -88,6 +91,9 @@ int transport_pcm_init(
 	pthread_mutex_init(&pcm->delay_adjustments_mtx, NULL);
 	pthread_mutex_init(&pcm->client_mtx, NULL);
 	pthread_cond_init(&pcm->cond, NULL);
+
+	if (pipe(pcm->pipe) == -1)
+		return -1;
 
 	pcm->delay_adjustments = g_hash_table_new(NULL, NULL);
 
@@ -110,6 +116,11 @@ void transport_pcm_free(
 	pthread_mutex_destroy(&pcm->client_mtx);
 	pthread_cond_destroy(&pcm->cond);
 
+	if (pcm->pipe[0] != -1)
+		close(pcm->pipe[0]);
+	if (pcm->pipe[1] != -1)
+		close(pcm->pipe[1]);
+
 	g_hash_table_unref(pcm->delay_adjustments);
 	g_free(pcm->ba_dbus_path);
 
@@ -129,7 +140,6 @@ void ba_transport_pcm_unref(struct ba_transport_pcm *pcm) {
 void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 
 	struct ba_transport *t = pcm->t;
-	struct ba_transport_thread *th = pcm->th;
 
 	/* For proper functioning of the transport, all threads have to be
 	 * operational. Therefore, if one of the threads is being cancelled,
@@ -142,15 +152,15 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 	 * ba_transport_pcm_start() function or in the IO thread itself. */
 	ba_transport_pcm_bt_release(pcm);
 
-	/* If we are closing master thread, release underlying BT transport. */
-	if (th->master)
+	/* If we are closing master PCM, release underlying BT transport. */
+	if (pcm->master)
 		ba_transport_release(t);
 
 #if DEBUG
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the transport IO thread. */
 	char name[32];
-	pthread_getname_np(th->id, name, sizeof(name));
+	pthread_getname_np(pcm->th->id, name, sizeof(name));
 	debug("Exiting IO thread [%s]: %s", name, ba_transport_debug_name(t));
 #endif
 
@@ -216,8 +226,7 @@ int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) {
 int ba_transport_pcm_start(
 		struct ba_transport_pcm *pcm,
 		ba_transport_pcm_thread_func th_func,
-		const char *name,
-		bool master) {
+		const char *name) {
 
 	struct ba_transport *t = pcm->t;
 	struct ba_transport_thread *th = pcm->th;
@@ -226,7 +235,6 @@ int ba_transport_pcm_start(
 
 	pthread_mutex_lock(&th->mutex);
 
-	th->master = master;
 	th->state = BA_TRANSPORT_THREAD_STATE_STARTING;
 
 	/* Please note, this call here does not guarantee that the BT socket
@@ -367,20 +375,20 @@ int ba_transport_pcm_pause(struct ba_transport_pcm *pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 	debug("PCM pause: %d", pcm->fd);
-	pcm->active = false;
+	pcm->paused = true;
 	pthread_mutex_unlock(&pcm->mutex);
 
-	return ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_PAUSE);
+	return ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_PAUSE);
 }
 
 int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 	debug("PCM resume: %d", pcm->fd);
-	pcm->active = true;
+	pcm->paused = false;
 	pthread_mutex_unlock(&pcm->mutex);
 
-	return ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME);
+	return ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_RESUME);
 }
 
 int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
@@ -395,7 +403,7 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 	debug("PCM drain: %d", pcm->fd);
 
 	pcm->synced = false;
-	ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC);
+	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_SYNC);
 
 	while (!pcm->synced)
 		pthread_cond_wait(&pcm->cond, &pcm->mutex);
@@ -427,16 +435,64 @@ int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
 	if (io_pcm_flush(pcm) == -1)
 		return -1;
 
-	int rv = ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP);
+	int rv = ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_DROP);
 	if (rv == -1 && errno == ESRCH)
 		rv = 0;
 
 	return rv;
 }
 
+int ba_transport_pcm_signal_send(
+		struct ba_transport_pcm *pcm,
+		enum ba_transport_pcm_signal signal) {
+
+	struct ba_transport_thread *th = pcm->th;
+	int ret = -1;
+
+	pthread_mutex_lock(&th->mutex);
+
+	if (th->state != BA_TRANSPORT_THREAD_STATE_RUNNING) {
+		errno = ESRCH;
+		goto fail;
+	}
+
+	if (write(pcm->pipe[1], &signal, sizeof(signal)) != sizeof(signal)) {
+		warn("Couldn't write transport PCM signal: %s", strerror(errno));
+		goto fail;
+	}
+
+	ret = 0;
+
+fail:
+	pthread_mutex_unlock(&th->mutex);
+	return ret;
+}
+
+/**
+ * Receive signal sent by ba_transport_pcm_signal_send().
+ *
+ * @note
+ * In case of error, this function will return -1 instead of signal value. */
+enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(
+		struct ba_transport_pcm *pcm) {
+
+	enum ba_transport_pcm_signal signal;
+	ssize_t ret;
+
+	while ((ret = read(pcm->pipe[0], &signal, sizeof(signal))) == -1 &&
+			errno == EINTR)
+		continue;
+
+	if (ret == sizeof(signal))
+		return signal;
+
+	warn("Couldn't read transport PCM signal: %s", strerror(errno));
+	return -1;
+}
+
 bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) {
 	pthread_mutex_lock(MUTABLE(&pcm->mutex));
-	bool active = pcm->fd != -1 && pcm->active;
+	bool active = pcm->fd != -1 && !pcm->paused;
 	pthread_mutex_unlock(MUTABLE(&pcm->mutex));
 	return active;
 }

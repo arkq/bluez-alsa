@@ -440,10 +440,10 @@ fail_init:
 int a2dp_sbc_transport_start(struct ba_transport *t) {
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_enc_thread, "ba-a2dp-sbc", true);
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_enc_thread, "ba-a2dp-sbc");
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_dec_thread, "ba-a2dp-sbc", true);
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_dec_thread, "ba-a2dp-sbc");
 
 	g_assert_not_reached();
 	return -1;

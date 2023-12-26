@@ -264,8 +264,8 @@ final:
 	return ret;
 }
 
-static enum ba_transport_thread_signal io_poll_signal_filter_none(
-		enum ba_transport_thread_signal signal,
+static enum ba_transport_pcm_signal io_poll_signal_filter_none(
+		enum ba_transport_pcm_signal signal,
 		void *userdata) {
 	(void)userdata;
 	return signal;
@@ -282,9 +282,8 @@ ssize_t io_poll_and_read_bt(
 		void *buffer,
 		size_t count) {
 
-	struct ba_transport_thread *th = pcm->th;
 	struct pollfd fds[2] = {
-		{ th->pipe[0], POLLIN, 0 },
+		{ pcm->pipe[0], POLLIN, 0 },
 		{ pcm->fd_bt, POLLIN, 0 }};
 
 repoll:
@@ -303,9 +302,7 @@ repoll:
 		/* dispatch incoming event */
 		io_poll_signal_filter *filter = io->signal.filter != NULL ?
 			io->signal.filter : io_poll_signal_filter_none;
-		enum ba_transport_thread_signal signal;
-		ba_transport_thread_signal_recv(th, &signal);
-		switch (filter(signal, io->signal.userdata)) {
+		switch (filter(ba_transport_pcm_signal_recv(pcm), io->signal.userdata)) {
 		default:
 			goto repoll;
 		}
@@ -325,16 +322,15 @@ ssize_t io_poll_and_read_pcm(
 		void *buffer,
 		size_t samples) {
 
-	struct ba_transport_thread *th = pcm->th;
 	struct pollfd fds[2] = {
-		{ th->pipe[0], POLLIN, 0 },
+		{ pcm->pipe[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
 
 repoll:
 
 	pthread_mutex_lock(&pcm->mutex);
-	/* Add PCM socket to the poll if it is active. */
-	fds[1].fd = pcm->active ? pcm->fd : -1;
+	/* Add PCM socket to the poll if it is not paused. */
+	fds[1].fd = pcm->paused ? -1 : pcm->fd;
 	pthread_mutex_unlock(&pcm->mutex);
 
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -360,21 +356,19 @@ repoll:
 		/* dispatch incoming event */
 		io_poll_signal_filter *filter = io->signal.filter != NULL ?
 			io->signal.filter : io_poll_signal_filter_none;
-		enum ba_transport_thread_signal signal;
-		ba_transport_thread_signal_recv(th, &signal);
-		switch (filter(signal, io->signal.userdata)) {
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
+		switch (filter(ba_transport_pcm_signal_recv(pcm), io->signal.userdata)) {
+		case BA_TRANSPORT_PCM_SIGNAL_OPEN:
+		case BA_TRANSPORT_PCM_SIGNAL_RESUME:
 			io->asrs.frames = 0;
 			io->timeout = -1;
 			goto repoll;
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE:
+		case BA_TRANSPORT_PCM_SIGNAL_CLOSE:
 			/* reuse PCM read disconnection logic */
 			break;
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC:
+		case BA_TRANSPORT_PCM_SIGNAL_SYNC:
 			io->timeout = 100;
 			goto repoll;
-		case BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP:
+		case BA_TRANSPORT_PCM_SIGNAL_DROP:
 			/* Notify caller that the PCM FIFO has been dropped. This will give
 			 * the caller a chance to reinitialize its internal state. */
 			errno = ESTALE;

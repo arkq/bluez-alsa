@@ -600,13 +600,13 @@ static void test_io(struct ba_transport *t_src, struct ba_transport *t_snk,
 		test_start_terminate_timer(aging_duration);
 
 	if (enc == test_io_thread_dump_pcm) {
-		ck_assert_int_eq(ba_transport_pcm_start(t_snk->thread_dec.pcm, dec, dec_name, true), 0);
-		ck_assert_int_eq(ba_transport_pcm_start(t_src->thread_enc.pcm, enc, enc_name, true), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_snk->thread_dec.pcm, dec, dec_name), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_src->thread_enc.pcm, enc, enc_name), 0);
 		bt_data_write(t_src);
 	}
 	else {
-		ck_assert_int_eq(ba_transport_pcm_start(t_src->thread_enc.pcm, enc, enc_name, true), 0);
-		ck_assert_int_eq(ba_transport_pcm_start(t_snk->thread_dec.pcm, dec, dec_name, true), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_src->thread_enc.pcm, enc, enc_name), 0);
+		ck_assert_int_eq(ba_transport_pcm_start(t_snk->thread_dec.pcm, dec, dec_name), 0);
 		pcm_write_frames(t_snk_pcm, pcm_write_frames_count);
 	}
 
@@ -703,7 +703,7 @@ CK_START_TEST(test_a2dp_sbc_invalid_config) {
 	t->bt_fd = bt_fds[1];
 
 	struct ba_transport_thread *th = &t->thread_enc;
-	ck_assert_int_eq(ba_transport_pcm_start(th->pcm, a2dp_sbc_enc_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_enc_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(th), -1);
 
 	ba_transport_destroy(t);
@@ -741,13 +741,13 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	ck_assert_int_eq(pipe2(pcm_snk_fds, O_NONBLOCK), 0);
 	debug("Created PCM pipe pair: %d, %d", pcm_snk_fds[0], pcm_snk_fds[1]);
 	th1->pcm->fd = pcm_snk_fds[0];
-	th1->pcm->active = true;
+	th1->pcm->paused = false;
 
 	int pcm_src_fds[2];
 	ck_assert_int_eq(pipe2(pcm_src_fds, O_NONBLOCK), 0);
 	debug("Created PCM pipe pair: %d, %d", pcm_src_fds[0], pcm_src_fds[1]);
 	th2->pcm->fd = pcm_src_fds[1];
-	th2->pcm->active = true;
+	th2->pcm->paused = false;
 
 	/* sink PCM */
 	struct ba_transport_pcm *pcm = th1->pcm;
@@ -760,7 +760,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
 
 	/* start IO thread and make sure it is running */
-	ck_assert_int_eq(ba_transport_pcm_start(th1->pcm, a2dp_sbc_enc_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(&t1->a2dp.pcm, a2dp_sbc_enc_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(th1), 0);
 
 	/* wait for 50 ms - let the thread to run for a while */
@@ -797,7 +797,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	 * non-zero samples. We will check this by writing zero samples and
 	 * checking if decoded data is all silence. */
 
-	ck_assert_int_eq(ba_transport_pcm_start(th2->pcm, a2dp_sbc_dec_thread, "sbc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(&t2->a2dp.pcm, a2dp_sbc_dec_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(th2), 0);
 
 	/* write some zero samples to PCM FIFO and process them */

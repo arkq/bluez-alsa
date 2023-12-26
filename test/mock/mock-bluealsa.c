@@ -121,7 +121,7 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int samplerate = t_pcm->sampling;
-	struct pollfd fds[1] = {{ th->pipe[0], POLLIN, 0 }};
+	struct pollfd fds[1] = {{ t_pcm->pipe[0], POLLIN, 0 }};
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
 	int x = 0;
@@ -139,11 +139,9 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 
 		if (poll_rv == 1 && fds[0].revents & POLLIN) {
 			/* dispatch incoming event */
-			enum ba_transport_thread_signal signal;
-			ba_transport_thread_signal_recv(th, &signal);
-			switch (signal) {
-			case BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN:
-			case BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME:
+			switch (ba_transport_pcm_signal_recv(t_pcm)) {
+			case BA_TRANSPORT_PCM_SIGNAL_OPEN:
+			case BA_TRANSPORT_PCM_SIGNAL_RESUME:
 				asrs.frames = 0;
 				continue;
 			default:

@@ -407,11 +407,11 @@ fail_open:
 int a2dp_ldac_transport_start(struct ba_transport *t) {
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_enc_thread, "ba-a2dp-ldac", true);
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_enc_thread, "ba-a2dp-ldac");
 
 #if HAVE_LDAC_DECODE
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_dec_thread, "ba-a2dp-ldac", true);
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_dec_thread, "ba-a2dp-ldac");
 #endif
 
 	g_assert_not_reached();

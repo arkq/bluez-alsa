@@ -429,7 +429,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	case G_IO_STATUS_EOF:
 		pthread_mutex_lock(&pcm->mutex);
 		ba_transport_pcm_release(pcm);
-		ba_transport_thread_signal_send(pcm->th, BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE);
+		ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_CLOSE);
 		pthread_mutex_unlock(&pcm->mutex);
 		/* Check whether we've just closed the last PCM client and in
 		 * such a case schedule transport IO threads termination. */
@@ -514,7 +514,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	/* get correct PIPE endpoint - PIPE is unidirectional */
 	pcm->fd = pcm_fds[is_sink ? 0 : 1];
 	/* set newly opened PCM as active */
-	pcm->active = true;
+	pcm->paused = false;
 	pthread_mutex_unlock(&pcm->mutex);
 
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
@@ -528,7 +528,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	g_io_channel_unref(ch);
 
 	/* notify our audio thread that the FIFO is ready */
-	ba_transport_thread_signal_send(th, BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN);
+	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_OPEN);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);

@@ -323,17 +323,17 @@ int a2dp_faststream_transport_start(struct ba_transport *t) {
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
-			rv |= ba_transport_pcm_start(pcm, a2dp_faststream_enc_thread, "ba-a2dp-fs-m", true);
+			rv |= ba_transport_pcm_start(pcm, a2dp_faststream_enc_thread, "ba-a2dp-fs-m");
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
-			rv |= ba_transport_pcm_start(pcm_bc, a2dp_faststream_dec_thread, "ba-a2dp-fs-v", false);
+			rv |= ba_transport_pcm_start(pcm_bc, a2dp_faststream_dec_thread, "ba-a2dp-fs-v");
 		return rv;
 	}
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
-			rv |= ba_transport_pcm_start(pcm, a2dp_faststream_dec_thread, "ba-a2dp-fs-m", true);
+			rv |= ba_transport_pcm_start(pcm, a2dp_faststream_dec_thread, "ba-a2dp-fs-m");
 		if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
-			rv |= ba_transport_pcm_start(pcm_bc, a2dp_faststream_enc_thread, "ba-a2dp-fs-v", false);
+			rv |= ba_transport_pcm_start(pcm_bc, a2dp_faststream_enc_thread, "ba-a2dp-fs-v");
 		return rv;
 	}
 

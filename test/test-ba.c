@@ -238,10 +238,10 @@ CK_START_TEST(test_ba_transport_threads_sync_termination) {
 	t_sco->mtu_read = 48;
 	t_sco->mtu_write = 48;
 
-	ck_assert_int_eq(ba_transport_pcm_start(t_sco->thread_enc.pcm, sco_enc_thread, "enc", true), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(&t_sco->sco.pcm_spk, sco_enc_thread, "enc"), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(&t_sco->thread_enc), 0);
 
-	ck_assert_int_eq(ba_transport_pcm_start(t_sco->thread_dec.pcm, cleanup_thread, "dec", false), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(&t_sco->sco.pcm_mic, cleanup_thread, "dec"), 0);
 	ck_assert_int_eq(ba_transport_thread_state_wait_running(&t_sco->thread_dec), -1);
 
 	ck_assert_int_eq(ba_transport_thread_state_wait_terminated(&t_sco->thread_enc), 0);

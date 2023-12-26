@@ -607,16 +607,16 @@ int a2dp_mpeg_transport_start(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 #if ENABLE_MP3LAME
 		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
-			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mp3_enc_thread, "ba-a2dp-mp3", true);
+			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mp3_enc_thread, "ba-a2dp-mp3");
 #endif
 	}
 
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
 #if ENABLE_MPG123
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg", true);
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg");
 #elif ENABLE_MP3LAME
 		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
-			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mp3", true);
+			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mp3");
 #endif
 	}
 

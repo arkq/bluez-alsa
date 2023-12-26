@@ -589,14 +589,14 @@ int sco_transport_start(struct ba_transport *t) {
 	int rv = 0;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
-		rv |= ba_transport_pcm_start(&t->sco.pcm_spk, sco_enc_thread, "ba-sco-enc", true);
-		rv |= ba_transport_pcm_start(&t->sco.pcm_mic, sco_dec_thread, "ba-sco-dec", false);
+		rv |= ba_transport_pcm_start(&t->sco.pcm_spk, sco_enc_thread, "ba-sco-enc");
+		rv |= ba_transport_pcm_start(&t->sco.pcm_mic, sco_dec_thread, "ba-sco-dec");
 		return rv;
 	}
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_HF) {
-		rv |= ba_transport_pcm_start(&t->sco.pcm_spk, sco_dec_thread, "ba-sco-dec", true);
-		rv |= ba_transport_pcm_start(&t->sco.pcm_mic, sco_enc_thread, "ba-sco-enc", false);
+		rv |= ba_transport_pcm_start(&t->sco.pcm_spk, sco_dec_thread, "ba-sco-dec");
+		rv |= ba_transport_pcm_start(&t->sco.pcm_mic, sco_enc_thread, "ba-sco-enc");
 		return rv;
 	}
 

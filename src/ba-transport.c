@@ -97,14 +97,9 @@ static int transport_thread_init(
 
 	th->t = t;
 	th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
-	th->pipe[0] = -1;
-	th->pipe[1] = -1;
 
 	pthread_mutex_init(&th->mutex, NULL);
 	pthread_cond_init(&th->cond, NULL);
-
-	if (pipe(th->pipe) == -1)
-		return -1;
 
 	return 0;
 }
@@ -113,10 +108,6 @@ static int transport_thread_init(
  * Release transport thread resources. */
 static void transport_thread_free(
 		struct ba_transport_thread *th) {
-	if (th->pipe[0] != -1)
-		close(th->pipe[0]);
-	if (th->pipe[1] != -1)
-		close(th->pipe[1]);
 	pthread_mutex_destroy(&th->mutex);
 	pthread_cond_destroy(&th->cond);
 }
@@ -206,48 +197,6 @@ int ba_transport_thread_state_wait(
 		return 0;
 
 	errno = EIO;
-	return -1;
-}
-
-int ba_transport_thread_signal_send(
-		struct ba_transport_thread *th,
-		enum ba_transport_thread_signal signal) {
-
-	int ret = -1;
-
-	pthread_mutex_lock(&th->mutex);
-
-	if (th->state != BA_TRANSPORT_THREAD_STATE_RUNNING) {
-		errno = ESRCH;
-		goto fail;
-	}
-
-	if (write(th->pipe[1], &signal, sizeof(signal)) != sizeof(signal)) {
-		warn("Couldn't write transport thread signal: %s", strerror(errno));
-		goto fail;
-	}
-
-	ret = 0;
-
-fail:
-	pthread_mutex_unlock(&th->mutex);
-	return ret;
-}
-
-int ba_transport_thread_signal_recv(
-		struct ba_transport_thread *th,
-		enum ba_transport_thread_signal *signal) {
-
-	ssize_t ret;
-	while ((ret = read(th->pipe[0], signal, sizeof(*signal))) == -1 &&
-			errno == EINTR)
-		continue;
-
-	if (ret == sizeof(*signal))
-		return 0;
-
-	warn("Couldn't read transport thread signal: %s", strerror(errno));
-	*signal = BA_TRANSPORT_THREAD_SIGNAL_PING;
 	return -1;
 }
 
@@ -573,12 +522,14 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-			is_sink ? &t->thread_dec : &t->thread_enc);
+			is_sink ? &t->thread_dec : &t->thread_enc,
+			true);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
 
 	transport_pcm_init(&t->a2dp.pcm_bc,
 			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-			is_sink ? &t->thread_enc : &t->thread_dec);
+			is_sink ? &t->thread_enc : &t->thread_dec,
+			false);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
 
 	t->acquire = transport_acquire_bt_a2dp;
@@ -688,11 +639,13 @@ struct ba_transport *ba_transport_new_sco(
 
 	transport_pcm_init(&t->sco.pcm_spk,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-			is_ag ? &t->thread_enc : &t->thread_dec);
+			is_ag ? &t->thread_enc : &t->thread_dec,
+			true);
 
 	transport_pcm_init(&t->sco.pcm_mic,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-			is_ag ? &t->thread_dec : &t->thread_enc);
+			is_ag ? &t->thread_dec : &t->thread_enc,
+			false);
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;

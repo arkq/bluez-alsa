@@ -56,6 +56,15 @@ struct ba_transport_pcm_volume {
 	double scale;
 };
 
+enum ba_transport_pcm_signal {
+	BA_TRANSPORT_PCM_SIGNAL_OPEN,
+	BA_TRANSPORT_PCM_SIGNAL_CLOSE,
+	BA_TRANSPORT_PCM_SIGNAL_PAUSE,
+	BA_TRANSPORT_PCM_SIGNAL_RESUME,
+	BA_TRANSPORT_PCM_SIGNAL_SYNC,
+	BA_TRANSPORT_PCM_SIGNAL_DROP,
+};
+
 struct ba_transport_thread;
 
 struct ba_transport_pcm {
@@ -67,6 +76,8 @@ struct ba_transport_pcm {
 
 	/* PCM stream operation mode */
 	enum ba_transport_pcm_mode mode;
+	/* indicates a master PCM */
+	bool master;
 
 	/* guard PCM data updates */
 	pthread_mutex_t mutex;
@@ -78,8 +89,8 @@ struct ba_transport_pcm {
 	/* clone of BT socket */
 	int fd_bt;
 
-	/* indicates whether PCM shall be active */
-	bool active;
+	/* indicates whether PCM is running */
+	bool paused;
 
 	/* 16-bit stream format identifier */
 	uint16_t format;
@@ -111,6 +122,9 @@ struct ba_transport_pcm {
 	/* new PCM client mutex */
 	pthread_mutex_t client_mtx;
 
+	/* notification PIPE */
+	int pipe[2];
+
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
 	bool ba_dbus_exported;
@@ -120,7 +134,8 @@ struct ba_transport_pcm {
 int transport_pcm_init(
 		struct ba_transport_pcm *pcm,
 		enum ba_transport_pcm_mode mode,
-		struct ba_transport_thread *th);
+		struct ba_transport_thread *th,
+		bool master);
 void transport_pcm_free(
 		struct ba_transport_pcm *pcm);
 
@@ -142,8 +157,7 @@ int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm);
 int ba_transport_pcm_start(
 		struct ba_transport_pcm *pcm,
 		ba_transport_pcm_thread_func th_func,
-		const char *name,
-		bool master);
+		const char *name);
 void ba_transport_pcm_stop(
 		struct ba_transport_pcm *pcm);
 
@@ -153,6 +167,12 @@ int ba_transport_pcm_pause(struct ba_transport_pcm *pcm);
 int ba_transport_pcm_resume(struct ba_transport_pcm *pcm);
 int ba_transport_pcm_drain(struct ba_transport_pcm *pcm);
 int ba_transport_pcm_drop(struct ba_transport_pcm *pcm);
+
+int ba_transport_pcm_signal_send(
+		struct ba_transport_pcm *pcm,
+		enum ba_transport_pcm_signal signal);
+enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(
+		struct ba_transport_pcm *pcm);
 
 bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm);
 

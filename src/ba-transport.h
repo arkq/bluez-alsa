@@ -37,16 +37,6 @@ enum ba_transport_thread_state {
 	BA_TRANSPORT_THREAD_STATE_TERMINATED,
 };
 
-enum ba_transport_thread_signal {
-	BA_TRANSPORT_THREAD_SIGNAL_PING,
-	BA_TRANSPORT_THREAD_SIGNAL_PCM_OPEN,
-	BA_TRANSPORT_THREAD_SIGNAL_PCM_CLOSE,
-	BA_TRANSPORT_THREAD_SIGNAL_PCM_PAUSE,
-	BA_TRANSPORT_THREAD_SIGNAL_PCM_RESUME,
-	BA_TRANSPORT_THREAD_SIGNAL_PCM_SYNC,
-	BA_TRANSPORT_THREAD_SIGNAL_PCM_DROP,
-};
-
 struct ba_transport_thread {
 
 	/* backward reference to transport */
@@ -64,10 +54,6 @@ struct ba_transport_thread {
 
 	/* actual thread ID */
 	pthread_t id;
-	/* indicates a master thread */
-	bool master;
-	/* notification PIPE */
-	int pipe[2];
 
 };
 
@@ -101,13 +87,6 @@ int ba_transport_thread_state_wait(
 	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
 #define ba_transport_thread_state_wait_terminated(th) \
 	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
-
-int ba_transport_thread_signal_send(
-		struct ba_transport_thread *th,
-		enum ba_transport_thread_signal signal);
-int ba_transport_thread_signal_recv(
-		struct ba_transport_thread *th,
-		enum ba_transport_thread_signal *signal);
 
 enum ba_transport_thread_manager_command {
 	BA_TRANSPORT_THREAD_MANAGER_TERMINATE = 0,
