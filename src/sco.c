@@ -35,7 +35,9 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
-#include "codec-msbc.h"
+#if ENABLE_MSBC
+# include "codec-msbc.h"
+#endif
 #include "hci.h"
 #include "hfp.h"
 #include "io.h"

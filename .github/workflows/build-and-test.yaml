@@ -58,7 +58,7 @@ jobs:
       working-directory: ${{ github.workspace }}/build/test
       run: make check-TESTS
     - name: Upload Tests Log
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: ${{ always() }}
       with:
         name: ${{ github.job }} (${{ matrix.features }}) logs
@@ -170,7 +170,7 @@ jobs:
         esac
         make check-TESTS
     - name: Upload Tests Log
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: ${{ always() }}
       with:
         name: ${{ github.job }} (${{ matrix.sanitize }}) logs

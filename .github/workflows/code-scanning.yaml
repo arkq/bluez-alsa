@@ -21,7 +21,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Run cccc analysis
       uses: sarnold/cccc-action@main
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: ${{ github.job }} logs
         path: metrics
@@ -47,7 +47,7 @@ jobs:
           libspandsp-dev
     - uses: actions/checkout@v4
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: cpp
         queries: security-and-quality
@@ -75,7 +75,7 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: make
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
 
   doc8-lint:
     runs-on: ubuntu-latest
