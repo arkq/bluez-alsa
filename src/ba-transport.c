@@ -362,11 +362,6 @@ static struct ba_transport *transport_new(
 
 	if (pipe(t->thread_manager_pipe) == -1)
 		goto fail;
-	if ((errno = pthread_create(&t->thread_manager_thread_id,
-			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
-		t->thread_manager_thread_id = config.main_thread;
-		goto fail;
-	}
 
 	if ((t->bluez_dbus_owner = strdup(dbus_owner)) == NULL)
 		goto fail;
@@ -510,6 +505,7 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	const bool is_sink = profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
 	struct ba_transport *t;
+	int err = 0;
 
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
@@ -520,17 +516,26 @@ struct ba_transport *ba_transport_new_a2dp(
 	memcpy(&t->a2dp.configuration, configuration, codec->capabilities_size);
 	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 
-	transport_pcm_init(&t->a2dp.pcm,
+	err |= transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
 			is_sink ? &t->thread_dec : &t->thread_enc,
 			true);
 	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
 
-	transport_pcm_init(&t->a2dp.pcm_bc,
+	err |= transport_pcm_init(&t->a2dp.pcm_bc,
 			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
 			is_sink ? &t->thread_enc : &t->thread_dec,
 			false);
 	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
+
+	if (err != 0)
+		goto fail;
+
+	if ((errno = pthread_create(&t->thread_manager_thread_id,
+			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+		t->thread_manager_thread_id = config.main_thread;
+		goto fail;
+	}
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
@@ -546,6 +551,12 @@ struct ba_transport *ba_transport_new_a2dp(
 		bluealsa_dbus_pcm_register(&t->a2dp.pcm_bc);
 
 	return t;
+
+fail:
+	err = errno;
+	ba_transport_unref(t);
+	errno = err;
+	return NULL;
 }
 
 static int transport_acquire_bt_sco(struct ba_transport *t) {
@@ -615,7 +626,7 @@ struct ba_transport *ba_transport_new_sco(
 	const bool is_ag = profile & BA_TRANSPORT_PROFILE_MASK_AG;
 	uint16_t codec_id = HFP_CODEC_UNDEFINED;
 	struct ba_transport *t;
-	int err;
+	int err = 0;
 
 	/* BlueALSA can only support one SCO transport per device, so we arbitrarily
 	 * accept only the first profile connection, with no preference for HFP.
@@ -637,15 +648,24 @@ struct ba_transport *ba_transport_new_sco(
 
 	t->profile = profile;
 
-	transport_pcm_init(&t->sco.pcm_spk,
+	err |= transport_pcm_init(&t->sco.pcm_spk,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
 			is_ag ? &t->thread_enc : &t->thread_dec,
 			true);
 
-	transport_pcm_init(&t->sco.pcm_mic,
+	err |= transport_pcm_init(&t->sco.pcm_mic,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
 			is_ag ? &t->thread_dec : &t->thread_enc,
 			false);
+
+	if (err != 0)
+		goto fail;
+
+	if ((errno = pthread_create(&t->thread_manager_thread_id,
+			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+		t->thread_manager_thread_id = config.main_thread;
+		goto fail;
+	}
 
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;

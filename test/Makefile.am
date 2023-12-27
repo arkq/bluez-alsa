@@ -93,6 +93,7 @@ test_ba_SOURCES = \
 	../src/audio.c \
 	../src/ba-adapter.c \
 	../src/ba-device.c \
+	../src/ba-transport.c \
 	../src/ba-transport-pcm.c \
 	../src/bluealsa-config.c \
 	../src/codec-sbc.c \
