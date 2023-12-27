@@ -28,66 +28,6 @@
 #include "bluez.h"
 #include "shared/a2dp-codecs.h"
 
-enum ba_transport_thread_state {
-	BA_TRANSPORT_THREAD_STATE_IDLE,
-	BA_TRANSPORT_THREAD_STATE_STARTING,
-	BA_TRANSPORT_THREAD_STATE_RUNNING,
-	BA_TRANSPORT_THREAD_STATE_STOPPING,
-	BA_TRANSPORT_THREAD_STATE_JOINING,
-	BA_TRANSPORT_THREAD_STATE_TERMINATED,
-};
-
-struct ba_transport_thread {
-
-	/* backward reference to transport */
-	struct ba_transport *t;
-	/* associated PCM */
-	struct ba_transport_pcm *pcm;
-
-	/* guard transport thread data updates */
-	pthread_mutex_t mutex;
-	/* state/id updates notification */
-	pthread_cond_t cond;
-
-	/* current state of the thread */
-	enum ba_transport_thread_state state;
-
-	/* actual thread ID */
-	pthread_t id;
-
-};
-
-int ba_transport_thread_state_set(
-		struct ba_transport_thread *th,
-		enum ba_transport_thread_state state);
-
-#define ba_transport_thread_state_set_idle(th) \
-	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_IDLE)
-#define ba_transport_thread_state_set_running(th) \
-	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
-#define ba_transport_thread_state_set_stopping(th) \
-	ba_transport_thread_state_set(th, BA_TRANSPORT_THREAD_STATE_STOPPING)
-
-bool ba_transport_thread_state_check(
-		const struct ba_transport_thread *th,
-		enum ba_transport_thread_state state);
-
-#define ba_transport_thread_state_check_idle(th) \
-	ba_transport_thread_state_check(th, BA_TRANSPORT_THREAD_STATE_IDLE)
-#define ba_transport_thread_state_check_running(th) \
-	ba_transport_thread_state_check(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
-#define ba_transport_thread_state_check_terminated(th) \
-	ba_transport_thread_state_check(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
-
-int ba_transport_thread_state_wait(
-		const struct ba_transport_thread *th,
-		enum ba_transport_thread_state state);
-
-#define ba_transport_thread_state_wait_running(th) \
-	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_RUNNING)
-#define ba_transport_thread_state_wait_terminated(th) \
-	ba_transport_thread_state_wait(th, BA_TRANSPORT_THREAD_STATE_TERMINATED)
-
 enum ba_transport_thread_manager_command {
 	BA_TRANSPORT_THREAD_MANAGER_TERMINATE = 0,
 	BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS,
@@ -156,10 +96,6 @@ struct ba_transport {
 	/* max transfer unit values for bt_fd */
 	size_t mtu_read;
 	size_t mtu_write;
-
-	/* threads for audio processing */
-	struct ba_transport_thread thread_enc;
-	struct ba_transport_thread thread_dec;
 
 	/* thread for managing IO threads */
 	pthread_t thread_manager_thread_id;

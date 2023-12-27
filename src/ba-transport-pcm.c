@@ -65,22 +65,17 @@ static const char *transport_get_dbus_path_type(
 int transport_pcm_init(
 		struct ba_transport_pcm *pcm,
 		enum ba_transport_pcm_mode mode,
-		struct ba_transport_thread *th,
+		struct ba_transport *t,
 		bool master) {
-
-	struct ba_transport *t = th->t;
 
 	pcm->t = t;
 	pcm->mode = mode;
 	pcm->master = master;
+	pcm->state = BA_TRANSPORT_PCM_STATE_TERMINATED;
 	pcm->fd = -1;
 	pcm->fd_bt = -1;
 	pcm->pipe[0] = -1;
 	pcm->pipe[1] = -1;
-
-	/* link PCM and transport thread */
-	pcm->th = th;
-	th->pcm = pcm;
 
 	pcm->volume[0].level = config.volume_init_level;
 	pcm->volume[1].level = config.volume_init_level;
@@ -88,6 +83,7 @@ int transport_pcm_init(
 	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
 
 	pthread_mutex_init(&pcm->mutex, NULL);
+	pthread_mutex_init(&pcm->state_mtx, NULL);
 	pthread_mutex_init(&pcm->delay_adjustments_mtx, NULL);
 	pthread_mutex_init(&pcm->client_mtx, NULL);
 	pthread_cond_init(&pcm->cond, NULL);
@@ -112,6 +108,7 @@ void transport_pcm_free(
 	pthread_mutex_unlock(&pcm->mutex);
 
 	pthread_mutex_destroy(&pcm->mutex);
+	pthread_mutex_destroy(&pcm->state_mtx);
 	pthread_mutex_destroy(&pcm->delay_adjustments_mtx);
 	pthread_mutex_destroy(&pcm->client_mtx);
 	pthread_cond_destroy(&pcm->cond);
@@ -124,6 +121,94 @@ void transport_pcm_free(
 	g_hash_table_unref(pcm->delay_adjustments);
 	g_free(pcm->ba_dbus_path);
 
+}
+
+/**
+ * Set transport PCM state.
+ *
+ * It is only allowed to set the new state according to the state machine.
+ * For details, see comments in this function body.
+ *
+ * @param pcm Transport PCM.
+ * @param state New transport PCM state.
+ * @return If state transition was successful, 0 is returned. Otherwise, -1 is
+ *   returned and errno is set to EINVAL. */
+int ba_transport_pcm_state_set(
+		struct ba_transport_pcm *pcm,
+		enum ba_transport_pcm_state state) {
+
+	pthread_mutex_lock(&pcm->state_mtx);
+
+	enum ba_transport_pcm_state old_state = pcm->state;
+
+	/* Moving to the next state is always allowed. */
+	bool valid = state == pcm->state + 1;
+
+	/* Allow wrapping around the state machine. */
+	if (state == BA_TRANSPORT_PCM_STATE_IDLE &&
+			old_state == BA_TRANSPORT_PCM_STATE_TERMINATED)
+		valid = true;
+
+	/* Thread initialization failure: STARTING -> STOPPING */
+	if (state == BA_TRANSPORT_PCM_STATE_STOPPING &&
+			old_state == BA_TRANSPORT_PCM_STATE_STARTING)
+		valid = true;
+
+	/* Additionally, it is allowed to move to the TERMINATED state from
+	 * IDLE and STARTING. This transition indicates that the thread has
+	 * never been started or there was an error during the startup. */
+	if (state == BA_TRANSPORT_PCM_STATE_TERMINATED && (
+				old_state == BA_TRANSPORT_PCM_STATE_IDLE ||
+				old_state == BA_TRANSPORT_PCM_STATE_STARTING))
+		valid = true;
+
+	if (valid)
+		pcm->state = state;
+
+	pthread_mutex_unlock(&pcm->state_mtx);
+
+	if (!valid)
+		return errno = EINVAL, -1;
+
+	if (state != old_state && (
+				state == BA_TRANSPORT_PCM_STATE_RUNNING ||
+				old_state == BA_TRANSPORT_PCM_STATE_RUNNING)) {
+			bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_RUNNING);
+	}
+
+	pthread_cond_broadcast(&pcm->cond);
+	return 0;
+}
+
+/**
+ * Check if transport PCM is in given state. */
+bool ba_transport_pcm_state_check(
+		const struct ba_transport_pcm *pcm,
+		enum ba_transport_pcm_state state) {
+	pthread_mutex_lock(MUTABLE(&pcm->state_mtx));
+	bool ok = pcm->state == state;
+	pthread_mutex_unlock(MUTABLE(&pcm->state_mtx));
+	return ok;
+}
+
+/**
+ * Wait until transport PCM reaches given state. */
+int ba_transport_pcm_state_wait(
+		const struct ba_transport_pcm *pcm,
+		enum ba_transport_pcm_state state) {
+
+	enum ba_transport_pcm_state tmp;
+
+	pthread_mutex_lock(MUTABLE(&pcm->state_mtx));
+	while ((tmp = pcm->state) < state)
+		pthread_cond_wait(MUTABLE(&pcm->cond), MUTABLE(&pcm->state_mtx));
+	pthread_mutex_unlock(MUTABLE(&pcm->state_mtx));
+
+	if (tmp == state)
+		return 0;
+
+	errno = EIO;
+	return -1;
 }
 
 struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm) {
@@ -160,7 +245,7 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 	/* XXX: If the order of the cleanup push is right, this function will
 	 *      indicate the end of the transport IO thread. */
 	char name[32];
-	pthread_getname_np(pcm->th->id, name, sizeof(name));
+	pthread_getname_np(pcm->tid, name, sizeof(name));
 	debug("Exiting IO thread [%s]: %s", name, ba_transport_debug_name(t));
 #endif
 
@@ -229,18 +314,17 @@ int ba_transport_pcm_start(
 		const char *name) {
 
 	struct ba_transport *t = pcm->t;
-	struct ba_transport_thread *th = pcm->th;
 	sigset_t sigset, oldset;
 	int ret = -1;
 
-	pthread_mutex_lock(&th->mutex);
+	pthread_mutex_lock(&pcm->state_mtx);
 
-	th->state = BA_TRANSPORT_THREAD_STATE_STARTING;
+	pcm->state = BA_TRANSPORT_PCM_STATE_STARTING;
 
 	/* Please note, this call here does not guarantee that the BT socket
 	 * will be acquired, because transport might not be opened yet. */
 	if (ba_transport_pcm_bt_acquire(pcm) == -1) {
-		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+		pcm->state = BA_TRANSPORT_PCM_STATE_TERMINATED;
 		goto fail;
 	}
 
@@ -259,9 +343,9 @@ int ba_transport_pcm_start(
 	if ((ret = pthread_sigmask(SIG_SETMASK, &sigset, &oldset)) != 0)
 		warn("Couldn't set signal mask: %s", strerror(ret));
 
-	if ((ret = pthread_create(&th->id, NULL, PTHREAD_FUNC(th_func), pcm)) != 0) {
+	if ((ret = pthread_create(&pcm->tid, NULL, PTHREAD_FUNC(th_func), pcm)) != 0) {
 		error("Couldn't create IO thread: %s", strerror(ret));
-		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
+		pcm->state = BA_TRANSPORT_PCM_STATE_TERMINATED;
 		pthread_sigmask(SIG_SETMASK, &oldset, NULL);
 		ba_transport_unref(t);
 		goto fail;
@@ -269,7 +353,7 @@ int ba_transport_pcm_start(
 
 	if (config.io_thread_rt_priority != 0) {
 		struct sched_param param = { .sched_priority = config.io_thread_rt_priority };
-		if ((ret = pthread_setschedparam(th->id, SCHED_FIFO, &param)) != 0)
+		if ((ret = pthread_setschedparam(pcm->tid, SCHED_FIFO, &param)) != 0)
 			warn("Couldn't set IO thread RT priority: %s", strerror(ret));
 		/* It's not a fatal error if we can't set thread priority. */
 		ret = 0;
@@ -277,12 +361,12 @@ int ba_transport_pcm_start(
 
 	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
 
-	pthread_setname_np(th->id, name);
+	pthread_setname_np(pcm->tid, name);
 	debug("Created new IO thread [%s]: %s", name, ba_transport_debug_name(t));
 
 fail:
-	pthread_mutex_unlock(&th->mutex);
-	pthread_cond_broadcast(&th->cond);
+	pthread_mutex_unlock(&pcm->state_mtx);
+	pthread_cond_broadcast(&pcm->cond);
 	return ret == 0 ? 0 : -1;
 }
 
@@ -296,16 +380,14 @@ fail:
 void ba_transport_pcm_stop(
 		struct ba_transport_pcm *pcm) {
 
-	struct ba_transport_thread *th = pcm->th;
-
-	pthread_mutex_lock(&th->mutex);
+	pthread_mutex_lock(&pcm->state_mtx);
 
 	/* If the transport thread is in the idle state (i.e. it is not running),
 	 * we can mark it as terminated right away. */
-	if (th->state == BA_TRANSPORT_THREAD_STATE_IDLE) {
-		th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
-		pthread_mutex_unlock(&th->mutex);
-		pthread_cond_broadcast(&th->cond);
+	if (pcm->state == BA_TRANSPORT_PCM_STATE_IDLE) {
+		pcm->state = BA_TRANSPORT_PCM_STATE_TERMINATED;
+		pthread_mutex_unlock(&pcm->state_mtx);
+		pthread_cond_broadcast(&pcm->cond);
 		return;
 	}
 
@@ -313,42 +395,42 @@ void ba_transport_pcm_stop(
 	 * (e.g. from transport thread manager thread and from main thread due to
 	 * SIGTERM signal), wait until the IO thread terminates - this function is
 	 * supposed to be synchronous. */
-	if (th->state == BA_TRANSPORT_THREAD_STATE_JOINING) {
-		while (th->state != BA_TRANSPORT_THREAD_STATE_TERMINATED)
-			pthread_cond_wait(&th->cond, &th->mutex);
-		pthread_mutex_unlock(&th->mutex);
+	if (pcm->state == BA_TRANSPORT_PCM_STATE_JOINING) {
+		while (pcm->state != BA_TRANSPORT_PCM_STATE_TERMINATED)
+			pthread_cond_wait(&pcm->cond, &pcm->state_mtx);
+		pthread_mutex_unlock(&pcm->state_mtx);
 		return;
 	}
 
-	if (th->state == BA_TRANSPORT_THREAD_STATE_TERMINATED) {
-		pthread_mutex_unlock(&th->mutex);
+	if (pcm->state == BA_TRANSPORT_PCM_STATE_TERMINATED) {
+		pthread_mutex_unlock(&pcm->state_mtx);
 		return;
 	}
 
 	/* The transport thread has to be marked for stopping. If at this point
 	 * the state is not STOPPING, it is a programming error. */
-	g_assert_cmpint(th->state, ==, BA_TRANSPORT_THREAD_STATE_STOPPING);
+	g_assert_cmpint(pcm->state, ==, BA_TRANSPORT_PCM_STATE_STOPPING);
 
 	int err;
-	pthread_t id = th->id;
+	pthread_t id = pcm->tid;
 	if ((err = pthread_cancel(id)) != 0 && err != ESRCH)
 		warn("Couldn't cancel IO thread: %s", strerror(err));
 
 	/* Set the state to JOINING before unlocking the mutex. This will
 	 * prevent calling the pthread_cancel() function once again. */
-	th->state = BA_TRANSPORT_THREAD_STATE_JOINING;
+	pcm->state = BA_TRANSPORT_PCM_STATE_JOINING;
 
-	pthread_mutex_unlock(&th->mutex);
+	pthread_mutex_unlock(&pcm->state_mtx);
 
 	if ((err = pthread_join(id, NULL)) != 0)
 		warn("Couldn't join IO thread: %s", strerror(err));
 
-	pthread_mutex_lock(&th->mutex);
-	th->state = BA_TRANSPORT_THREAD_STATE_TERMINATED;
-	pthread_mutex_unlock(&th->mutex);
+	pthread_mutex_lock(&pcm->state_mtx);
+	pcm->state = BA_TRANSPORT_PCM_STATE_TERMINATED;
+	pthread_mutex_unlock(&pcm->state_mtx);
 
 	/* Notify others that the thread has been terminated. */
-	pthread_cond_broadcast(&th->cond);
+	pthread_cond_broadcast(&pcm->cond);
 
 }
 
@@ -395,7 +477,7 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 
-	if (!ba_transport_thread_state_check_running(pcm->th)) {
+	if (!ba_transport_pcm_state_check_running(pcm)) {
 		pthread_mutex_unlock(&pcm->mutex);
 		return errno = ESRCH, -1;
 	}
@@ -446,12 +528,11 @@ int ba_transport_pcm_signal_send(
 		struct ba_transport_pcm *pcm,
 		enum ba_transport_pcm_signal signal) {
 
-	struct ba_transport_thread *th = pcm->th;
 	int ret = -1;
 
-	pthread_mutex_lock(&th->mutex);
+	pthread_mutex_lock(&pcm->state_mtx);
 
-	if (th->state != BA_TRANSPORT_THREAD_STATE_RUNNING) {
+	if (pcm->state != BA_TRANSPORT_PCM_STATE_RUNNING) {
 		errno = ESRCH;
 		goto fail;
 	}
@@ -464,7 +545,7 @@ int ba_transport_pcm_signal_send(
 	ret = 0;
 
 fail:
-	pthread_mutex_unlock(&th->mutex);
+	pthread_mutex_unlock(&pcm->state_mtx);
 	return ret;
 }
 

@@ -43,9 +43,9 @@ int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) { (void)pcm; retur
 int ba_transport_pcm_start(struct ba_transport_pcm *pcm,
 		ba_transport_pcm_thread_func th_func, const char *name) {
 	(void)pcm; (void)th_func; (void)name; return -1; }
-int ba_transport_thread_state_set(struct ba_transport_thread *th,
-		enum ba_transport_thread_state state) {
-	(void)th; (void)state; return -1; }
+int ba_transport_pcm_state_set(struct ba_transport_pcm *pcm,
+		enum ba_transport_pcm_state state) {
+	(void)pcm; (void)state; return -1; }
 enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(struct ba_transport_pcm *pcm) {
 	(void)pcm; return -1; }
 void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; }

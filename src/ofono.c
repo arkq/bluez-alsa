@@ -832,8 +832,8 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-	ba_transport_thread_state_set_idle(&t->thread_enc);
-	ba_transport_thread_state_set_idle(&t->thread_dec);
+	ba_transport_pcm_state_set_idle(&t->sco.pcm_spk);
+	ba_transport_pcm_state_set_idle(&t->sco.pcm_mic);
 	ba_transport_start(t);
 
 	g_dbus_method_invocation_return_value(inv, NULL);

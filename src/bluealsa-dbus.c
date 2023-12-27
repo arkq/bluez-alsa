@@ -224,7 +224,7 @@ static GVariant *ba_variant_new_pcm_mode(const struct ba_transport_pcm *pcm) {
 }
 
 static GVariant *ba_variant_new_pcm_running(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_boolean(ba_transport_thread_state_check_running(pcm->th));
+	return g_variant_new_boolean(ba_transport_pcm_state_check_running(pcm));
 }
 
 static GVariant *ba_variant_new_pcm_format(const struct ba_transport_pcm *pcm) {
@@ -445,7 +445,6 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	struct ba_transport_pcm *pcm = userdata;
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
-	struct ba_transport_thread *th = pcm->th;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
 	size_t i;
@@ -502,7 +501,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 		}
 
 		/* Wait until transport thread is ready to process audio. */
-		if (ba_transport_thread_state_wait_running(th) == -1) {
+		if (ba_transport_pcm_state_wait_running(pcm) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(errno));
 			goto fail;

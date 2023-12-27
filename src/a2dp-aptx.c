@@ -107,7 +107,6 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	struct ba_transport *t = t_pcm->t;
-	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -134,7 +133,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 	}
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
-	for (ba_transport_thread_state_set_running(th);;) {
+	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
 		ssize_t samples = ffb_len_in(&pcm);
 		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
@@ -228,7 +227,6 @@ void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	struct ba_transport *t = t_pcm->t;
-	struct ba_transport_thread *th = t_pcm->th;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -252,7 +250,7 @@ void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) {
 	}
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
-	for (ba_transport_thread_state_set_running(th);;) {
+	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
 		ssize_t len = ffb_blen_in(&bt);
 		if ((len = io_poll_and_read_bt(&io, t_pcm, bt.data, len)) <= 0) {

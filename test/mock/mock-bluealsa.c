@@ -117,8 +117,6 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport_thread *th = t_pcm->th;
-
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int samplerate = t_pcm->sampling;
 	struct pollfd fds[1] = {{ t_pcm->pipe[0], POLLIN, 0 }};
@@ -127,7 +125,7 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 	int x = 0;
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
-	for (ba_transport_thread_state_set_running(th);;) {
+	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
 		int timeout = 0;
 		if (!ba_transport_pcm_is_active(t_pcm))
