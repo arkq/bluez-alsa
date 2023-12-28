@@ -8,10 +8,12 @@ asound_module_conf_DATA = 20-bluealsa.conf
 libasound_module_ctl_bluealsa_la_SOURCES = \
 	../shared/a2dp-codecs.c \
 	../shared/dbus-client.c \
+	../shared/dbus-client-pcm.c \
 	bluealsa-ctl.c
 libasound_module_pcm_bluealsa_la_SOURCES = \
 	../shared/a2dp-codecs.c \
 	../shared/dbus-client.c \
+	../shared/dbus-client-pcm.c \
 	../shared/hex.c \
 	../shared/log.c \
 	../shared/rt.c \

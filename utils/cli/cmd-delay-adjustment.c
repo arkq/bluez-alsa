@@ -18,7 +18,7 @@
 #include <dbus/dbus.h>
 
 #include "cli.h"
-#include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
 	printf("Get or set the delay adjustment of the given PCM.\n\n");
@@ -85,7 +85,7 @@ static int cmd_delay_adjustment_func(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	if (!bluealsa_dbus_pcm_set_delay_adjustment(&config.dbus, pcm.pcm_path,
+	if (!ba_dbus_pcm_set_delay_adjustment(&config.dbus, pcm.pcm_path,
 				pcm.codec.name, adjustment, &err)) {
 		cmd_print_error("DelayAdjustment update failed: %s", err.message);
 		return EXIT_FAILURE;

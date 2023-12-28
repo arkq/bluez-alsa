@@ -53,9 +53,9 @@ static int cmd_status_func(int argc, char *argv[]) {
 	struct ba_service_props props = { 0 };
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_get_props(&config.dbus, &props, &err)) {
+	if (!ba_dbus_service_props_get(&config.dbus, &props, &err)) {
 		cmd_print_error("D-Bus error: %s", err.message);
-		bluealsa_dbus_props_free(&props);
+		ba_dbus_service_props_free(&props);
 		return EXIT_FAILURE;
 	}
 
@@ -64,7 +64,7 @@ static int cmd_status_func(int argc, char *argv[]) {
 	cli_print_adapters(&props);
 	cli_print_profiles_and_codecs(&props);
 
-	bluealsa_dbus_props_free(&props);
+	ba_dbus_service_props_free(&props);
 	return EXIT_SUCCESS;
 }
 

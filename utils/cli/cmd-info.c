@@ -15,7 +15,7 @@
 #include <dbus/dbus.h>
 
 #include "cli.h"
-#include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 #include "shared/log.h"
 
 static void usage(const char *command) {

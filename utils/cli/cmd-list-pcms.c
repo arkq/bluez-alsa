@@ -15,7 +15,7 @@
 #include <dbus/dbus.h>
 
 #include "cli.h"
-#include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
 	printf("List all BlueALSA PCM paths.\n\n");
@@ -54,7 +54,7 @@ static int cmd_list_pcms_func(int argc, char *argv[]) {
 	size_t pcms_count = 0;
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_get_pcms(&config.dbus, &pcms, &pcms_count, &err)) {
+	if (!ba_dbus_pcm_get_all(&config.dbus, &pcms, &pcms_count, &err)) {
 		cmd_print_error("Couldn't get BlueALSA PCM list: %s", err.message);
 		return EXIT_FAILURE;
 	}

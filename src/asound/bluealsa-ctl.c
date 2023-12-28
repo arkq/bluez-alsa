@@ -31,6 +31,7 @@
 #include <dbus/dbus.h>
 
 #include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
 
 #define DELAY_SYNC_STEP 250
@@ -301,7 +302,7 @@ static int bluealsa_pcm_fetch_codecs(struct bluealsa_ctl *ctl, struct ba_pcm *pc
 	 *       already removed by the BlueALSA server. It will happen when server
 	 *       removes PCM but ALSA control plug-in was not yet able to process
 	 *       elem remove event. */
-	bluealsa_dbus_pcm_get_codecs(&ctl->dbus_ctx, pcm->pcm_path, codecs, NULL);
+	ba_dbus_pcm_codecs_get(&ctl->dbus_ctx, pcm->pcm_path, codecs, NULL);
 
 	/* If the list of codecs could not be fetched, return currently
 	 * selected codec as the only one. This will at least allow the
@@ -871,7 +872,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 static void bluealsa_free_elem_list(struct bluealsa_ctl *ctl) {
 	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		if (ctl->elem_list[i].type == CTL_ELEM_TYPE_CODEC)
-			bluealsa_dbus_pcm_codecs_free(&ctl->elem_list[i].codecs);
+			ba_dbus_pcm_codecs_free(&ctl->elem_list[i].codecs);
 }
 
 static void bluealsa_close(snd_ctl_ext_t *ext) {
@@ -879,7 +880,7 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 	size_t i;
 
-	bluealsa_dbus_connection_ctx_free(&ctl->dbus_ctx);
+	ba_dbus_connection_ctx_free(&ctl->dbus_ctx);
 	bluealsa_free_elem_list(ctl);
 
 	if (ctl->pipefd[0] != -1)
@@ -1104,7 +1105,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	if (pcm->volume.raw == old)
 		return 0;
 
-	if (!bluealsa_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_VOLUME, NULL))
+	if (!ba_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_VOLUME, NULL))
 		return -ENOMEM;
 
 	return 1;
@@ -1255,7 +1256,7 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 			return -EINVAL;
 		if (strcmp(pcm->codec.name, elem->codecs.codecs[items[0]].name) == 0)
 			return 0;
-		if (!bluealsa_dbus_pcm_select_codec(&ctl->dbus_ctx, pcm->pcm_path,
+		if (!ba_dbus_pcm_select_codec(&ctl->dbus_ctx, pcm->pcm_path,
 					elem->codecs.codecs[items[0]].name, NULL, 0, NULL))
 			return -EIO;
 		process_events(&ctl->ext);
@@ -1267,7 +1268,7 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		if (pcm->soft_volume == soft_volume)
 			return 0;
 		pcm->soft_volume = soft_volume;
-		if (!bluealsa_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_SOFT_VOLUME, NULL))
+		if (!ba_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_SOFT_VOLUME, NULL))
 			return -ENOMEM;
 		break;
 	case CTL_ELEM_TYPE_DELAY_SYNC:
@@ -1276,7 +1277,7 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		const int16_t delay_adjustment = items[0] * DELAY_SYNC_STEP + DELAY_SYNC_MIN_VALUE;
 		if (pcm->delay_adjustment == delay_adjustment)
 			return 0;
-		if (!bluealsa_dbus_pcm_set_delay_adjustment(&ctl->dbus_ctx, pcm->pcm_path,
+		if (!ba_dbus_pcm_set_delay_adjustment(&ctl->dbus_ctx, pcm->pcm_path,
 					pcm->codec.name, delay_adjustment, NULL))
 			return -EIO;
 		process_events(&ctl->ext);
@@ -1294,23 +1295,23 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
 	if (subscribe) {
-		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
+		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded", "path_namespace='/org/bluealsa'");
-		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
+		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved", "path_namespace='/org/bluealsa'");
 		char dbus_args[50];
 		snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", ctl->dbus_ctx.ba_service);
-		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, DBUS_SERVICE_DBUS, NULL,
+		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, DBUS_SERVICE_DBUS, NULL,
 				DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
-		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
+		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_PCM"'");
-		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
+		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
 				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_RFCOMM"'");
-		bluealsa_dbus_connection_signal_match_add(&ctl->dbus_ctx, "org.bluez", NULL,
+		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, "org.bluez", NULL,
 				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='org.bluez.Device1'");
 	}
 	else
-		bluealsa_dbus_connection_signal_match_clean(&ctl->dbus_ctx);
+		ba_dbus_connection_signal_match_clean(&ctl->dbus_ctx);
 
 	dbus_connection_flush(ctl->dbus_ctx.conn);
 }
@@ -1382,7 +1383,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 			for (i = 0; i < ctl->elem_list_size; i++) {
 				struct bt_dev *dev = ctl->elem_list[i].dev;
 				if (strcmp(dev->device_path, path) == 0) {
-					bluealsa_dbus_message_iter_dict(&iter, NULL,
+					dbus_message_iter_dict(&iter, NULL,
 							bluealsa_dbus_msg_update_dev, dev);
 					if (dev->mask & BT_DEV_MASK_UPDATE)
 						goto remove_add;
@@ -1403,7 +1404,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 				struct ctl_elem *elem = &ctl->elem_list[i];
 				struct bt_dev *dev = elem->dev;
 				if (strcmp(dev->rfcomm_path, path) == 0) {
-					bluealsa_dbus_message_iter_dict(&iter, NULL,
+					dbus_message_iter_dict(&iter, NULL,
 							bluealsa_dbus_msg_update_dev, dev);
 					/* for non-dynamic mode we need to use update logic */
 					if (ctl->dynamic &&
@@ -1424,7 +1425,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 				if (elem->type == CTL_ELEM_TYPE_BATTERY)
 					continue;
 				if (strcmp(pcm->pcm_path, path) == 0) {
-					bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm);
+					dbus_message_iter_get_ba_pcm_props(&iter, NULL, pcm);
 					bluealsa_event_elem_updated(ctl, elem);
 				}
 			}
@@ -1434,7 +1435,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 
 		if (strcmp(signal, "InterfacesAdded") == 0) {
 			struct ba_pcm pcm;
-			if (bluealsa_dbus_message_iter_get_pcm(&iter, NULL, &pcm) &&
+			if (dbus_message_iter_get_ba_pcm(&iter, NULL, &pcm) &&
 					pcm.transport != BA_PCM_TRANSPORT_NONE) {
 
 				if (ctl->dynamic)
@@ -1557,7 +1558,7 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 	 * ourself and receive required event flags. If someday ALSA will be so
 	 * kind to actually call .poll_revents(), this code should remain as a
 	 * backward compatibility. */
-	bluealsa_dbus_connection_dispatch(&ctl->dbus_ctx);
+	ba_dbus_connection_dispatch(&ctl->dbus_ctx);
 	/* For the same reason, we also need to clear any internal ping events. */
 	if (ctl->single_device)
 		bluealsa_pipefd_flush(ctl);
@@ -1571,7 +1572,7 @@ static int bluealsa_poll_descriptors_count(snd_ctl_ext_t *ext) {
 	struct bluealsa_ctl *ctl = ext->private_data;
 
 	nfds_t nfds = 0;
-	bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, NULL, &nfds);
+	ba_dbus_connection_poll_fds(&ctl->dbus_ctx, NULL, &nfds);
 
 	if (ctl->pipefd[0] > -1)
 		++nfds;
@@ -1606,7 +1607,7 @@ static int bluealsa_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd,
 	}
 
 	nfds_t dbus_nfds = nfds - pipe_nfds;
-	if (!bluealsa_dbus_connection_poll_fds(&ctl->dbus_ctx, &pfd[pipe_nfds], &dbus_nfds))
+	if (!ba_dbus_connection_poll_fds(&ctl->dbus_ctx, &pfd[pipe_nfds], &dbus_nfds))
 		return -EINVAL;
 
 	return pipe_nfds + dbus_nfds;
@@ -1631,7 +1632,7 @@ static int bluealsa_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd,
 		pipe_nfds++;
 	}
 
-	if (bluealsa_dbus_connection_poll_dispatch(&ctl->dbus_ctx, &pfd[pipe_nfds], nfds - pipe_nfds))
+	if (ba_dbus_connection_poll_dispatch(&ctl->dbus_ctx, &pfd[pipe_nfds], nfds - pipe_nfds))
 		*revents |= POLLIN;
 
 	return 0;
@@ -1847,7 +1848,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	dbus_threads_init_default();
 
-	if (!bluealsa_dbus_connection_ctx_init(&ctl->dbus_ctx, service, &err)) {
+	if (!ba_dbus_connection_ctx_init(&ctl->dbus_ctx, service, &err)) {
 		SNDERR("Couldn't initialize D-Bus context: %s", err.message);
 		ret = -ENOMEM;
 		goto fail;
@@ -1859,7 +1860,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	if (!bluealsa_dbus_get_pcms(&ctl->dbus_ctx, &pcm_list, &pcm_list_size, &err)) {
+	if (!ba_dbus_pcm_get_all(&ctl->dbus_ctx, &pcm_list, &pcm_list_size, &err)) {
 		SNDERR("Couldn't get BlueALSA PCM list: %s", err.message);
 		ret = -ENODEV;
 		goto fail;

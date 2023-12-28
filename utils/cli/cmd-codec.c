@@ -18,7 +18,7 @@
 #include <dbus/dbus.h>
 
 #include "cli.h"
-#include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 #include "shared/hex.h"
 
 static void usage(const char *command) {
@@ -98,8 +98,8 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		}
 	}
 
-	if (!bluealsa_dbus_pcm_select_codec(&config.dbus, path,
-				bluealsa_dbus_pcm_get_codec_canonical_name(codec), codec_config, codec_config_len, &err))
+	if (!ba_dbus_pcm_select_codec(&config.dbus, path,
+				ba_dbus_pcm_codec_get_canonical_name(codec), codec_config, codec_config_len, &err))
 		goto fail;
 
 	result = EXIT_SUCCESS;

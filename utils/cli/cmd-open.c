@@ -17,7 +17,7 @@
 #include <dbus/dbus.h>
 
 #include "cli.h"
-#include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
 	printf("Transfer raw PCM data via stdin or stdout.\n\n");
@@ -68,7 +68,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 	size_t len = strlen(path);
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_pcm_open(&config.dbus, path, &fd_pcm, &fd_pcm_ctrl, &err)) {
+	if (!ba_dbus_pcm_open(&config.dbus, path, &fd_pcm, &fd_pcm_ctrl, &err)) {
 		cmd_print_error("Cannot open PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
@@ -99,7 +99,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 	}
 
 	if (output == fd_pcm)
-		bluealsa_dbus_pcm_ctrl_send_drain(fd_pcm_ctrl, &err);
+		ba_dbus_pcm_ctrl_send_drain(fd_pcm_ctrl, &err);
 
 finish:
 	close(fd_pcm);

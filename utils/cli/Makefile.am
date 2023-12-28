@@ -8,6 +8,7 @@ bin_PROGRAMS = bluealsa-cli
 bluealsa_cli_SOURCES = \
 	../../src/shared/a2dp-codecs.c \
 	../../src/shared/dbus-client.c \
+	../../src/shared/dbus-client-pcm.c \
 	../../src/shared/hex.c \
 	../../src/shared/log.c \
 	cmd-codec.c \

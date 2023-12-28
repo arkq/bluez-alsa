@@ -171,7 +171,7 @@ bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
 	if (!dbus_validate_path(path, err))
 		return false;
 
-	if (!bluealsa_dbus_get_pcms(&config.dbus, &pcms, &pcms_count, err))
+	if (!ba_dbus_pcm_get_all(&config.dbus, &pcms, &pcms_count, err))
 		return false;
 
 	bool found = false;
@@ -234,13 +234,13 @@ void cli_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Available codecs:");
 
 	struct ba_pcm_codecs codecs = { 0 };
-	if (!bluealsa_dbus_pcm_get_codecs(&config.dbus, pcm->pcm_path, &codecs, err))
+	if (!ba_dbus_pcm_codecs_get(&config.dbus, pcm->pcm_path, &codecs, err))
 		goto fail;
 
 	for (size_t i = 0; i < codecs.codecs_len; i++)
 		printf(" %s", pcm_codec_to_string(&codecs.codecs[i]));
 
-	bluealsa_dbus_pcm_codecs_free(&codecs);
+	ba_dbus_pcm_codecs_free(&codecs);
 
 fail:
 	if (codecs.codecs_len == 0)
@@ -398,7 +398,7 @@ int main(int argc, char *argv[]) {
 	dbus_threads_init_default();
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_connection_ctx_init(&config.dbus, dbus_ba_service, &err)) {
+	if (!ba_dbus_connection_ctx_init(&config.dbus, dbus_ba_service, &err)) {
 		cli_print_error("Couldn't initialize D-Bus context: %s", err.message);
 		return EXIT_FAILURE;
 	}

@@ -8,6 +8,7 @@ bin_PROGRAMS = bluealsa-rfcomm
 bluealsa_rfcomm_SOURCES = \
 	../../src/shared/a2dp-codecs.c \
 	../../src/shared/dbus-client.c \
+	../../src/shared/dbus-client-rfcomm.c \
 	../../src/shared/log.c \
 	rfcomm.c
 

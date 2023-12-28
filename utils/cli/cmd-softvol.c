@@ -16,7 +16,7 @@
 #include <dbus/dbus.h>
 
 #include "cli.h"
-#include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
 	printf("Get or set the SoftVolume property of the given PCM.\n\n");
@@ -81,7 +81,7 @@ static int cmd_softvol_func(int argc, char *argv[]) {
 
 	pcm.soft_volume = state;
 
-	if (!bluealsa_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
+	if (!ba_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
 		cmd_print_error("SoftVolume update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}

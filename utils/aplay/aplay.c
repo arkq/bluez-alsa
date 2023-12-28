@@ -32,6 +32,7 @@
 #include <dbus/dbus.h>
 
 #include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
@@ -386,7 +387,7 @@ static int io_worker_mixer_volume_sync_ba_pcm(
 	ba_pcm->volume.ch2_volume = volume;
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_pcm_update(&dbus_ctx, ba_pcm, BLUEALSA_PCM_VOLUME, &err)) {
+	if (!ba_dbus_pcm_update(&dbus_ctx, ba_pcm, BLUEALSA_PCM_VOLUME, &err)) {
 		error("Couldn't update BlueALSA source PCM: %s", err.message);
 		dbus_error_free(&err);
 		return -1;
@@ -528,7 +529,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				w->ba_pcm.pcm_path, softvol ? "software" : "pass-through");
 		if (softvol != w->ba_pcm.soft_volume) {
 			w->ba_pcm.soft_volume = softvol;
-			if (!bluealsa_dbus_pcm_update(&dbus_ctx, &w->ba_pcm,
+			if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm,
 						BLUEALSA_PCM_SOFT_VOLUME, &err)) {
 				error("Couldn't set BlueALSA source PCM volume mode: %s", err.message);
 				dbus_error_free(&err);
@@ -538,7 +539,7 @@ static void *io_worker_routine(struct io_worker *w) {
 	}
 
 	debug("Opening BlueALSA source PCM: %s", w->ba_pcm.pcm_path);
-	if (!bluealsa_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path,
+	if (!ba_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path,
 				&w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
 		error("Couldn't open BlueALSA source PCM: %s", err.message);
 		dbus_error_free(&err);
@@ -947,7 +948,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 				goto fail;
 			struct ba_pcm pcm;
 			DBusError err = DBUS_ERROR_INIT;
-			if (!bluealsa_dbus_message_iter_get_pcm(&iter, &err, &pcm)) {
+			if (!dbus_message_iter_get_ba_pcm(&iter, &err, &pcm)) {
 				error("Couldn't add new BlueALSA PCM: %s", err.message);
 				dbus_error_free(&err);
 				goto fail;
@@ -990,7 +991,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 		}
 		dbus_message_iter_get_basic(&iter, &interface);
 		dbus_message_iter_next(&iter);
-		if (!bluealsa_dbus_message_iter_get_pcm_props(&iter, NULL, pcm))
+		if (!dbus_message_iter_get_ba_pcm_props(&iter, NULL, pcm))
 			goto fail;
 		if ((worker = supervise_io_worker(pcm)) != NULL)
 			io_worker_mixer_volume_sync_snd_mixer_elem(worker, pcm);
@@ -1164,14 +1165,14 @@ int main(int argc, char *argv[]) {
 		}
 
 	DBusError err = DBUS_ERROR_INIT;
-	if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
+	if (!ba_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
 		error("Couldn't initialize D-Bus context: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	if (list_bt_devices || list_bt_pcms) {
 
-		if (!bluealsa_dbus_get_pcms(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err)) {
+		if (!ba_dbus_pcm_get_all(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err)) {
 			warn("Couldn't get BlueALSA PCM list: %s", err.message);
 			return EXIT_FAILURE;
 		}
@@ -1233,13 +1234,13 @@ int main(int argc, char *argv[]) {
 		free(ba_str);
 	}
 
-	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+	ba_dbus_connection_signal_match_add(&dbus_ctx,
 			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
 			"path_namespace='/org/bluealsa'");
-	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+	ba_dbus_connection_signal_match_add(&dbus_ctx,
 			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
 			"path_namespace='/org/bluealsa'");
-	bluealsa_dbus_connection_signal_match_add(&dbus_ctx,
+	ba_dbus_connection_signal_match_add(&dbus_ctx,
 			dbus_ba_service, NULL, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
 			"arg0='"BLUEALSA_INTERFACE_PCM"'");
 
@@ -1248,7 +1249,7 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	if (!bluealsa_dbus_get_pcms(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err))
+	if (!ba_dbus_pcm_get_all(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err))
 		warn("Couldn't get BlueALSA PCM list: %s", err.message);
 
 	for (size_t i = 0; i < ba_pcms_count; i++)
@@ -1264,7 +1265,7 @@ int main(int argc, char *argv[]) {
 		struct pollfd pfds[10];
 		nfds_t pfds_len = ARRAYSIZE(pfds);
 
-		if (!bluealsa_dbus_connection_poll_fds(&dbus_ctx, pfds, &pfds_len)) {
+		if (!ba_dbus_connection_poll_fds(&dbus_ctx, pfds, &pfds_len)) {
 			error("Couldn't get D-Bus connection file descriptors");
 			return EXIT_FAILURE;
 		}
@@ -1273,7 +1274,7 @@ int main(int argc, char *argv[]) {
 				errno == EINTR)
 			continue;
 
-		if (bluealsa_dbus_connection_poll_dispatch(&dbus_ctx, pfds, pfds_len))
+		if (ba_dbus_connection_poll_dispatch(&dbus_ctx, pfds, pfds_len))
 			while (dbus_connection_dispatch(dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
 				continue;
 
@@ -1283,6 +1284,6 @@ int main(int argc, char *argv[]) {
 		io_worker_stop(i);
 	free(workers);
 
-	bluealsa_dbus_connection_ctx_free(&dbus_ctx);
+	ba_dbus_connection_ctx_free(&dbus_ctx);
 	return EXIT_SUCCESS;
 }

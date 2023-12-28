@@ -29,6 +29,7 @@
 #include <readline/history.h>
 
 #include "shared/dbus-client.h"
+#include "shared/dbus-client-rfcomm.h"
 #include "shared/log.h"
 
 static int rfcomm_fd = -1;
@@ -75,8 +76,8 @@ static char *strtrim(char *str) {
 static bool print_properties(struct ba_dbus_ctx *dbus_ctx, const char* path, DBusError *err) {
 
 	struct ba_rfcomm_props props = { 0 };
-	if (!bluealsa_dbus_get_rfcomm_props(dbus_ctx, path, &props, err)) {
-		bluealsa_dbus_rfcomm_props_free(&props);
+	if (!ba_dbus_rfcomm_props_get(dbus_ctx, path, &props, err)) {
+		ba_dbus_rfcomm_props_free(&props);
 		return false;
 	}
 
@@ -87,7 +88,7 @@ static bool print_properties(struct ba_dbus_ctx *dbus_ctx, const char* path, DBu
 	printf("\n");
 	printf("Battery: %d\n", props.battery);
 
-	bluealsa_dbus_rfcomm_props_free(&props);
+	ba_dbus_rfcomm_props_free(&props);
 
 	return true;
 }
@@ -186,7 +187,7 @@ usage:
 	DBusError err = DBUS_ERROR_INIT;
 	struct ba_dbus_ctx dbus_ctx;
 
-	if (!bluealsa_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
+	if (!ba_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
 		error("Couldn't initialize D-Bus context: %s", err.message);
 		return EXIT_FAILURE;
 	}
@@ -202,7 +203,7 @@ usage:
 		return EXIT_FAILURE;
 	}
 
-	if (!bluealsa_dbus_open_rfcomm(&dbus_ctx, rfcomm_path, &rfcomm_fd, &err)) {
+	if (!ba_dbus_rfcomm_open(&dbus_ctx, rfcomm_path, &rfcomm_fd, &err)) {
 		error("Couldn't open RFCOMM: %s", err.message);
 		return EXIT_FAILURE;
 	}

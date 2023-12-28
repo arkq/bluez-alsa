@@ -19,6 +19,7 @@
 
 #include "cli.h"
 #include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -162,7 +163,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 						struct ba_pcm pcm;
 						DBusError err = DBUS_ERROR_INIT;
-						if (!bluealsa_dbus_message_iter_get_pcm(&iter2, &err, &pcm)) {
+						if (!dbus_message_iter_get_ba_pcm(&iter2, &err, &pcm)) {
 							error("Couldn't read PCM properties: %s", err.message);
 							dbus_error_free(&err);
 							goto fail;
@@ -249,7 +250,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 			DBusError err = DBUS_ERROR_INIT;
 			const char *path = dbus_message_get_path(message);
-			if (!bluealsa_dbus_message_iter_dict(&iter, &err,
+			if (!dbus_message_iter_dict(&iter, &err,
 						monitor_dbus_message_iter_get_pcm_props_cb, (void *)path)) {
 				error("Unexpected D-Bus signal: %s", err.message);
 				dbus_error_free(&err);
@@ -339,23 +340,23 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 	 * a pipe. */
 	setvbuf(stdout, NULL, _IOLBF, 0);
 
-	bluealsa_dbus_connection_signal_match_add(&config.dbus,
+	ba_dbus_connection_signal_match_add(&config.dbus,
 			config.dbus.ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
 			"path_namespace='/org/bluealsa'");
-	bluealsa_dbus_connection_signal_match_add(&config.dbus,
+	ba_dbus_connection_signal_match_add(&config.dbus,
 			config.dbus.ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
 			"path_namespace='/org/bluealsa'");
 
 	char dbus_args[50];
 	snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", config.dbus.ba_service);
-	bluealsa_dbus_connection_signal_match_add(&config.dbus,
+	ba_dbus_connection_signal_match_add(&config.dbus,
 			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
 	snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg1=''", config.dbus.ba_service);
-	bluealsa_dbus_connection_signal_match_add(&config.dbus,
+	ba_dbus_connection_signal_match_add(&config.dbus,
 			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
 
 	if (monitor_properties)
-		bluealsa_dbus_connection_signal_match_add(&config.dbus, config.dbus.ba_service, NULL,
+		ba_dbus_connection_signal_match_add(&config.dbus, config.dbus.ba_service, NULL,
 				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_PCM"'");
 
 	if (!dbus_connection_add_filter(config.dbus.conn, dbus_signal_handler, NULL, NULL)) {

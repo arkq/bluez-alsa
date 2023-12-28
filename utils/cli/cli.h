@@ -17,6 +17,7 @@
 #include <dbus/dbus.h>
 
 #include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 #include "shared/log.h"
 
 struct cli_config {

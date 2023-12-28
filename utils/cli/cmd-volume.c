@@ -15,7 +15,7 @@
 #include <dbus/dbus.h>
 
 #include "cli.h"
-#include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
 	printf("Get or set the volume value of the given PCM.\n\n");
@@ -98,7 +98,7 @@ static int cmd_volume_func(int argc, char *argv[]) {
 		pcm.volume.ch1_volume = vol1;
 	}
 
-	if (!bluealsa_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
+	if (!ba_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
 		cmd_print_error("Volume loudness update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
