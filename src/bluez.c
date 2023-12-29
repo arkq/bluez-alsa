@@ -220,8 +220,8 @@ static struct bluez_adapter *bluez_adapter_new(struct ba_adapter *a) {
 static void bluez_adapter_free(struct bluez_adapter *b_adapter) {
 	if (b_adapter->adapter == NULL)
 		return;
-	g_hash_table_unref(b_adapter->device_sep_map);
-	b_adapter->device_sep_map = NULL;
+	ba_adapter_destroy(b_adapter->adapter);
+	b_adapter->adapter = NULL;
 	if (b_adapter->manager_media_application != NULL) {
 		g_object_unref(b_adapter->manager_media_application);
 		b_adapter->manager_media_application = NULL;
@@ -230,8 +230,8 @@ static void bluez_adapter_free(struct bluez_adapter *b_adapter) {
 		g_object_unref(b_adapter->manager_battery_provider);
 		b_adapter->manager_battery_provider = NULL;
 	}
-	ba_adapter_destroy(b_adapter->adapter);
-	b_adapter->adapter = NULL;
+	g_hash_table_unref(b_adapter->device_sep_map);
+	b_adapter->device_sep_map = NULL;
 }
 
 /**
