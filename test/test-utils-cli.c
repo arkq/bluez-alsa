@@ -410,11 +410,11 @@ CK_START_TEST(test_open) {
 				NULL), -1);
 
 	char * ba_cli_in_argv[32] = {
-		bluealsa_cli_path, "open",
+		bluealsa_cli_path, "open", "--hex",
 		"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/source",
 		NULL };
 	char * ba_cli_out_argv[32] = {
-		bluealsa_cli_path, "open",
+		bluealsa_cli_path, "open", "--hex",
 		"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/sink",
 		NULL };
 
@@ -427,18 +427,21 @@ CK_START_TEST(test_open) {
 				sp_ba_cli_in.f_stdout, SPAWN_FLAG_NONE), -1);
 
 	/* let it run for a while */
-	sleep(1);
+	usleep(250000);
 
 	spawn_terminate(&sp_ba_cli_in, 0);
-	spawn_terminate(&sp_ba_cli_out, 0);
+	spawn_terminate(&sp_ba_cli_out, 500);
 
 	int wstatus = 0;
-	/* Make sure that both bluealsa-cli instances have been terminated by
-	 * us (SIGTERM) and not by premature exit or any other reason. */
+	/* Make sure that input bluealsa-cli instances have been terminated by
+	 * us (SIGTERM) and not by premature exit or any other reason. On the other
+	 * hand, the output bluealsa-cli instance should exit gracefully because
+	 * of the end of input stream. */
 	spawn_close(&sp_ba_cli_in, &wstatus);
 	ck_assert_int_eq(WTERMSIG(wstatus), SIGTERM);
 	spawn_close(&sp_ba_cli_out, &wstatus);
-	ck_assert_int_eq(WTERMSIG(wstatus), SIGTERM);
+	ck_assert_int_eq(WIFEXITED(wstatus), 1);
+	ck_assert_int_eq(WEXITSTATUS(wstatus), 0);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);

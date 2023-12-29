@@ -211,12 +211,15 @@ monitor [-p[PROPS] | --properties[=PROPS]]
     printed. If this argument is not given then changes to any of the above
     properties are printed.
 
-open *PCM_PATH*
+open [--hex] *PCM_PATH*
     Transfer raw audio frames to or from the given PCM. For sink PCMs
     the frames are read from standard input and written to the PCM. For
     source PCMs the frames are read from the PCM and written to standard
     output. The format, channels and sampling rate must match the properties
     of the PCM, as no format conversions are performed by this tool.
+
+    With the **--hex** option, the data is read or written as hexadecimal
+    strings.
 
 COPYRIGHT
 =========
