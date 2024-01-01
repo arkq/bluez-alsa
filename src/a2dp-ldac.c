@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-ldac.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -53,6 +53,7 @@ static const struct a2dp_sampling_freq a2dp_ldac_samplings[] = {
 struct a2dp_codec a2dp_ldac_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
+	.synopsis = "A2DP Sink (LDAC)",
 	.capabilities.ldac = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 		.channel_mode =
@@ -77,6 +78,7 @@ struct a2dp_codec a2dp_ldac_sink = {
 struct a2dp_codec a2dp_ldac_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
+	.synopsis = "A2DP Source (LDAC)",
 	.capabilities.ldac = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 		.channel_mode =

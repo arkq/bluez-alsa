@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -51,8 +51,7 @@ struct a2dp_sampling_freq {
 struct a2dp_codec {
 	enum a2dp_dir dir;
 	uint16_t codec_id;
-	/* support for A2DP back-channel */
-	bool backchannel;
+	const char *synopsis;
 	/* capabilities configuration element */
 	a2dp_t capabilities;
 	size_t capabilities_size;

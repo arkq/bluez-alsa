@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -44,7 +44,6 @@
 #include "hfp.h"
 #include "sco.h"
 #include "storage.h"
-#include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
@@ -616,71 +615,8 @@ const char *ba_transport_debug_name(
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		switch (codec_id) {
-		case A2DP_CODEC_SBC:
-			return "A2DP Source (SBC)";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "A2DP Source (MP3)";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "A2DP Source (AAC)";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Source (aptX)";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "A2DP Source (aptX HD)";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "A2DP Source (FastStream)";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "A2DP Source (LC3plus)";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "A2DP Source (LDAC)";
-#endif
-		} break;
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		switch (codec_id) {
-		case A2DP_CODEC_SBC:
-			return "A2DP Sink (SBC)";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "A2DP Sink (MP3)";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "A2DP Sink (AAC)";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "A2DP Sink (aptX)";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "A2DP Sink (aptX HD)";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "A2DP Sink (FastStream)";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "A2DP Sink (LC3plus)";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "A2DP Sink (LDAC)";
-#endif
-		} break;
+		return t->a2dp.codec->synopsis;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		switch (codec_id) {
 		case HFP_CODEC_UNDEFINED:

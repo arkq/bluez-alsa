@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-lc3plus.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,7 +9,10 @@
  */
 
 #include "a2dp-lc3plus.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <pthread.h>
@@ -50,6 +53,7 @@ static const struct a2dp_sampling_freq a2dp_lc3plus_samplings[] = {
 struct a2dp_codec a2dp_lc3plus_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
+	.synopsis = "A2DP Sink (LC3plus)",
 	.capabilities.lc3plus = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
 		.frame_duration =
@@ -73,6 +77,7 @@ struct a2dp_codec a2dp_lc3plus_sink = {
 struct a2dp_codec a2dp_lc3plus_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
+	.synopsis = "A2DP Source (LC3plus)",
 	.capabilities.lc3plus = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
 		.frame_duration =

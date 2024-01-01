@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-faststream.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -44,7 +44,7 @@ static const struct a2dp_sampling_freq a2dp_faststream_samplings_voice[] = {
 struct a2dp_codec a2dp_faststream_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
-	.backchannel = true,
+	.synopsis = "A2DP Sink (FastStream)",
 	.capabilities.faststream = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
@@ -64,7 +64,7 @@ struct a2dp_codec a2dp_faststream_sink = {
 struct a2dp_codec a2dp_faststream_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
-	.backchannel = true,
+	.synopsis = "A2DP Source (FastStream)",
 	.capabilities.faststream = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,

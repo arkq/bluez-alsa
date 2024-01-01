@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-aptx.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,7 +9,10 @@
  */
 
 #include "a2dp-aptx.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <pthread.h>
@@ -45,6 +48,7 @@ static const struct a2dp_sampling_freq a2dp_aptx_samplings[] = {
 struct a2dp_codec a2dp_aptx_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.synopsis = "A2DP Sink (apt-X)",
 	.capabilities.aptx = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
 		/* NOTE: Used apt-X library does not support
@@ -67,6 +71,7 @@ struct a2dp_codec a2dp_aptx_sink = {
 struct a2dp_codec a2dp_aptx_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.synopsis = "A2DP Source (apt-X)",
 	.capabilities.aptx = {
 		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
 		/* NOTE: Used apt-X library does not support

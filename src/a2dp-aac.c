@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-aac.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -60,6 +60,7 @@ static const struct a2dp_sampling_freq a2dp_aac_samplings[] = {
 struct a2dp_codec a2dp_aac_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
+	.synopsis = "A2DP Sink (AAC)",
 	.capabilities.aac = {
 		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
 		 *       not supported by the FDK-AAC library. */
@@ -96,6 +97,7 @@ struct a2dp_codec a2dp_aac_sink = {
 struct a2dp_codec a2dp_aac_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG24,
+	.synopsis = "A2DP Source (AAC)",
 	.capabilities.aac = {
 		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
 		 *       not supported by the FDK-AAC library. */

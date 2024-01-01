@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-mpeg.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,7 +9,10 @@
  */
 
 #include "a2dp-mpeg.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <pthread.h>
@@ -60,6 +63,7 @@ static const struct a2dp_sampling_freq a2dp_mpeg_samplings[] = {
 struct a2dp_codec a2dp_mpeg_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG12,
+	.synopsis = "A2DP Sink (MP3)",
 	.capabilities.mpeg = {
 		.layer =
 #if ENABLE_MPG123
@@ -120,6 +124,7 @@ struct a2dp_codec a2dp_mpeg_sink = {
 struct a2dp_codec a2dp_mpeg_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG12,
+	.synopsis = "A2DP Source (MP3)",
 	.capabilities.mpeg = {
 		.layer =
 			MPEG_LAYER_MP3,

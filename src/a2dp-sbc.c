@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-sbc.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,7 +9,10 @@
  */
 
 #include "a2dp-sbc.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <pthread.h>
@@ -52,6 +55,7 @@ static const struct a2dp_sampling_freq a2dp_sbc_samplings[] = {
 struct a2dp_codec a2dp_sbc_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_SBC,
+	.synopsis = "A2DP Sink (SBC)",
 	.capabilities.sbc = {
 		.frequency =
 			SBC_SAMPLING_FREQ_16000 |
@@ -88,6 +92,7 @@ struct a2dp_codec a2dp_sbc_sink = {
 struct a2dp_codec a2dp_sbc_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_SBC,
+	.synopsis = "A2DP Source (SBC)",
 	.capabilities.sbc = {
 		.frequency =
 			SBC_SAMPLING_FREQ_16000 |
