@@ -80,12 +80,13 @@ static GTestDBusConnection *test_dbus_connection_new(void) {
 /**
  * Free D-Bus connection and stop the mock bus. */
 static void test_dbus_connection_free(GTestDBusConnection *conn) {
-	g_object_unref(conn->conn);
-	g_test_dbus_down(conn->dbus);
 	/* terminate main loop */
 	g_main_loop_quit(conn->loop);
 	g_main_loop_unref(conn->loop);
 	g_thread_join(conn->thread);
+	/* stop the mock bus */
+	g_object_unref(conn->conn);
+	g_test_dbus_down(conn->dbus);
 	g_free(conn);
 }
 

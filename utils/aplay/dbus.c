@@ -14,17 +14,17 @@
 #include <string.h>
 
 static bool dbus_message_iter_get_basic_boolean(DBusMessageIter *iter) {
-	dbus_bool_t tmp = FALSE;
+	dbus_bool_t tmp;
 	return dbus_message_iter_get_basic(iter, &tmp), tmp;
 }
 
 static unsigned int dbus_message_iter_get_basic_integer(DBusMessageIter *iter) {
-	dbus_uint32_t tmp = 0;
+	dbus_uint32_t tmp;
 	return dbus_message_iter_get_basic(iter, &tmp), tmp;
 }
 
 static const char *dbus_message_iter_get_basic_string(DBusMessageIter *iter) {
-	const char *tmp = "";
+	static const char *tmp;
 	return dbus_message_iter_get_basic(iter, &tmp), tmp;
 }
 
