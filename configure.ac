@@ -1,5 +1,5 @@
 # BlueALSA - configure.ac
-# Copyright (c) 2016-2023 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
@@ -162,7 +162,7 @@ AC_ARG_ENABLE([lc3plus],
 	[AS_HELP_STRING([--enable-lc3plus], [enable LC3plus support])])
 AM_CONDITIONAL([ENABLE_LC3PLUS], [test "x$enable_lc3plus" = "xyes"])
 AM_COND_IF([ENABLE_LC3PLUS], [
-	AC_CHECK_HEADERS([lc3.h],
+	AC_CHECK_HEADERS([lc3plus.h],
 		[], [AC_MSG_ERROR([LC3plus header file not found])])
 	# There is no pkg-config support for LC3plus, so we have to check the library
 	# version manually. We will check for the symbols that are available in the

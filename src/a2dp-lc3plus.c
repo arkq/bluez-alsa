@@ -25,7 +25,7 @@
 
 #include <glib.h>
 
-#include <lc3.h>
+#include <lc3plus.h>
 
 #include "a2dp.h"
 #include "audio.h"

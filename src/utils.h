@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -46,7 +46,7 @@ const char *aacenc_strerror(AACENC_ERROR err);
 #endif
 
 #if ENABLE_LC3PLUS
-# include <lc3.h>
+# include <lc3plus.h>
 const char *lc3plus_strerror(LC3PLUS_Error err);
 #endif
 
