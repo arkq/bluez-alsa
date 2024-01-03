@@ -23,12 +23,11 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <glib.h>
-
 #include <lc3plus.h>
 
 #include "a2dp.h"
 #include "audio.h"
+#include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "io.h"
@@ -39,85 +38,6 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
-
-static const struct a2dp_channel_mode a2dp_lc3plus_channels[] = {
-	{ A2DP_CHM_MONO, 1, LC3PLUS_CHANNELS_1 },
-	{ A2DP_CHM_STEREO, 2, LC3PLUS_CHANNELS_2 },
-};
-
-static const struct a2dp_sampling_freq a2dp_lc3plus_samplings[] = {
-	{ 48000, LC3PLUS_SAMPLING_FREQ_48000 },
-	{ 96000, LC3PLUS_SAMPLING_FREQ_96000 },
-};
-
-struct a2dp_codec a2dp_lc3plus_sink = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
-	.synopsis = "A2DP Sink (LC3plus)",
-	.capabilities.lc3plus = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
-		.frame_duration =
-			LC3PLUS_FRAME_DURATION_025 |
-			LC3PLUS_FRAME_DURATION_050 |
-			LC3PLUS_FRAME_DURATION_100,
-		.channels =
-			LC3PLUS_CHANNELS_1 |
-			LC3PLUS_CHANNELS_2,
-		LC3PLUS_INIT_FREQUENCY(
-				LC3PLUS_SAMPLING_FREQ_48000 |
-				LC3PLUS_SAMPLING_FREQ_96000)
-	},
-	.capabilities_size = sizeof(a2dp_lc3plus_t),
-	.channels[0] = a2dp_lc3plus_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_lc3plus_channels),
-	.samplings[0] = a2dp_lc3plus_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
-};
-
-static int a2dp_lc3plus_source_init(struct a2dp_codec *codec) {
-	if (config.a2dp.force_mono)
-		codec->capabilities.lc3plus.channels = LC3PLUS_CHANNELS_1;
-	if (config.a2dp.force_44100)
-		warn("LC3plus 44.1 kHz sampling frequency not supported");
-	return 0;
-}
-
-struct a2dp_codec a2dp_lc3plus_source = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
-	.synopsis = "A2DP Source (LC3plus)",
-	.capabilities.lc3plus = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
-		.frame_duration =
-			LC3PLUS_FRAME_DURATION_025 |
-			LC3PLUS_FRAME_DURATION_050 |
-			LC3PLUS_FRAME_DURATION_100,
-		.channels =
-			LC3PLUS_CHANNELS_1 |
-			LC3PLUS_CHANNELS_2,
-		LC3PLUS_INIT_FREQUENCY(
-				LC3PLUS_SAMPLING_FREQ_48000 |
-				LC3PLUS_SAMPLING_FREQ_96000)
-	},
-	.capabilities_size = sizeof(a2dp_lc3plus_t),
-	.channels[0] = a2dp_lc3plus_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_lc3plus_channels),
-	.samplings[0] = a2dp_lc3plus_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
-	.init = a2dp_lc3plus_source_init,
-};
-
-void a2dp_lc3plus_transport_init(struct ba_transport *t) {
-
-	const struct a2dp_codec *codec = t->a2dp.codec;
-
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.lc3plus.channels, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			LC3PLUS_GET_FREQUENCY(t->a2dp.configuration.lc3plus), false);
-
-}
 
 static bool a2dp_lc3plus_supported(int samplerate, int channels) {
 
@@ -615,14 +535,94 @@ fail_init:
 	return NULL;
 }
 
-int a2dp_lc3plus_transport_start(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_lc3plus_channels[] = {
+	{ A2DP_CHM_MONO, 1, LC3PLUS_CHANNELS_1 },
+	{ A2DP_CHM_STEREO, 2, LC3PLUS_CHANNELS_2 },
+};
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_lc3plus_enc_thread, "ba-a2dp-lc3p");
+static const struct a2dp_sampling_freq a2dp_lc3plus_samplings[] = {
+	{ 48000, LC3PLUS_SAMPLING_FREQ_48000 },
+	{ 96000, LC3PLUS_SAMPLING_FREQ_96000 },
+};
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_lc3plus_dec_thread, "ba-a2dp-lc3p");
+static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
-	g_assert_not_reached();
-	return -1;
+	const struct a2dp_codec *codec = t->a2dp.codec;
+
+	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
+	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+			t->a2dp.configuration.lc3plus.channels, false);
+	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+			LC3PLUS_GET_FREQUENCY(t->a2dp.configuration.lc3plus), false);
+
+	return 0;
 }
+
+static int a2dp_lc3plus_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		codec->capabilities.lc3plus.channels = LC3PLUS_CHANNELS_1;
+	if (config.a2dp.force_44100)
+		warn("LC3plus 44.1 kHz sampling frequency not supported");
+	return 0;
+}
+
+static int a2dp_lc3plus_source_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_lc3plus_enc_thread, "ba-a2dp-lc3p");
+}
+
+struct a2dp_codec a2dp_lc3plus_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
+	.synopsis = "A2DP Source (LC3plus)",
+	.capabilities.lc3plus = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+		.frame_duration =
+			LC3PLUS_FRAME_DURATION_025 |
+			LC3PLUS_FRAME_DURATION_050 |
+			LC3PLUS_FRAME_DURATION_100,
+		.channels =
+			LC3PLUS_CHANNELS_1 |
+			LC3PLUS_CHANNELS_2,
+		LC3PLUS_INIT_FREQUENCY(
+				LC3PLUS_SAMPLING_FREQ_48000 |
+				LC3PLUS_SAMPLING_FREQ_96000)
+	},
+	.capabilities_size = sizeof(a2dp_lc3plus_t),
+	.channels[0] = a2dp_lc3plus_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_lc3plus_channels),
+	.samplings[0] = a2dp_lc3plus_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
+	.init = a2dp_lc3plus_source_init,
+	.transport_init = a2dp_lc3plus_transport_init,
+	.transport_start = a2dp_lc3plus_source_transport_start,
+};
+
+static int a2dp_lc3plus_sink_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_lc3plus_dec_thread, "ba-a2dp-lc3p");
+}
+
+struct a2dp_codec a2dp_lc3plus_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
+	.synopsis = "A2DP Sink (LC3plus)",
+	.capabilities.lc3plus = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+		.frame_duration =
+			LC3PLUS_FRAME_DURATION_025 |
+			LC3PLUS_FRAME_DURATION_050 |
+			LC3PLUS_FRAME_DURATION_100,
+		.channels =
+			LC3PLUS_CHANNELS_1 |
+			LC3PLUS_CHANNELS_2,
+		LC3PLUS_INIT_FREQUENCY(
+				LC3PLUS_SAMPLING_FREQ_48000 |
+				LC3PLUS_SAMPLING_FREQ_96000)
+	},
+	.capabilities_size = sizeof(a2dp_lc3plus_t),
+	.channels[0] = a2dp_lc3plus_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_lc3plus_channels),
+	.samplings[0] = a2dp_lc3plus_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
+	.transport_init = a2dp_lc3plus_transport_init,
+	.transport_start = a2dp_lc3plus_sink_transport_start,
+};

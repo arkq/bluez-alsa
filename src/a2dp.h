@@ -48,23 +48,35 @@ struct a2dp_sampling_freq {
 	uint16_t value;
 };
 
+/* XXX: avoid circular dependency */
+struct ba_transport;
+
 struct a2dp_codec {
+
 	enum a2dp_dir dir;
 	uint16_t codec_id;
 	const char *synopsis;
+
 	/* capabilities configuration element */
 	a2dp_t capabilities;
 	size_t capabilities_size;
+
 	/* list of supported channel modes */
 	const struct a2dp_channel_mode *channels[2];
 	size_t channels_size[2];
 	/* list of supported sampling frequencies */
 	const struct a2dp_sampling_freq *samplings[2];
 	size_t samplings_size[2];
+
 	/* callback function for codec initialization */
 	int (*init)(struct a2dp_codec *codec);
+
+	int (*transport_init)(struct ba_transport *t);
+	int (*transport_start)(struct ba_transport *t);
+
 	/* determine whether codec shall be enabled */
 	bool enabled;
+
 };
 
 /**
@@ -137,10 +149,7 @@ int a2dp_select_configuration(
 		void *capabilities,
 		size_t size);
 
-/* XXX: avoid circular dependency */
-struct ba_transport;
-
-void a2dp_transport_init(
+int a2dp_transport_init(
 		struct ba_transport *t);
 int a2dp_transport_start(
 		struct ba_transport *t);

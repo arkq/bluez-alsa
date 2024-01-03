@@ -22,9 +22,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <glib.h>
-
 #include "a2dp.h"
+#include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "codec-aptx.h"
@@ -35,84 +34,6 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
-
-static const struct a2dp_channel_mode a2dp_aptx_hd_channels[] = {
-	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_aptx_hd_samplings[] = {
-	{ 16000, APTX_SAMPLING_FREQ_16000 },
-	{ 32000, APTX_SAMPLING_FREQ_32000 },
-	{ 44100, APTX_SAMPLING_FREQ_44100 },
-	{ 48000, APTX_SAMPLING_FREQ_48000 },
-};
-
-struct a2dp_codec a2dp_aptx_hd_sink = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
-	.synopsis = "A2DP Sink (apt-X HD)",
-	.capabilities.aptx_hd = {
-		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
-		/* NOTE: Used apt-X HD library does not support
-		 *       single channel (mono) mode. */
-		.aptx.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.aptx.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_hd_t),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
-	.samplings[0] = a2dp_aptx_hd_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
-};
-
-static int a2dp_aptx_hd_source_init(struct a2dp_codec *codec) {
-	if (config.a2dp.force_mono)
-		warn("Apt-X HD mono channel mode not supported");
-	if (config.a2dp.force_44100)
-		codec->capabilities.aptx_hd.aptx.frequency = APTX_SAMPLING_FREQ_44100;
-	return 0;
-}
-
-struct a2dp_codec a2dp_aptx_hd_source = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
-	.synopsis = "A2DP Source (apt-X HD)",
-	.capabilities.aptx_hd = {
-		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
-		/* NOTE: Used apt-X HD library does not support
-		 *       single channel (mono) mode. */
-		.aptx.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.aptx.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_hd_t),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
-	.samplings[0] = a2dp_aptx_hd_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
-	.init = a2dp_aptx_hd_source_init,
-};
-
-void a2dp_aptx_hd_transport_init(struct ba_transport *t) {
-
-	const struct a2dp_codec *codec = t->a2dp.codec;
-
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.aptx_hd.aptx.channel_mode, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			t->a2dp.configuration.aptx_hd.aptx.frequency, false);
-
-}
 
 void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 
@@ -348,16 +269,97 @@ fail_init:
 }
 #endif
 
-int a2dp_aptx_hd_transport_start(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_aptx_hd_channels[] = {
+	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
+};
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_hd_enc_thread, "ba-a2dp-aptx-hd");
+static const struct a2dp_sampling_freq a2dp_aptx_hd_samplings[] = {
+	{ 16000, APTX_SAMPLING_FREQ_16000 },
+	{ 32000, APTX_SAMPLING_FREQ_32000 },
+	{ 44100, APTX_SAMPLING_FREQ_44100 },
+	{ 48000, APTX_SAMPLING_FREQ_48000 },
+};
+
+static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
+
+	const struct a2dp_codec *codec = t->a2dp.codec;
+
+	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
+	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+			t->a2dp.configuration.aptx_hd.aptx.channel_mode, false);
+	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+			t->a2dp.configuration.aptx_hd.aptx.frequency, false);
+
+	return 0;
+}
+
+static int a2dp_aptx_hd_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		warn("Apt-X HD mono channel mode not supported");
+	if (config.a2dp.force_44100)
+		codec->capabilities.aptx_hd.aptx.frequency = APTX_SAMPLING_FREQ_44100;
+	return 0;
+}
+
+static int a2dp_aptx_hd_source_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_hd_enc_thread, "ba-a2dp-aptx-hd");
+}
+
+struct a2dp_codec a2dp_aptx_hd_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
+	.synopsis = "A2DP Source (apt-X HD)",
+	.capabilities.aptx_hd = {
+		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+		/* NOTE: Used apt-X HD library does not support
+		 *       single channel (mono) mode. */
+		.aptx.channel_mode =
+			APTX_CHANNEL_MODE_STEREO,
+		.aptx.frequency =
+			APTX_SAMPLING_FREQ_16000 |
+			APTX_SAMPLING_FREQ_32000 |
+			APTX_SAMPLING_FREQ_44100 |
+			APTX_SAMPLING_FREQ_48000,
+	},
+	.capabilities_size = sizeof(a2dp_aptx_hd_t),
+	.channels[0] = a2dp_aptx_hd_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
+	.samplings[0] = a2dp_aptx_hd_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
+	.init = a2dp_aptx_hd_source_init,
+	.transport_init = a2dp_aptx_hd_transport_init,
+	.transport_start = a2dp_aptx_hd_source_transport_start,
+};
 
 #if HAVE_APTX_HD_DECODE
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_hd_dec_thread, "ba-a2dp-aptx-hd");
-#endif
 
-	g_assert_not_reached();
-	return -1;
+static int a2dp_aptx_hd_sink_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_hd_dec_thread, "ba-a2dp-aptx-hd");
 }
+
+struct a2dp_codec a2dp_aptx_hd_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
+	.synopsis = "A2DP Sink (apt-X HD)",
+	.capabilities.aptx_hd = {
+		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+		/* NOTE: Used apt-X HD library does not support
+		 *       single channel (mono) mode. */
+		.aptx.channel_mode =
+			APTX_CHANNEL_MODE_STEREO,
+		.aptx.frequency =
+			APTX_SAMPLING_FREQ_16000 |
+			APTX_SAMPLING_FREQ_32000 |
+			APTX_SAMPLING_FREQ_44100 |
+			APTX_SAMPLING_FREQ_48000,
+	},
+	.capabilities_size = sizeof(a2dp_aptx_hd_t),
+	.channels[0] = a2dp_aptx_hd_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_hd_channels),
+	.samplings[0] = a2dp_aptx_hd_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_hd_samplings),
+	.transport_init = a2dp_aptx_hd_transport_init,
+	.transport_start = a2dp_aptx_hd_sink_transport_start,
+};
+
+#endif

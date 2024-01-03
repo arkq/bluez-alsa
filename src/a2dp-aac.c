@@ -23,9 +23,8 @@
 #define AACENCODER_LIB_VERSION LIB_VERSION( \
 		AACENCODER_LIB_VL0, AACENCODER_LIB_VL1, AACENCODER_LIB_VL2)
 
-#include <glib.h>
-
 #include "a2dp.h"
+#include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "io.h"
@@ -36,156 +35,6 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
-
-static const struct a2dp_channel_mode a2dp_aac_channels[] = {
-	{ A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
-	{ A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
-};
-
-static const struct a2dp_sampling_freq a2dp_aac_samplings[] = {
-	{ 8000, AAC_SAMPLING_FREQ_8000 },
-	{ 11025, AAC_SAMPLING_FREQ_11025 },
-	{ 12000, AAC_SAMPLING_FREQ_12000 },
-	{ 16000, AAC_SAMPLING_FREQ_16000 },
-	{ 22050, AAC_SAMPLING_FREQ_22050 },
-	{ 24000, AAC_SAMPLING_FREQ_24000 },
-	{ 32000, AAC_SAMPLING_FREQ_32000 },
-	{ 44100, AAC_SAMPLING_FREQ_44100 },
-	{ 48000, AAC_SAMPLING_FREQ_48000 },
-	{ 64000, AAC_SAMPLING_FREQ_64000 },
-	{ 88200, AAC_SAMPLING_FREQ_88200 },
-	{ 96000, AAC_SAMPLING_FREQ_96000 },
-};
-
-static int a2dp_aac_sink_init(struct a2dp_codec *codec) {
-
-	LIB_INFO info[16] = {
-		[15] = { .module_id = ~FDK_NONE } };
-	aacDecoder_GetLibInfo(info);
-
-	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
-	debug("FDK-AAC decoder capabilities: %#x", caps);
-
-	if (caps & CAPF_ER_AAC_SCAL)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
-
-	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
-
-	return 0;
-}
-
-struct a2dp_codec a2dp_aac_sink = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_MPEG24,
-	.synopsis = "A2DP Sink (AAC)",
-	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
-		 *       not supported by the FDK-AAC library. */
-		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
-			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
-		AAC_INIT_FREQUENCY(
-				AAC_SAMPLING_FREQ_8000 |
-				AAC_SAMPLING_FREQ_11025 |
-				AAC_SAMPLING_FREQ_12000 |
-				AAC_SAMPLING_FREQ_16000 |
-				AAC_SAMPLING_FREQ_22050 |
-				AAC_SAMPLING_FREQ_24000 |
-				AAC_SAMPLING_FREQ_32000 |
-				AAC_SAMPLING_FREQ_44100 |
-				AAC_SAMPLING_FREQ_48000 |
-				AAC_SAMPLING_FREQ_64000 |
-				AAC_SAMPLING_FREQ_88200 |
-				AAC_SAMPLING_FREQ_96000)
-		.channels =
-			AAC_CHANNELS_1 |
-			AAC_CHANNELS_2,
-		.vbr = 1,
-		AAC_INIT_BITRATE(320000)
-	},
-	.capabilities_size = sizeof(a2dp_aac_t),
-	.channels[0] = a2dp_aac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
-	.samplings[0] = a2dp_aac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
-	.init = a2dp_aac_sink_init,
-	.enabled = true,
-};
-
-static int a2dp_aac_source_init(struct a2dp_codec *codec) {
-
-	LIB_INFO info[16] = {
-		[15] = { .module_id = ~FDK_NONE } };
-	aacEncGetLibInfo(info);
-
-	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACENC);
-	debug("FDK-AAC encoder capabilities: %#x", caps);
-
-	if (caps & CAPF_ER_AAC_SCAL)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
-
-	if (config.a2dp.force_mono)
-		codec->capabilities.aac.channels = AAC_CHANNELS_1;
-	if (config.a2dp.force_44100)
-		AAC_SET_FREQUENCY(codec->capabilities.aac, AAC_SAMPLING_FREQ_44100);
-
-	if (!config.aac_prefer_vbr)
-		codec->capabilities.aac.vbr = 0;
-
-	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
-
-	return 0;
-}
-
-struct a2dp_codec a2dp_aac_source = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_MPEG24,
-	.synopsis = "A2DP Source (AAC)",
-	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
-		 *       not supported by the FDK-AAC library. */
-		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
-			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
-		AAC_INIT_FREQUENCY(
-				AAC_SAMPLING_FREQ_8000 |
-				AAC_SAMPLING_FREQ_11025 |
-				AAC_SAMPLING_FREQ_12000 |
-				AAC_SAMPLING_FREQ_16000 |
-				AAC_SAMPLING_FREQ_22050 |
-				AAC_SAMPLING_FREQ_24000 |
-				AAC_SAMPLING_FREQ_32000 |
-				AAC_SAMPLING_FREQ_44100 |
-				AAC_SAMPLING_FREQ_48000 |
-				AAC_SAMPLING_FREQ_64000 |
-				AAC_SAMPLING_FREQ_88200 |
-				AAC_SAMPLING_FREQ_96000)
-		.channels =
-			AAC_CHANNELS_1 |
-			AAC_CHANNELS_2,
-		.vbr = 1,
-		AAC_INIT_BITRATE(320000)
-	},
-	.capabilities_size = sizeof(a2dp_aac_t),
-	.channels[0] = a2dp_aac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
-	.samplings[0] = a2dp_aac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
-	.init = a2dp_aac_source_init,
-	.enabled = true,
-};
-
-void a2dp_aac_transport_init(struct ba_transport *t) {
-
-	const struct a2dp_codec *codec = t->a2dp.codec;
-
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.aac.channels, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			AAC_GET_FREQUENCY(t->a2dp.configuration.aac), false);
-
-}
 
 static unsigned int a2dp_aac_get_fdk_vbr_mode(
 		unsigned int channelmode, unsigned int bitrate) {
@@ -604,14 +453,165 @@ fail_open:
 	return NULL;
 }
 
-int a2dp_aac_transport_start(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_aac_channels[] = {
+	{ A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
+	{ A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
+};
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_enc_thread, "ba-a2dp-aac");
+static const struct a2dp_sampling_freq a2dp_aac_samplings[] = {
+	{ 8000, AAC_SAMPLING_FREQ_8000 },
+	{ 11025, AAC_SAMPLING_FREQ_11025 },
+	{ 12000, AAC_SAMPLING_FREQ_12000 },
+	{ 16000, AAC_SAMPLING_FREQ_16000 },
+	{ 22050, AAC_SAMPLING_FREQ_22050 },
+	{ 24000, AAC_SAMPLING_FREQ_24000 },
+	{ 32000, AAC_SAMPLING_FREQ_32000 },
+	{ 44100, AAC_SAMPLING_FREQ_44100 },
+	{ 48000, AAC_SAMPLING_FREQ_48000 },
+	{ 64000, AAC_SAMPLING_FREQ_64000 },
+	{ 88200, AAC_SAMPLING_FREQ_88200 },
+	{ 96000, AAC_SAMPLING_FREQ_96000 },
+};
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_dec_thread, "ba-a2dp-aac");
+static int a2dp_aac_transport_init(struct ba_transport *t) {
 
-	g_assert_not_reached();
-	return -1;
+	const struct a2dp_codec *codec = t->a2dp.codec;
+
+	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+			t->a2dp.configuration.aac.channels, false);
+	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+			AAC_GET_FREQUENCY(t->a2dp.configuration.aac), false);
+
+	return 0;
 }
+
+static int a2dp_aac_source_init(struct a2dp_codec *codec) {
+
+	LIB_INFO info[16] = {
+		[15] = { .module_id = ~FDK_NONE } };
+	aacEncGetLibInfo(info);
+
+	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACENC);
+	debug("FDK-AAC encoder capabilities: %#x", caps);
+
+	if (caps & CAPF_ER_AAC_SCAL)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+
+	if (config.a2dp.force_mono)
+		codec->capabilities.aac.channels = AAC_CHANNELS_1;
+	if (config.a2dp.force_44100)
+		AAC_SET_FREQUENCY(codec->capabilities.aac, AAC_SAMPLING_FREQ_44100);
+
+	if (!config.aac_prefer_vbr)
+		codec->capabilities.aac.vbr = 0;
+
+	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+
+	return 0;
+}
+
+static int a2dp_aac_source_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_enc_thread, "ba-a2dp-aac");
+}
+
+struct a2dp_codec a2dp_aac_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_MPEG24,
+	.synopsis = "A2DP Source (AAC)",
+	.capabilities.aac = {
+		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
+		 *       not supported by the FDK-AAC library. */
+		.object_type =
+			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
+			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
+		AAC_INIT_FREQUENCY(
+				AAC_SAMPLING_FREQ_8000 |
+				AAC_SAMPLING_FREQ_11025 |
+				AAC_SAMPLING_FREQ_12000 |
+				AAC_SAMPLING_FREQ_16000 |
+				AAC_SAMPLING_FREQ_22050 |
+				AAC_SAMPLING_FREQ_24000 |
+				AAC_SAMPLING_FREQ_32000 |
+				AAC_SAMPLING_FREQ_44100 |
+				AAC_SAMPLING_FREQ_48000 |
+				AAC_SAMPLING_FREQ_64000 |
+				AAC_SAMPLING_FREQ_88200 |
+				AAC_SAMPLING_FREQ_96000)
+		.channels =
+			AAC_CHANNELS_1 |
+			AAC_CHANNELS_2,
+		.vbr = 1,
+		AAC_INIT_BITRATE(320000)
+	},
+	.capabilities_size = sizeof(a2dp_aac_t),
+	.channels[0] = a2dp_aac_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
+	.samplings[0] = a2dp_aac_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+	.init = a2dp_aac_source_init,
+	.transport_init = a2dp_aac_transport_init,
+	.transport_start = a2dp_aac_source_transport_start,
+	.enabled = true,
+};
+
+static int a2dp_aac_sink_init(struct a2dp_codec *codec) {
+
+	LIB_INFO info[16] = {
+		[15] = { .module_id = ~FDK_NONE } };
+	aacDecoder_GetLibInfo(info);
+
+	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
+	debug("FDK-AAC decoder capabilities: %#x", caps);
+
+	if (caps & CAPF_ER_AAC_SCAL)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+
+	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+
+	return 0;
+}
+
+static int a2dp_aac_sink_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_dec_thread, "ba-a2dp-aac");
+}
+
+struct a2dp_codec a2dp_aac_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_MPEG24,
+	.synopsis = "A2DP Sink (AAC)",
+	.capabilities.aac = {
+		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
+		 *       not supported by the FDK-AAC library. */
+		.object_type =
+			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
+			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
+		AAC_INIT_FREQUENCY(
+				AAC_SAMPLING_FREQ_8000 |
+				AAC_SAMPLING_FREQ_11025 |
+				AAC_SAMPLING_FREQ_12000 |
+				AAC_SAMPLING_FREQ_16000 |
+				AAC_SAMPLING_FREQ_22050 |
+				AAC_SAMPLING_FREQ_24000 |
+				AAC_SAMPLING_FREQ_32000 |
+				AAC_SAMPLING_FREQ_44100 |
+				AAC_SAMPLING_FREQ_48000 |
+				AAC_SAMPLING_FREQ_64000 |
+				AAC_SAMPLING_FREQ_88200 |
+				AAC_SAMPLING_FREQ_96000)
+		.channels =
+			AAC_CHANNELS_1 |
+			AAC_CHANNELS_2,
+		.vbr = 1,
+		AAC_INIT_BITRATE(320000)
+	},
+	.capabilities_size = sizeof(a2dp_aac_t),
+	.channels[0] = a2dp_aac_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
+	.samplings[0] = a2dp_aac_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+	.init = a2dp_aac_sink_init,
+	.transport_init = a2dp_aac_transport_init,
+	.transport_start = a2dp_aac_sink_transport_start,
+	.enabled = true,
+};

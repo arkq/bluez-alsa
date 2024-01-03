@@ -22,9 +22,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <glib.h>
-
 #include "a2dp.h"
+#include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-config.h"
 #include "codec-aptx.h"
@@ -34,84 +33,6 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
-
-static const struct a2dp_channel_mode a2dp_aptx_channels[] = {
-	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_aptx_samplings[] = {
-	{ 16000, APTX_SAMPLING_FREQ_16000 },
-	{ 32000, APTX_SAMPLING_FREQ_32000 },
-	{ 44100, APTX_SAMPLING_FREQ_44100 },
-	{ 48000, APTX_SAMPLING_FREQ_48000 },
-};
-
-struct a2dp_codec a2dp_aptx_sink = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_APTX,
-	.synopsis = "A2DP Sink (apt-X)",
-	.capabilities.aptx = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
-		/* NOTE: Used apt-X library does not support
-		 *       single channel (mono) mode. */
-		.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_t),
-	.channels[0] = a2dp_aptx_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
-	.samplings[0] = a2dp_aptx_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
-};
-
-static int a2dp_aptx_source_init(struct a2dp_codec *codec) {
-	if (config.a2dp.force_mono)
-		warn("Apt-X mono channel mode not supported");
-	if (config.a2dp.force_44100)
-		codec->capabilities.aptx.frequency = APTX_SAMPLING_FREQ_44100;
-	return 0;
-}
-
-struct a2dp_codec a2dp_aptx_source = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_APTX,
-	.synopsis = "A2DP Source (apt-X)",
-	.capabilities.aptx = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
-		/* NOTE: Used apt-X library does not support
-		 *       single channel (mono) mode. */
-		.channel_mode =
-			APTX_CHANNEL_MODE_STEREO,
-		.frequency =
-			APTX_SAMPLING_FREQ_16000 |
-			APTX_SAMPLING_FREQ_32000 |
-			APTX_SAMPLING_FREQ_44100 |
-			APTX_SAMPLING_FREQ_48000,
-	},
-	.capabilities_size = sizeof(a2dp_aptx_t),
-	.channels[0] = a2dp_aptx_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
-	.samplings[0] = a2dp_aptx_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
-	.init = a2dp_aptx_source_init,
-};
-
-void a2dp_aptx_transport_init(struct ba_transport *t) {
-
-	const struct a2dp_codec *codec = t->a2dp.codec;
-
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.aptx.channel_mode, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			t->a2dp.configuration.aptx.frequency, false);
-
-}
 
 void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 
@@ -311,16 +232,97 @@ fail_init:
 }
 #endif
 
-int a2dp_aptx_transport_start(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_aptx_channels[] = {
+	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
+};
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_enc_thread, "ba-a2dp-aptx");
+static const struct a2dp_sampling_freq a2dp_aptx_samplings[] = {
+	{ 16000, APTX_SAMPLING_FREQ_16000 },
+	{ 32000, APTX_SAMPLING_FREQ_32000 },
+	{ 44100, APTX_SAMPLING_FREQ_44100 },
+	{ 48000, APTX_SAMPLING_FREQ_48000 },
+};
+
+static int a2dp_aptx_transport_init(struct ba_transport *t) {
+
+	const struct a2dp_codec *codec = t->a2dp.codec;
+
+	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+			t->a2dp.configuration.aptx.channel_mode, false);
+	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+			t->a2dp.configuration.aptx.frequency, false);
+
+	return 0;
+}
+
+static int a2dp_aptx_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		warn("Apt-X mono channel mode not supported");
+	if (config.a2dp.force_44100)
+		codec->capabilities.aptx.frequency = APTX_SAMPLING_FREQ_44100;
+	return 0;
+}
+
+static int a2dp_aptx_source_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_enc_thread, "ba-a2dp-aptx");
+}
+
+struct a2dp_codec a2dp_aptx_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.synopsis = "A2DP Source (apt-X)",
+	.capabilities.aptx = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+		/* NOTE: Used apt-X library does not support
+		 *       single channel (mono) mode. */
+		.channel_mode =
+			APTX_CHANNEL_MODE_STEREO,
+		.frequency =
+			APTX_SAMPLING_FREQ_16000 |
+			APTX_SAMPLING_FREQ_32000 |
+			APTX_SAMPLING_FREQ_44100 |
+			APTX_SAMPLING_FREQ_48000,
+	},
+	.capabilities_size = sizeof(a2dp_aptx_t),
+	.channels[0] = a2dp_aptx_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
+	.samplings[0] = a2dp_aptx_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
+	.init = a2dp_aptx_source_init,
+	.transport_init = a2dp_aptx_transport_init,
+	.transport_start = a2dp_aptx_source_transport_start,
+};
 
 #if HAVE_APTX_DECODE
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK)
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_dec_thread, "ba-a2dp-aptx");
-#endif
 
-	g_assert_not_reached();
-	return -1;
+static int a2dp_aptx_sink_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_dec_thread, "ba-a2dp-aptx");
 }
+
+struct a2dp_codec a2dp_aptx_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.synopsis = "A2DP Sink (apt-X)",
+	.capabilities.aptx = {
+		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+		/* NOTE: Used apt-X library does not support
+		 *       single channel (mono) mode. */
+		.channel_mode =
+			APTX_CHANNEL_MODE_STEREO,
+		.frequency =
+			APTX_SAMPLING_FREQ_16000 |
+			APTX_SAMPLING_FREQ_32000 |
+			APTX_SAMPLING_FREQ_44100 |
+			APTX_SAMPLING_FREQ_48000,
+	},
+	.capabilities_size = sizeof(a2dp_aptx_t),
+	.channels[0] = a2dp_aptx_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
+	.samplings[0] = a2dp_aptx_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
+	.transport_init = a2dp_aptx_transport_init,
+	.transport_start = a2dp_aptx_sink_transport_start,
+};
+
+#endif

@@ -936,91 +936,12 @@ fail:
 	return -1;
 }
 
-void a2dp_transport_init(
+int a2dp_transport_init(
 		struct ba_transport *t) {
-	uint16_t codec_id;
-	switch (codec_id = ba_transport_get_codec(t)) {
-	case A2DP_CODEC_SBC:
-		a2dp_sbc_transport_init(t);
-		break;
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12:
-		a2dp_mpeg_transport_init(t);
-		break;
-#endif
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24:
-		a2dp_aac_transport_init(t);
-		break;
-#endif
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX:
-		a2dp_aptx_transport_init(t);
-		break;
-#endif
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		a2dp_aptx_hd_transport_init(t);
-		break;
-#endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		a2dp_faststream_transport_init(t);
-		break;
-#endif
-#if ENABLE_LC3PLUS
-	case A2DP_CODEC_VENDOR_LC3PLUS:
-		a2dp_lc3plus_transport_init(t);
-		break;
-#endif
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		a2dp_ldac_transport_init(t);
-		break;
-#endif
-	default:
-		debug("Unsupported A2DP codec: %#x", codec_id);
-		g_assert_not_reached();
-	}
+	return t->a2dp.codec->transport_init(t);
 }
 
 int a2dp_transport_start(
 		struct ba_transport *t) {
-	uint16_t codec_id;
-	switch (codec_id = ba_transport_get_codec(t)) {
-	case A2DP_CODEC_SBC:
-		return a2dp_sbc_transport_start(t);
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12:
-		return a2dp_mpeg_transport_start(t);
-#endif
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24:
-		return a2dp_aac_transport_start(t);
-#endif
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX:
-		return a2dp_aptx_transport_start(t);
-#endif
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		return a2dp_aptx_hd_transport_start(t);
-#endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		return a2dp_faststream_transport_start(t);
-#endif
-#if ENABLE_LC3PLUS
-	case A2DP_CODEC_VENDOR_LC3PLUS:
-		return a2dp_lc3plus_transport_start(t);
-#endif
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		return a2dp_ldac_transport_start(t);
-#endif
-	default:
-		debug("Unsupported A2DP codec: %#x", codec_id);
-		g_assert_not_reached();
-		return -1;
-	}
+	return t->a2dp.codec->transport_start(t);
 }

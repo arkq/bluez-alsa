@@ -48,7 +48,7 @@
 
 #define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-test-ba-storage"
 
-void a2dp_transport_init(struct ba_transport *t) { (void)t; }
+int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
 int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
 void *sco_enc_thread(struct ba_transport_pcm *t_pcm);
 

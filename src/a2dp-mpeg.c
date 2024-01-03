@@ -44,154 +44,6 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-static const struct a2dp_channel_mode a2dp_mpeg_channels[] = {
-	{ A2DP_CHM_MONO, 1, MPEG_CHANNEL_MODE_MONO },
-	{ A2DP_CHM_DUAL_CHANNEL, 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
-	{ A2DP_CHM_STEREO, 2, MPEG_CHANNEL_MODE_STEREO },
-	{ A2DP_CHM_JOINT_STEREO, 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
-};
-
-static const struct a2dp_sampling_freq a2dp_mpeg_samplings[] = {
-	{ 16000, MPEG_SAMPLING_FREQ_16000 },
-	{ 22050, MPEG_SAMPLING_FREQ_22050 },
-	{ 24000, MPEG_SAMPLING_FREQ_24000 },
-	{ 32000, MPEG_SAMPLING_FREQ_32000 },
-	{ 44100, MPEG_SAMPLING_FREQ_44100 },
-	{ 48000, MPEG_SAMPLING_FREQ_48000 },
-};
-
-struct a2dp_codec a2dp_mpeg_sink = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_MPEG12,
-	.synopsis = "A2DP Sink (MP3)",
-	.capabilities.mpeg = {
-		.layer =
-#if ENABLE_MPG123
-			MPEG_LAYER_MP1 |
-			MPEG_LAYER_MP2 |
-#endif
-			MPEG_LAYER_MP3,
-		.crc = 1,
-		/* NOTE: LAME does not support dual-channel mode. Be aware, that
-		 *       lack of this feature violates A2DP Sink specification. */
-		.channel_mode =
-			MPEG_CHANNEL_MODE_MONO |
-#if ENABLE_MPG123
-			MPEG_CHANNEL_MODE_DUAL_CHANNEL |
-#endif
-			MPEG_CHANNEL_MODE_STEREO |
-			MPEG_CHANNEL_MODE_JOINT_STEREO,
-		/* NOTE: Since MPF-2 is not required for neither Sink
-		 *       nor Source, we are not going to support it. */
-		.mpf = 0,
-		.frequency =
-			MPEG_SAMPLING_FREQ_16000 |
-			MPEG_SAMPLING_FREQ_22050 |
-			MPEG_SAMPLING_FREQ_24000 |
-			MPEG_SAMPLING_FREQ_32000 |
-			MPEG_SAMPLING_FREQ_44100 |
-			MPEG_SAMPLING_FREQ_48000,
-		.vbr = 1,
-		MPEG_INIT_BITRATE(
-			MPEG_BIT_RATE_INDEX_0 |
-			MPEG_BIT_RATE_INDEX_1 |
-			MPEG_BIT_RATE_INDEX_2 |
-			MPEG_BIT_RATE_INDEX_3 |
-			MPEG_BIT_RATE_INDEX_4 |
-			MPEG_BIT_RATE_INDEX_5 |
-			MPEG_BIT_RATE_INDEX_6 |
-			MPEG_BIT_RATE_INDEX_7 |
-			MPEG_BIT_RATE_INDEX_8 |
-			MPEG_BIT_RATE_INDEX_9 |
-			MPEG_BIT_RATE_INDEX_10 |
-			MPEG_BIT_RATE_INDEX_11 |
-			MPEG_BIT_RATE_INDEX_12 |
-			MPEG_BIT_RATE_INDEX_13 |
-			MPEG_BIT_RATE_INDEX_14
-		)
-	},
-	.capabilities_size = sizeof(a2dp_mpeg_t),
-	.channels[0] = a2dp_mpeg_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
-	.samplings[0] = a2dp_mpeg_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
-	/* TODO: This is an optional but covered by the A2DP spec codec,
-	 *       so it could be enabled by default. However, it does not
-	 *       work reliably enough (for now)... */
-	.enabled = false,
-};
-
-static int a2dp_mpeg_source_init(struct a2dp_codec *codec) {
-	if (config.a2dp.force_mono)
-		codec->capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
-	if (config.a2dp.force_44100)
-		codec->capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
-	return 0;
-}
-
-struct a2dp_codec a2dp_mpeg_source = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_MPEG12,
-	.synopsis = "A2DP Source (MP3)",
-	.capabilities.mpeg = {
-		.layer =
-			MPEG_LAYER_MP3,
-		.crc = 1,
-		/* NOTE: LAME does not support dual-channel mode. */
-		.channel_mode =
-			MPEG_CHANNEL_MODE_MONO |
-			MPEG_CHANNEL_MODE_STEREO |
-			MPEG_CHANNEL_MODE_JOINT_STEREO,
-		/* NOTE: Since MPF-2 is not required for neither Sink
-		 *       nor Source, we are not going to support it. */
-		.mpf = 0,
-		.frequency =
-			MPEG_SAMPLING_FREQ_16000 |
-			MPEG_SAMPLING_FREQ_22050 |
-			MPEG_SAMPLING_FREQ_24000 |
-			MPEG_SAMPLING_FREQ_32000 |
-			MPEG_SAMPLING_FREQ_44100 |
-			MPEG_SAMPLING_FREQ_48000,
-		.vbr = 1,
-		MPEG_INIT_BITRATE(
-			MPEG_BIT_RATE_INDEX_0 |
-			MPEG_BIT_RATE_INDEX_1 |
-			MPEG_BIT_RATE_INDEX_2 |
-			MPEG_BIT_RATE_INDEX_3 |
-			MPEG_BIT_RATE_INDEX_4 |
-			MPEG_BIT_RATE_INDEX_5 |
-			MPEG_BIT_RATE_INDEX_6 |
-			MPEG_BIT_RATE_INDEX_7 |
-			MPEG_BIT_RATE_INDEX_8 |
-			MPEG_BIT_RATE_INDEX_9 |
-			MPEG_BIT_RATE_INDEX_10 |
-			MPEG_BIT_RATE_INDEX_11 |
-			MPEG_BIT_RATE_INDEX_12 |
-			MPEG_BIT_RATE_INDEX_13 |
-			MPEG_BIT_RATE_INDEX_14
-		)
-	},
-	.capabilities_size = sizeof(a2dp_mpeg_t),
-	.channels[0] = a2dp_mpeg_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
-	.samplings[0] = a2dp_mpeg_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
-	.init = a2dp_mpeg_source_init,
-	.enabled = false,
-};
-
-void a2dp_mpeg_transport_init(struct ba_transport *t) {
-
-	const struct a2dp_codec *codec = t->a2dp.codec;
-
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.mpeg.channel_mode, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			t->a2dp.configuration.mpeg.frequency, false);
-
-}
-
 #if ENABLE_MP3LAME
 void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 
@@ -411,7 +263,7 @@ fail_init:
 }
 #endif
 
-#if ENABLE_MP3LAME || ENABLE_MPG123
+#if ENABLE_MPG123 || ENABLE_MP3LAME
 __attribute__ ((weak))
 void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 
@@ -605,24 +457,181 @@ fail_init:
 }
 #endif
 
-int a2dp_mpeg_transport_start(struct ba_transport *t) {
+static const struct a2dp_channel_mode a2dp_mpeg_channels[] = {
+	{ A2DP_CHM_MONO, 1, MPEG_CHANNEL_MODE_MONO },
+	{ A2DP_CHM_DUAL_CHANNEL, 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
+	{ A2DP_CHM_STEREO, 2, MPEG_CHANNEL_MODE_STEREO },
+	{ A2DP_CHM_JOINT_STEREO, 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
+};
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
+static const struct a2dp_sampling_freq a2dp_mpeg_samplings[] = {
+	{ 16000, MPEG_SAMPLING_FREQ_16000 },
+	{ 22050, MPEG_SAMPLING_FREQ_22050 },
+	{ 24000, MPEG_SAMPLING_FREQ_24000 },
+	{ 32000, MPEG_SAMPLING_FREQ_32000 },
+	{ 44100, MPEG_SAMPLING_FREQ_44100 },
+	{ 48000, MPEG_SAMPLING_FREQ_48000 },
+};
+
+static int a2dp_mpeg_transport_init(struct ba_transport *t) {
+
+	const struct a2dp_codec *codec = t->a2dp.codec;
+
+	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
+			t->a2dp.configuration.mpeg.channel_mode, false);
+	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
+			t->a2dp.configuration.mpeg.frequency, false);
+
+	return 0;
+}
+
 #if ENABLE_MP3LAME
-		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
-			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mp3_enc_thread, "ba-a2dp-mp3");
-#endif
-	}
 
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK) {
-#if ENABLE_MPG123
-		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg");
-#elif ENABLE_MP3LAME
-		if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
-			return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mp3");
-#endif
-	}
+static int a2dp_mpeg_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		codec->capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
+	if (config.a2dp.force_44100)
+		codec->capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
+	return 0;
+}
 
+static int a2dp_mpeg_source_transport_start(struct ba_transport *t) {
+	if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mp3_enc_thread, "ba-a2dp-mp3");
 	g_assert_not_reached();
 	return -1;
 }
+
+struct a2dp_codec a2dp_mpeg_source = {
+	.dir = A2DP_SOURCE,
+	.codec_id = A2DP_CODEC_MPEG12,
+	.synopsis = "A2DP Source (MP3)",
+	.capabilities.mpeg = {
+		.layer =
+			MPEG_LAYER_MP3,
+		.crc = 1,
+		/* NOTE: LAME does not support dual-channel mode. */
+		.channel_mode =
+			MPEG_CHANNEL_MODE_MONO |
+			MPEG_CHANNEL_MODE_STEREO |
+			MPEG_CHANNEL_MODE_JOINT_STEREO,
+		/* NOTE: Since MPF-2 is not required for neither Sink
+		 *       nor Source, we are not going to support it. */
+		.mpf = 0,
+		.frequency =
+			MPEG_SAMPLING_FREQ_16000 |
+			MPEG_SAMPLING_FREQ_22050 |
+			MPEG_SAMPLING_FREQ_24000 |
+			MPEG_SAMPLING_FREQ_32000 |
+			MPEG_SAMPLING_FREQ_44100 |
+			MPEG_SAMPLING_FREQ_48000,
+		.vbr = 1,
+		MPEG_INIT_BITRATE(
+			MPEG_BIT_RATE_INDEX_0 |
+			MPEG_BIT_RATE_INDEX_1 |
+			MPEG_BIT_RATE_INDEX_2 |
+			MPEG_BIT_RATE_INDEX_3 |
+			MPEG_BIT_RATE_INDEX_4 |
+			MPEG_BIT_RATE_INDEX_5 |
+			MPEG_BIT_RATE_INDEX_6 |
+			MPEG_BIT_RATE_INDEX_7 |
+			MPEG_BIT_RATE_INDEX_8 |
+			MPEG_BIT_RATE_INDEX_9 |
+			MPEG_BIT_RATE_INDEX_10 |
+			MPEG_BIT_RATE_INDEX_11 |
+			MPEG_BIT_RATE_INDEX_12 |
+			MPEG_BIT_RATE_INDEX_13 |
+			MPEG_BIT_RATE_INDEX_14
+		)
+	},
+	.capabilities_size = sizeof(a2dp_mpeg_t),
+	.channels[0] = a2dp_mpeg_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
+	.samplings[0] = a2dp_mpeg_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
+	.init = a2dp_mpeg_source_init,
+	.transport_init = a2dp_mpeg_transport_init,
+	.transport_start = a2dp_mpeg_source_transport_start,
+	/* TODO: This is an optional but covered by the A2DP spec codec,
+	 *       so it could be enabled by default. However, it does not
+	 *       work reliably enough (for now)... */
+	.enabled = false,
+};
+
+#endif
+
+#if ENABLE_MPG123 || ENABLE_MP3LAME
+
+static int a2dp_mpeg_sink_transport_start(struct ba_transport *t) {
+#if ENABLE_MPG123
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg");
+#else
+	if (t->a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
+		return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mp3");
+	g_assert_not_reached();
+	return -1;
+#endif
+}
+
+struct a2dp_codec a2dp_mpeg_sink = {
+	.dir = A2DP_SINK,
+	.codec_id = A2DP_CODEC_MPEG12,
+	.synopsis = "A2DP Sink (MP3)",
+	.capabilities.mpeg = {
+		.layer =
+#if ENABLE_MPG123
+			MPEG_LAYER_MP1 |
+			MPEG_LAYER_MP2 |
+#endif
+			MPEG_LAYER_MP3,
+		.crc = 1,
+		/* NOTE: LAME does not support dual-channel mode. Be aware, that
+		 *       lack of this feature violates A2DP Sink specification. */
+		.channel_mode =
+			MPEG_CHANNEL_MODE_MONO |
+#if ENABLE_MPG123
+			MPEG_CHANNEL_MODE_DUAL_CHANNEL |
+#endif
+			MPEG_CHANNEL_MODE_STEREO |
+			MPEG_CHANNEL_MODE_JOINT_STEREO,
+		/* NOTE: Since MPF-2 is not required for neither Sink
+		 *       nor Source, we are not going to support it. */
+		.mpf = 0,
+		.frequency =
+			MPEG_SAMPLING_FREQ_16000 |
+			MPEG_SAMPLING_FREQ_22050 |
+			MPEG_SAMPLING_FREQ_24000 |
+			MPEG_SAMPLING_FREQ_32000 |
+			MPEG_SAMPLING_FREQ_44100 |
+			MPEG_SAMPLING_FREQ_48000,
+		.vbr = 1,
+		MPEG_INIT_BITRATE(
+			MPEG_BIT_RATE_INDEX_0 |
+			MPEG_BIT_RATE_INDEX_1 |
+			MPEG_BIT_RATE_INDEX_2 |
+			MPEG_BIT_RATE_INDEX_3 |
+			MPEG_BIT_RATE_INDEX_4 |
+			MPEG_BIT_RATE_INDEX_5 |
+			MPEG_BIT_RATE_INDEX_6 |
+			MPEG_BIT_RATE_INDEX_7 |
+			MPEG_BIT_RATE_INDEX_8 |
+			MPEG_BIT_RATE_INDEX_9 |
+			MPEG_BIT_RATE_INDEX_10 |
+			MPEG_BIT_RATE_INDEX_11 |
+			MPEG_BIT_RATE_INDEX_12 |
+			MPEG_BIT_RATE_INDEX_13 |
+			MPEG_BIT_RATE_INDEX_14
+		)
+	},
+	.capabilities_size = sizeof(a2dp_mpeg_t),
+	.channels[0] = a2dp_mpeg_channels,
+	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
+	.samplings[0] = a2dp_mpeg_samplings,
+	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
+	.transport_init = a2dp_mpeg_transport_init,
+	.transport_start = a2dp_mpeg_sink_transport_start,
+	.enabled = false,
+};
+
+#endif

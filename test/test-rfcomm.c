@@ -58,7 +58,7 @@ static void dbus_update_counters_wait(unsigned int *counter, unsigned int value)
 	pthread_mutex_unlock(&dbus_update_mtx);
 }
 
-void a2dp_transport_init(struct ba_transport *t) { (void)t; }
+int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
 int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
 int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
 int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
