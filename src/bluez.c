@@ -756,21 +756,12 @@ fail:
 /**
  * Register A2DP endpoints. */
 static void bluez_register_a2dp_all(struct ba_adapter *adapter) {
-
 	struct a2dp_codec * const * cc = a2dp_codecs;
 	for (const struct a2dp_codec *c = *cc; c != NULL; c = *++cc) {
-		switch (c->dir) {
-		case A2DP_SOURCE:
-			if (config.profile.a2dp_source && c->enabled)
-				bluez_export_a2dp(adapter, c);
-			break;
-		case A2DP_SINK:
-			if (config.profile.a2dp_sink && c->enabled)
-				bluez_export_a2dp(adapter, c);
-			break;
-		}
+		if (!c->enabled)
+			continue;
+		bluez_export_a2dp(adapter, c);
 	}
-
 }
 
 static GVariant *bluez_battery_provider_iface_skeleton_get_property(

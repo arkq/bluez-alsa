@@ -74,6 +74,14 @@ struct a2dp_codec a2dp_lc3plus_sink = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
 };
 
+static int a2dp_lc3plus_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		codec->capabilities.lc3plus.channels = LC3PLUS_CHANNELS_1;
+	if (config.a2dp.force_44100)
+		warn("LC3plus 44.1 kHz sampling frequency not supported");
+	return 0;
+}
+
 struct a2dp_codec a2dp_lc3plus_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
@@ -96,10 +104,8 @@ struct a2dp_codec a2dp_lc3plus_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_lc3plus_channels),
 	.samplings[0] = a2dp_lc3plus_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
+	.init = a2dp_lc3plus_source_init,
 };
-
-void a2dp_lc3plus_init(void) {
-}
 
 void a2dp_lc3plus_transport_init(struct ba_transport *t) {
 

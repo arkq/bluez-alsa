@@ -57,6 +57,23 @@ static const struct a2dp_sampling_freq a2dp_aac_samplings[] = {
 	{ 96000, AAC_SAMPLING_FREQ_96000 },
 };
 
+static int a2dp_aac_sink_init(struct a2dp_codec *codec) {
+
+	LIB_INFO info[16] = {
+		[15] = { .module_id = ~FDK_NONE } };
+	aacDecoder_GetLibInfo(info);
+
+	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
+	debug("FDK-AAC decoder capabilities: %#x", caps);
+
+	if (caps & CAPF_ER_AAC_SCAL)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+
+	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+
+	return 0;
+}
+
 struct a2dp_codec a2dp_aac_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
@@ -91,8 +108,34 @@ struct a2dp_codec a2dp_aac_sink = {
 	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
 	.samplings[0] = a2dp_aac_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+	.init = a2dp_aac_sink_init,
 	.enabled = true,
 };
+
+static int a2dp_aac_source_init(struct a2dp_codec *codec) {
+
+	LIB_INFO info[16] = {
+		[15] = { .module_id = ~FDK_NONE } };
+	aacEncGetLibInfo(info);
+
+	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACENC);
+	debug("FDK-AAC encoder capabilities: %#x", caps);
+
+	if (caps & CAPF_ER_AAC_SCAL)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+
+	if (config.a2dp.force_mono)
+		codec->capabilities.aac.channels = AAC_CHANNELS_1;
+	if (config.a2dp.force_44100)
+		AAC_SET_FREQUENCY(codec->capabilities.aac, AAC_SAMPLING_FREQ_44100);
+
+	if (!config.aac_prefer_vbr)
+		codec->capabilities.aac.vbr = 0;
+
+	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+
+	return 0;
+}
 
 struct a2dp_codec a2dp_aac_source = {
 	.dir = A2DP_SOURCE,
@@ -128,38 +171,9 @@ struct a2dp_codec a2dp_aac_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_aac_channels),
 	.samplings[0] = a2dp_aac_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_aac_samplings),
+	.init = a2dp_aac_source_init,
 	.enabled = true,
 };
-
-void a2dp_aac_init(void) {
-
-	LIB_INFO info[16] = { 0 };
-	info[ARRAYSIZE(info) - 1].module_id = ~FDK_NONE;
-
-	aacDecoder_GetLibInfo(info);
-	aacEncGetLibInfo(info);
-
-	unsigned int caps_dec = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
-	unsigned int caps_enc = FDKlibInfo_getCapabilities(info, FDK_AACENC);
-	debug("FDK-AAC lib capabilities: dec:%#x enc:%#x", caps_dec, caps_enc);
-
-	if (caps_dec & CAPF_ER_AAC_SCAL)
-		a2dp_aac_sink.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
-	if (caps_enc & CAPF_ER_AAC_SCAL)
-		a2dp_aac_source.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
-
-	if (config.a2dp.force_mono)
-		a2dp_aac_source.capabilities.aac.channels = AAC_CHANNELS_1;
-	if (config.a2dp.force_44100)
-		AAC_SET_FREQUENCY(a2dp_aac_source.capabilities.aac, AAC_SAMPLING_FREQ_44100);
-
-	if (!config.aac_prefer_vbr)
-		a2dp_aac_source.capabilities.aac.vbr = 0;
-
-	AAC_SET_BITRATE(a2dp_aac_source.capabilities.aac, config.aac_bitrate);
-	AAC_SET_BITRATE(a2dp_aac_sink.capabilities.aac, config.aac_bitrate);
-
-}
 
 void a2dp_aac_transport_init(struct ba_transport *t) {
 

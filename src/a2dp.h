@@ -61,6 +61,8 @@ struct a2dp_codec {
 	/* list of supported sampling frequencies */
 	const struct a2dp_sampling_freq *samplings[2];
 	size_t samplings_size[2];
+	/* callback function for codec initialization */
+	int (*init)(struct a2dp_codec *codec);
 	/* determine whether codec shall be enabled */
 	bool enabled;
 };

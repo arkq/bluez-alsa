@@ -75,6 +75,14 @@ struct a2dp_codec a2dp_ldac_sink = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
 };
 
+static int a2dp_ldac_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		codec->capabilities.ldac.channel_mode = LDAC_CHANNEL_MODE_MONO;
+	if (config.a2dp.force_44100)
+		codec->capabilities.ldac.frequency = LDAC_SAMPLING_FREQ_44100;
+	return 0;
+}
+
 struct a2dp_codec a2dp_ldac_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
@@ -98,10 +106,8 @@ struct a2dp_codec a2dp_ldac_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_ldac_channels),
 	.samplings[0] = a2dp_ldac_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
+	.init = a2dp_ldac_source_init,
 };
-
-void a2dp_ldac_init(void) {
-}
 
 void a2dp_ldac_transport_init(struct ba_transport *t) {
 

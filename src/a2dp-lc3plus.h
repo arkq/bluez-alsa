@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-lc3plus.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -22,7 +22,6 @@
 extern struct a2dp_codec a2dp_lc3plus_sink;
 extern struct a2dp_codec a2dp_lc3plus_source;
 
-void a2dp_lc3plus_init(void);
 void a2dp_lc3plus_transport_init(struct ba_transport *t);
 int a2dp_lc3plus_transport_start(struct ba_transport *t);
 

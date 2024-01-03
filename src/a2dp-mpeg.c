@@ -121,6 +121,14 @@ struct a2dp_codec a2dp_mpeg_sink = {
 	.enabled = false,
 };
 
+static int a2dp_mpeg_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		codec->capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
+	if (config.a2dp.force_44100)
+		codec->capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
+	return 0;
+}
+
 struct a2dp_codec a2dp_mpeg_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG12,
@@ -168,17 +176,9 @@ struct a2dp_codec a2dp_mpeg_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_mpeg_channels),
 	.samplings[0] = a2dp_mpeg_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_mpeg_samplings),
+	.init = a2dp_mpeg_source_init,
 	.enabled = false,
 };
-
-void a2dp_mpeg_init(void) {
-
-	if (config.a2dp.force_mono)
-		a2dp_mpeg_source.capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
-	if (config.a2dp.force_44100)
-		a2dp_mpeg_source.capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
-
-}
 
 void a2dp_mpeg_transport_init(struct ba_transport *t) {
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -98,28 +98,27 @@ struct a2dp_codec * const a2dp_codecs[] = {
 /**
  * Initialize A2DP codecs. */
 int a2dp_codecs_init(void) {
-	a2dp_sbc_init();
-#if ENABLE_MPEG
-	a2dp_mpeg_init();
-#endif
-#if ENABLE_AAC
-	a2dp_aac_init();
-#endif
-#if ENABLE_APTX
-	a2dp_aptx_init();
-#endif
-#if ENABLE_APTX_HD
-	a2dp_aptx_hd_init();
-#endif
-#if ENABLE_FASTSTREAM
-	a2dp_faststream_init();
-#endif
-#if ENABLE_LC3PLUS
-	a2dp_lc3plus_init();
-#endif
-#if ENABLE_LDAC
-	a2dp_ldac_init();
-#endif
+
+	for (size_t i = 0; a2dp_codecs[i] != NULL; i++) {
+		/* We want the list of codecs to be seen as const outside
+		 * of this file, so we have to cast it here. */
+		struct a2dp_codec *c = (struct a2dp_codec *)a2dp_codecs[i];
+
+		switch (c->dir) {
+		case A2DP_SOURCE:
+			c->enabled &= config.profile.a2dp_source;
+			break;
+		case A2DP_SINK:
+			c->enabled &= config.profile.a2dp_sink;
+			break;
+		}
+
+		if (c->init != NULL && c->enabled)
+			if (c->init(c) != 0)
+				return -1;
+
+	}
+
 	return 0;
 }
 

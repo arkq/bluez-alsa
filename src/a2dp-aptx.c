@@ -26,6 +26,7 @@
 
 #include "a2dp.h"
 #include "ba-transport-pcm.h"
+#include "bluealsa-config.h"
 #include "codec-aptx.h"
 #include "io.h"
 #include "shared/a2dp-codecs.h"
@@ -68,6 +69,14 @@ struct a2dp_codec a2dp_aptx_sink = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
 };
 
+static int a2dp_aptx_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		warn("Apt-X mono channel mode not supported");
+	if (config.a2dp.force_44100)
+		codec->capabilities.aptx.frequency = APTX_SAMPLING_FREQ_44100;
+	return 0;
+}
+
 struct a2dp_codec a2dp_aptx_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
@@ -89,10 +98,8 @@ struct a2dp_codec a2dp_aptx_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_aptx_channels),
 	.samplings[0] = a2dp_aptx_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_aptx_samplings),
+	.init = a2dp_aptx_source_init,
 };
-
-void a2dp_aptx_init(void) {
-}
 
 void a2dp_aptx_transport_init(struct ba_transport *t) {
 

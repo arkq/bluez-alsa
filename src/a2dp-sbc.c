@@ -89,6 +89,29 @@ struct a2dp_codec a2dp_sbc_sink = {
 	.enabled = true,
 };
 
+static int a2dp_sbc_source_init(struct a2dp_codec *codec) {
+
+	bool is_xq = false;
+	if (config.sbc_quality == SBC_QUALITY_XQ ||
+			config.sbc_quality == SBC_QUALITY_XQPLUS) {
+		info("Activating SBC Dual Channel HD (SBC %s)",
+				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
+		is_xq = true;
+	}
+
+	if (config.a2dp.force_mono)
+		/* With this we are violating A2DP SBC requirements. According to spec,
+		 * SBC source shall support mono channel and at least one of the stereo
+		 * modes. However, since for sink all channel modes are mandatory, even
+		 * though we are supporting only mono mode, there will be a match when
+		 * selecting configuration. */
+		codec->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
+	if (config.a2dp.force_44100 && is_xq)
+		codec->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+
+	return 0;
+}
+
 struct a2dp_codec a2dp_sbc_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_SBC,
@@ -123,29 +146,9 @@ struct a2dp_codec a2dp_sbc_source = {
 	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
 	.samplings[0] = a2dp_sbc_samplings,
 	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
+	.init = a2dp_sbc_source_init,
 	.enabled = true,
 };
-
-void a2dp_sbc_init(void) {
-
-	if (config.sbc_quality == SBC_QUALITY_XQ ||
-			config.sbc_quality == SBC_QUALITY_XQPLUS) {
-		info("Activating SBC Dual Channel HD (SBC %s)",
-				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
-		config.a2dp.force_44100 = true;
-	}
-
-	if (config.a2dp.force_mono)
-		/* With this we are violating A2DP SBC requirements. According to spec,
-		 * SBC source shall support mono channel and at least one of the stereo
-		 * modes. However, since for sink all channel modes are mandatory, even
-		 * though we are supporting only mono mode, there will be a match when
-		 * selecting configuration. */
-		a2dp_sbc_source.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
-	if (config.a2dp.force_44100)
-		a2dp_sbc_source.capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
-
-}
 
 void a2dp_sbc_transport_init(struct ba_transport *t) {
 

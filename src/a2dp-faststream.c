@@ -23,6 +23,7 @@
 #include <sbc/sbc.h>
 
 #include "a2dp.h"
+#include "bluealsa-config.h"
 #include "ba-transport-pcm.h"
 #include "codec-sbc.h"
 #include "io.h"
@@ -61,6 +62,14 @@ struct a2dp_codec a2dp_faststream_sink = {
 	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
 };
 
+static int a2dp_faststream_source_init(struct a2dp_codec *codec) {
+	if (config.a2dp.force_mono)
+		warn("FastStream mono channel mode not supported");
+	if (config.a2dp.force_44100)
+		codec->capabilities.faststream.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
+	return 0;
+}
+
 struct a2dp_codec a2dp_faststream_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
@@ -79,10 +88,8 @@ struct a2dp_codec a2dp_faststream_source = {
 	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
 	.samplings[1] = a2dp_faststream_samplings_voice,
 	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
+	.init = a2dp_faststream_source_init,
 };
-
-void a2dp_faststream_init(void) {
-}
 
 void a2dp_faststream_transport_init(struct ba_transport *t) {
 
