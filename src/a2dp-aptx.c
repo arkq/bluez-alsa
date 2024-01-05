@@ -245,6 +245,37 @@ static const struct a2dp_sampling a2dp_aptx_samplings[] = {
 	{ 0 },
 };
 
+static int a2dp_aptx_configuration_select(
+		const struct a2dp_codec *codec,
+		void *capabilities) {
+
+	a2dp_aptx_t *caps = capabilities;
+	const a2dp_aptx_t saved = *caps;
+
+	/* narrow capabilities to values supported by BlueALSA */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				caps, sizeof(*caps)) != 0)
+		return -1;
+
+	const struct a2dp_sampling *sampling;
+	if ((sampling = a2dp_sampling_select(a2dp_aptx_samplings, caps->frequency)) != NULL)
+		caps->frequency = sampling->value;
+	else {
+		error("apt-X: No supported sampling frequencies: %#x", saved.frequency);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_select(a2dp_aptx_channels, caps->channel_mode)) != NULL)
+		caps->channel_mode = chm->value;
+	else {
+		error("apt-X: No supported channel modes: %#x", saved.channel_mode);
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
+}
+
 static int a2dp_aptx_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -266,7 +297,7 @@ static int a2dp_aptx_transport_init(struct ba_transport *t) {
 
 static int a2dp_aptx_source_init(struct a2dp_codec *codec) {
 	if (config.a2dp.force_mono)
-		warn("Apt-X mono channel mode not supported");
+		warn("apt-X: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
 		codec->capabilities.aptx.frequency = APTX_SAMPLING_FREQ_44100;
 	return 0;
@@ -296,6 +327,7 @@ struct a2dp_codec a2dp_aptx_source = {
 	.channels[0] = a2dp_aptx_channels,
 	.samplings[0] = a2dp_aptx_samplings,
 	.init = a2dp_aptx_source_init,
+	.configuration_select = a2dp_aptx_configuration_select,
 	.transport_init = a2dp_aptx_transport_init,
 	.transport_start = a2dp_aptx_source_transport_start,
 };
@@ -325,6 +357,7 @@ struct a2dp_codec a2dp_aptx_sink = {
 	.capabilities_size = sizeof(a2dp_aptx_t),
 	.channels[0] = a2dp_aptx_channels,
 	.samplings[0] = a2dp_aptx_samplings,
+	.configuration_select = a2dp_aptx_configuration_select,
 	.transport_init = a2dp_aptx_transport_init,
 	.transport_start = a2dp_aptx_sink_transport_start,
 };

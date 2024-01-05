@@ -475,6 +475,53 @@ static const struct a2dp_sampling a2dp_mpeg_samplings[] = {
 	{ 0 },
 };
 
+static int a2dp_mpeg_configuration_select(
+		const struct a2dp_codec *codec,
+		void *capabilities) {
+
+	a2dp_mpeg_t *caps = capabilities;
+	const a2dp_mpeg_t saved = *caps;
+
+	/* narrow capabilities to values supported by BlueALSA */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				caps, sizeof(*caps)) != 0)
+		return -1;
+
+	if (caps->layer & MPEG_LAYER_MP3)
+		caps->layer = MPEG_LAYER_MP3;
+	else if (caps->layer & MPEG_LAYER_MP2)
+		caps->layer = MPEG_LAYER_MP2;
+	else if (caps->layer & MPEG_LAYER_MP1)
+		caps->layer = MPEG_LAYER_MP1;
+	else {
+		error("MPEG: No supported layers: %#x", saved.layer);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_select(a2dp_mpeg_channels, caps->channel_mode)) != NULL)
+		caps->channel_mode = chm->value;
+	else {
+		error("MPEG: No supported channel modes: %#x", saved.channel_mode);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_sampling *sampling;
+	if ((sampling = a2dp_sampling_select(a2dp_mpeg_samplings, caps->frequency)) != NULL)
+		caps->frequency = sampling->value;
+	else {
+		error("MPEG: No supported sampling frequencies: %#x", saved.frequency);
+		return errno = ENOTSUP, -1;
+	}
+
+	/* do not waste bits for CRC protection */
+	caps->crc = 0;
+	/* do not use MPF-2 */
+	caps->mpf = 0;
+
+	return 0;
+}
+
 static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -557,6 +604,7 @@ struct a2dp_codec a2dp_mpeg_source = {
 	.channels[0] = a2dp_mpeg_channels,
 	.samplings[0] = a2dp_mpeg_samplings,
 	.init = a2dp_mpeg_source_init,
+	.configuration_select = a2dp_mpeg_configuration_select,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_source_transport_start,
 	/* TODO: This is an optional but covered by the A2DP spec codec,
@@ -633,6 +681,7 @@ struct a2dp_codec a2dp_mpeg_sink = {
 	.capabilities_size = sizeof(a2dp_mpeg_t),
 	.channels[0] = a2dp_mpeg_channels,
 	.samplings[0] = a2dp_mpeg_samplings,
+	.configuration_select = a2dp_mpeg_configuration_select,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_sink_transport_start,
 	.enabled = false,

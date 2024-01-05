@@ -15,9 +15,7 @@
 #endif
 
 #include <errno.h>
-#include <limits.h>
 #include <stdbool.h>
-#include <string.h>
 #include <strings.h>
 
 #include <glib.h>
@@ -46,7 +44,6 @@
 #include "a2dp-sbc.h"
 #include "ba-transport.h"
 #include "bluealsa-config.h"
-#include "codec-sbc.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
 #include "shared/log.h"
@@ -509,9 +506,10 @@ uint32_t a2dp_check_configuration(
 }
 
 /**
- * Narrow A2DP codec capabilities to values supported by BlueALSA. */
+ * Filter A2DP codec capabilities with given capabilities mask. */
 int a2dp_filter_capabilities(
 		const struct a2dp_codec *codec,
+		const void *capabilities_mask,
 		void *capabilities,
 		size_t size) {
 
@@ -520,386 +518,31 @@ int a2dp_filter_capabilities(
 		return errno = EINVAL, -1;
 	}
 
-	a2dp_t tmp;
-	g_assert_cmpuint(sizeof(tmp), >=, size);
+	const uint8_t *caps_mask = capabilities_mask;
+	uint8_t *caps = capabilities;
 
-	size_t i;
-	for (i = 0; i < size; i++)
-		((uint8_t *)&tmp)[i] = ((uint8_t *)capabilities)[i] & ((uint8_t *)&codec->capabilities)[i];
+	if (codec->capabilities_filter != NULL)
+		return codec->capabilities_filter(codec, caps_mask, caps);
 
-	switch (codec->codec_id) {
-	case A2DP_CODEC_SBC:
-		tmp.sbc.min_bitpool = MAX(
-			((a2dp_sbc_t *)capabilities)->min_bitpool,
-			codec->capabilities.sbc.min_bitpool);
-		tmp.sbc.max_bitpool = MIN(
-			((a2dp_sbc_t *)capabilities)->max_bitpool,
-			codec->capabilities.sbc.max_bitpool);
-		break;
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12:
-		break;
-#endif
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24:
-		AAC_SET_BITRATE(tmp.aac, MIN(
-					AAC_GET_BITRATE(*(a2dp_aac_t *)capabilities),
-					AAC_GET_BITRATE(codec->capabilities.aac)));
-		break;
-#endif
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX:
-		break;
-#endif
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		break;
-#endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		break;
-#endif
-#if ENABLE_LC3PLUS
-	case A2DP_CODEC_VENDOR_LC3PLUS:
-		break;
-#endif
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		break;
-#endif
-	default:
-		g_assert_not_reached();
-	}
+	/* perform simple bitwise AND operation on given capabilities */
+	for (size_t i = 0; i < codec->capabilities_size; i++)
+		caps[i] = caps[i] & caps_mask[i];
 
-	memcpy(capabilities, &tmp, size);
 	return 0;
 }
 
 /**
- * Select (best) A2DP codec configuration. */
+ * Select best possible A2DP codec configuration. */
 int a2dp_select_configuration(
 		const struct a2dp_codec *codec,
 		void *capabilities,
 		size_t size) {
 
-	if (size != codec->capabilities_size) {
-		error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
-		return errno = EINVAL, -1;
-	}
+	if (size == codec->capabilities_size)
+		return codec->configuration_select(codec, capabilities);
 
-	a2dp_t tmp;
-	/* save original capabilities blob for later */
-	memcpy(&tmp, capabilities, size);
-
-	/* Narrow capabilities to values supported by BlueALSA. */
-	if (a2dp_filter_capabilities(codec, capabilities, size) != 0)
-		return -1;
-
-	switch (codec->codec_id) {
-	case A2DP_CODEC_SBC: {
-		a2dp_sbc_t *cap = capabilities;
-
-		const struct a2dp_channel_mode *chm;
-		const uint8_t cap_channel_mode = cap->channel_mode;
-		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap_channel_mode)) != NULL)
-			cap->channel_mode = chm->value;
-		else {
-			error("SBC: No supported channel modes: %#x", tmp.sbc.channel_mode);
-			goto fail;
-		}
-
-		if (config.sbc_quality == SBC_QUALITY_XQ ||
-				config.sbc_quality == SBC_QUALITY_XQPLUS) {
-			if (cap_channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-				cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-			else
-				warn("SBC XQ: Dual channel mode not supported: %#x", tmp.sbc.channel_mode);
-		}
-
-		const struct a2dp_sampling *sampling;
-		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
-			cap->frequency = sampling->value;
-		else {
-			error("SBC: No supported sampling frequencies: %#x", tmp.sbc.frequency);
-			goto fail;
-		}
-
-		const uint8_t cap_block_length = cap->block_length;
-		if (cap_block_length & SBC_BLOCK_LENGTH_16)
-			cap->block_length = SBC_BLOCK_LENGTH_16;
-		else if (cap_block_length & SBC_BLOCK_LENGTH_12)
-			cap->block_length = SBC_BLOCK_LENGTH_12;
-		else if (cap_block_length & SBC_BLOCK_LENGTH_8)
-			cap->block_length = SBC_BLOCK_LENGTH_8;
-		else if (cap_block_length & SBC_BLOCK_LENGTH_4)
-			cap->block_length = SBC_BLOCK_LENGTH_4;
-		else {
-			error("SBC: No supported block lengths: %#x", tmp.sbc.block_length);
-			goto fail;
-		}
-
-		const uint8_t cap_subbands = cap->subbands;
-		if (cap_subbands & SBC_SUBBANDS_8)
-			cap->subbands = SBC_SUBBANDS_8;
-		else if (cap_subbands & SBC_SUBBANDS_4)
-			cap->subbands = SBC_SUBBANDS_4;
-		else {
-			error("SBC: No supported sub-bands: %#x", tmp.sbc.subbands);
-			goto fail;
-		}
-
-		const uint8_t cap_allocation_method = cap->allocation_method;
-		if (cap_allocation_method & SBC_ALLOCATION_LOUDNESS)
-			cap->allocation_method = SBC_ALLOCATION_LOUDNESS;
-		else if (cap_allocation_method & SBC_ALLOCATION_SNR)
-			cap->allocation_method = SBC_ALLOCATION_SNR;
-		else {
-			error("SBC: No supported allocation method: %#x", tmp.sbc.allocation_method);
-			goto fail;
-		}
-
-		break;
-	}
-
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12: {
-		a2dp_mpeg_t *cap = capabilities;
-
-		const uint8_t cap_layer = cap->layer;
-		if (cap_layer & MPEG_LAYER_MP3)
-			cap->layer = MPEG_LAYER_MP3;
-		else if (cap_layer & MPEG_LAYER_MP2)
-			cap->layer = MPEG_LAYER_MP2;
-		else if (cap_layer & MPEG_LAYER_MP1)
-			cap->layer = MPEG_LAYER_MP1;
-		else {
-			error("MPEG: No supported layer: %#x", tmp.mpeg.layer);
-			goto fail;
-		}
-
-		const struct a2dp_channel_mode *chm;
-		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channel_mode)) != NULL)
-			cap->channel_mode = chm->value;
-		else {
-			error("MPEG: No supported channel modes: %#x", tmp.mpeg.channel_mode);
-			goto fail;
-		}
-
-		const struct a2dp_sampling *sampling;
-		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
-			cap->frequency = sampling->value;
-		else {
-			error("MPEG: No supported sampling frequencies: %#x", tmp.mpeg.frequency);
-			goto fail;
-		}
-
-		/* do not waste bits for CRC protection */
-		cap->crc = 0;
-		/* do not use MPF-2 */
-		cap->mpf = 0;
-
-		break;
-	}
-#endif
-
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24: {
-		a2dp_aac_t *cap = capabilities;
-
-		const uint8_t cap_object_type = cap->object_type;
-		if (cap_object_type & AAC_OBJECT_TYPE_MPEG4_AAC_SCA)
-			cap->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
-		else if (cap_object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LTP)
-			cap->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP;
-		else if (cap_object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LC)
-			cap->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LC;
-		else if (cap_object_type & AAC_OBJECT_TYPE_MPEG2_AAC_LC)
-			cap->object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC;
-		else {
-			error("AAC: No supported object type: %#x", tmp.aac.object_type);
-			goto fail;
-		}
-
-		const struct a2dp_channel_mode *chm;
-		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channels)) != NULL)
-			cap->channels = chm->value;
-		else {
-			error("AAC: No supported channels: %#x", tmp.aac.channels);
-			goto fail;
-		}
-
-		const struct a2dp_sampling *sampling;
-		const unsigned int cap_frequency = AAC_GET_FREQUENCY(*cap);
-		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap_frequency)) != NULL)
-			AAC_SET_FREQUENCY(*cap, sampling->value);
-		else {
-			error("AAC: No supported sampling frequencies: %#x", AAC_GET_FREQUENCY(tmp.aac));
-			goto fail;
-		}
-
-		unsigned int ba_bitrate = AAC_GET_BITRATE(codec->capabilities.aac);
-		unsigned int peer_bitrate = AAC_GET_BITRATE(*cap);
-		if (peer_bitrate == 0)
-			/* fix bitrate value if it was not set */
-			peer_bitrate = UINT_MAX;
-		AAC_SET_BITRATE(*cap, MIN(ba_bitrate, peer_bitrate));
-
-		if (!config.aac_prefer_vbr)
-			cap->vbr = 0;
-
-		break;
-	}
-#endif
-
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX: {
-		a2dp_aptx_t *cap = capabilities;
-
-		const struct a2dp_channel_mode *chm;
-		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channel_mode)) != NULL)
-			cap->channel_mode = chm->value;
-		else {
-			error("apt-X: No supported channel modes: %#x", tmp.aptx.channel_mode);
-			goto fail;
-		}
-
-		const struct a2dp_sampling *sampling;
-		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
-			cap->frequency = sampling->value;
-		else {
-			error("apt-X: No supported sampling frequencies: %#x", tmp.aptx.frequency);
-			goto fail;
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD: {
-		a2dp_aptx_hd_t *cap = capabilities;
-
-		const struct a2dp_channel_mode *chm;
-		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->aptx.channel_mode)) != NULL)
-			cap->aptx.channel_mode = chm->value;
-		else {
-			error("apt-X HD: No supported channel modes: %#x", tmp.aptx_hd.aptx.channel_mode);
-			goto fail;
-		}
-
-		const struct a2dp_sampling *sampling;
-		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->aptx.frequency)) != NULL)
-			cap->aptx.frequency = sampling->value;
-		else {
-			error("apt-X HD: No supported sampling frequencies: %#x", tmp.aptx_hd.aptx.frequency);
-			goto fail;
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM: {
-		a2dp_faststream_t *cap = capabilities;
-
-		const struct a2dp_sampling *sampling_m;
-		if ((sampling_m = a2dp_sampling_select(codec->samplings[0], cap->frequency_music)) != NULL)
-			cap->frequency_music = sampling_m->value;
-		else {
-			error("FastStream: No supported sampling frequencies: %#x",
-					tmp.faststream.frequency_music);
-			goto fail;
-		}
-
-		const struct a2dp_sampling *sampling_v;
-		if ((sampling_v = a2dp_sampling_select(codec->samplings[1], cap->frequency_voice)) != NULL)
-			cap->frequency_voice = sampling_v->value;
-		else {
-			error("FastStream: No supported back-channel sampling frequencies: %#x",
-					tmp.faststream.frequency_voice);
-			goto fail;
-		}
-
-		if ((cap->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
-			error("FastStream: No supported directions: %#x", tmp.faststream.direction);
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_LC3PLUS
-	case A2DP_CODEC_VENDOR_LC3PLUS: {
-		a2dp_lc3plus_t *cap = capabilities;
-
-		const uint8_t cap_frame_duration = cap->frame_duration;
-		if (cap_frame_duration & LC3PLUS_FRAME_DURATION_100)
-			cap->frame_duration = LC3PLUS_FRAME_DURATION_100;
-		else if (cap_frame_duration & LC3PLUS_FRAME_DURATION_050)
-			cap->frame_duration = LC3PLUS_FRAME_DURATION_050;
-		else if (cap_frame_duration & LC3PLUS_FRAME_DURATION_025)
-			cap->frame_duration = LC3PLUS_FRAME_DURATION_025;
-		else {
-			error("LC3plus: No supported frame duration: %#x", tmp.lc3plus.frame_duration);
-			goto fail;
-		}
-
-		const struct a2dp_channel_mode *chm;
-		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channels)) != NULL)
-			cap->channels = chm->value;
-		else {
-			error("LC3plus: No supported channels: %#x", tmp.lc3plus.channels);
-			goto fail;
-		}
-
-		const struct a2dp_sampling *sampling;
-		const unsigned int cap_frequency = LC3PLUS_GET_FREQUENCY(*cap);
-		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap_frequency)) != NULL)
-			LC3PLUS_SET_FREQUENCY(*cap, sampling->value);
-		else {
-			error("LC3plus: No supported sampling frequencies: %#x",
-					LC3PLUS_GET_FREQUENCY(tmp.lc3plus));
-			goto fail;
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC: {
-		a2dp_ldac_t *cap = capabilities;
-
-		const struct a2dp_channel_mode *chm;
-		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channel_mode)) != NULL)
-			cap->channel_mode = chm->value;
-		else {
-			error("LDAC: No supported channel modes: %#x", tmp.ldac.channel_mode);
-			goto fail;
-		}
-
-		const struct a2dp_sampling *sampling;
-		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
-			cap->frequency = sampling->value;
-		else {
-			error("LDAC: No supported sampling frequencies: %#x", tmp.ldac.frequency);
-			goto fail;
-		}
-
-		break;
-	}
-#endif
-
-	default:
-		g_assert_not_reached();
-	}
-
-	return 0;
-
-fail:
-	errno = ENOTSUP;
-	return -1;
+	error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
+	return errno = EINVAL, -1;
 }
 
 int a2dp_transport_init(

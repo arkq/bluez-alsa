@@ -547,6 +547,49 @@ static const struct a2dp_sampling a2dp_lc3plus_samplings[] = {
 	{ 0 },
 };
 
+static int a2dp_lc3plus_configuration_select(
+		const struct a2dp_codec *codec,
+		void *capabilities) {
+
+	a2dp_lc3plus_t *caps = capabilities;
+	const a2dp_lc3plus_t saved = *caps;
+
+	/* narrow capabilities to values supported by BlueALSA */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				caps, sizeof(*caps)) != 0)
+		return -1;
+
+	if (caps->frame_duration & LC3PLUS_FRAME_DURATION_100)
+		caps->frame_duration = LC3PLUS_FRAME_DURATION_100;
+	else if (caps->frame_duration & LC3PLUS_FRAME_DURATION_050)
+		caps->frame_duration = LC3PLUS_FRAME_DURATION_050;
+	else if (caps->frame_duration & LC3PLUS_FRAME_DURATION_025)
+		caps->frame_duration = LC3PLUS_FRAME_DURATION_025;
+	else {
+		error("LC3plus: No supported frame durations: %#x", saved.frame_duration);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_select(a2dp_lc3plus_channels, caps->channels)) != NULL)
+		caps->channels = chm->value;
+	else {
+		error("LC3plus: No supported channels: %#x", saved.channels);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_sampling *sampling;
+	const uint16_t caps_frequency = LC3PLUS_GET_FREQUENCY(*caps);
+	if ((sampling = a2dp_sampling_select(a2dp_lc3plus_samplings, caps_frequency)) != NULL)
+		LC3PLUS_SET_FREQUENCY(*caps, sampling->value);
+	else {
+		error("LC3plus: No supported sampling frequencies: %#x", LC3PLUS_GET_FREQUENCY(saved));
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
+}
+
 static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -570,7 +613,7 @@ static int a2dp_lc3plus_source_init(struct a2dp_codec *codec) {
 	if (config.a2dp.force_mono)
 		codec->capabilities.lc3plus.channels = LC3PLUS_CHANNELS_1;
 	if (config.a2dp.force_44100)
-		warn("LC3plus 44.1 kHz sampling frequency not supported");
+		warn("LC3plus: 44.1 kHz sampling frequency not supported");
 	return 0;
 }
 
@@ -599,6 +642,7 @@ struct a2dp_codec a2dp_lc3plus_source = {
 	.channels[0] = a2dp_lc3plus_channels,
 	.samplings[0] = a2dp_lc3plus_samplings,
 	.init = a2dp_lc3plus_source_init,
+	.configuration_select = a2dp_lc3plus_configuration_select,
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_source_transport_start,
 };
@@ -627,6 +671,7 @@ struct a2dp_codec a2dp_lc3plus_sink = {
 	.capabilities_size = sizeof(a2dp_lc3plus_t),
 	.channels[0] = a2dp_lc3plus_channels,
 	.samplings[0] = a2dp_lc3plus_samplings,
+	.configuration_select = a2dp_lc3plus_configuration_select,
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_sink_transport_start,
 };

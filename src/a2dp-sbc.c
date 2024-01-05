@@ -22,6 +22,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <glib.h>
 #include <sbc/sbc.h>
 
 #include "a2dp.h"
@@ -334,6 +335,103 @@ static const struct a2dp_sampling a2dp_sbc_samplings[] = {
 	{ 0 },
 };
 
+static int a2dp_sbc_capabilities_filter(
+		const struct a2dp_codec *codec,
+		const void *capabilities_mask,
+		void *capabilities) {
+
+	(void)codec;
+	const a2dp_sbc_t *caps_mask = capabilities_mask;
+	a2dp_sbc_t *caps = capabilities;
+
+	uint8_t min = MAX(caps->min_bitpool, caps_mask->min_bitpool);
+	uint8_t max = MIN(caps->max_bitpool, caps_mask->max_bitpool);
+
+	for (size_t i = 0; i < sizeof(*caps); i++)
+		((uint8_t *)caps)[i] = ((uint8_t *)caps)[i] & ((uint8_t *)caps_mask)[i];
+
+	caps->min_bitpool = min;
+	caps->max_bitpool = max;
+
+	return 0;
+}
+
+static int a2dp_sbc_configuration_select(
+		const struct a2dp_codec *codec,
+		void *capabilities) {
+
+	a2dp_sbc_t *caps = capabilities;
+	const a2dp_sbc_t saved = *caps;
+
+	/* narrow capabilities to values supported by BlueALSA */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				caps, sizeof(*caps)) != 0)
+		return -1;
+
+	const struct a2dp_sampling *sampling;
+	const uint8_t caps_frequency = caps->frequency;
+	if ((sampling = a2dp_sampling_select(a2dp_sbc_samplings, caps_frequency)) != NULL)
+		caps->frequency = sampling->value;
+	else {
+		error("SBC: No supported sampling frequencies: %#x", saved.frequency);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_channel_mode *chm;
+	const uint8_t caps_channel_mode = caps->channel_mode;
+	if ((chm = a2dp_channel_mode_select(a2dp_sbc_channels, caps_channel_mode)) != NULL)
+		caps->channel_mode = chm->value;
+	else {
+		error("SBC: No supported channel modes: %#x", saved.channel_mode);
+		return errno = ENOTSUP, -1;
+	}
+
+	if (config.sbc_quality == SBC_QUALITY_XQ ||
+			config.sbc_quality == SBC_QUALITY_XQPLUS) {
+		if (caps_frequency & SBC_SAMPLING_FREQ_44100)
+			caps->frequency = SBC_SAMPLING_FREQ_44100;
+		else
+			warn("SBC XQ: 44.1 kHz sampling frequency not supported: %#x", saved.frequency);
+		if (caps_channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+			caps->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+		else
+			warn("SBC XQ: Dual channel mode not supported: %#x", saved.channel_mode);
+	}
+
+	if (caps->block_length & SBC_BLOCK_LENGTH_16)
+		caps->block_length = SBC_BLOCK_LENGTH_16;
+	else if (caps->block_length & SBC_BLOCK_LENGTH_12)
+		caps->block_length = SBC_BLOCK_LENGTH_12;
+	else if (caps->block_length & SBC_BLOCK_LENGTH_8)
+		caps->block_length = SBC_BLOCK_LENGTH_8;
+	else if (caps->block_length & SBC_BLOCK_LENGTH_4)
+		caps->block_length = SBC_BLOCK_LENGTH_4;
+	else {
+		error("SBC: No supported block lengths: %#x", saved.block_length);
+		return errno = ENOTSUP, -1;
+	}
+
+	if (caps->subbands & SBC_SUBBANDS_8)
+		caps->subbands = SBC_SUBBANDS_8;
+	else if (caps->subbands & SBC_SUBBANDS_4)
+		caps->subbands = SBC_SUBBANDS_4;
+	else {
+		error("SBC: No supported sub-bands: %#x", saved.subbands);
+		return errno = ENOTSUP, -1;
+	}
+
+	if (caps->allocation_method & SBC_ALLOCATION_LOUDNESS)
+		caps->allocation_method = SBC_ALLOCATION_LOUDNESS;
+	else if (caps->allocation_method & SBC_ALLOCATION_SNR)
+		caps->allocation_method = SBC_ALLOCATION_SNR;
+	else {
+		error("SBC: No supported allocation methods: %#x", saved.allocation_method);
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
+}
+
 static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -355,12 +453,12 @@ static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
 static int a2dp_sbc_source_init(struct a2dp_codec *codec) {
 
-	bool is_xq = false;
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
-		info("Activating SBC Dual Channel HD (SBC %s)",
+		info("SBC: Activating SBC Dual Channel HD (SBC %s)",
 				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
-		is_xq = true;
+		codec->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+		codec->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 	}
 
 	if (config.a2dp.force_mono)
@@ -370,7 +468,7 @@ static int a2dp_sbc_source_init(struct a2dp_codec *codec) {
 		 * though we are supporting only mono mode, there will be a match when
 		 * selecting configuration. */
 		codec->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
-	if (config.a2dp.force_44100 && is_xq)
+	if (config.a2dp.force_44100)
 		codec->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
 
 	return 0;
@@ -413,6 +511,8 @@ struct a2dp_codec a2dp_sbc_source = {
 	.channels[0] = a2dp_sbc_channels,
 	.samplings[0] = a2dp_sbc_samplings,
 	.init = a2dp_sbc_source_init,
+	.capabilities_filter = a2dp_sbc_capabilities_filter,
+	.configuration_select = a2dp_sbc_configuration_select,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_source_transport_start,
 	.enabled = true,
@@ -454,6 +554,8 @@ struct a2dp_codec a2dp_sbc_sink = {
 	.capabilities_size = sizeof(a2dp_sbc_t),
 	.channels[0] = a2dp_sbc_channels,
 	.samplings[0] = a2dp_sbc_samplings,
+	.capabilities_filter = a2dp_sbc_capabilities_filter,
+	.configuration_select = a2dp_sbc_configuration_select,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_sink_transport_start,
 	.enabled = true,

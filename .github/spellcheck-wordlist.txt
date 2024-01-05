@@ -81,6 +81,7 @@ conf
 const
 dereferenced
 duplications
+durations
 endian
 endianness
 enum

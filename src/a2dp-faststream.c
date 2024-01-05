@@ -251,6 +251,44 @@ static const struct a2dp_sampling a2dp_faststream_samplings_voice[] = {
 	{ 0 },
 };
 
+static int a2dp_faststream_configuration_select(
+		const struct a2dp_codec *codec,
+		void *capabilities) {
+
+	a2dp_faststream_t *caps = capabilities;
+	const a2dp_faststream_t saved = *caps;
+
+	/* narrow capabilities to values supported by BlueALSA */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				caps, sizeof(*caps)) != 0)
+		return -1;
+
+	if ((caps->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
+		error("FastStream: No supported directions: %#x", saved.direction);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_sampling *sampling_v;
+	if (caps->direction & FASTSTREAM_DIRECTION_VOICE &&
+			(sampling_v = a2dp_sampling_select(a2dp_faststream_samplings_voice, caps->frequency_voice)) != NULL)
+		caps->frequency_voice = sampling_v->value;
+	else {
+		error("FastStream: No supported voice sampling frequencies: %#x", saved.frequency_voice);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_sampling *sampling_m;
+	if (caps->direction & FASTSTREAM_DIRECTION_MUSIC &&
+			(sampling_m = a2dp_sampling_select(a2dp_faststream_samplings_music, caps->frequency_music)) != NULL)
+		caps->frequency_music = sampling_m->value;
+	else {
+		error("FastStream: No supported music sampling frequencies: %#x", saved.frequency_music);
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
+}
+
 static int a2dp_faststream_transport_init(struct ba_transport *t) {
 
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
@@ -284,7 +322,7 @@ static int a2dp_faststream_transport_init(struct ba_transport *t) {
 
 static int a2dp_faststream_source_init(struct a2dp_codec *codec) {
 	if (config.a2dp.force_mono)
-		warn("FastStream mono channel mode not supported");
+		warn("FastStream: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
 		codec->capabilities.faststream.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
 	return 0;
@@ -321,6 +359,7 @@ struct a2dp_codec a2dp_faststream_source = {
 	.samplings[0] = a2dp_faststream_samplings_music,
 	.samplings[1] = a2dp_faststream_samplings_voice,
 	.init = a2dp_faststream_source_init,
+	.configuration_select = a2dp_faststream_configuration_select,
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_source_transport_start,
 };
@@ -355,6 +394,7 @@ struct a2dp_codec a2dp_faststream_sink = {
 	.capabilities_size = sizeof(a2dp_faststream_t),
 	.samplings[0] = a2dp_faststream_samplings_music,
 	.samplings[1] = a2dp_faststream_samplings_voice,
+	.configuration_select = a2dp_faststream_configuration_select,
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_sink_transport_start,
 };

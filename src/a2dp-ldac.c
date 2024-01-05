@@ -337,6 +337,37 @@ static const struct a2dp_sampling a2dp_ldac_samplings[] = {
 	{ 0 },
 };
 
+static int a2dp_ldac_configuration_select(
+		const struct a2dp_codec *codec,
+		void *capabilities) {
+
+	a2dp_ldac_t *caps = capabilities;
+	const a2dp_ldac_t saved = *caps;
+
+	/* narrow capabilities to values supported by BlueALSA */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				caps, sizeof(*caps)) != 0)
+		return -1;
+
+	const struct a2dp_sampling *sampling;
+	if ((sampling = a2dp_sampling_select(a2dp_ldac_samplings, caps->frequency)) != NULL)
+		caps->frequency = sampling->value;
+	else {
+		error("LDAC: No supported sampling frequencies: %#x", saved.frequency);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_select(a2dp_ldac_channels, caps->channel_mode)) != NULL)
+		caps->channel_mode = chm->value;
+	else {
+		error("LDAC: No supported channel modes: %#x", saved.channel_mode);
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
+}
+
 static int a2dp_ldac_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -392,6 +423,7 @@ struct a2dp_codec a2dp_ldac_source = {
 	.channels[0] = a2dp_ldac_channels,
 	.samplings[0] = a2dp_ldac_samplings,
 	.init = a2dp_ldac_source_init,
+	.configuration_select = a2dp_ldac_configuration_select,
 	.transport_init = a2dp_ldac_transport_init,
 	.transport_start = a2dp_ldac_source_transport_start,
 };
@@ -423,6 +455,7 @@ struct a2dp_codec a2dp_ldac_sink = {
 	.capabilities_size = sizeof(a2dp_ldac_t),
 	.channels[0] = a2dp_ldac_channels,
 	.samplings[0] = a2dp_ldac_samplings,
+	.configuration_select = a2dp_ldac_configuration_select,
 	.transport_init = a2dp_ldac_transport_init,
 	.transport_start = a2dp_ldac_sink_transport_start,
 };

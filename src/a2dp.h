@@ -69,6 +69,19 @@ struct a2dp_codec {
 	/* callback function for codec initialization */
 	int (*init)(struct a2dp_codec *codec);
 
+	/* callback function for codec-specific capabilities filtering; if this
+	 * function is not provided, the a2dp_filter_capabilities() will return
+	 * simple bitwise AND of given capabilities */
+	int (*capabilities_filter)(
+			const struct a2dp_codec *codec,
+			const void *capabilities_mask,
+			void *capabilities);
+
+	/* callback function for selecting configuration */
+	int (*configuration_select)(
+			const struct a2dp_codec *codec,
+			void *capabilities);
+
 	int (*transport_init)(struct ba_transport *t);
 	int (*transport_start)(struct ba_transport *t);
 
@@ -145,6 +158,7 @@ uint32_t a2dp_check_configuration(
 
 int a2dp_filter_capabilities(
 		const struct a2dp_codec *codec,
+		const void *capabilities_mask,
 		void *capabilities,
 		size_t size);
 

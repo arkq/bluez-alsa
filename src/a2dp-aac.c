@@ -11,6 +11,7 @@
 #include "a2dp-aac.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -22,6 +23,8 @@
 #include <fdk-aac/aacenc_lib.h>
 #define AACENCODER_LIB_VERSION LIB_VERSION( \
 		AACENCODER_LIB_VL0, AACENCODER_LIB_VL1, AACENCODER_LIB_VL2)
+
+#include <glib.h>
 
 #include "a2dp.h"
 #include "ba-transport.h"
@@ -475,6 +478,80 @@ static const struct a2dp_sampling a2dp_aac_samplings[] = {
 	{ 0 },
 };
 
+static int a2dp_aac_capabilities_filter(
+		const struct a2dp_codec *codec,
+		const void *capabilities_mask,
+		void *capabilities) {
+
+	(void)codec;
+	const a2dp_aac_t *caps_mask = capabilities_mask;
+	a2dp_aac_t *caps = capabilities;
+
+	int rate = MIN(AAC_GET_BITRATE(*caps), AAC_GET_BITRATE(*caps_mask));
+
+	for (size_t i = 0; i < sizeof(*caps); i++)
+		((uint8_t *)caps)[i] = ((uint8_t *)caps)[i] & ((uint8_t *)caps_mask)[i];
+
+	AAC_SET_BITRATE(*caps, rate);
+
+	return 0;
+}
+
+static int a2dp_aac_configuration_select(
+		const struct a2dp_codec *codec,
+		void *capabilities) {
+
+	a2dp_aac_t *caps = capabilities;
+	const a2dp_aac_t saved = *caps;
+
+	/* narrow capabilities to values supported by BlueALSA */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				caps, sizeof(*caps)) != 0)
+		return -1;
+
+	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_SCA)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LTP)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LC)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LC;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG2_AAC_LC)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC;
+	else {
+		error("AAC: No supported object types: %#x", saved.object_type);
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_sampling *sampling;
+	const uint16_t caps_frequency = AAC_GET_FREQUENCY(*caps);
+	if ((sampling = a2dp_sampling_select(a2dp_aac_samplings, caps_frequency)) != NULL)
+		AAC_SET_FREQUENCY(*caps, sampling->value);
+	else {
+		error("AAC: No supported sampling frequencies: %#x", AAC_GET_FREQUENCY(saved));
+		return errno = ENOTSUP, -1;
+	}
+
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_select(a2dp_aac_channels, caps->channels)) != NULL)
+		caps->channels = chm->value;
+	else {
+		error("AAC: No supported channels: %#x", saved.channels);
+		return errno = ENOTSUP, -1;
+	}
+
+	unsigned int ba_bitrate = AAC_GET_BITRATE(codec->capabilities.aac);
+	unsigned int cap_bitrate = AAC_GET_BITRATE(*caps);
+	if (cap_bitrate == 0)
+		/* fix bitrate value if it was not set */
+		cap_bitrate = UINT_MAX;
+	AAC_SET_BITRATE(*caps, MIN(cap_bitrate, ba_bitrate));
+
+	if (!config.aac_prefer_vbr)
+		caps->vbr = 0;
+
+	return 0;
+}
+
 static int a2dp_aac_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -556,6 +633,8 @@ struct a2dp_codec a2dp_aac_source = {
 	.channels[0] = a2dp_aac_channels,
 	.samplings[0] = a2dp_aac_samplings,
 	.init = a2dp_aac_source_init,
+	.capabilities_filter = a2dp_aac_capabilities_filter,
+	.configuration_select = a2dp_aac_configuration_select,
 	.transport_init = a2dp_aac_transport_init,
 	.transport_start = a2dp_aac_source_transport_start,
 	.enabled = true,
@@ -615,6 +694,8 @@ struct a2dp_codec a2dp_aac_sink = {
 	.channels[0] = a2dp_aac_channels,
 	.samplings[0] = a2dp_aac_samplings,
 	.init = a2dp_aac_sink_init,
+	.capabilities_filter = a2dp_aac_capabilities_filter,
+	.configuration_select = a2dp_aac_configuration_select,
 	.transport_init = a2dp_aac_transport_init,
 	.transport_start = a2dp_aac_sink_transport_start,
 	.enabled = true,

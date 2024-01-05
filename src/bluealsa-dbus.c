@@ -296,10 +296,10 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 	if (!codec->enabled)
 		return false;
 
-	uint8_t caps[sizeof(sep->capabilities)];
+	a2dp_t caps = sep->capabilities;
 	size_t size = MIN(sep->capabilities_size, sizeof(caps));
-	if (a2dp_filter_capabilities(codec, memcpy(caps, &sep->capabilities, size), size) != 0) {
-		error("Couldn't filter %s capabilities: %s",
+	if (a2dp_filter_capabilities(codec, &codec->capabilities, &caps, size) != 0) {
+		error("Couldn't filter %s SEP capabilities: %s",
 				a2dp_codecs_codec_id_to_string(sep->codec_id),
 				strerror(errno));
 		return false;
@@ -307,42 +307,7 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_se
 
 	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, caps, size, sizeof(uint8_t)));
-
-	switch (codec->codec_id) {
-	case A2DP_CODEC_SBC:
-		break;
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12:
-		break;
-#endif
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24:
-		break;
-#endif
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX:
-		break;
-#endif
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD:
-		break;
-#endif
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM:
-		break;
-#endif
-#if ENABLE_LC3PLUS
-	case A2DP_CODEC_VENDOR_LC3PLUS:
-		break;
-#endif
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC:
-		break;
-#endif
-	default:
-		g_assert_not_reached();
-	}
+				G_VARIANT_TYPE_BYTE, &caps, size, sizeof(uint8_t)));
 
 	return true;
 }
@@ -702,13 +667,22 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			goto fail;
 		}
 
-		/* setup default codec configuration */
-		memcpy(&sep->configuration, &sep->capabilities, sep->capabilities_size);
-		if (a2dp_select_configuration(codec, &sep->configuration, sep->capabilities_size) == -1)
-			goto fail;
+		if (a2dp_configuration_size == 0) {
+			/* setup default codec configuration */
 
-		/* use codec configuration blob provided by user */
-		if (a2dp_configuration_size != 0) {
+			memcpy(&sep->configuration, &sep->capabilities, sep->capabilities_size);
+			if (a2dp_select_configuration(codec, &sep->configuration, sep->capabilities_size) == -1)
+				goto fail;
+
+		}
+		else {
+			/* use codec configuration blob provided by user */
+
+			a2dp_filter_capabilities(codec, &sep->capabilities,
+					&a2dp_configuration, a2dp_configuration_size);
+			a2dp_filter_capabilities(codec, &codec->capabilities,
+					&a2dp_configuration, a2dp_configuration_size);
+
 			uint32_t rv;
 			if ((rv = a2dp_check_configuration(codec, &a2dp_configuration,
 						a2dp_configuration_size)) != A2DP_CHECK_OK) {
@@ -716,7 +690,9 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 				errmsg = "Invalid configuration blob";
 				goto fail;
 			}
+
 			memcpy(&sep->configuration, &a2dp_configuration, sep->capabilities_size);
+
 		}
 
 		if (ba_transport_select_codec_a2dp(t, sep) == -1)

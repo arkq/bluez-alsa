@@ -167,7 +167,7 @@ CK_START_TEST(test_a2dp_check_configuration) {
 
 CK_START_TEST(test_a2dp_filter_capabilities) {
 
-	a2dp_sbc_t cfg = {
+	a2dp_sbc_t caps = {
 		.frequency = SBC_SAMPLING_FREQ_44100,
 		.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO,
 		.block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8,
@@ -177,20 +177,23 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 		.max_bitpool = 255,
 	};
 
-	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source, &cfg, sizeof(cfg) + 1), -1);
+	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
+			&a2dp_sbc_source.capabilities, &caps, sizeof(caps) + 1), -1);
 	ck_assert_int_eq(errno, EINVAL);
 
-	hexdump("Capabilities original", &cfg, sizeof(cfg), true);
-	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
+	hexdump("Capabilities A", &caps, sizeof(caps), true);
+	hexdump("Capabilities B", &a2dp_sbc_source.capabilities, sizeof(caps), true);
+	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
+			&a2dp_sbc_source.capabilities, &caps, sizeof(caps)), 0);
 
-	hexdump("Capabilities filtered", &cfg, sizeof(cfg), true);
-	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_44100);
-	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
-	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);
-	ck_assert_int_eq(cfg.subbands, SBC_SUBBANDS_4);
-	ck_assert_int_eq(cfg.allocation_method, SBC_ALLOCATION_SNR);
-	ck_assert_int_eq(cfg.min_bitpool, MAX(SBC_MIN_BITPOOL, 42));
-	ck_assert_int_eq(cfg.max_bitpool, MIN(SBC_MAX_BITPOOL, 255));
+	hexdump("filterion", &caps, sizeof(caps), true);
+	ck_assert_int_eq(caps.frequency, SBC_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(caps.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
+	ck_assert_int_eq(caps.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);
+	ck_assert_int_eq(caps.subbands, SBC_SUBBANDS_4);
+	ck_assert_int_eq(caps.allocation_method, SBC_ALLOCATION_SNR);
+	ck_assert_int_eq(caps.min_bitpool, MAX(SBC_MIN_BITPOOL, 42));
+	ck_assert_int_eq(caps.max_bitpool, MIN(SBC_MAX_BITPOOL, 255));
 
 } CK_END_TEST
 
