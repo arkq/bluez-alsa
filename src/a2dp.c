@@ -177,49 +177,83 @@ const struct a2dp_codec *a2dp_codec_lookup(uint16_t codec_id, enum a2dp_dir dir)
 }
 
 /**
- * Lookup number of channels for given capability value.
+ * Lookup channel mode for given configuration.
  *
- * @param codec A2DP codec setup.
- * @param capability_value A2DP codec channel mode configuration value.
- * @param backchannel If true, lookup in the back-channel configuration.
- * @return On success this function returns the number of channels. Otherwise,
- *   if given capability value is not supported (or invalid), 0 is returned. */
-unsigned int a2dp_codec_lookup_channels(
-		const struct a2dp_codec *codec,
-		uint16_t capability_value,
-		bool backchannel) {
-
-	const size_t slot = backchannel ? 1 : 0;
-	size_t i;
-
-	for (i = 0; i < codec->channels_size[slot]; i++)
-		if (capability_value == codec->channels[slot][i].value)
-			return codec->channels[slot][i].channels;
-
-	return 0;
+ * @param channel_modes Zero-terminated array of A2DP codec channel modes.
+ * @param value A2DP codec channel mode configuration value.
+ * @return On success this function returns the channel mode. Otherwise, NULL
+ *  is returned. */
+const struct a2dp_channel_mode *a2dp_channel_mode_lookup(
+		const struct a2dp_channel_mode *channel_modes,
+		uint16_t value) {
+	for (size_t i = 0; channel_modes[i].value != 0; i++)
+		if (channel_modes[i].value == value)
+			return &channel_modes[i];
+	return NULL;
 }
 
 /**
- * Lookup sampling frequency for given capability value.
+ * Select channel mode based on given capabilities. */
+const struct a2dp_channel_mode *a2dp_channel_mode_select(
+		const struct a2dp_channel_mode *channel_modes,
+		uint16_t capabilities) {
+
+	/* If monophonic sound has been forced, check whether given codec supports
+	 * such a channel mode. Since mono channel mode shall be stored at index 0
+	 * we can simply check for its existence with a simple index lookup. */
+	if (config.a2dp.force_mono &&
+			channel_modes[0].mode == A2DP_CHM_MONO &&
+			capabilities & channel_modes[0].value)
+		return &channel_modes[0];
+
+	const struct a2dp_channel_mode *chm = NULL;
+
+	/* favor higher number of channels */
+	for (size_t i = 0; channel_modes[i].value != 0; i++)
+		if (capabilities & channel_modes[i].value)
+			chm = &channel_modes[i];
+
+	return chm;
+}
+
+/**
+ * Lookup sampling frequency for given configuration.
  *
- * @param codec A2DP codec setup.
- * @param capability_value A2DP codec sampling configuration value.
- * @param backchannel If true, lookup in the back-channel configuration.
+ * @param samplings Zero-terminated array of A2DP codec sampling frequencies.
+ * @param value A2DP codec sampling frequency configuration value.
  * @return On success this function returns the sampling frequency. Otherwise,
- *   if given capability value is not supported (or invalid), 0 is returned. */
-unsigned int a2dp_codec_lookup_frequency(
-		const struct a2dp_codec *codec,
-		uint16_t capability_value,
-		bool backchannel) {
+ *   NULL is returned. */
+const struct a2dp_sampling *a2dp_sampling_lookup(
+		const struct a2dp_sampling *samplings,
+		uint16_t value) {
+	for (size_t i = 0; samplings[i].value != 0; i++)
+		if (samplings[i].value == value)
+			return &samplings[i];
+	return NULL;
+}
 
-	const size_t slot = backchannel ? 1 : 0;
-	size_t i;
+/**
+ * Select sampling frequency based on given capabilities. */
+const struct a2dp_sampling *a2dp_sampling_select(
+		const struct a2dp_sampling *samplings,
+		uint16_t capabilities) {
 
-	for (i = 0; i < codec->samplings_size[slot]; i++)
-		if (capability_value == codec->samplings[slot][i].value)
-			return codec->samplings[slot][i].frequency;
+	if (config.a2dp.force_44100)
+		for (size_t i = 0; samplings[i].value != 0; i++)
+			if (samplings[i].frequency == 44100) {
+				if (capabilities & samplings[i].value)
+					return &samplings[i];
+				break;
+			}
 
-	return 0;
+	const struct a2dp_sampling *sampling = NULL;
+
+	/* favor higher sampling frequencies */
+	for (size_t i = 0; samplings[i].value != 0; i++)
+		if (capabilities & samplings[i].value)
+			sampling = &samplings[i];
+
+	return sampling;
 }
 
 /**
@@ -300,46 +334,6 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 }
 
 /**
- * Check whether channel mode configuration is valid. */
-static bool a2dp_codec_check_channel_mode(
-		const struct a2dp_codec *codec,
-		unsigned int capabilities,
-		bool backchannel) {
-
-	const size_t slot = backchannel ? 1 : 0;
-	size_t i;
-
-	if (codec->channels_size[slot] == 0)
-		return true;
-
-	for (i = 0; i < codec->channels_size[slot]; i++)
-		if (capabilities == codec->channels[slot][i].value)
-			return true;
-
-	return false;
-}
-
-/**
- * Check whether sampling frequency configuration is valid. */
-static bool a2dp_codec_check_sampling_freq(
-		const struct a2dp_codec *codec,
-		unsigned int capabilities,
-		bool backchannel) {
-
-	const size_t slot = backchannel ? 1 : 0;
-	size_t i;
-
-	if (codec->samplings_size[slot] == 0)
-		return true;
-
-	for (i = 0; i < codec->samplings_size[slot]; i++)
-		if (capabilities == codec->samplings[slot][i].value)
-			return true;
-
-	return false;
-}
-
-/**
  * Check whether A2DP configuration is valid.
  *
  * @param codec A2DP codec setup.
@@ -353,8 +347,8 @@ uint32_t a2dp_check_configuration(
 		const void *configuration,
 		size_t size) {
 
-	unsigned int cap_chm = 0, cap_chm_bc = 0;
-	unsigned int cap_freq = 0, cap_freq_bc = 0;
+	unsigned int cap_chm = 0;
+	unsigned int cap_freq = 0;
 	uint32_t ret = A2DP_CHECK_OK;
 
 	/* prevent out-of-bounds memory access */
@@ -454,11 +448,16 @@ uint32_t a2dp_check_configuration(
 
 		const a2dp_faststream_t *cap = configuration;
 		cap_freq = cap->frequency_music;
-		cap_freq_bc = cap->frequency_voice;
 
 		if ((cap->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 			debug("Invalid FastStream directions: %#x", cap->direction);
 			ret |= A2DP_CHECK_ERR_FASTSTREAM_DIR;
+		}
+
+		unsigned int cap_freq_bc = cap->frequency_voice;
+		if (a2dp_sampling_lookup(codec->samplings[1], cap_freq_bc) == NULL) {
+			debug("Invalid back-channel sampling frequency: %#x", cap_freq_bc);
+			ret |= A2DP_CHECK_ERR_SAMPLING_BC;
 		}
 
 		break;
@@ -496,24 +495,14 @@ uint32_t a2dp_check_configuration(
 		g_assert_not_reached();
 	}
 
-	if (!a2dp_codec_check_channel_mode(codec, cap_chm, false)) {
+	if (a2dp_channel_mode_lookup(codec->channels[0], cap_chm) == NULL) {
 		debug("Invalid channel mode: %#x", cap_chm);
 		ret |= A2DP_CHECK_ERR_CHANNELS;
 	}
 
-	if (!a2dp_codec_check_channel_mode(codec, cap_chm_bc, true)) {
-		debug("Invalid back-channel channel mode: %#x", cap_chm_bc);
-		ret |= A2DP_CHECK_ERR_CHANNELS_BC;
-	}
-
-	if (!a2dp_codec_check_sampling_freq(codec, cap_freq, false)) {
+	if (a2dp_sampling_lookup(codec->samplings[0], cap_freq) == NULL) {
 		debug("Invalid sampling frequency: %#x", cap_freq);
 		ret |= A2DP_CHECK_ERR_SAMPLING;
-	}
-
-	if (!a2dp_codec_check_sampling_freq(codec, cap_freq_bc, true)) {
-		debug("Invalid back-channel sampling frequency: %#x", cap_freq_bc);
-		ret |= A2DP_CHECK_ERR_SAMPLING_BC;
 	}
 
 	return ret;
@@ -587,58 +576,6 @@ int a2dp_filter_capabilities(
 }
 
 /**
- * Select (best) channel mode configuration. */
-static unsigned int a2dp_codec_select_channel_mode(
-		const struct a2dp_codec *codec,
-		unsigned int capabilities,
-		bool backchannel) {
-
-	const size_t slot = backchannel ? 1 : 0;
-	size_t i;
-
-	/* If monophonic sound has been forced, check whether given codec supports
-	 * such a channel mode. Since mono channel mode shall be stored at index 0
-	 * we can simply check for its existence with a simple index lookup. */
-	if (config.a2dp.force_mono &&
-			codec->channels[slot][0].mode == A2DP_CHM_MONO &&
-			capabilities & codec->channels[slot][0].value)
-		return codec->channels[slot][0].value;
-
-	/* favor higher number of channels */
-	for (i = codec->channels_size[slot]; i > 0; i--)
-		if (capabilities & codec->channels[slot][i - 1].value)
-			return codec->channels[slot][i - 1].value;
-
-	return 0;
-}
-
-/**
- * Select (best) sampling frequency configuration. */
-static unsigned int a2dp_codec_select_sampling_freq(
-		const struct a2dp_codec *codec,
-		unsigned int capabilities,
-		bool backchannel) {
-
-	const size_t slot = backchannel ? 1 : 0;
-	size_t i;
-
-	if (config.a2dp.force_44100)
-		for (i = 0; i < codec->samplings_size[slot]; i++)
-			if (codec->samplings[slot][i].frequency == 44100) {
-				if (capabilities & codec->samplings[slot][i].value)
-					return codec->samplings[slot][i].value;
-				break;
-			}
-
-	/* favor higher sampling frequencies */
-	for (i = codec->samplings_size[slot]; i > 0; i--)
-		if (capabilities & codec->samplings[slot][i - 1].value)
-			return codec->samplings[slot][i - 1].value;
-
-	return 0;
-}
-
-/**
  * Select (best) A2DP codec configuration. */
 int a2dp_select_configuration(
 		const struct a2dp_codec *codec,
@@ -662,22 +599,27 @@ int a2dp_select_configuration(
 	case A2DP_CODEC_SBC: {
 		a2dp_sbc_t *cap = capabilities;
 
-		const unsigned int cap_chm = cap->channel_mode;
-		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+		const struct a2dp_channel_mode *chm;
+		const uint8_t cap_channel_mode = cap->channel_mode;
+		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap_channel_mode)) != NULL)
+			cap->channel_mode = chm->value;
+		else {
 			error("SBC: No supported channel modes: %#x", tmp.sbc.channel_mode);
 			goto fail;
 		}
 
 		if (config.sbc_quality == SBC_QUALITY_XQ ||
 				config.sbc_quality == SBC_QUALITY_XQPLUS) {
-			if (cap_chm & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+			if (cap_channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
 				cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 			else
 				warn("SBC XQ: Dual channel mode not supported: %#x", tmp.sbc.channel_mode);
 		}
 
-		const unsigned int cap_freq = cap->frequency;
-		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+		const struct a2dp_sampling *sampling;
+		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
+			cap->frequency = sampling->value;
+		else {
 			error("SBC: No supported sampling frequencies: %#x", tmp.sbc.frequency);
 			goto fail;
 		}
@@ -735,14 +677,18 @@ int a2dp_select_configuration(
 			goto fail;
 		}
 
-		const unsigned int cap_chm = cap->channel_mode;
-		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+		const struct a2dp_channel_mode *chm;
+		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channel_mode)) != NULL)
+			cap->channel_mode = chm->value;
+		else {
 			error("MPEG: No supported channel modes: %#x", tmp.mpeg.channel_mode);
 			goto fail;
 		}
 
-		const unsigned int cap_freq = cap->frequency;
-		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+		const struct a2dp_sampling *sampling;
+		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
+			cap->frequency = sampling->value;
+		else {
 			error("MPEG: No supported sampling frequencies: %#x", tmp.mpeg.frequency);
 			goto fail;
 		}
@@ -774,16 +720,18 @@ int a2dp_select_configuration(
 			goto fail;
 		}
 
-		const unsigned int cap_chm = cap->channels;
-		if ((cap->channels = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+		const struct a2dp_channel_mode *chm;
+		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channels)) != NULL)
+			cap->channels = chm->value;
+		else {
 			error("AAC: No supported channels: %#x", tmp.aac.channels);
 			goto fail;
 		}
 
-		unsigned int freq;
-		const unsigned int cap_freq = AAC_GET_FREQUENCY(*cap);
-		if ((freq = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) != 0)
-			AAC_SET_FREQUENCY(*cap, freq);
+		const struct a2dp_sampling *sampling;
+		const unsigned int cap_frequency = AAC_GET_FREQUENCY(*cap);
+		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap_frequency)) != NULL)
+			AAC_SET_FREQUENCY(*cap, sampling->value);
 		else {
 			error("AAC: No supported sampling frequencies: %#x", AAC_GET_FREQUENCY(tmp.aac));
 			goto fail;
@@ -807,14 +755,18 @@ int a2dp_select_configuration(
 	case A2DP_CODEC_VENDOR_APTX: {
 		a2dp_aptx_t *cap = capabilities;
 
-		const unsigned int cap_chm = cap->channel_mode;
-		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+		const struct a2dp_channel_mode *chm;
+		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channel_mode)) != NULL)
+			cap->channel_mode = chm->value;
+		else {
 			error("apt-X: No supported channel modes: %#x", tmp.aptx.channel_mode);
 			goto fail;
 		}
 
-		const unsigned int cap_freq = cap->frequency;
-		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+		const struct a2dp_sampling *sampling;
+		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
+			cap->frequency = sampling->value;
+		else {
 			error("apt-X: No supported sampling frequencies: %#x", tmp.aptx.frequency);
 			goto fail;
 		}
@@ -827,14 +779,18 @@ int a2dp_select_configuration(
 	case A2DP_CODEC_VENDOR_APTX_HD: {
 		a2dp_aptx_hd_t *cap = capabilities;
 
-		const unsigned int cap_chm = cap->aptx.channel_mode;
-		if ((cap->aptx.channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+		const struct a2dp_channel_mode *chm;
+		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->aptx.channel_mode)) != NULL)
+			cap->aptx.channel_mode = chm->value;
+		else {
 			error("apt-X HD: No supported channel modes: %#x", tmp.aptx_hd.aptx.channel_mode);
 			goto fail;
 		}
 
-		const unsigned int cap_freq = cap->aptx.frequency;
-		if ((cap->aptx.frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+		const struct a2dp_sampling *sampling;
+		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->aptx.frequency)) != NULL)
+			cap->aptx.frequency = sampling->value;
+		else {
 			error("apt-X HD: No supported sampling frequencies: %#x", tmp.aptx_hd.aptx.frequency);
 			goto fail;
 		}
@@ -847,15 +803,19 @@ int a2dp_select_configuration(
 	case A2DP_CODEC_VENDOR_FASTSTREAM: {
 		a2dp_faststream_t *cap = capabilities;
 
-		const unsigned int cap_freq = cap->frequency_music;
-		if ((cap->frequency_music = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+		const struct a2dp_sampling *sampling_m;
+		if ((sampling_m = a2dp_sampling_select(codec->samplings[0], cap->frequency_music)) != NULL)
+			cap->frequency_music = sampling_m->value;
+		else {
 			error("FastStream: No supported sampling frequencies: %#x",
 					tmp.faststream.frequency_music);
 			goto fail;
 		}
 
-		const unsigned int cap_freq_bc = cap->frequency_voice;
-		if ((cap->frequency_voice = a2dp_codec_select_sampling_freq(codec, cap_freq_bc, true)) == 0) {
+		const struct a2dp_sampling *sampling_v;
+		if ((sampling_v = a2dp_sampling_select(codec->samplings[1], cap->frequency_voice)) != NULL)
+			cap->frequency_voice = sampling_v->value;
+		else {
 			error("FastStream: No supported back-channel sampling frequencies: %#x",
 					tmp.faststream.frequency_voice);
 			goto fail;
@@ -885,16 +845,18 @@ int a2dp_select_configuration(
 			goto fail;
 		}
 
-		const unsigned int cap_chm = cap->channels;
-		if ((cap->channels = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+		const struct a2dp_channel_mode *chm;
+		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channels)) != NULL)
+			cap->channels = chm->value;
+		else {
 			error("LC3plus: No supported channels: %#x", tmp.lc3plus.channels);
 			goto fail;
 		}
 
-		unsigned int freq;
-		const unsigned int cap_freq = LC3PLUS_GET_FREQUENCY(*cap);
-		if ((freq = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) != 0)
-			LC3PLUS_SET_FREQUENCY(*cap, freq);
+		const struct a2dp_sampling *sampling;
+		const unsigned int cap_frequency = LC3PLUS_GET_FREQUENCY(*cap);
+		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap_frequency)) != NULL)
+			LC3PLUS_SET_FREQUENCY(*cap, sampling->value);
 		else {
 			error("LC3plus: No supported sampling frequencies: %#x",
 					LC3PLUS_GET_FREQUENCY(tmp.lc3plus));
@@ -909,14 +871,18 @@ int a2dp_select_configuration(
 	case A2DP_CODEC_VENDOR_LDAC: {
 		a2dp_ldac_t *cap = capabilities;
 
-		const unsigned int cap_chm = cap->channel_mode;
-		if ((cap->channel_mode = a2dp_codec_select_channel_mode(codec, cap_chm, false)) == 0) {
+		const struct a2dp_channel_mode *chm;
+		if ((chm = a2dp_channel_mode_select(codec->channels[0], cap->channel_mode)) != NULL)
+			cap->channel_mode = chm->value;
+		else {
 			error("LDAC: No supported channel modes: %#x", tmp.ldac.channel_mode);
 			goto fail;
 		}
 
-		const unsigned int cap_freq = cap->frequency;
-		if ((cap->frequency = a2dp_codec_select_sampling_freq(codec, cap_freq, false)) == 0) {
+		const struct a2dp_sampling *sampling;
+		if ((sampling = a2dp_sampling_select(codec->samplings[0], cap->frequency)) != NULL)
+			cap->frequency = sampling->value;
+		else {
 			error("LDAC: No supported sampling frequencies: %#x", tmp.ldac.frequency);
 			goto fail;
 		}

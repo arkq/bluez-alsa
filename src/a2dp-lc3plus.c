@@ -538,22 +538,30 @@ fail_init:
 static const struct a2dp_channel_mode a2dp_lc3plus_channels[] = {
 	{ A2DP_CHM_MONO, 1, LC3PLUS_CHANNELS_1 },
 	{ A2DP_CHM_STEREO, 2, LC3PLUS_CHANNELS_2 },
+	{ 0 },
 };
 
-static const struct a2dp_sampling_freq a2dp_lc3plus_samplings[] = {
+static const struct a2dp_sampling a2dp_lc3plus_samplings[] = {
 	{ 48000, LC3PLUS_SAMPLING_FREQ_48000 },
 	{ 96000, LC3PLUS_SAMPLING_FREQ_96000 },
+	{ 0 },
 };
 
 static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_codec *codec = t->a2dp.codec;
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_lookup(a2dp_lc3plus_channels,
+					t->a2dp.configuration.lc3plus.channels)) == NULL)
+		return -1;
+
+	const struct a2dp_sampling *sampling;
+	if ((sampling = a2dp_sampling_lookup(a2dp_lc3plus_samplings,
+					LC3PLUS_GET_FREQUENCY(t->a2dp.configuration.lc3plus))) == NULL)
+		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.lc3plus.channels, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			LC3PLUS_GET_FREQUENCY(t->a2dp.configuration.lc3plus), false);
+	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
 }
@@ -589,9 +597,7 @@ struct a2dp_codec a2dp_lc3plus_source = {
 	},
 	.capabilities_size = sizeof(a2dp_lc3plus_t),
 	.channels[0] = a2dp_lc3plus_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_lc3plus_channels),
 	.samplings[0] = a2dp_lc3plus_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
 	.init = a2dp_lc3plus_source_init,
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_source_transport_start,
@@ -620,9 +626,7 @@ struct a2dp_codec a2dp_lc3plus_sink = {
 	},
 	.capabilities_size = sizeof(a2dp_lc3plus_t),
 	.channels[0] = a2dp_lc3plus_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_lc3plus_channels),
 	.samplings[0] = a2dp_lc3plus_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_lc3plus_samplings),
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_sink_transport_start,
 };

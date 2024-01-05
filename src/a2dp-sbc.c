@@ -323,24 +323,32 @@ static const struct a2dp_channel_mode a2dp_sbc_channels[] = {
 	{ A2DP_CHM_DUAL_CHANNEL, 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
 	{ A2DP_CHM_STEREO, 2, SBC_CHANNEL_MODE_STEREO },
 	{ A2DP_CHM_JOINT_STEREO, 2, SBC_CHANNEL_MODE_JOINT_STEREO },
+	{ 0 },
 };
 
-static const struct a2dp_sampling_freq a2dp_sbc_samplings[] = {
+static const struct a2dp_sampling a2dp_sbc_samplings[] = {
 	{ 16000, SBC_SAMPLING_FREQ_16000 },
 	{ 32000, SBC_SAMPLING_FREQ_32000 },
 	{ 44100, SBC_SAMPLING_FREQ_44100 },
 	{ 48000, SBC_SAMPLING_FREQ_48000 },
+	{ 0 },
 };
 
 static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_codec *codec = t->a2dp.codec;
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_lookup(a2dp_sbc_channels,
+					t->a2dp.configuration.sbc.channel_mode)) == NULL)
+		return -1;
+
+	const struct a2dp_sampling *sampling;
+	if ((sampling = a2dp_sampling_lookup(a2dp_sbc_samplings,
+					t->a2dp.configuration.sbc.frequency)) == NULL)
+		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.sbc.channel_mode, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			t->a2dp.configuration.sbc.frequency, false);
+	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
 }
@@ -403,9 +411,7 @@ struct a2dp_codec a2dp_sbc_source = {
 	},
 	.capabilities_size = sizeof(a2dp_sbc_t),
 	.channels[0] = a2dp_sbc_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
 	.samplings[0] = a2dp_sbc_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
 	.init = a2dp_sbc_source_init,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_source_transport_start,
@@ -447,9 +453,7 @@ struct a2dp_codec a2dp_sbc_sink = {
 	},
 	.capabilities_size = sizeof(a2dp_sbc_t),
 	.channels[0] = a2dp_sbc_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_sbc_channels),
 	.samplings[0] = a2dp_sbc_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_sbc_samplings),
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_sink_transport_start,
 	.enabled = true,

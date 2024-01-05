@@ -326,27 +326,34 @@ static const struct a2dp_channel_mode a2dp_ldac_channels[] = {
 	{ A2DP_CHM_MONO, 1, LDAC_CHANNEL_MODE_MONO },
 	{ A2DP_CHM_DUAL_CHANNEL, 2, LDAC_CHANNEL_MODE_DUAL },
 	{ A2DP_CHM_STEREO, 2, LDAC_CHANNEL_MODE_STEREO },
+	{ 0 },
 };
 
-static const struct a2dp_sampling_freq a2dp_ldac_samplings[] = {
+static const struct a2dp_sampling a2dp_ldac_samplings[] = {
 	{ 44100, LDAC_SAMPLING_FREQ_44100 },
 	{ 48000, LDAC_SAMPLING_FREQ_48000 },
 	{ 88200, LDAC_SAMPLING_FREQ_88200 },
 	{ 96000, LDAC_SAMPLING_FREQ_96000 },
+	{ 0 },
 };
 
 static int a2dp_ldac_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_codec *codec = t->a2dp.codec;
+	const struct a2dp_channel_mode *chm;
+	if ((chm = a2dp_channel_mode_lookup(a2dp_ldac_channels,
+					t->a2dp.configuration.ldac.channel_mode)) == NULL)
+		return -1;
+
+	const struct a2dp_sampling *sampling;
+	if ((sampling = a2dp_sampling_lookup(a2dp_ldac_samplings,
+					t->a2dp.configuration.ldac.frequency)) == NULL)
+		return -1;
 
 	/* LDAC library internally for encoding uses 31-bit integers or
 	 * floats, so the best choice for PCM sample is signed 32-bit. */
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
-
-	t->a2dp.pcm.channels = a2dp_codec_lookup_channels(codec,
-			t->a2dp.configuration.ldac.channel_mode, false);
-	t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-			t->a2dp.configuration.ldac.frequency, false);
+	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
 }
@@ -383,9 +390,7 @@ struct a2dp_codec a2dp_ldac_source = {
 	},
 	.capabilities_size = sizeof(a2dp_ldac_t),
 	.channels[0] = a2dp_ldac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_ldac_channels),
 	.samplings[0] = a2dp_ldac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
 	.init = a2dp_ldac_source_init,
 	.transport_init = a2dp_ldac_transport_init,
 	.transport_start = a2dp_ldac_source_transport_start,
@@ -417,9 +422,7 @@ struct a2dp_codec a2dp_ldac_sink = {
 	},
 	.capabilities_size = sizeof(a2dp_ldac_t),
 	.channels[0] = a2dp_ldac_channels,
-	.channels_size[0] = ARRAYSIZE(a2dp_ldac_channels),
 	.samplings[0] = a2dp_ldac_samplings,
-	.samplings_size[0] = ARRAYSIZE(a2dp_ldac_samplings),
 	.transport_init = a2dp_ldac_transport_init,
 	.transport_start = a2dp_ldac_sink_transport_start,
 };

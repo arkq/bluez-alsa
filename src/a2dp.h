@@ -43,7 +43,7 @@ struct a2dp_channel_mode {
 	uint16_t value;
 };
 
-struct a2dp_sampling_freq {
+struct a2dp_sampling {
 	unsigned int frequency;
 	uint16_t value;
 };
@@ -63,10 +63,8 @@ struct a2dp_codec {
 
 	/* list of supported channel modes */
 	const struct a2dp_channel_mode *channels[2];
-	size_t channels_size[2];
 	/* list of supported sampling frequencies */
-	const struct a2dp_sampling_freq *samplings[2];
-	size_t samplings_size[2];
+	const struct a2dp_sampling *samplings[2];
 
 	/* callback function for codec initialization */
 	int (*init)(struct a2dp_codec *codec);
@@ -106,15 +104,21 @@ const struct a2dp_codec *a2dp_codec_lookup(
 		uint16_t codec_id,
 		enum a2dp_dir dir);
 
-unsigned int a2dp_codec_lookup_channels(
-		const struct a2dp_codec *codec,
-		uint16_t capability_value,
-		bool backchannel);
+const struct a2dp_channel_mode *a2dp_channel_mode_lookup(
+		const struct a2dp_channel_mode *channel_modes,
+		uint16_t value);
 
-unsigned int a2dp_codec_lookup_frequency(
-		const struct a2dp_codec *codec,
-		uint16_t capability_value,
-		bool backchannel);
+const struct a2dp_channel_mode *a2dp_channel_mode_select(
+		const struct a2dp_channel_mode *channel_modes,
+		uint16_t capabilities);
+
+const struct a2dp_sampling *a2dp_sampling_lookup(
+		const struct a2dp_sampling *samplings,
+		uint16_t value);
+
+const struct a2dp_sampling *a2dp_sampling_select(
+		const struct a2dp_sampling *samplings,
+		uint16_t capabilities);
 
 uint16_t a2dp_get_vendor_codec_id(
 		const void *capabilities,

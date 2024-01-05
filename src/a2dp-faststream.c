@@ -240,32 +240,43 @@ fail_init:
 	return NULL;
 }
 
-static const struct a2dp_sampling_freq a2dp_faststream_samplings_music[] = {
+static const struct a2dp_sampling a2dp_faststream_samplings_music[] = {
 	{ 44100, FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 },
 	{ 48000, FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 },
+	{ 0 },
 };
 
-static const struct a2dp_sampling_freq a2dp_faststream_samplings_voice[] = {
+static const struct a2dp_sampling a2dp_faststream_samplings_voice[] = {
 	{ 16000, FASTSTREAM_SAMPLING_FREQ_VOICE_16000 },
+	{ 0 },
 };
 
 static int a2dp_faststream_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_codec *codec = t->a2dp.codec;
-
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
+
+		const struct a2dp_sampling *sampling;
+		if ((sampling = a2dp_sampling_lookup(a2dp_faststream_samplings_music,
+						t->a2dp.configuration.faststream.frequency_music)) == NULL)
+			return -1;
+
+		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+		t->a2dp.pcm.sampling = sampling->frequency;
 		t->a2dp.pcm.channels = 2;
-		t->a2dp.pcm.sampling = a2dp_codec_lookup_frequency(codec,
-				t->a2dp.configuration.faststream.frequency_music, false);
+
 	}
 
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE) {
+
+		const struct a2dp_sampling *sampling;
+		if ((sampling = a2dp_sampling_lookup(a2dp_faststream_samplings_voice,
+						t->a2dp.configuration.faststream.frequency_voice)) == NULL)
+			return -1;
+
+		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+		t->a2dp.pcm_bc.sampling = sampling->frequency;
 		t->a2dp.pcm_bc.channels = 1;
-		t->a2dp.pcm_bc.sampling = a2dp_codec_lookup_frequency(codec,
-				t->a2dp.configuration.faststream.frequency_voice, true);
+
 	}
 
 	return 0;
@@ -308,9 +319,7 @@ struct a2dp_codec a2dp_faststream_source = {
 	},
 	.capabilities_size = sizeof(a2dp_faststream_t),
 	.samplings[0] = a2dp_faststream_samplings_music,
-	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
 	.samplings[1] = a2dp_faststream_samplings_voice,
-	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
 	.init = a2dp_faststream_source_init,
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_source_transport_start,
@@ -345,9 +354,7 @@ struct a2dp_codec a2dp_faststream_sink = {
 	},
 	.capabilities_size = sizeof(a2dp_faststream_t),
 	.samplings[0] = a2dp_faststream_samplings_music,
-	.samplings_size[0] = ARRAYSIZE(a2dp_faststream_samplings_music),
 	.samplings[1] = a2dp_faststream_samplings_voice,
-	.samplings_size[1] = ARRAYSIZE(a2dp_faststream_samplings_voice),
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_sink_transport_start,
 };
