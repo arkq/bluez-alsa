@@ -552,6 +552,43 @@ static int a2dp_aac_configuration_select(
 	return 0;
 }
 
+static int a2dp_aac_configuration_check(
+		const struct a2dp_codec *codec,
+		const void *configuration) {
+
+	const a2dp_aac_t *conf = configuration;
+	a2dp_aac_t conf_v = *conf;
+
+	/* validate configuration against BlueALSA capabilities */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				&conf_v, sizeof(conf_v)) != 0)
+		return A2DP_CHECK_ERR_SIZE;
+
+	switch (conf_v.object_type) {
+	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
+	case AAC_OBJECT_TYPE_MPEG4_AAC_LC:
+	case AAC_OBJECT_TYPE_MPEG4_AAC_LTP:
+	case AAC_OBJECT_TYPE_MPEG4_AAC_SCA:
+		break;
+	default:
+		debug("AAC: Invalid object type: %#x", conf->object_type);
+		return A2DP_CHECK_ERR_OBJECT_TYPE;
+	}
+
+	const uint16_t conf_frequency = AAC_GET_FREQUENCY(conf_v);
+	if (a2dp_sampling_lookup(a2dp_aac_samplings, conf_frequency) == NULL) {
+		debug("AAC: Invalid sampling frequency: %#x", AAC_GET_FREQUENCY(*conf));
+		return A2DP_CHECK_ERR_SAMPLING;
+	}
+
+	if (a2dp_channel_mode_lookup(a2dp_aac_channels, conf_v.channels) == NULL) {
+		debug("AAC: Invalid channel mode: %#x", conf->channels);
+		return A2DP_CHECK_ERR_CHANNEL_MODE;
+	}
+
+	return A2DP_CHECK_OK;
+}
+
 static int a2dp_aac_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -630,11 +667,10 @@ struct a2dp_codec a2dp_aac_source = {
 		AAC_INIT_BITRATE(320000)
 	},
 	.capabilities_size = sizeof(a2dp_aac_t),
-	.channels[0] = a2dp_aac_channels,
-	.samplings[0] = a2dp_aac_samplings,
 	.init = a2dp_aac_source_init,
 	.capabilities_filter = a2dp_aac_capabilities_filter,
 	.configuration_select = a2dp_aac_configuration_select,
+	.configuration_check = a2dp_aac_configuration_check,
 	.transport_init = a2dp_aac_transport_init,
 	.transport_start = a2dp_aac_source_transport_start,
 	.enabled = true,
@@ -691,11 +727,10 @@ struct a2dp_codec a2dp_aac_sink = {
 		AAC_INIT_BITRATE(320000)
 	},
 	.capabilities_size = sizeof(a2dp_aac_t),
-	.channels[0] = a2dp_aac_channels,
-	.samplings[0] = a2dp_aac_samplings,
 	.init = a2dp_aac_sink_init,
 	.capabilities_filter = a2dp_aac_capabilities_filter,
 	.configuration_select = a2dp_aac_configuration_select,
+	.configuration_check = a2dp_aac_configuration_check,
 	.transport_init = a2dp_aac_transport_init,
 	.transport_start = a2dp_aac_sink_transport_start,
 	.enabled = true,

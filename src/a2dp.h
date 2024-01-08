@@ -61,11 +61,6 @@ struct a2dp_codec {
 	a2dp_t capabilities;
 	size_t capabilities_size;
 
-	/* list of supported channel modes */
-	const struct a2dp_channel_mode *channels[2];
-	/* list of supported sampling frequencies */
-	const struct a2dp_sampling *samplings[2];
-
 	/* callback function for codec initialization */
 	int (*init)(struct a2dp_codec *codec);
 
@@ -81,6 +76,11 @@ struct a2dp_codec {
 	int (*configuration_select)(
 			const struct a2dp_codec *codec,
 			void *capabilities);
+
+	/* callback function for checking configuration correctness */
+	int (*configuration_check)(
+			const struct a2dp_codec *codec,
+			const void *configuration);
 
 	int (*transport_init)(struct ba_transport *t);
 	int (*transport_start)(struct ba_transport *t);
@@ -137,25 +137,6 @@ uint16_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
 		size_t size);
 
-#define A2DP_CHECK_OK                    0
-#define A2DP_CHECK_ERR_SIZE              (1 << 0)
-#define A2DP_CHECK_ERR_CHANNELS          (1 << 1)
-#define A2DP_CHECK_ERR_CHANNELS_BC       (1 << 2)
-#define A2DP_CHECK_ERR_SAMPLING          (1 << 3)
-#define A2DP_CHECK_ERR_SAMPLING_BC       (1 << 4)
-#define A2DP_CHECK_ERR_SBC_ALLOCATION    (1 << 5)
-#define A2DP_CHECK_ERR_SBC_SUB_BANDS     (1 << 6)
-#define A2DP_CHECK_ERR_SBC_BLOCK_LENGTH  (1 << 7)
-#define A2DP_CHECK_ERR_MPEG_LAYER        (1 << 8)
-#define A2DP_CHECK_ERR_AAC_OBJ_TYPE      (1 << 9)
-#define A2DP_CHECK_ERR_FASTSTREAM_DIR    (1 << 10)
-#define A2DP_CHECK_ERR_LC3PLUS_DURATION  (1 << 11)
-
-uint32_t a2dp_check_configuration(
-		const struct a2dp_codec *codec,
-		const void *configuration,
-		size_t size);
-
 int a2dp_filter_capabilities(
 		const struct a2dp_codec *codec,
 		const void *capabilities_mask,
@@ -166,6 +147,31 @@ int a2dp_select_configuration(
 		const struct a2dp_codec *codec,
 		void *capabilities,
 		size_t size);
+
+enum a2dp_check_err {
+	A2DP_CHECK_OK = 0,
+	A2DP_CHECK_ERR_SIZE,
+	A2DP_CHECK_ERR_CHANNEL_MODE,
+	A2DP_CHECK_ERR_SAMPLING,
+	A2DP_CHECK_ERR_ALLOCATION_METHOD,
+	A2DP_CHECK_ERR_BIT_POOL_RANGE,
+	A2DP_CHECK_ERR_SUB_BANDS,
+	A2DP_CHECK_ERR_BLOCK_LENGTH,
+	A2DP_CHECK_ERR_MPEG_LAYER,
+	A2DP_CHECK_ERR_OBJECT_TYPE,
+	A2DP_CHECK_ERR_DIRECTIONS,
+	A2DP_CHECK_ERR_SAMPLING_VOICE,
+	A2DP_CHECK_ERR_SAMPLING_MUSIC,
+	A2DP_CHECK_ERR_FRAME_DURATION,
+};
+
+enum a2dp_check_err a2dp_check_configuration(
+		const struct a2dp_codec *codec,
+		const void *configuration,
+		size_t size);
+
+const char *a2dp_check_strerror(
+		enum a2dp_check_err err);
 
 int a2dp_transport_init(
 		struct ba_transport *t);

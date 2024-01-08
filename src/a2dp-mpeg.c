@@ -522,6 +522,41 @@ static int a2dp_mpeg_configuration_select(
 	return 0;
 }
 
+static int a2dp_mpeg_configuration_check(
+		const struct a2dp_codec *codec,
+		const void *configuration) {
+
+	const a2dp_mpeg_t *conf = configuration;
+	a2dp_mpeg_t conf_v = *conf;
+
+	/* validate configuration against BlueALSA capabilities */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				&conf_v, sizeof(conf_v)) != 0)
+		return A2DP_CHECK_ERR_SIZE;
+
+	switch (conf_v.layer) {
+	case MPEG_LAYER_MP1:
+	case MPEG_LAYER_MP2:
+	case MPEG_LAYER_MP3:
+		break;
+	default:
+		debug("MPEG: Invalid layer: %#x", conf->layer);
+		return A2DP_CHECK_ERR_MPEG_LAYER;
+	}
+
+	if (a2dp_channel_mode_lookup(a2dp_mpeg_channels, conf_v.channel_mode) == NULL) {
+		debug("MPEG: Invalid channel mode: %#x", conf->channel_mode);
+		return A2DP_CHECK_ERR_CHANNEL_MODE;
+	}
+
+	if (a2dp_sampling_lookup(a2dp_mpeg_samplings, conf_v.frequency) == NULL) {
+		debug("MPEG: Invalid sampling frequency: %#x", conf->frequency);
+		return A2DP_CHECK_ERR_SAMPLING;
+	}
+
+	return A2DP_CHECK_OK;
+}
+
 static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -601,10 +636,9 @@ struct a2dp_codec a2dp_mpeg_source = {
 		)
 	},
 	.capabilities_size = sizeof(a2dp_mpeg_t),
-	.channels[0] = a2dp_mpeg_channels,
-	.samplings[0] = a2dp_mpeg_samplings,
 	.init = a2dp_mpeg_source_init,
 	.configuration_select = a2dp_mpeg_configuration_select,
+	.configuration_check = a2dp_mpeg_configuration_check,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_source_transport_start,
 	/* TODO: This is an optional but covered by the A2DP spec codec,
@@ -679,9 +713,8 @@ struct a2dp_codec a2dp_mpeg_sink = {
 		)
 	},
 	.capabilities_size = sizeof(a2dp_mpeg_t),
-	.channels[0] = a2dp_mpeg_channels,
-	.samplings[0] = a2dp_mpeg_samplings,
 	.configuration_select = a2dp_mpeg_configuration_select,
+	.configuration_check = a2dp_mpeg_configuration_check,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_sink_transport_start,
 	.enabled = false,

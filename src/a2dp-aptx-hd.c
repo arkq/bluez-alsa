@@ -313,6 +313,31 @@ static int a2dp_aptx_hd_configuration_select(
 	return 0;
 }
 
+static int a2dp_aptx_hd_configuration_check(
+		const struct a2dp_codec *codec,
+		const void *configuration) {
+
+	const a2dp_aptx_hd_t *conf = configuration;
+	a2dp_aptx_hd_t conf_v = *conf;
+
+	/* validate configuration against BlueALSA capabilities */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				&conf_v, sizeof(conf_v)) != 0)
+		return A2DP_CHECK_ERR_SIZE;
+
+	if (a2dp_sampling_lookup(a2dp_aptx_hd_samplings, conf_v.aptx.frequency) == NULL) {
+		debug("apt-X HD: Invalid sampling frequency: %#x", conf->aptx.frequency);
+		return A2DP_CHECK_ERR_SAMPLING;
+	}
+
+	if (a2dp_channel_mode_lookup(a2dp_aptx_hd_channels, conf_v.aptx.channel_mode) == NULL) {
+		debug("apt-X HD: Invalid channel mode: %#x", conf->aptx.channel_mode);
+		return A2DP_CHECK_ERR_CHANNEL_MODE;
+	}
+
+	return A2DP_CHECK_OK;
+}
+
 static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -361,10 +386,9 @@ struct a2dp_codec a2dp_aptx_hd_source = {
 			APTX_SAMPLING_FREQ_48000,
 	},
 	.capabilities_size = sizeof(a2dp_aptx_hd_t),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.samplings[0] = a2dp_aptx_hd_samplings,
 	.init = a2dp_aptx_hd_source_init,
 	.configuration_select = a2dp_aptx_hd_configuration_select,
+	.configuration_check = a2dp_aptx_hd_configuration_check,
 	.transport_init = a2dp_aptx_hd_transport_init,
 	.transport_start = a2dp_aptx_hd_source_transport_start,
 };
@@ -392,9 +416,8 @@ struct a2dp_codec a2dp_aptx_hd_sink = {
 			APTX_SAMPLING_FREQ_48000,
 	},
 	.capabilities_size = sizeof(a2dp_aptx_hd_t),
-	.channels[0] = a2dp_aptx_hd_channels,
-	.samplings[0] = a2dp_aptx_hd_samplings,
 	.configuration_select = a2dp_aptx_hd_configuration_select,
+	.configuration_check = a2dp_aptx_hd_configuration_check,
 	.transport_init = a2dp_aptx_hd_transport_init,
 	.transport_start = a2dp_aptx_hd_sink_transport_start,
 };

@@ -590,6 +590,42 @@ static int a2dp_lc3plus_configuration_select(
 	return 0;
 }
 
+static int a2dp_lc3plus_configuration_check(
+		const struct a2dp_codec *codec,
+		const void *configuration) {
+
+	const a2dp_lc3plus_t *conf = configuration;
+	a2dp_lc3plus_t conf_v = *conf;
+
+	/* validate configuration against BlueALSA capabilities */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				&conf_v, sizeof(conf_v)) != 0)
+		return A2DP_CHECK_ERR_SIZE;
+
+	switch (conf_v.frame_duration) {
+	case LC3PLUS_FRAME_DURATION_025:
+	case LC3PLUS_FRAME_DURATION_050:
+	case LC3PLUS_FRAME_DURATION_100:
+		break;
+	default:
+		debug("LC3plus: Invalid frame duration: %#x", conf->frame_duration);
+		return A2DP_CHECK_ERR_FRAME_DURATION;
+	}
+
+	if (a2dp_channel_mode_lookup(a2dp_lc3plus_channels, conf_v.channels) == NULL) {
+		debug("LC3plus: Invalid channel mode: %#x", conf->channels);
+		return A2DP_CHECK_ERR_CHANNEL_MODE;
+	}
+
+	uint16_t conf_frequency = LC3PLUS_GET_FREQUENCY(conf_v);
+	if (a2dp_sampling_lookup(a2dp_lc3plus_samplings, conf_frequency) == NULL) {
+		debug("LC3plus: Invalid sampling frequency: %#x", LC3PLUS_GET_FREQUENCY(*conf));
+		return A2DP_CHECK_ERR_SAMPLING;
+	}
+
+	return A2DP_CHECK_OK;
+}
+
 static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channel_mode *chm;
@@ -639,10 +675,9 @@ struct a2dp_codec a2dp_lc3plus_source = {
 				LC3PLUS_SAMPLING_FREQ_96000)
 	},
 	.capabilities_size = sizeof(a2dp_lc3plus_t),
-	.channels[0] = a2dp_lc3plus_channels,
-	.samplings[0] = a2dp_lc3plus_samplings,
 	.init = a2dp_lc3plus_source_init,
 	.configuration_select = a2dp_lc3plus_configuration_select,
+	.configuration_check = a2dp_lc3plus_configuration_check,
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_source_transport_start,
 };
@@ -669,9 +704,8 @@ struct a2dp_codec a2dp_lc3plus_sink = {
 				LC3PLUS_SAMPLING_FREQ_96000)
 	},
 	.capabilities_size = sizeof(a2dp_lc3plus_t),
-	.channels[0] = a2dp_lc3plus_channels,
-	.samplings[0] = a2dp_lc3plus_samplings,
 	.configuration_select = a2dp_lc3plus_configuration_select,
+	.configuration_check = a2dp_lc3plus_configuration_check,
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_sink_transport_start,
 };

@@ -474,9 +474,10 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			const void *data = g_variant_get_fixed_array(value, &size, sizeof(char));
 			memcpy(&configuration, data, MIN(size, sizeof(configuration)));
 
-			uint32_t rv;
+			enum a2dp_check_err rv;
 			if ((rv = a2dp_check_configuration(codec, data, size)) != A2DP_CHECK_OK) {
-				error("Invalid configuration: %s: %#x", "Invalid configuration blob", rv);
+				error("Invalid configuration: %s: %s",
+						"Invalid configuration blob", a2dp_check_strerror(rv));
 				goto fail;
 			}
 

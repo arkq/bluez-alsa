@@ -429,7 +429,76 @@ static int a2dp_sbc_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
+	if (caps->min_bitpool > caps->max_bitpool) {
+		error("SBC: No supported bit-pool range: [%u, %u]",
+				saved.min_bitpool, saved.max_bitpool);
+		return errno = ENOTSUP, -1;
+	}
+
 	return 0;
+}
+
+static int a2dp_sbc_configuration_check(
+		const struct a2dp_codec *codec,
+		const void *configuration) {
+
+	const a2dp_sbc_t *conf = configuration;
+	a2dp_sbc_t conf_v = *conf;
+
+	/* validate configuration against BlueALSA capabilities */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				&conf_v, sizeof(conf_v)) != 0)
+		return A2DP_CHECK_ERR_SIZE;
+
+	if (a2dp_sampling_lookup(a2dp_sbc_samplings, conf_v.frequency) == NULL) {
+		debug("SBC: Invalid sampling frequency: %#x", conf->frequency);
+		return A2DP_CHECK_ERR_SAMPLING;
+	}
+
+	if (a2dp_channel_mode_lookup(a2dp_sbc_channels, conf_v.channel_mode) == NULL) {
+		debug("SBC: Invalid channel mode: %#x", conf->channel_mode);
+		return A2DP_CHECK_ERR_CHANNEL_MODE;
+	}
+
+	switch (conf_v.block_length) {
+	case SBC_BLOCK_LENGTH_4:
+	case SBC_BLOCK_LENGTH_8:
+	case SBC_BLOCK_LENGTH_12:
+	case SBC_BLOCK_LENGTH_16:
+		break;
+	default:
+		debug("SBC: Invalid block length: %#x", conf->block_length);
+		return A2DP_CHECK_ERR_BLOCK_LENGTH;
+	}
+
+	switch (conf_v.subbands) {
+	case SBC_SUBBANDS_4:
+	case SBC_SUBBANDS_8:
+		break;
+	default:
+		debug("SBC: Invalid sub-bands: %#x", conf->subbands);
+		return A2DP_CHECK_ERR_SUB_BANDS;
+	}
+
+	switch (conf_v.allocation_method) {
+	case SBC_ALLOCATION_SNR:
+	case SBC_ALLOCATION_LOUDNESS:
+		break;
+	default:
+		debug("SBC: Invalid allocation method: %#x", conf->allocation_method);
+		return A2DP_CHECK_ERR_ALLOCATION_METHOD;
+	}
+
+	if (conf_v.min_bitpool > conf_v.max_bitpool) {
+		error("SBC: Invalid bit-pool range: [%u, %u]",
+				conf->min_bitpool, conf->max_bitpool);
+		return A2DP_CHECK_ERR_BIT_POOL_RANGE;
+	}
+
+	debug("SBC: Selected bit-pool range: [%u, %u]",
+			conf->min_bitpool, conf->max_bitpool);
+
+	return A2DP_CHECK_OK;
 }
 
 static int a2dp_sbc_transport_init(struct ba_transport *t) {
@@ -508,11 +577,10 @@ struct a2dp_codec a2dp_sbc_source = {
 		.max_bitpool = SBC_MAX_BITPOOL,
 	},
 	.capabilities_size = sizeof(a2dp_sbc_t),
-	.channels[0] = a2dp_sbc_channels,
-	.samplings[0] = a2dp_sbc_samplings,
 	.init = a2dp_sbc_source_init,
 	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
+	.configuration_check = a2dp_sbc_configuration_check,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_source_transport_start,
 	.enabled = true,
@@ -552,10 +620,9 @@ struct a2dp_codec a2dp_sbc_sink = {
 		.max_bitpool = SBC_MAX_BITPOOL,
 	},
 	.capabilities_size = sizeof(a2dp_sbc_t),
-	.channels[0] = a2dp_sbc_channels,
-	.samplings[0] = a2dp_sbc_samplings,
 	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
+	.configuration_check = a2dp_sbc_configuration_check,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_sink_transport_start,
 	.enabled = true,

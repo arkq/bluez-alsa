@@ -289,6 +289,40 @@ static int a2dp_faststream_configuration_select(
 	return 0;
 }
 
+static int a2dp_faststream_configuration_check(
+		const struct a2dp_codec *codec,
+		const void *configuration) {
+
+	const a2dp_faststream_t *conf = configuration;
+	a2dp_faststream_t conf_v = *conf;
+
+	/* validate configuration against BlueALSA capabilities */
+	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+				&conf_v, sizeof(conf_v)) != 0)
+		return A2DP_CHECK_ERR_SIZE;
+
+	switch (conf_v.direction) {
+	case FASTSTREAM_DIRECTION_MUSIC:
+	case FASTSTREAM_DIRECTION_VOICE:
+		break;
+	default:
+		debug("FastStream: Invalid direction: %#x", conf->direction);
+		return A2DP_CHECK_ERR_DIRECTIONS;
+	}
+
+	if (a2dp_sampling_lookup(a2dp_faststream_samplings_voice, conf_v.frequency_voice) == NULL) {
+		debug("FastStream: Invalid voice sampling frequency: %#x", conf->frequency_voice);
+		return A2DP_CHECK_ERR_SAMPLING_VOICE;
+	}
+
+	if (a2dp_sampling_lookup(a2dp_faststream_samplings_music, conf_v.frequency_music) == NULL) {
+		debug("FastStream: Invalid music sampling frequency: %#x", conf->frequency_music);
+		return A2DP_CHECK_ERR_SAMPLING_MUSIC;
+	}
+
+	return A2DP_CHECK_OK;
+}
+
 static int a2dp_faststream_transport_init(struct ba_transport *t) {
 
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
@@ -356,10 +390,9 @@ struct a2dp_codec a2dp_faststream_source = {
 			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 	},
 	.capabilities_size = sizeof(a2dp_faststream_t),
-	.samplings[0] = a2dp_faststream_samplings_music,
-	.samplings[1] = a2dp_faststream_samplings_voice,
 	.init = a2dp_faststream_source_init,
 	.configuration_select = a2dp_faststream_configuration_select,
+	.configuration_check = a2dp_faststream_configuration_check,
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_source_transport_start,
 };
@@ -392,9 +425,8 @@ struct a2dp_codec a2dp_faststream_sink = {
 			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 	},
 	.capabilities_size = sizeof(a2dp_faststream_t),
-	.samplings[0] = a2dp_faststream_samplings_music,
-	.samplings[1] = a2dp_faststream_samplings_voice,
 	.configuration_select = a2dp_faststream_configuration_select,
+	.configuration_check = a2dp_faststream_configuration_check,
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_sink_transport_start,
 };

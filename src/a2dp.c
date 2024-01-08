@@ -18,8 +18,6 @@
 #include <stdbool.h>
 #include <strings.h>
 
-#include <glib.h>
-
 #if ENABLE_AAC
 # include "a2dp-aac.h"
 #endif
@@ -331,181 +329,6 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 }
 
 /**
- * Check whether A2DP configuration is valid.
- *
- * @param codec A2DP codec setup.
- * @param configuration A2DP codec configuration blob.
- * @param size The size of the A2DP codec configuration blob.
- * @return On success this function returns A2DP_CHECK_OK. Otherwise,
- *   A2DP_CHECK_ERR_* error bit-mask is returned to indicate invalid
- *   A2DP configuration blob. */
-uint32_t a2dp_check_configuration(
-		const struct a2dp_codec *codec,
-		const void *configuration,
-		size_t size) {
-
-	unsigned int cap_chm = 0;
-	unsigned int cap_freq = 0;
-	uint32_t ret = A2DP_CHECK_OK;
-
-	/* prevent out-of-bounds memory access */
-	if (size != codec->capabilities_size)
-		return A2DP_CHECK_ERR_SIZE;
-
-	switch (codec->codec_id) {
-	case A2DP_CODEC_SBC: {
-
-		const a2dp_sbc_t *cap = configuration;
-		cap_chm = cap->channel_mode;
-		cap_freq = cap->frequency;
-
-		if (cap->allocation_method != SBC_ALLOCATION_SNR &&
-				cap->allocation_method != SBC_ALLOCATION_LOUDNESS) {
-			debug("Invalid SBC allocation method: %#x", cap->allocation_method);
-			ret |= A2DP_CHECK_ERR_SBC_ALLOCATION;
-		}
-
-		if (cap->subbands != SBC_SUBBANDS_4 &&
-				cap->subbands != SBC_SUBBANDS_8) {
-			debug("Invalid SBC sub-bands: %#x", cap->subbands);
-			ret |= A2DP_CHECK_ERR_SBC_SUB_BANDS;
-		}
-
-		if (cap->block_length != SBC_BLOCK_LENGTH_4 &&
-				cap->block_length != SBC_BLOCK_LENGTH_8 &&
-				cap->block_length != SBC_BLOCK_LENGTH_12 &&
-				cap->block_length != SBC_BLOCK_LENGTH_16) {
-			debug("Invalid SBC block length: %#x", cap->block_length);
-			ret |= A2DP_CHECK_ERR_SBC_BLOCK_LENGTH;
-		}
-
-		debug("Selected A2DP SBC bit-pool range: [%u, %u]",
-				cap->min_bitpool, cap->max_bitpool);
-
-		break;
-	}
-
-#if ENABLE_MPEG
-	case A2DP_CODEC_MPEG12: {
-
-		const a2dp_mpeg_t *cap = configuration;
-		cap_chm = cap->channel_mode;
-		cap_freq = cap->frequency;
-
-		if (cap->layer != MPEG_LAYER_MP1 &&
-				cap->layer != MPEG_LAYER_MP2 &&
-				cap->layer != MPEG_LAYER_MP3) {
-			debug("Invalid MPEG layer: %#x", cap->layer);
-			ret |= A2DP_CHECK_ERR_MPEG_LAYER;
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_AAC
-	case A2DP_CODEC_MPEG24: {
-
-		const a2dp_aac_t *cap = configuration;
-		cap_chm = cap->channels;
-		cap_freq = AAC_GET_FREQUENCY(*cap);
-
-		if (cap->object_type != AAC_OBJECT_TYPE_MPEG2_AAC_LC &&
-				cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_LC &&
-				cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_LTP &&
-				cap->object_type != AAC_OBJECT_TYPE_MPEG4_AAC_SCA) {
-			debug("Invalid AAC object type: %#x", cap->object_type);
-			ret |= A2DP_CHECK_ERR_AAC_OBJ_TYPE;
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_APTX
-	case A2DP_CODEC_VENDOR_APTX: {
-		const a2dp_aptx_t *cap = configuration;
-		cap_chm = cap->channel_mode;
-		cap_freq = cap->frequency;
-		break;
-	}
-#endif
-
-#if ENABLE_APTX_HD
-	case A2DP_CODEC_VENDOR_APTX_HD: {
-		const a2dp_aptx_hd_t *cap = configuration;
-		cap_chm = cap->aptx.channel_mode;
-		cap_freq = cap->aptx.frequency;
-		break;
-	}
-#endif
-
-#if ENABLE_FASTSTREAM
-	case A2DP_CODEC_VENDOR_FASTSTREAM: {
-
-		const a2dp_faststream_t *cap = configuration;
-		cap_freq = cap->frequency_music;
-
-		if ((cap->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
-			debug("Invalid FastStream directions: %#x", cap->direction);
-			ret |= A2DP_CHECK_ERR_FASTSTREAM_DIR;
-		}
-
-		unsigned int cap_freq_bc = cap->frequency_voice;
-		if (a2dp_sampling_lookup(codec->samplings[1], cap_freq_bc) == NULL) {
-			debug("Invalid back-channel sampling frequency: %#x", cap_freq_bc);
-			ret |= A2DP_CHECK_ERR_SAMPLING_BC;
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_LC3PLUS
-	case A2DP_CODEC_VENDOR_LC3PLUS: {
-
-		const a2dp_lc3plus_t *cap = configuration;
-		cap_chm = cap->channels;
-		cap_freq = LC3PLUS_GET_FREQUENCY(*cap);
-
-		if (cap->frame_duration != LC3PLUS_FRAME_DURATION_025 &&
-				cap->frame_duration != LC3PLUS_FRAME_DURATION_050 &&
-				cap->frame_duration != LC3PLUS_FRAME_DURATION_100) {
-			debug("Invalid LC3plus frame duration: %#x", cap->frame_duration);
-			ret |= A2DP_CHECK_ERR_LC3PLUS_DURATION;
-		}
-
-		break;
-	}
-#endif
-
-#if ENABLE_LDAC
-	case A2DP_CODEC_VENDOR_LDAC: {
-		const a2dp_ldac_t *cap = configuration;
-		cap_chm = cap->channel_mode;
-		cap_freq = cap->frequency;
-		break;
-	}
-#endif
-
-	default:
-		g_assert_not_reached();
-	}
-
-	if (a2dp_channel_mode_lookup(codec->channels[0], cap_chm) == NULL) {
-		debug("Invalid channel mode: %#x", cap_chm);
-		ret |= A2DP_CHECK_ERR_CHANNELS;
-	}
-
-	if (a2dp_sampling_lookup(codec->samplings[0], cap_freq) == NULL) {
-		debug("Invalid sampling frequency: %#x", cap_freq);
-		ret |= A2DP_CHECK_ERR_SAMPLING;
-	}
-
-	return ret;
-}
-
-/**
  * Filter A2DP codec capabilities with given capabilities mask. */
 int a2dp_filter_capabilities(
 		const struct a2dp_codec *codec,
@@ -543,6 +366,64 @@ int a2dp_select_configuration(
 
 	error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
 	return errno = EINVAL, -1;
+}
+
+/**
+ * Check whether A2DP configuration is valid.
+ *
+ * @param codec A2DP codec setup.
+ * @param configuration A2DP codec configuration blob.
+ * @param size The size of the A2DP codec configuration blob.
+ * @return On success this function returns A2DP_CHECK_OK. Otherwise,
+ *   one of the A2DP_CHECK_ERR_* values is returned. */
+enum a2dp_check_err a2dp_check_configuration(
+		const struct a2dp_codec *codec,
+		const void *configuration,
+		size_t size) {
+
+	if (size == codec->capabilities_size)
+		return codec->configuration_check(codec, configuration);
+
+	error("Invalid configuration size: %zu != %zu", size, codec->capabilities_size);
+	return A2DP_CHECK_ERR_SIZE;
+}
+
+/**
+ * Get string representation of A2DP configuration check error. */
+const char *a2dp_check_strerror(
+		enum a2dp_check_err err) {
+	switch (err) {
+	case A2DP_CHECK_OK:
+		return "Success";
+	case A2DP_CHECK_ERR_SIZE:
+		return "Invalid size";
+	case A2DP_CHECK_ERR_CHANNEL_MODE:
+		return "Invalid channel mode";
+	case A2DP_CHECK_ERR_SAMPLING:
+		return "Invalid sampling frequency";
+	case A2DP_CHECK_ERR_ALLOCATION_METHOD:
+		return "Invalid allocation method";
+	case A2DP_CHECK_ERR_BIT_POOL_RANGE:
+		return "Invalid bit-pool range";
+	case A2DP_CHECK_ERR_SUB_BANDS:
+		return "Invalid sub-bands";
+	case A2DP_CHECK_ERR_BLOCK_LENGTH:
+		return "Invalid block length";
+	case A2DP_CHECK_ERR_MPEG_LAYER:
+		return "Invalid MPEG layer";
+	case A2DP_CHECK_ERR_OBJECT_TYPE:
+		return "Invalid object type";
+	case A2DP_CHECK_ERR_DIRECTIONS:
+		return "Invalid directions";
+	case A2DP_CHECK_ERR_SAMPLING_VOICE:
+		return "Invalid voice sampling frequency";
+	case A2DP_CHECK_ERR_SAMPLING_MUSIC:
+		return "Invalid music sampling frequency";
+	case A2DP_CHECK_ERR_FRAME_DURATION:
+		return "Invalid frame duration";
+	}
+	debug("Unknown error code: %#x", err);
+	return "Check error";
 }
 
 int a2dp_transport_init(

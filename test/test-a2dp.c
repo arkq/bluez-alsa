@@ -160,8 +160,17 @@ CK_START_TEST(test_a2dp_check_configuration) {
 	};
 
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
-				&cfg_invalid, sizeof(cfg_invalid)),
-			A2DP_CHECK_ERR_SAMPLING | A2DP_CHECK_ERR_CHANNELS | A2DP_CHECK_ERR_SBC_SUB_BANDS);
+				&cfg_invalid, sizeof(cfg_invalid)), A2DP_CHECK_ERR_SAMPLING);
+
+#if ENABLE_AAC
+	a2dp_aac_t cfg_aac_invalid = {
+		/* FDK-AAC encoder does not support AAC Long Term Prediction */
+		.object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP,
+		AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
+		.channels = AAC_CHANNELS_1 };
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_aac_source,
+			&cfg_aac_invalid, sizeof(cfg_aac_invalid)), A2DP_CHECK_ERR_OBJECT_TYPE);
+#endif
 
 } CK_END_TEST
 

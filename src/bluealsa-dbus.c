@@ -680,14 +680,11 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 			a2dp_filter_capabilities(codec, &sep->capabilities,
 					&a2dp_configuration, a2dp_configuration_size);
-			a2dp_filter_capabilities(codec, &codec->capabilities,
-					&a2dp_configuration, a2dp_configuration_size);
 
-			uint32_t rv;
+			enum a2dp_check_err rv;
 			if ((rv = a2dp_check_configuration(codec, &a2dp_configuration,
 						a2dp_configuration_size)) != A2DP_CHECK_OK) {
-				error("Invalid configuration: %s: %#x", "Invalid configuration blob", rv);
-				errmsg = "Invalid configuration blob";
+				errmsg = a2dp_check_strerror(rv);
 				goto fail;
 			}
 
