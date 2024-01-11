@@ -8,6 +8,7 @@
  *
  */
 
+#include <errno.h>
 #include <getopt.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -20,21 +21,7 @@
 
 #include "cli.h"
 #include "shared/dbus-client-pcm.h"
-
-static void uint8_from_hex(uint8_t *value, const uint8_t *src) {
-	static const uint8_t map[256] = {
-		['0'] = 0x0, ['1'] = 0x1, ['2'] = 0x2, ['3'] = 0x3, ['4'] = 0x4,
-		['5'] = 0x5, ['6'] = 0x6, ['7'] = 0x7, ['8'] = 0x8, ['9'] = 0x9,
-		['a'] = 0xa, ['b'] = 0xb, ['c'] = 0xc, ['d'] = 0xd, ['e'] = 0xe, ['f'] = 0xf,
-		['A'] = 0xa, ['B'] = 0xb, ['C'] = 0xc, ['D'] = 0xd, ['E'] = 0xe, ['F'] = 0xf };
-	*value = (map[src[0]] << 4) | map[src[1]];
-}
-
-static void uint8_to_hex(uint8_t *dest, uint8_t value) {
-	static const char map[] = "0123456789abcdef";
-	dest[0] = map[value >> 4];
-	dest[1] = map[value & 0x0f];
-}
+#include "shared/hex.h"
 
 static void usage(const char *command) {
 	printf("Transfer raw PCM data via stdin or stdout.\n\n");
@@ -99,7 +86,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!ba_dbus_pcm_open(&config.dbus, path, &fd_pcm, &fd_pcm_ctrl, &err)) {
-		cmd_print_error("Cannot open PCM: %s", err.message);
+		cmd_print_error("Couldn't open PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -113,7 +100,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 	}
 
 	uint8_t buffer[4096];
-	uint8_t buffer_hex[sizeof(buffer) * 2];
+	uint8_t buffer_hex[sizeof(buffer) * 2 + 1];
 	ssize_t count;
 
 	while ((count = read(fd_input, buffer, sizeof(buffer))) > 0) {
@@ -124,16 +111,15 @@ static int cmd_open_func(int argc, char *argv[]) {
 		if (hex) {
 
 			if (fd_input == STDIN_FILENO) {
-				for (ssize_t i = 0; i < count; i += 2)
-					uint8_from_hex(&buffer[i / 2], &buffer[i]);
-				count /= 2;
+				if ((count = hex2bin((const char *)buffer, buffer, count)) == -1) {
+					cmd_print_error("Couldn't decode hex string: %s", strerror(errno));
+					continue;
+				}
 			}
 
 			if (fd_output == STDOUT_FILENO) {
-				for (ssize_t i = 0; i < count; i++)
-					uint8_to_hex(&buffer_hex[i * 2], buffer[i]);
+				count = bin2hex(buffer, (char *)buffer_hex, count);
 				pos = buffer_hex;
-				count *= 2;
 			}
 
 		}

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hex.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,13 +11,6 @@
 #include "shared/hex.h"
 
 #include <errno.h>
-#include <stdio.h>
-
-static const int hextable[255] = {
-	['0'] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	['A'] = 10, 11, 12, 13, 14, 15,
-	['a'] = 10, 11, 12, 13, 14, 15,
-};
 
 /**
  * Encode a binary data into a hex string.
@@ -29,8 +22,16 @@ static const int hextable[255] = {
  * @param n The length of the binary buffer which shall be encoded.
  * @return This function returns length of the hex string. */
 ssize_t bin2hex(const void *bin, char *hex, size_t n) {
-	for (size_t i = 0; i < n; i++)
-		sprintf(&hex[i * 2], "%.2x", ((unsigned char *)bin)[i]);
+
+	static const char map_bin2hex[] = "0123456789abcdef";
+
+	for (size_t i = 0; i < n; i++) {
+		const unsigned char *src = bin;
+		hex[i * 2] = map_bin2hex[src[i] >> 4];
+		hex[i * 2 + 1] = map_bin2hex[src[i] & 0x0f];
+	}
+
+	hex[n * 2] = '\0';
 	return n * 2;
 }
 
@@ -46,13 +47,21 @@ ssize_t bin2hex(const void *bin, char *hex, size_t n) {
  *   error. */
 ssize_t hex2bin(const char *hex, void *bin, size_t n) {
 
+	static const int map_hex2bin[256] = {
+		['0'] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+		['A'] = 10, 11, 12, 13, 14, 15,
+		['a'] = 10, 11, 12, 13, 14, 15,
+	};
+
 	if (n % 2 != 0)
 		return errno = EINVAL, -1;
 
 	n /= 2;
+	unsigned char *out = bin;
 	for (size_t i = 0; i < n; i++) {
-		((char *)bin)[i] = hextable[(int)hex[i * 2]] << 4;
-		((char *)bin)[i] |= hextable[(int)hex[i * 2 + 1]];
+		const unsigned char c1 = hex[i * 2];
+		const unsigned char c2 = hex[i * 2 + 1];
+		out[i] = (map_hex2bin[c1] << 4) | map_hex2bin[c2];
 	}
 
 	return n;

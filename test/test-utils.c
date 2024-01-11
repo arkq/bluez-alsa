@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -255,21 +255,21 @@ CK_START_TEST(test_ffb_resize) {
 
 CK_START_TEST(test_bin2hex) {
 
-	const uint8_t bin[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+	const uint8_t bin[] = { 0x00, 0xDE, 0xAD, 0xBE, 0xEF, 0xFF };
 	char hex[sizeof(bin) * 2 + 1];
 
-	ck_assert_int_eq(bin2hex(bin, hex, sizeof(bin)), 8);
-	ck_assert_str_eq(hex, "deadbeef");
+	ck_assert_int_eq(bin2hex(bin, hex, sizeof(bin)), 12);
+	ck_assert_str_eq(hex, "00deadbeefff");
 
 } CK_END_TEST
 
 CK_START_TEST(test_hex2bin) {
 
-	const uint8_t bin_ok[] = { 0xDE, 0xAD, 0xBE, 0xEF };
-	const char *hex = "DEADbeef";
+	const uint8_t bin_ok[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x00 };
+	const char hex[] = "DEADbeef\x00\xFF";
 	uint8_t bin[sizeof(bin_ok)];
 
-	ck_assert_int_eq(hex2bin(hex, bin, strlen(hex)), 4);
+	ck_assert_int_eq(hex2bin(hex, bin, sizeof(hex) - 1), 5);
 	ck_assert_int_eq(memcmp(bin, bin_ok, sizeof(bin)), 0);
 
 	ck_assert_int_eq(hex2bin(hex, bin, 3), -1);
