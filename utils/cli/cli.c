@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cli.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -190,6 +190,19 @@ bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
 	return found;
 }
 
+bool cli_parse_common_options(int opt) {
+	switch (opt) {
+	case 'q' /* --quiet */ :
+		config.quiet = true;
+		return true;
+	case 'v' /* --verbose */ :
+		config.verbose = true;
+		return true;
+	default:
+		return false;
+	}
+}
+
 bool cli_parse_value_on_off(const char *value, bool *out) {
 
 	static const char * const value_on[] = { "on", "yes", "true", "y", "1" };
@@ -356,19 +369,21 @@ int main(int argc, char *argv[]) {
 	progname = argv[0];
 
 	int opt;
-	const char *opts = "+B:Vhqv";
+	const char *opts = "+hqvB:V";
 	const struct option longopts[] = {
-		{"dbus", required_argument, NULL, 'B'},
-		{"version", no_argument, NULL, 'V'},
-		{"help", no_argument, NULL, 'h'},
-		{"quiet", no_argument, NULL, 'q'},
-		{"verbose", no_argument, NULL, 'v'},
+		{ "help", no_argument, NULL, 'h' },
+		{ "quiet", no_argument, NULL, 'q' },
+		{ "verbose", no_argument, NULL, 'v' },
+		{ "dbus", required_argument, NULL, 'B' },
+		{ "version", no_argument, NULL, 'V' },
 		{ 0 },
 	};
 
 	char dbus_ba_service[32] = BLUEALSA_SERVICE;
 
-	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
+		if (cli_parse_common_options(opt))
+			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
 			usage(argv[0]);
@@ -383,16 +398,11 @@ int main(int argc, char *argv[]) {
 				return EXIT_FAILURE;
 			}
 			break;
-		case 'q' /* --quiet */ :
-			config.quiet = true;
-			break;
-		case 'v' /* --verbose */ :
-			config.verbose = true;
-			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return EXIT_FAILURE;
 		}
+	}
 
 	log_open(basename(argv[0]), false);
 	dbus_threads_init_default();

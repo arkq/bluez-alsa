@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cmd-monitor.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -307,15 +307,19 @@ static void usage(const char *command) {
 static int cmd_monitor_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hp::";
+	const char *opts = "hqvp::";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "quiet", no_argument, NULL, 'q' },
+		{ "verbose", no_argument, NULL, 'v' },
 		{ "properties", optional_argument, NULL, 'p' },
 		{ 0 },
 	};
 
 	opterr = 0;
-	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
+		if (cli_parse_common_options(opt))
+			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
 			usage(argv[0]);
@@ -329,6 +333,7 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 			cmd_print_error("Invalid argument '%s'", argv[optind - 1]);
 			return EXIT_FAILURE;
 		}
+	}
 
 	if (argc != optind) {
 		cmd_print_error("Invalid number of arguments");

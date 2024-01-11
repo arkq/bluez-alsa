@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cmd-delay-adjustment.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -34,18 +34,23 @@ static void usage(const char *command) {
 static int cmd_delay_adjustment_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "+h";
+	const char *opts = "+hqv";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "quiet", no_argument, NULL, 'q' },
+		{ "verbose", no_argument, NULL, 'v' },
 		{ 0 },
 	};
 
 	opterr = 0;
-	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
+		if (cli_parse_common_options(opt))
+			continue;
 		if (opt == 'h') { /* --help */
 			usage(argv[0]);
 			return EXIT_SUCCESS;
 		}
+	}
 
 	if (argc - optind < 1) {
 		cmd_print_error("Missing BlueALSA PCM path argument");

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - cmd-open.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -50,9 +50,11 @@ static void usage(const char *command) {
 static int cmd_open_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hx";
+	const char *opts = "hqvx";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "quiet", no_argument, NULL, 'q' },
+		{ "verbose", no_argument, NULL, 'v' },
 		{ "hex", no_argument, NULL, 'x' },
 		{ 0 },
 	};
@@ -60,7 +62,9 @@ static int cmd_open_func(int argc, char *argv[]) {
 	bool hex = false;
 
 	opterr = 0;
-	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
+	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
+		if (cli_parse_common_options(opt))
+			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
 			usage(argv[0]);
@@ -72,6 +76,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 			cmd_print_error("Invalid argument '%s'", argv[optind - 1]);
 			return EXIT_FAILURE;
 		}
+	}
 
 	if (argc - optind < 1) {
 		cmd_print_error("Missing BlueALSA PCM path argument");

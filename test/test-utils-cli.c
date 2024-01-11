@@ -1,6 +1,6 @@
 /*
  * test-utils-cli.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -364,7 +364,7 @@ CK_START_TEST(test_monitor) {
 
 	/* check monitor command */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"-v", "monitor", "--properties=codec,volume",
+				"monitor", "-v", "--properties=codec,volume",
 				NULL), 0);
 
 	/* notifications for service start/stop */
