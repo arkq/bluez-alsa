@@ -199,6 +199,7 @@ CK_START_TEST(test_codec) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+				"--profile=a2dp-source",
 				"--profile=hfp-ag",
 				NULL), -1);
 
@@ -226,7 +227,7 @@ CK_START_TEST(test_codec) {
 				NULL), 0);
 
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"-v", "codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink",
+				"codec", "-vf", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Selected codec: mSBC"), NULL);
 #endif
@@ -234,6 +235,12 @@ CK_START_TEST(test_codec) {
 	/* check selecting not available codec */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
 				"codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink", "SBC",
+				NULL), EXIT_FAILURE);
+
+	/* check selecting A2DP codec without SEP support (with our mock BlueZ) */
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"codec", "-vf", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"SBC", "11150255",
 				NULL), EXIT_FAILURE);
 
 	spawn_terminate(&sp_ba_mock, 0);

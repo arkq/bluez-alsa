@@ -6,7 +6,7 @@ org.bluealsa.PCM1
 Bluetooth Audio PCM D-Bus API
 ---------------------------------
 
-:Date: October 2023
+:Date: January 2024
 :Manual section: 7
 :Manual group: D-Bus Interface
 :Version: $VERSION$
@@ -52,7 +52,10 @@ void SelectCodec(string codec, dict props)
 
     For A2DP codecs, client can override built-in logic for selecting codec
     configuration by providing the configuration blob via the "Configuration"
-    property.
+    property. Provided configuration must be valid for given codec in respect
+    to BlueALSA and peer device capabilities. Otherwise, the call will fail.
+    It is possible to override this validation by setting the "NonConformant"
+    property to true.
 
     Possible Errors:
     ::

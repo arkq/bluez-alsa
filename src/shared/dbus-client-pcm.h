@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client-pcm.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -186,12 +186,16 @@ dbus_bool_t ba_dbus_pcm_codecs_get(
 void ba_dbus_pcm_codecs_free(
 		struct ba_pcm_codecs *codecs);
 
+#define BA_PCM_SELECT_CODEC_FLAG_NONE           (0)
+#define BA_PCM_SELECT_CODEC_FLAG_NON_CONFORMANT (1 << 0)
+
 dbus_bool_t ba_dbus_pcm_select_codec(
 		struct ba_dbus_ctx *ctx,
 		const char *pcm_path,
 		const char *codec,
 		const void *configuration,
 		size_t configuration_len,
+		unsigned int flags,
 		DBusError *error);
 
 dbus_bool_t ba_dbus_pcm_set_delay_adjustment(

@@ -89,7 +89,7 @@ info *PCM_PATH*
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
 
-codec *PCM_PATH* [*CODEC* [*CONFIG*]]
+codec [--force] *PCM_PATH* [*CODEC* [*CONFIG*]]
     Get or set the Bluetooth codec used by the given PCM.
 
     If *CODEC* is given, change the codec to be used by the given PCM. This
@@ -102,6 +102,13 @@ codec *PCM_PATH* [*CODEC* [*CONFIG*]]
     should be selected. The *CONFIG* shall be given as a hexadecimal string. If
     this parameter is omitted, BlueALSA will select default configuration based
     on codec capabilities of connected Bluetooth device.
+
+    Given A2DP codec configuration shall be a valid configuration in respect to
+    the capabilities of connected Bluetooth device and the BlueALSA itself. If
+    the given configuration is not valid, this command will fail with an error.
+    In such case, one can use the **--force** option to force the selection of
+    the configuration. However, this may result in a non-working connection and
+    in the worst case it may crash remote Bluetooth device!
 
     Selecting an A2DP codec and listing available A2DP codecs requires BlueZ
     SEP support (BlueZ >= 5.52).

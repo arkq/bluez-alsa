@@ -610,6 +610,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 	a2dp_t a2dp_configuration = {};
 	size_t a2dp_configuration_size = 0;
+	bool conformance_check = true;
 
 	g_variant_get(params, "(&sa{sv})", &codec_name, &properties);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
@@ -628,6 +629,10 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 			memcpy(&a2dp_configuration, data, a2dp_configuration_size);
 
+		}
+		else if (strcmp(property, "NonConformant") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
+			conformance_check = !g_variant_get_boolean(value);
 		}
 
 		g_variant_unref(value);
@@ -670,25 +675,38 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		if (a2dp_configuration_size == 0) {
 			/* setup default codec configuration */
 
-			memcpy(&sep->configuration, &sep->capabilities, sep->capabilities_size);
-			if (a2dp_select_configuration(codec, &sep->configuration, sep->capabilities_size) == -1)
+			const size_t size = sep->capabilities_size;
+			memcpy(&sep->configuration, &sep->capabilities, size);
+			if (a2dp_select_configuration(codec, &sep->configuration, size) == -1)
 				goto fail;
 
 		}
 		else {
 			/* use codec configuration blob provided by user */
 
-			a2dp_filter_capabilities(codec, &sep->capabilities,
-					&a2dp_configuration, a2dp_configuration_size);
+			if (conformance_check) {
 
-			enum a2dp_check_err rv;
-			if ((rv = a2dp_check_configuration(codec, &a2dp_configuration,
-						a2dp_configuration_size)) != A2DP_CHECK_OK) {
-				errmsg = a2dp_check_strerror(rv);
-				goto fail;
+				a2dp_filter_capabilities(codec, &sep->capabilities,
+						&a2dp_configuration, a2dp_configuration_size);
+
+				enum a2dp_check_err rv;
+				if ((rv = a2dp_check_configuration(codec, &a2dp_configuration,
+							a2dp_configuration_size)) != A2DP_CHECK_OK) {
+					errmsg = a2dp_check_strerror(rv);
+					goto fail;
+				}
+
+			}
+			else {
+
+				if (a2dp_configuration_size != sep->capabilities_size) {
+					errmsg = a2dp_check_strerror(A2DP_CHECK_ERR_SIZE);
+					goto fail;
+				}
+
 			}
 
-			memcpy(&sep->configuration, &a2dp_configuration, sep->capabilities_size);
+			memcpy(&sep->configuration, &a2dp_configuration, a2dp_configuration_size);
 
 		}
 

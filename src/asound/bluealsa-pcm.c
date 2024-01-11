@@ -1288,7 +1288,7 @@ static bool bluealsa_select_pcm_codec(struct bluealsa_pcm *pcm, const char *code
 	}
 
 	if (!ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
-				ba_dbus_pcm_codec_get_canonical_name(codec_name), config, config_len, err))
+				ba_dbus_pcm_codec_get_canonical_name(codec_name), config, config_len, 0, err))
 		goto fail;
 
 	ret = true;

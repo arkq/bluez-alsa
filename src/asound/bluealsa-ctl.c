@@ -1257,7 +1257,7 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		if (strcmp(pcm->codec.name, elem->codecs.codecs[items[0]].name) == 0)
 			return 0;
 		if (!ba_dbus_pcm_select_codec(&ctl->dbus_ctx, pcm->pcm_path,
-					elem->codecs.codecs[items[0]].name, NULL, 0, NULL))
+					elem->codecs.codecs[items[0]].name, NULL, 0, 0, NULL))
 			return -EIO;
 		process_events(&ctl->ext);
 		break;

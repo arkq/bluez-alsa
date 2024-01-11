@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client-pcm.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -350,6 +350,7 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 		const char *codec,
 		const void *configuration,
 		size_t configuration_len,
+		unsigned int flags,
 		DBusError *error) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
@@ -384,6 +385,21 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 				!dbus_message_iter_append_fixed_array(&array, DBUS_TYPE_BYTE, &configuration, configuration_len) ||
 				!dbus_message_iter_close_container(&config, &array) ||
 				!dbus_message_iter_close_container(&dict, &config) ||
+				!dbus_message_iter_close_container(&props, &dict)) {
+			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+			goto fail;
+		}
+	}
+
+	if (flags & BA_PCM_SELECT_CODEC_FLAG_NON_CONFORMANT) {
+		const char *property = "NonConformant";
+		DBusMessageIter dict;
+		DBusMessageIter option;
+		if (!dbus_message_iter_open_container(&props, DBUS_TYPE_DICT_ENTRY, NULL, &dict) ||
+				!dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &property) ||
+				!dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, "b", &option) ||
+				!dbus_message_iter_append_basic(&option, DBUS_TYPE_BOOLEAN, &(dbus_bool_t){ TRUE }) ||
+				!dbus_message_iter_close_container(&dict, &option) ||
 				!dbus_message_iter_close_container(&props, &dict)) {
 			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
 			goto fail;
