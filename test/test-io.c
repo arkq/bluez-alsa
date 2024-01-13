@@ -261,7 +261,7 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 	};
 
 	if (aging_duration == 0) {
-		/* If we are not performign aging test, close the PCM right
+		/* If we are not performing aging test, close the PCM right
 		 * away. The reading loop will not wait for timeout. */
 		pthread_mutex_lock(&pcm->mutex);
 		ba_transport_pcm_release(pcm);
@@ -329,7 +329,7 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 	}
 
 	if (aging_duration == 0) {
-		/* If we are not performign aging test, close the PCM right
+		/* If we are not performing aging test, close the PCM right
 		 * away. The reading loop will not wait for timeout. */
 		pthread_mutex_lock(&pcm->mutex);
 		ba_transport_pcm_release(pcm);

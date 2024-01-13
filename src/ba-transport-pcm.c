@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport-pcm.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -437,19 +437,22 @@ void ba_transport_pcm_stop(
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
 
 #if DEBUG
-	if (pcm->t->profile != BA_TRANSPORT_PROFILE_NONE)
-		/* assert that we were called with the lock held */
-		g_assert_cmpint(pthread_mutex_trylock(&pcm->mutex), !=, 0);
+	/* assert that we were called with the lock held */
+	g_assert_cmpint(pthread_mutex_trylock(&pcm->mutex), !=, 0);
 #endif
 
-	if (pcm->fd == -1)
-		goto final;
+	if (pcm->fd != -1) {
+		debug("Closing PCM: %d", pcm->fd);
+		close(pcm->fd);
+		pcm->fd = -1;
+	}
 
-	debug("Closing PCM: %d", pcm->fd);
-	close(pcm->fd);
-	pcm->fd = -1;
+	if (pcm->controller != NULL) {
+		g_source_destroy(pcm->controller);
+		g_source_unref(pcm->controller);
+		pcm->controller = NULL;
+	}
 
-final:
 	return 0;
 }
 

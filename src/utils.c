@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,7 +9,10 @@
  */
 
 #include "utils.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -93,6 +96,25 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
 	warn("Invalid variant type: %s: %s != %s", name,
 			g_variant_get_type_string(value), (const char *)type);
 	return false;
+}
+
+/**
+ * Create a new watch source for the given I/O channel.
+ *
+ * @param channel A pointer to the GIOChannel.
+ * @param priority The priority of the source.
+ * @param cond The condition to watch for.
+ * @param func The function to call when the condition is satisfied.
+ * @param userdata Data to pass to the function.
+ * @param notify Function to call when the source is destroyed.
+ * @return New watch source. */
+GSource *g_io_create_watch_full(GIOChannel *channel, int priority,
+		GIOCondition cond, GIOFunc func, void *userdata, GDestroyNotify notify) {
+	GSource *watch = g_io_create_watch(channel, cond);
+	g_source_set_callback(watch, G_SOURCE_FUNC(func), userdata, notify);
+	g_source_set_priority(watch, priority);
+	g_source_attach(watch, NULL);
+	return watch;
 }
 
 /**

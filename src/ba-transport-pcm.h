@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport-pcm.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -132,6 +132,9 @@ struct ba_transport_pcm {
 
 	/* new PCM client mutex */
 	pthread_mutex_t client_mtx;
+
+	/* source watch for controller socket */
+	GSource *controller;
 
 	/* actual thread ID */
 	pthread_t tid;

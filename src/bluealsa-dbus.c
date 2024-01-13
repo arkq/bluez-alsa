@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -475,21 +475,23 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	}
 
 	pthread_mutex_lock(&pcm->mutex);
+
 	/* get correct PIPE endpoint - PIPE is unidirectional */
 	pcm->fd = pcm_fds[is_sink ? 0 : 1];
 	/* set newly opened PCM as active */
 	pcm->paused = false;
-	pthread_mutex_unlock(&pcm->mutex);
 
 	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
 	g_io_channel_set_close_on_unref(ch, TRUE);
 	g_io_channel_set_encoding(ch, NULL, NULL);
 	g_io_channel_set_buffered(ch, FALSE);
 
-	g_io_add_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
-			bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
+	pcm->controller = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
+			G_IO_IN, bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
 			(GDestroyNotify)ba_transport_pcm_unref);
 	g_io_channel_unref(ch);
+
+	pthread_mutex_unlock(&pcm->mutex);
 
 	/* notify our audio thread that the FIFO is ready */
 	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_OPEN);
