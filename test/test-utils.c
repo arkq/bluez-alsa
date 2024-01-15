@@ -205,13 +205,13 @@ CK_START_TEST(test_ffb) {
 	ck_assert_int_eq(ffb_blen_out(&ffb_16), 36 * 2);
 	ck_assert_int_eq(((int16_t *)ffb_16.tail)[-1], 0x5a5a);
 
-	ck_assert_int_eq(ffb_shift(&ffb_u8, 15), 15);
-	ck_assert_int_eq(ffb_len_in(&ffb_u8), 64 - (36 - 15));
-	ck_assert_int_eq(ffb_len_out(&ffb_u8), 36 - 15);
-	ck_assert_int_eq(memcmp(ffb_u8.data, "FGHIJKLMNOPQRSTUVWXYZ", ffb_len_out(&ffb_u8)), 0);
+	ck_assert_int_eq(ffb_shift(&ffb_u8, 33), 33);
+	ck_assert_int_eq(ffb_len_in(&ffb_u8), 64 - (36 - 33));
+	ck_assert_int_eq(ffb_len_out(&ffb_u8), 36 - 33);
+	ck_assert_int_eq(memcmp(ffb_u8.data, "XYZ", ffb_len_out(&ffb_u8)), 0);
 	ck_assert_int_eq(((uint8_t *)ffb_u8.tail)[-1], 'Z');
 
-	ck_assert_int_eq(ffb_shift(&ffb_u8, 100), 36 - 15);
+	ck_assert_int_eq(ffb_shift(&ffb_u8, 100), 36 - 33);
 	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
 
 	ffb_seek(&ffb_u8, 4);
@@ -255,11 +255,11 @@ CK_START_TEST(test_ffb_resize) {
 
 CK_START_TEST(test_bin2hex) {
 
-	const uint8_t bin[] = { 0x00, 0xDE, 0xAD, 0xBE, 0xEF, 0xFF };
+	const uint8_t bin[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF };
 	char hex[sizeof(bin) * 2 + 1];
 
 	ck_assert_int_eq(bin2hex(bin, hex, sizeof(bin)), 12);
-	ck_assert_str_eq(hex, "00deadbeefff");
+	ck_assert_str_eq(hex, "deadbeef00ff");
 
 } CK_END_TEST
 

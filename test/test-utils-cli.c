@@ -64,7 +64,7 @@ CK_START_TEST(test_help) {
 	char output[4096];
 
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"-qv", "--help", NULL), 0);
+				"-q", "-v", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 } CK_END_TEST

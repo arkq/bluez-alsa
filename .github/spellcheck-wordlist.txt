@@ -51,6 +51,7 @@ UI
 UUID
 UUIDs
 VBR
+WAV
 XQ
 
 # Proper Names
@@ -80,23 +81,34 @@ codecs
 conf
 const
 dereferenced
+dev
 duplications
 durations
+elems
 endian
 endianness
 enum
 getter
 init
+iter
+libs
 middleware
 mutex
 natively
 param
 params
 pragma
+pre
 proc
+realloc
 reinitialization
+renderer
 scalable
 signedness
+stdin
+syslog
+tmp
+tty
 unexported
 unmute
 unmutes
@@ -106,11 +118,17 @@ unregister
 utils
 
 # Others
+AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ
+ABCD
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+aloader
 amixer
 AOT
 aplay
 appl
 aptXHD
+ARGS
+asound
 asoundrc
 asrsync
 autoreconf
@@ -128,6 +146,7 @@ bluetoothctl
 bluetoothd
 BRSF
 BSC
+btd
 btmon
 BTRH
 BTT
@@ -137,12 +156,14 @@ CCE
 CIEV
 CIND
 CKPD
+CLCC
+CLCK
 CMER
 ctrl
 ctx
 dbus
-dev
 disp
+dlopen
 dmix
 docutils
 dpsnk
@@ -158,7 +179,10 @@ EPMR
 EQMID
 errno
 FB
+fdX
 ffb
+ffff
+FMT
 fs
 GError
 GHashTable
@@ -170,11 +194,11 @@ hfpag
 hfphf
 hspag
 hsphs
-hVSB
 ioplug
 IPHONEACCEV
-iter
+jas
 keyp
+larc
 LF
 LFE
 libasound
@@ -183,8 +207,10 @@ libdbus
 libldac
 libopenaptx
 LLAC
+LTP
 MPF
 MPS
+MSEC
 mtx
 ncurses
 nmemb
@@ -193,16 +219,19 @@ oa
 openaptx
 PCH
 pfd
+pfds
 pthread
 ptr
 qsort
 readi
 readline
-renderer
 revents
+rl
 RST
 RVLC
 SBR
+SCA
+SIGINT
 SIGIO
 SIGPIPE
 SIGSEGV
@@ -210,8 +239,8 @@ SIGTERM
 SNR
 spandsp
 SRA
+sul
 sv
-syslog
 syslogd
 systemd
 TIOCOUTQ
@@ -230,3 +259,4 @@ XHSTBATSOC
 XHSTBATSOH
 XM
 XRUN
+XYZ

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dpconf.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -81,10 +81,10 @@ static void dump_sbc(const void *blob, size_t size) {
 			"  sampling-frequency:4 =%s%s%s%s\n"
 			"  channel-mode:4 =%s%s%s%s\n"
 			"  block-length:4 =%s%s%s%s\n"
-			"  subbands:2 =%s%s\n"
+			"  sub-bands:2 =%s%s\n"
 			"  allocation-method:2 =%s%s\n"
-			"  min-bitpool-value:8 = %u\n"
-			"  max-bitpool-value:8 = %u\n"
+			"  min-bit-pool-value:8 = %u\n"
+			"  max-bit-pool-value:8 = %u\n"
 			"}\n",
 			bintohex(sbc, sizeof(*sbc)),
 			sbc->frequency & SBC_SAMPLING_FREQ_48000 ? " 48000" : "",
@@ -287,7 +287,7 @@ static void dump_aptx_ll(const void *blob, size_t size) {
 	printf(""
 			"  <reserved>:6\n"
 			"  has-new-caps:1 = %s\n"
-			"  bidirect-link:1 = %s\n",
+			"  bidirectional-link:1 = %s\n",
 			aptx_ll->has_new_caps ? "true" : "false",
 			aptx_ll->bidirect_link ? "true" : "false");
 

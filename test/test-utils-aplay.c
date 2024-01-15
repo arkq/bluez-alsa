@@ -170,7 +170,7 @@ CK_START_TEST(test_play_all) {
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
 				"--profile-a2dp",
 				"--pcm=null",
-				"-vv",
+				"-v", "-v",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
@@ -202,7 +202,7 @@ CK_START_TEST(test_play_single_audio) {
 				"--single-audio",
 				"--profile-a2dp",
 				"--pcm=null",
-				"-vvv",
+				"-v", "-v", "-v",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
@@ -279,7 +279,7 @@ CK_START_TEST(test_play_dbus_signals) {
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
 				"--profile-sco",
 				"--pcm=null",
-				"-vv",
+				"-v", "-v",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 1500);
 

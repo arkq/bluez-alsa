@@ -1,5 +1,5 @@
 # BlueALSA - spellcheck.yaml
-# Copyright (c) 2016-2022 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 #
 # This file provides PySpelling configuration for BlueALSA project. In order
 # to run spellcheck locally, do as follows:
@@ -22,7 +22,7 @@ matrix:
 
 - name: C
   sources:
-  - 'src/**/*.{c,h}|!config.h'
+  - '**/*.{c,h}|!build/**'
   aspell: *aspell
   dictionary: *dict
   pipeline:
@@ -38,6 +38,9 @@ matrix:
         close: '$'
       # Ignore include statement
       - open: '^# *include'
+        close: '$'
+      # Ignore opt-string passed to optarg()
+      - open: 'const char \*opts = '
         close: '$'
   - pyspelling.filters.cpp:
       prefix: c
@@ -58,7 +61,7 @@ matrix:
 
 - name: Markdown
   sources:
-  - '**/*.md'
+  - '**/*.md|!build/**'
   aspell: *aspell
   dictionary: *dict
   pipeline:
@@ -78,7 +81,7 @@ matrix:
 
 - name: reStructuredText
   sources:
-  - '**/*.rst'
+  - '**/*.rst|!build/**'
   aspell: *aspell
   dictionary: *dict
   pipeline:
@@ -98,7 +101,7 @@ matrix:
 
 - name: TXT
   sources:
-  - '**/*.txt'
+  - '**/*.txt|!build/**'
   - NEWS
   aspell: *aspell
   dictionary: *dict
