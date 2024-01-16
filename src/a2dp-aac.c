@@ -67,7 +67,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	AACENC_ERROR err;
 
 	const a2dp_aac_t *configuration = &t->a2dp.configuration.aac;
-	const unsigned int bitrate = AAC_GET_BITRATE(*configuration);
+	const unsigned int bitrate = A2DP_AAC_GET_BITRATE(*configuration);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int samplerate = t_pcm->sampling;
 
@@ -83,19 +83,19 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
 
 	switch (configuration->object_type) {
-	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
+	case AAC_OBJECT_TYPE_MPEG2_LC:
 #if AACENCODER_LIB_VERSION <= 0x03040C00 /* 3.4.12 */ || \
 		AACENCODER_LIB_VERSION >= 0x04000000 /* 4.0.0 */
 		aot = AOT_MP2_AAC_LC;
 		break;
 #endif
-	case AAC_OBJECT_TYPE_MPEG4_AAC_LC:
+	case AAC_OBJECT_TYPE_MPEG4_LC:
 		aot = AOT_AAC_LC;
 		break;
-	case AAC_OBJECT_TYPE_MPEG4_AAC_LTP:
+	case AAC_OBJECT_TYPE_MPEG4_LTP:
 		aot = AOT_AAC_LTP;
 		break;
-	case AAC_OBJECT_TYPE_MPEG4_AAC_SCA:
+	case AAC_OBJECT_TYPE_MPEG4_SCA:
 		aot = AOT_AAC_SCAL;
 		break;
 	}
@@ -456,9 +456,9 @@ fail_open:
 	return NULL;
 }
 
-static const struct a2dp_channel_mode a2dp_aac_channels[] = {
-	{ A2DP_CHM_MONO, 1, AAC_CHANNELS_1 },
-	{ A2DP_CHM_STEREO, 2, AAC_CHANNELS_2 },
+static const struct a2dp_channels a2dp_aac_channels[] = {
+	{ 1, AAC_CHANNELS_1 },
+	{ 2, AAC_CHANNELS_2 },
 	{ 0 },
 };
 
@@ -487,12 +487,12 @@ static int a2dp_aac_capabilities_filter(
 	const a2dp_aac_t *caps_mask = capabilities_mask;
 	a2dp_aac_t *caps = capabilities;
 
-	int rate = MIN(AAC_GET_BITRATE(*caps), AAC_GET_BITRATE(*caps_mask));
+	int rate = MIN(A2DP_AAC_GET_BITRATE(*caps), A2DP_AAC_GET_BITRATE(*caps_mask));
 
 	for (size_t i = 0; i < sizeof(*caps); i++)
 		((uint8_t *)caps)[i] = ((uint8_t *)caps)[i] & ((uint8_t *)caps_mask)[i];
 
-	AAC_SET_BITRATE(*caps, rate);
+	A2DP_AAC_SET_BITRATE(*caps, rate);
 
 	return 0;
 }
@@ -509,42 +509,42 @@ static int a2dp_aac_configuration_select(
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
-	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_SCA)
-		caps->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
-	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LTP)
-		caps->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP;
-	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_AAC_LC)
-		caps->object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LC;
-	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG2_AAC_LC)
-		caps->object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC;
+	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_SCA)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_SCA;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_LTP)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_LTP;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_LC)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_LC;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG2_LC)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG2_LC;
 	else {
 		error("AAC: No supported object types: %#x", saved.object_type);
 		return errno = ENOTSUP, -1;
 	}
 
 	const struct a2dp_sampling *sampling;
-	const uint16_t caps_frequency = AAC_GET_FREQUENCY(*caps);
+	const uint16_t caps_frequency = A2DP_AAC_GET_FREQUENCY(*caps);
 	if ((sampling = a2dp_sampling_select(a2dp_aac_samplings, caps_frequency)) != NULL)
-		AAC_SET_FREQUENCY(*caps, sampling->value);
+		A2DP_AAC_SET_FREQUENCY(*caps, sampling->value);
 	else {
-		error("AAC: No supported sampling frequencies: %#x", AAC_GET_FREQUENCY(saved));
+		error("AAC: No supported sampling frequencies: %#x", A2DP_AAC_GET_FREQUENCY(saved));
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_select(a2dp_aac_channels, caps->channels)) != NULL)
-		caps->channels = chm->value;
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_select(a2dp_aac_channels, caps->channels)) != NULL)
+		caps->channels = channels->value;
 	else {
 		error("AAC: No supported channels: %#x", saved.channels);
 		return errno = ENOTSUP, -1;
 	}
 
-	unsigned int ba_bitrate = AAC_GET_BITRATE(codec->capabilities.aac);
-	unsigned int cap_bitrate = AAC_GET_BITRATE(*caps);
+	unsigned int ba_bitrate = A2DP_AAC_GET_BITRATE(codec->capabilities.aac);
+	unsigned int cap_bitrate = A2DP_AAC_GET_BITRATE(*caps);
 	if (cap_bitrate == 0)
 		/* fix bitrate value if it was not set */
 		cap_bitrate = UINT_MAX;
-	AAC_SET_BITRATE(*caps, MIN(cap_bitrate, ba_bitrate));
+	A2DP_AAC_SET_BITRATE(*caps, MIN(cap_bitrate, ba_bitrate));
 
 	if (!config.aac_prefer_vbr)
 		caps->vbr = 0;
@@ -565,23 +565,23 @@ static int a2dp_aac_configuration_check(
 		return A2DP_CHECK_ERR_SIZE;
 
 	switch (conf_v.object_type) {
-	case AAC_OBJECT_TYPE_MPEG2_AAC_LC:
-	case AAC_OBJECT_TYPE_MPEG4_AAC_LC:
-	case AAC_OBJECT_TYPE_MPEG4_AAC_LTP:
-	case AAC_OBJECT_TYPE_MPEG4_AAC_SCA:
+	case AAC_OBJECT_TYPE_MPEG2_LC:
+	case AAC_OBJECT_TYPE_MPEG4_LC:
+	case AAC_OBJECT_TYPE_MPEG4_LTP:
+	case AAC_OBJECT_TYPE_MPEG4_SCA:
 		break;
 	default:
 		debug("AAC: Invalid object type: %#x", conf->object_type);
 		return A2DP_CHECK_ERR_OBJECT_TYPE;
 	}
 
-	const uint16_t conf_frequency = AAC_GET_FREQUENCY(conf_v);
+	const uint16_t conf_frequency = A2DP_AAC_GET_FREQUENCY(conf_v);
 	if (a2dp_sampling_lookup(a2dp_aac_samplings, conf_frequency) == NULL) {
-		debug("AAC: Invalid sampling frequency: %#x", AAC_GET_FREQUENCY(*conf));
+		debug("AAC: Invalid sampling frequency: %#x", A2DP_AAC_GET_FREQUENCY(*conf));
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channel_mode_lookup(a2dp_aac_channels, conf_v.channels) == NULL) {
+	if (a2dp_channels_lookup(a2dp_aac_channels, conf_v.channels) == NULL) {
 		debug("AAC: Invalid channel mode: %#x", conf->channels);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -591,18 +591,18 @@ static int a2dp_aac_configuration_check(
 
 static int a2dp_aac_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_lookup(a2dp_aac_channels,
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_lookup(a2dp_aac_channels,
 					t->a2dp.configuration.aac.channels)) == NULL)
 		return -1;
 
 	const struct a2dp_sampling *sampling;
 	if ((sampling = a2dp_sampling_lookup(a2dp_aac_samplings,
-					AAC_GET_FREQUENCY(t->a2dp.configuration.aac))) == NULL)
+					A2DP_AAC_GET_FREQUENCY(t->a2dp.configuration.aac))) == NULL)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.channels = channels->count;
 	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
@@ -618,17 +618,17 @@ static int a2dp_aac_source_init(struct a2dp_codec *codec) {
 	debug("FDK-AAC encoder capabilities: %#x", caps);
 
 	if (caps & CAPF_ER_AAC_SCAL)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
 
 	if (config.a2dp.force_mono)
 		codec->capabilities.aac.channels = AAC_CHANNELS_1;
 	if (config.a2dp.force_44100)
-		AAC_SET_FREQUENCY(codec->capabilities.aac, AAC_SAMPLING_FREQ_44100);
+		A2DP_AAC_SET_FREQUENCY(codec->capabilities.aac, AAC_SAMPLING_FREQ_44100);
 
 	if (!config.aac_prefer_vbr)
 		codec->capabilities.aac.vbr = 0;
 
-	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+	A2DP_AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
 
 	return 0;
 }
@@ -645,9 +645,9 @@ struct a2dp_codec a2dp_aac_source = {
 		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
 		 *       not supported by the FDK-AAC library. */
 		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
-			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
-		AAC_INIT_FREQUENCY(
+			AAC_OBJECT_TYPE_MPEG2_LC |
+			AAC_OBJECT_TYPE_MPEG4_LC,
+		A2DP_AAC_INIT_FREQUENCY(
 				AAC_SAMPLING_FREQ_8000 |
 				AAC_SAMPLING_FREQ_11025 |
 				AAC_SAMPLING_FREQ_12000 |
@@ -664,7 +664,7 @@ struct a2dp_codec a2dp_aac_source = {
 			AAC_CHANNELS_1 |
 			AAC_CHANNELS_2,
 		.vbr = 1,
-		AAC_INIT_BITRATE(320000)
+		A2DP_AAC_INIT_BITRATE(320000)
 	},
 	.capabilities_size = sizeof(a2dp_aac_t),
 	.init = a2dp_aac_source_init,
@@ -686,9 +686,9 @@ static int a2dp_aac_sink_init(struct a2dp_codec *codec) {
 	debug("FDK-AAC decoder capabilities: %#x", caps);
 
 	if (caps & CAPF_ER_AAC_SCAL)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_AAC_SCA;
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
 
-	AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+	A2DP_AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
 
 	return 0;
 }
@@ -705,9 +705,9 @@ struct a2dp_codec a2dp_aac_sink = {
 		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
 		 *       not supported by the FDK-AAC library. */
 		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_AAC_LC |
-			AAC_OBJECT_TYPE_MPEG4_AAC_LC,
-		AAC_INIT_FREQUENCY(
+			AAC_OBJECT_TYPE_MPEG2_LC |
+			AAC_OBJECT_TYPE_MPEG4_LC,
+		A2DP_AAC_INIT_FREQUENCY(
 				AAC_SAMPLING_FREQ_8000 |
 				AAC_SAMPLING_FREQ_11025 |
 				AAC_SAMPLING_FREQ_12000 |
@@ -724,7 +724,7 @@ struct a2dp_codec a2dp_aac_sink = {
 			AAC_CHANNELS_1 |
 			AAC_CHANNELS_2,
 		.vbr = 1,
-		AAC_INIT_BITRATE(320000)
+		A2DP_AAC_INIT_BITRATE(320000)
 	},
 	.capabilities_size = sizeof(a2dp_aac_t),
 	.init = a2dp_aac_sink_init,

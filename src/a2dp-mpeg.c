@@ -111,13 +111,13 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 			error("LAME: Couldn't set CBR mode");
 			goto fail_setup;
 		}
-		int mpeg_bitrate = MPEG_GET_BITRATE(*configuration);
+		int mpeg_bitrate = A2DP_MPEG_GET_BITRATE(*configuration);
 		int bitrate = a2dp_mpeg1_mp3_get_max_bitrate(mpeg_bitrate);
 		if (lame_set_brate(handle, bitrate) != 0) {
 			error("LAME: Couldn't set CBR bitrate: %d", bitrate);
 			goto fail_setup;
 		}
-		if (mpeg_bitrate & MPEG_BIT_RATE_FREE &&
+		if (mpeg_bitrate & MPEG_BITRATE_FREE &&
 				lame_set_free_format(handle, 1) != 0) {
 			error("LAME: Couldn't enable free format");
 			goto fail_setup;
@@ -457,11 +457,11 @@ fail_init:
 }
 #endif
 
-static const struct a2dp_channel_mode a2dp_mpeg_channels[] = {
-	{ A2DP_CHM_MONO, 1, MPEG_CHANNEL_MODE_MONO },
-	{ A2DP_CHM_DUAL_CHANNEL, 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
-	{ A2DP_CHM_STEREO, 2, MPEG_CHANNEL_MODE_STEREO },
-	{ A2DP_CHM_JOINT_STEREO, 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
+static const struct a2dp_channels a2dp_mpeg_channels[] = {
+	{ 1, MPEG_CHANNEL_MODE_MONO },
+	{ 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
+	{ 2, MPEG_CHANNEL_MODE_STEREO },
+	{ 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
 	{ 0 },
 };
 
@@ -498,9 +498,9 @@ static int a2dp_mpeg_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_select(a2dp_mpeg_channels, caps->channel_mode)) != NULL)
-		caps->channel_mode = chm->value;
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_select(a2dp_mpeg_channels, caps->channel_mode)) != NULL)
+		caps->channel_mode = channels->value;
 	else {
 		error("MPEG: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
@@ -544,7 +544,7 @@ static int a2dp_mpeg_configuration_check(
 		return A2DP_CHECK_ERR_MPEG_LAYER;
 	}
 
-	if (a2dp_channel_mode_lookup(a2dp_mpeg_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_channels_lookup(a2dp_mpeg_channels, conf_v.channel_mode) == NULL) {
 		debug("MPEG: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -559,8 +559,8 @@ static int a2dp_mpeg_configuration_check(
 
 static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_lookup(a2dp_mpeg_channels,
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_lookup(a2dp_mpeg_channels,
 					t->a2dp.configuration.mpeg.channel_mode)) == NULL)
 		return -1;
 
@@ -570,7 +570,7 @@ static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.channels = channels->count;
 	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
@@ -617,22 +617,22 @@ struct a2dp_codec a2dp_mpeg_source = {
 			MPEG_SAMPLING_FREQ_44100 |
 			MPEG_SAMPLING_FREQ_48000,
 		.vbr = 1,
-		MPEG_INIT_BITRATE(
-			MPEG_BIT_RATE_INDEX_0 |
-			MPEG_BIT_RATE_INDEX_1 |
-			MPEG_BIT_RATE_INDEX_2 |
-			MPEG_BIT_RATE_INDEX_3 |
-			MPEG_BIT_RATE_INDEX_4 |
-			MPEG_BIT_RATE_INDEX_5 |
-			MPEG_BIT_RATE_INDEX_6 |
-			MPEG_BIT_RATE_INDEX_7 |
-			MPEG_BIT_RATE_INDEX_8 |
-			MPEG_BIT_RATE_INDEX_9 |
-			MPEG_BIT_RATE_INDEX_10 |
-			MPEG_BIT_RATE_INDEX_11 |
-			MPEG_BIT_RATE_INDEX_12 |
-			MPEG_BIT_RATE_INDEX_13 |
-			MPEG_BIT_RATE_INDEX_14
+		A2DP_MPEG_INIT_BITRATE(
+			MPEG_BITRATE_INDEX_0 |
+			MPEG_BITRATE_INDEX_1 |
+			MPEG_BITRATE_INDEX_2 |
+			MPEG_BITRATE_INDEX_3 |
+			MPEG_BITRATE_INDEX_4 |
+			MPEG_BITRATE_INDEX_5 |
+			MPEG_BITRATE_INDEX_6 |
+			MPEG_BITRATE_INDEX_7 |
+			MPEG_BITRATE_INDEX_8 |
+			MPEG_BITRATE_INDEX_9 |
+			MPEG_BITRATE_INDEX_10 |
+			MPEG_BITRATE_INDEX_11 |
+			MPEG_BITRATE_INDEX_12 |
+			MPEG_BITRATE_INDEX_13 |
+			MPEG_BITRATE_INDEX_14
 		)
 	},
 	.capabilities_size = sizeof(a2dp_mpeg_t),
@@ -694,22 +694,22 @@ struct a2dp_codec a2dp_mpeg_sink = {
 			MPEG_SAMPLING_FREQ_44100 |
 			MPEG_SAMPLING_FREQ_48000,
 		.vbr = 1,
-		MPEG_INIT_BITRATE(
-			MPEG_BIT_RATE_INDEX_0 |
-			MPEG_BIT_RATE_INDEX_1 |
-			MPEG_BIT_RATE_INDEX_2 |
-			MPEG_BIT_RATE_INDEX_3 |
-			MPEG_BIT_RATE_INDEX_4 |
-			MPEG_BIT_RATE_INDEX_5 |
-			MPEG_BIT_RATE_INDEX_6 |
-			MPEG_BIT_RATE_INDEX_7 |
-			MPEG_BIT_RATE_INDEX_8 |
-			MPEG_BIT_RATE_INDEX_9 |
-			MPEG_BIT_RATE_INDEX_10 |
-			MPEG_BIT_RATE_INDEX_11 |
-			MPEG_BIT_RATE_INDEX_12 |
-			MPEG_BIT_RATE_INDEX_13 |
-			MPEG_BIT_RATE_INDEX_14
+		A2DP_MPEG_INIT_BITRATE(
+			MPEG_BITRATE_INDEX_0 |
+			MPEG_BITRATE_INDEX_1 |
+			MPEG_BITRATE_INDEX_2 |
+			MPEG_BITRATE_INDEX_3 |
+			MPEG_BITRATE_INDEX_4 |
+			MPEG_BITRATE_INDEX_5 |
+			MPEG_BITRATE_INDEX_6 |
+			MPEG_BITRATE_INDEX_7 |
+			MPEG_BITRATE_INDEX_8 |
+			MPEG_BITRATE_INDEX_9 |
+			MPEG_BITRATE_INDEX_10 |
+			MPEG_BITRATE_INDEX_11 |
+			MPEG_BITRATE_INDEX_12 |
+			MPEG_BITRATE_INDEX_13 |
+			MPEG_BITRATE_INDEX_14
 		)
 	},
 	.capabilities_size = sizeof(a2dp_mpeg_t),

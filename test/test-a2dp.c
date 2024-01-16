@@ -128,10 +128,10 @@ CK_START_TEST(test_a2dp_get_vendor_codec_id) {
 	ck_assert_int_eq(a2dp_get_vendor_codec_id(cfg0, sizeof(cfg0)), 0xFFFF);
 	ck_assert_int_eq(errno, EINVAL);
 
-	a2dp_aptx_t cfg1 = { A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID), 0, 0 };
+	a2dp_aptx_t cfg1 = { A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID), 0, 0 };
 	ck_assert_int_eq(a2dp_get_vendor_codec_id(&cfg1, sizeof(cfg1)), A2DP_CODEC_VENDOR_APTX);
 
-	a2dp_aptx_t cfg2 = { A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, 0x69), 0, 0 };
+	a2dp_aptx_t cfg2 = { A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, 0x69), 0, 0 };
 	ck_assert_int_eq(a2dp_get_vendor_codec_id(&cfg2, sizeof(cfg2)), 0xFFFF);
 	ck_assert_int_eq(errno, ENOTSUP);
 
@@ -165,8 +165,8 @@ CK_START_TEST(test_a2dp_check_configuration) {
 #if ENABLE_AAC
 	a2dp_aac_t cfg_aac_invalid = {
 		/* FDK-AAC encoder does not support AAC Long Term Prediction */
-		.object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP,
-		AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
+		.object_type = AAC_OBJECT_TYPE_MPEG4_LTP,
+		A2DP_AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
 		.channels = AAC_CHANNELS_1 };
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_aac_source,
 			&cfg_aac_invalid, sizeof(cfg_aac_invalid)), A2DP_CHECK_ERR_OBJECT_TYPE);
@@ -254,8 +254,8 @@ CK_START_TEST(test_a2dp_select_configuration) {
 #if ENABLE_AAC
 	a2dp_aac_t cfg_aac = {
 		/* FDK-AAC encoder does not support AAC Long Term Prediction */
-		.object_type = AAC_OBJECT_TYPE_MPEG4_AAC_LTP,
-		AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100 | AAC_SAMPLING_FREQ_96000)
+		.object_type = AAC_OBJECT_TYPE_MPEG4_LTP,
+		A2DP_AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100 | AAC_SAMPLING_FREQ_96000)
 		.channels = AAC_CHANNELS_1 };
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), -1);
 #endif

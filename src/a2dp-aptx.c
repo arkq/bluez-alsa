@@ -232,8 +232,8 @@ fail_init:
 }
 #endif
 
-static const struct a2dp_channel_mode a2dp_aptx_channels[] = {
-	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
+static const struct a2dp_channels a2dp_aptx_channels[] = {
+	{ 2, APTX_CHANNEL_MODE_STEREO },
 	{ 0 },
 };
 
@@ -265,9 +265,9 @@ static int a2dp_aptx_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_select(a2dp_aptx_channels, caps->channel_mode)) != NULL)
-		caps->channel_mode = chm->value;
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_select(a2dp_aptx_channels, caps->channel_mode)) != NULL)
+		caps->channel_mode = channels->value;
 	else {
 		error("apt-X: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
@@ -293,7 +293,7 @@ static int a2dp_aptx_configuration_check(
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channel_mode_lookup(a2dp_aptx_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_channels_lookup(a2dp_aptx_channels, conf_v.channel_mode) == NULL) {
 		debug("apt-X: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -303,8 +303,8 @@ static int a2dp_aptx_configuration_check(
 
 static int a2dp_aptx_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_lookup(a2dp_aptx_channels,
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_lookup(a2dp_aptx_channels,
 					t->a2dp.configuration.aptx.channel_mode)) == NULL)
 		return -1;
 
@@ -314,7 +314,7 @@ static int a2dp_aptx_transport_init(struct ba_transport *t) {
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.channels = channels->count;
 	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
@@ -337,7 +337,7 @@ struct a2dp_codec a2dp_aptx_source = {
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
 	.synopsis = "A2DP Source (apt-X)",
 	.capabilities.aptx = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+		.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
 		/* NOTE: Used apt-X library does not support
 		 *       single channel (mono) mode. */
 		.channel_mode =
@@ -367,7 +367,7 @@ struct a2dp_codec a2dp_aptx_sink = {
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
 	.synopsis = "A2DP Sink (apt-X)",
 	.capabilities.aptx = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+		.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
 		/* NOTE: Used apt-X library does not support
 		 *       single channel (mono) mode. */
 		.channel_mode =

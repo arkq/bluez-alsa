@@ -174,41 +174,41 @@ const struct a2dp_codec *a2dp_codec_lookup(uint16_t codec_id, enum a2dp_dir dir)
 /**
  * Lookup channel mode for given configuration.
  *
- * @param channel_modes Zero-terminated array of A2DP codec channel modes.
+ * @param channels Zero-terminated array of A2DP codec channel modes.
  * @param value A2DP codec channel mode configuration value.
  * @return On success this function returns the channel mode. Otherwise, NULL
  *  is returned. */
-const struct a2dp_channel_mode *a2dp_channel_mode_lookup(
-		const struct a2dp_channel_mode *channel_modes,
+const struct a2dp_channels *a2dp_channels_lookup(
+		const struct a2dp_channels *channels,
 		uint16_t value) {
-	for (size_t i = 0; channel_modes[i].value != 0; i++)
-		if (channel_modes[i].value == value)
-			return &channel_modes[i];
+	for (size_t i = 0; channels[i].value != 0; i++)
+		if (channels[i].value == value)
+			return &channels[i];
 	return NULL;
 }
 
 /**
  * Select channel mode based on given capabilities. */
-const struct a2dp_channel_mode *a2dp_channel_mode_select(
-		const struct a2dp_channel_mode *channel_modes,
+const struct a2dp_channels *a2dp_channels_select(
+		const struct a2dp_channels *channels,
 		uint16_t capabilities) {
 
 	/* If monophonic sound has been forced, check whether given codec supports
 	 * such a channel mode. Since mono channel mode shall be stored at index 0
 	 * we can simply check for its existence with a simple index lookup. */
 	if (config.a2dp.force_mono &&
-			channel_modes[0].mode == A2DP_CHM_MONO &&
-			capabilities & channel_modes[0].value)
-		return &channel_modes[0];
+			channels[0].count == 1 &&
+			capabilities & channels[0].value)
+		return &channels[0];
 
-	const struct a2dp_channel_mode *chm = NULL;
+	const struct a2dp_channels *selected = NULL;
 
 	/* favor higher number of channels */
-	for (size_t i = 0; channel_modes[i].value != 0; i++)
-		if (capabilities & channel_modes[i].value)
-			chm = &channel_modes[i];
+	for (size_t i = 0; channels[i].value != 0; i++)
+		if (capabilities & channels[i].value)
+			selected = &channels[i];
 
-	return chm;
+	return selected;
 }
 
 /**
@@ -241,14 +241,14 @@ const struct a2dp_sampling *a2dp_sampling_select(
 				break;
 			}
 
-	const struct a2dp_sampling *sampling = NULL;
+	const struct a2dp_sampling *selected = NULL;
 
 	/* favor higher sampling frequencies */
 	for (size_t i = 0; samplings[i].value != 0; i++)
 		if (capabilities & samplings[i].value)
-			sampling = &samplings[i];
+			selected = &samplings[i];
 
-	return sampling;
+	return selected;
 }
 
 /**
@@ -259,11 +259,12 @@ const struct a2dp_sampling *a2dp_sampling_select(
  * @return On success this function returns A2DP 16-bit vendor codec ID. */
 uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 
-	if (size < sizeof(a2dp_vendor_codec_t))
+	if (size < sizeof(a2dp_vendor_info_t))
 		return errno = EINVAL, 0xFFFF;
 
-	uint32_t vendor_id = A2DP_GET_VENDOR_ID(*(a2dp_vendor_codec_t *)capabilities);
-	uint16_t codec_id = A2DP_GET_CODEC_ID(*(a2dp_vendor_codec_t *)capabilities);
+	const a2dp_vendor_info_t *info = capabilities;
+	const uint32_t vendor_id = A2DP_VENDOR_INFO_GET_VENDOR_ID(*info);
+	const uint16_t codec_id = A2DP_VENDOR_INFO_GET_CODEC_ID(*info);
 
 	switch (vendor_id) {
 	case BT_COMPID_QUALCOMM_TECH_INTL:
@@ -314,6 +315,11 @@ uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 			return A2DP_CODEC_VENDOR_LHDC_V5;
 		case LHDC_LL_CODEC_ID:
 			return A2DP_CODEC_VENDOR_LHDC_LL;
+		} break;
+	case BT_COMPID_LINUX_FOUNDATION:
+		switch (codec_id) {
+		case OPUS_CODEC_ID:
+			return A2DP_CODEC_VENDOR_OPUS;
 		} break;
 	case BT_COMPID_FRAUNHOFER_IIS:
 		switch (codec_id) {

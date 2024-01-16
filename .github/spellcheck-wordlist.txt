@@ -11,6 +11,8 @@ CRC
 CTL
 CTLs
 CVSD
+DRC
+ELD
 eSCO
 FDK
 GIO
@@ -48,6 +50,7 @@ TODO
 TSAN
 UART
 UI
+USAC
 UUID
 UUIDs
 VBR
@@ -239,7 +242,6 @@ SIGTERM
 SNR
 spandsp
 SRA
-sul
 sv
 syslogd
 systemd

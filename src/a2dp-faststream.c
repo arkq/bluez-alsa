@@ -381,7 +381,7 @@ struct a2dp_codec a2dp_faststream_source = {
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
 	.synopsis = "A2DP Source (FastStream)",
 	.capabilities.faststream = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+		.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
 		.frequency_music =
 			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
@@ -416,7 +416,7 @@ struct a2dp_codec a2dp_faststream_sink = {
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
 	.synopsis = "A2DP Sink (FastStream)",
 	.capabilities.faststream = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+		.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
 		.frequency_music =
 			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |

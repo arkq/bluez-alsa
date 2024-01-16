@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluetooth.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -27,6 +27,7 @@
 #define BT_COMPID_SONY               0x012D
 #define BT_COMPID_CYPRESS            0x0131
 #define BT_COMPID_SAVITECH           0x053A
+#define BT_COMPID_LINUX_FOUNDATION   0x05F1
 #define BT_COMPID_FRAUNHOFER_IIS     0x08A9
 
 /**

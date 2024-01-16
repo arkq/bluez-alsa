@@ -139,10 +139,10 @@ gboolean g_bdaddr_equal(const void *v1, const void *v2) {
 
 #if ENABLE_MP3LAME
 /**
- * Get maximum possible bit-rate for the given bit-rate mask.
+ * Get maximum possible bitrate for the given bitrate mask.
  *
- * @param mask MPEG-1 layer III bit-rate mask.
- * @return Bit-rate in kilobits per second. */
+ * @param mask MPEG-1 layer III bitrate mask.
+ * @return Bitrate in kilobits per second. */
 int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask) {
 
 	static int bitrates[] = { 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32 };

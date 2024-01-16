@@ -27,19 +27,8 @@ enum a2dp_dir {
 	A2DP_SINK = !A2DP_SOURCE,
 };
 
-enum a2dp_chm {
-	A2DP_CHM_MONO = 0,
-	/* fixed bit-rate for each channel */
-	A2DP_CHM_DUAL_CHANNEL,
-	/* channel bits allocated dynamically */
-	A2DP_CHM_STEREO,
-	/* L+R (mid) and L-R (side) encoding */
-	A2DP_CHM_JOINT_STEREO,
-};
-
-struct a2dp_channel_mode {
-	enum a2dp_chm mode;
-	unsigned int channels;
+struct a2dp_channels {
+	unsigned int count;
 	uint16_t value;
 };
 
@@ -117,12 +106,12 @@ const struct a2dp_codec *a2dp_codec_lookup(
 		uint16_t codec_id,
 		enum a2dp_dir dir);
 
-const struct a2dp_channel_mode *a2dp_channel_mode_lookup(
-		const struct a2dp_channel_mode *channel_modes,
+const struct a2dp_channels *a2dp_channels_lookup(
+		const struct a2dp_channels *channels,
 		uint16_t value);
 
-const struct a2dp_channel_mode *a2dp_channel_mode_select(
-		const struct a2dp_channel_mode *channel_modes,
+const struct a2dp_channels *a2dp_channels_select(
+		const struct a2dp_channels *channels,
 		uint16_t capabilities);
 
 const struct a2dp_sampling *a2dp_sampling_lookup(

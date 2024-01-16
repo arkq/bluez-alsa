@@ -149,34 +149,34 @@ static a2dp_mpeg_t config_mp3_44100_stereo = {
 	.layer = MPEG_LAYER_MP3,
 	.channel_mode = MPEG_CHANNEL_MODE_STEREO,
 	.frequency = MPEG_SAMPLING_FREQ_44100,
-	MPEG_INIT_BITRATE(0xFFFF)
+	A2DP_MPEG_INIT_BITRATE(0xFFFF)
 };
 
 __attribute__ ((unused))
 static a2dp_aac_t config_aac_44100_stereo = {
-	.object_type = AAC_OBJECT_TYPE_MPEG2_AAC_LC,
-	AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
+	.object_type = AAC_OBJECT_TYPE_MPEG2_LC,
+	A2DP_AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
 	.channels = AAC_CHANNELS_2,
-	AAC_INIT_BITRATE(0xFFFF)
+	A2DP_AAC_INIT_BITRATE(0xFFFF)
 };
 
 __attribute__ ((unused))
 static const a2dp_aptx_t config_aptx_44100_stereo = {
-	.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+	.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.frequency = APTX_SAMPLING_FREQ_44100,
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
 __attribute__ ((unused))
 static const a2dp_aptx_hd_t config_aptx_hd_44100_stereo = {
-	.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+	.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 	.aptx.frequency = APTX_SAMPLING_FREQ_44100,
 	.aptx.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
 __attribute__ ((unused))
 static const a2dp_faststream_t config_faststream_44100_16000 = {
-	.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+	.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
 	.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
 	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
@@ -184,15 +184,15 @@ static const a2dp_faststream_t config_faststream_44100_16000 = {
 
 __attribute__ ((unused))
 static const a2dp_lc3plus_t config_lc3plus_48000_stereo = {
-	.info = A2DP_SET_VENDOR_ID_CODEC_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+	.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
 	.frame_duration = LC3PLUS_FRAME_DURATION_050,
 	.channels = LC3PLUS_CHANNELS_2,
-	LC3PLUS_INIT_FREQUENCY(LC3PLUS_SAMPLING_FREQ_48000)
+	A2DP_LC3PLUS_INIT_FREQUENCY(LC3PLUS_SAMPLING_FREQ_48000)
 };
 
 __attribute__ ((unused))
 static const a2dp_ldac_t config_ldac_44100_stereo = {
-	.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+	.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 	.frequency = LDAC_SAMPLING_FREQ_44100,
 	.channel_mode = LDAC_CHANNEL_MODE_STEREO,
 };

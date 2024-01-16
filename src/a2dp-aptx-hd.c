@@ -269,8 +269,8 @@ fail_init:
 }
 #endif
 
-static const struct a2dp_channel_mode a2dp_aptx_hd_channels[] = {
-	{ A2DP_CHM_STEREO, 2, APTX_CHANNEL_MODE_STEREO },
+static const struct a2dp_channels a2dp_aptx_hd_channels[] = {
+	{ 2, APTX_CHANNEL_MODE_STEREO },
 	{ 0 },
 };
 
@@ -302,9 +302,9 @@ static int a2dp_aptx_hd_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_select(a2dp_aptx_hd_channels, caps->aptx.channel_mode)) != NULL)
-		caps->aptx.channel_mode = chm->value;
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_select(a2dp_aptx_hd_channels, caps->aptx.channel_mode)) != NULL)
+		caps->aptx.channel_mode = channels->value;
 	else {
 		error("apt-X HD: No supported channel modes: %#x", saved.aptx.channel_mode);
 		return errno = ENOTSUP, -1;
@@ -330,7 +330,7 @@ static int a2dp_aptx_hd_configuration_check(
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channel_mode_lookup(a2dp_aptx_hd_channels, conf_v.aptx.channel_mode) == NULL) {
+	if (a2dp_channels_lookup(a2dp_aptx_hd_channels, conf_v.aptx.channel_mode) == NULL) {
 		debug("apt-X HD: Invalid channel mode: %#x", conf->aptx.channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -340,8 +340,8 @@ static int a2dp_aptx_hd_configuration_check(
 
 static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_lookup(a2dp_aptx_hd_channels,
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_lookup(a2dp_aptx_hd_channels,
 					t->a2dp.configuration.aptx_hd.aptx.channel_mode)) == NULL)
 		return -1;
 
@@ -351,7 +351,7 @@ static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
-	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.channels = channels->count;
 	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
@@ -374,7 +374,7 @@ struct a2dp_codec a2dp_aptx_hd_source = {
 	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
 	.synopsis = "A2DP Source (apt-X HD)",
 	.capabilities.aptx_hd = {
-		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+		.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 		/* NOTE: Used apt-X HD library does not support
 		 *       single channel (mono) mode. */
 		.aptx.channel_mode =
@@ -404,7 +404,7 @@ struct a2dp_codec a2dp_aptx_hd_sink = {
 	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
 	.synopsis = "A2DP Sink (apt-X HD)",
 	.capabilities.aptx_hd = {
-		.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+		.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 		/* NOTE: Used apt-X HD library does not support
 		 *       single channel (mono) mode. */
 		.aptx.channel_mode =

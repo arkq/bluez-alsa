@@ -322,10 +322,10 @@ fail_open:
 }
 #endif
 
-static const struct a2dp_channel_mode a2dp_ldac_channels[] = {
-	{ A2DP_CHM_MONO, 1, LDAC_CHANNEL_MODE_MONO },
-	{ A2DP_CHM_DUAL_CHANNEL, 2, LDAC_CHANNEL_MODE_DUAL },
-	{ A2DP_CHM_STEREO, 2, LDAC_CHANNEL_MODE_STEREO },
+static const struct a2dp_channels a2dp_ldac_channels[] = {
+	{ 1, LDAC_CHANNEL_MODE_MONO },
+	{ 2, LDAC_CHANNEL_MODE_DUAL },
+	{ 2, LDAC_CHANNEL_MODE_STEREO },
 	{ 0 },
 };
 
@@ -357,9 +357,9 @@ static int a2dp_ldac_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_select(a2dp_ldac_channels, caps->channel_mode)) != NULL)
-		caps->channel_mode = chm->value;
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_select(a2dp_ldac_channels, caps->channel_mode)) != NULL)
+		caps->channel_mode = channels->value;
 	else {
 		error("LDAC: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
@@ -385,7 +385,7 @@ static int a2dp_ldac_configuration_check(
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channel_mode_lookup(a2dp_ldac_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_channels_lookup(a2dp_ldac_channels, conf_v.channel_mode) == NULL) {
 		debug("LDAC: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -395,8 +395,8 @@ static int a2dp_ldac_configuration_check(
 
 static int a2dp_ldac_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_lookup(a2dp_ldac_channels,
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_lookup(a2dp_ldac_channels,
 					t->a2dp.configuration.ldac.channel_mode)) == NULL)
 		return -1;
 
@@ -408,7 +408,7 @@ static int a2dp_ldac_transport_init(struct ba_transport *t) {
 	/* LDAC library internally for encoding uses 31-bit integers or
 	 * floats, so the best choice for PCM sample is signed 32-bit. */
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
-	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.channels = channels->count;
 	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;
@@ -431,7 +431,7 @@ struct a2dp_codec a2dp_ldac_source = {
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.synopsis = "A2DP Source (LDAC)",
 	.capabilities.ldac = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+		.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 		.channel_mode =
 			LDAC_CHANNEL_MODE_MONO |
 			LDAC_CHANNEL_MODE_DUAL |
@@ -463,7 +463,7 @@ struct a2dp_codec a2dp_ldac_sink = {
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.synopsis = "A2DP Sink (LDAC)",
 	.capabilities.ldac = {
-		.info = A2DP_SET_VENDOR_ID_CODEC_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+		.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 		.channel_mode =
 			LDAC_CHANNEL_MODE_MONO |
 			LDAC_CHANNEL_MODE_DUAL |

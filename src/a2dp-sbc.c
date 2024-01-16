@@ -319,11 +319,11 @@ fail_init:
 	return NULL;
 }
 
-static const struct a2dp_channel_mode a2dp_sbc_channels[] = {
-	{ A2DP_CHM_MONO, 1, SBC_CHANNEL_MODE_MONO },
-	{ A2DP_CHM_DUAL_CHANNEL, 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
-	{ A2DP_CHM_STEREO, 2, SBC_CHANNEL_MODE_STEREO },
-	{ A2DP_CHM_JOINT_STEREO, 2, SBC_CHANNEL_MODE_JOINT_STEREO },
+static const struct a2dp_channels a2dp_sbc_channels[] = {
+	{ 1, SBC_CHANNEL_MODE_MONO },
+	{ 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
+	{ 2, SBC_CHANNEL_MODE_STEREO },
+	{ 2, SBC_CHANNEL_MODE_JOINT_STEREO },
 	{ 0 },
 };
 
@@ -377,10 +377,10 @@ static int a2dp_sbc_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channel_mode *chm;
+	const struct a2dp_channels *channels;
 	const uint8_t caps_channel_mode = caps->channel_mode;
-	if ((chm = a2dp_channel_mode_select(a2dp_sbc_channels, caps_channel_mode)) != NULL)
-		caps->channel_mode = chm->value;
+	if ((channels = a2dp_channels_select(a2dp_sbc_channels, caps_channel_mode)) != NULL)
+		caps->channel_mode = channels->value;
 	else {
 		error("SBC: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
@@ -455,7 +455,7 @@ static int a2dp_sbc_configuration_check(
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channel_mode_lookup(a2dp_sbc_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_channels_lookup(a2dp_sbc_channels, conf_v.channel_mode) == NULL) {
 		debug("SBC: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -503,8 +503,8 @@ static int a2dp_sbc_configuration_check(
 
 static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channel_mode *chm;
-	if ((chm = a2dp_channel_mode_lookup(a2dp_sbc_channels,
+	const struct a2dp_channels *channels;
+	if ((channels = a2dp_channels_lookup(a2dp_sbc_channels,
 					t->a2dp.configuration.sbc.channel_mode)) == NULL)
 		return -1;
 
@@ -514,7 +514,7 @@ static int a2dp_sbc_transport_init(struct ba_transport *t) {
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = chm->channels;
+	t->a2dp.pcm.channels = channels->count;
 	t->a2dp.pcm.sampling = sampling->frequency;
 
 	return 0;

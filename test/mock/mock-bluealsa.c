@@ -70,7 +70,7 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 
 #if ENABLE_APTX
 static const a2dp_aptx_t config_aptx_44100_stereo = {
-	.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+	.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
 	.frequency = APTX_SAMPLING_FREQ_44100,
 };
@@ -78,7 +78,7 @@ static const a2dp_aptx_t config_aptx_44100_stereo = {
 
 #if ENABLE_APTX_HD
 static const a2dp_aptx_hd_t config_aptx_hd_48000_stereo = {
-	.aptx.info = A2DP_SET_VENDOR_ID_CODEC_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+	.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 	.aptx.channel_mode = APTX_CHANNEL_MODE_STEREO,
 	.aptx.frequency = APTX_SAMPLING_FREQ_48000,
 };
@@ -86,7 +86,7 @@ static const a2dp_aptx_hd_t config_aptx_hd_48000_stereo = {
 
 #if ENABLE_FASTSTREAM
 static const a2dp_faststream_t config_faststream_44100_16000 = {
-	.info = A2DP_SET_VENDOR_ID_CODEC_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+	.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
 	.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
 	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
