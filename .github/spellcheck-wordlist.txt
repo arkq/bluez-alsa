@@ -168,6 +168,7 @@ dbus
 disp
 dlopen
 dmix
+dmx
 docutils
 dpsnk
 dpsrc

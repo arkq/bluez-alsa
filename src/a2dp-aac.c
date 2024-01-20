@@ -40,14 +40,14 @@
 #include "shared/rt.h"
 
 static unsigned int a2dp_aac_get_fdk_vbr_mode(
-		unsigned int channelmode, unsigned int bitrate) {
+		unsigned int channels, unsigned int bitrate) {
 	static const unsigned int modes[][5] = {
 		/* bitrate upper bounds for mono channel mode */
 		{ 32000, 40000, 56000, 72000, 112000 },
 		/* bitrate upper bounds for stereo channel mode */
 		{ 40000, 64000, 96000, 128000, 192000 },
 	};
-	const size_t ch = channelmode == MODE_1 ? 0 : 1;
+	const size_t ch = channels == 1 ? 0 : 1;
 	for (size_t i = 0; i < ARRAYSIZE(modes[ch]); i++)
 		if (bitrate <= modes[ch][i])
 			return i + 1;
@@ -80,8 +80,6 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacEncClose), &handle);
 
 	unsigned int aot = AOT_NONE;
-	unsigned int channelmode = channels == 1 ? MODE_1 : MODE_2;
-
 	switch (configuration->object_type) {
 	case AAC_OBJECT_TYPE_MPEG2_LC:
 #if AACENCODER_LIB_VERSION <= 0x03040C00 /* 3.4.12 */ || \
@@ -97,6 +95,31 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 		break;
 	case AAC_OBJECT_TYPE_MPEG4_SCA:
 		aot = AOT_AAC_SCAL;
+		break;
+	case AAC_OBJECT_TYPE_MPEG4_HE:
+		aot = AOT_SBR;
+		break;
+	case AAC_OBJECT_TYPE_MPEG4_HE2:
+		aot = AOT_PS;
+		break;
+	case AAC_OBJECT_TYPE_MPEG4_ELD2:
+		aot = AOT_ER_AAC_ELD;
+		break;
+	}
+
+	unsigned int channel_mode = MODE_1;
+	switch (configuration->channels) {
+	case AAC_CHANNELS_1:
+		channel_mode = MODE_1;
+		break;
+	case AAC_CHANNELS_2:
+		channel_mode = MODE_2;
+		break;
+	case AAC_CHANNELS_6:
+		channel_mode = MODE_1_2_2_1;
+		break;
+	case AAC_CHANNELS_8:
+		channel_mode = MODE_1_2_2_2_1;
 		break;
 	}
 
@@ -120,12 +143,12 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 		error("Couldn't set sampling rate: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
-	if ((err = aacEncoder_SetParam(handle, AACENC_CHANNELMODE, channelmode)) != AACENC_OK) {
+	if ((err = aacEncoder_SetParam(handle, AACENC_CHANNELMODE, channel_mode)) != AACENC_OK) {
 		error("Couldn't set channel mode: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
 	if (configuration->vbr) {
-		const unsigned int mode = a2dp_aac_get_fdk_vbr_mode(channelmode, bitrate);
+		const unsigned int mode = a2dp_aac_get_fdk_vbr_mode(channels, bitrate);
 		if ((err = aacEncoder_SetParam(handle, AACENC_BITRATEMODE, mode)) != AACENC_OK) {
 			error("Couldn't set VBR bitrate mode %u: %s", mode, aacenc_strerror(err));
 			goto fail_init;
@@ -459,6 +482,8 @@ fail_open:
 static const struct a2dp_channels a2dp_aac_channels[] = {
 	{ 1, AAC_CHANNELS_1 },
 	{ 2, AAC_CHANNELS_2 },
+	{ 6, AAC_CHANNELS_6 },
+	{ 8, AAC_CHANNELS_8 },
 	{ 0 },
 };
 
@@ -509,7 +534,13 @@ static int a2dp_aac_configuration_select(
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
-	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_SCA)
+	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE2)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_HE2;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_HE;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_ELD2)
+		caps->object_type = AAC_OBJECT_TYPE_MPEG4_ELD2;
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_SCA)
 		caps->object_type = AAC_OBJECT_TYPE_MPEG4_SCA;
 	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_LTP)
 		caps->object_type = AAC_OBJECT_TYPE_MPEG4_LTP;
@@ -569,6 +600,9 @@ static int a2dp_aac_configuration_check(
 	case AAC_OBJECT_TYPE_MPEG4_LC:
 	case AAC_OBJECT_TYPE_MPEG4_LTP:
 	case AAC_OBJECT_TYPE_MPEG4_SCA:
+	case AAC_OBJECT_TYPE_MPEG4_HE:
+	case AAC_OBJECT_TYPE_MPEG4_HE2:
+	case AAC_OBJECT_TYPE_MPEG4_ELD2:
 		break;
 	default:
 		debug("AAC: Invalid object type: %#x", conf->object_type);
@@ -614,11 +648,26 @@ static int a2dp_aac_source_init(struct a2dp_codec *codec) {
 		[15] = { .module_id = ~FDK_NONE } };
 	aacEncGetLibInfo(info);
 
-	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACENC);
-	debug("FDK-AAC encoder capabilities: %#x", caps);
+	unsigned int caps_aac = FDKlibInfo_getCapabilities(info, FDK_AACENC);
+	unsigned int caps_sbr = FDKlibInfo_getCapabilities(info, FDK_SBRENC);
+	debug("FDK-AAC encoder capabilities: aac=%#x sbr=%#x", caps_aac, caps_sbr);
 
-	if (caps & CAPF_ER_AAC_SCAL)
+	/* Check whether mandatory AAC profile is supported. */
+	if ((caps_aac & CAPF_AAC_LC) == 0) {
+		error("AAC: Low Complexity (AAC-LC) is not supported");
+		return errno = ENOTSUP, -1;
+	}
+
+	if (caps_aac & CAPF_ER_AAC_SCAL)
 		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
+	if (caps_sbr & CAPF_SBR_HQ)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
+	if (caps_sbr & CAPF_SBR_PS_MPEG)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
+	if (caps_aac & CAPF_ER_AAC_ELDV2)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
+	if (caps_aac & CAPF_AAC_UNIDRC)
+		codec->capabilities.aac.drc = 1;
 
 	if (config.a2dp.force_mono)
 		codec->capabilities.aac.channels = AAC_CHANNELS_1;
@@ -662,7 +711,9 @@ struct a2dp_codec a2dp_aac_source = {
 				AAC_SAMPLING_FREQ_96000)
 		.channels =
 			AAC_CHANNELS_1 |
-			AAC_CHANNELS_2,
+			AAC_CHANNELS_2 |
+			AAC_CHANNELS_6 |
+			AAC_CHANNELS_8,
 		.vbr = 1,
 		A2DP_AAC_INIT_BITRATE(320000)
 	},
@@ -682,11 +733,32 @@ static int a2dp_aac_sink_init(struct a2dp_codec *codec) {
 		[15] = { .module_id = ~FDK_NONE } };
 	aacDecoder_GetLibInfo(info);
 
-	unsigned int caps = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
-	debug("FDK-AAC decoder capabilities: %#x", caps);
+	unsigned int caps_aac = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
+	unsigned int caps_sbr = FDKlibInfo_getCapabilities(info, FDK_SBRDEC);
+	unsigned int caps_dmx = FDKlibInfo_getCapabilities(info, FDK_PCMDMX);
+	debug("FDK-AAC decoder capabilities: aac=%#x sbr=%#x dmx=%#x",
+			caps_aac, caps_sbr, caps_dmx);
 
-	if (caps & CAPF_ER_AAC_SCAL)
+	/* Check whether mandatory AAC profile is supported. */
+	if ((caps_aac & CAPF_AAC_LC) == 0) {
+		error("AAC: Low Complexity (AAC-LC) is not supported");
+		return errno = ENOTSUP, -1;
+	}
+
+	if (caps_aac & CAPF_ER_AAC_SCAL)
 		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
+	if (caps_sbr & CAPF_SBR_HQ)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
+	if (caps_sbr & CAPF_SBR_PS_MPEG)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
+	if (caps_aac & CAPF_ER_AAC_ELDV2)
+		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
+	if (caps_aac & CAPF_AAC_UNIDRC)
+		codec->capabilities.aac.drc = 1;
+	if (caps_dmx & CAPF_DMX_6_CH)
+		codec->capabilities.aac.channels |= AAC_CHANNELS_6;
+	if (caps_dmx & CAPF_DMX_8_CH)
+		codec->capabilities.aac.channels |= AAC_CHANNELS_8;
 
 	A2DP_AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -232,8 +232,8 @@ int main(int argc, char **argv) {
 #endif
 					"  --xapl-resp-name=NAME\t\tset product name used by XAPL\n"
 					"\nAvailable BT profiles:\n"
-					"  - a2dp-source\tAdvanced Audio Source (v1.3)\n"
-					"  - a2dp-sink\tAdvanced Audio Sink (v1.3)\n"
+					"  - a2dp-source\tAdvanced Audio Source (v1.4)\n"
+					"  - a2dp-sink\tAdvanced Audio Sink (v1.4)\n"
 #if ENABLE_OFONO
 					"  - hfp-ofono\tHands-Free AG/HF handled by oFono\n"
 #endif
@@ -584,7 +584,8 @@ int main(int argc, char **argv) {
 	a2dp_sbc_sink.enabled = true;
 	config.hfp.codecs.cvsd = true;
 
-	a2dp_codecs_init();
+	if (a2dp_codecs_init() == -1)
+		return EXIT_FAILURE;
 
 	const char *storage_base_dir = BLUEALSA_STORAGE_DIR;
 #if ENABLE_SYSTEMD

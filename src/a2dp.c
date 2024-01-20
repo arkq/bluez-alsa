@@ -204,9 +204,15 @@ const struct a2dp_channels *a2dp_channels_select(
 	const struct a2dp_channels *selected = NULL;
 
 	/* favor higher number of channels */
-	for (size_t i = 0; channels[i].value != 0; i++)
+	for (size_t i = 0; channels[i].value != 0; i++) {
+		if (channels[i].count > 2)
+			/* When auto-selecting channel mode, skip multi-channel modes. If
+			 * desired, multi-channel mode can be selected manually by the user
+			 * using the SelectCodec() D-Bus method. */
+			continue;
 		if (capabilities & channels[i].value)
 			selected = &channels[i];
+	}
 
 	return selected;
 }
