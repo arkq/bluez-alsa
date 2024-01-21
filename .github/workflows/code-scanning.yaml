@@ -41,6 +41,7 @@ jobs:
           libglib2.0-dev
           libmp3lame-dev
           libmpg123-dev
+          libopenaptx-dev
           libncurses5-dev
           libreadline-dev
           libsbc-dev
@@ -60,6 +61,9 @@ jobs:
       run: |
         ${{ github.workspace }}/configure \
           --enable-aac \
+          --enable-aptx \
+          --enable-aptx-hd \
+          --with-libopenaptx \
           --enable-faststream \
           --enable-mp3lame \
           --enable-mpg123 \
@@ -106,6 +110,7 @@ jobs:
           libglib2.0-dev
           libmp3lame-dev
           libmpg123-dev
+          libopenaptx-dev
           libncurses5-dev
           libreadline-dev
           libsbc-dev
@@ -119,9 +124,12 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: |
         ${{ github.workspace }}/configure \
-          --enable-aac \
           --enable-debug \
           --enable-debug-time \
+          --enable-aac \
+          --enable-aptx \
+          --enable-aptx-hd \
+          --with-libopenaptx \
           --enable-faststream \
           --enable-mp3lame \
           --enable-mpg123 \

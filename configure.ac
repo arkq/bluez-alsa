@@ -113,6 +113,20 @@ AC_ARG_WITH([libopenaptx],
 	[AS_HELP_STRING([--with-libopenaptx], [use libopenaptx by pali.rohar for apt-X (HD)])])
 AM_CONDITIONAL([WITH_LIBOPENAPTX], [test "x$with_libopenaptx" = "xyes"])
 
+AC_ARG_WITH([libfreeaptx],
+	[AS_HELP_STRING([--with-libfreeaptx], [use libfreeaptx for apt-X (HD)])])
+AM_CONDITIONAL([WITH_LIBFREEAPTX], [test "x$with_libfreeaptx" = "xyes"])
+
+# one of libopenaptx or libfreeaptx have been selected
+AM_CONDITIONAL([WITH_lIBOPENAPTX_OR_WITH_LIBFREEAPTX],
+	[test "x$with_libopenaptx" = "xyes" -o "x$with_libfreeaptx" = "xyes"])
+
+# both libopenaptx and libfreeaptx have been selected
+AM_CONDITIONAL([WITH_lIBOPENAPTX_AND_WITH_LIBFREEAPTX],
+	[test "x$with_libopenaptx" = "xyes" -a "x$with_libfreeaptx" = "xyes"])
+AM_COND_IF([WITH_lIBOPENAPTX_AND_WITH_LIBFREEAPTX],
+	[AC_MSG_ERROR([select at most one of libopenaptx or libfreeaptx])])
+
 AC_ARG_ENABLE([aptx],
 	[AS_HELP_STRING([--enable-aptx], [enable apt-X support])])
 AM_CONDITIONAL([ENABLE_APTX], [test "x$enable_aptx" = "xyes"])
@@ -122,10 +136,16 @@ AM_COND_IF([ENABLE_APTX], [
 		AC_DEFINE([HAVE_APTX_DECODE], [1], [Define to 1 if you have apt-X decode library.])
 		AC_DEFINE([WITH_LIBOPENAPTX], [1], [Define to 1 if libopenaptx shall be used.])
 	], [
-		PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
-		if test "$($PKG_CONFIG --variable=aptxdecoder openaptx)" = "true"; then
+		AM_COND_IF([WITH_LIBFREEAPTX], [
+			PKG_CHECK_MODULES([APTX], [libfreeaptx >= 0.1.1])
 			AC_DEFINE([HAVE_APTX_DECODE], [1], [Define to 1 if you have apt-X decode library.])
-		fi
+			AC_DEFINE([WITH_LIBFREEAPTX], [1], [Define to 1 if libfreeaptx shall be used.])
+		], [
+			PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
+			if test "$($PKG_CONFIG --variable=aptxdecoder openaptx)" = "true"; then
+				AC_DEFINE([HAVE_APTX_DECODE], [1], [Define to 1 if you have apt-X decode library.])
+			fi
+		])
 	])
 	AC_DEFINE([ENABLE_APTX], [1], [Define to 1 if apt-X is enabled.])
 ])
@@ -139,10 +159,16 @@ AM_COND_IF([ENABLE_APTX_HD], [
 		AC_DEFINE([HAVE_APTX_HD_DECODE], [1], [Define to 1 if you have apt-X HD decode library.])
 		AC_DEFINE([WITH_LIBOPENAPTX], [1], [Define to 1 if libopenaptx shall be used.])
 	], [
-		PKG_CHECK_MODULES([APTX_HD], [openaptxhd >= 1.2.0])
-		if test "$($PKG_CONFIG --variable=aptxdecoder openaptxhd)" = "true"; then
+		AM_COND_IF([WITH_LIBFREEAPTX], [
+			PKG_CHECK_MODULES([APTX_HD], [libfreeaptx >= 0.1.1])
 			AC_DEFINE([HAVE_APTX_HD_DECODE], [1], [Define to 1 if you have apt-X HD decode library.])
-		fi
+			AC_DEFINE([WITH_LIBFREEAPTX], [1], [Define to 1 if libfreeaptx shall be used.])
+		], [
+			PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
+			if test "$($PKG_CONFIG --variable=aptxdecoder openaptxhd)" = "true"; then
+				AC_DEFINE([HAVE_APTX_HD_DECODE], [1], [Define to 1 if you have apt-X HD decode library.])
+			fi
+		])
 	])
 	AC_DEFINE([ENABLE_APTX_HD], [1], [Define to 1 if apt-X HD is enabled.])
 ])
@@ -407,12 +433,13 @@ AM_COND_IF([ALSA_1_1_2__1_1_3], [
 	AC_MSG_WARN([LIBASOUND_THREAD_SAFE=0 while using bluealsa PCM.])
 ])
 
-# notify user that using libopenaptx might be a good idea
+# notify user that using libopenaptx or libfreeaptx might be a good idea
 AM_COND_IF([ENABLE_APTX_OR_APTX_HD], [
-AM_COND_IF([WITH_LIBOPENAPTX], [], [
+AM_COND_IF([WITH_lIBOPENAPTX_OR_WITH_LIBFREEAPTX], [], [
 	AC_MSG_NOTICE([       *** using apt-X (HD) via Qualcomm API ***])
 	AC_MSG_NOTICE([Enabled apt-X (HD) support requires encoder (and decoder)])
 	AC_MSG_NOTICE([library with a proprietary Qualcomm API. Please consider])
-	AC_MSG_NOTICE([using --with-libopenaptx option which will use a library])
-	AC_MSG_NOTICE([based on FFmpeg project with better decoding support.])
+	AC_MSG_NOTICE([using --with-libopenaptx or --with-libfreeaptx option])
+	AC_MSG_NOTICE([which will use a library based on FFmpeg project with])
+	AC_MSG_NOTICE([better decoding support.])
 ])])

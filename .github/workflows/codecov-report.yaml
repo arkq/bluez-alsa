@@ -27,6 +27,7 @@ jobs:
           libglib2.0-dev
           libmp3lame-dev
           libmpg123-dev
+          libopenaptx-dev
           libsbc-dev
           libspandsp-dev
     - uses: actions/checkout@v4
@@ -39,6 +40,9 @@ jobs:
       run: |
         ${{ github.workspace }}/configure \
           --enable-aac \
+          --enable-aptx \
+          --enable-aptx-hd \
+          --with-libopenaptx \
           --enable-faststream \
           --enable-mp3lame \
           --enable-mpg123 \

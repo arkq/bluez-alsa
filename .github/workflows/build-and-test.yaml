@@ -21,6 +21,7 @@ jobs:
         - --enable-faststream --enable-mp3lame
         - --enable-aplay --enable-ofono --enable-upower
         - --enable-cli --enable-rfcomm --enable-manpages
+        - --enable-aptx --enable-aptx-hd --with-libopenaptx
       fail-fast: false
     runs-on: ubuntu-22.04
     steps:
@@ -36,6 +37,7 @@ jobs:
           libglib2.0-dev
           libmp3lame-dev
           libmpg123-dev
+          libopenaptx-dev
           libreadline-dev
           libsbc-dev
           libspandsp-dev
@@ -120,6 +122,7 @@ jobs:
           libglib2.0-dev
           libmp3lame-dev
           libmpg123-dev
+          libopenaptx-dev
           libsbc-dev
           libspandsp-dev
     - uses: actions/checkout@v4
@@ -132,6 +135,9 @@ jobs:
       run: |
         ${{ github.workspace }}/configure \
           --enable-aac \
+          --enable-aptx \
+          --enable-aptx-hd \
+          --with-libopenaptx \
           --enable-faststream \
           --enable-mp3lame \
           --enable-mpg123 \

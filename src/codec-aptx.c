@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-aptx.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,18 +9,20 @@
  */
 
 #include "codec-aptx.h"
-/* IWYU pragma: no_include "config.h" */
 
-#include <endian.h>
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <errno.h>
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#if !(WITH_LIBOPENAPTX || WITH_LIBFREEAPTX)
+# include <endian.h>
+# include <stdlib.h>
+#endif
 
 #include <openaptx.h>
 
-#include "shared/defs.h"
 #include "shared/log.h"
 
 #if ENABLE_APTX
@@ -30,7 +32,7 @@
  * @returns On success, this function returns initialized apt-X encoder
  *   handler. On error, NULL is returned. */
 HANDLE_APTX aptxenc_init(void) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	return aptx_init(0);
 #else
 	APTXENC handle;
@@ -51,7 +53,7 @@ HANDLE_APTX aptxenc_init(void) {
  * @returns On success, this function returns initialized apt-X decoder
  *   handler. On error, NULL is returned. */
 HANDLE_APTX aptxdec_init(void) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	return aptx_init(0);
 #else
 	APTXDEC handle;
@@ -72,7 +74,7 @@ HANDLE_APTX aptxdec_init(void) {
  * @returns On success, this function returns initialized apt-X encoder
  *   handler. On error, NULL is returned. */
 HANDLE_APTX aptxhdenc_init(void) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	return aptx_init(1);
 #else
 	APTXENC handle;
@@ -93,7 +95,7 @@ HANDLE_APTX aptxhdenc_init(void) {
  * @returns On success, this function returns initialized apt-X decoder
  *   handler. On error, NULL is returned. */
 HANDLE_APTX aptxhddec_init(void) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	return aptx_init(1);
 #else
 	APTXDEC handle;
@@ -119,7 +121,7 @@ ssize_t aptxenc_encode(HANDLE_APTX handle, const int16_t *input, size_t samples,
 	if (samples < 8 || *len < 4)
 		return errno = EINVAL, -1;
 
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 
 	const uint8_t pcm[3 /* 24bit */ * 8 /* 4 samples * 2 channels */] = {
 		0, input[0], input[0] >> 8, 0, input[1], input[1] >> 8,
@@ -161,7 +163,7 @@ ssize_t aptxdec_decode(HANDLE_APTX handle, const void *input, size_t len,
 	if (len < 4 || *samples < 8)
 		return errno = EINVAL, -1;
 
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 
 	uint8_t pcm[3 /* 24bit */ * 8 /* 4 samples * 2 channels */ * 2];
 	size_t written, dropped;
@@ -190,7 +192,7 @@ ssize_t aptxdec_decode(HANDLE_APTX handle, const void *input, size_t len,
 		return -1;
 
 	size_t i;
-	for (i = 0; i < ARRAYSIZE(pcm_l); i++) {
+	for (i = 0; i < 4; i++) {
 		*output++ = pcm_l[i];
 		*output++ = pcm_r[i];
 	}
@@ -214,7 +216,7 @@ ssize_t aptxhdenc_encode(HANDLE_APTX handle, const int32_t *input, size_t sample
 	if (samples < 8 || *len < 6)
 		return errno = EINVAL, -1;
 
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 
 	const uint8_t pcm[3 /* 24bit */ * 8 /* 4 samples * 2 channels */] = {
 		input[0], input[0] >> 8, input[0] >> 16, input[1], input[1] >> 8, input[1] >> 16,
@@ -264,7 +266,7 @@ ssize_t aptxhddec_decode(HANDLE_APTX handle, const void *input, size_t len,
 	if (len < 6 || *samples < 8)
 		return errno = EINVAL, -1;
 
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 
 	uint8_t pcm[3 /* 24bit */ * 8 /* 4 samples * 2 channels */ * 2];
 	size_t written, dropped;
@@ -300,7 +302,7 @@ ssize_t aptxhddec_decode(HANDLE_APTX handle, const void *input, size_t len,
 		return -1;
 
 	size_t i;
-	for (i = 0; i < ARRAYSIZE(pcm_l); i++) {
+	for (i = 0; i < 4; i++) {
 		*output++ = pcm_l[i];
 		*output++ = pcm_r[i];
 	}
@@ -318,7 +320,7 @@ ssize_t aptxhddec_decode(HANDLE_APTX handle, const void *input, size_t len,
  *
  * @param handle Initialized encoder handler. */
 void aptxenc_destroy(HANDLE_APTX handle) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	aptx_finish(handle);
 #else
 	if (aptxbtenc_destroy != NULL)
@@ -334,7 +336,7 @@ void aptxenc_destroy(HANDLE_APTX handle) {
  *
  * @param handle Initialized decoder handler. */
 void aptxdec_destroy(HANDLE_APTX handle) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	aptx_finish(handle);
 #else
 	aptxbtdec_destroy(handle);
@@ -349,7 +351,7 @@ void aptxdec_destroy(HANDLE_APTX handle) {
  *
  * @param handle Initialized encoder handler. */
 void aptxhdenc_destroy(HANDLE_APTX handle) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	aptx_finish(handle);
 #else
 	if (aptxhdbtenc_destroy != NULL)
@@ -365,7 +367,7 @@ void aptxhdenc_destroy(HANDLE_APTX handle) {
  *
  * @param handle Initialized decoder handler. */
 void aptxhddec_destroy(HANDLE_APTX handle) {
-#if WITH_LIBOPENAPTX
+#if WITH_LIBOPENAPTX || WITH_LIBFREEAPTX
 	aptx_finish(handle);
 #else
 	aptxhdbtdec_destroy(handle);

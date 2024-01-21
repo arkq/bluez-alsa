@@ -7,6 +7,7 @@ unreleased
 - fix for SBC codec and audio scaling on big-endian platforms
 - fix mSBC decode for MTU > 60 bytes (e.g. Realtek USB adapters)
 - bluealsa-aplay: option to auto-select volume mode for used PCM
+- support use of libfreeaptx for apt-X and apt-X HD codecs
 
 bluez-alsa v4.1.1 (2023-06-24)
 ==============================
