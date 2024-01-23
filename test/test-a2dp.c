@@ -1,6 +1,6 @@
 /*
  * test-a2dp.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -23,6 +23,7 @@
 
 #include "a2dp.h"
 #include "a2dp-aac.h"
+#include "a2dp-aptx.h"
 #include "a2dp-sbc.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
@@ -78,22 +79,24 @@ CK_START_TEST(test_a2dp_codecs_init) {
 
 CK_START_TEST(test_a2dp_codec_cmp) {
 
-	struct a2dp_codec codec1 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
-	struct a2dp_codec codec2 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
-	struct a2dp_codec codec3 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX };
-	struct a2dp_codec codec4 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
-	struct a2dp_codec codec5 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
-	struct a2dp_codec codec6 = { .dir = A2DP_SINK, .codec_id = 0xFFFF };
+	struct a2dp_codec c1 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_codec c2 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
+	struct a2dp_codec c3 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX };
+	struct a2dp_codec c4 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_codec c5 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
+	struct a2dp_codec c6 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_LDAC };
+	struct a2dp_codec c7 = { .dir = A2DP_SINK, .codec_id = 0xFFFF };
 
-	struct a2dp_codec * codecs[] = { &codec3, &codec1, &codec6, &codec4, &codec5, &codec2 };
+	struct a2dp_codec * codecs[] = { &c3, &c1, &c6, &c4, &c7, &c5, &c2 };
 	qsort(codecs, ARRAYSIZE(codecs), sizeof(*codecs), QSORT_COMPAR(a2dp_codec_ptr_cmp));
 
-	ck_assert_ptr_eq(codecs[0], &codec1);
-	ck_assert_ptr_eq(codecs[1], &codec2);
-	ck_assert_ptr_eq(codecs[2], &codec3);
-	ck_assert_ptr_eq(codecs[3], &codec4);
-	ck_assert_ptr_eq(codecs[4], &codec5);
-	ck_assert_ptr_eq(codecs[5], &codec6);
+	ck_assert_ptr_eq(codecs[0], &c1);
+	ck_assert_ptr_eq(codecs[1], &c2);
+	ck_assert_ptr_eq(codecs[2], &c3);
+	ck_assert_ptr_eq(codecs[3], &c4);
+	ck_assert_ptr_eq(codecs[4], &c5);
+	ck_assert_ptr_eq(codecs[5], &c6);
+	ck_assert_ptr_eq(codecs[6], &c7);
 
 } CK_END_TEST
 
@@ -150,6 +153,9 @@ CK_START_TEST(test_a2dp_check_configuration) {
 	};
 
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
+			&cfg_valid, sizeof(cfg_valid) + 1), A2DP_CHECK_ERR_SIZE);
+
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
 				&cfg_valid, sizeof(cfg_valid)), A2DP_CHECK_OK);
 
 	const a2dp_sbc_t cfg_invalid = {
@@ -174,9 +180,14 @@ CK_START_TEST(test_a2dp_check_configuration) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_a2dp_check_strerror) {
+	ck_assert_str_eq(a2dp_check_strerror(A2DP_CHECK_ERR_SIZE), "Invalid size");
+	ck_assert_str_eq(a2dp_check_strerror(0xFFFF), "Check error");
+} CK_END_TEST
+
 CK_START_TEST(test_a2dp_filter_capabilities) {
 
-	a2dp_sbc_t caps = {
+	a2dp_sbc_t caps_sbc = {
 		.frequency = SBC_SAMPLING_FREQ_44100,
 		.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO,
 		.block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8,
@@ -186,23 +197,42 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 		.max_bitpool = 255,
 	};
 
+#if ENABLE_APTX
+	a2dp_aptx_t caps_aptx = {
+		.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
+		.frequency = APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100,
+		.channel_mode = APTX_CHANNEL_MODE_MONO | APTX_CHANNEL_MODE_STEREO,
+	};
+#endif
+
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
-			&a2dp_sbc_source.capabilities, &caps, sizeof(caps) + 1), -1);
+			&a2dp_sbc_source.capabilities, &caps_sbc, sizeof(caps_sbc) + 1), -1);
 	ck_assert_int_eq(errno, EINVAL);
 
-	hexdump("Capabilities A", &caps, sizeof(caps), true);
-	hexdump("Capabilities B", &a2dp_sbc_source.capabilities, sizeof(caps), true);
+	hexdump("Capabilities A", &caps_sbc, sizeof(caps_sbc), true);
+	hexdump("Capabilities B", &a2dp_sbc_source.capabilities, sizeof(caps_sbc), true);
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
-			&a2dp_sbc_source.capabilities, &caps, sizeof(caps)), 0);
+			&a2dp_sbc_source.capabilities, &caps_sbc, sizeof(caps_sbc)), 0);
 
-	hexdump("filterion", &caps, sizeof(caps), true);
-	ck_assert_int_eq(caps.frequency, SBC_SAMPLING_FREQ_44100);
-	ck_assert_int_eq(caps.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
-	ck_assert_int_eq(caps.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);
-	ck_assert_int_eq(caps.subbands, SBC_SUBBANDS_4);
-	ck_assert_int_eq(caps.allocation_method, SBC_ALLOCATION_SNR);
-	ck_assert_int_eq(caps.min_bitpool, MAX(SBC_MIN_BITPOOL, 42));
-	ck_assert_int_eq(caps.max_bitpool, MIN(SBC_MAX_BITPOOL, 255));
+	hexdump("Capabilities filtered", &caps_sbc, sizeof(caps_sbc), true);
+	ck_assert_int_eq(caps_sbc.frequency, SBC_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(caps_sbc.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
+	ck_assert_int_eq(caps_sbc.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);
+	ck_assert_int_eq(caps_sbc.subbands, SBC_SUBBANDS_4);
+	ck_assert_int_eq(caps_sbc.allocation_method, SBC_ALLOCATION_SNR);
+	ck_assert_int_eq(caps_sbc.min_bitpool, MAX(SBC_MIN_BITPOOL, 42));
+	ck_assert_int_eq(caps_sbc.max_bitpool, MIN(SBC_MAX_BITPOOL, 255));
+
+#if ENABLE_APTX
+	/* Check whether generic bitwise AND filtering works correctly. */
+	hexdump("Capabilities A", &caps_aptx, sizeof(caps_aptx), true);
+	hexdump("Capabilities B", &a2dp_aptx_source.capabilities, sizeof(caps_aptx), true);
+	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_aptx_source,
+			&a2dp_aptx_source.capabilities, &caps_aptx, sizeof(caps_aptx)), 0);
+	hexdump("Capabilities filtered", &caps_aptx, sizeof(caps_aptx), true);
+	ck_assert_int_eq(caps_aptx.frequency, APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(caps_aptx.channel_mode, APTX_CHANNEL_MODE_STEREO);
+#endif
 
 } CK_END_TEST
 
@@ -252,12 +282,31 @@ CK_START_TEST(test_a2dp_select_configuration) {
 	ck_assert_int_eq(cfg.max_bitpool, 250);
 
 #if ENABLE_AAC
-	a2dp_aac_t cfg_aac = {
-		/* FDK-AAC encoder does not support AAC Long Term Prediction */
-		.object_type = AAC_OBJECT_TYPE_MPEG4_LTP,
+
+	a2dp_aac_t cfg_aac;
+	const a2dp_aac_t cfg_aac_ = {
+		.object_type = AAC_OBJECT_TYPE_MPEG2_LC | AAC_OBJECT_TYPE_MPEG4_LC,
 		A2DP_AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100 | AAC_SAMPLING_FREQ_96000)
-		.channels = AAC_CHANNELS_1 };
+		.channels = AAC_CHANNELS_1,
+		.vbr = 1 };
+
+	cfg_aac = cfg_aac_;
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), 0);
+	ck_assert_int_eq(cfg_aac.object_type, AAC_OBJECT_TYPE_MPEG4_LC);
+	ck_assert_int_eq(A2DP_AAC_GET_FREQUENCY(cfg_aac), AAC_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(cfg_aac.channels, AAC_CHANNELS_1);
+	ck_assert_int_eq(cfg_aac.vbr, 0);
+
+	cfg_aac = cfg_aac_;
+	config.aac_prefer_vbr = true;
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), 0);
+	ck_assert_int_eq(cfg_aac.vbr, 1);
+
+	cfg_aac = cfg_aac_;
+	/* FDK-AAC encoder does not support AAC Long Term Prediction */
+	cfg_aac.object_type = AAC_OBJECT_TYPE_MPEG4_LTP;
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), -1);
+
 #endif
 
 } CK_END_TEST
@@ -281,6 +330,7 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_codec_lookup);
 	tcase_add_test(tc, test_a2dp_get_vendor_codec_id);
 	tcase_add_test(tc, test_a2dp_check_configuration);
+	tcase_add_test(tc, test_a2dp_check_strerror);
 	tcase_add_test(tc, test_a2dp_filter_capabilities);
 	tcase_add_test(tc, test_a2dp_select_configuration);
 
