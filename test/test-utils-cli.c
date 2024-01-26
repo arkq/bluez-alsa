@@ -240,7 +240,7 @@ CK_START_TEST(test_codec) {
 	/* check selecting A2DP codec without SEP support (with our mock BlueZ) */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
 				"codec", "-vf", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				"SBC", "11150255",
+				"SBC:11150255",
 				NULL), EXIT_FAILURE);
 
 	spawn_terminate(&sp_ba_mock, 0);

@@ -24,7 +24,7 @@
 
 static void usage(const char *command) {
 	printf("Get or set the Bluetooth codec used by the given PCM.\n\n");
-	cli_print_usage("%s [OPTION]... PCM-PATH [CODEC [CONFIG]]", command);
+	cli_print_usage("%s [OPTION]... PCM-PATH [CODEC[:CONFIG]]", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"  -f, --force\t\tForce codec configuration (skip conformance check)\n"
@@ -72,7 +72,7 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		cmd_print_error("Missing BlueALSA PCM path argument");
 		return EXIT_FAILURE;
 	}
-	if (argc - optind > 3) {
+	if (argc - optind > 2) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
 	}
@@ -92,30 +92,35 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		return EXIT_SUCCESS;
 	}
 
-	const char *codec = ba_dbus_pcm_codec_get_canonical_name(argv[optind + 1]);
+	char *codec = argv[optind + 1];
+	uint8_t codec_config[64] = { 0 };
+	ssize_t codec_config_len = 0;
+	unsigned int flags = BA_PCM_SELECT_CODEC_FLAG_NONE;
 	int result = EXIT_FAILURE;
 
-	unsigned int flags = BA_PCM_SELECT_CODEC_FLAG_NONE;
-	uint8_t codec_config[64];
-	ssize_t codec_config_len = 0;
+	char *codec_config_hex;
+	/* split the given string into name and configuration components */
+	if ((codec_config_hex = strchr(codec, ':')) != NULL) {
+		*codec_config_hex++ = '\0';
 
-	if (argc - optind == 3) {
 		size_t codec_config_hex_len;
-		const char *codec_config_hex = argv[optind + 2];
 		if ((codec_config_hex_len = strlen(codec_config_hex)) > sizeof(codec_config) * 2) {
 			dbus_set_error(&err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", codec_config_hex);
 			goto fail;
 		}
+
 		if ((codec_config_len = hex2bin(codec_config_hex, codec_config, codec_config_hex_len)) == -1) {
 			dbus_set_error(&err, DBUS_ERROR_FAILED, "%s", strerror(errno));
 			goto fail;
 		}
+
 	}
 
 	if (force)
 		flags |= BA_PCM_SELECT_CODEC_FLAG_NON_CONFORMANT;
 
-	if (!ba_dbus_pcm_select_codec(&config.dbus, path, codec,
+	if (!ba_dbus_pcm_select_codec(&config.dbus, path,
+				ba_dbus_pcm_codec_get_canonical_name(codec),
 				codec_config, codec_config_len, flags, &err))
 		goto fail;
 

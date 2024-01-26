@@ -1,6 +1,6 @@
 /*
  * bluealsa-pcm.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -26,6 +26,7 @@
 #include <strings.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
+#include <sys/param.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -1260,42 +1261,36 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 
 static bool bluealsa_select_pcm_codec(struct bluealsa_pcm *pcm, const char *codec, DBusError *err) {
 
-	uint8_t config[64];
+	char name[32] = { 0 };
+	size_t name_len = sizeof(name) - 1;
+	uint8_t config[64] = { 0 };
 	ssize_t config_len = 0;
-	bool ret = false;
 
-	char *codec_name;
-	if ((codec_name = strdup(codec)) == NULL) {
-		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
-		return false;
-	}
-
-	char *config_hex;
+	const char *config_hex;
 	/* split the given string into name and configuration components */
-	if ((config_hex = strchr(codec_name, ':')) != NULL) {
-		*config_hex++ = '\0';
+	if ((config_hex = strchr(codec, ':')) != NULL) {
+		name_len = MIN(name_len, config_hex - codec);
+		config_hex++;
 
 		size_t config_hex_len;
 		if ((config_hex_len = strlen(config_hex)) > sizeof(config) * 2) {
 			dbus_set_error(err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", config_hex);
-			goto fail;
+			return false;
 		}
+
 		if ((config_len = hex2bin(config_hex, config, config_hex_len)) == -1) {
 			dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(errno));
-			goto fail;
+			return false;
 		}
 
 	}
 
+	strncpy(name, codec, name_len);
 	if (!ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
-				ba_dbus_pcm_codec_get_canonical_name(codec_name), config, config_len, 0, err))
-		goto fail;
+				ba_dbus_pcm_codec_get_canonical_name(name), config, config_len, 0, err))
+		return false;
 
-	ret = true;
-
-fail:
-	free(codec_name);
-	return ret;
+	return true;
 }
 
 static bool bluealsa_update_pcm_volume(struct bluealsa_pcm *pcm,
