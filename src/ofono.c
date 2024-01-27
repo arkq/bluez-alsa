@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  * Copyright (c) 2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -79,7 +79,7 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	GError *err = NULL;
 	uint8_t codec;
 	int fd = -1;
-	int ret = 0;
+	int ret = -1;
 
 	debug("Requesting new oFono SCO link: %s", t->sco.ofono_dbus_path_card);
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
@@ -98,13 +98,9 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	}
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
+			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
 
 	GVariant *body = g_dbus_message_get_body(rep);
 	g_variant_get(body, "(hy)", NULL, &codec);
@@ -133,13 +129,9 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	ba_transport_set_codec(t, codec);
 
 	debug("New oFono SCO link (codec: %#x): %d", codec, fd);
-
-	goto final;
+	ret = 0;
 
 fail:
-	ret = -1;
-
-final:
 	if (msg != NULL)
 		g_object_unref(msg);
 	if (rep != NULL)
@@ -277,11 +269,11 @@ static void ofono_new_connection_finish(GObject *source, GAsyncResult *result,
 		void *userdata) {
 	(void)userdata;
 
+	GDBusMessage *rep;
 	GError *err = NULL;
-	GDBusMessage *rep = g_dbus_connection_send_message_with_reply_finish(
-			G_DBUS_CONNECTION(source), result, &err);
-	if (rep != NULL &&
-			g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
+
+	if ((rep = g_dbus_connection_send_message_with_reply_finish(
+					G_DBUS_CONNECTION(source), result, &err)) != NULL)
 		g_dbus_message_to_gerror(rep, &err);
 
 	if (rep != NULL)
@@ -329,13 +321,9 @@ static int ofono_card_link_modem(struct ofono_card_data *ocd) {
 			OFONO_IFACE_MANAGER, "GetModems");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
+			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
 
 	GVariant *body = g_dbus_message_get_body(rep);
 
@@ -495,19 +483,15 @@ static int ofono_call_volume_get_properties(struct ba_transport *t) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
-	int ret = 0;
+	int ret = -1;
 
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
 			t->sco.ofono_dbus_path_modem, OFONO_IFACE_CALL_VOLUME, "GetProperties");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
+			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
 
 	GVariantIter *properties;
 	g_variant_get(g_dbus_message_get_body(rep), "(a{sv})", &properties);
@@ -527,12 +511,10 @@ static int ofono_call_volume_get_properties(struct ba_transport *t) {
 		bluealsa_dbus_pcm_update(&t->sco.pcm_mic, BA_DBUS_PCM_UPDATE_VOLUME);
 
 	g_variant_iter_free(properties);
-	goto final;
+
+	ret = 0;
 
 fail:
-	ret = -1;
-
-final:
 	if (msg != NULL)
 		g_object_unref(msg);
 	if (rep != NULL)
@@ -551,7 +533,7 @@ static int ofono_call_volume_set_property(struct ba_transport *t,
 		const char *property, GVariant *value, GError **error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
-	int ret = 0;
+	int ret = -1;
 
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
 			t->sco.ofono_dbus_path_modem, OFONO_IFACE_CALL_VOLUME, "SetProperty");
@@ -559,20 +541,13 @@ static int ofono_call_volume_set_property(struct ba_transport *t,
 	g_dbus_message_set_body(msg, g_variant_new("(sv)", property, value));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
+			g_dbus_message_to_gerror(rep, error))
 		goto fail;
 
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, error);
-		goto fail;
-	}
-
-	goto final;
+	ret = 0;
 
 fail:
-	ret = -1;
-
-final:
 	if (msg != NULL)
 		g_object_unref(msg);
 	if (rep != NULL)
@@ -685,19 +660,15 @@ static int ofono_get_all_cards(void) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
-	int ret = 0;
+	int ret = -1;
 
 	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
 			OFONO_IFACE_HF_AUDIO_MANAGER, "GetCards");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
+			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
 
 	const char *sender = g_dbus_message_get_sender(rep);
 	GVariant *body = g_dbus_message_get_body(rep);
@@ -713,12 +684,10 @@ static int ofono_get_all_cards(void) {
 	}
 
 	g_variant_iter_free(cards);
-	goto final;
+
+	ret = 0;
 
 fail:
-	ret = -1;
-
-final:
 	if (msg != NULL)
 		g_object_unref(msg);
 	if (rep != NULL)
@@ -880,12 +849,12 @@ int ofono_register(void) {
 		.dispatchers = dispatchers,
 	};
 
+	if (!config.profile.hfp_ofono)
+		return 0;
+
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GError *err = NULL;
-	int ret = 0;
-
-	if (!config.profile.hfp_ofono)
-		goto final;
+	int ret = -1;
 
 	debug("Registering oFono audio agent: %s", dbus_agent_object_path);
 
@@ -918,22 +887,15 @@ int ofono_register(void) {
 	g_variant_builder_clear(&options);
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
+			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
 
 	ofono_get_all_cards();
 
-	goto final;
+	ret = 0;
 
 fail:
-	ret = -1;
-
-final:
 	if (msg != NULL)
 		g_object_unref(msg);
 	if (rep != NULL)

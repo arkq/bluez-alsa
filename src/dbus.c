@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -51,7 +51,8 @@ static bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatc
 	}
 
 	/* make sure that we will not leak the invocation object */
-	g_dbus_method_invocation_return_value(invocation, NULL);
+	g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR,
+			G_DBUS_ERROR_UNKNOWN_METHOD, "Unknown method: %s.%s()", interface, method);
 	return false;
 }
 
@@ -179,13 +180,9 @@ GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
 			DBUS_IFACE_OBJECT_MANAGER, "GetManagedObjects");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
+			g_dbus_message_to_gerror(rep, error))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, error);
-		goto fail;
-	}
 
 	g_variant_get(g_dbus_message_get_body(rep), "(a{oa{sa{sv}}})", &objects);
 
@@ -222,13 +219,9 @@ GVariant *g_dbus_get_property(GDBusConnection *conn, const char *service,
 	g_dbus_message_set_body(msg, g_variant_new("(ss)", interface, property));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
+			g_dbus_message_to_gerror(rep, error))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, error);
-		goto fail;
-	}
 
 	g_variant_get(g_dbus_message_get_body(rep), "(v)", &value);
 
@@ -258,18 +251,17 @@ bool g_dbus_set_property(GDBusConnection *conn, const char *service,
 		const GVariant *value, GError **error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
+	bool rv = false;
 
 	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "Set");
 	g_dbus_message_set_body(msg, g_variant_new("(ssv)", interface, property, value));
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
+			g_dbus_message_to_gerror(rep, error))
 		goto fail;
 
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, error);
-		goto fail;
-	}
+	rv = true;
 
 fail:
 
@@ -278,5 +270,5 @@ fail:
 	if (rep != NULL)
 		g_object_unref(rep);
 
-	return error == NULL;
+	return rv;
 }

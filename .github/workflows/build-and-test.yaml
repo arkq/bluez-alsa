@@ -69,7 +69,7 @@ jobs:
   sanitize-prepare:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       id: cache
       with:
         key: sanitize-env
@@ -153,7 +153,7 @@ jobs:
         make clean
         SANITIZERS=$(for x in ${{ matrix.sanitize }}; do echo -n " -fsanitize=$x"; done)
         make check CFLAGS="-g -O2 $SANITIZERS -fno-sanitize-recover=all" TESTS=
-    - uses: actions/cache/restore@v3
+    - uses: actions/cache/restore@v4
       if: ${{ matrix.sanitize == 'thread' }}
       with:
         key: sanitize-env

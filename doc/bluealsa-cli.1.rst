@@ -89,7 +89,7 @@ info *PCM_PATH*
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
 
-codec [--force] *PCM_PATH* [*CODEC*[:*CONFIG*]]
+codec [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
     Get or set the Bluetooth codec used by the given PCM.
 
     If *CODEC* is given, change the codec to be used by the given PCM. This

@@ -288,13 +288,9 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 			t->a2dp.state == BLUEZ_A2DP_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
+			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
-
-	if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-		g_dbus_message_to_gerror(rep, &err);
-		goto fail;
-	}
 
 	uint16_t mtu_read, mtu_write;
 	g_variant_get(g_dbus_message_get_body(rep), "(hqq)",
@@ -351,11 +347,8 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
 
 		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL)
-			goto fail;
-
-		if (g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR) {
-			g_dbus_message_to_gerror(rep, &err);
+						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
+				g_dbus_message_to_gerror(rep, &err)) {
 			if (err->code == G_DBUS_ERROR_NO_REPLY ||
 					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN ||
 					err->code == G_DBUS_ERROR_UNKNOWN_OBJECT) {

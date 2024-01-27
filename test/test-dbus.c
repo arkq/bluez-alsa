@@ -1,6 +1,6 @@
 /*
  * test-dbus.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -190,14 +190,20 @@ CK_START_TEST(test_dbus_dispatch_method_call) {
 	FooServer *server;
 	GTestDBusConnection *tc;
 	GDBusMessage *msg, *rep;
+	GError *err = NULL;
 
 	ck_assert_ptr_nonnull((tc = test_dbus_connection_new()));
 	ck_assert_ptr_nonnull((server = dbus_foo_server_new(tc->conn)));
 
 	/* call not-handled method */
 	msg = g_dbus_message_new_method_call("org.example", "/foo", "org.example.Foo", "Boom");
-	g_dbus_connection_send_message(tc->conn, msg, G_DBUS_SEND_MESSAGE_FLAGS_NONE, NULL, NULL);
+	rep = g_dbus_connection_send_message_with_reply_sync(tc->conn, msg,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL);
+	ck_assert_uint_eq(g_dbus_message_to_gerror(rep, &err), TRUE);
+	ck_assert_uint_eq(err->code, G_DBUS_ERROR_UNKNOWN_METHOD);
 	g_object_unref(msg);
+	g_object_unref(rep);
+	g_error_free(err);
 
 	/* call handled method and wait for reply */
 	msg = g_dbus_message_new_method_call("org.example", "/foo", "org.example.Foo", "Ping");
