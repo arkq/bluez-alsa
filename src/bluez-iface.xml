@@ -1,5 +1,5 @@
 <!-- BlueALSA - bluez-iface.xml
-     Copyright (c) 2016-2023 Arkadiusz Bokowy
+     Copyright (c) 2016-2024 Arkadiusz Bokowy
 
      This file is a part of bluez-alsa.
 
@@ -38,6 +38,16 @@
 		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_MIDI"/>
 		<property name="UUID" type="s" access="read"/>
 		<property name="Primary" type="b" access="read"/>
+	</interface>
+
+	<interface name="org.bluez.LEAdvertisement1">
+		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_MIDI"/>
+		<method name="Release">
+		</method>
+		<property name="Type" type="s" access="read"/>
+		<property name="ServiceUUIDs" type="as" access="read"/>
+		<property name="Discoverable" type="b" access="read"/>
+		<property name="Includes" type="as" access="read"/>
 	</interface>
 
 	<interface name="org.bluez.MediaEndpoint1">

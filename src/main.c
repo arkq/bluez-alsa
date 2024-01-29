@@ -180,6 +180,9 @@ int main(int argc, char **argv) {
 		{ "mp3-algorithm", required_argument, NULL, 12 },
 		{ "mp3-vbr-quality", required_argument, NULL, 13 },
 #endif
+#if ENABLE_MIDI
+		{ "midi-advertisement", no_argument, NULL, 22 },
+#endif
 		{ "xapl-resp-name", required_argument, NULL, 16 },
 		{ 0, 0, 0, 0 },
 	};
@@ -229,6 +232,9 @@ int main(int argc, char **argv) {
 #if ENABLE_MP3LAME
 					"  --mp3-algorithm=TYPE\t\tselect LAME encoder algorithm type\n"
 					"  --mp3-vbr-quality=MODE\tset LAME encoder VBR quality mode\n"
+#endif
+#if ENABLE_MIDI
+					"  --midi-advertisement\t\tenable LE advertisement for BLE-MIDI\n"
 #endif
 					"  --xapl-resp-name=NAME\t\tset product name used by XAPL\n"
 					"\nAvailable BT profiles:\n"
@@ -530,6 +536,12 @@ int main(int argc, char **argv) {
 			config.lame_vbr_quality = entry->v.ui;
 			break;
 		}
+#endif
+
+#if ENABLE_MIDI
+		case 22 /* --midi-advertisement */ :
+			config.midi.advertise = true;
+			break;
 #endif
 
 		case 16 /* --xapl-resp-name=NAME */ :

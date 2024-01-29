@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: July 2023
+:Date: January 2024
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -20,7 +20,7 @@ DESCRIPTION
 ===========
 
 **bluealsa** is a Linux daemon to give applications access to Bluetooth audio
-streams using the Bluetooth A2DP, HFP and/or HSP profiles.
+streams using the Bluetooth A2DP, HFP, HSP and/or BLE-MIDI profiles.
 It provides a D-Bus API to applications, and can be used by ALSA applications
 via libasound plugins (see **bluealsa-plugins(7)** for details).
 
@@ -246,6 +246,9 @@ OPTIONS
     - **standard** - standard quality (44.1 kHz: 606 kbps, 48 kHz: 660 kbps)
     - **high** - high quality (44.1 kHz: 909 kbps, 48 kHz: 990 kbps)
 
+--midi-advertisement
+    Advertise BLE-MIDI service using Bluetooth LE advertising.
+
 --xapl-resp-name=NAME
     Set the product name send in the XAPL response message.
     By default, the name is set as "BlueALSA".
@@ -260,10 +263,12 @@ Profiles
 --------
 
 **bluealsa** provides support for Bluetooth Advanced Audio Distribution Profile
-(A2DP), Hands-Free Profile (HFP) and Headset Profile (HSP).
+(A2DP), Hands-Free Profile (HFP), Headset Profile (HSP) and Bluetooth Low
+Energy MIDI (BLE-MIDI).
 A2DP profile is dedicated for streaming music (i.e., stereo, 48 kHz or more
 sampling frequency), while HFP and HSP for two-way voice transmission (mono, 8
-kHz or 16 kHz sampling frequency).
+kHz or 16 kHz sampling frequency). BLE-MIDI, on the other hand, is used for
+transmitting MIDI messages over Bluetooth LE.
 
 The Bluetooth audio profiles are not peer-to-peer; they each have a source or
 gateway role (a2dp-source, hfp-ag, or hsp-ag) and a sink or target role
@@ -314,13 +319,15 @@ The list of profile *NAME*-s accepted by the ``--profile=NAME`` option:
 - **hfp-hf** - Hands-Free
 - **hsp-ag** Headset Audio Gateway
 - **hsp-hs** - Headset
+- **midi** - Bluetooth LE MIDI
 
-The **hfp-ofono** is available only when **bluealsa** was compiled with oFono
-support. Enabling HFP over oFono will automatically disable **hfp-hf** and
-**hfp-ag**.
+The **hfp-ofono** and **midi** profiles are available only when **bluealsa**
+was compiled respectively with oFono and BLE-MIDI support.
 
-BlueZ permits only one service to register the HSP and HFP profiles, and that
-service is automatically registered with every HCI device.
+Enabling HFP over oFono will automatically disable **hfp-hf** and **hfp-ag**.
+Also, it is important to note that BlueZ permits only one service to register
+the HFP profile, and that service is automatically registered with every HCI
+device.
 
 For the A2DP profile, BlueZ allows each HCI device to be registered to a
 different service, so it is possible to have multiple instances of
@@ -452,7 +459,7 @@ Please add following lines to the BlueALSA D-Bus policy:
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 

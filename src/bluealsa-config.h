@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-config.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -127,6 +127,13 @@ struct ba_config {
 		bool force_44100;
 
 	} a2dp;
+
+#if ENABLE_MIDI
+	struct {
+		/* advertise BLE-MIDI via LE advertisement */
+		bool advertise;
+	} midi;
+#endif
 
 	/* BlueALSA supports 5 SBC qualities: low, medium, high, XQ and XQ+. The XQ
 	 * mode uses 44.1 kHz sampling rate, dual channel mode with bitpool 38, 16

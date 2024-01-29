@@ -50,6 +50,7 @@
 struct bluez_midi_app {
 	/* D-Bus object registration paths */
 	char path[64];
+	char path_adv[64 + 8];
 	char path_service[64 + 8];
 	char path_char[64 + 16];
 	/* associated adapter */
@@ -68,14 +69,6 @@ struct bluez_midi_app {
 /**
  * D-Bus unique name of the BlueZ daemon. */
 static char bluez_dbus_unique_name[64] = "";
-
-static GVariant *variant_new_midi_service_uuid(void) {
-	return g_variant_new_string(BT_UUID_MIDI);
-}
-
-static GVariant *variant_new_midi_characteristic_uuid(void) {
-	return g_variant_new_string(BT_UUID_MIDI_CHAR);
-}
 
 static struct bluez_midi_app *bluez_midi_app_ref(struct bluez_midi_app *app) {
 	atomic_fetch_add_explicit(&app->ref_count, 1, memory_order_relaxed);
@@ -128,12 +121,69 @@ fail:
 	return t;
 }
 
+static void bluez_midi_advertisement_release(
+		GDBusMethodInvocation *inv, G_GNUC_UNUSED void *userdata) {
+	debug("Releasing MIDI LE advertisement: %s", ((struct bluez_midi_app *)userdata)->path);
+	g_object_unref(inv);
+}
+
+static GVariant *bluez_midi_advertisement_iface_get_property(
+		const char *property, G_GNUC_UNUSED GError **error, void *userdata) {
+	(void)userdata;
+
+	if (strcmp(property, "Type") == 0)
+		return g_variant_new_string("peripheral");
+	if (strcmp(property, "ServiceUUIDs") == 0) {
+		static const char *uuids[] = { BT_UUID_MIDI };
+		return g_variant_new_strv(uuids, ARRAYSIZE(uuids));
+	}
+	if (strcmp(property, "Discoverable") == 0)
+		/* advertise as general discoverable LE-only device */
+		return g_variant_new_boolean(TRUE);
+	if (strcmp(property, "Includes") == 0) {
+		const char *values[] = { "local-name" };
+		return g_variant_new_strv(values, ARRAYSIZE(values));
+	}
+
+	g_assert_not_reached();
+	return NULL;
+}
+
+static GDBusObjectSkeleton *bluez_midi_advertisement_skeleton_new(
+		struct bluez_midi_app *app) {
+
+	static const GDBusMethodCallDispatcher dispatchers[] = {
+		{ .method = "Release",
+			.sender = bluez_dbus_unique_name,
+			.handler = bluez_midi_advertisement_release },
+		{ 0 },
+	};
+
+	static const GDBusInterfaceSkeletonVTable vtable = {
+		.dispatchers = dispatchers,
+		.get_property = bluez_midi_advertisement_iface_get_property,
+	};
+
+	OrgBluezLeadvertisement1Skeleton *ifs_gatt_adv;
+	if ((ifs_gatt_adv = org_bluez_leadvertisement1_skeleton_new(&vtable,
+					app, (GDestroyNotify)bluez_midi_app_unref)) == NULL)
+		return NULL;
+
+	GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_gatt_adv);
+	GDBusObjectSkeleton *skeleton = g_dbus_object_skeleton_new(app->path_adv);
+	g_dbus_object_skeleton_add_interface(skeleton, ifs);
+	g_object_unref(ifs_gatt_adv);
+
+	bluez_midi_app_ref(app);
+	return skeleton;
+}
+
 static GVariant *bluez_midi_service_iface_get_property(
 		const char *property, G_GNUC_UNUSED GError **error,
 		G_GNUC_UNUSED void *userdata) {
 
 	if (strcmp(property, "UUID") == 0)
-		return variant_new_midi_service_uuid();
+		return g_variant_new_string(BT_UUID_MIDI);
 	if (strcmp(property, "Primary") == 0)
 		return g_variant_new_boolean(TRUE);
 
@@ -198,7 +248,7 @@ static void bluez_midi_characteristic_acquire_write(
 	}
 
 	int fds[2];
-	if (socketpair(AF_LOCAL, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
+	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
 		error("Couldn't create BLE-MIDI char write socket pair: %s", strerror(errno));
 		goto fail;
 	}
@@ -258,7 +308,7 @@ static void bluez_midi_characteristic_acquire_notify(
 	}
 
 	int fds[2];
-	if (socketpair(AF_LOCAL, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
+	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
 		error("Couldn't create BLE-MIDI char notify socket pair: %s", strerror(errno));
 		goto fail;
 	}
@@ -294,7 +344,7 @@ static GVariant *bluez_midi_characteristic_iface_get_property(
 	struct bluez_midi_app *app = userdata;
 
 	if (strcmp(property, "UUID") == 0)
-		return variant_new_midi_characteristic_uuid();
+		return g_variant_new_string(BT_UUID_MIDI_CHAR);
 	if (strcmp(property, "Service") == 0)
 		return g_variant_new_object_path(app->path_service);
 	if (strcmp(property, "WriteAcquired") == 0)
@@ -371,6 +421,59 @@ fail:
 
 }
 
+static void bluez_midi_app_register(
+		struct ba_adapter *adapter, struct bluez_midi_app *app) {
+
+	GDBusMessage *msg;
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
+			BLUEZ_IFACE_GATT_MANAGER, "RegisterApplication");
+
+	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", app->path, NULL));
+
+	debug("Registering MIDI GATT application: %s", app->path);
+	g_dbus_connection_send_message_with_reply(config.dbus, msg,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
+			bluez_midi_app_register_finish, NULL);
+
+	g_object_unref(msg);
+}
+
+static void bluez_midi_app_advertise_finish(
+		GObject *source, GAsyncResult *result, G_GNUC_UNUSED void *userdata) {
+
+	GError *err = NULL;
+	GDBusMessage *rep;
+
+	if ((rep = g_dbus_connection_send_message_with_reply_finish(
+					G_DBUS_CONNECTION(source), result, &err)) != NULL)
+		g_dbus_message_to_gerror(rep, &err);
+
+	if (rep != NULL)
+		g_object_unref(rep);
+	if (err != NULL) {
+		error("Couldn't advertise MIDI GATT application: %s", err->message);
+		g_error_free(err);
+	}
+
+}
+
+static void bluez_midi_app_advertise(
+		struct ba_adapter *adapter, struct bluez_midi_app *app) {
+
+	GDBusMessage *msg;
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
+			BLUEZ_IFACE_LE_ADVERTISING_MANAGER, "RegisterAdvertisement");
+
+	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", app->path_adv, NULL));
+
+	debug("Registering MIDI LE advertisement: %s", app->path);
+	g_dbus_connection_send_message_with_reply(config.dbus, msg,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
+			bluez_midi_app_advertise_finish, NULL);
+
+	g_object_unref(msg);
+}
+
 GDBusObjectManagerServer *bluez_midi_app_new(
 		struct ba_adapter *adapter, const char *path) {
 
@@ -379,6 +482,7 @@ GDBusObjectManagerServer *bluez_midi_app_new(
 		return NULL;
 
 	snprintf(app->path, sizeof(app->path), "%s", path);
+	snprintf(app->path_adv, sizeof(app->path_adv), "%s/adv", path);
 	snprintf(app->path_service, sizeof(app->path_service), "%s/service", path);
 	snprintf(app->path_char, sizeof(app->path_char), "%s/char", app->path_service);
 	app->hci_dev_id = adapter->hci.dev_id;
@@ -404,19 +508,17 @@ GDBusObjectManagerServer *bluez_midi_app_new(
 	g_dbus_object_manager_server_export(manager, skeleton);
 	g_object_unref(skeleton);
 
+	if (config.midi.advertise) {
+		skeleton = bluez_midi_advertisement_skeleton_new(app);
+		g_dbus_object_manager_server_export(manager, skeleton);
+		g_object_unref(skeleton);
+	}
+
 	g_dbus_object_manager_server_set_connection(manager, config.dbus);
 
-	GDBusMessage *msg;
-	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
-			BLUEZ_IFACE_GATT_MANAGER, "RegisterApplication");
+	bluez_midi_app_register(adapter, app);
+	if (config.midi.advertise)
+		bluez_midi_app_advertise(adapter, app);
 
-	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", path, NULL));
-
-	debug("Registering MIDI GATT application: %s", app->path);
-	g_dbus_connection_send_message_with_reply(config.dbus, msg,
-			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
-			bluez_midi_app_register_finish, NULL);
-
-	g_object_unref(msg);
 	return manager;
 }

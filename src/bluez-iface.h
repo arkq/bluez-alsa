@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-iface.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -66,6 +66,14 @@ typedef struct {
 } OrgBluezGattService1Skeleton;
 
 OrgBluezGattService1Skeleton *org_bluez_gatt_service1_skeleton_new(
+		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
+		GDestroyNotify userdata_free_func);
+
+typedef struct {
+	GDBusInterfaceSkeletonEx parent;
+} OrgBluezLeadvertisement1Skeleton;
+
+OrgBluezLeadvertisement1Skeleton *org_bluez_leadvertisement1_skeleton_new(
 		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
 		GDestroyNotify userdata_free_func);
 

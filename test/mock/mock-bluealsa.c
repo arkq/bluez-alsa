@@ -1,6 +1,6 @@
 /*
  * mock-bluealsa.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -32,21 +32,16 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#if ENABLE_APTX
-# include "a2dp-aptx.h"
-#endif
-#if ENABLE_APTX_HD
-# include "a2dp-aptx-hd.h"
-#endif
-#if ENABLE_FASTSTREAM
-# include "a2dp-faststream.h"
-#endif
+#include "a2dp-aptx.h"
+#include "a2dp-aptx-hd.h"
+#include "a2dp-faststream.h"
 #include "a2dp-sbc.h"
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
+#include "ble-midi.h"
 #include "bluealsa-config.h"
 #include "bluez.h"
 #include "codec-sbc.h"
@@ -344,9 +339,18 @@ static struct ba_transport *mock_transport_new_midi(const char *device_btmac,
 	usleep(mock_fuzzing_ms * 1000);
 
 	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
-	const char *dbus_owner = g_dbus_connection_get_unique_name(config.dbus);
+	struct ba_transport *t = ba_transport_new_midi(d, profile, ":0", dbus_path);
 
-	struct ba_transport *t = ba_transport_new_midi(d, profile, dbus_owner, dbus_path);
+	ba_transport_acquire(t);
+	ba_transport_start(t);
+
+	int fds[2];
+	socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds);
+	ble_midi_encode_set_mtu(&t->midi.ble_encoder, 23);
+	/* link read and write ends with each other */
+	t->midi.ble_fd_write = fds[1];
+	t->midi.ble_fd_notify = fds[0];
+
 	fprintf(stderr, "BLUEALSA_READY=MIDI:%s\n", device_btmac);
 
 	ba_device_unref(d);
