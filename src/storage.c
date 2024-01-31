@@ -1,6 +1,6 @@
 /*
  * BlueALSA - storage.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -168,6 +168,28 @@ int storage_device_save(const struct ba_device *d) {
 
 	/* remove the storage from the map */
 	g_hash_table_remove(storage_map, &d->addr);
+
+	rv = 0;
+
+final:
+	pthread_mutex_unlock(&storage_mutex);
+	return rv;
+}
+
+/**
+ * Clear persistent storage for the given BT device. */
+int storage_device_clear(const struct ba_device *d) {
+
+	int rv = -1;
+
+	pthread_mutex_lock(&storage_mutex);
+
+	struct storage *st;
+	if ((st = storage_lookup(&d->addr)) == NULL)
+		goto final;
+
+	g_key_file_free(st->keyfile);
+	st->keyfile = g_key_file_new();
 
 	rv = 0;
 

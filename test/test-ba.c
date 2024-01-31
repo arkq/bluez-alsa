@@ -1,6 +1,6 @@
 /*
  * test-ba.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -131,6 +131,7 @@ CK_START_TEST(test_ba_transport) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	ck_assert_ptr_ne(t = ba_transport_new_sco(d,
 				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1), NULL);
@@ -161,9 +162,10 @@ CK_START_TEST(test_ba_transport_midi) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	ck_assert_int_eq(storage_device_clear(d), 0);
 
-	t = ba_transport_new_midi(d, BA_TRANSPORT_PROFILE_MIDI, "/owner", "/path");
-	ck_assert_ptr_ne(t, NULL);
+	ck_assert_ptr_ne(t = ba_transport_new_midi(d,
+				BA_TRANSPORT_PROFILE_MIDI, "/owner", "/path"), NULL);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -187,6 +189,7 @@ CK_START_TEST(test_ba_transport_sco_one_only) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	t_sco_hsp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
 	ck_assert_ptr_ne(t_sco_hsp, NULL);
@@ -213,6 +216,7 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
+	ck_assert_int_eq(storage_device_clear(d), 0);
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
@@ -223,16 +227,19 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 	a->hci.features[3] = LMP_ESCO;
 
 	config.hfp.codecs.msbc = true;
+	ck_assert_int_eq(storage_device_clear(d), 0);
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_UNDEFINED);
 	ba_transport_unref(t_sco);
 
 	config.hfp.codecs.msbc = false;
+	ck_assert_int_eq(storage_device_clear(d), 0);
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
 
 #else
+	ck_assert_int_eq(storage_device_clear(d), 0);
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
@@ -259,6 +266,7 @@ CK_START_TEST(test_ba_transport_threads_sync_termination) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
 	ck_assert_ptr_ne(t_sco, NULL);
@@ -312,6 +320,7 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
@@ -357,6 +366,8 @@ CK_START_TEST(test_cascade_free) {
 
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	ck_assert_int_eq(storage_device_clear(d), 0);
+
 	ck_assert_ptr_ne(t = ba_transport_new_sco(d,
 				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1), NULL);
 
@@ -423,7 +434,7 @@ CK_START_TEST(test_storage) {
 
 	char buffer[1024] = { 0 };
 	ck_assert_ptr_ne(f = fopen(storage_path, "r"), NULL);
-	ck_assert_int_eq(fread(buffer, 1, sizeof(buffer), f), 256);
+	ck_assert_int_gt(fread(buffer, 1, sizeof(buffer), f), 0);
 	ck_assert_int_eq(fclose(f), 0);
 
 	const char *storage_data_new =

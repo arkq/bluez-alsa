@@ -195,6 +195,7 @@ void hexdump_(const char *label, const void *data, size_t len, bool compact) {
 		data = ((unsigned char *)data) + 1;
 	}
 
+	*p = '\0';
 	log_message(LOG_DEBUG, "%s [len=%zu]: %s", label, len, buf);
 	free(buf);
 }

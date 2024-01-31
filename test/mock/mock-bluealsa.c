@@ -47,6 +47,7 @@
 #include "codec-sbc.h"
 #include "hfp.h"
 #include "io.h"
+#include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -241,6 +242,7 @@ static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac
 	struct ba_device *d;
 	if ((d = ba_device_lookup(a, &addr)) == NULL) {
 		d = ba_device_new(a, &addr);
+		storage_device_clear(d);
 		d->battery.charge = 75;
 	}
 
