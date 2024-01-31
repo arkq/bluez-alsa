@@ -35,7 +35,7 @@
 
 #include "a2dp.h"
 #include "ba-adapter.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
 #include "bluez-iface.h"
@@ -175,7 +175,7 @@ int main(int argc, char *argv[]) {
 		}
 
 	log_open(basename(argv[0]), false);
-	assert(bluealsa_config_init() == 0);
+	assert(ba_config_init() == 0);
 
 	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
 	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);

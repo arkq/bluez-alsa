@@ -28,7 +28,7 @@
 #include "a2dp.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "codec-sbc.h"
 #include "io.h"
 #include "rtp.h"

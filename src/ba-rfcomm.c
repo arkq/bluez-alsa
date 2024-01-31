@@ -25,10 +25,10 @@
 #include <glib.h>
 
 #include "ba-adapter.h"
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "shared/defs.h"

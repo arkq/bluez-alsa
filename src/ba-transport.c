@@ -37,7 +37,7 @@
 #include "ba-adapter.h"
 #include "ba-rfcomm.h"
 #include "ba-transport-pcm.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "bluez.h"

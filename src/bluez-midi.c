@@ -36,7 +36,7 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "ble-midi.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "bluez-iface.h"
 #include "dbus.h"
 #include "midi.h"

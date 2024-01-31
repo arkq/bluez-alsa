@@ -22,7 +22,7 @@
 #include <glib.h>
 
 #include "audio.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 

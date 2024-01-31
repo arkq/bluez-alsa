@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hfp.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  * Copyright (c) 2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -20,6 +20,7 @@
 #define HFP_CODEC_UNDEFINED 0x00
 #define HFP_CODEC_CVSD      0x01
 #define HFP_CODEC_MSBC      0x02
+#define HFP_CODEC_LC3       0x03
 
 /**
  * HSP/HFP volume gain range */
@@ -30,19 +31,25 @@
  * SDP AG feature flags */
 #define SDP_HFP_AG_FEAT_TWC    (1 << 0) /* three-way calling */
 #define SDP_HFP_AG_FEAT_ECNR   (1 << 1) /* EC and/or NR function */
-#define SDP_HFP_AG_FEAT_VREC   (1 << 2) /* voice recognition function */
+#define SDP_HFP_AG_FEAT_VR     (1 << 2) /* voice recognition function */
 #define SDP_HFP_AG_FEAT_RING   (1 << 3) /* in-band ring tone capability */
 #define SDP_HFP_AG_FEAT_VTAG   (1 << 4) /* attach a number to a voice tag */
-#define SDP_HFP_AG_FEAT_WBAND  (1 << 5) /* wide band speech support */
+#define SDP_HFP_AG_FEAT_WBS    (1 << 5) /* wide band speech */
+#define SDP_HFP_AG_FEAT_EVR    (1 << 6) /* enhanced voice recognition status */
+#define SDP_HFP_AG_FEAT_VR_TXT (1 << 7) /* voice recognition text */
+#define SDP_HFP_AG_FEAT_SWB    (1 << 8) /* super wide band speech */
 
 /**
  * SDP HF feature flags */
 #define SDP_HFP_HF_FEAT_ECNR   (1 << 0) /* EC and/or NR function */
-#define SDP_HFP_HF_FEAT_TWC    (1 << 1) /* three-way calling */
+#define SDP_HFP_HF_FEAT_TWC    (1 << 1) /* call waiting or three-way calling */
 #define SDP_HFP_HF_FEAT_CLI    (1 << 2) /* CLI presentation capability */
-#define SDP_HFP_HF_FEAT_VREC   (1 << 3) /* voice recognition activation */
-#define SDP_HFP_HF_FEAT_VOLUME (1 << 4) /* remote volume control */
-#define SDP_HFP_HF_FEAT_WBAND  (1 << 5) /* wide band speech support */
+#define SDP_HFP_HF_FEAT_VR     (1 << 3) /* voice recognition activation */
+#define SDP_HFP_HF_FEAT_VOLUME (1 << 4) /* remote audio volume control */
+#define SDP_HFP_HF_FEAT_WBS    (1 << 5) /* wide band speech */
+#define SDP_HFP_HF_FEAT_EVR    (1 << 6) /* enhanced voice recognition status */
+#define SDP_HFP_HF_FEAT_VR_TXT (1 << 7) /* voice recognition text */
+#define SDP_HFP_HF_FEAT_SWB    (1 << 8) /* super wide band speech */
 
 /**
  * AG feature flags */

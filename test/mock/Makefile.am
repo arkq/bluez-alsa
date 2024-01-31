@@ -14,11 +14,11 @@ bluealsa_mock_SOURCES = \
 	../../src/at.c \
 	../../src/audio.c \
 	../../src/ba-adapter.c \
+	../../src/ba-config.c \
 	../../src/ba-device.c \
 	../../src/ba-rfcomm.c \
 	../../src/ba-transport.c \
 	../../src/ba-transport-pcm.c \
-	../../src/bluealsa-config.c \
 	../../src/bluealsa-dbus.c \
 	../../src/bluealsa-iface.c \
 	../../src/codec-sbc.c \

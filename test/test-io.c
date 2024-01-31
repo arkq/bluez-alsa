@@ -61,11 +61,11 @@
 #endif
 #include "a2dp-sbc.h"
 #include "ba-adapter.h"
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"
@@ -1259,7 +1259,7 @@ int main(int argc, char *argv[]) {
 
 	}
 
-	bluealsa_config_init();
+	ba_config_init();
 
 	bdaddr_t addr1 = {{ 1, 2, 3, 4, 5, 6 }};
 	bdaddr_t addr2 = {{ 1, 2, 3, 7, 8, 9 }};

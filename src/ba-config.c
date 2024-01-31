@@ -1,6 +1,6 @@
 /*
- * BlueALSA - bluealsa-config.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * BlueALSA - ba-config.c
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -8,8 +8,11 @@
  *
  */
 
-#include "bluealsa-config.h"
-/* IWYU pragma: no_include "config.h" */
+#include "ba-config.h"
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <fcntl.h>
 #include <stdbool.h>
@@ -45,30 +48,6 @@ struct ba_config config = {
 	 * quality, so we will enable it by default */
 	.hfp.codecs.msbc = true,
 #endif
-
-	.hfp.features_sdp_hf =
-		SDP_HFP_HF_FEAT_CLI |
-		SDP_HFP_HF_FEAT_VOLUME |
-#if ENABLE_MSBC
-		SDP_HFP_HF_FEAT_WBAND |
-#endif
-		0,
-	.hfp.features_sdp_ag =
-#if ENABLE_MSBC
-		SDP_HFP_AG_FEAT_WBAND |
-#endif
-		0,
-	.hfp.features_rfcomm_hf =
-		HFP_HF_FEAT_CLI |
-		HFP_HF_FEAT_VOLUME |
-		HFP_HF_FEAT_ECS |
-		HFP_HF_FEAT_ECC |
-		0,
-	.hfp.features_rfcomm_ag =
-		HFP_AG_FEAT_REJECT |
-		HFP_AG_FEAT_ECS |
-		HFP_AG_FEAT_ECC |
-		0,
 
 	/* built-in Apple accessory identification */
 	.hfp.xapl_vendor_id = 0xB103,
@@ -135,7 +114,7 @@ struct ba_config config = {
 
 };
 
-int bluealsa_config_init(void) {
+int ba_config_init(void) {
 
 	config.hci_filter = g_array_sized_new(FALSE, FALSE, sizeof(const char *), 4);
 
@@ -144,4 +123,28 @@ int bluealsa_config_init(void) {
 	config.null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK);
 
 	return 0;
+}
+
+/**
+ * Get features exposed via Service Discovery for HFP-AG. */
+unsigned int ba_config_get_hfp_sdp_features_ag(void) {
+	unsigned int features = 0;
+#if ENABLE_MSBC
+	if (config.hfp.codecs.msbc)
+		features |= SDP_HFP_AG_FEAT_WBS;
+#endif
+	return features;
+}
+
+/**
+ * Get features exposed via Service Discovery for HFP-HF. */
+unsigned int ba_config_get_hfp_sdp_features_hf(void) {
+	unsigned int features =
+		SDP_HFP_HF_FEAT_CLI |
+		SDP_HFP_HF_FEAT_VOLUME;
+#if ENABLE_MSBC
+	if (config.hfp.codecs.msbc)
+		features |= SDP_HFP_AG_FEAT_WBS;
+#endif
+	return features;
 }

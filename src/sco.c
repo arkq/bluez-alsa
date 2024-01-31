@@ -31,9 +31,9 @@
 
 #include <glib.h>
 
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-transport-pcm.h"
-#include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #if ENABLE_MSBC
 # include "codec-msbc.h"

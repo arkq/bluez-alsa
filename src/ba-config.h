@@ -1,5 +1,5 @@
 /*
- * BlueALSA - bluealsa-config.h
+ * BlueALSA - ba-config.h
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -9,8 +9,8 @@
  */
 
 #pragma once
-#ifndef BLUEALSA_BLUEALSACONFIG_H_
-#define BLUEALSA_BLUEALSACONFIG_H_
+#ifndef BLUEALSA_BACONFIG_H_
+#define BLUEALSA_BACONFIG_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -84,14 +84,6 @@ struct ba_config {
 			bool msbc;
 #endif
 		} codecs;
-
-		/* set of features exposed via Service Discovery */
-		unsigned int features_sdp_hf;
-		unsigned int features_sdp_ag;
-
-		/* set of features exposed via RFCOMM connection */
-		unsigned int features_rfcomm_hf;
-		unsigned int features_rfcomm_ag;
 
 		/* information exposed via Apple AT extension */
 		unsigned int xapl_vendor_id;
@@ -169,6 +161,9 @@ struct ba_config {
 /* Global BlueALSA configuration. */
 extern struct ba_config config;
 
-int bluealsa_config_init(void);
+int ba_config_init(void);
+
+unsigned int ba_config_get_hfp_sdp_features_ag(void);
+unsigned int ba_config_get_hfp_sdp_features_hf(void);
 
 #endif

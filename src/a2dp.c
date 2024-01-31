@@ -40,8 +40,8 @@
 # include "a2dp-mpeg.h"
 #endif
 #include "a2dp-sbc.h"
+#include "ba-config.h"
 #include "ba-transport.h"
-#include "bluealsa-config.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
 #include "shared/log.h"

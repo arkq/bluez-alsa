@@ -27,10 +27,10 @@
 #include <glib.h>
 
 #include "audio.h"
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
-#include "bluealsa-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "bluez.h"

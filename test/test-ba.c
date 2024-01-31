@@ -33,7 +33,7 @@
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"

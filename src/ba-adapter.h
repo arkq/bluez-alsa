@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-adapter.h
- * Copyright (c) 2016-2019 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -58,7 +58,7 @@ void ba_adapter_unref(struct ba_adapter *a);
 #define BA_TEST_ESCO_SUPPORT(a) \
 	((a)->hci.features[2] & LMP_TRSP_SCO && (a)->hci.features[3] & LMP_ESCO)
 
-int ba_adapter_get_hfp_features_hf(struct ba_adapter *a);
-int ba_adapter_get_hfp_features_ag(struct ba_adapter *a);
+unsigned int ba_adapter_get_hfp_features_ag(struct ba_adapter *a);
+unsigned int ba_adapter_get_hfp_features_hf(struct ba_adapter *a);
 
 #endif

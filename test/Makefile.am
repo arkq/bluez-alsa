@@ -61,7 +61,7 @@ test_a2dp_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
 	../src/shared/rt.c \
-	../src/bluealsa-config.c \
+	../src/ba-config.c \
 	../src/a2dp.c \
 	../src/a2dp-sbc.c \
 	../src/audio.c \
@@ -101,10 +101,10 @@ test_ba_SOURCES = \
 	../src/shared/rt.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
+	../src/ba-config.c \
 	../src/ba-device.c \
 	../src/ba-transport.c \
 	../src/ba-transport-pcm.c \
-	../src/bluealsa-config.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
@@ -129,9 +129,9 @@ test_io_SOURCES = \
 	../src/a2dp-sbc.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
+	../src/ba-config.c \
 	../src/ba-device.c \
 	../src/ba-transport-pcm.c \
-	../src/bluealsa-config.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/hci.c \
@@ -165,11 +165,11 @@ test_rfcomm_SOURCES = \
 	../src/at.c \
 	../src/audio.c \
 	../src/ba-adapter.c \
+	../src/ba-config.c \
 	../src/ba-device.c \
 	../src/ba-rfcomm.c \
 	../src/ba-transport.c \
 	../src/ba-transport-pcm.c \
-	../src/bluealsa-config.c \
 	../src/dbus.c \
 	../src/hci.c \
 	../src/hfp.c \
@@ -189,7 +189,7 @@ test_utils_SOURCES = \
 	../src/shared/log.c \
 	../src/shared/nv.c \
 	../src/shared/rt.c \
-	../src/bluealsa-config.c \
+	../src/ba-config.c \
 	../src/hci.c \
 	../src/utils.c \
 	test-utils.c

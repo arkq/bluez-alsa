@@ -14,8 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "ba-config.h"
 #include "ba-transport.h"
-#include "bluealsa-config.h"
 #include "hci.h"
 #include "storage.h"
 #include "shared/defs.h"

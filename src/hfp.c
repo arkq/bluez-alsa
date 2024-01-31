@@ -1,6 +1,6 @@
 /*
  * BlueALSA - hfp.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -23,6 +23,7 @@ static const struct {
 } codecs[] = {
 	{ HFP_CODEC_CVSD, { "CVSD" } },
 	{ HFP_CODEC_MSBC, { "mSBC" } },
+	{ HFP_CODEC_LC3, { "LC3-SWB" } },
 };
 
 /**

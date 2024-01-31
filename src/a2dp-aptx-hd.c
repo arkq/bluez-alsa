@@ -23,9 +23,9 @@
 #include <unistd.h>
 
 #include "a2dp.h"
+#include "ba-config.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "bluealsa-config.h"
 #include "codec-aptx.h"
 #include "io.h"
 #include "rtp.h"

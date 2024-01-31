@@ -24,7 +24,7 @@
 #include <bluetooth/sco.h>
 
 #include "ba-adapter.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "shared/bluetooth.h"
 #include "shared/log.h"
 

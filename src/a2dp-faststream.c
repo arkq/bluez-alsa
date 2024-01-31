@@ -21,7 +21,7 @@
 #include <sbc/sbc.h>
 
 #include "a2dp.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "codec-sbc.h"

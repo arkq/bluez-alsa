@@ -34,7 +34,7 @@
 #include "a2dp.h"
 #include "a2dp-sbc.h"
 #include "audio.h"
-#include "bluealsa-config.h"
+#include "ba-config.h"
 #include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
 #include "bluez.h"
@@ -273,7 +273,7 @@ int main(int argc, char **argv) {
 
 	log_open(basename(argv[0]), syslog);
 
-	if (bluealsa_config_init() != 0) {
+	if (ba_config_init() != 0) {
 		error("Couldn't initialize bluealsa config");
 		return EXIT_FAILURE;
 	}
