@@ -119,7 +119,7 @@ char bluealsa_mock_path[256] = "bluealsa-mock";
  * @return On success this function returns 0. Otherwise -1 is returned and
  *  errno is set appropriately. */
 int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
-		bool wait_for_ready, ...) {
+		int wait_for_ready, ...) {
 
 	/* bus address of D-Bus mock server */
 	static char dbus_bus_address[256];

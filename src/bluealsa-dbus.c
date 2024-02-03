@@ -579,19 +579,28 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		 * application like oFono, we will mark given codec as available, if it
 		 * is enabled by our global configuration. */
 
-		if ((t_sco_rfcomm != NULL &&
-					t_sco_rfcomm->ag_codecs.cvsd && t_sco_rfcomm->hf_codecs.cvsd) ||
-				(t_sco_rfcomm == NULL && config.hfp.codecs.cvsd))
-			g_variant_builder_add(&codecs, "{sa{sv}}",
-					hfp_codec_id_to_string(HFP_CODEC_CVSD), NULL);
-
+		const struct {
+			uint16_t codec_id;
+			bool is_enabled_in_config;
+			bool is_available_in_rfcomm_ag;
+			bool is_available_in_rfcomm_hf;
+		} sco_codecs[] = {
+			{ HFP_CODEC_CVSD, config.hfp.codecs.cvsd,
+				t_sco_rfcomm == NULL || t_sco_rfcomm->ag_codecs.cvsd,
+				t_sco_rfcomm == NULL || t_sco_rfcomm->hf_codecs.cvsd },
 #if ENABLE_MSBC
-		if ((t_sco_rfcomm != NULL &&
-					t_sco_rfcomm->ag_codecs.msbc && t_sco_rfcomm->hf_codecs.msbc) ||
-				(t_sco_rfcomm == NULL && config.hfp.codecs.msbc))
-			g_variant_builder_add(&codecs, "{sa{sv}}",
-					hfp_codec_id_to_string(HFP_CODEC_MSBC), NULL);
+			{ HFP_CODEC_MSBC, config.hfp.codecs.msbc,
+				t_sco_rfcomm == NULL || t_sco_rfcomm->ag_codecs.msbc,
+				t_sco_rfcomm == NULL || t_sco_rfcomm->hf_codecs.msbc },
 #endif
+		};
+
+		for (size_t i = 0; i < ARRAYSIZE(sco_codecs); i++)
+			if (sco_codecs[i].is_enabled_in_config &&
+					sco_codecs[i].is_available_in_rfcomm_ag &&
+					sco_codecs[i].is_available_in_rfcomm_hf)
+				g_variant_builder_add(&codecs, "{sa{sv}}",
+						hfp_codec_id_to_string(sco_codecs[i].codec_id), NULL);
 
 	}
 

@@ -902,11 +902,6 @@ final:
 int ba_transport_select_codec_sco(
 		struct ba_transport *t,
 		uint16_t codec_id) {
-
-#if !ENABLE_MSBC
-	(void)codec_id;
-#endif
-
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -963,16 +958,15 @@ int ba_transport_select_codec_sco(
 
 final:
 		pthread_mutex_unlock(&t->codec_id_mtx);
-		break;
+#else
+		(void)codec_id;
 #endif
-
+		return 0;
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 	default:
 		return errno = ENOTSUP, -1;
 	}
-
-	return 0;
 }
 
 uint16_t ba_transport_get_codec(

@@ -44,6 +44,7 @@ bluealsa_SOURCES = \
 	io.c \
 	rtp.c \
 	sco.c \
+	sco-cvsd.c \
 	storage.c \
 	utils.c \
 	main.c
@@ -97,7 +98,9 @@ endif
 
 if ENABLE_MSBC
 bluealsa_SOURCES += \
-	codec-msbc.c
+	codec-msbc.c \
+	h2.c \
+	sco-msbc.c
 endif
 
 if ENABLE_OFONO

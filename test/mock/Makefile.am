@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2023 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 
 check_PROGRAMS = \
 	bluealsa-mock
@@ -23,11 +23,13 @@ bluealsa_mock_SOURCES = \
 	../../src/bluealsa-iface.c \
 	../../src/codec-sbc.c \
 	../../src/dbus.c \
+	../../src/h2.c \
 	../../src/hci.c \
 	../../src/hfp.c \
 	../../src/io.c \
 	../../src/rtp.c \
 	../../src/sco.c \
+	../../src/sco-cvsd.c \
 	../../src/storage.c \
 	../../src/utils.c \
 	mock-bluealsa.c \
@@ -37,40 +39,50 @@ bluealsa_mock_SOURCES = \
 bluealsa_mock_CFLAGS = \
 	-I$(top_srcdir)/src \
 	-I$(top_srcdir)/test \
+	@AAC_CFLAGS@ \
 	@ALSA_CFLAGS@ \
+	@APTX_CFLAGS@ \
+	@APTX_HD_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
+	@LDAC_ABR_CFLAGS@ \
+	@LDAC_DEC_CFLAGS@ \
+	@LDAC_ENC_CFLAGS@ \
 	@LIBBSD_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@ \
+	@MPG123_CFLAGS@ \
 	@SBC_CFLAGS@ \
 	@SPANDSP_CFLAGS@
 
 bluealsa_mock_LDADD = \
+	@AAC_LIBS@ \
 	@ALSA_LIBS@ \
+	@APTX_LIBS@ \
+	@APTX_HD_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@ \
+	@LC3PLUS_LIBS@ \
+	@LDAC_ABR_LIBS@ \
+	@LDAC_DEC_LIBS@ \
+	@LDAC_ENC_LIBS@ \
 	@LIBUNWIND_LIBS@ \
+	@MP3LAME_LIBS@ \
+	@MPG123_LIBS@ \
 	@SBC_LIBS@ \
 	@SPANDSP_LIBS@
 
 if ENABLE_AAC
 bluealsa_mock_SOURCES += ../../src/a2dp-aac.c
-bluealsa_mock_CFLAGS += @AAC_CFLAGS@
-bluealsa_mock_LDADD += @AAC_LIBS@
 endif
 
 if ENABLE_APTX
 bluealsa_mock_SOURCES += ../../src/a2dp-aptx.c
-bluealsa_mock_CFLAGS += @APTX_CFLAGS@
-bluealsa_mock_LDADD += @APTX_LIBS@
 endif
 
 if ENABLE_APTX_HD
 bluealsa_mock_SOURCES += ../../src/a2dp-aptx-hd.c
-bluealsa_mock_CFLAGS += @APTX_HD_CFLAGS@
-bluealsa_mock_LDADD += @APTX_HD_LIBS@
 endif
 
 if ENABLE_APTX_OR_APTX_HD
@@ -83,13 +95,10 @@ endif
 
 if ENABLE_LC3PLUS
 bluealsa_mock_SOURCES += ../../src/a2dp-lc3plus.c
-bluealsa_mock_LDADD += @LC3PLUS_LIBS@
 endif
 
 if ENABLE_LDAC
 bluealsa_mock_SOURCES += ../../src/a2dp-ldac.c
-bluealsa_mock_CFLAGS += @LDAC_ABR_CFLAGS@ @LDAC_DEC_CFLAGS@ @LDAC_ENC_CFLAGS@
-bluealsa_mock_LDADD += @LDAC_ABR_LIBS@ @LDAC_DEC_LIBS@ @LDAC_ENC_LIBS@
 endif
 
 if ENABLE_MIDI
@@ -100,10 +109,10 @@ endif
 
 if ENABLE_MPEG
 bluealsa_mock_SOURCES += ../../src/a2dp-mpeg.c
-bluealsa_mock_CFLAGS += @MPG123_CFLAGS@
-bluealsa_mock_LDADD += @MP3LAME_LIBS@ @MPG123_LIBS@
 endif
 
 if ENABLE_MSBC
-bluealsa_mock_SOURCES += ../../src/codec-msbc.c
+bluealsa_mock_SOURCES += \
+	../../src/codec-msbc.c \
+	../../src/sco-msbc.c
 endif

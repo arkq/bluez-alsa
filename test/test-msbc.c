@@ -44,49 +44,6 @@ CK_START_TEST(test_msbc_init) {
 
 } CK_END_TEST
 
-CK_START_TEST(test_msbc_find_h2_header) {
-
-	static const uint8_t raw[][10] = {
-		{ 0 },
-		/* H2 header starts at first byte */
-		{ 0x01, 0x08, 0xad, 0x00, 0x00, 0xd5, 0x10, 0x00, 0x11, 0x10 },
-		/* H2 header starts at 5th byte */
-		{ 0x00, 0xd5, 0x10, 0x00, 0x01, 0x38, 0xad, 0x00, 0x11, 0x10 },
-		/* first H2 header starts at 2nd byte (second at 6th byte) */
-		{ 0xd5, 0x01, 0xc8, 0xad, 0x00, 0x01, 0xf8, 0xad, 0x11, 0x10 },
-		/* incorrect sequence number (bit not duplicated) */
-		{ 0x01, 0x18, 0xad, 0x00, 0x00, 0xd5, 0x10, 0x00, 0x11, 0x10 },
-		{ 0x01, 0x58, 0xad, 0x00, 0x00, 0xd5, 0x10, 0x00, 0x11, 0x10 },
-	};
-
-	size_t len;
-
-	len = sizeof(*raw);
-	ck_assert_ptr_eq(msbc_find_h2_header(raw[0], &len), NULL);
-	ck_assert_int_eq(len, 1);
-
-	len = sizeof(*raw);
-	ck_assert_ptr_eq(msbc_find_h2_header(raw[1], &len), (esco_h2_header_t *)&raw[1][0]);
-	ck_assert_int_eq(len, sizeof(*raw) - 0);
-
-	len = sizeof(*raw);
-	ck_assert_ptr_eq(msbc_find_h2_header(raw[2], &len), (esco_h2_header_t *)&raw[2][4]);
-	ck_assert_int_eq(len, sizeof(*raw) - 4);
-
-	len = sizeof(*raw);
-	ck_assert_ptr_eq(msbc_find_h2_header(raw[3], &len), (esco_h2_header_t *)&raw[3][1]);
-	ck_assert_int_eq(len, sizeof(*raw) - 1);
-
-	len = sizeof(*raw);
-	ck_assert_ptr_eq(msbc_find_h2_header(raw[4], &len), NULL);
-	ck_assert_int_eq(len, 1);
-
-	len = sizeof(*raw);
-	ck_assert_ptr_eq(msbc_find_h2_header(raw[5], &len), NULL);
-	ck_assert_int_eq(len, 1);
-
-} CK_END_TEST
-
 CK_START_TEST(test_msbc_encode_decode) {
 
 	int16_t sine[8 * MSBC_CODESAMPLES];
@@ -234,7 +191,6 @@ int main(void) {
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_msbc_init);
-	tcase_add_test(tc, test_msbc_find_h2_header);
 	tcase_add_test(tc, test_msbc_encode_decode);
 	tcase_add_test(tc, test_msbc_decode_plc);
 

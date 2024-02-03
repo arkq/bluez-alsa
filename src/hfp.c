@@ -23,7 +23,7 @@ static const struct {
 } codecs[] = {
 	{ HFP_CODEC_CVSD, { "CVSD" } },
 	{ HFP_CODEC_MSBC, { "mSBC" } },
-	{ HFP_CODEC_LC3, { "LC3-SWB" } },
+	{ HFP_CODEC_LC3_SWB, { "LC3-SWB" } },
 };
 
 /**

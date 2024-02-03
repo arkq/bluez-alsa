@@ -11,6 +11,7 @@ TESTS = \
 	test-audio \
 	test-ba \
 	test-dbus \
+	test-h2 \
 	test-io \
 	test-rfcomm \
 	test-rtp \
@@ -24,6 +25,7 @@ check_PROGRAMS = \
 	test-audio \
 	test-ba \
 	test-dbus \
+	test-h2 \
 	test-io \
 	test-rfcomm \
 	test-rtp \
@@ -107,10 +109,12 @@ test_ba_SOURCES = \
 	../src/ba-transport-pcm.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
+	../src/h2.c \
 	../src/hci.c \
 	../src/hfp.c \
 	../src/io.c \
 	../src/sco.c \
+	../src/sco-cvsd.c \
 	../src/storage.c \
 	../src/utils.c \
 	test-ba.c
@@ -120,6 +124,10 @@ test_dbus_SOURCES = \
 	../src/dbus.c \
 	test-dbus-iface.c \
 	test-dbus.c
+
+test_h2_SOURCES = \
+	../src/h2.c \
+	test-h2.c
 
 test_io_SOURCES = \
 	../src/shared/a2dp-codecs.c \
@@ -134,11 +142,13 @@ test_io_SOURCES = \
 	../src/ba-transport-pcm.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
+	../src/h2.c \
 	../src/hci.c \
 	../src/hfp.c \
 	../src/io.c \
 	../src/rtp.c \
 	../src/sco.c \
+	../src/sco-cvsd.c \
 	../src/utils.c \
 	test-io.c
 
@@ -153,6 +163,7 @@ if ENABLE_MSBC
 test_msbc_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
+	../src/h2.c \
 	../src/codec-sbc.c \
 	test-msbc.c
 endif
@@ -171,10 +182,12 @@ test_rfcomm_SOURCES = \
 	../src/ba-transport.c \
 	../src/ba-transport-pcm.c \
 	../src/dbus.c \
+	../src/h2.c \
 	../src/hci.c \
 	../src/hfp.c \
 	../src/io.c \
 	../src/sco.c \
+	../src/sco-cvsd.c \
 	../src/utils.c \
 	test-rfcomm.c
 
@@ -235,11 +248,16 @@ test_io_SOURCES += ../src/a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC
-test_ba_SOURCES += ../src/codec-msbc.c
-test_io_SOURCES += ../src/codec-msbc.c
+test_ba_SOURCES += \
+	../src/codec-msbc.c \
+	../src/sco-msbc.c
+test_io_SOURCES += \
+	../src/codec-msbc.c \
+	../src/sco-msbc.c
 test_rfcomm_SOURCES += \
 	../src/codec-msbc.c \
-	../src/codec-sbc.c
+	../src/codec-sbc.c \
+	../src/sco-msbc.c
 endif
 
 AM_TESTS_ENVIRONMENT = \
