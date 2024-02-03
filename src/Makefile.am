@@ -39,6 +39,7 @@ bluealsa_SOURCES = \
 	bluez-iface.xml \
 	codec-sbc.c \
 	dbus.c \
+	h2.c \
 	hci.c \
 	hfp.c \
 	io.c \
@@ -74,6 +75,12 @@ bluealsa_SOURCES += \
 	a2dp-faststream.c
 endif
 
+if ENABLE_LC3_SWB
+bluealsa_SOURCES += \
+	codec-lc3-swb.c \
+	sco-lc3-swb.c
+endif
+
 if ENABLE_LC3PLUS
 bluealsa_SOURCES += \
 	a2dp-lc3plus.c
@@ -99,7 +106,6 @@ endif
 if ENABLE_MSBC
 bluealsa_SOURCES += \
 	codec-msbc.c \
-	h2.c \
 	sco-msbc.c
 endif
 
@@ -122,6 +128,7 @@ AM_CFLAGS = \
 	@BLUEZ_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
+	@LC3_CFLAGS@ \
 	@LDAC_ABR_CFLAGS@ \
 	@LDAC_DEC_CFLAGS@ \
 	@LDAC_ENC_CFLAGS@ \
@@ -139,6 +146,7 @@ LDADD = \
 	@BLUEZ_LIBS@ \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@ \
+	@LC3_LIBS@ \
 	@LC3PLUS_LIBS@ \
 	@LDAC_ABR_LIBS@ \
 	@LDAC_DEC_LIBS@ \

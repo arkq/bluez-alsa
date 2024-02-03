@@ -96,6 +96,9 @@ static char *get_hfp_codecs(void) {
 #if ENABLE_MSBC
 		hfp_codec_id_to_string(HFP_CODEC_MSBC),
 #endif
+#if ENABLE_LC3_SWB
+		hfp_codec_id_to_string(HFP_CODEC_LC3_SWB),
+#endif
 		NULL,
 	};
 
@@ -246,8 +249,8 @@ int main(int argc, char **argv) {
 #if ENABLE_OFONO
 					"  - hfp-ofono\tHands-Free AG/HF handled by oFono\n"
 #endif
-					"  - hfp-ag\tHands-Free Audio Gateway (v1.7)\n"
-					"  - hfp-hf\tHands-Free (v1.7)\n"
+					"  - hfp-ag\tHands-Free Audio Gateway (v1.9)\n"
+					"  - hfp-hf\tHands-Free (v1.9)\n"
 					"  - hsp-ag\tHeadset Audio Gateway (v1.2)\n"
 					"  - hsp-hs\tHeadset (v1.2)\n"
 #if ENABLE_MIDI
@@ -369,6 +372,9 @@ int main(int argc, char **argv) {
 				{ HFP_CODEC_CVSD, &config.hfp.codecs.cvsd },
 #if ENABLE_MSBC
 				{ HFP_CODEC_MSBC, &config.hfp.codecs.msbc },
+#endif
+#if ENABLE_LC3_SWB
+				{ HFP_CODEC_LC3_SWB, &config.hfp.codecs.lc3_swb },
 #endif
 			};
 

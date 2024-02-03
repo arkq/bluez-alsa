@@ -38,6 +38,7 @@
 #include "hci.h"
 #include "hfp.h"
 #include "sco-cvsd.h"
+#include "sco-lc3-swb.h"
 #include "sco-msbc.h"
 #include "shared/bluetooth.h"
 #include "shared/defs.h"
@@ -129,7 +130,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 #if ENABLE_HFP_CODEC_SELECTION
 		const uint16_t codec_id = ba_transport_get_codec(t);
 		struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
-		if (codec_id == HFP_CODEC_MSBC &&
+		if ((codec_id == HFP_CODEC_MSBC || codec_id == HFP_CODEC_LC3_SWB) &&
 				setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
 			error("Couldn't setup transparent voice: %s", strerror(errno));
 			goto cleanup;
@@ -231,6 +232,10 @@ void *sco_enc_thread(struct ba_transport_pcm *pcm) {
 	case HFP_CODEC_MSBC:
 		return sco_msbc_enc_thread(pcm);
 #endif
+#if ENABLE_LC3_SWB
+	case HFP_CODEC_LC3_SWB:
+		return sco_lc3_swb_enc_thread(pcm);
+#endif
 	}
 }
 
@@ -243,6 +248,10 @@ void *sco_dec_thread(struct ba_transport_pcm *pcm) {
 #if ENABLE_MSBC
 	case HFP_CODEC_MSBC:
 		return sco_msbc_dec_thread(pcm);
+#endif
+#if ENABLE_LC3_SWB
+	case HFP_CODEC_LC3_SWB:
+		return sco_lc3_swb_dec_thread(pcm);
 #endif
 	}
 }
@@ -269,6 +278,12 @@ void sco_transport_init(struct ba_transport *t) {
 	case HFP_CODEC_MSBC:
 		t->sco.pcm_spk.sampling = 16000;
 		t->sco.pcm_mic.sampling = 16000;
+		break;
+#endif
+#if ENABLE_LC3_SWB
+	case HFP_CODEC_LC3_SWB:
+		t->sco.pcm_spk.sampling = 32000;
+		t->sco.pcm_mic.sampling = 32000;
 		break;
 #endif
 	default:

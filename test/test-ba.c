@@ -460,6 +460,13 @@ int main(void) {
 	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
 	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);
 
+#if ENABLE_MSBC
+	config.hfp.codecs.msbc = false;
+#endif
+#if ENABLE_LC3_SWB
+	config.hfp.codecs.lc3_swb = false;
+#endif
+
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);
 	SRunner *sr = srunner_create(s);

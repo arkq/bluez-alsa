@@ -218,7 +218,13 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	/* verify that AG supports codec negotiation and eSCO */
 	ck_assert_int_ne(2784 & (HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO), 0);
 	/* codec negotiation */
+#if ENABLE_MSBC && ENABLE_LC3_SWB
+	ck_assert_rfcomm_send(fd, "AT+BAC=1,2,3\r");
+#elif ENABLE_MSBC
 	ck_assert_rfcomm_send(fd, "AT+BAC=1,2\r");
+#elif ENABLE_LC3_SWB
+	ck_assert_rfcomm_send(fd, "AT+BAC=1,3\r");
+#endif
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 #endif
 
@@ -264,8 +270,15 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ck_assert_rfcomm_send(fd, "AT+BCC\r");
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 	/* wait for codec selection */
+# if ENABLE_LC3_SWB
+	ck_assert_rfcomm_recv(fd, "\r\n+BCS:3\r\n");
+	ck_assert_rfcomm_send(fd, "AT+BCS=3\r");
+# elif ENABLE_MSBC
 	ck_assert_rfcomm_recv(fd, "\r\n+BCS:2\r\n");
 	ck_assert_rfcomm_send(fd, "AT+BCS=2\r");
+# else
+# error "Invalid codec configuration"
+# endif
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 	dbus_update_counters_wait(&dbus_update_counters.codec, 2);
 #endif
@@ -343,7 +356,13 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 	/* verify that HF supports codec negotiation and eSCO */
 	ck_assert_int_ne(756 & (HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO), 0);
 	/* codec negotiation */
+# if ENABLE_MSBC && ENABLE_LC3_SWB
+	ck_assert_rfcomm_recv(fd, "AT+BAC=1,2,3\r");
+# elif ENABLE_MSBC
 	ck_assert_rfcomm_recv(fd, "AT+BAC=1,2\r");
+# elif ENABLE_LC3_SWB
+	ck_assert_rfcomm_recv(fd, "AT+BAC=1,3\r");
+# endif
 	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
 #endif
 
@@ -401,7 +420,13 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 
 	/* codec selection: initial codec */
 	ck_assert_rfcomm_send(fd, "\r\n+BCS:42\r\n");
+# if ENABLE_MSBC && ENABLE_LC3_SWB
+	ck_assert_rfcomm_recv(fd, "AT+BAC=1,2,3\r");
+# elif ENABLE_MSBC
 	ck_assert_rfcomm_recv(fd, "AT+BAC=1,2\r");
+# elif ENABLE_LC3_SWB
+	ck_assert_rfcomm_recv(fd, "AT+BAC=1,3\r");
+# endif
 	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
 	dbus_update_counters_wait(&dbus_update_counters.codec, 2);
 

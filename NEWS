@@ -2,6 +2,7 @@ unreleased
 ==========
 
 - optional support for BLE MIDI 1.0 profile as a GATT server
+- optional support for HFP LC3-SWB (Super Wide Band) codec
 - command line option to set real-time priority for IO threads
 - command line option to filter log messages based on severity
 - allow to select individual extended controls in ALSA plug-in

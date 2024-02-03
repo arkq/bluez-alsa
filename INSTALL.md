@@ -34,6 +34,8 @@ Dependencies:
   with `--enable-manpages`)
 - [fdk-aac](https://github.com/mstorsjo/fdk-aac) (when AAC support is enabled
   with `--enable-aac`)
+- [lc3](https://github.com/google/liblc3) >= 1.0.0 (when LC3-SWB support is
+  enabled with `--enable-lc3-swb`)
 - [lc3plus](https://www.iis.fraunhofer.de/en/ff/amm/communication/lc3.html)
   (when LC3plus support is enabled with `--enable-lc3plus`)
 - [libldac](https://github.com/EHfive/ldacBT) (when LDAC support is enabled

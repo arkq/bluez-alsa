@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -36,6 +36,7 @@ enum ba_rfcomm_signal {
 	BA_RFCOMM_SIGNAL_PING,
 	BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD,
 	BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC,
+	BA_RFCOMM_SIGNAL_HFP_SET_CODEC_LC3_SWB,
 	BA_RFCOMM_SIGNAL_UPDATE_BATTERY,
 	BA_RFCOMM_SIGNAL_UPDATE_VOLUME,
 };
@@ -44,6 +45,9 @@ struct ba_rfcomm_hfp_codecs {
 	bool cvsd;
 #if ENABLE_MSBC
 	bool msbc;
+#endif
+#if ENABLE_LC3_SWB
+	bool lc3_swb;
 #endif
 };
 
@@ -94,7 +98,7 @@ struct ba_rfcomm {
 	struct ba_rfcomm_hfp_codecs hf_codecs;
 
 	/* HF supported codecs encoded for BAC command and BCS error response. */
-	char hf_bac_bcs_string[4];
+	char hf_bac_bcs_string[8];
 
 	/* Synchronization primitives for codec selection. The condition variable
 	 * shall be used with the codec_id mutex from the associated transport. */

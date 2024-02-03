@@ -169,6 +169,10 @@ unsigned int ba_adapter_get_hfp_features_ag(struct ba_adapter *a) {
 		if (config.hfp.codecs.msbc)
 			features |= HFP_AG_FEAT_CODEC;
 #endif
+#if ENABLE_LC3_SWB
+		if (config.hfp.codecs.lc3_swb)
+			features |= HFP_AG_FEAT_CODEC;
+#endif
 		features |= HFP_AG_FEAT_ESCO;
 	}
 	return features;
@@ -185,6 +189,10 @@ unsigned int ba_adapter_get_hfp_features_hf(struct ba_adapter *a) {
 	if (BA_TEST_ESCO_SUPPORT(a)) {
 #if ENABLE_MSBC
 		if (config.hfp.codecs.msbc)
+			features |= HFP_HF_FEAT_CODEC;
+#endif
+#if ENABLE_LC3_SWB
+		if (config.hfp.codecs.lc3_swb)
 			features |= HFP_HF_FEAT_CODEC;
 #endif
 		features |= HFP_HF_FEAT_ESCO;

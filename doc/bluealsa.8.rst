@@ -84,8 +84,9 @@ OPTIONS
     (minus) character.  It is not possible to disable SBC and CVSD codecs which
     are mandatory for A2DP and HFP/HSP respectively.
 
-    By default BlueALSA enables SBC, AAC (if AAC support is compiled-in), CVSD
-    and mSBC (if mSBC support is compiled-in).
+    By default BlueALSA enables SBC, AAC (if AAC support is compiled-in), CVSD,
+    mSBC (if mSBC support is compiled-in) and LC3-SWB (if LC3-SWB support is
+    compiled-in).
     For the list of supported audio codecs see the "Available BT audio codecs"
     section of the **bluealsa** command-line help message.
 
@@ -321,7 +322,7 @@ With A2DP, **bluealsa** always includes the mandatory SBC codec and may also
 include various optional codecs like AAC, aptX, and other.
 
 With HFP, **bluealsa** always includes the mandatory CVSD codec and may also
-include the optional mSBC codec.
+include the optional mSBC and LC3-SWB codecs.
 
 The full list of available optional codecs, which depends on selected
 compilation options, will be shown with **bluealsa** command-line help message.

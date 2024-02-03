@@ -46,6 +46,7 @@ bluealsa_mock_CFLAGS = \
 	@BLUEZ_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
+	@LC3_CFLAGS@ \
 	@LDAC_ABR_CFLAGS@ \
 	@LDAC_DEC_CFLAGS@ \
 	@LDAC_ENC_CFLAGS@ \
@@ -63,6 +64,7 @@ bluealsa_mock_LDADD = \
 	@BLUEZ_LIBS@ \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@ \
+	@LC3_LIBS@ \
 	@LC3PLUS_LIBS@ \
 	@LDAC_ABR_LIBS@ \
 	@LDAC_DEC_LIBS@ \
@@ -95,6 +97,12 @@ endif
 
 if ENABLE_LC3PLUS
 bluealsa_mock_SOURCES += ../../src/a2dp-lc3plus.c
+endif
+
+if ENABLE_LC3_SWB
+bluealsa_mock_SOURCES += \
+	../../src/codec-lc3-swb.c \
+	../../src/sco-lc3-swb.c
 endif
 
 if ENABLE_LDAC

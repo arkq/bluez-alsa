@@ -50,6 +50,7 @@ jobs:
           --enable-aptx-hd \
           --with-libopenaptx \
           --enable-faststream \
+          --enable-lc3-swb \
           --enable-midi \
           --enable-mp3lame \
           --enable-mpg123 \
@@ -97,6 +98,7 @@ jobs:
           --enable-aptx-hd \
           --with-libopenaptx \
           --enable-faststream \
+          --enable-lc3-swb \
           --enable-midi \
           --enable-mp3lame \
           --enable-mpg123 \

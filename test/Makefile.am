@@ -41,6 +41,11 @@ TESTS += test-utils-cli
 check_PROGRAMS += test-utils-cli
 endif
 
+if ENABLE_LC3_SWB
+TESTS += test-lc3-swb
+check_PROGRAMS += test-lc3-swb
+endif
+
 if ENABLE_MIDI
 TESTS += test-alsa-midi test-ble-midi
 check_PROGRAMS += test-alsa-midi test-ble-midi
@@ -159,6 +164,15 @@ test_ble_midi_SOURCES = \
 	test-ble-midi.c
 endif
 
+if ENABLE_LC3_SWB
+test_lc3_swb_SOURCES = \
+	../src/shared/ffb.c \
+	../src/shared/log.c \
+	../src/codec-lc3-swb.c \
+	../src/h2.c \
+	test-lc3-swb.c
+endif
+
 if ENABLE_MSBC
 test_msbc_SOURCES = \
 	../src/shared/ffb.c \
@@ -238,6 +252,18 @@ test_a2dp_SOURCES += ../src/a2dp-lc3plus.c
 test_io_SOURCES += ../src/a2dp-lc3plus.c
 endif
 
+if ENABLE_LC3_SWB
+test_ba_SOURCES += \
+	../src/codec-lc3-swb.c \
+	../src/sco-lc3-swb.c
+test_io_SOURCES += \
+	../src/codec-lc3-swb.c \
+	../src/sco-lc3-swb.c
+test_rfcomm_SOURCES += \
+	../src/codec-lc3-swb.c \
+	../src/sco-lc3-swb.c
+endif
+
 if ENABLE_LDAC
 test_a2dp_SOURCES += ../src/a2dp-ldac.c
 test_io_SOURCES += ../src/a2dp-ldac.c
@@ -274,6 +300,7 @@ AM_CFLAGS = \
 	@CHECK_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@GLIB2_CFLAGS@ \
+	@LC3_CFLAGS@ \
 	@LDAC_ABR_CFLAGS@ \
 	@LDAC_DEC_CFLAGS@ \
 	@LDAC_ENC_CFLAGS@ \
@@ -293,6 +320,7 @@ LDADD = \
 	@CHECK_LIBS@ \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@ \
+	@LC3_LIBS@ \
 	@LC3PLUS_LIBS@ \
 	@LDAC_ABR_LIBS@ \
 	@LDAC_DEC_LIBS@ \

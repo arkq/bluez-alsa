@@ -279,6 +279,7 @@ static void *mock_transport_rfcomm_thread(void *userdata) {
 		/* accept HFP codec selection */
 		{ "\r\n+BCS:1\r\n", "AT+BCS=1\r" },
 		{ "\r\n+BCS:2\r\n", "AT+BCS=2\r" },
+		{ "\r\n+BCS:3\r\n", "AT+BCS=3\r" },
 	};
 
 	int rfcomm_fd = GPOINTER_TO_INT(userdata);
@@ -326,6 +327,10 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 #if ENABLE_MSBC
 	t->sco.rfcomm->ag_codecs.msbc = true;
 	t->sco.rfcomm->hf_codecs.msbc = true;
+#endif
+#if ENABLE_LC3_SWB
+	t->sco.rfcomm->ag_codecs.lc3_swb = true;
+	t->sco.rfcomm->hf_codecs.lc3_swb = true;
 #endif
 	t->acquire = mock_transport_acquire_bt;
 
@@ -445,6 +450,10 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 #if ENABLE_MSBC
 			usleep(mock_fuzzing_ms * 1000);
 			ba_transport_set_codec(t, HFP_CODEC_MSBC);
+#endif
+#if ENABLE_LC3_SWB
+			usleep(mock_fuzzing_ms * 1000);
+			ba_transport_set_codec(t, HFP_CODEC_LC3_SWB);
 #endif
 		}
 

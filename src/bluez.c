@@ -1162,10 +1162,10 @@ static void bluez_register_hfp_all(void) {
 				0x0102 /* HSP 1.2 */, 0x0);
 	if (config.profile.hfp_hf)
 		bluez_register_hfp(BT_UUID_HFP_HF, BA_TRANSPORT_PROFILE_HFP_HF,
-				0x0107 /* HFP 1.7 */, ba_config_get_hfp_sdp_features_hf());
+				0x0109 /* HFP 1.9 */, ba_config_get_hfp_sdp_features_hf());
 	if (config.profile.hfp_ag)
 		bluez_register_hfp(BT_UUID_HFP_AG, BA_TRANSPORT_PROFILE_HFP_AG,
-				0x0107 /* HFP 1.7 */, ba_config_get_hfp_sdp_features_ag());
+				0x0109 /* HFP 1.9 */, ba_config_get_hfp_sdp_features_ag());
 }
 
 /**

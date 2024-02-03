@@ -147,6 +147,9 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 #if ENABLE_MSBC
 		{ HFP_CODEC_MSBC, config.hfp.codecs.msbc },
 #endif
+#if ENABLE_LC3_SWB
+		{ HFP_CODEC_LC3_SWB, config.hfp.codecs.lc3_swb },
+#endif
 	};
 
 	for (size_t i = 0; i < ARRAYSIZE(hfp_profiles); i++)
@@ -593,6 +596,11 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 			{ HFP_CODEC_MSBC, config.hfp.codecs.msbc,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->ag_codecs.msbc,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->hf_codecs.msbc },
+#endif
+#if ENABLE_LC3_SWB
+			{ HFP_CODEC_LC3_SWB, config.hfp.codecs.lc3_swb,
+				t_sco_rfcomm == NULL || t_sco_rfcomm->ag_codecs.lc3_swb,
+				t_sco_rfcomm == NULL || t_sco_rfcomm->hf_codecs.lc3_swb },
 #endif
 		};
 

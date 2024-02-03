@@ -83,6 +83,9 @@ struct ba_config {
 #if ENABLE_MSBC
 			bool msbc;
 #endif
+#if ENABLE_LC3_SWB
+			bool lc3_swb;
+#endif
 		} codecs;
 
 		/* information exposed via Apple AT extension */

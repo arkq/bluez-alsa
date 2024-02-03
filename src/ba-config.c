@@ -48,6 +48,11 @@ struct ba_config config = {
 	 * quality, so we will enable it by default */
 	.hfp.codecs.msbc = true,
 #endif
+#if ENABLE_LC3_SWB
+	/* LC3-SWB is also an optional codec, but it is a successor
+	 * of mSBC, so we will enable it by default too */
+	.hfp.codecs.lc3_swb = true,
+#endif
 
 	/* built-in Apple accessory identification */
 	.hfp.xapl_vendor_id = 0xB103,
@@ -133,6 +138,10 @@ unsigned int ba_config_get_hfp_sdp_features_ag(void) {
 	if (config.hfp.codecs.msbc)
 		features |= SDP_HFP_AG_FEAT_WBS;
 #endif
+#if ENABLE_LC3_SWB
+	if (config.hfp.codecs.lc3_swb)
+		features |= SDP_HFP_AG_FEAT_SWB;
+#endif
 	return features;
 }
 
@@ -145,6 +154,10 @@ unsigned int ba_config_get_hfp_sdp_features_hf(void) {
 #if ENABLE_MSBC
 	if (config.hfp.codecs.msbc)
 		features |= SDP_HFP_AG_FEAT_WBS;
+#endif
+#if ENABLE_LC3_SWB
+	if (config.hfp.codecs.lc3_swb)
+		features |= SDP_HFP_HF_FEAT_SWB;
 #endif
 	return features;
 }

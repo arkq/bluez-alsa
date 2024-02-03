@@ -570,6 +570,10 @@ struct ba_transport *ba_transport_new_sco(
 		if (config.hfp.codecs.msbc)
 			codec_id = HFP_CODEC_UNDEFINED;
 # endif
+# if ENABLE_LC3_SWB
+		if (config.hfp.codecs.lc3_swb)
+			codec_id = HFP_CODEC_UNDEFINED;
+# endif
 	}
 #endif
 
@@ -684,6 +688,8 @@ const char *ba_transport_debug_name(
 			return "HFP Hands-Free (CVSD)";
 		case HFP_CODEC_MSBC:
 			return "HFP Hands-Free (mSBC)";
+		case HFP_CODEC_LC3_SWB:
+			return "HFP Hands-Free (LC3-SWB)";
 		} break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 		switch (codec_id) {
@@ -693,6 +699,8 @@ const char *ba_transport_debug_name(
 			return "HFP Audio Gateway (CVSD)";
 		case HFP_CODEC_MSBC:
 			return "HFP Audio Gateway (mSBC)";
+		case HFP_CODEC_LC3_SWB:
+			return "HFP Audio Gateway (LC3-SWB)";
 		} break;
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 		return "HSP Headset";
@@ -931,6 +939,9 @@ int ba_transport_select_codec_sco(
 			break;
 		case HFP_CODEC_MSBC:
 			rfcomm_signal = BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC;
+			break;
+		case HFP_CODEC_LC3_SWB:
+			rfcomm_signal = BA_RFCOMM_SIGNAL_HFP_SET_CODEC_LC3_SWB;
 			break;
 		default:
 			g_assert_not_reached();

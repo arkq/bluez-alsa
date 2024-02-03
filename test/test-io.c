@@ -1134,6 +1134,32 @@ CK_START_TEST(test_sco_msbc) {
 } CK_END_TEST
 #endif
 
+#if ENABLE_LC3_SWB
+CK_START_TEST(test_sco_lc3_swb) {
+
+	adapter->hci.features[2] = LMP_TRSP_SCO;
+	adapter->hci.features[3] = LMP_ESCO;
+
+	struct ba_transport *t1 = test_transport_new_sco(device1,
+			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/lc3swb");
+	ba_transport_set_codec(t1, HFP_CODEC_LC3_SWB);
+	struct ba_transport *t2 = test_transport_new_sco(device2,
+			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/lc3swb");
+	ba_transport_set_codec(t2, HFP_CODEC_LC3_SWB);
+
+	struct ba_transport_pcm *t1_pcm = &t1->sco.pcm_spk;
+	struct ba_transport_pcm *t2_pcm = &t2->sco.pcm_spk;
+
+	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
+	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 600);
+	test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, sco_dec_thread, 600);
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
+} CK_END_TEST
+#endif
+
 int main(int argc, char *argv[]) {
 
 	const struct {
@@ -1172,6 +1198,9 @@ int main(int argc, char *argv[]) {
 		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), test_sco_cvsd },
 #if ENABLE_MSBC
 		{ hfp_codec_id_to_string(HFP_CODEC_MSBC), test_sco_msbc },
+#endif
+#if ENABLE_LC3_SWB
+		{ hfp_codec_id_to_string(HFP_CODEC_LC3_SWB), test_sco_lc3_swb },
 #endif
 	};
 

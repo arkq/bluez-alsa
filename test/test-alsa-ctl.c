@@ -172,9 +172,12 @@ CK_START_TEST(test_controls_extended) {
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 11), "12:34:56:78:9A:BC SCO Codec Enum");
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 18), "23:45:67:89:AB:CD A2DP Codec Enum");
 
-	bool has_msbc = false;
+	int sco_codec_enum_items = 1;
 #if ENABLE_MSBC
-	has_msbc = true;
+	sco_codec_enum_items += 1;
+#endif
+#if ENABLE_LC3_SWB
+	sco_codec_enum_items += 1;
 #endif
 
 	snd_ctl_elem_info_t *info;
@@ -183,7 +186,7 @@ CK_START_TEST(test_controls_extended) {
 	/* 12:34:56:78:9A:BC SCO Codec Enum */
 	snd_ctl_elem_info_set_numid(info, snd_ctl_elem_list_get_numid(elems, 11));
 	ck_assert_int_eq(snd_ctl_elem_info(ctl, info), 0);
-	ck_assert_int_eq(snd_ctl_elem_info_get_items(info), has_msbc ? 2 : 1);
+	ck_assert_int_eq(snd_ctl_elem_info_get_items(info), sco_codec_enum_items);
 	snd_ctl_elem_info_set_item(info, 0);
 	ck_assert_int_eq(snd_ctl_elem_info(ctl, info), 0);
 	ck_assert_str_eq(snd_ctl_elem_info_get_item_name(info), "CVSD");
@@ -210,7 +213,8 @@ CK_START_TEST(test_controls_extended) {
 	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 11));
 	/* get currently selected SCO codec */
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
-	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0), has_msbc ? 1 : 0);
+	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0),
+			sco_codec_enum_items > 1 ? 1 : 0);
 #if ENABLE_MSBC
 	/* select SCO CVSD codec */
 	snd_ctl_elem_value_set_enumerated(elem, 0, 0);
@@ -522,6 +526,9 @@ CK_START_TEST(test_notifications) {
 #if ENABLE_HFP_CODEC_SELECTION
 	events_update_codec += 4;
 # if ENABLE_MSBC
+	events_update_codec += 4;
+# endif
+# if ENABLE_LC3_SWB
 	events_update_codec += 4;
 # endif
 #endif

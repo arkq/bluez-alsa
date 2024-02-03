@@ -198,6 +198,16 @@ AM_COND_IF([ENABLE_LC3PLUS], [
 	AC_DEFINE([ENABLE_LC3PLUS], [1], [Define to 1 if LC3plus is enabled.])
 ])
 
+AC_ARG_ENABLE([lc3-swb],
+	[AS_HELP_STRING([--enable-lc3-swb], [enable LC3-SWB support])])
+AM_CONDITIONAL([ENABLE_LC3_SWB], [test "x$enable_lc3_swb" = "xyes"])
+AM_COND_IF([ENABLE_LC3_SWB], [
+	PKG_CHECK_MODULES([LC3], [lc3 >= 1.0.0])
+	AC_DEFINE([ENABLE_HFP_CODEC_SELECTION], [1],
+		[Define to 1 if HFP codec selection is enabled.])
+	AC_DEFINE([ENABLE_LC3_SWB], [1], [Define to 1 if LC3-SWB is enabled.])
+])
+
 AC_ARG_ENABLE([ldac],
 	[AS_HELP_STRING([--enable-ldac], [enable LDAC support])])
 AM_CONDITIONAL([ENABLE_LDAC], [test "x$enable_ldac" = "xyes"])

@@ -363,12 +363,16 @@ static int rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *a
 	if (!(r->ag_features & HFP_AG_FEAT_CODEC)) {
 		/* Assume that mandatory codec is supported. */
 		r->hf_codecs.cvsd = true;
-#if ENABLE_MSBC
 		/* If codec selection is supported assume that
-		 * mSBC is supported as well. */
-		if (r->hf_features & HFP_HF_FEAT_CODEC)
+		 * mSBC and/or LC3-SWB are supported as well. */
+		if (r->hf_features & HFP_HF_FEAT_CODEC) {
+#if ENABLE_MSBC
 			r->hf_codecs.msbc = true;
 #endif
+#if ENABLE_LC3_SWB
+			r->hf_codecs.lc3_swb = true;
+#endif
+		}
 	}
 
 	sprintf(tmp, "%u", r->ag_features);
@@ -402,12 +406,16 @@ static int rfcomm_handler_brsf_resp_cb(struct ba_rfcomm *r, const struct bt_at *
 	 * we can assume that AG supports it. */
 	r->ag_codecs.cvsd = true;
 
+	/* If codec selection is supported in the AG, we can assume
+	 * that mSBC and/or LC3-SWB are supported as well. */
+	if (r->ag_features & HFP_AG_FEAT_CODEC) {
 #if ENABLE_MSBC
-	/* If codec selection is supported in the AG, we
-	 * can assume that mSBC is supported as well. */
-	if (r->ag_features & HFP_AG_FEAT_CODEC)
 		r->ag_codecs.msbc = true;
 #endif
+#if ENABLE_LC3_SWB
+		r->ag_codecs.lc3_swb = true;
+#endif
+	}
 
 	if (r->state < HFP_SLC_BRSF_SET)
 		rfcomm_set_hfp_state(r, HFP_SLC_BRSF_SET);
@@ -610,6 +618,9 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 #if ENABLE_MSBC
 		{ HFP_CODEC_MSBC, r->hf_codecs.msbc },
 #endif
+#if ENABLE_LC3_SWB
+		{ HFP_CODEC_LC3_SWB, r->hf_codecs.lc3_swb },
+#endif
 	};
 
 	const int fd = r->fd;
@@ -669,6 +680,11 @@ static int rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 #if ENABLE_MSBC
 		case HFP_CODEC_MSBC:
 			r->hf_codecs.msbc = true;
+			break;
+#endif
+#if ENABLE_LC3_SWB
+		case HFP_CODEC_LC3_SWB:
+			r->hf_codecs.lc3_swb = true;
 			break;
 #endif
 		}
@@ -1014,6 +1030,9 @@ static int rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r) {
 		uint16_t codec_id;
 		bool is_supported;
 	} codecs[] = {
+#if ENABLE_LC3_SWB
+		{ HFP_CODEC_LC3_SWB, r->ag_codecs.lc3_swb && r->hf_codecs.lc3_swb },
+#endif
 #if ENABLE_MSBC
 		{ HFP_CODEC_MSBC, r->ag_codecs.msbc && r->hf_codecs.msbc },
 #endif
@@ -1463,6 +1482,18 @@ process:
 					goto ioerror;
 				break;
 # endif
+# if ENABLE_LC3_SWB
+			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_LC3_SWB:
+				if (!config.hfp.codecs.lc3_swb || !(
+							r->ag_features & HFP_AG_FEAT_CODEC &&
+							r->ag_features & HFP_AG_FEAT_ESCO &&
+							r->hf_features & HFP_HF_FEAT_CODEC &&
+							r->hf_features & HFP_HF_FEAT_ESCO))
+					rfcomm_finalize_codec_selection(r);
+				else if (rfcomm_hfp_set_codec(r, HFP_CODEC_LC3_SWB) == -1)
+					goto ioerror;
+				break;
+# endif
 #endif
 			case BA_RFCOMM_SIGNAL_UPDATE_BATTERY:
 				if (rfcomm_notify_battery_level_change(r) == -1)
@@ -1620,6 +1651,10 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 		if (config.hfp.codecs.msbc && r->ag_features & HFP_AG_FEAT_ESCO)
 			r->ag_codecs.msbc = true;
 #endif
+#if ENABLE_LC3_SWB
+		if (config.hfp.codecs.lc3_swb && r->ag_features & HFP_AG_FEAT_ESCO)
+			r->ag_codecs.lc3_swb = true;
+#endif
 	}
 
 	if (sco->profile & BA_TRANSPORT_PROFILE_HFP_HF) {
@@ -1636,6 +1671,13 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 			const bool first = ptr == r->hf_bac_bcs_string;
 			ptr += sprintf(ptr, "%s%u", first ? "" : ",", HFP_CODEC_MSBC);
 			r->hf_codecs.msbc = true;
+		}
+#endif
+#if ENABLE_LC3_SWB
+		if (config.hfp.codecs.lc3_swb && r->hf_features & HFP_HF_FEAT_ESCO) {
+			const bool first = ptr == r->hf_bac_bcs_string;
+			ptr += sprintf(ptr, "%s%u", first ? "" : ",", HFP_CODEC_LC3_SWB);
+			r->hf_codecs.lc3_swb = true;
 		}
 #endif
 

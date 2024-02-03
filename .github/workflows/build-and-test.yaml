@@ -16,7 +16,7 @@ jobs:
       matrix:
         features:
         - --enable-debug
-        - --enable-debug --enable-aac --enable-msbc
+        - --enable-debug --enable-aac --enable-msbc --enable-lc3-swb
         - --enable-debug --enable-mp3lame --enable-mpg123
         - --enable-faststream --enable-midi --enable-mp3lame
         - --enable-aplay --enable-ofono --enable-upower
@@ -111,6 +111,7 @@ jobs:
           --enable-aptx-hd \
           --with-libopenaptx \
           --enable-faststream \
+          --enable-lc3-swb \
           --enable-midi \
           --enable-mp3lame \
           --enable-mpg123 \

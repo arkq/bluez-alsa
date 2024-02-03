@@ -26,12 +26,14 @@
 	{ include: [ '"dbus/dbus-protocol.h"', private, '<dbus/dbus.h>', public ] },
 	{ include: [ '"dbus/dbus-shared.h"', private, '<dbus/dbus.h>', public ] },
 
-	{ include: [ '<fdk-aac/FDK_audio.h>', private, '<fdk-aac/aacenc_lib.h>', public ] },
-
 	{ include: [ '<glib/gtypes.h>', private, '<glib.h>', public ] },
 	{ include: [ '"gio/gdbusinterfaceskeleton.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectmanagerserver.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectskeleton.h"', private, '<gio/gio.h>', public ] },
+
+	{ include: [ '<fdk-aac/FDK_audio.h>', private, '<fdk-aac/aacenc_lib.h>', public ] },
+
+	{ include: [ '<lc3_private.h>', private, '<lc3.h>', public ] },
 
 	{ include: [ '<fmt123.h>', private, '<mpg123.h>', public ] },
 
