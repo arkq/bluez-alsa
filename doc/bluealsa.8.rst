@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: January 2024
+:Date: February 2024
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -36,6 +36,22 @@ OPTIONS
 -S, --syslog
     Send output to system logger (``syslogd(8)``).
     By default, log output is sent to stderr.
+
+--loglevel=LEVEL
+    Set the priority level threshold for log messages. Only messages of the
+    given level or higher are logged. The *LEVELs* are, in decreasing order:
+
+    - **error**   - error conditions
+    - **warning** - warning conditions
+    - **info** - informational messages
+
+    If **bluealsa** was built with debug enabled, then an additional, lowest,
+    level is  available:
+
+    - **debug** - debug messages
+
+    If this option is not given then the default is to use the lowest level
+    (i.e., all messages are logged).
 
 -B NAME, --dbus=NAME
     BlueALSA D-Bus service name suffix.

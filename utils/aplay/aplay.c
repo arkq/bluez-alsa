@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <sys/param.h>
 #include <unistd.h>
 
@@ -1010,6 +1011,7 @@ int main(int argc, char *argv[]) {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "syslog", no_argument, NULL, 'S' },
+		{ "loglevel", required_argument, NULL, 9 },
 		{ "verbose", no_argument, NULL, 'v' },
 		{ "list-devices", no_argument, NULL, 'l' },
 		{ "list-pcms", no_argument, NULL, 'L' },
@@ -1043,6 +1045,7 @@ int main(int argc, char *argv[]) {
 					"  -h, --help\t\t\tprint this help and exit\n"
 					"  -V, --version\t\t\tprint version and exit\n"
 					"  -S, --syslog\t\t\tsend output to syslog\n"
+					"  --loglevel=LEVEL\t\tminimum message priority\n"
 					"  -v, --verbose\t\t\tmake output more verbose\n"
 					"  -l, --list-devices\t\tlist available BT audio devices\n"
 					"  -L, --list-pcms\t\tlist available BT audio PCMs\n"
@@ -1090,6 +1093,28 @@ int main(int argc, char *argv[]) {
 		case 'S' /* --syslog */ :
 		case 'v' /* --verbose */ :
 			break;
+
+		case 9 /* --loglevel=LEVEL */ : {
+
+			static const nv_entry_t values[] = {
+				{ "error", .v.ui = LOG_ERR },
+				{ "warning", .v.ui = LOG_WARNING },
+				{ "info", .v.ui = LOG_INFO },
+#if DEBUG
+				{ "debug", .v.ui = LOG_DEBUG },
+#endif
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid loglevel {%s}: %s", nv_join_names(values), optarg);
+				return EXIT_FAILURE;
+			}
+
+			log_set_min_priority(entry->v.ui);
+			break;
+		}
 
 		case 'l' /* --list-devices */ :
 			list_bt_devices = true;

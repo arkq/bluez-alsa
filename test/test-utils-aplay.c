@@ -115,6 +115,7 @@ CK_START_TEST(test_list_devices) {
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
+				"--loglevel=error",
 				"--list-devices",
 				NULL), -1);
 

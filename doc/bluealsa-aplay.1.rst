@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple bluealsa player
 ------------------------
 
-:Date: September 2023
+:Date: February 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -40,6 +40,22 @@ OPTIONS
 -S, --syslog
     Send output to system logger (``syslogd(8)``).
     By default, log output is sent to stderr.
+
+--loglevel=LEVEL
+    Set the priority level threshold for log messages. Only messages of the
+    given level or higher are logged. The *LEVELs* are, in decreasing order:
+
+    - **error** - error conditions
+    - **warning** - warning conditions
+    - **info** - informational messages
+
+    If **bluealsa-aplay** was built with debug enabled, then an additional,
+    lowest, level is  available:
+
+    - **debug** - debug messages
+
+    If this option is not given then the default is to use the lowest level
+    (i.e., all messages are logged).
 
 -v, --verbose
     Make the output more verbose.

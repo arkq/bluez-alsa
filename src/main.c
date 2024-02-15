@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <syslog.h>
 #include <time.h>
 
 #include <gio/gio.h>
@@ -150,6 +151,7 @@ int main(int argc, char **argv) {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "syslog", no_argument, NULL, 'S' },
+		{ "loglevel", required_argument, NULL, 23 },
 		{ "dbus", required_argument, NULL, 'B' },
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
@@ -203,6 +205,7 @@ int main(int argc, char **argv) {
 					"  -h, --help\t\t\tprint this help and exit\n"
 					"  -V, --version\t\t\tprint version and exit\n"
 					"  -S, --syslog\t\t\tsend output to syslog\n"
+					"  --loglevel=LEVEL\t\tminimum message priority\n"
 					"  -B, --dbus=NAME\t\tD-Bus service name suffix\n"
 					"  -i, --device=hciX\t\tHCI device(s) to use\n"
 					"  -p, --profile=NAME\t\tset enabled BT profiles\n"
@@ -286,6 +289,28 @@ int main(int argc, char **argv) {
 		case 'V' /* --version */ :
 		case 'S' /* --syslog */ :
 			break;
+
+		case 23 /* --loglevel=LEVEL */ : {
+
+			static const nv_entry_t values[] = {
+				{ "error", .v.ui = LOG_ERR },
+				{ "warning", .v.ui = LOG_WARNING },
+				{ "info", .v.ui = LOG_INFO },
+#if DEBUG
+				{ "debug", .v.ui = LOG_DEBUG },
+#endif
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid loglevel {%s}: %s", nv_join_names(values), optarg);
+				return EXIT_FAILURE;
+			}
+
+			log_set_min_priority(entry->v.ui);
+			break;
+		}
 
 		case 'B' /* --dbus=NAME */ :
 			snprintf(dbus_service, sizeof(dbus_service), BLUEALSA_SERVICE ".%s", optarg);

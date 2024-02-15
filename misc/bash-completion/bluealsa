@@ -207,7 +207,7 @@ _bluealsa() {
 			readarray -t COMPREPLY < <(compgen -P "$prefix" -W "${list[*]}" -- "$cur")
 			return
 			;;
-		--sbc-quality|--aac-latm-version|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality)
+		--loglevel|--sbc-quality|--aac-latm-version|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality)
 			readarray -t list < <(_bluealsa_enum_values "$1" "$prev")
 			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
@@ -265,7 +265,7 @@ _bluealsa_aplay() {
 			__ltrim_colon_completions "$cur"
 			return
 			;;
-		--volume)
+		--loglevel|--volume)
 			readarray -t list < <(_bluealsa_enum_values "$1" "$prev")
 			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
