@@ -47,19 +47,13 @@ int msbc_init(struct esco_msbc *msbc) {
 
 	if (!msbc->initialized) {
 		debug("Initializing mSBC codec");
-		if (ffb_init_uint8_t(&msbc->data, sizeof(esco_msbc_frame_t) * 3) == -1)
-			goto fail_init;
-		/* Allocate buffer for 1 decoded frame, optional 3 PLC frames and
-		 * some extra frames to account for async PCM samples reading. */
-		if (ffb_init_int16_t(&msbc->pcm, MSBC_CODESAMPLES * 6) == -1)
-			goto fail_init;
 		if ((errno = -sbc_init_msbc(&msbc->sbc, 0)) != 0)
-			goto fail_init;
+			return -errno;
 	}
 	else {
 		debug("Re-initializing mSBC codec");
 		if ((errno = -sbc_reinit_msbc(&msbc->sbc, 0)) != 0)
-			goto fail_init;
+			return -errno;
 	}
 
 	/* ensure libsbc uses little-endian PCM on all architectures */
@@ -79,8 +73,8 @@ int msbc_init(struct esco_msbc *msbc) {
 	}
 #endif
 
-	ffb_rewind(&msbc->data);
-	ffb_rewind(&msbc->pcm);
+	ffb_init_from_array(&msbc->data, msbc->buffer_data);
+	ffb_init_from_array(&msbc->pcm, msbc->buffer_pcm);
 
 	msbc->seq_initialized = false;
 	msbc->seq_number = 0;
@@ -96,9 +90,6 @@ int msbc_init(struct esco_msbc *msbc) {
 
 fail:
 	sbc_finish(&msbc->sbc);
-fail_init:
-	ffb_free(&msbc->data);
-	ffb_free(&msbc->pcm);
 	return -errno;
 }
 
@@ -108,9 +99,6 @@ void msbc_finish(struct esco_msbc *msbc) {
 		return;
 
 	sbc_finish(&msbc->sbc);
-
-	ffb_free(&msbc->data);
-	ffb_free(&msbc->pcm);
 
 	plc_free(msbc->plc);
 	msbc->plc = NULL;
@@ -130,7 +118,7 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 	ssize_t rv = 0;
 
 	const size_t tmp = input_len;
-	const esco_msbc_frame_t *frame = h2_header_find(input, &input_len);
+	const h2_msbc_frame_t *frame = h2_header_find(input, &input_len);
 	input += tmp - input_len;
 
 	/* Skip decoding if there is not enough input data or the output
@@ -206,7 +194,7 @@ ssize_t msbc_encode(struct esco_msbc *msbc) {
 
 	const int16_t *input = msbc->pcm.data;
 	const size_t input_len = ffb_blen_out(&msbc->pcm);
-	esco_msbc_frame_t *frame = (esco_msbc_frame_t *)msbc->data.tail;
+	h2_msbc_frame_t *frame = msbc->data.tail;
 	size_t output_len = ffb_blen_in(&msbc->data);
 
 	/* Skip encoding if there is not enough PCM samples or the output

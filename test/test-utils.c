@@ -23,6 +23,7 @@
 
 #include "hci.h"
 #include "utils.h"
+#include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/hex.h"
 #include "shared/nv.h"
@@ -228,6 +229,20 @@ CK_START_TEST(test_ffb) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_ffb_static) {
+
+	ffb_t ffb = { 0 };
+	uint32_t buffer[64];
+
+	ffb_init_from_array(&ffb, buffer);
+
+	ck_assert_ptr_eq(ffb.data, buffer);
+	ck_assert_ptr_eq(ffb.tail, buffer);
+	ck_assert_uint_eq(ffb.nmemb, ARRAYSIZE(buffer));
+	ck_assert_uint_eq(ffb.size, 4);
+
+} CK_END_TEST
+
 CK_START_TEST(test_ffb_resize) {
 
 	const char *data = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -287,6 +302,7 @@ int main(void) {
 
 	/* shared/ffb.c */
 	tcase_add_test(tc, test_ffb);
+	tcase_add_test(tc, test_ffb_static);
 	tcase_add_test(tc, test_ffb_resize);
 
 	/* shared/hex.c */

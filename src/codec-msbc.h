@@ -33,11 +33,11 @@
 #define MSBC_CODESAMPLES (MSBC_CODESIZE / sizeof(int16_t))
 #define MSBC_FRAMELEN    57
 
-typedef struct esco_msbc_frame {
+typedef struct h2_msbc_frame {
 	h2_header_t header;
 	uint8_t payload[MSBC_FRAMELEN];
 	uint8_t padding;
-} __attribute__ ((packed)) esco_msbc_frame_t;
+} __attribute__ ((packed)) h2_msbc_frame_t;
 
 struct esco_msbc {
 
@@ -60,6 +60,13 @@ struct esco_msbc {
 	/* Determine whether structure has been initialized. This field is
 	 * used for reinitialization - it makes msbc_init() idempotent. */
 	bool initialized;
+
+	/* Allocated buffer for 3 mSBC frames to have some extra space in case of
+	 * PCM samples asynchronous reading beeing slower than incoming frames. */
+	uint8_t buffer_data[sizeof(h2_msbc_frame_t) * 3];
+	/* Allocate buffer for 1 decoded frame, optional 3 PLC frames and
+	 * some extra frames to account for async PCM samples reading. */
+	int16_t buffer_pcm[MSBC_CODESAMPLES * 6];
 
 };
 

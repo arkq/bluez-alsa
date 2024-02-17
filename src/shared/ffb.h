@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ffb.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -33,6 +33,13 @@ void ffb_free(ffb_t *ffb);
 #define ffb_init_uint8_t(p, n) ffb_init(p, n, sizeof(uint8_t))
 #define ffb_init_int16_t(p, n) ffb_init(p, n, sizeof(int16_t))
 #define ffb_init_int32_t(p, n) ffb_init(p, n, sizeof(int32_t))
+
+/**
+ * Initialize the FIFO-like buffer from statically allocated array. */
+#define ffb_init_from_array(p, array) ( \
+		(p)->data = (p)->tail = (array), \
+		(p)->nmemb = sizeof(array) / sizeof(*(array)), \
+		(p)->size = sizeof(*(array)))
 
 /**
  * Get number of unite blocks available for writing. */
