@@ -154,17 +154,16 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 	if ((len = sbc_decode(&msbc->sbc, frame->payload, sizeof(frame->payload),
 					msbc->pcm.tail, output_len, NULL)) < 0) {
 
+		warn("Couldn't decode mSBC frame: %s", sbc_strerror(len));
+
 		/* Move forward one byte to avoid getting stuck in
 		 * decoding the same mSBC packet all over again. */
 		input += 1;
 
 #if MSBC_DECODE_ERROR_PLC
-
-		warn("Couldn't decode mSBC frame: %s", sbc_strerror(len));
 		plc_fillin(msbc->plc, msbc->pcm.tail, MSBC_CODESAMPLES);
 		ffb_seek(&msbc->pcm, MSBC_CODESAMPLES);
 		rv += MSBC_CODESAMPLES;
-
 #else
 		rv = len;
 #endif
@@ -215,7 +214,7 @@ ssize_t msbc_encode(struct esco_msbc *msbc) {
 	msbc->frames++;
 
 	/* Reshuffle remaining PCM data to the beginning of the buffer. */
-	ffb_shift(&msbc->pcm, input + MSBC_CODESAMPLES - (int16_t *)msbc->pcm.data);
+	ffb_shift(&msbc->pcm, MSBC_CODESAMPLES);
 
 	return sizeof(*frame);
 }

@@ -1,6 +1,6 @@
 /*
  * test-rfcomm.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -183,7 +183,7 @@ CK_START_TEST(test_rfcomm_hsp_hs) {
 
 } CK_END_TEST
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 static void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
 	struct ba_transport *sco = userdata;
 	/* the test code rejects first codec selection request for mSBC */
@@ -207,14 +207,14 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	/* supported features exchange: volume, codec, eSCO */
 	ck_assert_int_eq(HFP_HF_FEAT_VOLUME | HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO, 656);
 	ck_assert_rfcomm_send(fd, "AT+BRSF=656\r");
-#ifdef ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	ck_assert_rfcomm_recv(fd, "\r\n+BRSF:2784\r\n");
 #else
 	ck_assert_rfcomm_recv(fd, "\r\n+BRSF:2272\r\n");
 #endif
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	/* verify that AG supports codec negotiation and eSCO */
 	ck_assert_int_ne(2784 & (HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO), 0);
 	/* codec negotiation */
@@ -259,7 +259,7 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 	dbus_update_counters_wait(&dbus_update_counters.volume, 3);
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	/* request codec connection setup */
 	ck_assert_rfcomm_send(fd, "AT+BCC\r");
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
@@ -330,7 +330,7 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 	/* SLC initialization shall be started by the HF */
 
 	/* supported features exchange */
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	ck_assert_rfcomm_recv(fd, "AT+BRSF=756\r");
 #else
 	ck_assert_rfcomm_recv(fd, "AT+BRSF=628\r");
@@ -339,7 +339,7 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 	ck_assert_rfcomm_send(fd, "\r\n+BRSF:2560\r\n");
 	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	/* verify that HF supports codec negotiation and eSCO */
 	ck_assert_int_ne(756 & (HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO), 0);
 	/* codec negotiation */
@@ -387,7 +387,7 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 	ck_assert_rfcomm_recv(fd, "AT+IPHONEACCEV=2,1,8,2,0\r");
 	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 
 	/* wait for codec selection request */
 	ck_assert_rfcomm_recv(fd, "AT+BCC\r");
@@ -400,7 +400,7 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 	dbus_update_counters_wait(&dbus_update_counters.codec, 2);
 
 	/* codec selection: initial codec */
-	ck_assert_rfcomm_send(fd, "\r\n+BCS:3\r\n");
+	ck_assert_rfcomm_send(fd, "\r\n+BCS:42\r\n");
 	ck_assert_rfcomm_recv(fd, "AT+BAC=1,2\r");
 	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
 	dbus_update_counters_wait(&dbus_update_counters.codec, 2);

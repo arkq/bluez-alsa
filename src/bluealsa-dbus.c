@@ -75,7 +75,7 @@ static GVariant *ba_variant_new_bluealsa_adapters(void) {
 
 static GVariant *ba_variant_new_bluealsa_profiles(void) {
 
-	struct {
+	const struct {
 		const char *name;
 		bool enabled;
 	} profiles[] = {
@@ -139,7 +139,7 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 		BLUEALSA_TRANSPORT_TYPE_HFP_HF,
 	};
 
-	struct {
+	const struct {
 		uint16_t codec_id;
 		bool enabled;
 	} hfp_codecs[] = {

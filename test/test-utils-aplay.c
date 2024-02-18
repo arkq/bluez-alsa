@@ -1,6 +1,6 @@
 /*
  * test-utils-aplay.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -288,8 +288,8 @@ CK_START_TEST(test_play_dbus_signals) {
 	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
 	fprintf(stderr, "%s", output);
 
-#if ENABLE_MSBC && DEBUG
-	/* with mSBC support, codec is not selected right away */
+#if ENABLE_HFP_CODEC_SELECTION && DEBUG
+	/* With codec selection support, codec is not selected right away. */
 	ck_assert_ptr_ne(strstr(output,
 				"Skipping SCO with codec not selected"), NULL);
 #endif

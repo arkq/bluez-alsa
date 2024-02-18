@@ -13,6 +13,10 @@
 #ifndef BLUEALSA_HFP_H_
 #define BLUEALSA_HFP_H_
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <stdint.h>
 #include <sys/types.h>
 

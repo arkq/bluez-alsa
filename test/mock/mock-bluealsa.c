@@ -319,9 +319,11 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 	t->sco.rfcomm->state = HFP_SLC_CONNECTED;
 	t->sco.rfcomm->ag_codecs.cvsd = true;
 	t->sco.rfcomm->hf_codecs.cvsd = true;
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	t->sco.rfcomm->ag_features |= HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO;
 	t->sco.rfcomm->hf_features |= HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO;
+#endif
+#if ENABLE_MSBC
 	t->sco.rfcomm->ag_codecs.msbc = true;
 	t->sco.rfcomm->hf_codecs.msbc = true;
 #endif
@@ -435,15 +437,16 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 		g_ptr_array_add(tt, t = mock_transport_new_sco(MOCK_DEVICE_1,
 					BA_TRANSPORT_PROFILE_HFP_AG, MOCK_BLUEZ_SCO_PATH_1));
 
-		if (mock_fuzzing_ms)
-			ba_transport_set_codec(t, HFP_CODEC_CVSD);
+		/* In case of fuzzing, select available codecs
+		 * one by one with some delay in between. */
 
-#if ENABLE_MSBC
 		if (mock_fuzzing_ms) {
+			ba_transport_set_codec(t, HFP_CODEC_CVSD);
+#if ENABLE_MSBC
 			usleep(mock_fuzzing_ms * 1000);
 			ba_transport_set_codec(t, HFP_CODEC_MSBC);
-		}
 #endif
+		}
 
 	}
 

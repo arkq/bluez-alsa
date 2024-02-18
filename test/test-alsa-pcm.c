@@ -1,6 +1,6 @@
 /*
  * test-alsa-pcm.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -550,7 +550,7 @@ CK_START_TEST(ba_test_playback_no_codec_selected) {
 				NULL), -1);
 
 	int rv = 0;
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	rv = -EAGAIN;
 #endif
 

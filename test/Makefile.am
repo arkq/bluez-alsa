@@ -163,8 +163,9 @@ if ENABLE_MSBC
 test_msbc_SOURCES = \
 	../src/shared/ffb.c \
 	../src/shared/log.c \
-	../src/h2.c \
+	../src/codec-msbc.c \
 	../src/codec-sbc.c \
+	../src/h2.c \
 	test-msbc.c
 endif
 

@@ -244,6 +244,8 @@ AC_ARG_ENABLE([msbc],
 AM_CONDITIONAL([ENABLE_MSBC], [test "x$enable_msbc" = "xyes"])
 AM_COND_IF([ENABLE_MSBC], [
 	PKG_CHECK_MODULES([SPANDSP], [spandsp >= 0.0.6])
+	AC_DEFINE([ENABLE_HFP_CODEC_SELECTION], [1],
+		[Define to 1 if HFP codec selection is enabled.])
 	AC_DEFINE([ENABLE_MSBC], [1], [Define to 1 if mSBC is enabled.])
 ])
 

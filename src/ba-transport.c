@@ -513,7 +513,6 @@ struct ba_transport *ba_transport_new_sco(
 		int rfcomm_fd) {
 
 	const bool is_ag = profile & BA_TRANSPORT_PROFILE_MASK_AG;
-	uint16_t codec_id = HFP_CODEC_UNDEFINED;
 	struct ba_transport *t;
 	int err = 0;
 
@@ -557,19 +556,21 @@ struct ba_transport *ba_transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	/* HSP supports CVSD only */
-	if (profile & BA_TRANSPORT_PROFILE_MASK_HSP)
-		codec_id = HFP_CODEC_CVSD;
+	/* In case of the HSP and HFP without codec selection support,
+	 * there is no other option than the CVSD codec. */
+	uint16_t codec_id = HFP_CODEC_CVSD;
 
-#if ENABLE_MSBC
-	if (!config.hfp.codecs.msbc)
-		codec_id = HFP_CODEC_CVSD;
-	/* Check whether support for codec other than
-	 * CVSD is possible with underlying adapter. */
-	if (!BA_TEST_ESCO_SUPPORT(device->a))
-		codec_id = HFP_CODEC_CVSD;
-#else
-	codec_id = HFP_CODEC_CVSD;
+#if ENABLE_HFP_CODEC_SELECTION
+	/* Only HFP supports codec selection. */
+	if (profile & BA_TRANSPORT_PROFILE_MASK_HFP &&
+			/* Check whether support for codecs other than the
+			 * CVSD is possible with the underlying adapter. */
+			BA_TEST_ESCO_SUPPORT(device->a)) {
+# if ENABLE_MSBC
+		if (config.hfp.codecs.msbc)
+			codec_id = HFP_CODEC_UNDEFINED;
+# endif
+	}
 #endif
 
 	ba_transport_set_codec(t, codec_id);
@@ -905,7 +906,7 @@ int ba_transport_select_codec_sco(
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 
 		/* with oFono back-end we have no access to RFCOMM */
 		if (t->sco.rfcomm == NULL)

@@ -1,6 +1,6 @@
 /*
  * test-alsa-ctl.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -21,6 +21,8 @@
 
 #include <check.h>
 #include <alsa/asoundlib.h>
+
+#include "shared/log.h"
 
 #include "inc/check.inc"
 #include "inc/mock.inc"
@@ -48,6 +50,25 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_ctl_t *ctl) {
 	}
 	return rv;
 }
+
+#if DEBUG
+static const char *test_ctl_event_elem_get_mask_name(snd_ctl_event_t *event) {
+	switch (snd_ctl_event_elem_get_mask(event)) {
+	case SND_CTL_EVENT_MASK_ADD:
+		return "ADD";
+	case SND_CTL_EVENT_MASK_REMOVE:
+		return "REMOVE";
+	case SND_CTL_EVENT_MASK_VALUE:
+		return "VALUE";
+	case SND_CTL_EVENT_MASK_INFO:
+		return "INFO";
+	case SND_CTL_EVENT_MASK_TLV:
+		return "TLV";
+	default:
+		return "UNKNOWN";
+	}
+}
+#endif
 
 CK_START_TEST(test_controls) {
 
@@ -490,14 +511,19 @@ CK_START_TEST(test_notifications) {
 	while (snd_ctl_wait(ctl, 500) == 1)
 		while (snd_ctl_read(ctl, event) == 1) {
 			ck_assert_int_eq(snd_ctl_event_get_type(event), SND_CTL_EVENT_ELEM);
+			debug("Event: %s: %s", test_ctl_event_elem_get_mask_name(event),
+					snd_ctl_event_elem_get_name(event));
 			events++;
 		}
 
 	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 0), 0);
 
 	size_t events_update_codec = 0;
-#if ENABLE_MSBC
-	events_update_codec += 8;
+#if ENABLE_HFP_CODEC_SELECTION
+	events_update_codec += 4;
+# if ENABLE_MSBC
+	events_update_codec += 4;
+# endif
 #endif
 
 	/* Processed events:
@@ -505,7 +531,7 @@ CK_START_TEST(test_notifications) {
 	 * - 2 removes; 4 new elems (12:34:... A2DP, 23:45:... A2DP)
 	 * - 4 removes; 7 new elems (2x A2DP, SCO playback, battery)
 	 * - 7 removes; 9 new elems (2x A2DP, SCO playback/capture, battery)
-	 * - 8 updates (SCO codec updates if mSBC is supported)
+	 * - 4 updates per codec (SCO codec updates if codec selection is supported)
 	 */
 	size_t expected_events = (0 + 2) + (2 + 4) + (4 + 7) + (7 + 9) + events_update_codec;
 

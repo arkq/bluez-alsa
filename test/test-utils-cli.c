@@ -216,8 +216,8 @@ CK_START_TEST(test_codec) {
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Available codecs: CVSD"), NULL);
 
-#if !ENABLE_MSBC
-	/* CVSD shall be automatically selected if mSBC is not supported. */
+#if !ENABLE_HFP_CODEC_SELECTION
+	/* CVSD shall be pre-selected if codec selection is not supported. */
 	ck_assert_ptr_ne(strstr(output, "Selected codec: CVSD"), NULL);
 #endif
 

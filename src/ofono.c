@@ -17,7 +17,10 @@
  */
 
 #include "ofono.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <poll.h>
@@ -1076,7 +1079,7 @@ int ofono_call_volume_update(struct ba_transport *t) {
 	struct ba_transport_pcm *mic = &t->sco.pcm_mic;
 	int ret = 0;
 
-	struct {
+	const struct {
 		const char *name;
 		GVariant *value;
 	} props[] = {

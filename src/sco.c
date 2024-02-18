@@ -32,6 +32,7 @@
 
 #include "ba-config.h"
 #include "ba-device.h"
+#include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "hci.h"
@@ -73,7 +74,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		goto fail;
 	}
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	uint32_t defer = 1;
 	if (setsockopt(data.pfd.fd, SOL_BLUETOOTH, BT_DEFER_SETUP, &defer, sizeof(defer)) == -1) {
 		error("Couldn't set deferred connection setup: %s", strerror(errno));
@@ -125,9 +126,10 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 			goto cleanup;
 		}
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
+		const uint16_t codec_id = ba_transport_get_codec(t);
 		struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
-		if (ba_transport_get_codec(t) == HFP_CODEC_MSBC &&
+		if (codec_id == HFP_CODEC_MSBC &&
 				setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
 			error("Couldn't setup transparent voice: %s", strerror(errno));
 			goto cleanup;

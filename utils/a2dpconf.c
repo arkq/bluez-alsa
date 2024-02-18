@@ -582,7 +582,7 @@ static void dump_opus(const void *blob, size_t size) {
 			A2DP_OPUS_GET_BITRATE(opus->voice) * 1024);
 }
 
-static struct {
+static const struct {
 	uint16_t codec_id;
 	size_t blob_size;
 	void (*dump)(const void *, size_t);

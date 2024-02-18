@@ -1,6 +1,6 @@
 /*
  * test-msbc.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -21,7 +21,6 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 
-#include "../src/codec-msbc.c"
 #include "inc/check.inc"
 #include "inc/sine.inc"
 
@@ -100,7 +99,7 @@ CK_START_TEST(test_msbc_encode_decode) {
 
 	}
 
-	ck_assert_int_eq(pcm_tail - pcm, 960);
+	ck_assert_int_eq(pcm_tail - pcm, 8 * MSBC_CODESAMPLES);
 
 	msbc_finish(&msbc);
 
@@ -117,7 +116,7 @@ CK_START_TEST(test_msbc_decode_plc) {
 	uint8_t data[sizeof(sine)];
 	uint8_t *data_tail = data;
 
-	debug("Simulating mSBC packet loss events");
+	debug("Simulating eSCO packet loss events");
 
 	int rv;
 	size_t counter, i;

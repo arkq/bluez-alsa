@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -9,7 +9,10 @@
  */
 
 #include "ba-rfcomm.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <poll.h>
@@ -526,7 +529,7 @@ static int rfcomm_handler_btrh_get_cb(struct ba_rfcomm *r, const struct bt_at *a
 	return 0;
 }
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 static int rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r);
 #endif
 
@@ -535,7 +538,7 @@ static int rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r);
 static int rfcomm_handler_bcc_cmd_cb(struct ba_rfcomm *r, const struct bt_at *at) {
 	(void)at;
 	const int fd = r->fd;
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 	if (rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK") == -1)
 		return -1;
 	if (rfcomm_hfp_setup_codec_connection(r) == -1)
@@ -599,18 +602,27 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	static const struct ba_rfcomm_handler handler_unsupported = {
 		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb };
 
+	const struct {
+		uint16_t codec_id;
+		bool is_supported;
+	} codecs[] = {
+		{ HFP_CODEC_CVSD, r->hf_codecs.cvsd },
+#if ENABLE_MSBC
+		{ HFP_CODEC_MSBC, r->hf_codecs.msbc },
+#endif
+	};
+
 	const int fd = r->fd;
 	const int codec = atoi(at->value);
-	bool codec_supported = false;
 
-	if (r->hf_codecs.cvsd && codec == HFP_CODEC_CVSD)
-		codec_supported = true;
-#ifdef ENABLE_MSBC
-	if (r->hf_codecs.msbc && codec == HFP_CODEC_MSBC)
-		codec_supported = true;
-#endif
+	bool is_codec_supported = false;
+	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
+		if (codecs[i].codec_id == codec && codecs[i].is_supported) {
+			is_codec_supported = true;
+			break;
+		}
 
-	if (!codec_supported) {
+	if (!is_codec_supported) {
 		/* If the requested codec is not supported, we must reply with the
 		 * list of codecs that we do support. */
 		if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BAC", r->hf_bac_bcs_string) == -1)
@@ -958,7 +970,7 @@ static enum ba_rfcomm_signal rfcomm_recv_signal(struct ba_rfcomm *r) {
 	return BA_RFCOMM_SIGNAL_PING;
 }
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 
 /**
  * Set HFP codec for the given Service Level Connection. */
@@ -998,11 +1010,13 @@ fail:
  * Try to setup HFP codec connection. */
 static int rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r) {
 
-	struct {
+	const struct {
 		uint16_t codec_id;
 		bool is_supported;
 	} codecs[] = {
+#if ENABLE_MSBC
 		{ HFP_CODEC_MSBC, r->ag_codecs.msbc && r->hf_codecs.msbc },
+#endif
 		{ HFP_CODEC_CVSD, r->ag_codecs.cvsd && r->hf_codecs.cvsd },
 	};
 
@@ -1359,7 +1373,7 @@ setup:
 					r->setup++;
 					break;
 				case HFP_SETUP_SELECT_CODEC:
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 					if (r->idle) {
 						if (rfcomm_hfp_setup_codec_connection(r) == -1)
 							goto ioerror;
@@ -1379,7 +1393,7 @@ setup:
 					ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED)
 				r->setup = HFP_SETUP_COMPLETE;
 
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 			/* Select HFP transport codec. Please note, that this setup
 			 * stage will be performed when the connection becomes idle. */
 			if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
@@ -1428,7 +1442,7 @@ process:
 		if (pfds[0].revents & POLLIN) {
 			/* dispatch incoming event */
 			switch (rfcomm_recv_signal(r)) {
-#if ENABLE_MSBC
+#if ENABLE_HFP_CODEC_SELECTION
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_CVSD:
 				if (!config.hfp.codecs.cvsd || !(
 							r->ag_features & HFP_AG_FEAT_CODEC &&
@@ -1437,6 +1451,7 @@ process:
 				else if (rfcomm_hfp_set_codec(r, HFP_CODEC_CVSD) == -1)
 					goto ioerror;
 				break;
+# if ENABLE_MSBC
 			case BA_RFCOMM_SIGNAL_HFP_SET_CODEC_MSBC:
 				if (!config.hfp.codecs.msbc || !(
 							r->ag_features & HFP_AG_FEAT_CODEC &&
@@ -1447,6 +1462,7 @@ process:
 				else if (rfcomm_hfp_set_codec(r, HFP_CODEC_MSBC) == -1)
 					goto ioerror;
 				break;
+# endif
 #endif
 			case BA_RFCOMM_SIGNAL_UPDATE_BATTERY:
 				if (rfcomm_notify_battery_level_change(r) == -1)
