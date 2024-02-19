@@ -25,24 +25,9 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-22.04
     steps:
-    - name: Install Dependencies
-      uses: awalsh128/cache-apt-pkgs-action@v1
-      with:
-        packages: >
-          check
-          libasound2-dev
-          libbluetooth-dev
-          libdbus-1-dev
-          libfdk-aac-dev
-          libglib2.0-dev
-          libmp3lame-dev
-          libmpg123-dev
-          libopenaptx-dev
-          libreadline-dev
-          libsbc-dev
-          libspandsp-dev
-          python3-docutils
     - uses: actions/checkout@v4
+    - name: Install Dependencies
+      uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
       run: |
         mkdir -p ${{ github.workspace }}/{build,m4}
@@ -110,22 +95,9 @@ jobs:
     needs: sanitize-prepare
     runs-on: ubuntu-22.04
     steps:
-    - name: Install Dependencies
-      uses: awalsh128/cache-apt-pkgs-action@v1
-      with:
-        packages: >
-          check
-          libasound2-dev
-          libbluetooth-dev
-          libdbus-1-dev
-          libfdk-aac-dev
-          libglib2.0-dev
-          libmp3lame-dev
-          libmpg123-dev
-          libopenaptx-dev
-          libsbc-dev
-          libspandsp-dev
     - uses: actions/checkout@v4
+    - name: Install Dependencies
+      uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
       run: |
         mkdir -p ${{ github.workspace }}/{build,m4}

@@ -1,0 +1,28 @@
+name: Install Dependencies
+runs:
+  using: composite
+  steps:
+    - name: Install DEB Packages
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        # XXX: iwyu package depends on clang-14, but is built with clang-13
+        packages: >
+          bear
+          check
+          iwyu libclang-13-dev
+          jq
+          lcov
+          libasound2-dev
+          libbluetooth-dev
+          libbsd-dev
+          libdbus-1-dev
+          libfdk-aac-dev
+          libglib2.0-dev
+          libmp3lame-dev
+          libmpg123-dev
+          libncurses5-dev
+          libopenaptx-dev
+          libreadline-dev
+          libsbc-dev
+          libspandsp-dev
+          python3-docutils

@@ -29,24 +29,9 @@ jobs:
   code-ql:
     runs-on: ubuntu-latest
     steps:
-    - name: Install Dependencies
-      uses: awalsh128/cache-apt-pkgs-action@v1
-      with:
-        packages: >
-          libasound2-dev
-          libbluetooth-dev
-          libbsd-dev
-          libdbus-1-dev
-          libfdk-aac-dev
-          libglib2.0-dev
-          libmp3lame-dev
-          libmpg123-dev
-          libopenaptx-dev
-          libncurses5-dev
-          libreadline-dev
-          libsbc-dev
-          libspandsp-dev
     - uses: actions/checkout@v4
+    - name: Install Dependencies
+      uses: ./.github/actions/apt-install-deps
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
@@ -94,29 +79,9 @@ jobs:
   include-what-you-use:
     runs-on: ubuntu-latest
     steps:
-    - name: Install Dependencies
-      uses: awalsh128/cache-apt-pkgs-action@v1
-      with:
-        # XXX: iwyu package depends on clang-14, but is built with clang-13
-        packages: >
-          bear
-          check
-          iwyu libclang-13-dev
-          jq
-          libasound2-dev
-          libbluetooth-dev
-          libbsd-dev
-          libdbus-1-dev
-          libfdk-aac-dev
-          libglib2.0-dev
-          libmp3lame-dev
-          libmpg123-dev
-          libopenaptx-dev
-          libncurses5-dev
-          libreadline-dev
-          libsbc-dev
-          libspandsp-dev
     - uses: actions/checkout@v4
+    - name: Install Dependencies
+      uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
       run: |
         mkdir -p ${{ github.workspace }}/{build,m4}
