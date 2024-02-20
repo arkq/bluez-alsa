@@ -395,7 +395,7 @@ decode:
 		const size_t samples = len / sizeof(int16_t);
 		io_pcm_scale(t_pcm, pcm.data, samples);
 		if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
-			error("FIFO write error: %s", strerror(errno));
+			error("PCM write error: %s", strerror(errno));
 
 		/* update local state with decoded PCM frames */
 		rtp_state_update(&rtp, samples / channels);
@@ -419,7 +419,7 @@ decode:
 		if (channels == 1) {
 			io_pcm_scale(t_pcm, pcm_l, samples);
 			if (io_pcm_write(t_pcm, pcm_l, samples) == -1)
-				error("FIFO write error: %s", strerror(errno));
+				error("PCM write error: %s", strerror(errno));
 		}
 		else {
 
@@ -431,7 +431,7 @@ decode:
 
 			io_pcm_scale(t_pcm, pcm.data, samples);
 			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
-				error("FIFO write error: %s", strerror(errno));
+				error("PCM write error: %s", strerror(errno));
 
 		}
 

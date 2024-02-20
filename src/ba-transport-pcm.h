@@ -95,7 +95,7 @@ struct ba_transport_pcm {
 	/* current state of the PCM */
 	enum ba_transport_pcm_state state;
 
-	/* FIFO file descriptor */
+	/* PCM file descriptor */
 	int fd;
 	/* clone of BT socket */
 	int fd_bt;

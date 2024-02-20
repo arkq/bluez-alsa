@@ -300,7 +300,7 @@ void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm) {
 			const size_t samples = decoded / sample_size;
 			io_pcm_scale(t_pcm, pcm.data, samples);
 			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
-				error("FIFO write error: %s", strerror(errno));
+				error("PCM write error: %s", strerror(errno));
 
 			/* update local state with decoded PCM frames */
 			rtp_state_update(&rtp, samples / channels);

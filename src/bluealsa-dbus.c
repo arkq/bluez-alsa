@@ -401,8 +401,8 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 	case G_IO_STATUS_EOF:
 		pthread_mutex_lock(&pcm->mutex);
 		ba_transport_pcm_release(pcm);
-		ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_CLOSE);
 		pthread_mutex_unlock(&pcm->mutex);
+		ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_CLOSE);
 		/* Check whether we've just closed the last PCM client and in
 		 * such a case schedule transport IO threads termination. */
 		ba_transport_stop_if_no_clients(pcm->t);
@@ -417,6 +417,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	struct ba_transport_pcm *pcm = userdata;
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
+	const enum ba_transport_profile t_profile = pcm->t->profile;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
 	size_t i;
@@ -426,7 +427,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	pthread_mutex_lock(&pcm->client_mtx);
 
 	/* preliminary check whether HFP codes is selected */
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+	if (t_profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 			ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
@@ -463,8 +464,8 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	 * headset will not run voltage converter (power-on its circuit board) until
 	 * the transport is acquired in order to extend battery life. For profiles
 	 * like A2DP Sink and HFP headset, we will wait for incoming connection. */
-	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
-			t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
+	if (t_profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE ||
+			t_profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 
 		if (ba_transport_acquire(t) == -1) {
 			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
@@ -500,7 +501,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	pthread_mutex_unlock(&pcm->mutex);
 
-	/* notify our audio thread that the FIFO is ready */
+	/* notify our PCM IO thread that the PCM was opened */
 	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_OPEN);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };

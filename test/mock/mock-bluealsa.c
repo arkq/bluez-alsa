@@ -157,7 +157,7 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 
 		io_pcm_scale(t_pcm, buffer, samples);
 		if (io_pcm_write(t_pcm, buffer, samples) == -1)
-			error("FIFO write error: %s", strerror(errno));
+			error("PCM write error: %s", strerror(errno));
 
 		/* maintain constant speed */
 		asrsync_sync(&asrs, frames);

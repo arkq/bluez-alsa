@@ -2,7 +2,7 @@
  * btd.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -227,9 +227,13 @@ static const char *transport_to_fname(struct ba_transport *t) {
 		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
 		break;
 	case BA_TRANSPORT_PROFILE_HSP_AG:
-		return "hsp-ag-cvsd";
+		profile = "hsp-ag";
+		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
+		break;
 	case BA_TRANSPORT_PROFILE_HSP_HS:
-		return "hsp-hs-cvsd";
+		profile = "hsp-hs";
+		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
+		break;
 #if ENABLE_MIDI
 	case BA_TRANSPORT_PROFILE_MIDI:
 		return "midi";

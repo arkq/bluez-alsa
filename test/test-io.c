@@ -1,6 +1,6 @@
 /*
  * test-io.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -385,6 +385,11 @@ static void bt_data_write(struct ba_transport *t) {
 			ck_assert_int_ne(poll(fds, ARRAYSIZE(fds), -1), -1);
 			ck_assert_int_eq(write(fds[0].fd, buffer, len), len);
 			first_packet = false;
+			/* Allow the test_io_thread_dump_pcm() to read out the decoded PCM
+			 * frames. Otherwise, the PCM FIFO might get full and the decoder
+			 * will detect an overrun. In such case, the decoder will drop the
+			 * PCM frames and we will not decode the whole BT dump. */
+			usleep(500);
 		}
 
 	}
@@ -399,6 +404,7 @@ static void bt_data_write(struct ba_transport *t) {
 			ck_assert_int_ne(poll(fds, ARRAYSIZE(fds), -1), -1);
 			ck_assert_int_eq(write(fds[0].fd, bt_data_head->data, len), len);
 			first_packet = false;
+			usleep(500);
 		}
 
 	}

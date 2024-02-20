@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -238,6 +238,7 @@ ssize_t io_pcm_write(
 				 * dropped in the bluetooth controller if we block here.
 				 * It is better that we discard frames here so that the
 				 * decoder is not interrupted. */
+				warn("Dropping PCM frames: %s", "PCM overrun");
 				ret = len;
 				break;
 			case EPIPE:
@@ -282,7 +283,7 @@ ssize_t io_poll_and_read_bt(
 		void *buffer,
 		size_t count) {
 
-	struct pollfd fds[2] = {
+	struct pollfd fds[] = {
 		{ pcm->pipe[0], POLLIN, 0 },
 		{ pcm->fd_bt, POLLIN, 0 }};
 
@@ -322,7 +323,7 @@ ssize_t io_poll_and_read_pcm(
 		void *buffer,
 		size_t samples) {
 
-	struct pollfd fds[2] = {
+	struct pollfd fds[] = {
 		{ pcm->pipe[0], POLLIN, 0 },
 		{ -1, POLLIN, 0 }};
 

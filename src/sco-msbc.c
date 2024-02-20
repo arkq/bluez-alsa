@@ -158,7 +158,7 @@ void *sco_msbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 		io_pcm_scale(t_pcm, msbc.pcm.data, samples);
 		if ((samples = io_pcm_write(t_pcm, msbc.pcm.data, samples)) == -1)
-			error("FIFO write error: %s", strerror(errno));
+			error("PCM write error: %s", strerror(errno));
 		else if (samples == 0)
 			ba_transport_stop_if_no_clients(t);
 
