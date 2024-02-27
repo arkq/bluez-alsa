@@ -46,8 +46,7 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t samples = ffb_len_in(&msbc.pcm);
-		switch (samples = io_poll_and_read_pcm(&io, t_pcm, msbc.pcm.tail, samples)) {
+		switch (io_poll_and_read_pcm(&io, t_pcm, &msbc.pcm)) {
 		case -1:
 			if (errno == ESTALE) {
 				/* reinitialize mSBC encoder */
@@ -60,8 +59,6 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
-
-		ffb_seek(&msbc.pcm, samples);
 
 		while (ffb_len_out(&msbc.pcm) >= MSBC_CODESAMPLES) {
 
@@ -129,17 +126,16 @@ void *sco_msbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t len = ffb_blen_in(&msbc.data);
-		if ((len = io_poll_and_read_bt(&io, t_pcm, msbc.data.tail, len)) == -1)
+		ssize_t len;
+		if ((len = io_poll_and_read_bt(&io, t_pcm, &msbc.data)) == -1)
 			error("BT poll and read error: %s", strerror(errno));
 		else if (len == 0)
 			goto exit;
 
-		if (!ba_transport_pcm_is_active(t_pcm))
+		if (!ba_transport_pcm_is_active(t_pcm)) {
+			ffb_rewind(&msbc.data);
 			continue;
-
-		if (len > 0)
-			ffb_seek(&msbc.data, len);
+		}
 
 		int err;
 		/* Process data until there is no more mSBC frames to decode. This loop

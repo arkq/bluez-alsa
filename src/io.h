@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -19,13 +19,8 @@
 #include <sys/types.h>
 
 #include "ba-transport-pcm.h"
+#include "shared/ffb.h"
 #include "shared/rt.h"
-
-/**
- * Callback function for thread signal filtering. */
-typedef enum ba_transport_pcm_signal io_poll_signal_filter(
-		enum ba_transport_pcm_signal signal,
-		void *userdata);
 
 /**
  * Data associated with IO polling.
@@ -33,11 +28,6 @@ typedef enum ba_transport_pcm_signal io_poll_signal_filter(
  * Note:
  * The timeout field shall be initialized to -1. */
 struct io_poll {
-	struct {
-		/* signal filtering callback */
-		io_poll_signal_filter *filter;
-		void *userdata;
-	} signal;
 	/* transfer bit rate synchronization */
 	struct asrsync asrs;
 	/* keep-alive and sync timeout */
@@ -75,13 +65,11 @@ ssize_t io_pcm_write(
 ssize_t io_poll_and_read_bt(
 		struct io_poll *io,
 		struct ba_transport_pcm *pcm,
-		void *buffer,
-		size_t count);
+		ffb_t *buffer);
 
 ssize_t io_poll_and_read_pcm(
 		struct io_poll *io,
 		struct ba_transport_pcm *pcm,
-		void *buffer,
-		size_t samples);
+		ffb_t *buffer);
 
 #endif

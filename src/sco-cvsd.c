@@ -47,8 +47,7 @@ void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t samples = ffb_len_in(&buffer);
-		switch (samples = io_poll_and_read_pcm(&io, t_pcm, buffer.tail, samples)) {
+		switch (io_poll_and_read_pcm(&io, t_pcm, &buffer)) {
 		case -1:
 			if (errno == ESTALE) {
 				ffb_rewind(&buffer);
@@ -61,10 +60,8 @@ void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		ffb_seek(&buffer, samples);
-		samples = ffb_len_out(&buffer);
-
 		const int16_t *input = buffer.data;
+		const size_t samples = ffb_len_out(&buffer);
 		size_t input_samples = samples;
 
 		while (input_samples >= mtu_samples) {
@@ -106,13 +103,11 @@ void *sco_cvsd_dec_thread(struct ba_transport_pcm *t_pcm) {
 	struct ba_transport *t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
-	const size_t mtu_samples = t->mtu_read / sizeof(int16_t);
-	const size_t mtu_samples_multiplier = 2;
-
 	ffb_t buffer = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
 
-	if (ffb_init_int16_t(&buffer, mtu_samples * mtu_samples_multiplier) == -1) {
+	const size_t mtu_read_multiplier = 3;
+	if (ffb_init_uint8_t(&buffer, t->mtu_read * mtu_read_multiplier) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -120,27 +115,19 @@ void *sco_cvsd_dec_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t len = ffb_blen_in(&buffer);
-		if ((len = io_poll_and_read_bt(&io, t_pcm, buffer.tail, len)) == -1)
+		ssize_t len;
+		if ((len = io_poll_and_read_bt(&io, t_pcm, &buffer)) == -1)
 			error("BT poll and read error: %s", strerror(errno));
 		else if (len == 0)
 			goto exit;
 
-		if ((size_t)len == buffer.nmemb * buffer.size) {
-			debug("Resizing CVSD read buffer: %zd -> %zd",
-					buffer.nmemb * buffer.size, buffer.nmemb * 2 * buffer.size);
-			if (ffb_init_int16_t(&buffer, buffer.nmemb * 2) == -1)
-				error("Couldn't resize CVSD read buffer: %s", strerror(errno));
+		if (!ba_transport_pcm_is_active(t_pcm)) {
+			ffb_rewind(&buffer);
+			continue;
 		}
 
-		if (!ba_transport_pcm_is_active(t_pcm))
-			continue;
-
-		if (len > 0)
-			ffb_seek(&buffer, len / buffer.size);
-
 		ssize_t samples;
-		if ((samples = ffb_len_out(&buffer)) <= 0)
+		if ((samples = ffb_blen_out(&buffer) / sizeof(int16_t)) <= 0)
 			continue;
 
 		io_pcm_scale(t_pcm, buffer.data, samples);
@@ -149,7 +136,7 @@ void *sco_cvsd_dec_thread(struct ba_transport_pcm *t_pcm) {
 		else if (samples == 0)
 			ba_transport_stop_if_no_clients(t);
 
-		ffb_shift(&buffer, samples);
+		ffb_shift(&buffer, samples * sizeof(int16_t));
 
 	}
 

@@ -187,8 +187,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t samples = ffb_len_in(&pcm);
-		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		switch (io_poll_and_read_pcm(&io, t_pcm, &pcm)) {
 		case -1:
 			if (errno == ESTALE) {
 				int encoded = 0;
@@ -207,14 +206,11 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		ffb_seek(&pcm, samples);
-		samples = ffb_len_out(&pcm);
-
 		/* anchor for RTP payload */
 		bt.tail = rtp_payload;
 
 		const int32_t *input = pcm.data;
-		size_t input_samples = samples;
+		size_t input_samples = ffb_len_out(&pcm);
 		size_t output_len = ffb_len_in(&bt);
 		size_t pcm_frames = 0;
 		size_t lc3plus_frames = 0;
@@ -306,7 +302,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 			 * have to append new data to the existing one. Since we do not use
 			 * ring buffer, we will simply move unprocessed data to the front
 			 * of our linear buffer. */
-			ffb_shift(&pcm, samples - input_samples);
+			ffb_shift(&pcm, pcm_frames * channels);
 
 		}
 
@@ -397,8 +393,9 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t len = ffb_blen_in(&bt);
-		if ((len = io_poll_and_read_bt(&io, t_pcm, bt.data, len)) <= 0) {
+		ssize_t len;
+		ffb_rewind(&bt);
+		if ((len = io_poll_and_read_bt(&io, t_pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;

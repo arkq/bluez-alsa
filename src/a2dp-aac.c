@@ -230,8 +230,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t samples = ffb_len_in(&pcm);
-		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		switch (io_poll_and_read_pcm(&io, t_pcm, &pcm)) {
 		case -1:
 			if (errno == ESTALE) {
 				in_args.numInSamples = -1;
@@ -248,7 +247,6 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		ffb_seek(&pcm, samples);
 		while ((in_args.numInSamples = ffb_len_out(&pcm)) > 0) {
 
 			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
@@ -386,8 +384,9 @@ void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t len = ffb_blen_in(&bt);
-		if ((len = io_poll_and_read_bt(&io, t_pcm, bt.data, len)) <= 0) {
+		ssize_t len;
+		ffb_rewind(&bt);
+		if ((len = io_poll_and_read_bt(&io, t_pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;

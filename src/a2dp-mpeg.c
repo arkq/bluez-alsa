@@ -164,8 +164,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t samples = ffb_len_in(&pcm);
-		switch (samples = io_poll_and_read_pcm(&io, t_pcm, pcm.tail, samples)) {
+		switch (io_poll_and_read_pcm(&io, t_pcm, &pcm)) {
 		case -1:
 			if (errno == ESTALE) {
 				lame_encode_flush(handle, rtp_payload, mpeg_frame_len);
@@ -179,13 +178,10 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		ffb_seek(&pcm, samples);
-		samples = ffb_len_out(&pcm);
-
 		/* anchor for RTP payload */
 		bt.tail = rtp_payload;
 
-		size_t pcm_frames = samples / channels;
+		size_t pcm_frames = ffb_len_out(&pcm) / channels;
 		ssize_t len;
 
 		if ((len = channels == 1 ?
@@ -347,8 +343,9 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t len = ffb_blen_in(&bt);
-		if ((len = io_poll_and_read_bt(&io, t_pcm, bt.data, len)) <= 0) {
+		ssize_t len;
+		ffb_rewind(&bt);
+		if ((len = io_poll_and_read_bt(&io, t_pcm, &bt)) <= 0) {
 			if (len == -1)
 				error("BT poll and read error: %s", strerror(errno));
 			goto fail;

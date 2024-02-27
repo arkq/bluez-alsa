@@ -44,8 +44,7 @@ void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t samples = ffb_len_in(&codec.pcm);
-		switch (samples = io_poll_and_read_pcm(&io, t_pcm, codec.pcm.tail, samples)) {
+		switch (io_poll_and_read_pcm(&io, t_pcm, &codec.pcm)) {
 		case -1:
 			if (errno == ESTALE) {
 				/* reinitialize LC3-SWB encoder */
@@ -58,8 +57,6 @@ void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm) {
 			ba_transport_stop_if_no_clients(t);
 			continue;
 		}
-
-		ffb_seek(&codec.pcm, samples);
 
 		/* encode as much PCM data as possible */
 		while (lc3_swb_encode(&codec) > 0) {
@@ -115,17 +112,16 @@ void *sco_lc3_swb_dec_thread(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		ssize_t len = ffb_blen_in(&codec.data);
-		if ((len = io_poll_and_read_bt(&io, t_pcm, codec.data.tail, len)) == -1)
+		ssize_t len;
+		if ((len = io_poll_and_read_bt(&io, t_pcm, &codec.data)) == -1)
 			error("BT poll and read error: %s", strerror(errno));
 		else if (len == 0)
 			goto exit;
 
-		if (!ba_transport_pcm_is_active(t_pcm))
+		if (!ba_transport_pcm_is_active(t_pcm)) {
+			ffb_rewind(&codec.data);
 			continue;
-
-		if (len > 0)
-			ffb_seek(&codec.data, len);
+		}
 
 		int err;
 		/* Process data until there is no more LC3-SWB frames to decode. This loop

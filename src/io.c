@@ -24,6 +24,7 @@
 #include "audio.h"
 #include "ba-config.h"
 #include "shared/defs.h"
+#include "shared/ffb.h"
 #include "shared/log.h"
 
 /**
@@ -265,13 +266,6 @@ final:
 	return ret;
 }
 
-static enum ba_transport_pcm_signal io_poll_signal_filter_none(
-		enum ba_transport_pcm_signal signal,
-		void *userdata) {
-	(void)userdata;
-	return signal;
-}
-
 /**
  * Poll and read data from the BT transport socket.
  *
@@ -280,8 +274,7 @@ static enum ba_transport_pcm_signal io_poll_signal_filter_none(
 ssize_t io_poll_and_read_bt(
 		struct io_poll *io,
 		struct ba_transport_pcm *pcm,
-		void *buffer,
-		size_t count) {
+		ffb_t *buffer) {
 
 	struct pollfd fds[] = {
 		{ pcm->pipe[0], POLLIN, 0 },
@@ -299,17 +292,16 @@ repoll:
 		return -1;
 	}
 
-	if (fds[0].revents & POLLIN) {
-		/* dispatch incoming event */
-		io_poll_signal_filter *filter = io->signal.filter != NULL ?
-			io->signal.filter : io_poll_signal_filter_none;
-		switch (filter(ba_transport_pcm_signal_recv(pcm), io->signal.userdata)) {
+	if (fds[0].revents & POLLIN)
+		switch (ba_transport_pcm_signal_recv(pcm)) {
 		default:
 			goto repoll;
 		}
-	}
 
-	return io_bt_read(pcm, buffer, count);
+	ssize_t len;
+	if ((len = io_bt_read(pcm, buffer->tail, ffb_blen_in(buffer))) > 0)
+		ffb_seek(buffer, len);
+	return len;
 }
 
 /**
@@ -320,8 +312,7 @@ repoll:
 ssize_t io_poll_and_read_pcm(
 		struct io_poll *io,
 		struct ba_transport_pcm *pcm,
-		void *buffer,
-		size_t samples) {
+		ffb_t *buffer) {
 
 	struct pollfd fds[] = {
 		{ pcm->pipe[0], POLLIN, 0 },
@@ -353,11 +344,8 @@ repoll:
 		return -1;
 	}
 
-	if (fds[0].revents & POLLIN) {
-		/* dispatch incoming event */
-		io_poll_signal_filter *filter = io->signal.filter != NULL ?
-			io->signal.filter : io_poll_signal_filter_none;
-		switch (filter(ba_transport_pcm_signal_recv(pcm), io->signal.userdata)) {
+	if (fds[0].revents & POLLIN)
+		switch (ba_transport_pcm_signal_recv(pcm)) {
 		case BA_TRANSPORT_PCM_SIGNAL_OPEN:
 		case BA_TRANSPORT_PCM_SIGNAL_RESUME:
 			io->asrs.frames = 0;
@@ -377,21 +365,20 @@ repoll:
 		default:
 			goto repoll;
 		}
-	}
 
 	if (fds[1].revents == 0)
 		return 0;
 
-	ssize_t samples_read;
-	if ((samples_read = io_pcm_read(pcm, buffer, samples)) == -1) {
+	ssize_t samples;
+	if ((samples = io_pcm_read(pcm, buffer->tail, ffb_len_in(buffer))) == -1) {
 		if (errno == EAGAIN)
 			goto repoll;
 		if (errno != EBADF)
 			return -1;
-		samples_read = 0;
+		samples = 0;
 	}
 
-	if (samples_read == 0)
+	if (samples == 0)
 		return 0;
 
 	/* When the thread is created, there might be no data in the FIFO. In fact
@@ -401,5 +388,6 @@ repoll:
 	if (io->asrs.frames == 0)
 		asrsync_init(&io->asrs, pcm->sampling);
 
-	return samples_read;
+	ffb_seek(buffer, samples);
+	return samples;
 }
