@@ -198,6 +198,74 @@ final:
 	return rv;
 }
 
+static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
+		struct ba_transport_pcm *pcm) {
+
+	const struct ba_transport *t = pcm->t;
+	char **adjustments;
+	gsize length;
+
+	if ((adjustments = g_key_file_get_string_list(db, group,
+					BA_STORAGE_KEY_DELAY_ADJUSTMENT, &length, NULL)) == NULL)
+		return 0;
+
+	for (gsize index = 0; index < length; index++) {
+		char *codec_name = adjustments[index];
+		char *value = strchr(adjustments[index], ':');
+		if (value == NULL)
+			continue;
+		*value++ = '\0';
+		uint16_t codec_id = 0xFFFF;
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
+				(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFF)
+			continue;
+		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+				(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
+			continue;
+		int16_t adjustment = atoi(value);
+		ba_transport_pcm_delay_adjustment_set(pcm, codec_id, adjustment);
+	}
+
+	g_strfreev(adjustments);
+	return 1;
+}
+
+static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
+		struct ba_transport_pcm *pcm) {
+
+	int *list_volume;
+	gboolean *list_mute;
+	gsize len;
+	int rv = 0;
+
+	if (g_key_file_has_key(db, group, BA_STORAGE_KEY_SOFT_VOLUME, NULL)) {
+		pcm->soft_volume = g_key_file_get_boolean(db, group,
+				BA_STORAGE_KEY_SOFT_VOLUME, NULL);
+		rv = 1;
+	}
+
+	if ((list_volume = g_key_file_get_integer_list(db, group,
+					BA_STORAGE_KEY_VOLUME, &len, NULL)) != NULL &&
+			len == 2) {
+		ba_transport_pcm_volume_set(&pcm->volume[0], &list_volume[0], NULL, NULL);
+		ba_transport_pcm_volume_set(&pcm->volume[1], &list_volume[1], NULL, NULL);
+		rv = 1;
+	}
+
+	if ((list_mute = g_key_file_get_boolean_list(db, group,
+					BA_STORAGE_KEY_MUTE, &len, NULL)) != NULL &&
+			len == 2) {
+		const bool mute[2] = { list_mute[0], list_mute[1] };
+		ba_transport_pcm_volume_set(&pcm->volume[0], NULL, &mute[0], NULL);
+		ba_transport_pcm_volume_set(&pcm->volume[1], NULL, &mute[1], NULL);
+		rv = 1;
+	}
+
+	g_free(list_volume);
+	g_free(list_mute);
+	return rv;
+}
+
 /**
  * Synchronize PCM with persistent storage.
  *
@@ -222,89 +290,20 @@ int storage_pcm_data_sync(struct ba_transport_pcm *pcm) {
 	if (!g_key_file_has_group(keyfile, group))
 		goto final;
 
-	if (g_key_file_has_key(keyfile, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT, NULL)) {
-		gsize length;
-		char **adjustments = g_key_file_get_string_list(keyfile, group,
-				BA_STORAGE_KEY_DELAY_ADJUSTMENT, &length, NULL);
-		for (gsize index = 0; index < length; index++) {
-			char *codec_name = adjustments[index];
-			char *value = strchr(adjustments[index], ':');
-			if (value == NULL)
-				continue;
-			*value++ = '\0';
-			uint16_t codec_id = 0xFFFF;
-			if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
-					(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFF)
-				continue;
-			if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
-					(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
-				continue;
-			int16_t adjustment = atoi(value);
-			ba_transport_pcm_delay_adjustment_set(pcm, codec_id, adjustment);
-		}
-		g_strfreev(adjustments);
+	if (storage_pcm_data_sync_delay(keyfile, group, pcm))
 		rv = 1;
-	}
-
-	if (g_key_file_has_key(keyfile, group, BA_STORAGE_KEY_SOFT_VOLUME, NULL)) {
-		pcm->soft_volume = g_key_file_get_boolean(keyfile, group,
-				BA_STORAGE_KEY_SOFT_VOLUME, NULL);
+	if (storage_pcm_data_sync_volume(keyfile, group, pcm))
 		rv = 1;
-	}
-
-	if (g_key_file_has_key(keyfile, group, BA_STORAGE_KEY_VOLUME, NULL)) {
-		int *list;
-		gsize len = 0;
-		if ((list = g_key_file_get_integer_list(keyfile, group,
-						BA_STORAGE_KEY_VOLUME, &len, NULL)) != NULL &&
-				len == 2) {
-			ba_transport_pcm_volume_set(&pcm->volume[0], &list[0], NULL, NULL);
-			ba_transport_pcm_volume_set(&pcm->volume[1], &list[1], NULL, NULL);
-		}
-		g_free(list);
-		rv = 1;
-	}
-
-	if (g_key_file_has_key(keyfile, group, BA_STORAGE_KEY_MUTE, NULL)) {
-		gboolean *list;
-		gsize len = 0;
-		if ((list = g_key_file_get_boolean_list(keyfile, group,
-						BA_STORAGE_KEY_MUTE, &len, NULL)) != NULL &&
-				len == 2) {
-			const bool mute[2] = { list[0], list[1] };
-			ba_transport_pcm_volume_set(&pcm->volume[0], NULL, &mute[0], NULL);
-			ba_transport_pcm_volume_set(&pcm->volume[1], NULL, &mute[1], NULL);
-		}
-		g_free(list);
-		rv = 1;
-	}
 
 final:
 	pthread_mutex_unlock(&storage_mutex);
 	return rv;
 }
 
-/**
- * Update persistent storage with PCM data.
- *
- * @param pcm The PCM structure for which to update the storage.
- * @return On success this function returns 0. Otherwise -1 is returned. */
-int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
+static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
+		const struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
-	const struct ba_device *d = t->d;
-	int rv = -1;
-
-	pthread_mutex_lock(&storage_mutex);
-
-	struct storage *st;
-	if ((st = storage_lookup(&d->addr)) == NULL)
-		if ((st = storage_new(&d->addr)) == NULL)
-			goto final;
-
-	GKeyFile *keyfile = st->keyfile;
-	const char *group = pcm->ba_dbus_path;
-
 	const size_t num_codecs = g_hash_table_size(pcm->delay_adjustments);
 	char **list = calloc(num_codecs + 1, sizeof(char *));
 
@@ -330,21 +329,51 @@ int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
 
 	pthread_mutex_unlock(MUTABLE(&pcm->delay_adjustments_mtx));
 
-	g_key_file_set_string_list(keyfile, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT,
+	g_key_file_set_string_list(db, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT,
 		(const char * const *)list, num_codecs);
 
 	for (index = 0; index < num_codecs; index++)
 		free(list[index]);
 	free(list);
 
-	g_key_file_set_boolean(keyfile, group, BA_STORAGE_KEY_SOFT_VOLUME,
-			pcm->soft_volume);
+}
+
+static void storage_pcm_data_update_volume(GKeyFile *db, const char *group,
+		const struct ba_transport_pcm *pcm) {
+
+	g_key_file_set_boolean(db, group, BA_STORAGE_KEY_SOFT_VOLUME, pcm->soft_volume);
 
 	int volume[2] = { pcm->volume[0].level, pcm->volume[1].level };
-	g_key_file_set_integer_list(keyfile, group, BA_STORAGE_KEY_VOLUME, volume, 2);
+	g_key_file_set_integer_list(db, group, BA_STORAGE_KEY_VOLUME, volume, 2);
 
 	gboolean mute[2] = { pcm->volume[0].soft_mute, pcm->volume[1].soft_mute };
-	g_key_file_set_boolean_list(keyfile, group, BA_STORAGE_KEY_MUTE, mute, 2);
+	g_key_file_set_boolean_list(db, group, BA_STORAGE_KEY_MUTE, mute, 2);
+
+}
+
+/**
+ * Update persistent storage with PCM data.
+ *
+ * @param pcm The PCM structure for which to update the storage.
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
+
+	const struct ba_transport *t = pcm->t;
+	const struct ba_device *d = t->d;
+	int rv = -1;
+
+	pthread_mutex_lock(&storage_mutex);
+
+	struct storage *st;
+	if ((st = storage_lookup(&d->addr)) == NULL)
+		if ((st = storage_new(&d->addr)) == NULL)
+			goto final;
+
+	GKeyFile *keyfile = st->keyfile;
+	const char *group = pcm->ba_dbus_path;
+
+	storage_pcm_data_update_delay(keyfile, group, pcm);
+	storage_pcm_data_update_volume(keyfile, group, pcm);
 
 	rv = 0;
 

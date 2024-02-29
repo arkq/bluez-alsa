@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -459,6 +460,7 @@ int main(void) {
 
 	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
 	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);
+	atexit(storage_destroy);
 
 #if ENABLE_MSBC
 	config.hfp.codecs.msbc = false;

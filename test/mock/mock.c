@@ -1,6 +1,6 @@
 /*
  * mock.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -179,6 +179,7 @@ int main(int argc, char *argv[]) {
 
 	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
 	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);
+	atexit(storage_destroy);
 
 	GTestDBus *dbus = g_test_dbus_new(G_TEST_DBUS_NONE);
 	g_test_dbus_up(dbus);
