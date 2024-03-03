@@ -230,8 +230,12 @@ AC_ARG_ENABLE([mp3lame],
 	[AS_HELP_STRING([--enable-mp3lame], [enable MP3 support])])
 AM_CONDITIONAL([ENABLE_MP3LAME], [test "x$enable_mp3lame" = "xyes"])
 AM_COND_IF([ENABLE_MP3LAME], [
-	AC_CHECK_LIB([mp3lame], [lame_init],
-		[AC_SUBST([MP3LAME_LIBS], [-lmp3lame])], [AC_MSG_ERROR([mp3lame library not found])])
+	PKG_CHECK_MODULES([MP3LAME], [lame >= 3.100],,
+		# The pkg-config support is available in the not yet released version of
+		# LAME, so for now we have to check for the library manually as well to
+		# be compatible with most Linux distributions.
+		AC_CHECK_LIB([mp3lame], [lame_init],
+			[AC_SUBST([MP3LAME_LIBS], [-lmp3lame])], [AC_MSG_ERROR([mp3lame library not found])]))
 	AC_DEFINE([ENABLE_MPEG], [1], [Define to 1 if MPEG is enabled.])
 	AC_DEFINE([ENABLE_MP3LAME], [1], [Define to 1 if MP3LAME is enabled.])
 ])
