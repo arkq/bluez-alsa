@@ -1,6 +1,6 @@
 /*
  * bluealsa-ctl.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -1850,7 +1850,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if (!ba_dbus_connection_ctx_init(&ctl->dbus_ctx, service, &err)) {
 		SNDERR("Couldn't initialize D-Bus context: %s", err.message);
-		ret = -ENOMEM;
+		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
 
@@ -1862,7 +1862,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if (!ba_dbus_pcm_get_all(&ctl->dbus_ctx, &pcm_list, &pcm_list_size, &err)) {
 		SNDERR("Couldn't get BlueALSA PCM list: %s", err.message);
-		ret = -ENODEV;
+		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
 

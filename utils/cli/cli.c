@@ -120,7 +120,7 @@ void cli_get_ba_services(cli_get_ba_services_cb func, void *data, DBusError *err
 
 	if ((msg = dbus_message_new_method_call(DBUS_SERVICE_DBUS,
 					DBUS_PATH_DBUS, DBUS_INTERFACE_DBUS, "ListNames")) == NULL) {
-		dbus_set_error(err, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(err, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 

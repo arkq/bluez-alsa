@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -10,6 +10,7 @@
 
 #include "shared/dbus-client.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,7 +58,7 @@ dbus_bool_t ba_dbus_connection_ctx_init(
 
 	if (!dbus_connection_set_watch_functions(ctx->conn, ba_dbus_watch_add,
 				ba_dbus_watch_del, ba_dbus_watch_toggled, ctx, NULL)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
 
@@ -232,14 +233,14 @@ dbus_bool_t ba_dbus_props_get_all(
 
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, path,
 					DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
 	DBusMessageIter iter;
 	dbus_message_iter_init_append(msg, &iter);
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -467,4 +468,26 @@ fail:
 			"Incorrect signature: %s != a{s#}", signature);
 	dbus_free(signature);
 	return FALSE;
+}
+
+int dbus_error_to_errno(
+		const DBusError *error) {
+	if (strcmp(error->name, DBUS_ERROR_NO_MEMORY) == 0)
+		return ENOMEM;
+	if (strcmp(error->name, DBUS_ERROR_BAD_ADDRESS) == 0)
+		return EFAULT;
+	if (strcmp(error->name, DBUS_ERROR_SERVICE_UNKNOWN) == 0)
+		return ESRCH;
+	if (strcmp(error->name, DBUS_ERROR_ACCESS_DENIED) == 0)
+		return EACCES;
+	if (strcmp(error->name, DBUS_ERROR_NO_REPLY) == 0 ||
+			strcmp(error->name, DBUS_ERROR_TIMEOUT) == 0)
+		return ETIMEDOUT;
+	if (strcmp(error->name, DBUS_ERROR_INVALID_ARGS) == 0)
+		return EINVAL;
+	if (strcmp(error->name, DBUS_ERROR_FILE_NOT_FOUND) == 0)
+		return ENODEV;
+	if (strcmp(error->name, DBUS_ERROR_LIMITS_EXCEEDED) == 0)
+		return EBUSY;
+	return EIO;
 }

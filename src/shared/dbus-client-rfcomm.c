@@ -122,7 +122,7 @@ dbus_bool_t ba_dbus_rfcomm_open(
 	DBusMessage *msg;
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, rfcomm_path,
 					BLUEALSA_INTERFACE_RFCOMM, "Open")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
 

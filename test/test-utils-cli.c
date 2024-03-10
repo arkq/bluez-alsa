@@ -69,6 +69,15 @@ CK_START_TEST(test_help) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_ba_service_not_running) {
+
+	char output[4096];
+
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"status", NULL), EXIT_FAILURE);
+
+} CK_END_TEST
+
 CK_START_TEST(test_status) {
 
 	struct spawn_process sp_ba_mock;
@@ -473,6 +482,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_help);
+	tcase_add_test(tc, test_ba_service_not_running);
 	tcase_add_test(tc, test_status);
 	tcase_add_test(tc, test_list_services);
 	tcase_add_test(tc, test_list_pcms);

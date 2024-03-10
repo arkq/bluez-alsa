@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -122,5 +122,8 @@ dbus_bool_t dbus_message_iter_dict(
 		DBusError *error,
 		dbus_bool_t (*cb)(const char *key, DBusMessageIter *val, void *data, DBusError *err),
 		void *userdata);
+
+int dbus_error_to_errno(
+		const DBusError *error);
 
 #endif

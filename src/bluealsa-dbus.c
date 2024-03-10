@@ -443,7 +443,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	if (pcm_fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_FAILED, "%s", strerror(EBUSY));
+				G_DBUS_ERROR_LIMITS_EXCEEDED, "%s", strerror(EBUSY));
 		goto fail;
 	}
 
@@ -846,7 +846,7 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	if (r->handler_fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_FAILED, "%s", strerror(EBUSY));
+				G_DBUS_ERROR_LIMITS_EXCEEDED, "%s", strerror(EBUSY));
 		return;
 	}
 

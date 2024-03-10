@@ -49,7 +49,7 @@ dbus_bool_t ba_dbus_pcm_get_all(
 	DBusMessage *msg;
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, "/org/bluealsa",
 					DBUS_INTERFACE_OBJECT_MANAGER, "GetManagedObjects")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
 
@@ -97,7 +97,7 @@ dbus_bool_t ba_dbus_pcm_get_all(
 
 		struct ba_pcm *tmp = _pcms;
 		if ((tmp = realloc(tmp, (_length + 1) * sizeof(*tmp))) == NULL) {
-			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+			dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 			goto fail;
 		}
 
@@ -183,7 +183,7 @@ dbus_bool_t ba_dbus_pcm_open(
 	DBusMessage *msg;
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
 					BLUEALSA_INTERFACE_PCM, "Open")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
 
@@ -269,7 +269,7 @@ static dbus_bool_t ba_dbus_message_iter_pcm_codecs_get_cb(const char *key,
 
 	struct ba_pcm_codec *tmp = codecs->codecs;
 	if ((tmp = realloc(tmp, (len + 1) * sizeof(*tmp))) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
 
@@ -301,7 +301,7 @@ dbus_bool_t ba_dbus_pcm_codecs_get(
 
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
 					BLUEALSA_INTERFACE_PCM, "GetCodecs")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -358,7 +358,7 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
 					BLUEALSA_INTERFACE_PCM, "SelectCodec")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -368,7 +368,7 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 	dbus_message_iter_init_append(msg, &iter);
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec) ||
 			!dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &props)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -386,7 +386,7 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 				!dbus_message_iter_close_container(&config, &array) ||
 				!dbus_message_iter_close_container(&dict, &config) ||
 				!dbus_message_iter_close_container(&props, &dict)) {
-			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+			dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 			goto fail;
 		}
 	}
@@ -401,13 +401,13 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 				!dbus_message_iter_append_basic(&option, DBUS_TYPE_BOOLEAN, &(dbus_bool_t){ TRUE }) ||
 				!dbus_message_iter_close_container(&dict, &option) ||
 				!dbus_message_iter_close_container(&props, &dict)) {
-			dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+			dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 			goto fail;
 		}
 	}
 
 	if (!dbus_message_iter_close_container(&iter, &props)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -437,7 +437,7 @@ dbus_bool_t ba_dbus_pcm_set_delay_adjustment(
 
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
 					BLUEALSA_INTERFACE_PCM, "SetDelayAdjustment")) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -445,7 +445,7 @@ dbus_bool_t ba_dbus_pcm_set_delay_adjustment(
 	dbus_message_iter_init_append(msg, &iter);
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec) ||
 			!dbus_message_iter_append_basic(&iter, DBUS_TYPE_INT16, &adjustment)) {
-		dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
@@ -517,7 +517,7 @@ dbus_bool_t ba_dbus_pcm_update(
 fail:
 	if (msg != NULL)
 		dbus_message_unref(msg);
-	dbus_set_error(error, DBUS_ERROR_NO_MEMORY, NULL);
+	dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 	return FALSE;
 }
 

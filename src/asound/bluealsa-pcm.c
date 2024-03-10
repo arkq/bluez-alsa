@@ -470,7 +470,8 @@ static int bluealsa_close(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug2("Closing");
 	ba_dbus_connection_ctx_free(&pcm->dbus_ctx);
-	close(pcm->event_fd);
+	if (pcm->event_fd != -1)
+		close(pcm->event_fd);
 	pthread_mutex_destroy(&pcm->mutex);
 	pthread_cond_destroy(&pcm->pause_cond);
 	free(pcm);
@@ -578,8 +579,9 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	if (!ba_dbus_pcm_open(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				&pcm->ba_pcm_fd, &pcm->ba_pcm_ctrl_fd, &err)) {
 		debug2("Couldn't open PCM: %s", err.message);
+		ret = -dbus_error_to_errno(&err);
 		dbus_error_free(&err);
-		return -EBUSY;
+		return ret;
 	}
 
 	pcm->connected = true;
@@ -1435,6 +1437,16 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((pcm = calloc(1, sizeof(*pcm))) == NULL)
 		return -ENOMEM;
 
+	pcm->io.version = SND_PCM_IOPLUG_VERSION;
+	pcm->io.name = "BlueALSA";
+	pcm->io.flags = SND_PCM_IOPLUG_FLAG_LISTED;
+#ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
+	pcm->io.flags |= SND_PCM_IOPLUG_FLAG_BOUNDARY_WA;
+#endif
+	pcm->io.mmap_rw = 1;
+	pcm->io.callback = &bluealsa_callback;
+	pcm->io.private_data = pcm;
+
 	pcm->event_fd = -1;
 	pcm->ba_pcm_fd = -1;
 	pcm->ba_pcm_ctrl_fd = -1;
@@ -1448,7 +1460,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	DBusError err = DBUS_ERROR_INIT;
 	if (ba_dbus_connection_ctx_init(&pcm->dbus_ctx, service, &err) != TRUE) {
 		SNDERR("Couldn't initialize D-Bus context: %s", err.message);
-		ret = -ENOMEM;
+		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
 
@@ -1463,7 +1475,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 				stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
 				&pcm->ba_pcm, &err)) {
 		SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
-		ret = -ENODEV;
+		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
 
@@ -1477,16 +1489,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	pcm->io.version = SND_PCM_IOPLUG_VERSION;
-	pcm->io.name = "BlueALSA";
-	pcm->io.flags = SND_PCM_IOPLUG_FLAG_LISTED;
-#ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
-	pcm->io.flags |= SND_PCM_IOPLUG_FLAG_BOUNDARY_WA;
-#endif
-	pcm->io.mmap_rw = 1;
-	pcm->io.callback = &bluealsa_callback;
-	pcm->io.private_data = pcm;
-
 	if (codec != NULL && codec[0] != '\0') {
 		if (bluealsa_select_pcm_codec(pcm, codec, &err)) {
 			/* Changing the codec may change the audio format, sampling rate and/or
@@ -1495,7 +1497,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 						stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
 						&pcm->ba_pcm, &err)) {
 				SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
-				ret = -ENODEV;
+				ret = -dbus_error_to_errno(&err);
 				goto fail;
 			}
 		}
@@ -1523,8 +1525,10 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
 		goto fail;
 
-	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0)
+	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0) {
+		snd_pcm_ioplug_delete(&pcm->io);
 		goto fail;
+	}
 
 	if (!bluealsa_update_pcm_softvol(pcm, pcm_softvol, &err)) {
 		SNDERR("Couldn't set BlueALSA PCM soft-volume: %s", err.message);
@@ -1540,13 +1544,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	return 0;
 
 fail:
-	ba_dbus_connection_ctx_free(&pcm->dbus_ctx);
+	bluealsa_close(&pcm->io);
 	dbus_error_free(&err);
-	if (pcm->event_fd != -1)
-		close(pcm->event_fd);
-	pthread_mutex_destroy(&pcm->mutex);
-	pthread_cond_destroy(&pcm->pause_cond);
-	free(pcm);
 	return ret;
 }
 
