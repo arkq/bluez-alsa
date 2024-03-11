@@ -113,6 +113,8 @@ struct ba_transport_pcm {
 	/* Overall PCM delay in 1/10 of millisecond, caused by
 	 * audio encoding or decoding and data transfer. */
 	unsigned int delay;
+	/* Client delay in 1/10 of millisecond. */
+	unsigned int client_delay;
 
 	/* guard delay adjustments access */
 	pthread_mutex_t delay_adjustments_mtx;
@@ -238,6 +240,9 @@ int ba_transport_pcm_volume_update(
 
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);
+int ba_transport_pcm_set_delay(
+		struct ba_transport_pcm *pcm,
+		int delay);
 
 int16_t ba_transport_pcm_delay_adjustment_get(
 		const struct ba_transport_pcm *pcm);

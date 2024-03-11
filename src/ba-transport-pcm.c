@@ -706,6 +706,33 @@ int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 	return delay;
 }
 
+int ba_transport_pcm_set_delay(
+		struct ba_transport_pcm *pcm,
+		int delay) {
+
+	const struct ba_transport *t = pcm->t;
+
+	pcm->client_delay = delay;
+
+	/* Forward client delay to BlueZ, but only in case of A2DP sink profile,
+	 * so it will be sent to connected Bluetooth client, e.g. phone. */
+	if (t->type.profile == BA_TRANSPORT_PROFILE_A2DP_SINK) {
+
+		GError *err = NULL;
+		g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+				BLUEZ_IFACE_MEDIA_TRANSPORT, "Delay", g_variant_new_uint16(delay), &err);
+
+		if (err != NULL) {
+			if (err->code != G_DBUS_ERROR_PROPERTY_READ_ONLY)
+				warn("Couldn't set A2DP transport delay: %s", err->message);
+			g_error_free(err);
+		}
+
+	}
+
+	return 0;
+}
+
 int16_t ba_transport_pcm_delay_adjustment_get(
 		const struct ba_transport_pcm *pcm) {
 
