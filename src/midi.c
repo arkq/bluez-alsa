@@ -266,8 +266,8 @@ int midi_transport_start_watch_ble_midi(struct ba_transport *t) {
 int midi_transport_start(struct ba_transport *t) {
 
 	/* Reset BLE-MIDI encoder/decoder states. */
-	memset(&t->midi.ble_decoder, 0, sizeof(t->midi.ble_decoder));
-	memset(&t->midi.ble_encoder, 0, sizeof(t->midi.ble_encoder));
+	ble_midi_decode_init(&t->midi.ble_decoder);
+	ble_midi_encode_init(&t->midi.ble_encoder);
 
 	midi_transport_start_watch_alsa_seq(t);
 

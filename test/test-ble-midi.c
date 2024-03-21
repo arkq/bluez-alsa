@@ -1,6 +1,6 @@
 /*
  * test-ble-midi.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -11,12 +11,16 @@
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include <check.h>
 
 #include "ble-midi.h"
 
 #include "inc/check.inc"
+
+/* Convert timespec structure to milliseconds. */
+#define ts_to_ms(ts) ((ts)->tv_sec * 1000 + (ts)->tv_nsec / 1000000)
 
 CK_START_TEST(test_ble_midi_decode_single) {
 
@@ -28,7 +32,7 @@ CK_START_TEST(test_ble_midi_decode_single) {
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 0);
 
-	ck_assert_uint_eq(bmd.ts, 0x1081);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 4225);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
@@ -46,14 +50,14 @@ CK_START_TEST(test_ble_midi_decode_multiple) {
 	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 0);
 
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi1));
 	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 0);
 
-	ck_assert_uint_eq(bmd.ts, 0x0002);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 2);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
@@ -95,12 +99,12 @@ CK_START_TEST(test_ble_midi_decode_single_joined) {
 	struct ble_midi_dec bmd = { 0 };
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi1));
 	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
@@ -114,7 +118,7 @@ CK_START_TEST(test_ble_midi_decode_single_real_time) {
 	struct ble_midi_dec bmd = { 0 };
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
@@ -131,13 +135,13 @@ CK_START_TEST(test_ble_midi_decode_multiple_real_time) {
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 0);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi1));
 	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 0);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
@@ -153,7 +157,7 @@ CK_START_TEST(test_ble_midi_decode_single_system_exclusive) {
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 0);
 
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
@@ -162,7 +166,7 @@ CK_START_TEST(test_ble_midi_decode_single_system_exclusive) {
 CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive) {
 
 	const uint8_t data1[] = { 0x80, 0x81, 0xF0, 0x01, 0x02, 0x03 };
-	const uint8_t data2[] = { 0x80, 0x04, 0x05, 0x82, 0xF7 };
+	const uint8_t data2[] = { 0x80, 0x04, 0x05, 0x81, 0xF7 };
 	const uint8_t midi[] = { 0xF0, 0x01, 0x02, 0x03, 0x04, 0x05, 0xF7 };
 
 	struct ble_midi_dec bmd = { 0 };
@@ -171,7 +175,7 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive) {
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 0);
 
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
@@ -180,7 +184,7 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive) {
 CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_2) {
 
 	const uint8_t data1[] = { 0x80, 0x81, 0xF0, 0x01, 0x02, 0x03 };
-	const uint8_t data2[] = { 0x80, 0x82, 0xF7 };
+	const uint8_t data2[] = { 0x80, 0x81, 0xF7 };
 	const uint8_t midi[] = { 0xF0, 0x01, 0x02, 0x03, 0xF7 };
 
 	struct ble_midi_dec bmd = { 0 };
@@ -189,7 +193,7 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_2) {
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 0);
 
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
@@ -202,7 +206,7 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_3) {
 	const uint8_t data1[] = { 0x80, 0x81, 0xF0, 0x01, 0x02, 0x03 };
 	uint8_t data2[512] = { 0x80, 0x81, 0x77 };
 	memset(data2 + 3, 0x77, sizeof(data2) - 3);
-	const uint8_t data3[] = { 0x80, 0x82, 0xF7 };
+	const uint8_t data3[] = { 0x80, 0x81, 0xF7 };
 	uint8_t midi[sizeof(bmd.buffer_sys)] = { 0xF0, 0x01, 0x02, 0x03, 0x77 };
 	memset(midi + 5, 0x77, sizeof(midi) - 5);
 
@@ -211,7 +215,7 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_3) {
 	ck_assert_int_eq(ble_midi_decode(&bmd, data3, sizeof(data3)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data3, sizeof(data3)), 0);
 
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 	ck_assert_uint_eq(errno, EMSGSIZE);
@@ -241,17 +245,17 @@ CK_START_TEST(test_ble_midi_decode_single_running_status) {
 	struct ble_midi_dec bmd = { 0 };
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi1));
 	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0002);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 2);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0002);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 2);
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
 
@@ -271,17 +275,17 @@ CK_START_TEST(test_ble_midi_decode_single_running_status_with_real_time) {
 	struct ble_midi_dec bmd = { 0 };
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi1));
 	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0002);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 2);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0003);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 3);
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
 
@@ -301,19 +305,89 @@ CK_START_TEST(test_ble_midi_decode_single_running_status_with_common) {
 	struct ble_midi_dec bmd = { 0 };
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi1));
 	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0002);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 2);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
-	ck_assert_uint_eq(bmd.ts, 0x0003);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 3);
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
+
+} CK_END_TEST
+
+CK_START_TEST(test_ble_midi_decode_single_timestamp) {
+
+	/* Data:
+	 * - full MIDI message (note on)
+	 * - full MIDI message (note on) */
+	const uint8_t data[] = { 0x8F, 0xAA, 0x90, 0x40, 0x7f, 0xAF, 0x91, 0x40, 0x7f };
+	const uint8_t midi1[] = { 0x90, 0x40, 0x7f };
+	const uint8_t midi2[] = { 0x91, 0x40, 0x7f };
+
+	struct ble_midi_dec bmd;
+	ble_midi_decode_init(&bmd);
+
+	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 0);
+	ck_assert_uint_eq(bmd.len, sizeof(midi1));
+	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
+
+	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 5);
+	ck_assert_uint_eq(bmd.len, sizeof(midi2));
+	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
+
+} CK_END_TEST
+
+CK_START_TEST(test_ble_midi_decode_single_timestamp_overflow) {
+
+	/* Data:
+	 * - full MIDI message (note on)
+	 * - full MIDI message (note on) with low-timestamp overflow/wrap */
+	const uint8_t data[] = { 0x80, 0xF0, 0x90, 0x40, 0x7f, 0x8F, 0x91, 0x40, 0x7f };
+	const uint8_t midi1[] = { 0x90, 0x40, 0x7f };
+	const uint8_t midi2[] = { 0x91, 0x40, 0x7f };
+
+	struct ble_midi_dec bmd = { 0 };
+
+	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 112);
+	ck_assert_uint_eq(bmd.len, sizeof(midi1));
+	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
+
+	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), 1);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 143);
+	ck_assert_uint_eq(bmd.len, sizeof(midi2));
+	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
+
+} CK_END_TEST
+
+CK_START_TEST(test_ble_midi_decode_multiple_timestamp_overflow) {
+
+	const uint8_t data1[] = { 0xB0, 0xF0, 0x90, 0x40, 0x7f };
+	const uint8_t data2[] = { 0x8F, 0x8F, 0x91, 0x40, 0x7f };
+	const uint8_t midi1[] = { 0x90, 0x40, 0x7f };
+	const uint8_t midi2[] = { 0x91, 0x40, 0x7f };
+
+	struct ble_midi_dec bmd = { 0 };
+
+	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 1);
+	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 0);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 6256);
+	ck_assert_uint_eq(bmd.len, sizeof(midi1));
+	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
+
+	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 1);
+	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 0);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 10126);
+	ck_assert_uint_eq(bmd.len, sizeof(midi2));
+	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
 } CK_END_TEST
 
@@ -330,19 +404,19 @@ CK_START_TEST(test_ble_midi_decode_multiple_running_status) {
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 0);
-	ck_assert_uint_eq(bmd.ts, 0x0001);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi1));
 	ck_assert_mem_eq(bmd.buffer, midi1, sizeof(midi1));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 0);
-	ck_assert_uint_eq(bmd.ts, 0x0002);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 2);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data3, sizeof(data3)), 1);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data3, sizeof(data3)), 0);
-	ck_assert_uint_eq(bmd.ts, 0x0002);
+	ck_assert_uint_eq(ts_to_ms(&bmd.ts), 2);
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
 
@@ -362,7 +436,8 @@ CK_START_TEST(test_ble_midi_encode_single) {
 
 	const uint8_t midi[] = { 0x90, 0x40, 0x7f };
 
-	struct ble_midi_enc bme = { 0 };
+	struct ble_midi_enc bme;
+	ble_midi_encode_init(&bme);
 	ble_midi_encode_set_mtu(&bme, 24);
 
 	ck_assert_int_eq(ble_midi_encode(&bme, midi, sizeof(midi)), 0);
@@ -476,6 +551,9 @@ int main(void) {
 	tcase_add_test(tc, test_ble_midi_decode_single_running_status);
 	tcase_add_test(tc, test_ble_midi_decode_single_running_status_with_real_time);
 	tcase_add_test(tc, test_ble_midi_decode_single_running_status_with_common);
+	tcase_add_test(tc, test_ble_midi_decode_single_timestamp);
+	tcase_add_test(tc, test_ble_midi_decode_single_timestamp_overflow);
+	tcase_add_test(tc, test_ble_midi_decode_multiple_timestamp_overflow);
 	tcase_add_test(tc, test_ble_midi_decode_multiple_running_status);
 
 	tcase_add_test(tc, test_ble_midi_encode_no_mtu);

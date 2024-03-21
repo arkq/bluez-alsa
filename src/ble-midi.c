@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ble-midi.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -12,10 +12,10 @@
 
 #include <errno.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include "shared/log.h"
@@ -64,6 +64,14 @@ static size_t ble_midi_message_len(uint8_t status) {
 }
 
 /**
+ * Initialize BLE-MIDI decoder. */
+void ble_midi_decode_init(struct ble_midi_dec *bmd) {
+	memset(bmd, 0, sizeof(*bmd));
+	gettimestamp(&bmd->ts0);
+	bmd->init = true;
+}
+
+/**
  * Decode BLE-MIDI packet.
  *
  * Before decoding next BLE-MIDI packet, this function should be called until
@@ -108,7 +116,8 @@ int ble_midi_decode(struct ble_midi_dec *bmd, const uint8_t *data, size_t len) {
 		}
 		/* Extract most significant 6 bits of the 13-bits timestamp
 		 * from the header. */
-		bmd->ts_high = (data[0] & 0x3F) << 7;
+		bmd->ts_high = data[0] & 0x3F;
+		bmd->ts_low = 0;
 		bm_current_len++;
 	}
 
@@ -117,7 +126,38 @@ retry:
 	 * It shall have bit 7 set to 1. */
 	if (data[bm_current_len] & 0x80) {
 
-		bmd->ts = bmd->ts_high | (data[bm_current_len] & 0x7F);
+		/* Increment timestamp-high in case of timestamp-low overflow. */
+		if ((data[bm_current_len] & 0x7F) < bmd->ts_low)
+			bmd->ts_high += 1;
+
+		bmd->ts_low = data[bm_current_len] & 0x7F;
+
+		unsigned int ts_high_low = (bmd->ts_high << 7) | bmd->ts_low;
+		if (ts_high_low < bmd->ts_high_low)
+			/* Unwrap the overflow of the 13-bits timestamp. */
+			ts_high_low += 8191;
+
+		unsigned int ts_high_low_diff = ts_high_low - bmd->ts_high_low;
+		bmd->ts_high_low = ts_high_low;
+
+		/* The timestamp in the BLE-MIDI packet shall increase monotonically, so
+		 * it is posisble to calculate the timestamp difference between packets.
+		 * However, the initial value of the timestamp is not specified. In order
+		 * to calculate the timestamp difference from the decoder initialization,
+		 * we need to use our internal ts0 timestamp. */
+		if (bmd->init) {
+			struct timespec now;
+			gettimestamp(&now);
+			timespecsub(&now, &bmd->ts0, &bmd->ts);
+			bmd->init = false;
+		}
+		else {
+			struct timespec ts = {
+				.tv_sec = ts_high_low_diff / 1000,
+				.tv_nsec = (ts_high_low_diff % 1000) * 1000000 };
+			timespecadd(&bmd->ts, &ts, &bmd->ts);
+		}
+
 		if (++bm_current_len == len) {
 			/* If the timestamp byte is the last byte in the packet,
 			 * definitely something is wrong. */
@@ -138,7 +178,6 @@ retry:
 				bm_buffer = bmd->buffer_sys;
 				bm_buffer_size = sizeof(bmd->buffer_sys);
 				bm_buffer_len = bmd->buffer_sys_len;
-				bmd->ts_sys = bmd->ts;
 				bmd->status_sys = true;
 				break;
 			case 0xF7 /* system exclusive end */ :
@@ -226,7 +265,6 @@ final:
 		goto reset;
 	case 0xF7 /* system exclusive end */ :
 		bmd->buffer_sys_len = 0;
-		bmd->ts = bmd->ts_sys;
 		break;
 	}
 
@@ -239,6 +277,12 @@ reset:
 fail:
 	bmd->current_len = 0;
 	return -1;
+}
+
+/**
+ * Initialize BLE-MIDI encoder. */
+void ble_midi_encode_init(struct ble_midi_enc *bme) {
+	memset(bme, 0, sizeof(*bme));
 }
 
 /**
@@ -282,18 +326,18 @@ int ble_midi_encode(struct ble_midi_enc *enc, const uint8_t *data, size_t len) {
 
 	struct timespec now;
 	gettimestamp(&now);
-	enc->ts = now.tv_sec * 1000 + now.tv_nsec / 1000000;
+	unsigned int ts_high_low = now.tv_sec * 1000 + now.tv_nsec / 1000000;
 
 	if (enc->len == 0) {
 		/* Construct the BLE-MIDI header with the most significant
 		* 6 bits of the 13-bits milliseconds timestamp. */
-		enc->buffer[enc->len++] = 0x80 | ((enc->ts >> 7) & 0x3F);
+		enc->buffer[enc->len++] = 0x80 | ((ts_high_low >> 7) & 0x3F);
 	}
 
 	if (!is_sys_continue) {
 		/* Add the timestamp byte with the least significant 7 bits
 		 * of the timestamp. */
-		enc->buffer[enc->len++] = 0x80 | (enc->ts & 0x7F);
+		enc->buffer[enc->len++] = 0x80 | (ts_high_low & 0x7F);
 	}
 
 	if (is_sys)

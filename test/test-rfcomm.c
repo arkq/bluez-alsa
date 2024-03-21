@@ -530,7 +530,11 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
+
 	srunner_free(sr);
+	ba_device_unref(device1);
+	ba_device_unref(device2);
+	ba_adapter_unref(adapter);
 
 	return nf == 0 ? 0 : 1;
 }
