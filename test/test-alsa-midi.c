@@ -14,6 +14,7 @@
 
 #include <libgen.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,11 +32,17 @@
 static int test_seq_open(struct spawn_process *sp_ba_mock, snd_seq_t **seq,
 		int streams, int mode) {
 	if (spawn_bluealsa_mock(sp_ba_mock, NULL, true,
-				"--timeout=1000",
+				"--timeout=5000",
 				"--profile=midi",
 				NULL) == -1)
 		return -1;
 	return snd_seq_open(seq, "default", streams, mode);
+}
+
+static int test_seq_create_port(snd_seq_t *seq) {
+	return snd_seq_create_simple_port(seq, NULL,
+			SND_SEQ_PORT_CAP_DUPLEX | SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE,
+			SND_SEQ_PORT_TYPE_MIDI_GENERIC | SND_SEQ_PORT_TYPE_APPLICATION);
 }
 
 static int test_seq_close(struct spawn_process *sp_ba_mock, snd_seq_t *seq) {
@@ -90,6 +97,65 @@ CK_START_TEST(test_port) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_sequencer) {
+
+	/* delay in second/10 + raw MIDI data */
+	static const uint8_t midi[] = {
+		0, 0xb1, 0x07, 0x7f,
+		0, 0xc1, 0x49,
+		0, 0xc2, 0x01,
+		1, 0x90, 0x40, 0x46,
+		0, 0x90, 0x41, 0x46,
+		0, 0x91, 0x50, 0x7f,
+		5, 0x80, 0x40, 0x0,
+		0, 0x80, 0x41, 0x0,
+		15, 0x81, 0x50, 0x0,
+	};
+
+	struct spawn_process sp_ba_mock;
+	snd_seq_t *seq = NULL;
+	int port;
+
+	ck_assert_int_eq(test_seq_open(&sp_ba_mock, &seq, SND_SEQ_OPEN_DUPLEX, 0), 0);
+	ck_assert_int_ge(port = test_seq_create_port(seq), 0);
+
+	snd_seq_addr_t ba_seq_addr;
+	ck_assert_int_eq(snd_seq_parse_address(seq, &ba_seq_addr, "BlueALSA"), 0);
+	ck_assert_int_eq(snd_seq_connect_from(seq, port, ba_seq_addr.client, ba_seq_addr.port), 0);
+	ck_assert_int_eq(snd_seq_connect_to(seq, port, ba_seq_addr.client, ba_seq_addr.port), 0);
+
+	snd_midi_event_t *parser;
+	ck_assert_int_eq(snd_midi_event_new(1024, &parser), 0);
+	snd_midi_event_no_status(parser, 1);
+
+	long encoded = 0;
+	for (size_t i = 0; i < sizeof(midi); i += encoded) {
+		usleep(midi[i++] * 100000);
+
+		snd_seq_event_t ev = { 0 };
+		snd_seq_ev_set_direct(&ev);
+		snd_seq_ev_set_subs(&ev);
+
+		encoded = snd_midi_event_encode(parser, &midi[i], sizeof(midi) - i, &ev);
+		ck_assert_int_gt(encoded, 0);
+
+		ck_assert_int_gt(snd_seq_event_output_direct(seq, &ev), 0);
+
+		snd_seq_event_t *ev_o;
+		uint8_t buf[16];
+
+		ck_assert_int_gt(snd_seq_event_input(seq, &ev_o), 0);
+		ck_assert_int_eq(snd_midi_event_decode(parser, buf, sizeof(buf), ev_o), encoded);
+		ck_assert_mem_eq(&midi[i], buf, encoded);
+
+	}
+
+	snd_midi_event_free(parser);
+	snd_seq_delete_simple_port(seq, port);
+	ck_assert_int_eq(test_seq_close(&sp_ba_mock, seq), 0);
+
+} CK_END_TEST
+
 int main(int argc, char *argv[]) {
 	(void)argc;
 
@@ -111,6 +177,7 @@ int main(int argc, char *argv[]) {
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_port);
+	tcase_add_test(tc, test_sequencer);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

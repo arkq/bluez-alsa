@@ -141,7 +141,7 @@ retry:
 		bmd->ts_high_low = ts_high_low;
 
 		/* The timestamp in the BLE-MIDI packet shall increase monotonically, so
-		 * it is posisble to calculate the timestamp difference between packets.
+		 * it is possible to calculate the timestamp difference between packets.
 		 * However, the initial value of the timestamp is not specified. In order
 		 * to calculate the timestamp difference from the decoder initialization,
 		 * we need to use our internal ts0 timestamp. */

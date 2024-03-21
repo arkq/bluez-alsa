@@ -47,6 +47,7 @@
 #include "codec-sbc.h"
 #include "hfp.h"
 #include "io.h"
+#include "midi.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
@@ -359,6 +360,8 @@ static struct ba_transport *mock_transport_new_midi(const char *device_btmac,
 	/* link read and write ends with each other */
 	t->midi.ble_fd_write = fds[1];
 	t->midi.ble_fd_notify = fds[0];
+
+	midi_transport_start_watch_ble_midi(t);
 
 	fprintf(stderr, "BLUEALSA_READY=MIDI:%s\n", device_btmac);
 
