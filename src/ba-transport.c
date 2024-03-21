@@ -639,6 +639,7 @@ struct ba_transport *ba_transport_new_midi(
 	t->profile = profile;
 
 	t->midi.seq_port = -1;
+	t->midi.seq_queue = -1;
 	t->midi.ble_fd_write = -1;
 	t->midi.ble_fd_notify = -1;
 

@@ -180,6 +180,8 @@ struct ba_transport {
 			snd_seq_t *seq;
 			/* Associated sequencer port. */
 			int seq_port;
+			/* Associated scheduling queue. */
+			int seq_queue;
 
 			/* ALSA MIDI event parser. */
 			snd_midi_event_t *seq_parser;

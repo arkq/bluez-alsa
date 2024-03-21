@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
@@ -86,7 +87,9 @@ static gboolean midi_watch_read_ble_midi(GIOChannel *ch,
 	struct ba_transport *t = userdata;
 	GError *err = NULL;
 	uint8_t data[512];
+	long encoded;
 	size_t len;
+	int rv;
 
 	switch (g_io_channel_read_chars(ch, (char *)data, sizeof(data), &len, &err)) {
 	case G_IO_STATUS_AGAIN:
@@ -104,12 +107,10 @@ static gboolean midi_watch_read_ble_midi(GIOChannel *ch,
 
 	snd_seq_event_t ev = { 0 };
 	snd_seq_ev_set_source(&ev, t->midi.seq_port);
-	snd_seq_ev_set_direct(&ev);
 	snd_seq_ev_set_subs(&ev);
 
 	for (;;) {
 
-		int rv;
 		if ((rv = ble_midi_decode(&t->midi.ble_decoder, data, len)) <= 0) {
 			if (rv == -1) {
 				error("Couldn't parse BLE-MIDI packet: %s", strerror(errno));
@@ -118,14 +119,24 @@ static gboolean midi_watch_read_ble_midi(GIOChannel *ch,
 			break;
 		}
 
-		snd_midi_event_reset_encode(t->midi.seq_parser);
-		snd_midi_event_encode(t->midi.seq_parser,
-				t->midi.ble_decoder.buffer, t->midi.ble_decoder.len, &ev);
+		if ((encoded = snd_midi_event_encode(t->midi.seq_parser,
+						t->midi.ble_decoder.buffer, t->midi.ble_decoder.len, &ev)) < 0) {
+				error("Couldn't encode MIDI event: %s", snd_strerror(encoded));
+				continue;
+		}
 
-		if ((rv = snd_seq_event_output_direct(t->midi.seq, &ev)) < 0)
+		snd_seq_real_time_t rt = {
+			.tv_sec = t->midi.ble_decoder.ts.tv_sec,
+			.tv_nsec = t->midi.ble_decoder.ts.tv_nsec };
+		snd_seq_ev_schedule_real(&ev, t->midi.seq_queue, 0, &rt);
+
+		if ((rv = snd_seq_event_output(t->midi.seq, &ev)) < 0)
 			error("Couldn't send MIDI event: %s", snd_strerror(rv));
 
 	}
+
+	if ((rv = snd_seq_drain_output(t->midi.seq)) < 0)
+		warn("Couldn't drain MIDI output: %s", snd_strerror(rv));
 
 	return TRUE;
 }
@@ -135,6 +146,7 @@ int midi_transport_alsa_seq_create(struct ba_transport *t) {
 	const struct ba_device *d = t->d;
 	snd_seq_client_info_t *info;
 	snd_seq_t *seq = NULL;
+	int port, queue;
 	int rv;
 
 	if ((rv = snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, SND_SEQ_NONBLOCK)) != 0) {
@@ -191,11 +203,16 @@ int midi_transport_alsa_seq_create(struct ba_transport *t) {
 		snprintf(name, sizeof(name), "BLE MIDI %s", addrstr);
 	}
 
-	if ((rv = snd_seq_create_simple_port(seq, name,
-				SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_SUBS_READ |
-				SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE,
-	      SND_SEQ_PORT_TYPE_MIDI_GENERIC | SND_SEQ_PORT_TYPE_HARDWARE)) < 0) {
+	if ((port = rv = snd_seq_create_simple_port(seq, name,
+				SND_SEQ_PORT_CAP_DUPLEX | SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE |
+				SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
+				SND_SEQ_PORT_TYPE_MIDI_GENERIC | SND_SEQ_PORT_TYPE_SOFTWARE)) < 0) {
 		error("Couldn't create MIDI port: %s", snd_strerror(rv));
+		goto fail;
+	}
+
+	if ((queue = rv = snd_seq_alloc_queue(seq)) < 0) {
+		error("Couldn't allocate ALSA sequencer queue: %s", snd_strerror(rv));
 		goto fail;
 	}
 
@@ -203,7 +220,8 @@ int midi_transport_alsa_seq_create(struct ba_transport *t) {
 			snd_seq_client_id(seq), rv);
 
 	t->midi.seq = seq;
-	t->midi.seq_port = rv;
+	t->midi.seq_port = port;
+	t->midi.seq_queue = queue;
 
 	return 0;
 
@@ -221,6 +239,8 @@ int midi_transport_alsa_seq_delete(struct ba_transport *t) {
 	debug("Releasing ALSA sequencer port: %d:%d",
 			snd_seq_client_id(t->midi.seq), t->midi.seq_port);
 
+	snd_seq_free_queue(t->midi.seq, t->midi.seq_queue);
+	t->midi.seq_queue = -1;
 	snd_seq_delete_simple_port(t->midi.seq, t->midi.seq_port);
 	t->midi.seq_port = -1;
 	snd_seq_close(t->midi.seq);
@@ -263,11 +283,14 @@ int midi_transport_start_watch_ble_midi(struct ba_transport *t) {
 	g_io_channel_unref(ch);
 
 	ble_midi_decode_init(&t->midi.ble_decoder);
+	snd_seq_start_queue(t->midi.seq, t->midi.seq_queue, NULL);
+	snd_seq_drain_output(t->midi.seq);
 
 	return 0;
 }
 
 int midi_transport_start(struct ba_transport *t) {
+	snd_midi_event_init(t->midi.seq_parser);
 	midi_transport_start_watch_alsa_seq(t);
 	return 0;
 }
@@ -280,6 +303,7 @@ int midi_transport_stop(struct ba_transport *t) {
 		t->midi.watch_seq = NULL;
 	}
 	if (t->midi.watch_ble != NULL) {
+		snd_seq_stop_queue(t->midi.seq, t->midi.seq_queue, NULL);
 		g_source_destroy(t->midi.watch_ble);
 		g_source_unref(t->midi.watch_ble);
 		t->midi.watch_ble = NULL;
