@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ble-midi.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,13 +17,13 @@
 #endif
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 struct ble_midi_dec {
 
 	/* timestamp */
-	unsigned int ts;
+	struct timespec ts;
 	/* decoded MIDI message */
 	uint8_t *buffer;
 	/* length of the decoded message */
@@ -32,14 +32,16 @@ struct ble_midi_dec {
 	/* storage for decoded MIDI message */
 	uint8_t buffer_midi[8];
 	size_t buffer_midi_len;
-	/* timestamp of the system exclusive message start */
-	unsigned int ts_sys;
 	/* storage for decoded system exclusive message */
 	uint8_t buffer_sys[256];
 	size_t buffer_sys_len;
 
-	/* most significant 7 bits of the timestamp */
-	unsigned int ts_high;
+	/* reconstructed timestamp value */
+	unsigned int ts_high_low;
+	/* previous timestamp-high value (most significant 6 bits) */
+	unsigned char ts_high;
+	/* previous timestamp-low value (least significant 7 bits) */
+	unsigned char ts_low;
 	/* lastly seen status byte */
 	uint8_t status;
 	/* system exclusive is being parsed */
@@ -48,6 +50,9 @@ struct ble_midi_dec {
 	bool status_restore;
 	/* current parsing position */
 	size_t current_len;
+
+	/* initialization host time */
+	struct timespec ts0;
 
 };
 
@@ -62,14 +67,15 @@ struct ble_midi_enc {
 	/* length of the encoded message */
 	size_t len;
 
-	/* current timestamp */
-	unsigned int ts;
 	/* current encoding position */
 	size_t current_len;
 
 };
 
+void ble_midi_decode_init(struct ble_midi_dec *bmd);
 int ble_midi_decode(struct ble_midi_dec *bmd, const uint8_t *data, size_t len);
+
+void ble_midi_encode_init(struct ble_midi_enc *bme);
 int ble_midi_encode(struct ble_midi_enc *bme, const uint8_t *data, size_t len);
 int ble_midi_encode_set_mtu(struct ble_midi_enc *bme, size_t mtu);
 

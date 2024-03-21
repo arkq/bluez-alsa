@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rt.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -99,6 +99,13 @@ int asrsync_sync(struct asrsync *asrs, unsigned int frames);
 #else
 # define gettimestamp(ts) clock_gettime(CLOCK_MONOTONIC, ts)
 #endif
+
+/**
+ * Convert timespec structure to milliseconds.
+ *
+ * @param ts Address to the timespec structure.
+ * @return Time in milliseconds. */
+#define timespec2ms(ts) ((ts)->tv_sec * 1000 + (ts)->tv_nsec / 1000000)
 
 int difftimespec(
 		const struct timespec *ts1,
