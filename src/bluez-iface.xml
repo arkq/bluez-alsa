@@ -66,7 +66,9 @@
 		</method>
 		<property name="UUID" type="s" access="read"/>
 		<property name="Codec" type="y" access="read"/>
+		<property name="Vendor" type="u" access="read"/>
 		<property name="Capabilities" type="ay" access="read"/>
+		<property name="Device" type="o" access="read"/>
 		<property name="DelayReporting" type="b" access="read"/>
 	</interface>
 

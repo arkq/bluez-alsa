@@ -68,6 +68,8 @@ struct bluez_dbus_object_data {
 	GDBusInterfaceSkeleton *ifs;
 	/* associated adapter */
 	int hci_dev_id;
+	/* device associated with endpoint object (if connected) */
+	const struct ba_device *device;
 	/* registered profile */
 	enum ba_transport_profile profile;
 	/* media endpoint codec */
@@ -287,6 +289,34 @@ static GArray *bluez_adapter_get_device_seps(
 	return seps;
 }
 
+/**
+ * Associate/disassociate device with registered media endpoint object. */
+static void bluez_dbus_object_data_device_set(
+		struct bluez_dbus_object_data *obj,
+		struct ba_device *d) {
+
+	obj->device = d;
+
+	GVariant *changed = NULL;
+	GVariant *invalidated = NULL;
+
+	if (d != NULL) {
+		GVariantBuilder props;
+		g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+		g_variant_builder_add(&props, "{sv}", "Device",
+				g_variant_new_object_path(d->bluez_dbus_path));
+		changed = g_variant_builder_end(&props);
+	}
+	else {
+		const char *props[] = { "Device" };
+		invalidated = g_variant_new_strv(props, 1);
+	}
+
+	g_dbus_connection_emit_properties_changed(config.dbus, obj->path,
+			BLUEZ_IFACE_MEDIA_ENDPOINT, changed, invalidated, NULL);
+
+}
+
 static void bluez_dbus_object_data_free(
 		struct bluez_dbus_object_data *obj) {
 	if (obj->ifs != NULL) {
@@ -323,7 +353,7 @@ static bool bluez_match_dbus_adapter(
 
 static const char *bluez_get_media_endpoint_object_path(
 		enum ba_transport_profile profile,
-		uint16_t codec_id) {
+		uint32_t codec_id) {
 	switch (profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		switch (codec_id) {
@@ -403,6 +433,13 @@ static const char *bluez_get_media_endpoint_object_path(
 	}
 }
 
+static uint8_t bluez_get_media_endpoint_codec(
+		const struct a2dp_codec *codec) {
+	if (codec->codec_id < A2DP_CODEC_VENDOR)
+		return codec->codec_id;
+	return A2DP_CODEC_VENDOR;
+}
+
 static const char *bluez_get_profile_object_path(
 		enum ba_transport_profile profile) {
 	switch (profile) {
@@ -470,7 +507,6 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 	const struct a2dp_codec *codec = dbus_obj->codec;
-	const uint16_t codec_id = codec->codec_id;
 
 	struct ba_adapter *a = NULL;
 	struct ba_transport *t = NULL;
@@ -501,8 +537,11 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		else if (strcmp(property, "Codec") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
 
-			if ((codec_id & 0xFF) != g_variant_get_byte(value)) {
-				error("Invalid configuration: %s", "Codec mismatch");
+			const uint8_t codec_value = g_variant_get_byte(value);
+			const uint8_t codec_value_ok = bluez_get_media_endpoint_codec(codec);
+			if (codec_value != codec_value_ok) {
+				error("Invalid configuration: %s: %u != %u",
+						"Codec mismatch", codec_value, codec_value_ok);
 				goto fail;
 			}
 
@@ -599,6 +638,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			t->a2dp.pcm.channels, t->a2dp.pcm.sampling);
 
 	ba_transport_set_a2dp_state(t, state);
+
+	bluez_dbus_object_data_device_set(dbus_obj, d);
 	dbus_obj->connected = true;
 
 	g_dbus_method_invocation_return_value(inv, NULL);
@@ -632,6 +673,8 @@ static void bluez_endpoint_clear_configuration(GDBusMethodInvocation *inv, void 
 	struct ba_transport *t = NULL;
 
 	debug("Disconnecting media endpoint: %s", dbus_obj->path);
+
+	bluez_dbus_object_data_device_set(dbus_obj, NULL);
 	dbus_obj->connected = false;
 
 	const char *transport_path;
@@ -661,6 +704,8 @@ static void bluez_endpoint_release(GDBusMethodInvocation *inv, void *userdata) {
 	struct bluez_dbus_object_data *dbus_obj = userdata;
 
 	debug("Releasing media endpoint: %s", dbus_obj->path);
+
+	bluez_dbus_object_data_device_set(dbus_obj, NULL);
 	dbus_obj->connected = false;
 	dbus_obj->registered = false;
 
@@ -679,14 +724,30 @@ static GVariant *bluez_media_endpoint_iface_get_property(
 	if (strcmp(property, "UUID") == 0)
 		return g_variant_new_string(uuid);
 	if (strcmp(property, "Codec") == 0)
-		return g_variant_new_byte(codec->codec_id);
+		return g_variant_new_byte(bluez_get_media_endpoint_codec(codec));
+	if (strcmp(property, "Vendor") == 0) {
+		if (codec->codec_id < A2DP_CODEC_VENDOR)
+			goto unavailable;
+		return g_variant_new_uint32(codec->codec_id);
+	}
 	if (strcmp(property, "Capabilities") == 0)
 		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE,
 				&codec->capabilities, codec->capabilities_size, sizeof(uint8_t));
+	if (strcmp(property, "Device") == 0) {
+		if (!dbus_obj->connected)
+			goto unavailable;
+		return g_variant_new_object_path(dbus_obj->device->bluez_dbus_path);
+	}
 	if (strcmp(property, "DelayReporting") == 0)
 		return g_variant_new_boolean(TRUE);
 
 	g_assert_not_reached();
+	return NULL;
+
+unavailable:
+	if (error != NULL)
+		*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+				"No such property '%s'", property);
 	return NULL;
 }
 
@@ -1035,8 +1096,8 @@ static int bluez_register_profile(
 			BLUEZ_IFACE_PROFILE_MANAGER, "RegisterProfile");
 
 	GVariantBuilder options;
-
 	g_variant_builder_init(&options, G_VARIANT_TYPE("a{sv}"));
+
 	if (version)
 		g_variant_builder_add(&options, "{sv}", "Version", g_variant_new_uint16(version));
 	if (features)
@@ -1289,7 +1350,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	int hci_dev_id = -1;
 	struct a2dp_sep sep = {
 		.dir = A2DP_SOURCE,
-		.codec_id = 0xFFFF,
+		.codec_id = 0xFFFFFFFF,
 	};
 
 	g_variant_get(params, "(&oa{sa{sv}})", &object_path, &interfaces);
@@ -1354,7 +1415,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	if (strcmp(object_path, "/org/bluez") == 0)
 		bluez_register_hfp_all();
 
-	if (sep.codec_id != 0xFFFF) {
+	if (sep.codec_id != 0xFFFFFFFF) {
 
 		bdaddr_t addr;
 		g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);

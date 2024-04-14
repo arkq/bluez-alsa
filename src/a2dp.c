@@ -15,7 +15,6 @@
 #endif
 
 #include <errno.h>
-#include <stdbool.h>
 #include <strings.h>
 
 #if ENABLE_AAC
@@ -43,7 +42,6 @@
 #include "ba-config.h"
 #include "ba-transport.h"
 #include "shared/a2dp-codecs.h"
-#include "shared/bluetooth.h"
 #include "shared/log.h"
 
 struct a2dp_codec * const a2dp_codecs[] = {
@@ -117,9 +115,9 @@ int a2dp_codecs_init(void) {
 	return 0;
 }
 
-static int a2dp_codec_id_cmp(uint16_t a, uint16_t b) {
+static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
 	if (a < A2DP_CODEC_VENDOR || b < A2DP_CODEC_VENDOR)
-		return a - b;
+		return a < b ? -1 : (a == b ? 0 : 1);
 	const char *a_name;
 	if ((a_name = a2dp_codecs_codec_id_to_string(a)) == NULL)
 		return 1;
@@ -159,11 +157,11 @@ int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b) {
 /**
  * Lookup codec configuration for given stream direction.
  *
- * @param codec_id BlueALSA A2DP 16-bit codec ID.
+ * @param codec_id BlueALSA A2DP 32-bit codec ID.
  * @param dir The A2DP stream direction.
  * @return On success this function returns the address of the codec
  *   configuration structure. Otherwise, NULL is returned. */
-const struct a2dp_codec *a2dp_codec_lookup(uint16_t codec_id, enum a2dp_dir dir) {
+const struct a2dp_codec *a2dp_codec_lookup(uint32_t codec_id, enum a2dp_dir dir) {
 	for (size_t i = 0; a2dp_codecs[i] != NULL; i++)
 		if (a2dp_codecs[i]->dir == dir &&
 				a2dp_codecs[i]->codec_id == codec_id)
@@ -258,86 +256,21 @@ const struct a2dp_sampling *a2dp_sampling_select(
 }
 
 /**
- * Get A2DP 16-bit vendor codec ID - BlueALSA extension.
+ * Get A2DP 32-bit vendor codec ID - BlueALSA extension.
  *
  * @param capabilities A2DP vendor codec capabilities.
  * @param size A2DP vendor codec capabilities size.
- * @return On success this function returns A2DP 16-bit vendor codec ID. */
-uint16_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
+ * @return On success this function returns A2DP 32-bit vendor codec ID. */
+uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 
 	if (size < sizeof(a2dp_vendor_info_t))
-		return errno = EINVAL, 0xFFFF;
+		return errno = EINVAL, 0xFFFFFFFF;
 
 	const a2dp_vendor_info_t *info = capabilities;
 	const uint32_t vendor_id = A2DP_VENDOR_INFO_GET_VENDOR_ID(*info);
 	const uint16_t codec_id = A2DP_VENDOR_INFO_GET_CODEC_ID(*info);
 
-	switch (vendor_id) {
-	case BT_COMPID_QUALCOMM_TECH_INTL:
-		switch (codec_id) {
-		case FASTSTREAM_CODEC_ID:
-			return A2DP_CODEC_VENDOR_FASTSTREAM;
-		case APTX_LL_CODEC_ID:
-			return A2DP_CODEC_VENDOR_APTX_LL;
-		} break;
-	case BT_COMPID_APPLE:
-		switch (codec_id) {
-		} break;
-	case BT_COMPID_APT:
-		switch (codec_id) {
-		case APTX_CODEC_ID:
-			return A2DP_CODEC_VENDOR_APTX;
-		} break;
-	case BT_COMPID_SAMSUNG_ELEC:
-		switch (codec_id) {
-		case SAMSUNG_HD_CODEC_ID:
-			return A2DP_CODEC_VENDOR_SAMSUNG_HD;
-		case SAMSUNG_SC_CODEC_ID:
-			return A2DP_CODEC_VENDOR_SAMSUNG_SC;
-		} break;
-	case BT_COMPID_QUALCOMM_TECH:
-		switch (codec_id) {
-		case APTX_HD_CODEC_ID:
-			return A2DP_CODEC_VENDOR_APTX_HD;
-		case APTX_TWS_CODEC_ID:
-			return A2DP_CODEC_VENDOR_APTX_TWS;
-		case APTX_AD_CODEC_ID:
-			return A2DP_CODEC_VENDOR_APTX_AD;
-		} break;
-	case BT_COMPID_SONY:
-		switch (codec_id) {
-		case LDAC_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LDAC;
-		} break;
-	case BT_COMPID_SAVITECH:
-		switch (codec_id) {
-		case LHDC_V1_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LHDC_V1;
-		case LHDC_V2_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LHDC_V2;
-		case LHDC_V3_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LHDC_V3;
-		case LHDC_V5_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LHDC_V5;
-		case LHDC_LL_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LHDC_LL;
-		} break;
-	case BT_COMPID_LINUX_FOUNDATION:
-		switch (codec_id) {
-		case OPUS_CODEC_ID:
-			return A2DP_CODEC_VENDOR_OPUS;
-		} break;
-	case BT_COMPID_FRAUNHOFER_IIS:
-		switch (codec_id) {
-		case LC3PLUS_CODEC_ID:
-			return A2DP_CODEC_VENDOR_LC3PLUS;
-		} break;
-	}
-
-	hexdump("Unknown vendor codec", capabilities, size, true);
-
-	errno = ENOTSUP;
-	return 0xFFFF;
+	return A2DP_CODEC_VENDOR_ID(vendor_id, codec_id);
 }
 
 /**

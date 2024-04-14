@@ -76,9 +76,8 @@ struct ba_transport {
 
 	/* guard modifications of transport codec */
 	pthread_mutex_t codec_id_mtx;
-	/* For A2DP vendor codecs the upper byte of the codec field
-	 * contains the lowest byte of the vendor ID. */
-	uint16_t codec_id;
+	/* ID of currently selected codec */
+	uint32_t codec_id;
 
 	/* synchronization for codec selection */
 	pthread_mutex_t codec_select_client_mtx;
@@ -255,13 +254,13 @@ int ba_transport_select_codec_a2dp(
 		const struct a2dp_sep *sep);
 int ba_transport_select_codec_sco(
 		struct ba_transport *t,
-		uint16_t codec_id);
+		uint8_t codec_id);
 
-uint16_t ba_transport_get_codec(
+uint32_t ba_transport_get_codec(
 		const struct ba_transport *t);
 void ba_transport_set_codec(
 		struct ba_transport *t,
-		uint16_t codec_id);
+		uint32_t codec_id);
 
 int ba_transport_start(struct ba_transport *t);
 int ba_transport_stop(struct ba_transport *t);

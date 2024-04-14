@@ -140,7 +140,7 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 	};
 
 	const struct {
-		uint16_t codec_id;
+		uint8_t codec_id;
 		bool enabled;
 	} hfp_codecs[] = {
 		{ HFP_CODEC_CVSD, config.hfp.codecs.cvsd },
@@ -535,7 +535,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint16_t), 16);
+		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
 		size_t i;
 
 		for (i = 0; seps != NULL && i < seps->len; i++) {
@@ -547,7 +547,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 				size_t j;
 
 				for (j = 0; j < codec_ids->len; j++)
-					if (sep->codec_id == g_array_index(codec_ids, uint16_t, j)) {
+					if (sep->codec_id == g_array_index(codec_ids, uint32_t, j)) {
 						duplicate = true;
 						break;
 					}
@@ -584,7 +584,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		 * is enabled by our global configuration. */
 
 		const struct {
-			uint16_t codec_id;
+			uint8_t codec_id;
 			bool is_enabled_in_config;
 			bool is_available_in_rfcomm_ag;
 			bool is_available_in_rfcomm_hf;
@@ -674,7 +674,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			goto fail;
 		}
 
-		uint16_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
+		uint32_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
 		enum a2dp_dir dir = !t->a2dp.codec->dir;
 		const GArray *seps = t->d->seps;
 		struct a2dp_sep *sep = NULL;
@@ -743,7 +743,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	}
 	else {
 
-		uint16_t codec_id;
+		uint8_t codec_id;
 		if ((codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED) {
 			errmsg = "HFP codec not available";
 			goto fail;
@@ -782,11 +782,11 @@ static void bluealsa_pcm_set_delay_adjustment(GDBusMethodInvocation *inv, void *
 
 	g_variant_get(params, "(&sn)", &codec, &adjustment);
 
-	uint16_t codec_id = 0;
+	uint32_t codec_id = 0;
 	bool is_valid = false;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		codec_id = a2dp_codecs_codec_id_from_string(codec);
-		is_valid = codec_id != 0xFFFF;
+		is_valid = codec_id != 0xFFFFFFFF;
 	}
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		codec_id = hfp_codec_id_from_string(codec);

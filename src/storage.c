@@ -215,9 +215,9 @@ static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
 		if (value == NULL)
 			continue;
 		*value++ = '\0';
-		uint16_t codec_id = 0xFFFF;
+		uint32_t codec_id = 0xFFFFFFFF;
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
-				(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFF)
+				(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFFFFFF)
 			continue;
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 				(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)

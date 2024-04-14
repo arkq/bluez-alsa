@@ -470,7 +470,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 		nanosleep(&delay, NULL);
 	}
 
-	const uint16_t codec_id = ba_transport_get_codec(t);
+	const uint32_t codec_id = ba_transport_get_codec(t);
 	if (hci_sco_connect(fd, &d->addr,
 				codec_id == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
 		error("Couldn't establish SCO link: %s", strerror(errno));
@@ -558,7 +558,7 @@ struct ba_transport *ba_transport_new_sco(
 
 	/* In case of the HSP and HFP without codec selection support,
 	 * there is no other option than the CVSD codec. */
-	uint16_t codec_id = HFP_CODEC_CVSD;
+	uint32_t codec_id = HFP_CODEC_CVSD;
 
 #if ENABLE_HFP_CODEC_SELECTION
 	/* Only HFP supports codec selection. */
@@ -674,7 +674,7 @@ fail:
 const char *ba_transport_debug_name(
 		const struct ba_transport *t) {
 	const enum ba_transport_profile profile = t->profile;
-	const uint16_t codec_id = ba_transport_get_codec(t);
+	const uint32_t codec_id = ba_transport_get_codec(t);
 	switch (profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "NONE";
@@ -911,7 +911,7 @@ final:
 
 int ba_transport_select_codec_sco(
 		struct ba_transport *t,
-		uint16_t codec_id) {
+		uint8_t codec_id) {
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -982,17 +982,17 @@ final:
 	}
 }
 
-uint16_t ba_transport_get_codec(
+uint32_t ba_transport_get_codec(
 		const struct ba_transport *t) {
 	pthread_mutex_lock(MUTABLE(&t->codec_id_mtx));
-	uint16_t codec_id = t->codec_id;
+	uint32_t codec_id = t->codec_id;
 	pthread_mutex_unlock(MUTABLE(&t->codec_id_mtx));
 	return codec_id;
 }
 
 void ba_transport_set_codec(
 		struct ba_transport *t,
-		uint16_t codec_id) {
+		uint32_t codec_id) {
 
 	pthread_mutex_lock(&t->codec_id_mtx);
 

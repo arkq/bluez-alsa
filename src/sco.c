@@ -128,7 +128,7 @@ static void *sco_dispatcher_thread(struct ba_adapter *a) {
 		}
 
 #if ENABLE_HFP_CODEC_SELECTION
-		const uint16_t codec_id = ba_transport_get_codec(t);
+		const uint32_t codec_id = ba_transport_get_codec(t);
 		struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
 		if ((codec_id == HFP_CODEC_MSBC || codec_id == HFP_CODEC_LC3_SWB) &&
 				setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
@@ -264,7 +264,7 @@ void sco_transport_init(struct ba_transport *t) {
 	t->sco.pcm_mic.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.pcm_mic.channels = 1;
 
-	uint16_t codec_id;
+	uint32_t codec_id;
 	switch (codec_id = ba_transport_get_codec(t)) {
 	case HFP_CODEC_UNDEFINED:
 		t->sco.pcm_spk.sampling = 0;

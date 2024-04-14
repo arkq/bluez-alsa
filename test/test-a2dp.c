@@ -36,7 +36,7 @@
 #include "inc/check.inc"
 
 const char *ba_transport_debug_name(const struct ba_transport *t) { (void)t; return "x"; }
-uint16_t ba_transport_get_codec(const struct ba_transport *t) { (void)t; return 0; }
+uint32_t ba_transport_get_codec(const struct ba_transport *t) { (void)t; return 0; }
 bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) { (void)pcm; return false; }
 int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
 int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
@@ -52,15 +52,15 @@ enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(struct ba_transport_pc
 void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; }
 
 CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {
-	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);
-	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("apt-x"), A2DP_CODEC_VENDOR_APTX);
-	ck_assert_int_eq(a2dp_codecs_codec_id_from_string("unknown"), 0xFFFF);
+	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);
+	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("apt-x"), A2DP_CODEC_VENDOR_APTX);
+	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("unknown"), 0xFFFFFFFF);
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_codecs_codec_id_to_string) {
 	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), "SBC");
 	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), "aptX");
-	ck_assert_ptr_eq(a2dp_codecs_codec_id_to_string(0xFFFF), NULL);
+	ck_assert_ptr_eq(a2dp_codecs_codec_id_to_string(0xFFFFFFFF), NULL);
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_codecs_get_canonical_name) {
@@ -85,7 +85,7 @@ CK_START_TEST(test_a2dp_codec_cmp) {
 	struct a2dp_codec c4 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	struct a2dp_codec c5 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
 	struct a2dp_codec c6 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_LDAC };
-	struct a2dp_codec c7 = { .dir = A2DP_SINK, .codec_id = 0xFFFF };
+	struct a2dp_codec c7 = { .dir = A2DP_SINK, .codec_id = 0xFFFFFFFF };
 
 	struct a2dp_codec * codecs[] = { &c3, &c1, &c6, &c4, &c7, &c5, &c2 };
 	qsort(codecs, ARRAYSIZE(codecs), sizeof(*codecs), QSORT_COMPAR(a2dp_codec_ptr_cmp));
@@ -122,21 +122,17 @@ CK_START_TEST(test_a2dp_sep_cmp) {
 
 CK_START_TEST(test_a2dp_codec_lookup) {
 	ck_assert_ptr_eq(a2dp_codec_lookup(A2DP_CODEC_SBC, A2DP_SOURCE), &a2dp_sbc_source);
-	ck_assert_ptr_eq(a2dp_codec_lookup(0xFFFF, A2DP_SOURCE), NULL);
+	ck_assert_ptr_eq(a2dp_codec_lookup(0xFFFFFFFF, A2DP_SOURCE), NULL);
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_get_vendor_codec_id) {
 
 	uint8_t cfg0[4] = { 0xDE, 0xAD, 0xB0, 0xBE };
-	ck_assert_int_eq(a2dp_get_vendor_codec_id(cfg0, sizeof(cfg0)), 0xFFFF);
+	ck_assert_int_eq(a2dp_get_vendor_codec_id(cfg0, sizeof(cfg0)), 0xFFFFFFFF);
 	ck_assert_int_eq(errno, EINVAL);
 
 	a2dp_aptx_t cfg1 = { A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID), 0, 0 };
 	ck_assert_int_eq(a2dp_get_vendor_codec_id(&cfg1, sizeof(cfg1)), A2DP_CODEC_VENDOR_APTX);
-
-	a2dp_aptx_t cfg2 = { A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, 0x69), 0, 0 };
-	ck_assert_int_eq(a2dp_get_vendor_codec_id(&cfg2, sizeof(cfg2)), 0xFFFF);
-	ck_assert_int_eq(errno, ENOTSUP);
 
 } CK_END_TEST
 

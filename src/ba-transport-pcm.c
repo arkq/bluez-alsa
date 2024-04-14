@@ -710,7 +710,7 @@ int16_t ba_transport_pcm_delay_adjustment_get(
 		const struct ba_transport_pcm *pcm) {
 
 	struct ba_transport *t = pcm->t;
-	uint16_t codec_id = ba_transport_get_codec(t);
+	uint32_t codec_id = ba_transport_get_codec(t);
 	int16_t adjustment = 0;
 
 	pthread_mutex_lock(MUTABLE(&pcm->delay_adjustments_mtx));
@@ -725,7 +725,7 @@ int16_t ba_transport_pcm_delay_adjustment_get(
 
 void ba_transport_pcm_delay_adjustment_set(
 		struct ba_transport_pcm *pcm,
-		uint16_t codec_id,
+		uint32_t codec_id,
 		int16_t adjustment) {
 	pthread_mutex_lock(&pcm->delay_adjustments_mtx);
 	g_hash_table_insert(pcm->delay_adjustments,

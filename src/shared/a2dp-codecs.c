@@ -17,7 +17,7 @@
 #include "shared/defs.h"
 
 static const struct {
-	uint16_t codec_id;
+	uint32_t codec_id;
 	const char *aliases[3];
 } codecs[] = {
 	{ A2DP_CODEC_SBC, { "SBC" } },
@@ -47,14 +47,14 @@ static const struct {
  * Get BlueALSA A2DP codec ID from string representation.
  *
  * @param alias Alias of an A2DP audio codec name.
- * @return BlueALSA audio codec ID or 0xFFFF if there was no match. */
-uint16_t a2dp_codecs_codec_id_from_string(const char *alias) {
+ * @return BlueALSA audio codec ID or 0xFFFFFFFF if there was no match. */
+uint32_t a2dp_codecs_codec_id_from_string(const char *alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
 					strcasecmp(codecs[i].aliases[n], alias) == 0)
 				return codecs[i].codec_id;
-	return 0xFFFF;
+	return 0xFFFFFFFF;
 }
 
 /**
@@ -62,7 +62,7 @@ uint16_t a2dp_codecs_codec_id_from_string(const char *alias) {
  *
  * @param codec BlueALSA A2DP audio codec ID.
  * @return Human-readable string or NULL for unknown codec. */
-const char *a2dp_codecs_codec_id_to_string(uint16_t codec_id) {
+const char *a2dp_codecs_codec_id_to_string(uint32_t codec_id) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		if (codecs[i].codec_id == codec_id)
 			return codecs[i].aliases[0];

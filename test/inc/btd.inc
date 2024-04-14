@@ -37,7 +37,7 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 
-#define BT_DUMP_CURRENT_VERSION 1
+#define BT_DUMP_CURRENT_VERSION 2
 
 /**
  * BT dump mode. */
@@ -52,7 +52,7 @@ enum bt_dump_mode {
 struct bt_dump {
 	unsigned int version;
 	enum bt_dump_mode mode;
-	uint16_t transport_codec_id;
+	uint32_t transport_codec_id;
 	a2dp_t a2dp_configuration;
 	size_t a2dp_configuration_size;
 	FILE *file;
@@ -135,7 +135,7 @@ struct bt_dump *bt_dump_create(
 	fprintf(btd->file, "BA.dump-%1x.%1x.", BT_DUMP_CURRENT_VERSION, mode_);
 
 	btd->transport_codec_id = ba_transport_get_codec(t);
-	uint16_t id = htobe16(btd->transport_codec_id);
+	uint32_t id = htobe32(btd->transport_codec_id);
 	if (bt_dump_write(btd, &id, sizeof(id)) == -1)
 		goto fail;
 
@@ -179,7 +179,7 @@ struct bt_dump *bt_dump_open(const char *path) {
 	uint16_t id;
 	if (bt_dump_read(btd, &id, sizeof(id)) == -1)
 		goto fail;
-	btd->transport_codec_id = be16toh(id);
+	btd->transport_codec_id = be32toh(id);
 
 	switch (btd->mode = mode) {
 	case BT_DUMP_MODE_A2DP_SOURCE:

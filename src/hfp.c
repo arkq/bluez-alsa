@@ -18,7 +18,7 @@
 #include "shared/defs.h"
 
 static const struct {
-	uint16_t codec_id;
+	uint8_t codec_id;
 	const char *aliases[1];
 } codecs[] = {
 	{ HFP_CODEC_CVSD, { "CVSD" } },
@@ -114,7 +114,7 @@ ssize_t hfp_hf_features_to_strings(uint32_t features, const char **out, size_t s
  * @param alias Alias of HFP audio codec name.
  * @return BlueALSA HFP audio codec ID or HFP_CODEC_UNDEFINED if there was no
  *   match. */
-uint16_t hfp_codec_id_from_string(const char *alias) {
+uint8_t hfp_codec_id_from_string(const char *alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
@@ -128,7 +128,7 @@ uint16_t hfp_codec_id_from_string(const char *alias) {
  *
  * @param codec BlueALSA HFP audio codec ID.
  * @return Human-readable string or NULL for unknown codec. */
-const char *hfp_codec_id_to_string(uint16_t codec_id) {
+const char *hfp_codec_id_to_string(uint8_t codec_id) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		if (codecs[i].codec_id == codec_id)
 			return codecs[i].aliases[0];

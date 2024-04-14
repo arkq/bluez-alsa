@@ -366,7 +366,7 @@ int main(int argc, char **argv) {
 		case 'c' /* --codec=NAME */ : {
 
 			static const struct {
-				uint16_t codec_id;
+				uint32_t codec_id;
 				bool *ptr;
 			} hfp_codecs[] = {
 				{ HFP_CODEC_CVSD, &config.hfp.codecs.cvsd },
@@ -386,7 +386,7 @@ int main(int argc, char **argv) {
 			}
 
 			struct a2dp_codec * const * cc = a2dp_codecs;
-			uint16_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
+			uint32_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
 			for (struct a2dp_codec *c = *cc; c != NULL; c = *++cc)
 				if (c->codec_id == codec_id) {
 					c->enabled = enable;

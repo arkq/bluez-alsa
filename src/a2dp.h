@@ -43,7 +43,7 @@ struct ba_transport;
 struct a2dp_codec {
 
 	enum a2dp_dir dir;
-	uint16_t codec_id;
+	uint32_t codec_id;
 	const char *synopsis;
 
 	/* capabilities configuration element */
@@ -83,7 +83,7 @@ struct a2dp_codec {
  * A2DP Stream End-Point. */
 struct a2dp_sep {
 	enum a2dp_dir dir;
-	uint16_t codec_id;
+	uint32_t codec_id;
 	/* exposed capabilities */
 	a2dp_t capabilities;
 	size_t capabilities_size;
@@ -103,7 +103,7 @@ int a2dp_codec_ptr_cmp(const struct a2dp_codec **a, const struct a2dp_codec **b)
 int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b);
 
 const struct a2dp_codec *a2dp_codec_lookup(
-		uint16_t codec_id,
+		uint32_t codec_id,
 		enum a2dp_dir dir);
 
 const struct a2dp_channels *a2dp_channels_lookup(
@@ -122,7 +122,7 @@ const struct a2dp_sampling *a2dp_sampling_select(
 		const struct a2dp_sampling *samplings,
 		uint16_t capabilities);
 
-uint16_t a2dp_get_vendor_codec_id(
+uint32_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
 		size_t size);
 

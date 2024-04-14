@@ -243,7 +243,7 @@ int16_t ba_transport_pcm_delay_adjustment_get(
 		const struct ba_transport_pcm *pcm);
 void ba_transport_pcm_delay_adjustment_set(
 		struct ba_transport_pcm *pcm,
-		uint16_t codec_id,
+		uint32_t codec_id,
 		int16_t adjustment);
 
 #endif

@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
 		}
 		case 'c' /* --codec=NAME */ : {
 
-			uint16_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
+			uint32_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
 			bool matched = false;
 
 			struct a2dp_codec * const * cc = a2dp_codecs;

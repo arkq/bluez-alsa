@@ -25,7 +25,7 @@
 #include "shared/defs.h"
 #include "shared/hex.h"
 
-static uint16_t get_codec(const char *s) {
+static uint32_t get_codec(const char *s) {
 
 	char buffer[32] = { 0 };
 	char *tmp;
@@ -583,7 +583,7 @@ static void dump_opus(const void *blob, size_t size) {
 }
 
 static const struct {
-	uint16_t codec_id;
+	uint32_t codec_id;
 	size_t blob_size;
 	void (*dump)(const void *, size_t);
 } dumps[] = {
@@ -613,7 +613,7 @@ static const struct {
 
 int dump(const char *config, bool detect) {
 
-	uint16_t codec_id = get_codec(config);
+	uint32_t codec_id = get_codec(config);
 	int rv = -1;
 
 	ssize_t blob_size;
