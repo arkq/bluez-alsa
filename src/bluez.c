@@ -1734,8 +1734,7 @@ void bluez_battery_provider_update(
 	g_variant_builder_add(&props, "{sv}", "Percentage",
 			ba_variant_new_device_battery(device));
 
-	g_dbus_connection_emit_properties_changed(config.dbus,
-			device->ba_battery_dbus_path, BLUEZ_IFACE_BATTERY_PROVIDER, &props, NULL);
-	g_variant_builder_clear(&props);
+	g_dbus_connection_emit_properties_changed(config.dbus, device->ba_battery_dbus_path,
+			BLUEZ_IFACE_BATTERY_PROVIDER, g_variant_builder_end(&props), NULL, NULL);
 
 }

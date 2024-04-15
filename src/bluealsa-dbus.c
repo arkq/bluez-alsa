@@ -1039,9 +1039,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 
-	g_dbus_connection_emit_properties_changed(config.dbus,
-			pcm->ba_dbus_path, BLUEALSA_IFACE_PCM, &props, NULL);
-	g_variant_builder_clear(&props);
+	g_dbus_connection_emit_properties_changed(config.dbus, pcm->ba_dbus_path,
+			BLUEALSA_IFACE_PCM, g_variant_builder_end(&props), NULL, NULL);
 
 }
 
@@ -1123,9 +1122,8 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	if (mask & BA_DBUS_RFCOMM_UPDATE_BATTERY)
 		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(r->sco->d));
 
-	g_dbus_connection_emit_properties_changed(config.dbus,
-			r->ba_dbus_path, BLUEALSA_IFACE_RFCOMM, &props, NULL);
-	g_variant_builder_clear(&props);
+	g_dbus_connection_emit_properties_changed(config.dbus, r->ba_dbus_path,
+			BLUEALSA_IFACE_RFCOMM, g_variant_builder_end(&props), NULL, NULL);
 
 }
 

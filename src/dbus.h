@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -70,8 +70,8 @@ void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
 		void *userdata, GDestroyNotify userdata_free_func);
 
 bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
-		const char *path, const char *interface, GVariantBuilder *props,
-		GError **error);
+		const char *path, const char *interface, GVariant *changed,
+		GVariant *invalidated, GError **error);
 
 GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
 		const char *name, const char *path, GError **error);
