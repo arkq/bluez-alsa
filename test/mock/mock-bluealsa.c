@@ -43,6 +43,7 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "ble-midi.h"
+#include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "codec-sbc.h"
 #include "hfp.h"
@@ -235,10 +236,18 @@ static int mock_transport_acquire_bt(struct ba_transport *t) {
 	return bt_fds[0];
 }
 
-static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac) {
+static struct ba_device *mock_device_new(const char *btmac) {
 
 	bdaddr_t addr;
 	str2ba(btmac, &addr);
+
+	struct ba_adapter *a;
+	if ((a = ba_adapter_lookup(MOCK_ADAPTER_ID)) == NULL) {
+		a = ba_adapter_new(MOCK_ADAPTER_ID);
+		/* make dummy test HCI mSBC-ready */
+		a->hci.features[2] = LMP_TRSP_SCO;
+		a->hci.features[3] = LMP_ESCO;
+	}
 
 	struct ba_device *d;
 	if ((d = ba_device_lookup(a, &addr)) == NULL) {
@@ -247,6 +256,7 @@ static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac
 		d->battery.charge = 75;
 	}
 
+	ba_adapter_unref(a);
 	return d;
 }
 
@@ -256,7 +266,7 @@ static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
 
 	usleep(mock_fuzzing_ms * 1000);
 
-	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
+	struct ba_device *d = mock_device_new(device_btmac);
 	const char *dbus_owner = g_dbus_connection_get_unique_name(config.dbus);
 	struct ba_transport *t = ba_transport_new_a2dp(d, profile, dbus_owner, dbus_path,
 			codec, configuration);
@@ -310,7 +320,7 @@ static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
 
 	usleep(mock_fuzzing_ms * 1000);
 
-	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
+	struct ba_device *d = mock_device_new(device_btmac);
 	const char *dbus_owner = g_dbus_connection_get_unique_name(config.dbus);
 
 	int fds[2];
@@ -348,7 +358,7 @@ static struct ba_transport *mock_transport_new_midi(const char *device_btmac,
 
 	usleep(mock_fuzzing_ms * 1000);
 
-	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
+	struct ba_device *d = mock_device_new(device_btmac);
 	struct ba_transport *t = ba_transport_new_midi(d, profile, ":0", dbus_path);
 
 	ba_transport_acquire(t);
@@ -370,11 +380,9 @@ static struct ba_transport *mock_transport_new_midi(const char *device_btmac,
 }
 #endif
 
-static void *mock_bluealsa_service_thread(void *userdata) {
-	(void)userdata;
+void mock_bluealsa_run(void) {
 
 	GPtrArray *tt = g_ptr_array_new();
-	size_t i;
 
 	if (config.profile.a2dp_source) {
 
@@ -476,7 +484,7 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 
 	mock_sem_wait(mock_sem_timeout);
 
-	for (i = 0; i < tt->len; i++) {
+	for (size_t i = 0; i < tt->len; i++) {
 		usleep(mock_fuzzing_ms * 1000);
 		ba_transport_destroy(tt->pdata[i]);
 	}
@@ -484,30 +492,52 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 	usleep(mock_fuzzing_ms * 1000);
 
 	g_ptr_array_free(tt, TRUE);
-	mock_sem_signal(mock_sem_quit);
-	return NULL;
+
 }
 
-void mock_bluealsa_dbus_name_acquired(GDBusConnection *conn, const char *name, void *userdata) {
-	(void)conn;
-	(void)userdata;
-
-	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
+static void mock_ba_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
+		const char *name, void *userdata) {
 
 	/* do not generate lots of data */
 	config.sbc_quality = SBC_QUALITY_LOW;
-
 	/* initialize codec capabilities */
 	a2dp_codecs_init();
 
-	/* emulate dummy test HCI device */
-	assert((mock_adapter = ba_adapter_new(MOCK_ADAPTER_ID)) != NULL);
+	/* register D-Bus interfaces */
+	bluealsa_dbus_register();
 
-	/* make HCI mSBC-ready */
-	mock_adapter->hci.features[2] = LMP_TRSP_SCO;
-	mock_adapter->hci.features[3] = LMP_ESCO;
+	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
+	mock_sem_signal(userdata);
 
-	/* run actual BlueALSA mock thread */
-	g_thread_unref(g_thread_new(NULL, mock_bluealsa_service_thread, NULL));
+}
 
+static GThread *mock_ba_thread = NULL;
+static GMainLoop *mock_ba_main_loop = NULL;
+
+static void *mock_ba_loop_run(void *userdata) {
+
+	g_autoptr(GMainContext) context = g_main_context_new();
+	mock_ba_main_loop = g_main_loop_new(context, FALSE);
+	g_main_context_push_thread_default(context);
+
+	g_assert(g_bus_own_name_on_connection(config.dbus, mock_ba_service_name,
+				G_BUS_NAME_OWNER_FLAGS_NONE, mock_ba_dbus_name_acquired, NULL,
+				userdata, NULL) != 0);
+
+	g_main_loop_run(mock_ba_main_loop);
+
+	g_main_context_pop_thread_default(context);
+	return NULL;
+}
+
+void mock_bluealsa_service_start(void) {
+	g_autoptr(GAsyncQueue) ready = g_async_queue_new();
+	mock_ba_thread = g_thread_new("bluealsa", mock_ba_loop_run, ready);
+	mock_sem_wait(ready);
+}
+
+void mock_bluealsa_service_stop(void) {
+	g_main_loop_quit(mock_ba_main_loop);
+	g_main_loop_unref(mock_ba_main_loop);
+	g_thread_join(mock_ba_thread);
 }

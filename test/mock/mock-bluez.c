@@ -18,6 +18,7 @@
 #include <gio/gio.h>
 #include <glib.h>
 
+#include "ba-config.h"
 #include "bluez-iface.h"
 #include "utils.h"
 #include "shared/defs.h"
@@ -148,9 +149,8 @@ int mock_bluez_device_name_mapping_add(const char *mapping) {
 	return -1;
 }
 
-void mock_bluez_dbus_name_acquired(GDBusConnection *conn, const char *name, void *userdata) {
-	(void)name;
-	(void)userdata;
+static void mock_bluez_dbus_name_acquired(GDBusConnection *conn,
+		G_GNUC_UNUSED const char *name, void *userdata) {
 
 	g_dbus_connection_register_object(conn, MOCK_BLUEZ_DEVICE_PATH_1,
 			&bluez_iface_device, &bluez_device_vtable, NULL, NULL, NULL);
@@ -162,4 +162,37 @@ void mock_bluez_dbus_name_acquired(GDBusConnection *conn, const char *name, void
 	g_dbus_connection_register_object(conn, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
 			&bluez_iface_media_transport, &bluez_media_transport_vtable, NULL, NULL, NULL);
 
+	mock_sem_signal(userdata);
+
+}
+
+static GThread *mock_bluez_thread = NULL;
+static GMainLoop *mock_bluez_main_loop = NULL;
+
+static void *mock_bluez_loop_run(void *userdata) {
+
+	g_autoptr(GMainContext) context = g_main_context_new();
+	mock_bluez_main_loop = g_main_loop_new(context, FALSE);
+	g_main_context_push_thread_default(context);
+
+	g_assert(g_bus_own_name_on_connection(config.dbus, BLUEZ_SERVICE,
+				G_BUS_NAME_OWNER_FLAGS_NONE, mock_bluez_dbus_name_acquired, NULL,
+				userdata, NULL) != 0);
+
+	g_main_loop_run(mock_bluez_main_loop);
+
+	g_main_context_pop_thread_default(context);
+	return NULL;
+}
+
+void mock_bluez_service_start(void) {
+	g_autoptr(GAsyncQueue) ready = g_async_queue_new();
+	mock_bluez_thread = g_thread_new("bluez", mock_bluez_loop_run, ready);
+	mock_sem_wait(ready);
+}
+
+void mock_bluez_service_stop(void) {
+	g_main_loop_quit(mock_bluez_main_loop);
+	g_main_loop_unref(mock_bluez_main_loop);
+	g_thread_join(mock_bluez_thread);
 }

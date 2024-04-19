@@ -34,11 +34,8 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#include "ba-adapter.h"
 #include "ba-config.h"
-#include "bluealsa-dbus.h"
 #include "bluealsa-iface.h"
-#include "bluez-iface.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
@@ -46,9 +43,8 @@
 
 #define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-mock-storage"
 
-struct ba_adapter *mock_adapter = NULL;
 GAsyncQueue *mock_sem_timeout = NULL;
-GAsyncQueue *mock_sem_quit = NULL;
+char mock_ba_service_name[32] = BLUEALSA_SERVICE;
 bool mock_dump_output = false;
 int mock_fuzzing_ms = 0;
 
@@ -86,7 +82,6 @@ int main(int argc, char *argv[]) {
 		{ 0, 0, 0, 0 },
 	};
 
-	char ba_service[32] = BLUEALSA_SERVICE;
 	int timeout_ms = 5000;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
@@ -106,7 +101,8 @@ int main(int argc, char *argv[]) {
 					argv[0]);
 			return EXIT_SUCCESS;
 		case 'B' /* --dbus=NAME */ :
-			snprintf(ba_service, sizeof(ba_service), BLUEALSA_SERVICE ".%s", optarg);
+			snprintf(mock_ba_service_name, sizeof(mock_ba_service_name),
+					BLUEALSA_SERVICE ".%s", optarg);
 			break;
 		case 'p' /* --profile=NAME */ : {
 
@@ -195,33 +191,26 @@ int main(int argc, char *argv[]) {
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	/* thread synchronization queues (semaphores) */
+	/* thread synchronization queue (semaphore) */
 	mock_sem_timeout = g_async_queue_new();
-	mock_sem_quit = g_async_queue_new();
 
 	/* main loop with graceful termination handlers */
-	GMainLoop *loop = g_main_loop_new(NULL, FALSE);
-	GThread *loop_th = g_thread_new(NULL, mock_main_loop_run, loop);
+	g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
+	g_autoptr(GThread) loop_th = g_thread_new(NULL, mock_main_loop_run, loop);
 	g_timeout_add(timeout_ms, mock_sem_signal_handler, mock_sem_timeout);
-	g_unix_signal_add(SIGINT, mock_sem_signal_handler, mock_sem_quit);
-	g_unix_signal_add(SIGTERM, mock_sem_signal_handler, mock_sem_quit);
+	g_unix_signal_add(SIGINT, mock_sem_signal_handler, mock_sem_timeout);
+	g_unix_signal_add(SIGTERM, mock_sem_signal_handler, mock_sem_timeout);
 
-	bluealsa_dbus_register();
-
-	assert(g_bus_own_name_on_connection(config.dbus, ba_service,
-				G_BUS_NAME_OWNER_FLAGS_NONE, mock_bluealsa_dbus_name_acquired, NULL,
-				NULL, NULL) != 0);
-	assert(g_bus_own_name_on_connection(config.dbus, BLUEZ_SERVICE,
-				G_BUS_NAME_OWNER_FLAGS_NONE, mock_bluez_dbus_name_acquired, NULL,
-				NULL, NULL) != 0);
+	mock_bluez_service_start();
+	mock_bluealsa_service_start();
 
 	/* run mock until timeout or SIGINT/SIGTERM */
-	mock_sem_wait(mock_sem_quit);
+	mock_bluealsa_run();
 
-	ba_adapter_destroy(mock_adapter);
+	mock_bluealsa_service_stop();
+	mock_bluez_service_stop();
 
 	g_main_loop_quit(loop);
-	g_main_loop_unref(loop);
 	g_thread_join(loop_th);
 
 	return EXIT_SUCCESS;

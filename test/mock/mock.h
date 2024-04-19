@@ -1,6 +1,6 @@
 /*
  * mock.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -14,7 +14,6 @@
 
 #include <stdbool.h>
 
-#include <gio/gio.h>
 #include <glib.h>
 
 #define MOCK_ADAPTER_ID 0
@@ -30,17 +29,18 @@
 #define MOCK_BLUEZ_SCO_PATH_1 MOCK_BLUEZ_DEVICE_PATH_1 "/sco"
 #define MOCK_BLUEZ_SCO_PATH_2 MOCK_BLUEZ_DEVICE_PATH_2 "/sco"
 
-extern struct ba_adapter *mock_adapter;
-
 extern GAsyncQueue *mock_sem_timeout;
-extern GAsyncQueue *mock_sem_quit;
-
+extern char mock_ba_service_name[32];
 extern bool mock_dump_output;
 extern int mock_fuzzing_ms;
 
+void mock_bluealsa_run(void);
+void mock_bluealsa_service_start(void);
+void mock_bluealsa_service_stop(void);
+
 int mock_bluez_device_name_mapping_add(const char *mapping);
-void mock_bluealsa_dbus_name_acquired(GDBusConnection *conn, const char *name, void *userdata);
-void mock_bluez_dbus_name_acquired(GDBusConnection *conn, const char *name, void *userdata);
+void mock_bluez_service_start(void);
+void mock_bluez_service_stop(void);
 
 void mock_sem_signal(GAsyncQueue *sem);
 void mock_sem_wait(GAsyncQueue *sem);
