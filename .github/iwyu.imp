@@ -27,6 +27,7 @@
 	{ include: [ '"dbus/dbus-shared.h"', private, '<dbus/dbus.h>', public ] },
 
 	{ include: [ '<glib/gtypes.h>', private, '<glib.h>', public ] },
+	{ include: [ '"gobject/gclosure.h"', private, '<glib-object.h>', public ] },
 	{ include: [ '"gio/gdbusinterfaceskeleton.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectmanagerserver.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectskeleton.h"', private, '<gio/gio.h>', public ] },

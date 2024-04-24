@@ -1,0 +1,32 @@
+<!-- BlueALSA - mock-bluez-iface.xml
+     Copyright (c) 2016-2024 Arkadiusz Bokowy
+
+     This file is a part of bluez-alsa.
+
+     This project is licensed under the terms of the MIT license.
+-->
+<node>
+
+	<!-- NOTE: Due to a bug in gdbus-codegen in glib prior to 2.61.0,
+	           the first interface must have at least one method.
+	-->
+
+	<interface name="org.bluez.Adapter1">
+		<method name="StartDiscovery" />
+		<property name="Address" type="s" access="read" />
+	</interface>
+
+	<interface name="org.bluez.Device1">
+		<method name="Connect" />
+		<property name="Adapter" type="o" access="read" />
+		<property name="Alias" type="s" access="readwrite" />
+		<property name="Icon" type="s" access="read" />
+	</interface>
+
+	<interface name="org.bluez.MediaTransport1">
+		<method name="Release" />
+		<property name="Device" type="o" access="read" />
+		<property name="State" type="s" access="read" />
+	</interface>
+
+</node>

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.c
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -15,11 +15,6 @@
 
 static bool dbus_message_iter_get_basic_boolean(DBusMessageIter *iter) {
 	dbus_bool_t tmp;
-	return dbus_message_iter_get_basic(iter, &tmp), tmp;
-}
-
-static unsigned int dbus_message_iter_get_basic_integer(DBusMessageIter *iter) {
-	dbus_uint32_t tmp;
 	return dbus_message_iter_get_basic(iter, &tmp), tmp;
 }
 
@@ -107,14 +102,8 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 			str2ba(dbus_message_iter_get_basic_string(&iter_entry_val), &dev->bt_addr);
 		else if (strcmp(key, "Alias") == 0)
 			strncpy(dev->name, dbus_message_iter_get_basic_string(&iter_entry_val), sizeof(dev->name) - 1);
-		else if (strcmp(key, "Class") == 0)
-			dev->class_ = dbus_message_iter_get_basic_integer(&iter_entry_val);
 		else if (strcmp(key, "Icon") == 0)
 			strncpy(dev->icon, dbus_message_iter_get_basic_string(&iter_entry_val), sizeof(dev->icon) - 1);
-		else if (strcmp(key, "Blocked") == 0)
-			dev->blocked = dbus_message_iter_get_basic_boolean(&iter_entry_val);
-		else if (strcmp(key, "Connected") == 0)
-			dev->connected = dbus_message_iter_get_basic_boolean(&iter_entry_val);
 		else if (strcmp(key, "Paired") == 0)
 			dev->paired = dbus_message_iter_get_basic_boolean(&iter_entry_val);
 		else if (strcmp(key, "Trusted") == 0)

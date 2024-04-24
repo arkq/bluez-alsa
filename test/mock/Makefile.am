@@ -34,7 +34,15 @@ bluealsa_mock_SOURCES = \
 	../../src/utils.c \
 	mock-bluealsa.c \
 	mock-bluez.c \
+	mock-bluez-iface.c \
 	mock.c
+
+mock-bluez.c: mock-bluez-iface.h
+mock-bluez-iface.c: mock-bluez-iface.h
+
+MOSTLYCLEANFILES = \
+	mock-bluez-iface.c \
+	mock-bluez-iface.h
 
 bluealsa_mock_CFLAGS = \
 	-I$(top_srcdir)/src \
@@ -125,3 +133,19 @@ bluealsa_mock_SOURCES += \
 	../../src/codec-msbc.c \
 	../../src/sco-msbc.c
 endif
+
+.xml.h:
+	gdbus-codegen --output $@ \
+		--interface-prefix org \
+		--c-namespace Mock \
+		--c-generate-autocleanup all \
+		--c-generate-object-manager \
+		--header $<
+
+.xml.c:
+	gdbus-codegen --output $@ \
+		--interface-prefix org \
+		--c-namespace Mock \
+		--c-generate-autocleanup all \
+		--c-generate-object-manager \
+		--body $<
