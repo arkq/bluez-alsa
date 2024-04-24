@@ -21,6 +21,8 @@ bluealsa_mock_SOURCES = \
 	../../src/ba-transport-pcm.c \
 	../../src/bluealsa-dbus.c \
 	../../src/bluealsa-iface.c \
+	../../src/bluez.c \
+	../../src/bluez-iface.c \
 	../../src/codec-sbc.c \
 	../../src/dbus.c \
 	../../src/h2.c \
@@ -121,6 +123,7 @@ endif
 if ENABLE_MIDI
 bluealsa_mock_SOURCES += \
 	../../src/ble-midi.c \
+	../../src/bluez-midi.c \
 	../../src/midi.c
 endif
 

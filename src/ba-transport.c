@@ -107,7 +107,7 @@ static void transport_threads_cancel(struct ba_transport *t) {
 	t->stopping = false;
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-	pthread_cond_broadcast(&t->stopped);
+	pthread_cond_broadcast(&t->stopped_cond);
 
 }
 
@@ -250,7 +250,7 @@ static struct ba_transport *transport_new(
 	pthread_mutex_init(&t->codec_select_client_mtx, NULL);
 	pthread_mutex_init(&t->bt_fd_mtx, NULL);
 	pthread_mutex_init(&t->acquisition_mtx, NULL);
-	pthread_cond_init(&t->stopped, NULL);
+	pthread_cond_init(&t->stopped_cond, NULL);
 
 	t->bt_fd = -1;
 
@@ -364,6 +364,17 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 			else
 				goto fail;
 		}
+		else {
+
+			/* When A2DP transport is released, its state is set to idle. Such
+			 * change is notified by BlueZ via D-Bus asynchronous D-Bus signal.
+			 * We have to wait for the state change here, because otherwise we
+			 * might receive this state change signal in the middle of transport
+			 * acquisition, which would lead us to an undefined state. */
+			while (t->a2dp.state != BLUEZ_A2DP_TRANSPORT_STATE_IDLE)
+				pthread_cond_wait(&t->a2dp.state_changed_cond, &t->bt_fd_mtx);
+
+		}
 
 	}
 
@@ -403,9 +414,11 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	t->profile = profile;
 
+	pthread_cond_init(&t->a2dp.state_changed_cond, NULL);
+	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
+
 	t->a2dp.codec = codec;
 	memcpy(&t->a2dp.configuration, configuration, codec->capabilities_size);
-	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 
 	err |= transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
@@ -752,6 +765,9 @@ void ba_transport_destroy(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm_bc);
+		/* Make sure that the transport A2DP state is set to idle
+		 * prior to stopping the IO threads. */
+		ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_IDLE);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.pcm_spk);
@@ -841,6 +857,7 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		transport_pcm_free(&t->a2dp.pcm);
 		transport_pcm_free(&t->a2dp.pcm_bc);
+		pthread_cond_destroy(&t->a2dp.state_changed_cond);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
@@ -864,7 +881,7 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (t->thread_manager_pipe[1] != -1)
 		close(t->thread_manager_pipe[1]);
 
-	pthread_cond_destroy(&t->stopped);
+	pthread_cond_destroy(&t->stopped_cond);
 	pthread_mutex_destroy(&t->bt_fd_mtx);
 	pthread_mutex_destroy(&t->acquisition_mtx);
 	pthread_mutex_destroy(&t->codec_select_client_mtx);
@@ -1095,7 +1112,7 @@ int ba_transport_stop(struct ba_transport *t) {
 		goto fail;
 
 	while (t->stopping)
-		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
+		pthread_cond_wait(&t->stopped_cond, &t->bt_fd_mtx);
 
 fail:
 	pthread_mutex_unlock(&t->bt_fd_mtx);
@@ -1169,7 +1186,7 @@ int ba_transport_acquire(struct ba_transport *t) {
 	/* If we are in the middle of IO threads stopping, wait until all resources
 	 * are reclaimed, so we can acquire them in a clean way once more. */
 	while (t->stopping)
-		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
+		pthread_cond_wait(&t->stopped_cond, &t->bt_fd_mtx);
 
 	/* If BT socket file descriptor is still valid, we
 	 * can safely reuse it (e.g. in a keep-alive mode). */
@@ -1239,18 +1256,34 @@ final:
 int ba_transport_set_a2dp_state(
 		struct ba_transport *t,
 		enum bluez_a2dp_transport_state state) {
-	switch (t->a2dp.state = state) {
-	case BLUEZ_A2DP_TRANSPORT_STATE_PENDING:
-		/* When transport is marked as pending, try to acquire transport, but only
-		 * if we are handing A2DP sink profile. For source profile, transport has
-		 * to be acquired by our controller (during the PCM open request). */
-		if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
-			return ba_transport_acquire(t);
-		return 0;
-	case BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE:
-		return ba_transport_start(t);
-	case BLUEZ_A2DP_TRANSPORT_STATE_IDLE:
-	default:
-		return ba_transport_stop(t);
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	bool changed = t->a2dp.state != state;
+	t->a2dp.state = state;
+
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+
+	if (changed) {
+
+		pthread_cond_signal(&t->a2dp.state_changed_cond);
+
+		switch (state) {
+		case BLUEZ_A2DP_TRANSPORT_STATE_PENDING:
+			/* When transport is marked as pending, try to acquire transport,
+			 * but only if we are handing A2DP sink profile. For source profile,
+			 * transport has to be acquired by our controller (during the PCM
+			 * open request). */
+			if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
+				return ba_transport_acquire(t);
+			return 0;
+		case BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE:
+			return ba_transport_start(t);
+		case BLUEZ_A2DP_TRANSPORT_STATE_IDLE:
+			return ba_transport_stop(t);
+		}
+
 	}
+
+	return 0;
 }

@@ -1620,7 +1620,7 @@ static unsigned int bluez_bus_watch_id = 0;
 
 /**
  * Subscribe to BlueZ signals. */
-static void bluez_signals_subscribe(void) {
+void bluez_signals_subscribe(void) {
 
 	bluez_sig_sub_id_iface_added = g_dbus_connection_signal_subscribe(config.dbus,
 			BLUEZ_SERVICE, DBUS_IFACE_OBJECT_MANAGER, "InterfacesAdded", NULL, NULL,

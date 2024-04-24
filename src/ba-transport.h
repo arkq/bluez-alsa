@@ -108,7 +108,7 @@ struct ba_transport {
 	int thread_manager_pipe[2];
 
 	/* indicates IO threads stopping */
-	pthread_cond_t stopped;
+	pthread_cond_t stopped_cond;
 	bool stopping;
 
 	union {
@@ -119,6 +119,7 @@ struct ba_transport {
 			const char *bluez_dbus_sep_path;
 
 			/* current state of the transport */
+			pthread_cond_t state_changed_cond;
 			enum bluez_a2dp_transport_state state;
 
 			/* audio codec configuration capabilities */

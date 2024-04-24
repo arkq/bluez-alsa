@@ -19,8 +19,10 @@
 
 #include "ba-config.h"
 #include "bluez-iface.h"
-#include "mock-bluez-iface.h"
+#include "dbus.h"
 #include "shared/defs.h"
+
+#include "mock-bluez-iface.h"
 
 /* Bluetooth device name mappings in form of "MAC:name". */
 static const char * devices[8] = { NULL };
@@ -68,6 +70,16 @@ static void mock_bluez_device_add(const char *path, const char *adapter, const c
 static gboolean mock_bluez_media_transport_release_handler(MockBluezMediaTransport1 *transport,
 		GDBusMethodInvocation *invocation, G_GNUC_UNUSED void *userdata) {
 	mock_bluez_media_transport1_complete_release(transport, invocation);
+
+	GVariantBuilder props;
+	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_add(&props, "{sv}", "State", g_variant_new_string("idle"));
+	GDBusConnection *conn = g_dbus_method_invocation_get_connection(invocation);
+	const char *path = g_dbus_method_invocation_get_object_path(invocation);
+	const char *iface = g_dbus_method_invocation_get_interface_name(invocation);
+	g_dbus_connection_emit_properties_changed(conn, path, iface,
+			g_variant_builder_end(&props), NULL, NULL);
+
 	return TRUE;
 }
 

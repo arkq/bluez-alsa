@@ -94,18 +94,7 @@ static const a2dp_faststream_t config_faststream_44100_16000 = {
 };
 #endif
 
-bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep *sep, GError **error) {
-	debug("%s: %s", __func__, current_dbus_sep_path);
-	(void)current_dbus_sep_path; (void)sep;
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED, "Not supported");
-	return false;
-}
-
-void bluez_battery_provider_update(struct ba_device *device) {
-	debug("%s: %p", __func__, device);
-	(void)device;
-}
+void bluez_signals_subscribe(void);
 
 int ofono_call_volume_update(struct ba_transport *transport) {
 	debug("%s: %p", __func__, transport);
@@ -505,6 +494,8 @@ static void mock_ba_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 
 	/* register D-Bus interfaces */
 	bluealsa_dbus_register();
+	/* subscribe for BlueZ signals */
+	bluez_signals_subscribe();
 
 	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
 	mock_sem_signal(userdata);
