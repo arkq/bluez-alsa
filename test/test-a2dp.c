@@ -24,6 +24,7 @@
 #include "a2dp.h"
 #include "a2dp-aac.h"
 #include "a2dp-aptx.h"
+#include "a2dp-faststream.h"
 #include "a2dp-sbc.h"
 #include "ba-config.h"
 #include "ba-transport.h"
@@ -172,6 +173,29 @@ CK_START_TEST(test_a2dp_check_configuration) {
 		.channels = AAC_CHANNELS_1 };
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_aac_source,
 			&cfg_aac_invalid, sizeof(cfg_aac_invalid)), A2DP_CHECK_ERR_OBJECT_TYPE);
+#endif
+
+#if ENABLE_FASTSTREAM
+
+	a2dp_faststream_t cfg_faststream = {
+		.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID) };
+
+	/* FastStream codec requires at least one direction to be set. */
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
+			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_ERR_DIRECTIONS);
+
+	/* Check for valid unidirectional configuration. */
+	cfg_faststream.direction |= FASTSTREAM_DIRECTION_MUSIC;
+	cfg_faststream.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
+			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_OK);
+
+	/* Check for valid bidirectional configuration. */
+	cfg_faststream.direction |= FASTSTREAM_DIRECTION_VOICE;
+	cfg_faststream.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000;
+	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
+			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_OK);
+
 #endif
 
 } CK_END_TEST

@@ -298,21 +298,19 @@ static int a2dp_faststream_configuration_check(
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
-	switch (conf_v.direction) {
-	case FASTSTREAM_DIRECTION_MUSIC:
-	case FASTSTREAM_DIRECTION_VOICE:
-		break;
-	default:
+	if ((conf_v.direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 		debug("FastStream: Invalid direction: %#x", conf->direction);
 		return A2DP_CHECK_ERR_DIRECTIONS;
 	}
 
-	if (a2dp_sampling_lookup(a2dp_faststream_samplings_voice, conf_v.frequency_voice) == NULL) {
+	if (conf_v.direction & FASTSTREAM_DIRECTION_VOICE &&
+			a2dp_sampling_lookup(a2dp_faststream_samplings_voice, conf_v.frequency_voice) == NULL) {
 		debug("FastStream: Invalid voice sampling frequency: %#x", conf->frequency_voice);
 		return A2DP_CHECK_ERR_SAMPLING_VOICE;
 	}
 
-	if (a2dp_sampling_lookup(a2dp_faststream_samplings_music, conf_v.frequency_music) == NULL) {
+	if (conf_v.direction & FASTSTREAM_DIRECTION_MUSIC &&
+			a2dp_sampling_lookup(a2dp_faststream_samplings_music, conf_v.frequency_music) == NULL) {
 		debug("FastStream: Invalid music sampling frequency: %#x", conf->frequency_music);
 		return A2DP_CHECK_ERR_SAMPLING_MUSIC;
 	}

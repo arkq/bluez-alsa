@@ -196,7 +196,7 @@ int main(int argc, char *argv[]) {
 
 	/* main loop with graceful termination handlers */
 	g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
-	g_autoptr(GThread) loop_th = g_thread_new(NULL, mock_main_loop_run, loop);
+	GThread *loop_th = g_thread_new(NULL, mock_main_loop_run, loop);
 	g_timeout_add(timeout_ms, mock_sem_signal_handler, mock_sem_timeout);
 	g_unix_signal_add(SIGINT, mock_sem_signal_handler, mock_sem_timeout);
 	g_unix_signal_add(SIGTERM, mock_sem_signal_handler, mock_sem_timeout);

@@ -74,7 +74,7 @@ CK_START_TEST(test_ba_service_not_running) {
 	char output[4096];
 
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"status", NULL), EXIT_FAILURE);
+				"--dbus=test", "status", NULL), EXIT_FAILURE);
 
 } CK_END_TEST
 
