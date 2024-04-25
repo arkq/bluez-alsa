@@ -17,6 +17,11 @@ race:dbus_watch_handle
 # we cannot avoid false positives.
 called_from_lib:dbus-daemon
 
+# Due to issues with glib-2.0 and TSAN, it is not possible to run
+# entire BlueALSA service under TSAN. Therefore, we are excluding
+# the mock test server from the TSAN analysis...
+race:mock
+
 # We are not interested in data races in PulseAudio
 called_from_lib:libpulsecommon-*.so
 called_from_lib:libpulse.so.0

@@ -1310,8 +1310,9 @@ static void bluez_register(void) {
 	size_t i;
 	struct ba_adapter *a;
 	for (i = 0; i < ARRAYSIZE(adapters); i++)
-		if (adapters[i] &&
-				(a = ba_adapter_new(i)) != NULL) {
+		if (adapters[i] && (
+				(a = ba_adapter_lookup(i)) != NULL ||
+				(a = ba_adapter_new(i)) != NULL)) {
 
 			for (size_t ii = 0; ii < ARRAYSIZE(uuids); ii++)
 				if (uuids[ii].enabled && !uuids[ii].global && adapters_profiles[i] & uuids[ii].profile)
@@ -1406,8 +1407,9 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	g_variant_iter_free(interfaces);
 
 	struct ba_adapter *a;
-	if (hci_dev_id != -1 &&
-			(a = ba_adapter_new(hci_dev_id)) != NULL) {
+	if (hci_dev_id != -1 && (
+			(a = ba_adapter_lookup(hci_dev_id)) != NULL ||
+			(a = ba_adapter_new(hci_dev_id)) != NULL)) {
 		bluez_adapter_new(a);
 	}
 
@@ -1620,7 +1622,7 @@ static unsigned int bluez_bus_watch_id = 0;
 
 /**
  * Subscribe to BlueZ signals. */
-void bluez_signals_subscribe(void) {
+static void bluez_signals_subscribe(void) {
 
 	bluez_sig_sub_id_iface_added = g_dbus_connection_signal_subscribe(config.dbus,
 			BLUEZ_SERVICE, DBUS_IFACE_OBJECT_MANAGER, "InterfacesAdded", NULL, NULL,

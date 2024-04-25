@@ -62,6 +62,8 @@ aloader_la_LDFLAGS = \
 	-rpath /nowhere \
 	-avoid-version \
 	-shared -module
+aloader_la_LIBADD = \
+	@ALSA_LIBS@
 
 test_a2dp_SOURCES = \
 	../src/shared/a2dp-codecs.c \

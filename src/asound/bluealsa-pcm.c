@@ -1271,7 +1271,7 @@ static bool bluealsa_select_pcm_codec(struct bluealsa_pcm *pcm, const char *code
 	const char *config_hex;
 	/* split the given string into name and configuration components */
 	if ((config_hex = strchr(codec, ':')) != NULL) {
-		name_len = MIN(name_len, config_hex - codec);
+		name_len = MIN(name_len, (size_t)(config_hex - codec));
 		config_hex++;
 
 		size_t config_hex_len;

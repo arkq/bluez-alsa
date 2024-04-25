@@ -246,7 +246,7 @@ static dbus_bool_t ba_dbus_message_iter_pcm_codec_get_props_cb(const char *key,
 		dbus_message_iter_recurse(&variant, &iter);
 		dbus_message_iter_get_fixed_array(&iter, &data, &len);
 
-		codec->data_len = MIN(len, sizeof(codec->data));
+		codec->data_len = MIN((size_t)len, sizeof(codec->data));
 		memcpy(codec->data, data, codec->data_len);
 
 	}
@@ -725,7 +725,7 @@ static dbus_bool_t dbus_message_iter_get_ba_pcm_props_cb(const char *key,
 		dbus_message_iter_recurse(&variant, &iter);
 		dbus_message_iter_get_fixed_array(&iter, &data, &len);
 
-		pcm->codec.data_len = MIN(len, sizeof(pcm->codec.data));
+		pcm->codec.data_len = MIN((size_t)len, sizeof(pcm->codec.data));
 		memcpy(pcm->codec.data, data, pcm->codec.data_len);
 
 	}

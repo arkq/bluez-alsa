@@ -23,10 +23,66 @@
 		<property name="Icon" type="s" access="read" />
 	</interface>
 
+	<interface name="org.bluez.GattManager1">
+		<method name="RegisterApplication">
+			<arg name="root" type="o" direction="in" />
+			<arg name="options" type="a{sv}" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.Media1">
+		<method name="RegisterApplication">
+			<arg name="root" type="o" direction="in" />
+			<arg name="options" type="a{sv}" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.MediaEndpoint1">
+		<method name="SetConfiguration">
+			<arg direction="in" type="o" name="transport" />
+			<arg direction="in" type="a{sv}" name="properties" />
+		</method>
+		<property name="UUID" type="s" access="read" />
+		<property name="Codec" type="y" access="read" />
+		<property name="Vendor" type="u" access="read" />
+		<property name="Capabilities" type="ay" access="read" />
+		<property name="Device" type="o" access="read" />
+		<property name="DelayReporting" type="b" access="read" />
+	</interface>
+
 	<interface name="org.bluez.MediaTransport1">
+		<method name="Acquire">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg name="fd" type="h" direction="out" />
+			<arg name="mtu_read" type="q" direction="out" />
+			<arg name="mtu_write" type="q" direction="out" />
+		</method>
+		<method name="TryAcquire">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg name="fd" type="h" direction="out" />
+			<arg name="mtu_read" type="q" direction="out" />
+			<arg name="mtu_write" type="q" direction="out" />
+		</method>
 		<method name="Release" />
 		<property name="Device" type="o" access="read" />
 		<property name="State" type="s" access="read" />
+	</interface>
+
+	<interface name="org.bluez.ProfileManager1">
+		<method name="RegisterProfile">
+			<arg name="profile" type="o" direction="in" />
+			<arg name="uuid" type="s" direction="in" />
+			<arg name="options" type="a{sv}" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.Profile1">
+		<method name="NewConnection">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg direction="in" type="o" name="device"/>
+			<arg direction="in" type="h" name="fd"/>
+			<arg direction="in" type="a{sv}" name="properties"/>
+		</method>
 	</interface>
 
 </node>

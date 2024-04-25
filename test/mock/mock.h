@@ -13,6 +13,8 @@
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include <glib.h>
 
@@ -23,12 +25,11 @@
 #define MOCK_BLUEZ_ADAPTER_PATH "/org/bluez/hci0"
 #define MOCK_BLUEZ_DEVICE_PATH_1 MOCK_BLUEZ_ADAPTER_PATH "/dev_12_34_56_78_9A_BC"
 #define MOCK_BLUEZ_DEVICE_PATH_2 MOCK_BLUEZ_ADAPTER_PATH "/dev_23_45_67_89_AB_CD"
-#define MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_1 MOCK_BLUEZ_DEVICE_PATH_1 "/fdX"
-#define MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2 MOCK_BLUEZ_DEVICE_PATH_2 "/fdX"
-#define MOCK_BLUEZ_MIDI_PATH_1 MOCK_BLUEZ_DEVICE_PATH_1 "/midi"
+#define MOCK_BLUEZ_MIDI_PATH_1 MOCK_BLUEZ_ADAPTER_PATH "/MIDI"
 #define MOCK_BLUEZ_SCO_PATH_1 MOCK_BLUEZ_DEVICE_PATH_1 "/sco"
 #define MOCK_BLUEZ_SCO_PATH_2 MOCK_BLUEZ_DEVICE_PATH_2 "/sco"
 
+extern GAsyncQueue *mock_sem_ready;
 extern GAsyncQueue *mock_sem_timeout;
 extern char mock_ba_service_name[32];
 extern bool mock_dump_output;
@@ -42,5 +43,14 @@ int mock_bluez_device_name_mapping_add(const char *mapping);
 void mock_bluez_service_start(void);
 void mock_bluez_service_stop(void);
 
+int mock_bluez_device_profile_new_connection(const char *device_path,
+		const char *uuid, GAsyncQueue *sem_ready);
+int mock_bluez_device_media_set_configuration(const char *device_path,
+		const char *transport_path, const char *uuid, uint32_t codec_id,
+		const void *configuration, size_t configuration_size,
+		GAsyncQueue *sem_ready);
+
 void mock_sem_signal(GAsyncQueue *sem);
 void mock_sem_wait(GAsyncQueue *sem);
+
+GThread *mock_bt_dump_thread_new(int fd);

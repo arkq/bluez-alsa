@@ -28,6 +28,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <gio/gio.h>
 #include <glib-unix.h>
@@ -43,6 +44,7 @@
 
 #define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-mock-storage"
 
+GAsyncQueue *mock_sem_ready = NULL;
 GAsyncQueue *mock_sem_timeout = NULL;
 char mock_ba_service_name[32] = BLUEALSA_SERVICE;
 bool mock_dump_output = false;
@@ -54,6 +56,40 @@ void mock_sem_signal(GAsyncQueue *sem) {
 
 void mock_sem_wait(GAsyncQueue *sem) {
 	g_async_queue_pop(sem);
+}
+
+static void *mock_bt_dump_thread(void *userdata) {
+
+	int bt_fd = GPOINTER_TO_INT(userdata);
+	FILE *f_output = NULL;
+	uint8_t buffer[1024];
+	ssize_t len;
+
+	if (mock_dump_output)
+		f_output = fopen("bluealsa-mock.dump", "w");
+
+	debug("IO loop: START: %s", __func__);
+	while ((len = read(bt_fd, buffer, sizeof(buffer))) > 0) {
+		fprintf(stderr, "#");
+
+		if (!mock_dump_output)
+			continue;
+
+		for (ssize_t i = 0; i < len; i++)
+			fprintf(f_output, "%02x", buffer[i]);
+		fprintf(f_output, "\n");
+
+	}
+
+	debug("IO loop: EXIT: %s", __func__);
+	if (f_output != NULL)
+		fclose(f_output);
+	close(bt_fd);
+	return NULL;
+}
+
+GThread *mock_bt_dump_thread_new(int fd) {
+	return g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(fd));
 }
 
 static void *mock_main_loop_run(void *userdata) {
@@ -177,7 +213,7 @@ int main(int argc, char *argv[]) {
 	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);
 	atexit(storage_destroy);
 
-	GTestDBus *dbus = g_test_dbus_new(G_TEST_DBUS_NONE);
+	g_autoptr(GTestDBus) dbus = g_test_dbus_new(G_TEST_DBUS_NONE);
 	g_test_dbus_up(dbus);
 
 	fprintf(stderr, "DBUS_SYSTEM_BUS_ADDRESS=%s\n", g_test_dbus_get_bus_address(dbus));
@@ -191,10 +227,11 @@ int main(int argc, char *argv[]) {
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	/* thread synchronization queue (semaphore) */
+	/* thread synchronization queues (semaphores) */
+	mock_sem_ready = g_async_queue_new();
 	mock_sem_timeout = g_async_queue_new();
 
-	/* main loop with graceful termination handlers */
+	/* Set up main loop with graceful termination handlers. */
 	g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
 	GThread *loop_th = g_thread_new(NULL, mock_main_loop_run, loop);
 	g_timeout_add(timeout_ms, mock_sem_signal_handler, mock_sem_timeout);
@@ -204,11 +241,12 @@ int main(int argc, char *argv[]) {
 	mock_bluez_service_start();
 	mock_bluealsa_service_start();
 
-	/* run mock until timeout or SIGINT/SIGTERM */
+	/* Run mock until timeout or SIGINT/SIGTERM signal. */
 	mock_bluealsa_run();
 
-	mock_bluealsa_service_stop();
+	/* Simulate BlueZ termination while BlueALSA is still running. */
 	mock_bluez_service_stop();
+	mock_bluealsa_service_stop();
 
 	g_main_loop_quit(loop);
 	g_thread_join(loop_th);

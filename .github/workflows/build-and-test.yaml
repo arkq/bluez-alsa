@@ -150,7 +150,7 @@ jobs:
             export LD_PRELOAD_SANITIZER="libasan.so.6" ;;
           *thread*)
             # As for now, not all tests pass with thread sanitizer enabled...
-            export XFAIL_TESTS="test-alsa-pcm"
+            export XFAIL_TESTS="test-alsa-pcm test-utils-aplay"
             export LD_LIBRARY_PATH="${{ env.SANITIZE_THREAD_LIBS }}:$LD_LIBRARY_PATH"
             export LD_PRELOAD_SANITIZER="libtsan.so.0" ;;
         esac

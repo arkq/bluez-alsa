@@ -104,14 +104,7 @@ static size_t workers_size = 0;
 
 static int main_loop_quit_event_fd = -1;
 static void main_loop_stop(int sig) {
-	/* Call to this handler restores the default action, so on the
-	 * second call the program will be forcefully terminated. */
-
-	struct sigaction sigact = { .sa_handler = SIG_DFL };
-	sigaction(sig, &sigact, NULL);
-
-	eventfd_write(main_loop_quit_event_fd, 1);
-
+	eventfd_write(main_loop_quit_event_fd, sig);
 }
 
 static int parse_bt_addresses(char *argv[], size_t count) {
@@ -1292,7 +1285,11 @@ int main(int argc, char *argv[]) {
 	for (size_t i = 0; i < ba_pcms_count; i++)
 		supervise_io_worker(&ba_pcms[i]);
 
-	struct sigaction sigact = { .sa_handler = main_loop_stop };
+	struct sigaction sigact = {
+		.sa_handler = main_loop_stop,
+		.sa_flags = SA_RESETHAND };
+	/* Call to these handlers restores the default action, so on the
+	 * second call the program will be forcefully terminated. */
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGINT, &sigact, NULL);
 

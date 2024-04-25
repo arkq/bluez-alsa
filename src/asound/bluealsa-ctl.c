@@ -545,7 +545,7 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 	if (name != NULL) {
 		/* multi-device mixer - include device alias in control names */
 
-		const int name_len = strlen(name);
+		const size_t name_len = strlen(name);
 		/* max name length with reserved space for ALSA suffix */
 		int len = sizeof(elem->name) - 16 - 1;
 		char no[16] = "";
@@ -556,7 +556,7 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 		}
 
 		/* get the longest possible element label */
-		int label_max_len = sizeof(" A2DP") - 1;
+		size_t label_max_len = sizeof(" A2DP") - 1;
 		if (ctl->show_bt_transport)
 			label_max_len = sizeof(" SCO-HFP-AG") - 1;
 		if (ctl->show_vol_mode)
