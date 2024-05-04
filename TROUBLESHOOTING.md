@@ -109,7 +109,16 @@ In a default install, the file should be
 documentation in case D-Bus uses a different location on your system.
 Re-install BlueALSA if the file is missing.
 
-## 4. Using BlueALSA alongside PulseAudio or PipeWire
+## 4. Couldn't open PCM: Device or resource busy
+
+BlueALSA supports only one client connection to each PCM. This error occurs
+when an application tries to set the hardware parameters for a PCM that is
+already in use. Note that `bluealsa-aplay` opens each PCM (of the appropriate
+profile) as soon as it connects, and therefore attempting to use an application
+such as `arecord` to capture from BlueALSA while `bluealsa-aplay` is running
+will result in this error.
+
+## 5. Using BlueALSA alongside PulseAudio or PipeWire
 
 It is not advisable to run BlueALSA if either PulseAudio or PipeWire are also
 running with their own Bluetooth modules enabled. If one would like to have a
@@ -135,7 +144,7 @@ modules in the wiki: [PulseAudio integration][]
 
 [PulseAudio integration]: https://github.com/arkq/bluez-alsa/wiki/PulseAudio-integration
 
-## 5. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
+## 6. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
 
 ALSA library versions 1.1.2 and 1.1.3 had a bug in their thread-safe API
 functions. This bug does not affect hardware audio devices, but it affects
