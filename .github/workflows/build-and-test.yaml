@@ -62,7 +62,7 @@ jobs:
     - name: Create Build Environment
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        sudo apt install --yes --quiet --no-install-recommends meson
+        sudo apt install --yes --quiet --no-install-recommends autoconf-archive meson
         mkdir -p ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Compile Patched GCC Thread Sanitizer Library
       if: steps.cache.outputs.cache-hit != 'true'
@@ -77,6 +77,12 @@ jobs:
         mkdir libstdc++-v3 && cd $_ && ../gcc/libstdc++-v3/configure --disable-multilib && make && cd -
         mkdir libsanitizer && cd $_ && ../gcc/libsanitizer/configure --disable-multilib && make && cd -
         mv libsanitizer/tsan/.libs/libtsan.so* ${{ env.SANITIZE_THREAD_LIBS }}
+    - name: Compile dbus-1 with Thread Sanitizer
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth=1 --branch=dbus-1.12.20 https://gitlab.freedesktop.org/dbus/dbus.git
+        cd dbus && autoreconf -i && ./configure --prefix=/usr && make CFLAGS="-O2 -g -fsanitize=thread" && cd -
+        mv dbus/dbus/.libs/libdbus-1.so* ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Compile glib-2.0 with Thread Sanitizer
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
@@ -144,7 +150,7 @@ jobs:
             export LD_PRELOAD_SANITIZER="libasan.so.6" ;;
           *thread*)
             # As for now, not all tests pass with thread sanitizer enabled...
-            export XFAIL_TESTS="test-alsa-ctl test-alsa-pcm test-utils-cli"
+            export XFAIL_TESTS="test-alsa-pcm"
             export LD_LIBRARY_PATH="${{ env.SANITIZE_THREAD_LIBS }}:$LD_LIBRARY_PATH"
             export LD_PRELOAD_SANITIZER="libtsan.so.0" ;;
         esac

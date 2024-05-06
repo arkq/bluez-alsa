@@ -40,7 +40,7 @@ int preload(int argc, char * const argv[], char * const envp[], const char *file
 
 	char app[1024];
 	char preload[1024];
-	char *envp2[128] = { preload, NULL };
+	char *envp2[256] = { preload, NULL };
 
 	char *dir = dirname(strncpy(app, argv[0], sizeof(app) - 1));
 	snprintf(preload, sizeof(preload), "%s=%s:%s/%s:%s",

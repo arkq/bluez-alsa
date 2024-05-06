@@ -2,9 +2,20 @@
 # https://gitlab.gnome.org/GNOME/glib/-/issues/1672
 race:glib/gslice.c
 
-# TSAN detects a cycle in lock order graph when the connection dispatch
-# is called after dbus_bus_get_private... and we can do nothing about it
-called_from_lib:libdbus-1.so
+# TSAN detects some issues within libdbus-1 library:
+# 1. It detects a cycle in lock order graph when the connection dispatch
+#    is called after dbus_bus_get_private().
+deadlock:dbus_bus_get_private
+# 2. It does not like calling dbus_connection_send_with_reply_and_block()
+#    while other thread is calling dbus_connection_dispatch().
+race:dbus_connection_dispatch
+race:dbus_connection_send_with_reply_and_block
+race:dbus_watch_handle
+
+# Do not report any issues within dbus-daemon. It is used internally by
+# the glib D-Bus test server, and since we are preloading TSAN library,
+# we cannot avoid false positives.
+called_from_lib:dbus-daemon
 
 # We are not interested in data races in PulseAudio
 called_from_lib:libpulsecommon-*.so
