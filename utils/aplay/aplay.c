@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <sys/eventfd.h>
 #include <sys/param.h>
 #include <unistd.h>
 
@@ -101,7 +102,7 @@ static struct io_worker *workers = NULL;
 static size_t workers_count = 0;
 static size_t workers_size = 0;
 
-static atomic_bool main_loop_on = true;
+static int main_loop_quit_event_fd = -1;
 static void main_loop_stop(int sig) {
 	/* Call to this handler restores the default action, so on the
 	 * second call the program will be forcefully terminated. */
@@ -109,7 +110,8 @@ static void main_loop_stop(int sig) {
 	struct sigaction sigact = { .sa_handler = SIG_DFL };
 	sigaction(sig, &sigact, NULL);
 
-	main_loop_on = false;
+	eventfd_write(main_loop_quit_event_fd, 1);
+
 }
 
 static int parse_bt_addresses(char *argv[], size_t count) {
@@ -566,15 +568,17 @@ static void *io_worker_routine(struct io_worker *w) {
 	int timeout = -1;
 
 	debug("Starting IO loop");
-	while (main_loop_on) {
+	for (;;) {
 
 		if (single_playback_mutex_locked) {
 			pthread_mutex_unlock(&single_playback_mutex);
 			single_playback_mutex_locked = false;
 		}
 
-		struct pollfd fds[16] = {{ w->ba_pcm_fd, POLLIN, 0 }};
-		nfds_t nfds = 1;
+		struct pollfd fds[16] = {
+			{ main_loop_quit_event_fd, POLLIN, 0 },
+			{ w->ba_pcm_fd, POLLIN, 0 }};
+		nfds_t nfds = 2;
 
 		if (w->snd_mixer != NULL)
 			nfds += snd_mixer_poll_descriptors_count(w->snd_mixer);
@@ -585,7 +589,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		}
 
 		if (w->snd_mixer != NULL)
-			snd_mixer_poll_descriptors(w->snd_mixer, fds + 1, nfds - 1);
+			snd_mixer_poll_descriptors(w->snd_mixer, fds + 2, nfds - 2);
 
 		/* Reading from the FIFO won't block unless there is an open connection
 		 * on the writing side. However, the server does not open PCM FIFO until
@@ -611,11 +615,14 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto close_alsa;
 		}
 
+		if (fds[0].revents & POLLIN)
+			break;
+
 		if (w->snd_mixer != NULL)
 			snd_mixer_handle_events(w->snd_mixer);
 
 		size_t read_samples = 0;
-		if (fds[0].revents & POLLIN) {
+		if (fds[1].revents & POLLIN) {
 
 			ssize_t ret;
 			size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
@@ -631,13 +638,13 @@ static void *io_worker_routine(struct io_worker *w) {
 				warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
 
 		}
-		else if (fds[0].revents & POLLHUP) {
+		else if (fds[1].revents & POLLHUP) {
 			/* source PCM FIFO has been terminated on the writing side */
 			debug("BlueALSA source PCM disconnected: %s", w->ba_pcm.pcm_path);
 			break;
 		}
-		else if (fds[0].revents)
-			error("Unexpected BlueALSA source PCM poll event: %#x", fds[0].revents);
+		else if (fds[1].revents)
+			error("Unexpected BlueALSA source PCM poll event: %#x", fds[1].revents);
 
 		if (read_samples == 0)
 			continue;
@@ -1189,6 +1196,11 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
+	if ((main_loop_quit_event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
+		error("Couldn't create quit event: %s", strerror(errno));
+		return EXIT_FAILURE;
+	}
+
 	DBusError err = DBUS_ERROR_INIT;
 	if (!ba_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
 		error("Couldn't initialize D-Bus context: %s", err.message);
@@ -1285,28 +1297,32 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigact, NULL);
 
 	debug("Starting main loop");
-	while (main_loop_on) {
+	for (;;) {
 
-		struct pollfd pfds[10];
-		nfds_t pfds_len = ARRAYSIZE(pfds);
+		struct pollfd fds[10] = {
+			{ main_loop_quit_event_fd, POLLIN, 0 } };
+		nfds_t nfds = ARRAYSIZE(fds) - 1;
 
-		if (!ba_dbus_connection_poll_fds(&dbus_ctx, pfds, &pfds_len)) {
+		if (!ba_dbus_connection_poll_fds(&dbus_ctx, &fds[1], &nfds)) {
 			error("Couldn't get D-Bus connection file descriptors");
 			return EXIT_FAILURE;
 		}
 
-		if (poll(pfds, pfds_len, -1) == -1 &&
+		if (poll(fds, nfds + 1, -1) == -1 &&
 				errno == EINTR)
 			continue;
 
-		if (ba_dbus_connection_poll_dispatch(&dbus_ctx, pfds, pfds_len))
+		if (fds[0].revents & POLLIN)
+			break;
+
+		if (ba_dbus_connection_poll_dispatch(&dbus_ctx, &fds[1], nfds))
 			while (dbus_connection_dispatch(dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
 				continue;
 
 	}
 
-	for (size_t i = 0; i < workers_count; i++)
-		io_worker_stop(i);
+	for (size_t i = workers_count; i > 0; i--)
+		io_worker_stop(i - 1);
 	free(workers);
 
 	ba_dbus_connection_ctx_free(&dbus_ctx);
