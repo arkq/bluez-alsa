@@ -54,8 +54,8 @@ CK_START_TEST(test_help) {
 				"-v", "--help", NULL), -1);
 
 	char output[4096] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stdout), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, output, sizeof(output), NULL, 0), 0);
+	printf("%s\n", output);
 
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
@@ -85,8 +85,7 @@ CK_START_TEST(test_configuration) {
 	spawn_terminate(&sp_ba_aplay, 100);
 
 	char output[4096] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 	/* check selected configuration */
 	ck_assert_ptr_ne(strstr(output, "  BlueALSA service: org.bluealsa.foo"), NULL);
@@ -120,8 +119,7 @@ CK_START_TEST(test_list_devices) {
 				NULL), -1);
 
 	char output[4096] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stdout), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, output, sizeof(output), NULL, 0), 0);
 
 	ck_assert_ptr_ne(strstr(output,
 				"hci0: 23:45:67:89:AB:CD [Speaker], audio-card"), NULL);
@@ -148,8 +146,7 @@ CK_START_TEST(test_list_pcms) {
 				NULL), -1);
 
 	char output[4096] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stdout), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, output, sizeof(output), NULL, 0), 0);
 
 	ck_assert_ptr_ne(strstr(output,
 				"bluealsa:DEV=23:45:67:89:AB:CD,PROFILE=sco,SRV=org.bluealsa.foo"), NULL);
@@ -176,8 +173,7 @@ CK_START_TEST(test_play_all) {
 	spawn_terminate(&sp_ba_aplay, 500);
 
 	char output[8192] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 	/* check if playback was started from both devices */
 	ck_assert_ptr_ne(strstr(output,
@@ -208,8 +204,7 @@ CK_START_TEST(test_play_single_audio) {
 	spawn_terminate(&sp_ba_aplay, 500);
 
 	char output[8192] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 	/* Check if playback was started for only one device. However,
 	 * workers should be created for both devices. */
@@ -251,8 +246,7 @@ CK_START_TEST(test_play_mixer_setup) {
 	spawn_terminate(&sp_ba_aplay, 500);
 
 	char output[8192] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 #if DEBUG
 	ck_assert_ptr_ne(strstr(output,
@@ -285,8 +279,7 @@ CK_START_TEST(test_play_dbus_signals) {
 	spawn_terminate(&sp_ba_aplay, 1500);
 
 	char output[8192] = "";
-	ck_assert_int_gt(fread(output, 1, sizeof(output) - 1, sp_ba_aplay.f_stderr), 0);
-	fprintf(stderr, "%s", output);
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 #if ENABLE_HFP_CODEC_SELECTION && DEBUG
 	/* With codec selection support, codec is not selected right away. */

@@ -2,7 +2,7 @@
  * spawn.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -14,10 +14,15 @@
 #ifndef BLUEALSA_TEST_INC_SPAWN_H_
 #define BLUEALSA_TEST_INC_SPAWN_H_
 
+#include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include "shared/defs.h"
 
 #define SPAWN_FLAG_NONE 0
 #define SPAWN_FLAG_REDIRECT_STDOUT (1 << 0)
@@ -117,6 +122,63 @@ fail:
 		close(pipe_stderr[1]);
 
 	return -1;
+}
+
+struct span_io_forwarder {
+	/* source stream */
+	FILE *f_in;
+	/* forward destination stream */
+	FILE *f_out;
+	/* optional buffer for data */
+	char *buffer;
+	size_t size;
+};
+
+static void *span_io_forwarder_thread(void *arg) {
+	struct span_io_forwarder *ff = arg;
+
+	char buffer[4096];
+	while (!feof(ff->f_in))
+		if (fgets(buffer, sizeof(buffer), ff->f_in) != NULL) {
+			fprintf(ff->f_out, "%s", buffer);
+			if (ff->buffer == NULL)
+				continue;
+			size_t n = strlen(buffer);
+			snprintf(ff->buffer, ff->size, "%s", buffer);
+			ff->buffer += n;
+			ff->size -= n;
+		}
+
+	return NULL;
+}
+
+/**
+ * Read output from the spawned process. */
+ssize_t spawn_read(struct spawn_process *sp,
+		char *stdout_buf, size_t stdout_size,
+		char *stderr_buf, size_t stderr_size) {
+
+	struct span_io_forwarder ff_stdout = {
+		.f_in = sp->f_stdout, .f_out = stdout,
+		.buffer = stdout_buf, .size = stdout_size };
+	pthread_t t_stdout;
+
+	struct span_io_forwarder ff_stderr = {
+		.f_in = sp->f_stderr, .f_out = stderr,
+		.buffer = stderr_buf, .size = stderr_size };
+	pthread_t t_stderr;
+
+	if (sp->f_stdout != NULL)
+		pthread_create(&t_stdout, NULL, span_io_forwarder_thread, &ff_stdout);
+	if (sp->f_stderr != NULL)
+		pthread_create(&t_stderr, NULL, span_io_forwarder_thread, &ff_stderr);
+
+	if (sp->f_stdout != NULL)
+		pthread_join(t_stdout, NULL);
+	if (sp->f_stderr != NULL)
+		pthread_join(t_stderr, NULL);
+
+	return stdout_size - ff_stdout.size + stderr_size - ff_stderr.size;
 }
 
 static void *spawn_timeout_thread(void *arg) {

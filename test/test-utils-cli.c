@@ -49,10 +49,7 @@ static int run_bluealsa_cli(char *output, size_t size, ...) {
 	if (spawn(&sp, argv, NULL, SPAWN_FLAG_REDIRECT_STDOUT) == -1)
 		return -1;
 
-	size_t len = fread(output, 1, size - 1, sp.f_stdout);
-	output[len] = '\0';
-
-	fprintf(stderr, "%s", output);
+	spawn_read(&sp, output, size, NULL, 0);
 
 	int wstatus = 0;
 	spawn_close(&sp, &wstatus);
