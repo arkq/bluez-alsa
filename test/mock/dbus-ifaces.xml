@@ -1,4 +1,4 @@
-<!-- BlueALSA - mock-bluez-iface.xml
+<!-- BlueALSA - dbus-ifaces.xml
      Copyright (c) 2016-2024 Arkadiusz Bokowy
 
      This file is a part of bluez-alsa.
@@ -14,6 +14,13 @@
 	<interface name="org.bluez.Adapter1">
 		<method name="StartDiscovery" />
 		<property name="Address" type="s" access="read" />
+		<property name="UUIDs" type="as" access="read" />
+	</interface>
+
+	<interface name="org.bluez.BatteryProviderManager1">
+		<method name="RegisterBatteryProvider">
+			<arg name="provider" type="o" direction="in" />
+		</method>
 	</interface>
 
 	<interface name="org.bluez.Device1">
@@ -66,6 +73,8 @@
 		<method name="Release" />
 		<property name="Device" type="o" access="read" />
 		<property name="State" type="s" access="read" />
+		<property name="Delay" type="q" access="readwrite" />
+		<property name="Volume" type="q" access="readwrite" />
 	</interface>
 
 	<interface name="org.bluez.ProfileManager1">
@@ -83,6 +92,11 @@
 			<arg direction="in" type="h" name="fd"/>
 			<arg direction="in" type="a{sv}" name="properties"/>
 		</method>
+	</interface>
+
+	<interface name="org.freedesktop.UPower.Device">
+		<property name="IsPresent" type="b" access="read" />
+		<property name="Percentage" type="d" access="read" />
 	</interface>
 
 </node>

@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <gio/gio.h>
 #include <glib.h>
 
 #define MOCK_ADAPTER_ID 0
@@ -35,20 +36,26 @@ extern char mock_ba_service_name[32];
 extern bool mock_dump_output;
 extern int mock_fuzzing_ms;
 
+GDBusConnection *mock_dbus_connection_new_sync(GError **error);
+
 void mock_bluealsa_run(void);
 void mock_bluealsa_service_start(void);
 void mock_bluealsa_service_stop(void);
 
 int mock_bluez_device_name_mapping_add(const char *mapping);
-void mock_bluez_service_start(void);
-void mock_bluez_service_stop(void);
-
 int mock_bluez_device_profile_new_connection(const char *device_path,
 		const char *uuid, GAsyncQueue *sem_ready);
 int mock_bluez_device_media_set_configuration(const char *device_path,
 		const char *transport_path, const char *uuid, uint32_t codec_id,
 		const void *configuration, size_t configuration_size,
 		GAsyncQueue *sem_ready);
+void mock_bluez_service_start(void);
+void mock_bluez_service_stop(void);
+
+int mock_upower_display_device_set_is_present(bool present);
+int mock_upower_display_device_set_percentage(double percentage);
+void mock_upower_service_start(void);
+void mock_upower_service_stop(void);
 
 void mock_sem_signal(GAsyncQueue *sem);
 void mock_sem_wait(GAsyncQueue *sem);

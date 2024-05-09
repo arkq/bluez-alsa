@@ -34,13 +34,15 @@ bluealsa_mock_SOURCES = \
 	../../src/sco-cvsd.c \
 	../../src/storage.c \
 	../../src/utils.c \
+	dbus-ifaces.c \
 	mock-bluealsa.c \
 	mock-bluez.c \
-	mock-bluez-iface.c \
+	mock-upower.c \
 	mock.c
 
-mock-bluez.c: mock-bluez-iface.h
-mock-bluez-iface.c: mock-bluez-iface.h
+dbus-ifaces.c: dbus-ifaces.h
+mock-bluez.c: dbus-ifaces.h
+mock-upower.c: dbus-ifaces.h
 
 MOSTLYCLEANFILES = \
 	mock-bluez-iface.c \
@@ -135,6 +137,10 @@ if ENABLE_MSBC
 bluealsa_mock_SOURCES += \
 	../../src/codec-msbc.c \
 	../../src/sco-msbc.c
+endif
+
+if ENABLE_UPOWER
+bluealsa_mock_SOURCES += ../../src/upower.c
 endif
 
 .xml.h:

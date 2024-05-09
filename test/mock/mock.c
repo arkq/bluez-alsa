@@ -50,6 +50,14 @@ char mock_ba_service_name[32] = BLUEALSA_SERVICE;
 bool mock_dump_output = false;
 int mock_fuzzing_ms = 0;
 
+static const char *dbus_address = NULL;
+GDBusConnection *mock_dbus_connection_new_sync(GError **error) {
+	return g_dbus_connection_new_for_address_sync(dbus_address,
+			G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+			G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
+			NULL, NULL, error);
+}
+
 void mock_sem_signal(GAsyncQueue *sem) {
 	g_async_queue_push(sem, GINT_TO_POINTER(1));
 }
@@ -216,12 +224,8 @@ int main(int argc, char *argv[]) {
 	g_autoptr(GTestDBus) dbus = g_test_dbus_new(G_TEST_DBUS_NONE);
 	g_test_dbus_up(dbus);
 
-	fprintf(stderr, "DBUS_SYSTEM_BUS_ADDRESS=%s\n", g_test_dbus_get_bus_address(dbus));
-	assert((config.dbus = g_dbus_connection_new_for_address_sync(
-					g_test_dbus_get_bus_address(dbus),
-					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
-					NULL, NULL, NULL)) != NULL);
+	dbus_address = g_test_dbus_get_bus_address(dbus);
+	fprintf(stderr, "DBUS_SYSTEM_BUS_ADDRESS=%s\n", dbus_address);
 
 	/* receive EPIPE error code */
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
@@ -239,11 +243,13 @@ int main(int argc, char *argv[]) {
 	g_unix_signal_add(SIGTERM, mock_sem_signal_handler, mock_sem_timeout);
 
 	mock_bluez_service_start();
+	mock_upower_service_start();
 	mock_bluealsa_service_start();
 
 	/* Run mock until timeout or SIGINT/SIGTERM signal. */
 	mock_bluealsa_run();
 
+	mock_upower_service_stop();
 	/* Simulate BlueZ termination while BlueALSA is still running. */
 	mock_bluez_service_stop();
 	mock_bluealsa_service_stop();

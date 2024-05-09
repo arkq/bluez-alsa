@@ -465,9 +465,9 @@ CK_START_TEST(test_single_device_non_dynamic) {
 	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 42);
 
 	/* Process events until we will be notified about A2DP profile disconnection.
-	 * We shall get 2 events from previous value update and 2 events for profile
+	 * We shall get 4 events from previous value update and 2 events for profile
 	 * disconnection (one event per switch/volume element). */
-	for (size_t events = 0; events < 4;) {
+	for (size_t events = 0; events < 4 + 2 + 2;) {
 		ck_assert_int_eq(snd_ctl_wait(ctl, 750), 1);
 		while (snd_ctl_read(ctl, event) == 1)
 			events++;

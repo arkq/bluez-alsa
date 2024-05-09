@@ -180,7 +180,7 @@ static void bluez_register_battery_provider_finish(GObject *source,
 	if (rep != NULL)
 		g_object_unref(rep);
 	if (err != NULL) {
-		error("Couldn't register media application: %s", err->message);
+		error("Couldn't register battery provider: %s", err->message);
 		g_error_free(err);
 	}
 

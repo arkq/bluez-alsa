@@ -116,7 +116,7 @@ jobs:
       run: bear -- make check TESTS=
     - name: Run IWYU Check
       run: |
-        jq 'del(.[] | select(.file | endswith("-iface.c")))' \
+        jq 'del(.[] | select(.file | test("-ifaces?.c")))' \
           ${{ github.workspace }}/build/compile_commands.json > tmp.json \
           && mv tmp.json ${{ github.workspace }}/build/compile_commands.json
         iwyu_tool -p ${{ github.workspace }}/build -- \

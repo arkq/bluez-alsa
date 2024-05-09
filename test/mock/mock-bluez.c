@@ -23,14 +23,13 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include "ba-config.h"
 #include "bluez-iface.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
-#include "mock-bluez-iface.h"
+#include "dbus-ifaces.h"
 
 /* Bluetooth device name mappings in form of "MAC:name". */
 static const char * devices[8] = { NULL };
@@ -83,6 +82,13 @@ static void mock_bluez_profile_manager_add(const char *path) {
 
 }
 
+static gboolean mock_bluez_bpm_register_provider_handler(MockBluezBatteryProviderManager1 *bpm,
+		GDBusMethodInvocation *invocation, G_GNUC_UNUSED const char *provider,
+		G_GNUC_UNUSED GVariant *options, G_GNUC_UNUSED void *userdata) {
+	mock_bluez_battery_provider_manager1_complete_register_battery_provider(bpm, invocation);
+	return TRUE;
+}
+
 static gboolean mock_bluez_gatt_register_application_handler(MockBluezGattManager1 *gatt,
 		GDBusMethodInvocation *invocation, G_GNUC_UNUSED const char *root,
 		G_GNUC_UNUSED GVariant *options, G_GNUC_UNUSED void *userdata) {
@@ -114,6 +120,10 @@ static void mock_bluez_adapter_add(const char *adapter_path, const char *address
 	g_autoptr(MockBluezAdapter1) adapter = mock_bluez_adapter1_skeleton_new();
 	mock_bluez_adapter1_set_address(adapter, address);
 
+	g_autoptr(MockBluezBatteryProviderManager1) bpm = mock_bluez_battery_provider_manager1_skeleton_new();
+	g_signal_connect(bpm, "handle-register-battery-provider",
+			G_CALLBACK(mock_bluez_bpm_register_provider_handler), NULL);
+
 	g_autoptr(MockBluezGattManager1) gatt = mock_bluez_gatt_manager1_skeleton_new();
 	g_signal_connect(gatt, "handle-register-application",
 			G_CALLBACK(mock_bluez_gatt_register_application_handler), NULL);
@@ -124,6 +134,7 @@ static void mock_bluez_adapter_add(const char *adapter_path, const char *address
 
 	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(adapter_path);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(adapter));
+	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(bpm));
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(gatt));
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(media));
 	g_dbus_object_manager_server_export(server, skeleton);
@@ -280,10 +291,13 @@ int mock_bluez_device_media_set_configuration(const char *device_path,
 			g_autoptr(GVariantBuilder) props = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
 			g_variant_builder_add(props, "{sv}", "Device", g_variant_new_object_path(
 						mock_bluez_media_transport1_get_device(transport)));
+			g_variant_builder_add(props, "{sv}", "Codec", g_variant_new_byte(codec));
 			g_variant_builder_add(props, "{sv}", "Configuration", g_variant_new_fixed_array(
 						G_VARIANT_TYPE_BYTE, configuration, configuration_size, sizeof(uint8_t)));
 			g_variant_builder_add(props, "{sv}", "State", g_variant_new_string(
 						mock_bluez_media_transport1_get_state(transport)));
+			g_variant_builder_add(props, "{sv}", "Delay", g_variant_new_uint16(100));
+			g_variant_builder_add(props, "{sv}", "Volume", g_variant_new_uint16(50));
 
 			mock_bluez_media_endpoint1_call_set_configuration(ep, transport_path,
 					g_variant_builder_end(props), NULL,
@@ -302,7 +316,7 @@ int mock_bluez_device_media_set_configuration(const char *device_path,
 	return rv;
 }
 
-static void mock_bluez_dbus_name_acquired(GDBusConnection *conn,
+static void mock_dbus_name_acquired(GDBusConnection *conn,
 		G_GNUC_UNUSED const char *name, void *userdata) {
 
 	server = g_dbus_object_manager_server_new("/");
@@ -319,21 +333,22 @@ static void mock_bluez_dbus_name_acquired(GDBusConnection *conn,
 
 }
 
-static GThread *mock_bluez_thread = NULL;
-static GMainLoop *mock_bluez_main_loop = NULL;
-static unsigned int mock_bluez_owner_id = 0;
+static GThread *mock_thread = NULL;
+static GMainLoop *mock_main_loop = NULL;
+static unsigned int mock_owner_id = 0;
 
-static void *mock_bluez_loop_run(void *userdata) {
+static void *mock_loop_run(void *userdata) {
 
 	g_autoptr(GMainContext) context = g_main_context_new();
-	mock_bluez_main_loop = g_main_loop_new(context, FALSE);
+	mock_main_loop = g_main_loop_new(context, FALSE);
 	g_main_context_push_thread_default(context);
 
-	g_assert((mock_bluez_owner_id = g_bus_own_name_on_connection(config.dbus,
+	g_autoptr(GDBusConnection) conn = mock_dbus_connection_new_sync(NULL);
+	g_assert((mock_owner_id = g_bus_own_name_on_connection(conn,
 					BLUEZ_SERVICE, G_BUS_NAME_OWNER_FLAGS_NONE,
-					mock_bluez_dbus_name_acquired, NULL, userdata, NULL)) != 0);
+					mock_dbus_name_acquired, NULL, userdata, NULL)) != 0);
 
-	g_main_loop_run(mock_bluez_main_loop);
+	g_main_loop_run(mock_main_loop);
 
 	g_main_context_pop_thread_default(context);
 	return NULL;
@@ -341,17 +356,17 @@ static void *mock_bluez_loop_run(void *userdata) {
 
 void mock_bluez_service_start(void) {
 	g_autoptr(GAsyncQueue) ready = g_async_queue_new();
-	mock_bluez_thread = g_thread_new("bluez", mock_bluez_loop_run, ready);
+	mock_thread = g_thread_new("BlueZ", mock_loop_run, ready);
 	mock_sem_wait(ready);
 }
 
 void mock_bluez_service_stop(void) {
 
-	g_bus_unown_name(mock_bluez_owner_id);
+	g_bus_unown_name(mock_owner_id);
 
-	g_main_loop_quit(mock_bluez_main_loop);
-	g_main_loop_unref(mock_bluez_main_loop);
-	g_thread_join(mock_bluez_thread);
+	g_main_loop_quit(mock_main_loop);
+	g_main_loop_unref(mock_main_loop);
+	g_thread_join(mock_thread);
 
 	g_hash_table_unref(profiles);
 	if (media_app_client != NULL)

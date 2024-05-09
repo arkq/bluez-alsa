@@ -51,6 +51,7 @@
 #include "io.h"
 #include "midi.h"
 #include "storage.h"
+#include "upower.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
 #include "shared/defs.h"
@@ -388,6 +389,11 @@ void mock_bluealsa_run(void) {
 	if (config.profile.hsp_ag)
 		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_2, BT_UUID_HSP_AG));
 
+#if ENABLE_UPOWER
+	mock_upower_display_device_set_percentage(50.00);
+	mock_upower_display_device_set_is_present(false);
+#endif
+
 #if ENABLE_MIDI
 	if (config.profile.midi)
 		g_ptr_array_add(tt, mock_transport_new_midi(MOCK_BLUEZ_MIDI_PATH_1));
@@ -406,9 +412,10 @@ void mock_bluealsa_run(void) {
 
 }
 
-static void mock_ba_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
+static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 		const char *name, void *userdata) {
 
+	config.dbus = conn;
 	/* do not generate lots of data */
 	config.sbc_quality = SBC_QUALITY_LOW;
 	/* initialize codec capabilities */
@@ -423,27 +430,32 @@ static void mock_ba_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 	bluealsa_dbus_register();
 	/* setup BlueZ integration */
 	bluez_init();
+#if ENABLE_UPOWER
+	/* setup UPower integration */
+	upower_init();
+#endif
 
 	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
 	mock_sem_signal(userdata);
 
 }
 
-static GThread *mock_ba_thread = NULL;
-static GMainLoop *mock_ba_main_loop = NULL;
-static unsigned int mock_ba_owner_id = 0;
+static GThread *mock_thread = NULL;
+static GMainLoop *mock_main_loop = NULL;
+static unsigned int mock_owner_id = 0;
 
-static void *mock_ba_loop_run(void *userdata) {
+static void *mock_loop_run(void *userdata) {
 
 	g_autoptr(GMainContext) context = g_main_context_new();
-	mock_ba_main_loop = g_main_loop_new(context, FALSE);
+	mock_main_loop = g_main_loop_new(context, FALSE);
 	g_main_context_push_thread_default(context);
 
-	g_assert((mock_ba_owner_id = g_bus_own_name_on_connection(config.dbus,
+	g_autoptr(GDBusConnection) conn = mock_dbus_connection_new_sync(NULL);
+	g_assert((mock_owner_id = g_bus_own_name_on_connection(conn,
 					mock_ba_service_name, G_BUS_NAME_OWNER_FLAGS_NONE,
-					mock_ba_dbus_name_acquired, NULL, userdata, NULL)) != 0);
+					mock_dbus_name_acquired, NULL, userdata, NULL)) != 0);
 
-	g_main_loop_run(mock_ba_main_loop);
+	g_main_loop_run(mock_main_loop);
 
 	g_main_context_pop_thread_default(context);
 	return NULL;
@@ -451,17 +463,17 @@ static void *mock_ba_loop_run(void *userdata) {
 
 void mock_bluealsa_service_start(void) {
 	g_autoptr(GAsyncQueue) ready = g_async_queue_new();
-	mock_ba_thread = g_thread_new("bluealsa", mock_ba_loop_run, ready);
+	mock_thread = g_thread_new("BlueALSA", mock_loop_run, ready);
 	mock_sem_wait(ready);
 }
 
 void mock_bluealsa_service_stop(void) {
 
-	g_bus_unown_name(mock_ba_owner_id);
+	g_bus_unown_name(mock_owner_id);
 
-	g_main_loop_quit(mock_ba_main_loop);
-	g_main_loop_unref(mock_ba_main_loop);
-	g_thread_join(mock_ba_thread);
+	g_main_loop_quit(mock_main_loop);
+	g_main_loop_unref(mock_main_loop);
+	g_thread_join(mock_thread);
 
 	ba_device_unref(ba_device_1);
 	ba_device_unref(ba_device_2);
