@@ -28,6 +28,7 @@
 		<property name="Adapter" type="o" access="read" />
 		<property name="Alias" type="s" access="readwrite" />
 		<property name="Icon" type="s" access="read" />
+		<property name="Trusted" type="b" access="read" />
 	</interface>
 
 	<interface name="org.bluez.GattManager1">

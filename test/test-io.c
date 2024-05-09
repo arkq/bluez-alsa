@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -722,6 +723,80 @@ CK_START_TEST(test_a2dp_sbc_invalid_config) {
 
 } CK_END_TEST
 
+static void setup_a2dp_link(struct ba_transport *t_source, struct ba_transport *t_sink,
+		size_t mtu, int *fd_pcm_sink, int *fd_pcm_source) {
+
+	int bt_fds[2];
+	/* Link transports together using BT socket pair. */
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
+	t_source->mtu_read = t_source->mtu_write = mtu;
+	t_sink->mtu_read = t_sink->mtu_write = mtu;
+	t_source->bt_fd = bt_fds[1];
+	t_sink->bt_fd = bt_fds[0];
+
+	int pcm_snk_fds[2];
+	/* Attach sink PCM to the source transport. */
+	ck_assert_int_eq(pipe2(pcm_snk_fds, O_NONBLOCK), 0);
+	debug("Created PCM pipe pair: %d, %d", pcm_snk_fds[0], pcm_snk_fds[1]);
+	t_source->a2dp.pcm.fd = pcm_snk_fds[0];
+	t_source->a2dp.pcm.paused = false;
+
+	int pcm_src_fds[2];
+	/* Attach source PCM to the sink transport. */
+	ck_assert_int_eq(pipe2(pcm_src_fds, O_NONBLOCK), 0);
+	debug("Created PCM pipe pair: %d, %d", pcm_src_fds[0], pcm_src_fds[1]);
+	t_sink->a2dp.pcm.fd = pcm_src_fds[1];
+	t_sink->a2dp.pcm.paused = false;
+
+	*fd_pcm_sink = pcm_snk_fds[1];
+	*fd_pcm_source = pcm_src_fds[0];
+
+}
+
+CK_START_TEST(test_a2dp_sbc_pcm_drain) {
+
+	int16_t pcm_zero[90] = { 0 };
+	unsigned int nread = 0;
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
+			&config_sbc_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
+			&config_sbc_44100_stereo);
+
+	int fd_pcm_snk = -1;
+	int fd_pcm_src = -1;
+	setup_a2dp_link(t1, t2, 256, &fd_pcm_snk, &fd_pcm_src);
+
+	/* start sink PCM IO thread and make sure it is running */
+	struct ba_transport_pcm *pcm = &t1->a2dp.pcm;
+	ck_assert_int_eq(ba_transport_pcm_start(pcm, a2dp_sbc_enc_thread, "sbc"), 0);
+	ck_assert_int_eq(ba_transport_pcm_state_wait_running(pcm), 0);
+
+	/* write zero samples to sink PCM until it is full */
+	while (write(fd_pcm_snk, pcm_zero, sizeof(pcm_zero)) > 0)
+		continue;
+
+	/* verify that the FIFO is not empty */
+	ck_assert_int_eq(ioctl(fd_pcm_snk, FIONREAD, &nread), 0);
+	ck_assert_uint_gt(nread, 0);
+
+	/* drain PCM samples */
+	ck_assert_int_eq(ba_transport_pcm_drain(pcm), 0);
+
+	/* verify that the FIFO has been drained */
+	ck_assert_int_eq(ioctl(fd_pcm_snk, FIONREAD, &nread), 0);
+	ck_assert_uint_eq(nread, 0);
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+	close(fd_pcm_snk);
+	close(fd_pcm_src);
+
+} CK_END_TEST
+
 CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 
 	int16_t pcm_zero[90] = { 0 };
@@ -732,39 +807,20 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
 			&config_sbc_44100_stereo);
-
 	struct ba_transport *t2 = test_transport_new_a2dp(device2,
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
 			&config_sbc_44100_stereo);
 
-	int bt_fds[2];
-	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
-	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
-	t1->mtu_read = t1->mtu_write = 256;
-	t2->mtu_read = t2->mtu_write = 256;
-	t1->bt_fd = bt_fds[1];
-	t2->bt_fd = bt_fds[0];
+	int fd_pcm_snk = -1;
+	int fd_pcm_src = -1;
+	setup_a2dp_link(t1, t2, 256, &fd_pcm_snk, &fd_pcm_src);
 
-	int pcm_snk_fds[2];
-	ck_assert_int_eq(pipe2(pcm_snk_fds, O_NONBLOCK), 0);
-	debug("Created PCM pipe pair: %d, %d", pcm_snk_fds[0], pcm_snk_fds[1]);
-	t1->a2dp.pcm.fd = pcm_snk_fds[0];
-	t1->a2dp.pcm.paused = false;
-
-	int pcm_src_fds[2];
-	ck_assert_int_eq(pipe2(pcm_src_fds, O_NONBLOCK), 0);
-	debug("Created PCM pipe pair: %d, %d", pcm_src_fds[0], pcm_src_fds[1]);
-	t2->a2dp.pcm.fd = pcm_src_fds[1];
-	t2->a2dp.pcm.paused = false;
-
-	/* sink PCM */
-	struct ba_transport_pcm *pcm = &t1->a2dp.pcm;
-
-	/* write zero samples to PCM FIFO until it is full */
-	while (write(pcm_snk_fds[1], pcm_zero, sizeof(pcm_zero)) > 0)
+	/* write zero samples to sink PCM until it is full */
+	while (write(fd_pcm_snk, pcm_zero, sizeof(pcm_zero)) > 0)
 		continue;
 
-	/* drop PCM samples before IO thread was started */
+	/* drop sink PCM samples before IO thread was started */
+	struct ba_transport_pcm *pcm = &t1->a2dp.pcm;
 	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
 
 	/* start IO thread and make sure it is running */
@@ -777,11 +833,11 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	uint8_t bt_buffer[1024];
 	/* try to read data from BT socket - it should be empty because
 	 * the PCM has been dropped before the thread was started */
-	ck_assert_int_eq(read(bt_fds[0], bt_buffer, sizeof(bt_buffer)), -1);
+	ck_assert_int_eq(read(t2->bt_fd, bt_buffer, sizeof(bt_buffer)), -1);
 	ck_assert_int_eq(errno, EAGAIN);
 
-	/* write non-zero samples to PCM FIFO and process some of it */
-	while (write(pcm_snk_fds[1], pcm_rand, sizeof(pcm_rand)) > 0)
+	/* write non-zero samples to sink PCM and process some of it */
+	while (write(fd_pcm_snk, pcm_rand, sizeof(pcm_rand)) > 0)
 		continue;
 	usleep(50000);
 
@@ -791,14 +847,14 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	/* write a little bit of non-zero samples and wait for processing; the
 	 * number of samples shall be small enough to not produce a single codec
 	 * frame, but enough to fill-in internal buffers */
-	ck_assert_int_gt(write(pcm_snk_fds[1], pcm_rand, sizeof(pcm_rand)), 0);
+	ck_assert_int_gt(write(fd_pcm_snk, pcm_rand, sizeof(pcm_rand)), 0);
 	usleep(10000);
 
 	/* again drop PCM samples */
 	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
 
 	/* flush already processed data */
-	while (read(bt_fds[0], bt_buffer, sizeof(bt_buffer)) > 0)
+	while (read(t2->bt_fd, bt_buffer, sizeof(bt_buffer)) > 0)
 		continue;
 
 	/* After PCM has been dropped, IO thread should not process any more
@@ -808,16 +864,16 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	ck_assert_int_eq(ba_transport_pcm_start(&t2->a2dp.pcm, a2dp_sbc_dec_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t2->a2dp.pcm), 0);
 
-	/* write some zero samples to PCM FIFO and process them */
+	/* write some zero samples to sink PCM and process them */
 	for (size_t i = 0; i < 100; i++)
-		if (write(pcm_snk_fds[1], pcm_zero, sizeof(pcm_zero)) <= 0)
+		if (write(fd_pcm_snk, pcm_zero, sizeof(pcm_zero)) <= 0)
 			break;
 	usleep(250000);
 
 	ssize_t rv;
 	int16_t pcm_buffer[1024];
 	/* read decoded data and check if it is all silence */
-	while ((rv = read(pcm_src_fds[0], pcm_buffer, sizeof(pcm_buffer))) > 0) {
+	while ((rv = read(fd_pcm_src, pcm_buffer, sizeof(pcm_buffer))) > 0) {
 		const size_t samples = rv / sizeof(pcm_buffer[0]);
 		for (size_t i = 0; i < samples; i++)
 			ck_assert_int_eq(pcm_buffer[i], 0);
@@ -825,9 +881,8 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
-	close(pcm_snk_fds[0]);
-	close(pcm_src_fds[1]);
-	close(bt_fds[0]);
+	close(fd_pcm_snk);
+	close(fd_pcm_src);
 
 } CK_END_TEST
 
@@ -1172,6 +1227,7 @@ int main(int argc, char *argv[]) {
 	} codecs[] = {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_invalid_config },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drop },
 #if ENABLE_MP3LAME
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },

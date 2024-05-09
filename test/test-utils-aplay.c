@@ -122,7 +122,7 @@ CK_START_TEST(test_list_devices) {
 	ck_assert_int_gt(spawn_read(&sp_ba_aplay, output, sizeof(output), NULL, 0), 0);
 
 	ck_assert_ptr_ne(strstr(output,
-				"hci0: 23:45:67:89:AB:CD [Speaker], audio-card"), NULL);
+				"hci0: 23:45:67:89:AB:CD [Speaker], trusted audio-card"), NULL);
 
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);

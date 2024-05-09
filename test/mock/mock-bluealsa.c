@@ -248,21 +248,24 @@ static struct ba_transport *mock_transport_new_sco(struct ba_device *d,
 	struct ba_transport *t;
 	assert((t = ba_transport_lookup(d, d->bluez_dbus_path)) != NULL);
 
-	t->sco.rfcomm->state = HFP_SLC_CONNECTED;
-	t->sco.rfcomm->ag_codecs.cvsd = true;
-	t->sco.rfcomm->hf_codecs.cvsd = true;
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_HFP) {
+		t->sco.rfcomm->state = HFP_SLC_CONNECTED;
+		t->sco.rfcomm->ag_codecs.cvsd = true;
+		t->sco.rfcomm->hf_codecs.cvsd = true;
 #if ENABLE_HFP_CODEC_SELECTION
-	t->sco.rfcomm->ag_features |= HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO;
-	t->sco.rfcomm->hf_features |= HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO;
+		t->sco.rfcomm->ag_features |= HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO;
+		t->sco.rfcomm->hf_features |= HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO;
 #endif
 #if ENABLE_MSBC
-	t->sco.rfcomm->ag_codecs.msbc = true;
-	t->sco.rfcomm->hf_codecs.msbc = true;
+		t->sco.rfcomm->ag_codecs.msbc = true;
+		t->sco.rfcomm->hf_codecs.msbc = true;
 #endif
 #if ENABLE_LC3_SWB
-	t->sco.rfcomm->ag_codecs.lc3_swb = true;
-	t->sco.rfcomm->hf_codecs.lc3_swb = true;
+		t->sco.rfcomm->ag_codecs.lc3_swb = true;
+		t->sco.rfcomm->hf_codecs.lc3_swb = true;
 #endif
+	}
+
 	t->acquire = mock_transport_acquire_bt_sco;
 
 	char device[18];
@@ -301,11 +304,13 @@ static struct ba_transport *mock_transport_new_midi(const char *path) {
 
 void mock_bluealsa_run(void) {
 
-	if (config.profile.a2dp_source || config.profile.a2dp_sink)
-		mock_sem_wait(mock_sem_ready);
-	if (config.profile.hfp_ag)
-		mock_sem_wait(mock_sem_ready);
-	if (config.profile.hsp_ag)
+	/* Wait for profiles to be registered. */
+	size_t events = (config.profile.a2dp_source || config.profile.a2dp_sink) ? 1 : 0;
+	events += config.profile.hfp_ag ? 1 : 0;
+	events += config.profile.hfp_hf ? 1 : 0;
+	events += config.profile.hsp_ag ? 1 : 0;
+	events += config.profile.hsp_hs ? 1 : 0;
+	while (events--)
 		mock_sem_wait(mock_sem_ready);
 
 	GPtrArray *tt = g_ptr_array_new();
@@ -386,8 +391,14 @@ void mock_bluealsa_run(void) {
 
 	}
 
+	if (config.profile.hfp_hf)
+		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_1, BT_UUID_HFP_HF));
+
 	if (config.profile.hsp_ag)
 		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_2, BT_UUID_HSP_AG));
+
+	if (config.profile.hsp_hs)
+		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_2, BT_UUID_HSP_HS));
 
 #if ENABLE_UPOWER
 	mock_upower_display_device_set_percentage(50.00);

@@ -20,6 +20,7 @@
 #include <glib.h>
 
 #define MOCK_ADAPTER_ID 0
+#define MOCK_ADAPTER_ADDRESS "00:00:11:11:22:22"
 #define MOCK_DEVICE_1 "12:34:56:78:9A:BC"
 #define MOCK_DEVICE_2 "23:45:67:89:AB:CD"
 

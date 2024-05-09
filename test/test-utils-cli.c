@@ -130,7 +130,7 @@ CK_START_TEST(test_list_pcms) {
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true,
 				"--profile=a2dp-sink",
-				"--profile=hsp-ag",
+				"--profile=hsp-hs",
 				NULL), -1);
 
 	char output[4096];
@@ -148,11 +148,11 @@ CK_START_TEST(test_list_pcms) {
 	ck_assert_ptr_ne(strstr(output,
 				"/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsnk/source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/source"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/sink"), NULL);
-	ck_assert_ptr_ne(strstr(output,
 				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/a2dpsnk/source"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hsphs/source"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hsphs/sink"), NULL);
 
 	/* check verbose output */
 	ck_assert_ptr_ne(strstr(output,

@@ -148,6 +148,7 @@ static void mock_bluez_device_add(const char *device_path, const char *adapter_p
 	mock_bluez_device1_set_adapter(device, adapter_path);
 	mock_bluez_device1_set_alias(device, address);
 	mock_bluez_device1_set_icon(device, "audio-card");
+	mock_bluez_device1_set_trusted(device, TRUE);
 
 	for (size_t i = 0; i < ARRAYSIZE(devices); i++)
 		if (devices[i] != NULL &&
@@ -214,6 +215,11 @@ static void *mock_bluez_rfcomm_thread(void *userdata) {
 		{ "\r\n+BCS:1\r\n", "AT+BCS=1\r" },
 		{ "\r\n+BCS:2\r\n", "AT+BCS=2\r" },
 		{ "\r\n+BCS:3\r\n", "AT+BCS=3\r" },
+		/* reply to HF query for supported features */
+		{ "AT+BRSF=756\r", "\r\n+BRSF=4095\r\n\r\nOK\r\n" },
+		/* reply to speaker/mic gain initial setup */
+		{ "AT+VGM=15\r", "\r\nOK\r\n" },
+		{ "AT+VGS=15\r", "\r\nOK\r\n" },
 	};
 
 	int rfcomm_fd = GPOINTER_TO_INT(userdata);
@@ -223,14 +229,17 @@ static void *mock_bluez_rfcomm_thread(void *userdata) {
 	while ((len = read(rfcomm_fd, buffer, sizeof(buffer))) > 0) {
 		hexdump("RFCOMM", buffer, len, true);
 
+		const char *response = "\r\nERROR\r\n";
 		for (size_t i = 0; i < ARRAYSIZE(responses); i++) {
 			if (strncmp(buffer, responses[i].command, len) != 0)
 				continue;
-			len = strlen(responses[i].response);
-			if (write(rfcomm_fd, responses[i].response, len) != len)
-				warn("Couldn't write RFCOMM response: %s", strerror(errno));
+			response = responses[i].response;
 			break;
 		}
+
+		len = strlen(response);
+		if (write(rfcomm_fd, response, len) != len)
+			warn("Couldn't write RFCOMM response: %s", strerror(errno));
 
 	}
 
@@ -323,7 +332,7 @@ static void mock_dbus_name_acquired(GDBusConnection *conn,
 	profiles = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_object_unref);
 
 	mock_bluez_profile_manager_add("/org/bluez");
-	mock_bluez_adapter_add(MOCK_BLUEZ_ADAPTER_PATH, "00:00:11:11:22:22");
+	mock_bluez_adapter_add(MOCK_BLUEZ_ADAPTER_PATH, MOCK_ADAPTER_ADDRESS);
 
 	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_PATH_1, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_1);
 	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_PATH_2, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_2);

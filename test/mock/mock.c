@@ -157,7 +157,9 @@ int main(int argc, char *argv[]) {
 				{ "a2dp-source", &config.profile.a2dp_source },
 				{ "a2dp-sink", &config.profile.a2dp_sink },
 				{ "hfp-ag", &config.profile.hfp_ag },
+				{ "hfp-hf", &config.profile.hfp_hf },
 				{ "hsp-ag", &config.profile.hsp_ag },
+				{ "hsp-hs", &config.profile.hsp_hs },
 #if ENABLE_MIDI
 				{ "midi", &config.profile.midi },
 #endif
@@ -216,6 +218,10 @@ int main(int argc, char *argv[]) {
 
 	log_open(basename(argv[0]), false);
 	assert(ba_config_init() == 0);
+
+	/* Add BT address to the HCI filter to test filtering logic. */
+	const char *filter = MOCK_ADAPTER_ADDRESS;
+	g_array_append_val(config.hci_filter, filter);
 
 	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
 	assert(storage_init(TEST_BLUEALSA_STORAGE_DIR) == 0);
