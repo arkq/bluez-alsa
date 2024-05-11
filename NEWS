@@ -1,16 +1,21 @@
 unreleased
 ==========
 
+bluez-alsa v4.2.0 (2024-05-11)
+==========
+
 - optional support for BLE MIDI 1.0 profile as a GATT server
 - optional support for HFP LC3-SWB (Super Wide Band) codec
 - command line option to set real-time priority for IO threads
 - command line option to filter log messages based on severity
 - allow to select individual extended controls in ALSA plug-in
 - codec-specific delay adjustment with ALSA control and persistency
+- improved AAC codec support to be conformant with A2DP v1.4
 - fix for SBC codec and audio scaling on big-endian platforms
 - fix mSBC decode for MTU > 60 bytes (e.g. Realtek USB adapters)
 - bluealsa-aplay: option to auto-select volume mode for used PCM
 - support use of libfreeaptx for apt-X and apt-X HD codecs
+- stability fixes for ALSA PCM I/O plug-in
 
 bluez-alsa v4.1.1 (2023-06-24)
 ==============================
