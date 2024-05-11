@@ -62,6 +62,8 @@ bluealsa_mock_CFLAGS = \
 	@LDAC_ABR_CFLAGS@ \
 	@LDAC_DEC_CFLAGS@ \
 	@LDAC_ENC_CFLAGS@ \
+	@LHDC_DEC_CFLAGS@ \
+	@LHDC_ENC_CFLAGS@ \
 	@LIBBSD_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@ \
 	@MP3LAME_CFLAGS@ \
@@ -82,6 +84,8 @@ bluealsa_mock_LDADD = \
 	@LDAC_ABR_LIBS@ \
 	@LDAC_DEC_LIBS@ \
 	@LDAC_ENC_LIBS@ \
+	@LHDC_DEC_LIBS@ \
+	@LHDC_ENC_LIBS@ \
 	@LIBUNWIND_LIBS@ \
 	@MP3LAME_LIBS@ \
 	@MPG123_LIBS@ \
@@ -120,6 +124,10 @@ endif
 
 if ENABLE_LDAC
 bluealsa_mock_SOURCES += ../../src/a2dp-ldac.c
+endif
+
+if ENABLE_LHDC
+bluealsa_mock_SOURCES += ../../src/a2dp-lhdc.c
 endif
 
 if ENABLE_MIDI
