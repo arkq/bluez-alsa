@@ -256,8 +256,8 @@ static void dump_atrac(const void *blob, size_t size) {
 
 static void printf_vendor(const a2dp_vendor_info_t *info) {
 	printf(""
-			"  vendor-id:32 = %#x [%s]\n"
-			"  vendor-codec-id:16 = %#x\n",
+			"  vendor-id:32 = %#010x [%s]\n"
+			"  vendor-codec-id:16 = %#06x\n",
 			A2DP_VENDOR_INFO_GET_VENDOR_ID(*info),
 			bt_compidtostr(A2DP_VENDOR_INFO_GET_VENDOR_ID(*info)),
 			A2DP_VENDOR_INFO_GET_CODEC_ID(*info));
@@ -551,6 +551,26 @@ static void dump_opus(const void *blob, size_t size) {
 	printf("Opus <hex:%s> {\n", bintohex(blob, size));
 	printf_vendor(&opus->info);
 	printf(""
+			"  <reserved>:2\n"
+			"  sampling-frequency:1 =%s\n"
+			"  frame-duration:2 =%s%s\n"
+			"  channel-mode:3 =%s%s%s\n"
+			"}\n",
+			opus->frequency & OPUS_SAMPLING_FREQ_48000 ? " 48000" : "",
+			opus->frame_duration & OPUS_FRAME_DURATION_100 ? " 10ms" : "",
+			opus->frame_duration & OPUS_FRAME_DURATION_200 ? " 20ms" : "",
+			opus->channel_mode & OPUS_CHANNEL_MODE_STEREO ? " Stereo" : "",
+			opus->channel_mode & OPUS_CHANNEL_MODE_DUAL ? " DualChannel" : "",
+			opus->channel_mode & OPUS_CHANNEL_MODE_MONO ? " Mono" : "");
+}
+
+static void dump_opus_pw(const void *blob, size_t size) {
+	const a2dp_opus_pw_t *opus = blob;
+	if (check_blob_size(sizeof(*opus), size) == -1)
+		return;
+	printf("Opus (PipeWire) <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&opus->info);
+	printf(""
 			"  music-channels:8 = %u\n"
 			"  music-coupled-streams:8 = %u\n"
 			"  music-location32: = %#x\n"
@@ -564,22 +584,22 @@ static void dump_opus(const void *blob, size_t size) {
 			"}\n",
 			opus->music.channels,
 			opus->music.coupled_streams,
-			A2DP_OPUS_GET_LOCATION(opus->music),
-			opus->music.frame_duration & OPUS_FRAME_DURATION_025 ? " 2.5ms" : "",
-			opus->music.frame_duration & OPUS_FRAME_DURATION_050 ? " 5ms" : "",
-			opus->music.frame_duration & OPUS_FRAME_DURATION_100 ? " 10ms" : "",
-			opus->music.frame_duration & OPUS_FRAME_DURATION_200 ? " 20ms" : "",
-			opus->music.frame_duration & OPUS_FRAME_DURATION_400 ? " 40ms" : "",
-			A2DP_OPUS_GET_BITRATE(opus->music) * 1024,
+			A2DP_OPUS_PW_GET_LOCATION(opus->music),
+			opus->music.frame_duration & OPUS_PW_FRAME_DURATION_025 ? " 2.5ms" : "",
+			opus->music.frame_duration & OPUS_PW_FRAME_DURATION_050 ? " 5ms" : "",
+			opus->music.frame_duration & OPUS_PW_FRAME_DURATION_100 ? " 10ms" : "",
+			opus->music.frame_duration & OPUS_PW_FRAME_DURATION_200 ? " 20ms" : "",
+			opus->music.frame_duration & OPUS_PW_FRAME_DURATION_400 ? " 40ms" : "",
+			A2DP_OPUS_PW_GET_BITRATE(opus->music) * 1024,
 			opus->voice.channels,
 			opus->voice.coupled_streams,
-			A2DP_OPUS_GET_LOCATION(opus->voice),
-			opus->voice.frame_duration & OPUS_FRAME_DURATION_025 ? " 2.5ms" : "",
-			opus->voice.frame_duration & OPUS_FRAME_DURATION_050 ? " 5ms" : "",
-			opus->voice.frame_duration & OPUS_FRAME_DURATION_100 ? " 10ms" : "",
-			opus->voice.frame_duration & OPUS_FRAME_DURATION_200 ? " 20ms" : "",
-			opus->voice.frame_duration & OPUS_FRAME_DURATION_400 ? " 40ms" : "",
-			A2DP_OPUS_GET_BITRATE(opus->voice) * 1024);
+			A2DP_OPUS_PW_GET_LOCATION(opus->voice),
+			opus->voice.frame_duration & OPUS_PW_FRAME_DURATION_025 ? " 2.5ms" : "",
+			opus->voice.frame_duration & OPUS_PW_FRAME_DURATION_050 ? " 5ms" : "",
+			opus->voice.frame_duration & OPUS_PW_FRAME_DURATION_100 ? " 10ms" : "",
+			opus->voice.frame_duration & OPUS_PW_FRAME_DURATION_200 ? " 20ms" : "",
+			opus->voice.frame_duration & OPUS_PW_FRAME_DURATION_400 ? " 40ms" : "",
+			A2DP_OPUS_PW_GET_BITRATE(opus->voice) * 1024);
 }
 
 static const struct {
@@ -607,6 +627,7 @@ static const struct {
 	{ A2DP_CODEC_VENDOR_LHDC_V5, sizeof(a2dp_lhdc_v5_t), dump_lhdc_v5 },
 	{ A2DP_CODEC_VENDOR_LHDC_LL, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_OPUS, sizeof(a2dp_opus_t), dump_opus },
+	{ A2DP_CODEC_VENDOR_OPUS_PW, sizeof(a2dp_opus_pw_t), dump_opus_pw },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, -1, dump_vendor },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, -1, dump_vendor },
 };

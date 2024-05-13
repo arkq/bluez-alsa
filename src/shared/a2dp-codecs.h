@@ -61,6 +61,8 @@
 	A2DP_CODEC_VENDOR_ID(LHDC_LL_VENDOR_ID, LHDC_LL_CODEC_ID)
 #define A2DP_CODEC_VENDOR_OPUS \
 	A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)
+#define A2DP_CODEC_VENDOR_OPUS_PW \
+	A2DP_CODEC_VENDOR_ID(OPUS_PW_VENDOR_ID, OPUS_PW_CODEC_ID)
 #define A2DP_CODEC_VENDOR_SAMSUNG_HD \
 	A2DP_CODEC_VENDOR_ID(SAMSUNG_HD_VENDOR_ID, SAMSUNG_HD_CODEC_ID)
 #define A2DP_CODEC_VENDOR_SAMSUNG_SC \
@@ -724,37 +726,64 @@ typedef struct a2dp_lhdc_v5 {
 #endif
 } __attribute__ ((packed)) a2dp_lhdc_v5_t;
 
-#define OPUS_VENDOR_ID                  BT_COMPID_LINUX_FOUNDATION
-#define OPUS_CODEC_ID                   0x1005
+#define OPUS_VENDOR_ID                  BT_COMPID_GOOGLE
+#define OPUS_CODEC_ID                   0x0001
 
-#define OPUS_FRAME_DURATION_025	        (1 << 0)
-#define OPUS_FRAME_DURATION_050	        (1 << 1)
-#define OPUS_FRAME_DURATION_100	        (1 << 2)
-#define OPUS_FRAME_DURATION_200	        (1 << 3)
-#define OPUS_FRAME_DURATION_400	        (1 << 4)
+#define OPUS_SAMPLING_FREQ_48000        (1 << 0)
 
-typedef struct a2dp_opus_stream {
+#define OPUS_FRAME_DURATION_100         (1 << 0)
+#define OPUS_FRAME_DURATION_200         (1 << 1)
+
+#define OPUS_CHANNEL_MODE_MONO          (1 << 0)
+#define OPUS_CHANNEL_MODE_STEREO        (1 << 1)
+#define OPUS_CHANNEL_MODE_DUAL          (1 << 2)
+
+typedef struct a2dp_opus {
+	a2dp_vendor_info_t info;
+#if __BYTE_ORDER == __BIG_ENDIAN
+	uint8_t rfa:2;
+	uint8_t frequency:1;
+	uint8_t frame_duration:2;
+	uint8_t channel_mode:3;
+#else
+	uint8_t channel_mode:3;
+	uint8_t frame_duration:2;
+	uint8_t frequency:1;
+	uint8_t rfa:2;
+#endif
+} __attribute__ ((packed)) a2dp_opus_t;
+
+#define OPUS_PW_VENDOR_ID               BT_COMPID_LINUX_FOUNDATION
+#define OPUS_PW_CODEC_ID                0x1005
+
+#define OPUS_PW_FRAME_DURATION_025      (1 << 0)
+#define OPUS_PW_FRAME_DURATION_050      (1 << 1)
+#define OPUS_PW_FRAME_DURATION_100      (1 << 2)
+#define OPUS_PW_FRAME_DURATION_200      (1 << 3)
+#define OPUS_PW_FRAME_DURATION_400      (1 << 4)
+
+typedef struct a2dp_opus_pw_stream {
 	uint8_t channels;
 	uint8_t coupled_streams;
 	uint32_t location;
 	uint8_t frame_duration;
 	uint16_t bitrate;
 
-#define A2DP_OPUS_INIT_LOCATION(v) .location = HTOLE32(v),
-#define A2DP_OPUS_GET_LOCATION(a) le32toh((a).location)
-#define A2DP_OPUS_SET_LOCATION(a, v) ((a).location = htole32(v))
+#define A2DP_OPUS_PW_INIT_LOCATION(v) .location = HTOLE32(v),
+#define A2DP_OPUS_PW_GET_LOCATION(a) le32toh((a).location)
+#define A2DP_OPUS_PW_SET_LOCATION(a, v) ((a).location = htole32(v))
 
-#define A2DP_OPUS_INIT_BITRATE(v) .bitrate = HTOLE16(v),
-#define A2DP_OPUS_GET_BITRATE(a) le32toh((a).bitrate)
-#define A2DP_OPUS_SET_BITRATE(a, v) ((a).bitrate = htole16(v))
+#define A2DP_OPUS_PW_INIT_BITRATE(v) .bitrate = HTOLE16(v),
+#define A2DP_OPUS_PW_GET_BITRATE(a) le32toh((a).bitrate)
+#define A2DP_OPUS_PW_SET_BITRATE(a, v) ((a).bitrate = htole16(v))
 
-} __attribute__ ((packed)) a2dp_opus_stream_t;
+} __attribute__ ((packed)) a2dp_opus_pw_stream_t;
 
-typedef struct a2dp_opus {
+typedef struct a2dp_opus_pw {
 	a2dp_vendor_info_t info;
-	a2dp_opus_stream_t music;
-	a2dp_opus_stream_t voice;
-} __attribute__ ((packed)) a2dp_opus_t;
+	a2dp_opus_pw_stream_t music;
+	a2dp_opus_pw_stream_t voice;
+} __attribute__ ((packed)) a2dp_opus_pw_t;
 
 #define SAMSUNG_HD_VENDOR_ID            BT_COMPID_SAMSUNG_ELEC
 #define SAMSUNG_HD_CODEC_ID             0x0102
@@ -780,6 +809,7 @@ typedef union a2dp {
 	a2dp_lhdc_v3_t lhdc_v3;
 	a2dp_lhdc_v5_t lhdc_v5;
 	a2dp_opus_t opus;
+	a2dp_opus_pw_t opus_pw;
 } a2dp_t;
 
 uint32_t a2dp_codecs_codec_id_from_string(const char *alias);

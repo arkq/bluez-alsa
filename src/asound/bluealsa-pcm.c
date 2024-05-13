@@ -560,7 +560,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	debug2("Initializing HW");
 
-#if	BLUEALSA_HW_PARAMS_FIX
+#if BLUEALSA_HW_PARAMS_FIX
 	if (bluealsa_fix_hw_params(io, params) < 0)
 		debug2("Warning - unable to fix incorrect buffer size in hw parameters");
 #endif

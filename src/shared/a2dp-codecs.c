@@ -39,6 +39,7 @@ static const struct {
 	{ A2DP_CODEC_VENDOR_LHDC_V5, { "LHDC-V5" } },
 	{ A2DP_CODEC_VENDOR_LHDC_LL, { "LHDC-LL"} },
 	{ A2DP_CODEC_VENDOR_OPUS, { "Opus"} },
+	{ A2DP_CODEC_VENDOR_OPUS_PW, { "Opus-PW"} },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, { "samsung-HD" } },
 	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, { "samsung-SC" } },
 };
