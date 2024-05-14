@@ -11,7 +11,6 @@
 #include "mock.h"
 
 #include <errno.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -227,7 +226,7 @@ static void *mock_bluez_rfcomm_thread(void *userdata) {
 	ssize_t len;
 
 	while ((len = read(rfcomm_fd, buffer, sizeof(buffer))) > 0) {
-		hexdump("RFCOMM", buffer, len, true);
+		hexdump("RFCOMM", buffer, len);
 
 		const char *response = "\r\nERROR\r\n";
 		for (size_t i = 0; i < ARRAYSIZE(responses); i++) {

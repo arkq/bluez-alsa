@@ -47,10 +47,10 @@ void callstackdump_(const char *label);
 #endif
 
 #if DEBUG
-void hexdump_(const char *label, const void *data, size_t len, bool compact);
-# define hexdump(M, D, L, C) hexdump_(DEBUG_LOG_PREFIX M, D, L, C)
+void hexdump_(const char *label, const void *data, size_t len);
+# define hexdump(M, D, L) hexdump_(DEBUG_LOG_PREFIX M, D, L)
 #else
-# define hexdump(M, D, L, C) do {} while (0)
+# define hexdump(M, D, L) do {} while (0)
 #endif
 
 #endif

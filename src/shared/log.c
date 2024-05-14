@@ -192,17 +192,14 @@ void callstackdump_(const char *label) {
  *
  * @param label Label printed before the memory block output.
  * @param data Address of the memory block.
- * @param len Number of bytes which should be printed.
- * @param compact Dump memory block without spaces. */
-void hexdump_(const char *label, const void *data, size_t len, bool compact) {
+ * @param len Number of bytes which should be printed. */
+void hexdump_(const char *label, const void *data, size_t len) {
 
-	const char *sep = "";
-	const char *spacing = compact ? "" : " ";
 	char *buf = malloc(len * 3 + 1);
 	char *p = buf;
 
-	for (size_t i = 0; i < len; sep = ++i % 4 ? "" : spacing) {
-		p += sprintf(p, "%s%02x", sep, *(unsigned char *)data & 0xFF);
+	for (size_t i = 0; i < len; i++) {
+		p += sprintf(p, "%02x", *(unsigned char *)data & 0xFF);
 		data = ((unsigned char *)data) + 1;
 	}
 

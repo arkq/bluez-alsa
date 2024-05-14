@@ -486,7 +486,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	memcpy(&capabilities, data, MIN(size, sizeof(capabilities)));
 	g_variant_unref(params);
 
-	hexdump("A2DP peer capabilities blob", &capabilities, size, true);
+	hexdump("A2DP peer capabilities blob", &capabilities, size);
 	if (a2dp_select_configuration(codec, &capabilities, size) == -1)
 		goto fail;
 
@@ -633,7 +633,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			ba_transport_debug_name(t),
 			batostr_(&d->addr));
 	hexdump("A2DP selected configuration blob",
-			&configuration, codec->capabilities_size, true);
+			&configuration, codec->capabilities_size);
 	debug("PCM configuration: channels: %u, sampling: %u",
 			t->a2dp.pcm.channels, t->a2dp.pcm.sampling);
 

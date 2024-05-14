@@ -229,12 +229,12 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 			&a2dp_sbc_source.capabilities, &caps_sbc, sizeof(caps_sbc) + 1), -1);
 	ck_assert_int_eq(errno, EINVAL);
 
-	hexdump("Capabilities A", &caps_sbc, sizeof(caps_sbc), true);
-	hexdump("Capabilities B", &a2dp_sbc_source.capabilities, sizeof(caps_sbc), true);
+	hexdump("Capabilities A", &caps_sbc, sizeof(caps_sbc));
+	hexdump("Capabilities B", &a2dp_sbc_source.capabilities, sizeof(caps_sbc));
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
 			&a2dp_sbc_source.capabilities, &caps_sbc, sizeof(caps_sbc)), 0);
 
-	hexdump("Capabilities filtered", &caps_sbc, sizeof(caps_sbc), true);
+	hexdump("Capabilities filtered", &caps_sbc, sizeof(caps_sbc));
 	ck_assert_int_eq(caps_sbc.frequency, SBC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(caps_sbc.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
 	ck_assert_int_eq(caps_sbc.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);
@@ -245,11 +245,11 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 
 #if ENABLE_APTX
 	/* Check whether generic bitwise AND filtering works correctly. */
-	hexdump("Capabilities A", &caps_aptx, sizeof(caps_aptx), true);
-	hexdump("Capabilities B", &a2dp_aptx_source.capabilities, sizeof(caps_aptx), true);
+	hexdump("Capabilities A", &caps_aptx, sizeof(caps_aptx));
+	hexdump("Capabilities B", &a2dp_aptx_source.capabilities, sizeof(caps_aptx));
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_aptx_source,
 			&a2dp_aptx_source.capabilities, &caps_aptx, sizeof(caps_aptx)), 0);
-	hexdump("Capabilities filtered", &caps_aptx, sizeof(caps_aptx), true);
+	hexdump("Capabilities filtered", &caps_aptx, sizeof(caps_aptx));
 	ck_assert_int_eq(caps_aptx.frequency, APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(caps_aptx.channel_mode, APTX_CHANNEL_MODE_STEREO);
 #endif

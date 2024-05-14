@@ -454,7 +454,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 		}
 
 		bt_data_push(buffer, len);
-		hexdump("BT data", buffer, len, false);
+		hexdump("BT data", buffer, len);
 
 		if (btd != NULL)
 			bt_dump_write(btd, buffer, len);
@@ -1383,7 +1383,7 @@ int main(int argc, char *argv[]) {
 			codec = a2dp_codecs_codec_id_to_string(btdin->transport_codec_id);
 			debug("BT dump A2DP codec: %s (%#x)", codec, btdin->transport_codec_id);
 			hexdump("BT dump A2DP configuration",
-					&btdin->a2dp_configuration, btdin->a2dp_configuration_size, true);
+					&btdin->a2dp_configuration, btdin->a2dp_configuration_size);
 			break;
 		case BT_DUMP_MODE_SCO:
 			codec = hfp_codec_id_to_string(btdin->transport_codec_id);
