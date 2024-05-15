@@ -21,7 +21,11 @@
 # include <stdlib.h>
 #endif
 
-#include <openaptx.h>
+#if WITH_LIBFREEAPTX
+# include <freeaptx.h>
+#else
+# include <openaptx.h>
+#endif
 
 #include "shared/log.h"
 
