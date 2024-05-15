@@ -14,6 +14,7 @@
 # include <config.h>
 #endif
 
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <pthread.h>
@@ -352,93 +353,25 @@ static bool bluez_match_dbus_adapter(
 }
 
 static const char *bluez_get_media_endpoint_object_path(
-		enum ba_transport_profile profile,
-		uint32_t codec_id) {
-	switch (profile) {
-	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
-		switch (codec_id) {
-		case A2DP_CODEC_SBC:
-			return "/A2DP/SBC/source";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG/source";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "/A2DP/AAC/source";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/aptX/source";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/aptXHD/source";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "/A2DP/FastStream/source";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "/A2DP/LC3plus/source";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "/A2DP/LDAC/source";
-#endif
-#if ENABLE_OPUS
-		case A2DP_CODEC_VENDOR_OPUS:
-			return "/A2DP/Opus/source";
-#endif
-		default:
-			error("Unsupported A2DP codec: %#x", codec_id);
-			g_assert_not_reached();
-		}
-	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		switch (codec_id) {
-		case A2DP_CODEC_SBC:
-			return "/A2DP/SBC/sink";
-#if ENABLE_MPEG
-		case A2DP_CODEC_MPEG12:
-			return "/A2DP/MPEG/sink";
-#endif
-#if ENABLE_AAC
-		case A2DP_CODEC_MPEG24:
-			return "/A2DP/AAC/sink";
-#endif
-#if ENABLE_APTX
-		case A2DP_CODEC_VENDOR_APTX:
-			return "/A2DP/aptX/sink";
-#endif
-#if ENABLE_APTX_HD
-		case A2DP_CODEC_VENDOR_APTX_HD:
-			return "/A2DP/aptXHD/sink";
-#endif
-#if ENABLE_FASTSTREAM
-		case A2DP_CODEC_VENDOR_FASTSTREAM:
-			return "/A2DP/FastStream/sink";
-#endif
-#if ENABLE_LC3PLUS
-		case A2DP_CODEC_VENDOR_LC3PLUS:
-			return "/A2DP/LC3plus/sink";
-#endif
-#if ENABLE_LDAC
-		case A2DP_CODEC_VENDOR_LDAC:
-			return "/A2DP/LDAC/sink";
-#endif
-#if ENABLE_OPUS
-		case A2DP_CODEC_VENDOR_OPUS:
-			return "/A2DP/Opus/sink";
-#endif
-		default:
-			error("Unsupported A2DP codec: %#x", codec_id);
-			g_assert_not_reached();
-		}
-	default:
+		const struct ba_adapter *adapter,
+		const struct a2dp_codec *codec,
+		unsigned int index) {
+
+	static char path[64];
+
+	const char *tmp;
+	if ((tmp = a2dp_codecs_codec_id_to_string(codec->codec_id)) == NULL)
 		g_assert_not_reached();
-		return "/";
-	}
+
+	char codec_name[16] = "";
+	for (size_t i = 0, j = 0; tmp[i] != '\0' && j < sizeof(codec_name); i++)
+		if (isupper(tmp[i]) || islower(tmp[i]) || isdigit(tmp[i]))
+			codec_name[j++] = tmp[i];
+
+	snprintf(path, sizeof(path), "/org/bluez/%s/A2DP/%s/%s/%u", adapter->hci.name,
+			codec_name, codec->dir == A2DP_SOURCE ? "source" : "sink", index);
+
+	return path;
 }
 
 static uint8_t bluez_get_media_endpoint_codec(
@@ -452,13 +385,13 @@ static const char *bluez_get_profile_object_path(
 		enum ba_transport_profile profile) {
 	switch (profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
-		return "/HFP/HandsFree";
+		return "/org/bluez/HFP/HandsFree";
 	case BA_TRANSPORT_PROFILE_HFP_AG:
-		return "/HFP/AudioGateway";
+		return "/org/bluez/HFP/AudioGateway";
 	case BA_TRANSPORT_PROFILE_HSP_HS:
-		return "/HSP/Headset";
+		return "/org/bluez/HSP/Headset";
 	case BA_TRANSPORT_PROFILE_HSP_AG:
-		return "/HSP/AudioGateway";
+		return "/org/bluez/HSP/AudioGateway";
 	default:
 		g_assert_not_reached();
 		return "/";
@@ -800,11 +733,7 @@ static void bluez_export_a2dp(
 		struct bluez_dbus_object_data *dbus_obj;
 		GError *err = NULL;
 
-		char path[sizeof(dbus_obj->path)];
-		snprintf(path, sizeof(path), "/org/bluez/%s%s/%u", adapter->hci.name,
-				bluez_get_media_endpoint_object_path(profile, codec->codec_id),
-				++index);
-
+		const char *path = bluez_get_media_endpoint_object_path(adapter, codec, ++index);
 		if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
 
 			/* End the loop if all previously created media endpoints are exported
@@ -1164,10 +1093,7 @@ static void bluez_register_hfp(
 	struct bluez_dbus_object_data *dbus_obj;
 	GError *err = NULL;
 
-	char path[sizeof(dbus_obj->path)];
-	snprintf(path, sizeof(path), "/org/bluez%s",
-			bluez_get_profile_object_path(profile));
-
+	const char *path = bluez_get_profile_object_path(profile);
 	if ((dbus_obj = g_hash_table_lookup(dbus_object_data_map, path)) == NULL) {
 
 		debug("Creating hands-free profile object: %s", path);
