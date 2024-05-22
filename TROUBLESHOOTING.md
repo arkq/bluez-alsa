@@ -14,8 +14,14 @@ starting the service may fail with the
 - The BlueALSA D-Bus policy file is not installed, or is in the wrong
 location.\
 In a default install, the file should be
+`/usr/share/dbus-1/system.d/bluealsa.conf`; but if BlueALSA was installed from
+a distribution package then the distribution may have moved it to
 `/etc/dbus-1/system.d/bluealsa.conf`. Check with your distribution
-documentation in case D-Bus uses a different location on your system.
+documentation in case D-Bus uses a different location on your system. Older
+versions of BlueALSA used `/etc/dbus-1/system.d/bluealsa.conf`, so you may
+find you have versions of the file in both locations. In that case D-Bus will
+attempt to apply the policy from both files, with the `/etc` file taking
+precedence in case of conflict.
 Re-install BlueALSA if the file is missing.
 
 - The user account that the BlueALSA service is started under is not

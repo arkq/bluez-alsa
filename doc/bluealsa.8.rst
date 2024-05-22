@@ -6,7 +6,7 @@ bluealsa
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: February 2024
+:Date: May 2024
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -430,12 +430,17 @@ provide it.
 FILES
 =====
 
-/etc/dbus-1/system.d/bluealsa.conf
+| **/etc/dbus-1/system.d/bluealsa.conf**
+| **/usr/share/dbus-1/system.d/bluealsa.conf**
+
     BlueALSA service D-Bus policy file.
     D-Bus will deny all access to the **org.bluealsa** service (even to *root*)
     unless permission is granted by a policy file. The default file permits
     only *root* to own this service, and only members of the *audio* group to
-    exchange messages with it.
+    exchange messages with it. BlueALSA installs its default file into the
+    directory **/usr/share/dbus-1/system.d**, but the distribution or local
+    administrator may override that by placing a modified policy file into
+    **/etc/dbus-1/system.d**
 
 /var/lib/bluealsa/*XX:XX:XX:XX:XX:XX*
     BlueALSA volume persistent state storage. Files are named after the
