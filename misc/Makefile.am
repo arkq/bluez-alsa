@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2021 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 
 SUBDIRS =
 
@@ -10,8 +10,8 @@ dist_bashcomp_DATA = bash-completion/bluealsa
 
 SYMLINKS = \
 	a2dpconf \
+	bluealsactl \
 	bluealsa-aplay \
-	bluealsa-cli \
 	bluealsa-rfcomm \
 	hcitop
 

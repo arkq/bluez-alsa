@@ -19,9 +19,9 @@ jobs:
         - --enable-debug --enable-aac --enable-msbc --enable-lc3-swb
         - --enable-debug --enable-mp3lame --enable-mpg123
         - --enable-faststream --enable-midi --enable-mp3lame
-        - --enable-aplay --enable-ofono --enable-opus --enable-upower
-        - --enable-cli --enable-rfcomm --enable-manpages
-        - --enable-aptx --enable-aptx-hd --with-libopenaptx
+        - --enable-ofono --enable-opus --enable-upower
+        - --disable-aplay --enable-rfcomm --enable-manpages
+        - --disable-ctl --enable-aptx --enable-aptx-hd --with-libopenaptx
       fail-fast: false
     runs-on: ubuntu-22.04
     steps:
@@ -126,7 +126,7 @@ jobs:
           --enable-opus \
           --enable-upower \
           --enable-aplay \
-          --enable-cli \
+          --enable-ctl \
           --enable-test
     - name: Build
       working-directory: ${{ github.workspace }}/build

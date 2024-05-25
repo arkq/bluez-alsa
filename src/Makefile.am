@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2024 Arkadiusz Bokowy
 
 bin_PROGRAMS = bluealsa
-SUBDIRS = asound
+SUBDIRS = asound bluealsactl
 
 dbusconfdir = @DBUS_CONF_DIR@
 dbusbluealsauser = @BLUEALSA_USER@

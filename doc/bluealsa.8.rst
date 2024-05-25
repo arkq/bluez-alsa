@@ -488,7 +488,7 @@ The bluez-alsa project is licensed under the terms of the MIT license.
 SEE ALSO
 ========
 
-``bluealsa-aplay(1)``, ``bluealsa-cli(1)``, ``bluealsa-rfcomm(1)``,
+``bluealsactl(1)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``,
 ``bluetoothctl(1)``, ``bluealsa-plugins(7)``, ``bluetoothd(8)``
 
 Project web site

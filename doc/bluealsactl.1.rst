@@ -1,12 +1,12 @@
-============
-bluealsa-cli
-============
+===========
+bluealsactl
+===========
 
 ----------------------------------------------------------
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: January 2024
+:Date: May 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -14,12 +14,12 @@ a simple command line interface for the BlueALSA D-Bus API
 SYNOPSIS
 ========
 
-**bluealsa-cli** [*OPTION*]... [*COMMAND* [*ARG*]...]
+**bluealsactl** [*OPTION*]... [*COMMAND* [*ARG*]...]
 
 DESCRIPTION
 ===========
 
-**bluealsa-cli** provides command-line access to the BlueALSA D-Bus API
+**bluealsactl** provides command-line access to the BlueALSA D-Bus API
 "org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus allows
 introspection and some control of BlueALSA PCMs while they are running.
 
@@ -115,7 +115,7 @@ codec [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
 
     BlueALSA does not support changing the HFP codec from an HFP-HF node. The
     codec can only be changed from the HFP-AG node. Using the
-    **bluealsa-cli codec** command to set the codec from an HFP-HF node fails,
+    **bluealsactl codec** command to set the codec from an HFP-HF node fails,
     reporting an input/output error.
 
     Selecting the HFP codec when using oFono is not supported.

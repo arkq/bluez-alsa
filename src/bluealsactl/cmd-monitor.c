@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-monitor.c
+ * BlueALSA - bluealsactl/cmd-monitor.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -17,7 +17,7 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
@@ -169,7 +169,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 							goto fail;
 						}
 
-						cli_print_pcm_properties(&pcm, &err);
+						bactl_print_pcm_properties(&pcm, &err);
 						printf("\n");
 
 					}
@@ -297,7 +297,7 @@ static bool parse_property_list(char *argv[], char *props) {
 
 static void usage(const char *command) {
 	printf("Display D-Bus signals.\n\n");
-	cli_print_usage("%s [OPTION]...", command);
+	bactl_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\t\tShow this message and exit\n"
 			"  -p, --properties[=PROPS]\tShow PCM property changes\n"
@@ -318,7 +318,7 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -371,7 +371,7 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 
 	bool running = false;
 	DBusError err = DBUS_ERROR_INIT;
-	cli_get_ba_services(test_bluealsa_service, &running, &err);
+	bactl_get_ba_services(test_bluealsa_service, &running, &err);
 	if (dbus_error_is_set(&err)) {
 		cmd_print_error("D-Bus error: %s", err.message);
 		return EXIT_FAILURE;
@@ -388,7 +388,7 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_monitor = {
+const struct bactl_command cmd_monitor = {
 	"monitor",
 	"Display D-Bus signals",
 	cmd_monitor_func,

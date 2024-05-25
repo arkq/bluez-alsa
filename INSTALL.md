@@ -53,7 +53,7 @@ Dependencies:
 - [spandsp](https://www.soft-switch.org) (when mSBC support is enabled with
   `--enable-msbc`)
 
-Dependencies for client applications (e.g. `bluealsa-aplay` or `bluealsa-cli`):
+Dependencies for client applications (e.g. `bluealsactl` or `bluealsa-aplay`):
 
 - [libdbus](https://www.freedesktop.org/wiki/Software/dbus/)
 

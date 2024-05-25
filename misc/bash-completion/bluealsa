@@ -59,8 +59,8 @@ _bluealsa_pcm_codecs() {
 	done
 }
 
-# helper function completes supported bluealsa-cli monitor properties
-_bluealsa_cli_properties() {
+# helper function completes supported bluealsactl monitor properties
+_bluealsactl_properties() {
 	local properties=( codec running softvolume volume )
 	if [[ "$cur" == *,* ]]; then
 		local realcur prefix chosen remaining
@@ -278,9 +278,9 @@ _bluealsa_aplay() {
 	_bluealsa_complete_options "$1"
 }
 
-# completion function for bluealsa-cli
+# completion function for bluealsactl
 # complete available dbus suffices, command names and pcm paths in addition to options
-_bluealsa_cli() {
+_bluealsactl() {
 
 	local cur prev words cword split
 	_init_completion -s || return
@@ -289,7 +289,7 @@ _bluealsa_cli() {
 	local -i nonopt_offset
 	_bluealsa_util_init "$1" || return
 
-	# the command names supported by this version of bluealsa-cli
+	# the command names supported by this version of bluealsactl
 	local simple_commands="list-pcms list-services monitor status"
 	local path_commands="codec delay-adjustment info mute open soft-volume volume"
 
@@ -341,7 +341,7 @@ _bluealsa_cli() {
 		monitor)
 			case "$prev" in
 				--properties)
-					_bluealsa_cli_properties
+					_bluealsactl_properties
 					return
 					;;
 			esac
@@ -429,7 +429,7 @@ _bluealsa_cli() {
 		monitor)
 			case "$prev" in
 				--properties)
-					_bluealsa_cli_properties
+					_bluealsactl_properties
 					;;
 				-p)
 					return
@@ -494,8 +494,8 @@ _bluealsa_others() {
 }
 
 complete -F _bluealsa bluealsa
+complete -F _bluealsactl bluealsactl
 complete -F _bluealsa_aplay bluealsa-aplay
-complete -F _bluealsa_cli bluealsa-cli
 complete -F _bluealsa_rfcomm bluealsa-rfcomm
 complete -F _bluealsa_others hcitop
 complete -F _bluealsa_others a2dpconf

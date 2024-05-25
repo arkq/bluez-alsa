@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2023 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 
 man1_MANS =
 
@@ -11,12 +11,12 @@ man7_MANS = \
 
 man8_MANS = bluealsa.8
 
-if ENABLE_APLAY
-man1_MANS += bluealsa-aplay.1
+if ENABLE_CTL
+man1_MANS += bluealsactl.1
 endif
 
-if ENABLE_CLI
-man1_MANS += bluealsa-cli.1
+if ENABLE_APLAY
+man1_MANS += bluealsa-aplay.1
 endif
 
 if ENABLE_RFCOMM

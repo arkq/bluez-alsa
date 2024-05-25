@@ -1,6 +1,7 @@
 unreleased
 ==========
 
+- renamed bluealsa-cli to bluealsactl (no backward compatibility)
 - optional support for Android 13 A2DP Opus codec
 - bluealsa-aplay: fix volume synchronization on Raspberry Pi
 
@@ -30,7 +31,7 @@ bluez-alsa v4.1.1 (2023-06-24)
 bluez-alsa v4.1.0 (2023-05-23)
 ==============================
 
-- removed deprecated org.bluealsa.Manger1 D-Bus interface
+- removed deprecated org.bluealsa.Manager1 D-Bus interface
 - persistent storage for PCM volume and mute state
 - PCM volume control with oFono HFP-AG and HFP-HF profiles
 - transport running state exported in PCM D-Bus interface
@@ -49,7 +50,7 @@ bluez-alsa v4.0.0 (2022-06-03)
 ==============================
 
 - changes in command line options (no backward compatibility)
-- implement D-Bus ObjectManager (deprecate org.bluealsa.Manger1)
+- implement D-Bus ObjectManager (deprecate org.bluealsa.Manager1)
 - optional support for A2DP FastStream codec (music & voice)
 - optional support for A2DP LC3plus codec (music & voice)
 - enhanced SBC XQ mode (XQ+) which bumps bitrate to 595 kbps

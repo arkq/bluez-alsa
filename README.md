@@ -51,7 +51,7 @@ C <--> D((bluealsa-aplay))
 D --> E([ALSA libasound])
 E --> K[Speakers]
 C <--> F((bluealsa\nALSA plug-ins))
-C <--> G((bluealsa-cli))
+C <--> G((bluealsactl))
 F <--> H([ALSA libasound])
 H <--> I((ALSA\napplications))
 C <--> J((other\nD-Bus clients))
@@ -80,12 +80,12 @@ MIDI device in the same way as it would connect to a local MIDI device.
 BlueALSA also includes a number of utility applications. Of particular note
 are:
 
+* bluealsactl\
+   an application to allow command-line management of the BlueALSA system.
+
 * bluealsa-aplay\
    an application to simplify the task of building a Bluetooth speaker using
    BlueALSA.
-
-* bluealsa-cli\
-   an application to allow command-line management of the BlueALSA system.
 
 * bluealsa-rfcomm\
    a command-line application which provides access to the RFCOMM terminal for

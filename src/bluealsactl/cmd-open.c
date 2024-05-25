@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-open.c
+ * BlueALSA - bluealsactl/cmd-open.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -19,13 +19,13 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/hex.h"
 
 static void usage(const char *command) {
 	printf("Transfer raw PCM data via stdin or stdout.\n\n");
-	cli_print_usage("%s [OPTION]... PCM-PATH", command);
+	bactl_print_usage("%s [OPTION]... PCM-PATH", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"  -x, --hex\t\tTransfer data in hexadecimal format\n"
@@ -50,7 +50,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -145,7 +145,7 @@ finish:
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_open = {
+const struct bactl_command cmd_open = {
 	"open",
 	"Transfer raw PCM via stdin or stdout",
 	cmd_open_func,

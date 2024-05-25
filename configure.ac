@@ -301,13 +301,13 @@ AM_COND_IF([ENABLE_PAYLOADCHECK], [
 	AC_DEFINE([ENABLE_PAYLOADCHECK], [1], [Define to 1 if PAYLOADCHECK is enabled.])
 ])
 
+AC_ARG_ENABLE([ctl],
+	[AS_HELP_STRING([--disable-ctl], [disable building of bluealsactl tool])])
+AM_CONDITIONAL([ENABLE_CTL], [test "x$enable_ctl" != "xno"])
+
 AC_ARG_ENABLE([aplay],
 	[AS_HELP_STRING([--disable-aplay], [disable building of bluealsa-aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
-
-AC_ARG_ENABLE([cli],
-	[AS_HELP_STRING([--enable-cli], [enable building of bluealsa-cli tool])])
-AM_CONDITIONAL([ENABLE_CLI], [test "x$enable_cli" = "xyes"])
 
 AC_ARG_ENABLE([rfcomm],
 	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
@@ -445,9 +445,9 @@ AC_CONFIG_FILES([
 	misc/systemd/Makefile
 	src/Makefile
 	src/asound/Makefile
+	src/bluealsactl/Makefile
 	utils/Makefile
 	utils/aplay/Makefile
-	utils/cli/Makefile
 	utils/rfcomm/Makefile
 	test/Makefile
 	test/mock/Makefile])
