@@ -6,7 +6,7 @@ org.bluealsa.Manager1
 Bluetooth Audio Manager D-Bus API
 ---------------------------------
 
-:Date: October 2023
+:Date: May 2024
 :Manual section: 7
 :Manual group: D-Bus Interface
 :Version: $VERSION$
@@ -53,7 +53,7 @@ The bluez-alsa project is licensed under the terms of the MIT license.
 SEE ALSO
 ========
 
-``bluealsa-cli(1)``, ``bluealsa(8)``
+``bluealsactl(1)``, ``bluealsa(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-status.c
+ * BlueALSA - bluealsactl/cmd-status.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -14,12 +14,12 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client.h"
 
 static void usage(const char *command) {
 	printf("Show BlueALSA service runtime status.\n\n");
-	cli_print_usage("%s [OPTION]...", command);
+	bactl_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 	);
@@ -38,7 +38,7 @@ static int cmd_status_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -66,14 +66,14 @@ static int cmd_status_func(int argc, char *argv[]) {
 
 	printf("Service: %s\n", config.dbus.ba_service);
 	printf("Version: %s\n", props.version);
-	cli_print_adapters(&props);
-	cli_print_profiles_and_codecs(&props);
+	bactl_print_adapters(&props);
+	bactl_print_profiles_and_codecs(&props);
 
 	ba_dbus_service_props_free(&props);
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_status = {
+const struct bactl_command cmd_status = {
 	"status",
 	"Show BlueALSA service status",
 	cmd_status_func,

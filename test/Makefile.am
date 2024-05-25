@@ -36,9 +36,9 @@ TESTS += test-utils-aplay
 check_PROGRAMS += test-utils-aplay
 endif
 
-if ENABLE_CLI
-TESTS += test-utils-cli
-check_PROGRAMS += test-utils-cli
+if ENABLE_CTL
+TESTS += test-utils-ctl
+check_PROGRAMS += test-utils-ctl
 endif
 
 if ENABLE_LC3_SWB

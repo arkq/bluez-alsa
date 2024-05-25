@@ -192,7 +192,7 @@ The bluez-alsa project is licensed under the terms of the MIT license.
 SEE ALSO
 ========
 
-``bluealsa-cli(1)``, ``bluealsa-plugins(5)``, ``bluealsa(8)``
+``bluealsactl(1)``, ``bluealsa-plugins(5)``, ``bluealsa(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

@@ -39,7 +39,7 @@ jobs:
           --enable-opus \
           --enable-upower \
           --enable-aplay \
-          --enable-cli \
+          --enable-ctl \
           --enable-test \
           --with-coverage
     - name: Generate Coverage Report

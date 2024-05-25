@@ -1,11 +1,11 @@
-# BlueALSA - Makefile.am
-# Copyright (c) 2016-2022 Arkadiusz Bokowy
+# BlueALSA - bluealsactl/Makefile.am
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 
-if ENABLE_CLI
+if ENABLE_CTL
 
-bin_PROGRAMS = bluealsa-cli
+bin_PROGRAMS = bluealsactl
 
-bluealsa_cli_SOURCES = \
+bluealsactl_SOURCES = \
 	../../src/shared/a2dp-codecs.c \
 	../../src/shared/dbus-client.c \
 	../../src/shared/dbus-client-pcm.c \
@@ -22,14 +22,14 @@ bluealsa_cli_SOURCES = \
 	cmd-softvol.c \
 	cmd-status.c \
 	cmd-volume.c \
-	cli.c
+	main.c
 
-bluealsa_cli_CFLAGS = \
+bluealsactl_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@DBUS1_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@
 
-bluealsa_cli_LDADD = \
+bluealsactl_LDADD = \
 	@DBUS1_LIBS@ \
 	@LIBUNWIND_LIBS@
 

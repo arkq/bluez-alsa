@@ -59,7 +59,7 @@ jobs:
           --enable-opus \
           --enable-upower \
           --enable-aplay \
-          --enable-cli \
+          --enable-ctl \
           --enable-rfcomm \
           --enable-a2dpconf \
           --enable-hcitop
@@ -108,7 +108,7 @@ jobs:
           --enable-opus \
           --enable-upower \
           --enable-aplay \
-          --enable-cli \
+          --enable-ctl \
           --enable-rfcomm \
           --enable-a2dpconf \
           --enable-hcitop \
