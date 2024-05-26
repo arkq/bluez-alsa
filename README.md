@@ -1,5 +1,14 @@
 # Bluetooth Audio ALSA Backend
 
+> [!WARNING]
+> The latest source uses new names for some core components:
+>
+> * The `bluealsa` daemon is now called `bluealsad`
+> * The `bluealsa-cli` utility is now called `bluealsactl`
+>
+> See the wiki guide [Migrating from release 4.3.1 or earlier](https://github.com/arkq/bluez-alsa/wiki/Migrating-from-release-4.3.1-or-earlier)
+> for more information.
+
 [![Build Status](https://github.com/arkq/bluez-alsa/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/arkq/bluez-alsa/actions/workflows/build-and-test.yaml)
 [![Code Coverage](https://codecov.io/gh/arkq/bluez-alsa/branch/master/graph/badge.svg)](https://app.codecov.io/gh/arkq/bluez-alsa)
 
@@ -36,7 +45,7 @@ ALSA sound card support. Note this means that the applications are constrained
 by the capabilities of the ALSA API, and the higher-level audio processing
 features of audio servers such as PulseAudio and PipeWire are not available.
 
-BlueALSA consists of the daemon `bluealsa`, ALSA plug-ins, and a number of
+BlueALSA consists of the daemon `bluealsad`, ALSA plug-ins, and a number of
 utilities. The basic context is shown in this diagram:
 
 ```mermaid
@@ -45,7 +54,7 @@ classDef external fill:#eee,stroke:#333,stroke-width:4px,color:black;
 classDef bluealsa fill:#bbf,stroke:#333,stroke-width:4px,color:black;
 
 A[Bluetooth Adapter] <--> B((bluetoothd\ndaemon))
-A <--> C((bluealsa daemon))
+A <--> C((bluealsad daemon))
 B <--> C
 C <--> D((bluealsa-aplay))
 D --> E([ALSA libasound])
@@ -63,7 +72,7 @@ class A,B,E,H,I,J,K,L,M,N external;
 class C,D,F,G bluealsa;
 ```
 
-The heart of BlueALSA is the daemon `bluealsa` which interfaces with the BlueZ
+The heart of BlueALSA is the daemon `bluealsad` which interfaces with the BlueZ
 Bluetooth daemon `bluetoothd` and the local Bluetooth adapter. It handles the
 profile connection and configuration logic for A2DP, HFP and HSP and presents
 the resulting audio streams to applications via D-Bus.
@@ -99,23 +108,23 @@ Build and install instructions are included in the file
 
 ## Usage
 
-### bluealsa daemon
+### bluealsad daemon
 
-The main component of BlueALSA is a program called `bluealsa`. By default, this
-program shall be run as a root during system startup. It will register
+The main component of BlueALSA is a program called `bluealsad`. By default,
+this program shall be run as a root during system startup. It will register
 `org.bluealsa` service in the D-Bus system bus, which can be used for accessing
 configured audio devices. In general, BlueALSA acts as a proxy between BlueZ
 and ALSA.
 
-The `bluealsa` daemon must be running in order to pair, connect, and use
+The `bluealsad` daemon must be running in order to pair, connect, and use
 remote Bluetooth audio devices. In order to stream audio to e.g. a Bluetooth
 headset, firstly one has to connect the device. If you are not familiar with
 the Bluetooth pairing and connecting procedures on Linux, there is a basic
 guide in the wiki:
 [Bluetooth pairing and connecting](https://github.com/arkq/bluez-alsa/wiki/Bluetooth-Pairing-And-Connecting).
 
-For details of command-line options to `bluealsa`, consult the [bluealsa manual
-page](doc/bluealsa.8.rst).
+For details of command-line options to `bluealsad`, consult the [bluealsad
+manual page](doc/bluealsad.8.rst).
 
 ### ALSA plug-ins
 
@@ -140,8 +149,8 @@ the [ALSA Kernel proc interface][].
 [ALSA software PCM I/O plug-in]: https://www.alsa-project.org/alsa-doc/alsa-lib/pcm_external_plugins.html
 [ALSA Kernel proc interface]: https://www.kernel.org/doc/html/latest/sound/designs/procfile.html
 
-Setup parameters of the bluealsa PCM device can be set in the local `.asoundrc`
-configuration file like this:
+Setup parameters of the `bluealsa` PCM device can be set in the local
+`.asoundrc` configuration file like this:
 
 ```sh
 cat ~/.asoundrc

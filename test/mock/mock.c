@@ -111,7 +111,7 @@ static void *mock_bt_dump_thread(void *userdata) {
 	ssize_t len;
 
 	if (mock_dump_output)
-		f_output = fopen("bluealsa-mock.dump", "w");
+		f_output = fopen("bluealsad-mock.dump", "w");
 
 	debug("IO loop: START: %s", __func__);
 	while ((len = read(bt_fd, buffer, sizeof(buffer))) > 0) {

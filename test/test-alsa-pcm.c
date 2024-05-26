@@ -443,7 +443,7 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 	if (pcm_device != NULL)
 		return;
 
-	/* hard-coded values used in the bluealsa-mock */
+	/* hard-coded values used in the bluealsad-mock */
 	const unsigned int server_channels_min = 1;
 	const unsigned int server_channels_max = 2;
 	const unsigned int server_rate_min = 16000;
@@ -1128,8 +1128,8 @@ int main(int argc, char *argv[]) {
 		}
 
 	char *argv_0 = strdup(argv[0]);
-	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
-			"%s/mock/bluealsa-mock", dirname(argv_0));
+	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
+			"%s/mock/bluealsad-mock", dirname(argv_0));
 
 	if (argc == optind) {
 		run_capture = true;

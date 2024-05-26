@@ -9,7 +9,7 @@ man7_MANS = \
 	org.bluealsa.PCM1.7 \
 	org.bluealsa.RFCOMM1.7
 
-man8_MANS = bluealsa.8
+man8_MANS = bluealsad.8
 
 if ENABLE_CTL
 man1_MANS += bluealsactl.1

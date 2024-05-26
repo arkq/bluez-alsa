@@ -1,8 +1,9 @@
 unreleased
 ==========
 
-- renamed bluealsa-cli to bluealsactl (no backward compatibility)
+- renamed bluealsa to bluealsad (no backward compatibility)
 - renamed bluealsa.conf to org.bluealsa.conf (no backward compatibility)
+- renamed bluealsa-cli to bluealsactl (no backward compatibility)
 
 bluez-alsa v4.3.1 (2024-08-30)
 ==============================

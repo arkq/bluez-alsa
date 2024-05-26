@@ -1,6 +1,6 @@
 [Unit]
 Description=BlueALSA service
-Documentation=man:bluealsa(8)
+Documentation=man:bluealsad(8)
 Requisite=dbus.service
 After=bluetooth.service
 
@@ -12,7 +12,7 @@ After=bluetooth.service
 # $ sudo systemctl edit bluealsa
 # [Service]
 # ExecStart=
-# ExecStart=@bindir@/bluealsa -S --keep-alive=5 -p a2dp-sink
+# ExecStart=@bindir@/bluealsad -S --keep-alive=5 -p a2dp-sink
 
 # When using low latency audio profile like HSP/HFP, it is recommended to set
 # real-time scheduling priority for IO threads with the --io-rt-priority=NUM
@@ -29,8 +29,8 @@ After=bluetooth.service
 [Service]
 Type=dbus
 BusName=org.bluealsa
-User=@bluealsauser@
-ExecStart=@bindir@/bluealsa @systemdbluealsaargs@
+User=@bluealsaduser@
+ExecStart=@bindir@/bluealsad @systemdbluealsadargs@
 Restart=on-failure
 
 # Sandboxing

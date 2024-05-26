@@ -7,7 +7,7 @@
 
   <!-- ../system.conf have denied everything, so we just punch some holes -->
 
-  <policy user="@bluealsauser@">
+  <policy user="@bluealsaduser@">
     <allow own_prefix="org.bluealsa"/>
     <allow send_destination="org.bluealsa"/>
   </policy>
