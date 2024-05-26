@@ -65,6 +65,12 @@ aloader_la_LDFLAGS = \
 aloader_la_LIBADD = \
 	@ALSA_LIBS@
 
+BUILT_SOURCES = \
+	test-dbus-iface.c
+
+MOSTLYCLEANFILES = \
+	$(BUILT_SOURCES)
+
 test_a2dp_SOURCES = \
 	../src/shared/a2dp-codecs.c \
 	../src/shared/ffb.c \

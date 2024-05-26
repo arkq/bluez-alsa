@@ -4,6 +4,13 @@
 check_PROGRAMS = \
 	bluealsa-mock
 
+BUILT_SOURCES = \
+	dbus-ifaces.c \
+	dbus-ifaces.h
+
+MOSTLYCLEANFILES = \
+	$(BUILT_SOURCES)
+
 bluealsa_mock_SOURCES = \
 	../../src/shared/a2dp-codecs.c \
 	../../src/shared/ffb.c \
@@ -39,14 +46,6 @@ bluealsa_mock_SOURCES = \
 	mock-bluez.c \
 	mock-upower.c \
 	mock.c
-
-dbus-ifaces.c: dbus-ifaces.h
-mock-bluez.c: dbus-ifaces.h
-mock-upower.c: dbus-ifaces.h
-
-MOSTLYCLEANFILES = \
-	mock-bluez-iface.c \
-	mock-bluez-iface.h
 
 bluealsa_mock_CFLAGS = \
 	-I$(top_srcdir)/src \

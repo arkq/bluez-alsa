@@ -6,7 +6,7 @@ SUBDIRS = asound bluealsactl
 
 dbusconfdir = @DBUS_CONF_DIR@
 dbusbluealsauser = @BLUEALSA_USER@
-dist_dbusconf_DATA = bluealsa.conf
+dist_dbusconf_DATA = org.bluealsa.conf
 
 BUILT_SOURCES = \
 	bluealsa-iface.c \

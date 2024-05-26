@@ -430,8 +430,8 @@ provide it.
 FILES
 =====
 
-| **/etc/dbus-1/system.d/bluealsa.conf**
-| **/usr/share/dbus-1/system.d/bluealsa.conf**
+| **/etc/dbus-1/system.d/org.bluealsa.conf**
+| **/usr/share/dbus-1/system.d/org.bluealsa.conf**
 
     BlueALSA service D-Bus policy file.
     D-Bus will deny all access to the **org.bluealsa** service (even to *root*)

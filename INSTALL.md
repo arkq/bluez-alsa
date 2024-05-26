@@ -161,7 +161,7 @@ policy file enables user USER instead of `root` to register the `org.bluealsa`
 service. If that option was not used, then it is necessary to edit the policy
 file to grant permission to a non-root user. The policy file is located at
 
-`/etc/dbus-1/system.d/bluealsa.conf`.
+`/usr/share/dbus-1/system.d/org.bluealsa.conf`.
 
 For example:
 
