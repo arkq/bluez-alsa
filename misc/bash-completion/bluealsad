@@ -2,7 +2,7 @@
 # bash completion for bluez-alsa project applications
 
 # helper function gets available profiles
-# @param $1 the bluealsa executable name
+# @param $1 the bluealsad executable name
 _bluealsa_profiles() {
 	"$1" --help | while read -r line; do
 		[[ "$line" = "Available BT profiles:" ]] && start=yes && continue
@@ -14,7 +14,7 @@ _bluealsa_profiles() {
 }
 
 # helper function gets available codecs
-# @param $1 the bluealsa executable name
+# @param $1 the bluealsad executable name
 _bluealsa_codecs() {
 	"$1" --help | while read -r line; do
 		[[ "$line" = "Available BT audio codecs:" ]] && start=yes && continue
@@ -27,8 +27,8 @@ _bluealsa_codecs() {
 }
 
 # helper function gets available enum values
-# @param $1 the bluealsa executable name
-# @param $2 the bluealsa option to inspect
+# @param $1 the bluealsad executable name
+# @param $2 the bluealsad option to inspect
 _bluealsa_enum_values() {
 	"$1" "${2}=" 2>&1 | while read -r line; do
 		[[ $line =~ \{([^}]*)\} ]] || continue
@@ -102,7 +102,7 @@ _bluealsa_aplay_pcms() {
 }
 
 # helper function gets rfcomm dbus paths
-# @param $1 the full bluealsa service name ( org.bluealsa* )
+# @param $1 the full BlueALSA service name ( org.bluealsa* )
 _bluealsa_rfcomm_paths() {
 	busctl --list tree "$1" 2>/dev/null | while read -r line; do
 		[[ "$line" = /org/bluealsa/hci[0-9]/dev*/rfcomm ]] || continue
@@ -180,9 +180,9 @@ _bluealsa_complete_options() {
 	[[ ${COMPREPLY[0]} == *= ]] && compopt -o nospace
 }
 
-# completion function for bluealsa
+# completion function for bluealsad
 # complete available devices and profiles in addition to options
-_bluealsa() {
+_bluealsad() {
 
 	local cur prev words cword split
 	_init_completion -s || return
@@ -493,7 +493,7 @@ _bluealsa_others() {
 	_bluealsa_complete_options "$1"
 }
 
-complete -F _bluealsa bluealsa
+complete -F _bluealsad bluealsad
 complete -F _bluealsactl bluealsactl
 complete -F _bluealsa_aplay bluealsa-aplay
 complete -F _bluealsa_rfcomm bluealsa-rfcomm

@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: July 2023
+:Date: May 2024
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -22,7 +22,7 @@ one for CTL volume controls.
 PCM PLUGIN
 ==========
 
-The BlueALSA ALSA PCM plugin communicates with the ``bluealsa(8)`` service.
+The BlueALSA ALSA PCM plugin communicates with the ``bluealsad(8)`` service.
 It can be used to define ALSA PCMs in your own configuration file (e.g.
 ~/.asoundrc), or you can use the predefined **bluealsa** PCM.
 
@@ -92,7 +92,7 @@ PCM Parameters
 
   SOFTVOL
     Enables or disables BlueALSA's software volume feature for this PCM. See
-    the ``bluealsa(8)`` manual page for more information on software volume.
+    the ``bluealsad(8)`` manual page for more information on software volume.
     This is a boolean option (values **on** or **off**), but also accepts the
     special value **unchanged** which causes the PCM to use its existing
     softvol value. The default value is **unchanged**.
@@ -106,7 +106,7 @@ PCM Parameters
 
   SRV
     The D-Bus service name of the BlueALSA daemon. Defaults to
-    **org.bluealsa**. See ``bluealsa(8)`` for more information. Not normally
+    **org.bluealsa**. See ``bluealsad(8)`` for more information. Not normally
     required.
 
 Setting Different Defaults
@@ -230,8 +230,8 @@ Now using ``aplay -L`` will include the following in its output:
       My Bluetooth headphones
   #
 
-If you are using the predefined bluealsa PCM, then you can create a "namehint"
-entry in your ~/.asoundrc file like this:
+If you are using the predefined **bluealsa** PCM, then you can create a
+"namehint" entry in your ~/.asoundrc file like this:
 
 ::
 
@@ -442,7 +442,7 @@ CTL Parameters
 
     The volume mode controls take values "software" and "pass-through"; the
     playback control has index 0 and capture control has index 1.
-    See the `Volume control` section in the ``bluealsa(8)`` for more
+    See the `Volume control` section in the ``bluealsad(8)`` for more
     information on the software volume setting.
 
     The delay adjustment controls are called "Sync". They can be used to apply
@@ -489,7 +489,7 @@ CTL Parameters
 
   SRV
     The D-Bus service name of the BlueALSA daemon. Defaults to
-    **org.bluealsa**. See ``bluealsa(8)`` for more information.
+    **org.bluealsa**. See ``bluealsad(8)`` for more information.
 
 The default values can be overridden in the ALSA configuration, for example:
 
@@ -557,10 +557,10 @@ connects. The A2DP source device, or HFP/HSP gateway device, must first
 "acquire" the profile transport.
 
 When the BlueALSA PCM plugin is used on a source A2DP or gateway HFP/HSP node,
-then **bluealsa(8)** will automatically acquire the transport and begin audio
+then **bluealsad(8)** will automatically acquire the transport and begin audio
 transfer when the plugin starts the PCM.
 
-When used on an A2DP sink or HFP/HSP HF/HS node then **bluealsa(8)** must wait
+When used on an A2DP sink or HFP/HSP HF/HS node then **bluealsad(8)** must wait
 for the remote device to acquire the transport. During this waiting time the
 PCM plugin behaves as if the device "clock" is stopped, it does not generate
 any poll() events, and the application will be blocked when writing or reading
@@ -595,7 +595,7 @@ FILES
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
@@ -603,7 +603,7 @@ SEE ALSO
 ========
 
 ``alsamixer(1)``, ``amixer(1)``, ``aplay(1)``, ``bluetoothctl(1)``,
-``bluealsa(8)``, ``bluetoothd(8)``
+``bluealsad(8)``, ``bluetoothd(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

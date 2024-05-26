@@ -60,7 +60,7 @@
 
 #include "inc/sine.inc"
 
-#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-mock-storage"
+#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsad-mock-storage"
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.frequency = SBC_SAMPLING_FREQ_44100,

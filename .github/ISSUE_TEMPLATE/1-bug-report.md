@@ -15,14 +15,14 @@ title:
 
 ### Reproduction steps
 
-> Provide a minimal example of how to reproduce the problem. State `bluealsa`
+> Provide a minimal example of how to reproduce the problem. State `bluealsad`
 > command line arguments and the content of .asoundrc file (if PCM alias with
 > "type bluealsa" was added to that file).
 
 ### Setup
 
 > - the OS distribution and version
-> - the version of BlueALSA (`bluealsa --version`)
+> - the version of BlueALSA (`bluealsad --version`)
 > - the version of BlueZ (`bluetoothd --version`)
 > - the version of ALSA (`aplay --version`)
 > - if self-built from source, please state the branch and commit
@@ -31,6 +31,6 @@ title:
 ### Additional context
 
 > Add any other context about the problem here, e.g. log messages printed by
-> `bluealsa` and/or client application.
+> `bluealsad` and/or client application.
 >
 > Please delete instructions prefixed with '>' to prove you have read them.

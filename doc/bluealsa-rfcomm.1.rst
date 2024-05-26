@@ -3,10 +3,10 @@ bluealsa-rfcomm
 ===============
 
 -------------------------------------
-a simple RFCOMM terminal for bluealsa
+a simple RFCOMM terminal for BlueALSA
 -------------------------------------
 
-:Date: March 2023
+:Date: May 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -35,7 +35,7 @@ OPTIONS
 
 -B NAME, --dbus=NAME
     BlueALSA service name suffix. For more information see ``--dbus``
-    option of ``bluealsa(8)`` service daemon.
+    option of ``bluealsad(8)`` service daemon.
 
 -p, --properties
     Print the properties of the given *DEVICE-PATH*
@@ -54,14 +54,14 @@ EXAMPLES
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluealsa-aplay(1)`` ``bluealsa(8)``
+``bluealsa-aplay(1)`` ``bluealsad(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

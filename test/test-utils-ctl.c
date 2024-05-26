@@ -467,8 +467,8 @@ int main(int argc, char *argv[], char *envp[]) {
 	char *argv_0 = strdup(argv[0]);
 	char *argv_0_dir = dirname(argv_0);
 
-	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
-			"%s/mock/bluealsa-mock", argv_0_dir);
+	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
+			"%s/mock/bluealsad-mock", argv_0_dir);
 	snprintf(bluealsactl_path, sizeof(bluealsactl_path),
 			"%s/../src/bluealsactl/bluealsactl", argv_0_dir);
 

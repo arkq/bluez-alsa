@@ -1,6 +1,6 @@
-========
-bluealsa
-========
+=========
+bluealsad
+=========
 
 ----------------------------
 Bluetooth Audio ALSA Backend
@@ -14,12 +14,12 @@ Bluetooth Audio ALSA Backend
 SYNOPSIS
 ========
 
-**bluealsa** -p *PROFILE* [*OPTION*]...
+**bluealsad** -p *PROFILE* [*OPTION*]...
 
 DESCRIPTION
 ===========
 
-**bluealsa** is a Linux daemon to give applications access to Bluetooth audio
+**bluealsad** is a Linux daemon to give applications access to Bluetooth audio
 streams using the Bluetooth A2DP, HFP, HSP and/or BLE-MIDI profiles.
 It provides a D-Bus API to applications, and can be used by ALSA applications
 via libasound plugins (see **bluealsa-plugins(7)** for details).
@@ -45,7 +45,7 @@ OPTIONS
     - **warning** - warning conditions
     - **info** - informational messages
 
-    If **bluealsa** was built with debug enabled, then an additional, lowest,
+    If **bluealsad** was built with debug enabled, then an additional, lowest,
     level is  available:
 
     - **debug** - debug messages
@@ -55,7 +55,7 @@ OPTIONS
 
 -B NAME, --dbus=NAME
     BlueALSA D-Bus service name suffix.
-    Without this option, **bluealsa** registers itself as an "org.bluealsa"
+    Without this option, **bluealsad** registers itself as an "org.bluealsa"
     D-Bus service.  For more information see the EXAMPLES_ below.
 
 -i hciX, --device=hciX
@@ -88,7 +88,7 @@ OPTIONS
     mSBC (if mSBC support is compiled-in) and LC3-SWB (if LC3-SWB support is
     compiled-in).
     For the list of supported audio codecs see the "Available BT audio codecs"
-    section of the **bluealsa** command-line help message.
+    section of the **bluealsad** command-line help message.
 
 --initial-volume=NUM
     Set the initial volume to *NUM* % when a device is first connected.
@@ -108,7 +108,7 @@ OPTIONS
     Keep Bluetooth transport alive for *SEC* number of seconds after streaming
     was closed.
 
-    This option is required when using ``bluealsa`` with applications that
+    This option is required when using **bluealsad** with applications that
     close and then immediately re-open the same PCM as part of their
     initialization; for example applications built with the ``portaudio``
     portability library and many other "portable" applications.
@@ -134,7 +134,7 @@ OPTIONS
     ``sched(7)``.
 
 --disable-realtek-usb-fix
-    Since Linux kernel 5.14 Realtek USB adapters have required **bluealsa** to
+    Since Linux kernel 5.14 Realtek USB adapters have required **bluealsad** to
     apply a fix for mSBC. This option disables that fix and may be necessary
     when using an earlier kernel.
 
@@ -145,12 +145,12 @@ OPTIONS
     Force 44.1 kHz sampling frequency for A2DP profile.
     Some Bluetooth devices can handle streams sampled at either 48kHz or
     44.1kHz, in which case they normally default to using 48kHz.
-    With this option, **bluealsa** will request such a device uses only 44.1
+    With this option, **bluealsad** will request such a device uses only 44.1
     kHz sample rate.
 
 --a2dp-volume
     Enable native A2DP volume control.
-    By default **bluealsa** will use its own internal scaling algorithm to
+    By default **bluealsad** will use its own internal scaling algorithm to
     attenuate the volume.  This option disables that internal scaling and
     instead passes the volume change request to the A2DP device.
     This feature can also be controlled during runtime for individual PCMs via
@@ -279,9 +279,9 @@ NOTES
 Profiles
 --------
 
-**bluealsa** provides support for Bluetooth Advanced Audio Distribution Profile
-(A2DP), Hands-Free Profile (HFP), Headset Profile (HSP) and Bluetooth Low
-Energy MIDI (BLE-MIDI).
+**bluealsad** provides support for Bluetooth Advanced Audio Distribution
+Profile (A2DP), Hands-Free Profile (HFP), Headset Profile (HSP) and Bluetooth
+Low Energy MIDI (BLE-MIDI).
 A2DP profile is dedicated for streaming music (i.e., stereo, 48 kHz or more
 sampling frequency), while HFP and HSP for two-way voice transmission (mono, 8
 kHz or 16 kHz sampling frequency). BLE-MIDI, on the other hand, is used for
@@ -291,18 +291,18 @@ The Bluetooth audio profiles are not peer-to-peer; they each have a source or
 gateway role (a2dp-source, hfp-ag, or hsp-ag) and a sink or target role
 (a2dp-sink, hfp-hf, hsp-hs). The source/gateway role is the audio player (e.g.,
 mobile phone), the sink/target role is the audio renderer (e.g., headphones or
-speaker). The **bluealsa** daemon can perform any combination of profiles and
+speaker). The **bluealsad** daemon can perform any combination of profiles and
 roles, although it is most common to use it either as a source/gateway:
 
 ::
 
-    bluealsa -p a2dp-source -p hfp-ag -p hsp-ag
+    bluealsad -p a2dp-source -p hfp-ag -p hsp-ag
 
 or as a sink/target:
 
 ::
 
-    bluealsa -p a2dp-sink -p hfp-hf -p hsp-hs
+    bluealsad -p a2dp-sink -p hfp-hf -p hsp-hs
 
 or with oFono for HFP support,
 
@@ -310,22 +310,23 @@ source/gateway:
 
 ::
 
-    bluealsa -p a2dp-source -p hfp-ofono -p hsp-ag
+    bluealsad -p a2dp-source -p hfp-ofono -p hsp-ag
 
 sink/target:
 
 ::
 
-    bluealsa -p a2dp-sink -p hfp-ofono -p hsp-hs
+    bluealsad -p a2dp-sink -p hfp-ofono -p hsp-hs
 
-With A2DP, **bluealsa** always includes the mandatory SBC codec and may also
+With A2DP, **bluealsad** always includes the mandatory SBC codec and may also
 include various optional codecs like AAC, aptX, and other.
 
-With HFP, **bluealsa** always includes the mandatory CVSD codec and may also
+With HFP, **bluealsad** always includes the mandatory CVSD codec and may also
 include the optional mSBC and LC3-SWB codecs.
 
 The full list of available optional codecs, which depends on selected
-compilation options, will be shown with **bluealsa** command-line help message.
+compilation options, will be shown with **bluealsad** command-line help
+message.
 
 The list of profile *NAME*-s accepted by the ``--profile=NAME`` option:
 
@@ -338,7 +339,7 @@ The list of profile *NAME*-s accepted by the ``--profile=NAME`` option:
 - **hsp-hs** - Headset
 - **midi** - Bluetooth LE MIDI
 
-The **hfp-ofono** and **midi** profiles are available only when **bluealsa**
+The **hfp-ofono** and **midi** profiles are available only when **bluealsad**
 was compiled respectively with oFono and BLE-MIDI support.
 
 Enabling HFP over oFono will automatically disable **hfp-hf** and **hfp-ag**.
@@ -348,15 +349,15 @@ device.
 
 For the A2DP profile, BlueZ allows each HCI device to be registered to a
 different service, so it is possible to have multiple instances of
-**bluealsa** offering A2DP support, each with a unique service name given with
+**bluealsad** offering A2DP support, each with a unique service name given with
 the ``--dbus=`` option, so long as they are registered to different HCI devices
 using the ``--device=`` option. See the EXAMPLES_ below.
 
 A profile connection does not immediately initiate the audio stream(s); audio
 can only flow when the profile transport is "acquired". Acquisition can only be
 performed by the source/gateway role. When acting as source/gateway,
-**bluealsa** acquires the profile transport (i.e., initiates the audio
-connection) when a client opens a PCM. When **bluealsa** is acting as target,
+**bluealsad** acquires the profile transport (i.e., initiates the audio
+connection) when a client opens a PCM. When **bluealsad** is acting as target,
 a client can open a PCM as soon as the profile is connected, but the audio
 stream(s) will not begin until the remote source/gateway has acquired the
 transport.
@@ -366,29 +367,29 @@ Volume control
 
 The Bluetooth specifications for HFP and HSP include optional support
 for volume control of the target by the gateway device. For A2DP, volume
-control is optionally provided by the AVRCP profile. **bluealsa** provides a
+control is optionally provided by the AVRCP profile. **bluealsad** provides a
 single, consistent, abstracted interface for volume control of PCMs. This
-interface can use the native Bluetooth features or alternatively **bluealsa**
+interface can use the native Bluetooth features or alternatively **bluealsad**
 also implements its own internal volume control, called "soft-volume". For A2DP
 the default is to use soft-volume, but this can be overridden to use the
 Bluetooth native support where available by using the ``--a2dp-volume`` command
 line option. For HFP/HSP the default is to use Bluetooth native volume control.
 
-When using soft-volume, **bluealsa** scales PCM samples before encoding, and
+When using soft-volume, **bluealsad** scales PCM samples before encoding, and
 after decoding, and does not interact with the Bluetooth AVRCP volume property
 or HFP/HSP volume control. Volume can only be modified by local clients. (Note
 that Bluetooth headphones or speakers with their own volume controls will still
 be able to alter their own volume, but this change will not be notified to
-**bluealsa** local clients, they will only see the soft-volume setting).
+**bluealsad** local clients, they will only see the soft-volume setting).
 
-When using native volume control, **bluealsa** links the PCM volume setting to
+When using native volume control, **bluealsad** links the PCM volume setting to
 the AVRCP volume property or HFP/HSP volume control. No scaling of PCM samples
 is applied. Volume can be modified by both local clients and the remote device.
 Local clients will be notified of volume changes made by controls on the
 remote device.
 
 A2DP native volume control does not permit independent values for left and
-right channels, so when a client sets such values **bluealsa** will set the
+right channels, so when a client sets such values **bluealsad** will set the
 Bluetooth volume as the average of the two channels.
 
 Volume level, mute status, and soft-volume selection can all be controlled for
@@ -418,10 +419,10 @@ and its soft-volume status according to:
 
 When native volume control is enabled, then the remote device may also
 modify the volume level after this initial setting. Mute and soft-volume are
-implemented locally by the **bluealsa** daemon and cannot be modified by the
+implemented locally by the **bluealsad** daemon and cannot be modified by the
 remote device.
 
-Note that **bluealsa** relies on support from BlueZ to implement native volume
+Note that **bluealsad** relies on support from BlueZ to implement native volume
 control for A2DP using AVRCP, and BlueZ has not always provided robust support
 here. It is recommended to use BlueZ release 5.65 or later to be certain that
 native A2DP volume control will always be available with those devices which
@@ -453,7 +454,7 @@ Emulate Bluetooth headset with A2DP and HSP support:
 
 ::
 
-    bluealsa -p a2dp-sink -p hsp-hs
+    bluealsad -p a2dp-sink -p hsp-hs
 
 On systems with more than one HCI device, it is possible to expose different
 profiles on different HCI devices.
@@ -464,8 +465,8 @@ Such a setup might be created as follows:
 
 ::
 
-    bluealsa -B sink -i hci0 -p a2dp-sink &
-    bluealsa -B source -i hci1 -i hci2 -p a2dp-source &
+    bluealsad -B sink -i hci0 -p a2dp-sink &
+    bluealsad -B source -i hci1 -i hci2 -p a2dp-source &
 
 Setup like this will also require a change to the BlueALSA D-Bus configuration
 file in order to allow connection with BlueALSA services with suffixed names.

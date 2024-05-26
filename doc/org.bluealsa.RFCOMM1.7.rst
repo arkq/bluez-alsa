@@ -6,7 +6,7 @@ org.bluealsa.RFCOMM1
 Bluetooth Audio RFCOMM D-Bus API
 ---------------------------------
 
-:Date: October 2023
+:Date: May 2024
 :Manual section: 7
 :Manual group: D-Bus Interface
 :Version: $VERSION$
@@ -21,7 +21,7 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-This page describes the D-Bus RFCOMM interface of the **bluealsa(8)** service.
+This page describes the D-Bus RFCOMM interface of the **bluealsad(8)** service.
 The RFCOMM interface gives access to the RFCOMM terminal objects created by
 this service.
 
@@ -57,14 +57,14 @@ byte Battery [readonly]
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluealsa-rfcomm(1)``, ``bluealsa(8)``
+``bluealsa-rfcomm(1)``, ``bluealsad(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

@@ -75,8 +75,8 @@ See the [systemd integration][] wiki page for more information.
 
 [systemd integration]: https://github.com/arkq/bluez-alsa/wiki/Systemd-integration
 
-If intending to run the `bluealsa` daemon as a non-root user then it is
-recommended to use the `--with-bluealsauser=USER` option as this will configure
+If intending to run the `bluealsad` daemon as a non-root user then it is
+recommended to use the `--with-bluealsaduser=USER` option as this will configure
 the BlueALSA D-Bus policy file with correct permissions for that user account,
 and also include that user in the systemd service unit file when used in
 combination with `--enable-systemd`.
@@ -135,9 +135,9 @@ the `bluealsa.service` unit at runtime. If not using `systemd`, or if the
 necessary to manually create the directory used by BlueALSA for persistent
 state storage. This directory should be called `bluealsa` and be located under
 the system local state directory, which is normally `/var/lib`. The directory
-owner must be the user account that the `bluealsa` daemon is run under, and
+owner must be the user account that the `bluealsad` daemon is run under, and
 to prevent accidental corruption of the state files the permissions should be
-`rwx------`. For example, on a standard file hierarchy, with the `bluealsa`
+`rwx------`. For example, on a standard file hierarchy, with the `bluealsad`
 daemon running as user `bluealsa`:
 
 ```sh
@@ -152,11 +152,11 @@ The BlueALSA installation does not create any user accounts.
 
 ### D-Bus policy
 
-A D-Bus policy file is required to enable the `bluealsa` daemon to register
+A D-Bus policy file is required to enable the `bluealsad` daemon to register
 with D-Bus as a service. The default policy file created by the BlueALSA
 installation enables `root` to register the service `org.bluealsa` and enables
 members of the group `audio` to use BlueALSA PCMs and the BlueALSA mixer. If
-the option `--with-bluealsauser=USER` was used when configuring then the
+the option `--with-bluealsaduser=USER` was used when configuring then the
 policy file enables user USER instead of `root` to register the `org.bluealsa`
 service. If that option was not used, then it is necessary to edit the policy
 file to grant permission to a non-root user. The policy file is located at

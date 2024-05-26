@@ -56,8 +56,8 @@ name `bluealsa` in addition to being able to run as `root`:
 - Another instance of the BlueALSA service is already running.\
 To run a second instance of the BlueALSA service, it must use a different
 well-known service name. This will also require updating the BlueALSA D-Bus
-policy file. See the manual page [bluealsa(8)][] for more information and an
-example of running multiple `bluealsa` instances.
+policy file. See the manual page [bluealsad(8)][] for more information and an
+example of running multiple `bluealsad` instances.
 
 If the D-Bus policy file is edited, then it is necessary to refresh the D-Bus
 service for the change to take effect. On most systems this can be achieved
@@ -67,13 +67,13 @@ with (as `root`) :
 systemctl reload dbus.service
 ```
 
-[bluealsa(8)]: doc/bluealsa.8.rst
+[bluealsad(8)]: doc/bluealsad.8.rst
 
 ## 2. Couldn't get BlueALSA PCM: PCM not found
 
 In contrast to standard ALSA sound cards, BlueALSA does not expose all PCMs
 right away. In the first place it is required to connect remote Bluetooth
-device with desired Bluetooth profile - run `bluealsa --help` for the list
+device with desired Bluetooth profile - run `bluealsad --help` for the list
 of available profiles. For querying currently connected audio profiles (and
 connected devices), run `bluealsa-aplay --list-devices`. The common
 misconception is an attempt to use A2DP playback device as a capture one in
@@ -135,9 +135,9 @@ On startup, the BlueALSA service will issue warnings if some other application
 has already registered the Bluetooth Audio profiles:
 
 ```text
-bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110A-0000-1000-8000-00805F9B34FB
-bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110B-0000-1000-8000-00805F9B34FB
-bluealsa: W: UUID already registered in BlueZ: 0000111F-0000-1000-8000-00805F9B34FB
+bluealsad: W: UUID already registered in BlueZ [hci0]: 0000110A-0000-1000-8000-00805F9B34FB
+bluealsad: W: UUID already registered in BlueZ [hci0]: 0000110B-0000-1000-8000-00805F9B34FB
+bluealsad: W: UUID already registered in BlueZ: 0000111F-0000-1000-8000-00805F9B34FB
 ```
 
 However, as it is normal practice to start BlueALSA at boot and to start

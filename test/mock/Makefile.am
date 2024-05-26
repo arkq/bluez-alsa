@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2024 Arkadiusz Bokowy
 
 check_PROGRAMS = \
-	bluealsa-mock
+	bluealsad-mock
 
 BUILT_SOURCES = \
 	dbus-ifaces.c \
@@ -11,7 +11,7 @@ BUILT_SOURCES = \
 MOSTLYCLEANFILES = \
 	$(BUILT_SOURCES)
 
-bluealsa_mock_SOURCES = \
+bluealsad_mock_SOURCES = \
 	../../src/shared/a2dp-codecs.c \
 	../../src/shared/ffb.c \
 	../../src/shared/log.c \
@@ -47,7 +47,7 @@ bluealsa_mock_SOURCES = \
 	mock-upower.c \
 	mock.c
 
-bluealsa_mock_CFLAGS = \
+bluealsad_mock_CFLAGS = \
 	-I$(top_srcdir)/src \
 	-I$(top_srcdir)/test \
 	@AAC_CFLAGS@ \
@@ -69,7 +69,7 @@ bluealsa_mock_CFLAGS = \
 	@SBC_CFLAGS@ \
 	@SPANDSP_CFLAGS@
 
-bluealsa_mock_LDADD = \
+bluealsad_mock_LDADD = \
 	@AAC_LIBS@ \
 	@ALSA_LIBS@ \
 	@APTX_LIBS@ \
@@ -90,62 +90,62 @@ bluealsa_mock_LDADD = \
 	@SPANDSP_LIBS@
 
 if ENABLE_AAC
-bluealsa_mock_SOURCES += ../../src/a2dp-aac.c
+bluealsad_mock_SOURCES += ../../src/a2dp-aac.c
 endif
 
 if ENABLE_APTX
-bluealsa_mock_SOURCES += ../../src/a2dp-aptx.c
+bluealsad_mock_SOURCES += ../../src/a2dp-aptx.c
 endif
 
 if ENABLE_APTX_HD
-bluealsa_mock_SOURCES += ../../src/a2dp-aptx-hd.c
+bluealsad_mock_SOURCES += ../../src/a2dp-aptx-hd.c
 endif
 
 if ENABLE_APTX_OR_APTX_HD
-bluealsa_mock_SOURCES += ../../src/codec-aptx.c
+bluealsad_mock_SOURCES += ../../src/codec-aptx.c
 endif
 
 if ENABLE_FASTSTREAM
-bluealsa_mock_SOURCES += ../../src/a2dp-faststream.c
+bluealsad_mock_SOURCES += ../../src/a2dp-faststream.c
 endif
 
 if ENABLE_LC3PLUS
-bluealsa_mock_SOURCES += ../../src/a2dp-lc3plus.c
+bluealsad_mock_SOURCES += ../../src/a2dp-lc3plus.c
 endif
 
 if ENABLE_LC3_SWB
-bluealsa_mock_SOURCES += \
+bluealsad_mock_SOURCES += \
 	../../src/codec-lc3-swb.c \
 	../../src/sco-lc3-swb.c
 endif
 
 if ENABLE_LDAC
-bluealsa_mock_SOURCES += ../../src/a2dp-ldac.c
+bluealsad_mock_SOURCES += ../../src/a2dp-ldac.c
 endif
 
 if ENABLE_MIDI
-bluealsa_mock_SOURCES += \
+bluealsad_mock_SOURCES += \
 	../../src/ble-midi.c \
 	../../src/bluez-midi.c \
 	../../src/midi.c
 endif
 
 if ENABLE_MPEG
-bluealsa_mock_SOURCES += ../../src/a2dp-mpeg.c
+bluealsad_mock_SOURCES += ../../src/a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC
-bluealsa_mock_SOURCES += \
+bluealsad_mock_SOURCES += \
 	../../src/codec-msbc.c \
 	../../src/sco-msbc.c
 endif
 
 if ENABLE_OPUS
-bluealsa_mock_SOURCES += ../../src/a2dp-opus.c
+bluealsad_mock_SOURCES += ../../src/a2dp-opus.c
 endif
 
 if ENABLE_UPOWER
-bluealsa_mock_SOURCES += ../../src/upower.c
+bluealsad_mock_SOURCES += ../../src/upower.c
 endif
 
 .xml.h:

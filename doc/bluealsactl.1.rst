@@ -36,7 +36,7 @@ OPTIONS
 
 -B NAME, --dbus=NAME
     BlueALSA service name suffix. For more information see ``--dbus``
-    option of ``bluealsa(8)`` service daemon.
+    option of ``bluealsad(8)`` service daemon.
 
 -q, --quiet
     Do not print any error messages.
@@ -231,14 +231,14 @@ open [--hex] *PCM_PATH*
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluealsa(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
+``bluealsad(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

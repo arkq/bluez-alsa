@@ -3,10 +3,10 @@ bluealsa-aplay
 ==============
 
 ------------------------
-a simple bluealsa player
+a simple BlueALSA player
 ------------------------
 
-:Date: February 2024
+:Date: May 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -19,7 +19,7 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-Capture audio streams from Bluetooth devices (via ``bluealsa(8)``) and play
+Capture audio streams from Bluetooth devices (via ``bluealsad(8)``) and play
 them to an ALSA playback device.
 
 By default **bluealsa-aplay** captures audio from all connected Bluetooth
@@ -68,7 +68,7 @@ OPTIONS
 
 -B NAME, --dbus=NAME
     BlueALSA service name suffix.
-    For more information see ``--dbus=NAME`` option of ``bluealsa(8)`` service
+    For more information see ``--dbus=NAME`` option of ``bluealsad(8)`` service
     daemon.
 
 -D NAME, --pcm=NAME
@@ -110,7 +110,7 @@ OPTIONS
     in the conversion between period time and period size. This can have a
     significant impact on synchronization "drift", especially with small period
     sizes, and can also result in stream underruns (if the effective rate is
-    too fast) or dropped A2DP frames in the **bluealsa(8)** server (if the
+    too fast) or dropped A2DP frames in the **bluealsad(8)** server (if the
     effective rate is too slow). This effect is avoided if the selected period
     time results in an exact integer number of frames for both the source rate
     (Bluetooth) and sink rate (hardware card). For example, in the case of
@@ -200,7 +200,7 @@ Volume control
 --------------
 
 If the Bluetooth PCM is using BlueALSA soft-volume volume control, then volume
-adjustment will have been applied to the PCM stream within the **bluealsa**
+adjustment will have been applied to the PCM stream within the **bluealsad**
 daemon; so **bluealsa-aplay** does not operate the mixer control in this case.
 
 When using ``--volume=none`` or ``--volume=software``, then the mixer options
@@ -220,7 +220,7 @@ BlueZ, which has not always been reliably implemented. It is recommended to use
 BlueZ release 5.65 or later to be certain that native A2DP volume control will
 always be available with those devices which provide it.
 
-See ``bluealsa(8)`` for more information on native and soft-volume volume
+See ``bluealsad(8)`` for more information on native and soft-volume volume
 control.
 
 dmix
@@ -301,14 +301,14 @@ element will be used as a hardware volume control knob.
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``amixer(1)``, ``aplay(1)``, ``bluealsa-rfcomm(1)``, ``bluealsa(8)``
+``amixer(1)``, ``aplay(1)``, ``bluealsa-rfcomm(1)``, ``bluealsad(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

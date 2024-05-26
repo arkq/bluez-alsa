@@ -580,8 +580,8 @@ int main(int argc, char *argv[], char *envp[]) {
 	preload(argc, argv, envp, ".libs/aloader.so");
 
 	char *argv_0 = strdup(argv[0]);
-	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
-			"%s/mock/bluealsa-mock", dirname(argv_0));
+	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
+			"%s/mock/bluealsad-mock", dirname(argv_0));
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

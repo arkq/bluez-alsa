@@ -21,7 +21,7 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-This page describes the D-Bus PCM interface of the **bluealsa(8)** service.
+This page describes the D-Bus PCM interface of the **bluealsad(8)** service.
 The PCM interface gives access to individual PCM objects created by this
 service.
 
@@ -171,14 +171,14 @@ uint16 Volume [readwrite]
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluealsactl(1)``, ``bluealsa-plugins(5)``, ``bluealsa(8)``
+``bluealsactl(1)``, ``bluealsa-plugins(5)``, ``bluealsad(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa
