@@ -63,6 +63,7 @@ struct io_worker {
 	/* mixer for volume control */
 	snd_mixer_t *snd_mixer;
 	snd_mixer_elem_t *snd_mixer_elem;
+	long mixer_volume_db_max_value;
 	bool mixer_has_mute_switch;
 	/* if true, playback is active */
 	atomic_bool active;
@@ -328,6 +329,45 @@ final:
 }
 
 /**
+ * Open ALSA mixer element for volume control. */
+static int io_worker_mixer_open(
+		struct io_worker *worker,
+		const char *dev_name,
+		const char *elem_name,
+		unsigned int elem_idx) {
+
+	if (dev_name == NULL)
+		return 0;
+
+	debug("Opening ALSA mixer: name=%s elem=%s index=%u",
+			dev_name, elem_name, elem_idx);
+
+	snd_mixer_elem_t *elem;
+	long vmin_db, vmax_db = 0;
+	bool has_mute_switch;
+	char *tmp;
+	int err;
+
+	if (alsa_mixer_open(&worker->snd_mixer, &elem,
+				dev_name, elem_name, elem_idx, &tmp) != 0) {
+		warn("Couldn't open ALSA mixer: %s", tmp);
+		free(tmp);
+		return -1;
+	}
+
+	has_mute_switch = snd_mixer_selem_has_playback_switch(elem);
+
+	if ((err = snd_mixer_selem_get_playback_dB_range(elem, &vmin_db, &vmax_db)) != 0)
+		warn("Couldn't get ALSA mixer playback dB range: %s", snd_strerror(err));
+
+	worker->snd_mixer_elem = elem;
+	worker->mixer_has_mute_switch = has_mute_switch;
+	worker->mixer_volume_db_max_value = vmax_db;
+
+	return 0;
+}
+
+/**
  * Update BlueALSA PCM volume according to ALSA mixer element. */
 static int io_worker_mixer_volume_sync_ba_pcm(
 		struct io_worker *worker,
@@ -343,22 +383,24 @@ static int io_worker_mixer_volume_sync_ba_pcm(
 
 		long ch_volume_db;
 		int ch_switch = 1;
-
 		int err;
-		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0) {
+
+		if ((err = snd_mixer_selem_get_playback_dB(elem, ch, &ch_volume_db)) != 0) {
 			error("Couldn't get ALSA mixer playback dB level: %s", snd_strerror(err));
 			return -1;
 		}
 
-		/* mute switch is an optional feature for a mixer element */
-		if ((worker->mixer_has_mute_switch = snd_mixer_selem_has_playback_switch(elem))) {
-			if ((err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
-				error("Couldn't get ALSA mixer playback switch: %s", snd_strerror(err));
-				return -1;
-			}
+		/* Mute switch is an optional feature for a mixer element. */
+		if (worker->mixer_has_mute_switch &&
+				(err = snd_mixer_selem_get_playback_switch(elem, ch, &ch_switch)) != 0) {
+			error("Couldn't get ALSA mixer playback switch: %s", snd_strerror(err));
+			return -1;
 		}
 
 		volume_db_sum += ch_volume_db;
+		/* Normalize volume level so it will not exceed 0.00 dB. */
+		volume_db_sum -= worker->mixer_volume_db_max_value;
+
 		if (ch_switch == 1)
 			muted = false;
 
@@ -427,6 +469,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 
 	/* convert loudness to dB using decibel formula */
 	long db = 10 * log2(1.0 * volume / vmax) * 100;
+	db += worker->mixer_volume_db_max_value;
 
 	int err;
 	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0) {
@@ -444,7 +487,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	return 0;
 }
 
-int io_worker_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
+static int io_worker_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
 	struct io_worker *worker = snd_mixer_elem_get_callback_private(elem);
 	if (mask & SND_CTL_EVENT_MASK_VALUE)
 		io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
@@ -704,16 +747,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			snd_pcm_get_params(w->snd_pcm, &buffer_frames, &period_frames);
 			pcm_max_read_len = period_frames * w->ba_pcm.channels * pcm_format_size;
 
-			if (mixer_device != NULL) {
-				debug("Opening ALSA mixer: name=%s elem=%s index=%u",
-						mixer_device, mixer_elem_name, mixer_elem_index);
-				if (alsa_mixer_open(&w->snd_mixer, &w->snd_mixer_elem,
-							mixer_device, mixer_elem_name, mixer_elem_index, &tmp) != 0) {
-					warn("Couldn't open ALSA mixer: %s", tmp);
-					free(tmp);
-				}
-			}
-
+			io_worker_mixer_open(w, mixer_device, mixer_elem_name, mixer_elem_index);
 			io_worker_mixer_volume_sync_setup(w);
 
 			/* reset retry counters */
