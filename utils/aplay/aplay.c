@@ -852,10 +852,10 @@ static void io_worker_stop(size_t index) {
 	/* Safety check for out-of-bounds read. */
 	assert(index < workers_count);
 
-	pthread_rwlock_wrlock(&workers_lock);
-
 	pthread_cancel(workers[index].thread);
 	pthread_join(workers[index].thread, NULL);
+
+	pthread_rwlock_wrlock(&workers_lock);
 
 	if (index != --workers_count)
 		/* Move the last worker in the array to position
@@ -905,16 +905,15 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	worker->mixer_has_mute_switch = false;
 	worker->active = false;
 
-	pthread_rwlock_unlock(&workers_lock);
-
 	debug("Creating IO worker %s", worker->addr);
-
 	if ((errno = pthread_create(&worker->thread, NULL,
 					PTHREAD_FUNC(io_worker_routine), worker)) != 0) {
 		error("Couldn't create IO worker %s: %s", worker->addr, strerror(errno));
 		workers_count--;
-		return NULL;
+		worker = NULL;
 	}
+
+	pthread_rwlock_unlock(&workers_lock);
 
 	return worker;
 }
