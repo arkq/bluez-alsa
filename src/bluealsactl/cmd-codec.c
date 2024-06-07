@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-codec.c
+ * BlueALSA - bluealsactl/cmd-codec.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -18,13 +18,13 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/hex.h"
 
 static void usage(const char *command) {
 	printf("Get or set the Bluetooth codec used by the given PCM.\n\n");
-	cli_print_usage("%s [OPTION]... PCM-PATH [CODEC[:CONFIG]]", command);
+	bactl_print_usage("%s [OPTION]... PCM-PATH [CODEC[:CONFIG]]", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"  -f, --force\t\tForce codec configuration (skip conformance check)\n"
@@ -53,7 +53,7 @@ static int cmd_codec_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -81,14 +81,14 @@ static int cmd_codec_func(int argc, char *argv[]) {
 	const char *path = argv[optind];
 
 	struct ba_pcm pcm;
-	if (!cli_get_ba_pcm(path, &pcm, &err)) {
+	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
 		cmd_print_error("Couldn't get BlueALSA PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	if (argc - optind == 1) {
-		cli_print_pcm_available_codecs(&pcm, NULL);
-		cli_print_pcm_selected_codec(&pcm);
+		bactl_print_pcm_available_codecs(&pcm, NULL);
+		bactl_print_pcm_selected_codec(&pcm);
 		return EXIT_SUCCESS;
 	}
 
@@ -132,7 +132,7 @@ fail:
 	return result;
 }
 
-const struct cli_command cmd_codec = {
+const struct bactl_command cmd_codec = {
 	"codec",
 	"Get or set PCM Bluetooth codec",
 	cmd_codec_func,

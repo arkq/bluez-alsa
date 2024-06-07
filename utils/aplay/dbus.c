@@ -64,7 +64,7 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 
 	/* Try to extract BT MAC address from the D-Bus path. We will use it as
 	 * a fallback in case where BlueZ service is not available on the bus -
-	 * usage with bluealsa-mock server. */
+	 * usage with bluealsad-mock server. */
 	if ((tmp = strstr(path, "/dev_")) != NULL)
 		strncpy(path_addr, tmp + 5, sizeof(path_addr) - 1);
 	for (i = 0; i < sizeof(path_addr); i++)

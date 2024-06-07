@@ -153,7 +153,7 @@ if args.dbus:
     options.append(f'--dbus={args.dbus}')
 
 try:  # Get info for given BlueALSA PCM device
-    cmd = ['bluealsa-cli', *options, 'info', args.PCM_PATH]
+    cmd = ['bluealsactl', *options, 'info', args.PCM_PATH]
     output = subprocess.check_output(cmd, text=True)
 except subprocess.CalledProcessError:
     sys.exit(1)
@@ -167,7 +167,7 @@ print(f"Bluetooth: {info['transport']} {info['selected codec']}")
 print(f"PCM: {info['format']} {channels} channels {sampling} Hz")
 print("==========")
 
-cmd = ['bluealsa-cli', *options, 'open', args.PCM_PATH]
+cmd = ['bluealsactl', *options, 'open', args.PCM_PATH]
 client = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
 # Wait for BlueALSA to open the PCM device

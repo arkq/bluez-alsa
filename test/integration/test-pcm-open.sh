@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) 2016-2022 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 #
 # This file is a part of bluez-alsa.
 #
@@ -12,10 +12,10 @@ if [[ $# -ne 1 ]]; then
 fi
 
 # open PCM and close it right away
-: |bluealsa-cli open "$1" || exit
+: |bluealsactl open "$1" || exit
 
 # check if open is possible right after close
-if ! dd status=none if=/dev/zero count=10 |bluealsa-cli open "$1" ; then
+if ! dd status=none if=/dev/zero count=10 |bluealsactl open "$1" ; then
 	echo "error: Couldn't open BlueALSA PCM"
 	exit 1
 fi

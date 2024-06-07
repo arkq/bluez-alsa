@@ -1,5 +1,5 @@
 /*
- * bluealsa-ctl.c
+ * BlueALSA - asound/bluealsa-ctl.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.

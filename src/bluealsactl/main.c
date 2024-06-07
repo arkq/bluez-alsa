@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cli.c
+ * BlueALSA - bluealsactl/main.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -24,13 +24,14 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client.h"
+#include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
 /* Initialize global configuration variable. */
-struct cli_config config = {
+struct bactl_config config = {
 	.quiet = false,
 	.verbose = false,
 };
@@ -114,7 +115,7 @@ static const char *pcm_codec_to_string(const struct ba_pcm_codec *codec) {
 	return buffer;
 }
 
-void cli_get_ba_services(cli_get_ba_services_cb func, void *data, DBusError *err) {
+void bactl_get_ba_services(bactl_get_ba_services_cb func, void *data, DBusError *err) {
 
 	DBusMessage *msg = NULL, *rep = NULL;
 
@@ -163,7 +164,7 @@ fail:
 		dbus_message_unref(rep);
 }
 
-bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
+bool bactl_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
 
 	struct ba_pcm *pcms = NULL;
 	size_t pcms_count = 0;
@@ -190,7 +191,7 @@ bool cli_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
 	return found;
 }
 
-bool cli_parse_common_options(int opt) {
+bool bactl_parse_common_options(int opt) {
 	switch (opt) {
 	case 'q' /* --quiet */ :
 		config.quiet = true;
@@ -203,7 +204,7 @@ bool cli_parse_common_options(int opt) {
 	}
 }
 
-bool cli_parse_value_on_off(const char *value, bool *out) {
+bool bactl_parse_value_on_off(const char *value, bool *out) {
 
 	static const char * const value_on[] = { "on", "yes", "true", "y", "1" };
 	static const char * const value_off[] = { "off", "no", "false", "n", "0" };
@@ -223,14 +224,14 @@ bool cli_parse_value_on_off(const char *value, bool *out) {
 	return false;
 }
 
-void cli_print_adapters(const struct ba_service_props *props) {
+void bactl_print_adapters(const struct ba_service_props *props) {
 	printf("Adapters:");
 	for (size_t i = 0; i < props->adapters_len; i++)
 		printf(" %s", props->adapters[i]);
 	printf("\n");
 }
 
-void cli_print_profiles_and_codecs(const struct ba_service_props *props) {
+void bactl_print_profiles_and_codecs(const struct ba_service_props *props) {
 	printf("Profiles:\n");
 	for (size_t i = 0; i < props->profiles_len; i++) {
 		printf("  %-11s :", props->profiles[i]);
@@ -242,7 +243,7 @@ void cli_print_profiles_and_codecs(const struct ba_service_props *props) {
 	}
 }
 
-void cli_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err) {
+void bactl_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err) {
 
 	printf("Available codecs:");
 
@@ -261,22 +262,22 @@ fail:
 	printf("\n");
 }
 
-void cli_print_pcm_selected_codec(const struct ba_pcm *pcm) {
+void bactl_print_pcm_selected_codec(const struct ba_pcm *pcm) {
 	printf("Selected codec: %s\n", pcm_codec_to_string(&pcm->codec));
 }
 
-void cli_print_pcm_soft_volume(const struct ba_pcm *pcm) {
+void bactl_print_pcm_soft_volume(const struct ba_pcm *pcm) {
 	printf("SoftVolume: %s\n", pcm->soft_volume ? "true" : "false");
 }
 
-void cli_print_pcm_volume(const struct ba_pcm *pcm) {
+void bactl_print_pcm_volume(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
 		printf("Volume: L: %u R: %u\n", pcm->volume.ch1_volume, pcm->volume.ch2_volume);
 	else
 		printf("Volume: %u\n", pcm->volume.ch1_volume);
 }
 
-void cli_print_pcm_mute(const struct ba_pcm *pcm) {
+void bactl_print_pcm_mute(const struct ba_pcm *pcm) {
 	if (pcm->channels == 2)
 		printf("Muted: L: %s R: %s\n", pcm->volume.ch1_muted ? "true" : "false",
 				pcm->volume.ch2_muted ? "true" : "false");
@@ -284,7 +285,7 @@ void cli_print_pcm_mute(const struct ba_pcm *pcm) {
 		printf("Muted: %s\n", pcm->volume.ch1_muted ? "true" : "false");
 }
 
-void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
+void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Device: %s\n", pcm->device_path);
 	printf("Sequence: %u\n", pcm->sequence);
 	printf("Transport: %s\n", transport_code_to_string(pcm->transport));
@@ -293,17 +294,17 @@ void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Format: %s\n", pcm_format_to_string(pcm->format));
 	printf("Channels: %d\n", pcm->channels);
 	printf("Sampling: %d Hz\n", pcm->sampling);
-	cli_print_pcm_available_codecs(pcm, err);
-	cli_print_pcm_selected_codec(pcm);
+	bactl_print_pcm_available_codecs(pcm, err);
+	bactl_print_pcm_selected_codec(pcm);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
 	printf("DelayAdjustment: %#.1f ms\n", (double)pcm->delay_adjustment / 10);
-	cli_print_pcm_soft_volume(pcm);
-	cli_print_pcm_volume(pcm);
-	cli_print_pcm_mute(pcm);
+	bactl_print_pcm_soft_volume(pcm);
+	bactl_print_pcm_volume(pcm);
+	bactl_print_pcm_mute(pcm);
 }
 
 static const char *progname = NULL;
-void cli_print_usage(const char *format, ...) {
+void bactl_print_usage(const char *format, ...) {
 
 	char usage[256];
 	va_list va;
@@ -315,19 +316,19 @@ void cli_print_usage(const char *format, ...) {
 	printf("Usage:\n  %s %s\n", progname, usage);
 }
 
-extern const struct cli_command cmd_list_services;
-extern const struct cli_command cmd_list_pcms;
-extern const struct cli_command cmd_status;
-extern const struct cli_command cmd_info;
-extern const struct cli_command cmd_codec;
-extern const struct cli_command cmd_delay_adjustment;
-extern const struct cli_command cmd_monitor;
-extern const struct cli_command cmd_mute;
-extern const struct cli_command cmd_open;
-extern const struct cli_command cmd_softvol;
-extern const struct cli_command cmd_volume;
+extern const struct bactl_command cmd_list_services;
+extern const struct bactl_command cmd_list_pcms;
+extern const struct bactl_command cmd_status;
+extern const struct bactl_command cmd_info;
+extern const struct bactl_command cmd_codec;
+extern const struct bactl_command cmd_delay_adjustment;
+extern const struct bactl_command cmd_monitor;
+extern const struct bactl_command cmd_mute;
+extern const struct bactl_command cmd_open;
+extern const struct bactl_command cmd_softvol;
+extern const struct bactl_command cmd_volume;
 
-static const struct cli_command *commands[] = {
+static const struct bactl_command *commands[] = {
 	&cmd_list_services,
 	&cmd_list_pcms,
 	&cmd_status,
@@ -350,7 +351,7 @@ static void usage(const char *name) {
 	}
 
 	printf("%s - Utility to issue BlueALSA API commands\n\n", name);
-	cli_print_usage("[OPTION]... COMMAND [COMMAND-ARGS]");
+	bactl_print_usage("[OPTION]... COMMAND [COMMAND-ARGS]");
 	printf("\nOptions:\n");
 	printf("  -h, --help          Show this message and exit\n");
 	printf("  -V, --version       Show version and exit\n");
@@ -382,7 +383,7 @@ int main(int argc, char *argv[]) {
 	char dbus_ba_service[32] = BLUEALSA_SERVICE;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -409,7 +410,7 @@ int main(int argc, char *argv[]) {
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!ba_dbus_connection_ctx_init(&config.dbus, dbus_ba_service, &err)) {
-		cli_print_error("Couldn't initialize D-Bus context: %s", err.message);
+		bactl_print_error("Couldn't initialize D-Bus context: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
@@ -428,6 +429,6 @@ int main(int argc, char *argv[]) {
 		if (strcmp(argv[0], commands[i]->name) == 0)
 			return commands[i]->func(argc, argv);
 
-	cli_print_error("Invalid command: %s", argv[0]);
+	bactl_print_error("Invalid command: %s", argv[0]);
 	return EXIT_FAILURE;
 }

@@ -280,7 +280,7 @@ int main(int argc, char **argv) {
 	log_open(basename(argv[0]), syslog);
 
 	if (ba_config_init() != 0) {
-		error("Couldn't initialize bluealsa config");
+		error("Couldn't initialize configuration");
 		return EXIT_FAILURE;
 	}
 

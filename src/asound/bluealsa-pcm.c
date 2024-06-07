@@ -1,5 +1,5 @@
 /*
- * bluealsa-pcm.c
+ * BlueALSA - asound/bluealsa-pcm.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -489,7 +489,7 @@ static int bluealsa_close(snd_pcm_ioplug_t *io) {
  * it has already been reduced to a single configuration, so is effectively
  * read-only. So in order to fix the problematic buffer size calculated by
  * the ioplug, we need to completely replace the hw_params container for
- * the bluealsa pcm.
+ * the bluealsa PCM.
  * */
 static int bluealsa_fix_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params) {
 #if DEBUG

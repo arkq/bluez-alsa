@@ -146,6 +146,7 @@ BCS
 bdaddr
 bfr
 bluealsa
+bluealsad
 BlueALSA's
 bluetoothctl
 bluetoothd
