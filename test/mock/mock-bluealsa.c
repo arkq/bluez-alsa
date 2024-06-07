@@ -221,7 +221,8 @@ static struct ba_transport *mock_transport_new_a2dp(struct ba_device *d,
 	return t;
 }
 
-static int mock_transport_acquire_bt_sco(struct ba_transport *t) {
+/* SCO acquisition override for testing purposes. */
+int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	int bt_fds[2];
 	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
@@ -265,8 +266,6 @@ static struct ba_transport *mock_transport_new_sco(struct ba_device *d,
 		t->sco.rfcomm->hf_codecs.lc3_swb = true;
 #endif
 	}
-
-	t->acquire = mock_transport_acquire_bt_sco;
 
 	char device[18];
 	ba2str(&d->addr, device);

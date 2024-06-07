@@ -461,7 +461,8 @@ fail:
 	return NULL;
 }
 
-static int transport_acquire_bt_sco(struct ba_transport *t) {
+__attribute__ ((weak))
+int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	struct ba_device *d = t->d;
 	int fd = -1;

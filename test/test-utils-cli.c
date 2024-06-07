@@ -146,19 +146,19 @@ CK_START_TEST(test_list_pcms) {
 				NULL), 0);
 
 	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsnk/source"), NULL);
+				"/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/a2dpsnk/source"), NULL);
+				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsnk/source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hsphs/source"), NULL);
+				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hsphs/source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hsphs/sink"), NULL);
+				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hsphs/sink"), NULL);
 
 	/* check verbose output */
 	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci0/dev_12_34_56_78_9A_BC"), NULL);
+				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci0/dev_23_45_67_89_AB_CD"), NULL);
+				"Device: /org/bluez/hci11/dev_23_45_67_89_AB_CD"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -181,16 +181,16 @@ CK_START_TEST(test_info) {
 
 	/* check not existing BlueALSA PCM path */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"info", "/org/bluealsa/hci0/dev_FF_FF_FF_FF_FF_FF/a2dpsrc/sink",
+				"info", "/org/bluealsa/hci11/dev_FF_FF_FF_FF_FF_FF/a2dpsrc/sink",
 				NULL), EXIT_FAILURE);
 
 	/* check BlueALSA PCM info */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"info", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 
 	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci0/dev_12_34_56_78_9A_BC"), NULL);
+				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"), NULL);
 	ck_assert_ptr_ne(strstr(output,
 				"Transport: A2DP-source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
@@ -218,7 +218,7 @@ CK_START_TEST(test_codec) {
 
 	/* check BlueALSA PCM codec get/set */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"-v", "codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink",
+				"-v", "codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Available codecs: CVSD"), NULL);
 
@@ -229,23 +229,23 @@ CK_START_TEST(test_codec) {
 
 #if ENABLE_MSBC
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink", "mSBC",
+				"codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", "mSBC",
 				NULL), 0);
 
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"codec", "-vf", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink",
+				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Selected codec: mSBC"), NULL);
 #endif
 
 	/* check selecting not available codec */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"codec", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink", "SBC",
+				"codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", "SBC",
 				NULL), EXIT_FAILURE);
 
 	/* check selecting A2DP codec without SEP support (with our mock BlueZ) */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"codec", "-vf", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				"SBC:11150255",
 				NULL), EXIT_FAILURE);
 
@@ -270,16 +270,16 @@ CK_START_TEST(test_delay_adjustment) {
 
 	/* check default delay adjustment */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"delay-adjustment", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"delay-adjustment", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "DelayAdjustment: 0.0 ms"), NULL);
 
 	/* check setting delay adjustment */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"delay-adjustment", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "-7.5",
+				"delay-adjustment", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "-7.5",
 				NULL), 0);
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"delay-adjustment", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"delay-adjustment", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "DelayAdjustment: -7.5 ms"), NULL);
 
@@ -310,46 +310,46 @@ CK_START_TEST(test_volume) {
 
 	/* check default volume */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Volume: L: 127 R: 127"), NULL);
 
 	/* check default mute */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"mute", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: false"), NULL);
 
 	/* check default soft-volume */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"soft-volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "SoftVolume: true"), NULL);
 
 	/* check setting volume */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "10", "50",
+				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "10", "50",
 				NULL), 0);
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Volume: L: 10 R: 50"), NULL);
 
 	/* check setting mute */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"mute", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off", "on",
+				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off", "on",
 				NULL), 0);
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"mute", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: true"), NULL);
 
 	/* check setting soft-volume */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"soft-volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off",
+				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off",
 				NULL), 0);
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
-				"soft-volume", "/org/bluealsa/hci0/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "SoftVolume: false"), NULL);
 
@@ -386,28 +386,28 @@ CK_START_TEST(test_monitor) {
 
 	/* notifications for PCM add/remove */
 	ck_assert_ptr_ne(strstr(output,
-				"PCMAdded /org/bluealsa/hci0/dev_23_45_67_89_AB_CD/a2dpsrc/sink"), NULL);
+				"PCMAdded /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"PCMRemoved /org/bluealsa/hci0/dev_23_45_67_89_AB_CD/a2dpsrc/sink"), NULL);
+				"PCMRemoved /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink"), NULL);
 
 	/* notifications for RFCOMM add/remove (because HFP is enabled) */
 	ck_assert_ptr_ne(strstr(output,
-				"RFCOMMAdded /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
+				"RFCOMMAdded /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"RFCOMMRemoved /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
+				"RFCOMMRemoved /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
 
 	/* check verbose output */
 	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci0/dev_12_34_56_78_9A_BC"), NULL);
+				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci0/dev_23_45_67_89_AB_CD"), NULL);
+				"Device: /org/bluez/hci11/dev_23_45_67_89_AB_CD"), NULL);
 
 #if ENABLE_MSBC
 	/* notifications for property changed */
 	ck_assert_ptr_ne(strstr(output,
-				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/sink Codec CVSD"), NULL);
+				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink Codec CVSD"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"PropertyChanged /org/bluealsa/hci0/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"), NULL);
+				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"), NULL);
 #endif
 
 	spawn_terminate(&sp_ba_mock, 0);
@@ -424,11 +424,11 @@ CK_START_TEST(test_open) {
 
 	char * ba_cli_in_argv[32] = {
 		bluealsa_cli_path, "open", "--hex",
-		"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/source",
+		"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hspag/source",
 		NULL };
 	char * ba_cli_out_argv[32] = {
 		bluealsa_cli_path, "open", "--hex",
-		"/org/bluealsa/hci0/dev_23_45_67_89_AB_CD/hspag/sink",
+		"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hspag/sink",
 		NULL };
 
 	struct spawn_process sp_ba_cli_in;
