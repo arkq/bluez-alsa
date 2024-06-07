@@ -244,13 +244,15 @@ int main(int argc, char *argv[]) {
 	/* Set up main loop with graceful termination handlers. */
 	g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
 	GThread *loop_th = g_thread_new(NULL, mock_main_loop_run, loop);
-	g_timeout_add(timeout_ms, mock_sem_signal_handler, mock_sem_timeout);
 	g_unix_signal_add(SIGINT, mock_sem_signal_handler, mock_sem_timeout);
 	g_unix_signal_add(SIGTERM, mock_sem_signal_handler, mock_sem_timeout);
 
 	mock_bluez_service_start();
 	mock_upower_service_start();
 	mock_bluealsa_service_start();
+
+	/* Start the termination timer after all services are up and running. */
+	g_timeout_add(timeout_ms, mock_sem_signal_handler, mock_sem_timeout);
 
 	/* Run mock until timeout or SIGINT/SIGTERM signal. */
 	mock_bluealsa_run();
