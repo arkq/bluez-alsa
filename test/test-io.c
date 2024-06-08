@@ -10,6 +10,9 @@
 
 #if HAVE_CONFIG_H
 # include <config.h>
+# define ENABLE_APTX_IO_TEST    (ENABLE_APTX && HAVE_APTX_DECODE)
+# define ENABLE_APTX_HD_IO_TEST (ENABLE_APTX_HD && HAVE_APTX_HD_DECODE)
+# define ENABLE_LDAC_IO_TEST    (ENABLE_LDAC && HAVE_LDAC_DECODE)
 #endif
 
 #include <errno.h>
@@ -31,7 +34,7 @@
 #include <bluetooth/hci.h>
 #include <check.h>
 #include <glib.h>
-#if ENABLE_LDAC
+#if ENABLE_LDAC_IO_TEST
 # include <ldacBT.h>
 #endif
 #if HAVE_SNDFILE
@@ -42,10 +45,10 @@
 #if ENABLE_AAC
 # include "a2dp-aac.h"
 #endif
-#if ENABLE_APTX
+#if ENABLE_APTX_IO_TEST
 # include "a2dp-aptx.h"
 #endif
-#if ENABLE_APTX_HD
+#if ENABLE_APTX_HD_IO_TEST
 # include "a2dp-aptx-hd.h"
 #endif
 #if ENABLE_FASTSTREAM
@@ -54,7 +57,7 @@
 #if ENABLE_LC3PLUS
 # include "a2dp-lc3plus.h"
 #endif
-#if ENABLE_LDAC
+#if ENABLE_LDAC_IO_TEST
 # include "a2dp-ldac.h"
 #endif
 #if ENABLE_MPEG
@@ -78,7 +81,7 @@
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
-#if ENABLE_LC3PLUS || ENABLE_LDAC
+#if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
 # include "rtp.h"
 #endif
 #include "storage.h"
@@ -202,9 +205,9 @@ static const a2dp_lc3plus_t config_lc3plus_48000_stereo = {
 };
 
 __attribute__ ((unused))
-static const a2dp_ldac_t config_ldac_44100_stereo = {
+static const a2dp_ldac_t config_ldac_48000_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-	.frequency = LDAC_SAMPLING_FREQ_44100,
+	.frequency = LDAC_SAMPLING_FREQ_48000,
 	.channel_mode = LDAC_CHANNEL_MODE_STEREO,
 };
 
@@ -1009,7 +1012,7 @@ CK_START_TEST(test_a2dp_aac) {
 } CK_END_TEST
 #endif
 
-#if ENABLE_APTX
+#if ENABLE_APTX_IO_TEST
 CK_START_TEST(test_a2dp_aptx) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
@@ -1023,17 +1026,13 @@ CK_START_TEST(test_a2dp_aptx) {
 	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
 
 	if (aging_duration) {
-#if HAVE_APTX_DECODE
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 400;
 		test_io(t1_pcm, t2_pcm, a2dp_aptx_enc_thread, a2dp_aptx_dec_thread, 4 * 1024);
-#endif
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 40;
 		test_io(t1_pcm, t2_pcm, a2dp_aptx_enc_thread, test_io_thread_dump_bt, 2 * 1024);
-#if HAVE_APTX_DECODE
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_aptx_dec_thread, 2 * 1024);
-#endif
 	};
 
 	ba_transport_destroy(t1);
@@ -1042,7 +1041,7 @@ CK_START_TEST(test_a2dp_aptx) {
 } CK_END_TEST
 #endif
 
-#if ENABLE_APTX_HD
+#if ENABLE_APTX_HD_IO_TEST
 CK_START_TEST(test_a2dp_aptx_hd) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
@@ -1056,17 +1055,13 @@ CK_START_TEST(test_a2dp_aptx_hd) {
 	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
 
 	if (aging_duration) {
-#if HAVE_APTX_HD_DECODE
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
 		test_io(t1_pcm, t2_pcm, a2dp_aptx_hd_enc_thread, a2dp_aptx_hd_dec_thread, 4 * 1024);
-#endif
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
 		test_io(t1_pcm, t2_pcm, a2dp_aptx_hd_enc_thread, test_io_thread_dump_bt, 2 * 1024);
-#if HAVE_APTX_HD_DECODE
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_aptx_hd_dec_thread, 2 * 1024);
-#endif
 	};
 
 	ba_transport_destroy(t1);
@@ -1164,7 +1159,7 @@ CK_START_TEST(test_a2dp_lc3plus) {
 } CK_END_TEST
 #endif
 
-#if ENABLE_LDAC
+#if ENABLE_LDAC_IO_TEST
 CK_START_TEST(test_a2dp_ldac) {
 
 	config.ldac_abr = true;
@@ -1172,28 +1167,24 @@ CK_START_TEST(test_a2dp_ldac) {
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/ldac", &a2dp_ldac_source,
-			&config_ldac_44100_stereo);
+			&config_ldac_48000_stereo);
 	struct ba_transport *t2 = test_transport_new_a2dp(device2,
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/ldac", &a2dp_ldac_sink,
-			&config_ldac_44100_stereo);
+			&config_ldac_48000_stereo);
 
 	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
 	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
 
 	if (aging_duration) {
-#if HAVE_LDAC_DECODE
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
 			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990 + 6;
 		test_io(t1_pcm, t2_pcm, a2dp_ldac_enc_thread, a2dp_ldac_dec_thread, 4 * 1024);
-#endif
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
 			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
 		test_io(t1_pcm, t2_pcm, a2dp_ldac_enc_thread, test_io_thread_dump_bt, 2 * 1024);
-#if HAVE_LDAC_DECODE
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_ldac_dec_thread, 2 * 1024);
-#endif
 	}
 
 	ba_transport_destroy(t1);
@@ -1321,10 +1312,10 @@ int main(int argc, char *argv[]) {
 #if ENABLE_AAC
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac },
 #endif
-#if ENABLE_APTX
+#if ENABLE_APTX_IO_TEST
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), test_a2dp_aptx },
 #endif
-#if ENABLE_APTX_HD
+#if ENABLE_APTX_HD_IO_TEST
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX_HD), test_a2dp_aptx_hd },
 #endif
 #if ENABLE_FASTSTREAM
@@ -1334,7 +1325,7 @@ int main(int argc, char *argv[]) {
 #if ENABLE_LC3PLUS
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LC3PLUS), test_a2dp_lc3plus },
 #endif
-#if ENABLE_LDAC
+#if ENABLE_LDAC_IO_TEST
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), test_a2dp_ldac },
 #endif
 #if ENABLE_OPUS
