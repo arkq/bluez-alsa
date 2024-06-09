@@ -42,7 +42,8 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
-#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-mock-storage"
+/* Keep persistent storage in the current directory. */
+#define TEST_BLUEALSA_STORAGE_DIR "storage-mock"
 
 GAsyncQueue *mock_sem_ready = NULL;
 GAsyncQueue *mock_sem_timeout = NULL;

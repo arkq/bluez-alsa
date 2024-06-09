@@ -46,7 +46,8 @@
 
 #include "inc/check.inc"
 
-#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-test-ba-storage"
+/* Keep persistent storage in the current directory. */
+#define TEST_BLUEALSA_STORAGE_DIR "storage-test-ba"
 
 int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
 int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
