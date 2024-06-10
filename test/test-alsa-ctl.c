@@ -589,6 +589,10 @@ int main(int argc, char *argv[]) {
 
 	suite_add_tcase(s, tc);
 
+	/* Boost timeout since the single_device_non_dynamic test takes more than
+	 * 3.5 seconds and from time to time can exceed default 4 seconds. */
+	tcase_set_timeout(tc, 6);
+
 	tcase_add_test(tc, test_controls);
 	tcase_add_test(tc, test_controls_battery);
 	tcase_add_test(tc, test_controls_extended);
