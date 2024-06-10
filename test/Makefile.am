@@ -57,12 +57,12 @@ check_PROGRAMS += test-msbc
 endif
 
 check_LTLIBRARIES = \
-	aloader.la
-aloader_la_LDFLAGS = \
+	libaloader.la
+libaloader_la_LDFLAGS = \
 	-rpath /nowhere \
 	-avoid-version \
-	-shared -module
-aloader_la_LIBADD = \
+	-shared
+libaloader_la_LIBADD = \
 	@ALSA_LIBS@
 
 test_a2dp_SOURCES = \

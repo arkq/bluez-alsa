@@ -2,7 +2,7 @@
  * preload.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,12 +16,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "shared/defs.h"
-
 #define LD_PRELOAD           "LD_PRELOAD"
 #define LD_PRELOAD_SANITIZER "LD_PRELOAD_SANITIZER"
 
-int preload(int argc, char * const argv[], char * const envp[], const char *filename) {
+int preload(int argc, char * const argv[], const char *filename) {
 	(void)argc;
 
 	const char *env_preload;
@@ -40,17 +38,10 @@ int preload(int argc, char * const argv[], char * const envp[], const char *file
 
 	char app[1024];
 	char preload[1024];
-	char *envp2[256] = { preload, NULL };
-
 	char *dir = dirname(strncpy(app, argv[0], sizeof(app) - 1));
 	snprintf(preload, sizeof(preload), "%s=%s:%s/%s:%s",
 			LD_PRELOAD, env_preload_sanitizer, dir, filename, env_preload);
 
-	size_t i = 1, j = 0;
-	while (i < ARRAYSIZE(envp2) - 1 && envp[j] != NULL)
-		envp2[i++] = envp[j++];
-	if (i == ARRAYSIZE(envp2) - 1 && envp[j] != NULL)
-		fprintf(stderr, "WARNING: Couldn't forward ENV variables\n");
-
-	return execve(argv[0], argv, envp2);
+	putenv(preload);
+	return execv(argv[0], argv);
 }

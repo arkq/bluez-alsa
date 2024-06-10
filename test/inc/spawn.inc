@@ -97,8 +97,7 @@ int spawn(struct spawn_process *sp, char *argv[], FILE *f_stdin, int flags) {
 			close(pipe_stderr[1]);
 		}
 
-		execv(argv[0], argv);
-		return -1;
+		return execv(argv[0], argv);
 	}
 
 	close(pipe_stdout[1]);

@@ -576,8 +576,8 @@ CK_START_TEST(test_alsa_high_level_control_interface) {
 
 } CK_END_TEST
 
-int main(int argc, char *argv[], char *envp[]) {
-	preload(argc, argv, envp, ".libs/aloader.so");
+int main(int argc, char *argv[]) {
+	preload(argc, argv, ".libs/libaloader.so");
 
 	char *argv_0 = strdup(argv[0]);
 	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),

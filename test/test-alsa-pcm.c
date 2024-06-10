@@ -1100,8 +1100,8 @@ CK_START_TEST(ba_test_playback_device_unplug) {
 
 } CK_END_TEST
 
-int main(int argc, char *argv[], char *envp[]) {
-	preload(argc, argv, envp, ".libs/aloader.so");
+int main(int argc, char *argv[]) {
+	preload(argc, argv, ".libs/libaloader.so");
 
 	int opt;
 	const char *opts = "hD:c:f:r:";

@@ -307,8 +307,8 @@ CK_START_TEST(test_play_dbus_signals) {
 
 } CK_END_TEST
 
-int main(int argc, char *argv[], char *envp[]) {
-	preload(argc, argv, envp, ".libs/aloader.so");
+int main(int argc, char *argv[]) {
+	preload(argc, argv, ".libs/libaloader.so");
 
 	char *argv_0 = strdup(argv[0]);
 	char *argv_0_dir = dirname(argv_0);
