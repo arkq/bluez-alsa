@@ -478,6 +478,12 @@ dbus_bool_t ba_dbus_pcm_update(
 	int type = -1;
 
 	switch (property) {
+	case BLUEALSA_PCM_CLIENT_DELAY:
+		_property = "ClientDelay";
+		variant = DBUS_TYPE_UINT16_AS_STRING;
+		value = &pcm->client_delay;
+		type = DBUS_TYPE_UINT16;
+		break;
 	case BLUEALSA_PCM_SOFT_VOLUME:
 		_property = "SoftVolume";
 		variant = DBUS_TYPE_BOOLEAN_AS_STRING;
@@ -738,6 +744,11 @@ static dbus_bool_t dbus_message_iter_get_ba_pcm_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_INT16))
 			goto fail;
 		dbus_message_iter_get_basic(&variant, &pcm->delay_adjustment);
+	}
+	else if (strcmp(key, "ClientDelay") == 0) {
+		if (type != (type_expected = DBUS_TYPE_UINT16))
+			goto fail;
+		dbus_message_iter_get_basic(variant, &pcm->client_delay);
 	}
 	else if (strcmp(key, "SoftVolume") == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))

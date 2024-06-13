@@ -71,6 +71,7 @@
 /**
  * BlueALSA PCM object property. */
 enum ba_pcm_property {
+	BLUEALSA_PCM_CLIENT_DELAY,
 	BLUEALSA_PCM_SOFT_VOLUME,
 	BLUEALSA_PCM_VOLUME,
 };
@@ -128,6 +129,8 @@ struct ba_pcm {
 	dbus_uint16_t delay;
 	/* manual delay adjustment */
 	dbus_int16_t delay_adjustment;
+	/* approximate client delay */
+	dbus_uint16_t client_delay;
 	/* software volume */
 	dbus_bool_t soft_volume;
 

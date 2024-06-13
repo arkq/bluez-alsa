@@ -297,6 +297,7 @@ void cli_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	cli_print_pcm_selected_codec(pcm);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
 	printf("DelayAdjustment: %#.1f ms\n", (double)pcm->delay_adjustment / 10);
+	printf("ClientDelay: %#.1f ms\n", (double)pcm->client_delay / 10);
 	cli_print_pcm_soft_volume(pcm);
 	cli_print_pcm_volume(pcm);
 	cli_print_pcm_mute(pcm);

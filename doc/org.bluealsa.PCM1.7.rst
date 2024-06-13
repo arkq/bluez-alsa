@@ -146,6 +146,11 @@ array{byte} CodecConfiguration [readonly]
 uint16 Delay [readonly]
     Approximate PCM delay in 1/10 of millisecond.
 
+uint16 ClientDelay [readwrite]
+    Approximate client side delay in 1/10 of millisecond. This property shall
+    be set by the client in order to account for the client side delay when
+    capturing or playing audio respectively for PCM source or sink.
+
 int16 DelayAdjustment [readonly]
     An adjustment (+/-) included within the reported Delay in 1/10 of
     millisecond to compensate for devices that do not report accurate delay
