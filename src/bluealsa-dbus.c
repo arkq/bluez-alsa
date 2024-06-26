@@ -703,8 +703,8 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			/* setup default codec configuration */
 
 			const size_t size = sep->capabilities_size;
-			memcpy(&sep->configuration, &sep->capabilities, size);
-			if (a2dp_select_configuration(codec, &sep->configuration, size) == -1)
+			memcpy(&a2dp_configuration, &sep->capabilities, size);
+			if (a2dp_select_configuration(codec, &a2dp_configuration, size) == -1)
 				goto fail;
 
 		}
@@ -733,11 +733,9 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 			}
 
-			memcpy(&sep->configuration, &a2dp_configuration, a2dp_configuration_size);
-
 		}
 
-		if (ba_transport_select_codec_a2dp(t, sep) == -1)
+		if (ba_transport_select_codec_a2dp(t, sep, &a2dp_configuration) == -1)
 			goto fail;
 
 	}

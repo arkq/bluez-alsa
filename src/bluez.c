@@ -1629,6 +1629,7 @@ void bluez_destroy(void) {
 bool bluez_a2dp_set_configuration(
 		const char *dbus_current_sep_path,
 		const struct a2dp_sep *sep,
+		const void *configuration,
 		GError **error) {
 
 	int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(sep->bluez_dbus_path);
@@ -1685,7 +1686,7 @@ bool bluez_a2dp_set_configuration(
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(&props, "{sv}", "Capabilities", g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, &sep->configuration, sep->capabilities_size, sizeof(uint8_t)));
+				G_VARIANT_TYPE_BYTE, configuration, sep->capabilities_size, sizeof(uint8_t)));
 
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
 			sep->bluez_dbus_path, BLUEZ_IFACE_MEDIA_ENDPOINT, "SetConfiguration");

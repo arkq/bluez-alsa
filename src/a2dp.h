@@ -89,8 +89,6 @@ struct a2dp_sep {
 	size_t capabilities_size;
 	/* stream end-point path */
 	char bluez_dbus_path[64];
-	/* selected configuration */
-	a2dp_t configuration;
 };
 
 /* NULL-terminated list of available A2DP codecs */

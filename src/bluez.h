@@ -34,6 +34,7 @@ void bluez_destroy(void);
 bool bluez_a2dp_set_configuration(
 		const char *dbus_current_sep_path,
 		const struct a2dp_sep *sep,
+		const void *configuration,
 		GError **error);
 
 void bluez_battery_provider_update(

@@ -93,9 +93,10 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); (void)r; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep *sep, GError **error) {
+		const struct a2dp_sep *sep, const void *configuration, GError **error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
-	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
+	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
+	return false; }
 void bluez_battery_provider_update(struct ba_device *device) {
 	debug("%s: %p", __func__, device); (void)device; }
 int ofono_call_volume_update(struct ba_transport *t) {

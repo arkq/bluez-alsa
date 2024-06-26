@@ -71,9 +71,10 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
 	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig; return 0; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep *sep, GError **error) {
+		const struct a2dp_sep *sep, const void *configuration, GError **error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
-	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
+	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
+	return false; }
 int ofono_call_volume_update(struct ba_transport *t) {
 	debug("%s: %p", __func__, t); (void)t; return 0; }
 
