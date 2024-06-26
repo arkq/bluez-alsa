@@ -333,11 +333,11 @@ static const struct a2dp_sampling a2dp_sbc_samplings[] = {
 };
 
 static int a2dp_sbc_capabilities_filter(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *capabilities_mask,
 		void *capabilities) {
 
-	(void)codec;
+	(void)sep;
 	const a2dp_sbc_t *caps_mask = capabilities_mask;
 	a2dp_sbc_t *caps = capabilities;
 
@@ -354,14 +354,14 @@ static int a2dp_sbc_capabilities_filter(
 }
 
 static int a2dp_sbc_configuration_select(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities) {
 
 	a2dp_sbc_t *caps = capabilities;
 	const a2dp_sbc_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -436,14 +436,14 @@ static int a2dp_sbc_configuration_select(
 }
 
 static int a2dp_sbc_configuration_check(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const a2dp_sbc_t *conf = configuration;
 	a2dp_sbc_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -517,14 +517,14 @@ static int a2dp_sbc_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_sbc_source_init(struct a2dp_codec *codec) {
+static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
 		info("SBC: Activating SBC Dual Channel HD (SBC %s)",
 				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
-		codec->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
-		codec->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+		sep->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+		sep->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 	}
 
 	if (config.a2dp.force_mono)
@@ -533,9 +533,9 @@ static int a2dp_sbc_source_init(struct a2dp_codec *codec) {
 		 * modes. However, since for sink all channel modes are mandatory, even
 		 * though we are supporting only mono mode, there will be a match when
 		 * selecting configuration. */
-		codec->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
+		sep->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		codec->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+		sep->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
 
 	return 0;
 }
@@ -544,7 +544,7 @@ static int a2dp_sbc_source_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_enc_thread, "ba-a2dp-sbc");
 }
 
-struct a2dp_codec a2dp_sbc_source = {
+struct a2dp_sep a2dp_sbc_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_SBC,
 	.synopsis = "A2DP Source (SBC)",
@@ -587,7 +587,7 @@ static int a2dp_sbc_sink_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_dec_thread, "ba-a2dp-sbc");
 }
 
-struct a2dp_codec a2dp_sbc_sink = {
+struct a2dp_sep a2dp_sbc_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_SBC,
 	.synopsis = "A2DP Sink (SBC)",

@@ -74,22 +74,22 @@ CK_START_TEST(test_a2dp_dir) {
 	ck_assert_int_eq(!A2DP_SOURCE, A2DP_SINK);
 } CK_END_TEST
 
-CK_START_TEST(test_a2dp_codecs_init) {
-	a2dp_codecs_init();
+CK_START_TEST(test_a2dp_seps_init) {
+	a2dp_seps_init();
 } CK_END_TEST
 
-CK_START_TEST(test_a2dp_codec_cmp) {
+CK_START_TEST(test_a2dp_sep_ptr_cmp) {
 
-	struct a2dp_codec c1 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
-	struct a2dp_codec c2 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
-	struct a2dp_codec c3 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX };
-	struct a2dp_codec c4 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
-	struct a2dp_codec c5 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
-	struct a2dp_codec c6 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_LDAC };
-	struct a2dp_codec c7 = { .dir = A2DP_SINK, .codec_id = 0xFFFFFFFF };
+	struct a2dp_sep c1 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_sep c2 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
+	struct a2dp_sep c3 = { .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX };
+	struct a2dp_sep c4 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_sep c5 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
+	struct a2dp_sep c6 = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_LDAC };
+	struct a2dp_sep c7 = { .dir = A2DP_SINK, .codec_id = 0xFFFFFFFF };
 
-	struct a2dp_codec * codecs[] = { &c3, &c1, &c6, &c4, &c7, &c5, &c2 };
-	qsort(codecs, ARRAYSIZE(codecs), sizeof(*codecs), QSORT_COMPAR(a2dp_codec_ptr_cmp));
+	struct a2dp_sep * codecs[] = { &c3, &c1, &c6, &c4, &c7, &c5, &c2 };
+	qsort(codecs, ARRAYSIZE(codecs), sizeof(*codecs), QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	ck_assert_ptr_eq(codecs[0], &c1);
 	ck_assert_ptr_eq(codecs[1], &c2);
@@ -101,29 +101,9 @@ CK_START_TEST(test_a2dp_codec_cmp) {
 
 } CK_END_TEST
 
-CK_START_TEST(test_a2dp_sep_cmp) {
-
-	struct a2dp_sep seps[] = {
-		{ .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX },
-		{ .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
-		{ .dir = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX },
-		{ .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 },
-		{ .dir = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC } };
-	qsort(seps, ARRAYSIZE(seps), sizeof(*seps), QSORT_COMPAR(a2dp_sep_cmp));
-
-	ck_assert_int_eq(seps[0].codec_id, A2DP_CODEC_SBC);
-	ck_assert_int_eq(seps[1].codec_id, A2DP_CODEC_MPEG24);
-	ck_assert_int_eq(seps[2].codec_id, A2DP_CODEC_VENDOR_APTX);
-	ck_assert_int_eq(seps[3].dir, A2DP_SINK);
-	ck_assert_int_eq(seps[3].codec_id, A2DP_CODEC_SBC);
-	ck_assert_int_eq(seps[4].dir, A2DP_SINK);
-	ck_assert_int_eq(seps[4].codec_id, A2DP_CODEC_VENDOR_APTX);
-
-} CK_END_TEST
-
-CK_START_TEST(test_a2dp_codec_lookup) {
-	ck_assert_ptr_eq(a2dp_codec_lookup(A2DP_CODEC_SBC, A2DP_SOURCE), &a2dp_sbc_source);
-	ck_assert_ptr_eq(a2dp_codec_lookup(0xFFFFFFFF, A2DP_SOURCE), NULL);
+CK_START_TEST(test_a2dp_sep_lookup) {
+	ck_assert_ptr_eq(a2dp_sep_lookup(A2DP_CODEC_SBC, A2DP_SOURCE), &a2dp_sbc_source);
+	ck_assert_ptr_eq(a2dp_sep_lookup(0xFFFFFFFF, A2DP_SOURCE), NULL);
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_get_vendor_codec_id) {
@@ -344,10 +324,9 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_codecs_get_canonical_name);
 
 	tcase_add_test(tc, test_a2dp_dir);
-	tcase_add_test(tc, test_a2dp_codecs_init);
-	tcase_add_test(tc, test_a2dp_codec_cmp);
-	tcase_add_test(tc, test_a2dp_sep_cmp);
-	tcase_add_test(tc, test_a2dp_codec_lookup);
+	tcase_add_test(tc, test_a2dp_seps_init);
+	tcase_add_test(tc, test_a2dp_sep_ptr_cmp);
+	tcase_add_test(tc, test_a2dp_sep_lookup);
 	tcase_add_test(tc, test_a2dp_get_vendor_codec_id);
 	tcase_add_test(tc, test_a2dp_check_configuration);
 	tcase_add_test(tc, test_a2dp_check_strerror);

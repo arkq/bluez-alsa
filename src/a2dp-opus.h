@@ -18,7 +18,7 @@
 
 #include "a2dp.h"
 
-extern struct a2dp_codec a2dp_opus_source;
-extern struct a2dp_codec a2dp_opus_sink;
+extern struct a2dp_sep a2dp_opus_source;
+extern struct a2dp_sep a2dp_opus_sink;
 
 #endif

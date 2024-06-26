@@ -115,12 +115,12 @@ struct bt_dump *bt_dump_create(
 		break;
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		a2dp_configuration = &t->a2dp.configuration;
-		a2dp_configuration_size = t->a2dp.codec->capabilities_size;
+		a2dp_configuration_size = t->a2dp.sep->capabilities_size;
 		mode = BT_DUMP_MODE_A2DP_SOURCE;
 		break;
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		a2dp_configuration = &t->a2dp.configuration;
-		a2dp_configuration_size = t->a2dp.codec->capabilities_size;
+		a2dp_configuration_size = t->a2dp.sep->capabilities_size;
 		mode = BT_DUMP_MODE_A2DP_SINK;
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:

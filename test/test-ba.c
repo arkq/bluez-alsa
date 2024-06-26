@@ -325,10 +325,10 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
-	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_sep sep = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d,
-				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &codec,
+				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &sep,
 				&configuration), NULL);
 
 	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d,
@@ -410,10 +410,10 @@ CK_START_TEST(test_storage) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_sep sep = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t = ba_transport_new_a2dp(d,
-				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &codec,
+				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &sep,
 				&configuration), NULL);
 
 	/* check if persistent storage was loaded */

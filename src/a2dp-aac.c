@@ -503,11 +503,11 @@ static const struct a2dp_sampling a2dp_aac_samplings[] = {
 };
 
 static int a2dp_aac_capabilities_filter(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *capabilities_mask,
 		void *capabilities) {
 
-	(void)codec;
+	(void)sep;
 	const a2dp_aac_t *caps_mask = capabilities_mask;
 	a2dp_aac_t *caps = capabilities;
 
@@ -522,14 +522,14 @@ static int a2dp_aac_capabilities_filter(
 }
 
 static int a2dp_aac_configuration_select(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities) {
 
 	a2dp_aac_t *caps = capabilities;
 	const a2dp_aac_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -569,7 +569,7 @@ static int a2dp_aac_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	unsigned int ba_bitrate = A2DP_AAC_GET_BITRATE(codec->capabilities.aac);
+	unsigned int ba_bitrate = A2DP_AAC_GET_BITRATE(sep->capabilities.aac);
 	unsigned int cap_bitrate = A2DP_AAC_GET_BITRATE(*caps);
 	if (cap_bitrate == 0)
 		/* fix bitrate value if it was not set */
@@ -583,14 +583,14 @@ static int a2dp_aac_configuration_select(
 }
 
 static int a2dp_aac_configuration_check(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const a2dp_aac_t *conf = configuration;
 	a2dp_aac_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -641,7 +641,7 @@ static int a2dp_aac_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_aac_source_init(struct a2dp_codec *codec) {
+static int a2dp_aac_source_init(struct a2dp_sep *sep) {
 
 	LIB_INFO info[16] = {
 		[15] = { .module_id = ~FDK_NONE } };
@@ -658,25 +658,25 @@ static int a2dp_aac_source_init(struct a2dp_codec *codec) {
 	}
 
 	if (caps_aac & CAPF_ER_AAC_SCAL)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
 	if (caps_sbr & CAPF_SBR_HQ)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
 	if (caps_sbr & CAPF_SBR_PS_MPEG)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
 	if (caps_aac & CAPF_ER_AAC_ELDV2)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
 	if (caps_aac & CAPF_AAC_UNIDRC)
-		codec->capabilities.aac.drc = 1;
+		sep->capabilities.aac.drc = 1;
 
 	if (config.a2dp.force_mono)
-		codec->capabilities.aac.channels = AAC_CHANNELS_1;
+		sep->capabilities.aac.channels = AAC_CHANNELS_1;
 	if (config.a2dp.force_44100)
-		A2DP_AAC_SET_FREQUENCY(codec->capabilities.aac, AAC_SAMPLING_FREQ_44100);
+		A2DP_AAC_SET_FREQUENCY(sep->capabilities.aac, AAC_SAMPLING_FREQ_44100);
 
 	if (!config.aac_prefer_vbr)
-		codec->capabilities.aac.vbr = 0;
+		sep->capabilities.aac.vbr = 0;
 
-	A2DP_AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+	A2DP_AAC_SET_BITRATE(sep->capabilities.aac, config.aac_bitrate);
 
 	return 0;
 }
@@ -685,7 +685,7 @@ static int a2dp_aac_source_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_enc_thread, "ba-a2dp-aac");
 }
 
-struct a2dp_codec a2dp_aac_source = {
+struct a2dp_sep a2dp_aac_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.synopsis = "A2DP Source (AAC)",
@@ -726,7 +726,7 @@ struct a2dp_codec a2dp_aac_source = {
 	.enabled = true,
 };
 
-static int a2dp_aac_sink_init(struct a2dp_codec *codec) {
+static int a2dp_aac_sink_init(struct a2dp_sep *sep) {
 
 	LIB_INFO info[16] = {
 		[15] = { .module_id = ~FDK_NONE } };
@@ -745,21 +745,21 @@ static int a2dp_aac_sink_init(struct a2dp_codec *codec) {
 	}
 
 	if (caps_aac & CAPF_ER_AAC_SCAL)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
 	if (caps_sbr & CAPF_SBR_HQ)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
 	if (caps_sbr & CAPF_SBR_PS_MPEG)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
 	if (caps_aac & CAPF_ER_AAC_ELDV2)
-		codec->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
+		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
 	if (caps_aac & CAPF_AAC_UNIDRC)
-		codec->capabilities.aac.drc = 1;
+		sep->capabilities.aac.drc = 1;
 	if (caps_dmx & CAPF_DMX_6_CH)
-		codec->capabilities.aac.channels |= AAC_CHANNELS_6;
+		sep->capabilities.aac.channels |= AAC_CHANNELS_6;
 	if (caps_dmx & CAPF_DMX_8_CH)
-		codec->capabilities.aac.channels |= AAC_CHANNELS_8;
+		sep->capabilities.aac.channels |= AAC_CHANNELS_8;
 
-	A2DP_AAC_SET_BITRATE(codec->capabilities.aac, config.aac_bitrate);
+	A2DP_AAC_SET_BITRATE(sep->capabilities.aac, config.aac_bitrate);
 
 	return 0;
 }
@@ -768,7 +768,7 @@ static int a2dp_aac_sink_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_dec_thread, "ba-a2dp-aac");
 }
 
-struct a2dp_codec a2dp_aac_sink = {
+struct a2dp_sep a2dp_aac_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.synopsis = "A2DP Sink (AAC)",

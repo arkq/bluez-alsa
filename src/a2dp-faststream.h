@@ -18,7 +18,7 @@
 
 #include "a2dp.h"
 
-extern struct a2dp_codec a2dp_faststream_source;
-extern struct a2dp_codec a2dp_faststream_sink;
+extern struct a2dp_sep a2dp_faststream_source;
+extern struct a2dp_sep a2dp_faststream_sink;
 
 #endif

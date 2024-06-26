@@ -47,7 +47,7 @@
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
-struct a2dp_codec * const a2dp_codecs[] = {
+struct a2dp_sep * const a2dp_seps[] = {
 #if ENABLE_OPUS
 	&a2dp_opus_source,
 	&a2dp_opus_sink,
@@ -96,25 +96,25 @@ struct a2dp_codec * const a2dp_codecs[] = {
 };
 
 /**
- * Initialize A2DP codecs. */
-int a2dp_codecs_init(void) {
+ * Initialize A2DP SEPs. */
+int a2dp_seps_init(void) {
 
-	for (size_t i = 0; a2dp_codecs[i] != NULL; i++) {
-		/* We want the list of codecs to be seen as const outside
+	for (size_t i = 0; a2dp_seps[i] != NULL; i++) {
+		/* We want the list of SEPs to be seen as const outside
 		 * of this file, so we have to cast it here. */
-		struct a2dp_codec *c = (struct a2dp_codec *)a2dp_codecs[i];
+		struct a2dp_sep *sep = (struct a2dp_sep *)a2dp_seps[i];
 
-		switch (c->dir) {
+		switch (sep->dir) {
 		case A2DP_SOURCE:
-			c->enabled &= config.profile.a2dp_source;
+			sep->enabled &= config.profile.a2dp_source;
 			break;
 		case A2DP_SINK:
-			c->enabled &= config.profile.a2dp_sink;
+			sep->enabled &= config.profile.a2dp_sink;
 			break;
 		}
 
-		if (c->init != NULL && c->enabled)
-			if (c->init(c) != 0)
+		if (sep->init != NULL && sep->enabled)
+			if (sep->init(sep) != 0)
 				return -1;
 
 	}
@@ -135,26 +135,12 @@ static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
 }
 
 /**
- * Compare A2DP codecs.
+ * Compare A2DP SEPs.
  *
- * This function orders A2DP codecs according to following rules:
- *  - order codecs by A2DP direction
- *  - order codecs by codec ID
+ * This function orders A2DP SEPs according to following rules:
+ *  - order SEPs by A2DP direction
+ *  - order SEPs by codec ID
  *  - order vendor codecs alphabetically (case insensitive) */
-int a2dp_codec_cmp(const struct a2dp_codec *a, const struct a2dp_codec *b) {
-	if (a->dir == b->dir)
-		return a2dp_codec_id_cmp(a->codec_id, b->codec_id);
-	return a->dir - b->dir;
-}
-
-/**
- * Compare A2DP codecs. */
-int a2dp_codec_ptr_cmp(const struct a2dp_codec **a, const struct a2dp_codec **b) {
-	return a2dp_codec_cmp(*a, *b);
-}
-
-/**
- * Compare A2DP SEPs. */
 int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b) {
 	if (a->dir == b->dir)
 		return a2dp_codec_id_cmp(a->codec_id, b->codec_id);
@@ -162,17 +148,23 @@ int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b) {
 }
 
 /**
- * Lookup codec configuration for given stream direction.
+ * Compare A2DP SEPs. */
+int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b) {
+	return a2dp_sep_cmp(*a, *b);
+}
+
+/**
+ * Lookup SEP for given codec and stream direction.
  *
  * @param codec_id BlueALSA A2DP 32-bit codec ID.
  * @param dir The A2DP stream direction.
- * @return On success this function returns the address of the codec
+ * @return On success this function returns the address of the SEP
  *   configuration structure. Otherwise, NULL is returned. */
-const struct a2dp_codec *a2dp_codec_lookup(uint32_t codec_id, enum a2dp_dir dir) {
-	for (size_t i = 0; a2dp_codecs[i] != NULL; i++)
-		if (a2dp_codecs[i]->dir == dir &&
-				a2dp_codecs[i]->codec_id == codec_id)
-			return a2dp_codecs[i];
+const struct a2dp_sep *a2dp_sep_lookup(uint32_t codec_id, enum a2dp_dir dir) {
+	for (size_t i = 0; a2dp_seps[i] != NULL; i++)
+		if (a2dp_seps[i]->dir == dir &&
+				a2dp_seps[i]->codec_id == codec_id)
+			return a2dp_seps[i];
 	return NULL;
 }
 
@@ -283,24 +275,24 @@ uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 /**
  * Filter A2DP codec capabilities with given capabilities mask. */
 int a2dp_filter_capabilities(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *capabilities_mask,
 		void *capabilities,
 		size_t size) {
 
-	if (size != codec->capabilities_size) {
-		error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
+	if (size != sep->capabilities_size) {
+		error("Invalid capabilities size: %zu != %zu", size, sep->capabilities_size);
 		return errno = EINVAL, -1;
 	}
 
 	const uint8_t *caps_mask = capabilities_mask;
 	uint8_t *caps = capabilities;
 
-	if (codec->capabilities_filter != NULL)
-		return codec->capabilities_filter(codec, caps_mask, caps);
+	if (sep->capabilities_filter != NULL)
+		return sep->capabilities_filter(sep, caps_mask, caps);
 
 	/* perform simple bitwise AND operation on given capabilities */
-	for (size_t i = 0; i < codec->capabilities_size; i++)
+	for (size_t i = 0; i < sep->capabilities_size; i++)
 		caps[i] = caps[i] & caps_mask[i];
 
 	return 0;
@@ -309,34 +301,34 @@ int a2dp_filter_capabilities(
 /**
  * Select best possible A2DP codec configuration. */
 int a2dp_select_configuration(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities,
 		size_t size) {
 
-	if (size == codec->capabilities_size)
-		return codec->configuration_select(codec, capabilities);
+	if (size == sep->capabilities_size)
+		return sep->configuration_select(sep, capabilities);
 
-	error("Invalid capabilities size: %zu != %zu", size, codec->capabilities_size);
+	error("Invalid capabilities size: %zu != %zu", size, sep->capabilities_size);
 	return errno = EINVAL, -1;
 }
 
 /**
  * Check whether A2DP configuration is valid.
  *
- * @param codec A2DP codec setup.
+ * @param sep A2DP Stream End-Point setup.
  * @param configuration A2DP codec configuration blob.
  * @param size The size of the A2DP codec configuration blob.
  * @return On success this function returns A2DP_CHECK_OK. Otherwise,
  *   one of the A2DP_CHECK_ERR_* values is returned. */
 enum a2dp_check_err a2dp_check_configuration(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration,
 		size_t size) {
 
-	if (size == codec->capabilities_size)
-		return codec->configuration_check(codec, configuration);
+	if (size == sep->capabilities_size)
+		return sep->configuration_check(sep, configuration);
 
-	error("Invalid configuration size: %zu != %zu", size, codec->capabilities_size);
+	error("Invalid configuration size: %zu != %zu", size, sep->capabilities_size);
 	return A2DP_CHECK_ERR_SIZE;
 }
 
@@ -380,10 +372,10 @@ const char *a2dp_check_strerror(
 
 int a2dp_transport_init(
 		struct ba_transport *t) {
-	return t->a2dp.codec->transport_init(t);
+	return t->a2dp.sep->transport_init(t);
 }
 
 int a2dp_transport_start(
 		struct ba_transport *t) {
-	return t->a2dp.codec->transport_start(t);
+	return t->a2dp.sep->transport_start(t);
 }

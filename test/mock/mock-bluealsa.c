@@ -196,7 +196,7 @@ static struct ba_device *mock_device_new(struct ba_adapter *a, const char *addre
 }
 
 static struct ba_transport *mock_transport_new_a2dp(struct ba_device *d,
-		const char *uuid, const struct a2dp_codec *codec, const void *configuration) {
+		const char *uuid, const struct a2dp_sep *sep, const void *configuration) {
 
 	usleep(mock_fuzzing_ms * 1000);
 
@@ -206,13 +206,13 @@ static struct ba_transport *mock_transport_new_a2dp(struct ba_device *d,
 
 	g_autoptr(GAsyncQueue) sem = g_async_queue_new();
 	assert(mock_bluez_device_media_set_configuration(d->bluez_dbus_path, transport_path,
-				uuid, codec->codec_id, configuration, codec->capabilities_size, sem) == 0);
+				uuid, sep->codec_id, configuration, sep->capabilities_size, sem) == 0);
 	mock_sem_wait(sem);
 
 	char device[18];
 	ba2str(&d->addr, device);
 	fprintf(stderr, "BLUEALSA_READY=A2DP:%s:%s\n", device,
-			a2dp_codecs_codec_id_to_string(codec->codec_id));
+			a2dp_codecs_codec_id_to_string(sep->codec_id));
 
 	struct ba_transport *t;
 	assert((t = ba_transport_lookup(d, transport_path)) != NULL);
@@ -426,8 +426,8 @@ static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 	config.dbus = conn;
 	/* do not generate lots of data */
 	config.sbc_quality = SBC_QUALITY_LOW;
-	/* initialize codec capabilities */
-	a2dp_codecs_init();
+	/* initialize SEPs capabilities */
+	a2dp_seps_init();
 
 	/* create mock devices attached to the mock adapter */
 	ba_adapter = mock_adapter_new(MOCK_ADAPTER_ID);

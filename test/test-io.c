@@ -668,14 +668,14 @@ static struct ba_transport *test_transport_new_a2dp(
 		struct ba_device *device,
 		enum ba_transport_profile profile,
 		const char *dbus_path,
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 #if DEBUG
 	if (input_bt_file != NULL)
 		configuration = &btdin->a2dp_configuration;
 #endif
 	struct ba_transport *t = ba_transport_new_a2dp(device, profile, ":test",
-			dbus_path, codec, configuration);
+			dbus_path, sep, configuration);
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release_bt_a2dp;
 	return t;

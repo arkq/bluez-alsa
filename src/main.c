@@ -69,22 +69,22 @@ static char *get_a2dp_codecs(enum a2dp_dir dir) {
 	const char *strv[16 + 1] = { NULL };
 	size_t n = 0;
 
-	const struct a2dp_codec * a2dp_codecs_tmp[16];
-	struct a2dp_codec * const * cc = a2dp_codecs;
-	for (const struct a2dp_codec *c = *cc; c != NULL; c = *++cc) {
-		if (c->dir != dir)
+	const struct a2dp_sep * a2dp_seps_tmp[16];
+	struct a2dp_sep * const * seps = a2dp_seps;
+	for (const struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps) {
+		if (sep->dir != dir)
 			continue;
-		a2dp_codecs_tmp[n] = c;
-		if (++n >= ARRAYSIZE(a2dp_codecs_tmp))
+		a2dp_seps_tmp[n] = sep;
+		if (++n >= ARRAYSIZE(a2dp_seps_tmp))
 			break;
 	}
 
 	/* Sort A2DP codecs before displaying them. */
-	qsort(a2dp_codecs_tmp, n, sizeof(*a2dp_codecs_tmp),
-			QSORT_COMPAR(a2dp_codec_ptr_cmp));
+	qsort(a2dp_seps_tmp, n, sizeof(*a2dp_seps_tmp),
+			QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++)
-		strv[i] = a2dp_codecs_codec_id_to_string(a2dp_codecs_tmp[i]->codec_id);
+		strv[i] = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->codec_id);
 
 	return g_strjoinv(", ", (char **)strv);
 }
@@ -385,11 +385,11 @@ int main(int argc, char **argv) {
 				optarg++;
 			}
 
-			struct a2dp_codec * const * cc = a2dp_codecs;
+			struct a2dp_sep * const * seps = a2dp_seps;
 			uint32_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
-			for (struct a2dp_codec *c = *cc; c != NULL; c = *++cc)
-				if (c->codec_id == codec_id) {
-					c->enabled = enable;
+			for (struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps)
+				if (sep->codec_id == codec_id) {
+					sep->enabled = enable;
 					matched = true;
 				}
 
@@ -633,7 +633,7 @@ int main(int argc, char **argv) {
 	a2dp_sbc_sink.enabled = true;
 	config.hfp.codecs.cvsd = true;
 
-	if (a2dp_codecs_init() == -1)
+	if (a2dp_seps_init() == -1)
 		return EXIT_FAILURE;
 
 	const char *storage_base_dir = BLUEALSA_STORAGE_DIR;

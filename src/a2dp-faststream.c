@@ -249,14 +249,14 @@ static const struct a2dp_sampling a2dp_faststream_samplings_voice[] = {
 };
 
 static int a2dp_faststream_configuration_select(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities) {
 
 	a2dp_faststream_t *caps = capabilities;
 	const a2dp_faststream_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -287,14 +287,14 @@ static int a2dp_faststream_configuration_select(
 }
 
 static int a2dp_faststream_configuration_check(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const a2dp_faststream_t *conf = configuration;
 	a2dp_faststream_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -349,11 +349,11 @@ static int a2dp_faststream_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_faststream_source_init(struct a2dp_codec *codec) {
+static int a2dp_faststream_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		warn("FastStream: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
-		codec->capabilities.faststream.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
+		sep->capabilities.faststream.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
 	return 0;
 }
 
@@ -371,7 +371,7 @@ static int a2dp_faststream_source_transport_start(struct ba_transport *t) {
 	return rv;
 }
 
-struct a2dp_codec a2dp_faststream_source = {
+struct a2dp_sep a2dp_faststream_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
 	.synopsis = "A2DP Source (FastStream)",
@@ -406,7 +406,7 @@ static int a2dp_faststream_sink_transport_start(struct ba_transport *t) {
 	return rv;
 }
 
-struct a2dp_codec a2dp_faststream_sink = {
+struct a2dp_sep a2dp_faststream_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_FASTSTREAM,
 	.synopsis = "A2DP Sink (FastStream)",

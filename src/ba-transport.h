@@ -122,8 +122,8 @@ struct ba_transport {
 			pthread_cond_t state_changed_cond;
 			enum bluez_a2dp_transport_state state;
 
-			/* audio codec configuration capabilities */
-			const struct a2dp_codec *codec;
+			/* SEP configuration */
+			const struct a2dp_sep *sep;
 			/* selected audio codec configuration */
 			a2dp_t configuration;
 
@@ -220,7 +220,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration);
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,

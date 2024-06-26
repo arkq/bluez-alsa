@@ -402,7 +402,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const bool is_sink = profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
@@ -417,8 +417,8 @@ struct ba_transport *ba_transport_new_a2dp(
 	pthread_cond_init(&t->a2dp.state_changed_cond, NULL);
 	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
 
-	t->a2dp.codec = codec;
-	memcpy(&t->a2dp.configuration, configuration, codec->capabilities_size);
+	t->a2dp.sep = sep;
+	memcpy(&t->a2dp.configuration, configuration, sep->capabilities_size);
 
 	err |= transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
@@ -442,7 +442,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	ba_transport_set_codec(t, codec->codec_id);
+	ba_transport_set_codec(t, sep->codec_id);
 
 	storage_pcm_data_sync(&t->a2dp.pcm);
 	storage_pcm_data_sync(&t->a2dp.pcm_bc);
@@ -694,7 +694,7 @@ const char *ba_transport_debug_name(
 		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		return t->a2dp.codec->synopsis;
+		return t->a2dp.sep->synopsis;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		switch (codec_id) {
 		case HFP_CODEC_UNDEFINED:

@@ -336,14 +336,14 @@ static const struct a2dp_sampling a2dp_ldac_samplings[] = {
 };
 
 static int a2dp_ldac_configuration_select(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities) {
 
 	a2dp_ldac_t *caps = capabilities;
 	const a2dp_ldac_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -367,14 +367,14 @@ static int a2dp_ldac_configuration_select(
 }
 
 static int a2dp_ldac_configuration_check(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const a2dp_ldac_t *conf = configuration;
 	a2dp_ldac_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -412,11 +412,11 @@ static int a2dp_ldac_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_ldac_source_init(struct a2dp_codec *codec) {
+static int a2dp_ldac_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
-		codec->capabilities.ldac.channel_mode = LDAC_CHANNEL_MODE_MONO;
+		sep->capabilities.ldac.channel_mode = LDAC_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		codec->capabilities.ldac.frequency = LDAC_SAMPLING_FREQ_44100;
+		sep->capabilities.ldac.frequency = LDAC_SAMPLING_FREQ_44100;
 	return 0;
 }
 
@@ -424,7 +424,7 @@ static int a2dp_ldac_source_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_enc_thread, "ba-a2dp-ldac");
 }
 
-struct a2dp_codec a2dp_ldac_source = {
+struct a2dp_sep a2dp_ldac_source = {
 	.dir = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.synopsis = "A2DP Source (LDAC)",
@@ -456,7 +456,7 @@ static int a2dp_ldac_sink_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_dec_thread, "ba-a2dp-ldac");
 }
 
-struct a2dp_codec a2dp_ldac_sink = {
+struct a2dp_sep a2dp_ldac_sink = {
 	.dir = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.synopsis = "A2DP Sink (LDAC)",

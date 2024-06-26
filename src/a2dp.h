@@ -40,7 +40,9 @@ struct a2dp_sampling {
 /* XXX: avoid circular dependency */
 struct ba_transport;
 
-struct a2dp_codec {
+/**
+ * A2DP Stream End-Point. */
+struct a2dp_sep {
 
 	enum a2dp_dir dir;
 	uint32_t codec_id;
@@ -50,57 +52,46 @@ struct a2dp_codec {
 	a2dp_t capabilities;
 	size_t capabilities_size;
 
-	/* callback function for codec initialization */
-	int (*init)(struct a2dp_codec *codec);
+	/* callback function for SEP initialization */
+	int (*init)(struct a2dp_sep *sep);
 
 	/* callback function for codec-specific capabilities filtering; if this
 	 * function is not provided, the a2dp_filter_capabilities() will return
 	 * simple bitwise AND of given capabilities */
 	int (*capabilities_filter)(
-			const struct a2dp_codec *codec,
+			const struct a2dp_sep *sep,
 			const void *capabilities_mask,
 			void *capabilities);
 
 	/* callback function for selecting configuration */
 	int (*configuration_select)(
-			const struct a2dp_codec *codec,
+			const struct a2dp_sep *sep,
 			void *capabilities);
 
 	/* callback function for checking configuration correctness */
 	int (*configuration_check)(
-			const struct a2dp_codec *codec,
+			const struct a2dp_sep *sep,
 			const void *configuration);
 
 	int (*transport_init)(struct ba_transport *t);
 	int (*transport_start)(struct ba_transport *t);
 
-	/* determine whether codec shall be enabled */
+	/* D-Bus object path for external SEP */
+	char bluez_dbus_path[64];
+	/* determine whether SEP shall be enabled */
 	bool enabled;
 
 };
 
-/**
- * A2DP Stream End-Point. */
-struct a2dp_sep {
-	enum a2dp_dir dir;
-	uint32_t codec_id;
-	/* exposed capabilities */
-	a2dp_t capabilities;
-	size_t capabilities_size;
-	/* stream end-point path */
-	char bluez_dbus_path[64];
-};
+/* NULL-terminated list of available local A2DP SEPs */
+extern struct a2dp_sep * const a2dp_seps[];
 
-/* NULL-terminated list of available A2DP codecs */
-extern struct a2dp_codec * const a2dp_codecs[];
+int a2dp_seps_init(void);
 
-int a2dp_codecs_init(void);
-
-int a2dp_codec_cmp(const struct a2dp_codec *a, const struct a2dp_codec *b);
-int a2dp_codec_ptr_cmp(const struct a2dp_codec **a, const struct a2dp_codec **b);
 int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b);
+int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b);
 
-const struct a2dp_codec *a2dp_codec_lookup(
+const struct a2dp_sep *a2dp_sep_lookup(
 		uint32_t codec_id,
 		enum a2dp_dir dir);
 
@@ -125,13 +116,13 @@ uint32_t a2dp_get_vendor_codec_id(
 		size_t size);
 
 int a2dp_filter_capabilities(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *capabilities_mask,
 		void *capabilities,
 		size_t size);
 
 int a2dp_select_configuration(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities,
 		size_t size);
 
@@ -153,7 +144,7 @@ enum a2dp_check_err {
 };
 
 enum a2dp_check_err a2dp_check_configuration(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration,
 		size_t size);
 
