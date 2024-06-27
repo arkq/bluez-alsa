@@ -111,7 +111,7 @@ static void vlog(int priority, const char *format, va_list ap) {
 			fprintf(stderr, "%s: ", _ident);
 
 #if DEBUG_TIME
-		fprintf(stderr, "%lu.%.9lu: ", (long int)ts.tv_sec, ts.tv_nsec);
+		fprintf(stderr, "%lu.%.6lu: ", (long int)ts.tv_sec, ts.tv_nsec / 1000);
 #endif
 
 #if DEBUG && HAVE_GETTID
