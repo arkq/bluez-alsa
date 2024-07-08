@@ -425,7 +425,7 @@ static int a2dp_ldac_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_ldac_source = {
-	.dir = A2DP_SOURCE,
+	.type = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.synopsis = "A2DP Source (LDAC)",
 	.capabilities.ldac = {
@@ -457,7 +457,7 @@ static int a2dp_ldac_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_ldac_sink = {
-	.dir = A2DP_SINK,
+	.type = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_LDAC,
 	.synopsis = "A2DP Sink (LDAC)",
 	.capabilities.ldac = {

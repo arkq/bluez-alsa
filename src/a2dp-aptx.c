@@ -330,7 +330,7 @@ static int a2dp_aptx_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_aptx_source = {
-	.dir = A2DP_SOURCE,
+	.type = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
 	.synopsis = "A2DP Source (apt-X)",
 	.capabilities.aptx = {
@@ -360,7 +360,7 @@ static int a2dp_aptx_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_aptx_sink = {
-	.dir = A2DP_SINK,
+	.type = A2DP_SINK,
 	.codec_id = A2DP_CODEC_VENDOR_APTX,
 	.synopsis = "A2DP Sink (apt-X)",
 	.capabilities.aptx = {

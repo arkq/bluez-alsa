@@ -124,7 +124,7 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 			QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++) {
-		const char *profile = a2dp_seps_tmp[i]->dir == A2DP_SOURCE ?
+		const char *profile = a2dp_seps_tmp[i]->type == A2DP_SOURCE ?
 				BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE : BLUEALSA_TRANSPORT_TYPE_A2DP_SINK;
 		const char *name = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->codec_id);
 		snprintf(tmp[i], sizeof(tmp[i]), "%s:%s", profile, name);
@@ -295,10 +295,13 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
 }
 
-static bool ba_variant_populate_sep(GVariantBuilder *props, uint32_t codec_id, enum a2dp_dir dir) {
+/**
+ * Populate dict variant builder with remote SEP properties. */
+static bool ba_variant_populate_remote_sep(GVariantBuilder *props,
+		const struct a2dp_sep *remote_sep) {
 
 	const struct a2dp_sep *sep;
-	if ((sep = a2dp_sep_lookup(codec_id, dir)) == NULL)
+	if ((sep = a2dp_sep_lookup(!remote_sep->type, remote_sep->codec_id)) == NULL)
 		return false;
 
 	/* Do not report SEP if corresponding codec is not enabled
@@ -306,8 +309,8 @@ static bool ba_variant_populate_sep(GVariantBuilder *props, uint32_t codec_id, e
 	if (!sep->enabled)
 		return false;
 
-	a2dp_t caps = sep->capabilities;
-	size_t size = MIN(sep->capabilities_size, sizeof(caps));
+	a2dp_t caps = remote_sep->capabilities;
+	size_t size = MIN(remote_sep->capabilities_size, sizeof(caps));
 	if (a2dp_filter_capabilities(sep, &sep->capabilities, &caps, size) != 0) {
 		error("Couldn't filter %s SEP capabilities: %s",
 				a2dp_codecs_codec_id_to_string(sep->codec_id),
@@ -539,15 +542,15 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		size_t i;
 
 		for (i = 0; seps != NULL && i < seps->len; i++) {
-			const struct a2dp_sep *sep = &g_array_index(seps, struct a2dp_sep, i);
+			const struct a2dp_sep *remote_sep = &g_array_index(seps, struct a2dp_sep, i);
 			/* match complementary PCM directions, e.g. A2DP-source with SEP-sink */
-			if (t->a2dp.sep->dir == !sep->dir) {
+			if (t->a2dp.sep->type == !remote_sep->type) {
 
 				bool duplicate = false;
 				size_t j;
 
 				for (j = 0; j < codec_ids->len; j++)
-					if (sep->codec_id == g_array_index(codec_ids, uint32_t, j)) {
+					if (remote_sep->codec_id == g_array_index(codec_ids, uint32_t, j)) {
 						duplicate = true;
 						break;
 					}
@@ -556,12 +559,12 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 				if (duplicate)
 					continue;
 
-				g_array_append_val(codec_ids, sep->codec_id);
+				g_array_append_val(codec_ids, remote_sep->codec_id);
 
 				GVariantBuilder props;
-				if (ba_variant_populate_sep(&props, sep->codec_id, !sep->dir)) {
+				if (ba_variant_populate_remote_sep(&props, remote_sep)) {
 					g_variant_builder_add(&codecs, "{sa{sv}}",
-							a2dp_codecs_codec_id_to_string(sep->codec_id), &props);
+							a2dp_codecs_codec_id_to_string(remote_sep->codec_id), &props);
 					g_variant_builder_clear(&props);
 				}
 
@@ -675,13 +678,13 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		}
 
 		uint32_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
-		enum a2dp_dir dir = !t->a2dp.sep->dir;
+		enum a2dp_type type = !t->a2dp.sep->type;
 		struct a2dp_sep *sep_remote = NULL;
 		const GArray *seps = t->d->seps;
 		size_t i;
 
 		for (i = 0; i < seps->len; i++)
-			if (g_array_index(seps, struct a2dp_sep, i).dir == dir &&
+			if (g_array_index(seps, struct a2dp_sep, i).type == type &&
 					g_array_index(seps, struct a2dp_sep, i).codec_id == codec_id) {
 				sep_remote = &g_array_index(seps, struct a2dp_sep, i);
 				break;
@@ -694,7 +697,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		}
 
 		const struct a2dp_sep *sep;
-		if ((sep = a2dp_sep_lookup(codec_id, !dir)) == NULL) {
+		if ((sep = a2dp_sep_lookup(!type, codec_id)) == NULL) {
 			errmsg = "SEP codec not supported";
 			goto fail;
 		}

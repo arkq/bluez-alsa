@@ -104,7 +104,7 @@ int a2dp_seps_init(void) {
 		 * of this file, so we have to cast it here. */
 		struct a2dp_sep *sep = (struct a2dp_sep *)a2dp_seps[i];
 
-		switch (sep->dir) {
+		switch (sep->type) {
 		case A2DP_SOURCE:
 			sep->enabled &= config.profile.a2dp_source;
 			break;
@@ -138,13 +138,13 @@ static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
  * Compare A2DP SEPs.
  *
  * This function orders A2DP SEPs according to following rules:
- *  - order SEPs by A2DP direction
+ *  - order SEPs by A2DP type
  *  - order SEPs by codec ID
  *  - order vendor codecs alphabetically (case insensitive) */
 int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b) {
-	if (a->dir == b->dir)
+	if (a->type == b->type)
 		return a2dp_codec_id_cmp(a->codec_id, b->codec_id);
-	return a->dir - b->dir;
+	return a->type - b->type;
 }
 
 /**
@@ -154,15 +154,15 @@ int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b) {
 }
 
 /**
- * Lookup SEP for given codec and stream direction.
+ * Lookup SEP for given type and codec.
  *
+ * @param type The A2DP SEP type.
  * @param codec_id BlueALSA A2DP 32-bit codec ID.
- * @param dir The A2DP stream direction.
  * @return On success this function returns the address of the SEP
  *   configuration structure. Otherwise, NULL is returned. */
-const struct a2dp_sep *a2dp_sep_lookup(uint32_t codec_id, enum a2dp_dir dir) {
+const struct a2dp_sep *a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
 	for (size_t i = 0; a2dp_seps[i] != NULL; i++)
-		if (a2dp_seps[i]->dir == dir &&
+		if (a2dp_seps[i]->type == type &&
 				a2dp_seps[i]->codec_id == codec_id)
 			return a2dp_seps[i];
 	return NULL;

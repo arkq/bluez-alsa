@@ -22,7 +22,9 @@
 
 #include "shared/a2dp-codecs.h"
 
-enum a2dp_dir {
+/**
+ * A2DP Stream End-Point type. */
+enum a2dp_type {
 	A2DP_SOURCE = 0,
 	A2DP_SINK = !A2DP_SOURCE,
 };
@@ -44,7 +46,7 @@ struct ba_transport;
  * A2DP Stream End-Point. */
 struct a2dp_sep {
 
-	enum a2dp_dir dir;
+	enum a2dp_type type;
 	uint32_t codec_id;
 	const char *synopsis;
 
@@ -92,8 +94,8 @@ int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b);
 int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b);
 
 const struct a2dp_sep *a2dp_sep_lookup(
-		uint32_t codec_id,
-		enum a2dp_dir dir);
+		enum a2dp_type type,
+		uint32_t codec_id);
 
 const struct a2dp_channels *a2dp_channels_lookup(
 		const struct a2dp_channels *channels,

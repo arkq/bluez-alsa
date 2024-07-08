@@ -686,7 +686,7 @@ static int a2dp_aac_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_aac_source = {
-	.dir = A2DP_SOURCE,
+	.type = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.synopsis = "A2DP Source (AAC)",
 	.capabilities.aac = {
@@ -769,7 +769,7 @@ static int a2dp_aac_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_aac_sink = {
-	.dir = A2DP_SINK,
+	.type = A2DP_SINK,
 	.codec_id = A2DP_CODEC_MPEG24,
 	.synopsis = "A2DP Sink (AAC)",
 	.capabilities.aac = {

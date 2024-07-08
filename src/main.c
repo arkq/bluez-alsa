@@ -64,7 +64,7 @@
 static bool dbus_name_acquired = false;
 static int retval = EXIT_SUCCESS;
 
-static char *get_a2dp_codecs(enum a2dp_dir dir) {
+static char *get_a2dp_codecs(enum a2dp_type type) {
 
 	const char *strv[16 + 1] = { NULL };
 	size_t n = 0;
@@ -72,7 +72,7 @@ static char *get_a2dp_codecs(enum a2dp_dir dir) {
 	const struct a2dp_sep * a2dp_seps_tmp[16];
 	struct a2dp_sep * const * seps = a2dp_seps;
 	for (const struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps) {
-		if (sep->dir != dir)
+		if (sep->type != type)
 			continue;
 		a2dp_seps_tmp[n] = sep;
 		if (++n >= ARRAYSIZE(a2dp_seps_tmp))

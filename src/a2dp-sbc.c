@@ -545,7 +545,7 @@ static int a2dp_sbc_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_sbc_source = {
-	.dir = A2DP_SOURCE,
+	.type = A2DP_SOURCE,
 	.codec_id = A2DP_CODEC_SBC,
 	.synopsis = "A2DP Source (SBC)",
 	.capabilities.sbc = {
@@ -588,7 +588,7 @@ static int a2dp_sbc_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_sbc_sink = {
-	.dir = A2DP_SINK,
+	.type = A2DP_SINK,
 	.codec_id = A2DP_CODEC_SBC,
 	.synopsis = "A2DP Sink (SBC)",
 	.capabilities.sbc = {
