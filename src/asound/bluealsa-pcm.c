@@ -668,11 +668,20 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
 	pcm->io_hw_buffer = (char *)areas->addr + areas->first / 8;
 
-	/* Indicate that our PCM is ready for IO, even though is is not 100%
-	 * true - the IO thread may not be running yet. Applications using
-	 * snd_pcm_sw_params_set_start_threshold() require the PCM to be usable
-	 * as soon as it has been prepared. */
-	eventfd_write(pcm->event_fd, 1);
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		/* Indicate that our PCM is ready for IO, even though is is not 100%
+		 * true - the IO thread may not be running yet. Applications using
+		 * snd_pcm_sw_params_set_start_threshold() require the PCM to be usable
+		 * as soon as it has been prepared. */
+		if (pcm->io_avail_min < io->buffer_size)
+			eventfd_write(pcm->event_fd, 1);
+	}
+	else {
+		/* Make sure there is no poll event still pending (for example when
+		 * preparing after an overrun). */
+			eventfd_t event;
+			eventfd_read(pcm->event_fd, &event);
+	}
 
 	debug2("Prepared");
 	return 0;
@@ -1484,7 +1493,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			pcm->ba_pcm.pcm_path, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
 			"arg0='"BLUEALSA_INTERFACE_PCM"'");
 
-	if ((pcm->event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
+	if ((pcm->event_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)) == -1) {
 		ret = -errno;
 		goto fail;
 	}
