@@ -150,7 +150,7 @@ int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
 int storage_pcm_data_update(const struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
-	.frequency = SBC_SAMPLING_FREQ_44100,
+	.sampling_freq = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_STEREO,
 	.block_length = SBC_BLOCK_LENGTH_16,
 	.subbands = SBC_SUBBANDS_8,
@@ -163,29 +163,29 @@ __attribute__ ((unused))
 static a2dp_mpeg_t config_mp3_44100_stereo = {
 	.layer = MPEG_LAYER_MP3,
 	.channel_mode = MPEG_CHANNEL_MODE_STEREO,
-	.frequency = MPEG_SAMPLING_FREQ_44100,
+	.sampling_freq = MPEG_SAMPLING_FREQ_44100,
 	A2DP_MPEG_INIT_BITRATE(0xFFFF)
 };
 
 __attribute__ ((unused))
 static a2dp_aac_t config_aac_44100_stereo = {
 	.object_type = AAC_OBJECT_TYPE_MPEG2_LC,
-	A2DP_AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
-	.channels = AAC_CHANNELS_2,
+	A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_44100)
+	.channel_mode = AAC_CHANNEL_MODE_STEREO,
 	A2DP_AAC_INIT_BITRATE(0xFFFF)
 };
 
 __attribute__ ((unused))
 static const a2dp_aptx_t config_aptx_44100_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
-	.frequency = APTX_SAMPLING_FREQ_44100,
+	.sampling_freq = APTX_SAMPLING_FREQ_44100,
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
 __attribute__ ((unused))
 static const a2dp_aptx_hd_t config_aptx_hd_44100_stereo = {
 	.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
-	.aptx.frequency = APTX_SAMPLING_FREQ_44100,
+	.aptx.sampling_freq = APTX_SAMPLING_FREQ_44100,
 	.aptx.channel_mode = APTX_CHANNEL_MODE_STEREO,
 };
 
@@ -193,28 +193,28 @@ __attribute__ ((unused))
 static const a2dp_faststream_t config_faststream_44100_16000 = {
 	.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
-	.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
-	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+	.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
+	.sampling_freq_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 };
 
 __attribute__ ((unused))
 static const a2dp_lc3plus_t config_lc3plus_48000_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
 	.frame_duration = LC3PLUS_FRAME_DURATION_050,
-	.channels = LC3PLUS_CHANNELS_2,
-	A2DP_LC3PLUS_INIT_FREQUENCY(LC3PLUS_SAMPLING_FREQ_48000)
+	.channel_mode = LC3PLUS_CHANNEL_MODE_STEREO,
+	A2DP_LC3PLUS_INIT_SAMPLING_FREQ(LC3PLUS_SAMPLING_FREQ_48000)
 };
 
 __attribute__ ((unused))
 static const a2dp_ldac_t config_ldac_48000_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-	.frequency = LDAC_SAMPLING_FREQ_48000,
+	.sampling_freq = LDAC_SAMPLING_FREQ_48000,
 	.channel_mode = LDAC_CHANNEL_MODE_STEREO,
 };
 
 __attribute__ ((unused))
 static const a2dp_opus_t config_opus_48000_stereo = {
-	.frequency = OPUS_SAMPLING_FREQ_48000,
+	.sampling_freq = OPUS_SAMPLING_FREQ_48000,
 	.frame_duration = OPUS_FRAME_DURATION_100,
 	.channel_mode = OPUS_CHANNEL_MODE_STEREO,
 };
@@ -1314,23 +1314,23 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac },
 #endif
 #if ENABLE_APTX_IO_TEST
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), test_a2dp_aptx },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID)), test_a2dp_aptx },
 #endif
 #if ENABLE_APTX_HD_IO_TEST
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX_HD), test_a2dp_aptx_hd },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID)), test_a2dp_aptx_hd },
 #endif
 #if ENABLE_FASTSTREAM
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), test_a2dp_faststream_music },
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_FASTSTREAM), test_a2dp_faststream_voice },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_music },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_voice },
 #endif
 #if ENABLE_LC3PLUS
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LC3PLUS), test_a2dp_lc3plus },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID)), test_a2dp_lc3plus },
 #endif
 #if ENABLE_LDAC_IO_TEST
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_LDAC), test_a2dp_ldac },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID)), test_a2dp_ldac },
 #endif
 #if ENABLE_OPUS
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_OPUS), test_a2dp_opus },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },
 #endif
 		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), test_sco_cvsd },
 #if ENABLE_MSBC

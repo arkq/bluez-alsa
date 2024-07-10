@@ -255,10 +255,10 @@ static int a2dp_aptx_configuration_select(
 		return -1;
 
 	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_select(a2dp_aptx_samplings, caps->frequency)) != NULL)
-		caps->frequency = sampling->value;
+	if ((sampling = a2dp_sampling_select(a2dp_aptx_samplings, caps->sampling_freq)) != NULL)
+		caps->sampling_freq = sampling->value;
 	else {
-		error("apt-X: No supported sampling frequencies: %#x", saved.frequency);
+		error("apt-X: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -285,8 +285,8 @@ static int a2dp_aptx_configuration_check(
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
-	if (a2dp_sampling_lookup(a2dp_aptx_samplings, conf_v.frequency) == NULL) {
-		debug("apt-X: Invalid sampling frequency: %#x", conf->frequency);
+	if (a2dp_sampling_lookup(a2dp_aptx_samplings, conf_v.sampling_freq) == NULL) {
+		debug("apt-X: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
@@ -307,7 +307,7 @@ static int a2dp_aptx_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_sampling *sampling;
 	if ((sampling = a2dp_sampling_lookup(a2dp_aptx_samplings,
-					t->a2dp.configuration.aptx.frequency)) == NULL)
+					t->a2dp.configuration.aptx.sampling_freq)) == NULL)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
@@ -321,7 +321,7 @@ static int a2dp_aptx_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		warn("apt-X: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
-		sep->capabilities.aptx.frequency = APTX_SAMPLING_FREQ_44100;
+		sep->capabilities.aptx.sampling_freq = APTX_SAMPLING_FREQ_44100;
 	return 0;
 }
 
@@ -331,7 +331,7 @@ static int a2dp_aptx_source_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_aptx_source = {
 	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.synopsis = "A2DP Source (apt-X)",
 	.capabilities.aptx = {
 		.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
@@ -339,7 +339,7 @@ struct a2dp_sep a2dp_aptx_source = {
 		 *       single channel (mono) mode. */
 		.channel_mode =
 			APTX_CHANNEL_MODE_STEREO,
-		.frequency =
+		.sampling_freq =
 			APTX_SAMPLING_FREQ_16000 |
 			APTX_SAMPLING_FREQ_32000 |
 			APTX_SAMPLING_FREQ_44100 |
@@ -361,7 +361,7 @@ static int a2dp_aptx_sink_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_aptx_sink = {
 	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_APTX,
+	.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.synopsis = "A2DP Sink (apt-X)",
 	.capabilities.aptx = {
 		.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
@@ -369,7 +369,7 @@ struct a2dp_sep a2dp_aptx_sink = {
 		 *       single channel (mono) mode. */
 		.channel_mode =
 			APTX_CHANNEL_MODE_STEREO,
-		.frequency =
+		.sampling_freq =
 			APTX_SAMPLING_FREQ_16000 |
 			APTX_SAMPLING_FREQ_32000 |
 			APTX_SAMPLING_FREQ_44100 |

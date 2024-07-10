@@ -87,10 +87,10 @@ static void dump_sbc(const void *blob, size_t size) {
 			"  max-bit-pool-value:8 = %u\n"
 			"}\n",
 			bintohex(sbc, sizeof(*sbc)),
-			sbc->frequency & SBC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			sbc->frequency & SBC_SAMPLING_FREQ_44100 ? " 44100" : "",
-			sbc->frequency & SBC_SAMPLING_FREQ_32000 ? " 32000" : "",
-			sbc->frequency & SBC_SAMPLING_FREQ_16000 ? " 16000" : "",
+			sbc->sampling_freq & SBC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			sbc->sampling_freq & SBC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			sbc->sampling_freq & SBC_SAMPLING_FREQ_32000 ? " 32000" : "",
+			sbc->sampling_freq & SBC_SAMPLING_FREQ_16000 ? " 16000" : "",
 			sbc->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO ? " JointStereo" : "",
 			sbc->channel_mode & SBC_CHANNEL_MODE_STEREO ? " Stereo" : "",
 			sbc->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL ? " DualChannel" : "",
@@ -130,12 +130,12 @@ static void dump_mpeg(const void *blob, size_t size) {
 			mpeg->channel_mode & MPEG_CHANNEL_MODE_DUAL_CHANNEL ? " DualChannel" : "",
 			mpeg->channel_mode & MPEG_CHANNEL_MODE_MONO ? " Mono" : "",
 			mpeg->mpf ? " MPF-2" : "",
-			mpeg->frequency & MPEG_SAMPLING_FREQ_48000 ? " 48000" : "",
-			mpeg->frequency & MPEG_SAMPLING_FREQ_44100 ? " 44100" : "",
-			mpeg->frequency & MPEG_SAMPLING_FREQ_32000 ? " 32000" : "",
-			mpeg->frequency & MPEG_SAMPLING_FREQ_24000 ? " 24000" : "",
-			mpeg->frequency & MPEG_SAMPLING_FREQ_22050 ? " 22050" : "",
-			mpeg->frequency & MPEG_SAMPLING_FREQ_16000 ? " 16000" : "",
+			mpeg->sampling_freq & MPEG_SAMPLING_FREQ_48000 ? " 48000" : "",
+			mpeg->sampling_freq & MPEG_SAMPLING_FREQ_44100 ? " 44100" : "",
+			mpeg->sampling_freq & MPEG_SAMPLING_FREQ_32000 ? " 32000" : "",
+			mpeg->sampling_freq & MPEG_SAMPLING_FREQ_24000 ? " 24000" : "",
+			mpeg->sampling_freq & MPEG_SAMPLING_FREQ_22050 ? " 22050" : "",
+			mpeg->sampling_freq & MPEG_SAMPLING_FREQ_16000 ? " 16000" : "",
 			mpeg->vbr ? "true" : "false",
 			A2DP_MPEG_GET_BITRATE(*mpeg));
 }
@@ -144,7 +144,7 @@ static void dump_aac(const void *blob, size_t size) {
 	const a2dp_aac_t *aac = blob;
 	if (check_blob_size(sizeof(*aac), size) == -1)
 		return;
-	const uint16_t aac_frequency = A2DP_AAC_GET_FREQUENCY(*aac);
+	const uint16_t aac_sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(*aac);
 	printf("MPEG-2,4 AAC <hex:%s> {\n"
 			"  object-type:7 =%s%s%s%s%s%s%s\n"
 			"  dynamic-range-control:1 = %s\n"
@@ -162,22 +162,22 @@ static void dump_aac(const void *blob, size_t size) {
 			aac->object_type & AAC_OBJECT_TYPE_MPEG4_LC ? " MPEG4-LC" : "",
 			aac->object_type & AAC_OBJECT_TYPE_MPEG2_LC ? " MPEG2-LC" : "",
 			aac->drc ? "true" : "false",
-			aac_frequency & AAC_SAMPLING_FREQ_96000 ? " 96000" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_88200 ? " 88200" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_64000 ? " 64000" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_44100 ? " 44100" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_32000 ? " 32000" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_24000 ? " 24000" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_22050 ? " 22050" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_16000 ? " 16000" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_12000 ? " 12000" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_11025 ? " 11025" : "",
-			aac_frequency & AAC_SAMPLING_FREQ_8000 ? " 8000" : "",
-			aac->channels & AAC_CHANNELS_8 ? " Surround-7.1" : "",
-			aac->channels & AAC_CHANNELS_6 ? " Surround-5.1" : "",
-			aac->channels & AAC_CHANNELS_2 ? " Stereo" : "",
-			aac->channels & AAC_CHANNELS_1 ? " Mono" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_64000 ? " 64000" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_32000 ? " 32000" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_24000 ? " 24000" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_22050 ? " 22050" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_16000 ? " 16000" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_12000 ? " 12000" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_11025 ? " 11025" : "",
+			aac_sampling_freq & AAC_SAMPLING_FREQ_8000 ? " 8000" : "",
+			aac->channel_mode & AAC_CHANNEL_MODE_7_1 ? " Surround-7.1" : "",
+			aac->channel_mode & AAC_CHANNEL_MODE_5_1 ? " Surround-5.1" : "",
+			aac->channel_mode & AAC_CHANNEL_MODE_STEREO ? " Stereo" : "",
+			aac->channel_mode & AAC_CHANNEL_MODE_MONO ? " Mono" : "",
 			aac->vbr ? "true" : "false",
 			A2DP_AAC_GET_BITRATE(*aac));
 }
@@ -186,7 +186,7 @@ static void dump_usac(const void *blob, size_t size) {
 	const a2dp_usac_t *usac = blob;
 	if (check_blob_size(sizeof(*usac), size) == -1)
 		return;
-	const uint32_t usac_frequency = A2DP_USAC_GET_FREQUENCY(*usac);
+	const uint32_t usac_sampling_freq = A2DP_USAC_GET_SAMPLING_FREQ(*usac);
 	printf("MPEG-D USAC <hex:%s> {\n"
 			"  object-type:2 =%s\n"
 			"  sampling-frequency:26 =%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n"
@@ -196,34 +196,34 @@ static void dump_usac(const void *blob, size_t size) {
 			"}\n",
 			bintohex(usac, sizeof(*usac)),
 			usac->object_type & USAC_OBJECT_TYPE_MPEGD_DRC ? " MPEG-D-DRC" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_96000 ? " 96000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_88200 ? " 88200" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_76800 ? " 76800" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_70560 ? " 70560" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_64000 ? " 64000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_58800 ? " 58800" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_44100 ? " 44100" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_38400 ? " 38400" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_35280 ? " 35280" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_32000 ? " 32000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_29400 ? " 29400" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_24000 ? " 24000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_22050 ? " 22050" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_19200 ? " 19200" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_17640 ? " 17640" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_16000 ? " 16000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_14700 ? " 14700" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_12800 ? " 12800" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_12000 ? " 12000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_11760 ? " 11760" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_11025 ? " 11025" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_9600 ? " 9600" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_8820 ? " 8820" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_8000 ? " 8000" : "",
-			usac_frequency & USAC_SAMPLING_FREQ_7350 ? " 7350" : "",
-			usac->channels & USAC_CHANNELS_2 ? " Stereo" : "",
-			usac->channels & USAC_CHANNELS_1 ? " Mono" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_76800 ? " 76800" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_70560 ? " 70560" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_64000 ? " 64000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_58800 ? " 58800" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_38400 ? " 38400" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_35280 ? " 35280" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_32000 ? " 32000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_29400 ? " 29400" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_24000 ? " 24000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_22050 ? " 22050" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_19200 ? " 19200" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_17640 ? " 17640" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_16000 ? " 16000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_14700 ? " 14700" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_12800 ? " 12800" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_12000 ? " 12000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_11760 ? " 11760" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_11025 ? " 11025" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_9600 ? " 9600" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_8820 ? " 8820" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_8000 ? " 8000" : "",
+			usac_sampling_freq & USAC_SAMPLING_FREQ_7350 ? " 7350" : "",
+			usac->channel_mode & USAC_CHANNEL_MODE_STEREO ? " Stereo" : "",
+			usac->channel_mode & USAC_CHANNEL_MODE_MONO ? " Mono" : "",
 			usac->vbr ? "true" : "false",
 			A2DP_USAC_GET_BITRATE(*usac));
 }
@@ -247,8 +247,8 @@ static void dump_atrac(const void *blob, size_t size) {
 			atrac->channel_mode & ATRAC_CHANNEL_MODE_JOINT_STEREO ? " JointStereo" : "",
 			atrac->channel_mode & ATRAC_CHANNEL_MODE_DUAL_CHANNEL ? " DualChannel" : "",
 			atrac->channel_mode & ATRAC_CHANNEL_MODE_MONO ? " Mono" : "",
-			atrac->frequency & ATRAC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			atrac->frequency & ATRAC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			atrac->sampling_freq & ATRAC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			atrac->sampling_freq & ATRAC_SAMPLING_FREQ_44100 ? " 44100" : "",
 			atrac->vbr ? "true" : "false",
 			A2DP_ATRAC_GET_BITRATE(*atrac),
 			A2DP_ATRAC_GET_MAX_SUL(*atrac));
@@ -285,10 +285,10 @@ static void printf_aptx(const a2dp_aptx_t *aptx) {
 			aptx->channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_TWS ? " DualChannel" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "",
-			aptx->frequency & APTX_SAMPLING_FREQ_48000 ? " 48000" : "",
-			aptx->frequency & APTX_SAMPLING_FREQ_44100 ? " 44100" : "",
-			aptx->frequency & APTX_SAMPLING_FREQ_32000 ? " 32000" : "",
-			aptx->frequency & APTX_SAMPLING_FREQ_16000 ? " 16000" : "");
+			aptx->sampling_freq & APTX_SAMPLING_FREQ_48000 ? " 48000" : "",
+			aptx->sampling_freq & APTX_SAMPLING_FREQ_44100 ? " 44100" : "",
+			aptx->sampling_freq & APTX_SAMPLING_FREQ_32000 ? " 32000" : "",
+			aptx->sampling_freq & APTX_SAMPLING_FREQ_16000 ? " 16000" : "");
 }
 
 static void dump_aptx(const void *blob, size_t size) {
@@ -375,16 +375,16 @@ static void dump_faststream(const void *blob, size_t size) {
 			"}\n",
 			faststream->direction & FASTSTREAM_DIRECTION_MUSIC ? " Music" : "",
 			faststream->direction & FASTSTREAM_DIRECTION_VOICE ? " Voice" : "",
-			faststream->frequency_voice & FASTSTREAM_SAMPLING_FREQ_VOICE_16000 ? " 16000" : "",
-			faststream->frequency_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 ? " 48000" : "",
-			faststream->frequency_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 ? " 44100" : "");
+			faststream->sampling_freq_voice & FASTSTREAM_SAMPLING_FREQ_VOICE_16000 ? " 16000" : "",
+			faststream->sampling_freq_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 ? " 48000" : "",
+			faststream->sampling_freq_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 ? " 44100" : "");
 }
 
 static void dump_lc3plus(const void *blob, size_t size) {
 	const a2dp_lc3plus_t *lc3plus = blob;
 	if (check_blob_size(sizeof(*lc3plus), size) == -1)
 		return;
-	const uint16_t lc3plus_frequency = A2DP_LC3PLUS_GET_FREQUENCY(*lc3plus);
+	const uint16_t lc3plus_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(*lc3plus);
 	printf("LC3plus <hex:%s> {\n", bintohex(blob, size));
 	printf_vendor(&lc3plus->info);
 	printf(""
@@ -396,10 +396,10 @@ static void dump_lc3plus(const void *blob, size_t size) {
 			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_025 ? " 2.5ms" : "",
 			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_050 ? " 5ms" : "",
 			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_100 ? " 10ms" : "",
-			lc3plus->channels & LC3PLUS_CHANNELS_1 ? " Mono" : "",
-			lc3plus->channels & LC3PLUS_CHANNELS_2 ? " Stereo" : "",
-			lc3plus_frequency & LC3PLUS_SAMPLING_FREQ_48000 ? " 48000" : "",
-			lc3plus_frequency & LC3PLUS_SAMPLING_FREQ_96000 ? " 96000" : "");
+			lc3plus->channel_mode & LC3PLUS_CHANNEL_MODE_MONO ? " Mono" : "",
+			lc3plus->channel_mode & LC3PLUS_CHANNEL_MODE_STEREO ? " Stereo" : "",
+			lc3plus_sampling_freq & LC3PLUS_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lc3plus_sampling_freq & LC3PLUS_SAMPLING_FREQ_96000 ? " 96000" : "");
 }
 
 static void dump_ldac(const void *blob, size_t size) {
@@ -414,12 +414,12 @@ static void dump_ldac(const void *blob, size_t size) {
 			"  <reserved>:5\n"
 			"  channel-mode:3 =%s%s%s\n"
 			"}\n",
-			ldac->frequency & LDAC_SAMPLING_FREQ_192000 ? " 192000" : "",
-			ldac->frequency & LDAC_SAMPLING_FREQ_176400 ? " 176400" : "",
-			ldac->frequency & LDAC_SAMPLING_FREQ_96000 ? " 96000" : "",
-			ldac->frequency & LDAC_SAMPLING_FREQ_88200 ? " 88200" : "",
-			ldac->frequency & LDAC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			ldac->frequency & LDAC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			ldac->sampling_freq & LDAC_SAMPLING_FREQ_192000 ? " 192000" : "",
+			ldac->sampling_freq & LDAC_SAMPLING_FREQ_176400 ? " 176400" : "",
+			ldac->sampling_freq & LDAC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			ldac->sampling_freq & LDAC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			ldac->sampling_freq & LDAC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			ldac->sampling_freq & LDAC_SAMPLING_FREQ_44100 ? " 44100" : "",
 			ldac->channel_mode & LDAC_CHANNEL_MODE_STEREO ? " Stereo" : "",
 			ldac->channel_mode & LDAC_CHANNEL_MODE_DUAL ? " DualChannel" : "",
 			ldac->channel_mode & LDAC_CHANNEL_MODE_MONO ? " Mono" : "");
@@ -448,15 +448,15 @@ static void dump_lhdc_v1(const void *blob, size_t size) {
 			"  <reserved>:1\n"
 			"  ch-separation:1 = %s\n"
 			"  bit-depth:2 =%s%s\n"
-			"  frequency:4 =%s%s%s%s\n"
+			"  sampling-frequency:4 =%s%s%s%s\n"
 			"}\n",
 			lhdc->ch_separation ? "true" : "false",
 			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
 			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "");
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "");
 }
 
 static void dump_lhdc_v2(const void *blob, size_t size) {
@@ -468,7 +468,7 @@ static void dump_lhdc_v2(const void *blob, size_t size) {
 	printf(""
 			"  <reserved>:2\n"
 			"  bit-depth:2 =%s%s\n"
-			"  frequency:4 =%s%s%s%s\n"
+			"  sampling-frequency:4 =%s%s%s%s\n"
 			"  low-latency:1 = %s\n"
 			"  max-bitrate:3 = %d\n"
 			"  version:4 = %u\n"
@@ -477,10 +477,10 @@ static void dump_lhdc_v2(const void *blob, size_t size) {
 			"}\n",
 			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
 			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
 			lhdc->low_latency ? "true" : "false",
 			lhdc_get_max_bitrate(lhdc->max_bitrate),
 			lhdc->version,
@@ -499,7 +499,7 @@ static void dump_lhdc_v3(const void *blob, size_t size) {
 			"  ar:1 = %s\n"
 			"  jas:1 = %s\n"
 			"  bit-depth:2 =%s%s\n"
-			"  frequency:4 =%s%s%s%s\n"
+			"  sampling-frequency:4 =%s%s%s%s\n"
 			"  llac:1 = %s\n"
 			"  low-latency:1 = %s\n"
 			"  max-bitrate:2 = %d\n"
@@ -514,10 +514,10 @@ static void dump_lhdc_v3(const void *blob, size_t size) {
 			lhdc->jas ? "true" : "false",
 			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
 			lhdc->bit_depth & LHDC_BIT_DEPTH_16 ? " 16" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
-			lhdc->frequency & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_96000 ? " 96000" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_88200 ? " 88200" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_48000 ? " 48000" : "",
+			lhdc->sampling_freq & LHDC_SAMPLING_FREQ_44100 ? " 44100" : "",
 			lhdc->llac ? "true" : "false",
 			lhdc->low_latency ? "true" : "false",
 			lhdc_get_max_bitrate(lhdc->max_bitrate),
@@ -556,7 +556,7 @@ static void dump_opus(const void *blob, size_t size) {
 			"  frame-duration:2 =%s%s\n"
 			"  channel-mode:3 =%s%s%s\n"
 			"}\n",
-			opus->frequency & OPUS_SAMPLING_FREQ_48000 ? " 48000" : "",
+			opus->sampling_freq & OPUS_SAMPLING_FREQ_48000 ? " 48000" : "",
 			opus->frame_duration & OPUS_FRAME_DURATION_100 ? " 10ms" : "",
 			opus->frame_duration & OPUS_FRAME_DURATION_200 ? " 20ms" : "",
 			opus->channel_mode & OPUS_CHANNEL_MODE_STEREO ? " Stereo" : "",
@@ -612,24 +612,42 @@ static const struct {
 	{ A2DP_CODEC_MPEG24, sizeof(a2dp_aac_t), dump_aac },
 	{ A2DP_CODEC_MPEGD, sizeof(a2dp_usac_t), dump_usac },
 	{ A2DP_CODEC_ATRAC, sizeof(a2dp_atrac_t), dump_atrac },
-	{ A2DP_CODEC_VENDOR_APTX, sizeof(a2dp_aptx_t), dump_aptx },
-	{ A2DP_CODEC_VENDOR_APTX_TWS, sizeof(a2dp_aptx_t), dump_aptx_tws },
-	{ A2DP_CODEC_VENDOR_APTX_AD, -1, dump_vendor },
-	{ A2DP_CODEC_VENDOR_APTX_HD, sizeof(a2dp_aptx_hd_t), dump_aptx_hd },
-	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_t), dump_aptx_ll },
-	{ A2DP_CODEC_VENDOR_APTX_LL, sizeof(a2dp_aptx_ll_new_t), dump_aptx_ll },
-	{ A2DP_CODEC_VENDOR_FASTSTREAM, sizeof(a2dp_faststream_t), dump_faststream },
-	{ A2DP_CODEC_VENDOR_LC3PLUS, sizeof(a2dp_lc3plus_t), dump_lc3plus },
-	{ A2DP_CODEC_VENDOR_LDAC, sizeof(a2dp_ldac_t), dump_ldac },
-	{ A2DP_CODEC_VENDOR_LHDC_V1, sizeof(a2dp_lhdc_v1_t), dump_lhdc_v1 },
-	{ A2DP_CODEC_VENDOR_LHDC_V2, sizeof(a2dp_lhdc_v2_t), dump_lhdc_v2 },
-	{ A2DP_CODEC_VENDOR_LHDC_V3, sizeof(a2dp_lhdc_v3_t), dump_lhdc_v3 },
-	{ A2DP_CODEC_VENDOR_LHDC_V5, sizeof(a2dp_lhdc_v5_t), dump_lhdc_v5 },
-	{ A2DP_CODEC_VENDOR_LHDC_LL, -1, dump_vendor },
-	{ A2DP_CODEC_VENDOR_OPUS, sizeof(a2dp_opus_t), dump_opus },
-	{ A2DP_CODEC_VENDOR_OPUS_PW, sizeof(a2dp_opus_pw_t), dump_opus_pw },
-	{ A2DP_CODEC_VENDOR_SAMSUNG_HD, -1, dump_vendor },
-	{ A2DP_CODEC_VENDOR_SAMSUNG_SC, -1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID),
+		sizeof(a2dp_aptx_t), dump_aptx },
+	{ A2DP_CODEC_VENDOR_ID(APTX_TWS_VENDOR_ID, APTX_TWS_CODEC_ID),
+		sizeof(a2dp_aptx_t), dump_aptx_tws },
+	{ A2DP_CODEC_VENDOR_ID(APTX_AD_VENDOR_ID, APTX_AD_CODEC_ID),
+		-1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
+		sizeof(a2dp_aptx_hd_t), dump_aptx_hd },
+	{ A2DP_CODEC_VENDOR_ID(APTX_LL_VENDOR_ID, APTX_LL_CODEC_ID),
+		sizeof(a2dp_aptx_ll_t), dump_aptx_ll },
+	{ A2DP_CODEC_VENDOR_ID(APTX_LL_VENDOR_ID, APTX_LL_CODEC_ID),
+		sizeof(a2dp_aptx_ll_new_t), dump_aptx_ll },
+	{ A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+		sizeof(a2dp_faststream_t), dump_faststream },
+	{ A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+		sizeof(a2dp_lc3plus_t), dump_lc3plus },
+	{ A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+		sizeof(a2dp_ldac_t), dump_ldac },
+	{ A2DP_CODEC_VENDOR_ID(LHDC_V1_VENDOR_ID, LHDC_V1_CODEC_ID),
+		sizeof(a2dp_lhdc_v1_t), dump_lhdc_v1 },
+	{ A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID),
+		sizeof(a2dp_lhdc_v2_t), dump_lhdc_v2 },
+	{ A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID),
+		sizeof(a2dp_lhdc_v3_t), dump_lhdc_v3 },
+	{ A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID),
+		sizeof(a2dp_lhdc_v5_t), dump_lhdc_v5 },
+	{ A2DP_CODEC_VENDOR_ID(LHDC_LL_VENDOR_ID, LHDC_LL_CODEC_ID),
+		-1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID),
+		sizeof(a2dp_opus_t), dump_opus },
+	{ A2DP_CODEC_VENDOR_ID(OPUS_PW_VENDOR_ID, OPUS_PW_CODEC_ID),
+		sizeof(a2dp_opus_pw_t), dump_opus_pw },
+	{ A2DP_CODEC_VENDOR_ID(SAMSUNG_HD_VENDOR_ID, SAMSUNG_HD_CODEC_ID),
+		-1, dump_vendor },
+	{ A2DP_CODEC_VENDOR_ID(SAMSUNG_SC_VENDOR_ID, SAMSUNG_SC_CODEC_ID),
+		-1, dump_vendor },
 };
 
 int dump(const char *config, bool detect) {

@@ -504,10 +504,10 @@ static int a2dp_mpeg_configuration_select(
 	}
 
 	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_select(a2dp_mpeg_samplings, caps->frequency)) != NULL)
-		caps->frequency = sampling->value;
+	if ((sampling = a2dp_sampling_select(a2dp_mpeg_samplings, caps->sampling_freq)) != NULL)
+		caps->sampling_freq = sampling->value;
 	else {
-		error("MPEG: No supported sampling frequencies: %#x", saved.frequency);
+		error("MPEG: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -546,8 +546,8 @@ static int a2dp_mpeg_configuration_check(
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
 
-	if (a2dp_sampling_lookup(a2dp_mpeg_samplings, conf_v.frequency) == NULL) {
-		debug("MPEG: Invalid sampling frequency: %#x", conf->frequency);
+	if (a2dp_sampling_lookup(a2dp_mpeg_samplings, conf_v.sampling_freq) == NULL) {
+		debug("MPEG: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
@@ -563,7 +563,7 @@ static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_sampling *sampling;
 	if ((sampling = a2dp_sampling_lookup(a2dp_mpeg_samplings,
-					t->a2dp.configuration.mpeg.frequency)) == NULL)
+					t->a2dp.configuration.mpeg.sampling_freq)) == NULL)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
@@ -579,7 +579,7 @@ static int a2dp_mpeg_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		sep->capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		sep->capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
+		sep->capabilities.mpeg.sampling_freq = MPEG_SAMPLING_FREQ_44100;
 	return 0;
 }
 
@@ -606,7 +606,7 @@ struct a2dp_sep a2dp_mpeg_source = {
 		/* NOTE: Since MPF-2 is not required for neither Sink
 		 *       nor Source, we are not going to support it. */
 		.mpf = 0,
-		.frequency =
+		.sampling_freq =
 			MPEG_SAMPLING_FREQ_16000 |
 			MPEG_SAMPLING_FREQ_22050 |
 			MPEG_SAMPLING_FREQ_24000 |
@@ -683,7 +683,7 @@ struct a2dp_sep a2dp_mpeg_sink = {
 		/* NOTE: Since MPF-2 is not required for neither Sink
 		 *       nor Source, we are not going to support it. */
 		.mpf = 0,
-		.frequency =
+		.sampling_freq =
 			MPEG_SAMPLING_FREQ_16000 |
 			MPEG_SAMPLING_FREQ_22050 |
 			MPEG_SAMPLING_FREQ_24000 |

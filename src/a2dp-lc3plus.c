@@ -533,8 +533,8 @@ fail_init:
 }
 
 static const struct a2dp_channels a2dp_lc3plus_channels[] = {
-	{ 1, LC3PLUS_CHANNELS_1 },
-	{ 2, LC3PLUS_CHANNELS_2 },
+	{ 1, LC3PLUS_CHANNEL_MODE_MONO },
+	{ 2, LC3PLUS_CHANNEL_MODE_STEREO },
 	{ 0 },
 };
 
@@ -568,19 +568,19 @@ static int a2dp_lc3plus_configuration_select(
 	}
 
 	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_select(a2dp_lc3plus_channels, caps->channels)) != NULL)
-		caps->channels = channels->value;
+	if ((channels = a2dp_channels_select(a2dp_lc3plus_channels, caps->channel_mode)) != NULL)
+		caps->channel_mode = channels->value;
 	else {
-		error("LC3plus: No supported channels: %#x", saved.channels);
+		error("LC3plus: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
 	}
 
 	const struct a2dp_sampling *sampling;
-	const uint16_t caps_frequency = A2DP_LC3PLUS_GET_FREQUENCY(*caps);
-	if ((sampling = a2dp_sampling_select(a2dp_lc3plus_samplings, caps_frequency)) != NULL)
-		A2DP_LC3PLUS_SET_FREQUENCY(*caps, sampling->value);
+	const uint16_t caps_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps);
+	if ((sampling = a2dp_sampling_select(a2dp_lc3plus_samplings, caps_sampling_freq)) != NULL)
+		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling->value);
 	else {
-		error("LC3plus: No supported sampling frequencies: %#x", A2DP_LC3PLUS_GET_FREQUENCY(saved));
+		error("LC3plus: No supported sampling frequencies: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(saved));
 		return errno = ENOTSUP, -1;
 	}
 
@@ -609,14 +609,14 @@ static int a2dp_lc3plus_configuration_check(
 		return A2DP_CHECK_ERR_FRAME_DURATION;
 	}
 
-	if (a2dp_channels_lookup(a2dp_lc3plus_channels, conf_v.channels) == NULL) {
-		debug("LC3plus: Invalid channel mode: %#x", conf->channels);
+	if (a2dp_channels_lookup(a2dp_lc3plus_channels, conf_v.channel_mode) == NULL) {
+		debug("LC3plus: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
 
-	uint16_t conf_frequency = A2DP_LC3PLUS_GET_FREQUENCY(conf_v);
-	if (a2dp_sampling_lookup(a2dp_lc3plus_samplings, conf_frequency) == NULL) {
-		debug("LC3plus: Invalid sampling frequency: %#x", A2DP_LC3PLUS_GET_FREQUENCY(*conf));
+	uint16_t conf_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(conf_v);
+	if (a2dp_sampling_lookup(a2dp_lc3plus_samplings, conf_sampling_freq) == NULL) {
+		debug("LC3plus: Invalid sampling frequency: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(*conf));
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
@@ -627,12 +627,12 @@ static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_channels *channels;
 	if ((channels = a2dp_channels_lookup(a2dp_lc3plus_channels,
-					t->a2dp.configuration.lc3plus.channels)) == NULL)
+					t->a2dp.configuration.lc3plus.channel_mode)) == NULL)
 		return -1;
 
 	const struct a2dp_sampling *sampling;
 	if ((sampling = a2dp_sampling_lookup(a2dp_lc3plus_samplings,
-					A2DP_LC3PLUS_GET_FREQUENCY(t->a2dp.configuration.lc3plus))) == NULL)
+					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->a2dp.configuration.lc3plus))) == NULL)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
@@ -644,7 +644,7 @@ static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
 static int a2dp_lc3plus_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
-		sep->capabilities.lc3plus.channels = LC3PLUS_CHANNELS_1;
+		sep->capabilities.lc3plus.channel_mode = LC3PLUS_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
 		warn("LC3plus: 44.1 kHz sampling frequency not supported");
 	return 0;
@@ -656,7 +656,7 @@ static int a2dp_lc3plus_source_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_lc3plus_source = {
 	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
+	.codec_id = A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
 	.synopsis = "A2DP Source (LC3plus)",
 	.capabilities.lc3plus = {
 		.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
@@ -664,10 +664,10 @@ struct a2dp_sep a2dp_lc3plus_source = {
 			LC3PLUS_FRAME_DURATION_025 |
 			LC3PLUS_FRAME_DURATION_050 |
 			LC3PLUS_FRAME_DURATION_100,
-		.channels =
-			LC3PLUS_CHANNELS_1 |
-			LC3PLUS_CHANNELS_2,
-		A2DP_LC3PLUS_INIT_FREQUENCY(
+		.channel_mode =
+			LC3PLUS_CHANNEL_MODE_MONO |
+			LC3PLUS_CHANNEL_MODE_STEREO,
+		A2DP_LC3PLUS_INIT_SAMPLING_FREQ(
 				LC3PLUS_SAMPLING_FREQ_48000 |
 				LC3PLUS_SAMPLING_FREQ_96000)
 	},
@@ -685,7 +685,7 @@ static int a2dp_lc3plus_sink_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_lc3plus_sink = {
 	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_LC3PLUS,
+	.codec_id = A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
 	.synopsis = "A2DP Sink (LC3plus)",
 	.capabilities.lc3plus = {
 		.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
@@ -693,10 +693,10 @@ struct a2dp_sep a2dp_lc3plus_sink = {
 			LC3PLUS_FRAME_DURATION_025 |
 			LC3PLUS_FRAME_DURATION_050 |
 			LC3PLUS_FRAME_DURATION_100,
-		.channels =
-			LC3PLUS_CHANNELS_1 |
-			LC3PLUS_CHANNELS_2,
-		A2DP_LC3PLUS_INIT_FREQUENCY(
+		.channel_mode =
+			LC3PLUS_CHANNEL_MODE_MONO |
+			LC3PLUS_CHANNEL_MODE_STEREO,
+		A2DP_LC3PLUS_INIT_SAMPLING_FREQ(
 				LC3PLUS_SAMPLING_FREQ_48000 |
 				LC3PLUS_SAMPLING_FREQ_96000)
 	},

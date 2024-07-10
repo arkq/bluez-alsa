@@ -293,10 +293,10 @@ static int a2dp_aptx_hd_configuration_select(
 		return -1;
 
 	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_select(a2dp_aptx_hd_samplings, caps->aptx.frequency)) != NULL)
-		caps->aptx.frequency = sampling->value;
+	if ((sampling = a2dp_sampling_select(a2dp_aptx_hd_samplings, caps->aptx.sampling_freq)) != NULL)
+		caps->aptx.sampling_freq = sampling->value;
 	else {
-		error("apt-X HD: No supported sampling frequencies: %#x", saved.aptx.frequency);
+		error("apt-X HD: No supported sampling frequencies: %#x", saved.aptx.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -323,8 +323,8 @@ static int a2dp_aptx_hd_configuration_check(
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
-	if (a2dp_sampling_lookup(a2dp_aptx_hd_samplings, conf_v.aptx.frequency) == NULL) {
-		debug("apt-X HD: Invalid sampling frequency: %#x", conf->aptx.frequency);
+	if (a2dp_sampling_lookup(a2dp_aptx_hd_samplings, conf_v.aptx.sampling_freq) == NULL) {
+		debug("apt-X HD: Invalid sampling frequency: %#x", conf->aptx.sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
@@ -345,7 +345,7 @@ static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_sampling *sampling;
 	if ((sampling = a2dp_sampling_lookup(a2dp_aptx_hd_samplings,
-					t->a2dp.configuration.aptx_hd.aptx.frequency)) == NULL)
+					t->a2dp.configuration.aptx_hd.aptx.sampling_freq)) == NULL)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
@@ -359,7 +359,7 @@ static int a2dp_aptx_hd_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		warn("apt-X HD: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
-		sep->capabilities.aptx_hd.aptx.frequency = APTX_SAMPLING_FREQ_44100;
+		sep->capabilities.aptx_hd.aptx.sampling_freq = APTX_SAMPLING_FREQ_44100;
 	return 0;
 }
 
@@ -369,7 +369,7 @@ static int a2dp_aptx_hd_source_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_aptx_hd_source = {
 	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
+	.codec_id = A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 	.synopsis = "A2DP Source (apt-X HD)",
 	.capabilities.aptx_hd = {
 		.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
@@ -377,7 +377,7 @@ struct a2dp_sep a2dp_aptx_hd_source = {
 		 *       single channel (mono) mode. */
 		.aptx.channel_mode =
 			APTX_CHANNEL_MODE_STEREO,
-		.aptx.frequency =
+		.aptx.sampling_freq =
 			APTX_SAMPLING_FREQ_16000 |
 			APTX_SAMPLING_FREQ_32000 |
 			APTX_SAMPLING_FREQ_44100 |
@@ -399,7 +399,7 @@ static int a2dp_aptx_hd_sink_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_aptx_hd_sink = {
 	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_APTX_HD,
+	.codec_id = A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 	.synopsis = "A2DP Sink (apt-X HD)",
 	.capabilities.aptx_hd = {
 		.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
@@ -407,7 +407,7 @@ struct a2dp_sep a2dp_aptx_hd_sink = {
 		 *       single channel (mono) mode. */
 		.aptx.channel_mode =
 			APTX_CHANNEL_MODE_STEREO,
-		.aptx.frequency =
+		.aptx.sampling_freq =
 			APTX_SAMPLING_FREQ_16000 |
 			APTX_SAMPLING_FREQ_32000 |
 			APTX_SAMPLING_FREQ_44100 |

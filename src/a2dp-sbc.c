@@ -366,11 +366,11 @@ static int a2dp_sbc_configuration_select(
 		return -1;
 
 	const struct a2dp_sampling *sampling;
-	const uint8_t caps_frequency = caps->frequency;
-	if ((sampling = a2dp_sampling_select(a2dp_sbc_samplings, caps_frequency)) != NULL)
-		caps->frequency = sampling->value;
+	const uint8_t caps_sampling_freq = caps->sampling_freq;
+	if ((sampling = a2dp_sampling_select(a2dp_sbc_samplings, caps_sampling_freq)) != NULL)
+		caps->sampling_freq = sampling->value;
 	else {
-		error("SBC: No supported sampling frequencies: %#x", saved.frequency);
+		error("SBC: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -385,10 +385,10 @@ static int a2dp_sbc_configuration_select(
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
-		if (caps_frequency & SBC_SAMPLING_FREQ_44100)
-			caps->frequency = SBC_SAMPLING_FREQ_44100;
+		if (caps_sampling_freq & SBC_SAMPLING_FREQ_44100)
+			caps->sampling_freq = SBC_SAMPLING_FREQ_44100;
 		else
-			warn("SBC XQ: 44.1 kHz sampling frequency not supported: %#x", saved.frequency);
+			warn("SBC XQ: 44.1 kHz sampling frequency not supported: %#x", saved.sampling_freq);
 		if (caps_channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
 			caps->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 		else
@@ -447,8 +447,8 @@ static int a2dp_sbc_configuration_check(
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
-	if (a2dp_sampling_lookup(a2dp_sbc_samplings, conf_v.frequency) == NULL) {
-		debug("SBC: Invalid sampling frequency: %#x", conf->frequency);
+	if (a2dp_sampling_lookup(a2dp_sbc_samplings, conf_v.sampling_freq) == NULL) {
+		debug("SBC: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
@@ -507,7 +507,7 @@ static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_sampling *sampling;
 	if ((sampling = a2dp_sampling_lookup(a2dp_sbc_samplings,
-					t->a2dp.configuration.sbc.frequency)) == NULL)
+					t->a2dp.configuration.sbc.sampling_freq)) == NULL)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
@@ -523,7 +523,7 @@ static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
 		info("SBC: Activating SBC Dual Channel HD (SBC %s)",
 				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
-		sep->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+		sep->capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
 		sep->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 	}
 
@@ -535,7 +535,7 @@ static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
 		 * selecting configuration. */
 		sep->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		sep->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+		sep->capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
 
 	return 0;
 }
@@ -549,7 +549,7 @@ struct a2dp_sep a2dp_sbc_source = {
 	.codec_id = A2DP_CODEC_SBC,
 	.synopsis = "A2DP Source (SBC)",
 	.capabilities.sbc = {
-		.frequency =
+		.sampling_freq =
 			SBC_SAMPLING_FREQ_16000 |
 			SBC_SAMPLING_FREQ_32000 |
 			SBC_SAMPLING_FREQ_44100 |
@@ -592,7 +592,7 @@ struct a2dp_sep a2dp_sbc_sink = {
 	.codec_id = A2DP_CODEC_SBC,
 	.synopsis = "A2DP Sink (SBC)",
 	.capabilities.sbc = {
-		.frequency =
+		.sampling_freq =
 			SBC_SAMPLING_FREQ_16000 |
 			SBC_SAMPLING_FREQ_32000 |
 			SBC_SAMPLING_FREQ_44100 |

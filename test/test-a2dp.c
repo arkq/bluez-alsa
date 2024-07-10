@@ -54,13 +54,15 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; 
 
 CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {
 	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);
-	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("apt-x"), A2DP_CODEC_VENDOR_APTX);
+	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("apt-x"),
+			A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID));
 	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("unknown"), 0xFFFFFFFF);
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_codecs_codec_id_to_string) {
 	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), "SBC");
-	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_APTX), "aptX");
+	const uint32_t vendor_codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID);
+	ck_assert_str_eq(a2dp_codecs_codec_id_to_string(vendor_codec_id), "aptX");
 	ck_assert_ptr_eq(a2dp_codecs_codec_id_to_string(0xFFFFFFFF), NULL);
 } CK_END_TEST
 
@@ -82,10 +84,16 @@ CK_START_TEST(test_a2dp_sep_ptr_cmp) {
 
 	struct a2dp_sep c1 = { .type = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
 	struct a2dp_sep c2 = { .type = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
-	struct a2dp_sep c3 = { .type = A2DP_SOURCE, .codec_id = A2DP_CODEC_VENDOR_APTX };
+	struct a2dp_sep c3 = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID) };
 	struct a2dp_sep c4 = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
-	struct a2dp_sep c5 = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_APTX };
-	struct a2dp_sep c6 = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_VENDOR_LDAC };
+	struct a2dp_sep c5 = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID) };
+	struct a2dp_sep c6 = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID) };
 	struct a2dp_sep c7 = { .type = A2DP_SINK, .codec_id = 0xFFFFFFFF };
 
 	struct a2dp_sep * codecs[] = { &c3, &c1, &c6, &c4, &c7, &c5, &c2 };
@@ -113,14 +121,16 @@ CK_START_TEST(test_a2dp_get_vendor_codec_id) {
 	ck_assert_int_eq(errno, EINVAL);
 
 	a2dp_aptx_t cfg1 = { A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID), 0, 0 };
-	ck_assert_int_eq(a2dp_get_vendor_codec_id(&cfg1, sizeof(cfg1)), A2DP_CODEC_VENDOR_APTX);
+	ck_assert_int_eq(
+			a2dp_get_vendor_codec_id(&cfg1, sizeof(cfg1)),
+			A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID));
 
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_check_configuration) {
 
 	const a2dp_sbc_t cfg_valid = {
-		.frequency = SBC_SAMPLING_FREQ_44100,
+		.sampling_freq = SBC_SAMPLING_FREQ_44100,
 		.channel_mode = SBC_CHANNEL_MODE_STEREO,
 		.block_length = SBC_BLOCK_LENGTH_8,
 		.subbands = SBC_SUBBANDS_8,
@@ -136,7 +146,7 @@ CK_START_TEST(test_a2dp_check_configuration) {
 				&cfg_valid, sizeof(cfg_valid)), A2DP_CHECK_OK);
 
 	const a2dp_sbc_t cfg_invalid = {
-		.frequency = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100,
+		.sampling_freq = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100,
 		.channel_mode = SBC_CHANNEL_MODE_STEREO | SBC_CHANNEL_MODE_JOINT_STEREO,
 		.block_length = SBC_BLOCK_LENGTH_8,
 		.allocation_method = SBC_ALLOCATION_SNR,
@@ -149,8 +159,8 @@ CK_START_TEST(test_a2dp_check_configuration) {
 	a2dp_aac_t cfg_aac_invalid = {
 		/* FDK-AAC encoder does not support AAC Long Term Prediction */
 		.object_type = AAC_OBJECT_TYPE_MPEG4_LTP,
-		A2DP_AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100)
-		.channels = AAC_CHANNELS_1 };
+		A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_44100)
+		.channel_mode = AAC_CHANNEL_MODE_MONO };
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_aac_source,
 			&cfg_aac_invalid, sizeof(cfg_aac_invalid)), A2DP_CHECK_ERR_OBJECT_TYPE);
 #endif
@@ -166,13 +176,13 @@ CK_START_TEST(test_a2dp_check_configuration) {
 
 	/* Check for valid unidirectional configuration. */
 	cfg_faststream.direction |= FASTSTREAM_DIRECTION_MUSIC;
-	cfg_faststream.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
+	cfg_faststream.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
 			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_OK);
 
 	/* Check for valid bidirectional configuration. */
 	cfg_faststream.direction |= FASTSTREAM_DIRECTION_VOICE;
-	cfg_faststream.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000;
+	cfg_faststream.sampling_freq_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000;
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
 			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_OK);
 
@@ -188,7 +198,7 @@ CK_START_TEST(test_a2dp_check_strerror) {
 CK_START_TEST(test_a2dp_filter_capabilities) {
 
 	a2dp_sbc_t caps_sbc = {
-		.frequency = SBC_SAMPLING_FREQ_44100,
+		.sampling_freq = SBC_SAMPLING_FREQ_44100,
 		.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO,
 		.block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8,
 		.subbands = SBC_SUBBANDS_4,
@@ -200,7 +210,7 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 #if ENABLE_APTX
 	a2dp_aptx_t caps_aptx = {
 		.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
-		.frequency = APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100,
+		.sampling_freq = APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100,
 		.channel_mode = APTX_CHANNEL_MODE_MONO | APTX_CHANNEL_MODE_STEREO,
 	};
 #endif
@@ -215,7 +225,7 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 			&a2dp_sbc_source.capabilities, &caps_sbc, sizeof(caps_sbc)), 0);
 
 	hexdump("Capabilities filtered", &caps_sbc, sizeof(caps_sbc));
-	ck_assert_int_eq(caps_sbc.frequency, SBC_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(caps_sbc.sampling_freq, SBC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(caps_sbc.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
 	ck_assert_int_eq(caps_sbc.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);
 	ck_assert_int_eq(caps_sbc.subbands, SBC_SUBBANDS_4);
@@ -230,7 +240,7 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_aptx_source,
 			&a2dp_aptx_source.capabilities, &caps_aptx, sizeof(caps_aptx)), 0);
 	hexdump("Capabilities filtered", &caps_aptx, sizeof(caps_aptx));
-	ck_assert_int_eq(caps_aptx.frequency, APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(caps_aptx.sampling_freq, APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(caps_aptx.channel_mode, APTX_CHANNEL_MODE_STEREO);
 #endif
 
@@ -240,7 +250,7 @@ CK_START_TEST(test_a2dp_select_configuration) {
 
 	a2dp_sbc_t cfg;
 	const a2dp_sbc_t cfg_ = {
-		.frequency = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100 | SBC_SAMPLING_FREQ_48000,
+		.sampling_freq = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100 | SBC_SAMPLING_FREQ_48000,
 		.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_DUAL_CHANNEL | SBC_CHANNEL_MODE_STEREO,
 		.block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8,
 		.subbands = SBC_SUBBANDS_4 | SBC_SUBBANDS_8,
@@ -255,7 +265,7 @@ CK_START_TEST(test_a2dp_select_configuration) {
 
 	cfg = cfg_;
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
-	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_48000);
+	ck_assert_int_eq(cfg.sampling_freq, SBC_SAMPLING_FREQ_48000);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_STEREO);
 	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);
 	ck_assert_int_eq(cfg.subbands, SBC_SUBBANDS_8);
@@ -273,7 +283,7 @@ CK_START_TEST(test_a2dp_select_configuration) {
 	config.a2dp.force_44100 = true;
 	config.sbc_quality = SBC_QUALITY_XQ;
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
-	ck_assert_int_eq(cfg.frequency, SBC_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(cfg.sampling_freq, SBC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_DUAL_CHANNEL);
 	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);
 	ck_assert_int_eq(cfg.subbands, SBC_SUBBANDS_8);
@@ -286,15 +296,15 @@ CK_START_TEST(test_a2dp_select_configuration) {
 	a2dp_aac_t cfg_aac;
 	const a2dp_aac_t cfg_aac_ = {
 		.object_type = AAC_OBJECT_TYPE_MPEG2_LC | AAC_OBJECT_TYPE_MPEG4_LC,
-		A2DP_AAC_INIT_FREQUENCY(AAC_SAMPLING_FREQ_44100 | AAC_SAMPLING_FREQ_96000)
-		.channels = AAC_CHANNELS_1,
+		A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_44100 | AAC_SAMPLING_FREQ_96000)
+		.channel_mode = AAC_CHANNEL_MODE_MONO,
 		.vbr = 1 };
 
 	cfg_aac = cfg_aac_;
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), 0);
 	ck_assert_int_eq(cfg_aac.object_type, AAC_OBJECT_TYPE_MPEG4_LC);
-	ck_assert_int_eq(A2DP_AAC_GET_FREQUENCY(cfg_aac), AAC_SAMPLING_FREQ_44100);
-	ck_assert_int_eq(cfg_aac.channels, AAC_CHANNELS_1);
+	ck_assert_int_eq(A2DP_AAC_GET_SAMPLING_FREQ(cfg_aac), AAC_SAMPLING_FREQ_44100);
+	ck_assert_int_eq(cfg_aac.channel_mode, AAC_CHANNEL_MODE_MONO);
 	ck_assert_int_eq(cfg_aac.vbr, 0);
 
 	cfg_aac = cfg_aac_;

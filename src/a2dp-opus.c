@@ -305,10 +305,10 @@ static int a2dp_opus_configuration_select(
 		return -1;
 
 	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_select(a2dp_opus_samplings, caps->frequency)) != NULL)
-		caps->frequency = sampling->value;
+	if ((sampling = a2dp_sampling_select(a2dp_opus_samplings, caps->sampling_freq)) != NULL)
+		caps->sampling_freq = sampling->value;
 	else {
-		error("Opus: No supported sampling frequencies: %#x", saved.frequency);
+		error("Opus: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -344,8 +344,8 @@ static int a2dp_opus_configuration_check(
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
-	if (a2dp_sampling_lookup(a2dp_opus_samplings, conf_v.frequency) == NULL) {
-		debug("Opus: Invalid sampling frequency: %#x", conf->frequency);
+	if (a2dp_sampling_lookup(a2dp_opus_samplings, conf_v.sampling_freq) == NULL) {
+		debug("Opus: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
@@ -375,7 +375,7 @@ static int a2dp_opus_transport_init(struct ba_transport *t) {
 
 	const struct a2dp_sampling *sampling;
 	if ((sampling = a2dp_sampling_lookup(a2dp_opus_samplings,
-					t->a2dp.configuration.opus.frequency)) == NULL)
+					t->a2dp.configuration.opus.sampling_freq)) == NULL)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
@@ -397,11 +397,11 @@ static int a2dp_opus_source_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_opus_source = {
 	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_OPUS,
+	.codec_id = A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID),
 	.synopsis = "A2DP Source (Opus)",
 	.capabilities.opus = {
 		.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
-		.frequency =
+		.sampling_freq =
 			OPUS_SAMPLING_FREQ_48000,
 		.frame_duration =
 			OPUS_FRAME_DURATION_100 |
@@ -424,11 +424,11 @@ static int a2dp_opus_sink_transport_start(struct ba_transport *t) {
 
 struct a2dp_sep a2dp_opus_sink = {
 	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_OPUS,
+	.codec_id = A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID),
 	.synopsis = "A2DP Sink (Opus)",
 	.capabilities.opus = {
 		.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
-		.frequency =
+		.sampling_freq =
 			OPUS_SAMPLING_FREQ_48000,
 		.frame_duration =
 			OPUS_FRAME_DURATION_100 |

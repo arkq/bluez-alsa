@@ -61,7 +61,7 @@
 #include "inc/sine.inc"
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
-	.frequency = SBC_SAMPLING_FREQ_44100,
+	.sampling_freq = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,
 	.block_length = SBC_BLOCK_LENGTH_16,
 	.subbands = SBC_SUBBANDS_8,
@@ -74,7 +74,7 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 static const a2dp_aptx_t config_aptx_44100_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
-	.frequency = APTX_SAMPLING_FREQ_44100,
+	.sampling_freq = APTX_SAMPLING_FREQ_44100,
 };
 #endif
 
@@ -82,7 +82,7 @@ static const a2dp_aptx_t config_aptx_44100_stereo = {
 static const a2dp_aptx_hd_t config_aptx_hd_48000_stereo = {
 	.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 	.aptx.channel_mode = APTX_CHANNEL_MODE_STEREO,
-	.aptx.frequency = APTX_SAMPLING_FREQ_48000,
+	.aptx.sampling_freq = APTX_SAMPLING_FREQ_48000,
 };
 #endif
 
@@ -90,8 +90,8 @@ static const a2dp_aptx_hd_t config_aptx_hd_48000_stereo = {
 static const a2dp_faststream_t config_faststream_44100_16000 = {
 	.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
-	.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
-	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+	.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
+	.sampling_freq_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 };
 #endif
 
