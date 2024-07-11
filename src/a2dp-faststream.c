@@ -265,7 +265,7 @@ static int a2dp_faststream_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	unsigned int sampling_freq_v;
+	unsigned int sampling_freq_v = 0;
 	if (caps->direction & FASTSTREAM_DIRECTION_VOICE &&
 			a2dp_bit_mapping_foreach(a2dp_faststream_samplings_voice, caps->sampling_freq_voice,
 				a2dp_foreach_get_best_sampling_freq, &sampling_freq_v) != -1)
@@ -275,7 +275,7 @@ static int a2dp_faststream_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	unsigned int sampling_freq_m;
+	unsigned int sampling_freq_m = 0;
 	if (caps->direction & FASTSTREAM_DIRECTION_MUSIC &&
 			a2dp_bit_mapping_foreach(a2dp_faststream_samplings_music, caps->sampling_freq_music,
 				a2dp_foreach_get_best_sampling_freq, &sampling_freq_m) != -1)

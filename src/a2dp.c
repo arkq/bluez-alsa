@@ -74,12 +74,21 @@ int a2dp_foreach_get_best_channel_mode(
 }
 
 /**
- * Callback function which returns bitmask for the best sampling rate. */
+ * Callback function which returns bitmask for the best sampling rate.
+ *
+ * Note:
+ * The user data passed to a2dp_bit_mapping_foreach() function shall be
+ * a pointer to an unsigned integer variable initialized to 0. */
 int a2dp_foreach_get_best_sampling_freq(
 		struct a2dp_bit_mapping mapping,
 		void *userdata) {
 
 	unsigned int *output = userdata;
+
+	/* Skip anything above 48000 Hz. If desired, bigger sampling rates can be
+	 * selected manually by the user using the SelectCodec() D-Bus method. */
+	if (mapping.value > 48000 && *output != 0)
+		return 1;
 
 	*output = mapping.bit_value;
 

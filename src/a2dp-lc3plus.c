@@ -576,7 +576,7 @@ static int a2dp_lc3plus_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	unsigned int sampling_freq;
+	unsigned int sampling_freq = 0;
 	if (a2dp_bit_mapping_foreach(a2dp_lc3plus_samplings, A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps),
 				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
 		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling_freq);

@@ -305,7 +305,7 @@ static int a2dp_opus_configuration_select(
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
-	unsigned int sampling_freq;
+	unsigned int sampling_freq = 0;
 	if (a2dp_bit_mapping_foreach(a2dp_opus_samplings, caps->sampling_freq,
 				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
 		caps->sampling_freq = sampling_freq;
