@@ -47,6 +47,81 @@
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
+/**
+ * Callback function which returns bitmask for the best channel mode.
+ *
+ * Note:
+ * The user data passed to a2dp_bit_mapping_foreach() function shall be
+ * a pointer to an unsigned integer variable initialized to 0. */
+int a2dp_foreach_get_best_channel_mode(
+		struct a2dp_bit_mapping mapping,
+		void *userdata) {
+
+	unsigned int *output = userdata;
+
+	/* Skip multi-channel modes. If desired, multi-channel mode can be selected
+	 * manually by the user using the SelectCodec() D-Bus method. */
+	if (mapping.value > 2 && *output != 0)
+		return 1;
+
+	*output = mapping.bit_value;
+
+	if (config.a2dp.force_mono && mapping.value == 1)
+		return 1;
+
+	/* Keep iterating, so the last channel mode will be selected. */
+	return 0;
+}
+
+/**
+ * Callback function which returns bitmask for the best sampling rate. */
+int a2dp_foreach_get_best_sampling_freq(
+		struct a2dp_bit_mapping mapping,
+		void *userdata) {
+
+	unsigned int *output = userdata;
+
+	*output = mapping.bit_value;
+
+	if (config.a2dp.force_44100 && mapping.value == 44100)
+		return 1;
+
+	/* Keep iterating, so the last sampling rate will be selected. */
+	return 0;
+}
+
+/**
+ * Iterate over A2DP bit-field mappings. */
+int a2dp_bit_mapping_foreach(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bitmask,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	int rv = -1;
+	for (size_t i = 0; mappings[i].bit_value != 0; i++)
+		if (mappings[i].bit_value & bitmask)
+			/* stop iteration if callback returns non-zero */
+			if ((rv = func(mappings[i], userdata)) != 0)
+				break;
+	return rv;
+}
+
+/**
+ * Lookup for given bit-value in the bit mapping table.
+ *
+ * @param mappings Zero-terminated array of A2DP mappings.
+ * @param bit_value A2DP codec bit-value to be looked up.
+ * @return On success this function returns the associated value. Otherwise,
+ *   0 is returned. */
+unsigned int a2dp_bit_mapping_lookup(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bit_value) {
+	for (size_t i = 0; mappings[i].bit_value != 0; i++)
+		if (mappings[i].bit_value == bit_value)
+			return mappings[i].value;
+	return 0;
+}
+
 struct a2dp_sep * const a2dp_seps[] = {
 #if ENABLE_OPUS
 	&a2dp_opus_source,
@@ -166,92 +241,6 @@ const struct a2dp_sep *a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
 				a2dp_seps[i]->codec_id == codec_id)
 			return a2dp_seps[i];
 	return NULL;
-}
-
-/**
- * Lookup channel mode for given configuration.
- *
- * @param channels Zero-terminated array of A2DP codec channel modes.
- * @param value A2DP codec channel mode configuration value.
- * @return On success this function returns the channel mode. Otherwise, NULL
- *  is returned. */
-const struct a2dp_channels *a2dp_channels_lookup(
-		const struct a2dp_channels *channels,
-		uint16_t value) {
-	for (size_t i = 0; channels[i].value != 0; i++)
-		if (channels[i].value == value)
-			return &channels[i];
-	return NULL;
-}
-
-/**
- * Select channel mode based on given capabilities. */
-const struct a2dp_channels *a2dp_channels_select(
-		const struct a2dp_channels *channels,
-		uint16_t capabilities) {
-
-	/* If monophonic sound has been forced, check whether given codec supports
-	 * such a channel mode. Since mono channel mode shall be stored at index 0
-	 * we can simply check for its existence with a simple index lookup. */
-	if (config.a2dp.force_mono &&
-			channels[0].count == 1 &&
-			capabilities & channels[0].value)
-		return &channels[0];
-
-	const struct a2dp_channels *selected = NULL;
-
-	/* favor higher number of channels */
-	for (size_t i = 0; channels[i].value != 0; i++) {
-		if (channels[i].count > 2)
-			/* When auto-selecting channel mode, skip multi-channel modes. If
-			 * desired, multi-channel mode can be selected manually by the user
-			 * using the SelectCodec() D-Bus method. */
-			continue;
-		if (capabilities & channels[i].value)
-			selected = &channels[i];
-	}
-
-	return selected;
-}
-
-/**
- * Lookup sampling frequency for given configuration.
- *
- * @param samplings Zero-terminated array of A2DP codec sampling frequencies.
- * @param value A2DP codec sampling frequency configuration value.
- * @return On success this function returns the sampling frequency. Otherwise,
- *   NULL is returned. */
-const struct a2dp_sampling *a2dp_sampling_lookup(
-		const struct a2dp_sampling *samplings,
-		uint16_t value) {
-	for (size_t i = 0; samplings[i].value != 0; i++)
-		if (samplings[i].value == value)
-			return &samplings[i];
-	return NULL;
-}
-
-/**
- * Select sampling frequency based on given capabilities. */
-const struct a2dp_sampling *a2dp_sampling_select(
-		const struct a2dp_sampling *samplings,
-		uint16_t capabilities) {
-
-	if (config.a2dp.force_44100)
-		for (size_t i = 0; samplings[i].value != 0; i++)
-			if (samplings[i].frequency == 44100) {
-				if (capabilities & samplings[i].value)
-					return &samplings[i];
-				break;
-			}
-
-	const struct a2dp_sampling *selected = NULL;
-
-	/* favor higher sampling frequencies */
-	for (size_t i = 0; samplings[i].value != 0; i++)
-		if (capabilities & samplings[i].value)
-			selected = &samplings[i];
-
-	return selected;
 }
 
 /**

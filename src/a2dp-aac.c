@@ -39,6 +39,30 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const struct a2dp_bit_mapping a2dp_aac_channels[] = {
+	{ AAC_CHANNEL_MODE_MONO, 1 },
+	{ AAC_CHANNEL_MODE_STEREO, 2 },
+	{ AAC_CHANNEL_MODE_5_1, 6 },
+	{ AAC_CHANNEL_MODE_7_1, 8 },
+	{ 0 }
+};
+
+static const struct a2dp_bit_mapping a2dp_aac_samplings[] = {
+	{ AAC_SAMPLING_FREQ_8000, 8000 },
+	{ AAC_SAMPLING_FREQ_11025, 11025 },
+	{ AAC_SAMPLING_FREQ_12000, 12000 },
+	{ AAC_SAMPLING_FREQ_16000, 16000 },
+	{ AAC_SAMPLING_FREQ_22050, 22050 },
+	{ AAC_SAMPLING_FREQ_24000, 24000 },
+	{ AAC_SAMPLING_FREQ_32000, 32000 },
+	{ AAC_SAMPLING_FREQ_44100, 44100 },
+	{ AAC_SAMPLING_FREQ_48000, 48000 },
+	{ AAC_SAMPLING_FREQ_64000, 64000 },
+	{ AAC_SAMPLING_FREQ_88200, 88200 },
+	{ AAC_SAMPLING_FREQ_96000, 96000 },
+	{ 0 }
+};
+
 static unsigned int a2dp_aac_get_fdk_vbr_mode(
 		unsigned int channels, unsigned int bitrate) {
 	static const unsigned int modes[][5] = {
@@ -478,30 +502,6 @@ fail_open:
 	return NULL;
 }
 
-static const struct a2dp_channels a2dp_aac_channels[] = {
-	{ 1, AAC_CHANNEL_MODE_MONO },
-	{ 2, AAC_CHANNEL_MODE_STEREO },
-	{ 6, AAC_CHANNEL_MODE_5_1 },
-	{ 8, AAC_CHANNEL_MODE_7_1 },
-	{ 0 },
-};
-
-static const struct a2dp_sampling a2dp_aac_samplings[] = {
-	{ 8000, AAC_SAMPLING_FREQ_8000 },
-	{ 11025, AAC_SAMPLING_FREQ_11025 },
-	{ 12000, AAC_SAMPLING_FREQ_12000 },
-	{ 16000, AAC_SAMPLING_FREQ_16000 },
-	{ 22050, AAC_SAMPLING_FREQ_22050 },
-	{ 24000, AAC_SAMPLING_FREQ_24000 },
-	{ 32000, AAC_SAMPLING_FREQ_32000 },
-	{ 44100, AAC_SAMPLING_FREQ_44100 },
-	{ 48000, AAC_SAMPLING_FREQ_48000 },
-	{ 64000, AAC_SAMPLING_FREQ_64000 },
-	{ 88200, AAC_SAMPLING_FREQ_88200 },
-	{ 96000, AAC_SAMPLING_FREQ_96000 },
-	{ 0 },
-};
-
 static int a2dp_aac_capabilities_filter(
 		const struct a2dp_sep *sep,
 		const void *capabilities_mask,
@@ -552,18 +552,19 @@ static int a2dp_aac_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_sampling *sampling;
-	const uint16_t caps_sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(*caps);
-	if ((sampling = a2dp_sampling_select(a2dp_aac_samplings, caps_sampling_freq)) != NULL)
-		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling->value);
+	unsigned int sampling_freq;
+	if (a2dp_bit_mapping_foreach(a2dp_aac_samplings, A2DP_AAC_GET_SAMPLING_FREQ(*caps),
+				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
 		error("AAC: No supported sampling frequencies: %#x", A2DP_AAC_GET_SAMPLING_FREQ(saved));
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_select(a2dp_aac_channels, caps->channel_mode)) != NULL)
-		caps->channel_mode = channels->value;
+	unsigned int channel_mode = 0;
+	if (a2dp_bit_mapping_foreach(a2dp_aac_channels, caps->channel_mode,
+				a2dp_foreach_get_best_channel_mode, &channel_mode) != -1)
+		caps->channel_mode = channel_mode;
 	else {
 		error("AAC: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
@@ -609,12 +610,12 @@ static int a2dp_aac_configuration_check(
 	}
 
 	const uint16_t conf_sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(conf_v);
-	if (a2dp_sampling_lookup(a2dp_aac_samplings, conf_sampling_freq) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_aac_samplings, conf_sampling_freq) == 0) {
 		debug("AAC: Invalid sampling frequency: %#x", A2DP_AAC_GET_SAMPLING_FREQ(*conf));
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channels_lookup(a2dp_aac_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_aac_channels, conf_v.channel_mode) == 0) {
 		debug("AAC: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -624,19 +625,19 @@ static int a2dp_aac_configuration_check(
 
 static int a2dp_aac_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_lookup(a2dp_aac_channels,
-					t->a2dp.configuration.aac.channel_mode)) == NULL)
+	unsigned int channels;
+	if ((channels = a2dp_bit_mapping_lookup(a2dp_aac_channels,
+					t->a2dp.configuration.aac.channel_mode)) == 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_lookup(a2dp_aac_samplings,
-					A2DP_AAC_GET_SAMPLING_FREQ(t->a2dp.configuration.aac))) == NULL)
+	unsigned int sampling;
+	if ((sampling = a2dp_bit_mapping_lookup(a2dp_aac_samplings,
+					A2DP_AAC_GET_SAMPLING_FREQ(t->a2dp.configuration.aac))) == 0)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = channels->count;
-	t->a2dp.pcm.sampling = sampling->frequency;
+	t->a2dp.pcm.channels = channels;
+	t->a2dp.pcm.sampling = sampling;
 
 	return 0;
 }

@@ -32,6 +32,17 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const struct a2dp_bit_mapping a2dp_faststream_samplings_music[] = {
+	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_44100, 44100 },
+	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_48000, 48000 },
+	{ 0 }
+};
+
+static const struct a2dp_bit_mapping a2dp_faststream_samplings_voice[] = {
+	{ FASTSTREAM_SAMPLING_FREQ_VOICE_16000, 16000 },
+	{ 0 }
+};
+
 void *a2dp_faststream_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -237,17 +248,6 @@ fail_init:
 	return NULL;
 }
 
-static const struct a2dp_sampling a2dp_faststream_samplings_music[] = {
-	{ 44100, FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 },
-	{ 48000, FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 },
-	{ 0 },
-};
-
-static const struct a2dp_sampling a2dp_faststream_samplings_voice[] = {
-	{ 16000, FASTSTREAM_SAMPLING_FREQ_VOICE_16000 },
-	{ 0 },
-};
-
 static int a2dp_faststream_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
@@ -265,19 +265,21 @@ static int a2dp_faststream_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_sampling *sampling_v;
+	unsigned int sampling_freq_v;
 	if (caps->direction & FASTSTREAM_DIRECTION_VOICE &&
-			(sampling_v = a2dp_sampling_select(a2dp_faststream_samplings_voice, caps->sampling_freq_voice)) != NULL)
-		caps->sampling_freq_voice = sampling_v->value;
+			a2dp_bit_mapping_foreach(a2dp_faststream_samplings_voice, caps->sampling_freq_voice,
+				a2dp_foreach_get_best_sampling_freq, &sampling_freq_v) != -1)
+		caps->sampling_freq_voice = sampling_freq_v;
 	else {
 		error("FastStream: No supported voice sampling frequencies: %#x", saved.sampling_freq_voice);
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_sampling *sampling_m;
+	unsigned int sampling_freq_m;
 	if (caps->direction & FASTSTREAM_DIRECTION_MUSIC &&
-			(sampling_m = a2dp_sampling_select(a2dp_faststream_samplings_music, caps->sampling_freq_music)) != NULL)
-		caps->sampling_freq_music = sampling_m->value;
+			a2dp_bit_mapping_foreach(a2dp_faststream_samplings_music, caps->sampling_freq_music,
+				a2dp_foreach_get_best_sampling_freq, &sampling_freq_m) != -1)
+		caps->sampling_freq_music = sampling_freq_m;
 	else {
 		error("FastStream: No supported music sampling frequencies: %#x", saved.sampling_freq_music);
 		return errno = ENOTSUP, -1;
@@ -304,13 +306,13 @@ static int a2dp_faststream_configuration_check(
 	}
 
 	if (conf_v.direction & FASTSTREAM_DIRECTION_VOICE &&
-			a2dp_sampling_lookup(a2dp_faststream_samplings_voice, conf_v.sampling_freq_voice) == NULL) {
+			a2dp_bit_mapping_lookup(a2dp_faststream_samplings_voice, conf_v.sampling_freq_voice) == 0) {
 		debug("FastStream: Invalid voice sampling frequency: %#x", conf->sampling_freq_voice);
 		return A2DP_CHECK_ERR_SAMPLING_VOICE;
 	}
 
 	if (conf_v.direction & FASTSTREAM_DIRECTION_MUSIC &&
-			a2dp_sampling_lookup(a2dp_faststream_samplings_music, conf_v.sampling_freq_music) == NULL) {
+			a2dp_bit_mapping_lookup(a2dp_faststream_samplings_music, conf_v.sampling_freq_music) == 0) {
 		debug("FastStream: Invalid music sampling frequency: %#x", conf->sampling_freq_music);
 		return A2DP_CHECK_ERR_SAMPLING_MUSIC;
 	}
@@ -322,26 +324,26 @@ static int a2dp_faststream_transport_init(struct ba_transport *t) {
 
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
 
-		const struct a2dp_sampling *sampling;
-		if ((sampling = a2dp_sampling_lookup(a2dp_faststream_samplings_music,
-						t->a2dp.configuration.faststream.sampling_freq_music)) == NULL)
+		unsigned int sampling;
+		if ((sampling = a2dp_bit_mapping_lookup(a2dp_faststream_samplings_music,
+						t->a2dp.configuration.faststream.sampling_freq_music)) == 0)
 			return -1;
 
 		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->a2dp.pcm.sampling = sampling->frequency;
+		t->a2dp.pcm.sampling = sampling;
 		t->a2dp.pcm.channels = 2;
 
 	}
 
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE) {
 
-		const struct a2dp_sampling *sampling;
-		if ((sampling = a2dp_sampling_lookup(a2dp_faststream_samplings_voice,
-						t->a2dp.configuration.faststream.sampling_freq_voice)) == NULL)
+		unsigned int sampling;
+		if ((sampling = a2dp_bit_mapping_lookup(a2dp_faststream_samplings_voice,
+						t->a2dp.configuration.faststream.sampling_freq_voice)) == 0)
 			return -1;
 
 		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->a2dp.pcm_bc.sampling = sampling->frequency;
+		t->a2dp.pcm_bc.sampling = sampling;
 		t->a2dp.pcm_bc.channels = 1;
 
 	}

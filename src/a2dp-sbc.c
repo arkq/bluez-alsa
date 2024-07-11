@@ -38,6 +38,22 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const struct a2dp_bit_mapping a2dp_sbc_channels[] = {
+	{ SBC_CHANNEL_MODE_MONO, 1 },
+	{ SBC_CHANNEL_MODE_DUAL_CHANNEL, 2 },
+	{ SBC_CHANNEL_MODE_STEREO, 2 },
+	{ SBC_CHANNEL_MODE_JOINT_STEREO, 2 },
+	{ 0 },
+};
+
+static const struct a2dp_bit_mapping a2dp_sbc_samplings[] = {
+	{ SBC_SAMPLING_FREQ_16000, 16000 },
+	{ SBC_SAMPLING_FREQ_32000, 32000 },
+	{ SBC_SAMPLING_FREQ_44100, 44100 },
+	{ SBC_SAMPLING_FREQ_48000, 48000 },
+	{ 0 },
+};
+
 void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -316,22 +332,6 @@ fail_init:
 	return NULL;
 }
 
-static const struct a2dp_channels a2dp_sbc_channels[] = {
-	{ 1, SBC_CHANNEL_MODE_MONO },
-	{ 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
-	{ 2, SBC_CHANNEL_MODE_STEREO },
-	{ 2, SBC_CHANNEL_MODE_JOINT_STEREO },
-	{ 0 },
-};
-
-static const struct a2dp_sampling a2dp_sbc_samplings[] = {
-	{ 16000, SBC_SAMPLING_FREQ_16000 },
-	{ 32000, SBC_SAMPLING_FREQ_32000 },
-	{ 44100, SBC_SAMPLING_FREQ_44100 },
-	{ 48000, SBC_SAMPLING_FREQ_48000 },
-	{ 0 },
-};
-
 static int a2dp_sbc_capabilities_filter(
 		const struct a2dp_sep *sep,
 		const void *capabilities_mask,
@@ -365,35 +365,34 @@ static int a2dp_sbc_configuration_select(
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	const uint8_t caps_sampling_freq = caps->sampling_freq;
-	if ((sampling = a2dp_sampling_select(a2dp_sbc_samplings, caps_sampling_freq)) != NULL)
-		caps->sampling_freq = sampling->value;
-	else {
+	unsigned int sampling_freq;
+	if (a2dp_bit_mapping_foreach(a2dp_sbc_samplings, caps->sampling_freq,
+				a2dp_foreach_get_best_sampling_freq, &sampling_freq) == -1) {
 		error("SBC: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channels *channels;
-	const uint8_t caps_channel_mode = caps->channel_mode;
-	if ((channels = a2dp_channels_select(a2dp_sbc_channels, caps_channel_mode)) != NULL)
-		caps->channel_mode = channels->value;
-	else {
+	unsigned int channel_mode = 0;
+	if (a2dp_bit_mapping_foreach(a2dp_sbc_channels, caps->channel_mode,
+				a2dp_foreach_get_best_channel_mode, &channel_mode) == -1) {
 		error("SBC: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
 	}
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
-		if (caps_sampling_freq & SBC_SAMPLING_FREQ_44100)
-			caps->sampling_freq = SBC_SAMPLING_FREQ_44100;
+		if (caps->sampling_freq & SBC_SAMPLING_FREQ_44100)
+			sampling_freq = SBC_SAMPLING_FREQ_44100;
 		else
 			warn("SBC XQ: 44.1 kHz sampling frequency not supported: %#x", saved.sampling_freq);
-		if (caps_channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-			caps->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+		if (caps->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+			channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 		else
 			warn("SBC XQ: Dual channel mode not supported: %#x", saved.channel_mode);
 	}
+
+	caps->sampling_freq = sampling_freq;
+	caps->channel_mode = channel_mode;
 
 	if (caps->block_length & SBC_BLOCK_LENGTH_16)
 		caps->block_length = SBC_BLOCK_LENGTH_16;
@@ -447,12 +446,12 @@ static int a2dp_sbc_configuration_check(
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
-	if (a2dp_sampling_lookup(a2dp_sbc_samplings, conf_v.sampling_freq) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_sbc_samplings, conf_v.sampling_freq) == 0) {
 		debug("SBC: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channels_lookup(a2dp_sbc_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_sbc_channels, conf_v.channel_mode) == 0) {
 		debug("SBC: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -500,19 +499,19 @@ static int a2dp_sbc_configuration_check(
 
 static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_lookup(a2dp_sbc_channels,
-					t->a2dp.configuration.sbc.channel_mode)) == NULL)
+	unsigned int channels;
+	if ((channels = a2dp_bit_mapping_lookup(a2dp_sbc_channels,
+					t->a2dp.configuration.sbc.channel_mode)) == 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_lookup(a2dp_sbc_samplings,
-					t->a2dp.configuration.sbc.sampling_freq)) == NULL)
+	unsigned int sampling;
+	if ((sampling = a2dp_bit_mapping_lookup(a2dp_sbc_samplings,
+					t->a2dp.configuration.sbc.sampling_freq)) == 0)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = channels->count;
-	t->a2dp.pcm.sampling = sampling->frequency;
+	t->a2dp.pcm.channels = channels;
+	t->a2dp.pcm.sampling = sampling;
 
 	return 0;
 }

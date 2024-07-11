@@ -23,20 +23,45 @@
 #include "shared/a2dp-codecs.h"
 
 /**
+ * Mapping between A2DP bit-field and its real value.
+ *
+ * When defining mapping array, all elements should be sorted from the
+ * worst (least desired) to the best (most desired) values. This way,
+ * the a2dp_foreach_get_best_*() functions can be used to find the best
+ * possible value for the given bit-field. */
+struct a2dp_bit_mapping {
+	uint32_t bit_value;
+	unsigned int value;
+};
+
+/**
+ * Callback function for iterating over A2DP bit-field. */
+typedef int (*a2dp_bit_mapping_foreach_func)(
+		struct a2dp_bit_mapping mapping,
+		void *userdata);
+
+int a2dp_foreach_get_best_channel_mode(
+		struct a2dp_bit_mapping mapping,
+		void *userdata);
+int a2dp_foreach_get_best_sampling_freq(
+		struct a2dp_bit_mapping mapping,
+		void *userdata);
+
+int a2dp_bit_mapping_foreach(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bitmask,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata);
+
+unsigned int a2dp_bit_mapping_lookup(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bit_value);
+
+/**
  * A2DP Stream End-Point type. */
 enum a2dp_type {
 	A2DP_SOURCE = 0,
 	A2DP_SINK = !A2DP_SOURCE,
-};
-
-struct a2dp_channels {
-	unsigned int count;
-	uint16_t value;
-};
-
-struct a2dp_sampling {
-	unsigned int frequency;
-	uint16_t value;
 };
 
 /* XXX: avoid circular dependency */
@@ -96,22 +121,6 @@ int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b);
 const struct a2dp_sep *a2dp_sep_lookup(
 		enum a2dp_type type,
 		uint32_t codec_id);
-
-const struct a2dp_channels *a2dp_channels_lookup(
-		const struct a2dp_channels *channels,
-		uint16_t value);
-
-const struct a2dp_channels *a2dp_channels_select(
-		const struct a2dp_channels *channels,
-		uint16_t capabilities);
-
-const struct a2dp_sampling *a2dp_sampling_lookup(
-		const struct a2dp_sampling *samplings,
-		uint16_t value);
-
-const struct a2dp_sampling *a2dp_sampling_select(
-		const struct a2dp_sampling *samplings,
-		uint16_t capabilities);
 
 uint32_t a2dp_get_vendor_codec_id(
 		const void *capabilities,

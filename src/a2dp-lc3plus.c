@@ -39,6 +39,18 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const struct a2dp_bit_mapping a2dp_lc3plus_channels[] = {
+	{ LC3PLUS_CHANNEL_MODE_MONO, 1 },
+	{ LC3PLUS_CHANNEL_MODE_STEREO, 2 },
+	{ 0 }
+};
+
+static const struct a2dp_bit_mapping a2dp_lc3plus_samplings[] = {
+	{ LC3PLUS_SAMPLING_FREQ_48000, 48000 },
+	{ LC3PLUS_SAMPLING_FREQ_96000, 96000 },
+	{ 0 }
+};
+
 static bool a2dp_lc3plus_supported(int samplerate, int channels) {
 
 	if (lc3plus_channels_supported(channels) == 0) {
@@ -532,18 +544,6 @@ fail_init:
 	return NULL;
 }
 
-static const struct a2dp_channels a2dp_lc3plus_channels[] = {
-	{ 1, LC3PLUS_CHANNEL_MODE_MONO },
-	{ 2, LC3PLUS_CHANNEL_MODE_STEREO },
-	{ 0 },
-};
-
-static const struct a2dp_sampling a2dp_lc3plus_samplings[] = {
-	{ 48000, LC3PLUS_SAMPLING_FREQ_48000 },
-	{ 96000, LC3PLUS_SAMPLING_FREQ_96000 },
-	{ 0 },
-};
-
 static int a2dp_lc3plus_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
@@ -567,18 +567,19 @@ static int a2dp_lc3plus_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_select(a2dp_lc3plus_channels, caps->channel_mode)) != NULL)
-		caps->channel_mode = channels->value;
+	unsigned int channel_mode = 0;
+	if (a2dp_bit_mapping_foreach(a2dp_lc3plus_channels, caps->channel_mode,
+				a2dp_foreach_get_best_channel_mode, &channel_mode) != -1)
+		caps->channel_mode = channel_mode;
 	else {
 		error("LC3plus: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_sampling *sampling;
-	const uint16_t caps_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps);
-	if ((sampling = a2dp_sampling_select(a2dp_lc3plus_samplings, caps_sampling_freq)) != NULL)
-		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling->value);
+	unsigned int sampling_freq;
+	if (a2dp_bit_mapping_foreach(a2dp_lc3plus_samplings, A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps),
+				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
 		error("LC3plus: No supported sampling frequencies: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(saved));
 		return errno = ENOTSUP, -1;
@@ -609,13 +610,13 @@ static int a2dp_lc3plus_configuration_check(
 		return A2DP_CHECK_ERR_FRAME_DURATION;
 	}
 
-	if (a2dp_channels_lookup(a2dp_lc3plus_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_channels, conf_v.channel_mode) == 0) {
 		debug("LC3plus: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
 
 	uint16_t conf_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(conf_v);
-	if (a2dp_sampling_lookup(a2dp_lc3plus_samplings, conf_sampling_freq) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings, conf_sampling_freq) == 0) {
 		debug("LC3plus: Invalid sampling frequency: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(*conf));
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
@@ -625,19 +626,19 @@ static int a2dp_lc3plus_configuration_check(
 
 static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_lookup(a2dp_lc3plus_channels,
-					t->a2dp.configuration.lc3plus.channel_mode)) == NULL)
+	unsigned int channels;
+	if ((channels = a2dp_bit_mapping_lookup(a2dp_lc3plus_channels,
+					t->a2dp.configuration.lc3plus.channel_mode)) == 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_lookup(a2dp_lc3plus_samplings,
-					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->a2dp.configuration.lc3plus))) == NULL)
+	unsigned int sampling;
+	if ((sampling = a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings,
+					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->a2dp.configuration.lc3plus))) == 0)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
-	t->a2dp.pcm.channels = channels->count;
-	t->a2dp.pcm.sampling = sampling->frequency;
+	t->a2dp.pcm.channels = channels;
+	t->a2dp.pcm.sampling = sampling;
 
 	return 0;
 }

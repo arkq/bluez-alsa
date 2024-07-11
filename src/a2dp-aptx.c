@@ -33,6 +33,20 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const struct a2dp_bit_mapping a2dp_aptx_channels[] = {
+	{ APTX_CHANNEL_MODE_MONO, 1 },
+	{ APTX_CHANNEL_MODE_STEREO, 2 },
+	{ 0 }
+};
+
+static const struct a2dp_bit_mapping a2dp_aptx_samplings[] = {
+	{ APTX_SAMPLING_FREQ_16000, 16000 },
+	{ APTX_SAMPLING_FREQ_32000, 32000 },
+	{ APTX_SAMPLING_FREQ_44100, 44100 },
+	{ APTX_SAMPLING_FREQ_48000, 48000 },
+	{ 0 }
+};
+
 void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -229,19 +243,6 @@ fail_init:
 }
 #endif
 
-static const struct a2dp_channels a2dp_aptx_channels[] = {
-	{ 2, APTX_CHANNEL_MODE_STEREO },
-	{ 0 },
-};
-
-static const struct a2dp_sampling a2dp_aptx_samplings[] = {
-	{ 16000, APTX_SAMPLING_FREQ_16000 },
-	{ 32000, APTX_SAMPLING_FREQ_32000 },
-	{ 44100, APTX_SAMPLING_FREQ_44100 },
-	{ 48000, APTX_SAMPLING_FREQ_48000 },
-	{ 0 },
-};
-
 static int a2dp_aptx_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
@@ -254,17 +255,19 @@ static int a2dp_aptx_configuration_select(
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_select(a2dp_aptx_samplings, caps->sampling_freq)) != NULL)
-		caps->sampling_freq = sampling->value;
+	unsigned int sampling_freq;
+	if (a2dp_bit_mapping_foreach(a2dp_aptx_samplings, caps->sampling_freq,
+				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+		caps->sampling_freq = sampling_freq;
 	else {
 		error("apt-X: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_select(a2dp_aptx_channels, caps->channel_mode)) != NULL)
-		caps->channel_mode = channels->value;
+	unsigned int channel_mode = 0;
+	if (a2dp_bit_mapping_foreach(a2dp_aptx_channels, caps->channel_mode,
+				a2dp_foreach_get_best_channel_mode, &channel_mode) != -1)
+		caps->channel_mode = channel_mode;
 	else {
 		error("apt-X: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
@@ -285,12 +288,12 @@ static int a2dp_aptx_configuration_check(
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
-	if (a2dp_sampling_lookup(a2dp_aptx_samplings, conf_v.sampling_freq) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_aptx_samplings, conf_v.sampling_freq) == 0) {
 		debug("apt-X: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channels_lookup(a2dp_aptx_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_aptx_channels, conf_v.channel_mode) == 0) {
 		debug("apt-X: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -300,19 +303,19 @@ static int a2dp_aptx_configuration_check(
 
 static int a2dp_aptx_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_lookup(a2dp_aptx_channels,
-					t->a2dp.configuration.aptx.channel_mode)) == NULL)
+	unsigned int channels;
+	if ((channels = a2dp_bit_mapping_lookup(a2dp_aptx_channels,
+					t->a2dp.configuration.aptx.channel_mode)) == 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_lookup(a2dp_aptx_samplings,
-					t->a2dp.configuration.aptx.sampling_freq)) == NULL)
+	unsigned int sampling;
+	if ((sampling = a2dp_bit_mapping_lookup(a2dp_aptx_samplings,
+					t->a2dp.configuration.aptx.sampling_freq)) == 0)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = channels->count;
-	t->a2dp.pcm.sampling = sampling->frequency;
+	t->a2dp.pcm.channels = channels;
+	t->a2dp.pcm.sampling = sampling;
 
 	return 0;
 }
