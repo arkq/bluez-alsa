@@ -172,8 +172,7 @@ void callstackdump_(const char *label) {
 	size_t n = backtrace(frames, ARRAYSIZE(frames));
 	char **symbols = backtrace_symbols(frames, n);
 
-	size_t i;
-	for (i = 1; i < n; i++)
+	for (size_t i = 1; i < n; i++)
 		ptr += snprintf(ptr, sizeof(buffer) + buffer - ptr, "%s%s",
 				symbols[i], (i + 1 < n) ? " < " : "");
 

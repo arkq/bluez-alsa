@@ -332,8 +332,8 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 	g_key_file_set_string_list(db, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT,
 		(const char * const *)list, num_codecs);
 
-	for (index = 0; index < num_codecs; index++)
-		free(list[index]);
+	for (size_t i = 0; i < num_codecs; i++)
+		free(list[i]);
 	free(list);
 
 }

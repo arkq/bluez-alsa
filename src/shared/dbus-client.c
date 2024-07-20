@@ -30,8 +30,7 @@ static dbus_bool_t ba_dbus_watch_add(DBusWatch *watch, void *data) {
 
 static void ba_dbus_watch_del(DBusWatch *watch, void *data) {
 	struct ba_dbus_ctx *ctx = (struct ba_dbus_ctx *)data;
-	size_t i;
-	for (i = 0; i < ctx->watches_len; i++)
+	for (size_t i = 0; i < ctx->watches_len; i++)
 		if (ctx->watches[i] == watch)
 			ctx->watches[i] = ctx->watches[--ctx->watches_len];
 }
@@ -79,8 +78,7 @@ void ba_dbus_connection_ctx_free(
 		ctx->watches = NULL;
 	}
 	if (ctx->matches != NULL) {
-		size_t i;
-		for (i = 0; i < ctx->matches_len; i++)
+		for (size_t i = 0; i < ctx->matches_len; i++)
 			free(ctx->matches[i]);
 		free(ctx->matches);
 		ctx->matches = NULL;
@@ -133,8 +131,7 @@ dbus_bool_t ba_dbus_connection_signal_match_add(
 dbus_bool_t ba_dbus_connection_signal_match_clean(
 		struct ba_dbus_ctx *ctx) {
 
-	size_t i;
-	for (i = 0; i < ctx->matches_len; i++) {
+	for (size_t i = 0; i < ctx->matches_len; i++) {
 		dbus_bus_remove_match(ctx->conn, ctx->matches[i], NULL);
 		free(ctx->matches[i]);
 	}
@@ -173,8 +170,7 @@ dbus_bool_t ba_dbus_connection_poll_fds(
 		return FALSE;
 	}
 
-	size_t i;
-	for (i = 0; i < ctx->watches_len; i++) {
+	for (size_t i = 0; i < ctx->watches_len; i++) {
 		DBusWatch *watch = ctx->watches[i];
 
 		fds[i].fd = -1;
@@ -197,12 +193,11 @@ dbus_bool_t ba_dbus_connection_poll_dispatch(
 		nfds_t nfds) {
 
 	dbus_bool_t rv = FALSE;
-	size_t i;
 
 	if (nfds > ctx->watches_len)
 		nfds = ctx->watches_len;
 
-	for (i = 0; i < nfds; i++)
+	for (size_t i = 0; i < nfds; i++)
 		if (fds[i].revents) {
 			unsigned int flags = 0;
 			if (fds[i].revents & POLLIN)

@@ -236,13 +236,12 @@ int at_parse_get_cind(const char *str, enum hfp_ind map[20]) {
 	};
 
 	char ind[16];
-	size_t i, ii;
 
 	memset(map, HFP_IND_NULL, sizeof(*map) * 20);
-	for (i = 0; i < 20; i++) {
+	for (size_t i = 0; i < 20; i++) {
 		if (sscanf(str, " ( \"%15[a-z]\" , ( %*[0-9,-] ) )", ind) != 1)
 			return -1;
-		for (ii = 0; ii < ARRAYSIZE(mapping); ii++)
+		for (size_t ii = 0; ii < ARRAYSIZE(mapping); ii++)
 			if (strcmp(mapping[ii].str, ind) == 0) {
 				map[i] = mapping[ii].ind;
 				break;
@@ -264,9 +263,8 @@ int at_parse_get_cind(const char *str, enum hfp_ind map[20]) {
 int at_parse_set_cmer(const char *str, unsigned int map[5]) {
 
 	char *tmp;
-	size_t i;
 
-	for (i = 0; i < 5; i++) {
+	for (size_t i = 0; i < 5; i++) {
 		while (isspace(*str) || *str == ',')
 			str++;
 		int v = strtol(str, &tmp, 10);

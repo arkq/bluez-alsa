@@ -57,7 +57,6 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 
 	char path_addr[sizeof("00:00:00:00:00:00")] = { 0 };
 	const char *tmp;
-	size_t i;
 
 	memset(dev, 0, sizeof(*dev));
 	strncpy(dev->path, path, sizeof(dev->path) - 1);
@@ -67,7 +66,7 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 	 * usage with bluealsa-mock server. */
 	if ((tmp = strstr(path, "/dev_")) != NULL)
 		strncpy(path_addr, tmp + 5, sizeof(path_addr) - 1);
-	for (i = 0; i < sizeof(path_addr); i++)
+	for (size_t i = 0; i < sizeof(path_addr); i++)
 		if (path_addr[i] == '_')
 			path_addr[i] = ':';
 	str2ba(path_addr, &dev->bt_addr);

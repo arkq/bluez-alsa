@@ -70,10 +70,9 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 		struct ba_adapter *a;
 		struct ba_device *d;
 		struct ba_transport *t;
-		size_t i;
 
 		/* find every RFCOMM profile and send update battery signal */
-		for (i = 0; i < HCI_MAX_DEV; i++) {
+		for (size_t i = 0; i < HCI_MAX_DEV; i++) {
 			if ((a = ba_adapter_lookup(i)) == NULL)
 				continue;
 			pthread_mutex_lock(&a->devices_mutex);

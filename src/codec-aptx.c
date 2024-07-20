@@ -180,8 +180,7 @@ ssize_t aptxdec_decode(HANDLE_APTX handle, const void *input, size_t len,
 	if (!synced && dropped > 0)
 		info("Apt-X stream out of sync: Dropped bytes: %zd", dropped);
 
-	size_t i;
-	for (i = 0; i < written / 3 / 2; i++) {
+	for (size_t i = 0; i < written / 3 / 2; i++) {
 		*output++ = pcm[i * 6 + 0 + 1] | (pcm[i * 6 + 0 + 2] << 8);
 		*output++ = pcm[i * 6 + 3 + 1] | (pcm[i * 6 + 3 + 2] << 8);
 	}
@@ -195,8 +194,7 @@ ssize_t aptxdec_decode(HANDLE_APTX handle, const void *input, size_t len,
 	if (aptxbtdec_decodestereo(handle, pcm_l, pcm_r, input) != 0)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < 4; i++) {
+	for (size_t i = 0; i < 4; i++) {
 		*output++ = pcm_l[i];
 		*output++ = pcm_r[i];
 	}
@@ -283,9 +281,8 @@ ssize_t aptxhddec_decode(HANDLE_APTX handle, const void *input, size_t len,
 	if (!synced && dropped > 0)
 		info("Apt-X HD stream out of sync: Dropped bytes: %zd", dropped);
 
-	size_t i;
 	int32_t base;
-	for (i = 0; i < written / 3 / 2; i++) {
+	for (size_t i = 0; i < written / 3 / 2; i++) {
 		base = pcm[i * 6 + 0 + 2] & 0x80 ? 0xFF000000 : 0;
 		*output++ = base | pcm[i * 6 + 0 + 0] | (pcm[i * 6 + 0 + 1] << 8) | (pcm[i * 6 + 0 + 2] << 16);
 		base = pcm[i * 6 + 3 + 2] & 0x80 ? 0xFF000000 : 0;
@@ -305,8 +302,7 @@ ssize_t aptxhddec_decode(HANDLE_APTX handle, const void *input, size_t len,
 	if (aptxhdbtdec_decodestereo(handle, pcm_l, pcm_r, code) != 0)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < 4; i++) {
+	for (size_t i = 0; i < 4; i++) {
 		*output++ = pcm_l[i];
 		*output++ = pcm_r[i];
 	}

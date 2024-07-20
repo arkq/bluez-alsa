@@ -228,10 +228,9 @@ static int rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm *r, const struct bt_
 
 	struct ba_device * const d = r->sco->d;
 	char *tmp = at->value;
-	size_t i;
 
 	/* parse response for the +CIND GET command */
-	for (i = 0; i < ARRAYSIZE(r->hfp_ind_map); i++) {
+	for (size_t i = 0; i < ARRAYSIZE(r->hfp_ind_map); i++) {
 		r->hfp_ind[r->hfp_ind_map[i]] = atoi(tmp);
 		if (r->hfp_ind_map[i] == HFP_IND_BATTCHG) {
 			d->battery.charge = atoi(tmp) * 100 / 5;
@@ -785,8 +784,7 @@ static int rfcomm_handler_android_set_cb(struct ba_rfcomm *r, const struct bt_at
 	char *value = at->value;
 	char *name = strsep(&value, sep);
 
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(handlers); i++)
+	for (size_t i = 0; i < ARRAYSIZE(handlers); i++)
 		if (strcmp(name, handlers[i].name) == 0) {
 			int rv = handlers[i].cb(r, value);
 			if (rv == -1 && errno == EINVAL)
@@ -957,9 +955,7 @@ static ba_rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 		&rfcomm_handler_xapl_resp,
 	};
 
-	size_t i;
-
-	for (i = 0; i < ARRAYSIZE(handlers); i++) {
+	for (size_t i = 0; i < ARRAYSIZE(handlers); i++) {
 		if (handlers[i]->type != at->type)
 			continue;
 		if (strcmp(handlers[i]->command, at->command) != 0)

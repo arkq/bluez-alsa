@@ -732,8 +732,7 @@ usage:
 	if (argc - optind < 1)
 		goto usage;
 
-	int i;
-	for (i = optind; i < argc; i++)
+	for (int i = optind; i < argc; i++)
 		if (dump(argv[i], detect) == -1)
 			rv = EXIT_FAILURE;
 

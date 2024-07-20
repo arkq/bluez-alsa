@@ -426,7 +426,6 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	const enum ba_transport_profile t_profile = pcm->t->profile;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
-	size_t i;
 
 	/* Prevent two (or more) clients trying to
 	 * open the same PCM at the same time. */
@@ -522,7 +521,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 fail:
 	pthread_mutex_unlock(&pcm->client_mtx);
 	/* clean up created file descriptors */
-	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
+	for (size_t i = 0; i < ARRAYSIZE(pcm_fds); i++)
 		if (pcm_fds[i] != -1)
 			close(pcm_fds[i]);
 }
@@ -539,17 +538,14 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
-		size_t i;
 
-		for (i = 0; seps != NULL && i < seps->len; i++) {
+		for (size_t i = 0; seps != NULL && i < seps->len; i++) {
 			const struct a2dp_sep *remote_sep = &g_array_index(seps, struct a2dp_sep, i);
 			/* match complementary PCM directions, e.g. A2DP-source with SEP-sink */
 			if (t->a2dp.sep->type == !remote_sep->type) {
 
 				bool duplicate = false;
-				size_t j;
-
-				for (j = 0; j < codec_ids->len; j++)
+				for (size_t j = 0; j < codec_ids->len; j++)
 					if (remote_sep->codec_id == g_array_index(codec_ids, uint32_t, j)) {
 						duplicate = true;
 						break;
@@ -681,9 +677,8 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		enum a2dp_type type = !t->a2dp.sep->type;
 		struct a2dp_sep *sep_remote = NULL;
 		const GArray *seps = t->d->seps;
-		size_t i;
 
-		for (i = 0; i < seps->len; i++)
+		for (size_t i = 0; i < seps->len; i++)
 			if (g_array_index(seps, struct a2dp_sep, i).type == type &&
 					g_array_index(seps, struct a2dp_sep, i).codec_id == codec_id) {
 				sep_remote = &g_array_index(seps, struct a2dp_sep, i);

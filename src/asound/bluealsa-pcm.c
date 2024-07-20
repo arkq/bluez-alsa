@@ -1127,8 +1127,7 @@ static int str2bdaddr(const char *str, bdaddr_t *ba) {
 				&x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < 6; i++)
+	for (size_t i = 0; i < 6; i++)
 		ba->b[i] = x[i];
 
 	return 0;

@@ -114,8 +114,7 @@ static int parse_bt_addresses(char *argv[], size_t count) {
 	if ((ba_addrs = malloc(sizeof(*ba_addrs) * ba_addrs_count)) == NULL)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < ba_addrs_count; i++) {
+	for (size_t i = 0; i < ba_addrs_count; i++) {
 		if (str2ba(argv[i], &ba_addrs[i]) != 0)
 			return errno = EINVAL, -1;
 		if (bacmp(&ba_addrs[i], BDADDR_ANY) == 0)
@@ -170,9 +169,9 @@ static void print_bt_device_list(void) {
 	};
 
 	const char *tmp;
-	size_t i, ii;
+	size_t ii;
 
-	for (i = 0; i < ARRAYSIZE(section); i++) {
+	for (size_t i = 0; i < ARRAYSIZE(section); i++) {
 		printf("%s\n", section[i].label);
 		for (ii = 0, tmp = ""; ii < ba_pcms_count; ii++) {
 
@@ -217,9 +216,8 @@ static void print_bt_pcm_list(void) {
 	DBusError err = DBUS_ERROR_INIT;
 	struct bluez_device dev = { 0 };
 	const char *tmp = "";
-	size_t i;
 
-	for (i = 0; i < ba_pcms_count; i++) {
+	for (size_t i = 0; i < ba_pcms_count; i++) {
 		struct ba_pcm *pcm = &ba_pcms[i];
 
 		if (strcmp(pcm->device_path, tmp) != 0) {
@@ -281,12 +279,10 @@ static void ba_pcm_remove(const char *path) {
 
 static struct io_worker *get_active_io_worker(void) {
 
-	struct io_worker *w = NULL;
-	size_t i;
-
 	pthread_rwlock_rdlock(&workers_lock);
 
-	for (i = 0; i < workers_count; i++)
+	struct io_worker *w = NULL;
+	for (size_t i = 0; i < workers_count; i++)
 		if (workers[i].active) {
 			w = &workers[i];
 			break;
@@ -868,8 +864,7 @@ static void io_worker_stop(size_t index) {
 
 static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) {
 
-	size_t i;
-	for (i = 0; i < workers_count; i++)
+	for (size_t i = 0; i < workers_count; i++)
 		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
 			/* If the codec has changed after the device connected, then the
 			 * audio format may have changed. If it has, the worker thread
@@ -919,12 +914,9 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 }
 
 static struct io_worker *supervise_io_worker_stop(const struct ba_pcm *ba_pcm) {
-
-	size_t i;
-	for (i = 0; i < workers_count; i++)
+	for (size_t i = 0; i < workers_count; i++)
 		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
 			io_worker_stop(i);
-
 	return NULL;
 }
 
@@ -950,8 +942,7 @@ static struct io_worker *supervise_io_worker(const struct ba_pcm *ba_pcm) {
 	if (ba_addr_any)
 		goto start;
 
-	size_t i;
-	for (i = 0; i < ba_addrs_count; i++)
+	for (size_t i = 0; i < ba_addrs_count; i++)
 		if (bacmp(&ba_addrs[i], &ba_pcm->addr) == 0)
 			goto start;
 
@@ -1263,9 +1254,8 @@ int main(int argc, char *argv[]) {
 
 		char *ba_str = malloc(19 * ba_addrs_count + 1);
 		char *tmp = ba_str;
-		size_t i;
 
-		for (i = 0; i < ba_addrs_count; i++, tmp += 19)
+		for (size_t i = 0; i < ba_addrs_count; i++, tmp += 19)
 			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
 
 		const char *mixer_device_str = "(not used)";

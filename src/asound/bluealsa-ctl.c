@@ -156,8 +156,7 @@ static int str2bdaddr(const char *str, bdaddr_t *ba) {
 				&x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < 6; i++)
+	for (size_t i = 0; i < 6; i++)
 		ba->b[i] = x[i];
 
 	return 0;
@@ -232,12 +231,9 @@ fail:
  * @param pcm BlueALSA PCM structure.
  * @return The device ID number, or -1 upon error. */
 static int bluealsa_dev_get_id(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
-
-	size_t i;
-	for (i = 0; i < ctl->dev_list_size; i++)
+	for (size_t i = 0; i < ctl->dev_list_size; i++)
 		if (strcmp(ctl->dev_list[i]->device_path, pcm->device_path) == 0)
 			return i + 1;
-
 	return -1;
 }
 
@@ -325,8 +321,7 @@ static int bluealsa_pcm_fetch_codecs(struct bluealsa_ctl *ctl, struct ba_pcm *pc
  * @return The BT device, or NULL upon error. */
 static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
 
-	size_t i;
-	for (i = 0; i < ctl->dev_list_size; i++)
+	for (size_t i = 0; i < ctl->dev_list_size; i++)
 		if (strcmp(ctl->dev_list[i]->device_path, pcm->device_path) == 0)
 			return ctl->dev_list[i];
 
@@ -413,8 +408,7 @@ static int bluealsa_pcm_add(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) 
 /**
  * Remove PCM from the list of known PCMs. */
 static int bluealsa_pcm_remove(struct bluealsa_ctl *ctl, const char *path) {
-	size_t i;
-	for (i = 0; i < ctl->pcm_list_size; i++)
+	for (size_t i = 0; i < ctl->pcm_list_size; i++)
 		if (strcmp(ctl->pcm_list[i]->pcm_path, path) == 0) {
 
 			/* clear all pending events associated with removed PCM */
@@ -431,16 +425,14 @@ static int bluealsa_pcm_remove(struct bluealsa_ctl *ctl, const char *path) {
 }
 
 static int bluealsa_pcm_activate(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
-	size_t i;
-	for (i = 0; i < ctl->pcm_list_size; i++)
+	for (size_t i = 0; i < ctl->pcm_list_size; i++)
 		if (strcmp(ctl->pcm_list[i]->pcm_path, pcm->pcm_path) == 0) {
 
 			/* update potentially stalled PCM data */
 			memcpy(ctl->pcm_list[i], pcm, sizeof(*ctl->pcm_list[i]));
 
-			size_t el;
 			/* activate associated elements */
-			for (el = 0; el < ctl->elem_list_size; el++)
+			for (size_t el = 0; el < ctl->elem_list_size; el++)
 				if (ctl->elem_list[el].pcm == ctl->pcm_list[i]) {
 					ctl->elem_list[el].active = true;
 					bluealsa_event_elem_updated(ctl, &ctl->elem_list[el]);
@@ -452,8 +444,7 @@ static int bluealsa_pcm_activate(struct bluealsa_ctl *ctl, const struct ba_pcm *
 }
 
 static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
-	size_t i;
-	for (i = 0; i < ctl->elem_list_size; i++)
+	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		if (strcmp(ctl->elem_list[i].pcm->pcm_path, path) == 0) {
 			ctl->elem_list[i].active = false;
 			bluealsa_event_elem_updated(ctl, &ctl->elem_list[i]);
@@ -768,12 +759,11 @@ static bool elem_list_dev_has_battery_elem(const struct ctl_elem *elem_list,
 static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 	size_t count = 0;
-	size_t i;
 	struct ctl_elem *elem_list = ctl->elem_list;
 
 	if (ctl->pcm_list_size > 0) {
 
-		for (i = 0; i < ctl->pcm_list_size; i++) {
+		for (size_t i = 0; i < ctl->pcm_list_size; i++) {
 			/* Every stream has two controls associated to
 			 * itself - volume adjustment and mute switch. */
 			count += 2;
@@ -798,13 +788,13 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 
 	/* Clear device mask, so we can distinguish currently used and unused (old)
 	 * device entries - we are not invalidating device list after PCM remove. */
-	for (i = 0; i < ctl->dev_list_size; i++)
+	for (size_t i = 0; i < ctl->dev_list_size; i++)
 		ctl->dev_list[i]->mask = BT_DEV_MASK_NONE;
 
 	count = 0;
 
 	/* Construct control elements based on available PCMs. */
-	for (i = 0; i < ctl->pcm_list_size; i++) {
+	for (size_t i = 0; i < ctl->pcm_list_size; i++) {
 
 		struct ba_pcm *pcm = ctl->pcm_list[i];
 		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
@@ -837,12 +827,10 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	/* Detect element name duplicates and annotate them with the
 	 * consecutive device ID number - make ALSA library happy. */
 	if (!ctl->single_device)
-		for (i = 0; i < count; i++) {
+		for (size_t i = 0; i < count; i++) {
 
 			bool duplicated = false;
-			size_t ii;
-
-			for (ii = i + 1; ii < count; ii++)
+			for (size_t ii = i + 1; ii < count; ii++)
 				if (elem_list[i].dev != elem_list[ii].dev &&
 						strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
 					bluealsa_elem_set_name(ctl, &elem_list[ii], elem_list[ii].dev->name, true);
@@ -860,7 +848,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	 * with ALSA internal fake IDs, because we will use them when creating new
 	 * elements by SND_CTL_EVENT_MASK_ADD events. Otherwise, these elements will
 	 * not behave properly. */
-	for (i = 0; i < count; i++)
+	for (size_t i = 0; i < count; i++)
 		elem_list[i].numid = i + 1;
 
 	ctl->elem_list = elem_list;
@@ -878,7 +866,6 @@ static void bluealsa_free_elem_list(struct bluealsa_ctl *ctl) {
 static void bluealsa_close(snd_ctl_ext_t *ext) {
 
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
-	size_t i;
 
 	ba_dbus_connection_ctx_free(&ctl->dbus_ctx);
 	bluealsa_free_elem_list(ctl);
@@ -888,9 +875,9 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 	if (ctl->pipefd[1] != -1)
 		close(ctl->pipefd[1]);
 
-	for (i = 0; i < ctl->dev_list_size; i++)
+	for (size_t i = 0; i < ctl->dev_list_size; i++)
 		free(ctl->dev_list[i]);
-	for (i = 0; i < ctl->pcm_list_size; i++)
+	for (size_t i = 0; i < ctl->pcm_list_size; i++)
 		free(ctl->pcm_list[i]);
 	free(ctl->dev_list);
 	free(ctl->pcm_list);
@@ -928,9 +915,8 @@ static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_el
 
 	const char *name = snd_ctl_elem_id_get_name(id);
 	unsigned int index = snd_ctl_elem_id_get_index(id);
-	size_t i;
 
-	for (i = 0; i < ctl->elem_list_size; i++)
+	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		if (strcmp(ctl->elem_list[i].name, name) == 0 &&
 				ctl->elem_list[i].index == index)
 			return i;
@@ -1184,7 +1170,6 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 
 	const struct ctl_elem *elem = &ctl->elem_list[key];
 	const struct ba_pcm *pcm = elem->pcm;
-	unsigned int i;
 	int ret = 0;
 
 	switch (elem->type) {
@@ -1195,7 +1180,7 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		 * want "unknown" as an enumeration item. */
 		if (pcm->transport & BA_PCM_TRANSPORT_MASK_HFP &&
 				pcm->codec.name[0] == '\0') {
-			for (i = 0; i < elem->codecs.codecs_len; i++) {
+			for (size_t i = 0; i < elem->codecs.codecs_len; i++) {
 				if (strcmp("mSBC", elem->codecs.codecs[i].name) == 0) {
 					items[0] = i;
 					goto finish;
@@ -1204,7 +1189,7 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 			items[0] = 0;
 			break;
 		}
-		for (i = 0; i < elem->codecs.codecs_len; i++) {
+		for (size_t i = 0; i < elem->codecs.codecs_len; i++) {
 			if (strcmp(pcm->codec.name, elem->codecs.codecs[i].name) == 0) {
 				items[0] = i;
 				goto finish;
@@ -1369,7 +1354,6 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 	const char *path = dbus_message_get_path(message);
 	const char *interface = dbus_message_get_interface(message);
 	const char *signal = dbus_message_get_member(message);
-	size_t i;
 
 	if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0 &&
 			strcmp(signal, "PropertiesChanged") == 0) {
@@ -1380,7 +1364,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 
 		/* handle BlueZ device properties update */
 		if (strcmp(updated_interface, "org.bluez.Device1") == 0)
-			for (i = 0; i < ctl->elem_list_size; i++) {
+			for (size_t i = 0; i < ctl->elem_list_size; i++) {
 				struct bt_dev *dev = ctl->elem_list[i].dev;
 				if (strcmp(dev->device_path, path) == 0) {
 					dbus_message_iter_dict(&iter, NULL,
@@ -1400,7 +1384,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 
 		/* handle BlueALSA RFCOMM properties update */
 		if (strcmp(updated_interface, BLUEALSA_INTERFACE_RFCOMM) == 0)
-			for (i = 0; i < ctl->elem_list_size; i++) {
+			for (size_t i = 0; i < ctl->elem_list_size; i++) {
 				struct ctl_elem *elem = &ctl->elem_list[i];
 				struct bt_dev *dev = elem->dev;
 				if (strcmp(dev->rfcomm_path, path) == 0) {
@@ -1419,7 +1403,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 
 		/* handle BlueALSA PCM properties update */
 		if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0)
-			for (i = 0; i < ctl->elem_list_size; i++) {
+			for (size_t i = 0; i < ctl->elem_list_size; i++) {
 				struct ctl_elem *elem = &ctl->elem_list[i];
 				struct ba_pcm *pcm = elem->pcm;
 				if (elem->type == CTL_ELEM_TYPE_BATTERY)
@@ -1500,13 +1484,13 @@ remove_add:
 	 * function. So, in such a case we will simply remove all old controllers
 	 * and add new ones in order to update potential name changes. */
 
-	for (i = 0; i < ctl->elem_list_size; i++)
+	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		bluealsa_event_elem_removed(ctl, &ctl->elem_list[i]);
 
 	bluealsa_free_elem_list(ctl);
 	bluealsa_create_elem_list(ctl);
 
-	for (i = 0; i < ctl->elem_list_size; i++)
+	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		bluealsa_event_elem_added(ctl, &ctl->elem_list[i]);
 
 final:
@@ -1881,8 +1865,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 				goto fail;
 			}
 
-			size_t i;
-			for (i = 0; i < pcm_list_size; i++) {
+			for (size_t i = 0; i < pcm_list_size; i++) {
 				if (pcm_list[i].sequence >= seq) {
 					seq = pcm_list[i].sequence;
 					latest = &pcm_list[i];
@@ -1895,8 +1878,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 		/* Filter the PCM list so that it contains only those
 		 * PCMs belonging to the selected BT device. */
-		size_t i, count;
-		for (i = count = 0; i < pcm_list_size; i++)
+		size_t count = 0;
+		for (size_t i = 0; i < pcm_list_size; i++)
 			if (bacmp(&ba_addr, &pcm_list[i].addr) == 0)
 				memmove(&pcm_list[count++], &pcm_list[i], sizeof(*pcm_list));
 		pcm_list_size = count;

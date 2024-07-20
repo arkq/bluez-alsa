@@ -343,8 +343,7 @@ static bool bluez_match_dbus_adapter(
 
 	adapter_path++;
 
-	size_t i;
-	for (i = 0; i < config.hci_filter->len; i++)
+	for (size_t i = 0; i < config.hci_filter->len; i++)
 		if (strcasecmp(adapter_path, g_array_index(config.hci_filter, char *, i)) == 0 ||
 				strcasecmp(adapter_address, g_array_index(config.hci_filter, char *, i)) == 0)
 			return true;
@@ -1241,9 +1240,8 @@ static void bluez_register(void) {
 	}
 	g_variant_iter_free(objects);
 
-	size_t i;
 	struct ba_adapter *a;
-	for (i = 0; i < ARRAYSIZE(adapters); i++)
+	for (size_t i = 0; i < ARRAYSIZE(adapters); i++)
 		if (adapters[i] && (
 				(a = ba_adapter_lookup(i)) != NULL ||
 				(a = ba_adapter_new(i)) != NULL)) {

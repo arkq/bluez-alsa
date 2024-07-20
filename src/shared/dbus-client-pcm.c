@@ -33,8 +33,7 @@ static int path2ba(const char *path, bdaddr_t *ba) {
 				&x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < 6; i++)
+	for (size_t i = 0; i < 6; i++)
 		ba->b[i] = x[i];
 
 	return 0;
@@ -138,12 +137,11 @@ dbus_bool_t ba_dbus_pcm_get(
 	dbus_bool_t rv = TRUE;
 	size_t length = 0;
 	uint32_t seq = 0;
-	size_t i;
 
 	if (!ba_dbus_pcm_get_all(ctx, &pcms, &length, error))
 		return FALSE;
 
-	for (i = 0; i < length; i++) {
+	for (size_t i = 0; i < length; i++) {
 		if (get_last) {
 			if (pcms[i].sequence >= seq &&
 					pcms[i].transport & transports &&

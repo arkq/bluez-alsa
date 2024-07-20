@@ -423,8 +423,7 @@ int main(int argc, char *argv[]) {
 		return cmd_status.func(1, status_argv);
 	}
 
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(commands); i++)
+	for (size_t i = 0; i < ARRAYSIZE(commands); i++)
 		if (strcmp(argv[0], commands[i]->name) == 0)
 			return commands[i]->func(argc, argv);
 

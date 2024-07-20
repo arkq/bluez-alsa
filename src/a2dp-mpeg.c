@@ -438,8 +438,7 @@ decode:
 		}
 		else {
 
-			ssize_t i;
-			for (i = 0; i < samples; i++) {
+			for (ssize_t i = 0; i < samples; i++) {
 				((int16_t *)pcm.data)[i * 2 + 0] = pcm_l[i];
 				((int16_t *)pcm.data)[i * 2 + 1] = pcm_r[i];
 			}
