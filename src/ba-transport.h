@@ -252,7 +252,7 @@ void ba_transport_unref(struct ba_transport *t);
 
 int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
-		const struct a2dp_sep *sep,
+		const struct a2dp_sep_config *remote_sep_cfg,
 		const void *configuration);
 int ba_transport_select_codec_sco(
 		struct ba_transport *t,

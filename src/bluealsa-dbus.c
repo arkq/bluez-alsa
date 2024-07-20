@@ -124,9 +124,9 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 			QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++) {
-		const char *profile = a2dp_seps_tmp[i]->type == A2DP_SOURCE ?
+		const char *profile = a2dp_seps_tmp[i]->config.type == A2DP_SOURCE ?
 				BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE : BLUEALSA_TRANSPORT_TYPE_A2DP_SINK;
-		const char *name = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->codec_id);
+		const char *name = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->config.codec_id);
 		snprintf(tmp[i], sizeof(tmp[i]), "%s:%s", profile, name);
 		strv[i] = (const char *)&tmp[i];
 	}
@@ -265,7 +265,7 @@ static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *
 	const struct ba_transport *t = pcm->t;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->a2dp.configuration,
-				t->a2dp.sep->capabilities_size, sizeof(uint8_t));
+				t->a2dp.sep->config.caps_size, sizeof(uint8_t));
 	return NULL;
 }
 
@@ -298,10 +298,10 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 /**
  * Populate dict variant builder with remote SEP properties. */
 static bool ba_variant_populate_remote_sep(GVariantBuilder *props,
-		const struct a2dp_sep *remote_sep) {
+		const struct a2dp_sep_config *remote_sep_cfg) {
 
 	const struct a2dp_sep *sep;
-	if ((sep = a2dp_sep_lookup(!remote_sep->type, remote_sep->codec_id)) == NULL)
+	if ((sep = a2dp_sep_lookup(!remote_sep_cfg->type, remote_sep_cfg->codec_id)) == NULL)
 		return false;
 
 	/* Do not report SEP if corresponding codec is not enabled
@@ -309,11 +309,11 @@ static bool ba_variant_populate_remote_sep(GVariantBuilder *props,
 	if (!sep->enabled)
 		return false;
 
-	a2dp_t caps = remote_sep->capabilities;
-	size_t size = MIN(remote_sep->capabilities_size, sizeof(caps));
-	if (a2dp_filter_capabilities(sep, &sep->capabilities, &caps, size) != 0) {
+	a2dp_t caps = remote_sep_cfg->capabilities;
+	size_t size = MIN(remote_sep_cfg->caps_size, sizeof(caps));
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities, &caps, size) != 0) {
 		error("Couldn't filter %s SEP capabilities: %s",
-				a2dp_codecs_codec_id_to_string(sep->codec_id),
+				a2dp_codecs_codec_id_to_string(sep->config.codec_id),
 				strerror(errno));
 		return false;
 	}
@@ -530,7 +530,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 	struct ba_transport_pcm *pcm = userdata;
 	const struct ba_transport *t = pcm->t;
-	const GArray *seps = t->d->seps;
+	const GArray *sep_cfgs = t->d->sep_configs;
 
 	GVariantBuilder codecs;
 	g_variant_builder_init(&codecs, G_VARIANT_TYPE("a{sa{sv}}"));
@@ -539,14 +539,14 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
 
-		for (size_t i = 0; seps != NULL && i < seps->len; i++) {
-			const struct a2dp_sep *remote_sep = &g_array_index(seps, struct a2dp_sep, i);
+		for (size_t i = 0; sep_cfgs != NULL && i < sep_cfgs->len; i++) {
+			const struct a2dp_sep_config *remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
 			/* match complementary PCM directions, e.g. A2DP-source with SEP-sink */
-			if (t->a2dp.sep->type == !remote_sep->type) {
+			if (t->a2dp.sep->config.type == !remote_sep_cfg->type) {
 
 				bool duplicate = false;
 				for (size_t j = 0; j < codec_ids->len; j++)
-					if (remote_sep->codec_id == g_array_index(codec_ids, uint32_t, j)) {
+					if (remote_sep_cfg->codec_id == g_array_index(codec_ids, uint32_t, j)) {
 						duplicate = true;
 						break;
 					}
@@ -555,12 +555,12 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 				if (duplicate)
 					continue;
 
-				g_array_append_val(codec_ids, remote_sep->codec_id);
+				g_array_append_val(codec_ids, remote_sep_cfg->codec_id);
 
 				GVariantBuilder props;
-				if (ba_variant_populate_remote_sep(&props, remote_sep)) {
+				if (ba_variant_populate_remote_sep(&props, remote_sep_cfg)) {
 					g_variant_builder_add(&codecs, "{sa{sv}}",
-							a2dp_codecs_codec_id_to_string(remote_sep->codec_id), &props);
+							a2dp_codecs_codec_id_to_string(remote_sep_cfg->codec_id), &props);
 					g_variant_builder_clear(&props);
 				}
 
@@ -668,25 +668,25 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* support for Stream End-Points not enabled in BlueZ */
-		if (t->d->seps == NULL) {
+		if (t->d->sep_configs == NULL) {
 			errmsg = "No BlueZ SEP support";
 			goto fail;
 		}
 
 		uint32_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
-		enum a2dp_type type = !t->a2dp.sep->type;
-		struct a2dp_sep *sep_remote = NULL;
-		const GArray *seps = t->d->seps;
+		enum a2dp_type type = !t->a2dp.sep->config.type;
+		struct a2dp_sep_config *remote_sep_cfg = NULL;
+		const GArray *sep_cfgs = t->d->sep_configs;
 
-		for (size_t i = 0; i < seps->len; i++)
-			if (g_array_index(seps, struct a2dp_sep, i).type == type &&
-					g_array_index(seps, struct a2dp_sep, i).codec_id == codec_id) {
-				sep_remote = &g_array_index(seps, struct a2dp_sep, i);
+		for (size_t i = 0; i < sep_cfgs->len; i++)
+			if (ba_device_sep_cfg_array_index(sep_cfgs, i).type == type &&
+					ba_device_sep_cfg_array_index(sep_cfgs, i).codec_id == codec_id) {
+				remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
 				break;
 			}
 
 		/* requested codec not available */
-		if (sep_remote == NULL) {
+		if (remote_sep_cfg == NULL) {
 			errmsg = "SEP codec not available";
 			goto fail;
 		}
@@ -700,8 +700,8 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		if (a2dp_configuration_size == 0) {
 			/* setup default codec configuration */
 
-			const size_t size = sep_remote->capabilities_size;
-			memcpy(&a2dp_configuration, &sep_remote->capabilities, size);
+			const size_t size = remote_sep_cfg->caps_size;
+			memcpy(&a2dp_configuration, &remote_sep_cfg->capabilities, size);
 			if (a2dp_select_configuration(sep, &a2dp_configuration, size) == -1)
 				goto fail;
 
@@ -711,7 +711,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 			if (conformance_check) {
 
-				a2dp_filter_capabilities(sep, &sep_remote->capabilities,
+				a2dp_filter_capabilities(sep, &remote_sep_cfg->capabilities,
 						&a2dp_configuration, a2dp_configuration_size);
 
 				enum a2dp_check_err rv;
@@ -724,7 +724,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			}
 			else {
 
-				if (a2dp_configuration_size != sep_remote->capabilities_size) {
+				if (a2dp_configuration_size != remote_sep_cfg->caps_size) {
 					errmsg = a2dp_check_strerror(A2DP_CHECK_ERR_SIZE);
 					goto fail;
 				}
@@ -733,7 +733,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 		}
 
-		if (ba_transport_select_codec_a2dp(t, sep_remote, &a2dp_configuration) == -1)
+		if (ba_transport_select_codec_a2dp(t, remote_sep_cfg, &a2dp_configuration) == -1)
 			goto fail;
 
 	}

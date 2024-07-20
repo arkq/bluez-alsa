@@ -82,19 +82,19 @@ CK_START_TEST(test_a2dp_seps_init) {
 
 CK_START_TEST(test_a2dp_sep_ptr_cmp) {
 
-	struct a2dp_sep c1 = { .type = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC };
-	struct a2dp_sep c2 = { .type = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 };
-	struct a2dp_sep c3 = {
+	struct a2dp_sep c1 = { .config = { .type = A2DP_SOURCE, .codec_id = A2DP_CODEC_SBC } };
+	struct a2dp_sep c2 = { .config = { .type = A2DP_SOURCE, .codec_id = A2DP_CODEC_MPEG24 } };
+	struct a2dp_sep c3 = { .config = {
 		.type = A2DP_SOURCE,
-		.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID) };
-	struct a2dp_sep c4 = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
-	struct a2dp_sep c5 = {
+		.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID) } };
+	struct a2dp_sep c4 = { .config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC } };
+	struct a2dp_sep c5 = { .config = {
 		.type = A2DP_SINK,
-		.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID) };
-	struct a2dp_sep c6 = {
+		.codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID) } };
+	struct a2dp_sep c6 = { .config = {
 		.type = A2DP_SINK,
-		.codec_id = A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID) };
-	struct a2dp_sep c7 = { .type = A2DP_SINK, .codec_id = 0xFFFFFFFF };
+		.codec_id = A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID) } };
+	struct a2dp_sep c7 = { .config = { .type = A2DP_SINK, .codec_id = 0xFFFFFFFF } };
 
 	struct a2dp_sep * codecs[] = { &c3, &c1, &c6, &c4, &c7, &c5, &c2 };
 	qsort(codecs, ARRAYSIZE(codecs), sizeof(*codecs), QSORT_COMPAR(a2dp_sep_ptr_cmp));
@@ -216,13 +216,13 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 #endif
 
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
-			&a2dp_sbc_source.capabilities, &caps_sbc, sizeof(caps_sbc) + 1), -1);
+			&a2dp_sbc_source.config.capabilities, &caps_sbc, sizeof(caps_sbc) + 1), -1);
 	ck_assert_int_eq(errno, EINVAL);
 
 	hexdump("Capabilities A", &caps_sbc, sizeof(caps_sbc));
-	hexdump("Capabilities B", &a2dp_sbc_source.capabilities, sizeof(caps_sbc));
+	hexdump("Capabilities B", &a2dp_sbc_source.config.capabilities, sizeof(caps_sbc));
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
-			&a2dp_sbc_source.capabilities, &caps_sbc, sizeof(caps_sbc)), 0);
+			&a2dp_sbc_source.config.capabilities, &caps_sbc, sizeof(caps_sbc)), 0);
 
 	hexdump("Capabilities filtered", &caps_sbc, sizeof(caps_sbc));
 	ck_assert_int_eq(caps_sbc.sampling_freq, SBC_SAMPLING_FREQ_44100);
@@ -236,9 +236,9 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 #if ENABLE_APTX
 	/* Check whether generic bitwise AND filtering works correctly. */
 	hexdump("Capabilities A", &caps_aptx, sizeof(caps_aptx));
-	hexdump("Capabilities B", &a2dp_aptx_source.capabilities, sizeof(caps_aptx));
+	hexdump("Capabilities B", &a2dp_aptx_source.config.capabilities, sizeof(caps_aptx));
 	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_aptx_source,
-			&a2dp_aptx_source.capabilities, &caps_aptx, sizeof(caps_aptx)), 0);
+			&a2dp_aptx_source.config.capabilities, &caps_aptx, sizeof(caps_aptx)), 0);
 	hexdump("Capabilities filtered", &caps_aptx, sizeof(caps_aptx));
 	ck_assert_int_eq(caps_aptx.sampling_freq, APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(caps_aptx.channel_mode, APTX_CHANNEL_MODE_STEREO);

@@ -206,13 +206,13 @@ static struct ba_transport *mock_transport_new_a2dp(struct ba_device *d,
 
 	g_autoptr(GAsyncQueue) sem = g_async_queue_new();
 	assert(mock_bluez_device_media_set_configuration(d->bluez_dbus_path, transport_path,
-				uuid, sep->codec_id, configuration, sep->capabilities_size, sem) == 0);
+				uuid, sep->config.codec_id, configuration, sep->config.caps_size, sem) == 0);
 	mock_sem_wait(sem);
 
 	char device[18];
 	ba2str(&d->addr, device);
 	fprintf(stderr, "BLUEALSA_READY=A2DP:%s:%s\n", device,
-			a2dp_codecs_codec_id_to_string(sep->codec_id));
+			a2dp_codecs_codec_id_to_string(sep->config.codec_id));
 
 	struct ba_transport *t;
 	assert((t = ba_transport_lookup(d, transport_path)) != NULL);

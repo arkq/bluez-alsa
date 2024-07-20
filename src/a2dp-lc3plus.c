@@ -552,7 +552,7 @@ static int a2dp_lc3plus_configuration_select(
 	const a2dp_lc3plus_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -596,7 +596,7 @@ static int a2dp_lc3plus_configuration_check(
 	a2dp_lc3plus_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -645,7 +645,7 @@ static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
 static int a2dp_lc3plus_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
-		sep->capabilities.lc3plus.channel_mode = LC3PLUS_CHANNEL_MODE_MONO;
+		sep->config.capabilities.lc3plus.channel_mode = LC3PLUS_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
 		warn("LC3plus: 44.1 kHz sampling frequency not supported");
 	return 0;
@@ -656,23 +656,25 @@ static int a2dp_lc3plus_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_lc3plus_source = {
-	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
-	.synopsis = "A2DP Source (LC3plus)",
-	.capabilities.lc3plus = {
-		.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
-		.frame_duration =
-			LC3PLUS_FRAME_DURATION_025 |
-			LC3PLUS_FRAME_DURATION_050 |
-			LC3PLUS_FRAME_DURATION_100,
-		.channel_mode =
-			LC3PLUS_CHANNEL_MODE_MONO |
-			LC3PLUS_CHANNEL_MODE_STEREO,
-		A2DP_LC3PLUS_INIT_SAMPLING_FREQ(
-				LC3PLUS_SAMPLING_FREQ_48000 |
-				LC3PLUS_SAMPLING_FREQ_96000)
+	.name = "A2DP Source (LC3plus)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+		.caps_size = sizeof(a2dp_lc3plus_t),
+		.capabilities.lc3plus = {
+			.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+			.frame_duration =
+				LC3PLUS_FRAME_DURATION_025 |
+				LC3PLUS_FRAME_DURATION_050 |
+				LC3PLUS_FRAME_DURATION_100,
+			.channel_mode =
+				LC3PLUS_CHANNEL_MODE_MONO |
+				LC3PLUS_CHANNEL_MODE_STEREO,
+			A2DP_LC3PLUS_INIT_SAMPLING_FREQ(
+					LC3PLUS_SAMPLING_FREQ_48000 |
+					LC3PLUS_SAMPLING_FREQ_96000)
+		},
 	},
-	.capabilities_size = sizeof(a2dp_lc3plus_t),
 	.init = a2dp_lc3plus_source_init,
 	.configuration_select = a2dp_lc3plus_configuration_select,
 	.configuration_check = a2dp_lc3plus_configuration_check,
@@ -685,23 +687,25 @@ static int a2dp_lc3plus_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_lc3plus_sink = {
-	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
-	.synopsis = "A2DP Sink (LC3plus)",
-	.capabilities.lc3plus = {
-		.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
-		.frame_duration =
-			LC3PLUS_FRAME_DURATION_025 |
-			LC3PLUS_FRAME_DURATION_050 |
-			LC3PLUS_FRAME_DURATION_100,
-		.channel_mode =
-			LC3PLUS_CHANNEL_MODE_MONO |
-			LC3PLUS_CHANNEL_MODE_STEREO,
-		A2DP_LC3PLUS_INIT_SAMPLING_FREQ(
-				LC3PLUS_SAMPLING_FREQ_48000 |
-				LC3PLUS_SAMPLING_FREQ_96000)
+	.name = "A2DP Sink (LC3plus)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+		.caps_size = sizeof(a2dp_lc3plus_t),
+		.capabilities.lc3plus = {
+			.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
+			.frame_duration =
+				LC3PLUS_FRAME_DURATION_025 |
+				LC3PLUS_FRAME_DURATION_050 |
+				LC3PLUS_FRAME_DURATION_100,
+			.channel_mode =
+				LC3PLUS_CHANNEL_MODE_MONO |
+				LC3PLUS_CHANNEL_MODE_STEREO,
+			A2DP_LC3PLUS_INIT_SAMPLING_FREQ(
+					LC3PLUS_SAMPLING_FREQ_48000 |
+					LC3PLUS_SAMPLING_FREQ_96000)
+		},
 	},
-	.capabilities_size = sizeof(a2dp_lc3plus_t),
 	.configuration_select = a2dp_lc3plus_configuration_select,
 	.configuration_check = a2dp_lc3plus_configuration_check,
 	.transport_init = a2dp_lc3plus_transport_init,

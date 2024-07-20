@@ -64,6 +64,23 @@ enum a2dp_type {
 	A2DP_SINK = !A2DP_SOURCE,
 };
 
+/* A2DP Stream End-Point configuration. */
+struct a2dp_sep_config {
+
+	/* SEP type */
+	enum a2dp_type type;
+	/* extended (32-bit) codec ID */
+	uint32_t codec_id;
+
+	/* supported capabilities */
+	a2dp_t capabilities;
+	size_t caps_size;
+
+	/* D-Bus object path for external SEP */
+	char bluez_dbus_path[64];
+
+};
+
 /* XXX: avoid circular dependency */
 struct ba_transport;
 
@@ -71,13 +88,8 @@ struct ba_transport;
  * A2DP Stream End-Point. */
 struct a2dp_sep {
 
-	enum a2dp_type type;
-	uint32_t codec_id;
-	const char *synopsis;
-
-	/* capabilities configuration element */
-	a2dp_t capabilities;
-	size_t capabilities_size;
+	const char *name;
+	struct a2dp_sep_config config;
 
 	/* callback function for SEP initialization */
 	int (*init)(struct a2dp_sep *sep);
@@ -103,8 +115,6 @@ struct a2dp_sep {
 	int (*transport_init)(struct ba_transport *t);
 	int (*transport_start)(struct ba_transport *t);
 
-	/* D-Bus object path for external SEP */
-	char bluez_dbus_path[64];
 	/* determine whether SEP shall be enabled */
 	bool enabled;
 
@@ -115,8 +125,12 @@ extern struct a2dp_sep * const a2dp_seps[];
 
 int a2dp_seps_init(void);
 
-int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b);
-int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b);
+int a2dp_sep_config_cmp(
+		const struct a2dp_sep_config *a,
+		const struct a2dp_sep_config *b);
+int a2dp_sep_ptr_cmp(
+		const struct a2dp_sep **a,
+		const struct a2dp_sep **b);
 
 const struct a2dp_sep *a2dp_sep_lookup(
 		enum a2dp_type type,

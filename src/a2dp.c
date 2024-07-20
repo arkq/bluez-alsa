@@ -188,7 +188,7 @@ int a2dp_seps_init(void) {
 		 * of this file, so we have to cast it here. */
 		struct a2dp_sep *sep = (struct a2dp_sep *)a2dp_seps[i];
 
-		switch (sep->type) {
+		switch (sep->config.type) {
 		case A2DP_SOURCE:
 			sep->enabled &= config.profile.a2dp_source;
 			break;
@@ -219,13 +219,15 @@ static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
 }
 
 /**
- * Compare A2DP SEPs.
+ * Compare A2DP SEP configurations.
  *
  * This function orders A2DP SEPs according to following rules:
  *  - order SEPs by A2DP type
  *  - order SEPs by codec ID
  *  - order vendor codecs alphabetically (case insensitive) */
-int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b) {
+int a2dp_sep_config_cmp(
+		const struct a2dp_sep_config *a,
+		const struct a2dp_sep_config *b) {
 	if (a->type == b->type)
 		return a2dp_codec_id_cmp(a->codec_id, b->codec_id);
 	return a->type - b->type;
@@ -234,7 +236,7 @@ int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b) {
 /**
  * Compare A2DP SEPs. */
 int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b) {
-	return a2dp_sep_cmp(*a, *b);
+	return a2dp_sep_config_cmp(&(*a)->config, &(*b)->config);
 }
 
 /**
@@ -246,8 +248,8 @@ int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b) {
  *   configuration structure. Otherwise, NULL is returned. */
 const struct a2dp_sep *a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
 	for (size_t i = 0; a2dp_seps[i] != NULL; i++)
-		if (a2dp_seps[i]->type == type &&
-				a2dp_seps[i]->codec_id == codec_id)
+		if (a2dp_seps[i]->config.type == type &&
+				a2dp_seps[i]->config.codec_id == codec_id)
 			return a2dp_seps[i];
 	return NULL;
 }
@@ -278,8 +280,8 @@ int a2dp_filter_capabilities(
 		void *capabilities,
 		size_t size) {
 
-	if (size != sep->capabilities_size) {
-		error("Invalid capabilities size: %zu != %zu", size, sep->capabilities_size);
+	if (size != sep->config.caps_size) {
+		error("Invalid capabilities size: %zu != %zu", size, sep->config.caps_size);
 		return errno = EINVAL, -1;
 	}
 
@@ -290,7 +292,7 @@ int a2dp_filter_capabilities(
 		return sep->capabilities_filter(sep, caps_mask, caps);
 
 	/* perform simple bitwise AND operation on given capabilities */
-	for (size_t i = 0; i < sep->capabilities_size; i++)
+	for (size_t i = 0; i < sep->config.caps_size; i++)
 		caps[i] = caps[i] & caps_mask[i];
 
 	return 0;
@@ -303,10 +305,10 @@ int a2dp_select_configuration(
 		void *capabilities,
 		size_t size) {
 
-	if (size == sep->capabilities_size)
+	if (size == sep->config.caps_size)
 		return sep->configuration_select(sep, capabilities);
 
-	error("Invalid capabilities size: %zu != %zu", size, sep->capabilities_size);
+	error("Invalid capabilities size: %zu != %zu", size, sep->config.caps_size);
 	return errno = EINVAL, -1;
 }
 
@@ -323,10 +325,10 @@ enum a2dp_check_err a2dp_check_configuration(
 		const void *configuration,
 		size_t size) {
 
-	if (size == sep->capabilities_size)
+	if (size == sep->config.caps_size)
 		return sep->configuration_check(sep, configuration);
 
-	error("Invalid configuration size: %zu != %zu", size, sep->capabilities_size);
+	error("Invalid configuration size: %zu != %zu", size, sep->config.caps_size);
 	return A2DP_CHECK_ERR_SIZE;
 }
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.h
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -33,7 +33,7 @@ void bluez_destroy(void);
 
 bool bluez_a2dp_set_configuration(
 		const char *dbus_current_sep_path,
-		const struct a2dp_sep *sep,
+		const struct a2dp_sep_config *remote_sep_cfg,
 		const void *configuration,
 		GError **error);
 

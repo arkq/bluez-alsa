@@ -256,7 +256,7 @@ static int a2dp_faststream_configuration_select(
 	const a2dp_faststream_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -296,7 +296,7 @@ static int a2dp_faststream_configuration_check(
 	a2dp_faststream_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -355,7 +355,7 @@ static int a2dp_faststream_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		warn("FastStream: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
-		sep->capabilities.faststream.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
+		sep->config.capabilities.faststream.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
 	return 0;
 }
 
@@ -374,19 +374,21 @@ static int a2dp_faststream_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_faststream_source = {
-	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
-	.synopsis = "A2DP Source (FastStream)",
-	.capabilities.faststream = {
-		.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
-		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
-		.sampling_freq_music =
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
-		.sampling_freq_voice =
-			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+	.name = "A2DP Source (FastStream)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+		.caps_size = sizeof(a2dp_faststream_t),
+		.capabilities.faststream = {
+			.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+			.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
+			.sampling_freq_music =
+				FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
+				FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
+			.sampling_freq_voice =
+				FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_faststream_t),
 	.init = a2dp_faststream_source_init,
 	.configuration_select = a2dp_faststream_configuration_select,
 	.configuration_check = a2dp_faststream_configuration_check,
@@ -409,19 +411,21 @@ static int a2dp_faststream_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_faststream_sink = {
-	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
-	.synopsis = "A2DP Sink (FastStream)",
-	.capabilities.faststream = {
-		.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
-		.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
-		.sampling_freq_music =
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
-			FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
-		.sampling_freq_voice =
-			FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+	.name = "A2DP Sink (FastStream)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+		.caps_size = sizeof(a2dp_faststream_t),
+		.capabilities.faststream = {
+			.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
+			.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
+			.sampling_freq_music =
+				FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 |
+				FASTSTREAM_SAMPLING_FREQ_MUSIC_48000,
+			.sampling_freq_voice =
+				FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_faststream_t),
 	.configuration_select = a2dp_faststream_configuration_select,
 	.configuration_check = a2dp_faststream_configuration_check,
 	.transport_init = a2dp_faststream_transport_init,

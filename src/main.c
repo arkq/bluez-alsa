@@ -72,7 +72,7 @@ static char *get_a2dp_codecs(enum a2dp_type type) {
 	const struct a2dp_sep * a2dp_seps_tmp[16];
 	struct a2dp_sep * const * seps = a2dp_seps;
 	for (const struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps) {
-		if (sep->type != type)
+		if (sep->config.type != type)
 			continue;
 		a2dp_seps_tmp[n] = sep;
 		if (++n >= ARRAYSIZE(a2dp_seps_tmp))
@@ -84,7 +84,7 @@ static char *get_a2dp_codecs(enum a2dp_type type) {
 			QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++)
-		strv[i] = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->codec_id);
+		strv[i] = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->config.codec_id);
 
 	return g_strjoinv(", ", (char **)strv);
 }
@@ -388,7 +388,7 @@ int main(int argc, char **argv) {
 			struct a2dp_sep * const * seps = a2dp_seps;
 			uint32_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
 			for (struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps)
-				if (sep->codec_id == codec_id) {
+				if (sep->config.codec_id == codec_id) {
 					sep->enabled = enable;
 					matched = true;
 				}

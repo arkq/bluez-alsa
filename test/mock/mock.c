@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
 
 			struct a2dp_sep * const * seps = a2dp_seps;
 			for (struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps)
-				if (sep->codec_id == codec_id) {
+				if (sep->config.codec_id == codec_id) {
 					sep->enabled = true;
 					matched = true;
 				}

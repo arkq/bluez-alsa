@@ -345,7 +345,7 @@ static int a2dp_ldac_configuration_select(
 	const a2dp_ldac_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -378,7 +378,7 @@ static int a2dp_ldac_configuration_check(
 	a2dp_ldac_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -418,9 +418,9 @@ static int a2dp_ldac_transport_init(struct ba_transport *t) {
 
 static int a2dp_ldac_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
-		sep->capabilities.ldac.channel_mode = LDAC_CHANNEL_MODE_MONO;
+		sep->config.capabilities.ldac.channel_mode = LDAC_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		sep->capabilities.ldac.sampling_freq = LDAC_SAMPLING_FREQ_44100;
+		sep->config.capabilities.ldac.sampling_freq = LDAC_SAMPLING_FREQ_44100;
 	return 0;
 }
 
@@ -429,24 +429,26 @@ static int a2dp_ldac_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_ldac_source = {
-	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-	.synopsis = "A2DP Source (LDAC)",
-	.capabilities.ldac = {
-		.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-		.channel_mode =
-			LDAC_CHANNEL_MODE_MONO |
-			LDAC_CHANNEL_MODE_DUAL |
-			LDAC_CHANNEL_MODE_STEREO,
-		/* NOTE: Used LDAC library does not support
-		 *       frequencies higher than 96 kHz. */
-		.sampling_freq =
-			LDAC_SAMPLING_FREQ_44100 |
-			LDAC_SAMPLING_FREQ_48000 |
-			LDAC_SAMPLING_FREQ_88200 |
-			LDAC_SAMPLING_FREQ_96000,
+	.name = "A2DP Source (LDAC)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+		.caps_size = sizeof(a2dp_ldac_t),
+		.capabilities.ldac = {
+			.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+			.channel_mode =
+				LDAC_CHANNEL_MODE_MONO |
+				LDAC_CHANNEL_MODE_DUAL |
+				LDAC_CHANNEL_MODE_STEREO,
+			/* NOTE: Used LDAC library does not support
+			 *       frequencies higher than 96 kHz. */
+			.sampling_freq =
+				LDAC_SAMPLING_FREQ_44100 |
+				LDAC_SAMPLING_FREQ_48000 |
+				LDAC_SAMPLING_FREQ_88200 |
+				LDAC_SAMPLING_FREQ_96000,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_ldac_t),
 	.init = a2dp_ldac_source_init,
 	.configuration_select = a2dp_ldac_configuration_select,
 	.configuration_check = a2dp_ldac_configuration_check,
@@ -461,24 +463,26 @@ static int a2dp_ldac_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_ldac_sink = {
-	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-	.synopsis = "A2DP Sink (LDAC)",
-	.capabilities.ldac = {
-		.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
-		.channel_mode =
-			LDAC_CHANNEL_MODE_MONO |
-			LDAC_CHANNEL_MODE_DUAL |
-			LDAC_CHANNEL_MODE_STEREO,
-		/* NOTE: Used LDAC library does not support
-		 *       frequencies higher than 96 kHz. */
-		.sampling_freq =
-			LDAC_SAMPLING_FREQ_44100 |
-			LDAC_SAMPLING_FREQ_48000 |
-			LDAC_SAMPLING_FREQ_88200 |
-			LDAC_SAMPLING_FREQ_96000,
+	.name = "A2DP Sink (LDAC)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+		.caps_size = sizeof(a2dp_ldac_t),
+		.capabilities.ldac = {
+			.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
+			.channel_mode =
+				LDAC_CHANNEL_MODE_MONO |
+				LDAC_CHANNEL_MODE_DUAL |
+				LDAC_CHANNEL_MODE_STEREO,
+			/* NOTE: Used LDAC library does not support
+			 *       frequencies higher than 96 kHz. */
+			.sampling_freq =
+				LDAC_SAMPLING_FREQ_44100 |
+				LDAC_SAMPLING_FREQ_48000 |
+				LDAC_SAMPLING_FREQ_88200 |
+				LDAC_SAMPLING_FREQ_96000,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_ldac_t),
 	.configuration_select = a2dp_ldac_configuration_select,
 	.configuration_check = a2dp_ldac_configuration_check,
 	.transport_init = a2dp_ldac_transport_init,

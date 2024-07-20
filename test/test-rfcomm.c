@@ -93,7 +93,7 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
 	debug("%s: %p", __func__, (void *)r); (void)r; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep *sep, const void *configuration, GError **error) {
+		const struct a2dp_sep_config *sep, const void *configuration, GError **error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
 	return false; }

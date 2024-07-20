@@ -361,7 +361,7 @@ static int a2dp_sbc_configuration_select(
 	const a2dp_sbc_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -442,7 +442,7 @@ static int a2dp_sbc_configuration_check(
 	a2dp_sbc_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -522,8 +522,8 @@ static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
 		info("SBC: Activating SBC Dual Channel HD (SBC %s)",
 				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
-		sep->capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
-		sep->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+		sep->config.capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
+		sep->config.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 	}
 
 	if (config.a2dp.force_mono)
@@ -532,9 +532,9 @@ static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
 		 * modes. However, since for sink all channel modes are mandatory, even
 		 * though we are supporting only mono mode, there will be a match when
 		 * selecting configuration. */
-		sep->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
+		sep->config.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		sep->capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
+		sep->config.capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
 
 	return 0;
 }
@@ -544,35 +544,37 @@ static int a2dp_sbc_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_sbc_source = {
-	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_SBC,
-	.synopsis = "A2DP Source (SBC)",
-	.capabilities.sbc = {
-		.sampling_freq =
-			SBC_SAMPLING_FREQ_16000 |
-			SBC_SAMPLING_FREQ_32000 |
-			SBC_SAMPLING_FREQ_44100 |
-			SBC_SAMPLING_FREQ_48000,
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
-		.block_length =
-			SBC_BLOCK_LENGTH_4 |
-			SBC_BLOCK_LENGTH_8 |
-			SBC_BLOCK_LENGTH_12 |
-			SBC_BLOCK_LENGTH_16,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.min_bitpool = SBC_MIN_BITPOOL,
-		.max_bitpool = SBC_MAX_BITPOOL,
+	.name = "A2DP Source (SBC)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_SBC,
+		.caps_size = sizeof(a2dp_sbc_t),
+		.capabilities.sbc = {
+			.sampling_freq =
+				SBC_SAMPLING_FREQ_16000 |
+				SBC_SAMPLING_FREQ_32000 |
+				SBC_SAMPLING_FREQ_44100 |
+				SBC_SAMPLING_FREQ_48000,
+			.channel_mode =
+				SBC_CHANNEL_MODE_MONO |
+				SBC_CHANNEL_MODE_DUAL_CHANNEL |
+				SBC_CHANNEL_MODE_STEREO |
+				SBC_CHANNEL_MODE_JOINT_STEREO,
+			.block_length =
+				SBC_BLOCK_LENGTH_4 |
+				SBC_BLOCK_LENGTH_8 |
+				SBC_BLOCK_LENGTH_12 |
+				SBC_BLOCK_LENGTH_16,
+			.subbands =
+				SBC_SUBBANDS_4 |
+				SBC_SUBBANDS_8,
+			.allocation_method =
+				SBC_ALLOCATION_SNR |
+				SBC_ALLOCATION_LOUDNESS,
+			.min_bitpool = SBC_MIN_BITPOOL,
+			.max_bitpool = SBC_MAX_BITPOOL,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_sbc_t),
 	.init = a2dp_sbc_source_init,
 	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
@@ -587,35 +589,37 @@ static int a2dp_sbc_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_sbc_sink = {
-	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_SBC,
-	.synopsis = "A2DP Sink (SBC)",
-	.capabilities.sbc = {
-		.sampling_freq =
-			SBC_SAMPLING_FREQ_16000 |
-			SBC_SAMPLING_FREQ_32000 |
-			SBC_SAMPLING_FREQ_44100 |
-			SBC_SAMPLING_FREQ_48000,
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
-		.block_length =
-			SBC_BLOCK_LENGTH_4 |
-			SBC_BLOCK_LENGTH_8 |
-			SBC_BLOCK_LENGTH_12 |
-			SBC_BLOCK_LENGTH_16,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.min_bitpool = SBC_MIN_BITPOOL,
-		.max_bitpool = SBC_MAX_BITPOOL,
+	.name = "A2DP Sink (SBC)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_SBC,
+		.caps_size = sizeof(a2dp_sbc_t),
+		.capabilities.sbc = {
+			.sampling_freq =
+				SBC_SAMPLING_FREQ_16000 |
+				SBC_SAMPLING_FREQ_32000 |
+				SBC_SAMPLING_FREQ_44100 |
+				SBC_SAMPLING_FREQ_48000,
+			.channel_mode =
+				SBC_CHANNEL_MODE_MONO |
+				SBC_CHANNEL_MODE_DUAL_CHANNEL |
+				SBC_CHANNEL_MODE_STEREO |
+				SBC_CHANNEL_MODE_JOINT_STEREO,
+			.block_length =
+				SBC_BLOCK_LENGTH_4 |
+				SBC_BLOCK_LENGTH_8 |
+				SBC_BLOCK_LENGTH_12 |
+				SBC_BLOCK_LENGTH_16,
+			.subbands =
+				SBC_SUBBANDS_4 |
+				SBC_SUBBANDS_8,
+			.allocation_method =
+				SBC_ALLOCATION_SNR |
+				SBC_ALLOCATION_LOUDNESS,
+			.min_bitpool = SBC_MIN_BITPOOL,
+			.max_bitpool = SBC_MAX_BITPOOL,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_sbc_t),
 	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
 	.configuration_check = a2dp_sbc_configuration_check,

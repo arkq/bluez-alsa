@@ -529,7 +529,7 @@ static int a2dp_aac_configuration_select(
 	const a2dp_aac_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -570,7 +570,7 @@ static int a2dp_aac_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	unsigned int ba_bitrate = A2DP_AAC_GET_BITRATE(sep->capabilities.aac);
+	unsigned int ba_bitrate = A2DP_AAC_GET_BITRATE(sep->config.capabilities.aac);
 	unsigned int cap_bitrate = A2DP_AAC_GET_BITRATE(*caps);
 	if (cap_bitrate == 0)
 		/* fix bitrate value if it was not set */
@@ -591,7 +591,7 @@ static int a2dp_aac_configuration_check(
 	a2dp_aac_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -659,25 +659,25 @@ static int a2dp_aac_source_init(struct a2dp_sep *sep) {
 	}
 
 	if (caps_aac & CAPF_ER_AAC_SCAL)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
 	if (caps_sbr & CAPF_SBR_HQ)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
 	if (caps_sbr & CAPF_SBR_PS_MPEG)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
 	if (caps_aac & CAPF_ER_AAC_ELDV2)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
 	if (caps_aac & CAPF_AAC_UNIDRC)
-		sep->capabilities.aac.drc = 1;
+		sep->config.capabilities.aac.drc = 1;
 
 	if (config.a2dp.force_mono)
-		sep->capabilities.aac.channel_mode = AAC_CHANNEL_MODE_MONO;
+		sep->config.capabilities.aac.channel_mode = AAC_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		A2DP_AAC_SET_SAMPLING_FREQ(sep->capabilities.aac, AAC_SAMPLING_FREQ_44100);
+		A2DP_AAC_SET_SAMPLING_FREQ(sep->config.capabilities.aac, AAC_SAMPLING_FREQ_44100);
 
 	if (!config.aac_prefer_vbr)
-		sep->capabilities.aac.vbr = 0;
+		sep->config.capabilities.aac.vbr = 0;
 
-	A2DP_AAC_SET_BITRATE(sep->capabilities.aac, config.aac_bitrate);
+	A2DP_AAC_SET_BITRATE(sep->config.capabilities.aac, config.aac_bitrate);
 
 	return 0;
 }
@@ -687,37 +687,39 @@ static int a2dp_aac_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_aac_source = {
-	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_MPEG24,
-	.synopsis = "A2DP Source (AAC)",
-	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
-		 *       not supported by the FDK-AAC library. */
-		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_LC |
-			AAC_OBJECT_TYPE_MPEG4_LC,
-		A2DP_AAC_INIT_SAMPLING_FREQ(
-				AAC_SAMPLING_FREQ_8000 |
-				AAC_SAMPLING_FREQ_11025 |
-				AAC_SAMPLING_FREQ_12000 |
-				AAC_SAMPLING_FREQ_16000 |
-				AAC_SAMPLING_FREQ_22050 |
-				AAC_SAMPLING_FREQ_24000 |
-				AAC_SAMPLING_FREQ_32000 |
-				AAC_SAMPLING_FREQ_44100 |
-				AAC_SAMPLING_FREQ_48000 |
-				AAC_SAMPLING_FREQ_64000 |
-				AAC_SAMPLING_FREQ_88200 |
-				AAC_SAMPLING_FREQ_96000)
-		.channel_mode =
-			AAC_CHANNEL_MODE_MONO |
-			AAC_CHANNEL_MODE_STEREO |
-			AAC_CHANNEL_MODE_5_1 |
-			AAC_CHANNEL_MODE_7_1,
-		.vbr = 1,
-		A2DP_AAC_INIT_BITRATE(320000)
+	.name = "A2DP Source (AAC)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_MPEG24,
+		.caps_size = sizeof(a2dp_aac_t),
+		.capabilities.aac = {
+			/* NOTE: AAC Long Term Prediction and AAC Scalable might be
+			 *       not supported by the FDK-AAC library. */
+			.object_type =
+				AAC_OBJECT_TYPE_MPEG2_LC |
+				AAC_OBJECT_TYPE_MPEG4_LC,
+			A2DP_AAC_INIT_SAMPLING_FREQ(
+					AAC_SAMPLING_FREQ_8000 |
+					AAC_SAMPLING_FREQ_11025 |
+					AAC_SAMPLING_FREQ_12000 |
+					AAC_SAMPLING_FREQ_16000 |
+					AAC_SAMPLING_FREQ_22050 |
+					AAC_SAMPLING_FREQ_24000 |
+					AAC_SAMPLING_FREQ_32000 |
+					AAC_SAMPLING_FREQ_44100 |
+					AAC_SAMPLING_FREQ_48000 |
+					AAC_SAMPLING_FREQ_64000 |
+					AAC_SAMPLING_FREQ_88200 |
+					AAC_SAMPLING_FREQ_96000)
+			.channel_mode =
+				AAC_CHANNEL_MODE_MONO |
+				AAC_CHANNEL_MODE_STEREO |
+				AAC_CHANNEL_MODE_5_1 |
+				AAC_CHANNEL_MODE_7_1,
+			.vbr = 1,
+			A2DP_AAC_INIT_BITRATE(320000)
+		},
 	},
-	.capabilities_size = sizeof(a2dp_aac_t),
 	.init = a2dp_aac_source_init,
 	.capabilities_filter = a2dp_aac_capabilities_filter,
 	.configuration_select = a2dp_aac_configuration_select,
@@ -746,21 +748,21 @@ static int a2dp_aac_sink_init(struct a2dp_sep *sep) {
 	}
 
 	if (caps_aac & CAPF_ER_AAC_SCAL)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_SCA;
 	if (caps_sbr & CAPF_SBR_HQ)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE;
 	if (caps_sbr & CAPF_SBR_PS_MPEG)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_HE2;
 	if (caps_aac & CAPF_ER_AAC_ELDV2)
-		sep->capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
+		sep->config.capabilities.aac.object_type |= AAC_OBJECT_TYPE_MPEG4_ELD2;
 	if (caps_aac & CAPF_AAC_UNIDRC)
-		sep->capabilities.aac.drc = 1;
+		sep->config.capabilities.aac.drc = 1;
 	if (caps_dmx & CAPF_DMX_6_CH)
-		sep->capabilities.aac.channel_mode |= AAC_CHANNEL_MODE_5_1;
+		sep->config.capabilities.aac.channel_mode |= AAC_CHANNEL_MODE_5_1;
 	if (caps_dmx & CAPF_DMX_8_CH)
-		sep->capabilities.aac.channel_mode |= AAC_CHANNEL_MODE_7_1;
+		sep->config.capabilities.aac.channel_mode |= AAC_CHANNEL_MODE_7_1;
 
-	A2DP_AAC_SET_BITRATE(sep->capabilities.aac, config.aac_bitrate);
+	A2DP_AAC_SET_BITRATE(sep->config.capabilities.aac, config.aac_bitrate);
 
 	return 0;
 }
@@ -770,37 +772,39 @@ static int a2dp_aac_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_aac_sink = {
-	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_MPEG24,
-	.synopsis = "A2DP Sink (AAC)",
-	.capabilities.aac = {
-		/* NOTE: AAC Long Term Prediction and AAC Scalable might be
-		 *       not supported by the FDK-AAC library. */
-		.object_type =
-			AAC_OBJECT_TYPE_MPEG2_LC |
-			AAC_OBJECT_TYPE_MPEG4_LC,
-		A2DP_AAC_INIT_SAMPLING_FREQ(
-				AAC_SAMPLING_FREQ_8000 |
-				AAC_SAMPLING_FREQ_11025 |
-				AAC_SAMPLING_FREQ_12000 |
-				AAC_SAMPLING_FREQ_16000 |
-				AAC_SAMPLING_FREQ_22050 |
-				AAC_SAMPLING_FREQ_24000 |
-				AAC_SAMPLING_FREQ_32000 |
-				AAC_SAMPLING_FREQ_44100 |
-				AAC_SAMPLING_FREQ_48000 |
-				AAC_SAMPLING_FREQ_64000 |
-				AAC_SAMPLING_FREQ_88200 |
-				AAC_SAMPLING_FREQ_96000)
-		/* NOTE: Other channel modes might be not supported
-		 *       by the FDK-AAC library. */
-		.channel_mode =
-			AAC_CHANNEL_MODE_MONO |
-			AAC_CHANNEL_MODE_STEREO,
-		.vbr = 1,
-		A2DP_AAC_INIT_BITRATE(320000)
+	.name = "A2DP Sink (AAC)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_MPEG24,
+		.caps_size = sizeof(a2dp_aac_t),
+		.capabilities.aac = {
+			/* NOTE: AAC Long Term Prediction and AAC Scalable might be
+			 *       not supported by the FDK-AAC library. */
+			.object_type =
+				AAC_OBJECT_TYPE_MPEG2_LC |
+				AAC_OBJECT_TYPE_MPEG4_LC,
+			A2DP_AAC_INIT_SAMPLING_FREQ(
+					AAC_SAMPLING_FREQ_8000 |
+					AAC_SAMPLING_FREQ_11025 |
+					AAC_SAMPLING_FREQ_12000 |
+					AAC_SAMPLING_FREQ_16000 |
+					AAC_SAMPLING_FREQ_22050 |
+					AAC_SAMPLING_FREQ_24000 |
+					AAC_SAMPLING_FREQ_32000 |
+					AAC_SAMPLING_FREQ_44100 |
+					AAC_SAMPLING_FREQ_48000 |
+					AAC_SAMPLING_FREQ_64000 |
+					AAC_SAMPLING_FREQ_88200 |
+					AAC_SAMPLING_FREQ_96000)
+			/* NOTE: Other channel modes might be not supported
+			 *       by the FDK-AAC library. */
+			.channel_mode =
+				AAC_CHANNEL_MODE_MONO |
+				AAC_CHANNEL_MODE_STEREO,
+			.vbr = 1,
+			A2DP_AAC_INIT_BITRATE(320000)
+		},
 	},
-	.capabilities_size = sizeof(a2dp_aac_t),
 	.init = a2dp_aac_sink_init,
 	.capabilities_filter = a2dp_aac_capabilities_filter,
 	.configuration_select = a2dp_aac_configuration_select,

@@ -301,7 +301,7 @@ static int a2dp_opus_configuration_select(
 	const a2dp_opus_t saved = *caps;
 
 	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				caps, sizeof(*caps)) != 0)
 		return -1;
 
@@ -343,7 +343,7 @@ static int a2dp_opus_configuration_check(
 	a2dp_opus_t conf_v = *conf;
 
 	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->capabilities,
+	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
 				&conf_v, sizeof(conf_v)) != 0)
 		return A2DP_CHECK_ERR_SIZE;
 
@@ -390,7 +390,7 @@ static int a2dp_opus_transport_init(struct ba_transport *t) {
 
 static int a2dp_opus_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
-		sep->capabilities.opus.channel_mode = OPUS_CHANNEL_MODE_MONO;
+		sep->config.capabilities.opus.channel_mode = OPUS_CHANNEL_MODE_MONO;
 	return 0;
 }
 
@@ -399,21 +399,23 @@ static int a2dp_opus_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_opus_source = {
-	.type = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID),
-	.synopsis = "A2DP Source (Opus)",
-	.capabilities.opus = {
-		.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
-		.sampling_freq =
-			OPUS_SAMPLING_FREQ_48000,
-		.frame_duration =
-			OPUS_FRAME_DURATION_100 |
-			OPUS_FRAME_DURATION_200,
-		.channel_mode =
-			OPUS_CHANNEL_MODE_MONO |
-			OPUS_CHANNEL_MODE_STEREO,
+	.name = "A2DP Source (Opus)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID),
+		.caps_size = sizeof(a2dp_opus_t),
+		.capabilities.opus = {
+			.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
+			.sampling_freq =
+				OPUS_SAMPLING_FREQ_48000,
+			.frame_duration =
+				OPUS_FRAME_DURATION_100 |
+				OPUS_FRAME_DURATION_200,
+			.channel_mode =
+				OPUS_CHANNEL_MODE_MONO |
+				OPUS_CHANNEL_MODE_STEREO,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_opus_t),
 	.init = a2dp_opus_source_init,
 	.configuration_select = a2dp_opus_configuration_select,
 	.configuration_check = a2dp_opus_configuration_check,
@@ -426,21 +428,23 @@ static int a2dp_opus_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_opus_sink = {
-	.type = A2DP_SINK,
-	.codec_id = A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID),
-	.synopsis = "A2DP Sink (Opus)",
-	.capabilities.opus = {
-		.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
-		.sampling_freq =
-			OPUS_SAMPLING_FREQ_48000,
-		.frame_duration =
-			OPUS_FRAME_DURATION_100 |
-			OPUS_FRAME_DURATION_200,
-		.channel_mode =
-			OPUS_CHANNEL_MODE_MONO |
-			OPUS_CHANNEL_MODE_STEREO,
+	.name = "A2DP Sink (Opus)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID),
+		.caps_size = sizeof(a2dp_opus_t),
+		.capabilities.opus = {
+			.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
+			.sampling_freq =
+				OPUS_SAMPLING_FREQ_48000,
+			.frame_duration =
+				OPUS_FRAME_DURATION_100 |
+				OPUS_FRAME_DURATION_200,
+			.channel_mode =
+				OPUS_CHANNEL_MODE_MONO |
+				OPUS_CHANNEL_MODE_STEREO,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_opus_t),
 	.configuration_select = a2dp_opus_configuration_select,
 	.configuration_check = a2dp_opus_configuration_check,
 	.transport_init = a2dp_opus_transport_init,
