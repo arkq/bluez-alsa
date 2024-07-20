@@ -62,6 +62,40 @@ static const struct a2dp_bit_mapping a2dp_mpeg_samplings[] = {
 	{ 0 }
 };
 
+static void a2dp_mpeg_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_mpeg_t));
+}
+
+static int a2dp_mpeg_caps_foreach_channel_mode(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_mpeg_channels, caps->channel_mode, func, userdata);
+	return -1;
+}
+
+static int a2dp_mpeg_caps_foreach_sampling_freq(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_mpeg_samplings, caps->sampling_freq, func, userdata);
+	return -1;
+}
+
+static struct a2dp_caps_helpers a2dp_mpeg_caps_helpers = {
+	.intersect = a2dp_mpeg_caps_intersect,
+	.foreach_channel_mode = a2dp_mpeg_caps_foreach_channel_mode,
+	.foreach_sampling_freq = a2dp_mpeg_caps_foreach_sampling_freq,
+};
+
 #if ENABLE_MP3LAME
 void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 
@@ -478,10 +512,8 @@ static int a2dp_mpeg_configuration_select(
 	a2dp_mpeg_t *caps = capabilities;
 	const a2dp_mpeg_t saved = *caps;
 
-	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				caps, sizeof(*caps)) != 0)
-		return -1;
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_mpeg_caps_intersect(caps, &sep->config.capabilities);
 
 	if (caps->layer & MPEG_LAYER_MP3)
 		caps->layer = MPEG_LAYER_MP3;
@@ -495,8 +527,8 @@ static int a2dp_mpeg_configuration_select(
 	}
 
 	unsigned int channel_mode = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_mpeg_channels, caps->channel_mode,
-				a2dp_foreach_get_best_channel_mode, &channel_mode) != -1)
+	if (a2dp_mpeg_caps_foreach_channel_mode(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
 		caps->channel_mode = channel_mode;
 	else {
 		error("MPEG: No supported channel modes: %#x", saved.channel_mode);
@@ -504,8 +536,8 @@ static int a2dp_mpeg_configuration_select(
 	}
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_mpeg_samplings, caps->sampling_freq,
-				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_mpeg_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("MPEG: No supported sampling frequencies: %#x", saved.sampling_freq);
@@ -527,10 +559,8 @@ static int a2dp_mpeg_configuration_check(
 	const a2dp_mpeg_t *conf = configuration;
 	a2dp_mpeg_t conf_v = *conf;
 
-	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				&conf_v, sizeof(conf_v)) != 0)
-		return A2DP_CHECK_ERR_SIZE;
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_mpeg_caps_intersect(&conf_v, &sep->config.capabilities);
 
 	switch (conf_v.layer) {
 	case MPEG_LAYER_MP1:
@@ -641,6 +671,7 @@ struct a2dp_sep a2dp_mpeg_source = {
 	.configuration_check = a2dp_mpeg_configuration_check,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_source_transport_start,
+	.caps_helpers = &a2dp_mpeg_caps_helpers,
 	/* TODO: This is an optional but covered by the A2DP spec codec,
 	 *       so it could be enabled by default. However, it does not
 	 *       work reliably enough (for now)... */
@@ -719,6 +750,7 @@ struct a2dp_sep a2dp_mpeg_sink = {
 	.configuration_check = a2dp_mpeg_configuration_check,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_sink_transport_start,
+	.caps_helpers = &a2dp_mpeg_caps_helpers,
 	.enabled = false,
 };
 

@@ -195,7 +195,7 @@ CK_START_TEST(test_a2dp_check_strerror) {
 	ck_assert_str_eq(a2dp_check_strerror(0xFFFF), "Check error");
 } CK_END_TEST
 
-CK_START_TEST(test_a2dp_filter_capabilities) {
+CK_START_TEST(test_a2dp_caps_intersect) {
 
 	a2dp_sbc_t caps_sbc = {
 		.sampling_freq = SBC_SAMPLING_FREQ_44100,
@@ -215,16 +215,11 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 	};
 #endif
 
-	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
-			&a2dp_sbc_source.config.capabilities, &caps_sbc, sizeof(caps_sbc) + 1), -1);
-	ck_assert_int_eq(errno, EINVAL);
-
 	hexdump("Capabilities A", &caps_sbc, sizeof(caps_sbc));
 	hexdump("Capabilities B", &a2dp_sbc_source.config.capabilities, sizeof(caps_sbc));
-	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_sbc_source,
-			&a2dp_sbc_source.config.capabilities, &caps_sbc, sizeof(caps_sbc)), 0);
+	a2dp_sbc_source.caps_helpers->intersect(&caps_sbc, &a2dp_sbc_source.config.capabilities);
 
-	hexdump("Capabilities filtered", &caps_sbc, sizeof(caps_sbc));
+	hexdump("Intersection", &caps_sbc, sizeof(caps_sbc));
 	ck_assert_int_eq(caps_sbc.sampling_freq, SBC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(caps_sbc.channel_mode, SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO);
 	ck_assert_int_eq(caps_sbc.block_length, SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8);
@@ -234,14 +229,54 @@ CK_START_TEST(test_a2dp_filter_capabilities) {
 	ck_assert_int_eq(caps_sbc.max_bitpool, MIN(SBC_MAX_BITPOOL, 255));
 
 #if ENABLE_APTX
-	/* Check whether generic bitwise AND filtering works correctly. */
+	/* Check whether generic bitwise AND intersection works correctly. */
 	hexdump("Capabilities A", &caps_aptx, sizeof(caps_aptx));
 	hexdump("Capabilities B", &a2dp_aptx_source.config.capabilities, sizeof(caps_aptx));
-	ck_assert_int_eq(a2dp_filter_capabilities(&a2dp_aptx_source,
-			&a2dp_aptx_source.config.capabilities, &caps_aptx, sizeof(caps_aptx)), 0);
-	hexdump("Capabilities filtered", &caps_aptx, sizeof(caps_aptx));
+	a2dp_aptx_source.caps_helpers->intersect(&caps_aptx, &a2dp_aptx_source.config.capabilities);
+	hexdump("Intersection", &caps_aptx, sizeof(caps_aptx));
 	ck_assert_int_eq(caps_aptx.sampling_freq, APTX_SAMPLING_FREQ_32000 | APTX_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(caps_aptx.channel_mode, APTX_CHANNEL_MODE_STEREO);
+#endif
+
+} CK_END_TEST
+
+CK_START_TEST(test_a2dp_caps_foreach_get_best) {
+
+	a2dp_sbc_t caps_sbc = {
+		.sampling_freq = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100,
+		.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO,
+	};
+
+	unsigned int channel_mode = 0;
+	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_channel_mode(&caps_sbc,
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode), 0);
+	ck_assert_uint_eq(channel_mode, SBC_CHANNEL_MODE_STEREO);
+
+	unsigned int sampling_freq = 0;
+	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_sampling_freq(&caps_sbc,
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq), 0);
+	ck_assert_uint_eq(sampling_freq, SBC_SAMPLING_FREQ_44100);
+
+#if ENABLE_AAC
+
+	/* Check default internal limits for selecting number of channels (up to
+	 * 2 channels) and sampling frequency (up to 48 kHz). */
+
+	a2dp_aac_t caps_aac = {
+		A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_48000 | AAC_SAMPLING_FREQ_96000)
+		.channel_mode = AAC_CHANNEL_MODE_MONO | AAC_CHANNEL_MODE_STEREO | AAC_CHANNEL_MODE_5_1,
+	};
+
+	channel_mode = 0;
+	ck_assert_int_eq(a2dp_aac_source.caps_helpers->foreach_channel_mode(&caps_aac,
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode), 1);
+	ck_assert_uint_eq(channel_mode, AAC_CHANNEL_MODE_STEREO);
+
+	sampling_freq = 0;
+	ck_assert_int_eq(a2dp_aac_source.caps_helpers->foreach_sampling_freq(&caps_aac,
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq), 1);
+	ck_assert_uint_eq(sampling_freq, AAC_SAMPLING_FREQ_48000);
+
 #endif
 
 } CK_END_TEST
@@ -338,9 +373,12 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_sep_ptr_cmp);
 	tcase_add_test(tc, test_a2dp_sep_lookup);
 	tcase_add_test(tc, test_a2dp_get_vendor_codec_id);
+
+	tcase_add_test(tc, test_a2dp_caps_intersect);
+	tcase_add_test(tc, test_a2dp_caps_foreach_get_best);
+
 	tcase_add_test(tc, test_a2dp_check_configuration);
 	tcase_add_test(tc, test_a2dp_check_strerror);
-	tcase_add_test(tc, test_a2dp_filter_capabilities);
 	tcase_add_test(tc, test_a2dp_select_configuration);
 
 	srunner_run_all(sr, CK_ENV);

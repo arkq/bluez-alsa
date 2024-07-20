@@ -53,6 +53,40 @@ static const struct a2dp_bit_mapping a2dp_ldac_samplings[] = {
 	{ 0 }
 };
 
+static void a2dp_ldac_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_ldac_t));
+}
+
+static int a2dp_ldac_caps_foreach_channel_mode(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_ldac_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_ldac_channels, caps->channel_mode, func, userdata);
+	return -1;
+}
+
+static int a2dp_ldac_caps_foreach_sampling_freq(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_ldac_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_ldac_samplings, caps->sampling_freq, func, userdata);
+	return -1;
+}
+
+static struct a2dp_caps_helpers a2dp_ldac_caps_helpers = {
+	.intersect = a2dp_ldac_caps_intersect,
+	.foreach_channel_mode = a2dp_ldac_caps_foreach_channel_mode,
+	.foreach_sampling_freq = a2dp_ldac_caps_foreach_sampling_freq,
+};
+
 void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -344,14 +378,12 @@ static int a2dp_ldac_configuration_select(
 	a2dp_ldac_t *caps = capabilities;
 	const a2dp_ldac_t saved = *caps;
 
-	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				caps, sizeof(*caps)) != 0)
-		return -1;
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_ldac_caps_intersect(caps, &sep->config.capabilities);
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_ldac_samplings, caps->sampling_freq,
-				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_ldac_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("LDAC: No supported sampling frequencies: %#x", saved.sampling_freq);
@@ -359,8 +391,8 @@ static int a2dp_ldac_configuration_select(
 	}
 
 	unsigned int channel_mode = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_ldac_channels, caps->channel_mode,
-				a2dp_foreach_get_best_channel_mode, &channel_mode) != -1)
+	if (a2dp_ldac_caps_foreach_channel_mode(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
 		caps->channel_mode = channel_mode;
 	else {
 		error("LDAC: No supported channel modes: %#x", saved.channel_mode);
@@ -377,10 +409,8 @@ static int a2dp_ldac_configuration_check(
 	const a2dp_ldac_t *conf = configuration;
 	a2dp_ldac_t conf_v = *conf;
 
-	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				&conf_v, sizeof(conf_v)) != 0)
-		return A2DP_CHECK_ERR_SIZE;
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_ldac_caps_intersect(&conf_v, &sep->config.capabilities);
 
 	if (a2dp_bit_mapping_lookup(a2dp_ldac_samplings, conf_v.sampling_freq) == 0) {
 		debug("LDAC: Invalid sampling frequency: %#x", conf->sampling_freq);
@@ -454,6 +484,7 @@ struct a2dp_sep a2dp_ldac_source = {
 	.configuration_check = a2dp_ldac_configuration_check,
 	.transport_init = a2dp_ldac_transport_init,
 	.transport_start = a2dp_ldac_source_transport_start,
+	.caps_helpers = &a2dp_ldac_caps_helpers,
 };
 
 #if HAVE_LDAC_DECODE
@@ -487,6 +518,7 @@ struct a2dp_sep a2dp_ldac_sink = {
 	.configuration_check = a2dp_ldac_configuration_check,
 	.transport_init = a2dp_ldac_transport_init,
 	.transport_start = a2dp_ldac_sink_transport_start,
+	.caps_helpers = &a2dp_ldac_caps_helpers,
 };
 
 #endif

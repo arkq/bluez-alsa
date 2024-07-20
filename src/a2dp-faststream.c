@@ -43,6 +43,44 @@ static const struct a2dp_bit_mapping a2dp_faststream_samplings_voice[] = {
 	{ 0 }
 };
 
+static void a2dp_faststream_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_faststream_t));
+}
+
+static int a2dp_faststream_caps_foreach_channel_mode(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	(void)capabilities;
+	const struct a2dp_bit_mapping channels_mono = { .value = 1 };
+	const struct a2dp_bit_mapping channels_stereo = { .value = 2 };
+	if (stream == A2DP_MAIN)
+		return func(channels_stereo, userdata);
+	return func(channels_mono, userdata);
+}
+
+static int a2dp_faststream_caps_foreach_sampling_freq(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_faststream_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_faststream_samplings_music,
+				caps->sampling_freq_music, func, userdata);
+	return a2dp_bit_mapping_foreach(a2dp_faststream_samplings_voice,
+			caps->sampling_freq_voice, func, userdata);
+}
+
+static struct a2dp_caps_helpers a2dp_faststream_caps_helpers = {
+	.intersect = a2dp_faststream_caps_intersect,
+	.foreach_channel_mode = a2dp_faststream_caps_foreach_channel_mode,
+	.foreach_sampling_freq = a2dp_faststream_caps_foreach_sampling_freq,
+};
+
 void *a2dp_faststream_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -255,10 +293,8 @@ static int a2dp_faststream_configuration_select(
 	a2dp_faststream_t *caps = capabilities;
 	const a2dp_faststream_t saved = *caps;
 
-	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				caps, sizeof(*caps)) != 0)
-		return -1;
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_faststream_caps_intersect(caps, &sep->config.capabilities);
 
 	if ((caps->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 		error("FastStream: No supported directions: %#x", saved.direction);
@@ -267,8 +303,8 @@ static int a2dp_faststream_configuration_select(
 
 	unsigned int sampling_freq_v = 0;
 	if (caps->direction & FASTSTREAM_DIRECTION_VOICE &&
-			a2dp_bit_mapping_foreach(a2dp_faststream_samplings_voice, caps->sampling_freq_voice,
-				a2dp_foreach_get_best_sampling_freq, &sampling_freq_v) != -1)
+			a2dp_faststream_caps_foreach_sampling_freq(caps, A2DP_BACKCHANNEL,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq_v) != -1)
 		caps->sampling_freq_voice = sampling_freq_v;
 	else {
 		error("FastStream: No supported voice sampling frequencies: %#x", saved.sampling_freq_voice);
@@ -277,8 +313,8 @@ static int a2dp_faststream_configuration_select(
 
 	unsigned int sampling_freq_m = 0;
 	if (caps->direction & FASTSTREAM_DIRECTION_MUSIC &&
-			a2dp_bit_mapping_foreach(a2dp_faststream_samplings_music, caps->sampling_freq_music,
-				a2dp_foreach_get_best_sampling_freq, &sampling_freq_m) != -1)
+			a2dp_faststream_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq_m) != -1)
 		caps->sampling_freq_music = sampling_freq_m;
 	else {
 		error("FastStream: No supported music sampling frequencies: %#x", saved.sampling_freq_music);
@@ -295,10 +331,8 @@ static int a2dp_faststream_configuration_check(
 	const a2dp_faststream_t *conf = configuration;
 	a2dp_faststream_t conf_v = *conf;
 
-	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				&conf_v, sizeof(conf_v)) != 0)
-		return A2DP_CHECK_ERR_SIZE;
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_faststream_caps_intersect(&conf_v, &sep->config.capabilities);
 
 	if ((conf_v.direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 		debug("FastStream: Invalid direction: %#x", conf->direction);
@@ -394,6 +428,7 @@ struct a2dp_sep a2dp_faststream_source = {
 	.configuration_check = a2dp_faststream_configuration_check,
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_source_transport_start,
+	.caps_helpers = &a2dp_faststream_caps_helpers,
 };
 
 static int a2dp_faststream_sink_transport_start(struct ba_transport *t) {
@@ -430,4 +465,5 @@ struct a2dp_sep a2dp_faststream_sink = {
 	.configuration_check = a2dp_faststream_configuration_check,
 	.transport_init = a2dp_faststream_transport_init,
 	.transport_start = a2dp_faststream_sink_transport_start,
+	.caps_helpers = &a2dp_faststream_caps_helpers,
 };

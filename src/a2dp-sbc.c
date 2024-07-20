@@ -54,6 +54,50 @@ static const struct a2dp_bit_mapping a2dp_sbc_samplings[] = {
 	{ 0 },
 };
 
+static void a2dp_sbc_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+
+	const a2dp_sbc_t *caps_mask = mask;
+	a2dp_sbc_t *caps = capabilities;
+
+	uint8_t min = MAX(caps->min_bitpool, caps_mask->min_bitpool);
+	uint8_t max = MIN(caps->max_bitpool, caps_mask->max_bitpool);
+
+	a2dp_caps_bitwise_intersect(caps, caps_mask, sizeof(*caps));
+	caps->min_bitpool = min;
+	caps->max_bitpool = max;
+
+}
+
+static int a2dp_sbc_caps_foreach_channel_mode(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_sbc_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_sbc_channels, caps->channel_mode, func, userdata);
+	return -1;
+}
+
+static int a2dp_sbc_caps_foreach_sampling_freq(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_sbc_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_sbc_samplings, caps->sampling_freq, func, userdata);
+	return -1;
+}
+
+static struct a2dp_caps_helpers a2dp_sbc_caps_helpers = {
+	.intersect = a2dp_sbc_caps_intersect,
+	.foreach_channel_mode = a2dp_sbc_caps_foreach_channel_mode,
+	.foreach_sampling_freq = a2dp_sbc_caps_foreach_sampling_freq,
+};
+
 void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -332,27 +376,6 @@ fail_init:
 	return NULL;
 }
 
-static int a2dp_sbc_capabilities_filter(
-		const struct a2dp_sep *sep,
-		const void *capabilities_mask,
-		void *capabilities) {
-
-	(void)sep;
-	const a2dp_sbc_t *caps_mask = capabilities_mask;
-	a2dp_sbc_t *caps = capabilities;
-
-	uint8_t min = MAX(caps->min_bitpool, caps_mask->min_bitpool);
-	uint8_t max = MIN(caps->max_bitpool, caps_mask->max_bitpool);
-
-	for (size_t i = 0; i < sizeof(*caps); i++)
-		((uint8_t *)caps)[i] = ((uint8_t *)caps)[i] & ((uint8_t *)caps_mask)[i];
-
-	caps->min_bitpool = min;
-	caps->max_bitpool = max;
-
-	return 0;
-}
-
 static int a2dp_sbc_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
@@ -360,21 +383,19 @@ static int a2dp_sbc_configuration_select(
 	a2dp_sbc_t *caps = capabilities;
 	const a2dp_sbc_t saved = *caps;
 
-	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				caps, sizeof(*caps)) != 0)
-		return -1;
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_sbc_caps_intersect(caps, &sep->config.capabilities);
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_sbc_samplings, caps->sampling_freq,
-				a2dp_foreach_get_best_sampling_freq, &sampling_freq) == -1) {
+	if (a2dp_sbc_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) == -1) {
 		error("SBC: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
 	unsigned int channel_mode = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_sbc_channels, caps->channel_mode,
-				a2dp_foreach_get_best_channel_mode, &channel_mode) == -1) {
+	if (a2dp_sbc_caps_foreach_channel_mode(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == -1) {
 		error("SBC: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
 	}
@@ -441,10 +462,8 @@ static int a2dp_sbc_configuration_check(
 	const a2dp_sbc_t *conf = configuration;
 	a2dp_sbc_t conf_v = *conf;
 
-	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				&conf_v, sizeof(conf_v)) != 0)
-		return A2DP_CHECK_ERR_SIZE;
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_sbc_caps_intersect(&conf_v, &sep->config.capabilities);
 
 	if (a2dp_bit_mapping_lookup(a2dp_sbc_samplings, conf_v.sampling_freq) == 0) {
 		debug("SBC: Invalid sampling frequency: %#x", conf->sampling_freq);
@@ -576,11 +595,11 @@ struct a2dp_sep a2dp_sbc_source = {
 		},
 	},
 	.init = a2dp_sbc_source_init,
-	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
 	.configuration_check = a2dp_sbc_configuration_check,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_source_transport_start,
+	.caps_helpers = &a2dp_sbc_caps_helpers,
 	.enabled = true,
 };
 
@@ -620,10 +639,10 @@ struct a2dp_sep a2dp_sbc_sink = {
 			.max_bitpool = SBC_MAX_BITPOOL,
 		},
 	},
-	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
 	.configuration_check = a2dp_sbc_configuration_check,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_sink_transport_start,
+	.caps_helpers = &a2dp_sbc_caps_helpers,
 	.enabled = true,
 };

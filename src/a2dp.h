@@ -40,10 +40,10 @@ typedef int (*a2dp_bit_mapping_foreach_func)(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
 
-int a2dp_foreach_get_best_channel_mode(
+int a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
-int a2dp_foreach_get_best_sampling_freq(
+int a2dp_bit_mapping_foreach_get_best_sampling_freq(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
 
@@ -56,6 +56,43 @@ int a2dp_bit_mapping_foreach(
 unsigned int a2dp_bit_mapping_lookup(
 		const struct a2dp_bit_mapping *mappings,
 		uint32_t bit_value);
+
+/**
+ * A2DP stream direction. */
+enum a2dp_stream {
+	A2DP_MAIN,
+	A2DP_BACKCHANNEL,
+};
+
+void a2dp_caps_bitwise_intersect(
+		void *capabilities,
+		const void *mask,
+		size_t size);
+
+/* A2DP capabilities helper functions. */
+struct a2dp_caps_helpers {
+
+	/**
+	 * Function for codec-specific capabilities capping. */
+	void (*intersect)(
+			void *capabilities,
+			const void *mask);
+
+	/* Function for iterating over channel modes. */
+	int (*foreach_channel_mode)(
+			const void *capabilities,
+			enum a2dp_stream stream,
+			a2dp_bit_mapping_foreach_func func,
+			void *userdata);
+
+	/* Function for iterating over sampling frequencies. */
+	int (*foreach_sampling_freq)(
+			const void *capabilities,
+			enum a2dp_stream stream,
+			a2dp_bit_mapping_foreach_func func,
+			void *userdata);
+
+};
 
 /**
  * A2DP Stream End-Point type. */
@@ -94,14 +131,6 @@ struct a2dp_sep {
 	/* callback function for SEP initialization */
 	int (*init)(struct a2dp_sep *sep);
 
-	/* callback function for codec-specific capabilities filtering; if this
-	 * function is not provided, the a2dp_filter_capabilities() will return
-	 * simple bitwise AND of given capabilities */
-	int (*capabilities_filter)(
-			const struct a2dp_sep *sep,
-			const void *capabilities_mask,
-			void *capabilities);
-
 	/* callback function for selecting configuration */
 	int (*configuration_select)(
 			const struct a2dp_sep *sep,
@@ -114,6 +143,9 @@ struct a2dp_sep {
 
 	int (*transport_init)(struct ba_transport *t);
 	int (*transport_start)(struct ba_transport *t);
+
+	/* Codec-specific capabilities helper functions. */
+	const struct a2dp_caps_helpers *caps_helpers;
 
 	/* determine whether SEP shall be enabled */
 	bool enabled;
@@ -138,12 +170,6 @@ const struct a2dp_sep *a2dp_sep_lookup(
 
 uint32_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
-		size_t size);
-
-int a2dp_filter_capabilities(
-		const struct a2dp_sep *sep,
-		const void *capabilities_mask,
-		void *capabilities,
 		size_t size);
 
 int a2dp_select_configuration(

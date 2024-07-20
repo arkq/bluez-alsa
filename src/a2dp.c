@@ -53,7 +53,7 @@
  * Note:
  * The user data passed to a2dp_bit_mapping_foreach() function shall be
  * a pointer to an unsigned integer variable initialized to 0. */
-int a2dp_foreach_get_best_channel_mode(
+int a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
 		void *userdata) {
 
@@ -79,7 +79,7 @@ int a2dp_foreach_get_best_channel_mode(
  * Note:
  * The user data passed to a2dp_bit_mapping_foreach() function shall be
  * a pointer to an unsigned integer variable initialized to 0. */
-int a2dp_foreach_get_best_sampling_freq(
+int a2dp_bit_mapping_foreach_get_best_sampling_freq(
 		struct a2dp_bit_mapping mapping,
 		void *userdata) {
 
@@ -129,6 +129,24 @@ unsigned int a2dp_bit_mapping_lookup(
 		if (mappings[i].bit_value == bit_value)
 			return mappings[i].value;
 	return 0;
+}
+
+/**
+ * Simple A2DP capabilities intersection function.
+ *
+ * This function performs a simple bitwise AND operation on given capabilities
+ * and mask. */
+void a2dp_caps_bitwise_intersect(
+		void *capabilities,
+		const void *mask,
+		size_t size) {
+
+	const uint8_t *caps_mask = mask;
+	uint8_t *caps = capabilities;
+
+	for (size_t i = 0; i < size; i++)
+		caps[i] = caps[i] & caps_mask[i];
+
 }
 
 struct a2dp_sep * const a2dp_seps[] = {
@@ -270,32 +288,6 @@ uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 	const uint16_t codec_id = A2DP_VENDOR_INFO_GET_CODEC_ID(*info);
 
 	return A2DP_CODEC_VENDOR_ID(vendor_id, codec_id);
-}
-
-/**
- * Filter A2DP codec capabilities with given capabilities mask. */
-int a2dp_filter_capabilities(
-		const struct a2dp_sep *sep,
-		const void *capabilities_mask,
-		void *capabilities,
-		size_t size) {
-
-	if (size != sep->config.caps_size) {
-		error("Invalid capabilities size: %zu != %zu", size, sep->config.caps_size);
-		return errno = EINVAL, -1;
-	}
-
-	const uint8_t *caps_mask = capabilities_mask;
-	uint8_t *caps = capabilities;
-
-	if (sep->capabilities_filter != NULL)
-		return sep->capabilities_filter(sep, caps_mask, caps);
-
-	/* perform simple bitwise AND operation on given capabilities */
-	for (size_t i = 0; i < sep->config.caps_size; i++)
-		caps[i] = caps[i] & caps_mask[i];
-
-	return 0;
 }
 
 /**

@@ -51,6 +51,42 @@ static const struct a2dp_bit_mapping a2dp_lc3plus_samplings[] = {
 	{ 0 }
 };
 
+static void a2dp_lc3plus_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_lc3plus_t));
+}
+
+static int a2dp_lc3plus_caps_foreach_channel_mode(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_lc3plus_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_lc3plus_channels, caps->channel_mode, func, userdata);
+	return -1;
+}
+
+static int a2dp_lc3plus_caps_foreach_sampling_freq(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_lc3plus_t *caps = capabilities;
+	if (stream == A2DP_MAIN) {
+		const uint16_t sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps);
+		return a2dp_bit_mapping_foreach(a2dp_lc3plus_samplings, sampling_freq, func, userdata);
+	}
+	return -1;
+}
+
+static struct a2dp_caps_helpers a2dp_lc3plus_caps_helpers = {
+	.intersect = a2dp_lc3plus_caps_intersect,
+	.foreach_channel_mode = a2dp_lc3plus_caps_foreach_channel_mode,
+	.foreach_sampling_freq = a2dp_lc3plus_caps_foreach_sampling_freq,
+};
+
 static bool a2dp_lc3plus_supported(int samplerate, int channels) {
 
 	if (lc3plus_channels_supported(channels) == 0) {
@@ -551,10 +587,8 @@ static int a2dp_lc3plus_configuration_select(
 	a2dp_lc3plus_t *caps = capabilities;
 	const a2dp_lc3plus_t saved = *caps;
 
-	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				caps, sizeof(*caps)) != 0)
-		return -1;
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_lc3plus_caps_intersect(caps, &sep->config.capabilities);
 
 	if (caps->frame_duration & LC3PLUS_FRAME_DURATION_100)
 		caps->frame_duration = LC3PLUS_FRAME_DURATION_100;
@@ -568,8 +602,8 @@ static int a2dp_lc3plus_configuration_select(
 	}
 
 	unsigned int channel_mode = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_lc3plus_channels, caps->channel_mode,
-				a2dp_foreach_get_best_channel_mode, &channel_mode) != -1)
+	if (a2dp_lc3plus_caps_foreach_channel_mode(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
 		caps->channel_mode = channel_mode;
 	else {
 		error("LC3plus: No supported channel modes: %#x", saved.channel_mode);
@@ -577,8 +611,8 @@ static int a2dp_lc3plus_configuration_select(
 	}
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_bit_mapping_foreach(a2dp_lc3plus_samplings, A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps),
-				a2dp_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_lc3plus_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
 		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
 		error("LC3plus: No supported sampling frequencies: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(saved));
@@ -595,10 +629,8 @@ static int a2dp_lc3plus_configuration_check(
 	const a2dp_lc3plus_t *conf = configuration;
 	a2dp_lc3plus_t conf_v = *conf;
 
-	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities,
-				&conf_v, sizeof(conf_v)) != 0)
-		return A2DP_CHECK_ERR_SIZE;
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_lc3plus_caps_intersect(&conf_v, &sep->config.capabilities);
 
 	switch (conf_v.frame_duration) {
 	case LC3PLUS_FRAME_DURATION_025:
@@ -680,6 +712,7 @@ struct a2dp_sep a2dp_lc3plus_source = {
 	.configuration_check = a2dp_lc3plus_configuration_check,
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_source_transport_start,
+	.caps_helpers = &a2dp_lc3plus_caps_helpers,
 };
 
 static int a2dp_lc3plus_sink_transport_start(struct ba_transport *t) {
@@ -710,4 +743,5 @@ struct a2dp_sep a2dp_lc3plus_sink = {
 	.configuration_check = a2dp_lc3plus_configuration_check,
 	.transport_init = a2dp_lc3plus_transport_init,
 	.transport_start = a2dp_lc3plus_sink_transport_start,
+	.caps_helpers = &a2dp_lc3plus_caps_helpers,
 };

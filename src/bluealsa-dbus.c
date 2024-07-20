@@ -310,17 +310,11 @@ static bool ba_variant_populate_remote_sep(GVariantBuilder *props,
 		return false;
 
 	a2dp_t caps = remote_sep_cfg->capabilities;
-	size_t size = MIN(remote_sep_cfg->caps_size, sizeof(caps));
-	if (a2dp_filter_capabilities(sep, &sep->config.capabilities, &caps, size) != 0) {
-		error("Couldn't filter %s SEP capabilities: %s",
-				a2dp_codecs_codec_id_to_string(sep->config.codec_id),
-				strerror(errno));
-		return false;
-	}
+	sep->caps_helpers->intersect(&caps, &sep->config.capabilities);
 
 	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, &caps, size, sizeof(uint8_t)));
+				G_VARIANT_TYPE_BYTE, &caps, remote_sep_cfg->caps_size, sizeof(uint8_t)));
 
 	return true;
 }
@@ -700,32 +694,31 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		if (a2dp_configuration_size == 0) {
 			/* setup default codec configuration */
 
-			const size_t size = remote_sep_cfg->caps_size;
-			memcpy(&a2dp_configuration, &remote_sep_cfg->capabilities, size);
-			if (a2dp_select_configuration(sep, &a2dp_configuration, size) == -1)
+			a2dp_configuration_size = remote_sep_cfg->caps_size;
+			memcpy(&a2dp_configuration, &remote_sep_cfg->capabilities, a2dp_configuration_size);
+			if (a2dp_select_configuration(sep, &a2dp_configuration, a2dp_configuration_size) == -1)
 				goto fail;
 
 		}
 		else {
 			/* use codec configuration blob provided by user */
 
+			if (a2dp_configuration_size != remote_sep_cfg->caps_size) {
+				errmsg = a2dp_check_strerror(A2DP_CHECK_ERR_SIZE);
+				goto fail;
+			}
+
 			if (conformance_check) {
 
-				a2dp_filter_capabilities(sep, &remote_sep_cfg->capabilities,
-						&a2dp_configuration, a2dp_configuration_size);
+				/* Cap provided configuration with the remote SEP capabilities.
+				 * This is required to prevent unsupported configuration from
+				 * being set which will lead to A2DP disconnection. */
+				sep->caps_helpers->intersect(&a2dp_configuration, &remote_sep_cfg->capabilities);
 
 				enum a2dp_check_err rv;
 				if ((rv = a2dp_check_configuration(sep, &a2dp_configuration,
 							a2dp_configuration_size)) != A2DP_CHECK_OK) {
 					errmsg = a2dp_check_strerror(rv);
-					goto fail;
-				}
-
-			}
-			else {
-
-				if (a2dp_configuration_size != remote_sep_cfg->caps_size) {
-					errmsg = a2dp_check_strerror(A2DP_CHECK_ERR_SIZE);
 					goto fail;
 				}
 
