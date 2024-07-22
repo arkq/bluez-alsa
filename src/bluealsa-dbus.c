@@ -297,17 +297,8 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 
 /**
  * Populate dict variant builder with remote SEP properties. */
-static bool ba_variant_populate_remote_sep(GVariantBuilder *props,
-		const struct a2dp_sep_config *remote_sep_cfg) {
-
-	const struct a2dp_sep *sep;
-	if ((sep = a2dp_sep_lookup(!remote_sep_cfg->type, remote_sep_cfg->codec_id)) == NULL)
-		return false;
-
-	/* Do not report SEP if corresponding codec is not enabled
-	 * in BlueALSA - it will be not possible to use it. */
-	if (!sep->enabled)
-		return false;
+static void ba_variant_populate_remote_sep(GVariantBuilder *props,
+		const struct a2dp_sep *sep, const struct a2dp_sep_config *remote_sep_cfg) {
 
 	a2dp_t caps = remote_sep_cfg->capabilities;
 	sep->caps_helpers->intersect(&caps, &sep->config.capabilities);
@@ -316,7 +307,6 @@ static bool ba_variant_populate_remote_sep(GVariantBuilder *props,
 	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_new_fixed_array(
 				G_VARIANT_TYPE_BYTE, &caps, remote_sep_cfg->caps_size, sizeof(uint8_t)));
 
-	return true;
 }
 
 static GVariant *bluealsa_manager_get_property(const char *property,
@@ -532,33 +522,55 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
+		const enum a2dp_type pcm_sep_type = t->a2dp.sep->config.type;
+		const enum a2dp_stream pcm_sep_stream = &t->a2dp.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 
 		for (size_t i = 0; sep_cfgs != NULL && i < sep_cfgs->len; i++) {
 			const struct a2dp_sep_config *remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
-			/* match complementary PCM directions, e.g. A2DP-source with SEP-sink */
-			if (t->a2dp.sep->config.type == !remote_sep_cfg->type) {
 
-				bool duplicate = false;
-				for (size_t j = 0; j < codec_ids->len; j++)
-					if (remote_sep_cfg->codec_id == g_array_index(codec_ids, uint32_t, j)) {
-						duplicate = true;
-						break;
-					}
+			/* Match complementary SEP types (i.e.: source with sink). */
+			if (pcm_sep_type == remote_sep_cfg->type)
+				continue;
 
-				/* do not return duplicates */
-				if (duplicate)
-					continue;
+			const struct a2dp_sep *sep;
+			/* Find local SEP for the remote one. */
+			if ((sep = a2dp_sep_lookup(pcm_sep_type, remote_sep_cfg->codec_id)) == NULL)
+				continue;
 
-				g_array_append_val(codec_ids, remote_sep_cfg->codec_id);
+			/* Do not report codec if corresponding local SEP is not enabled
+			 * in BlueALSA - it will be impossible to use it. */
+			if (!sep->enabled)
+				continue;
 
-				GVariantBuilder props;
-				if (ba_variant_populate_remote_sep(&props, remote_sep_cfg)) {
-					g_variant_builder_add(&codecs, "{sa{sv}}",
-							a2dp_codecs_codec_id_to_string(remote_sep_cfg->codec_id), &props);
-					g_variant_builder_clear(&props);
+			/* Check whether matched local and remote SEP support the same stream
+			 * direction as our current PCM SEP. If not, skip this codec. */
+			if (!sep->caps_helpers->has_stream(&sep->config.capabilities, pcm_sep_stream) ||
+					!sep->caps_helpers->has_stream(&remote_sep_cfg->capabilities, pcm_sep_stream))
+				continue;
+
+			bool duplicate = false;
+			/* Check whether we have already reported this codec. */
+			for (size_t j = 0; j < codec_ids->len; j++)
+				if (remote_sep_cfg->codec_id == g_array_index(codec_ids, uint32_t, j)) {
+					duplicate = true;
+					break;
 				}
 
-			}
+			/* Do not return duplicates.
+			 * Be aware of caveats - codec with the same ID might have different
+			 * capabilities... */
+			if (duplicate)
+				continue;
+
+			GVariantBuilder props;
+			ba_variant_populate_remote_sep(&props, sep, remote_sep_cfg);
+			g_variant_builder_add(&codecs, "{sa{sv}}",
+					a2dp_codecs_codec_id_to_string(remote_sep_cfg->codec_id), &props);
+			g_variant_builder_clear(&props);
+
+			/* Remember reported codec ID. */
+			g_array_append_val(codec_ids, remote_sep_cfg->codec_id);
+
 		}
 
 		g_array_free(codec_ids, TRUE);

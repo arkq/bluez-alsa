@@ -78,6 +78,7 @@ static int a2dp_opus_caps_foreach_sampling_freq(
 
 static struct a2dp_caps_helpers a2dp_opus_caps_helpers = {
 	.intersect = a2dp_opus_caps_intersect,
+	.has_stream = a2dp_caps_has_main_stream_only,
 	.foreach_channel_mode = a2dp_opus_caps_foreach_channel_mode,
 	.foreach_sampling_freq = a2dp_opus_caps_foreach_sampling_freq,
 };

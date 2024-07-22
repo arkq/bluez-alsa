@@ -49,6 +49,15 @@ static void a2dp_faststream_caps_intersect(
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_faststream_t));
 }
 
+static bool a2dp_faststream_caps_has_stream(
+		const void *capabilities,
+		enum a2dp_stream stream) {
+	const a2dp_faststream_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return caps->direction & FASTSTREAM_DIRECTION_MUSIC;
+	return caps->direction & FASTSTREAM_DIRECTION_VOICE;
+}
+
 static int a2dp_faststream_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
@@ -77,6 +86,7 @@ static int a2dp_faststream_caps_foreach_sampling_freq(
 
 static struct a2dp_caps_helpers a2dp_faststream_caps_helpers = {
 	.intersect = a2dp_faststream_caps_intersect,
+	.has_stream = a2dp_faststream_caps_has_stream,
 	.foreach_channel_mode = a2dp_faststream_caps_foreach_channel_mode,
 	.foreach_sampling_freq = a2dp_faststream_caps_foreach_sampling_freq,
 };

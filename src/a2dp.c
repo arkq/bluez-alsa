@@ -149,6 +149,15 @@ void a2dp_caps_bitwise_intersect(
 
 }
 
+/**
+ * Function which returns true only for the main A2DP stream. */
+bool a2dp_caps_has_main_stream_only(
+		const void *capabilities,
+		enum a2dp_stream stream) {
+	(void)capabilities;
+	return stream == A2DP_MAIN;
+}
+
 struct a2dp_sep * const a2dp_seps[] = {
 #if ENABLE_OPUS
 	&a2dp_opus_source,

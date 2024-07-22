@@ -69,6 +69,10 @@ void a2dp_caps_bitwise_intersect(
 		const void *mask,
 		size_t size);
 
+bool a2dp_caps_has_main_stream_only(
+		const void *capabilities,
+		enum a2dp_stream stream);
+
 /* A2DP capabilities helper functions. */
 struct a2dp_caps_helpers {
 
@@ -77,6 +81,12 @@ struct a2dp_caps_helpers {
 	void (*intersect)(
 			void *capabilities,
 			const void *mask);
+
+	/**
+	 * Function for checking whether given stream direction is supported. */
+	bool (*has_stream)(
+			const void *capabilities,
+			enum a2dp_stream stream);
 
 	/* Function for iterating over channel modes. */
 	int (*foreach_channel_mode)(
