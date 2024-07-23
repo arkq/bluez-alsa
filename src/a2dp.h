@@ -57,6 +57,11 @@ unsigned int a2dp_bit_mapping_lookup(
 		const struct a2dp_bit_mapping *mappings,
 		uint32_t bit_value);
 
+uint32_t a2dp_bit_mapping_lookup_value(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bitmask,
+		unsigned int value);
+
 /**
  * A2DP stream direction. */
 enum a2dp_stream {
@@ -101,6 +106,16 @@ struct a2dp_caps_helpers {
 			enum a2dp_stream stream,
 			a2dp_bit_mapping_foreach_func func,
 			void *userdata);
+
+	void (*select_channel_mode)(
+			void *capabilities,
+			enum a2dp_stream stream,
+			unsigned int channels);
+
+	void (*select_sampling_freq)(
+			void *capabilities,
+			enum a2dp_stream stream,
+			unsigned int frequency);
 
 };
 

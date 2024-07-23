@@ -84,11 +84,35 @@ static int a2dp_faststream_caps_foreach_sampling_freq(
 			caps->sampling_freq_voice, func, userdata);
 }
 
+static void a2dp_faststream_caps_select_channel_mode(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int channels) {
+	(void)capabilities;
+	(void)stream;
+	(void)channels;
+}
+
+static void a2dp_faststream_caps_select_sampling_freq(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int frequency) {
+	a2dp_faststream_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->sampling_freq_music = a2dp_bit_mapping_lookup_value(a2dp_faststream_samplings_music,
+				caps->sampling_freq_music, frequency);
+	else
+		caps->sampling_freq_voice = a2dp_bit_mapping_lookup_value(a2dp_faststream_samplings_voice,
+				caps->sampling_freq_voice, frequency);
+}
+
 static struct a2dp_caps_helpers a2dp_faststream_caps_helpers = {
 	.intersect = a2dp_faststream_caps_intersect,
 	.has_stream = a2dp_faststream_caps_has_stream,
 	.foreach_channel_mode = a2dp_faststream_caps_foreach_channel_mode,
 	.foreach_sampling_freq = a2dp_faststream_caps_foreach_sampling_freq,
+	.select_channel_mode = a2dp_faststream_caps_select_channel_mode,
+	.select_sampling_freq = a2dp_faststream_caps_select_sampling_freq,
 };
 
 void *a2dp_faststream_enc_thread(struct ba_transport_pcm *t_pcm) {

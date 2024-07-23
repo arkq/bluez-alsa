@@ -281,6 +281,21 @@ CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_a2dp_caps_select_channels_and_sampling) {
+
+	a2dp_sbc_t caps_sbc = {
+		.sampling_freq = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100,
+		.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL | SBC_CHANNEL_MODE_STEREO,
+	};
+
+	a2dp_sbc_source.caps_helpers->select_channel_mode(&caps_sbc, A2DP_MAIN, 2);
+	ck_assert_uint_eq(caps_sbc.channel_mode, SBC_CHANNEL_MODE_STEREO);
+
+	a2dp_sbc_source.caps_helpers->select_sampling_freq(&caps_sbc, A2DP_MAIN, 16000);
+	ck_assert_uint_eq(caps_sbc.sampling_freq, SBC_SAMPLING_FREQ_16000);
+
+} CK_END_TEST
+
 CK_START_TEST(test_a2dp_select_configuration) {
 
 	a2dp_sbc_t cfg;
@@ -376,6 +391,7 @@ int main(void) {
 
 	tcase_add_test(tc, test_a2dp_caps_intersect);
 	tcase_add_test(tc, test_a2dp_caps_foreach_get_best);
+	tcase_add_test(tc, test_a2dp_caps_select_channels_and_sampling);
 
 	tcase_add_test(tc, test_a2dp_check_configuration);
 	tcase_add_test(tc, test_a2dp_check_strerror);

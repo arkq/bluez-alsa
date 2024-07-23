@@ -132,6 +132,26 @@ unsigned int a2dp_bit_mapping_lookup(
 }
 
 /**
+ * Lookup for given value in the bit mapping table.
+ *
+ * @param mappings Zero-terminated array of A2DP mappings.
+ * @param bitmask A2DP codec bitmask for bit-value validation.
+ * @param value A2DP codec value to be looked up.
+ * @return On success this function returns the bit-value. Otherwise,
+ *   0 is returned. */
+uint32_t a2dp_bit_mapping_lookup_value(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bitmask,
+		unsigned int value) {
+	uint32_t bit_value = 0;
+	for (size_t i = 0; mappings[i].bit_value != 0; i++)
+		if (mappings[i].bit_value & bitmask &&
+				mappings[i].value == value)
+			bit_value = mappings[i].bit_value;
+	return bit_value;
+}
+
+/**
  * Simple A2DP capabilities intersection function.
  *
  * This function performs a simple bitwise AND operation on given capabilities

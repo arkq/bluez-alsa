@@ -90,11 +90,33 @@ static int a2dp_mpeg_caps_foreach_sampling_freq(
 	return -1;
 }
 
+static void a2dp_mpeg_caps_select_channel_mode(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int channels) {
+	a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->channel_mode = a2dp_bit_mapping_lookup_value(a2dp_mpeg_channels,
+				caps->channel_mode, channels);
+}
+
+static void a2dp_mpeg_caps_select_sampling_freq(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int frequency) {
+	a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_mpeg_samplings,
+				caps->sampling_freq, frequency);
+}
+
 static struct a2dp_caps_helpers a2dp_mpeg_caps_helpers = {
 	.intersect = a2dp_mpeg_caps_intersect,
 	.has_stream = a2dp_caps_has_main_stream_only,
 	.foreach_channel_mode = a2dp_mpeg_caps_foreach_channel_mode,
 	.foreach_sampling_freq = a2dp_mpeg_caps_foreach_sampling_freq,
+	.select_channel_mode = a2dp_mpeg_caps_select_channel_mode,
+	.select_sampling_freq = a2dp_mpeg_caps_select_sampling_freq,
 };
 
 #if ENABLE_MP3LAME

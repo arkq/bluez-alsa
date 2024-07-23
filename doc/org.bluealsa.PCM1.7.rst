@@ -2,11 +2,11 @@
 org.bluealsa.PCM1
 =================
 
----------------------------------
+-----------------------------
 Bluetooth Audio PCM D-Bus API
----------------------------------
+-----------------------------
 
-:Date: January 2024
+:Date: July 2024
 :Manual section: 7
 :Manual group: D-Bus Interface
 :Version: $VERSION$
@@ -45,6 +45,15 @@ array{string, dict} GetCodecs()
     Return the array of additional PCM codecs. Client can switch to one of
     these codecs with the SelectCodec() D-Bus method call.
 
+    The dictionary may contain the following properties:
+
+    :array{byte} Capabilities:
+        A2DP codec capabilities blob.
+    :array{byte} SupportedChannels:
+        List of supported number of audio channels.
+    :array{uint32} SupportedSampling:
+        List of supported sampling frequency.
+
 void SelectCodec(string codec, dict props)
     Select PCM codec. This call shall be made before PCM stream opening for
     given transport type, otherwise the ongoing stream (or PCM counterpart:
@@ -56,6 +65,11 @@ void SelectCodec(string codec, dict props)
     to BlueALSA and peer device capabilities. Otherwise, the call will fail.
     It is possible to override this validation by setting the "NonConformant"
     property to true.
+
+    In case of codecs which support different number of audio channels or
+    sampling frequencies, client can select the desired configuration by
+    providing the "Channels" and "Sampling" properties respectively. These
+    properties take precedence over the provided codec configuration.
 
     Possible Errors:
     ::
