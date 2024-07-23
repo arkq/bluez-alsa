@@ -187,6 +187,7 @@ CK_START_TEST(test_info) {
 	/* check BlueALSA PCM info */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
 				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"-v", "-v",
 				NULL), 0);
 
 	ck_assert_ptr_ne(strstr(output,
@@ -194,7 +195,7 @@ CK_START_TEST(test_info) {
 	ck_assert_ptr_ne(strstr(output,
 				"Transport: A2DP-source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"Selected codec: SBC"), NULL);
+				"Selected codec:\n\tSBC:211502fa [channels: 2] [sampling: 44100]"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -246,7 +247,7 @@ CK_START_TEST(test_codec) {
 	/* check selecting A2DP codec without SEP support (with our mock BlueZ) */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
 				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				"SBC:11150255",
+				"SBC:11150255", "--channels=1", "--sampling=44100",
 				NULL), EXIT_FAILURE);
 
 	spawn_terminate(&sp_ba_mock, 0);
@@ -421,6 +422,12 @@ CK_START_TEST(test_open) {
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--profile=hsp-ag",
 				NULL), -1);
+
+	char output[4096];
+	/* check printing help text */
+	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
+				"open", "--help", NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
 	char * ba_cli_in_argv[32] = {
 		bluealsa_cli_path, "open", "--hex",

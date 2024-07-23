@@ -214,6 +214,53 @@ const char *ba_dbus_pcm_codec_get_canonical_name(
 	return a2dp_codecs_get_canonical_name(alias);
 }
 
+static void dbus_message_iter_get_codec_data(DBusMessageIter *variant,
+		struct ba_pcm_codec *codec) {
+
+	DBusMessageIter iter;
+	unsigned char *data;
+	int len;
+
+	dbus_message_iter_recurse(variant, &iter);
+	dbus_message_iter_get_fixed_array(&iter, &data, &len);
+
+	codec->data_len = MIN((size_t)len, ARRAYSIZE(codec->data));
+	memcpy(codec->data, data, codec->data_len);
+
+}
+
+static void dbus_message_iter_get_codec_supported_channels(DBusMessageIter *variant,
+		struct ba_pcm_codec *codec) {
+
+		DBusMessageIter iter;
+		unsigned char *data;
+		int len;
+
+		dbus_message_iter_recurse(variant, &iter);
+		dbus_message_iter_get_fixed_array(&iter, &data, &len);
+
+		len = MIN(len, ARRAYSIZE(codec->channels));
+		for (size_t i = 0; i < (size_t)len; i++)
+			codec->channels[i] = data[i];
+
+}
+
+static void dbus_message_iter_get_codec_supported_sampling(DBusMessageIter *variant,
+		struct ba_pcm_codec *codec) {
+
+		DBusMessageIter iter;
+		dbus_uint32_t *data;
+		int len;
+
+		dbus_message_iter_recurse(variant, &iter);
+		dbus_message_iter_get_fixed_array(&iter, &data, &len);
+
+		len = MIN(len, ARRAYSIZE(codec->sampling));
+		for (size_t i = 0; i < (size_t)len; i++)
+			codec->sampling[i] = data[i];
+
+}
+
 /**
  * Callback function for BlueALSA PCM codec props parser. */
 static dbus_bool_t ba_dbus_message_iter_pcm_codec_get_props_cb(const char *key,
@@ -236,17 +283,17 @@ static dbus_bool_t ba_dbus_message_iter_pcm_codec_get_props_cb(const char *key,
 	if (strcmp(key, "Capabilities") == 0) {
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
-
-		DBusMessageIter iter;
-		uint8_t *data;
-		int len;
-
-		dbus_message_iter_recurse(&variant, &iter);
-		dbus_message_iter_get_fixed_array(&iter, &data, &len);
-
-		codec->data_len = MIN((size_t)len, sizeof(codec->data));
-		memcpy(codec->data, data, codec->data_len);
-
+		dbus_message_iter_get_codec_data(&variant, codec);
+	}
+	else if (strcmp(key, "SupportedChannels") == 0) {
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+		dbus_message_iter_get_codec_supported_channels(&variant, codec);
+	}
+	else if (strcmp(key, "SupportedSampling") == 0) {
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+		dbus_message_iter_get_codec_supported_sampling(&variant, codec);
 	}
 
 	return TRUE;
@@ -348,6 +395,8 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 		const char *codec,
 		const void *configuration,
 		size_t configuration_len,
+		unsigned int channels,
+		unsigned int sampling,
 		unsigned int flags,
 		DBusError *error) {
 
@@ -389,16 +438,25 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 		}
 	}
 
+	if (channels != 0) {
+		const uint8_t value = channels;
+		if (!dbus_message_iter_dict_append_basic(&props, "Channels", DBUS_TYPE_BYTE, &value)) {
+			dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
+			goto fail;
+		}
+	}
+
+	if (sampling != 0) {
+		const uint32_t value = sampling;
+		if (!dbus_message_iter_dict_append_basic(&props, "Sampling", DBUS_TYPE_UINT32, &value)) {
+			dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
+			goto fail;
+		}
+	}
+
 	if (flags & BA_PCM_SELECT_CODEC_FLAG_NON_CONFORMANT) {
-		const char *property = "NonConformant";
-		DBusMessageIter dict;
-		DBusMessageIter option;
-		if (!dbus_message_iter_open_container(&props, DBUS_TYPE_DICT_ENTRY, NULL, &dict) ||
-				!dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &property) ||
-				!dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, "b", &option) ||
-				!dbus_message_iter_append_basic(&option, DBUS_TYPE_BOOLEAN, &(dbus_bool_t){ TRUE }) ||
-				!dbus_message_iter_close_container(&dict, &option) ||
-				!dbus_message_iter_close_container(&props, &dict)) {
+		const dbus_bool_t value = TRUE;
+		if (!dbus_message_iter_dict_append_basic(&props, "NonConformant", DBUS_TYPE_BOOLEAN, &value)) {
 			dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 			goto fail;
 		}
@@ -700,11 +758,13 @@ static dbus_bool_t dbus_message_iter_get_ba_pcm_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_BYTE))
 			goto fail;
 		dbus_message_iter_get_basic(&variant, &pcm->channels);
+		pcm->codec.channels[0] = pcm->channels;
 	}
 	else if (strcmp(key, "Sampling") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT32))
 			goto fail;
 		dbus_message_iter_get_basic(&variant, &pcm->sampling);
+		pcm->codec.sampling[0] = pcm->sampling;
 	}
 	else if (strcmp(key, "Codec") == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
@@ -715,17 +775,7 @@ static dbus_bool_t dbus_message_iter_get_ba_pcm_props_cb(const char *key,
 	else if (strcmp(key, "CodecConfiguration") == 0) {
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
-
-		DBusMessageIter iter;
-		uint8_t *data;
-		int len;
-
-		dbus_message_iter_recurse(&variant, &iter);
-		dbus_message_iter_get_fixed_array(&iter, &data, &len);
-
-		pcm->codec.data_len = MIN((size_t)len, sizeof(pcm->codec.data));
-		memcpy(pcm->codec.data, data, pcm->codec.data_len);
-
+		dbus_message_iter_get_codec_data(&variant, &pcm->codec);
 	}
 	else if (strcmp(key, "Delay") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))

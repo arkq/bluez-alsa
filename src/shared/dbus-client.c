@@ -465,6 +465,29 @@ fail:
 	return FALSE;
 }
 
+/**
+ * Append key-value pair with basic type value to the D-Bus message. */
+dbus_bool_t dbus_message_iter_dict_append_basic(
+		DBusMessageIter *iter,
+		const char *key,
+		int value_type,
+		const void *value) {
+
+	DBusMessageIter entry;
+	DBusMessageIter variant;
+	const char signature[2] = { value_type, '\0' };
+
+	if (dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &entry) &&
+			dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key) &&
+			dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, signature, &variant) &&
+			dbus_message_iter_append_basic(&variant, value_type, value) &&
+			dbus_message_iter_close_container(&entry, &variant) &&
+			dbus_message_iter_close_container(iter, &entry))
+		return TRUE;
+
+	return FALSE;
+}
+
 int dbus_error_to_errno(
 		const DBusError *error) {
 	if (strcmp(error->name, DBUS_ERROR_NO_MEMORY) == 0)

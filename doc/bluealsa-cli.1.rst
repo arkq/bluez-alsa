@@ -6,7 +6,7 @@ bluealsa-cli
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: January 2024
+:Date: July 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -43,6 +43,7 @@ OPTIONS
 
 -v, --verbose
     Include extra information in normal output - see COMMANDS_ for details.
+    This option can be used multiple times to increase verbosity.
 
 COMMANDS
 ========
@@ -89,14 +90,15 @@ info *PCM_PATH*
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
 
-codec [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
+codec [-c NUM] [-s NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
     Get or set the Bluetooth codec used by the given PCM.
 
     If *CODEC* is given, change the codec to be used by the given PCM. This
     command will terminate the PCM if it is currently running.
 
     If *CODEC* is not given, print a list of additional codecs supported by the
-    given PCM and the currently selected codec.
+    given PCM and the currently selected codec. The level of detail in the
+    output depends on the verbosity level.
 
     Optionally, for A2DP codecs, one can specify A2DP codec configuration which
     should be selected. The *CONFIG* shall be given as a hexadecimal string. If

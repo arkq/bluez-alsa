@@ -32,7 +32,7 @@
 /* Initialize global configuration variable. */
 struct cli_config config = {
 	.quiet = false,
-	.verbose = false,
+	.verbose = 0,
 };
 
 static const char *transport_code_to_string(int transport_code) {
@@ -94,24 +94,30 @@ static const char *pcm_format_to_string(int pcm_format) {
 	}
 }
 
-static const char *pcm_codec_to_string(const struct ba_pcm_codec *codec) {
+static void print_pcm_codec(const struct ba_pcm_codec *codec) {
 
-	static char buffer[128];
+	printf("%s", codec->name);
 
-	const size_t data_len = codec->data_len;
-	size_t n;
-
-	snprintf(buffer, sizeof(buffer), "%s", codec->name);
-
-	if (config.verbose && data_len > 0 &&
-			/* attach data blob if we can fit at least one hex-byte */
-			sizeof(buffer) - (n = strlen(buffer)) > 1 + 2) {
-		buffer[n++] = ':';
-		for (size_t i = 0; i < data_len && n < sizeof(buffer) - 2; i++, n += 2)
-			sprintf(&buffer[n], "%.2x", codec->data[i]);
+	if (config.verbose && codec->data_len > 0) {
+		printf(":");
+		for (size_t i = 0; i < codec->data_len; i++)
+			printf("%.2x", codec->data[i]);
 	}
 
-	return buffer;
+	if (config.verbose >= 2) {
+
+		printf(" [channels:");
+		for (size_t i = 0; i < ARRAYSIZE(codec->channels) && codec->channels[i] != 0; i++)
+			printf(" %u", codec->channels[i]);
+		printf("]");
+
+		printf(" [sampling:");
+		for (size_t i = 0; i < ARRAYSIZE(codec->sampling) && codec->sampling[i] != 0; i++)
+			printf(" %u", codec->sampling[i]);
+		printf("]");
+
+	}
+
 }
 
 void cli_get_ba_services(cli_get_ba_services_cb func, void *data, DBusError *err) {
@@ -196,7 +202,7 @@ bool cli_parse_common_options(int opt) {
 		config.quiet = true;
 		return true;
 	case 'v' /* --verbose */ :
-		config.verbose = true;
+		config.verbose++;
 		return true;
 	default:
 		return false;
@@ -250,8 +256,10 @@ void cli_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err) {
 	if (!ba_dbus_pcm_codecs_get(&config.dbus, pcm->pcm_path, &codecs, err))
 		goto fail;
 
-	for (size_t i = 0; i < codecs.codecs_len; i++)
-		printf(" %s", pcm_codec_to_string(&codecs.codecs[i]));
+	for (size_t i = 0; i < codecs.codecs_len; i++) {
+		printf("%s", config.verbose >= 2 ? "\n\t" : " ");
+		print_pcm_codec(&codecs.codecs[i]);
+	}
 
 	ba_dbus_pcm_codecs_free(&codecs);
 
@@ -262,7 +270,9 @@ fail:
 }
 
 void cli_print_pcm_selected_codec(const struct ba_pcm *pcm) {
-	printf("Selected codec: %s\n", pcm_codec_to_string(&pcm->codec));
+	printf("Selected codec:%s", config.verbose >= 2 ? "\n\t" : " ");
+	print_pcm_codec(&pcm->codec);
+	printf("\n");
 }
 
 void cli_print_pcm_soft_volume(const struct ba_pcm *pcm) {
@@ -356,7 +366,7 @@ static void usage(const char *name) {
 	printf("  -V, --version       Show version and exit\n");
 	printf("  -B, --dbus=NAME     BlueALSA service name suffix\n");
 	printf("  -q, --quiet         Do not print any error messages\n");
-	printf("  -v, --verbose       Show extra information\n");
+	printf("  -v, --verbose       Increase output verbosity\n");
 	printf("\nCommands:\n");
 	for (size_t i = 0; i < ARRAYSIZE(commands); i++)
 		printf("  %-*s  %s\n", (int)(command_name_max_len),
