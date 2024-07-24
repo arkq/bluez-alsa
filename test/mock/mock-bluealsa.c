@@ -202,7 +202,7 @@ static struct ba_transport *mock_transport_new_a2dp(struct ba_device *d,
 
 	char transport_path[128];
 	const int index = (strcmp(uuid, BT_UUID_A2DP_SINK) == 0) ? 1 : 2;
-	sprintf(transport_path, "%s/fd%u", d->bluez_dbus_path, index);
+	sprintf(transport_path, "%s/sep/fd%u", d->bluez_dbus_path, index);
 
 	g_autoptr(GAsyncQueue) sem = g_async_queue_new();
 	assert(mock_bluez_device_media_set_configuration(d->bluez_dbus_path, transport_path,
@@ -310,6 +310,11 @@ void mock_bluealsa_run(void) {
 	while (events--)
 		mock_sem_wait(mock_sem_ready);
 
+	/* Create remote SEP on device 1, so we could test SEP configuration. */
+	mock_bluez_device_media_endpoint_add(MOCK_BLUEZ_DEVICE_1_SEP_PATH,
+			MOCK_BLUEZ_DEVICE_1_PATH, BT_UUID_A2DP_SINK, a2dp_sbc_sink.config.codec_id,
+			&a2dp_sbc_sink.config.capabilities, a2dp_sbc_sink.config.caps_size);
+
 	GPtrArray *tt = g_ptr_array_new();
 
 	if (config.profile.a2dp_source) {
@@ -404,7 +409,7 @@ void mock_bluealsa_run(void) {
 
 #if ENABLE_MIDI
 	if (config.profile.midi)
-		g_ptr_array_add(tt, mock_transport_new_midi(MOCK_BLUEZ_MIDI_PATH_1));
+		g_ptr_array_add(tt, mock_transport_new_midi(MOCK_BLUEZ_MIDI_PATH));
 #endif
 
 	mock_sem_wait(mock_sem_timeout);

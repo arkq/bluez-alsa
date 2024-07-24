@@ -160,6 +160,34 @@ static void mock_bluez_device_add(const char *device_path, const char *adapter_p
 
 }
 
+static gboolean mock_bluez_media_ep_set_configuration_handler(MockBluezMediaEndpoint1 *endpoint,
+		GDBusMethodInvocation *invocation, G_GNUC_UNUSED const char *transport,
+		G_GNUC_UNUSED GVariant *props, G_GNUC_UNUSED void *userdata) {
+	mock_bluez_media_endpoint1_complete_set_configuration(endpoint, invocation);
+	return TRUE;
+}
+
+int mock_bluez_device_media_endpoint_add(const char *endpoint_path,
+		const char *device_path, const char *uuid, uint32_t codec_id,
+		const void *capabilities, size_t capabilities_size) {
+
+	g_autoptr(MockBluezMediaEndpoint1) endpoint = mock_bluez_media_endpoint1_skeleton_new();
+	mock_bluez_media_endpoint1_set_uuid(endpoint, uuid);
+	mock_bluez_media_endpoint1_set_codec(endpoint, codec_id);
+	mock_bluez_media_endpoint1_set_capabilities(endpoint, g_variant_new_fixed_array(
+				G_VARIANT_TYPE_BYTE, capabilities, capabilities_size, sizeof(uint8_t)));
+	mock_bluez_media_endpoint1_set_device(endpoint, device_path);
+
+	g_signal_connect(endpoint, "handle-set-configuration",
+			G_CALLBACK(mock_bluez_media_ep_set_configuration_handler), NULL);
+
+	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(endpoint_path);
+	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(endpoint));
+	g_dbus_object_manager_server_export(server, skeleton);
+
+	return 0;
+}
+
 static gboolean mock_bluez_media_transport_acquire_handler(MockBluezMediaTransport1 *transport,
 		GDBusMethodInvocation *invocation, G_GNUC_UNUSED void *userdata) {
 
@@ -333,8 +361,8 @@ static void mock_dbus_name_acquired(GDBusConnection *conn,
 	mock_bluez_profile_manager_add("/org/bluez");
 	mock_bluez_adapter_add(MOCK_BLUEZ_ADAPTER_PATH, MOCK_ADAPTER_ADDRESS);
 
-	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_PATH_1, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_1);
-	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_PATH_2, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_2);
+	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_1_PATH, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_1);
+	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_2_PATH, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_2);
 
 	g_dbus_object_manager_server_set_connection(server, conn);
 	mock_sem_signal(userdata);

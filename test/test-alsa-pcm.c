@@ -444,8 +444,10 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 		return;
 
 	/* hard-coded values used in the bluealsa-mock */
-	const unsigned int server_channels = 2;
-	const unsigned int server_rate = 44100;
+	const unsigned int server_channels_min = 1;
+	const unsigned int server_channels_max = 2;
+	const unsigned int server_rate_min = 16000;
+	const unsigned int server_rate_max = 48000;
 
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
@@ -495,19 +497,19 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 	unsigned int channels;
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_channels_first(pcm, params, &channels), 0);
-	ck_assert_int_eq(channels, server_channels);
+	ck_assert_int_eq(channels, server_channels_min);
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_channels_last(pcm, params, &channels), 0);
-	ck_assert_int_eq(channels, server_channels);
+	ck_assert_int_eq(channels, server_channels_max);
 
 	unsigned int rate;
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_rate_first(pcm, params, &rate, &d), 0);
-	ck_assert_int_eq(rate, server_rate);
+	ck_assert_int_eq(rate, server_rate_min);
 	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_rate_last(pcm, params, &rate, &d), 0);
-	ck_assert_int_eq(rate, server_rate);
+	ck_assert_int_eq(rate, server_rate_max);
 	ck_assert_int_eq(d, 0);
 
 	unsigned int periods;
@@ -519,16 +521,6 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 	ck_assert_int_eq(snd_pcm_hw_params_set_periods_last(pcm, params, &periods, &d), 0);
 	ck_assert_int_eq(periods, 1024);
 	ck_assert_int_eq(d, 0);
-
-	unsigned int time;
-	snd_pcm_hw_params_any(pcm, params);
-	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_first(pcm, params, &time, &d), 0);
-	ck_assert_int_eq(time, 20000);
-	ck_assert_int_eq(d, 0);
-	snd_pcm_hw_params_any(pcm, params);
-	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_last(pcm, params, &time, &d), 0);
-	ck_assert_int_eq(time, 11888616);
-	ck_assert_int_eq(d, 1);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 

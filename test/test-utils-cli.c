@@ -244,11 +244,11 @@ CK_START_TEST(test_codec) {
 				"codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", "SBC",
 				NULL), EXIT_FAILURE);
 
-	/* check selecting A2DP codec without SEP support (with our mock BlueZ) */
+	/* check selecting A2DP codec (with our mock BlueZ) */
 	ck_assert_int_eq(run_bluealsa_cli(output, sizeof(output),
 				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				"SBC:11150255", "--channels=1", "--sampling=44100",
-				NULL), EXIT_FAILURE);
+				"SBC:FF150255", "--channels=1", "--sampling=44100",
+				NULL), EXIT_SUCCESS);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);

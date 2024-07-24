@@ -186,6 +186,7 @@ EPMR
 EQMID
 errno
 FB
+FC
 fdX
 ffb
 ffff
