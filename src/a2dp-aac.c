@@ -340,7 +340,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		while ((in_args.numInSamples = ffb_len_out(&pcm)) > 0) {
+		while ((in_args.numInSamples = ffb_len_out(&pcm)) > (int)aacinf.inputChannels) {
 
 			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
 				error("AAC encoding error: %s", aacenc_strerror(err));
@@ -386,7 +386,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			}
 
-			unsigned int pcm_frames = out_args.numInSamples / channels;
+			unsigned int pcm_frames = out_args.numInSamples / aacinf.inputChannels;
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */
