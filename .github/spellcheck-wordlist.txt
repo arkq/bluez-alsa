@@ -197,6 +197,7 @@ hciconfig
 hcitop
 hciX
 HCTL
+HEv
 hfpag
 hfphf
 hspag

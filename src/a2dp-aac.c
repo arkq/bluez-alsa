@@ -165,7 +165,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const unsigned int samplerate = t_pcm->sampling;
 
 	/* create AAC encoder without the Meta Data module */
-	if ((err = aacEncOpen(&handle, 0x07, channels)) != AACENC_OK) {
+	if ((err = aacEncOpen(&handle, 0x0F, channels)) != AACENC_OK) {
 		error("Couldn't open AAC encoder: %s", aacenc_strerror(err));
 		goto fail_open;
 	}
@@ -581,7 +581,19 @@ static int a2dp_aac_configuration_select(
 	/* Narrow capabilities to values supported by BlueALSA. */
 	a2dp_aac_caps_intersect(caps, &sep->config.capabilities);
 
-	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE2)
+	unsigned int channel_mode = 0;
+	if (a2dp_aac_caps_foreach_channel_mode(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
+		caps->channel_mode = channel_mode;
+	else {
+		error("AAC: No supported channel modes: %#x", saved.channel_mode);
+		return errno = ENOTSUP, -1;
+	}
+
+	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE2 &&
+			/* The HEv2 uses SBR with Parametric Stereo algorithm
+			 * which works only with stereo channel mode. */
+			channel_mode == AAC_CHANNEL_MODE_STEREO)
 		caps->object_type = AAC_OBJECT_TYPE_MPEG4_HE2;
 	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE)
 		caps->object_type = AAC_OBJECT_TYPE_MPEG4_HE;
@@ -606,15 +618,6 @@ static int a2dp_aac_configuration_select(
 		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
 		error("AAC: No supported sampling frequencies: %#x", A2DP_AAC_GET_SAMPLING_FREQ(saved));
-		return errno = ENOTSUP, -1;
-	}
-
-	unsigned int channel_mode = 0;
-	if (a2dp_aac_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
-		caps->channel_mode = channel_mode;
-	else {
-		error("AAC: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
 	}
 

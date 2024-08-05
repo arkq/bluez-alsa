@@ -206,7 +206,7 @@ dbus_bool_t ba_dbus_pcm_open(
 const char *ba_dbus_pcm_codec_get_canonical_name(
 		const char *alias) {
 
-	static const char *sco_codecs[] = { "CVSD", "mSBC" };
+	static const char *sco_codecs[] = { "CVSD", "mSBC", "LC3-SWB" };
 	for (size_t i = 0; i < ARRAYSIZE(sco_codecs); i++)
 		if (strcasecmp(sco_codecs[i], alias) == 0)
 			return sco_codecs[i];
