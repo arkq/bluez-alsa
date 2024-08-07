@@ -687,16 +687,14 @@ fail:
  * @return Human-readable string. */
 const char *ba_transport_debug_name(
 		const struct ba_transport *t) {
-	const enum ba_transport_profile profile = t->profile;
-	const uint32_t codec_id = ba_transport_get_codec(t);
-	switch (profile) {
+	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		return t->a2dp.sep->name;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
-		switch (codec_id) {
+		switch (ba_transport_get_codec(t)) {
 		case HFP_CODEC_UNDEFINED:
 			return "HFP Hands-Free (...)";
 		case HFP_CODEC_CVSD:
@@ -707,7 +705,7 @@ const char *ba_transport_debug_name(
 			return "HFP Hands-Free (LC3-SWB)";
 		} break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
-		switch (codec_id) {
+		switch (ba_transport_get_codec(t)) {
 		case HFP_CODEC_UNDEFINED:
 			return "HFP Audio Gateway (...)";
 		case HFP_CODEC_CVSD:
@@ -726,7 +724,8 @@ const char *ba_transport_debug_name(
 		return "MIDI";
 #endif
 	}
-	debug("Unknown transport: profile:%#x codec:%#x", profile, codec_id);
+	debug("Unknown transport: profile:%#x codec:%#x",
+			t->profile, ba_transport_get_codec(t));
 	return "N/A";
 }
 #endif
