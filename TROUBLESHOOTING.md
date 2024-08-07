@@ -135,9 +135,9 @@ On startup, the BlueALSA service will issue warnings if some other application
 has already registered the Bluetooth Audio profiles:
 
 ```text
-bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110A-0000-1000-8000-00805F9B34FB
-bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110B-0000-1000-8000-00805F9B34FB
-bluealsa: W: UUID already registered in BlueZ: 0000111F-0000-1000-8000-00805F9B34FB
+bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110a-0000-1000-8000-00805f9b34fb
+bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110b-0000-1000-8000-00805f9b34fb
+bluealsa: W: UUID already registered in BlueZ: 0000111f-0000-1000-8000-00805f9b34fb
 ```
 
 However, as it is normal practice to start BlueALSA at boot and to start
