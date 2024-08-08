@@ -4,7 +4,7 @@ runs:
   steps:
     - name: Add PPA with LC3 codec
       shell: bash
-      run: sudo add-apt-repository ppa:s-ramacher/ait
+      run: sudo add-apt-repository ppa:savoury1/pipewire
     - name: Install DEB Packages
       uses: awalsh128/cache-apt-pkgs-action@v1
       with:
