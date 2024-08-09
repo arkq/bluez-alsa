@@ -277,6 +277,10 @@ static GVariant *ba_variant_new_pcm_delay_adjustment(const struct ba_transport_p
 	return g_variant_new_int16(ba_transport_pcm_delay_adjustment_get(pcm));
 }
 
+static GVariant *ba_variant_new_pcm_client_delay(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_uint16(pcm->client_delay);
+}
+
 static GVariant *ba_variant_new_pcm_soft_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_boolean(pcm->soft_volume);
 }
@@ -953,6 +957,8 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 		return ba_variant_new_pcm_delay(pcm);
 	if (strcmp(property, "DelayAdjustment") == 0)
 		return ba_variant_new_pcm_delay_adjustment(pcm);
+	if (strcmp(property, "ClientDelay") == 0)
+		return ba_variant_new_pcm_client_delay(pcm);
 	if (strcmp(property, "SoftVolume") == 0)
 		return ba_variant_new_pcm_soft_volume(pcm);
 	if (strcmp(property, "Volume") == 0)
@@ -973,6 +979,12 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 	(void)error;
 
 	struct ba_transport_pcm *pcm = userdata;
+
+	if (strcmp(property, "ClientDelay") == 0) {
+		ba_transport_pcm_set_delay(pcm, g_variant_get_uint16(value));
+		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
+		return TRUE;
+	}
 
 	if (strcmp(property, "SoftVolume") == 0) {
 		pcm->soft_volume = g_variant_get_boolean(value);
@@ -1085,6 +1097,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT)
 		g_variant_builder_add(&props, "{sv}", "DelayAdjustment", ba_variant_new_pcm_delay_adjustment(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_CLIENT_DELAY)
+		g_variant_builder_add(&props, "{sv}", "ClientDelay", ba_variant_new_pcm_client_delay(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_SOFT_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)

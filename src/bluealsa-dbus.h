@@ -29,9 +29,10 @@
 #define BA_DBUS_PCM_UPDATE_CODEC_CONFIG     (1 << 4)
 #define BA_DBUS_PCM_UPDATE_DELAY            (1 << 5)
 #define BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT (1 << 6)
-#define BA_DBUS_PCM_UPDATE_SOFT_VOLUME      (1 << 7)
-#define BA_DBUS_PCM_UPDATE_VOLUME           (1 << 8)
-#define BA_DBUS_PCM_UPDATE_RUNNING          (1 << 9)
+#define BA_DBUS_PCM_UPDATE_CLIENT_DELAY     (1 << 7)
+#define BA_DBUS_PCM_UPDATE_SOFT_VOLUME      (1 << 8)
+#define BA_DBUS_PCM_UPDATE_VOLUME           (1 << 9)
+#define BA_DBUS_PCM_UPDATE_RUNNING          (1 << 10)
 
 #define BA_DBUS_RFCOMM_UPDATE_FEATURES (1 << 0)
 #define BA_DBUS_RFCOMM_UPDATE_BATTERY  (1 << 1)

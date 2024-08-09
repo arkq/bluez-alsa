@@ -42,6 +42,7 @@
 		<property name="CodecConfiguration" type="ay" access="read"/>
 		<property name="Delay" type="q" access="read"/>
 		<property name="DelayAdjustment" type="n" access="read"/>
+		<property name="ClientDelay" type="q" access="readwrite"/>
 		<property name="SoftVolume" type="b" access="readwrite"/>
 		<property name="Volume" type="q" access="readwrite"/>
 	</interface>
