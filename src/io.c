@@ -113,42 +113,42 @@ void io_pcm_scale(
 
 	const unsigned int channels = pcm->channels;
 	const bool pcm_soft_volume = pcm->soft_volume;
-	const double pcm_volume_ch_scales[2] = {
+	double pcm_volume_ch_scales[] = {
 		pcm->volume[0].scale,
 		pcm->volume[1].scale,
 	};
 
 	pthread_mutex_unlock(&pcm->mutex);
 
-	if (!pcm_soft_volume) {
+	g_assert_cmpint(channels, <=, ARRAYSIZE(pcm_volume_ch_scales));
+
+	if (!pcm_soft_volume)
 		/* In case of hardware volume control we will perform mute operation,
 		 * because hardware muting is an equivalent of gain=0 which with some
 		 * headsets does not entirely silence audio. */
-		switch (pcm->format) {
-		case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-			audio_silence_s16_2le(buffer, samples / channels, channels,
-					pcm_volume_ch_scales[0] == 0, pcm_volume_ch_scales[1] == 0);
+		for (size_t i = 0; i < channels; i++)
+			if (pcm_volume_ch_scales[i] != 0.0)
+				pcm_volume_ch_scales[i] = 1.0;
+
+	bool identity = true;
+	/* Check whether volume scaling is required. */
+	for (size_t i = 0; i < channels; i++)
+		if (pcm_volume_ch_scales[i] != 1.0) {
+			identity = false;
 			break;
-		case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
-		case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-			audio_silence_s32_4le(buffer, samples / channels, channels,
-					pcm_volume_ch_scales[0] == 0, pcm_volume_ch_scales[1] == 0);
-			break;
-		default:
-			g_assert_not_reached();
 		}
+
+	if (identity)
+		/* Nothing to do - volume is set to 100%. */
 		return;
-	}
 
 	switch (pcm->format) {
 	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-		audio_scale_s16_2le(buffer, samples / channels, channels,
-				pcm_volume_ch_scales[0], pcm_volume_ch_scales[1]);
+		audio_scale_s16_2le(buffer, pcm_volume_ch_scales, channels, samples / channels);
 		break;
 	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
 	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-		audio_scale_s32_4le(buffer, samples / channels, channels,
-				pcm_volume_ch_scales[0], pcm_volume_ch_scales[1]);
+		audio_scale_s32_4le(buffer, pcm_volume_ch_scales, channels, samples / channels);
 		break;
 	default:
 		g_assert_not_reached();

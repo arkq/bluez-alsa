@@ -298,7 +298,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			int encoded = 0;
 			void *scratch = NULL;
-			audio_deinterleave_s24_4le(input, lc3plus_ch_samples, channels, pcm_ch1, pcm_ch2);
+			audio_deinterleave_s24_4le(pcm_ch_buffers, input, channels, lc3plus_ch_samples);
 			if ((err = lc3plus_enc24(handle, pcm_ch_buffers, bt.tail, &encoded, scratch)) != LC3PLUS_OK) {
 				error("LC3plus encoding error: %s", lc3plus_strerror(err));
 				break;
@@ -509,7 +509,8 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 			void *scratch = NULL;
 			lc3plus_dec24(handle, bt_payload.data, 0, pcm_ch_buffers, scratch, 1);
-			audio_interleave_s24_4le(pcm_ch1, pcm_ch2, lc3plus_ch_samples, channels, pcm.data);
+			audio_interleave_s24_4le(pcm.data, (const int32_t **)pcm_ch_buffers,
+					channels, lc3plus_ch_samples);
 
 			warn("Missing LC3plus data, loss concealment applied");
 
@@ -564,7 +565,8 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 			void *scratch = NULL;
 			err = lc3plus_dec24(handle, lc3plus_payload, lc3plus_frame_len, pcm_ch_buffers, scratch, 0);
-			audio_interleave_s24_4le(pcm_ch1, pcm_ch2, lc3plus_ch_samples, channels, pcm.data);
+			audio_interleave_s24_4le(pcm.data, (const int32_t **)pcm_ch_buffers,
+					channels, lc3plus_ch_samples);
 
 			if (err == LC3PLUS_DECODE_ERROR)
 				warn("Corrupted LC3plus data, loss concealment applied");
