@@ -13,6 +13,7 @@ CRC
 CTL
 CTLs
 CVSD
+ADC
 DRC
 ELD
 eSCO
@@ -113,6 +114,7 @@ renderer
 scalable
 signedness
 stdin
+sys
 syslog
 tmp
 tty

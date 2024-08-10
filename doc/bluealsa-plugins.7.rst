@@ -106,9 +106,9 @@ PCM Parameters
 
   HWCOMPAT
     Modifies the behavior of the plugin on ``a2dp-sink``, ``hfp-hf`` and
-    ``hsp-hs`` nodes in order to align better with the behavior of the ALSA
-    ``hw`` plugin. This is a string option which takes the values **none** or
-    **busy**.
+    ``hsp-hs`` nodes in order to align better with the behaviour of the ALSA
+    ``hw`` plugin. This is a string option which takes the values **none**,
+    **busy** or **silence**.
     See `Transport acquisition`_ in the **NOTES** section below for more
     information.
 
@@ -137,7 +137,7 @@ own configuration (e.g. in ~/.asoundrc.conf) for example:
   defaults.bluealsa.codec "cvsd"
   defaults.bluealsa.volume "50+"
   defaults.bluealsa.softvol off
-  defaults.bluealsa.hwcompat "busy"
+  defaults.bluealsa.hwcompat "silence"
   defaults.bluealsa.delay 5000
   defaults.bluealsa.service "org.bluealsa.source"
 
@@ -187,7 +187,7 @@ configuration node has the following fields:
     [codec STR]       # Preferred codec
     [volume STR]      # Initial volume for this PCM
     [softvol BOOLEAN] # Enable/disable BlueALSA's software volume
-    [hwcompat STR]    # HW compatibility mode (none or busy)
+    [hwcompat STR]    # HW compatibility mode (none, busy or silence)
     [delay INT]       # Extra delay (frames) to be reported (default 0)
     [service STR]     # DBus name of service (default org.bluealsa)
   }
@@ -569,9 +569,9 @@ only the HFP-AG node can change the HFP codec.
 Transport acquisition
 ---------------------
 
-The audio connection of a profile is not established immediately that a device
-connects. The A2DP source device, or HFP/HSP gateway device, must first
-"acquire" the profile transport.
+The audio connection of a Bluetooth profile is not established immediately that
+a device connects. The A2DP source device, or HFP/HSP gateway device, must
+first "acquire" the profile transport.
 
 When the BlueALSA PCM plugin is used on a source A2DP or gateway HFP/HSP node,
 then **bluealsad(8)** will automatically acquire the transport and begin audio
@@ -583,7 +583,7 @@ does not define any state that can be directly mapped to this situation, so
 the BlueALSA PCM plugin offers a choice of behaviors to suit various
 application requirements. The choice is selected using the parameter
 **hwcompat** (**HWCOMPAT** argument to the pre-defined `bluealsa` PCM) which
-takes the following values:
+takes one of the following values:
 
 - none
 
@@ -615,6 +615,17 @@ takes the following values:
     by temporary Bluetooth link instability then the plugin simply blocks
     temporarily, which may cause issues for some applications as noted for the
     **none** value above.
+
+- silence
+
+    Inserts silence for capture streams, or simply drops frames for playback
+    streams, whenever the transport is not acquired. Short intervals of silence
+    may also be inserted into capture streams if there is a break in the
+    incoming stream (for example as a result Bluetooth link instability). By
+    this means a continuous stream is maintained as far as the application is
+    concerned. This is analogous to a soundcard device with no speakers or
+    microphone plugged in: only silence is captured and playback succeeds but
+    produces no sound.
 
 PCM drain and non-blocking operation
 ------------------------------------
