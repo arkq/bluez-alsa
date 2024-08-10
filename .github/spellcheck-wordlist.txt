@@ -213,6 +213,7 @@ hfphf
 hspag
 hsphs
 HUP
+HWCOMPAT
 ioplug
 IPHONEACCEV
 jas
