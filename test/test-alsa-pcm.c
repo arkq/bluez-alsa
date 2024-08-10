@@ -203,6 +203,10 @@ CK_START_TEST(test_capture_start) {
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
+	/* Sleep a little time so that we can check that the PCM has not delivered
+	 * any samples before the start request. */
+	usleep(period_time);
+
 	/* check capture PCM initial state - not running */
 	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_PREPARED);
 	ck_assert_int_eq(snd_pcm_avail(pcm), 0);
