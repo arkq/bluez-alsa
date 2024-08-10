@@ -1,6 +1,6 @@
 /*
  * BlueALSA - asound/bluealsa-pcm.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -26,6 +26,7 @@
 #include <strings.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
+#include <sys/param.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -62,6 +63,7 @@
 enum ba_hwcompat {
 	BA_HWCOMPAT_NONE,
 	BA_HWCOMPAT_BUSY,
+	BA_HWCOMPAT_SILENCE,
 };
 
 struct bluealsa_pcm {
@@ -120,7 +122,7 @@ struct bluealsa_pcm {
 	/* delay accumulated just before pausing */
 	snd_pcm_sframes_t delay_paused;
 	/* maximum delay in FIFO */
-	snd_pcm_sframes_t delay_fifo_size;
+	snd_pcm_uframes_t delay_fifo_size;
 	/* user provided extra delay component */
 	snd_pcm_sframes_t delay_ex;
 
@@ -133,6 +135,10 @@ struct bluealsa_pcm {
 
 	/* Selected compatibility mode between Bluetooth and ALSA. */
 	enum ba_hwcompat hwcompat;
+	/* Indicates whether the PCM transport is active. */
+	atomic_bool fifo_active;
+	/* For playback only, indicates whether the plugin is discarding samples. */
+	bool discarding;
 
 };
 
@@ -217,6 +223,265 @@ static void io_thread_update_delay(struct bluealsa_pcm *pcm,
 		pcm->delay_hw_ptr = hw_ptr;
 
 	pthread_mutex_unlock(&pcm->mutex);
+}
+
+static void frames_to_timespec(struct timespec *ts,
+		snd_pcm_uframes_t frames, unsigned int rate) {
+	ts->tv_sec = frames / rate;
+	ts->tv_nsec = 1000000000L / rate * (frames % rate);
+}
+
+static void capture_silence(struct bluealsa_pcm *pcm,
+		snd_pcm_uframes_t offset, snd_pcm_uframes_t frames) {
+
+	char *buf = pcm->io_hw_buffer + offset * pcm->frame_size;
+
+	/* Allow for fragmented period at the end of the buffer. */
+	const snd_pcm_uframes_t avail = pcm->io.buffer_size - offset;
+	snd_pcm_uframes_t chunk = avail < frames ? avail : frames;
+
+	snd_pcm_format_set_silence(pcm->io.format, buf, chunk * pcm->io.channels);
+	if (chunk < frames) {
+		buf = pcm->io_hw_buffer;
+		chunk = frames - chunk;
+		snd_pcm_format_set_silence(pcm->io.format, buf, chunk * pcm->io.channels);
+	}
+
+}
+
+/**
+ * Transfer a chunk of audio frames from the FIFO to the ALSA buffer.
+ * The whole chunk is read "atomically" to ensure that frames are not
+ * fragmented, so that the HW pointer can be correctly updated.
+ * Inserts intervals of silence into the stream if necessary to complete the
+ * requested number of frames by the given deadline.
+ * @return true if transfer completed successfully, false if error occurred. */
+static bool io_thread_read_hwcompat(struct bluealsa_pcm *pcm,
+		snd_pcm_uframes_t offset, snd_pcm_uframes_t frames, struct timespec *deadline) {
+
+	/* Count of frames added to buffer in this call. */
+	snd_pcm_uframes_t tframes = 0;
+	struct pollfd pfd = { pcm->ba_pcm_fd, POLLIN, 0 };
+
+	while (tframes < frames) {
+
+		struct timespec now, timeout;
+		gettimestamp(&now);
+		if (difftimespec(deadline, &now, &timeout) > 0) {
+			/* We have already exceeded the time allowance for this read. */
+			debug2("Sync lost: I/O thread too slow to maintain rate");
+			timeout.tv_nsec = 0;
+			timeout.tv_sec = 0;
+		}
+
+		int pollret = ppoll(&pfd, 1, &timeout, NULL);
+		if (pollret == -1) {
+			SNDERR("PCM FIFO read error: %s", strerror(errno));
+			break;
+		}
+		else if (pollret == 0) {
+			if (pcm->fifo_active) {
+				debug2("Stream inactive, inserting silence");
+				pcm->fifo_active = false;
+			}
+			capture_silence(pcm, offset, frames - tframes);
+			tframes = frames;
+			break;
+		}
+		else if (pfd.revents & POLLIN) {
+
+			if (!pcm->fifo_active) {
+				/* If transfers begin too soon the FIFO may be emptied again
+				 * immediately. So we wait until there is more than one full
+				 * period available, provided that would not leave so little
+				 * space that the FIFO would fill during the wait. Note that if
+				 * the period_size is more than half the capacity of the FIFO
+				 * then it may be impossible to avoid the FIFO either filling or
+				 * emptying. */
+				snd_pcm_uframes_t avail;
+				unsigned int nread;
+				ioctl(pcm->ba_pcm_fd, FIONREAD, &nread);
+				avail = nread / pcm->frame_size;
+				if ((avail < (3 * pcm->io.period_size / 2)) &&
+						(pcm->io.period_size < pcm->delay_fifo_size)) {
+					if (frames <= pcm->delay_fifo_size - avail) {
+						/* Leave all the frames in the FIFO until the next read. */
+						capture_silence(pcm, offset, frames);
+						tframes = frames;
+						break;
+					}
+					else if (frames > avail) {
+						/* We must remove some frames from the FIFO to prevent
+						 * it becoming full, so we insert just enough silence
+						 * before reading all the available frames. */
+						snd_pcm_uframes_t padding = frames - avail;
+						capture_silence(pcm, offset, padding);
+						tframes = padding;
+						offset += padding;
+						if (offset >= pcm->io.buffer_size)
+							offset -= pcm->io.buffer_size;
+					}
+				}
+
+				debug2("Stream active");
+				pcm->fifo_active = true;
+
+				if (tframes == frames)
+					break;
+
+			}
+
+			/* Allow for fragmented period at end of buffer. */
+			snd_pcm_uframes_t chunk = frames - tframes;
+			const snd_pcm_uframes_t avail = pcm->io.buffer_size - offset;
+			if (avail < chunk)
+				chunk = avail;
+			char *pos = pcm->io_hw_buffer + offset * pcm->frame_size;
+
+			size_t len = chunk * pcm->frame_size;
+			ssize_t ret = read(pcm->ba_pcm_fd, pos, len);
+			if (ret == -1) {
+				SNDERR("PCM FIFO read error: %s", strerror(errno));
+				break;
+			}
+			if (ret == 0)
+				break;
+			chunk = ret / pcm->frame_size;
+			tframes += chunk;
+			offset += chunk;
+			if (offset >= pcm->io.buffer_size)
+				offset = 0;
+
+		}
+		else {
+			/* FIFO closed, flush any remaining frames. */
+			if (tframes > 0) {
+				if (tframes < frames) {
+					capture_silence(pcm, offset, frames - tframes);
+					tframes = frames;
+				}
+			}
+			break;
+		}
+
+	}
+
+	return tframes == frames;
+}
+
+/**
+ * Transfer a chunk of audio frames from the FIFO to the ALSA buffer.
+ * The whole chunk is read "atomically" to ensure that frames are not
+ * fragmented, so the hw pointer can be correctly updated.
+ * @return true if transfer completed successfully, false if error occurred. */
+static bool io_thread_read(struct bluealsa_pcm *pcm,
+		snd_pcm_uframes_t offset, snd_pcm_uframes_t frames) {
+
+	ssize_t ret = 0;
+
+	/* When used with the rate plugin the buffer size may not be an
+	 * integer multiple of the period size. If so, the current period may
+	 * be split, part at the end of the buffer and the remainder at the
+	 * start. In this case we must perform the transfer in two chunks to
+	 * make up a full period.  */
+	snd_pcm_uframes_t chunk = frames;
+	if (pcm->io.buffer_size - offset < frames)
+		chunk = pcm->io.buffer_size - offset;
+
+	/* frames transferred so far */
+	snd_pcm_uframes_t tframes = 0;
+	while (tframes < frames) {
+		char *pos = pcm->io_hw_buffer + offset * pcm->frame_size;
+		size_t len = chunk * pcm->frame_size;
+		do {
+			ret = read(pcm->ba_pcm_fd, pos, len);
+			if (ret == -1) {
+				if (errno == EINTR)
+					continue;
+				SNDERR("PCM FIFO read error: %s", strerror(errno));
+				return false;
+			}
+			else if (ret == 0)
+				return false;
+			pos += ret;
+			len -= ret;
+		} while (len != 0);
+
+		tframes += chunk;
+		offset = 0;
+		chunk = frames - chunk;
+	}
+
+	return true;
+}
+
+/**
+ * Transfer a chunk of audio frames from the ALSA buffer to the FIFO.
+ * The transfer is done atomically - see the explanation for io_thread_read() above.
+ * Discards samples if hwcompat is enabled and the PCM transport is not active.
+ * @return true if transfer completed successfully, false if error occurred. */
+static bool io_thread_write(struct bluealsa_pcm *pcm,
+		snd_pcm_uframes_t offset, snd_pcm_uframes_t frames) {
+
+	ssize_t ret = 0;
+
+	/* In hwcompat silence mode, simply discard the requested frames if the PCM
+	 * is not running; the return value indicates whether the FIFO is open. */
+	if (pcm->hwcompat == BA_HWCOMPAT_SILENCE) {
+		if (!pcm->fifo_active) {
+			if (!pcm->discarding) {
+				debug2("Stream inactive, discarding samples");
+				pcm->discarding = true;
+				bluealsa_pcm_clear_fifo(pcm);
+			}
+			struct pollfd pfd = { pcm->ba_pcm_fd, POLLOUT, 0  };
+			if (poll(&pfd, 1, 0) < 0) {
+				SNDERR("PCM FIFO write error: %s", strerror(errno));
+				return false;
+			}
+			if (pfd.revents & POLLERR)
+				return false;
+
+			return true;
+		}
+
+		if (pcm->discarding) {
+			debug2("Stream active");
+			pcm->discarding = false;
+		}
+	}
+
+	/* When used with the rate plugin the buffer size may not be an
+	 * integer multiple of the period size. If so, the current period may
+	 * be split, part at the end of the buffer and the remainder at the
+	 * start. In this case we must perform the transfer in two chunks to
+	 * make up a full period.  */
+	snd_pcm_uframes_t chunk = frames;
+	if (pcm->io.buffer_size - offset < frames)
+		chunk = pcm->io.buffer_size - offset;
+
+	snd_pcm_uframes_t frames_transfered = 0;
+	while (frames_transfered < frames) {
+		char *pos = pcm->io_hw_buffer + offset * pcm->frame_size;
+		size_t len = chunk * pcm->frame_size;
+		do {
+			if ((ret = write(pcm->ba_pcm_fd, pos, len)) == -1) {
+				if (errno == EINTR)
+					continue;
+				if (errno != EPIPE)
+					SNDERR("PCM FIFO write error: %s", strerror(errno));
+				return false;
+			}
+			pos += ret;
+			len -= ret;
+		} while (len != 0);
+
+		frames_transfered += chunk;
+		offset = 0;
+		chunk = frames - chunk;
+	}
+
+	return true;
 }
 
 /**
@@ -306,74 +571,29 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		if ((snd_pcm_uframes_t)io_hw_ptr >= pcm->io_hw_boundary)
 			io_hw_ptr -= pcm->io_hw_boundary;
 
-		/* When used with the rate plugin the buffer size may not be an
-		 * integer multiple of the period size. If so, the current period may
-		 * be split, part at the end of the buffer and the remainder at the
-		 * start. In this case we must perform the transfer in two chunks to
-		 * make up a full period.  */
-		snd_pcm_uframes_t chunk = frames;
-		if (io->buffer_size - offset < frames)
-			chunk = io->buffer_size - offset;
-
-		snd_pcm_uframes_t frames_transfered = 0;
-		while (frames_transfered < frames) {
-
-			/* IO operation size in bytes */
-			size_t len = chunk * pcm->frame_size;
-			char *head = pcm->io_hw_buffer + offset * pcm->frame_size;
-
-			ssize_t ret = 0;
-			if (io->stream == SND_PCM_STREAM_CAPTURE) {
-
-				/* Read the whole chunk "atomically". This will assure, that
-				 * frames are not fragmented, so the pointer can be correctly
-				 * updated. */
-				while (len != 0 && (ret = read(pcm->ba_pcm_fd, head, len)) != 0) {
-					if (ret == -1) {
-						if (errno == EINTR)
-							continue;
-						SNDERR("PCM FIFO read error: %s", strerror(errno));
-						pcm->connected = false;
-						goto fail;
-					}
-					head += ret;
-					len -= ret;
-				}
-				if (ret == 0) {
-					debug2("BlueALSA server closed PCM connection");
-					pcm->connected = false;
+		if (io->stream == SND_PCM_STREAM_CAPTURE) {
+			if (pcm->hwcompat == BA_HWCOMPAT_SILENCE) {
+				/* Set a deadline for this transfer to complete. */
+				struct timespec deadline, ts;
+				frames_to_timespec(&ts, frames + asrs.frames, pcm->io.rate);
+				timespecadd(&ts, &asrs.ts0, &deadline);
+				if (!io_thread_read_hwcompat(pcm, offset, frames, &deadline))
 					goto fail;
-				}
+				/* Regulate the average rate at which frames are transferred */
+				asrsync_sync(&asrs, frames);
 			}
 			else {
-
-				/* Perform atomic write - see the explanation above. */
-				do {
-					if ((ret = write(pcm->ba_pcm_fd, head, len)) == -1) {
-						if (errno == EINTR)
-							continue;
-						if (errno != EPIPE)
-							SNDERR("PCM FIFO write error: %s", strerror(errno));
-						pcm->connected = false;
-						goto fail;
-					}
-					head += ret;
-					len -= ret;
-				} while (len != 0);
-
+				if (!io_thread_read(pcm, offset, frames))
+					goto fail;
 			}
-
-			frames_transfered += chunk;
-			offset = 0;
-			chunk = frames - chunk;
-
+		}
+		else {
+			if (!io_thread_write(pcm, offset, frames))
+				goto fail;
+			asrsync_sync(&asrs, frames);
 		}
 
 		io_thread_update_delay(pcm, io_hw_ptr);
-
-		/* synchronize playback time */
-		if (io->stream == SND_PCM_STREAM_PLAYBACK)
-			asrsync_sync(&asrs, frames);
 
 		/* Make the new HW pointer value visible to the ioplug. */
 		pcm->io_hw_ptr = io_hw_ptr;
@@ -392,6 +612,10 @@ fail:
 	pthread_mutex_unlock(&pcm->mutex);
 	pthread_cond_signal(&pcm->pause_cond);
 
+	/* Once the io thread has failed, it cannot be re-started until the
+	 * server PCM connection has been closed and re-opened. The only way to
+	 * achieve that is to tell the application that the PCM is disconnected. */
+	pcm->connected = false;
 	eventfd_write(pcm->event_fd, 0xDEAD0000);
 
 	/* wait for cancellation from main thread */
@@ -685,17 +909,47 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	pcm->connected = true;
 
-	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK)
+	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
 		/* By default, the size of the pipe buffer is set to a too large value for
 		 * our purpose. On modern Linux system it is 65536 bytes. Large buffer in
 		 * the playback mode might contribute to an unnecessary audio delay. Since
 		 * it is possible to modify the size of this buffer we will set is to some
 		 * low value, but big enough to prevent audio tearing. Note, that the size
 		 * will be rounded up to the page size (typically 4096 bytes). */
-		pcm->delay_fifo_size = fcntl(pcm->ba_pcm_fd, F_SETPIPE_SZ, 2048) / pcm_frame_size;
-	else
-		pcm->delay_fifo_size = fcntl(pcm->ba_pcm_fd, F_GETPIPE_SZ)  / pcm_frame_size;
+		if ((ret = fcntl(pcm->ba_pcm_fd, F_SETPIPE_SZ, 2048)) == -1) {
+			SNDERR("Unable to set pipe size: %s", strerror(errno));
+			return ret;
+		}
+	}
+	else {
 
+		if (pcm->hwcompat == BA_HWCOMPAT_SILENCE) {
+
+			FILE *f;
+			int max_capacity = 1048576; /* Linux default max pipe size */
+			if ((f = fopen("/proc/sys/fs/pipe-max-size", "r")) != NULL) {
+				if (fscanf(f, "%d", &max_capacity) != 1)
+					debug("Unable to read pipe max size: %s", strerror(errno));
+				fclose(f);
+			}
+
+			/* Try to ensure the FIFO is at least twice the period size. */
+			int capacity = MIN(2 * io->period_size * pcm_frame_size, max_capacity);
+			if ((ret = fcntl(pcm->ba_pcm_fd, F_GETPIPE_SZ)) < capacity) {
+				if ((ret = fcntl(pcm->ba_pcm_fd, F_SETPIPE_SZ, capacity)) == -1)
+					warn("Unable to increase pipe capacity to 2 periods");
+			}
+
+		}
+
+		if ((ret = fcntl(pcm->ba_pcm_fd, F_GETPIPE_SZ)) == -1) {
+			SNDERR("Unable to read pipe size: %s", strerror(errno));
+			return ret;
+		}
+
+	}
+
+	pcm->delay_fifo_size = (unsigned)ret / pcm_frame_size;
 	debug2("FIFO buffer size: %zd frames", pcm->delay_fifo_size);
 
 	/* ALSA default for avail min is one period. */
@@ -1660,6 +1914,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		pcm_ba_hwcompat = BA_HWCOMPAT_NONE;
 	else if (strcmp(hwcompat, "busy") == 0)
 		pcm_ba_hwcompat = BA_HWCOMPAT_BUSY;
+	else if (strcmp(hwcompat, "silence") == 0)
+		pcm_ba_hwcompat = BA_HWCOMPAT_SILENCE;
 	else {
 		SNDERR("Invalid hwcompat mode: %s", hwcompat);
 		return -EINVAL;
@@ -1685,6 +1941,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pthread_mutex_init(&pcm->mutex, NULL);
 	pthread_cond_init(&pcm->pause_cond, NULL);
 	pcm->pause_state = BA_PAUSE_STATE_RUNNING;
+	pcm->fifo_active = false;
 	pcm->null_fd = -1;
 
 	dbus_threads_init_default();
@@ -1749,14 +2006,16 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 	}
 
-	/* If the BT transport codec is not known (which means that PCM sample
-	 * rate is also not know), we cannot construct useful constraints. */
+	/* If the BT transport codec is not known (which means that PCM sampling
+	 * rate is also not known), we cannot construct useful constraints. */
 	if (pcm->ba_pcm.rate == 0) {
 		ret = -EAGAIN;
 		goto fail;
 	}
 
-	if (pcm->ba_pcm.transport & (BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_MASK_AG))
+	/* HW compatible busy mode applies only to a2dp-sink, hfp-hf and hsp-hs. */
+	if (pcm->ba_pcm.transport & (BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_MASK_AG) &&
+			pcm->hwcompat == BA_HWCOMPAT_BUSY)
 		pcm->hwcompat = BA_HWCOMPAT_NONE;
 
 	if (!bluealsa_pcm_available(pcm)) {
@@ -1764,12 +2023,17 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	if (stream == SND_PCM_STREAM_CAPTURE)
+	if (stream == SND_PCM_STREAM_CAPTURE || pcm->hwcompat == BA_HWCOMPAT_SILENCE)
 		if ((pcm->null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK)) == -1) {
 			SNDERR("Couldn't open /dev/null: %s", strerror(errno));
 			ret = -errno;
 			goto fail;
 		}
+
+	if (pcm->hwcompat == BA_HWCOMPAT_SILENCE && stream == SND_PCM_STREAM_PLAYBACK) {
+		pcm->fifo_active = pcm->ba_pcm.running;
+		pcm->discarding = false;
+	}
 
 #if SND_LIB_VERSION >= 0x010102 && SND_LIB_VERSION <= 0x010103
 	/* ALSA library thread-safe API functionality does not play well with ALSA

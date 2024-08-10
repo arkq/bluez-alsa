@@ -1173,7 +1173,7 @@ int main(int argc, char *argv[]) {
 			pcm_device = optarg;
 			break;
 		case 'H' /* --hwcompat=MODE */ : {
-			const char * values[] = { "none", "busy" };
+			const char * values[] = { "none", "busy", "silence" };
 			for (size_t i = 0; i < ARRAYSIZE(values); i++)
 				if (strcmp(optarg, values[i]) == 0)
 					pcm_hwcompat = optarg;

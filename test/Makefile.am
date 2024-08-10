@@ -9,6 +9,7 @@ TESTS = \
 	test-alsa-pcm \
 	test-alsa-pcm-hwcompat-busy \
 	test-alsa-pcm-hwcompat-none \
+	test-alsa-pcm-hwcompat-silence \
 	test-at \
 	test-audio \
 	test-ba \

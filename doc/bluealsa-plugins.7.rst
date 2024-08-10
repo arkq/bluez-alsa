@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: December 2024
+:Date: June 2025
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -105,10 +105,10 @@ PCM Parameters
     softvol value. The default value is **unchanged**.
 
   HWCOMPAT
-    Modifies the behavior of the plugin on ``a2dp-sink``, ``hfp-hf`` and
-    ``hsp-hs`` nodes in order to align better with the behavior of the ALSA
-    ``hw`` plugin. This is a string option which takes the values **none** or
-    **busy**.
+    Modifies the behavior of the plugin when the remote device is connected
+    but not active in order to align better with the behavior of the ALSA
+    ``hw`` plugin . This is a string option which takes the values **none**,
+    **busy** or **silence**.
     See `Transport acquisition`_ in the **NOTES** section below for more
     information.
 
@@ -137,7 +137,7 @@ own configuration (e.g. in ~/.asoundrc.conf) for example:
   defaults.bluealsa.codec "cvsd"
   defaults.bluealsa.volume "50+"
   defaults.bluealsa.softvol off
-  defaults.bluealsa.hwcompat "busy"
+  defaults.bluealsa.hwcompat "silence"
   defaults.bluealsa.delay 5000
   defaults.bluealsa.service "org.bluealsa.source"
 
@@ -187,7 +187,7 @@ configuration node has the following fields:
     [codec STR]       # Preferred codec
     [volume STR]      # Initial volume for this PCM
     [softvol BOOLEAN] # Enable/disable BlueALSA's software volume
-    [hwcompat STR]    # HW compatibility mode (none or busy)
+    [hwcompat STR]    # HW compatibility mode (none, busy or silence)
     [delay INT]       # Extra delay (frames) to be reported (default 0)
     [service STR]     # DBus name of service (default org.bluealsa)
   }
@@ -569,9 +569,9 @@ only the HFP-AG node can change the HFP codec.
 Transport acquisition
 ---------------------
 
-The audio connection of a profile is not established immediately that a device
-connects. The A2DP source device, or HFP/HSP gateway device, must first
-"acquire" the profile transport.
+The audio connection of a Bluetooth profile is not established immediately that
+a device connects. The A2DP source device, or HFP/HSP gateway device, must
+first "acquire" the profile transport.
 
 When the BlueALSA PCM plugin is used on a source A2DP or gateway HFP/HSP node,
 then **bluealsad(8)** will automatically acquire the transport and begin audio
@@ -616,6 +616,22 @@ takes one of the following values:
     temporarily, which may cause issues for some applications as noted for the
     **none** value above.
 
+- silence
+
+    Inserts silence for capture streams, or simply drops frames for playback
+    streams, whenever the transport is not acquired. Short intervals of silence
+    may also be inserted into capture streams if there is a break in the
+    incoming stream (for example as a result Bluetooth link instability). By
+    this means a continuous stream is maintained as far as the application is
+    concerned. This is analogous to a soundcard device with no speakers or
+    microphone plugged in: only silence is captured and playback succeeds but
+    produces no sound.
+
+The **silence** option can also be used with capture devices on HFP/HSP AG and
+A2DP source nodes (e.g. when using the FastStream codec) because in those cases
+it is possible that the remote device is not sending any audio even though the
+transport has been acquired.
+
 PCM drain and non-blocking operation
 ------------------------------------
 
@@ -642,7 +658,7 @@ FILES
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
+Copyright (c) 2016-2025 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
