@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: August 2024
+:Date: December 2024
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -104,6 +104,14 @@ PCM Parameters
     special value **unchanged** which causes the PCM to use its existing
     softvol value. The default value is **unchanged**.
 
+  HWCOMPAT
+    Modifies the behavior of the plugin on ``a2dp-sink``, ``hfp-hf`` and
+    ``hsp-hs`` nodes in order to align better with the behavior of the ALSA
+    ``hw`` plugin. This is a string option which takes the values **none** or
+    **busy**.
+    See `Transport acquisition`_ in the **NOTES** section below for more
+    information.
+
   DELAY
     An integer number which is added to the reported delay (latency) value in
     order to manually adjust the audio synchronization. It is not normally
@@ -129,6 +137,7 @@ own configuration (e.g. in ~/.asoundrc.conf) for example:
   defaults.bluealsa.codec "cvsd"
   defaults.bluealsa.volume "50+"
   defaults.bluealsa.softvol off
+  defaults.bluealsa.hwcompat "busy"
   defaults.bluealsa.delay 5000
   defaults.bluealsa.service "org.bluealsa.source"
 
@@ -141,11 +150,11 @@ Positional Parameters
 ALSA permits arguments to be given as positional parameters as an alternative
 to explicitly naming them. When using positional parameters it is important
 that the values are given in the correct sequence - *DEV*, *PROFILE*, *CODEC*,
-*VOL*, *SOFTVOL*, *DELAY*, *SRV*. For example:
+*VOL*, *SOFTVOL*, *HWCOMPAT*, *DELAY*, *SRV*. For example:
 
 ::
 
-  bluealsa:01:23:45:67:89:AB,a2dp,unchanged,unchanged,unchanged,0,org.bluealsa
+  bluealsa:01:23:45:67:89:AB,a2dp,unchanged,unchanged,unchanged,none,0,org.bluealsa
 
 When using positional parameters defaults can only be implied at the end of the
 id string, so
@@ -178,6 +187,7 @@ configuration node has the following fields:
     [codec STR]       # Preferred codec
     [volume STR]      # Initial volume for this PCM
     [softvol BOOLEAN] # Enable/disable BlueALSA's software volume
+    [hwcompat STR]    # HW compatibility mode (none or busy)
     [delay INT]       # Extra delay (frames) to be reported (default 0)
     [service STR]     # DBus name of service (default org.bluealsa)
   }
@@ -568,13 +578,43 @@ then **bluealsad(8)** will automatically acquire the transport and begin audio
 transfer when the plugin starts the PCM.
 
 When used on an A2DP sink or HFP/HSP HF/HS node then **bluealsad(8)** must wait
-for the remote device to acquire the transport. During this waiting time the
-PCM plugin behaves as if the device "clock" is stopped, it does not generate
-any poll() events, and the application will be blocked when writing or reading
-to/from the PCM. For applications playing audio from a file or recording audio
-to a file this is not normally an issue; but when streaming between some other
-device and a BlueALSA device this may lead to very large latency (delay) or
-trigger underruns or overruns in the other device.
+for the remote device to acquire the transport. The ALSA PCM plugin state model
+does not define any state that can be directly mapped to this situation, so
+the BlueALSA PCM plugin offers a choice of behaviors to suit various
+application requirements. The choice is selected using the parameter
+**hwcompat** (**HWCOMPAT** argument to the pre-defined `bluealsa` PCM) which
+takes one of the following values:
+
+- none
+
+    The streams are presented exactly as handled by Bluetooth. No adjustments
+    are made to align the PCM more to expected ALSA behavior. While waiting for
+    the transport to be acquired the PCM plugin behaves as if the device
+    timer is stopped; it does not generate any poll() events, and the
+    application will be blocked when writing or reading to/from the PCM. For
+    applications playing audio from a file or recording audio to a file this is
+    not normally an issue and has the advantage that the played or captured
+    stream does not contain any frames of silence artificially inserted by the
+    plugin. However when streaming between some other device and a
+    BlueALSA device this may lead to very large latency (delay) or trigger
+    underruns or overruns in the other device. Capture streams may also have
+    brief interruptions caused by Bluetooth radio link interference. Some
+    applications, particularly ones which attempt to manage latency such as
+    ``alsaloop(1)``, may become unstable in this situation.
+
+- busy
+
+    Causes snd_pcm_open() to return immediately with error code **-EBUSY**
+    ("Device or resource busy") on A2DP sink, HFP-HF and HSP-HS nodes if the
+    transport is not yet acquired. This is analogous to a ``hw`` device PCM
+    that is temporarily unavailable (for example because it is in use by some
+    other application). With this option the plugin also stops the
+    PCM stream and enters the **SND_PCM_STATE_DISCONNECTED** state if the
+    remote device releases the transport while in use, which is analogous to a
+    removable ``hw`` device being unplugged. If a capture stream is interrupted
+    by temporary Bluetooth link instability then the plugin simply blocks
+    temporarily, which may cause issues for some applications as noted for the
+    **none** value above.
 
 PCM drain and non-blocking operation
 ------------------------------------

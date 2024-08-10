@@ -59,6 +59,11 @@
 # define BLUEALSA_HW_PARAMS_FIX 1
 #endif
 
+enum ba_hwcompat_t {
+	BA_HWCOMPAT_NONE,
+	BA_HWCOMPAT_BUSY,
+};
+
 struct bluealsa_pcm {
 	snd_pcm_ioplug_t io;
 
@@ -126,6 +131,7 @@ struct bluealsa_pcm {
 	/* Opened /dev/null used to clear stale data from the PCM FIFO. */
 	int null_fd;
 
+	enum ba_hwcompat_t hwcompat;
 };
 
 /**
@@ -386,6 +392,10 @@ fail:
 
 	pthread_cleanup_pop(1);
 	return NULL;
+}
+
+static bool bluealsa_transport_available(struct bluealsa_pcm *pcm) {
+	return (pcm->ba_pcm.running || pcm->hwcompat != BA_HWCOMPAT_BUSY);
 }
 
 static int bluealsa_start(snd_pcm_ioplug_t *io) {
@@ -1407,8 +1417,11 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 	dbus_message_iter_get_basic(&iter, &updated_interface);
 	dbus_message_iter_next(&iter);
 
-	if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0)
+	if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0) {
 		dbus_message_iter_get_ba_pcm_props(&iter, NULL, &pcm->ba_pcm);
+		if (!bluealsa_transport_available(pcm))
+			pcm->connected = false;
+	}
 
 	return DBUS_HANDLER_RESULT_HANDLED;
 }
@@ -1521,6 +1534,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	const char *codec = NULL;
 	const char *volume = NULL;
 	const char *softvol = NULL;
+	const char *hwcompat = NULL;
 	long delay = 0;
 	struct bluealsa_pcm *pcm;
 	int ret;
@@ -1593,7 +1607,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			}
 			continue;
 		}
-
+		if (strcmp(id, "hwcompat") == 0) {
+			if (snd_config_get_string(n, &hwcompat) < 0) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
 	}
@@ -1652,6 +1672,15 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pthread_cond_init(&pcm->pause_cond, NULL);
 	pcm->pause_state = BA_PAUSE_STATE_RUNNING;
 	pcm->null_fd = -1;
+
+	if (hwcompat == NULL || strcmp(hwcompat, "none") == 0)
+		pcm->hwcompat = BA_HWCOMPAT_NONE;
+	else if (strcmp(hwcompat, "busy") == 0)
+		pcm->hwcompat = BA_HWCOMPAT_BUSY;
+	else {
+		SNDERR("Invalid hwcompat mode: %s", hwcompat);
+		return -EINVAL;
+	}
 
 	dbus_threads_init_default();
 
@@ -1719,6 +1748,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	 * rate is also not know), we cannot construct useful constraints. */
 	if (pcm->ba_pcm.rate == 0) {
 		ret = -EAGAIN;
+		goto fail;
+	}
+
+	if (pcm->ba_pcm.transport & (BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_MASK_AG))
+		pcm->hwcompat = BA_HWCOMPAT_NONE;
+
+	if (!bluealsa_transport_available(pcm)) {
+		ret = -EBUSY;
 		goto fail;
 	}
 
