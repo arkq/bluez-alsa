@@ -1,6 +1,7 @@
 # Abbreviations
 AAC
 ABR
+ADC
 ADDR
 AOSP
 AVRCP
@@ -115,6 +116,7 @@ renderer
 scalable
 signedness
 stdin
+sys
 syslog
 tmp
 tty
