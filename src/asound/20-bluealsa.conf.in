@@ -6,21 +6,20 @@ defaults.bluealsa.device "00:00:00:00:00:00"
 # Default to A2DP connection because that is what
 # most people want to use - high quality audio.
 defaults.bluealsa.profile "a2dp"
-# By default allow BlueALSA to negotiate the "best"
-# codec for each PCM.
+# By default allow BlueALSA to negotiate the "best" codec for each PCM.
 defaults.bluealsa.codec "unchanged"
-# By default do not change the volume or mute state
-# when a PCM is opened.
+# By default do not change the volume or mute state when a PCM is opened.
 defaults.bluealsa.volume "unchanged"
-# By default do not modify the software volume state
-# when a PCM is opened.
+# By default do not modify the software volume state when a PCM is opened.
 defaults.bluealsa.softvol "unchanged"
+# By default do not provide any compatibility between Bluetooth and ALSA.
+defaults.bluealsa.hwcompat "none"
 # If Bluetooth sink device (e.g. headphones) supports
 # A2DP v1.3 or later it will report delay by itself,
 # so there is no need to set the delay manually.
 defaults.bluealsa.delay 0
 defaults.bluealsa.service "org.bluealsa"
-# Default for mixer is to show all PCMs
+# Default for mixer is to show all PCMs.
 defaults.bluealsa.ctl.device "FF:FF:FF:FF:FF:FF"
 # By default do not show additional controls. It is advised to
 # read the documentation for "bluealsa" control plugin before
@@ -82,7 +81,7 @@ ctl.bluealsa {
 }
 
 pcm.bluealsa {
-	@args [ DEV PROFILE CODEC VOL SOFTVOL DELAY SRV ]
+	@args [ DEV PROFILE CODEC VOL SOFTVOL HWCOMPAT DELAY SRV ]
 	@args.DEV {
 		type string
 		default {
@@ -118,6 +117,13 @@ pcm.bluealsa {
 			name defaults.bluealsa.softvol
 		}
 	}
+	@args.HWCOMPAT {
+		type string
+		default {
+			@func refer
+			name defaults.bluealsa.hwcompat
+		}
+	}
 	@args.DELAY {
 		type integer
 		default {
@@ -140,6 +146,7 @@ pcm.bluealsa {
 		codec $CODEC
 		volume $VOL
 		softvol $SOFTVOL
+		hwcompat $HWCOMPAT
 		delay $DELAY
 		service $SRV
 	}

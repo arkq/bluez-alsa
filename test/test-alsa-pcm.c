@@ -41,6 +41,7 @@
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 
 static const char *pcm_device = NULL;
+static const char *pcm_hwcompat = NULL;
 static unsigned int pcm_channels = 2;
 static unsigned int pcm_rate = 44100;
 static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
@@ -139,7 +140,14 @@ static int test_pcm_open(struct spawn_process *sp_ba_mock, snd_pcm_t **pcm,
 				NULL) == -1)
 		return -1;
 
-	return snd_pcm_open(pcm, "bluealsa:DEV=12:34:56:78:9A:BC", stream, 0);
+	char name[64];
+	const char *dev = "bluealsa:DEV=12:34:56:78:9A:BC";
+	snprintf(name, sizeof(name), "%s", dev);
+
+	if (pcm_hwcompat != NULL)
+		snprintf(name, sizeof(name), "%s,HWCOMPAT=%s", dev, pcm_hwcompat);
+
+	return snd_pcm_open(pcm, name, stream, 0);
 }
 
 static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
@@ -313,7 +321,7 @@ CK_START_TEST(test_capture_pause) {
 		ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
 		/* wait a little bit */
-		usleep(period_time);
+		usleep(period_time + 5000);
 
 		/* check resume: more available frames, bigger delay */
 		ck_assert_int_gt(snd_pcm_avail(pcm), frames0);
@@ -1141,10 +1149,11 @@ int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/libaloader.so");
 
 	int opt;
-	const char *opts = "hD:c:f:r:";
+	const char *opts = "hD:H:c:f:r:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "pcm", required_argument, NULL, 'D' },
+		{ "hwcompat", required_argument, NULL, 'H' },
 		{ "channels", required_argument, NULL, 'c' },
 		{ "format", required_argument, NULL, 'f' },
 		{ "rate", required_argument, NULL, 'r' },
@@ -1163,6 +1172,12 @@ int main(int argc, char *argv[]) {
 		case 'D' /* --pcm=NAME */ :
 			pcm_device = optarg;
 			break;
+		case 'H' /* --hwcompat=MODE */ : {
+			const char * values[] = { "none", "busy" };
+			for (size_t i = 0; i < ARRAYSIZE(values); i++)
+				if (strcmp(optarg, values[i]) == 0)
+					pcm_hwcompat = optarg;
+		} break;
 		case 'c' /* --channels=NUM */ :
 			pcm_channels = atoi(optarg);
 			break;
