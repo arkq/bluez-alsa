@@ -102,4 +102,22 @@
 		<property name="Percentage" type="d" access="read" />
 	</interface>
 
+	<interface name="org.ofono.HandsfreeAudioManager">
+		<method name="GetCards">
+			<arg name="cards" type="a(oa{sv})" direction="out" />
+		</method>
+		<method name="Register">
+			<arg name="agent" type="o" direction="in" />
+			<arg name="codecs" type="ay" direction="in">
+				<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true" />
+			</arg>
+		</method>
+	</interface>
+
+	<interface name="org.ofono.Manager">
+		<method name="GetModems">
+			<arg name="modems" type="a(oa{sv})" direction="out" />
+		</method>
+	</interface>
+
 </node>

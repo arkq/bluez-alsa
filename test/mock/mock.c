@@ -37,6 +37,7 @@
 #include "a2dp.h"
 #include "ba-config.h"
 #include "bluealsa-iface.h"
+#include "ofono.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
@@ -52,11 +53,29 @@ bool mock_dump_output = false;
 int mock_fuzzing_ms = 0;
 
 static const char *dbus_address = NULL;
-GDBusConnection *mock_dbus_connection_new_sync(GError **error) {
+static GDBusConnection *mock_dbus_connection_new_sync(GError **error) {
 	return g_dbus_connection_new_for_address_sync(dbus_address,
 			G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
 			G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
 			NULL, NULL, error);
+}
+
+static void *mock_loop_run(void *userdata) {
+	struct MockService *service = userdata;
+
+	g_autoptr(GMainContext) context = g_main_context_new();
+	service->loop = g_main_loop_new(context, FALSE);
+	g_main_context_push_thread_default(context);
+
+	g_autoptr(GDBusConnection) conn = mock_dbus_connection_new_sync(NULL);
+	g_assert((service->id = g_bus_own_name_on_connection(conn, service->name,
+					G_BUS_NAME_OWNER_FLAGS_NONE, service->name_acquired_cb, service->name_lost_cb,
+					userdata, NULL)) != 0);
+
+	g_main_loop_run(service->loop);
+
+	g_main_context_pop_thread_default(context);
+	return NULL;
 }
 
 void mock_sem_signal(GAsyncQueue *sem) {
@@ -65,6 +84,23 @@ void mock_sem_signal(GAsyncQueue *sem) {
 
 void mock_sem_wait(GAsyncQueue *sem) {
 	g_async_queue_pop(sem);
+}
+
+void mock_service_start(struct MockService *service) {
+	service->ready = g_async_queue_new();
+	service->thread = g_thread_new(service->name, mock_loop_run, service);
+	mock_sem_wait(service->ready);
+	g_async_queue_unref(service->ready);
+}
+
+void mock_service_stop(struct MockService *service) {
+
+	g_bus_unown_name(service->id);
+
+	g_main_loop_quit(service->loop);
+	g_main_loop_unref(service->loop);
+	g_thread_join(service->thread);
+
 }
 
 static void *mock_bt_dump_thread(void *userdata) {
@@ -157,6 +193,9 @@ int main(int argc, char *argv[]) {
 			} map[] = {
 				{ "a2dp-source", &config.profile.a2dp_source },
 				{ "a2dp-sink", &config.profile.a2dp_sink },
+#if ENABLE_OFONO
+				{ "hfp-ofono", &config.profile.hfp_ofono },
+#endif
 				{ "hfp-ag", &config.profile.hfp_ag },
 				{ "hfp-hf", &config.profile.hfp_hf },
 				{ "hsp-ag", &config.profile.hsp_ag },
@@ -249,8 +288,14 @@ int main(int argc, char *argv[]) {
 	g_unix_signal_add(SIGTERM, mock_sem_signal_handler, mock_sem_timeout);
 
 	mock_bluez_service_start();
+	mock_ofono_service_start();
 	mock_upower_service_start();
+	/* Start BlueALSA as the last service. */
 	mock_bluealsa_service_start();
+
+#if ENABLE_OFONO
+	assert(ofono_detect_service() == true);
+#endif
 
 	/* Start the termination timer after all services are up and running. */
 	g_timeout_add(timeout_ms, mock_sem_signal_handler, mock_sem_timeout);
@@ -258,6 +303,7 @@ int main(int argc, char *argv[]) {
 	/* Run mock until timeout or SIGINT/SIGTERM signal. */
 	mock_bluealsa_run();
 
+	mock_ofono_service_stop();
 	mock_upower_service_stop();
 	/* Simulate BlueZ termination while BlueALSA is still running. */
 	mock_bluez_service_stop();

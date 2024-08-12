@@ -354,6 +354,7 @@ int mock_bluez_device_media_set_configuration(const char *device_path,
 
 static void mock_dbus_name_acquired(GDBusConnection *conn,
 		G_GNUC_UNUSED const char *name, void *userdata) {
+	struct MockService *service = userdata;
 
 	server = g_dbus_object_manager_server_new("/");
 	profiles = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_object_unref);
@@ -365,44 +366,22 @@ static void mock_dbus_name_acquired(GDBusConnection *conn,
 	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_2_PATH, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_2);
 
 	g_dbus_object_manager_server_set_connection(server, conn);
-	mock_sem_signal(userdata);
+	mock_sem_signal(service->ready);
 
 }
 
-static GThread *mock_thread = NULL;
-static GMainLoop *mock_main_loop = NULL;
-static unsigned int mock_owner_id = 0;
-
-static void *mock_loop_run(void *userdata) {
-
-	g_autoptr(GMainContext) context = g_main_context_new();
-	mock_main_loop = g_main_loop_new(context, FALSE);
-	g_main_context_push_thread_default(context);
-
-	g_autoptr(GDBusConnection) conn = mock_dbus_connection_new_sync(NULL);
-	g_assert((mock_owner_id = g_bus_own_name_on_connection(conn,
-					BLUEZ_SERVICE, G_BUS_NAME_OWNER_FLAGS_NONE,
-					mock_dbus_name_acquired, NULL, userdata, NULL)) != 0);
-
-	g_main_loop_run(mock_main_loop);
-
-	g_main_context_pop_thread_default(context);
-	return NULL;
-}
+static struct MockService service = {
+	.name = BLUEZ_SERVICE,
+	.name_acquired_cb = mock_dbus_name_acquired,
+};
 
 void mock_bluez_service_start(void) {
-	g_autoptr(GAsyncQueue) ready = g_async_queue_new();
-	mock_thread = g_thread_new("BlueZ", mock_loop_run, ready);
-	mock_sem_wait(ready);
+	mock_service_start(&service);
 }
 
 void mock_bluez_service_stop(void) {
 
-	g_bus_unown_name(mock_owner_id);
-
-	g_main_loop_quit(mock_main_loop);
-	g_main_loop_unref(mock_main_loop);
-	g_thread_join(mock_thread);
+	mock_service_stop(&service);
 
 	g_hash_table_unref(profiles);
 	if (media_app_client != NULL)

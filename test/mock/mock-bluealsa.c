@@ -50,6 +50,7 @@
 #include "hfp.h"
 #include "io.h"
 #include "midi.h"
+#include "ofono.h"
 #include "storage.h"
 #include "upower.h"
 #include "shared/a2dp-codecs.h"
@@ -94,12 +95,6 @@ static const a2dp_faststream_t config_faststream_44100_16000 = {
 	.sampling_freq_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 };
 #endif
-
-int ofono_call_volume_update(struct ba_transport *transport) {
-	debug("%s: %p", __func__, transport);
-	(void)transport;
-	return 0;
-}
 
 static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 
@@ -427,6 +422,7 @@ void mock_bluealsa_run(void) {
 
 static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 		const char *name, void *userdata) {
+	struct MockService *service = userdata;
 
 	config.dbus = conn;
 	/* do not generate lots of data */
@@ -443,50 +439,32 @@ static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 	bluealsa_dbus_register();
 	/* setup BlueZ integration */
 	bluez_init();
+#if ENABLE_OFONO
+	/* setup oFono integration */
+	ofono_init();
+#endif
 #if ENABLE_UPOWER
 	/* setup UPower integration */
 	upower_init();
 #endif
 
 	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
-	mock_sem_signal(userdata);
+	mock_sem_signal(service->ready);
 
 }
 
-static GThread *mock_thread = NULL;
-static GMainLoop *mock_main_loop = NULL;
-static unsigned int mock_owner_id = 0;
-
-static void *mock_loop_run(void *userdata) {
-
-	g_autoptr(GMainContext) context = g_main_context_new();
-	mock_main_loop = g_main_loop_new(context, FALSE);
-	g_main_context_push_thread_default(context);
-
-	g_autoptr(GDBusConnection) conn = mock_dbus_connection_new_sync(NULL);
-	g_assert((mock_owner_id = g_bus_own_name_on_connection(conn,
-					mock_ba_service_name, G_BUS_NAME_OWNER_FLAGS_NONE,
-					mock_dbus_name_acquired, NULL, userdata, NULL)) != 0);
-
-	g_main_loop_run(mock_main_loop);
-
-	g_main_context_pop_thread_default(context);
-	return NULL;
-}
+static struct MockService service = {
+	.name = mock_ba_service_name,
+	.name_acquired_cb = mock_dbus_name_acquired,
+};
 
 void mock_bluealsa_service_start(void) {
-	g_autoptr(GAsyncQueue) ready = g_async_queue_new();
-	mock_thread = g_thread_new("BlueALSA", mock_loop_run, ready);
-	mock_sem_wait(ready);
+	mock_service_start(&service);
 }
 
 void mock_bluealsa_service_stop(void) {
 
-	g_bus_unown_name(mock_owner_id);
-
-	g_main_loop_quit(mock_main_loop);
-	g_main_loop_unref(mock_main_loop);
-	g_thread_join(mock_thread);
+	mock_service_stop(&service);
 
 	ba_device_unref(ba_device_1);
 	ba_device_unref(ba_device_2);

@@ -31,13 +31,24 @@
 #define MOCK_BLUEZ_DEVICE_2_SEP_PATH MOCK_BLUEZ_DEVICE_2_PATH "/sep"
 #define MOCK_BLUEZ_MIDI_PATH MOCK_BLUEZ_ADAPTER_PATH "/MIDI"
 
+struct MockService {
+
+	const char *name;
+	void (*name_acquired_cb)(GDBusConnection *conn, const char *name, void *userdata);
+	void (*name_lost_cb)(GDBusConnection *conn, const char *name, void *userdata);
+
+	GThread *thread;
+	GAsyncQueue *ready;
+	GMainLoop *loop;
+	unsigned int id;
+
+};
+
 extern GAsyncQueue *mock_sem_ready;
 extern GAsyncQueue *mock_sem_timeout;
 extern char mock_ba_service_name[32];
 extern bool mock_dump_output;
 extern int mock_fuzzing_ms;
-
-GDBusConnection *mock_dbus_connection_new_sync(GError **error);
 
 void mock_bluealsa_run(void);
 void mock_bluealsa_service_start(void);
@@ -56,6 +67,9 @@ int mock_bluez_device_media_set_configuration(const char *device_path,
 void mock_bluez_service_start(void);
 void mock_bluez_service_stop(void);
 
+void mock_ofono_service_start(void);
+void mock_ofono_service_stop(void);
+
 int mock_upower_display_device_set_is_present(bool present);
 int mock_upower_display_device_set_percentage(double percentage);
 void mock_upower_service_start(void);
@@ -63,5 +77,8 @@ void mock_upower_service_stop(void);
 
 void mock_sem_signal(GAsyncQueue *sem);
 void mock_sem_wait(GAsyncQueue *sem);
+
+void mock_service_start(struct MockService *service);
+void mock_service_stop(struct MockService *service);
 
 GThread *mock_bt_dump_thread_new(int fd);

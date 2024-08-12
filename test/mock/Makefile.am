@@ -37,6 +37,7 @@ bluealsa_mock_SOURCES = \
 	dbus-ifaces.c \
 	mock-bluealsa.c \
 	mock-bluez.c \
+	mock-ofono.c \
 	mock-upower.c \
 	mock.c
 
@@ -139,6 +140,12 @@ if ENABLE_MSBC
 bluealsa_mock_SOURCES += \
 	../../src/codec-msbc.c \
 	../../src/sco-msbc.c
+endif
+
+if ENABLE_OFONO
+bluealsa_mock_SOURCES += \
+	../../src/ofono.c \
+	../../src/ofono-iface.c
 endif
 
 if ENABLE_OPUS

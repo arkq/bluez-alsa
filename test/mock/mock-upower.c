@@ -51,50 +51,26 @@ int mock_upower_display_device_set_percentage(double percentage) {
 
 static void mock_dbus_name_acquired(GDBusConnection *conn,
 		G_GNUC_UNUSED const char *name, void *userdata) {
+	struct MockService *service = userdata;
 
 	server = g_dbus_object_manager_server_new("/");
 	display_device = mock_upower_device_add(UPOWER_PATH_DISPLAY_DEVICE);
 
 	g_dbus_object_manager_server_set_connection(server, conn);
-	mock_sem_signal(userdata);
+	mock_sem_signal(service->ready);
 
 }
 
-static GThread *mock_thread = NULL;
-static GMainLoop *mock_main_loop = NULL;
-static unsigned int mock_owner_id = 0;
-
-static void *mock_loop_run(void *userdata) {
-
-	g_autoptr(GMainContext) context = g_main_context_new();
-	mock_main_loop = g_main_loop_new(context, FALSE);
-	g_main_context_push_thread_default(context);
-
-	g_autoptr(GDBusConnection) conn = mock_dbus_connection_new_sync(NULL);
-	g_assert((mock_owner_id = g_bus_own_name_on_connection(conn,
-					UPOWER_SERVICE, G_BUS_NAME_OWNER_FLAGS_NONE,
-					mock_dbus_name_acquired, NULL, userdata, NULL)) != 0);
-
-	g_main_loop_run(mock_main_loop);
-
-	g_main_context_pop_thread_default(context);
-	return NULL;
-}
+static struct MockService service = {
+	.name = UPOWER_SERVICE,
+	.name_acquired_cb = mock_dbus_name_acquired,
+};
 
 void mock_upower_service_start(void) {
-	g_autoptr(GAsyncQueue) ready = g_async_queue_new();
-	mock_thread = g_thread_new("UPower", mock_loop_run, ready);
-	mock_sem_wait(ready);
+	mock_service_start(&service);
 }
 
 void mock_upower_service_stop(void) {
-
-	g_bus_unown_name(mock_owner_id);
-
-	g_main_loop_quit(mock_main_loop);
-	g_main_loop_unref(mock_main_loop);
-	g_thread_join(mock_thread);
-
+	mock_service_stop(&service);
 	g_object_unref(server);
-
 }

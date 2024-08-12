@@ -170,6 +170,9 @@ CK_START_TEST(test_info) {
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
 				"--profile=a2dp-source",
+#if ENABLE_OFONO
+				"--profile=hfp-ofono",
+#endif
 				NULL), -1);
 
 	char output[4096];
