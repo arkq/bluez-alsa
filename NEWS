@@ -1,12 +1,15 @@
 unreleased
 ==========
 
+bluez-alsa v4.3.0 (2024-08-13)
+==============================
+
 - optional support for Android 13 A2DP Opus codec
 - multi channels and sampling rates mode for ALSA PCM plug-in
 - bluealsa-aplay: fix volume synchronization on Raspberry Pi
 
 bluez-alsa v4.2.0 (2024-05-11)
-==========
+==============================
 
 - optional support for BLE MIDI 1.0 profile as a GATT server
 - optional support for HFP LC3-SWB (Super Wide Band) codec
