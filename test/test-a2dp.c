@@ -195,6 +195,55 @@ CK_START_TEST(test_a2dp_check_strerror) {
 	ck_assert_str_eq(a2dp_check_strerror(0xFFFF), "Check error");
 } CK_END_TEST
 
+CK_START_TEST(test_a2dp_caps) {
+
+	struct a2dp_sep * const * seps = a2dp_seps;
+	for (const struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps) {
+		debug("%s", sep->name);
+
+		/* Check whether all capability helpers are set. */
+
+		ck_assert_ptr_ne(sep->caps_helpers, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->intersect, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->has_stream, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->foreach_channel_mode, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->foreach_sampling_freq, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->select_channel_mode, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->select_sampling_freq, NULL);
+
+		/* Run smoke tests for all capability helpers. */
+
+		a2dp_t caps = sep->config.capabilities;
+		sep->caps_helpers->intersect(&caps, &sep->config.capabilities);
+
+		/* All our SEPs shall support the MAIN stream. The BACKCHANNEL
+		 * stream is optional, though. */
+
+		ck_assert_uint_eq(sep->caps_helpers->has_stream(&caps, A2DP_MAIN), true);
+		sep->caps_helpers->has_stream(&caps, A2DP_BACKCHANNEL);
+
+		unsigned int channel_mode = 0;
+		sep->caps_helpers->foreach_channel_mode(&caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode);
+		sep->caps_helpers->foreach_channel_mode(&caps, A2DP_BACKCHANNEL,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode);
+
+		unsigned int sampling_freq = 0;
+		sep->caps_helpers->foreach_sampling_freq(&caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq);
+		sep->caps_helpers->foreach_sampling_freq(&caps, A2DP_BACKCHANNEL,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq);
+
+		sep->caps_helpers->select_channel_mode(&caps, A2DP_MAIN, 2);
+		sep->caps_helpers->select_channel_mode(&caps, A2DP_BACKCHANNEL, 1);
+
+		sep->caps_helpers->select_sampling_freq(&caps, A2DP_MAIN, 48000);
+		sep->caps_helpers->select_sampling_freq(&caps, A2DP_BACKCHANNEL, 16000);
+
+	}
+
+} CK_END_TEST
+
 CK_START_TEST(test_a2dp_caps_intersect) {
 
 	a2dp_sbc_t caps_sbc = {
@@ -389,6 +438,7 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_sep_lookup);
 	tcase_add_test(tc, test_a2dp_get_vendor_codec_id);
 
+	tcase_add_test(tc, test_a2dp_caps);
 	tcase_add_test(tc, test_a2dp_caps_intersect);
 	tcase_add_test(tc, test_a2dp_caps_foreach_get_best);
 	tcase_add_test(tc, test_a2dp_caps_select_channels_and_sampling);
