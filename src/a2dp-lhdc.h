@@ -19,7 +19,7 @@
 
 #include "a2dp.h"
 
-extern struct a2dp_codec a2dp_lhdc_sink;
-extern struct a2dp_codec a2dp_lhdc_source;
+extern struct a2dp_sep a2dp_lhdc_sink;
+extern struct a2dp_sep a2dp_lhdc_source;
 
 #endif

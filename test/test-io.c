@@ -1381,7 +1381,7 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID)), test_a2dp_ldac },
 #endif
 #if ENABLE_LHDC
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID))), test_a2dp_lhdc },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)), test_a2dp_lhdc },
 #endif
 #if ENABLE_OPUS
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },
