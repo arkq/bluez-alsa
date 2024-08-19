@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.h
- * Copyright (c) 2016-2020 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -26,13 +26,9 @@ struct bluez_device {
 
 	/* device name (alias) */
 	char name[64];
-
-	/* device class */
-	unsigned int class_;
+	/* device type name */
 	char icon[32];
 
-	unsigned int blocked : 1;
-	unsigned int connected : 1;
 	unsigned int paired : 1;
 	unsigned int trusted : 1;
 

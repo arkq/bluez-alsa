@@ -1,0 +1,123 @@
+<!-- BlueALSA - dbus-ifaces.xml
+     Copyright (c) 2016-2024 Arkadiusz Bokowy
+
+     This file is a part of bluez-alsa.
+
+     This project is licensed under the terms of the MIT license.
+-->
+<node>
+
+	<!-- NOTE: Due to a bug in gdbus-codegen in glib prior to 2.61.0,
+	           the first interface must have at least one method.
+	-->
+
+	<interface name="org.bluez.Adapter1">
+		<method name="StartDiscovery" />
+		<property name="Address" type="s" access="read" />
+		<property name="UUIDs" type="as" access="read" />
+	</interface>
+
+	<interface name="org.bluez.BatteryProviderManager1">
+		<method name="RegisterBatteryProvider">
+			<arg name="provider" type="o" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.Device1">
+		<method name="Connect" />
+		<property name="Adapter" type="o" access="read" />
+		<property name="Alias" type="s" access="readwrite" />
+		<property name="Icon" type="s" access="read" />
+		<property name="Trusted" type="b" access="read" />
+	</interface>
+
+	<interface name="org.bluez.GattManager1">
+		<method name="RegisterApplication">
+			<arg name="root" type="o" direction="in" />
+			<arg name="options" type="a{sv}" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.Media1">
+		<method name="RegisterApplication">
+			<arg name="root" type="o" direction="in" />
+			<arg name="options" type="a{sv}" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.MediaEndpoint1">
+		<method name="SetConfiguration">
+			<arg direction="in" type="o" name="transport" />
+			<arg direction="in" type="a{sv}" name="properties" />
+		</method>
+		<property name="UUID" type="s" access="read" />
+		<property name="Codec" type="y" access="read" />
+		<property name="Vendor" type="u" access="read" />
+		<property name="Capabilities" type="ay" access="read">
+			<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true" />
+		</property>
+		<property name="Device" type="o" access="read" />
+		<property name="DelayReporting" type="b" access="read" />
+	</interface>
+
+	<interface name="org.bluez.MediaTransport1">
+		<method name="Acquire">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg name="fd" type="h" direction="out" />
+			<arg name="mtu_read" type="q" direction="out" />
+			<arg name="mtu_write" type="q" direction="out" />
+		</method>
+		<method name="TryAcquire">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg name="fd" type="h" direction="out" />
+			<arg name="mtu_read" type="q" direction="out" />
+			<arg name="mtu_write" type="q" direction="out" />
+		</method>
+		<method name="Release" />
+		<property name="Device" type="o" access="read" />
+		<property name="State" type="s" access="read" />
+		<property name="Delay" type="q" access="readwrite" />
+		<property name="Volume" type="q" access="readwrite" />
+	</interface>
+
+	<interface name="org.bluez.ProfileManager1">
+		<method name="RegisterProfile">
+			<arg name="profile" type="o" direction="in" />
+			<arg name="uuid" type="s" direction="in" />
+			<arg name="options" type="a{sv}" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.Profile1">
+		<method name="NewConnection">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg direction="in" type="o" name="device"/>
+			<arg direction="in" type="h" name="fd"/>
+			<arg direction="in" type="a{sv}" name="properties"/>
+		</method>
+	</interface>
+
+	<interface name="org.freedesktop.UPower.Device">
+		<property name="IsPresent" type="b" access="read" />
+		<property name="Percentage" type="d" access="read" />
+	</interface>
+
+	<interface name="org.ofono.HandsfreeAudioManager">
+		<method name="GetCards">
+			<arg name="cards" type="a(oa{sv})" direction="out" />
+		</method>
+		<method name="Register">
+			<arg name="agent" type="o" direction="in" />
+			<arg name="codecs" type="ay" direction="in">
+				<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true" />
+			</arg>
+		</method>
+	</interface>
+
+	<interface name="org.ofono.Manager">
+		<method name="GetModems">
+			<arg name="modems" type="a(oa{sv})" direction="out" />
+		</method>
+	</interface>
+
+</node>

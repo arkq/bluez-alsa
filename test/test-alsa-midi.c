@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
 
 	/* Check whether current host supports ALSA sequencer. If not, then
 	 * there is no point in running this test, because it will fail. */
-	if (access("/dev/snd/seq", F_OK) != 0) {
+	if (access("/dev/snd/seq", F_OK | R_OK | W_OK) != 0) {
 		warn("ALSA sequencer not available, skipping test!");
 		return 77 /* magic number for skipping tests */;
 	}

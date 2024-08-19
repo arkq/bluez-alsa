@@ -164,7 +164,7 @@ enum __attribute__ ((packed)) hfp_ind {
 ssize_t hfp_ag_features_to_strings(uint32_t features, const char **out, size_t size);
 ssize_t hfp_hf_features_to_strings(uint32_t features, const char **out, size_t size);
 
-uint16_t hfp_codec_id_from_string(const char *alias);
-const char *hfp_codec_id_to_string(uint16_t codec_id);
+uint8_t hfp_codec_id_from_string(const char *alias);
+const char *hfp_codec_id_to_string(uint8_t codec_id);
 
 #endif

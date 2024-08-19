@@ -85,6 +85,10 @@ struct ba_pcm_codec {
 	 * the list of available codecs or currently selected codec. */
 	uint8_t data[24];
 	size_t data_len;
+	/* channels supported by the codec */
+	unsigned char channels[8];
+	/* sampling frequencies supported by the codec */
+	dbus_uint32_t sampling[16];
 };
 
 /**
@@ -195,6 +199,8 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 		const char *codec,
 		const void *configuration,
 		size_t configuration_len,
+		unsigned int channels,
+		unsigned int sampling,
 		unsigned int flags,
 		DBusError *error);
 

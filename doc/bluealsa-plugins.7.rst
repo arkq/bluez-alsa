@@ -71,11 +71,18 @@ PCM Parameters
 
     For the A2DP profile it is possible to also specify a "configuration" for
     the codec by appending the configuration as a hex string separated from the
-    codec name by a colon. For example:
+    codec name by a colon. The bits responsible for the number of channels and
+    the sampling frequency are set by the plugin with the respect to options
+    provided by the user (channel mode and sampling frequency bits act as a
+    mask). For example:
 
     ::
 
-      CODEC=aptx:4f0000000100ff
+      CODEC=SBC:FC450240
+
+    This SBC configuration limits the channel mode options to mono and dual
+    channel. So, in case of 2 channel audio stream, the plugin will negotiate
+    the dual channel mode instead of default (if supported) joint stereo mode.
 
   VOL
     Specifies the initial volume for the PCM when opened. The default value is

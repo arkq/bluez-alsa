@@ -21,6 +21,8 @@ bluealsa_mock_SOURCES = \
 	../../src/ba-transport-pcm.c \
 	../../src/bluealsa-dbus.c \
 	../../src/bluealsa-iface.c \
+	../../src/bluez.c \
+	../../src/bluez-iface.c \
 	../../src/codec-sbc.c \
 	../../src/dbus.c \
 	../../src/h2.c \
@@ -32,9 +34,20 @@ bluealsa_mock_SOURCES = \
 	../../src/sco-cvsd.c \
 	../../src/storage.c \
 	../../src/utils.c \
+	dbus-ifaces.c \
 	mock-bluealsa.c \
 	mock-bluez.c \
+	mock-ofono.c \
+	mock-upower.c \
 	mock.c
+
+dbus-ifaces.c: dbus-ifaces.h
+mock-bluez.c: dbus-ifaces.h
+mock-upower.c: dbus-ifaces.h
+
+MOSTLYCLEANFILES = \
+	mock-bluez-iface.c \
+	mock-bluez-iface.h
 
 bluealsa_mock_CFLAGS = \
 	-I$(top_srcdir)/src \
@@ -56,6 +69,7 @@ bluealsa_mock_CFLAGS = \
 	@LIBUNWIND_CFLAGS@ \
 	@MP3LAME_CFLAGS@ \
 	@MPG123_CFLAGS@ \
+	@OPUS_CFLAGS@ \
 	@SBC_CFLAGS@ \
 	@SPANDSP_CFLAGS@
 
@@ -77,6 +91,7 @@ bluealsa_mock_LDADD = \
 	@LIBUNWIND_LIBS@ \
 	@MP3LAME_LIBS@ \
 	@MPG123_LIBS@ \
+	@OPUS_LIBS@ \
 	@SBC_LIBS@ \
 	@SPANDSP_LIBS@
 
@@ -121,6 +136,7 @@ endif
 if ENABLE_MIDI
 bluealsa_mock_SOURCES += \
 	../../src/ble-midi.c \
+	../../src/bluez-midi.c \
 	../../src/midi.c
 endif
 
@@ -133,3 +149,33 @@ bluealsa_mock_SOURCES += \
 	../../src/codec-msbc.c \
 	../../src/sco-msbc.c
 endif
+
+if ENABLE_OFONO
+bluealsa_mock_SOURCES += \
+	../../src/ofono.c \
+	../../src/ofono-iface.c
+endif
+
+if ENABLE_OPUS
+bluealsa_mock_SOURCES += ../../src/a2dp-opus.c
+endif
+
+if ENABLE_UPOWER
+bluealsa_mock_SOURCES += ../../src/upower.c
+endif
+
+.xml.h:
+	gdbus-codegen --output $@ \
+		--interface-prefix org \
+		--c-namespace Mock \
+		--c-generate-autocleanup all \
+		--c-generate-object-manager \
+		--header $<
+
+.xml.c:
+	gdbus-codegen --output $@ \
+		--interface-prefix org \
+		--c-namespace Mock \
+		--c-generate-autocleanup all \
+		--c-generate-object-manager \
+		--body $<

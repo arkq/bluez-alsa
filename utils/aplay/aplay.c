@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <sys/eventfd.h>
 #include <sys/param.h>
 #include <unistd.h>
 
@@ -62,6 +63,7 @@ struct io_worker {
 	/* mixer for volume control */
 	snd_mixer_t *snd_mixer;
 	snd_mixer_elem_t *snd_mixer_elem;
+	long mixer_volume_db_max_value;
 	bool mixer_has_mute_switch;
 	/* if true, playback is active */
 	atomic_bool active;
@@ -101,15 +103,9 @@ static struct io_worker *workers = NULL;
 static size_t workers_count = 0;
 static size_t workers_size = 0;
 
-static atomic_bool main_loop_on = true;
+static int main_loop_quit_event_fd = -1;
 static void main_loop_stop(int sig) {
-	/* Call to this handler restores the default action, so on the
-	 * second call the program will be forcefully terminated. */
-
-	struct sigaction sigact = { .sa_handler = SIG_DFL };
-	sigaction(sig, &sigact, NULL);
-
-	main_loop_on = false;
+	eventfd_write(main_loop_quit_event_fd, sig);
 }
 
 static int parse_bt_addresses(char *argv[], size_t count) {
@@ -118,8 +114,7 @@ static int parse_bt_addresses(char *argv[], size_t count) {
 	if ((ba_addrs = malloc(sizeof(*ba_addrs) * ba_addrs_count)) == NULL)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < ba_addrs_count; i++) {
+	for (size_t i = 0; i < ba_addrs_count; i++) {
 		if (str2ba(argv[i], &ba_addrs[i]) != 0)
 			return errno = EINVAL, -1;
 		if (bacmp(&ba_addrs[i], BDADDR_ANY) == 0)
@@ -174,9 +169,9 @@ static void print_bt_device_list(void) {
 	};
 
 	const char *tmp;
-	size_t i, ii;
+	size_t ii;
 
-	for (i = 0; i < ARRAYSIZE(section); i++) {
+	for (size_t i = 0; i < ARRAYSIZE(section); i++) {
 		printf("%s\n", section[i].label);
 		for (ii = 0, tmp = ""; ii < ba_pcms_count; ii++) {
 
@@ -221,9 +216,8 @@ static void print_bt_pcm_list(void) {
 	DBusError err = DBUS_ERROR_INIT;
 	struct bluez_device dev = { 0 };
 	const char *tmp = "";
-	size_t i;
 
-	for (i = 0; i < ba_pcms_count; i++) {
+	for (size_t i = 0; i < ba_pcms_count; i++) {
 		struct ba_pcm *pcm = &ba_pcms[i];
 
 		if (strcmp(pcm->device_path, tmp) != 0) {
@@ -285,12 +279,10 @@ static void ba_pcm_remove(const char *path) {
 
 static struct io_worker *get_active_io_worker(void) {
 
-	struct io_worker *w = NULL;
-	size_t i;
-
 	pthread_rwlock_rdlock(&workers_lock);
 
-	for (i = 0; i < workers_count; i++)
+	struct io_worker *w = NULL;
+	for (size_t i = 0; i < workers_count; i++)
 		if (workers[i].active) {
 			w = &workers[i];
 			break;
@@ -333,6 +325,45 @@ final:
 }
 
 /**
+ * Open ALSA mixer element for volume control. */
+static int io_worker_mixer_open(
+		struct io_worker *worker,
+		const char *dev_name,
+		const char *elem_name,
+		unsigned int elem_idx) {
+
+	if (dev_name == NULL)
+		return 0;
+
+	debug("Opening ALSA mixer: name=%s elem=%s index=%u",
+			dev_name, elem_name, elem_idx);
+
+	snd_mixer_elem_t *elem;
+	long vmin_db, vmax_db = 0;
+	bool has_mute_switch;
+	char *tmp;
+	int err;
+
+	if (alsa_mixer_open(&worker->snd_mixer, &elem,
+				dev_name, elem_name, elem_idx, &tmp) != 0) {
+		warn("Couldn't open ALSA mixer: %s", tmp);
+		free(tmp);
+		return -1;
+	}
+
+	has_mute_switch = snd_mixer_selem_has_playback_switch(elem);
+
+	if ((err = snd_mixer_selem_get_playback_dB_range(elem, &vmin_db, &vmax_db)) != 0)
+		warn("Couldn't get ALSA mixer playback dB range: %s", snd_strerror(err));
+
+	worker->snd_mixer_elem = elem;
+	worker->mixer_has_mute_switch = has_mute_switch;
+	worker->mixer_volume_db_max_value = vmax_db;
+
+	return 0;
+}
+
+/**
  * Update BlueALSA PCM volume according to ALSA mixer element. */
 static int io_worker_mixer_volume_sync_ba_pcm(
 		struct io_worker *worker,
@@ -348,22 +379,24 @@ static int io_worker_mixer_volume_sync_ba_pcm(
 
 		long ch_volume_db;
 		int ch_switch = 1;
-
 		int err;
-		if ((err = snd_mixer_selem_get_playback_dB(elem, 0, &ch_volume_db)) != 0) {
+
+		if ((err = snd_mixer_selem_get_playback_dB(elem, ch, &ch_volume_db)) != 0) {
 			error("Couldn't get ALSA mixer playback dB level: %s", snd_strerror(err));
 			return -1;
 		}
 
-		/* mute switch is an optional feature for a mixer element */
-		if ((worker->mixer_has_mute_switch = snd_mixer_selem_has_playback_switch(elem))) {
-			if ((err = snd_mixer_selem_get_playback_switch(elem, 0, &ch_switch)) != 0) {
-				error("Couldn't get ALSA mixer playback switch: %s", snd_strerror(err));
-				return -1;
-			}
+		/* Mute switch is an optional feature for a mixer element. */
+		if (worker->mixer_has_mute_switch &&
+				(err = snd_mixer_selem_get_playback_switch(elem, ch, &ch_switch)) != 0) {
+			error("Couldn't get ALSA mixer playback switch: %s", snd_strerror(err));
+			return -1;
 		}
 
 		volume_db_sum += ch_volume_db;
+		/* Normalize volume level so it will not exceed 0.00 dB. */
+		volume_db_sum -= worker->mixer_volume_db_max_value;
+
 		if (ch_switch == 1)
 			muted = false;
 
@@ -432,6 +465,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 
 	/* convert loudness to dB using decibel formula */
 	long db = 10 * log2(1.0 * volume / vmax) * 100;
+	db += worker->mixer_volume_db_max_value;
 
 	int err;
 	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0) {
@@ -449,7 +483,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	return 0;
 }
 
-int io_worker_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
+static int io_worker_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
 	struct io_worker *worker = snd_mixer_elem_get_callback_private(elem);
 	if (mask & SND_CTL_EVENT_MASK_VALUE)
 		io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
@@ -566,15 +600,17 @@ static void *io_worker_routine(struct io_worker *w) {
 	int timeout = -1;
 
 	debug("Starting IO loop");
-	while (main_loop_on) {
+	for (;;) {
 
 		if (single_playback_mutex_locked) {
 			pthread_mutex_unlock(&single_playback_mutex);
 			single_playback_mutex_locked = false;
 		}
 
-		struct pollfd fds[16] = {{ w->ba_pcm_fd, POLLIN, 0 }};
-		nfds_t nfds = 1;
+		struct pollfd fds[16] = {
+			{ main_loop_quit_event_fd, POLLIN, 0 },
+			{ w->ba_pcm_fd, POLLIN, 0 }};
+		nfds_t nfds = 2;
 
 		if (w->snd_mixer != NULL)
 			nfds += snd_mixer_poll_descriptors_count(w->snd_mixer);
@@ -585,7 +621,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		}
 
 		if (w->snd_mixer != NULL)
-			snd_mixer_poll_descriptors(w->snd_mixer, fds + 1, nfds - 1);
+			snd_mixer_poll_descriptors(w->snd_mixer, fds + 2, nfds - 2);
 
 		/* Reading from the FIFO won't block unless there is an open connection
 		 * on the writing side. However, the server does not open PCM FIFO until
@@ -611,11 +647,14 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto close_alsa;
 		}
 
+		if (fds[0].revents & POLLIN)
+			break;
+
 		if (w->snd_mixer != NULL)
 			snd_mixer_handle_events(w->snd_mixer);
 
 		size_t read_samples = 0;
-		if (fds[0].revents & POLLIN) {
+		if (fds[1].revents & POLLIN) {
 
 			ssize_t ret;
 			size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
@@ -631,13 +670,13 @@ static void *io_worker_routine(struct io_worker *w) {
 				warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
 
 		}
-		else if (fds[0].revents & POLLHUP) {
+		else if (fds[1].revents & POLLHUP) {
 			/* source PCM FIFO has been terminated on the writing side */
 			debug("BlueALSA source PCM disconnected: %s", w->ba_pcm.pcm_path);
 			break;
 		}
-		else if (fds[0].revents)
-			error("Unexpected BlueALSA source PCM poll event: %#x", fds[0].revents);
+		else if (fds[1].revents)
+			error("Unexpected BlueALSA source PCM poll event: %#x", fds[1].revents);
 
 		if (read_samples == 0)
 			continue;
@@ -704,16 +743,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			snd_pcm_get_params(w->snd_pcm, &buffer_frames, &period_frames);
 			pcm_max_read_len = period_frames * w->ba_pcm.channels * pcm_format_size;
 
-			if (mixer_device != NULL) {
-				debug("Opening ALSA mixer: name=%s elem=%s index=%u",
-						mixer_device, mixer_elem_name, mixer_elem_index);
-				if (alsa_mixer_open(&w->snd_mixer, &w->snd_mixer_elem,
-							mixer_device, mixer_elem_name, mixer_elem_index, &tmp) != 0) {
-					warn("Couldn't open ALSA mixer: %s", tmp);
-					free(tmp);
-				}
-			}
-
+			io_worker_mixer_open(w, mixer_device, mixer_elem_name, mixer_elem_index);
 			io_worker_mixer_volume_sync_setup(w);
 
 			/* reset retry counters */
@@ -818,10 +848,10 @@ static void io_worker_stop(size_t index) {
 	/* Safety check for out-of-bounds read. */
 	assert(index < workers_count);
 
-	pthread_rwlock_wrlock(&workers_lock);
-
 	pthread_cancel(workers[index].thread);
 	pthread_join(workers[index].thread, NULL);
+
+	pthread_rwlock_wrlock(&workers_lock);
 
 	if (index != --workers_count)
 		/* Move the last worker in the array to position
@@ -834,8 +864,7 @@ static void io_worker_stop(size_t index) {
 
 static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) {
 
-	size_t i;
-	for (i = 0; i < workers_count; i++)
+	for (size_t i = 0; i < workers_count; i++)
 		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
 			/* If the codec has changed after the device connected, then the
 			 * audio format may have changed. If it has, the worker thread
@@ -871,27 +900,23 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	worker->mixer_has_mute_switch = false;
 	worker->active = false;
 
-	pthread_rwlock_unlock(&workers_lock);
-
 	debug("Creating IO worker %s", worker->addr);
-
 	if ((errno = pthread_create(&worker->thread, NULL,
 					PTHREAD_FUNC(io_worker_routine), worker)) != 0) {
 		error("Couldn't create IO worker %s: %s", worker->addr, strerror(errno));
 		workers_count--;
-		return NULL;
+		worker = NULL;
 	}
+
+	pthread_rwlock_unlock(&workers_lock);
 
 	return worker;
 }
 
 static struct io_worker *supervise_io_worker_stop(const struct ba_pcm *ba_pcm) {
-
-	size_t i;
-	for (i = 0; i < workers_count; i++)
+	for (size_t i = 0; i < workers_count; i++)
 		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
 			io_worker_stop(i);
-
 	return NULL;
 }
 
@@ -917,8 +942,7 @@ static struct io_worker *supervise_io_worker(const struct ba_pcm *ba_pcm) {
 	if (ba_addr_any)
 		goto start;
 
-	size_t i;
-	for (i = 0; i < ba_addrs_count; i++)
+	for (size_t i = 0; i < ba_addrs_count; i++)
 		if (bacmp(&ba_addrs[i], &ba_pcm->addr) == 0)
 			goto start;
 
@@ -1189,6 +1213,11 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
+	if ((main_loop_quit_event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
+		error("Couldn't create quit event: %s", strerror(errno));
+		return EXIT_FAILURE;
+	}
+
 	DBusError err = DBUS_ERROR_INIT;
 	if (!ba_dbus_connection_ctx_init(&dbus_ctx, dbus_ba_service, &err)) {
 		error("Couldn't initialize D-Bus context: %s", err.message);
@@ -1225,9 +1254,8 @@ int main(int argc, char *argv[]) {
 
 		char *ba_str = malloc(19 * ba_addrs_count + 1);
 		char *tmp = ba_str;
-		size_t i;
 
-		for (i = 0; i < ba_addrs_count; i++, tmp += 19)
+		for (size_t i = 0; i < ba_addrs_count; i++, tmp += 19)
 			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
 
 		const char *mixer_device_str = "(not used)";
@@ -1280,33 +1308,41 @@ int main(int argc, char *argv[]) {
 	for (size_t i = 0; i < ba_pcms_count; i++)
 		supervise_io_worker(&ba_pcms[i]);
 
-	struct sigaction sigact = { .sa_handler = main_loop_stop };
+	struct sigaction sigact = {
+		.sa_handler = main_loop_stop,
+		.sa_flags = SA_RESETHAND };
+	/* Call to these handlers restores the default action, so on the
+	 * second call the program will be forcefully terminated. */
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGINT, &sigact, NULL);
 
 	debug("Starting main loop");
-	while (main_loop_on) {
+	for (;;) {
 
-		struct pollfd pfds[10];
-		nfds_t pfds_len = ARRAYSIZE(pfds);
+		struct pollfd fds[10] = {
+			{ main_loop_quit_event_fd, POLLIN, 0 } };
+		nfds_t nfds = ARRAYSIZE(fds) - 1;
 
-		if (!ba_dbus_connection_poll_fds(&dbus_ctx, pfds, &pfds_len)) {
+		if (!ba_dbus_connection_poll_fds(&dbus_ctx, &fds[1], &nfds)) {
 			error("Couldn't get D-Bus connection file descriptors");
 			return EXIT_FAILURE;
 		}
 
-		if (poll(pfds, pfds_len, -1) == -1 &&
+		if (poll(fds, nfds + 1, -1) == -1 &&
 				errno == EINTR)
 			continue;
 
-		if (ba_dbus_connection_poll_dispatch(&dbus_ctx, pfds, pfds_len))
+		if (fds[0].revents & POLLIN)
+			break;
+
+		if (ba_dbus_connection_poll_dispatch(&dbus_ctx, &fds[1], nfds))
 			while (dbus_connection_dispatch(dbus_ctx.conn) == DBUS_DISPATCH_DATA_REMAINS)
 				continue;
 
 	}
 
-	for (size_t i = 0; i < workers_count; i++)
-		io_worker_stop(i);
+	for (size_t i = workers_count; i > 0; i--)
+		io_worker_stop(i - 1);
 	free(workers);
 
 	ba_dbus_connection_ctx_free(&dbus_ctx);

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2016-2023 Arkadiusz Bokowy
+# Copyright (c) 2016-2024 Arkadiusz Bokowy
 #
 # This file is a part of bluez-alsa.
 #
@@ -10,6 +10,7 @@ import argparse
 import os.path
 import re
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -135,7 +136,10 @@ if args.interface_info_header or args.interface_info_body:
             command += ['--interface-info-header']
         if args.interface_info_body:
             command += ['--interface-info-body']
-        subprocess.call(command + [f.name])
+        try:
+            subprocess.check_call(command + [f.name])
+        except subprocess.CalledProcessError:
+            sys.exit(1)
         args.append = True
 
 with open(args.output, 'a' if args.append else 'w') as f:

@@ -187,6 +187,7 @@ EPMR
 EQMID
 errno
 FB
+FC
 fdX
 ffb
 ffff
@@ -198,6 +199,7 @@ hciconfig
 hcitop
 hciX
 HCTL
+HEv
 hfpag
 hfphf
 hspag

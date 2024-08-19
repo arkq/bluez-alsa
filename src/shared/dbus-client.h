@@ -123,6 +123,12 @@ dbus_bool_t dbus_message_iter_dict(
 		dbus_bool_t (*cb)(const char *key, DBusMessageIter *val, void *data, DBusError *err),
 		void *userdata);
 
+dbus_bool_t dbus_message_iter_dict_append_basic(
+		DBusMessageIter *iter,
+		const char *key,
+		int value_type,
+		const void *value);
+
 int dbus_error_to_errno(
 		const DBusError *error);
 

@@ -247,14 +247,13 @@ CK_START_TEST(test_g_dbus_connection_emit_properties_changed) {
 	g_variant_builder_add(&props, "{sv}", "Bar", g_variant_new_boolean(FALSE));
 
 	bool ok = g_dbus_connection_emit_properties_changed(tc->conn, "/foo",
-			"org.example.Foo", &props, NULL);
+			"org.example.Foo", g_variant_builder_end(&props), NULL, NULL);
 	ck_assert_uint_eq(ok, true);
 
 	/* Wait for signal to be received. The signal handler will check
 	 * if the signal was received with the right parameters. */
 	sync_barrier_wait(&sb);
 
-	g_variant_builder_clear(&props);
 	test_dbus_connection_free(tc);
 	sync_barrier_free(&sb);
 

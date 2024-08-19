@@ -109,24 +109,24 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 	const char *strv[ARRAYSIZE(tmp)];
 	size_t n = 0;
 
-	const struct a2dp_codec * a2dp_codecs_tmp[32];
-	struct a2dp_codec * const * cc = a2dp_codecs;
-	for (const struct a2dp_codec *c = *cc; c != NULL; c = *++cc) {
-		if (!c->enabled)
+	const struct a2dp_sep * a2dp_seps_tmp[32];
+	struct a2dp_sep * const * seps = a2dp_seps;
+	for (const struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps) {
+		if (!sep->enabled)
 			continue;
-		a2dp_codecs_tmp[n] = c;
-		if (++n >= ARRAYSIZE(a2dp_codecs_tmp))
+		a2dp_seps_tmp[n] = sep;
+		if (++n >= ARRAYSIZE(a2dp_seps_tmp))
 			break;
 	}
 
 	/* Expose A2DP codecs always in the same order. */
-	qsort(a2dp_codecs_tmp, n, sizeof(*a2dp_codecs_tmp),
-			QSORT_COMPAR(a2dp_codec_ptr_cmp));
+	qsort(a2dp_seps_tmp, n, sizeof(*a2dp_seps_tmp),
+			QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++) {
-		const char *profile = a2dp_codecs_tmp[i]->dir == A2DP_SOURCE ?
+		const char *profile = a2dp_seps_tmp[i]->config.type == A2DP_SOURCE ?
 				BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE : BLUEALSA_TRANSPORT_TYPE_A2DP_SINK;
-		const char *name = a2dp_codecs_codec_id_to_string(a2dp_codecs_tmp[i]->codec_id);
+		const char *name = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->config.codec_id);
 		snprintf(tmp[i], sizeof(tmp[i]), "%s:%s", profile, name);
 		strv[i] = (const char *)&tmp[i];
 	}
@@ -140,7 +140,7 @@ static GVariant *ba_variant_new_bluealsa_codecs(void) {
 	};
 
 	const struct {
-		uint16_t codec_id;
+		uint8_t codec_id;
 		bool enabled;
 	} hfp_codecs[] = {
 		{ HFP_CODEC_CVSD, config.hfp.codecs.cvsd },
@@ -265,7 +265,7 @@ static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *
 	const struct ba_transport *t = pcm->t;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->a2dp.configuration,
-				t->a2dp.codec->capabilities_size, sizeof(uint8_t));
+				t->a2dp.sep->config.caps_size, sizeof(uint8_t));
 	return NULL;
 }
 
@@ -295,31 +295,38 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
 }
 
-static bool ba_variant_populate_sep(GVariantBuilder *props, const struct a2dp_sep *sep) {
+static int ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata) {
+	g_variant_builder_add_value(userdata, g_variant_new_byte(mapping.value));
+	return 0;
+}
 
-	const struct a2dp_codec *codec;
-	if ((codec = a2dp_codec_lookup(sep->codec_id, !sep->dir)) == NULL)
-		return false;
+static int ba_populate_sampling(struct a2dp_bit_mapping mapping, void *userdata) {
+	g_variant_builder_add_value(userdata, g_variant_new_uint32(mapping.value));
+	return 0;
+}
 
-	/* Do not report SEP if corresponding codec is not enabled
-	 * in BlueALSA - it will be not possible to use it. */
-	if (!codec->enabled)
-		return false;
+/**
+ * Populate dict variant builder with remote SEP properties. */
+static void ba_variant_populate_remote_sep(GVariantBuilder *props,
+		const struct a2dp_sep *sep, const struct a2dp_sep_config *remote_sep_cfg,
+		enum a2dp_stream stream) {
 
-	a2dp_t caps = sep->capabilities;
-	size_t size = MIN(sep->capabilities_size, sizeof(caps));
-	if (a2dp_filter_capabilities(codec, &codec->capabilities, &caps, size) != 0) {
-		error("Couldn't filter %s SEP capabilities: %s",
-				a2dp_codecs_codec_id_to_string(sep->codec_id),
-				strerror(errno));
-		return false;
-	}
+	GVariantBuilder builder;
 
-	g_variant_builder_init(props, G_VARIANT_TYPE("a{sv}"));
+	a2dp_t caps = remote_sep_cfg->capabilities;
+	sep->caps_helpers->intersect(&caps, &sep->config.capabilities);
+
 	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, &caps, size, sizeof(uint8_t)));
+				G_VARIANT_TYPE_BYTE, &caps, remote_sep_cfg->caps_size, sizeof(uint8_t)));
 
-	return true;
+	g_variant_builder_init(&builder, G_VARIANT_TYPE("ay"));
+	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channels, &builder);
+	g_variant_builder_add(props, "{sv}", "SupportedChannels", g_variant_builder_end(&builder));
+
+	g_variant_builder_init(&builder, G_VARIANT_TYPE("au"));
+	sep->caps_helpers->foreach_sampling_freq(&caps, stream, ba_populate_sampling, &builder);
+	g_variant_builder_add(props, "{sv}", "SupportedSampling", g_variant_builder_end(&builder));
+
 }
 
 static GVariant *bluealsa_manager_get_property(const char *property,
@@ -423,7 +430,6 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	const enum ba_transport_profile t_profile = pcm->t->profile;
 	struct ba_transport *t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
-	size_t i;
 
 	/* Prevent two (or more) clients trying to
 	 * open the same PCM at the same time. */
@@ -519,7 +525,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 fail:
 	pthread_mutex_unlock(&pcm->client_mtx);
 	/* clean up created file descriptors */
-	for (i = 0; i < ARRAYSIZE(pcm_fds); i++)
+	for (size_t i = 0; i < ARRAYSIZE(pcm_fds); i++)
 		if (pcm_fds[i] != -1)
 			close(pcm_fds[i]);
 }
@@ -528,44 +534,66 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 	struct ba_transport_pcm *pcm = userdata;
 	const struct ba_transport *t = pcm->t;
-	const GArray *seps = t->d->seps;
+	const GArray *sep_cfgs = t->d->sep_configs;
 
 	GVariantBuilder codecs;
 	g_variant_builder_init(&codecs, G_VARIANT_TYPE("a{sa{sv}}"));
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
-		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint16_t), 16);
-		size_t i;
+		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
+		const enum a2dp_type pcm_sep_type = t->a2dp.sep->config.type;
+		const enum a2dp_stream pcm_sep_stream = &t->a2dp.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 
-		for (i = 0; seps != NULL && i < seps->len; i++) {
-			const struct a2dp_sep *sep = &g_array_index(seps, struct a2dp_sep, i);
-			/* match complementary PCM directions, e.g. A2DP-source with SEP-sink */
-			if (t->a2dp.codec->dir == !sep->dir) {
+		for (size_t i = 0; sep_cfgs != NULL && i < sep_cfgs->len; i++) {
+			const struct a2dp_sep_config *remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
 
-				bool duplicate = false;
-				size_t j;
+			/* Match complementary SEP types (i.e.: source with sink). */
+			if (pcm_sep_type == remote_sep_cfg->type)
+				continue;
 
-				for (j = 0; j < codec_ids->len; j++)
-					if (sep->codec_id == g_array_index(codec_ids, uint16_t, j)) {
-						duplicate = true;
-						break;
-					}
+			const struct a2dp_sep *sep;
+			/* Find local SEP for the remote one. */
+			if ((sep = a2dp_sep_lookup(pcm_sep_type, remote_sep_cfg->codec_id)) == NULL)
+				continue;
 
-				/* do not return duplicates */
-				if (duplicate)
-					continue;
+			/* Do not report codec if corresponding local SEP is not enabled
+			 * in BlueALSA - it will be impossible to use it. */
+			if (!sep->enabled)
+				continue;
 
-				g_array_append_val(codec_ids, sep->codec_id);
+			/* Check whether matched local and remote SEP support the same stream
+			 * direction as our current PCM SEP. If not, skip this codec. */
+			if (!sep->caps_helpers->has_stream(&sep->config.capabilities, pcm_sep_stream) ||
+					!sep->caps_helpers->has_stream(&remote_sep_cfg->capabilities, pcm_sep_stream))
+				continue;
 
-				GVariantBuilder props;
-				if (ba_variant_populate_sep(&props, sep)) {
-					g_variant_builder_add(&codecs, "{sa{sv}}",
-							a2dp_codecs_codec_id_to_string(sep->codec_id), &props);
-					g_variant_builder_clear(&props);
+			bool duplicate = false;
+			/* Check whether we have already reported this codec. */
+			for (size_t j = 0; j < codec_ids->len; j++)
+				if (remote_sep_cfg->codec_id == g_array_index(codec_ids, uint32_t, j)) {
+					duplicate = true;
+					break;
 				}
 
-			}
+			/* Do not return duplicates.
+			 * Be aware of caveats - codec with the same ID might have different
+			 * capabilities... */
+			if (duplicate)
+				continue;
+
+			GVariantBuilder props;
+			g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+			ba_variant_populate_remote_sep(&props, sep, remote_sep_cfg, pcm_sep_stream);
+
+			g_variant_builder_add(&codecs, "{sa{sv}}",
+					a2dp_codecs_codec_id_to_string(remote_sep_cfg->codec_id), &props);
+			g_variant_builder_clear(&props);
+
+			/* Remember reported codec ID. */
+			g_array_append_val(codec_ids, remote_sep_cfg->codec_id);
+
 		}
 
 		g_array_free(codec_ids, TRUE);
@@ -584,21 +612,22 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		 * is enabled by our global configuration. */
 
 		const struct {
-			uint16_t codec_id;
+			uint8_t codec_id;
+			unsigned int sampling;
 			bool is_enabled_in_config;
 			bool is_available_in_rfcomm_ag;
 			bool is_available_in_rfcomm_hf;
 		} sco_codecs[] = {
-			{ HFP_CODEC_CVSD, config.hfp.codecs.cvsd,
+			{ HFP_CODEC_CVSD, 8000, config.hfp.codecs.cvsd,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->ag_codecs.cvsd,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->hf_codecs.cvsd },
 #if ENABLE_MSBC
-			{ HFP_CODEC_MSBC, config.hfp.codecs.msbc,
+			{ HFP_CODEC_MSBC, 16000, config.hfp.codecs.msbc,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->ag_codecs.msbc,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->hf_codecs.msbc },
 #endif
 #if ENABLE_LC3_SWB
-			{ HFP_CODEC_LC3_SWB, config.hfp.codecs.lc3_swb,
+			{ HFP_CODEC_LC3_SWB, 32000, config.hfp.codecs.lc3_swb,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->ag_codecs.lc3_swb,
 				t_sco_rfcomm == NULL || t_sco_rfcomm->hf_codecs.lc3_swb },
 #endif
@@ -607,9 +636,23 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		for (size_t i = 0; i < ARRAYSIZE(sco_codecs); i++)
 			if (sco_codecs[i].is_enabled_in_config &&
 					sco_codecs[i].is_available_in_rfcomm_ag &&
-					sco_codecs[i].is_available_in_rfcomm_hf)
+					sco_codecs[i].is_available_in_rfcomm_hf) {
+
+				GVariantBuilder props;
+				g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+				const uint8_t channels[] = { 1 };
+				g_variant_builder_add(&props, "{sv}", "SupportedChannels", g_variant_new_fixed_array(
+							G_VARIANT_TYPE_BYTE, channels, 1, sizeof(*channels)));
+				const uint32_t sampling[] = { sco_codecs[i].sampling };
+				g_variant_builder_add(&props, "{sv}", "SupportedSampling", g_variant_new_fixed_array(
+							G_VARIANT_TYPE_UINT32, sampling, 1, sizeof(*sampling)));
+
 				g_variant_builder_add(&codecs, "{sa{sv}}",
-						hfp_codec_id_to_string(sco_codecs[i].codec_id), NULL);
+						hfp_codec_id_to_string(sco_codecs[i].codec_id), &props);
+				g_variant_builder_clear(&props);
+
+			}
 
 	}
 
@@ -637,6 +680,8 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 	a2dp_t a2dp_configuration = {};
 	size_t a2dp_configuration_size = 0;
+	unsigned int channels = 0;
+	unsigned int sampling = 0;
 	bool conformance_check = true;
 
 	g_variant_get(params, "(&sa{sv})", &codec_name, &properties);
@@ -657,6 +702,14 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			memcpy(&a2dp_configuration, data, a2dp_configuration_size);
 
 		}
+		else if (strcmp(property, "Channels") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
+			channels = g_variant_get_byte(value);
+		}
+		else if (strcmp(property, "Sampling") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_UINT32, property)) {
+			sampling = g_variant_get_uint32(value);
+		}
 		else if (strcmp(property, "NonConformant") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
 			conformance_check = !g_variant_get_boolean(value);
@@ -669,81 +722,79 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* support for Stream End-Points not enabled in BlueZ */
-		if (t->d->seps == NULL) {
+		if (t->d->sep_configs == NULL) {
 			errmsg = "No BlueZ SEP support";
 			goto fail;
 		}
 
-		uint16_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
-		enum a2dp_dir dir = !t->a2dp.codec->dir;
-		const GArray *seps = t->d->seps;
-		struct a2dp_sep *sep = NULL;
-		size_t i;
+		uint32_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
+		const enum a2dp_type pcm_sep_type = t->a2dp.sep->config.type;
+		const enum a2dp_stream pcm_sep_stream = &t->a2dp.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
+		struct a2dp_sep_config *remote_sep_cfg = NULL;
+		const GArray *sep_cfgs = t->d->sep_configs;
 
-		for (i = 0; i < seps->len; i++)
-			if (g_array_index(seps, struct a2dp_sep, i).dir == dir &&
-					g_array_index(seps, struct a2dp_sep, i).codec_id == codec_id) {
-				sep = &g_array_index(seps, struct a2dp_sep, i);
+		for (size_t i = 0; i < sep_cfgs->len; i++)
+			if (ba_device_sep_cfg_array_index(sep_cfgs, i).type != pcm_sep_type &&
+					ba_device_sep_cfg_array_index(sep_cfgs, i).codec_id == codec_id) {
+				remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
 				break;
 			}
 
 		/* requested codec not available */
-		if (sep == NULL) {
+		if (remote_sep_cfg == NULL) {
 			errmsg = "SEP codec not available";
 			goto fail;
 		}
 
-		const struct a2dp_codec *codec;
-		if ((codec = a2dp_codec_lookup(codec_id, !dir)) == NULL) {
+		const struct a2dp_sep *sep;
+		if ((sep = a2dp_sep_lookup(pcm_sep_type, codec_id)) == NULL) {
 			errmsg = "SEP codec not supported";
 			goto fail;
 		}
 
-		if (a2dp_configuration_size == 0) {
-			/* setup default codec configuration */
-
-			const size_t size = sep->capabilities_size;
-			memcpy(&sep->configuration, &sep->capabilities, size);
-			if (a2dp_select_configuration(codec, &sep->configuration, size) == -1)
-				goto fail;
-
-		}
+		if (a2dp_configuration_size == 0)
+			/* Default to capabilities supported by the local SEP. */
+			memcpy(&a2dp_configuration, &sep->config.capabilities, sep->config.caps_size);
 		else {
-			/* use codec configuration blob provided by user */
-
-			if (conformance_check) {
-
-				a2dp_filter_capabilities(codec, &sep->capabilities,
-						&a2dp_configuration, a2dp_configuration_size);
-
-				enum a2dp_check_err rv;
-				if ((rv = a2dp_check_configuration(codec, &a2dp_configuration,
-							a2dp_configuration_size)) != A2DP_CHECK_OK) {
-					errmsg = a2dp_check_strerror(rv);
-					goto fail;
-				}
-
+			/* Validate the size of provided configuration blob. */
+			if (a2dp_configuration_size != remote_sep_cfg->caps_size) {
+				errmsg = a2dp_check_strerror(A2DP_CHECK_ERR_SIZE);
+				goto fail;
 			}
-			else {
-
-				if (a2dp_configuration_size != sep->capabilities_size) {
-					errmsg = a2dp_check_strerror(A2DP_CHECK_ERR_SIZE);
-					goto fail;
-				}
-
-			}
-
-			memcpy(&sep->configuration, &a2dp_configuration, a2dp_configuration_size);
-
 		}
 
-		if (ba_transport_select_codec_a2dp(t, sep) == -1)
+		/* Cap selected configuration with the remote SEP capabilities.
+		 * This is required to prevent unsupported configuration from
+		 * being set which will lead to A2DP disconnection. */
+		sep->caps_helpers->intersect(&a2dp_configuration, &remote_sep_cfg->capabilities);
+
+		if (channels != 0)
+			sep->caps_helpers->select_channel_mode(&a2dp_configuration, pcm_sep_stream, channels);
+		if (sampling != 0)
+			sep->caps_helpers->select_sampling_freq(&a2dp_configuration, pcm_sep_stream, sampling);
+
+		if (a2dp_configuration_size == 0) {
+			/* Setup default configuration if it was not provided. */
+			if (a2dp_select_configuration(sep, &a2dp_configuration, sep->config.caps_size) == -1)
+				goto fail;
+		}
+		else if (conformance_check) {
+			enum a2dp_check_err rv;
+			/* Validate provided configuration. */
+			if ((rv = a2dp_check_configuration(sep, &a2dp_configuration,
+						a2dp_configuration_size)) != A2DP_CHECK_OK) {
+				errmsg = a2dp_check_strerror(rv);
+				goto fail;
+			}
+		}
+
+		if (ba_transport_select_codec_a2dp(t, remote_sep_cfg, &a2dp_configuration) == -1)
 			goto fail;
 
 	}
 	else {
 
-		uint16_t codec_id;
+		uint8_t codec_id;
 		if ((codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED) {
 			errmsg = "HFP codec not available";
 			goto fail;
@@ -782,11 +833,11 @@ static void bluealsa_pcm_set_delay_adjustment(GDBusMethodInvocation *inv, void *
 
 	g_variant_get(params, "(&sn)", &codec, &adjustment);
 
-	uint16_t codec_id = 0;
+	uint32_t codec_id = 0;
 	bool is_valid = false;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		codec_id = a2dp_codecs_codec_id_from_string(codec);
-		is_valid = codec_id != 0xFFFF;
+		is_valid = codec_id != 0xFFFFFFFF;
 	}
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		codec_id = hfp_codec_id_from_string(codec);
@@ -1039,9 +1090,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 
-	g_dbus_connection_emit_properties_changed(config.dbus,
-			pcm->ba_dbus_path, BLUEALSA_IFACE_PCM, &props, NULL);
-	g_variant_builder_clear(&props);
+	g_dbus_connection_emit_properties_changed(config.dbus, pcm->ba_dbus_path,
+			BLUEALSA_IFACE_PCM, g_variant_builder_end(&props), NULL, NULL);
 
 }
 
@@ -1123,9 +1173,8 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	if (mask & BA_DBUS_RFCOMM_UPDATE_BATTERY)
 		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(r->sco->d));
 
-	g_dbus_connection_emit_properties_changed(config.dbus,
-			r->ba_dbus_path, BLUEALSA_IFACE_RFCOMM, &props, NULL);
-	g_variant_builder_clear(&props);
+	g_dbus_connection_emit_properties_changed(config.dbus, r->ba_dbus_path,
+			BLUEALSA_IFACE_RFCOMM, g_variant_builder_end(&props), NULL, NULL);
 
 }
 

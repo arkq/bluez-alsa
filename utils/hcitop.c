@@ -39,14 +39,11 @@ static const struct {
 	{ HCI_RAW, 'X' },
 };
 
-static int get_devinfo(struct hci_dev_info di[HCI_MAX_DEV]) {
-
-	int i, num;
-
-	for (i = num = 0; i < HCI_MAX_DEV; i++)
+static size_t get_devinfo(struct hci_dev_info di[HCI_MAX_DEV]) {
+	size_t num = 0;
+	for (size_t i = 0; i < HCI_MAX_DEV; i++)
 		if (hci_devinfo(i, &di[num]) == 0)
 			num++;
-
 	return num;
 }
 
@@ -133,7 +130,6 @@ int main(int argc, char *argv[]) {
 	struct hci_dev_info devices[HCI_MAX_DEV];
 	unsigned int byte_rx[HCI_MAX_DEV][3];
 	unsigned int byte_tx[HCI_MAX_DEV][3];
-	size_t ii;
 
 	memset(byte_rx, 0, sizeof(byte_rx));
 	memset(byte_tx, 0, sizeof(byte_tx));
@@ -143,18 +139,17 @@ int main(int argc, char *argv[]) {
 	noecho();
 	curs_set(0);
 
-	for (ii = 1;; ii++) {
+	for (size_t ii = 1;; ii++) {
 
 		const char *template_top = "%-5s %4s %-17s %-9s %8s %8s %8s %8s";
 		const char *template_row = "%-5s %4s %17s %9s %8s %8s %8s %8s";
-		int i, count;
 
 		attron(A_REVERSE);
 		mvprintw(0, 0, template_top, "HCI", "BUS", "ADDR", "FLAGS", "RX", "TX", "RX/s", "TX/s");
 		attroff(A_REVERSE);
 
-		count = get_devinfo(devices);
-		for (i = 0; i < HCI_MAX_DEV; i++) {
+		size_t count = get_devinfo(devices);
+		for (size_t i = 0; i < HCI_MAX_DEV; i++) {
 
 			/* shift historic data to the right by one sample */
 			memmove(&byte_rx[i][1], &byte_rx[i][0], sizeof(*byte_rx) - sizeof(**byte_rx));

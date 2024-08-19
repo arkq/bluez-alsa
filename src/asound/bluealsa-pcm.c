@@ -26,7 +26,6 @@
 #include <strings.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
-#include <sys/param.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -73,6 +72,11 @@ struct bluealsa_pcm {
 
 	/* requested BlueALSA PCM */
 	struct ba_pcm ba_pcm;
+	/* user-provided codec configuration */
+	uint8_t ba_pcm_codec_config[64];
+	size_t ba_pcm_codec_config_len;
+	/* additional supported codecs */
+	struct ba_pcm_codecs ba_pcm_codecs;
 
 	/* PCM FIFO */
 	int ba_pcm_fd;
@@ -469,6 +473,7 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 static int bluealsa_close(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
 	debug2("Closing");
+	ba_dbus_pcm_codecs_free(&pcm->ba_pcm_codecs);
 	ba_dbus_connection_ctx_free(&pcm->dbus_ctx);
 	if (pcm->event_fd != -1)
 		close(pcm->event_fd);
@@ -560,14 +565,41 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	debug2("Initializing HW");
 
-#if	BLUEALSA_HW_PARAMS_FIX
+	DBusError err = DBUS_ERROR_INIT;
+	int ret;
+
+	unsigned int channels;
+	if ((ret = snd_pcm_hw_params_get_channels(params, &channels)) < 0)
+		return ret;
+
+	unsigned int sampling;
+	if ((ret = snd_pcm_hw_params_get_rate(params, &sampling, NULL)) < 0)
+		return ret;
+
+	if (pcm->ba_pcm.channels != channels || pcm->ba_pcm.sampling != sampling) {
+		debug2("Changing BlueALSA PCM configuration: %u ch, %u Hz -> %u ch, %u Hz",
+				pcm->ba_pcm.channels, pcm->ba_pcm.sampling, channels, sampling);
+
+		if (ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
+				pcm->ba_pcm.codec.name, pcm->ba_pcm_codec_config, pcm->ba_pcm_codec_config_len,
+				channels, sampling, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
+			pcm->ba_pcm.channels = channels;
+			pcm->ba_pcm.sampling = sampling;
+		}
+		else {
+			SNDERR("Couldn't change BlueALSA PCM configuration: %s", err.message);
+			return -dbus_error_to_errno(&err);
+		}
+
+	}
+
+#if BLUEALSA_HW_PARAMS_FIX
 	if (bluealsa_fix_hw_params(io, params) < 0)
 		debug2("Warning - unable to fix incorrect buffer size in hw parameters");
 #endif
 
 	snd_pcm_uframes_t period_size;
-	int ret;
-	if ((ret = snd_pcm_hw_params_get_period_size(params, &period_size, 0)) < 0)
+	if ((ret = snd_pcm_hw_params_get_period_size(params, &period_size, NULL)) < 0)
 		return ret;
 	snd_pcm_uframes_t buffer_size;
 	if ((ret = snd_pcm_hw_params_get_buffer_size(params, &buffer_size)) < 0)
@@ -575,7 +607,6 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
-	DBusError err = DBUS_ERROR_INIT;
 	if (!ba_dbus_pcm_open(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				&pcm->ba_pcm_fd, &pcm->ba_pcm_ctrl_fd, &err)) {
 		debug2("Couldn't open PCM: %s", err.message);
@@ -668,11 +699,20 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
 	pcm->io_hw_buffer = (char *)areas->addr + areas->first / 8;
 
-	/* Indicate that our PCM is ready for IO, even though is is not 100%
-	 * true - the IO thread may not be running yet. Applications using
-	 * snd_pcm_sw_params_set_start_threshold() require the PCM to be usable
-	 * as soon as it has been prepared. */
-	eventfd_write(pcm->event_fd, 1);
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		/* Indicate that our PCM is ready for IO, even though is is not 100%
+		 * true - the IO thread may not be running yet. Applications using
+		 * snd_pcm_sw_params_set_start_threshold() require the PCM to be usable
+		 * as soon as it has been prepared. */
+		if (pcm->io_avail_min < io->buffer_size)
+			eventfd_write(pcm->event_fd, 1);
+	}
+	else {
+		/* Make sure there is no poll event still pending (for example when
+		 * preparing after an overrun). */
+			eventfd_t event;
+			eventfd_read(pcm->event_fd, &event);
+	}
 
 	debug2("Prepared");
 	return 0;
@@ -1118,8 +1158,7 @@ static int str2bdaddr(const char *str, bdaddr_t *ba) {
 				&x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
 		return -1;
 
-	size_t i;
-	for (i = 0; i < 6; i++)
+	for (size_t i = 0; i < 6; i++)
 		ba->b[i] = x[i];
 
 	return 0;
@@ -1131,6 +1170,41 @@ static int str2profile(const char *str) {
 	else if (strcasecmp(str, "sco") == 0)
 		return BA_PCM_TRANSPORT_HFP_AG | BA_PCM_TRANSPORT_HFP_HF |
 			BA_PCM_TRANSPORT_HSP_AG | BA_PCM_TRANSPORT_HSP_HS;
+	return 0;
+}
+
+/**
+ * Extract codec name and configuration from the codec string. */
+static int str2codec(const char *codec, char *name, size_t name_size,
+		uint8_t *config, size_t config_size, size_t *config_len) {
+
+	size_t name_len = strlen(codec);
+
+	char *delim;
+	/* Check for the delimiter which separates codec name and configuration. */
+	if ((delim = strchr(codec, ':')) != NULL) {
+
+		name_len = delim - codec;
+		delim++;
+
+		size_t config_hex_len;
+		if ((config_hex_len = strlen(delim)) > config_size * 2)
+			return -1;
+
+		ssize_t len;
+		if ((len = hex2bin(delim, config, config_hex_len)) == -1)
+			return -1;
+
+		*config_len = len;
+
+	}
+
+	if (name_len >= name_size)
+		return -1;
+
+	strncpy(name, codec, name_len);
+	name[name_len] = '\0';
+
 	return 0;
 }
 
@@ -1221,6 +1295,13 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 
 	debug2("Setting constraints");
 
+	const struct ba_pcm_codec *codec = &pcm->ba_pcm.codec;
+	for (size_t i = 0; i < pcm->ba_pcm_codecs.codecs_len; i++)
+		if (strcmp(pcm->ba_pcm_codecs.codecs[i].name, codec->name) == 0) {
+			codec = &pcm->ba_pcm_codecs.codecs[i];
+			break;
+		}
+
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_ACCESS,
 					ARRAYSIZE(accesses), accesses)) < 0)
 		return err;
@@ -1246,53 +1327,26 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 					min_p, 1024 * 1024)) < 0)
 		return err;
 
-	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_BUFFER_BYTES,
-					2 * min_p, 2 * 1024 * 1024)) < 0)
+	unsigned int list[ARRAYSIZE(codec->sampling)];
+	unsigned int n;
+
+	/* Populate the list of supported channels and sampling rates. For codecs
+	 * with fixed configuration, the list will contain only one element. For
+	 * other codecs, the list might contain all supported configurations. */
+
+	n = 0;
+	for (size_t i = 0; i < ARRAYSIZE(codec->channels) && codec->channels[i] != 0; i++)
+		list[n++] = codec->channels[i];
+	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_CHANNELS, n, list)) < 0)
 		return err;
 
-	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_CHANNELS,
-					pcm->ba_pcm.channels, pcm->ba_pcm.channels)) < 0)
-		return err;
-
-	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_RATE,
-					pcm->ba_pcm.sampling, pcm->ba_pcm.sampling)) < 0)
+	n = 0;
+	for (size_t i = 0; i < ARRAYSIZE(codec->sampling) && codec->sampling[i] != 0; i++)
+		list[n++] = codec->sampling[i];
+	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_RATE, n, list)) < 0)
 		return err;
 
 	return 0;
-}
-
-static bool bluealsa_select_pcm_codec(struct bluealsa_pcm *pcm, const char *codec, DBusError *err) {
-
-	char name[32] = { 0 };
-	size_t name_len = sizeof(name) - 1;
-	uint8_t config[64] = { 0 };
-	ssize_t config_len = 0;
-
-	const char *config_hex;
-	/* split the given string into name and configuration components */
-	if ((config_hex = strchr(codec, ':')) != NULL) {
-		name_len = MIN(name_len, config_hex - codec);
-		config_hex++;
-
-		size_t config_hex_len;
-		if ((config_hex_len = strlen(config_hex)) > sizeof(config) * 2) {
-			dbus_set_error(err, DBUS_ERROR_FAILED, "Invalid codec configuration: %s", config_hex);
-			return false;
-		}
-
-		if ((config_len = hex2bin(config_hex, config, config_hex_len)) == -1) {
-			dbus_set_error(err, DBUS_ERROR_FAILED, "%s", strerror(errno));
-			return false;
-		}
-
-	}
-
-	strncpy(name, codec, name_len);
-	if (!ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
-				ba_dbus_pcm_codec_get_canonical_name(name), config, config_len, 0, err))
-		return false;
-
-	return true;
 }
 
 static bool bluealsa_update_pcm_volume(struct bluealsa_pcm *pcm,
@@ -1421,6 +1475,15 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		return -EINVAL;
 	}
 
+	char codec_name[32] = "";
+	uint8_t codec_config[sizeof(pcm->ba_pcm_codec_config)];
+	size_t codec_config_len = 0;
+	if (codec != NULL && str2codec(codec, codec_name, sizeof(codec_name),
+				codec_config, sizeof(codec_config), &codec_config_len) == -1) {
+		SNDERR("Invalid codec: %s", codec);
+		return -EINVAL;
+	}
+
 	int pcm_mute = -1;
 	int pcm_volume = -1;
 	if (volume != NULL && str2volume(volume, &pcm_volume, &pcm_mute) != 0) {
@@ -1484,26 +1547,36 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			pcm->ba_pcm.pcm_path, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
 			"arg0='"BLUEALSA_INTERFACE_PCM"'");
 
-	if ((pcm->event_fd = eventfd(0, EFD_CLOEXEC)) == -1) {
+	if ((pcm->event_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)) == -1) {
 		ret = -errno;
 		goto fail;
 	}
 
-	if (codec != NULL && codec[0] != '\0') {
-		if (bluealsa_select_pcm_codec(pcm, codec, &err)) {
+	if (codec_name[0] != '\0') {
+		/* If the codec was given, change it now, so we can get the correct
+		 * sampling rate and channels for HW constraints. */
+		const char *canonical = ba_dbus_pcm_codec_get_canonical_name(codec_name);
+		const bool name_changed = strcmp(canonical, pcm->ba_pcm.codec.name) != 0;
+		if (name_changed && !ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
+					canonical, NULL, 0, 0, 0, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
+			SNDERR("Couldn't select BlueALSA PCM codec: %s", err.message);
+			dbus_error_free(&err);
+		}
+		else {
+
+			memcpy(pcm->ba_pcm_codec_config, codec_config, codec_config_len);
+			pcm->ba_pcm_codec_config_len = codec_config_len;
+
 			/* Changing the codec may change the audio format, sampling rate and/or
 			 * channels. We need to refresh our cache of PCM properties. */
-			if (!ba_dbus_pcm_get(&pcm->dbus_ctx, &ba_addr, ba_profile,
+			if (name_changed && !ba_dbus_pcm_get(&pcm->dbus_ctx, &ba_addr, ba_profile,
 						stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
 						&pcm->ba_pcm, &err)) {
 				SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
 				ret = -dbus_error_to_errno(&err);
 				goto fail;
 			}
-		}
-		else {
-			SNDERR("Couldn't select BlueALSA PCM codec: %s", err.message);
-			dbus_error_free(&err);
+
 		}
 	}
 
@@ -1524,6 +1597,10 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
 		goto fail;
+
+	if (!ba_dbus_pcm_codecs_get(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
+				&pcm->ba_pcm_codecs, &err))
+		SNDERR("Couldn't get BlueALSA PCM codecs: %s", err.message);
 
 	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0) {
 		snd_pcm_ioplug_delete(&pcm->io);

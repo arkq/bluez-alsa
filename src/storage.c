@@ -215,9 +215,9 @@ static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
 		if (value == NULL)
 			continue;
 		*value++ = '\0';
-		uint16_t codec_id = 0xFFFF;
+		uint32_t codec_id = 0xFFFFFFFF;
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
-				(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFF)
+				(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFFFFFF)
 			continue;
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 				(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
@@ -332,8 +332,8 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 	g_key_file_set_string_list(db, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT,
 		(const char * const *)list, num_codecs);
 
-	for (index = 0; index < num_codecs; index++)
-		free(list[index]);
+	for (size_t i = 0; i < num_codecs; i++)
+		free(list[i]);
 	free(list);
 
 }

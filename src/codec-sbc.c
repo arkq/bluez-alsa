@@ -61,7 +61,7 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality) {
 			quality == SBC_QUALITY_XQPLUS) {
 		/* Check whether XQ/XQ+ is possible. If not,
 		 * downgrade to high quality. */
-		if (conf->frequency == SBC_SAMPLING_FREQ_44100 &&
+		if (conf->sampling_freq == SBC_SAMPLING_FREQ_44100 &&
 				conf->channel_mode == SBC_CHANNEL_MODE_DUAL_CHANNEL &&
 				conf->block_length == SBC_BLOCK_LENGTH_16 &&
 				conf->subbands == SBC_SUBBANDS_8 &&
@@ -75,7 +75,7 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality) {
 	}
 
 	if (quality < SBC_QUALITY_XQ)
-		switch (conf->frequency) {
+		switch (conf->sampling_freq) {
 		case SBC_SAMPLING_FREQ_16000:
 		case SBC_SAMPLING_FREQ_32000:
 			bitpool = bitpool_stereo_44100[quality];
@@ -129,7 +129,7 @@ static int sbc_set_a2dp_faststream(sbc_t *sbc,
 		if (!(a2dp->direction & FASTSTREAM_DIRECTION_VOICE))
 			return -EINVAL;
 
-		switch (a2dp->frequency_voice) {
+		switch (a2dp->sampling_freq_voice) {
 		case FASTSTREAM_SAMPLING_FREQ_VOICE_16000:
 			sbc->frequency = SBC_FREQ_16000;
 			break;
@@ -146,7 +146,7 @@ static int sbc_set_a2dp_faststream(sbc_t *sbc,
 		if (!(a2dp->direction & FASTSTREAM_DIRECTION_MUSIC))
 			return -EINVAL;
 
-		switch (a2dp->frequency_music) {
+		switch (a2dp->sampling_freq_music) {
 		case FASTSTREAM_SAMPLING_FREQ_MUSIC_44100:
 			sbc->frequency = SBC_FREQ_44100;
 			break;

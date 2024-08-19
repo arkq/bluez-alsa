@@ -43,23 +43,26 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "ble-midi.h"
+#include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "codec-sbc.h"
+#include "hci.h"
 #include "hfp.h"
 #include "io.h"
 #include "midi.h"
+#include "ofono.h"
 #include "storage.h"
+#include "upower.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/bluetooth.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
 
 #include "inc/sine.inc"
 
-#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-mock-storage"
-
 static const a2dp_sbc_t config_sbc_44100_stereo = {
-	.frequency = SBC_SAMPLING_FREQ_44100,
+	.sampling_freq = SBC_SAMPLING_FREQ_44100,
 	.channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO,
 	.block_length = SBC_BLOCK_LENGTH_16,
 	.subbands = SBC_SUBBANDS_8,
@@ -72,7 +75,7 @@ static const a2dp_sbc_t config_sbc_44100_stereo = {
 static const a2dp_aptx_t config_aptx_44100_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(APTX_VENDOR_ID, APTX_CODEC_ID),
 	.channel_mode = APTX_CHANNEL_MODE_STEREO,
-	.frequency = APTX_SAMPLING_FREQ_44100,
+	.sampling_freq = APTX_SAMPLING_FREQ_44100,
 };
 #endif
 
@@ -80,7 +83,7 @@ static const a2dp_aptx_t config_aptx_44100_stereo = {
 static const a2dp_aptx_hd_t config_aptx_hd_48000_stereo = {
 	.aptx.info = A2DP_VENDOR_INFO_INIT(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 	.aptx.channel_mode = APTX_CHANNEL_MODE_STEREO,
-	.aptx.frequency = APTX_SAMPLING_FREQ_48000,
+	.aptx.sampling_freq = APTX_SAMPLING_FREQ_48000,
 };
 #endif
 
@@ -88,29 +91,10 @@ static const a2dp_aptx_hd_t config_aptx_hd_48000_stereo = {
 static const a2dp_faststream_t config_faststream_44100_16000 = {
 	.info = A2DP_VENDOR_INFO_INIT(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID),
 	.direction = FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE,
-	.frequency_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
-	.frequency_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
+	.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100,
+	.sampling_freq_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000,
 };
 #endif
-
-bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep *sep, GError **error) {
-	debug("%s: %s", __func__, current_dbus_sep_path);
-	(void)current_dbus_sep_path; (void)sep;
-	*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED, "Not supported");
-	return false;
-}
-
-void bluez_battery_provider_update(struct ba_device *device) {
-	debug("%s: %p", __func__, device);
-	(void)device;
-}
-
-int ofono_call_volume_update(struct ba_transport *transport) {
-	debug("%s: %p", __func__, transport);
-	(void)transport;
-	return 0;
-}
 
 static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 
@@ -177,182 +161,120 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(
 void *a2dp_faststream_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 void *sco_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 
-static void *mock_bt_dump_thread(void *userdata) {
+static struct ba_adapter *ba_adapter = NULL;
+static struct ba_device *ba_device_1 = NULL;
+static struct ba_device *ba_device_2 = NULL;
 
-	int bt_fd = GPOINTER_TO_INT(userdata);
-	FILE *f_output = NULL;
-	uint8_t buffer[1024];
-	ssize_t len;
-
-	if (mock_dump_output)
-		f_output = fopen("bluealsa-mock.dump", "w");
-
-	debug("IO loop: START: %s", __func__);
-	while ((len = read(bt_fd, buffer, sizeof(buffer))) > 0) {
-		fprintf(stderr, "#");
-
-		if (!mock_dump_output)
-			continue;
-
-		for (ssize_t i = 0; i < len; i++)
-			fprintf(f_output, "%02x", buffer[i]);
-		fprintf(f_output, "\n");
-
-	}
-
-	debug("IO loop: EXIT: %s", __func__);
-	if (f_output != NULL)
-		fclose(f_output);
-	close(bt_fd);
-	return NULL;
+static struct ba_adapter *mock_adapter_new(int dev_id) {
+	struct ba_adapter *a;
+	if ((a = ba_adapter_new(dev_id)) == NULL)
+		return NULL;
+	/* make dummy test HCI mSBC-ready */
+	a->hci.features[2] = LMP_TRSP_SCO;
+	a->hci.features[3] = LMP_ESCO;
+	return a;
 }
 
-static int mock_transport_set_a2dp_state_active(struct ba_transport *t) {
-	ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE);
-	return G_SOURCE_REMOVE;
+static struct ba_device *mock_device_new(struct ba_adapter *a, const char *address) {
+
+	struct ba_device *d;
+	bdaddr_t addr;
+
+	str2ba(address, &addr);
+	if ((d = ba_device_new(a, &addr)) == NULL)
+		return NULL;
+
+	storage_device_clear(d);
+	d->battery.charge = 75;
+
+	return d;
 }
 
-static int mock_transport_acquire_bt(struct ba_transport *t) {
+static struct ba_transport *mock_transport_new_a2dp(struct ba_device *d,
+		const char *uuid, const struct a2dp_sep *sep, const void *configuration) {
+
+	usleep(mock_fuzzing_ms * 1000);
+
+	char transport_path[128];
+	const int index = (strcmp(uuid, BT_UUID_A2DP_SINK) == 0) ? 1 : 2;
+	sprintf(transport_path, "%s/sep/fd%u", d->bluez_dbus_path, index);
+
+	g_autoptr(GAsyncQueue) sem = g_async_queue_new();
+	assert(mock_bluez_device_media_set_configuration(d->bluez_dbus_path, transport_path,
+				uuid, sep->config.codec_id, configuration, sep->config.caps_size, sem) == 0);
+	mock_sem_wait(sem);
+
+	char device[18];
+	ba2str(&d->addr, device);
+	fprintf(stderr, "BLUEALSA_READY=A2DP:%s:%s\n", device,
+			a2dp_codecs_codec_id_to_string(sep->config.codec_id));
+
+	struct ba_transport *t;
+	assert((t = ba_transport_lookup(d, transport_path)) != NULL);
+	return t;
+}
+
+/* SCO acquisition override for testing purposes. */
+int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	int bt_fds[2];
 	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
 
 	t->bt_fd = bt_fds[0];
-	t->mtu_read = 256;
-	t->mtu_write = 256;
+	t->mtu_read = 48;
+	t->mtu_write = 48;
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-		t->mtu_read = t->mtu_write = 48;
-
-	debug("New transport: %d (MTU: R:%zu W:%zu)", t->bt_fd, t->mtu_read, t->mtu_write);
-
-	g_thread_unref(g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(bt_fds[1])));
-
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		/* Emulate asynchronous transport activation by BlueZ. */
-		g_timeout_add(10, G_SOURCE_FUNC(mock_transport_set_a2dp_state_active), t);
+	debug("New SCO link: %s: %d", batostr_(&t->d->addr), t->bt_fd);
+	g_thread_unref(mock_bt_dump_thread_new(bt_fds[1]));
 
 	return bt_fds[0];
 }
 
-static struct ba_device *mock_device_new(struct ba_adapter *a, const char *btmac) {
-
-	bdaddr_t addr;
-	str2ba(btmac, &addr);
-
-	struct ba_device *d;
-	if ((d = ba_device_lookup(a, &addr)) == NULL) {
-		d = ba_device_new(a, &addr);
-		storage_device_clear(d);
-		d->battery.charge = 75;
-	}
-
-	return d;
-}
-
-static struct ba_transport *mock_transport_new_a2dp(const char *device_btmac,
-		uint16_t profile, const char *dbus_path, const struct a2dp_codec *codec,
-		const void *configuration) {
+static struct ba_transport *mock_transport_new_sco(struct ba_device *d,
+		const char *uuid) {
 
 	usleep(mock_fuzzing_ms * 1000);
 
-	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
-	const char *dbus_owner = g_dbus_connection_get_unique_name(config.dbus);
-	struct ba_transport *t = ba_transport_new_a2dp(d, profile, dbus_owner, dbus_path,
-			codec, configuration);
-	t->acquire = mock_transport_acquire_bt;
+	g_autoptr(GAsyncQueue) sem = g_async_queue_new();
+	assert(mock_bluez_device_profile_new_connection(d->bluez_dbus_path, uuid, sem) == 0);
+	mock_sem_wait(sem);
 
-	fprintf(stderr, "BLUEALSA_READY=A2DP:%s:%s\n", device_btmac,
-			a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t)));
+	struct ba_transport *t;
+	assert((t = ba_transport_lookup(d, d->bluez_dbus_path)) != NULL);
 
-	ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_PENDING);
-
-	ba_device_unref(d);
-	return t;
-}
-
-static void *mock_transport_rfcomm_thread(void *userdata) {
-
-	static const struct {
-		const char *command;
-		const char *response;
-	} responses[] = {
-		/* accept HFP codec selection */
-		{ "\r\n+BCS:1\r\n", "AT+BCS=1\r" },
-		{ "\r\n+BCS:2\r\n", "AT+BCS=2\r" },
-		{ "\r\n+BCS:3\r\n", "AT+BCS=3\r" },
-	};
-
-	int rfcomm_fd = GPOINTER_TO_INT(userdata);
-	char buffer[1024];
-	ssize_t len;
-
-	while ((len = read(rfcomm_fd, buffer, sizeof(buffer))) > 0) {
-		hexdump("RFCOMM", buffer, len, true);
-
-		for (size_t i = 0; i < ARRAYSIZE(responses); i++) {
-			if (strncmp(buffer, responses[i].command, len) != 0)
-				continue;
-			len = strlen(responses[i].response);
-			if (write(rfcomm_fd, responses[i].response, len) != len)
-				warn("Couldn't write RFCOMM response: %s", strerror(errno));
-			break;
-		}
-
-	}
-
-	close(rfcomm_fd);
-	return NULL;
-}
-
-static struct ba_transport *mock_transport_new_sco(const char *device_btmac,
-		uint16_t profile, const char *dbus_path) {
-
-	usleep(mock_fuzzing_ms * 1000);
-
-	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
-	const char *dbus_owner = g_dbus_connection_get_unique_name(config.dbus);
-
-	int fds[2];
-	socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
-	g_thread_unref(g_thread_new(NULL, mock_transport_rfcomm_thread, GINT_TO_POINTER(fds[1])));
-
-	struct ba_transport *t = ba_transport_new_sco(d, profile, dbus_owner, dbus_path, fds[0]);
-	t->sco.rfcomm->state = HFP_SLC_CONNECTED;
-	t->sco.rfcomm->ag_codecs.cvsd = true;
-	t->sco.rfcomm->hf_codecs.cvsd = true;
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_HFP) {
+		t->sco.rfcomm->state = HFP_SLC_CONNECTED;
+		t->sco.rfcomm->ag_codecs.cvsd = true;
+		t->sco.rfcomm->hf_codecs.cvsd = true;
 #if ENABLE_HFP_CODEC_SELECTION
-	t->sco.rfcomm->ag_features |= HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO;
-	t->sco.rfcomm->hf_features |= HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO;
+		t->sco.rfcomm->ag_features |= HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO;
+		t->sco.rfcomm->hf_features |= HFP_HF_FEAT_CODEC | HFP_HF_FEAT_ESCO;
 #endif
 #if ENABLE_MSBC
-	t->sco.rfcomm->ag_codecs.msbc = true;
-	t->sco.rfcomm->hf_codecs.msbc = true;
+		t->sco.rfcomm->ag_codecs.msbc = true;
+		t->sco.rfcomm->hf_codecs.msbc = true;
 #endif
 #if ENABLE_LC3_SWB
-	t->sco.rfcomm->ag_codecs.lc3_swb = true;
-	t->sco.rfcomm->hf_codecs.lc3_swb = true;
+		t->sco.rfcomm->ag_codecs.lc3_swb = true;
+		t->sco.rfcomm->hf_codecs.lc3_swb = true;
 #endif
-	t->acquire = mock_transport_acquire_bt;
+	}
 
-	fprintf(stderr, "BLUEALSA_READY=SCO:%s:%s\n", device_btmac,
+	char device[18];
+	ba2str(&d->addr, device);
+	fprintf(stderr, "BLUEALSA_READY=SCO:%s:%s\n", device,
 			hfp_codec_id_to_string(ba_transport_get_codec(t)));
 
-	ba_device_unref(d);
 	return t;
 }
 
 #if ENABLE_MIDI
-static struct ba_transport *mock_transport_new_midi(const char *device_btmac,
-		uint16_t profile, const char *dbus_path) {
+static struct ba_transport *mock_transport_new_midi(const char *path) {
 
 	usleep(mock_fuzzing_ms * 1000);
 
-	struct ba_device *d = mock_device_new(mock_adapter, device_btmac);
-	struct ba_transport *t = ba_transport_new_midi(d, profile, ":0", dbus_path);
-
-	ba_transport_acquire(t);
-	ba_transport_start(t);
+	struct ba_device *d = ba_device_lookup(ba_adapter, &ba_adapter->hci.bdaddr);
+	struct ba_transport *t = ba_transport_lookup(d, path);
 
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds);
@@ -363,78 +285,83 @@ static struct ba_transport *mock_transport_new_midi(const char *device_btmac,
 
 	midi_transport_start_watch_ble_midi(t);
 
-	fprintf(stderr, "BLUEALSA_READY=MIDI:%s\n", device_btmac);
+	char device[18];
+	ba2str(&d->addr, device);
+	fprintf(stderr, "BLUEALSA_READY=MIDI:%s\n", device);
 
 	ba_device_unref(d);
 	return t;
 }
 #endif
 
-static void *mock_bluealsa_service_thread(void *userdata) {
-	(void)userdata;
+void mock_bluealsa_run(void) {
+
+	/* Wait for profiles to be registered. */
+	size_t events = (config.profile.a2dp_source || config.profile.a2dp_sink) ? 1 : 0;
+	events += config.profile.hfp_ag ? 1 : 0;
+	events += config.profile.hfp_hf ? 1 : 0;
+	events += config.profile.hsp_ag ? 1 : 0;
+	events += config.profile.hsp_hs ? 1 : 0;
+	while (events--)
+		mock_sem_wait(mock_sem_ready);
+
+	/* Create remote SEP on device 1, so we could test SEP configuration. */
+	mock_bluez_device_media_endpoint_add(MOCK_BLUEZ_DEVICE_1_SEP_PATH,
+			MOCK_BLUEZ_DEVICE_1_PATH, BT_UUID_A2DP_SINK, a2dp_sbc_sink.config.codec_id,
+			&a2dp_sbc_sink.config.capabilities, a2dp_sbc_sink.config.caps_size);
 
 	GPtrArray *tt = g_ptr_array_new();
-	size_t i;
 
 	if (config.profile.a2dp_source) {
 
 		if (a2dp_sbc_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_1,
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_1,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SOURCE,
 						&a2dp_sbc_source, &config_sbc_44100_stereo));
 
 #if ENABLE_APTX
 		if (a2dp_aptx_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_aptx_source, &config_aptx_44100_stereo));
 		else
 #endif
 #if ENABLE_APTX_HD
 		if (a2dp_aptx_hd_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_aptx_hd_source, &config_aptx_hd_48000_stereo));
 		else
 #endif
 #if ENABLE_FASTSTREAM
 		if (a2dp_faststream_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_faststream_source, &config_faststream_44100_16000));
 		else
 #endif
 		if (a2dp_sbc_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
-						BA_TRANSPORT_PROFILE_A2DP_SOURCE, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_sbc_source, &config_sbc_44100_stereo));
 
 	}
 
 	if (config.profile.a2dp_sink) {
 
-#if ENABLE_APTX_HD
-		if (a2dp_aptx_hd_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_1,
-						BA_TRANSPORT_PROFILE_A2DP_SINK, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_1,
-						&a2dp_aptx_hd_sink, &config_aptx_hd_48000_stereo));
-		else
-#endif
 #if ENABLE_APTX
 		if (a2dp_aptx_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_1,
-						BA_TRANSPORT_PROFILE_A2DP_SINK, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_1,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SINK,
 						&a2dp_aptx_sink, &config_aptx_44100_stereo));
 		else
 #endif
+#if ENABLE_APTX_HD
+		if (a2dp_aptx_hd_sink.enabled)
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SINK,
+						&a2dp_aptx_hd_sink, &config_aptx_hd_48000_stereo));
+		else
+#endif
 		if (a2dp_sbc_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_1,
-						BA_TRANSPORT_PROFILE_A2DP_SINK, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_1,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SINK,
 						&a2dp_sbc_sink, &config_sbc_44100_stereo));
 
 		if (a2dp_sbc_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(MOCK_DEVICE_2,
-						BA_TRANSPORT_PROFILE_A2DP_SINK, MOCK_BLUEZ_MEDIA_TRANSPORT_PATH_2,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SINK,
 						&a2dp_sbc_sink, &config_sbc_44100_stereo));
 
 	}
@@ -442,8 +369,7 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 	if (config.profile.hfp_ag) {
 
 		struct ba_transport *t;
-		g_ptr_array_add(tt, t = mock_transport_new_sco(MOCK_DEVICE_1,
-					BA_TRANSPORT_PROFILE_HFP_AG, MOCK_BLUEZ_SCO_PATH_1));
+		g_ptr_array_add(tt, t = mock_transport_new_sco(ba_device_1, BT_UUID_HFP_AG));
 
 		/* In case of fuzzing, select available codecs
 		 * one by one with some delay in between. */
@@ -462,21 +388,28 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 
 	}
 
-	if (config.profile.hsp_ag) {
-		g_ptr_array_add(tt, mock_transport_new_sco(MOCK_DEVICE_2,
-					BA_TRANSPORT_PROFILE_HSP_AG, MOCK_BLUEZ_SCO_PATH_2));
-	}
+	if (config.profile.hfp_hf)
+		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_1, BT_UUID_HFP_HF));
+
+	if (config.profile.hsp_ag)
+		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_2, BT_UUID_HSP_AG));
+
+	if (config.profile.hsp_hs)
+		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_2, BT_UUID_HSP_HS));
+
+#if ENABLE_UPOWER
+	mock_upower_display_device_set_percentage(50.00);
+	mock_upower_display_device_set_is_present(false);
+#endif
 
 #if ENABLE_MIDI
-	if (config.profile.midi) {
-		g_ptr_array_add(tt, mock_transport_new_midi(MOCK_DEVICE_1,
-					BA_TRANSPORT_PROFILE_MIDI, MOCK_BLUEZ_MIDI_PATH_1));
-	}
+	if (config.profile.midi)
+		g_ptr_array_add(tt, mock_transport_new_midi(MOCK_BLUEZ_MIDI_PATH));
 #endif
 
 	mock_sem_wait(mock_sem_timeout);
 
-	for (i = 0; i < tt->len; i++) {
+	for (size_t i = 0; i < tt->len; i++) {
 		usleep(mock_fuzzing_ms * 1000);
 		ba_transport_destroy(tt->pdata[i]);
 	}
@@ -484,30 +417,57 @@ static void *mock_bluealsa_service_thread(void *userdata) {
 	usleep(mock_fuzzing_ms * 1000);
 
 	g_ptr_array_free(tt, TRUE);
-	mock_sem_signal(mock_sem_quit);
-	return NULL;
+
 }
 
-void mock_bluealsa_dbus_name_acquired(GDBusConnection *conn, const char *name, void *userdata) {
-	(void)conn;
-	(void)userdata;
+static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
+		const char *name, void *userdata) {
+	struct MockService *service = userdata;
 
-	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
-
+	config.dbus = conn;
 	/* do not generate lots of data */
 	config.sbc_quality = SBC_QUALITY_LOW;
+	/* initialize SEPs capabilities */
+	a2dp_seps_init();
 
-	/* initialize codec capabilities */
-	a2dp_codecs_init();
+	/* create mock devices attached to the mock adapter */
+	ba_adapter = mock_adapter_new(MOCK_ADAPTER_ID);
+	ba_device_1 = mock_device_new(ba_adapter, MOCK_DEVICE_1);
+	ba_device_2 = mock_device_new(ba_adapter, MOCK_DEVICE_2);
 
-	/* emulate dummy test HCI device */
-	assert((mock_adapter = ba_adapter_new(MOCK_ADAPTER_ID)) != NULL);
+	/* register D-Bus interfaces */
+	bluealsa_dbus_register();
+	/* setup BlueZ integration */
+	bluez_init();
+#if ENABLE_OFONO
+	/* setup oFono integration */
+	ofono_init();
+#endif
+#if ENABLE_UPOWER
+	/* setup UPower integration */
+	upower_init();
+#endif
 
-	/* make HCI mSBC-ready */
-	mock_adapter->hci.features[2] = LMP_TRSP_SCO;
-	mock_adapter->hci.features[3] = LMP_ESCO;
+	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
+	mock_sem_signal(service->ready);
 
-	/* run actual BlueALSA mock thread */
-	g_thread_unref(g_thread_new(NULL, mock_bluealsa_service_thread, NULL));
+}
+
+static struct MockService service = {
+	.name = mock_ba_service_name,
+	.name_acquired_cb = mock_dbus_name_acquired,
+};
+
+void mock_bluealsa_service_start(void) {
+	mock_service_start(&service);
+}
+
+void mock_bluealsa_service_stop(void) {
+
+	mock_service_stop(&service);
+
+	ba_device_unref(ba_device_1);
+	ba_device_unref(ba_device_2);
+	ba_adapter_destroy(ba_adapter);
 
 }

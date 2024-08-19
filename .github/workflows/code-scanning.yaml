@@ -56,6 +56,7 @@ jobs:
           --enable-mpg123 \
           --enable-msbc \
           --enable-ofono \
+          --enable-opus \
           --enable-upower \
           --enable-aplay \
           --enable-cli \
@@ -73,7 +74,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Run reStructuredText Linter
-      uses: deep-entertainment/doc8-action@v4
+      uses: deep-entertainment/doc8-action@v5
       with:
         scanPaths: ${{ github.workspace }}
 
@@ -104,6 +105,7 @@ jobs:
           --enable-mpg123 \
           --enable-msbc \
           --enable-ofono \
+          --enable-opus \
           --enable-upower \
           --enable-aplay \
           --enable-cli \
@@ -116,7 +118,7 @@ jobs:
       run: bear -- make check TESTS=
     - name: Run IWYU Check
       run: |
-        jq 'del(.[] | select(.file | endswith("-iface.c")))' \
+        jq 'del(.[] | select(.file | test("-ifaces?.c")))' \
           ${{ github.workspace }}/build/compile_commands.json > tmp.json \
           && mv tmp.json ${{ github.workspace }}/build/compile_commands.json
         iwyu_tool -p ${{ github.workspace }}/build -- \

@@ -107,7 +107,7 @@ static void transport_threads_cancel(struct ba_transport *t) {
 	t->stopping = false;
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-	pthread_cond_broadcast(&t->stopped);
+	pthread_cond_broadcast(&t->stopped_cond);
 
 }
 
@@ -250,7 +250,7 @@ static struct ba_transport *transport_new(
 	pthread_mutex_init(&t->codec_select_client_mtx, NULL);
 	pthread_mutex_init(&t->bt_fd_mtx, NULL);
 	pthread_mutex_init(&t->acquisition_mtx, NULL);
-	pthread_cond_init(&t->stopped, NULL);
+	pthread_cond_init(&t->stopped_cond, NULL);
 
 	t->bt_fd = -1;
 
@@ -364,6 +364,17 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 			else
 				goto fail;
 		}
+		else {
+
+			/* When A2DP transport is released, its state is set to idle. Such
+			 * change is notified by BlueZ via D-Bus asynchronous D-Bus signal.
+			 * We have to wait for the state change here, because otherwise we
+			 * might receive this state change signal in the middle of transport
+			 * acquisition, which would lead us to an undefined state. */
+			while (t->a2dp.state != BLUEZ_A2DP_TRANSPORT_STATE_IDLE)
+				pthread_cond_wait(&t->a2dp.state_changed_cond, &t->bt_fd_mtx);
+
+		}
 
 	}
 
@@ -391,7 +402,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const bool is_sink = profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
@@ -403,9 +414,11 @@ struct ba_transport *ba_transport_new_a2dp(
 
 	t->profile = profile;
 
-	t->a2dp.codec = codec;
-	memcpy(&t->a2dp.configuration, configuration, codec->capabilities_size);
+	pthread_cond_init(&t->a2dp.state_changed_cond, NULL);
 	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
+
+	t->a2dp.sep = sep;
+	memcpy(&t->a2dp.configuration, configuration, sep->config.caps_size);
 
 	err |= transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
@@ -429,7 +442,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	ba_transport_set_codec(t, codec->codec_id);
+	ba_transport_set_codec(t, sep->config.codec_id);
 
 	storage_pcm_data_sync(&t->a2dp.pcm);
 	storage_pcm_data_sync(&t->a2dp.pcm_bc);
@@ -448,7 +461,8 @@ fail:
 	return NULL;
 }
 
-static int transport_acquire_bt_sco(struct ba_transport *t) {
+__attribute__ ((weak))
+int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	struct ba_device *d = t->d;
 	int fd = -1;
@@ -470,7 +484,7 @@ static int transport_acquire_bt_sco(struct ba_transport *t) {
 		nanosleep(&delay, NULL);
 	}
 
-	const uint16_t codec_id = ba_transport_get_codec(t);
+	const uint32_t codec_id = ba_transport_get_codec(t);
 	if (hci_sco_connect(fd, &d->addr,
 				codec_id == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
 		error("Couldn't establish SCO link: %s", strerror(errno));
@@ -558,7 +572,7 @@ struct ba_transport *ba_transport_new_sco(
 
 	/* In case of the HSP and HFP without codec selection support,
 	 * there is no other option than the CVSD codec. */
-	uint16_t codec_id = HFP_CODEC_CVSD;
+	uint32_t codec_id = HFP_CODEC_CVSD;
 
 #if ENABLE_HFP_CODEC_SELECTION
 	/* Only HFP supports codec selection. */
@@ -673,16 +687,14 @@ fail:
  * @return Human-readable string. */
 const char *ba_transport_debug_name(
 		const struct ba_transport *t) {
-	const enum ba_transport_profile profile = t->profile;
-	const uint16_t codec_id = ba_transport_get_codec(t);
-	switch (profile) {
+	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		return t->a2dp.codec->synopsis;
+		return t->a2dp.sep->name;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
-		switch (codec_id) {
+		switch (ba_transport_get_codec(t)) {
 		case HFP_CODEC_UNDEFINED:
 			return "HFP Hands-Free (...)";
 		case HFP_CODEC_CVSD:
@@ -693,7 +705,7 @@ const char *ba_transport_debug_name(
 			return "HFP Hands-Free (LC3-SWB)";
 		} break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
-		switch (codec_id) {
+		switch (ba_transport_get_codec(t)) {
 		case HFP_CODEC_UNDEFINED:
 			return "HFP Audio Gateway (...)";
 		case HFP_CODEC_CVSD:
@@ -712,7 +724,8 @@ const char *ba_transport_debug_name(
 		return "MIDI";
 #endif
 	}
-	debug("Unknown transport: profile:%#x codec:%#x", profile, codec_id);
+	debug("Unknown transport: profile:%#x codec:%#x",
+			t->profile, ba_transport_get_codec(t));
 	return "N/A";
 }
 #endif
@@ -752,6 +765,9 @@ void ba_transport_destroy(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
 		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm_bc);
+		/* Make sure that the transport A2DP state is set to idle
+		 * prior to stopping the IO threads. */
+		ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_IDLE);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.pcm_spk);
@@ -841,6 +857,7 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		transport_pcm_free(&t->a2dp.pcm);
 		transport_pcm_free(&t->a2dp.pcm_bc);
+		pthread_cond_destroy(&t->a2dp.state_changed_cond);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
@@ -864,7 +881,7 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (t->thread_manager_pipe[1] != -1)
 		close(t->thread_manager_pipe[1]);
 
-	pthread_cond_destroy(&t->stopped);
+	pthread_cond_destroy(&t->stopped_cond);
 	pthread_mutex_destroy(&t->bt_fd_mtx);
 	pthread_mutex_destroy(&t->acquisition_mtx);
 	pthread_mutex_destroy(&t->codec_select_client_mtx);
@@ -876,7 +893,8 @@ void ba_transport_unref(struct ba_transport *t) {
 
 int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
-		const struct a2dp_sep *sep) {
+		const struct a2dp_sep_config *remote_sep_cfg,
+		const void *configuration) {
 
 	if (!(t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
 		return errno = ENOTSUP, -1;
@@ -884,8 +902,8 @@ int ba_transport_select_codec_a2dp(
 	pthread_mutex_lock(&t->codec_id_mtx);
 
 	/* the same codec with the same configuration already selected */
-	if (t->codec_id == sep->codec_id &&
-			memcmp(&sep->configuration, &t->a2dp.configuration, sep->capabilities_size) == 0)
+	if (remote_sep_cfg->codec_id == t->codec_id &&
+			memcmp(configuration, &t->a2dp.configuration, remote_sep_cfg->caps_size) == 0)
 		goto final;
 
 	/* A2DP codec selection is in fact a transport recreation - new transport
@@ -897,7 +915,8 @@ int ba_transport_select_codec_a2dp(
 	storage_pcm_data_update(&t->a2dp.pcm_bc);
 
 	GError *err = NULL;
-	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path, sep, &err)) {
+	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path,
+				remote_sep_cfg, configuration, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
 		pthread_mutex_unlock(&t->codec_id_mtx);
 		g_error_free(err);
@@ -911,7 +930,7 @@ final:
 
 int ba_transport_select_codec_sco(
 		struct ba_transport *t,
-		uint16_t codec_id) {
+		uint8_t codec_id) {
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -982,17 +1001,17 @@ final:
 	}
 }
 
-uint16_t ba_transport_get_codec(
+uint32_t ba_transport_get_codec(
 		const struct ba_transport *t) {
 	pthread_mutex_lock(MUTABLE(&t->codec_id_mtx));
-	uint16_t codec_id = t->codec_id;
+	uint32_t codec_id = t->codec_id;
 	pthread_mutex_unlock(MUTABLE(&t->codec_id_mtx));
 	return codec_id;
 }
 
 void ba_transport_set_codec(
 		struct ba_transport *t,
-		uint16_t codec_id) {
+		uint32_t codec_id) {
 
 	pthread_mutex_lock(&t->codec_id_mtx);
 
@@ -1095,7 +1114,7 @@ int ba_transport_stop(struct ba_transport *t) {
 		goto fail;
 
 	while (t->stopping)
-		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
+		pthread_cond_wait(&t->stopped_cond, &t->bt_fd_mtx);
 
 fail:
 	pthread_mutex_unlock(&t->bt_fd_mtx);
@@ -1169,7 +1188,7 @@ int ba_transport_acquire(struct ba_transport *t) {
 	/* If we are in the middle of IO threads stopping, wait until all resources
 	 * are reclaimed, so we can acquire them in a clean way once more. */
 	while (t->stopping)
-		pthread_cond_wait(&t->stopped, &t->bt_fd_mtx);
+		pthread_cond_wait(&t->stopped_cond, &t->bt_fd_mtx);
 
 	/* If BT socket file descriptor is still valid, we
 	 * can safely reuse it (e.g. in a keep-alive mode). */
@@ -1239,18 +1258,34 @@ final:
 int ba_transport_set_a2dp_state(
 		struct ba_transport *t,
 		enum bluez_a2dp_transport_state state) {
-	switch (t->a2dp.state = state) {
-	case BLUEZ_A2DP_TRANSPORT_STATE_PENDING:
-		/* When transport is marked as pending, try to acquire transport, but only
-		 * if we are handing A2DP sink profile. For source profile, transport has
-		 * to be acquired by our controller (during the PCM open request). */
-		if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
-			return ba_transport_acquire(t);
-		return 0;
-	case BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE:
-		return ba_transport_start(t);
-	case BLUEZ_A2DP_TRANSPORT_STATE_IDLE:
-	default:
-		return ba_transport_stop(t);
+
+	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	bool changed = t->a2dp.state != state;
+	t->a2dp.state = state;
+
+	pthread_mutex_unlock(&t->bt_fd_mtx);
+
+	if (changed) {
+
+		pthread_cond_signal(&t->a2dp.state_changed_cond);
+
+		switch (state) {
+		case BLUEZ_A2DP_TRANSPORT_STATE_PENDING:
+			/* When transport is marked as pending, try to acquire transport,
+			 * but only if we are handing A2DP sink profile. For source profile,
+			 * transport has to be acquired by our controller (during the PCM
+			 * open request). */
+			if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
+				return ba_transport_acquire(t);
+			return 0;
+		case BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE:
+			return ba_transport_start(t);
+		case BLUEZ_A2DP_TRANSPORT_STATE_IDLE:
+			return ba_transport_stop(t);
+		}
+
 	}
+
+	return 0;
 }

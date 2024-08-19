@@ -26,7 +26,7 @@ struct cli_config {
 	struct ba_dbus_ctx dbus;
 
 	bool quiet;
-	bool verbose;
+	unsigned int verbose;
 
 };
 

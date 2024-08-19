@@ -30,23 +30,8 @@
 #define A2DP_CODEC_VENDOR   0xFF
 
 /**
- * Customized (BlueALSA) 16-bit vendor extension. */
-#define A2DP_CODEC_VENDOR_APTX          0x4FFF
-#define A2DP_CODEC_VENDOR_APTX_AD       0xADFF
-#define A2DP_CODEC_VENDOR_APTX_HD       0x24FF
-#define A2DP_CODEC_VENDOR_APTX_LL       0xA2FF
-#define A2DP_CODEC_VENDOR_APTX_TWS      0x25FF
-#define A2DP_CODEC_VENDOR_FASTSTREAM    0xA1FF
-#define A2DP_CODEC_VENDOR_LC3PLUS       0xC3FF
-#define A2DP_CODEC_VENDOR_LDAC          0x2DFF
-#define A2DP_CODEC_VENDOR_LHDC_V1       0x48FF
-#define A2DP_CODEC_VENDOR_LHDC_V2       0x2CFF
-#define A2DP_CODEC_VENDOR_LHDC_V3       0x3CFF
-#define A2DP_CODEC_VENDOR_LHDC_V5       0x5CFF
-#define A2DP_CODEC_VENDOR_LHDC_LL       0x44FF
-#define A2DP_CODEC_VENDOR_OPUS          0x99FF
-#define A2DP_CODEC_VENDOR_SAMSUNG_HD    0x52FF
-#define A2DP_CODEC_VENDOR_SAMSUNG_SC    0x53FF
+ * Customized (BlueALSA) 32-bit vendor extension. */
+#define A2DP_CODEC_VENDOR_ID(CMP, ID) (((CMP) << 16) | (ID))
 
 #define SBC_SAMPLING_FREQ_16000         (1 << 3)
 #define SBC_SAMPLING_FREQ_32000         (1 << 2)
@@ -94,14 +79,14 @@
 
 typedef struct a2dp_sbc {
 #if __BYTE_ORDER == __BIG_ENDIAN
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t channel_mode:4;
 	uint8_t block_length:4;
 	uint8_t subbands:2;
 	uint8_t allocation_method:2;
 #elif __BYTE_ORDER == __LITTLE_ENDIAN
 	uint8_t channel_mode:4;
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t allocation_method:2;
 	uint8_t subbands:2;
 	uint8_t block_length:4;
@@ -198,7 +183,7 @@ typedef struct a2dp_mpeg {
 	uint8_t channel_mode:4;
 	uint8_t rfa:1;
 	uint8_t mpf:1;
-	uint8_t frequency:6;
+	uint8_t sampling_freq:6;
 	uint8_t vbr:1;
 	uint8_t bitrate1:7;
 	uint8_t bitrate2;
@@ -206,7 +191,7 @@ typedef struct a2dp_mpeg {
 	uint8_t channel_mode:4;
 	uint8_t crc:1;
 	uint8_t layer:3;
-	uint8_t frequency:6;
+	uint8_t sampling_freq:6;
 	uint8_t mpf:1;
 	uint8_t rfa:1;
 	uint8_t bitrate1:7;
@@ -243,18 +228,18 @@ typedef struct a2dp_mpeg {
 #define AAC_SAMPLING_FREQ_88200         (1 << 1)
 #define AAC_SAMPLING_FREQ_96000         (1 << 0)
 
-#define AAC_CHANNELS_1                  (1 << 3)
-#define AAC_CHANNELS_2                  (1 << 2)
-#define AAC_CHANNELS_6                  (1 << 1)
-#define AAC_CHANNELS_8                  (1 << 0)
+#define AAC_CHANNEL_MODE_MONO           (1 << 3)
+#define AAC_CHANNEL_MODE_STEREO         (1 << 2)
+#define AAC_CHANNEL_MODE_5_1            (1 << 1)
+#define AAC_CHANNEL_MODE_7_1            (1 << 0)
 
 typedef struct a2dp_aac {
 #if __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t object_type:7;
 	uint8_t drc:1;
-	uint8_t frequency1;
-	uint8_t frequency2:4;
-	uint8_t channels:4;
+	uint8_t sampling_freq1;
+	uint8_t sampling_freq2:4;
+	uint8_t channel_mode:4;
 	uint8_t vbr:1;
 	uint8_t bitrate1:7;
 	uint8_t bitrate2;
@@ -262,9 +247,9 @@ typedef struct a2dp_aac {
 #else
 	uint8_t drc:1;
 	uint8_t object_type:7;
-	uint8_t frequency1;
-	uint8_t channels:4;
-	uint8_t frequency2:4;
+	uint8_t sampling_freq1;
+	uint8_t channel_mode:4;
+	uint8_t sampling_freq2:4;
 	uint8_t bitrate1:7;
 	uint8_t vbr:1;
 	uint8_t bitrate2;
@@ -283,14 +268,14 @@ typedef struct a2dp_aac {
 		(a).bitrate3 = (v) & 0xFF; \
 	} while (0)
 
-#define A2DP_AAC_INIT_FREQUENCY(v) \
-	.frequency1 = ((v) >> 4) & 0xFF, \
-	.frequency2 = (v) & 0x0F,
-#define A2DP_AAC_GET_FREQUENCY(a) \
-	((a).frequency1 << 4 | (a).frequency2)
-#define A2DP_AAC_SET_FREQUENCY(a, v) do { \
-		(a).frequency1 = ((v) >> 4) & 0xFF; \
-		(a).frequency2 = (v) & 0x0F; \
+#define A2DP_AAC_INIT_SAMPLING_FREQ(v) \
+	.sampling_freq1 = ((v) >> 4) & 0xFF, \
+	.sampling_freq2 = (v) & 0x0F,
+#define A2DP_AAC_GET_SAMPLING_FREQ(a) \
+	((a).sampling_freq1 << 4 | (a).sampling_freq2)
+#define A2DP_AAC_SET_SAMPLING_FREQ(a, v) do { \
+		(a).sampling_freq1 = ((v) >> 4) & 0xFF; \
+		(a).sampling_freq2 = (v) & 0x0F; \
 	} while (0)
 
 } __attribute__ ((packed)) a2dp_aac_t;
@@ -324,28 +309,28 @@ typedef struct a2dp_aac {
 #define USAC_SAMPLING_FREQ_88200        (1 << 1)
 #define USAC_SAMPLING_FREQ_96000        (1 << 0)
 
-#define USAC_CHANNELS_1                 (1 << 3)
-#define USAC_CHANNELS_2                 (1 << 2)
+#define USAC_CHANNEL_MODE_MONO          (1 << 3)
+#define USAC_CHANNEL_MODE_STEREO        (1 << 2)
 
 typedef struct a2dp_usac {
 #if __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t object_type:2;
-	uint8_t frequency1:6;
-	uint8_t frequency2;
-	uint8_t frequency3;
-	uint8_t frequency4:4;
-	uint8_t channels:4;
+	uint8_t sampling_freq1:6;
+	uint8_t sampling_freq2;
+	uint8_t sampling_freq3;
+	uint8_t sampling_freq4:4;
+	uint8_t channel_mode:4;
 	uint8_t vbr:1;
 	uint8_t bitrate1:7;
 	uint8_t bitrate2;
 	uint8_t bitrate3;
 #else
-	uint8_t frequency1:6;
+	uint8_t sampling_freq1:6;
 	uint8_t object_type:2;
-	uint8_t frequency2;
-	uint8_t frequency3;
-	uint8_t channels:4;
-	uint8_t frequency4:4;
+	uint8_t sampling_freq2;
+	uint8_t sampling_freq3;
+	uint8_t channel_mode:4;
+	uint8_t sampling_freq4:4;
 	uint8_t bitrate1:7;
 	uint8_t vbr:1;
 	uint8_t bitrate2;
@@ -354,9 +339,9 @@ typedef struct a2dp_usac {
 
 #define A2DP_USAC_GET_BITRATE(a) \
 	((a).bitrate1 << 16 | (a).bitrate2 << 8 | (a).bitrate3)
-#define A2DP_USAC_GET_FREQUENCY(a) ( \
-		(a).frequency1 << 20 | (a).frequency2 << 12 | \
-		(a).frequency3 << 4 | (a).frequency4)
+#define A2DP_USAC_GET_SAMPLING_FREQ(a) ( \
+		(a).sampling_freq1 << 20 | (a).sampling_freq2 << 12 | \
+		(a).sampling_freq3 << 4 | (a).sampling_freq4)
 
 } __attribute__ ((packed)) a2dp_usac_t;
 
@@ -373,7 +358,7 @@ typedef struct a2dp_atrac {
 	uint8_t channel_mode:3;
 	uint8_t rfa1:2;
 	uint8_t rfa2:2;
-	uint8_t frequency:2;
+	uint8_t sampling_freq:2;
 	uint8_t vbr:1;
 	uint8_t bitrate1:3;
 	uint8_t bitrate2;
@@ -384,7 +369,7 @@ typedef struct a2dp_atrac {
 	uint8_t version:3;
 	uint8_t bitrate1:3;
 	uint8_t vbr:1;
-	uint8_t frequency:2;
+	uint8_t sampling_freq:2;
 	uint8_t rfa2:2;
 	uint8_t bitrate2;
 	uint8_t bitrate3;
@@ -421,11 +406,11 @@ typedef struct a2dp_vendor_info {
 typedef struct a2dp_aptx {
 	a2dp_vendor_info_t info;
 #if __BYTE_ORDER == __BIG_ENDIAN
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t channel_mode:4;
 #else
 	uint8_t channel_mode:4;
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 #endif
 } __attribute__ ((packed)) a2dp_aptx_t;
 
@@ -444,11 +429,11 @@ typedef struct a2dp_faststream {
 	a2dp_vendor_info_t info;
 	uint8_t direction;
 #if __BYTE_ORDER == __BIG_ENDIAN
-	uint8_t frequency_voice:4;
-	uint8_t frequency_music:4;
+	uint8_t sampling_freq_voice:4;
+	uint8_t sampling_freq_music:4;
 #else
-	uint8_t frequency_music:4;
-	uint8_t frequency_voice:4;
+	uint8_t sampling_freq_music:4;
+	uint8_t sampling_freq_voice:4;
 #endif
 } __attribute__ ((packed)) a2dp_faststream_t;
 
@@ -510,8 +495,8 @@ typedef struct a2dp_aptx_hd {
 #define LC3PLUS_FRAME_DURATION_050      (1 << 1)
 #define LC3PLUS_FRAME_DURATION_100      (1 << 2)
 
-#define LC3PLUS_CHANNELS_1              (1 << 7)
-#define LC3PLUS_CHANNELS_2              (1 << 6)
+#define LC3PLUS_CHANNEL_MODE_MONO       (1 << 7)
+#define LC3PLUS_CHANNEL_MODE_STEREO     (1 << 6)
 
 #define LC3PLUS_SAMPLING_FREQ_48000     (1 << 8)
 #define LC3PLUS_SAMPLING_FREQ_96000     (1 << 7)
@@ -525,11 +510,11 @@ typedef struct a2dp_lc3plus {
 	uint8_t rfa:4;
 	uint8_t frame_duration:4;
 #endif
-	uint8_t channels;
-	uint16_t frequency;
-#define A2DP_LC3PLUS_INIT_FREQUENCY(v) .frequency = HTOBE16(v),
-#define A2DP_LC3PLUS_GET_FREQUENCY(a) be16toh((a).frequency)
-#define A2DP_LC3PLUS_SET_FREQUENCY(a, v) ((a).frequency = htobe16(v))
+	uint8_t channel_mode;
+	uint16_t sampling_freq12;
+#define A2DP_LC3PLUS_INIT_SAMPLING_FREQ(v) .sampling_freq12 = HTOBE16(v),
+#define A2DP_LC3PLUS_GET_SAMPLING_FREQ(a) be16toh((a).sampling_freq12)
+#define A2DP_LC3PLUS_SET_SAMPLING_FREQ(a, v) ((a).sampling_freq12 = htobe16(v))
 } __attribute__ ((packed)) a2dp_lc3plus_t;
 
 #define LDAC_VENDOR_ID                  BT_COMPID_SONY
@@ -550,11 +535,11 @@ typedef struct a2dp_ldac {
 	a2dp_vendor_info_t info;
 #if __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t rfa1:2;
-	uint8_t frequency:6;
+	uint8_t sampling_freq:6;
 	uint8_t rfa2:5;
 	uint8_t channel_mode:3;
 #else
-	uint8_t frequency:6;
+	uint8_t sampling_freq:6;
 	uint8_t rfa1:2;
 	uint8_t channel_mode:3;
 	uint8_t rfa2:5;
@@ -600,9 +585,9 @@ typedef struct a2dp_lhdc_v1 {
 	uint8_t rfa:1;
 	uint8_t ch_separation:1;
 	uint8_t bit_depth:2;
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 #else
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t bit_depth:2;
 	uint8_t ch_separation:1;
 	uint8_t rfa:1;
@@ -614,14 +599,14 @@ typedef struct a2dp_lhdc_v2 {
 #if __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t rfa1:2;
 	uint8_t bit_depth:2;
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t low_latency:1;
 	uint8_t max_bitrate:3;
 	uint8_t version:4;
 	uint8_t rfa2:4;
 	uint8_t ch_split_mode:4;
 #else
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t bit_depth:2;
 	uint8_t rfa1:2;
 	uint8_t version:4;
@@ -638,7 +623,7 @@ typedef struct a2dp_lhdc_v3 {
 	uint8_t ar:1;
 	uint8_t jas:1;
 	uint8_t bit_depth:2;
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t llac:1;
 	uint8_t low_latency:1;
 	uint8_t max_bitrate:2;
@@ -649,7 +634,7 @@ typedef struct a2dp_lhdc_v3 {
 	uint8_t meta:1;
 	uint8_t ch_split_mode:4;
 #else
-	uint8_t frequency:4;
+	uint8_t sampling_freq:4;
 	uint8_t bit_depth:2;
 	uint8_t jas:1;
 	uint8_t ar:1;
@@ -669,7 +654,7 @@ typedef struct a2dp_lhdc_v5 {
 	a2dp_vendor_info_t info;
 #if __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t rfa1:3;
-	uint8_t frequency:5;
+	uint8_t sampling_freq:5;
 	uint8_t min_bitrate:2;
 	uint8_t max_bitrate:2;
 	uint8_t rfa2:1;
@@ -686,7 +671,7 @@ typedef struct a2dp_lhdc_v5 {
 	uint8_t rfa5:7;
 	uint8_t ar_on:1;
 #else
-	uint8_t frequency:5;
+	uint8_t sampling_freq:5;
 	uint8_t rfa1:3;
 	uint8_t bit_depth:3;
 	uint8_t rfa2:1;
@@ -706,37 +691,64 @@ typedef struct a2dp_lhdc_v5 {
 #endif
 } __attribute__ ((packed)) a2dp_lhdc_v5_t;
 
-#define OPUS_VENDOR_ID                  BT_COMPID_LINUX_FOUNDATION
-#define OPUS_CODEC_ID                   0x1005
+#define OPUS_VENDOR_ID                  BT_COMPID_GOOGLE
+#define OPUS_CODEC_ID                   0x0001
 
-#define OPUS_FRAME_DURATION_025	        (1 << 0)
-#define OPUS_FRAME_DURATION_050	        (1 << 1)
-#define OPUS_FRAME_DURATION_100	        (1 << 2)
-#define OPUS_FRAME_DURATION_200	        (1 << 3)
-#define OPUS_FRAME_DURATION_400	        (1 << 4)
+#define OPUS_SAMPLING_FREQ_48000        (1 << 0)
 
-typedef struct a2dp_opus_stream {
+#define OPUS_FRAME_DURATION_100         (1 << 0)
+#define OPUS_FRAME_DURATION_200         (1 << 1)
+
+#define OPUS_CHANNEL_MODE_MONO          (1 << 0)
+#define OPUS_CHANNEL_MODE_STEREO        (1 << 1)
+#define OPUS_CHANNEL_MODE_DUAL          (1 << 2)
+
+typedef struct a2dp_opus {
+	a2dp_vendor_info_t info;
+#if __BYTE_ORDER == __BIG_ENDIAN
+	uint8_t rfa:2;
+	uint8_t sampling_freq:1;
+	uint8_t frame_duration:2;
+	uint8_t channel_mode:3;
+#else
+	uint8_t channel_mode:3;
+	uint8_t frame_duration:2;
+	uint8_t sampling_freq:1;
+	uint8_t rfa:2;
+#endif
+} __attribute__ ((packed)) a2dp_opus_t;
+
+#define OPUS_PW_VENDOR_ID               BT_COMPID_LINUX_FOUNDATION
+#define OPUS_PW_CODEC_ID                0x1005
+
+#define OPUS_PW_FRAME_DURATION_025      (1 << 0)
+#define OPUS_PW_FRAME_DURATION_050      (1 << 1)
+#define OPUS_PW_FRAME_DURATION_100      (1 << 2)
+#define OPUS_PW_FRAME_DURATION_200      (1 << 3)
+#define OPUS_PW_FRAME_DURATION_400      (1 << 4)
+
+typedef struct a2dp_opus_pw_stream {
 	uint8_t channels;
 	uint8_t coupled_streams;
 	uint32_t location;
 	uint8_t frame_duration;
 	uint16_t bitrate;
 
-#define A2DP_OPUS_INIT_LOCATION(v) .location = HTOLE32(v),
-#define A2DP_OPUS_GET_LOCATION(a) le32toh((a).location)
-#define A2DP_OPUS_SET_LOCATION(a, v) ((a).location = htole32(v))
+#define A2DP_OPUS_PW_INIT_LOCATION(v) .location = HTOLE32(v),
+#define A2DP_OPUS_PW_GET_LOCATION(a) le32toh((a).location)
+#define A2DP_OPUS_PW_SET_LOCATION(a, v) ((a).location = htole32(v))
 
-#define A2DP_OPUS_INIT_BITRATE(v) .bitrate = HTOLE16(v),
-#define A2DP_OPUS_GET_BITRATE(a) le32toh((a).bitrate)
-#define A2DP_OPUS_SET_BITRATE(a, v) ((a).bitrate = htole16(v))
+#define A2DP_OPUS_PW_INIT_BITRATE(v) .bitrate = HTOLE16(v),
+#define A2DP_OPUS_PW_GET_BITRATE(a) le32toh((a).bitrate)
+#define A2DP_OPUS_PW_SET_BITRATE(a, v) ((a).bitrate = htole16(v))
 
-} __attribute__ ((packed)) a2dp_opus_stream_t;
+} __attribute__ ((packed)) a2dp_opus_pw_stream_t;
 
-typedef struct a2dp_opus {
+typedef struct a2dp_opus_pw {
 	a2dp_vendor_info_t info;
-	a2dp_opus_stream_t music;
-	a2dp_opus_stream_t voice;
-} __attribute__ ((packed)) a2dp_opus_t;
+	a2dp_opus_pw_stream_t music;
+	a2dp_opus_pw_stream_t voice;
+} __attribute__ ((packed)) a2dp_opus_pw_t;
 
 #define SAMSUNG_HD_VENDOR_ID            BT_COMPID_SAMSUNG_ELEC
 #define SAMSUNG_HD_CODEC_ID             0x0102
@@ -744,6 +756,8 @@ typedef struct a2dp_opus {
 #define SAMSUNG_SC_VENDOR_ID            BT_COMPID_SAMSUNG_ELEC
 #define SAMSUNG_SC_CODEC_ID             0x0103
 
+/**
+ * Type big enough to hold any A2DP codec configuration. */
 typedef union a2dp {
 	a2dp_sbc_t sbc;
 	a2dp_mpeg_t mpeg;
@@ -762,10 +776,11 @@ typedef union a2dp {
 	a2dp_lhdc_v3_t lhdc_v3;
 	a2dp_lhdc_v5_t lhdc_v5;
 	a2dp_opus_t opus;
+	a2dp_opus_pw_t opus_pw;
 } a2dp_t;
 
-uint16_t a2dp_codecs_codec_id_from_string(const char *alias);
-const char *a2dp_codecs_codec_id_to_string(uint16_t codec_id);
+uint32_t a2dp_codecs_codec_id_from_string(const char *alias);
+const char *a2dp_codecs_codec_id_to_string(uint32_t codec_id);
 const char *a2dp_codecs_get_canonical_name(const char *alias);
 
 #endif

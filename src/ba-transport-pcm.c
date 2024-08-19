@@ -226,6 +226,14 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 
 	struct ba_transport *t = pcm->t;
 
+	/* The thread may have been cancelled while a PCM drain operation
+	 * is in progress. To prevent ba_transport_pcm_drain() from blocking
+	 * forever, we signal that drain is no longer in progress. */
+	pthread_mutex_lock(&pcm->mutex);
+	pcm->synced = true;
+	pthread_mutex_unlock(&pcm->mutex);
+	pthread_cond_signal(&pcm->cond);
+
 	/* For proper functioning of the transport, all threads have to be
 	 * operational. Therefore, if one of the threads is being cancelled,
 	 * we have to cancel all other threads. */
@@ -710,7 +718,7 @@ int16_t ba_transport_pcm_delay_adjustment_get(
 		const struct ba_transport_pcm *pcm) {
 
 	struct ba_transport *t = pcm->t;
-	uint16_t codec_id = ba_transport_get_codec(t);
+	uint32_t codec_id = ba_transport_get_codec(t);
 	int16_t adjustment = 0;
 
 	pthread_mutex_lock(MUTABLE(&pcm->delay_adjustments_mtx));
@@ -725,7 +733,7 @@ int16_t ba_transport_pcm_delay_adjustment_get(
 
 void ba_transport_pcm_delay_adjustment_set(
 		struct ba_transport_pcm *pcm,
-		uint16_t codec_id,
+		uint32_t codec_id,
 		int16_t adjustment) {
 	pthread_mutex_lock(&pcm->delay_adjustments_mtx);
 	g_hash_table_insert(pcm->delay_adjustments,

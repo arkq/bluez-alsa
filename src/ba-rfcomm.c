@@ -228,10 +228,9 @@ static int rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm *r, const struct bt_
 
 	struct ba_device * const d = r->sco->d;
 	char *tmp = at->value;
-	size_t i;
 
 	/* parse response for the +CIND GET command */
-	for (i = 0; i < ARRAYSIZE(r->hfp_ind_map); i++) {
+	for (size_t i = 0; i < ARRAYSIZE(r->hfp_ind_map); i++) {
 		r->hfp_ind[r->hfp_ind_map[i]] = atoi(tmp);
 		if (r->hfp_ind_map[i] == HFP_IND_BATTCHG) {
 			d->battery.charge = atoi(tmp) * 100 / 5;
@@ -566,9 +565,9 @@ static int rfcomm_handler_bcs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 	const int fd = r->fd;
 	int rv;
 
-	int codec;
-	if ((codec = atoi(at->value)) != r->codec) {
-		warn("Codec not acknowledged: %s != %d", at->value, r->codec);
+	uint8_t codec_id;
+	if ((codec_id = atoi(at->value)) != r->codec_id) {
+		warn("Codec not acknowledged: %s != %u", at->value, r->codec_id);
 		rv = rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR");
 		goto final;
 	}
@@ -578,7 +577,7 @@ static int rfcomm_handler_bcs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	/* Codec negotiation process is complete. Update transport and
 	 * notify connected clients, that transport has been changed. */
-	ba_transport_set_codec(t_sco, codec);
+	ba_transport_set_codec(t_sco, codec_id);
 
 final:
 	rfcomm_finalize_codec_selection(r);
@@ -593,7 +592,7 @@ static int rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm *r, const struct bt_at
 		return -1;
 
 	if (!r->handler_resp_ok_success) {
-		warn("Codec selection not finalized: %d", r->codec);
+		warn("Codec selection not finalized: %u", r->codec_id);
 		ba_transport_set_codec(t_sco, HFP_CODEC_UNDEFINED);
 		rfcomm_finalize_codec_selection(r);
 	}
@@ -611,7 +610,7 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb };
 
 	const struct {
-		uint16_t codec_id;
+		uint8_t codec_id;
 		bool is_supported;
 	} codecs[] = {
 		{ HFP_CODEC_CVSD, r->hf_codecs.cvsd },
@@ -624,11 +623,11 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	};
 
 	const int fd = r->fd;
-	const int codec = atoi(at->value);
+	const uint8_t codec_id = atoi(at->value);
 
 	bool is_codec_supported = false;
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
-		if (codecs[i].codec_id == codec && codecs[i].is_supported) {
+		if (codecs[i].codec_id == codec_id && codecs[i].is_supported) {
 			is_codec_supported = true;
 			break;
 		}
@@ -642,7 +641,7 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 		return 0;
 	}
 
-	r->codec = codec;
+	r->codec_id = codec_id;
 	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
 		return -1;
 	r->handler = &handler_supported;
@@ -653,7 +652,7 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	 * here and notify connected clients, that the transport has been
 	 * changed. Note, that this event might be emitted for an active
 	 * transport - codec switching initiated by Audio Gateway. */
-	ba_transport_set_codec(r->sco, r->codec);
+	ba_transport_set_codec(r->sco, r->codec_id);
 	rfcomm_finalize_codec_selection(r);
 
 	return 0;
@@ -785,8 +784,7 @@ static int rfcomm_handler_android_set_cb(struct ba_rfcomm *r, const struct bt_at
 	char *value = at->value;
 	char *name = strsep(&value, sep);
 
-	size_t i;
-	for (i = 0; i < ARRAYSIZE(handlers); i++)
+	for (size_t i = 0; i < ARRAYSIZE(handlers); i++)
 		if (strcmp(name, handlers[i].name) == 0) {
 			int rv = handlers[i].cb(r, value);
 			if (rv == -1 && errno == EINVAL)
@@ -957,9 +955,7 @@ static ba_rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 		&rfcomm_handler_xapl_resp,
 	};
 
-	size_t i;
-
-	for (i = 0; i < ARRAYSIZE(handlers); i++) {
+	for (size_t i = 0; i < ARRAYSIZE(handlers); i++) {
 		if (handlers[i]->type != at->type)
 			continue;
 		if (strcmp(handlers[i]->command, at->command) != 0)
@@ -990,7 +986,7 @@ static enum ba_rfcomm_signal rfcomm_recv_signal(struct ba_rfcomm *r) {
 
 /**
  * Set HFP codec for the given Service Level Connection. */
-static int rfcomm_hfp_set_codec(struct ba_rfcomm *r, uint16_t codec) {
+static int rfcomm_hfp_set_codec(struct ba_rfcomm *r, uint8_t codec_id) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
@@ -998,7 +994,7 @@ static int rfcomm_hfp_set_codec(struct ba_rfcomm *r, uint16_t codec) {
 
 	debug("RFCOMM: %s setting codec: %s",
 			ba_transport_debug_name(t_sco),
-			hfp_codec_id_to_string(codec));
+			hfp_codec_id_to_string(codec_id));
 
 	/* SLC is required for codec connection */
 	if (r->state != HFP_SLC_CONNECTED)
@@ -1009,11 +1005,11 @@ static int rfcomm_hfp_set_codec(struct ba_rfcomm *r, uint16_t codec) {
 		goto fail;
 
 	char tmp[16];
-	sprintf(tmp, "%d", codec);
+	sprintf(tmp, "%u", codec_id);
 	if ((rv = rfcomm_write_at(fd, AT_TYPE_RESP, "+BCS", tmp)) == -1)
 		goto fail;
 
-	r->codec = codec;
+	r->codec_id = codec_id;
 	r->handler = &rfcomm_handler_bcs_set;
 	return 0;
 
@@ -1027,7 +1023,7 @@ fail:
 static int rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r) {
 
 	const struct {
-		uint16_t codec_id;
+		uint8_t codec_id;
 		bool is_supported;
 	} codecs[] = {
 #if ENABLE_LC3_SWB
@@ -1625,7 +1621,7 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 	r->thread = config.main_thread;
 	r->state = HFP_DISCONNECTED;
 	r->state_prev = HFP_DISCONNECTED;
-	r->codec = HFP_CODEC_UNDEFINED;
+	r->codec_id = HFP_CODEC_UNDEFINED;
 	r->sco = ba_transport_ref(sco);
 	r->link_lost_quirk = true;
 

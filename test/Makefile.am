@@ -57,11 +57,13 @@ check_PROGRAMS += test-msbc
 endif
 
 check_LTLIBRARIES = \
-	aloader.la
-aloader_la_LDFLAGS = \
+	libaloader.la
+libaloader_la_LDFLAGS = \
 	-rpath /nowhere \
 	-avoid-version \
-	-shared -module
+	-shared
+libaloader_la_LIBADD = \
+	@ALSA_LIBS@
 
 test_a2dp_SOURCES = \
 	../src/shared/a2dp-codecs.c \
@@ -293,6 +295,11 @@ test_rfcomm_SOURCES += \
 	../src/sco-msbc.c
 endif
 
+if ENABLE_OPUS
+test_a2dp_SOURCES += ../src/a2dp-opus.c
+test_io_SOURCES += ../src/a2dp-opus.c
+endif
+
 AM_TESTS_ENVIRONMENT = \
 	export G_DEBUG=fatal-warnings;
 
@@ -316,6 +323,7 @@ AM_CFLAGS = \
 	@LIBUNWIND_CFLAGS@ \
 	@MP3LAME_CFLAGS@ \
 	@MPG123_CFLAGS@ \
+	@OPUS_CFLAGS@ \
 	@SBC_CFLAGS@ \
 	@SNDFILE_CFLAGS@ \
 	@SPANDSP_CFLAGS@
@@ -339,6 +347,7 @@ LDADD = \
 	@LIBUNWIND_LIBS@ \
 	@MP3LAME_LIBS@ \
 	@MPG123_LIBS@ \
+	@OPUS_LIBS@ \
 	@SBC_LIBS@ \
 	@SNDFILE_LIBS@ \
 	@SPANDSP_LIBS@

@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
-	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v4.1.1]))],
+	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v4.2.0]))],
 	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
@@ -270,6 +270,14 @@ AM_COND_IF([ENABLE_MSBC], [
 	AC_DEFINE([ENABLE_HFP_CODEC_SELECTION], [1],
 		[Define to 1 if HFP codec selection is enabled.])
 	AC_DEFINE([ENABLE_MSBC], [1], [Define to 1 if mSBC is enabled.])
+])
+
+AC_ARG_ENABLE([opus],
+	AS_HELP_STRING([--enable-opus], [enable Opus support]))
+AM_CONDITIONAL([ENABLE_OPUS], [test "x$enable_opus" = "xyes"])
+AM_COND_IF([ENABLE_OPUS], [
+	PKG_CHECK_MODULES([OPUS], [opus >= 1.0.0])
+	AC_DEFINE([ENABLE_OPUS], [1], [Define to 1 if Opus is enabled.])
 ])
 
 AC_ARG_ENABLE([ofono],

@@ -196,7 +196,6 @@ CK_START_TEST(test_capture_start) {
 	snd_pcm_sframes_t delay;
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
-	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
@@ -225,7 +224,7 @@ CK_START_TEST(test_capture_start) {
 	ck_assert_int_ge(delay, 2 * period_size);
 
 	/* read few periods from capture PCM */
-	for (i = 0; i < buffer_size / period_size; i++)
+	for (size_t i = 0; i < buffer_size / period_size; i++)
 		ck_assert_int_eq(snd_pcm_readi(pcm, pcm_buffer, period_size), period_size);
 
 	/* after reading there should be no more than one period of data in buffer */
@@ -331,7 +330,6 @@ CK_START_TEST(test_capture_overrun) {
 	snd_pcm_uframes_t period_size;
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
-	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
@@ -360,7 +358,7 @@ CK_START_TEST(test_capture_overrun) {
 	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
 	/* make sure that PCM is indeed readable */
-	for (i = 0; i < buffer_size / period_size; i++)
+	for (size_t i = 0; i < buffer_size / period_size; i++)
 		ck_assert_int_eq(snd_pcm_readi(pcm, pcm_buffer, period_size), period_size);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
@@ -446,8 +444,10 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 		return;
 
 	/* hard-coded values used in the bluealsa-mock */
-	const unsigned int server_channels = 2;
-	const unsigned int server_rate = 44100;
+	const unsigned int server_channels_min = 1;
+	const unsigned int server_channels_max = 2;
+	const unsigned int server_rate_min = 16000;
+	const unsigned int server_rate_max = 48000;
 
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
@@ -497,19 +497,19 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 	unsigned int channels;
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_channels_first(pcm, params, &channels), 0);
-	ck_assert_int_eq(channels, server_channels);
+	ck_assert_int_eq(channels, server_channels_min);
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_channels_last(pcm, params, &channels), 0);
-	ck_assert_int_eq(channels, server_channels);
+	ck_assert_int_eq(channels, server_channels_max);
 
 	unsigned int rate;
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_rate_first(pcm, params, &rate, &d), 0);
-	ck_assert_int_eq(rate, server_rate);
+	ck_assert_int_eq(rate, server_rate_min);
 	ck_assert_int_eq(d, 0);
 	snd_pcm_hw_params_any(pcm, params);
 	ck_assert_int_eq(snd_pcm_hw_params_set_rate_last(pcm, params, &rate, &d), 0);
-	ck_assert_int_eq(rate, server_rate);
+	ck_assert_int_eq(rate, server_rate_max);
 	ck_assert_int_eq(d, 0);
 
 	unsigned int periods;
@@ -521,16 +521,6 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 	ck_assert_int_eq(snd_pcm_hw_params_set_periods_last(pcm, params, &periods, &d), 0);
 	ck_assert_int_eq(periods, 1024);
 	ck_assert_int_eq(d, 0);
-
-	unsigned int time;
-	snd_pcm_hw_params_any(pcm, params);
-	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_first(pcm, params, &time, &d), 0);
-	ck_assert_int_eq(time, 20000);
-	ck_assert_int_eq(d, 0);
-	snd_pcm_hw_params_any(pcm, params);
-	ck_assert_int_eq(snd_pcm_hw_params_set_buffer_time_last(pcm, params, &time, &d), 0);
-	ck_assert_int_eq(time, 11888616);
-	ck_assert_int_eq(d, 1);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
 
@@ -637,11 +627,10 @@ CK_START_TEST(test_playback_hw_set_free) {
 	unsigned int period_time = 25000;
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
-	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 
-	for (i = 0; i < 5; i++) {
+	for (size_t i = 0; i < 5; i++) {
 		int set_hw_param_ret;
 		/* acquire Bluetooth transport */
 		if ((set_hw_param_ret = set_hw_params(pcm, pcm_format, pcm_channels,
@@ -830,7 +819,6 @@ CK_START_TEST(test_playback_pause) {
 	snd_pcm_uframes_t period_size;
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
-	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
@@ -847,7 +835,7 @@ CK_START_TEST(test_playback_pause) {
 	else {
 
 		/* fill-in buffer and start playback */
-		for (i = 0; i <= buffer_size / period_size; i++)
+		for (size_t i = 0; i <= buffer_size / period_size; i++)
 			ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
 
 		/* pause playback  */
@@ -896,7 +884,6 @@ CK_START_TEST(test_playback_reset) {
 	snd_pcm_sframes_t delay;
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
-	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
@@ -907,7 +894,7 @@ CK_START_TEST(test_playback_reset) {
 retry:
 
 	/* fill-in buffer and start playback */
-	for (i = 0; i <= buffer_size / period_size; i++)
+	for (size_t i = 0; i <= buffer_size / period_size; i++)
 		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
 	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
@@ -950,7 +937,6 @@ CK_START_TEST(test_playback_underrun) {
 	snd_pcm_uframes_t period_size;
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
-	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
@@ -959,7 +945,7 @@ CK_START_TEST(test_playback_underrun) {
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	/* fill-in buffer and start playback */
-	for (i = 0; i <= buffer_size / period_size; i++)
+	for (size_t i = 0; i <= buffer_size / period_size; i++)
 		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
 
 	/* after one and a half period time we shall be
@@ -978,7 +964,7 @@ CK_START_TEST(test_playback_underrun) {
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
 	/* check successful recovery */
-	for (i = 0; i <= buffer_size / period_size; i++)
+	for (size_t i = 0; i <= buffer_size / period_size; i++)
 		ck_assert_int_eq(snd_pcm_writei(pcm, test_sine_s16le(period_size), period_size), period_size);
 	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
@@ -1100,8 +1086,8 @@ CK_START_TEST(ba_test_playback_device_unplug) {
 
 } CK_END_TEST
 
-int main(int argc, char *argv[], char *envp[]) {
-	preload(argc, argv, envp, ".libs/aloader.so");
+int main(int argc, char *argv[]) {
+	preload(argc, argv, ".libs/libaloader.so");
 
 	int opt;
 	const char *opts = "hD:c:f:r:";

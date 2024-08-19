@@ -76,9 +76,8 @@ struct ba_transport {
 
 	/* guard modifications of transport codec */
 	pthread_mutex_t codec_id_mtx;
-	/* For A2DP vendor codecs the upper byte of the codec field
-	 * contains the lowest byte of the vendor ID. */
-	uint16_t codec_id;
+	/* ID of currently selected codec */
+	uint32_t codec_id;
 
 	/* synchronization for codec selection */
 	pthread_mutex_t codec_select_client_mtx;
@@ -109,7 +108,7 @@ struct ba_transport {
 	int thread_manager_pipe[2];
 
 	/* indicates IO threads stopping */
-	pthread_cond_t stopped;
+	pthread_cond_t stopped_cond;
 	bool stopping;
 
 	union {
@@ -120,10 +119,11 @@ struct ba_transport {
 			const char *bluez_dbus_sep_path;
 
 			/* current state of the transport */
+			pthread_cond_t state_changed_cond;
 			enum bluez_a2dp_transport_state state;
 
-			/* audio codec configuration capabilities */
-			const struct a2dp_codec *codec;
+			/* SEP configuration */
+			const struct a2dp_sep *sep;
 			/* selected audio codec configuration */
 			a2dp_t configuration;
 
@@ -220,7 +220,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		enum ba_transport_profile profile,
 		const char *dbus_owner,
 		const char *dbus_path,
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration);
 struct ba_transport *ba_transport_new_sco(
 		struct ba_device *device,
@@ -252,16 +252,17 @@ void ba_transport_unref(struct ba_transport *t);
 
 int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,
-		const struct a2dp_sep *sep);
+		const struct a2dp_sep_config *remote_sep_cfg,
+		const void *configuration);
 int ba_transport_select_codec_sco(
 		struct ba_transport *t,
-		uint16_t codec_id);
+		uint8_t codec_id);
 
-uint16_t ba_transport_get_codec(
+uint32_t ba_transport_get_codec(
 		const struct ba_transport *t);
 void ba_transport_set_codec(
 		struct ba_transport *t,
-		uint16_t codec_id);
+		uint32_t codec_id);
 
 int ba_transport_start(struct ba_transport *t);
 int ba_transport_stop(struct ba_transport *t);

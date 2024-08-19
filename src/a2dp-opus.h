@@ -1,5 +1,5 @@
 /*
- * BlueALSA - a2dp-faststream.h
+ * BlueALSA - a2dp-opus.h
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -9,8 +9,8 @@
  */
 
 #pragma once
-#ifndef BLUEALSA_A2DPFASTSTREAM_H_
-#define BLUEALSA_A2DPFASTSTREAM_H_
+#ifndef BLUEALSA_A2DPOPUS_H_
+#define BLUEALSA_A2DPOPUS_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -18,7 +18,7 @@
 
 #include "a2dp.h"
 
-extern struct a2dp_sep a2dp_faststream_source;
-extern struct a2dp_sep a2dp_faststream_sink;
+extern struct a2dp_sep a2dp_opus_source;
+extern struct a2dp_sep a2dp_opus_sink;
 
 #endif

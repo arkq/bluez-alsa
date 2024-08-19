@@ -27,7 +27,9 @@
 	{ include: [ '"dbus/dbus-shared.h"', private, '<dbus/dbus.h>', public ] },
 
 	{ include: [ '<glib/gtypes.h>', private, '<glib.h>', public ] },
+	{ include: [ '"gobject/gclosure.h"', private, '<glib-object.h>', public ] },
 	{ include: [ '"gio/gdbusinterfaceskeleton.h"', private, '<gio/gio.h>', public ] },
+	{ include: [ '"gio/gdbusobjectmanager.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectmanagerserver.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectskeleton.h"', private, '<gio/gio.h>', public ] },
 
@@ -36,6 +38,8 @@
 	{ include: [ '<lc3_private.h>', private, '<lc3.h>', public ] },
 
 	{ include: [ '<fmt123.h>', private, '<mpg123.h>', public ] },
+
+	{ include: [ '"opus_defines.h"', private, '<opus.h>', public ] },
 
 	{ include: [ '<spandsp/plc.h>', private, '<spandsp.h>', public ] },
 

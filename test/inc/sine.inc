@@ -2,7 +2,7 @@
  * sine.inc
  * vim: ft=c
  *
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -30,7 +30,7 @@
 int snd_pcm_sine_s16_2le(int16_t *buffer, size_t frames,
 		unsigned int channels, int x, float f) {
 	for (size_t i = 0; i < frames; x++, i++)
-		for (unsigned int c = 0; c < channels; c++)
+		for (size_t c = 0; c < channels; c++)
 			buffer[i * channels + c] = sin(2 * M_PI * f * x + c * M_PI / 3.3) * SHRT_MAX;
 	return x;
 }
@@ -40,7 +40,7 @@ int snd_pcm_sine_s16_2le(int16_t *buffer, size_t frames,
 int snd_pcm_sine_s32_4le(int32_t *buffer, size_t frames,
 		unsigned int channels, int x, float f) {
 	for (size_t i = 0; i < frames; x++, i++)
-		for (unsigned int c = 0; c < channels; c++)
+		for (size_t c = 0; c < channels; c++)
 			buffer[i * channels + c] = sin(2 * M_PI * f * x + c * M_PI / 3.3) * INT_MAX;
 	return x;
 }

@@ -106,7 +106,7 @@ struct ba_rfcomm {
 	bool codec_selection_done;
 
 	/* requested codec by the AG */
-	int codec;
+	uint8_t codec_id;
 
 	/* received AG indicator values */
 	unsigned char hfp_ind[__HFP_IND_MAX];

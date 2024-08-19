@@ -30,8 +30,7 @@ static dbus_bool_t ba_dbus_watch_add(DBusWatch *watch, void *data) {
 
 static void ba_dbus_watch_del(DBusWatch *watch, void *data) {
 	struct ba_dbus_ctx *ctx = (struct ba_dbus_ctx *)data;
-	size_t i;
-	for (i = 0; i < ctx->watches_len; i++)
+	for (size_t i = 0; i < ctx->watches_len; i++)
 		if (ctx->watches[i] == watch)
 			ctx->watches[i] = ctx->watches[--ctx->watches_len];
 }
@@ -79,8 +78,7 @@ void ba_dbus_connection_ctx_free(
 		ctx->watches = NULL;
 	}
 	if (ctx->matches != NULL) {
-		size_t i;
-		for (i = 0; i < ctx->matches_len; i++)
+		for (size_t i = 0; i < ctx->matches_len; i++)
 			free(ctx->matches[i]);
 		free(ctx->matches);
 		ctx->matches = NULL;
@@ -133,8 +131,7 @@ dbus_bool_t ba_dbus_connection_signal_match_add(
 dbus_bool_t ba_dbus_connection_signal_match_clean(
 		struct ba_dbus_ctx *ctx) {
 
-	size_t i;
-	for (i = 0; i < ctx->matches_len; i++) {
+	for (size_t i = 0; i < ctx->matches_len; i++) {
 		dbus_bus_remove_match(ctx->conn, ctx->matches[i], NULL);
 		free(ctx->matches[i]);
 	}
@@ -173,8 +170,7 @@ dbus_bool_t ba_dbus_connection_poll_fds(
 		return FALSE;
 	}
 
-	size_t i;
-	for (i = 0; i < ctx->watches_len; i++) {
+	for (size_t i = 0; i < ctx->watches_len; i++) {
 		DBusWatch *watch = ctx->watches[i];
 
 		fds[i].fd = -1;
@@ -197,12 +193,11 @@ dbus_bool_t ba_dbus_connection_poll_dispatch(
 		nfds_t nfds) {
 
 	dbus_bool_t rv = FALSE;
-	size_t i;
 
 	if (nfds > ctx->watches_len)
 		nfds = ctx->watches_len;
 
-	for (i = 0; i < nfds; i++)
+	for (size_t i = 0; i < nfds; i++)
 		if (fds[i].revents) {
 			unsigned int flags = 0;
 			if (fds[i].revents & POLLIN)
@@ -467,6 +462,29 @@ fail:
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
 			"Incorrect signature: %s != a{s#}", signature);
 	dbus_free(signature);
+	return FALSE;
+}
+
+/**
+ * Append key-value pair with basic type value to the D-Bus message. */
+dbus_bool_t dbus_message_iter_dict_append_basic(
+		DBusMessageIter *iter,
+		const char *key,
+		int value_type,
+		const void *value) {
+
+	DBusMessageIter entry;
+	DBusMessageIter variant;
+	const char signature[2] = { value_type, '\0' };
+
+	if (dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &entry) &&
+			dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key) &&
+			dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, signature, &variant) &&
+			dbus_message_iter_append_basic(&variant, value_type, value) &&
+			dbus_message_iter_close_container(&entry, &variant) &&
+			dbus_message_iter_close_container(iter, &entry))
+		return TRUE;
+
 	return FALSE;
 }
 

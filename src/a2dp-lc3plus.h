@@ -18,7 +18,7 @@
 
 #include "a2dp.h"
 
-extern struct a2dp_codec a2dp_lc3plus_source;
-extern struct a2dp_codec a2dp_lc3plus_sink;
+extern struct a2dp_sep a2dp_lc3plus_source;
+extern struct a2dp_sep a2dp_lc3plus_sink;
 
 #endif

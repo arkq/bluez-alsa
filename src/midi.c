@@ -12,7 +12,6 @@
 
 #include <errno.h>
 #include <poll.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -114,7 +113,7 @@ static gboolean midi_watch_read_ble_midi(GIOChannel *ch,
 		if ((rv = ble_midi_decode(&t->midi.ble_decoder, data, len)) <= 0) {
 			if (rv == -1) {
 				error("Couldn't parse BLE-MIDI packet: %s", strerror(errno));
-				hexdump("BLE-MIDI packet", data, len, true);
+				hexdump("BLE-MIDI packet", data, len);
 			}
 			break;
 		}

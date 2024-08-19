@@ -64,8 +64,7 @@ static int cmd_list_pcms_func(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	size_t i;
-	for (i = 0; i < pcms_count; i++) {
+	for (size_t i = 0; i < pcms_count; i++) {
 		printf("%s\n", pcms[i].pcm_path);
 		if (config.verbose) {
 			cli_print_pcm_properties(&pcms[i], &err);

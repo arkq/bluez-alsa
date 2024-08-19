@@ -277,15 +277,16 @@ static bool parse_property_list(char *argv[], char *props) {
 	char *prop = strtok(props, ",");
 	for (; prop; prop = strtok(NULL, ",")) {
 
-		size_t i;
-		for (i = 0; i < ARRAYSIZE(monitor_properties_set); i++) {
+		bool found = false;
+		for (size_t i = 0; i < ARRAYSIZE(monitor_properties_set); i++) {
 			if (strcasecmp(prop, monitor_properties_set[i].name) == 0) {
 				monitor_properties_set[i].enabled = true;
+				found = true;
 				break;
 			}
 		}
 
-		if (i == ARRAYSIZE(monitor_properties_set)) {
+		if (!found) {
 			cmd_print_error("Unknown property '%s'", prop);
 			return false;
 		}

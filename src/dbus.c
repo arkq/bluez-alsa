@@ -149,15 +149,21 @@ void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
  * @param conn D-Bus connection handler.
  * @param path Valid D-Bus object path.
  * @param interface Interface for which properties have changed.
- * @param props The dictionary builder with changed properties.
+ * @param changed The dictionary variant with changed properties.
+ * @param invalidated The array variant with invalidated properties.
  * @param error NULL GError pointer.
  * @return On success this function returns true. */
 bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
-		const char *path, const char *interface, GVariantBuilder *props,
-		GError **error) {
-	return g_dbus_connection_emit_signal(conn, NULL,
-			path, DBUS_IFACE_PROPERTIES, "PropertiesChanged",
-			g_variant_new("(sa{sv}as)", interface, props, NULL), error);
+		const char *path, const char *interface, GVariant *changed,
+		GVariant *invalidated, GError **error) {
+	if (changed == NULL)
+		changed = g_variant_new("a{sv}", NULL);
+	if (invalidated == NULL)
+		invalidated = g_variant_new("as", NULL);
+	return g_dbus_connection_emit_signal(conn, NULL, path,
+			DBUS_IFACE_PROPERTIES, "PropertiesChanged",
+			g_variant_new("(s@a{sv}@as)", interface, changed, invalidated),
+			error);
 }
 
 /**

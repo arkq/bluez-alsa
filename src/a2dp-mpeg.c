@@ -44,6 +44,81 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const struct a2dp_bit_mapping a2dp_mpeg_channels[] = {
+	{ MPEG_CHANNEL_MODE_MONO, 1 },
+	{ MPEG_CHANNEL_MODE_DUAL_CHANNEL, 2 },
+	{ MPEG_CHANNEL_MODE_STEREO, 2 },
+	{ MPEG_CHANNEL_MODE_JOINT_STEREO, 2 },
+	{ 0 }
+};
+
+static const struct a2dp_bit_mapping a2dp_mpeg_samplings[] = {
+	{ MPEG_SAMPLING_FREQ_16000, 16000 },
+	{ MPEG_SAMPLING_FREQ_22050, 22050 },
+	{ MPEG_SAMPLING_FREQ_24000, 24000 },
+	{ MPEG_SAMPLING_FREQ_32000, 32000 },
+	{ MPEG_SAMPLING_FREQ_44100, 44100 },
+	{ MPEG_SAMPLING_FREQ_48000, 48000 },
+	{ 0 }
+};
+
+static void a2dp_mpeg_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_mpeg_t));
+}
+
+static int a2dp_mpeg_caps_foreach_channel_mode(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_mpeg_channels, caps->channel_mode, func, userdata);
+	return -1;
+}
+
+static int a2dp_mpeg_caps_foreach_sampling_freq(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_mpeg_samplings, caps->sampling_freq, func, userdata);
+	return -1;
+}
+
+static void a2dp_mpeg_caps_select_channel_mode(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int channels) {
+	a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->channel_mode = a2dp_bit_mapping_lookup_value(a2dp_mpeg_channels,
+				caps->channel_mode, channels);
+}
+
+static void a2dp_mpeg_caps_select_sampling_freq(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int frequency) {
+	a2dp_mpeg_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_mpeg_samplings,
+				caps->sampling_freq, frequency);
+}
+
+static struct a2dp_caps_helpers a2dp_mpeg_caps_helpers = {
+	.intersect = a2dp_mpeg_caps_intersect,
+	.has_stream = a2dp_caps_has_main_stream_only,
+	.foreach_channel_mode = a2dp_mpeg_caps_foreach_channel_mode,
+	.foreach_sampling_freq = a2dp_mpeg_caps_foreach_sampling_freq,
+	.select_channel_mode = a2dp_mpeg_caps_select_channel_mode,
+	.select_sampling_freq = a2dp_mpeg_caps_select_sampling_freq,
+};
+
 #if ENABLE_MP3LAME
 void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 
@@ -420,8 +495,7 @@ decode:
 		}
 		else {
 
-			ssize_t i;
-			for (i = 0; i < samples; i++) {
+			for (ssize_t i = 0; i < samples; i++) {
 				((int16_t *)pcm.data)[i * 2 + 0] = pcm_l[i];
 				((int16_t *)pcm.data)[i * 2 + 1] = pcm_r[i];
 			}
@@ -454,35 +528,15 @@ fail_init:
 }
 #endif
 
-static const struct a2dp_channels a2dp_mpeg_channels[] = {
-	{ 1, MPEG_CHANNEL_MODE_MONO },
-	{ 2, MPEG_CHANNEL_MODE_DUAL_CHANNEL },
-	{ 2, MPEG_CHANNEL_MODE_STEREO },
-	{ 2, MPEG_CHANNEL_MODE_JOINT_STEREO },
-	{ 0 },
-};
-
-static const struct a2dp_sampling a2dp_mpeg_samplings[] = {
-	{ 16000, MPEG_SAMPLING_FREQ_16000 },
-	{ 22050, MPEG_SAMPLING_FREQ_22050 },
-	{ 24000, MPEG_SAMPLING_FREQ_24000 },
-	{ 32000, MPEG_SAMPLING_FREQ_32000 },
-	{ 44100, MPEG_SAMPLING_FREQ_44100 },
-	{ 48000, MPEG_SAMPLING_FREQ_48000 },
-	{ 0 },
-};
-
 static int a2dp_mpeg_configuration_select(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities) {
 
 	a2dp_mpeg_t *caps = capabilities;
 	const a2dp_mpeg_t saved = *caps;
 
-	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
-				caps, sizeof(*caps)) != 0)
-		return -1;
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_mpeg_caps_intersect(caps, &sep->config.capabilities);
 
 	if (caps->layer & MPEG_LAYER_MP3)
 		caps->layer = MPEG_LAYER_MP3;
@@ -495,19 +549,21 @@ static int a2dp_mpeg_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_select(a2dp_mpeg_channels, caps->channel_mode)) != NULL)
-		caps->channel_mode = channels->value;
+	unsigned int channel_mode = 0;
+	if (a2dp_mpeg_caps_foreach_channel_mode(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
+		caps->channel_mode = channel_mode;
 	else {
 		error("MPEG: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_select(a2dp_mpeg_samplings, caps->frequency)) != NULL)
-		caps->frequency = sampling->value;
+	unsigned int sampling_freq = 0;
+	if (a2dp_mpeg_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+		caps->sampling_freq = sampling_freq;
 	else {
-		error("MPEG: No supported sampling frequencies: %#x", saved.frequency);
+		error("MPEG: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -520,16 +576,14 @@ static int a2dp_mpeg_configuration_select(
 }
 
 static int a2dp_mpeg_configuration_check(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const a2dp_mpeg_t *conf = configuration;
 	a2dp_mpeg_t conf_v = *conf;
 
-	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
-				&conf_v, sizeof(conf_v)) != 0)
-		return A2DP_CHECK_ERR_SIZE;
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_mpeg_caps_intersect(&conf_v, &sep->config.capabilities);
 
 	switch (conf_v.layer) {
 	case MPEG_LAYER_MP1:
@@ -541,13 +595,13 @@ static int a2dp_mpeg_configuration_check(
 		return A2DP_CHECK_ERR_MPEG_LAYER;
 	}
 
-	if (a2dp_channels_lookup(a2dp_mpeg_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_mpeg_channels, conf_v.channel_mode) == 0) {
 		debug("MPEG: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
 
-	if (a2dp_sampling_lookup(a2dp_mpeg_samplings, conf_v.frequency) == NULL) {
-		debug("MPEG: Invalid sampling frequency: %#x", conf->frequency);
+	if (a2dp_bit_mapping_lookup(a2dp_mpeg_samplings, conf_v.sampling_freq) == 0) {
+		debug("MPEG: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
@@ -556,30 +610,30 @@ static int a2dp_mpeg_configuration_check(
 
 static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_lookup(a2dp_mpeg_channels,
-					t->a2dp.configuration.mpeg.channel_mode)) == NULL)
+	unsigned int channels;
+	if ((channels = a2dp_bit_mapping_lookup(a2dp_mpeg_channels,
+					t->a2dp.configuration.mpeg.channel_mode)) == 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_lookup(a2dp_mpeg_samplings,
-					t->a2dp.configuration.mpeg.frequency)) == NULL)
+	unsigned int sampling;
+	if ((sampling = a2dp_bit_mapping_lookup(a2dp_mpeg_samplings,
+					t->a2dp.configuration.mpeg.sampling_freq)) == 0)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = channels->count;
-	t->a2dp.pcm.sampling = sampling->frequency;
+	t->a2dp.pcm.channels = channels;
+	t->a2dp.pcm.sampling = sampling;
 
 	return 0;
 }
 
 #if ENABLE_MP3LAME
 
-static int a2dp_mpeg_source_init(struct a2dp_codec *codec) {
+static int a2dp_mpeg_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
-		codec->capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
+		sep->config.capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		codec->capabilities.mpeg.frequency = MPEG_SAMPLING_FREQ_44100;
+		sep->config.capabilities.mpeg.sampling_freq = MPEG_SAMPLING_FREQ_44100;
 	return 0;
 }
 
@@ -590,54 +644,57 @@ static int a2dp_mpeg_source_transport_start(struct ba_transport *t) {
 	return -1;
 }
 
-struct a2dp_codec a2dp_mpeg_source = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_MPEG12,
-	.synopsis = "A2DP Source (MP3)",
-	.capabilities.mpeg = {
-		.layer =
-			MPEG_LAYER_MP3,
-		.crc = 1,
-		/* NOTE: LAME does not support dual-channel mode. */
-		.channel_mode =
-			MPEG_CHANNEL_MODE_MONO |
-			MPEG_CHANNEL_MODE_STEREO |
-			MPEG_CHANNEL_MODE_JOINT_STEREO,
-		/* NOTE: Since MPF-2 is not required for neither Sink
-		 *       nor Source, we are not going to support it. */
-		.mpf = 0,
-		.frequency =
-			MPEG_SAMPLING_FREQ_16000 |
-			MPEG_SAMPLING_FREQ_22050 |
-			MPEG_SAMPLING_FREQ_24000 |
-			MPEG_SAMPLING_FREQ_32000 |
-			MPEG_SAMPLING_FREQ_44100 |
-			MPEG_SAMPLING_FREQ_48000,
-		.vbr = 1,
-		A2DP_MPEG_INIT_BITRATE(
-			MPEG_BITRATE_INDEX_0 |
-			MPEG_BITRATE_INDEX_1 |
-			MPEG_BITRATE_INDEX_2 |
-			MPEG_BITRATE_INDEX_3 |
-			MPEG_BITRATE_INDEX_4 |
-			MPEG_BITRATE_INDEX_5 |
-			MPEG_BITRATE_INDEX_6 |
-			MPEG_BITRATE_INDEX_7 |
-			MPEG_BITRATE_INDEX_8 |
-			MPEG_BITRATE_INDEX_9 |
-			MPEG_BITRATE_INDEX_10 |
-			MPEG_BITRATE_INDEX_11 |
-			MPEG_BITRATE_INDEX_12 |
-			MPEG_BITRATE_INDEX_13 |
-			MPEG_BITRATE_INDEX_14
-		)
+struct a2dp_sep a2dp_mpeg_source = {
+	.name = "A2DP Source (MP3)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_MPEG12,
+		.caps_size = sizeof(a2dp_mpeg_t),
+		.capabilities.mpeg = {
+			.layer =
+				MPEG_LAYER_MP3,
+			.crc = 1,
+			/* NOTE: LAME does not support dual-channel mode. */
+			.channel_mode =
+				MPEG_CHANNEL_MODE_MONO |
+				MPEG_CHANNEL_MODE_STEREO |
+				MPEG_CHANNEL_MODE_JOINT_STEREO,
+			/* NOTE: Since MPF-2 is not required for neither Sink
+			 *       nor Source, we are not going to support it. */
+			.mpf = 0,
+			.sampling_freq =
+				MPEG_SAMPLING_FREQ_16000 |
+				MPEG_SAMPLING_FREQ_22050 |
+				MPEG_SAMPLING_FREQ_24000 |
+				MPEG_SAMPLING_FREQ_32000 |
+				MPEG_SAMPLING_FREQ_44100 |
+				MPEG_SAMPLING_FREQ_48000,
+			.vbr = 1,
+			A2DP_MPEG_INIT_BITRATE(
+				MPEG_BITRATE_INDEX_0 |
+				MPEG_BITRATE_INDEX_1 |
+				MPEG_BITRATE_INDEX_2 |
+				MPEG_BITRATE_INDEX_3 |
+				MPEG_BITRATE_INDEX_4 |
+				MPEG_BITRATE_INDEX_5 |
+				MPEG_BITRATE_INDEX_6 |
+				MPEG_BITRATE_INDEX_7 |
+				MPEG_BITRATE_INDEX_8 |
+				MPEG_BITRATE_INDEX_9 |
+				MPEG_BITRATE_INDEX_10 |
+				MPEG_BITRATE_INDEX_11 |
+				MPEG_BITRATE_INDEX_12 |
+				MPEG_BITRATE_INDEX_13 |
+				MPEG_BITRATE_INDEX_14
+			)
+		},
 	},
-	.capabilities_size = sizeof(a2dp_mpeg_t),
 	.init = a2dp_mpeg_source_init,
 	.configuration_select = a2dp_mpeg_configuration_select,
 	.configuration_check = a2dp_mpeg_configuration_check,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_source_transport_start,
+	.caps_helpers = &a2dp_mpeg_caps_helpers,
 	/* TODO: This is an optional but covered by the A2DP spec codec,
 	 *       so it could be enabled by default. However, it does not
 	 *       work reliably enough (for now)... */
@@ -659,61 +716,64 @@ static int a2dp_mpeg_sink_transport_start(struct ba_transport *t) {
 #endif
 }
 
-struct a2dp_codec a2dp_mpeg_sink = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_MPEG12,
-	.synopsis = "A2DP Sink (MP3)",
-	.capabilities.mpeg = {
-		.layer =
+struct a2dp_sep a2dp_mpeg_sink = {
+	.name = "A2DP Sink (MP3)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_MPEG12,
+		.caps_size = sizeof(a2dp_mpeg_t),
+		.capabilities.mpeg = {
+			.layer =
 #if ENABLE_MPG123
-			MPEG_LAYER_MP1 |
-			MPEG_LAYER_MP2 |
+				MPEG_LAYER_MP1 |
+				MPEG_LAYER_MP2 |
 #endif
-			MPEG_LAYER_MP3,
-		.crc = 1,
-		/* NOTE: LAME does not support dual-channel mode. Be aware, that
-		 *       lack of this feature violates A2DP Sink specification. */
-		.channel_mode =
-			MPEG_CHANNEL_MODE_MONO |
+				MPEG_LAYER_MP3,
+			.crc = 1,
+			/* NOTE: LAME does not support dual-channel mode. Be aware, that
+			 *       lack of this feature violates A2DP Sink specification. */
+			.channel_mode =
+				MPEG_CHANNEL_MODE_MONO |
 #if ENABLE_MPG123
-			MPEG_CHANNEL_MODE_DUAL_CHANNEL |
+				MPEG_CHANNEL_MODE_DUAL_CHANNEL |
 #endif
-			MPEG_CHANNEL_MODE_STEREO |
-			MPEG_CHANNEL_MODE_JOINT_STEREO,
-		/* NOTE: Since MPF-2 is not required for neither Sink
-		 *       nor Source, we are not going to support it. */
-		.mpf = 0,
-		.frequency =
-			MPEG_SAMPLING_FREQ_16000 |
-			MPEG_SAMPLING_FREQ_22050 |
-			MPEG_SAMPLING_FREQ_24000 |
-			MPEG_SAMPLING_FREQ_32000 |
-			MPEG_SAMPLING_FREQ_44100 |
-			MPEG_SAMPLING_FREQ_48000,
-		.vbr = 1,
-		A2DP_MPEG_INIT_BITRATE(
-			MPEG_BITRATE_INDEX_0 |
-			MPEG_BITRATE_INDEX_1 |
-			MPEG_BITRATE_INDEX_2 |
-			MPEG_BITRATE_INDEX_3 |
-			MPEG_BITRATE_INDEX_4 |
-			MPEG_BITRATE_INDEX_5 |
-			MPEG_BITRATE_INDEX_6 |
-			MPEG_BITRATE_INDEX_7 |
-			MPEG_BITRATE_INDEX_8 |
-			MPEG_BITRATE_INDEX_9 |
-			MPEG_BITRATE_INDEX_10 |
-			MPEG_BITRATE_INDEX_11 |
-			MPEG_BITRATE_INDEX_12 |
-			MPEG_BITRATE_INDEX_13 |
-			MPEG_BITRATE_INDEX_14
-		)
+				MPEG_CHANNEL_MODE_STEREO |
+				MPEG_CHANNEL_MODE_JOINT_STEREO,
+			/* NOTE: Since MPF-2 is not required for neither Sink
+			 *       nor Source, we are not going to support it. */
+			.mpf = 0,
+			.sampling_freq =
+				MPEG_SAMPLING_FREQ_16000 |
+				MPEG_SAMPLING_FREQ_22050 |
+				MPEG_SAMPLING_FREQ_24000 |
+				MPEG_SAMPLING_FREQ_32000 |
+				MPEG_SAMPLING_FREQ_44100 |
+				MPEG_SAMPLING_FREQ_48000,
+			.vbr = 1,
+			A2DP_MPEG_INIT_BITRATE(
+				MPEG_BITRATE_INDEX_0 |
+				MPEG_BITRATE_INDEX_1 |
+				MPEG_BITRATE_INDEX_2 |
+				MPEG_BITRATE_INDEX_3 |
+				MPEG_BITRATE_INDEX_4 |
+				MPEG_BITRATE_INDEX_5 |
+				MPEG_BITRATE_INDEX_6 |
+				MPEG_BITRATE_INDEX_7 |
+				MPEG_BITRATE_INDEX_8 |
+				MPEG_BITRATE_INDEX_9 |
+				MPEG_BITRATE_INDEX_10 |
+				MPEG_BITRATE_INDEX_11 |
+				MPEG_BITRATE_INDEX_12 |
+				MPEG_BITRATE_INDEX_13 |
+				MPEG_BITRATE_INDEX_14
+			)
+		},
 	},
-	.capabilities_size = sizeof(a2dp_mpeg_t),
 	.configuration_select = a2dp_mpeg_configuration_select,
 	.configuration_check = a2dp_mpeg_configuration_check,
 	.transport_init = a2dp_mpeg_transport_init,
 	.transport_start = a2dp_mpeg_sink_transport_start,
+	.caps_helpers = &a2dp_mpeg_caps_helpers,
 	.enabled = false,
 };
 

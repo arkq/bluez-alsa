@@ -14,8 +14,14 @@ starting the service may fail with the
 - The BlueALSA D-Bus policy file is not installed, or is in the wrong
 location.\
 In a default install, the file should be
+`/usr/share/dbus-1/system.d/bluealsa.conf`; but if BlueALSA was installed from
+a distribution package then the distribution may have moved it to
 `/etc/dbus-1/system.d/bluealsa.conf`. Check with your distribution
-documentation in case D-Bus uses a different location on your system.
+documentation in case D-Bus uses a different location on your system. Older
+versions of BlueALSA used `/etc/dbus-1/system.d/bluealsa.conf`, so you may
+find you have versions of the file in both locations. In that case D-Bus will
+attempt to apply the policy from both files, with the `/etc` file taking
+precedence in case of conflict.
 Re-install BlueALSA if the file is missing.
 
 - The user account that the BlueALSA service is started under is not
@@ -109,7 +115,16 @@ In a default install, the file should be
 documentation in case D-Bus uses a different location on your system.
 Re-install BlueALSA if the file is missing.
 
-## 4. Using BlueALSA alongside PulseAudio or PipeWire
+## 4. Couldn't open PCM: Device or resource busy
+
+BlueALSA supports only one client connection to each PCM. This error occurs
+when an application tries to set the hardware parameters for a PCM that is
+already in use. Note that `bluealsa-aplay` opens each PCM (of the appropriate
+profile) as soon as it connects, and therefore attempting to use an application
+such as `arecord` to capture from BlueALSA while `bluealsa-aplay` is running
+will result in this error.
+
+## 5. Using BlueALSA alongside PulseAudio or PipeWire
 
 It is not advisable to run BlueALSA if either PulseAudio or PipeWire are also
 running with their own Bluetooth modules enabled. If one would like to have a
@@ -120,9 +135,9 @@ On startup, the BlueALSA service will issue warnings if some other application
 has already registered the Bluetooth Audio profiles:
 
 ```text
-bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110A-0000-1000-8000-00805F9B34FB
-bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110B-0000-1000-8000-00805F9B34FB
-bluealsa: W: UUID already registered in BlueZ: 0000111F-0000-1000-8000-00805F9B34FB
+bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110a-0000-1000-8000-00805f9b34fb
+bluealsa: W: UUID already registered in BlueZ [hci0]: 0000110b-0000-1000-8000-00805f9b34fb
+bluealsa: W: UUID already registered in BlueZ: 0000111f-0000-1000-8000-00805f9b34fb
 ```
 
 However, as it is normal practice to start BlueALSA at boot and to start
@@ -135,7 +150,7 @@ modules in the wiki: [PulseAudio integration][]
 
 [PulseAudio integration]: https://github.com/arkq/bluez-alsa/wiki/PulseAudio-integration
 
-## 5. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
+## 6. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
 
 ALSA library versions 1.1.2 and 1.1.3 had a bug in their thread-safe API
 functions. This bug does not affect hardware audio devices, but it affects

@@ -51,12 +51,11 @@ int g_dbus_bluez_object_path_to_hci_dev_id(const char *path) {
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
 
 	char tmp[sizeof("00:00:00:00:00:00")] = { 0 };
-	size_t i;
 
 	if ((path = strstr(path, "/dev_")) != NULL)
 		strncpy(tmp, path + 5, sizeof(tmp) - 1);
 
-	for (i = 0; i < sizeof(tmp); i++)
+	for (size_t i = 0; i < sizeof(tmp); i++)
 		if (tmp[i] == '_')
 			tmp[i] = ':';
 

@@ -38,6 +38,89 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const struct a2dp_bit_mapping a2dp_sbc_channels[] = {
+	{ SBC_CHANNEL_MODE_MONO, 1 },
+	{ SBC_CHANNEL_MODE_DUAL_CHANNEL, 2 },
+	{ SBC_CHANNEL_MODE_STEREO, 2 },
+	{ SBC_CHANNEL_MODE_JOINT_STEREO, 2 },
+	{ 0 },
+};
+
+static const struct a2dp_bit_mapping a2dp_sbc_samplings[] = {
+	{ SBC_SAMPLING_FREQ_16000, 16000 },
+	{ SBC_SAMPLING_FREQ_32000, 32000 },
+	{ SBC_SAMPLING_FREQ_44100, 44100 },
+	{ SBC_SAMPLING_FREQ_48000, 48000 },
+	{ 0 },
+};
+
+static void a2dp_sbc_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+
+	const a2dp_sbc_t *caps_mask = mask;
+	a2dp_sbc_t *caps = capabilities;
+
+	uint8_t min = MAX(caps->min_bitpool, caps_mask->min_bitpool);
+	uint8_t max = MIN(caps->max_bitpool, caps_mask->max_bitpool);
+
+	a2dp_caps_bitwise_intersect(caps, caps_mask, sizeof(*caps));
+	caps->min_bitpool = min;
+	caps->max_bitpool = max;
+
+}
+
+static int a2dp_sbc_caps_foreach_channel_mode(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_sbc_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_sbc_channels, caps->channel_mode, func, userdata);
+	return -1;
+}
+
+static int a2dp_sbc_caps_foreach_sampling_freq(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_sbc_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_sbc_samplings, caps->sampling_freq, func, userdata);
+	return -1;
+}
+
+static void a2dp_sbc_caps_select_channel_mode(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int channels) {
+	a2dp_sbc_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->channel_mode = a2dp_bit_mapping_lookup_value(a2dp_sbc_channels,
+				caps->channel_mode, channels);
+}
+
+static void a2dp_sbc_caps_select_sampling_freq(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int frequency) {
+	a2dp_sbc_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_sbc_samplings,
+				caps->sampling_freq, frequency);
+}
+
+static struct a2dp_caps_helpers a2dp_sbc_caps_helpers = {
+	.intersect = a2dp_sbc_caps_intersect,
+	.has_stream = a2dp_caps_has_main_stream_only,
+	.foreach_channel_mode = a2dp_sbc_caps_foreach_channel_mode,
+	.foreach_sampling_freq = a2dp_sbc_caps_foreach_sampling_freq,
+	.select_channel_mode = a2dp_sbc_caps_select_channel_mode,
+	.select_sampling_freq = a2dp_sbc_caps_select_sampling_freq,
+};
+
 void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -316,84 +399,44 @@ fail_init:
 	return NULL;
 }
 
-static const struct a2dp_channels a2dp_sbc_channels[] = {
-	{ 1, SBC_CHANNEL_MODE_MONO },
-	{ 2, SBC_CHANNEL_MODE_DUAL_CHANNEL },
-	{ 2, SBC_CHANNEL_MODE_STEREO },
-	{ 2, SBC_CHANNEL_MODE_JOINT_STEREO },
-	{ 0 },
-};
-
-static const struct a2dp_sampling a2dp_sbc_samplings[] = {
-	{ 16000, SBC_SAMPLING_FREQ_16000 },
-	{ 32000, SBC_SAMPLING_FREQ_32000 },
-	{ 44100, SBC_SAMPLING_FREQ_44100 },
-	{ 48000, SBC_SAMPLING_FREQ_48000 },
-	{ 0 },
-};
-
-static int a2dp_sbc_capabilities_filter(
-		const struct a2dp_codec *codec,
-		const void *capabilities_mask,
-		void *capabilities) {
-
-	(void)codec;
-	const a2dp_sbc_t *caps_mask = capabilities_mask;
-	a2dp_sbc_t *caps = capabilities;
-
-	uint8_t min = MAX(caps->min_bitpool, caps_mask->min_bitpool);
-	uint8_t max = MIN(caps->max_bitpool, caps_mask->max_bitpool);
-
-	for (size_t i = 0; i < sizeof(*caps); i++)
-		((uint8_t *)caps)[i] = ((uint8_t *)caps)[i] & ((uint8_t *)caps_mask)[i];
-
-	caps->min_bitpool = min;
-	caps->max_bitpool = max;
-
-	return 0;
-}
-
 static int a2dp_sbc_configuration_select(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities) {
 
 	a2dp_sbc_t *caps = capabilities;
 	const a2dp_sbc_t saved = *caps;
 
-	/* narrow capabilities to values supported by BlueALSA */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
-				caps, sizeof(*caps)) != 0)
-		return -1;
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_sbc_caps_intersect(caps, &sep->config.capabilities);
 
-	const struct a2dp_sampling *sampling;
-	const uint8_t caps_frequency = caps->frequency;
-	if ((sampling = a2dp_sampling_select(a2dp_sbc_samplings, caps_frequency)) != NULL)
-		caps->frequency = sampling->value;
-	else {
-		error("SBC: No supported sampling frequencies: %#x", saved.frequency);
+	unsigned int sampling_freq = 0;
+	if (a2dp_sbc_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) == -1) {
+		error("SBC: No supported sampling frequencies: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
-	const struct a2dp_channels *channels;
-	const uint8_t caps_channel_mode = caps->channel_mode;
-	if ((channels = a2dp_channels_select(a2dp_sbc_channels, caps_channel_mode)) != NULL)
-		caps->channel_mode = channels->value;
-	else {
+	unsigned int channel_mode = 0;
+	if (a2dp_sbc_caps_foreach_channel_mode(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == -1) {
 		error("SBC: No supported channel modes: %#x", saved.channel_mode);
 		return errno = ENOTSUP, -1;
 	}
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
-		if (caps_frequency & SBC_SAMPLING_FREQ_44100)
-			caps->frequency = SBC_SAMPLING_FREQ_44100;
+		if (caps->sampling_freq & SBC_SAMPLING_FREQ_44100)
+			sampling_freq = SBC_SAMPLING_FREQ_44100;
 		else
-			warn("SBC XQ: 44.1 kHz sampling frequency not supported: %#x", saved.frequency);
-		if (caps_channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-			caps->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+			warn("SBC XQ: 44.1 kHz sampling frequency not supported: %#x", saved.sampling_freq);
+		if (caps->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+			channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 		else
 			warn("SBC XQ: Dual channel mode not supported: %#x", saved.channel_mode);
 	}
+
+	caps->sampling_freq = sampling_freq;
+	caps->channel_mode = channel_mode;
 
 	if (caps->block_length & SBC_BLOCK_LENGTH_16)
 		caps->block_length = SBC_BLOCK_LENGTH_16;
@@ -436,23 +479,21 @@ static int a2dp_sbc_configuration_select(
 }
 
 static int a2dp_sbc_configuration_check(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration) {
 
 	const a2dp_sbc_t *conf = configuration;
 	a2dp_sbc_t conf_v = *conf;
 
-	/* validate configuration against BlueALSA capabilities */
-	if (a2dp_filter_capabilities(codec, &codec->capabilities,
-				&conf_v, sizeof(conf_v)) != 0)
-		return A2DP_CHECK_ERR_SIZE;
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_sbc_caps_intersect(&conf_v, &sep->config.capabilities);
 
-	if (a2dp_sampling_lookup(a2dp_sbc_samplings, conf_v.frequency) == NULL) {
-		debug("SBC: Invalid sampling frequency: %#x", conf->frequency);
+	if (a2dp_bit_mapping_lookup(a2dp_sbc_samplings, conf_v.sampling_freq) == 0) {
+		debug("SBC: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_channels_lookup(a2dp_sbc_channels, conf_v.channel_mode) == NULL) {
+	if (a2dp_bit_mapping_lookup(a2dp_sbc_channels, conf_v.channel_mode) == 0) {
 		debug("SBC: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -500,31 +541,31 @@ static int a2dp_sbc_configuration_check(
 
 static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
-	const struct a2dp_channels *channels;
-	if ((channels = a2dp_channels_lookup(a2dp_sbc_channels,
-					t->a2dp.configuration.sbc.channel_mode)) == NULL)
+	unsigned int channels;
+	if ((channels = a2dp_bit_mapping_lookup(a2dp_sbc_channels,
+					t->a2dp.configuration.sbc.channel_mode)) == 0)
 		return -1;
 
-	const struct a2dp_sampling *sampling;
-	if ((sampling = a2dp_sampling_lookup(a2dp_sbc_samplings,
-					t->a2dp.configuration.sbc.frequency)) == NULL)
+	unsigned int sampling;
+	if ((sampling = a2dp_bit_mapping_lookup(a2dp_sbc_samplings,
+					t->a2dp.configuration.sbc.sampling_freq)) == 0)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = channels->count;
-	t->a2dp.pcm.sampling = sampling->frequency;
+	t->a2dp.pcm.channels = channels;
+	t->a2dp.pcm.sampling = sampling;
 
 	return 0;
 }
 
-static int a2dp_sbc_source_init(struct a2dp_codec *codec) {
+static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
 		info("SBC: Activating SBC Dual Channel HD (SBC %s)",
 				config.sbc_quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
-		codec->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
-		codec->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+		sep->config.capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
+		sep->config.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
 	}
 
 	if (config.a2dp.force_mono)
@@ -533,9 +574,9 @@ static int a2dp_sbc_source_init(struct a2dp_codec *codec) {
 		 * modes. However, since for sink all channel modes are mandatory, even
 		 * though we are supporting only mono mode, there will be a match when
 		 * selecting configuration. */
-		codec->capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
+		sep->config.capabilities.sbc.channel_mode = SBC_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		codec->capabilities.sbc.frequency = SBC_SAMPLING_FREQ_44100;
+		sep->config.capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
 
 	return 0;
 }
@@ -544,42 +585,44 @@ static int a2dp_sbc_source_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_enc_thread, "ba-a2dp-sbc");
 }
 
-struct a2dp_codec a2dp_sbc_source = {
-	.dir = A2DP_SOURCE,
-	.codec_id = A2DP_CODEC_SBC,
-	.synopsis = "A2DP Source (SBC)",
-	.capabilities.sbc = {
-		.frequency =
-			SBC_SAMPLING_FREQ_16000 |
-			SBC_SAMPLING_FREQ_32000 |
-			SBC_SAMPLING_FREQ_44100 |
-			SBC_SAMPLING_FREQ_48000,
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
-		.block_length =
-			SBC_BLOCK_LENGTH_4 |
-			SBC_BLOCK_LENGTH_8 |
-			SBC_BLOCK_LENGTH_12 |
-			SBC_BLOCK_LENGTH_16,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.min_bitpool = SBC_MIN_BITPOOL,
-		.max_bitpool = SBC_MAX_BITPOOL,
+struct a2dp_sep a2dp_sbc_source = {
+	.name = "A2DP Source (SBC)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_SBC,
+		.caps_size = sizeof(a2dp_sbc_t),
+		.capabilities.sbc = {
+			.sampling_freq =
+				SBC_SAMPLING_FREQ_16000 |
+				SBC_SAMPLING_FREQ_32000 |
+				SBC_SAMPLING_FREQ_44100 |
+				SBC_SAMPLING_FREQ_48000,
+			.channel_mode =
+				SBC_CHANNEL_MODE_MONO |
+				SBC_CHANNEL_MODE_DUAL_CHANNEL |
+				SBC_CHANNEL_MODE_STEREO |
+				SBC_CHANNEL_MODE_JOINT_STEREO,
+			.block_length =
+				SBC_BLOCK_LENGTH_4 |
+				SBC_BLOCK_LENGTH_8 |
+				SBC_BLOCK_LENGTH_12 |
+				SBC_BLOCK_LENGTH_16,
+			.subbands =
+				SBC_SUBBANDS_4 |
+				SBC_SUBBANDS_8,
+			.allocation_method =
+				SBC_ALLOCATION_SNR |
+				SBC_ALLOCATION_LOUDNESS,
+			.min_bitpool = SBC_MIN_BITPOOL,
+			.max_bitpool = SBC_MAX_BITPOOL,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_sbc_t),
 	.init = a2dp_sbc_source_init,
-	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
 	.configuration_check = a2dp_sbc_configuration_check,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_source_transport_start,
+	.caps_helpers = &a2dp_sbc_caps_helpers,
 	.enabled = true,
 };
 
@@ -587,40 +630,42 @@ static int a2dp_sbc_sink_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_dec_thread, "ba-a2dp-sbc");
 }
 
-struct a2dp_codec a2dp_sbc_sink = {
-	.dir = A2DP_SINK,
-	.codec_id = A2DP_CODEC_SBC,
-	.synopsis = "A2DP Sink (SBC)",
-	.capabilities.sbc = {
-		.frequency =
-			SBC_SAMPLING_FREQ_16000 |
-			SBC_SAMPLING_FREQ_32000 |
-			SBC_SAMPLING_FREQ_44100 |
-			SBC_SAMPLING_FREQ_48000,
-		.channel_mode =
-			SBC_CHANNEL_MODE_MONO |
-			SBC_CHANNEL_MODE_DUAL_CHANNEL |
-			SBC_CHANNEL_MODE_STEREO |
-			SBC_CHANNEL_MODE_JOINT_STEREO,
-		.block_length =
-			SBC_BLOCK_LENGTH_4 |
-			SBC_BLOCK_LENGTH_8 |
-			SBC_BLOCK_LENGTH_12 |
-			SBC_BLOCK_LENGTH_16,
-		.subbands =
-			SBC_SUBBANDS_4 |
-			SBC_SUBBANDS_8,
-		.allocation_method =
-			SBC_ALLOCATION_SNR |
-			SBC_ALLOCATION_LOUDNESS,
-		.min_bitpool = SBC_MIN_BITPOOL,
-		.max_bitpool = SBC_MAX_BITPOOL,
+struct a2dp_sep a2dp_sbc_sink = {
+	.name = "A2DP Sink (SBC)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_SBC,
+		.caps_size = sizeof(a2dp_sbc_t),
+		.capabilities.sbc = {
+			.sampling_freq =
+				SBC_SAMPLING_FREQ_16000 |
+				SBC_SAMPLING_FREQ_32000 |
+				SBC_SAMPLING_FREQ_44100 |
+				SBC_SAMPLING_FREQ_48000,
+			.channel_mode =
+				SBC_CHANNEL_MODE_MONO |
+				SBC_CHANNEL_MODE_DUAL_CHANNEL |
+				SBC_CHANNEL_MODE_STEREO |
+				SBC_CHANNEL_MODE_JOINT_STEREO,
+			.block_length =
+				SBC_BLOCK_LENGTH_4 |
+				SBC_BLOCK_LENGTH_8 |
+				SBC_BLOCK_LENGTH_12 |
+				SBC_BLOCK_LENGTH_16,
+			.subbands =
+				SBC_SUBBANDS_4 |
+				SBC_SUBBANDS_8,
+			.allocation_method =
+				SBC_ALLOCATION_SNR |
+				SBC_ALLOCATION_LOUDNESS,
+			.min_bitpool = SBC_MIN_BITPOOL,
+			.max_bitpool = SBC_MAX_BITPOOL,
+		},
 	},
-	.capabilities_size = sizeof(a2dp_sbc_t),
-	.capabilities_filter = a2dp_sbc_capabilities_filter,
 	.configuration_select = a2dp_sbc_configuration_select,
 	.configuration_check = a2dp_sbc_configuration_check,
 	.transport_init = a2dp_sbc_transport_init,
 	.transport_start = a2dp_sbc_sink_transport_start,
+	.caps_helpers = &a2dp_sbc_caps_helpers,
 	.enabled = true,
 };

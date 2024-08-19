@@ -46,7 +46,8 @@
 
 #include "inc/check.inc"
 
-#define TEST_BLUEALSA_STORAGE_DIR "/tmp/bluealsa-test-ba-storage"
+/* Keep persistent storage in the current directory. */
+#define TEST_BLUEALSA_STORAGE_DIR "storage-test-ba"
 
 int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
 int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
@@ -70,9 +71,10 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
 	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig; return 0; }
 bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep *sep, GError **error) {
+		const struct a2dp_sep_config *sep, const void *configuration, GError **error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
-	(void)current_dbus_sep_path; (void)sep; (void)error; return false; }
+	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
+	return false; }
 int ofono_call_volume_update(struct ba_transport *t) {
 	debug("%s: %p", __func__, t); (void)t; return 0; }
 
@@ -323,10 +325,10 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
-	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_sep sep = { .config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC } };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d,
-				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &codec,
+				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &sep,
 				&configuration), NULL);
 
 	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d,
@@ -408,10 +410,10 @@ CK_START_TEST(test_storage) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	struct a2dp_codec codec = { .dir = A2DP_SINK, .codec_id = A2DP_CODEC_SBC };
+	struct a2dp_sep sep = { .config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC } };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t = ba_transport_new_a2dp(d,
-				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &codec,
+				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &sep,
 				&configuration), NULL);
 
 	/* check if persistent storage was loaded */

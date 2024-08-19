@@ -22,118 +22,183 @@
 
 #include "shared/a2dp-codecs.h"
 
-enum a2dp_dir {
+/**
+ * Mapping between A2DP bit-field and its real value.
+ *
+ * When defining mapping array, all elements should be sorted from the
+ * worst (least desired) to the best (most desired) values. This way,
+ * the a2dp_foreach_get_best_*() functions can be used to find the best
+ * possible value for the given bit-field. */
+struct a2dp_bit_mapping {
+	uint32_t bit_value;
+	unsigned int value;
+};
+
+/**
+ * Callback function for iterating over A2DP bit-field. */
+typedef int (*a2dp_bit_mapping_foreach_func)(
+		struct a2dp_bit_mapping mapping,
+		void *userdata);
+
+int a2dp_bit_mapping_foreach_get_best_channel_mode(
+		struct a2dp_bit_mapping mapping,
+		void *userdata);
+int a2dp_bit_mapping_foreach_get_best_sampling_freq(
+		struct a2dp_bit_mapping mapping,
+		void *userdata);
+
+int a2dp_bit_mapping_foreach(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bitmask,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata);
+
+unsigned int a2dp_bit_mapping_lookup(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bit_value);
+
+uint32_t a2dp_bit_mapping_lookup_value(
+		const struct a2dp_bit_mapping *mappings,
+		uint32_t bitmask,
+		unsigned int value);
+
+/**
+ * A2DP stream direction. */
+enum a2dp_stream {
+	A2DP_MAIN,
+	A2DP_BACKCHANNEL,
+};
+
+void a2dp_caps_bitwise_intersect(
+		void *capabilities,
+		const void *mask,
+		size_t size);
+
+bool a2dp_caps_has_main_stream_only(
+		const void *capabilities,
+		enum a2dp_stream stream);
+
+/* A2DP capabilities helper functions. */
+struct a2dp_caps_helpers {
+
+	/**
+	 * Function for codec-specific capabilities capping. */
+	void (*intersect)(
+			void *capabilities,
+			const void *mask);
+
+	/**
+	 * Function for checking whether given stream direction is supported. */
+	bool (*has_stream)(
+			const void *capabilities,
+			enum a2dp_stream stream);
+
+	/* Function for iterating over channel modes. */
+	int (*foreach_channel_mode)(
+			const void *capabilities,
+			enum a2dp_stream stream,
+			a2dp_bit_mapping_foreach_func func,
+			void *userdata);
+
+	/* Function for iterating over sampling frequencies. */
+	int (*foreach_sampling_freq)(
+			const void *capabilities,
+			enum a2dp_stream stream,
+			a2dp_bit_mapping_foreach_func func,
+			void *userdata);
+
+	void (*select_channel_mode)(
+			void *capabilities,
+			enum a2dp_stream stream,
+			unsigned int channels);
+
+	void (*select_sampling_freq)(
+			void *capabilities,
+			enum a2dp_stream stream,
+			unsigned int frequency);
+
+};
+
+/**
+ * A2DP Stream End-Point type. */
+enum a2dp_type {
 	A2DP_SOURCE = 0,
 	A2DP_SINK = !A2DP_SOURCE,
 };
 
-struct a2dp_channels {
-	unsigned int count;
-	uint16_t value;
-};
+/* A2DP Stream End-Point configuration. */
+struct a2dp_sep_config {
 
-struct a2dp_sampling {
-	unsigned int frequency;
-	uint16_t value;
+	/* SEP type */
+	enum a2dp_type type;
+	/* extended (32-bit) codec ID */
+	uint32_t codec_id;
+
+	/* supported capabilities */
+	a2dp_t capabilities;
+	size_t caps_size;
+
+	/* D-Bus object path for external SEP */
+	char bluez_dbus_path[64];
+
 };
 
 /* XXX: avoid circular dependency */
 struct ba_transport;
 
-struct a2dp_codec {
+/**
+ * A2DP Stream End-Point. */
+struct a2dp_sep {
 
-	enum a2dp_dir dir;
-	uint16_t codec_id;
-	const char *synopsis;
+	const char *name;
+	struct a2dp_sep_config config;
 
-	/* capabilities configuration element */
-	a2dp_t capabilities;
-	size_t capabilities_size;
-
-	/* callback function for codec initialization */
-	int (*init)(struct a2dp_codec *codec);
-
-	/* callback function for codec-specific capabilities filtering; if this
-	 * function is not provided, the a2dp_filter_capabilities() will return
-	 * simple bitwise AND of given capabilities */
-	int (*capabilities_filter)(
-			const struct a2dp_codec *codec,
-			const void *capabilities_mask,
-			void *capabilities);
+	/* callback function for SEP initialization */
+	int (*init)(struct a2dp_sep *sep);
 
 	/* callback function for selecting configuration */
 	int (*configuration_select)(
-			const struct a2dp_codec *codec,
+			const struct a2dp_sep *sep,
 			void *capabilities);
 
 	/* callback function for checking configuration correctness */
 	int (*configuration_check)(
-			const struct a2dp_codec *codec,
+			const struct a2dp_sep *sep,
 			const void *configuration);
 
 	int (*transport_init)(struct ba_transport *t);
 	int (*transport_start)(struct ba_transport *t);
 
-	/* determine whether codec shall be enabled */
+	/* Codec-specific capabilities helper functions. */
+	const struct a2dp_caps_helpers *caps_helpers;
+
+	/* determine whether SEP shall be enabled */
 	bool enabled;
 
 };
 
-/**
- * A2DP Stream End-Point. */
-struct a2dp_sep {
-	enum a2dp_dir dir;
-	uint16_t codec_id;
-	/* exposed capabilities */
-	a2dp_t capabilities;
-	size_t capabilities_size;
-	/* stream end-point path */
-	char bluez_dbus_path[64];
-	/* selected configuration */
-	a2dp_t configuration;
-};
+/* NULL-terminated list of available local A2DP SEPs */
+extern struct a2dp_sep * const a2dp_seps[];
 
-/* NULL-terminated list of available A2DP codecs */
-extern struct a2dp_codec * const a2dp_codecs[];
+int a2dp_seps_init(void);
 
-int a2dp_codecs_init(void);
+int a2dp_sep_config_cmp(
+		const struct a2dp_sep_config *a,
+		const struct a2dp_sep_config *b);
+int a2dp_sep_ptr_cmp(
+		const struct a2dp_sep **a,
+		const struct a2dp_sep **b);
 
-int a2dp_codec_cmp(const struct a2dp_codec *a, const struct a2dp_codec *b);
-int a2dp_codec_ptr_cmp(const struct a2dp_codec **a, const struct a2dp_codec **b);
-int a2dp_sep_cmp(const struct a2dp_sep *a, const struct a2dp_sep *b);
+const struct a2dp_sep *a2dp_sep_lookup(
+		enum a2dp_type type,
+		uint32_t codec_id);
 
-const struct a2dp_codec *a2dp_codec_lookup(
-		uint16_t codec_id,
-		enum a2dp_dir dir);
-
-const struct a2dp_channels *a2dp_channels_lookup(
-		const struct a2dp_channels *channels,
-		uint16_t value);
-
-const struct a2dp_channels *a2dp_channels_select(
-		const struct a2dp_channels *channels,
-		uint16_t capabilities);
-
-const struct a2dp_sampling *a2dp_sampling_lookup(
-		const struct a2dp_sampling *samplings,
-		uint16_t value);
-
-const struct a2dp_sampling *a2dp_sampling_select(
-		const struct a2dp_sampling *samplings,
-		uint16_t capabilities);
-
-uint16_t a2dp_get_vendor_codec_id(
+uint32_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
 		size_t size);
 
-int a2dp_filter_capabilities(
-		const struct a2dp_codec *codec,
-		const void *capabilities_mask,
-		void *capabilities,
-		size_t size);
-
 int a2dp_select_configuration(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		void *capabilities,
 		size_t size);
 
@@ -155,7 +220,7 @@ enum a2dp_check_err {
 };
 
 enum a2dp_check_err a2dp_check_configuration(
-		const struct a2dp_codec *codec,
+		const struct a2dp_sep *sep,
 		const void *configuration,
 		size_t size);
 
