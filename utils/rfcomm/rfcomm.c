@@ -15,6 +15,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
+#include <libgen.h>
 #include <poll.h>
 #include <stdbool.h>
 #include <stdint.h>

@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <libgen.h>
 #include <math.h>
 #include <poll.h>
 #include <pthread.h>
