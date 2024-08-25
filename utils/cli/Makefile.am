@@ -27,10 +27,12 @@ bluealsa_cli_SOURCES = \
 bluealsa_cli_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@DBUS1_CFLAGS@ \
+	@GLIB2_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@
 
 bluealsa_cli_LDADD = \
 	@DBUS1_LIBS@ \
+	@GLIB2_LIBS@ \
 	@LIBUNWIND_LIBS@
 
 endif

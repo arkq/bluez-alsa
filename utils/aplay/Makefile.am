@@ -22,12 +22,14 @@ bluealsa_aplay_CFLAGS = \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@DBUS1_CFLAGS@ \
+	@GLIB2_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@
 
 bluealsa_aplay_LDADD = \
 	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@DBUS1_LIBS@ \
+	@GLIB2_LIBS@ \
 	@LIBUNWIND_LIBS@
 
 endif

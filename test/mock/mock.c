@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 
-	log_open(basename(argv[0]), false);
+	log_open(g_path_get_basename(argv[0]), false);
 	assert(ba_config_init() == 0);
 
 	/* Add BT address to the HCI filter to test filtering logic. */

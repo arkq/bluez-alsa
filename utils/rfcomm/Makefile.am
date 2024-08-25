@@ -16,10 +16,12 @@ bluealsa_rfcomm_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@BLUEZ_CFLAGS@ \
 	@DBUS1_CFLAGS@ \
+	@GLIB2_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@
 
 bluealsa_rfcomm_LDADD = \
 	@DBUS1_LIBS@ \
+	@GLIB2_LIBS@ \
 	@LIBUNWIND_LIBS@ \
 	-lreadline
 

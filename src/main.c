@@ -276,8 +276,7 @@ int main(int argc, char **argv) {
 			syslog = true;
 			break;
 		}
-
-	log_open(basename(argv[0]), syslog);
+	log_open(g_path_get_basename(argv[0]), syslog);
 
 	if (ba_config_init() != 0) {
 		error("Couldn't initialize bluealsa config");

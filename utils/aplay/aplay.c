@@ -32,6 +32,7 @@
 #include <alsa/asoundlib.h>
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
+#include <glib.h>
 
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
@@ -1105,7 +1106,7 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 
-	log_open(basename(argv[0]), syslog);
+	log_open(g_path_get_basename(argv[0]), syslog);
 	dbus_threads_init_default();
 
 	/* parse options */

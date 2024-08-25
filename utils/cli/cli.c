@@ -22,6 +22,7 @@
 #include <strings.h>
 #include <sys/param.h>
 
+#include <glib.h>
 #include <dbus/dbus.h>
 
 #include "cli.h"
@@ -414,7 +415,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	log_open(basename(argv[0]), false);
+	log_open(g_path_get_basename(argv[0]), false);
 	dbus_threads_init_default();
 
 	DBusError err = DBUS_ERROR_INIT;

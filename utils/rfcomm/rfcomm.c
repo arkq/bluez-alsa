@@ -25,6 +25,7 @@
 
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
+#include <glib.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -134,7 +135,7 @@ int main(int argc, char *argv[]) {
 
 	char dbus_ba_service[32] = BLUEALSA_SERVICE;
 
-	log_open(basename(argv[0]), false);
+	log_open(g_path_get_basename(argv[0]), false);
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
