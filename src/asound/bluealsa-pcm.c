@@ -1336,7 +1336,9 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 
 	n = 0;
 	for (size_t i = 0; i < ARRAYSIZE(codec->channels) && codec->channels[i] != 0; i++)
-		list[n++] = codec->channels[i];
+		/* TODO: Remove this when BlueALSA will support channels mapping. */
+		if (codec->channels[i] <= 2)
+			list[n++] = codec->channels[i];
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_CHANNELS, n, list)) < 0)
 		return err;
 

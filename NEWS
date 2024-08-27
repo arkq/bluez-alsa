@@ -1,6 +1,8 @@
 unreleased
 ==========
 
+- fix crash when playing audio with more than 2 channels
+
 bluez-alsa v4.3.0 (2024-08-13)
 ==============================
 
