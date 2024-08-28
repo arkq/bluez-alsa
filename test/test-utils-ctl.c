@@ -199,6 +199,8 @@ CK_START_TEST(test_info) {
 				"Transport: A2DP-source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
 				"Selected codec:\n\tSBC:211502fa [channels: 2] [sampling: 44100]"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"ChannelMap: FL FR"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -316,13 +318,13 @@ CK_START_TEST(test_volume) {
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Volume: L: 127 R: 127"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Volume: 127 127"), NULL);
 
 	/* check default mute */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: false"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Mute: off off"), NULL);
 
 	/* check default soft-volume */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
@@ -337,7 +339,7 @@ CK_START_TEST(test_volume) {
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Volume: L: 10 R: 50"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Volume: 10 50"), NULL);
 
 	/* check setting mute */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
@@ -346,7 +348,7 @@ CK_START_TEST(test_volume) {
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Muted: L: false R: true"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Mute: off on"), NULL);
 
 	/* check setting soft-volume */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),

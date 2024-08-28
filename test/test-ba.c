@@ -416,6 +416,10 @@ CK_START_TEST(test_storage) {
 				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &sep,
 				&configuration), NULL);
 
+	/* This test does not link with A2DP functionality,
+	 * so the PCM has to be initialized manually. */
+	t->a2dp.pcm.channels = 2;
+
 	/* check if persistent storage was loaded */
 	ck_assert_int_eq(t->a2dp.pcm.soft_volume, false);
 	ck_assert_int_eq(t->a2dp.pcm.volume[0].level, -5600);
@@ -450,8 +454,8 @@ CK_START_TEST(test_storage) {
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/sink]\n"
 		"DelayAdjustments=\n"
 		"SoftVolume=true\n"
-		"Volume=0;0;\n"
-		"Mute=false;false;\n";
+		"Volume=\n"
+		"Mute=\n";
 
 	/* check if persistent storage was updated */
 	ck_assert_str_eq(buffer, storage_data_new);

@@ -1,5 +1,5 @@
 <!-- BlueALSA - bluealsa-iface.xml
-     Copyright (c) 2016-2023 Arkadiusz Bokowy
+     Copyright (c) 2016-2024 Arkadiusz Bokowy
 
      This file is a part of bluez-alsa.
 
@@ -13,53 +13,54 @@
 
 	<interface name="org.bluealsa.PCM1">
 		<method name="Open">
-			<arg direction="out" type="h" name="fd_pcm"/>
-			<arg direction="out" type="h" name="fd_ctrl"/>
+			<arg direction="out" type="h" name="fd_pcm" />
+			<arg direction="out" type="h" name="fd_ctrl" />
 		</method>
 		<method name="GetCodecs">
-			<arg direction="out" type="a{sa{sv}}" name="codecs"/>
+			<arg direction="out" type="a{sa{sv}}" name="codecs" />
 		</method>
 		<method name="SelectCodec">
-			<arg direction="in" type="s" name="codec"/>
-			<arg direction="in" type="a{sv}" name="props"/>
+			<arg direction="in" type="s" name="codec" />
+			<arg direction="in" type="a{sv}" name="props" />
 		</method>
 		<method name="SetDelayAdjustment">
-			<arg direction="in" type="s" name="codec"/>
-			<arg direction="in" type="n" name="adjustment"/>
+			<arg direction="in" type="s" name="codec" />
+			<arg direction="in" type="n" name="adjustment" />
 		</method>
 		<method name="GetDelayAdjustments">
-			<arg direction="out" type="a{sn}" name="adjustments"/>
+			<arg direction="out" type="a{sn}" name="adjustments" />
 		</method>
-		<property name="Device" type="o" access="read"/>
-		<property name="Sequence" type="u" access="read"/>
-		<property name="Transport" type="s" access="read"/>
-		<property name="Mode" type="s" access="read"/>
-		<property name="Running" type="b" access="read"/>
-		<property name="Format" type="q" access="read"/>
-		<property name="Channels" type="y" access="read"/>
-		<property name="Sampling" type="u" access="read"/>
-		<property name="Codec" type="s" access="read"/>
-		<property name="CodecConfiguration" type="ay" access="read"/>
-		<property name="Delay" type="q" access="read"/>
-		<property name="DelayAdjustment" type="n" access="read"/>
-		<property name="SoftVolume" type="b" access="readwrite"/>
-		<property name="Volume" type="q" access="readwrite"/>
+		<property name="Device" type="o" access="read" />
+		<property name="Sequence" type="u" access="read" />
+		<property name="Transport" type="s" access="read" />
+		<property name="Mode" type="s" access="read" />
+		<property name="Running" type="b" access="read" />
+		<property name="Format" type="q" access="read" />
+		<property name="Channels" type="y" access="read" />
+		<property name="ChannelMap" type="as" access="read" />
+		<property name="Sampling" type="u" access="read" />
+		<property name="Codec" type="s" access="read" />
+		<property name="CodecConfiguration" type="ay" access="read" />
+		<property name="Delay" type="q" access="read" />
+		<property name="DelayAdjustment" type="n" access="read" />
+		<property name="SoftVolume" type="b" access="readwrite" />
+		<property name="Volume" type="ay" access="readwrite" />
 	</interface>
 
 	<interface name="org.bluealsa.RFCOMM1">
 		<method name="Open">
-			<arg direction="out" type="h" name="fd"/>
+			<arg direction="out" type="h" name="fd" />
 		</method>
-		<property name="Transport" type="s" access="read"/>
-		<property name="Features" type="as" access="read"/>
-		<property name="Battery" type="y" access="read"/>
+		<property name="Transport" type="s" access="read" />
+		<property name="Features" type="as" access="read" />
+		<property name="Battery" type="y" access="read" />
 	</interface>
 
 	<interface name="org.bluealsa.Manager1">
-		<property name="Version" type="s" access="read"/>
-		<property name="Adapters" type="as" access="read"/>
-		<property name="Profiles" type="as" access="read"/>
-		<property name="Codecs" type="as" access="read"/>
+		<property name="Version" type="s" access="read" />
+		<property name="Adapters" type="as" access="read" />
+		<property name="Profiles" type="as" access="read" />
+		<property name="Codecs" type="as" access="read" />
 	</interface>
 
 </node>

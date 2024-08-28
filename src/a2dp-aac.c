@@ -39,27 +39,50 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const enum ba_transport_pcm_channel a2dp_aac_channel_map_mono[] = {
+	BA_TRANSPORT_PCM_CHANNEL_MONO,
+};
+
+static const enum ba_transport_pcm_channel a2dp_aac_channel_map_stereo[] = {
+	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
+};
+
+static const enum ba_transport_pcm_channel a2dp_aac_channel_map_5_1[] = {
+	BA_TRANSPORT_PCM_CHANNEL_FC,
+	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
+	BA_TRANSPORT_PCM_CHANNEL_RL, BA_TRANSPORT_PCM_CHANNEL_RR,
+	BA_TRANSPORT_PCM_CHANNEL_LFE,
+};
+
+static const enum ba_transport_pcm_channel a2dp_aac_channel_map_7_1[] = {
+	BA_TRANSPORT_PCM_CHANNEL_FC,
+	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
+	BA_TRANSPORT_PCM_CHANNEL_SL, BA_TRANSPORT_PCM_CHANNEL_SR,
+	BA_TRANSPORT_PCM_CHANNEL_RL, BA_TRANSPORT_PCM_CHANNEL_RR,
+	BA_TRANSPORT_PCM_CHANNEL_LFE,
+};
+
 static const struct a2dp_bit_mapping a2dp_aac_channels[] = {
-	{ AAC_CHANNEL_MODE_MONO, 1 },
-	{ AAC_CHANNEL_MODE_STEREO, 2 },
-	{ AAC_CHANNEL_MODE_5_1, 6 },
-	{ AAC_CHANNEL_MODE_7_1, 8 },
+	{ AAC_CHANNEL_MODE_MONO, .ch = { 1, a2dp_aac_channel_map_mono } },
+	{ AAC_CHANNEL_MODE_STEREO, .ch = { 2, a2dp_aac_channel_map_stereo } },
+	{ AAC_CHANNEL_MODE_5_1, .ch = { 6, a2dp_aac_channel_map_5_1 } },
+	{ AAC_CHANNEL_MODE_7_1, .ch = { 8, a2dp_aac_channel_map_7_1 } },
 	{ 0 }
 };
 
 static const struct a2dp_bit_mapping a2dp_aac_samplings[] = {
-	{ AAC_SAMPLING_FREQ_8000, 8000 },
-	{ AAC_SAMPLING_FREQ_11025, 11025 },
-	{ AAC_SAMPLING_FREQ_12000, 12000 },
-	{ AAC_SAMPLING_FREQ_16000, 16000 },
-	{ AAC_SAMPLING_FREQ_22050, 22050 },
-	{ AAC_SAMPLING_FREQ_24000, 24000 },
-	{ AAC_SAMPLING_FREQ_32000, 32000 },
-	{ AAC_SAMPLING_FREQ_44100, 44100 },
-	{ AAC_SAMPLING_FREQ_48000, 48000 },
-	{ AAC_SAMPLING_FREQ_64000, 64000 },
-	{ AAC_SAMPLING_FREQ_88200, 88200 },
-	{ AAC_SAMPLING_FREQ_96000, 96000 },
+	{ AAC_SAMPLING_FREQ_8000, { 8000 } },
+	{ AAC_SAMPLING_FREQ_11025, { 11025 } },
+	{ AAC_SAMPLING_FREQ_12000, { 12000 } },
+	{ AAC_SAMPLING_FREQ_16000, { 16000 } },
+	{ AAC_SAMPLING_FREQ_22050, { 22050 } },
+	{ AAC_SAMPLING_FREQ_24000, { 24000 } },
+	{ AAC_SAMPLING_FREQ_32000, { 32000 } },
+	{ AAC_SAMPLING_FREQ_44100, { 44100 } },
+	{ AAC_SAMPLING_FREQ_48000, { 48000 } },
+	{ AAC_SAMPLING_FREQ_64000, { 64000 } },
+	{ AAC_SAMPLING_FREQ_88200, { 88200 } },
+	{ AAC_SAMPLING_FREQ_96000, { 96000 } },
 	{ 0 }
 };
 
@@ -669,12 +692,12 @@ static int a2dp_aac_configuration_check(
 	}
 
 	const uint16_t conf_sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(conf_v);
-	if (a2dp_bit_mapping_lookup(a2dp_aac_samplings, conf_sampling_freq) == 0) {
+	if (a2dp_bit_mapping_lookup(a2dp_aac_samplings, conf_sampling_freq) == -1) {
 		debug("AAC: Invalid sampling frequency: %#x", A2DP_AAC_GET_SAMPLING_FREQ(*conf));
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
 
-	if (a2dp_bit_mapping_lookup(a2dp_aac_channels, conf_v.channel_mode) == 0) {
+	if (a2dp_bit_mapping_lookup(a2dp_aac_channels, conf_v.channel_mode) == -1) {
 		debug("AAC: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -684,19 +707,22 @@ static int a2dp_aac_configuration_check(
 
 static int a2dp_aac_transport_init(struct ba_transport *t) {
 
-	unsigned int channels;
-	if ((channels = a2dp_bit_mapping_lookup(a2dp_aac_channels,
-					t->a2dp.configuration.aac.channel_mode)) == 0)
+	ssize_t channels_i;
+	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_aac_channels,
+					t->a2dp.configuration.aac.channel_mode)) == -1)
 		return -1;
 
-	unsigned int sampling;
-	if ((sampling = a2dp_bit_mapping_lookup(a2dp_aac_samplings,
-					A2DP_AAC_GET_SAMPLING_FREQ(t->a2dp.configuration.aac))) == 0)
+	ssize_t sampling_i;
+	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_aac_samplings,
+					A2DP_AAC_GET_SAMPLING_FREQ(t->a2dp.configuration.aac))) == -1)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = channels;
-	t->a2dp.pcm.sampling = sampling;
+	t->a2dp.pcm.channels = a2dp_aac_channels[channels_i].value;
+	t->a2dp.pcm.sampling = a2dp_aac_samplings[sampling_i].value;
+
+	memcpy(t->a2dp.pcm.channel_map, a2dp_aac_channels[channels_i].ch.map,
+			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
 
 	return 0;
 }

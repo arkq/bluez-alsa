@@ -120,15 +120,15 @@ int a2dp_bit_mapping_foreach(
  *
  * @param mappings Zero-terminated array of A2DP mappings.
  * @param bit_value A2DP codec bit-value to be looked up.
- * @return On success this function returns the associated value. Otherwise,
- *   0 is returned. */
-unsigned int a2dp_bit_mapping_lookup(
+ * @return This function returns the index of the mapping, or -1 if mapping
+ *   for the given bit-value does not exist. */
+ssize_t a2dp_bit_mapping_lookup(
 		const struct a2dp_bit_mapping *mappings,
 		uint32_t bit_value) {
 	for (size_t i = 0; mappings[i].bit_value != 0; i++)
 		if (mappings[i].bit_value == bit_value)
-			return mappings[i].value;
-	return 0;
+			return i;
+	return -1;
 }
 
 /**

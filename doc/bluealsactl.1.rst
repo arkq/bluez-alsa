@@ -85,7 +85,7 @@ info *PCM_PATH*
     'PropertyName: Value'. Values are presented in human-readable format - for
     example the Volume property is printed as:
 
-    ``Volume: L: 127 R: 127``
+    ``Volume: 127 127``
 
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
@@ -122,7 +122,7 @@ codec [-c NUM] [-s NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
 
     Selecting the HFP codec when using oFono is not supported.
 
-volume *PCM_PATH* [*VOLUME* [*VOLUME*]]
+volume *PCM_PATH* [*VOLUME* [*VOLUME*]...]
     Get or set the volume value of the given PCM.
 
     If *VOLUME* is given, set the loudness component of the volume property of
@@ -131,11 +131,10 @@ volume *PCM_PATH* [*VOLUME* [*VOLUME*]]
     If only one value *VOLUME* is given it is applied to all channels.
     For stereo (2-channel) PCMs the first value *VOLUME* is applied to channel
     1 (Left), and the second value *VOLUME* is applied to channel 2 (Right).
-    For mono (1-channel) PCMs the second value *VOLUME* is ignored.
 
     Valid A2DP values for *VOLUME* are 0-127, valid HFP/HSP values are 0-15.
 
-mute *PCM_PATH* [*STATE* [*STATE*]]
+mute *PCM_PATH* [*STATE* [*STATE*]...]
     Get or set the mute switch of the given PCM.
 
     If *STATE* argument(s) are given, set mute component of the volume property

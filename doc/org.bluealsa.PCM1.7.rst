@@ -53,6 +53,8 @@ array{string, dict} GetCodecs()
         List of supported number of audio channels.
     :array{uint32} SupportedSampling:
         List of supported sampling frequency.
+    :array{array{string}} ChannelMaps:
+        List of supported channel maps.
 
 void SelectCodec(string codec, dict props)
     Select PCM codec. This call shall be made before PCM stream opening for
@@ -145,6 +147,9 @@ uint16 Format [readonly]
 byte Channels [readonly]
     Number of audio channels.
 
+array{string} ChannelMap [readonly]
+    Channel map for selected codec.
+
 uint32 Sampling [readonly]
     Sampling frequency.
 
@@ -170,11 +175,10 @@ boolean SoftVolume [readwrite]
     internally or will delegate this task to BlueALSA PCM client or connected
     Bluetooth device respectively for PCM sink or PCM source.
 
-uint16 Volume [readwrite]
-    This property holds volume (loudness) value and mute information for
-    channel 1 (left) and 2 (right). Data for channel 1 is stored in the upper
-    byte, channel 2 is stored in the lower byte. The highest bit of both bytes
-    determines whether channel is muted.
+array{byte} Volume [readwrite]
+    This property holds volume (loudness) for all channels. The highest bit
+    of each byte determines whether channel is muted. The order of channels
+    is defined by the ChannelMap property.
 
     Possible values:
     ::

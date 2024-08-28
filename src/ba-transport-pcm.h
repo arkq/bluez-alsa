@@ -54,6 +54,18 @@ enum ba_transport_pcm_state {
 #define BA_TRANSPORT_PCM_FORMAT_S24_4LE BA_TRANSPORT_PCM_FORMAT(1, 24, 4, 0)
 #define BA_TRANSPORT_PCM_FORMAT_S32_4LE BA_TRANSPORT_PCM_FORMAT(1, 32, 4, 0)
 
+enum ba_transport_pcm_channel {
+	BA_TRANSPORT_PCM_CHANNEL_MONO, /* mono */
+	BA_TRANSPORT_PCM_CHANNEL_FL,   /* front left */
+	BA_TRANSPORT_PCM_CHANNEL_FR,   /* front right */
+	BA_TRANSPORT_PCM_CHANNEL_FC,   /* front center */
+	BA_TRANSPORT_PCM_CHANNEL_RL,   /* rear left */
+	BA_TRANSPORT_PCM_CHANNEL_RR,   /* rear right */
+	BA_TRANSPORT_PCM_CHANNEL_SL,   /* side left */
+	BA_TRANSPORT_PCM_CHANNEL_SR,   /* side right */
+	BA_TRANSPORT_PCM_CHANNEL_LFE,  /* low frequency effects */
+};
+
 struct ba_transport_pcm_volume {
 	/* volume level change in "dB * 100" */
 	int level;
@@ -126,9 +138,11 @@ struct ba_transport_pcm {
 	/* internal software volume control */
 	bool soft_volume;
 
-	/* Volume configuration for channel left [0] and right [1]. In case of
-	 * a monophonic sound, only the left [0] channel shall be used. */
-	struct ba_transport_pcm_volume volume[2];
+	/* channel map for current PCM configuration */
+	enum ba_transport_pcm_channel channel_map[8];
+
+	/* per-channel volume */
+	struct ba_transport_pcm_volume volume[8];
 
 	/* new PCM client mutex */
 	pthread_mutex_t client_mtx;
@@ -245,5 +259,8 @@ void ba_transport_pcm_delay_adjustment_set(
 		struct ba_transport_pcm *pcm,
 		uint32_t codec_id,
 		int16_t adjustment);
+
+const char *ba_transport_pcm_channel_to_string(
+		enum ba_transport_pcm_channel channel);
 
 #endif

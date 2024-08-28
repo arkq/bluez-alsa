@@ -245,6 +245,17 @@ static GVariant *ba_variant_new_pcm_channels(const struct ba_transport_pcm *pcm)
 	return g_variant_new_byte(pcm->channels);
 }
 
+static GVariant *ba_variant_new_pcm_channel_map(const struct ba_transport_pcm *pcm) {
+
+	const char *strv[ARRAYSIZE(pcm->channel_map)];
+	const size_t n = pcm->channels;
+
+	for (size_t i = 0; i < n; i++)
+		strv[i] = ba_transport_pcm_channel_to_string(pcm->channel_map[i]);
+
+	return g_variant_new_strv(strv, n);
+}
+
 static GVariant *ba_variant_new_pcm_sampling(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint32(pcm->sampling);
 }
@@ -286,13 +297,17 @@ static uint8_t ba_volume_pack_dbus_volume(bool muted, int value) {
 }
 
 static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
+
 	const bool is_sco = pcm->t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
 	const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
-	uint8_t ch1 = ba_volume_pack_dbus_volume(pcm->volume[0].scale == 0,
-			ba_transport_pcm_volume_level_to_range(pcm->volume[0].level, max));
-	uint8_t ch2 = ba_volume_pack_dbus_volume(pcm->volume[1].scale == 0,
-			ba_transport_pcm_volume_level_to_range(pcm->volume[1].level, max));
-	return g_variant_new_uint16((ch1 << 8) | (pcm->channels == 1 ? 0 : ch2));
+	const size_t n = pcm->channels;
+
+	uint8_t volume[ARRAYSIZE(pcm->volume)];
+	for (size_t i = 0; i < n; i++)
+		volume[i] = ba_volume_pack_dbus_volume(pcm->volume[i].scale == 0,
+				ba_transport_pcm_volume_level_to_range(pcm->volume[i].level, max));
+
+	return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, volume, n, sizeof(*volume));
 }
 
 static int ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata) {
@@ -302,6 +317,16 @@ static int ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata)
 
 static int ba_populate_sampling(struct a2dp_bit_mapping mapping, void *userdata) {
 	g_variant_builder_add_value(userdata, g_variant_new_uint32(mapping.value));
+	return 0;
+}
+
+static int ba_populate_channel_map(struct a2dp_bit_mapping mapping, void *userdata) {
+
+	const char *strv[16];
+	for (size_t i = 0; i < mapping.ch.channels; i++)
+		strv[i] = ba_transport_pcm_channel_to_string(mapping.ch.map[i]);
+
+	g_variant_builder_add_value(userdata, g_variant_new_strv(strv, mapping.ch.channels));
 	return 0;
 }
 
@@ -326,6 +351,10 @@ static void ba_variant_populate_remote_sep(GVariantBuilder *props,
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("au"));
 	sep->caps_helpers->foreach_sampling_freq(&caps, stream, ba_populate_sampling, &builder);
 	g_variant_builder_add(props, "{sv}", "SupportedSampling", g_variant_builder_end(&builder));
+
+	g_variant_builder_init(&builder, G_VARIANT_TYPE("aas"));
+	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channel_map, &builder);
+	g_variant_builder_add(props, "{sv}", "ChannelMaps", g_variant_builder_end(&builder));
 
 }
 
@@ -937,6 +966,8 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 		return ba_variant_new_pcm_format(pcm);
 	if (strcmp(property, "Channels") == 0)
 		return ba_variant_new_pcm_channels(pcm);
+	if (strcmp(property, "ChannelMap") == 0)
+		return ba_variant_new_pcm_channel_map(pcm);
 	if (strcmp(property, "Sampling") == 0)
 		return ba_variant_new_pcm_sampling(pcm);
 	if (strcmp(property, "Codec") == 0) {
@@ -970,14 +1001,13 @@ unavailable:
 
 static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 		GError **error, void *userdata) {
-	(void)error;
 
 	struct ba_transport_pcm *pcm = userdata;
 
 	if (strcmp(property, "SoftVolume") == 0) {
 		pcm->soft_volume = g_variant_get_boolean(value);
 		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_SOFT_VOLUME);
-		return TRUE;
+		return true;
 	}
 
 	if (strcmp(property, "Volume") == 0) {
@@ -985,30 +1015,37 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 		const bool is_sco = pcm->t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
 		const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
 
-		uint16_t packed = g_variant_get_uint16(value);
-		uint8_t ch1 = packed >> 8;
-		uint8_t ch2 = packed & 0xFF;
+		size_t channels = 0;
+		const uint8_t *volume = g_variant_get_fixed_array(value, &channels, sizeof(uint8_t));
 
-		int ch1_level = ba_transport_pcm_volume_range_to_level(ch1 & 0x7F, max);
-		bool ch1_muted = !!(ch1 & 0x80);
-		int ch2_level = ba_transport_pcm_volume_range_to_level(ch2 & 0x7F, max);
-		bool ch2_muted = !!(ch2 & 0x80);
+		if (channels != pcm->channels) {
+			*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+					"Invalid number of channels: %zu != %u", channels, pcm->channels);
+			return false;
+		}
 
 		pthread_mutex_lock(&pcm->mutex);
-		ba_transport_pcm_volume_set(&pcm->volume[0], &ch1_level, &ch1_muted, NULL);
-		ba_transport_pcm_volume_set(&pcm->volume[1], &ch2_level, &ch2_muted, NULL);
+
+		for (size_t i = 0; i < channels; i++) {
+
+			const bool muted = !!(volume[i] & 0x80);
+			const int level = ba_transport_pcm_volume_range_to_level(volume[i] & 0x7F, max);
+
+			debug("Setting volume [ch=%zu]: %u [%.2f dB] [%c]",
+					i, volume[i] & 0x7F, 0.01 * level, muted ? 'x' : ' ');
+
+			ba_transport_pcm_volume_set(&pcm->volume[i], &level, &muted, NULL);
+
+		}
+
 		pthread_mutex_unlock(&pcm->mutex);
 
-		debug("Setting volume: %u [%.2f dB] %c%c %u [%.2f dB]",
-				ch1 & 0x7F, 0.01 * ch1_level, ch1_muted ? 'x' : '<',
-				ch2_muted ? 'x' : '>', ch2 & 0x7F, 0.01 * ch2_level);
-
 		ba_transport_pcm_volume_update(pcm);
-		return TRUE;
+		return true;
 	}
 
 	g_assert_not_reached();
-	return FALSE;
+	return false;
 }
 
 /**
@@ -1075,6 +1112,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Format", ba_variant_new_pcm_format(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CHANNELS)
 		g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_CHANNEL_MAP)
+		g_variant_builder_add(&props, "{sv}", "ChannelMap", ba_variant_new_pcm_channel_map(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_SAMPLING)
 		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC)

@@ -281,19 +281,25 @@ void bactl_print_pcm_soft_volume(const struct ba_pcm *pcm) {
 	printf("SoftVolume: %s\n", pcm->soft_volume ? "true" : "false");
 }
 
+void bactl_print_pcm_channel_map(const struct ba_pcm *pcm) {
+	printf("ChannelMap:");
+	for (size_t i = 0; i < pcm->channels; i++)
+		printf(" %s", pcm->channel_map[i]);
+	printf("\n");
+}
+
 void bactl_print_pcm_volume(const struct ba_pcm *pcm) {
-	if (pcm->channels == 2)
-		printf("Volume: L: %u R: %u\n", pcm->volume.ch1_volume, pcm->volume.ch2_volume);
-	else
-		printf("Volume: %u\n", pcm->volume.ch1_volume);
+	printf("Volume:");
+	for (size_t i = 0; i < pcm->channels; i++)
+		printf(" %u", pcm->volume[i].volume);
+	printf("\n");
 }
 
 void bactl_print_pcm_mute(const struct ba_pcm *pcm) {
-	if (pcm->channels == 2)
-		printf("Muted: L: %s R: %s\n", pcm->volume.ch1_muted ? "true" : "false",
-				pcm->volume.ch2_muted ? "true" : "false");
-	else
-		printf("Muted: %s\n", pcm->volume.ch1_muted ? "true" : "false");
+	printf("Mute:");
+	for (size_t i = 0; i < pcm->channels; i++)
+		printf(" %s", pcm->volume[i].muted ? "on" : "off");
+	printf("\n");
 }
 
 void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
@@ -310,6 +316,7 @@ void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
 	printf("DelayAdjustment: %#.1f ms\n", (double)pcm->delay_adjustment / 10);
 	bactl_print_pcm_soft_volume(pcm);
+	bactl_print_pcm_channel_map(pcm);
 	bactl_print_pcm_volume(pcm);
 	bactl_print_pcm_mute(pcm);
 }

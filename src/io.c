@@ -113,14 +113,12 @@ void io_pcm_scale(
 
 	const unsigned int channels = pcm->channels;
 	const bool pcm_soft_volume = pcm->soft_volume;
-	double pcm_volume_ch_scales[] = {
-		pcm->volume[0].scale,
-		pcm->volume[1].scale,
-	};
+
+	double pcm_volume_ch_scales[ARRAYSIZE(pcm->volume)];
+	for (size_t i = 0; i < ARRAYSIZE(pcm_volume_ch_scales); i++)
+		pcm_volume_ch_scales[i] = pcm->volume[i].scale;
 
 	pthread_mutex_unlock(&pcm->mutex);
-
-	g_assert_cmpint(channels, <=, ARRAYSIZE(pcm_volume_ch_scales));
 
 	if (!pcm_soft_volume)
 		/* In case of hardware volume control we will perform mute operation,

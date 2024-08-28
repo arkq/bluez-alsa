@@ -416,10 +416,10 @@ static int io_worker_mixer_volume_sync_ba_pcm(
 	if (!worker->mixer_has_mute_switch)
 		muted = pcm_muted;
 
-	ba_pcm->volume.ch1_muted = muted;
-	ba_pcm->volume.ch1_volume = volume;
-	ba_pcm->volume.ch2_muted = muted;
-	ba_pcm->volume.ch2_volume = volume;
+	for (size_t i = 0; i < ba_pcm->channels; i++) {
+		ba_pcm->volume[i].muted = muted;
+		ba_pcm->volume[i].volume = volume;
+	}
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (!ba_dbus_pcm_update(&dbus_ctx, ba_pcm, BLUEALSA_PCM_VOLUME, &err)) {
@@ -452,20 +452,18 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	 * some kind of channel mapping. In order to simplify things, we will set
 	 * all channels to the average left-right volume. */
 
-	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
-	int volume = ba_pcm->volume.ch1_volume;
-	int muted = ba_pcm->volume.ch1_muted;
-
-	if (ba_pcm->channels > 1) {
-		volume = (ba_pcm->volume.ch1_volume + ba_pcm->volume.ch2_volume) / 2;
-		muted = ba_pcm->volume.ch1_muted || ba_pcm->volume.ch2_muted;
+	int volume_sum = 0, muted = 0;
+	for (size_t i = 1; i < ba_pcm->channels; i++) {
+		volume_sum += ba_pcm->volume[i].volume;
+		muted |= ba_pcm->volume[i].muted;
 	}
 
 	/* keep local muted state up to date */
 	pcm_muted = muted;
 
+	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
 	/* convert loudness to dB using decibel formula */
-	long db = 10 * log2(1.0 * volume / vmax) * 100;
+	long db = 10 * log2(1.0 * volume_sum / ba_pcm->channels / vmax) * 100;
 	db += worker->mixer_volume_db_max_value;
 
 	int err;

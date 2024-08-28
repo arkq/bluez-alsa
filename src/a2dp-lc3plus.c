@@ -39,15 +39,23 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const enum ba_transport_pcm_channel a2dp_lc3plus_channel_map_mono[] = {
+	BA_TRANSPORT_PCM_CHANNEL_MONO,
+};
+
+static const enum ba_transport_pcm_channel a2dp_lc3plus_channel_map_stereo[] = {
+	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
+};
+
 static const struct a2dp_bit_mapping a2dp_lc3plus_channels[] = {
-	{ LC3PLUS_CHANNEL_MODE_MONO, 1 },
-	{ LC3PLUS_CHANNEL_MODE_STEREO, 2 },
+	{ LC3PLUS_CHANNEL_MODE_MONO, .ch = { 1, a2dp_lc3plus_channel_map_mono } },
+	{ LC3PLUS_CHANNEL_MODE_STEREO, .ch = { 2, a2dp_lc3plus_channel_map_stereo } },
 	{ 0 }
 };
 
 static const struct a2dp_bit_mapping a2dp_lc3plus_samplings[] = {
-	{ LC3PLUS_SAMPLING_FREQ_48000, 48000 },
-	{ LC3PLUS_SAMPLING_FREQ_96000, 96000 },
+	{ LC3PLUS_SAMPLING_FREQ_48000, { 48000 } },
+	{ LC3PLUS_SAMPLING_FREQ_96000, { 96000 } },
 	{ 0 }
 };
 
@@ -669,13 +677,13 @@ static int a2dp_lc3plus_configuration_check(
 		return A2DP_CHECK_ERR_FRAME_DURATION;
 	}
 
-	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_channels, conf_v.channel_mode) == 0) {
+	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_channels, conf_v.channel_mode) == -1) {
 		debug("LC3plus: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
 
 	uint16_t conf_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(conf_v);
-	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings, conf_sampling_freq) == 0) {
+	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings, conf_sampling_freq) == -1) {
 		debug("LC3plus: Invalid sampling frequency: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(*conf));
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
@@ -685,19 +693,22 @@ static int a2dp_lc3plus_configuration_check(
 
 static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
-	unsigned int channels;
-	if ((channels = a2dp_bit_mapping_lookup(a2dp_lc3plus_channels,
-					t->a2dp.configuration.lc3plus.channel_mode)) == 0)
+	ssize_t channels_i;
+	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_channels,
+					t->a2dp.configuration.lc3plus.channel_mode)) == -1)
 		return -1;
 
-	unsigned int sampling;
-	if ((sampling = a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings,
-					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->a2dp.configuration.lc3plus))) == 0)
+	ssize_t sampling_i;
+	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings,
+					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->a2dp.configuration.lc3plus))) == -1)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
-	t->a2dp.pcm.channels = channels;
-	t->a2dp.pcm.sampling = sampling;
+	t->a2dp.pcm.channels = a2dp_lc3plus_channels[channels_i].value;
+	t->a2dp.pcm.sampling = a2dp_lc3plus_samplings[sampling_i].value;
+
+	memcpy(t->a2dp.pcm.channel_map, a2dp_lc3plus_channels[channels_i].ch.map,
+			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
 
 	return 0;
 }

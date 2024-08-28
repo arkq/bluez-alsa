@@ -1336,9 +1336,7 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 
 	n = 0;
 	for (size_t i = 0; i < ARRAYSIZE(codec->channels) && codec->channels[i] != 0; i++)
-		/* TODO: Remove this when BlueALSA will support channels mapping. */
-		if (codec->channels[i] <= 2)
-			list[n++] = codec->channels[i];
+		list[n++] = codec->channels[i];
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_CHANNELS, n, list)) < 0)
 		return err;
 
@@ -1353,21 +1351,26 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 
 static bool bluealsa_update_pcm_volume(struct bluealsa_pcm *pcm,
 		int volume, int mute, DBusError *err) {
-	uint16_t old = pcm->ba_pcm.volume.raw;
+
+	uint8_t old[ARRAYSIZE(pcm->ba_pcm.volume)];
+	memcpy(old, pcm->ba_pcm.volume, sizeof(old));
+
 	if (volume >= 0) {
 		const int v = BA_PCM_VOLUME_MAX(&pcm->ba_pcm) * volume / 100;
-		pcm->ba_pcm.volume.ch1_volume = v;
-		if (pcm->ba_pcm.channels == 2)
-			pcm->ba_pcm.volume.ch2_volume = v;
+		for (size_t i = 0; i < pcm->ba_pcm.channels; i++)
+			pcm->ba_pcm.volume[i].volume = v;
 	}
+
 	if (mute >= 0) {
 		const bool v = !!mute;
-		pcm->ba_pcm.volume.ch1_muted = v;
-		if (pcm->ba_pcm.channels == 2)
-			pcm->ba_pcm.volume.ch2_muted = v;
+		for (size_t i = 0; i < pcm->ba_pcm.channels; i++)
+			pcm->ba_pcm.volume[i].muted = v;
 	}
-	if (pcm->ba_pcm.volume.raw == old)
+
+	/* check whether update is required */
+	if (memcmp(pcm->ba_pcm.volume, old, sizeof(old)) == 0)
 		return true;
+
 	return ba_dbus_pcm_update(&pcm->dbus_ctx, &pcm->ba_pcm, BLUEALSA_PCM_VOLUME, err);
 }
 

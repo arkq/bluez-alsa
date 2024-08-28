@@ -19,7 +19,7 @@
 
 static void usage(const char *command) {
 	printf("Get or set the volume value of the given PCM.\n\n");
-	bactl_print_usage("%s [OPTION]... PCM-PATH [VOLUME [VOLUME]]", command);
+	bactl_print_usage("%s [OPTION]... PCM-PATH [VOLUME [VOLUME]...]", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"\nPositional arguments:\n"
@@ -57,10 +57,6 @@ static int cmd_volume_func(int argc, char *argv[]) {
 		cmd_print_error("Missing BlueALSA PCM path argument");
 		return EXIT_FAILURE;
 	}
-	if (argc - optind > 3) {
-		cmd_print_error("Invalid number of arguments");
-		return EXIT_FAILURE;
-	}
 
 	DBusError err = DBUS_ERROR_INIT;
 	const char *path = argv[optind];
@@ -76,35 +72,33 @@ static int cmd_volume_func(int argc, char *argv[]) {
 		return EXIT_SUCCESS;
 	}
 
-	int vol1, vol2;
-	vol1 = vol2 = atoi(argv[optind + 1]);
-	if (argc - optind == 3)
-		vol2 = atoi(argv[optind + 2]);
+	if (argc - optind - 1 > pcm.channels) {
+		cmd_print_error("Invalid number of channels: %d > %d",
+				argc - optind - 1, pcm.channels);
+		return EXIT_FAILURE;
+	}
 
-	if (pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP) {
-		if (vol1 < 0 || vol1 > 127) {
-			cmd_print_error("Invalid volume [0, 127]: %d", vol1);
+	const int v_min = 0;
+	const int v_max = pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP ? 127 : 15;
+
+	for (size_t i = 0; i < (size_t)argc - optind - 1; i++) {
+
+		const int v = atoi(argv[optind + 1 + i]);
+		pcm.volume[i].volume = v;
+
+		if (v < v_min || v > v_max) {
+			cmd_print_error("Invalid volume [%d, %d]: %d", v_min, v_max, v);
 			return EXIT_FAILURE;
 		}
-		pcm.volume.ch1_volume = vol1;
-		if (pcm.channels == 2) {
-			if (vol2 < 0 || vol2 > 127) {
-				cmd_print_error("Invalid volume [0, 127]: %d", vol2);
-				return EXIT_FAILURE;
-			}
-			pcm.volume.ch2_volume = vol2;
-		}
+
 	}
-	else {
-		if (vol1 < 0 || vol1 > 15) {
-			cmd_print_error("Invalid volume [0, 15]: %d", vol1);
-			return EXIT_FAILURE;
-		}
-		pcm.volume.ch1_volume = vol1;
-	}
+
+	/* Upscale volume values to update all PCM channels. */
+	for (size_t i = argc - optind - 1; i < pcm.channels; i++)
+		pcm.volume[i].volume = pcm.volume[0].volume;
 
 	if (!ba_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
-		cmd_print_error("Volume loudness update failed: %s", err.message);
+		cmd_print_error("Volume update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 

@@ -36,15 +36,23 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const enum ba_transport_pcm_channel a2dp_opus_channel_map_mono[] = {
+	BA_TRANSPORT_PCM_CHANNEL_MONO,
+};
+
+static const enum ba_transport_pcm_channel a2dp_opus_channel_map_stereo[] = {
+	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
+};
+
 static const struct a2dp_bit_mapping a2dp_opus_channels[] = {
-	{ OPUS_CHANNEL_MODE_MONO, 1 },
-	{ OPUS_CHANNEL_MODE_DUAL, 2 },
-	{ OPUS_CHANNEL_MODE_STEREO, 2 },
+	{ OPUS_CHANNEL_MODE_MONO, .ch = { 1, a2dp_opus_channel_map_mono } },
+	{ OPUS_CHANNEL_MODE_DUAL, .ch = { 2, a2dp_opus_channel_map_stereo } },
+	{ OPUS_CHANNEL_MODE_STEREO, .ch = { 2, a2dp_opus_channel_map_stereo } },
 	{ 0 }
 };
 
 static const struct a2dp_bit_mapping a2dp_opus_samplings[] = {
-	{ OPUS_SAMPLING_FREQ_48000, 48000 },
+	{ OPUS_SAMPLING_FREQ_48000, { 48000 } },
 	{ 0 }
 };
 
@@ -400,7 +408,7 @@ static int a2dp_opus_configuration_check(
 	/* Validate configuration against BlueALSA capabilities. */
 	a2dp_opus_caps_intersect(&conf_v, &sep->config.capabilities);
 
-	if (a2dp_bit_mapping_lookup(a2dp_opus_samplings, conf_v.sampling_freq) == 0) {
+	if (a2dp_bit_mapping_lookup(a2dp_opus_samplings, conf_v.sampling_freq) == -1) {
 		debug("Opus: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
@@ -414,7 +422,7 @@ static int a2dp_opus_configuration_check(
 		return A2DP_CHECK_ERR_FRAME_DURATION;
 	}
 
-	if (a2dp_bit_mapping_lookup(a2dp_opus_channels, conf_v.channel_mode) == 0) {
+	if (a2dp_bit_mapping_lookup(a2dp_opus_channels, conf_v.channel_mode) == -1) {
 		debug("Opus: Invalid channel mode: %#x", conf->channel_mode);
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
@@ -424,19 +432,22 @@ static int a2dp_opus_configuration_check(
 
 static int a2dp_opus_transport_init(struct ba_transport *t) {
 
-	unsigned int channels;
-	if ((channels = a2dp_bit_mapping_lookup(a2dp_opus_channels,
-					t->a2dp.configuration.opus.channel_mode)) == 0)
+	ssize_t channels_i;
+	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_opus_channels,
+					t->a2dp.configuration.opus.channel_mode)) == -1)
 		return -1;
 
-	unsigned int sampling;
-	if ((sampling = a2dp_bit_mapping_lookup(a2dp_opus_samplings,
-					t->a2dp.configuration.opus.sampling_freq)) == 0)
+	ssize_t sampling_i;
+	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_opus_samplings,
+					t->a2dp.configuration.opus.sampling_freq)) == -1)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = channels;
-	t->a2dp.pcm.sampling = sampling;
+	t->a2dp.pcm.channels = a2dp_opus_channels[channels_i].value;
+	t->a2dp.pcm.sampling = a2dp_opus_samplings[sampling_i].value;
+
+	memcpy(t->a2dp.pcm.channel_map, a2dp_opus_channels[channels_i].ch.map,
+			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
 
 	return 0;
 }

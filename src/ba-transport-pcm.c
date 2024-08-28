@@ -77,10 +77,10 @@ int transport_pcm_init(
 	pcm->pipe[0] = -1;
 	pcm->pipe[1] = -1;
 
-	pcm->volume[0].level = config.volume_init_level;
-	pcm->volume[1].level = config.volume_init_level;
-	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL, NULL);
-	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
+	for (size_t i = 0; i < ARRAYSIZE(pcm->volume); i++) {
+		pcm->volume[i].level = config.volume_init_level;
+		ba_transport_pcm_volume_set(&pcm->volume[i], NULL, NULL, NULL);
+	}
 
 	pthread_mutex_init(&pcm->mutex, NULL);
 	pthread_mutex_init(&pcm->state_mtx, NULL);
@@ -649,23 +649,15 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* A2DP specification defines volume property as a single value - volume
-		 * for only one channel. For stereo audio we will use an average of left
-		 * and right PCM channels. */
+		 * for only one channel. For multi-channel audio, we will use calculated
+		 * average volume level. */
 
-		unsigned int volume;
-		switch (pcm->channels) {
-		case 1:
-			volume = ba_transport_pcm_volume_level_to_range(
-					pcm->volume[0].level, BLUEZ_A2DP_VOLUME_MAX);
-			break;
-		case 2:
-			volume = ba_transport_pcm_volume_level_to_range(
-					(pcm->volume[0].level + pcm->volume[1].level) / 2,
-					BLUEZ_A2DP_VOLUME_MAX);
-			break;
-		default:
-			g_assert_not_reached();
-		}
+		int level_sum = 0;
+		for (size_t i = 0; i < pcm->channels; i++)
+			level_sum += pcm->volume[i].level;
+
+		unsigned int volume = ba_transport_pcm_volume_level_to_range(
+				level_sum / pcm->channels, BLUEZ_A2DP_VOLUME_MAX);
 
 		/* skip update if nothing has changed */
 		if (volume != t->a2dp.volume) {
@@ -739,4 +731,32 @@ void ba_transport_pcm_delay_adjustment_set(
 	g_hash_table_insert(pcm->delay_adjustments,
 			GINT_TO_POINTER(codec_id), GINT_TO_POINTER(adjustment));
 	pthread_mutex_unlock(&pcm->delay_adjustments_mtx);
+}
+
+const char *ba_transport_pcm_channel_to_string(
+		enum ba_transport_pcm_channel channel) {
+	switch (channel) {
+	case BA_TRANSPORT_PCM_CHANNEL_MONO:
+		return "MONO";
+	case BA_TRANSPORT_PCM_CHANNEL_FL:
+		return "FL";
+	case BA_TRANSPORT_PCM_CHANNEL_FR:
+		return "FR";
+	case BA_TRANSPORT_PCM_CHANNEL_FC:
+		return "FC";
+	case BA_TRANSPORT_PCM_CHANNEL_RL:
+		return "RL";
+	case BA_TRANSPORT_PCM_CHANNEL_RR:
+		return "RR";
+	case BA_TRANSPORT_PCM_CHANNEL_SL:
+		return "SL";
+	case BA_TRANSPORT_PCM_CHANNEL_SR:
+		return "SR";
+	case BA_TRANSPORT_PCM_CHANNEL_LFE:
+		return "LFE";
+	default:
+		error("Unsupported channel type: %#x", channel);
+		g_assert_not_reached();
+		return NULL;
+	}
 }
