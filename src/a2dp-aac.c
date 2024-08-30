@@ -590,12 +590,31 @@ static int a2dp_aac_configuration_select(
 		return errno = ENOTSUP, -1;
 	}
 
+	unsigned int sampling_freq = 0;
+	if (a2dp_aac_caps_foreach_sampling_freq(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling_freq);
+	else {
+		error("AAC: No supported sampling frequencies: %#x", A2DP_AAC_GET_SAMPLING_FREQ(saved));
+		return errno = ENOTSUP, -1;
+	}
+
 	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE2 &&
 			/* The HEv2 uses SBR with Parametric Stereo algorithm
 			 * which works only with stereo channel mode. */
-			channel_mode == AAC_CHANNEL_MODE_STEREO)
+			channel_mode == AAC_CHANNEL_MODE_STEREO &&
+			/* High-Efficiency AAC Profile requires sampling
+			 * frequency of at least 16 kHz. */
+			sampling_freq != AAC_SAMPLING_FREQ_8000 &&
+			sampling_freq != AAC_SAMPLING_FREQ_11025 &&
+			sampling_freq != AAC_SAMPLING_FREQ_12000)
 		caps->object_type = AAC_OBJECT_TYPE_MPEG4_HE2;
-	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE)
+	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE &&
+			/* High-Efficiency AAC Profile requires sampling
+			 * frequency of at least 16 kHz. */
+			sampling_freq != AAC_SAMPLING_FREQ_8000 &&
+			sampling_freq != AAC_SAMPLING_FREQ_11025 &&
+			sampling_freq != AAC_SAMPLING_FREQ_12000)
 		caps->object_type = AAC_OBJECT_TYPE_MPEG4_HE;
 	else if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_ELD2)
 		caps->object_type = AAC_OBJECT_TYPE_MPEG4_ELD2;
@@ -609,15 +628,6 @@ static int a2dp_aac_configuration_select(
 		caps->object_type = AAC_OBJECT_TYPE_MPEG2_LC;
 	else {
 		error("AAC: No supported object types: %#x", saved.object_type);
-		return errno = ENOTSUP, -1;
-	}
-
-	unsigned int sampling_freq = 0;
-	if (a2dp_aac_caps_foreach_sampling_freq(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
-		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling_freq);
-	else {
-		error("AAC: No supported sampling frequencies: %#x", A2DP_AAC_GET_SAMPLING_FREQ(saved));
 		return errno = ENOTSUP, -1;
 	}
 

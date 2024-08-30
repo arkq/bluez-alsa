@@ -1013,6 +1013,58 @@ CK_START_TEST(test_a2dp_aac) {
 } CK_END_TEST
 #endif
 
+#if ENABLE_AAC
+CK_START_TEST(test_a2dp_aac_configuration_select) {
+
+	static const unsigned int channels[] = { 1, 2, 6, 8 };
+	static const unsigned int samplings[] = {
+		8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000 };
+
+	/* Probe AAC encoder for supported configurations. */
+	a2dp_aac_source.init(&a2dp_aac_source);
+
+	/* Check whether we are able to run the encoder with all
+	 * allegedly supported configurations. */
+
+	for (size_t i = 0; i < ARRAYSIZE(channels); i++)
+		for (size_t j = 0; j < ARRAYSIZE(samplings); j++) {
+
+			a2dp_aac_t config_aac;
+			/* Initialize all bit-fields to 1. */
+			memset(&config_aac, 0xFF, sizeof(config_aac));
+
+			a2dp_aac_source.caps_helpers->select_channel_mode(&config_aac, A2DP_MAIN, channels[i]);
+			a2dp_aac_source.caps_helpers->select_sampling_freq(&config_aac, A2DP_MAIN, samplings[j]);
+
+			/* Select the configuration based on the pre-selected capabilities. */
+			if (a2dp_aac_source.configuration_select(&a2dp_aac_source, &config_aac) != 0) {
+				debug("AAC unsupported configuration: channels=%u, sampling=%u",
+						channels[i], samplings[j]);
+				continue;
+			}
+
+			hexdump("AAC configuration", &config_aac, sizeof(config_aac));
+			struct ba_transport *t = test_transport_new_a2dp(device1,
+					BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aac", &a2dp_aac_source,
+					&config_aac);
+
+			int bt_fds[2];
+			ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+			debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
+			t->mtu_read = t->mtu_write = 153 * 3;
+			t->bt_fd = bt_fds[1];
+
+			ck_assert_int_eq(ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_enc_thread, "aac"), 0);
+			ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t->a2dp.pcm), 0);
+
+			ba_transport_destroy(t);
+			close(bt_fds[0]);
+
+		}
+
+} CK_END_TEST
+#endif
+
 #if ENABLE_APTX_IO_TEST
 CK_START_TEST(test_a2dp_aptx) {
 
@@ -1312,6 +1364,7 @@ int main(int argc, char *argv[]) {
 #endif
 #if ENABLE_AAC
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac_configuration_select },
 #endif
 #if ENABLE_APTX_IO_TEST
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID)), test_a2dp_aptx },
