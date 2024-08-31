@@ -1015,6 +1015,50 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
+static snd_mixer_selem_channel_id_t ba_channel_map_to_id(const char *tag) {
+
+	static const struct {
+		const char *tag;
+		snd_mixer_selem_channel_id_t id;
+	} mapping[] = {
+		{ "MONO", SND_MIXER_SCHN_MONO },
+		{ "FL", SND_MIXER_SCHN_FRONT_LEFT },
+		{ "FR", SND_MIXER_SCHN_FRONT_RIGHT },
+		{ "RL", SND_MIXER_SCHN_REAR_LEFT },
+		{ "RR", SND_MIXER_SCHN_REAR_RIGHT },
+		{ "FC", SND_MIXER_SCHN_FRONT_CENTER },
+		{ "LFE", SND_MIXER_SCHN_WOOFER },
+		{ "SL", SND_MIXER_SCHN_SIDE_LEFT },
+		{ "SR", SND_MIXER_SCHN_SIDE_RIGHT },
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(mapping); i++)
+		if (strcmp(tag, mapping[i].tag) == 0)
+			return mapping[i].id;
+	return SND_MIXER_SCHN_UNKNOWN;
+}
+
+/**
+ * Convert BlueALSA channel index to ALSA mixer simple element channel ID.
+ *
+ * ALSA mixer does not use channel map to identify channels. Instead, it uses
+ * simple element channel ID (index) to identify them. This function converts
+ * BlueALSA channel index to ALSA channel index using channel map.
+ *
+ * @param pcm BlueALSA PCM structure.
+ * @param channel BlueALSA PCM channel index.
+ * @return The ALSA mixer simple element channel ID. */
+static snd_mixer_selem_channel_id_t bluealsa_get_channel_id(const struct ba_pcm *pcm,
+		unsigned int channel) {
+	snd_mixer_selem_channel_id_t id = ba_channel_map_to_id(pcm->channel_map[channel]);
+	/* Make sure that the channel ID is within the valid range. */
+	if (id >= 0 && id < pcm->channels)
+		return id;
+	/* Something went wrong - fallback to the mono channel. */
+	SNDERR("Invalid channel map [channel=%u]: %s", channel, pcm->channel_map[channel]);
+	return SND_MIXER_SCHN_MONO;
+}
+
 static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
@@ -1031,11 +1075,11 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
 		for (size_t i = 0; i < pcm->channels; i++)
-			value[i] = active ? !pcm->volume[i].muted : 0;
+			value[bluealsa_get_channel_id(pcm, i)] = active ? !pcm->volume[i].muted : 0;
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
 		for (size_t i = 0; i < pcm->channels; i++)
-			value[i] = active ? pcm->volume[i].volume : 0;
+			value[bluealsa_get_channel_id(pcm, i)] = active ? pcm->volume[i].volume : 0;
 		break;
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
@@ -1073,11 +1117,11 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		return -EINVAL;
 	case CTL_ELEM_TYPE_SWITCH:
 		for (size_t i = 0; i < pcm->channels; i++)
-			pcm->volume[i].muted = !value[i];
+			pcm->volume[i].muted = !value[bluealsa_get_channel_id(pcm, i)];
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
 		for (size_t i = 0; i < pcm->channels; i++)
-			pcm->volume[i].volume = value[i];
+			pcm->volume[i].volume = value[bluealsa_get_channel_id(pcm, i)];
 		break;
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
