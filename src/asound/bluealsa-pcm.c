@@ -580,15 +580,32 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		debug2("Changing BlueALSA PCM configuration: %u ch, %u Hz -> %u ch, %u Hz",
 				pcm->ba_pcm.channels, pcm->ba_pcm.sampling, channels, sampling);
 
-		if (ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
-				pcm->ba_pcm.codec.name, pcm->ba_pcm_codec_config, pcm->ba_pcm_codec_config_len,
+		const char *codec_name = pcm->ba_pcm.codec.name;
+		if (!ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
+				codec_name, pcm->ba_pcm_codec_config, pcm->ba_pcm_codec_config_len,
 				channels, sampling, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
-			pcm->ba_pcm.channels = channels;
-			pcm->ba_pcm.sampling = sampling;
-		}
-		else {
 			SNDERR("Couldn't change BlueALSA PCM configuration: %s", err.message);
 			return -dbus_error_to_errno(&err);
+		}
+
+		/* After new codec selection, it is necessary to update the PCM data.
+		 * We will do it the off-line manner (without server interaction) to
+		 * speed up the process. */
+
+		pcm->ba_pcm.channels = channels;
+		pcm->ba_pcm.sampling = sampling;
+
+		for (size_t i = 0; i < pcm->ba_pcm_codecs.codecs_len; i++) {
+			const struct ba_pcm_codec *codec = &pcm->ba_pcm_codecs.codecs[i];
+			if (strcmp(codec->name, codec_name) == 0) {
+				for (size_t j = 0; j < ARRAYSIZE(codec->channel_maps); j++)
+					if (codec->channels[j] == channels) {
+						memcpy(pcm->ba_pcm.channel_map, codec->channel_maps[j],
+								sizeof(pcm->ba_pcm.channel_map));
+						break;
+					}
+				break;
+			}
 		}
 
 	}
@@ -1133,6 +1150,76 @@ fail:
 	return -ENODEV;
 }
 
+static enum snd_pcm_chmap_position ba_channel_map_to_position(const char *tag) {
+
+	static const struct {
+		const char *tag;
+		enum snd_pcm_chmap_position pos;
+	} mapping[] = {
+		{ "MONO", SND_CHMAP_MONO },
+		{ "FL", SND_CHMAP_FL },
+		{ "FR", SND_CHMAP_FR },
+		{ "RL", SND_CHMAP_RL },
+		{ "RR", SND_CHMAP_RR },
+		{ "FC", SND_CHMAP_FC },
+		{ "LFE", SND_CHMAP_LFE },
+		{ "SL", SND_CHMAP_SL },
+		{ "SR", SND_CHMAP_SR },
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(mapping); i++)
+		if (strcmp(tag, mapping[i].tag) == 0)
+			return mapping[i].pos;
+	return SND_CHMAP_UNKNOWN;
+}
+
+static snd_pcm_chmap_query_t **bluealsa_query_chmaps(snd_pcm_ioplug_t *io) {
+	struct bluealsa_pcm *pcm = io->private_data;
+
+	const struct ba_pcm_codec *codec = &pcm->ba_pcm.codec;
+	for (size_t i = 0; i < pcm->ba_pcm_codecs.codecs_len; i++)
+		if (strcmp(pcm->ba_pcm_codecs.codecs[i].name, codec->name) == 0) {
+			codec = &pcm->ba_pcm_codecs.codecs[i];
+			break;
+		}
+
+	snd_pcm_chmap_query_t **maps;
+	if ((maps = malloc(sizeof(*maps) * (ARRAYSIZE(codec->channel_maps) + 1))) == NULL)
+		return NULL;
+
+	maps[ARRAYSIZE(codec->channel_maps)] = NULL;
+	for (size_t i = 0; i < ARRAYSIZE(codec->channel_maps); i++) {
+
+		unsigned int channels;
+		if ((channels = codec->channels[i]) == 0)
+			break;
+
+		maps[i] = malloc(sizeof(*maps[i]) + (channels * sizeof(*maps[i]->map.pos)));
+		maps[i]->type = SND_CHMAP_TYPE_FIXED;
+		maps[i]->map.channels = channels;
+
+		for (size_t j = 0; j < channels; j++)
+			maps[i]->map.pos[j] = ba_channel_map_to_position(codec->channel_maps[i][j]);
+
+	}
+
+	return maps;
+}
+
+static snd_pcm_chmap_t *bluealsa_get_chmap(snd_pcm_ioplug_t *io) {
+	struct bluealsa_pcm *pcm = io->private_data;
+
+	snd_pcm_chmap_t *map;
+	if ((map = malloc(sizeof(*map) + (io->channels * sizeof(*map->pos)))) == NULL)
+		return NULL;
+
+	map->channels = io->channels;
+	for (size_t i = 0; i < io->channels; i++)
+		map->pos[i] = ba_channel_map_to_position(pcm->ba_pcm.channel_map[i]);
+
+	return map;
+}
+
 static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.start = bluealsa_start,
 	.stop = bluealsa_stop,
@@ -1149,6 +1236,8 @@ static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.poll_descriptors_count = bluealsa_poll_descriptors_count,
 	.poll_descriptors = bluealsa_poll_descriptors,
 	.poll_revents = bluealsa_poll_revents,
+	.query_chmaps = bluealsa_query_chmaps,
+	.get_chmap = bluealsa_get_chmap,
 };
 
 static int str2bdaddr(const char *str, bdaddr_t *ba) {

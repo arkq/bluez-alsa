@@ -89,6 +89,8 @@ struct ba_pcm_codec {
 	unsigned char channels[8];
 	/* sampling frequencies supported by the codec */
 	dbus_uint32_t sampling[16];
+	/* channel maps associated with supported number of channels */
+	char channel_maps[8][8][5];
 };
 
 /**

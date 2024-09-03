@@ -232,32 +232,54 @@ static void dbus_message_iter_get_codec_data(DBusMessageIter *variant,
 static void dbus_message_iter_get_codec_supported_channels(DBusMessageIter *variant,
 		struct ba_pcm_codec *codec) {
 
-		DBusMessageIter iter;
-		unsigned char *data;
-		int len;
+	DBusMessageIter iter;
+	unsigned char *data;
+	int len;
 
-		dbus_message_iter_recurse(variant, &iter);
-		dbus_message_iter_get_fixed_array(&iter, &data, &len);
+	dbus_message_iter_recurse(variant, &iter);
+	dbus_message_iter_get_fixed_array(&iter, &data, &len);
 
-		len = MIN(len, ARRAYSIZE(codec->channels));
-		for (size_t i = 0; i < (size_t)len; i++)
-			codec->channels[i] = data[i];
+	len = MIN(len, ARRAYSIZE(codec->channels));
+	for (size_t i = 0; i < (size_t)len; i++)
+		codec->channels[i] = data[i];
 
 }
 
 static void dbus_message_iter_get_codec_supported_sampling(DBusMessageIter *variant,
 		struct ba_pcm_codec *codec) {
 
-		DBusMessageIter iter;
-		dbus_uint32_t *data;
-		int len;
+	DBusMessageIter iter;
+	dbus_uint32_t *data;
+	int len;
 
-		dbus_message_iter_recurse(variant, &iter);
-		dbus_message_iter_get_fixed_array(&iter, &data, &len);
+	dbus_message_iter_recurse(variant, &iter);
+	dbus_message_iter_get_fixed_array(&iter, &data, &len);
 
-		len = MIN(len, ARRAYSIZE(codec->sampling));
-		for (size_t i = 0; i < (size_t)len; i++)
-			codec->sampling[i] = data[i];
+	len = MIN(len, ARRAYSIZE(codec->sampling));
+	for (size_t i = 0; i < (size_t)len; i++)
+		codec->sampling[i] = data[i];
+
+}
+
+static void dbus_message_iter_get_codec_channel_maps(DBusMessageIter *variant,
+		struct ba_pcm_codec *codec) {
+
+	size_t i;
+	DBusMessageIter iter_array;
+	for (dbus_message_iter_recurse(variant, &iter_array), i = 0;
+			dbus_message_iter_get_arg_type(&iter_array) != DBUS_TYPE_INVALID;
+			dbus_message_iter_next(&iter_array)) {
+
+		const char *data[ARRAYSIZE(*codec->channel_maps)];
+		size_t length = ARRAYSIZE(data);
+
+		dbus_message_iter_array_get_strings(&iter_array, NULL, data, &length);
+
+		for (size_t j = 0; j < length; j++)
+			strncpy(codec->channel_maps[i][j], data[j], sizeof(codec->channel_maps[i][j]) - 1);
+
+		i++;
+	}
 
 }
 
@@ -294,6 +316,11 @@ static dbus_bool_t ba_dbus_message_iter_pcm_codec_get_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
 		dbus_message_iter_get_codec_supported_sampling(&variant, codec);
+	}
+	else if (strcmp(key, "ChannelMaps") == 0) {
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
+			goto fail;
+		dbus_message_iter_get_codec_channel_maps(&variant, codec);
 	}
 
 	return TRUE;
