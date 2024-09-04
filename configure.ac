@@ -85,7 +85,7 @@ AC_SEARCH_LIBS([pow], [m],
 AC_SEARCH_LIBS([pthread_create], [pthread],
 	[], [AC_MSG_ERROR([pthread library not found])])
 
-PKG_CHECK_MODULES([ALSA], [alsa])
+PKG_CHECK_MODULES([ALSA], [alsa >= 1.0.27])
 PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.51])
 PKG_CHECK_MODULES([DBUS1], [dbus-1 >= 1.6])
 PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])

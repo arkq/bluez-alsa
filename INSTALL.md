@@ -26,8 +26,8 @@ then, to see a complete list of all options:
 
 Dependencies:
 
-- [alsa-lib](https://www.alsa-project.org/)
-- [bluez](http://www.bluez.org/) >= 5.0
+- [alsa-lib](https://www.alsa-project.org/) >= 1.0.27
+- [bluez](http://www.bluez.org/) >= 5.51
 - [glib](https://wiki.gnome.org/Projects/GLib) >= 2.58.2 with GIO support
 - [sbc](https://git.kernel.org/cgit/bluetooth/sbc.git) >= 1.5
 - [docutils](https://docutils.sourceforge.io) (when man pages build is enabled

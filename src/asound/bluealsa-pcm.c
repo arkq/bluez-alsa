@@ -1191,8 +1191,10 @@ static snd_pcm_chmap_query_t **bluealsa_query_chmaps(snd_pcm_ioplug_t *io) {
 	for (size_t i = 0; i < ARRAYSIZE(codec->channel_maps); i++) {
 
 		unsigned int channels;
-		if ((channels = codec->channels[i]) == 0)
+		if ((channels = codec->channels[i]) == 0) {
+			maps[i] = NULL;
 			break;
+		}
 
 		maps[i] = malloc(sizeof(*maps[i]) + (channels * sizeof(*maps[i]->map.pos)));
 		maps[i]->type = SND_CHMAP_TYPE_FIXED;

@@ -310,23 +310,39 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, volume, n, sizeof(*volume));
 }
 
+struct ba_populate_data {
+	GVariantBuilder *builder;
+	/* previously added value */
+	unsigned int value;
+};
+
 static int ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata) {
-	g_variant_builder_add_value(userdata, g_variant_new_byte(mapping.value));
+	struct ba_populate_data *data = userdata;
+	if (data->value == mapping.value)
+		return 0;
+	g_variant_builder_add_value(data->builder, g_variant_new_byte(mapping.value));
+	data->value = mapping.value;
 	return 0;
 }
 
 static int ba_populate_sampling(struct a2dp_bit_mapping mapping, void *userdata) {
-	g_variant_builder_add_value(userdata, g_variant_new_uint32(mapping.value));
+	struct ba_populate_data *data = userdata;
+	g_variant_builder_add_value(data->builder, g_variant_new_uint32(mapping.value));
 	return 0;
 }
 
 static int ba_populate_channel_map(struct a2dp_bit_mapping mapping, void *userdata) {
+	struct ba_populate_data *data = userdata;
+
+	if (data->value == mapping.ch.channels)
+		return 0;
 
 	const char *strv[16];
 	for (size_t i = 0; i < mapping.ch.channels; i++)
 		strv[i] = ba_transport_pcm_channel_to_string(mapping.ch.map[i]);
 
-	g_variant_builder_add_value(userdata, g_variant_new_strv(strv, mapping.ch.channels));
+	g_variant_builder_add_value(data->builder, g_variant_new_strv(strv, mapping.ch.channels));
+	data->value = mapping.ch.channels;
 	return 0;
 }
 
@@ -337,6 +353,7 @@ static void ba_variant_populate_remote_sep(GVariantBuilder *props,
 		enum a2dp_stream stream) {
 
 	GVariantBuilder builder;
+	struct ba_populate_data data = { .builder = &builder };
 
 	a2dp_t caps = remote_sep_cfg->capabilities;
 	sep->caps_helpers->intersect(&caps, &sep->config.capabilities);
@@ -344,16 +361,19 @@ static void ba_variant_populate_remote_sep(GVariantBuilder *props,
 	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_new_fixed_array(
 				G_VARIANT_TYPE_BYTE, &caps, remote_sep_cfg->caps_size, sizeof(uint8_t)));
 
+	data.value = 0;
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("ay"));
-	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channels, &builder);
+	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channels, &data);
 	g_variant_builder_add(props, "{sv}", "SupportedChannels", g_variant_builder_end(&builder));
 
+	data.value = 0;
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("au"));
-	sep->caps_helpers->foreach_sampling_freq(&caps, stream, ba_populate_sampling, &builder);
+	sep->caps_helpers->foreach_sampling_freq(&caps, stream, ba_populate_sampling, &data);
 	g_variant_builder_add(props, "{sv}", "SupportedSampling", g_variant_builder_end(&builder));
 
+	data.value = 0;
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("aas"));
-	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channel_map, &builder);
+	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channel_map, &data);
 	g_variant_builder_add(props, "{sv}", "ChannelMaps", g_variant_builder_end(&builder));
 
 }

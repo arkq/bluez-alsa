@@ -526,6 +526,53 @@ CK_START_TEST(ba_test_playback_hw_constraints) {
 
 } CK_END_TEST
 
+CK_START_TEST(ba_test_playback_channel_maps) {
+
+	if (pcm_device != NULL)
+		return;
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	struct spawn_process sp_ba_mock;
+	snd_pcm_chmap_query_t **ch_maps;
+	snd_pcm_chmap_t *ch_map;
+	snd_pcm_t *pcm = NULL;
+
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+				&buffer_time, &period_time), 0);
+
+	/* get all supported channel maps */
+	ck_assert_ptr_nonnull(ch_maps = snd_pcm_query_chmaps(pcm));
+
+	size_t ch_maps_count = 0;
+	for (size_t i = 0; ch_maps[i] != NULL; i++)
+		ch_maps_count++;
+	/* SBC codec supports only mono and stereo */
+	ck_assert_uint_eq(ch_maps_count, 2);
+
+	ck_assert_uint_eq(ch_maps[0]->type, SND_CHMAP_TYPE_FIXED);
+	ck_assert_uint_eq(ch_maps[0]->map.channels, 1);
+	ck_assert_uint_eq(ch_maps[0]->map.pos[0], SND_CHMAP_MONO);
+
+	ck_assert_uint_eq(ch_maps[1]->type, SND_CHMAP_TYPE_FIXED);
+	ck_assert_uint_eq(ch_maps[1]->map.channels, 2);
+	ck_assert_uint_eq(ch_maps[1]->map.pos[0], SND_CHMAP_FL);
+	ck_assert_uint_eq(ch_maps[1]->map.pos[1], SND_CHMAP_FR);
+
+	/* get currently selected channel map */
+	ck_assert_ptr_nonnull(ch_map = snd_pcm_get_chmap(pcm));
+	/* stereo channel mode shall be selected by default */
+	ck_assert_uint_eq(ch_map->channels, 2);
+	ck_assert_uint_eq(ch_map->pos[0], SND_CHMAP_FL);
+	ck_assert_uint_eq(ch_map->pos[1], SND_CHMAP_FR);
+
+	free(ch_map);
+	snd_pcm_free_chmaps(ch_maps);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
+
+} CK_END_TEST
+
 CK_START_TEST(ba_test_playback_no_codec_selected) {
 
 	if (pcm_device != NULL)
@@ -1164,6 +1211,7 @@ int main(int argc, char *argv[]) {
 		TCase *tc = tcase_create("playback");
 		tcase_add_test(tc, dump_playback);
 		tcase_add_test(tc, ba_test_playback_hw_constraints);
+		tcase_add_test(tc, ba_test_playback_channel_maps);
 		tcase_add_test(tc, ba_test_playback_no_codec_selected);
 		tcase_add_test(tc, ba_test_playback_no_such_device);
 		tcase_add_test(tc, ba_test_playback_extra_setup);
