@@ -53,20 +53,20 @@ flowchart TD
 classDef external fill:#eee,stroke:#333,stroke-width:4px,color:black;
 classDef bluealsa fill:#bbf,stroke:#333,stroke-width:4px,color:black;
 
-A[Bluetooth Adapter] <--> B((bluetoothd\ndaemon))
+A[Bluetooth Adapter] <--> B((bluetoothd<br/>daemon))
 A <--> C((bluealsad daemon))
-B <--> C
-C <--> D((bluealsa-aplay))
+B <-- dbus --> C
+C <-- dbus --> G((bluealsactl))
+C <-- dbus --> D((bluealsa-aplay))
 D --> E([ALSA libasound])
 E --> K[Speakers]
-C <--> F((bluealsa\nALSA plug-ins))
-C <--> G((bluealsactl))
+C <-- dbus --> F((bluealsa<br/>ALSA plug-ins))
 F <--> H([ALSA libasound])
-H <--> I((ALSA\napplications))
-C <--> J((other\nD-Bus clients))
-C <--> L((ALSA MIDI\nsequencer))
+H <--> I((ALSA<br/>applications))
+C <-- dbus --> J(("other D-Bus<br/>clients"))
+C <--> L((ALSA MIDI<br/>sequencer))
 L <--> M([ALSA libasound])
-M <--> N((ALSA MIDI\napplication))
+M <--> N((ALSA MIDI<br/>application))
 
 class A,B,E,H,I,J,K,L,M,N external;
 class C,D,F,G bluealsa;
