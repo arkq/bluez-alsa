@@ -320,8 +320,8 @@ CK_START_TEST(test_mute_and_volume) {
 	snd_ctl_elem_value_set_numid(elem_volume, 10);
 
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem_volume), 0);
-	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 127);
-	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 1), 127);
+	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 50);
+	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 1), 50);
 
 	snd_ctl_elem_value_set_integer(elem_volume, 0, 42);
 	snd_ctl_elem_value_set_integer(elem_volume, 1, 42);

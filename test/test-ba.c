@@ -453,7 +453,7 @@ CK_START_TEST(test_storage) {
 		"\n"
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/sink]\n"
 		"DelayAdjustments=\n"
-		"SoftVolume=true\n"
+		"SoftVolume=false\n"
 		"Volume=\n"
 		"Mute=\n";
 

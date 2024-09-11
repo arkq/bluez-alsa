@@ -148,17 +148,6 @@ OPTIONS
     With this option, **bluealsad** will request such a device uses only 44.1
     kHz sample rate.
 
---a2dp-volume
-    Enable native A2DP volume control.
-    By default **bluealsad** will use its own internal scaling algorithm to
-    attenuate the volume.  This option disables that internal scaling and
-    instead passes the volume change request to the A2DP device.
-    This feature can also be controlled during runtime for individual PCMs via
-    the BlueALSA D-Bus API or by the BlueALSA ALSA plugins; and if so the
-    changed setting will be remembered. See `Volume control`_ in the **NOTES**
-    section below for more information.
-    Note that this feature might not work with all Bluetooth headsets.
-
 --sbc-quality=MODE
     Set SBC encoder quality.
     Default value is **high**.
@@ -370,10 +359,8 @@ for volume control of the target by the gateway device. For A2DP, volume
 control is optionally provided by the AVRCP profile. **bluealsad** provides a
 single, consistent, abstracted interface for volume control of PCMs. This
 interface can use the native Bluetooth features or alternatively **bluealsad**
-also implements its own internal volume control, called "soft-volume". For A2DP
-the default is to use soft-volume, but this can be overridden to use the
-Bluetooth native support where available by using the ``--a2dp-volume`` command
-line option. For HFP/HSP the default is to use Bluetooth native volume control.
+also implements its own internal volume control, called "soft-volume". The
+default behavior is to use native Bluetooth volume control.
 
 When using soft-volume, **bluealsad** scales PCM samples before encoding, and
 after decoding, and does not interact with the Bluetooth AVRCP volume property
@@ -388,9 +375,10 @@ is applied. Volume can be modified by both local clients and the remote device.
 Local clients will be notified of volume changes made by controls on the
 remote device.
 
-A2DP native volume control does not permit independent values for left and
-right channels, so when a client sets such values **bluealsad** will set the
-Bluetooth volume as the average of the two channels.
+A2DP native volume control does not permit independent volume values for audio
+channels. Because of this, when a client sets different values for each audio
+channel, **bluealsad** will set the Bluetooth volume as the average of all
+audio channels.
 
 Volume level, mute status, and soft-volume selection can all be controlled for
 each PCM by using the D-Bus API (or by using ALSA plugins, see
@@ -413,9 +401,7 @@ its mute status according to:
 and its soft-volume status according to:
 
     #. saved value from previous connection
-    #. **false** for SCO (i.e., use native volume control).
-    #. **false** for A2DP if the ``--a2dp-volume`` command line option is given
-    #. **true** for A2DP (i.e., use soft-volume control).
+    #. **false** (i.e., use native volume control)
 
 When native volume control is enabled, then the remote device may also
 modify the volume level after this initial setting. Mute and soft-volume are

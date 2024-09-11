@@ -318,7 +318,7 @@ CK_START_TEST(test_volume) {
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Volume: 127 127"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Volume: 50 50"), NULL);
 
 	/* check default mute */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
@@ -330,16 +330,16 @@ CK_START_TEST(test_volume) {
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "SoftVolume: true"), NULL);
+	ck_assert_ptr_ne(strstr(output, "SoftVolume: false"), NULL);
 
 	/* check setting volume */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "10", "50",
+				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "5", "5",
 				NULL), 0);
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Volume: 10 50"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Volume: 5 5"), NULL);
 
 	/* check setting mute */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
@@ -352,12 +352,12 @@ CK_START_TEST(test_volume) {
 
 	/* check setting soft-volume */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off",
+				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "on",
 				NULL), 0);
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "SoftVolume: false"), NULL);
+	ck_assert_ptr_ne(strstr(output, "SoftVolume: true"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
