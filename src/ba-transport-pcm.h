@@ -250,6 +250,9 @@ void ba_transport_pcm_volume_set(
 int ba_transport_pcm_volume_update(
 		struct ba_transport_pcm *pcm);
 
+int ba_transport_pcm_get_hardware_volume(
+		const struct ba_transport_pcm *pcm);
+
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);
 

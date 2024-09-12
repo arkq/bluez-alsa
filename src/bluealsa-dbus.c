@@ -1023,17 +1023,37 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 		GError **error, void *userdata) {
 
 	struct ba_transport_pcm *pcm = userdata;
+	struct ba_transport *t = pcm->t;
+
+	const bool is_sco = t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
+	const int volume_max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
 
 	if (strcmp(property, "SoftVolume") == 0) {
-		pcm->soft_volume = g_variant_get_boolean(value);
-		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_SOFT_VOLUME);
+
+		const bool soft_volume = g_variant_get_boolean(value);
+
+		/* In case when the software volume was just enabled, set the volume level
+		 * to the maximum. This will prevent volume change during the transition.
+		 * In case of disabling the software volume, we will restore the hardware
+		 * volume level, so the volume control will indicate the correct level. */
+		const int volume = soft_volume ? volume_max : ba_transport_pcm_get_hardware_volume(pcm);
+		const int level = ba_transport_pcm_volume_range_to_level(volume, volume_max);
+
+		pthread_mutex_lock(&pcm->mutex);
+
+		debug("Setting software volume: %s", soft_volume ? "true" : "false");
+		pcm->soft_volume = soft_volume;
+
+		for (size_t i = 0; i < pcm->channels; i++)
+			ba_transport_pcm_volume_set(&pcm->volume[i], &level, NULL, NULL);
+
+		pthread_mutex_unlock(&pcm->mutex);
+
+		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_SOFT_VOLUME | BA_DBUS_PCM_UPDATE_VOLUME);
 		return true;
 	}
 
 	if (strcmp(property, "Volume") == 0) {
-
-		const bool is_sco = pcm->t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
-		const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
 
 		size_t channels = 0;
 		const uint8_t *volume = g_variant_get_fixed_array(value, &channels, sizeof(uint8_t));
@@ -1049,11 +1069,10 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 		for (size_t i = 0; i < channels; i++) {
 
 			const bool muted = !!(volume[i] & 0x80);
-			const int level = ba_transport_pcm_volume_range_to_level(volume[i] & 0x7F, max);
+			const int level = ba_transport_pcm_volume_range_to_level(volume[i] & 0x7F, volume_max);
 
 			debug("Setting volume [ch=%zu]: %u [%.2f dB] [%c]",
 					i, volume[i] & 0x7F, 0.01 * level, muted ? 'x' : ' ');
-
 			ba_transport_pcm_volume_set(&pcm->volume[i], &level, &muted, NULL);
 
 		}

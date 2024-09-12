@@ -35,6 +35,7 @@
 #include "bluez-iface.h"
 #include "bluez.h"
 #include "dbus.h"
+#include "hfp.h"
 #include "io.h"
 #if ENABLE_OFONO
 # include "ofono.h"
@@ -690,6 +691,33 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 final:
 	/* notify connected clients (including requester) */
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	return 0;
+}
+
+/**
+ * Get non-software PCM volume level if available. */
+int ba_transport_pcm_get_hardware_volume(
+		const struct ba_transport_pcm *pcm) {
+
+	const struct ba_transport *t = pcm->t;
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return t->a2dp.volume;
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+
+		if (t->sco.rfcomm == NULL)
+			/* TODO: Cache volume level for oFono-based SCO */
+			return HFP_VOLUME_GAIN_MAX;
+
+		if (pcm == &t->sco.pcm_spk)
+			return t->sco.rfcomm->gain_spk;
+		if (pcm == &t->sco.pcm_mic)
+			return t->sco.rfcomm->gain_mic;
+
+	}
+
+	g_assert_not_reached();
 	return 0;
 }
 
