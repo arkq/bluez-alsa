@@ -591,7 +591,7 @@ bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) {
 
 /**
  * Convert PCM volume level to [0, max] range. */
-int ba_transport_pcm_volume_level_to_range(int value, int max) {
+unsigned int ba_transport_pcm_volume_level_to_range(int value, int max) {
 	int volume = audio_decibel_to_loudness(value / 100.0) * max;
 	return MIN(MAX(volume, 0), max);
 }
@@ -599,8 +599,8 @@ int ba_transport_pcm_volume_level_to_range(int value, int max) {
 /**
  * Convert [0, max] range to PCM volume level. */
 int ba_transport_pcm_volume_range_to_level(int value, int max) {
-	double level = audio_loudness_to_decibel(1.0 * value / max);
-	return MIN(MAX(level, -96.0), 96.0) * 100;
+	int level = audio_loudness_to_decibel(1.0 * value / max) * 100;
+	return MIN(MAX(level, -9600), 9600);
 }
 
 /**
@@ -656,8 +656,8 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 		for (size_t i = 0; i < pcm->channels; i++)
 			level_sum += pcm->volume[i].level;
 
-		unsigned int volume = ba_transport_pcm_volume_level_to_range(
-				level_sum / pcm->channels, BLUEZ_A2DP_VOLUME_MAX);
+		uint16_t volume = ba_transport_pcm_volume_level_to_range(
+				level_sum / (int)pcm->channels, BLUEZ_A2DP_VOLUME_MAX);
 
 		/* skip update if nothing has changed */
 		if (volume != t->a2dp.volume) {

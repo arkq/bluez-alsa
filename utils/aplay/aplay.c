@@ -452,7 +452,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	 * some kind of channel mapping. In order to simplify things, we will set
 	 * all channels to the average left-right volume. */
 
-	int volume_sum = 0, muted = 0;
+	unsigned int volume_sum = 0, muted = 0;
 	for (size_t i = 1; i < ba_pcm->channels; i++) {
 		volume_sum += ba_pcm->volume[i].volume;
 		muted |= ba_pcm->volume[i].muted;
@@ -461,7 +461,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	/* keep local muted state up to date */
 	pcm_muted = muted;
 
-	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
+	const unsigned int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
 	/* convert loudness to dB using decibel formula */
 	long db = 10 * log2(1.0 * volume_sum / ba_pcm->channels / vmax) * 100;
 	db += worker->mixer_volume_db_max_value;

@@ -238,7 +238,7 @@ enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(
 
 bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm);
 
-int ba_transport_pcm_volume_level_to_range(int value, int max);
+unsigned int ba_transport_pcm_volume_level_to_range(int value, int max);
 int ba_transport_pcm_volume_range_to_level(int value, int max);
 
 void ba_transport_pcm_volume_set(
