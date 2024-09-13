@@ -11,11 +11,20 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <dbus/dbus.h>
 
 #include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
+
+static int ba_pcm_cmp(const void *a, const void *b) {
+	const struct ba_pcm *pcm_a = a;
+	const struct ba_pcm *pcm_b = b;
+	if (pcm_a->sequence == pcm_b->sequence)
+		return strcmp(pcm_a->pcm_path, pcm_b->pcm_path);
+	return pcm_a->sequence - pcm_b->sequence;
+}
 
 static void usage(const char *command) {
 	printf("List all BlueALSA PCM paths.\n\n");
@@ -63,6 +72,9 @@ static int cmd_list_pcms_func(int argc, char *argv[]) {
 		cmd_print_error("Couldn't get BlueALSA PCM list: %s", err.message);
 		return EXIT_FAILURE;
 	}
+
+	/* Sort PCMs from the oldest to the newest (most recently added). */
+	qsort(pcms, pcms_count, sizeof(*pcms), ba_pcm_cmp);
 
 	for (size_t i = 0; i < pcms_count; i++) {
 		printf("%s\n", pcms[i].pcm_path);
