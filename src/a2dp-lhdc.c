@@ -21,8 +21,6 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#include <glib.h>
-
 #include <lhdcBT.h>
 #include <lhdcBT_dec.h>
 
@@ -44,7 +42,7 @@ static const enum ba_transport_pcm_channel a2dp_lhdc_channel_map_stereo[] = {
 	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
 };
 
-static const struct a2dp_bit_mapping a2dp_lhdc_samplings[] = {
+static const struct a2dp_bit_mapping a2dp_lhdc_rates[] = {
 	{ LHDC_SAMPLING_FREQ_44100, { 44100 } },
 	{ LHDC_SAMPLING_FREQ_48000, { 48000 } },
 	{ LHDC_SAMPLING_FREQ_96000, { 96000 } },
@@ -70,14 +68,14 @@ static int a2dp_lhdc_caps_foreach_channel_mode(
 	return -1;
 }
 
-static int a2dp_lhdc_caps_foreach_sampling_freq(
+static int a2dp_lhdc_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
 		void *userdata) {
 	const a2dp_lhdc_v3_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
-		return a2dp_bit_mapping_foreach(a2dp_lhdc_samplings, caps->sampling_freq, func, userdata);
+		return a2dp_bit_mapping_foreach(a2dp_lhdc_rates, caps->sampling_freq, func, userdata);
 	return -1;
 }
 
@@ -90,23 +88,23 @@ static void a2dp_lhdc_caps_select_channel_mode(
 	(void)channels;
 }
 
-static void a2dp_lhdc_caps_select_sampling_freq(
+static void a2dp_lhdc_caps_select_sample_rate(
 		void *capabilities,
 		enum a2dp_stream stream,
-		unsigned int frequency) {
+		unsigned int rate) {
 	a2dp_lhdc_v3_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
-		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_lhdc_samplings,
-				caps->sampling_freq, frequency);
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_lhdc_rates,
+				caps->sampling_freq, rate);
 }
 
 static struct a2dp_caps_helpers a2dp_lhdc_caps_helpers = {
 	.intersect = a2dp_lhdc_caps_intersect,
 	.has_stream = a2dp_caps_has_main_stream_only,
 	.foreach_channel_mode = a2dp_lhdc_caps_foreach_channel_mode,
-	.foreach_sampling_freq = a2dp_lhdc_caps_foreach_sampling_freq,
+	.foreach_sample_rate = a2dp_lhdc_caps_foreach_sample_rate,
 	.select_channel_mode = a2dp_lhdc_caps_select_channel_mode,
-	.select_sampling_freq = a2dp_lhdc_caps_select_sampling_freq,
+	.select_sample_rate = a2dp_lhdc_caps_select_sample_rate,
 };
 
 static LHDC_VERSION_SETUP get_version(const a2dp_lhdc_v3_t *configuration) {
@@ -157,8 +155,9 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct io_poll io = { .timeout = -1 };
 
 	const a2dp_lhdc_v3_t *configuration = &t->a2dp.configuration.lhdc_v3;
+	const unsigned int bit_depth = get_bit_depth(configuration);
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 
 	HANDLE_LHDC_BT handle;
 	if ((handle = lhdcBT_get_handle(get_version(configuration))) == NULL) {
@@ -168,22 +167,14 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(lhdcBT_free_handle), handle);
 
-	const unsigned int bitdepth = get_bit_depth(configuration);
 
 	lhdcBT_set_hasMinBitrateLimit(handle, configuration->min_bitrate);
 	lhdcBT_set_max_bitrate(handle, get_max_bitrate(configuration));
 
-	struct {
-		uint8_t seq_num;
-		uint8_t latency:2;
-		uint8_t frames:6;
-	} *lhdc_media_header;
-
-	rtp_header_t *rtp_header;
-
-	if (lhdcBT_init_encoder(handle, samplerate, bitdepth, config.lhdc_eqmid,
-			configuration->ch_split_mode > LHDC_CH_SPLIT_MODE_NONE, 0, t->mtu_write - sizeof(*lhdc_media_header) - RTP_HEADER_LEN,
-			get_interval(configuration)) == -1) {
+	if (lhdcBT_init_encoder(handle, rate, bit_depth, config.lhdc_eqmid,
+				configuration->ch_split_mode > LHDC_CH_SPLIT_MODE_NONE, 0,
+				t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_lhdc_media_header_t),
+				get_interval(configuration)) == -1) {
 		error("Couldn't initialize LHDC encoder");
 		goto fail_init;
 	}
@@ -208,13 +199,15 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
+	rtp_header_t *rtp_header;
+	rtp_lhdc_media_header_t *rtp_lhdc_media_header;
 	/* initialize RTP headers and get anchor for payload */
 	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
-			(void **)&lhdc_media_header, sizeof(*lhdc_media_header));
+			(void **)&rtp_lhdc_media_header, sizeof(*rtp_lhdc_media_header));
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to audio sample rate */
-	rtp_state_init(&rtp, samplerate, samplerate);
+	rtp_state_init(&rtp, rate, rate);
 
 	uint8_t seq_num = 0;
 
@@ -263,9 +256,9 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 				rtp_state_new_frame(&rtp, rtp_header);
 
-				lhdc_media_header->seq_num = seq_num++;
-				lhdc_media_header->latency = 0;
-				lhdc_media_header->frames = frames;
+				rtp_lhdc_media_header->seq_number = seq_num++;
+				rtp_lhdc_media_header->latency = 0;
+				rtp_lhdc_media_header->frame_count = frames;
 
 				/* Try to get the number of bytes queued in the
 				 * socket output buffer. */
@@ -337,12 +330,12 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	const a2dp_lhdc_v3_t *configuration = &t->a2dp.configuration.lhdc_v3;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 	const unsigned int bit_depth = get_bit_depth(configuration);
 
 	tLHDCV3_DEC_CONFIG dec_config = {
 		.version = get_decoder_version(configuration),
-		.sample_rate = samplerate,
+		.sample_rate = rate,
 		.bits_depth = bit_depth,
 	};
 
@@ -366,7 +359,7 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to audio sample rate */
-	rtp_state_init(&rtp, samplerate, samplerate);
+	rtp_state_init(&rtp, rate, rate);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
@@ -380,8 +373,8 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 		}
 
 		const rtp_header_t *rtp_header = bt.data;
-		const void *lhdc_media_header;
-		if ((lhdc_media_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const rtp_lhdc_media_header_t *rtp_lhdc_media_header;
+		if ((rtp_lhdc_media_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
 			continue;
 
 		int missing_rtp_frames = 0;
@@ -392,11 +385,10 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		const uint8_t *rtp_payload = (uint8_t *) lhdc_media_header;
+		const uint8_t *rtp_payload = (uint8_t *)rtp_lhdc_media_header;
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
 
-		uint32_t decoded = 16 * 256 * sizeof(int32_t) * channels;
-
+		uint32_t decoded = ffb_blen_in(&pcm);
 		lhdcBT_dec_decode(rtp_payload, rtp_payload_len, pcm.data, &decoded, 24);
 
 		const size_t samples = decoded / sample_size;
@@ -442,11 +434,11 @@ static int a2dp_lhdc_configuration_select(
 	}
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_lhdc_caps_foreach_sampling_freq(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_lhdc_caps_foreach_sample_rate(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
 		caps->sampling_freq = sampling_freq;
 	else {
-		error("LHDC: No supported sampling frequencies: %#x", saved.sampling_freq);
+		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -463,9 +455,9 @@ static int a2dp_lhdc_configuration_check(
 	/* Validate configuration against BlueALSA capabilities. */
 	a2dp_lhdc_caps_intersect(&conf_v, &sep->config.capabilities);
 
-	if (a2dp_bit_mapping_lookup(a2dp_lhdc_samplings, conf_v.sampling_freq) == -1) {
-		debug("LHDC: Invalid sampling frequency: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_SAMPLING;
+	if (a2dp_bit_mapping_lookup(a2dp_lhdc_rates, conf_v.sampling_freq) == -1) {
+		debug("LHDC: Invalid sample rate: %#x", conf->sampling_freq);
+		return A2DP_CHECK_ERR_RATE;
 	}
 
 	return A2DP_CHECK_OK;
@@ -473,8 +465,8 @@ static int a2dp_lhdc_configuration_check(
 
 static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 
-	ssize_t sampling_i;
-	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_lhdc_samplings,
+	ssize_t rate_i;
+	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
 					t->a2dp.configuration.lhdc_v3.sampling_freq)) == -1)
 		return -1;
 
@@ -485,10 +477,10 @@ static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 	}
 
 	t->a2dp.pcm.channels = 2;
-	t->a2dp.pcm.sampling = a2dp_lhdc_samplings[sampling_i].value;
+	t->a2dp.pcm.rate = a2dp_lhdc_rates[rate_i].value;
 
-	memcpy(t->a2dp.pcm.channel_map, a2dp_lhdc_channel_map_stereo,
-			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
+	memcpy(t->a2dp.pcm.channel_map,
+			a2dp_lhdc_channel_map_stereo, sizeof(a2dp_lhdc_channel_map_stereo));
 
 	return 0;
 }
