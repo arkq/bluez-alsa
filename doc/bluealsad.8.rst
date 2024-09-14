@@ -142,9 +142,9 @@ OPTIONS
     Force monophonic sound for A2DP profile.
 
 --a2dp-force-audio-cd
-    Force 44.1 kHz sampling frequency for A2DP profile.
-    Some Bluetooth devices can handle streams sampled at either 48kHz or
-    44.1kHz, in which case they normally default to using 48kHz.
+    Force 44.1 kHz sample rate for A2DP profile.
+    Some Bluetooth devices can handle streams sampled at either 48 kHz or
+    44.1kHz, in which case they normally default to using 48 kHz.
     With this option, **bluealsad** will request such a device uses only 44.1
     kHz sample rate.
 
@@ -271,9 +271,9 @@ Profiles
 **bluealsad** provides support for Bluetooth Advanced Audio Distribution
 Profile (A2DP), Hands-Free Profile (HFP), Headset Profile (HSP) and Bluetooth
 Low Energy MIDI (BLE-MIDI).
-A2DP profile is dedicated for streaming music (i.e., stereo, 48 kHz or more
-sampling frequency), while HFP and HSP for two-way voice transmission (mono, 8
-kHz or 16 kHz sampling frequency). BLE-MIDI, on the other hand, is used for
+A2DP profile is dedicated for streaming music (i.e., stereo, 48 kHz or higher
+sample rates), while HFP and HSP for two-way voice transmission (mono, 8
+kHz or 16 kHz sample rate). BLE-MIDI, on the other hand, is used for
 transmitting MIDI messages over Bluetooth LE.
 
 The Bluetooth audio profiles are not peer-to-peer; they each have a source or

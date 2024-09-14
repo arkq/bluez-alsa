@@ -256,8 +256,8 @@ static GVariant *ba_variant_new_pcm_channel_map(const struct ba_transport_pcm *p
 	return g_variant_new_strv(strv, n);
 }
 
-static GVariant *ba_variant_new_pcm_sampling(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_uint32(pcm->sampling);
+static GVariant *ba_variant_new_pcm_rate(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_uint32(pcm->rate);
 }
 
 static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
@@ -325,7 +325,7 @@ static int ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata)
 	return 0;
 }
 
-static int ba_populate_sampling(struct a2dp_bit_mapping mapping, void *userdata) {
+static int ba_populate_rates(struct a2dp_bit_mapping mapping, void *userdata) {
 	struct ba_populate_data *data = userdata;
 	g_variant_builder_add_value(data->builder, g_variant_new_uint32(mapping.value));
 	return 0;
@@ -364,17 +364,17 @@ static void ba_variant_populate_remote_sep(GVariantBuilder *props,
 	data.value = 0;
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("ay"));
 	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channels, &data);
-	g_variant_builder_add(props, "{sv}", "SupportedChannels", g_variant_builder_end(&builder));
-
-	data.value = 0;
-	g_variant_builder_init(&builder, G_VARIANT_TYPE("au"));
-	sep->caps_helpers->foreach_sampling_freq(&caps, stream, ba_populate_sampling, &data);
-	g_variant_builder_add(props, "{sv}", "SupportedSampling", g_variant_builder_end(&builder));
+	g_variant_builder_add(props, "{sv}", "Channels", g_variant_builder_end(&builder));
 
 	data.value = 0;
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("aas"));
 	sep->caps_helpers->foreach_channel_mode(&caps, stream, ba_populate_channel_map, &data);
 	g_variant_builder_add(props, "{sv}", "ChannelMaps", g_variant_builder_end(&builder));
+
+	data.value = 0;
+	g_variant_builder_init(&builder, G_VARIANT_TYPE("au"));
+	sep->caps_helpers->foreach_sample_rate(&caps, stream, ba_populate_rates, &data);
+	g_variant_builder_add(props, "{sv}", "Rates", g_variant_builder_end(&builder));
 
 }
 
@@ -662,7 +662,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 		const struct {
 			uint8_t codec_id;
-			unsigned int sampling;
+			unsigned int rate;
 			bool is_enabled_in_config;
 			bool is_available_in_rfcomm_ag;
 			bool is_available_in_rfcomm_hf;
@@ -691,11 +691,11 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 				g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
 
 				const uint8_t channels[] = { 1 };
-				g_variant_builder_add(&props, "{sv}", "SupportedChannels", g_variant_new_fixed_array(
+				g_variant_builder_add(&props, "{sv}", "Channels", g_variant_new_fixed_array(
 							G_VARIANT_TYPE_BYTE, channels, 1, sizeof(*channels)));
-				const uint32_t sampling[] = { sco_codecs[i].sampling };
-				g_variant_builder_add(&props, "{sv}", "SupportedSampling", g_variant_new_fixed_array(
-							G_VARIANT_TYPE_UINT32, sampling, 1, sizeof(*sampling)));
+				const uint32_t rates[] = { sco_codecs[i].rate };
+				g_variant_builder_add(&props, "{sv}", "Rates", g_variant_new_fixed_array(
+							G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
 
 				g_variant_builder_add(&codecs, "{sa{sv}}",
 						hfp_codec_id_to_string(sco_codecs[i].codec_id), &props);
@@ -730,7 +730,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	a2dp_t a2dp_configuration = {};
 	size_t a2dp_configuration_size = 0;
 	unsigned int channels = 0;
-	unsigned int sampling = 0;
+	unsigned int rate = 0;
 	bool conformance_check = true;
 
 	g_variant_get(params, "(&sa{sv})", &codec_name, &properties);
@@ -755,9 +755,9 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 				g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
 			channels = g_variant_get_byte(value);
 		}
-		else if (strcmp(property, "Sampling") == 0 &&
+		else if (strcmp(property, "Rate") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT32, property)) {
-			sampling = g_variant_get_uint32(value);
+			rate = g_variant_get_uint32(value);
 		}
 		else if (strcmp(property, "NonConformant") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
@@ -819,8 +819,8 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 		if (channels != 0)
 			sep->caps_helpers->select_channel_mode(&a2dp_configuration, pcm_sep_stream, channels);
-		if (sampling != 0)
-			sep->caps_helpers->select_sampling_freq(&a2dp_configuration, pcm_sep_stream, sampling);
+		if (rate != 0)
+			sep->caps_helpers->select_sample_rate(&a2dp_configuration, pcm_sep_stream, rate);
 
 		if (a2dp_configuration_size == 0) {
 			/* Setup default configuration if it was not provided. */
@@ -988,8 +988,8 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 		return ba_variant_new_pcm_channels(pcm);
 	if (strcmp(property, "ChannelMap") == 0)
 		return ba_variant_new_pcm_channel_map(pcm);
-	if (strcmp(property, "Sampling") == 0)
-		return ba_variant_new_pcm_sampling(pcm);
+	if (strcmp(property, "Rate") == 0)
+		return ba_variant_new_pcm_rate(pcm);
 	if (strcmp(property, "Codec") == 0) {
 		if ((value = ba_variant_new_pcm_codec(pcm)) == NULL)
 			goto unavailable;
@@ -1153,8 +1153,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Channels", ba_variant_new_pcm_channels(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CHANNEL_MAP)
 		g_variant_builder_add(&props, "{sv}", "ChannelMap", ba_variant_new_pcm_channel_map(pcm));
-	if (mask & BA_DBUS_PCM_UPDATE_SAMPLING)
-		g_variant_builder_add(&props, "{sv}", "Sampling", ba_variant_new_pcm_sampling(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_RATE)
+		g_variant_builder_add(&props, "{sv}", "Rate", ba_variant_new_pcm_rate(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC)
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC_CONFIG)

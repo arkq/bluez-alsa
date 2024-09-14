@@ -119,8 +119,8 @@ struct ba_transport_pcm {
 	uint16_t format;
 	/* number of audio channels */
 	unsigned int channels;
-	/* PCM sampling frequency */
-	unsigned int sampling;
+	/* PCM sample rate */
+	unsigned int rate;
 
 	/* Overall PCM delay in 1/10 of millisecond, caused by
 	 * audio encoding or decoding and data transfer. */

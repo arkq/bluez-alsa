@@ -384,7 +384,7 @@ repoll:
 	 * In order to correctly calculate time drift, the zero time point has to
 	 * be obtained after the stream has started. */
 	if (io->asrs.frames == 0)
-		asrsync_init(&io->asrs, pcm->sampling);
+		asrsync_init(&io->asrs, pcm->rate);
 
 	ffb_seek(buffer, samples);
 	return samples;

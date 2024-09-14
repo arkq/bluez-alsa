@@ -46,7 +46,7 @@ static int alsa_pcm_set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int c
 	}
 
 	if ((err = snd_pcm_hw_params_set_rate(pcm, params, rate, 0)) != 0) {
-		snprintf(buf, sizeof(buf), "Set sampling rate: %s: %d", snd_strerror(err), rate);
+		snprintf(buf, sizeof(buf), "Set sample rate: %s: %d", snd_strerror(err), rate);
 		goto fail;
 	}
 

@@ -113,9 +113,9 @@ static void print_pcm_codec(const struct ba_pcm_codec *codec) {
 			printf(" %u", codec->channels[i]);
 		printf("]");
 
-		printf(" [sampling:");
-		for (size_t i = 0; i < ARRAYSIZE(codec->sampling) && codec->sampling[i] != 0; i++)
-			printf(" %u", codec->sampling[i]);
+		printf(" [rate:");
+		for (size_t i = 0; i < ARRAYSIZE(codec->rates) && codec->rates[i] != 0; i++)
+			printf(" %u", codec->rates[i]);
 		printf("]");
 
 	}
@@ -310,13 +310,13 @@ void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Running: %s\n", pcm->running ? "true" : "false");
 	printf("Format: %s\n", pcm_format_to_string(pcm->format));
 	printf("Channels: %d\n", pcm->channels);
-	printf("Sampling: %d Hz\n", pcm->sampling);
+	bactl_print_pcm_channel_map(pcm);
+	printf("Rate: %d Hz\n", pcm->rate);
 	bactl_print_pcm_available_codecs(pcm, err);
 	bactl_print_pcm_selected_codec(pcm);
 	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
 	printf("DelayAdjustment: %#.1f ms\n", (double)pcm->delay_adjustment / 10);
 	bactl_print_pcm_soft_volume(pcm);
-	bactl_print_pcm_channel_map(pcm);
 	bactl_print_pcm_volume(pcm);
 	bactl_print_pcm_mute(pcm);
 }

@@ -1318,9 +1318,9 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					 * notify BlueALSA D-Bus clients about the change. */
 					if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
 						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_spk,
-								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+								BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_mic,
-								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+								BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 					}
 				}
 
@@ -1343,9 +1343,9 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 					 * notify BlueALSA D-Bus clients about the change. */
 					if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
 						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_spk,
-								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+								BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 						bluealsa_dbus_pcm_update(&t_sco->sco.pcm_mic,
-								BA_DBUS_PCM_UPDATE_SAMPLING | BA_DBUS_PCM_UPDATE_CODEC);
+								BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 					}
 				}
 

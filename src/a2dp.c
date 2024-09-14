@@ -74,18 +74,18 @@ int a2dp_bit_mapping_foreach_get_best_channel_mode(
 }
 
 /**
- * Callback function which returns bitmask for the best sampling rate.
+ * Callback function which returns bitmask for the best sample rate.
  *
  * Note:
  * The user data passed to a2dp_bit_mapping_foreach() function shall be
  * a pointer to an unsigned integer variable initialized to 0. */
-int a2dp_bit_mapping_foreach_get_best_sampling_freq(
+int a2dp_bit_mapping_foreach_get_best_sample_rate(
 		struct a2dp_bit_mapping mapping,
 		void *userdata) {
 
 	unsigned int *output = userdata;
 
-	/* Skip anything above 48000 Hz. If desired, bigger sampling rates can be
+	/* Skip anything above 48000 Hz. If desired, bigger sample rates can be
 	 * selected manually by the user using the SelectCodec() D-Bus method. */
 	if (mapping.value > 48000 && *output != 0)
 		return 1;
@@ -95,7 +95,7 @@ int a2dp_bit_mapping_foreach_get_best_sampling_freq(
 	if (config.a2dp.force_44100 && mapping.value == 44100)
 		return 1;
 
-	/* Keep iterating, so the last sampling rate will be selected. */
+	/* Keep iterating, so the last sample rate will be selected. */
 	return 0;
 }
 
@@ -364,8 +364,8 @@ const char *a2dp_check_strerror(
 		return "Invalid size";
 	case A2DP_CHECK_ERR_CHANNEL_MODE:
 		return "Invalid channel mode";
-	case A2DP_CHECK_ERR_SAMPLING:
-		return "Invalid sampling frequency";
+	case A2DP_CHECK_ERR_RATE:
+		return "Invalid sample rate";
 	case A2DP_CHECK_ERR_ALLOCATION_METHOD:
 		return "Invalid allocation method";
 	case A2DP_CHECK_ERR_BIT_POOL_RANGE:
@@ -380,10 +380,10 @@ const char *a2dp_check_strerror(
 		return "Invalid object type";
 	case A2DP_CHECK_ERR_DIRECTIONS:
 		return "Invalid directions";
-	case A2DP_CHECK_ERR_SAMPLING_VOICE:
-		return "Invalid voice sampling frequency";
-	case A2DP_CHECK_ERR_SAMPLING_MUSIC:
-		return "Invalid music sampling frequency";
+	case A2DP_CHECK_ERR_RATE_VOICE:
+		return "Invalid voice sample rate";
+	case A2DP_CHECK_ERR_RATE_MUSIC:
+		return "Invalid music sample rate";
 	case A2DP_CHECK_ERR_FRAME_DURATION:
 		return "Invalid frame duration";
 	}

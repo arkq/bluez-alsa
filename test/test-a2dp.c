@@ -153,7 +153,7 @@ CK_START_TEST(test_a2dp_check_configuration) {
 	};
 
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
-				&cfg_invalid, sizeof(cfg_invalid)), A2DP_CHECK_ERR_SAMPLING);
+				&cfg_invalid, sizeof(cfg_invalid)), A2DP_CHECK_ERR_RATE);
 
 #if ENABLE_AAC
 	a2dp_aac_t cfg_aac_invalid = {
@@ -207,9 +207,9 @@ CK_START_TEST(test_a2dp_caps) {
 		ck_assert_ptr_ne(sep->caps_helpers->intersect, NULL);
 		ck_assert_ptr_ne(sep->caps_helpers->has_stream, NULL);
 		ck_assert_ptr_ne(sep->caps_helpers->foreach_channel_mode, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->foreach_sampling_freq, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->foreach_sample_rate, NULL);
 		ck_assert_ptr_ne(sep->caps_helpers->select_channel_mode, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->select_sampling_freq, NULL);
+		ck_assert_ptr_ne(sep->caps_helpers->select_sample_rate, NULL);
 
 		/* Run smoke tests for all capability helpers. */
 
@@ -229,16 +229,16 @@ CK_START_TEST(test_a2dp_caps) {
 				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode);
 
 		unsigned int sampling_freq = 0;
-		sep->caps_helpers->foreach_sampling_freq(&caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq);
-		sep->caps_helpers->foreach_sampling_freq(&caps, A2DP_BACKCHANNEL,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq);
+		sep->caps_helpers->foreach_sample_rate(&caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq);
+		sep->caps_helpers->foreach_sample_rate(&caps, A2DP_BACKCHANNEL,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq);
 
 		sep->caps_helpers->select_channel_mode(&caps, A2DP_MAIN, 2);
 		sep->caps_helpers->select_channel_mode(&caps, A2DP_BACKCHANNEL, 1);
 
-		sep->caps_helpers->select_sampling_freq(&caps, A2DP_MAIN, 48000);
-		sep->caps_helpers->select_sampling_freq(&caps, A2DP_BACKCHANNEL, 16000);
+		sep->caps_helpers->select_sample_rate(&caps, A2DP_MAIN, 48000);
+		sep->caps_helpers->select_sample_rate(&caps, A2DP_BACKCHANNEL, 16000);
 
 	}
 
@@ -302,14 +302,14 @@ CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 	ck_assert_uint_eq(channel_mode, SBC_CHANNEL_MODE_STEREO);
 
 	unsigned int sampling_freq = 0;
-	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_sampling_freq(&caps_sbc,
-			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq), 0);
+	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_sample_rate(&caps_sbc,
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq), 0);
 	ck_assert_uint_eq(sampling_freq, SBC_SAMPLING_FREQ_44100);
 
 #if ENABLE_AAC
 
 	/* Check default internal limits for selecting number of channels (up to
-	 * 2 channels) and sampling frequency (up to 48 kHz). */
+	 * 2 channels) and sample rate (up to 48 kHz). */
 
 	a2dp_aac_t caps_aac = {
 		A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_48000 | AAC_SAMPLING_FREQ_96000)
@@ -322,8 +322,8 @@ CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 	ck_assert_uint_eq(channel_mode, AAC_CHANNEL_MODE_STEREO);
 
 	sampling_freq = 0;
-	ck_assert_int_eq(a2dp_aac_source.caps_helpers->foreach_sampling_freq(&caps_aac,
-			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq), 1);
+	ck_assert_int_eq(a2dp_aac_source.caps_helpers->foreach_sample_rate(&caps_aac,
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq), 1);
 	ck_assert_uint_eq(sampling_freq, AAC_SAMPLING_FREQ_48000);
 
 #endif
@@ -340,7 +340,7 @@ CK_START_TEST(test_a2dp_caps_select_channels_and_sampling) {
 	a2dp_sbc_source.caps_helpers->select_channel_mode(&caps_sbc, A2DP_MAIN, 2);
 	ck_assert_uint_eq(caps_sbc.channel_mode, SBC_CHANNEL_MODE_STEREO);
 
-	a2dp_sbc_source.caps_helpers->select_sampling_freq(&caps_sbc, A2DP_MAIN, 16000);
+	a2dp_sbc_source.caps_helpers->select_sample_rate(&caps_sbc, A2DP_MAIN, 16000);
 	ck_assert_uint_eq(caps_sbc.sampling_freq, SBC_SAMPLING_FREQ_16000);
 
 } CK_END_TEST

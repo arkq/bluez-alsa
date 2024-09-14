@@ -28,7 +28,7 @@ static void usage(const char *command) {
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"  -c, --channels=NUM\tSelect configuration with NUM channels\n"
-			"  -s, --sampling=NUM\tSelect configuration with NUM sampling frequency\n"
+			"  -r, --rate=NUM\tSelect configuration with NUM sample rate\n"
 			"  -f, --force\t\tForce codec configuration (skip conformance check)\n"
 			"\nPositional arguments:\n"
 			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
@@ -42,19 +42,19 @@ static void usage(const char *command) {
 static int cmd_codec_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hqvc:s:f";
+	const char *opts = "hqvc:r:f";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "quiet", no_argument, NULL, 'q' },
 		{ "verbose", no_argument, NULL, 'v' },
 		{ "channels", required_argument, NULL, 'c' },
-		{ "sampling", required_argument, NULL, 's' },
+		{ "rate", required_argument, NULL, 'r' },
 		{ "force", no_argument, NULL, 'f' },
 		{ 0 },
 	};
 
 	unsigned int channels = 0;
-	unsigned int sampling = 0;
+	unsigned int rate = 0;
 	bool force = false;
 
 	opterr = 0;
@@ -68,8 +68,8 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		case 'c' /* --channels */ :
 			channels = atoi(optarg);
 			break;
-		case 's' /* --sampling */ :
-			sampling = atoi(optarg);
+		case 'r' /* --rate */ :
+			rate = atoi(optarg);
 			break;
 		case 'f' /* --force */ :
 			force = true;
@@ -132,7 +132,7 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		flags |= BA_PCM_SELECT_CODEC_FLAG_NON_CONFORMANT;
 
 	if (!ba_dbus_pcm_select_codec(&config.dbus, path, ba_dbus_pcm_codec_get_canonical_name(codec),
-				codec_config, codec_config_len, channels, sampling, flags, &err))
+				codec_config, codec_config_len, channels, rate, flags, &err))
 		goto fail;
 
 	result = EXIT_SUCCESS;

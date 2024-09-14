@@ -35,8 +35,8 @@ LIMITS = {
 }
 
 
-def samplerate_sync(t0: float, frames: int, sampling: int):
-    delta = frames / sampling - time.monotonic() + t0
+def rate_sync(t0: float, frames: int, rate: int):
+    delta = frames / rate - time.monotonic() + t0
     if (delta > 0):
         print(f"Rate sync: {delta:.6f}")
         time.sleep(delta)
@@ -44,11 +44,11 @@ def samplerate_sync(t0: float, frames: int, sampling: int):
         print(f"Rate sync overdue: {-delta:.6f}")
 
 
-def test_pcm_write(pcm, pcm_format, pcm_channels, pcm_sampling, interval):
+def test_pcm_write(pcm, pcm_format, pcm_channels, pcm_rate, interval):
     """Write PCM test signal.
 
     This function generates test signal when real time modulo interval is zero
-    (within sampling rate resolution capabilities). Providing that both devices
+    (within sample rate resolution capabilities). Providing that both devices
     are in sync with NTP, this should be a reliable way to detect end-to-end
     latency.
     """
@@ -58,7 +58,7 @@ def test_pcm_write(pcm, pcm_format, pcm_channels, pcm_sampling, interval):
     struct = Struct(fmt[0] + fmt[1] * pcm_channels)
 
     # Time quantum in seconds
-    t_quantum = 1.0 / pcm_sampling
+    t_quantum = 1.0 / pcm_rate
 
     # Noise PCM value range
     v_noise_min = int(LIMITS[pcm_format][0] * 0.05)
@@ -68,7 +68,7 @@ def test_pcm_write(pcm, pcm_format, pcm_channels, pcm_sampling, interval):
     v_signal_min = int(LIMITS[pcm_format][1] * 0.8)
     v_signal_max = int(LIMITS[pcm_format][1] * 1.0)
 
-    signal_frames = int(0.1 * pcm_sampling)
+    signal_frames = int(0.1 * pcm_rate)
     print(f"Signal frames: {signal_frames}")
 
     frames = 0
@@ -82,7 +82,7 @@ def test_pcm_write(pcm, pcm_format, pcm_channels, pcm_sampling, interval):
         print(f"Next signal at: {t:.6f} + {t_delta:.6f} -> {t + t_delta:.6f}")
 
         # Write random data to keep encoder busy
-        noise_frames = int(t_delta * pcm_sampling)
+        noise_frames = int(t_delta * pcm_rate)
         print(f"Noise frames: {noise_frames}")
         pcm.writelines(
             struct.pack(*[randint(v_noise_min, v_noise_max)] * pcm_channels)
@@ -90,7 +90,7 @@ def test_pcm_write(pcm, pcm_format, pcm_channels, pcm_sampling, interval):
         pcm.flush()
 
         frames += noise_frames
-        samplerate_sync(t0, frames, pcm_sampling)
+        rate_sync(t0, frames, pcm_rate)
 
         # Write signal data
         pcm.writelines(
@@ -99,10 +99,10 @@ def test_pcm_write(pcm, pcm_format, pcm_channels, pcm_sampling, interval):
         pcm.flush()
 
         frames += signal_frames
-        samplerate_sync(t0, frames, pcm_sampling)
+        rate_sync(t0, frames, pcm_rate)
 
 
-def test_pcm_read(pcm, pcm_format, pcm_channels, pcm_sampling, interval):
+def test_pcm_read(pcm, pcm_format, pcm_channels, pcm_rate, interval):
     """Read PCM test signal."""
 
     fmt = FORMATS[pcm_format]
@@ -161,10 +161,10 @@ info = {key.lower(): value.strip()
         for key, value in (line.split(':', 1)
                            for line in output.splitlines())}
 channels = int(info['channels'])
-sampling = int(info['sampling'].split()[0])
+rate = int(info['rate'].split()[0])
 
 print(f"Bluetooth: {info['transport']} {info['selected codec']}")
-print(f"PCM: {info['format']} {channels} channels {sampling} Hz")
+print(f"PCM: {info['format']} {channels} channels {rate} Hz")
 print("==========")
 
 cmd = ['bluealsactl', *options, 'open', args.PCM_PATH]
@@ -174,9 +174,7 @@ client = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 time.sleep(1)
 
 if info['mode'] == 'sink':
-    test_pcm_write(client.stdin, info['format'], channels, sampling,
-                   args.interval)
+    test_pcm_write(client.stdin, info['format'], channels, rate, args.interval)
 
 if info['mode'] == 'source':
-    test_pcm_read(client.stdout, info['format'], channels, sampling,
-                  args.interval)
+    test_pcm_read(client.stdout, info['format'], channels, rate, args.interval)

@@ -11,13 +11,13 @@ bluez-alsa v4.3.1 (2024-08-30)
 ==============================
 
 - fix crash when playing audio with more than 2 channels
-- fix AAC configuration selection for low sampling rates
+- fix AAC configuration selection for low sample rates
 
 bluez-alsa v4.3.0 (2024-08-13)
 ==============================
 
 - optional support for Android 13 A2DP Opus codec
-- multi channels and sampling rates mode for ALSA PCM plug-in
+- multi channels and sample rates mode for ALSA PCM plug-in
 - bluealsa-aplay: fix volume synchronization on Raspberry Pi
 
 bluez-alsa v4.2.0 (2024-05-11)

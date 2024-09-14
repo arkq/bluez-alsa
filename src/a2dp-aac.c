@@ -70,7 +70,7 @@ static const struct a2dp_bit_mapping a2dp_aac_channels[] = {
 	{ 0 }
 };
 
-static const struct a2dp_bit_mapping a2dp_aac_samplings[] = {
+static const struct a2dp_bit_mapping a2dp_aac_rates[] = {
 	{ AAC_SAMPLING_FREQ_8000, { 8000 } },
 	{ AAC_SAMPLING_FREQ_11025, { 11025 } },
 	{ AAC_SAMPLING_FREQ_12000, { 12000 } },
@@ -111,7 +111,7 @@ static int a2dp_aac_caps_foreach_channel_mode(
 	return -1;
 }
 
-static int a2dp_aac_caps_foreach_sampling_freq(
+static int a2dp_aac_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -119,7 +119,7 @@ static int a2dp_aac_caps_foreach_sampling_freq(
 	const a2dp_aac_t *caps = capabilities;
 	if (stream == A2DP_MAIN) {
 		const uint16_t sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(*caps);
-		return a2dp_bit_mapping_foreach(a2dp_aac_samplings, sampling_freq, func, userdata);
+		return a2dp_bit_mapping_foreach(a2dp_aac_rates, sampling_freq, func, userdata);
 	}
 	return -1;
 }
@@ -134,14 +134,14 @@ static void a2dp_aac_caps_select_channel_mode(
 				caps->channel_mode, channels);
 }
 
-static void a2dp_aac_caps_select_sampling_freq(
+static void a2dp_aac_caps_select_sample_rate(
 		void *capabilities,
 		enum a2dp_stream stream,
-		unsigned int frequency) {
+		unsigned int rate) {
 	a2dp_aac_t *caps = capabilities;
 	if (stream == A2DP_MAIN) {
-		const uint16_t sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_aac_samplings,
-				A2DP_AAC_GET_SAMPLING_FREQ(*caps), frequency);
+		const uint16_t sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_aac_rates,
+				A2DP_AAC_GET_SAMPLING_FREQ(*caps), rate);
 		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	}
 }
@@ -150,9 +150,9 @@ static struct a2dp_caps_helpers a2dp_aac_caps_helpers = {
 	.intersect = a2dp_aac_caps_intersect,
 	.has_stream = a2dp_caps_has_main_stream_only,
 	.foreach_channel_mode = a2dp_aac_caps_foreach_channel_mode,
-	.foreach_sampling_freq = a2dp_aac_caps_foreach_sampling_freq,
+	.foreach_sample_rate = a2dp_aac_caps_foreach_sample_rate,
 	.select_channel_mode = a2dp_aac_caps_select_channel_mode,
-	.select_sampling_freq = a2dp_aac_caps_select_sampling_freq,
+	.select_sample_rate = a2dp_aac_caps_select_sample_rate,
 };
 
 static unsigned int a2dp_aac_get_fdk_vbr_mode(
@@ -185,7 +185,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const a2dp_aac_t *configuration = &t->a2dp.configuration.aac;
 	const unsigned int bitrate = A2DP_AAC_GET_BITRATE(*configuration);
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 
 	/* create AAC encoder without the Meta Data module */
 	if ((err = aacEncOpen(&handle, 0x0F, channels)) != AACENC_OK) {
@@ -255,8 +255,8 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 		}
 	}
 #endif
-	if ((err = aacEncoder_SetParam(handle, AACENC_SAMPLERATE, samplerate)) != AACENC_OK) {
-		error("Couldn't set sampling rate: %s", aacenc_strerror(err));
+	if ((err = aacEncoder_SetParam(handle, AACENC_SAMPLERATE, rate)) != AACENC_OK) {
+		error("Couldn't set sample rate: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
 	if ((err = aacEncoder_SetParam(handle, AACENC_CHANNELMODE, channel_mode)) != AACENC_OK) {
@@ -317,7 +317,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to 90kHz */
-	rtp_state_init(&rtp, samplerate, 90000);
+	rtp_state_init(&rtp, rate, 90000);
 
 	int in_bufferIdentifiers[] = { IN_AUDIO_DATA };
 	int out_bufferIdentifiers[] = { OUT_BITSTREAM_DATA };
@@ -459,7 +459,7 @@ void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(aacDecoder_Close), handle);
 
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 
 #ifdef AACDECODER_LIB_VL0
 	if ((err = aacDecoder_SetParam(handle, AAC_PCM_MIN_OUTPUT_CHANNELS, channels)) != AAC_DEC_OK) {
@@ -493,7 +493,7 @@ void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to 90kHz */
-	rtp_state_init(&rtp, samplerate, 90000);
+	rtp_state_init(&rtp, rate, 90000);
 
 	int markbit_quirk = -3;
 
@@ -614,11 +614,11 @@ static int a2dp_aac_configuration_select(
 	}
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_aac_caps_foreach_sampling_freq(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_aac_caps_foreach_sample_rate(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
 		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
-		error("AAC: No supported sampling frequencies: %#x", A2DP_AAC_GET_SAMPLING_FREQ(saved));
+		error("AAC: No supported sample rates: %#x", A2DP_AAC_GET_SAMPLING_FREQ(saved));
 		return errno = ENOTSUP, -1;
 	}
 
@@ -692,9 +692,9 @@ static int a2dp_aac_configuration_check(
 	}
 
 	const uint16_t conf_sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(conf_v);
-	if (a2dp_bit_mapping_lookup(a2dp_aac_samplings, conf_sampling_freq) == -1) {
-		debug("AAC: Invalid sampling frequency: %#x", A2DP_AAC_GET_SAMPLING_FREQ(*conf));
-		return A2DP_CHECK_ERR_SAMPLING;
+	if (a2dp_bit_mapping_lookup(a2dp_aac_rates, conf_sampling_freq) == -1) {
+		debug("AAC: Invalid sample rate: %#x", A2DP_AAC_GET_SAMPLING_FREQ(*conf));
+		return A2DP_CHECK_ERR_RATE;
 	}
 
 	if (a2dp_bit_mapping_lookup(a2dp_aac_channels, conf_v.channel_mode) == -1) {
@@ -712,14 +712,14 @@ static int a2dp_aac_transport_init(struct ba_transport *t) {
 					t->a2dp.configuration.aac.channel_mode)) == -1)
 		return -1;
 
-	ssize_t sampling_i;
-	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_aac_samplings,
+	ssize_t rate_i;
+	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aac_rates,
 					A2DP_AAC_GET_SAMPLING_FREQ(t->a2dp.configuration.aac))) == -1)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm.channels = a2dp_aac_channels[channels_i].value;
-	t->a2dp.pcm.sampling = a2dp_aac_samplings[sampling_i].value;
+	t->a2dp.pcm.rate = a2dp_aac_rates[rate_i].value;
 
 	memcpy(t->a2dp.pcm.channel_map, a2dp_aac_channels[channels_i].ch.map,
 			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));

@@ -106,8 +106,8 @@ void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_faststream_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_faststream_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm);
@@ -499,7 +499,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 	SF_INFO sf_info = {
 		.format = SF_FORMAT_WAV,
 		.channels = t_pcm->channels,
-		.samplerate = t_pcm->sampling,
+		.samplerate = t_pcm->rate,
 	};
 	switch (BA_TRANSPORT_PCM_FORMAT_WIDTH(t_pcm->format)) {
 	case 8:
@@ -1017,7 +1017,7 @@ CK_START_TEST(test_a2dp_aac) {
 CK_START_TEST(test_a2dp_aac_configuration_select) {
 
 	static const unsigned int channels[] = { 1, 2, 6, 8 };
-	static const unsigned int samplings[] = {
+	static const unsigned int rates[] = {
 		8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000 };
 
 	/* Probe AAC encoder for supported configurations. */
@@ -1027,19 +1027,19 @@ CK_START_TEST(test_a2dp_aac_configuration_select) {
 	 * allegedly supported configurations. */
 
 	for (size_t i = 0; i < ARRAYSIZE(channels); i++)
-		for (size_t j = 0; j < ARRAYSIZE(samplings); j++) {
+		for (size_t j = 0; j < ARRAYSIZE(rates); j++) {
 
 			a2dp_aac_t config_aac;
 			/* Initialize all bit-fields to 1. */
 			memset(&config_aac, 0xFF, sizeof(config_aac));
 
 			a2dp_aac_source.caps_helpers->select_channel_mode(&config_aac, A2DP_MAIN, channels[i]);
-			a2dp_aac_source.caps_helpers->select_sampling_freq(&config_aac, A2DP_MAIN, samplings[j]);
+			a2dp_aac_source.caps_helpers->select_sample_rate(&config_aac, A2DP_MAIN, rates[j]);
 
 			/* Select the configuration based on the pre-selected capabilities. */
 			if (a2dp_aac_source.configuration_select(&a2dp_aac_source, &config_aac) != 0) {
-				debug("AAC unsupported configuration: channels=%u, sampling=%u",
-						channels[i], samplings[j]);
+				debug("AAC unsupported configuration: channels=%u, rate=%u",
+						channels[i], rates[j]);
 				continue;
 			}
 
@@ -1138,12 +1138,12 @@ CK_START_TEST(test_a2dp_faststream_music) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
-		test_io(t1_pcm, t2_pcm, a2dp_faststream_enc_thread, a2dp_faststream_dec_thread, 4 * 1024);
+		test_io(t1_pcm, t2_pcm, a2dp_fs_enc_thread, a2dp_fs_dec_thread, 4 * 1024);
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
-		test_io(t1_pcm, t2_pcm, a2dp_faststream_enc_thread, test_io_thread_dump_bt, 2 * 1024);
-		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_faststream_dec_thread, 2 * 1024);
+		test_io(t1_pcm, t2_pcm, a2dp_fs_enc_thread, test_io_thread_dump_bt, 2 * 1024);
+		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_fs_dec_thread, 2 * 1024);
 	}
 
 	ba_transport_destroy(t1);
@@ -1167,12 +1167,12 @@ CK_START_TEST(test_a2dp_faststream_voice) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
-		test_io(t2_pcm_bc, t1_pcm_bc, a2dp_faststream_enc_thread, a2dp_faststream_dec_thread, 4 * 1024);
+		test_io(t2_pcm_bc, t1_pcm_bc, a2dp_fs_enc_thread, a2dp_fs_dec_thread, 4 * 1024);
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
-		test_io(t2_pcm_bc, t1_pcm_bc, a2dp_faststream_enc_thread, test_io_thread_dump_bt, 2 * 1024);
-		test_io(t2_pcm_bc, t1_pcm_bc, test_io_thread_dump_pcm, a2dp_faststream_dec_thread, 2 * 1024);
+		test_io(t2_pcm_bc, t1_pcm_bc, a2dp_fs_enc_thread, test_io_thread_dump_bt, 2 * 1024);
+		test_io(t2_pcm_bc, t1_pcm_bc, test_io_thread_dump_pcm, a2dp_fs_dec_thread, 2 * 1024);
 	}
 
 	ba_transport_destroy(t1);

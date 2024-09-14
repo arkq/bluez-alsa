@@ -14,7 +14,7 @@
 #include <sys/time.h>
 
 /**
- * Synchronize time with the sampling rate.
+ * Synchronize time with the sample rate.
  *
  * Notes:
  * 1. Time synchronization relies on the frame counter being linear.

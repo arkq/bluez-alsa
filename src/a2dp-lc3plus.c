@@ -53,7 +53,7 @@ static const struct a2dp_bit_mapping a2dp_lc3plus_channels[] = {
 	{ 0 }
 };
 
-static const struct a2dp_bit_mapping a2dp_lc3plus_samplings[] = {
+static const struct a2dp_bit_mapping a2dp_lc3plus_rates[] = {
 	{ LC3PLUS_SAMPLING_FREQ_48000, { 48000 } },
 	{ LC3PLUS_SAMPLING_FREQ_96000, { 96000 } },
 	{ 0 }
@@ -76,7 +76,7 @@ static int a2dp_lc3plus_caps_foreach_channel_mode(
 	return -1;
 }
 
-static int a2dp_lc3plus_caps_foreach_sampling_freq(
+static int a2dp_lc3plus_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -84,7 +84,7 @@ static int a2dp_lc3plus_caps_foreach_sampling_freq(
 	const a2dp_lc3plus_t *caps = capabilities;
 	if (stream == A2DP_MAIN) {
 		const uint16_t sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps);
-		return a2dp_bit_mapping_foreach(a2dp_lc3plus_samplings, sampling_freq, func, userdata);
+		return a2dp_bit_mapping_foreach(a2dp_lc3plus_rates, sampling_freq, func, userdata);
 	}
 	return -1;
 }
@@ -99,14 +99,14 @@ static void a2dp_lc3plus_caps_select_channel_mode(
 				caps->channel_mode, channels);
 }
 
-static void a2dp_lc3plus_caps_select_sampling_freq(
+static void a2dp_lc3plus_caps_select_sample_rate(
 		void *capabilities,
 		enum a2dp_stream stream,
-		unsigned int frequency) {
+		unsigned int rate) {
 	a2dp_lc3plus_t *caps = capabilities;
 	if (stream == A2DP_MAIN) {
-		const uint16_t sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_lc3plus_samplings,
-				A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps), frequency);
+		const uint16_t sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_lc3plus_rates,
+				A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps), rate);
 		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	}
 }
@@ -115,31 +115,31 @@ static struct a2dp_caps_helpers a2dp_lc3plus_caps_helpers = {
 	.intersect = a2dp_lc3plus_caps_intersect,
 	.has_stream = a2dp_caps_has_main_stream_only,
 	.foreach_channel_mode = a2dp_lc3plus_caps_foreach_channel_mode,
-	.foreach_sampling_freq = a2dp_lc3plus_caps_foreach_sampling_freq,
+	.foreach_sample_rate = a2dp_lc3plus_caps_foreach_sample_rate,
 	.select_channel_mode = a2dp_lc3plus_caps_select_channel_mode,
-	.select_sampling_freq = a2dp_lc3plus_caps_select_sampling_freq,
+	.select_sample_rate = a2dp_lc3plus_caps_select_sample_rate,
 };
 
-static bool a2dp_lc3plus_supported(int samplerate, int channels) {
+static bool a2dp_lc3plus_supported(int rate, int channels) {
 
 	if (lc3plus_channels_supported(channels) == 0) {
 		error("Number of channels not supported by LC3plus library: %u", channels);
 		return false;
 	}
 
-	if (lc3plus_samplerate_supported(samplerate) == 0) {
-		error("Sampling frequency not supported by LC3plus library: %u", samplerate);
+	if (lc3plus_samplerate_supported(rate) == 0) {
+		error("sample rate not supported by LC3plus library: %u", rate);
 		return false;
 	}
 
 	return true;
 }
 
-static LC3PLUS_Enc *a2dp_lc3plus_enc_init(int samplerate, int channels) {
+static LC3PLUS_Enc *a2dp_lc3plus_enc_init(int rate, int channels) {
 	LC3PLUS_Enc *handle;
 	int32_t lfe_channel_array[1] = { 0 };
-	if ((handle = malloc(lc3plus_enc_get_size(samplerate, channels))) != NULL &&
-			lc3plus_enc_init(handle, samplerate, channels, 1, lfe_channel_array) == LC3PLUS_OK)
+	if ((handle = malloc(lc3plus_enc_get_size(rate, channels))) != NULL &&
+			lc3plus_enc_init(handle, rate, channels, 1, lfe_channel_array) == LC3PLUS_OK)
 		return handle;
 	free(handle);
 	return NULL;
@@ -152,10 +152,10 @@ static void a2dp_lc3plus_enc_free(LC3PLUS_Enc *handle) {
 	free(handle);
 }
 
-static LC3PLUS_Dec *a2dp_lc3plus_dec_init(int samplerate, int channels) {
+static LC3PLUS_Dec *a2dp_lc3plus_dec_init(int rate, int channels) {
 	LC3PLUS_Dec *handle;
-	if ((handle = malloc(lc3plus_dec_get_size(samplerate, channels))) != NULL &&
-			lc3plus_dec_init(handle, samplerate, channels, LC3PLUS_PLC_ADVANCED, 1) == LC3PLUS_OK)
+	if ((handle = malloc(lc3plus_dec_get_size(rate, channels))) != NULL &&
+			lc3plus_dec_init(handle, rate, channels, LC3PLUS_PLC_ADVANCED, 1) == LC3PLUS_OK)
 		return handle;
 	free(handle);
 	return NULL;
@@ -194,17 +194,17 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const a2dp_lc3plus_t *configuration = &t->a2dp.configuration.lc3plus;
 	const int lc3plus_frame_dms = a2dp_lc3plus_get_frame_dms(configuration);
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 	const unsigned int rtp_ts_clockrate = 96000;
 
 	/* check whether library supports selected configuration */
-	if (!a2dp_lc3plus_supported(samplerate, channels))
+	if (!a2dp_lc3plus_supported(rate, channels))
 		goto fail_init;
 
 	LC3PLUS_Enc *handle;
 	LC3PLUS_Error err;
 
-	if ((handle = a2dp_lc3plus_enc_init(samplerate, channels)) == NULL) {
+	if ((handle = a2dp_lc3plus_enc_init(rate, channels)) == NULL) {
 		error("Couldn't initialize LC3plus codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -263,7 +263,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to the RTP clock rate */
-	rtp_state_init(&rtp, samplerate, rtp_ts_clockrate);
+	rtp_state_init(&rtp, rate, rtp_ts_clockrate);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
@@ -416,17 +416,17 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	const a2dp_lc3plus_t *configuration = &t->a2dp.configuration.lc3plus;
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 	const unsigned int rtp_ts_clockrate = 96000;
 
 	/* check whether library supports selected configuration */
-	if (!a2dp_lc3plus_supported(samplerate, channels))
+	if (!a2dp_lc3plus_supported(rate, channels))
 		goto fail_init;
 
 	LC3PLUS_Dec *handle;
 	LC3PLUS_Error err;
 
-	if ((handle = a2dp_lc3plus_dec_init(samplerate, channels)) == NULL) {
+	if ((handle = a2dp_lc3plus_dec_init(rate, channels)) == NULL) {
 		error("Couldn't initialize LC3plus codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -465,7 +465,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to the RTP clock rate */
-	rtp_state_init(&rtp, samplerate, rtp_ts_clockrate);
+	rtp_state_init(&rtp, rate, rtp_ts_clockrate);
 
 	/* If true, we should skip fragmented RTP media packets until we will see
 	 * not fragmented one or the first fragment of fragmented packet. */
@@ -646,11 +646,11 @@ static int a2dp_lc3plus_configuration_select(
 	}
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_lc3plus_caps_foreach_sampling_freq(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_lc3plus_caps_foreach_sample_rate(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
 		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
-		error("LC3plus: No supported sampling frequencies: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(saved));
+		error("LC3plus: No supported sample rates: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(saved));
 		return errno = ENOTSUP, -1;
 	}
 
@@ -683,9 +683,9 @@ static int a2dp_lc3plus_configuration_check(
 	}
 
 	uint16_t conf_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(conf_v);
-	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings, conf_sampling_freq) == -1) {
-		debug("LC3plus: Invalid sampling frequency: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(*conf));
-		return A2DP_CHECK_ERR_SAMPLING;
+	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_rates, conf_sampling_freq) == -1) {
+		debug("LC3plus: Invalid sample rate: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(*conf));
+		return A2DP_CHECK_ERR_RATE;
 	}
 
 	return A2DP_CHECK_OK;
@@ -698,14 +698,14 @@ static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 					t->a2dp.configuration.lc3plus.channel_mode)) == -1)
 		return -1;
 
-	ssize_t sampling_i;
-	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_samplings,
+	ssize_t rate_i;
+	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_rates,
 					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->a2dp.configuration.lc3plus))) == -1)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
 	t->a2dp.pcm.channels = a2dp_lc3plus_channels[channels_i].value;
-	t->a2dp.pcm.sampling = a2dp_lc3plus_samplings[sampling_i].value;
+	t->a2dp.pcm.rate = a2dp_lc3plus_rates[rate_i].value;
 
 	memcpy(t->a2dp.pcm.channel_map, a2dp_lc3plus_channels[channels_i].ch.map,
 			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
@@ -717,7 +717,7 @@ static int a2dp_lc3plus_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		sep->config.capabilities.lc3plus.channel_mode = LC3PLUS_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
-		warn("LC3plus: 44.1 kHz sampling frequency not supported");
+		warn("LC3plus: 44.1 kHz sample rate not supported");
 	return 0;
 }
 

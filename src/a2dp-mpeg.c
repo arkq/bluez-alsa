@@ -60,7 +60,7 @@ static const struct a2dp_bit_mapping a2dp_mpeg_channels[] = {
 	{ 0 }
 };
 
-static const struct a2dp_bit_mapping a2dp_mpeg_samplings[] = {
+static const struct a2dp_bit_mapping a2dp_mpeg_rates[] = {
 	{ MPEG_SAMPLING_FREQ_16000, { 16000 } },
 	{ MPEG_SAMPLING_FREQ_22050, { 22050 } },
 	{ MPEG_SAMPLING_FREQ_24000, { 24000 } },
@@ -87,14 +87,14 @@ static int a2dp_mpeg_caps_foreach_channel_mode(
 	return -1;
 }
 
-static int a2dp_mpeg_caps_foreach_sampling_freq(
+static int a2dp_mpeg_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
 		void *userdata) {
 	const a2dp_mpeg_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
-		return a2dp_bit_mapping_foreach(a2dp_mpeg_samplings, caps->sampling_freq, func, userdata);
+		return a2dp_bit_mapping_foreach(a2dp_mpeg_rates, caps->sampling_freq, func, userdata);
 	return -1;
 }
 
@@ -108,23 +108,23 @@ static void a2dp_mpeg_caps_select_channel_mode(
 				caps->channel_mode, channels);
 }
 
-static void a2dp_mpeg_caps_select_sampling_freq(
+static void a2dp_mpeg_caps_select_sample_rate(
 		void *capabilities,
 		enum a2dp_stream stream,
-		unsigned int frequency) {
+		unsigned int rate) {
 	a2dp_mpeg_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
-		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_mpeg_samplings,
-				caps->sampling_freq, frequency);
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_mpeg_rates,
+				caps->sampling_freq, rate);
 }
 
 static struct a2dp_caps_helpers a2dp_mpeg_caps_helpers = {
 	.intersect = a2dp_mpeg_caps_intersect,
 	.has_stream = a2dp_caps_has_main_stream_only,
 	.foreach_channel_mode = a2dp_mpeg_caps_foreach_channel_mode,
-	.foreach_sampling_freq = a2dp_mpeg_caps_foreach_sampling_freq,
+	.foreach_sample_rate = a2dp_mpeg_caps_foreach_sample_rate,
 	.select_channel_mode = a2dp_mpeg_caps_select_channel_mode,
-	.select_sampling_freq = a2dp_mpeg_caps_select_sampling_freq,
+	.select_sample_rate = a2dp_mpeg_caps_select_sample_rate,
 };
 
 #if ENABLE_MP3LAME
@@ -146,11 +146,11 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	const a2dp_mpeg_t *configuration = &t->a2dp.configuration.mpeg;
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 	MPEG_mode mode = NOT_SET;
 
 	lame_set_num_channels(handle, channels);
-	lame_set_in_samplerate(handle, samplerate);
+	lame_set_in_samplerate(handle, rate);
 
 	switch (configuration->channel_mode) {
 	case MPEG_CHANNEL_MODE_MONO:
@@ -242,7 +242,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to 90kHz */
-	rtp_state_init(&rtp, samplerate, 90000);
+	rtp_state_init(&rtp, rate, 90000);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
@@ -367,7 +367,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(mpg123_delete), handle);
 
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 
 	mpg123_param(handle, MPG123_RESYNC_LIMIT, -1, 0);
 	mpg123_param(handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0);
@@ -376,7 +376,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 #endif
 
 	mpg123_format_none(handle);
-	if (mpg123_format(handle, samplerate, channels, MPG123_ENC_SIGNED_16) != MPG123_OK) {
+	if (mpg123_format(handle, rate, channels, MPG123_ENC_SIGNED_16) != MPG123_OK) {
 		error("Couldn't set MPG123 format: %s", mpg123_strerror(handle));
 		goto fail_open;
 	}
@@ -397,7 +397,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 	}
 
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 	pthread_cleanup_push(PTHREAD_CLEANUP(hip_decode_exit), handle);
 
 	/* NOTE: Size of the output buffer is "hard-coded" in hip_decode(). What is
@@ -421,7 +421,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to 90kHz */
-	rtp_state_init(&rtp, samplerate, 90000);
+	rtp_state_init(&rtp, rate, 90000);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
@@ -452,7 +452,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 #if ENABLE_MPG123
 
-		long rate;
+		long rate_;
 		int channels_;
 		int encoding;
 
@@ -464,8 +464,8 @@ decode:
 		case MPG123_OK:
 			break;
 		case MPG123_NEW_FORMAT:
-			mpg123_getformat(handle, &rate, &channels_, &encoding);
-			debug("MPG123 new format detected: r:%ld, ch:%d, enc:%#x", rate, channels_, encoding);
+			mpg123_getformat(handle, &rate_, &channels_, &encoding);
+			debug("MPG123 new format detected: r:%ld, ch:%d, enc:%#x", rate_, channels_, encoding);
 			break;
 		default:
 			error("MPG123 decoding error: %s", mpg123_strerror(handle));
@@ -567,11 +567,11 @@ static int a2dp_mpeg_configuration_select(
 	}
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_mpeg_caps_foreach_sampling_freq(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_mpeg_caps_foreach_sample_rate(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
 		caps->sampling_freq = sampling_freq;
 	else {
-		error("MPEG: No supported sampling frequencies: %#x", saved.sampling_freq);
+		error("MPEG: No supported sample rates: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -608,9 +608,9 @@ static int a2dp_mpeg_configuration_check(
 		return A2DP_CHECK_ERR_CHANNEL_MODE;
 	}
 
-	if (a2dp_bit_mapping_lookup(a2dp_mpeg_samplings, conf_v.sampling_freq) == -1) {
-		debug("MPEG: Invalid sampling frequency: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_SAMPLING;
+	if (a2dp_bit_mapping_lookup(a2dp_mpeg_rates, conf_v.sampling_freq) == -1) {
+		debug("MPEG: Invalid sample rate: %#x", conf->sampling_freq);
+		return A2DP_CHECK_ERR_RATE;
 	}
 
 	return A2DP_CHECK_OK;
@@ -623,14 +623,14 @@ static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 					t->a2dp.configuration.mpeg.channel_mode)) == -1)
 		return -1;
 
-	ssize_t sampling_i;
-	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_mpeg_samplings,
+	ssize_t rate_i;
+	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_mpeg_rates,
 					t->a2dp.configuration.mpeg.sampling_freq)) == -1)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm.channels = a2dp_mpeg_channels[channels_i].value;
-	t->a2dp.pcm.sampling = a2dp_mpeg_samplings[sampling_i].value;
+	t->a2dp.pcm.rate = a2dp_mpeg_rates[rate_i].value;
 
 	memcpy(t->a2dp.pcm.channel_map, a2dp_mpeg_channels[channels_i].ch.map,
 			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
