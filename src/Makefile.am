@@ -99,7 +99,7 @@ bluealsad_SOURCES += \
 endif
 
 if ENABLE_LHDC
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-lhdc.c
 endif
 

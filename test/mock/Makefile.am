@@ -129,7 +129,7 @@ bluealsad_mock_SOURCES += ../../src/a2dp-ldac.c
 endif
 
 if ENABLE_LHDC
-bluealsa_mock_SOURCES += ../../src/a2dp-lhdc.c
+bluealsad_mock_SOURCES += ../../src/a2dp-lhdc.c
 endif
 
 if ENABLE_MIDI

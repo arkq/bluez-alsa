@@ -40,10 +40,14 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
+static const enum ba_transport_pcm_channel a2dp_lhdc_channel_map_stereo[] = {
+	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
+};
+
 static const struct a2dp_bit_mapping a2dp_lhdc_samplings[] = {
-	{ LHDC_SAMPLING_FREQ_44100, 44100 },
-	{ LHDC_SAMPLING_FREQ_48000, 48000 },
-	{ LHDC_SAMPLING_FREQ_96000, 96000 },
+	{ LHDC_SAMPLING_FREQ_44100, { 44100 } },
+	{ LHDC_SAMPLING_FREQ_48000, { 48000 } },
+	{ LHDC_SAMPLING_FREQ_96000, { 96000 } },
 	{ 0 },
 };
 
@@ -59,7 +63,8 @@ static int a2dp_lhdc_caps_foreach_channel_mode(
 		a2dp_bit_mapping_foreach_func func,
 		void *userdata) {
 	(void)capabilities;
-	const struct a2dp_bit_mapping channels_stereo = { .value = 2 };
+	static const struct a2dp_bit_mapping channels_stereo = {
+		.ch = { 2, a2dp_lhdc_channel_map_stereo } };
 	if (stream == A2DP_MAIN)
 		return func(channels_stereo, userdata);
 	return -1;
@@ -105,37 +110,40 @@ static struct a2dp_caps_helpers a2dp_lhdc_caps_helpers = {
 };
 
 static LHDC_VERSION_SETUP get_version(const a2dp_lhdc_v3_t *configuration) {
-	if (configuration->llac) {
+	if (configuration->llac)
 		return LLAC;
-	} else if (configuration->lhdc_v4) {
+	if (configuration->lhdc_v4)
 		return LHDC_V4;
-	} else {
-		return LHDC_V3;
-	}
+	return LHDC_V3;
 }
 
-static int get_encoder_interval(const a2dp_lhdc_v3_t *configuration) {
-	if (configuration->low_latency) {
-		return 10;
-	} else {
-		return 20;
-	}
+static lhdc_ver_t get_decoder_version(const a2dp_lhdc_v3_t *configuration) {
+
+	static const lhdc_ver_t versions[] = {
+		[LHDC_V3] = VERSION_3,
+		[LHDC_V4] = VERSION_4,
+		[LLAC]	= VERSION_LLAC,
+	};
+
+	return versions[get_version(configuration)];
+}
+
+static int get_interval(const a2dp_lhdc_v3_t *configuration) {
+	return configuration->low_latency ? 10 : 20;
 }
 
 static int get_bit_depth(const a2dp_lhdc_v3_t *configuration) {
-	if (configuration->bit_depth == LHDC_BIT_DEPTH_16) {
-		return 16;
-	} else {
-		return 24;
-	}
+	return configuration->bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
 }
 
 static LHDCBT_QUALITY_T get_max_bitrate(const a2dp_lhdc_v3_t *configuration) {
-	if (configuration->max_bitrate == LHDC_MAX_BITRATE_400K) {
+	switch (configuration->max_bitrate) {
+	case LHDC_MAX_BITRATE_400K:
 		return LHDCBT_QUALITY_LOW;
-	} else if (configuration->max_bitrate == LHDC_MAX_BITRATE_500K) {
+	case LHDC_MAX_BITRATE_500K:
 		return LHDCBT_QUALITY_MID;
-	} else {
+	case LHDC_MAX_BITRATE_900K:
+	default:
 		return LHDCBT_QUALITY_HIGH;
 	}
 }
@@ -149,6 +157,8 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct io_poll io = { .timeout = -1 };
 
 	const a2dp_lhdc_v3_t *configuration = &t->a2dp.configuration.lhdc_v3;
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int samplerate = t_pcm->sampling;
 
 	HANDLE_LHDC_BT handle;
 	if ((handle = lhdcBT_get_handle(get_version(configuration))) == NULL) {
@@ -158,8 +168,6 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(lhdcBT_free_handle), handle);
 
-	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
 	const unsigned int bitdepth = get_bit_depth(configuration);
 
 	lhdcBT_set_hasMinBitrateLimit(handle, configuration->min_bitrate);
@@ -174,8 +182,8 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	rtp_header_t *rtp_header;
 
 	if (lhdcBT_init_encoder(handle, samplerate, bitdepth, config.lhdc_eqmid,
-			configuration->ch_split_mode > LHDC_CH_SPLIT_MODE_NONE, 0, t->mtu_write - sizeof(*lhdc_media_header) - sizeof(*rtp_header) + sizeof(rtp_header->csrc),
-			get_encoder_interval(configuration)) == -1) {
+			configuration->ch_split_mode > LHDC_CH_SPLIT_MODE_NONE, 0, t->mtu_write - sizeof(*lhdc_media_header) - RTP_HEADER_LEN,
+			get_interval(configuration)) == -1) {
 		error("Couldn't initialize LHDC encoder");
 		goto fail_init;
 	}
@@ -200,14 +208,12 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
-
-
 	/* initialize RTP headers and get anchor for payload */
 	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
 			(void **)&lhdc_media_header, sizeof(*lhdc_media_header));
 
 	struct rtp_state rtp = { .synced = false };
-	/* RTP clock frequency equal to audio samplerate */
+	/* RTP clock frequency equal to audio sample rate */
 	rtp_state_init(&rtp, samplerate, samplerate);
 
 	uint8_t seq_num = 0;
@@ -320,13 +326,6 @@ fail_open_lhdc:
 	return NULL;
 }
 
-static const int versions[5] = {
-	[LHDC_V2] = VERSION_2,
-	[LHDC_V3] = VERSION_3,
-	[LHDC_V4] = VERSION_4,
-	[LLAC]	= VERSION_LLAC,
-};
-
 void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -339,12 +338,12 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int samplerate = t_pcm->sampling;
-	const unsigned int bitdepth = get_bit_depth(configuration);
+	const unsigned int bit_depth = get_bit_depth(configuration);
 
 	tLHDCV3_DEC_CONFIG dec_config = {
-		.version = versions[get_version(configuration)],
+		.version = get_decoder_version(configuration),
 		.sample_rate = samplerate,
-		.bits_depth = bitdepth,
+		.bits_depth = bit_depth,
 	};
 
 	if (lhdcBT_dec_init_decoder(&dec_config) < 0) {
@@ -366,7 +365,7 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	}
 
 	struct rtp_state rtp = { .synced = false };
-	/* RTP clock frequency equal to audio samplerate */
+	/* RTP clock frequency equal to audio sample rate */
 	rtp_state_init(&rtp, samplerate, samplerate);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
@@ -433,11 +432,11 @@ static int a2dp_lhdc_configuration_select(
 	/* Narrow capabilities to values supported by BlueALSA. */
 	a2dp_lhdc_caps_intersect(caps, &sep->config.capabilities);
 
-	if (caps->bit_depth & LHDC_BIT_DEPTH_24) {
+	if (caps->bit_depth & LHDC_BIT_DEPTH_24)
 		caps->bit_depth = LHDC_BIT_DEPTH_24;
-	} else if (caps->bit_depth & LHDC_BIT_DEPTH_16) {
+	else if (caps->bit_depth & LHDC_BIT_DEPTH_16)
 		caps->bit_depth = LHDC_BIT_DEPTH_16;
-	} else {
+	else {
 		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
 		return errno = ENOTSUP, -1;
 	}
@@ -464,7 +463,7 @@ static int a2dp_lhdc_configuration_check(
 	/* Validate configuration against BlueALSA capabilities. */
 	a2dp_lhdc_caps_intersect(&conf_v, &sep->config.capabilities);
 
-	if (a2dp_bit_mapping_lookup(a2dp_lhdc_samplings, conf_v.sampling_freq) == 0) {
+	if (a2dp_bit_mapping_lookup(a2dp_lhdc_samplings, conf_v.sampling_freq) == -1) {
 		debug("LHDC: Invalid sampling frequency: %#x", conf->sampling_freq);
 		return A2DP_CHECK_ERR_SAMPLING;
 	}
@@ -474,9 +473,9 @@ static int a2dp_lhdc_configuration_check(
 
 static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 
-	unsigned int sampling;
-	if ((sampling = a2dp_bit_mapping_lookup(a2dp_lhdc_samplings,
-					t->a2dp.configuration.lhdc_v3.sampling_freq)) == 0)
+	ssize_t sampling_i;
+	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_lhdc_samplings,
+					t->a2dp.configuration.lhdc_v3.sampling_freq)) == -1)
 		return -1;
 
 	if (t->a2dp.sep->config.type == A2DP_SINK) {
@@ -486,7 +485,10 @@ static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 	}
 
 	t->a2dp.pcm.channels = 2;
-	t->a2dp.pcm.sampling = sampling;
+	t->a2dp.pcm.sampling = a2dp_lhdc_samplings[sampling_i].value;
+
+	memcpy(t->a2dp.pcm.channel_map, a2dp_lhdc_channel_map_stereo,
+			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
 
 	return 0;
 }
@@ -502,7 +504,7 @@ static int a2dp_lhdc_source_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_lhdc_source = {
-	.name = "A2DP Source (LHDC V3)",
+	.name = "A2DP Source (LHDC v3)",
 	.config = {
 		.type = A2DP_SOURCE,
 		.codec_id = A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID),
@@ -542,7 +544,7 @@ static int a2dp_lhdc_sink_transport_start(struct ba_transport *t) {
 }
 
 struct a2dp_sep a2dp_lhdc_sink = {
-	.name = "A2DP Sink (LHDC V3)",
+	.name = "A2DP Sink (LHDC v3)",
 	.config = {
 		.type = A2DP_SINK,
 		.codec_id = A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID),

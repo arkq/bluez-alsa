@@ -87,7 +87,7 @@
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
-#if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
+#if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST || ENABLE_LHDC
 # include "rtp.h"
 #endif
 #include "storage.h"
