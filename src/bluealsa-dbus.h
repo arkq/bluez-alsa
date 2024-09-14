@@ -25,7 +25,7 @@
 #define BA_DBUS_PCM_UPDATE_FORMAT           (1 << 0)
 #define BA_DBUS_PCM_UPDATE_CHANNELS         (1 << 1)
 #define BA_DBUS_PCM_UPDATE_CHANNEL_MAP      (1 << 2)
-#define BA_DBUS_PCM_UPDATE_SAMPLING         (1 << 3)
+#define BA_DBUS_PCM_UPDATE_RATE             (1 << 3)
 #define BA_DBUS_PCM_UPDATE_CODEC            (1 << 4)
 #define BA_DBUS_PCM_UPDATE_CODEC_CONFIG     (1 << 5)
 #define BA_DBUS_PCM_UPDATE_DELAY            (1 << 6)

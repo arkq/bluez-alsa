@@ -44,11 +44,11 @@
  * Structure used for time synchronization.
  *
  * With the size of the frame counter being 32 bits, it is possible to track
- * up to ~24 hours, with the sampling rate of 48 kHz. If it is insufficient,
+ * up to ~24 hours, with the sample rate of 48 kHz. If it is insufficient,
  * one can switch to 64 bits, which would suffice for 12 million years. */
 struct asrsync {
 
-	/* used sampling rate */
+	/* used sample rate */
 	unsigned int rate;
 	/* reference time point */
 	struct timespec ts0;
@@ -72,7 +72,7 @@ struct asrsync {
  * Start (initialize) time synchronization.
  *
  * @param asrs Pointer to the time synchronization structure.
- * @param sr Synchronization sampling rate. */
+ * @param sr Synchronization sample rate. */
 #define asrsync_init(asrs, sr) do { \
 		(asrs)->rate = sr; \
 		gettimestamp(&(asrs)->ts0); \

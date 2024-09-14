@@ -574,8 +574,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			batostr_(&d->addr));
 	hexdump("A2DP selected configuration blob",
 			&configuration, sep->config.caps_size);
-	debug("PCM configuration: channels: %u, sampling: %u",
-			t->a2dp.pcm.channels, t->a2dp.pcm.sampling);
+	debug("PCM configuration: channels=%u rate=%u",
+			t->a2dp.pcm.channels, t->a2dp.pcm.rate);
 
 	ba_transport_set_a2dp_state(t, state);
 

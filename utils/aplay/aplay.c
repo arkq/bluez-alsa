@@ -205,7 +205,7 @@ static void print_bt_device_list(void) {
 					pcm->codec.name,
 					snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 					pcm->channels, pcm->channels != 1 ? "s" : "",
-					pcm->sampling);
+					pcm->rate);
 
 		}
 	}
@@ -246,7 +246,7 @@ static void print_bt_pcm_list(void) {
 				pcm->codec.name,
 				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 				pcm->channels, pcm->channels != 1 ? "s" : "",
-				pcm->sampling);
+				pcm->rate);
 
 	}
 
@@ -538,7 +538,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 	snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
 	ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
-	size_t pcm_1s_samples = w->ba_pcm.sampling * w->ba_pcm.channels;
+	size_t pcm_1s_samples = w->ba_pcm.rate * w->ba_pcm.channels;
 	ffb_t buffer = { 0 };
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -728,9 +728,9 @@ static void *io_worker_routine(struct io_worker *w) {
 			}
 
 			debug("Opening ALSA playback PCM: name=%s channels=%u rate=%u",
-					pcm_device, w->ba_pcm.channels, w->ba_pcm.sampling);
+					pcm_device, w->ba_pcm.channels, w->ba_pcm.rate);
 			if (alsa_pcm_open(&w->snd_pcm, pcm_device, pcm_format, w->ba_pcm.channels,
-						w->ba_pcm.sampling, &buffer_time, &period_time, &tmp) != 0) {
+						w->ba_pcm.rate, &buffer_time, &period_time, &tmp) != 0) {
 				warn("Couldn't open ALSA playback PCM: %s", tmp);
 				pcm_max_read_len = pcm_max_read_len_init;
 				pcm_open_retry_pcm_samples = 0;
@@ -754,13 +754,13 @@ static void *io_worker_routine(struct io_worker *w) {
 						"  ALSA PCM buffer time: %u us (%zu bytes)\n"
 						"  ALSA PCM period time: %u us (%zu bytes)\n"
 						"  PCM format: %s\n"
-						"  Sampling rate: %u Hz\n"
+						"  Sample rate: %u Hz\n"
 						"  Channels: %u",
 						w->addr,
 						buffer_time, snd_pcm_frames_to_bytes(w->snd_pcm, buffer_frames),
 						period_time, snd_pcm_frames_to_bytes(w->snd_pcm, period_frames),
 						snd_pcm_format_name(pcm_format),
-						w->ba_pcm.sampling,
+						w->ba_pcm.rate,
 						w->ba_pcm.channels);
 			}
 
@@ -835,7 +835,7 @@ static bool pcm_hw_params_equal(
 		return false;
 	if (ba_pcm_1->channels != ba_pcm_2->channels)
 		return false;
-	if (ba_pcm_1->sampling != ba_pcm_2->sampling)
+	if (ba_pcm_1->rate != ba_pcm_2->rate)
 		return false;
 	return true;
 }
@@ -933,7 +933,7 @@ static struct io_worker *supervise_io_worker(const struct ba_pcm *ba_pcm) {
 
 	/* check whether SCO has selected codec */
 	if (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO &&
-			ba_pcm->sampling == 0) {
+			ba_pcm->rate == 0) {
 		debug("Skipping SCO with codec not selected");
 		goto stop;
 	}

@@ -90,7 +90,7 @@ info *PCM_PATH*
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
 
-codec [-c NUM] [-s NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
+codec [-c NUM] [-r NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
     Get or set the Bluetooth codec used by the given PCM.
 
     If *CODEC* is given, change the codec to be used by the given PCM. This
@@ -223,7 +223,7 @@ open [--hex] *PCM_PATH*
     Transfer raw audio frames to or from the given PCM. For sink PCMs
     the frames are read from standard input and written to the PCM. For
     source PCMs the frames are read from the PCM and written to standard
-    output. The format, channels and sampling rate must match the properties
+    output. The format, channels and sample rate must match the properties
     of the PCM, as no format conversions are performed by this tool.
 
     With the **--hex** option, the data is read or written as hexadecimal

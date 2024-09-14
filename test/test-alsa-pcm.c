@@ -42,7 +42,7 @@
 
 static const char *pcm_device = NULL;
 static unsigned int pcm_channels = 2;
-static unsigned int pcm_sampling = 44100;
+static unsigned int pcm_rate = 44100;
 static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
 /* big enough buffer to keep one period of data */
 static int16_t pcm_buffer[1024 * 8];
@@ -158,7 +158,7 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
 static int16_t *test_sine_s16le(snd_pcm_uframes_t size) {
 	static size_t x = 0;
 	assert(ARRAYSIZE(pcm_buffer) >= size * pcm_channels);
-	x = snd_pcm_sine_s16_2le(pcm_buffer, size, pcm_channels, x, 441.0 / pcm_sampling);
+	x = snd_pcm_sine_s16_2le(pcm_buffer, size, pcm_channels, x, 441.0 / pcm_rate);
 	return pcm_buffer;
 }
 
@@ -198,7 +198,7 @@ CK_START_TEST(test_capture_start) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -246,7 +246,7 @@ CK_START_TEST(test_capture_drain) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 	ck_assert_int_eq(snd_pcm_start(pcm), 0);
@@ -269,7 +269,7 @@ CK_START_TEST(test_capture_pause) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -332,7 +332,7 @@ CK_START_TEST(test_capture_overrun) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -373,7 +373,7 @@ CK_START_TEST(test_capture_poll) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 
 	struct pollfd pfds[8];
@@ -419,7 +419,7 @@ CK_START_TEST(dump_playback) {
 
 	ck_assert_int_eq(snd_pcm_dump(pcm, output), 0);
 
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 
 	snd_pcm_hw_params_t *params;
@@ -539,7 +539,7 @@ CK_START_TEST(ba_test_playback_channel_maps) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 
 	/* get all supported channel maps */
@@ -681,7 +681,7 @@ CK_START_TEST(test_playback_hw_set_free) {
 		int set_hw_param_ret;
 		/* acquire Bluetooth transport */
 		if ((set_hw_param_ret = set_hw_params(pcm, pcm_format, pcm_channels,
-					pcm_sampling, &buffer_time, &period_time)) == -EBUSY) {
+					pcm_rate, &buffer_time, &period_time)) == -EBUSY) {
 			debug("Retrying snd_pcm_hw_params_set...");
 			/* do not treat busy as an error */
 			i--;
@@ -708,7 +708,7 @@ CK_START_TEST(test_playback_start) {
 	size_t i;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	/* setup PCM to be started by writing the last period of data */
@@ -748,7 +748,7 @@ CK_START_TEST(test_playback_drain) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -783,7 +783,7 @@ CK_START_TEST(test_playback_drain_not_started) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	/* setup PCM to be started by writing the last period of data */
@@ -816,7 +816,7 @@ CK_START_TEST(test_playback_drain_nonblock) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -868,7 +868,7 @@ CK_START_TEST(test_playback_pause) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -933,7 +933,7 @@ CK_START_TEST(test_playback_reset) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -986,7 +986,7 @@ CK_START_TEST(test_playback_underrun) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -1054,7 +1054,7 @@ CK_START_TEST(reference_playback_device_unplug) {
 	ck_assert_ptr_ne(pcm_device, NULL);
 
 	ck_assert_int_eq(test_pcm_open(NULL, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
@@ -1096,7 +1096,7 @@ CK_START_TEST(ba_test_playback_device_unplug) {
 
 	ck_assert_ptr_eq(pcm_device, NULL);
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
-	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_sampling,
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
 
@@ -1167,7 +1167,7 @@ int main(int argc, char *argv[]) {
 				pcm_format = SND_PCM_FORMAT_U8;
 			break;
 		case 'r' /* --rate=NUM */ :
-			pcm_sampling = atoi(optarg);
+			pcm_rate = atoi(optarg);
 			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);

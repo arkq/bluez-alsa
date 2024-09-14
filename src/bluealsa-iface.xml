@@ -38,7 +38,7 @@
 		<property name="Format" type="q" access="read" />
 		<property name="Channels" type="y" access="read" />
 		<property name="ChannelMap" type="as" access="read" />
-		<property name="Sampling" type="u" access="read" />
+		<property name="Rate" type="u" access="read" />
 		<property name="Codec" type="s" access="read" />
 		<property name="CodecConfiguration" type="ay" access="read" />
 		<property name="Delay" type="q" access="read" />

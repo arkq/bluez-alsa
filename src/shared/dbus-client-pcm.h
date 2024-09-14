@@ -87,10 +87,10 @@ struct ba_pcm_codec {
 	size_t data_len;
 	/* number of channels supported by the codec */
 	unsigned char channels[8];
-	/* sampling frequencies supported by the codec */
-	dbus_uint32_t sampling[16];
 	/* channel maps associated with supported number of channels */
 	char channel_maps[8][8][5];
+	/* sample rates supported by the codec */
+	dbus_uint32_t rates[16];
 };
 
 /**
@@ -125,8 +125,8 @@ struct ba_pcm {
 	unsigned char channels;
 	/* channel map for selected codec */
 	char channel_map[8][5];
-	/* PCM sampling frequency */
-	dbus_uint32_t sampling;
+	/* PCM sample rate */
+	dbus_uint32_t rate;
 
 	/* device address */
 	bdaddr_t addr;
@@ -200,7 +200,7 @@ dbus_bool_t ba_dbus_pcm_select_codec(
 		const void *configuration,
 		size_t configuration_len,
 		unsigned int channels,
-		unsigned int sampling,
+		unsigned int rate,
 		unsigned int flags,
 		DBusError *error);
 

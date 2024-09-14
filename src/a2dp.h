@@ -59,7 +59,7 @@ typedef int (*a2dp_bit_mapping_foreach_func)(
 int a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
-int a2dp_bit_mapping_foreach_get_best_sampling_freq(
+int a2dp_bit_mapping_foreach_get_best_sample_rate(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
 
@@ -116,8 +116,8 @@ struct a2dp_caps_helpers {
 			a2dp_bit_mapping_foreach_func func,
 			void *userdata);
 
-	/* Function for iterating over sampling frequencies. */
-	int (*foreach_sampling_freq)(
+	/* Function for iterating over sample rates. */
+	int (*foreach_sample_rate)(
 			const void *capabilities,
 			enum a2dp_stream stream,
 			a2dp_bit_mapping_foreach_func func,
@@ -128,10 +128,10 @@ struct a2dp_caps_helpers {
 			enum a2dp_stream stream,
 			unsigned int channels);
 
-	void (*select_sampling_freq)(
+	void (*select_sample_rate)(
 			void *capabilities,
 			enum a2dp_stream stream,
-			unsigned int frequency);
+			unsigned int rate);
 
 };
 
@@ -219,7 +219,7 @@ enum a2dp_check_err {
 	A2DP_CHECK_OK = 0,
 	A2DP_CHECK_ERR_SIZE,
 	A2DP_CHECK_ERR_CHANNEL_MODE,
-	A2DP_CHECK_ERR_SAMPLING,
+	A2DP_CHECK_ERR_RATE,
 	A2DP_CHECK_ERR_ALLOCATION_METHOD,
 	A2DP_CHECK_ERR_BIT_POOL_RANGE,
 	A2DP_CHECK_ERR_SUB_BANDS,
@@ -227,8 +227,8 @@ enum a2dp_check_err {
 	A2DP_CHECK_ERR_MPEG_LAYER,
 	A2DP_CHECK_ERR_OBJECT_TYPE,
 	A2DP_CHECK_ERR_DIRECTIONS,
-	A2DP_CHECK_ERR_SAMPLING_VOICE,
-	A2DP_CHECK_ERR_SAMPLING_MUSIC,
+	A2DP_CHECK_ERR_RATE_VOICE,
+	A2DP_CHECK_ERR_RATE_MUSIC,
 	A2DP_CHECK_ERR_FRAME_DURATION,
 };
 

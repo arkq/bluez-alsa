@@ -572,18 +572,18 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	if ((ret = snd_pcm_hw_params_get_channels(params, &channels)) < 0)
 		return ret;
 
-	unsigned int sampling;
-	if ((ret = snd_pcm_hw_params_get_rate(params, &sampling, NULL)) < 0)
+	unsigned int rate;
+	if ((ret = snd_pcm_hw_params_get_rate(params, &rate, NULL)) < 0)
 		return ret;
 
-	if (pcm->ba_pcm.channels != channels || pcm->ba_pcm.sampling != sampling) {
+	if (pcm->ba_pcm.channels != channels || pcm->ba_pcm.rate != rate) {
 		debug2("Changing BlueALSA PCM configuration: %u ch, %u Hz -> %u ch, %u Hz",
-				pcm->ba_pcm.channels, pcm->ba_pcm.sampling, channels, sampling);
+				pcm->ba_pcm.channels, pcm->ba_pcm.rate, channels, rate);
 
 		const char *codec_name = pcm->ba_pcm.codec.name;
 		if (!ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				codec_name, pcm->ba_pcm_codec_config, pcm->ba_pcm_codec_config_len,
-				channels, sampling, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
+				channels, rate, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
 			SNDERR("Couldn't change BlueALSA PCM configuration: %s", err.message);
 			return -dbus_error_to_errno(&err);
 		}
@@ -593,7 +593,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		 * speed up the process. */
 
 		pcm->ba_pcm.channels = channels;
-		pcm->ba_pcm.sampling = sampling;
+		pcm->ba_pcm.rate = rate;
 
 		for (size_t i = 0; i < pcm->ba_pcm_codecs.codecs_len; i++) {
 			const struct ba_pcm_codec *codec = &pcm->ba_pcm_codecs.codecs[i];
@@ -1408,20 +1408,20 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 
 	/* In order to prevent audio tearing and minimize CPU utilization, we're
 	 * going to setup period size constraint. The limit is derived from the
-	 * transport sampling rate and the number of channels, so the period
+	 * transport sample rate and the number of channels, so the period
 	 * "time" size will be constant, and should be about 10ms. The upper
 	 * limit will not be constrained. */
-	unsigned int min_p = pcm->ba_pcm.sampling / 100 * pcm->ba_pcm.channels *
+	unsigned int min_p = pcm->ba_pcm.rate / 100 * pcm->ba_pcm.channels *
 		snd_pcm_format_physical_width(get_snd_pcm_format(pcm->ba_pcm.format)) / 8;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
 					min_p, 1024 * 1024)) < 0)
 		return err;
 
-	unsigned int list[ARRAYSIZE(codec->sampling)];
+	unsigned int list[ARRAYSIZE(codec->rates)];
 	unsigned int n;
 
-	/* Populate the list of supported channels and sampling rates. For codecs
+	/* Populate the list of supported channels and sample rates. For codecs
 	 * with fixed configuration, the list will contain only one element. For
 	 * other codecs, the list might contain all supported configurations. */
 
@@ -1432,8 +1432,8 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 		return err;
 
 	n = 0;
-	for (size_t i = 0; i < ARRAYSIZE(codec->sampling) && codec->sampling[i] != 0; i++)
-		list[n++] = codec->sampling[i];
+	for (size_t i = 0; i < ARRAYSIZE(codec->rates) && codec->rates[i] != 0; i++)
+		list[n++] = codec->rates[i];
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_RATE, n, list)) < 0)
 		return err;
 
@@ -1650,7 +1650,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if (codec_name[0] != '\0') {
 		/* If the codec was given, change it now, so we can get the correct
-		 * sampling rate and channels for HW constraints. */
+		 * sample rate and channels for HW constraints. */
 		const char *canonical = ba_dbus_pcm_codec_get_canonical_name(codec_name);
 		const bool name_changed = strcmp(canonical, pcm->ba_pcm.codec.name) != 0;
 		if (name_changed && !ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
@@ -1663,7 +1663,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			memcpy(pcm->ba_pcm_codec_config, codec_config, codec_config_len);
 			pcm->ba_pcm_codec_config_len = codec_config_len;
 
-			/* Changing the codec may change the audio format, sampling rate and/or
+			/* Changing the codec may change the audio format, sample rate and/or
 			 * channels. We need to refresh our cache of PCM properties. */
 			if (name_changed && !ba_dbus_pcm_get(&pcm->dbus_ctx, &ba_addr, ba_profile,
 						stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
@@ -1676,9 +1676,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 	}
 
-	/* If the BT transport codec is not known (which means that PCM sampling
+	/* If the BT transport codec is not known (which means that PCM sample
 	 * rate is also not know), we cannot construct useful constraints. */
-	if (pcm->ba_pcm.sampling == 0) {
+	if (pcm->ba_pcm.rate == 0) {
 		ret = -EAGAIN;
 		goto fail;
 	}

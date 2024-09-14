@@ -47,7 +47,7 @@ static const struct a2dp_bit_mapping a2dp_aptx_channels[] = {
 	{ 0 }
 };
 
-static const struct a2dp_bit_mapping a2dp_aptx_samplings[] = {
+static const struct a2dp_bit_mapping a2dp_aptx_rates[] = {
 	{ APTX_SAMPLING_FREQ_16000, { 16000 } },
 	{ APTX_SAMPLING_FREQ_32000, { 32000 } },
 	{ APTX_SAMPLING_FREQ_44100, { 44100 } },
@@ -72,14 +72,14 @@ static int a2dp_aptx_caps_foreach_channel_mode(
 	return -1;
 }
 
-static int a2dp_aptx_caps_foreach_sampling_freq(
+static int a2dp_aptx_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
 		void *userdata) {
 	const a2dp_aptx_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
-		return a2dp_bit_mapping_foreach(a2dp_aptx_samplings, caps->sampling_freq, func, userdata);
+		return a2dp_bit_mapping_foreach(a2dp_aptx_rates, caps->sampling_freq, func, userdata);
 	return -1;
 }
 
@@ -93,23 +93,23 @@ static void a2dp_aptx_caps_select_channel_mode(
 				caps->channel_mode, channels);
 }
 
-static void a2dp_aptx_caps_select_sampling_freq(
+static void a2dp_aptx_caps_select_sample_rate(
 		void *capabilities,
 		enum a2dp_stream stream,
-		unsigned int frequency) {
+		unsigned int rate) {
 	a2dp_aptx_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
-		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_aptx_samplings,
-				caps->sampling_freq, frequency);
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_aptx_rates,
+				caps->sampling_freq, rate);
 }
 
 static struct a2dp_caps_helpers a2dp_aptx_caps_helpers = {
 	.intersect = a2dp_aptx_caps_intersect,
 	.has_stream = a2dp_caps_has_main_stream_only,
 	.foreach_channel_mode = a2dp_aptx_caps_foreach_channel_mode,
-	.foreach_sampling_freq = a2dp_aptx_caps_foreach_sampling_freq,
+	.foreach_sample_rate = a2dp_aptx_caps_foreach_sample_rate,
 	.select_channel_mode = a2dp_aptx_caps_select_channel_mode,
-	.select_sampling_freq = a2dp_aptx_caps_select_sampling_freq,
+	.select_sample_rate = a2dp_aptx_caps_select_sample_rate,
 };
 
 void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
@@ -319,11 +319,11 @@ static int a2dp_aptx_configuration_select(
 	a2dp_aptx_caps_intersect(caps, &sep->config.capabilities);
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_aptx_caps_foreach_sampling_freq(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sampling_freq, &sampling_freq) != -1)
+	if (a2dp_aptx_caps_foreach_sample_rate(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
 		caps->sampling_freq = sampling_freq;
 	else {
-		error("apt-X: No supported sampling frequencies: %#x", saved.sampling_freq);
+		error("apt-X: No supported sample rates: %#x", saved.sampling_freq);
 		return errno = ENOTSUP, -1;
 	}
 
@@ -349,9 +349,9 @@ static int a2dp_aptx_configuration_check(
 	/* Validate configuration against BlueALSA capabilities. */
 	a2dp_aptx_caps_intersect(&conf_v, &sep->config.capabilities);
 
-	if (a2dp_bit_mapping_lookup(a2dp_aptx_samplings, conf_v.sampling_freq) == -1) {
-		debug("apt-X: Invalid sampling frequency: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_SAMPLING;
+	if (a2dp_bit_mapping_lookup(a2dp_aptx_rates, conf_v.sampling_freq) == -1) {
+		debug("apt-X: Invalid sample rate: %#x", conf->sampling_freq);
+		return A2DP_CHECK_ERR_RATE;
 	}
 
 	if (a2dp_bit_mapping_lookup(a2dp_aptx_channels, conf_v.channel_mode) == -1) {
@@ -369,14 +369,14 @@ static int a2dp_aptx_transport_init(struct ba_transport *t) {
 					t->a2dp.configuration.aptx.channel_mode)) == -1)
 		return -1;
 
-	ssize_t sampling_i;
-	if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_aptx_samplings,
+	ssize_t rate_i;
+	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aptx_rates,
 					t->a2dp.configuration.aptx.sampling_freq)) == -1)
 		return -1;
 
 	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->a2dp.pcm.channels = a2dp_aptx_channels[channels_i].value;
-	t->a2dp.pcm.sampling = a2dp_aptx_samplings[sampling_i].value;
+	t->a2dp.pcm.rate = a2dp_aptx_rates[rate_i].value;
 
 	memcpy(t->a2dp.pcm.channel_map, a2dp_aptx_channels[channels_i].ch.map,
 			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));

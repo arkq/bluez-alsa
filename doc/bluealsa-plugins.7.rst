@@ -72,8 +72,8 @@ PCM Parameters
     For the A2DP profile it is possible to also specify a "configuration" for
     the codec by appending the configuration as a hex string separated from the
     codec name by a colon. The bits responsible for the number of channels and
-    the sampling frequency are set by the plugin with the respect to options
-    provided by the user (channel mode and sampling frequency bits act as a
+    the sample rate are set by the plugin with the respect to options
+    provided by the user (channel mode and sample rate bits act as a
     mask). For example:
 
     ::

@@ -198,7 +198,7 @@ CK_START_TEST(test_info) {
 	ck_assert_ptr_ne(strstr(output,
 				"Transport: A2DP-source"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"Selected codec:\n\tSBC:211502fa [channels: 2] [sampling: 44100]"), NULL);
+				"Selected codec:\n\tSBC:211502fa [channels: 2] [rate: 44100]"), NULL);
 	ck_assert_ptr_ne(strstr(output,
 				"ChannelMap: FL FR"), NULL);
 
@@ -252,7 +252,7 @@ CK_START_TEST(test_codec) {
 	/* check selecting A2DP codec (with our mock BlueZ) */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				"SBC:FF150255", "--channels=1", "--sampling=44100",
+				"SBC:FF150255", "--channels=1", "--rate=44100",
 				NULL), EXIT_SUCCESS);
 
 	spawn_terminate(&sp_ba_mock, 0);

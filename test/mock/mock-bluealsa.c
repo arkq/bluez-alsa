@@ -102,7 +102,7 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	const unsigned int channels = t_pcm->channels;
-	const unsigned int samplerate = t_pcm->sampling;
+	const unsigned int rate = t_pcm->rate;
 	struct pollfd fds[1] = {{ t_pcm->pipe[0], POLLIN, 0 }};
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
@@ -134,11 +134,11 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 		fprintf(stderr, ".");
 
 		if (asrs.frames == 0)
-			asrsync_init(&asrs, samplerate);
+			asrsync_init(&asrs, rate);
 
 		const size_t samples = ARRAYSIZE(buffer);
 		const size_t frames = samples / channels;
-		x = snd_pcm_sine_s16_2le(buffer, frames, channels, x, 146.83 / samplerate);
+		x = snd_pcm_sine_s16_2le(buffer, frames, channels, x, 146.83 / rate);
 
 		io_pcm_scale(t_pcm, buffer, samples);
 		if (io_pcm_write(t_pcm, buffer, samples) == -1)
@@ -158,7 +158,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_p
 void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
-void *a2dp_faststream_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 void *sco_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 
 static struct ba_adapter *ba_adapter = NULL;

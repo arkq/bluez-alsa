@@ -24,7 +24,7 @@
  * @param frames The number of PCM frames to generate.
  * @param channels Number of channels per PCM frame.
  * @param x Sampling argument of the sine function.
- * @param f Required sine frequency divided by the PCM sampling frequency.
+ * @param f Required sine frequency divided by the PCM sample rate.
  * @return Updated x parameter. One may use this value for a next call, in
  *   order to generate smooth sine curve. */
 int snd_pcm_sine_s16_2le(int16_t *buffer, size_t frames,

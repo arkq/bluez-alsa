@@ -78,7 +78,7 @@ static void dump_sbc(const void *blob, size_t size) {
 	if (check_blob_size(sizeof(*sbc), size) == -1)
 		return;
 	printf("SBC <hex:%s> {\n"
-			"  sampling-frequency:4 =%s%s%s%s\n"
+			"  sample-rate:4 =%s%s%s%s\n"
 			"  channel-mode:4 =%s%s%s%s\n"
 			"  block-length:4 =%s%s%s%s\n"
 			"  sub-bands:2 =%s%s\n"
@@ -116,7 +116,7 @@ static void dump_mpeg(const void *blob, size_t size) {
 			"  channel-mode:4 =%s%s%s%s\n"
 			"  <reserved>:1\n"
 			"  media-payload-format:1 = MPF-1%s\n"
-			"  sampling-frequency:6 =%s%s%s%s%s%s\n"
+			"  sample-rate:6 =%s%s%s%s%s%s\n"
 			"  vbr:1 = %s\n"
 			"  bitrate-index:15 = %#x\n"
 			"}\n",
@@ -148,7 +148,7 @@ static void dump_aac(const void *blob, size_t size) {
 	printf("MPEG-2,4 AAC <hex:%s> {\n"
 			"  object-type:7 =%s%s%s%s%s%s%s\n"
 			"  dynamic-range-control:1 = %s\n"
-			"  sampling-frequency:12 =%s%s%s%s%s%s%s%s%s%s%s%s\n"
+			"  sample-rate:12 =%s%s%s%s%s%s%s%s%s%s%s%s\n"
 			"  channel-mode:4 =%s%s%s%s\n"
 			"  vbr:1 = %s\n"
 			"  bitrate:23 = %u\n"
@@ -189,7 +189,7 @@ static void dump_usac(const void *blob, size_t size) {
 	const uint32_t usac_sampling_freq = A2DP_USAC_GET_SAMPLING_FREQ(*usac);
 	printf("MPEG-D USAC <hex:%s> {\n"
 			"  object-type:2 =%s\n"
-			"  sampling-frequency:26 =%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n"
+			"  sample-rate:26 =%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n"
 			"  channel-mode:4 =%s%s\n"
 			"  vbr:1 = %s\n"
 			"  bitrate:23 = %u\n"
@@ -236,7 +236,7 @@ static void dump_atrac(const void *blob, size_t size) {
 			"  version:3 = ATRAC%u\n"
 			"  channel-mode:3 =%s%s%s\n"
 			"  <reserved>:4\n"
-			"  sampling-frequency:2 =%s%s\n"
+			"  sample-rate:2 =%s%s\n"
 			"  vbr:1 = %s\n"
 			"  bitrate-index:19 = %#x\n"
 			"  max-sound-unit-length:16 = %u\n"
@@ -281,7 +281,7 @@ static void dump_vendor(const void *blob, size_t size) {
 static void printf_aptx(const a2dp_aptx_t *aptx) {
 	printf(""
 			"  channel-mode:4 =%s%s%s\n"
-			"  sampling-frequency:4 =%s%s%s%s\n",
+			"  sample-rate:4 =%s%s%s%s\n",
 			aptx->channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_TWS ? " DualChannel" : "",
 			aptx->channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "",
@@ -370,8 +370,8 @@ static void dump_faststream(const void *blob, size_t size) {
 	printf_vendor(&faststream->info);
 	printf(""
 			"  direction:8 =%s%s\n"
-			"  sampling-frequency-voice:8 =%s\n"
-			"  sampling-frequency-music:8 =%s%s\n"
+			"  sample-rate-voice:8 =%s\n"
+			"  sample-rate-music:8 =%s%s\n"
 			"}\n",
 			faststream->direction & FASTSTREAM_DIRECTION_MUSIC ? " Music" : "",
 			faststream->direction & FASTSTREAM_DIRECTION_VOICE ? " Voice" : "",
@@ -391,7 +391,7 @@ static void dump_lc3plus(const void *blob, size_t size) {
 			"  frame-duration:4 =%s%s%s\n"
 			"  <reserved>:4\n"
 			"  channel-mode:8 =%s%s\n"
-			"  sampling-frequency:16 =%s%s\n"
+			"  sample-rate:16 =%s%s\n"
 			"}\n",
 			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_025 ? " 2.5ms" : "",
 			lc3plus->frame_duration & LC3PLUS_FRAME_DURATION_050 ? " 5ms" : "",
@@ -410,7 +410,7 @@ static void dump_ldac(const void *blob, size_t size) {
 	printf_vendor(&ldac->info);
 	printf(""
 			"  <reserved>:2\n"
-			"  sampling-frequency:6 =%s%s%s%s%s%s\n"
+			"  sample-rate:6 =%s%s%s%s%s%s\n"
 			"  <reserved>:5\n"
 			"  channel-mode:3 =%s%s%s\n"
 			"}\n",
@@ -448,7 +448,7 @@ static void dump_lhdc_v1(const void *blob, size_t size) {
 			"  <reserved>:1\n"
 			"  ch-separation:1 = %s\n"
 			"  bit-depth:2 =%s%s\n"
-			"  sampling-frequency:4 =%s%s%s%s\n"
+			"  sample-rate:4 =%s%s%s%s\n"
 			"}\n",
 			lhdc->ch_separation ? "true" : "false",
 			lhdc->bit_depth & LHDC_BIT_DEPTH_24 ? " 24" : "",
@@ -468,7 +468,7 @@ static void dump_lhdc_v2(const void *blob, size_t size) {
 	printf(""
 			"  <reserved>:2\n"
 			"  bit-depth:2 =%s%s\n"
-			"  sampling-frequency:4 =%s%s%s%s\n"
+			"  sample-rate:4 =%s%s%s%s\n"
 			"  low-latency:1 = %s\n"
 			"  max-bitrate:3 = %d\n"
 			"  version:4 = %u\n"
@@ -499,7 +499,7 @@ static void dump_lhdc_v3(const void *blob, size_t size) {
 			"  ar:1 = %s\n"
 			"  jas:1 = %s\n"
 			"  bit-depth:2 =%s%s\n"
-			"  sampling-frequency:4 =%s%s%s%s\n"
+			"  sample-rate:4 =%s%s%s%s\n"
 			"  llac:1 = %s\n"
 			"  low-latency:1 = %s\n"
 			"  max-bitrate:2 = %d\n"
@@ -552,7 +552,7 @@ static void dump_opus(const void *blob, size_t size) {
 	printf_vendor(&opus->info);
 	printf(""
 			"  <reserved>:2\n"
-			"  sampling-frequency:1 =%s\n"
+			"  sample-rate:1 =%s\n"
 			"  frame-duration:2 =%s%s\n"
 			"  channel-mode:3 =%s%s%s\n"
 			"}\n",

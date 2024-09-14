@@ -31,7 +31,7 @@
  * If defined to 1, in case of SBC frame decoding error the msbc_decode()
  * function will not return error code, but will use PLC to conceal missing
  * PCM samples. Such behavior should ensure that a PCM client will receive
- * correct number of PCM samples - matching sampling frequency. */
+ * correct number of PCM samples - matching sample rate. */
 #define MSBC_DECODE_ERROR_PLC 1
 
 /**

@@ -265,18 +265,18 @@ void sbc_print_internals(const sbc_t *sbc) {
 		[SBC_AM_LOUDNESS] = "Loudness",
 		[SBC_AM_SNR] = "SNR",
 	};
-	static const unsigned int frequency[] = {
+	static const unsigned int rate[] = {
 		[SBC_SAMPLING_FREQ_16000] = 16000,
 		[SBC_SAMPLING_FREQ_32000] = 32000,
 		[SBC_SAMPLING_FREQ_44100] = 44100,
 		[SBC_SAMPLING_FREQ_48000] = 48000,
 	};
 
-	const unsigned int br = 8 * sbc_get_frame_length((sbc_t *)sbc) * frequency[sbc->frequency] /
+	const unsigned int br = 8 * sbc_get_frame_length((sbc_t *)sbc) * rate[sbc->frequency] /
 		((sbc->subbands + 1) * 4) / ((sbc->blocks + 1) * 4);
 
 	debug("SBC setup: %u Hz %s allocation=%s blocks=%u sub-bands=%u bit-pool=%u => %u bps",
-			frequency[sbc->frequency],
+			rate[sbc->frequency],
 			mode[sbc->mode],
 			allocation[sbc->allocation],
 			(sbc->blocks + 1) * 4,

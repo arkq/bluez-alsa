@@ -116,7 +116,7 @@ struct ba_config {
 		 * sink and semi-mandatory for source. So, if one wants only the bare
 		 * minimum, it would be possible - e.g. due to bandwidth limitations. */
 		bool force_mono;
-		/* The sampling rates of 44.1 kHz (aka Audio CD) and 48 kHz are mandatory
+		/* The sample rates of 44.1 kHz (aka Audio CD) and 48 kHz are mandatory
 		 * for sink endpoint and semi-mandatory for source. It is then possible
 		 * to force lower sampling in order to save Bluetooth bandwidth. */
 		bool force_44100;
@@ -131,7 +131,7 @@ struct ba_config {
 #endif
 
 	/* BlueALSA supports 5 SBC qualities: low, medium, high, XQ and XQ+. The XQ
-	 * mode uses 44.1 kHz sampling rate, dual channel mode with bitpool 38, 16
+	 * mode uses 44.1 kHz sample rate, dual channel mode with bitpool 38, 16
 	 * blocks in frame, 8 frequency bands and allocation method Loudness, which
 	 * is also known as SBC XQ Dual Channel HD. The "+" version uses bitpool 47
 	 * instead of 38. */

@@ -6,7 +6,7 @@ org.bluealsa.PCM1
 Bluetooth Audio PCM D-Bus API
 -----------------------------
 
-:Date: August 2024
+:Date: September 2024
 :Manual section: 7
 :Manual group: D-Bus Interface
 :Version: $VERSION$
@@ -49,12 +49,12 @@ array{string, dict} GetCodecs()
 
     :array{byte} Capabilities:
         A2DP codec capabilities blob.
-    :array{byte} SupportedChannels:
-        List of supported number of audio channels.
-    :array{uint32} SupportedSampling:
-        List of supported sampling frequency.
+    :array{byte} Channels:
+        List of supported channel counts.
     :array{array{string}} ChannelMaps:
         List of supported channel maps.
+    :array{uint32} Rates:
+        List of supported sample rates.
 
 void SelectCodec(string codec, dict props)
     Select PCM codec. This call shall be made before PCM stream opening for
@@ -69,9 +69,9 @@ void SelectCodec(string codec, dict props)
     property to true.
 
     In case of codecs which support different number of audio channels or
-    sampling frequencies, client can select the desired configuration by
-    providing the "Channels" and "Sampling" properties respectively. These
-    properties take precedence over the provided codec configuration.
+    sample rates, client can select the desired configuration by providing the
+    "Channels" and "Rate" properties respectively. These properties take
+    precedence over the provided codec configuration.
 
     Possible Errors:
     ::
@@ -150,8 +150,8 @@ byte Channels [readonly]
 array{string} ChannelMap [readonly]
     Channel map for selected codec.
 
-uint32 Sampling [readonly]
-    Sampling frequency.
+uint32 Rate [readonly]
+    Sample rate in Hz.
 
 string Codec [readonly]
     Bluetooth transport codec. This property is available only when transport

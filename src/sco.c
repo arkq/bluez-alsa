@@ -269,23 +269,23 @@ void sco_transport_init(struct ba_transport *t) {
 	uint32_t codec_id;
 	switch (codec_id = ba_transport_get_codec(t)) {
 	case HFP_CODEC_UNDEFINED:
-		t->sco.pcm_spk.sampling = 0;
-		t->sco.pcm_mic.sampling = 0;
+		t->sco.pcm_spk.rate = 0;
+		t->sco.pcm_mic.rate = 0;
 		break;
 	case HFP_CODEC_CVSD:
-		t->sco.pcm_spk.sampling = 8000;
-		t->sco.pcm_mic.sampling = 8000;
+		t->sco.pcm_spk.rate = 8000;
+		t->sco.pcm_mic.rate = 8000;
 		break;
 #if ENABLE_MSBC
 	case HFP_CODEC_MSBC:
-		t->sco.pcm_spk.sampling = 16000;
-		t->sco.pcm_mic.sampling = 16000;
+		t->sco.pcm_spk.rate = 16000;
+		t->sco.pcm_mic.rate = 16000;
 		break;
 #endif
 #if ENABLE_LC3_SWB
 	case HFP_CODEC_LC3_SWB:
-		t->sco.pcm_spk.sampling = 32000;
-		t->sco.pcm_mic.sampling = 32000;
+		t->sco.pcm_spk.rate = 32000;
+		t->sco.pcm_mic.rate = 32000;
 		break;
 #endif
 	default:
@@ -295,13 +295,13 @@ void sco_transport_init(struct ba_transport *t) {
 
 	if (t->sco.pcm_spk.ba_dbus_exported)
 		bluealsa_dbus_pcm_update(&t->sco.pcm_spk,
-				BA_DBUS_PCM_UPDATE_SAMPLING |
+				BA_DBUS_PCM_UPDATE_RATE |
 				BA_DBUS_PCM_UPDATE_CODEC |
 				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
 
 	if (t->sco.pcm_mic.ba_dbus_exported)
 		bluealsa_dbus_pcm_update(&t->sco.pcm_mic,
-				BA_DBUS_PCM_UPDATE_SAMPLING |
+				BA_DBUS_PCM_UPDATE_RATE |
 				BA_DBUS_PCM_UPDATE_CODEC |
 				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
 

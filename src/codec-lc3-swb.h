@@ -28,7 +28,7 @@
 #include "shared/ffb.h"
 
 /* LC3-SWB uses LC3 encoding with precisely defined parameters: mono, 32 kHz
- * sampling rate, 7.5 ms frame duration. Hence, the size of the input (number
+ * sample rate, 7.5 ms frame duration. Hence, the size of the input (number
  * of PCM samples) and output is known up front. */
 #define LC3_SWB_CODESIZE    240 * sizeof(int16_t)
 #define LC3_SWB_CODESAMPLES (LC3_SWB_CODESIZE / sizeof(int16_t))
