@@ -233,6 +233,7 @@ static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
 static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
 		struct ba_transport_pcm *pcm) {
 
+	const size_t channels = pcm->channels;
 	int *list_volume;
 	gboolean *list_mute;
 	gsize len;
@@ -246,18 +247,26 @@ static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
 
 	if ((list_volume = g_key_file_get_integer_list(db, group,
 					BA_STORAGE_KEY_VOLUME, &len, NULL)) != NULL &&
-			len == 2) {
-		ba_transport_pcm_volume_set(&pcm->volume[0], &list_volume[0], NULL, NULL);
-		ba_transport_pcm_volume_set(&pcm->volume[1], &list_volume[1], NULL, NULL);
+			len <= ARRAYSIZE(pcm->volume)) {
+		for (size_t i = 0; i < len; i++)
+			ba_transport_pcm_volume_set(&pcm->volume[i], &list_volume[i], NULL, NULL);
+		/* Upscale volume for the rest of the channels if needed. */
+		for (size_t i = len; i < channels; i++)
+			ba_transport_pcm_volume_set(&pcm->volume[i], &list_volume[0], NULL, NULL);
 		rv = 1;
 	}
 
 	if ((list_mute = g_key_file_get_boolean_list(db, group,
 					BA_STORAGE_KEY_MUTE, &len, NULL)) != NULL &&
-			len == 2) {
-		const bool mute[2] = { list_mute[0], list_mute[1] };
-		ba_transport_pcm_volume_set(&pcm->volume[0], NULL, &mute[0], NULL);
-		ba_transport_pcm_volume_set(&pcm->volume[1], NULL, &mute[1], NULL);
+			len <= ARRAYSIZE(pcm->volume)) {
+		for (size_t i = 0; i < len; i++) {
+			const bool mute = list_mute[i];
+			ba_transport_pcm_volume_set(&pcm->volume[i], NULL, &mute, NULL);
+		}
+		const bool mute = list_mute[0];
+		/* Upscale mute for the rest of the channels if needed. */
+		for (size_t i = len; i < channels; i++)
+			ba_transport_pcm_volume_set(&pcm->volume[i], NULL, &mute, NULL);
 		rv = 1;
 	}
 
@@ -341,13 +350,18 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 static void storage_pcm_data_update_volume(GKeyFile *db, const char *group,
 		const struct ba_transport_pcm *pcm) {
 
+	const size_t channels = pcm->channels;
+	gboolean mute[ARRAYSIZE(pcm->volume)];
+	int volume[ARRAYSIZE(pcm->volume)];
+
+	for (size_t i = 0; i < channels; i++) {
+		mute[i] = pcm->volume[i].soft_mute;
+		volume[i] = pcm->volume[i].level;
+	}
+
 	g_key_file_set_boolean(db, group, BA_STORAGE_KEY_SOFT_VOLUME, pcm->soft_volume);
-
-	int volume[2] = { pcm->volume[0].level, pcm->volume[1].level };
-	g_key_file_set_integer_list(db, group, BA_STORAGE_KEY_VOLUME, volume, 2);
-
-	gboolean mute[2] = { pcm->volume[0].soft_mute, pcm->volume[1].soft_mute };
-	g_key_file_set_boolean_list(db, group, BA_STORAGE_KEY_MUTE, mute, 2);
+	g_key_file_set_integer_list(db, group, BA_STORAGE_KEY_VOLUME, volume, channels);
+	g_key_file_set_boolean_list(db, group, BA_STORAGE_KEY_MUTE, mute, channels);
 
 }
 

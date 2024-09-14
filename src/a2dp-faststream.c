@@ -33,13 +33,13 @@
 #include "shared/rt.h"
 
 static const struct a2dp_bit_mapping a2dp_faststream_samplings_music[] = {
-	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_44100, 44100 },
-	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_48000, 48000 },
+	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_44100, { 44100 } },
+	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_48000, { 48000 } },
 	{ 0 }
 };
 
 static const struct a2dp_bit_mapping a2dp_faststream_samplings_voice[] = {
-	{ FASTSTREAM_SAMPLING_FREQ_VOICE_16000, 16000 },
+	{ FASTSTREAM_SAMPLING_FREQ_VOICE_16000, { 16000 } },
 	{ 0 }
 };
 
@@ -374,13 +374,13 @@ static int a2dp_faststream_configuration_check(
 	}
 
 	if (conf_v.direction & FASTSTREAM_DIRECTION_VOICE &&
-			a2dp_bit_mapping_lookup(a2dp_faststream_samplings_voice, conf_v.sampling_freq_voice) == 0) {
+			a2dp_bit_mapping_lookup(a2dp_faststream_samplings_voice, conf_v.sampling_freq_voice) == -1) {
 		debug("FastStream: Invalid voice sampling frequency: %#x", conf->sampling_freq_voice);
 		return A2DP_CHECK_ERR_SAMPLING_VOICE;
 	}
 
 	if (conf_v.direction & FASTSTREAM_DIRECTION_MUSIC &&
-			a2dp_bit_mapping_lookup(a2dp_faststream_samplings_music, conf_v.sampling_freq_music) == 0) {
+			a2dp_bit_mapping_lookup(a2dp_faststream_samplings_music, conf_v.sampling_freq_music) == -1) {
 		debug("FastStream: Invalid music sampling frequency: %#x", conf->sampling_freq_music);
 		return A2DP_CHECK_ERR_SAMPLING_MUSIC;
 	}
@@ -392,27 +392,32 @@ static int a2dp_faststream_transport_init(struct ba_transport *t) {
 
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
 
-		unsigned int sampling;
-		if ((sampling = a2dp_bit_mapping_lookup(a2dp_faststream_samplings_music,
-						t->a2dp.configuration.faststream.sampling_freq_music)) == 0)
+		ssize_t sampling_i;
+		if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_faststream_samplings_music,
+						t->a2dp.configuration.faststream.sampling_freq_music)) == -1)
 			return -1;
 
 		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->a2dp.pcm.sampling = sampling;
 		t->a2dp.pcm.channels = 2;
+		t->a2dp.pcm.sampling = a2dp_faststream_samplings_music[sampling_i].value;
+
+		t->a2dp.pcm.channel_map[0] = BA_TRANSPORT_PCM_CHANNEL_FL;
+		t->a2dp.pcm.channel_map[1] = BA_TRANSPORT_PCM_CHANNEL_FR;
 
 	}
 
 	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE) {
 
-		unsigned int sampling;
-		if ((sampling = a2dp_bit_mapping_lookup(a2dp_faststream_samplings_voice,
-						t->a2dp.configuration.faststream.sampling_freq_voice)) == 0)
+		ssize_t sampling_i;
+		if ((sampling_i = a2dp_bit_mapping_lookup(a2dp_faststream_samplings_voice,
+						t->a2dp.configuration.faststream.sampling_freq_voice)) == -1)
 			return -1;
 
 		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->a2dp.pcm_bc.sampling = sampling;
 		t->a2dp.pcm_bc.channels = 1;
+		t->a2dp.pcm_bc.sampling = a2dp_faststream_samplings_voice[sampling_i].value;
+
+		t->a2dp.pcm_bc.channel_map[0] = BA_TRANSPORT_PCM_CHANNEL_MONO;
 
 	}
 

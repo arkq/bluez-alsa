@@ -16,10 +16,13 @@
 # include <config.h>
 #endif
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
+#include "ba-transport-pcm.h"
 #include "shared/a2dp-codecs.h"
 
 /**
@@ -31,8 +34,21 @@
  * possible value for the given bit-field. */
 struct a2dp_bit_mapping {
 	uint32_t bit_value;
-	unsigned int value;
+	union {
+		/* Single value mapping. */
+		unsigned int value;
+		/* Channel mode mapping with channel count and channel map. */
+		struct {
+			unsigned int channels;
+			const enum ba_transport_pcm_channel *map;
+		} ch;
+	};
 };
+
+static_assert(
+	offsetof(struct a2dp_bit_mapping, value) ==
+	offsetof(struct a2dp_bit_mapping, ch.channels),
+	"Invalid a2dp_bit_mapping structure layout");
 
 /**
  * Callback function for iterating over A2DP bit-field. */
@@ -53,7 +69,7 @@ int a2dp_bit_mapping_foreach(
 		a2dp_bit_mapping_foreach_func func,
 		void *userdata);
 
-unsigned int a2dp_bit_mapping_lookup(
+ssize_t a2dp_bit_mapping_lookup(
 		const struct a2dp_bit_mapping *mappings,
 		uint32_t bit_value);
 
@@ -142,9 +158,6 @@ struct a2dp_sep_config {
 	char bluez_dbus_path[64];
 
 };
-
-/* XXX: avoid circular dependency */
-struct ba_transport;
 
 /**
  * A2DP Stream End-Point. */

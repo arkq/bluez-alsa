@@ -35,6 +35,7 @@
 #include "bluez-iface.h"
 #include "bluez.h"
 #include "dbus.h"
+#include "hfp.h"
 #include "io.h"
 #if ENABLE_OFONO
 # include "ofono.h"
@@ -77,10 +78,10 @@ int transport_pcm_init(
 	pcm->pipe[0] = -1;
 	pcm->pipe[1] = -1;
 
-	pcm->volume[0].level = config.volume_init_level;
-	pcm->volume[1].level = config.volume_init_level;
-	ba_transport_pcm_volume_set(&pcm->volume[0], NULL, NULL, NULL);
-	ba_transport_pcm_volume_set(&pcm->volume[1], NULL, NULL, NULL);
+	for (size_t i = 0; i < ARRAYSIZE(pcm->volume); i++) {
+		pcm->volume[i].level = config.volume_init_level;
+		ba_transport_pcm_volume_set(&pcm->volume[i], NULL, NULL, NULL);
+	}
 
 	pthread_mutex_init(&pcm->mutex, NULL);
 	pthread_mutex_init(&pcm->state_mtx, NULL);
@@ -591,7 +592,7 @@ bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) {
 
 /**
  * Convert PCM volume level to [0, max] range. */
-int ba_transport_pcm_volume_level_to_range(int value, int max) {
+unsigned int ba_transport_pcm_volume_level_to_range(int value, int max) {
 	int volume = audio_decibel_to_loudness(value / 100.0) * max;
 	return MIN(MAX(volume, 0), max);
 }
@@ -599,8 +600,8 @@ int ba_transport_pcm_volume_level_to_range(int value, int max) {
 /**
  * Convert [0, max] range to PCM volume level. */
 int ba_transport_pcm_volume_range_to_level(int value, int max) {
-	double level = audio_loudness_to_decibel(1.0 * value / max);
-	return MIN(MAX(level, -96.0), 96.0) * 100;
+	int level = audio_loudness_to_decibel(1.0 * value / max) * 100;
+	return MIN(MAX(level, -9600), 9600);
 }
 
 /**
@@ -649,23 +650,15 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		/* A2DP specification defines volume property as a single value - volume
-		 * for only one channel. For stereo audio we will use an average of left
-		 * and right PCM channels. */
+		 * for only one channel. For multi-channel audio, we will use calculated
+		 * average volume level. */
 
-		unsigned int volume;
-		switch (pcm->channels) {
-		case 1:
-			volume = ba_transport_pcm_volume_level_to_range(
-					pcm->volume[0].level, BLUEZ_A2DP_VOLUME_MAX);
-			break;
-		case 2:
-			volume = ba_transport_pcm_volume_level_to_range(
-					(pcm->volume[0].level + pcm->volume[1].level) / 2,
-					BLUEZ_A2DP_VOLUME_MAX);
-			break;
-		default:
-			g_assert_not_reached();
-		}
+		int level_sum = 0;
+		for (size_t i = 0; i < pcm->channels; i++)
+			level_sum += pcm->volume[i].level;
+
+		uint16_t volume = ba_transport_pcm_volume_level_to_range(
+				level_sum / (int)pcm->channels, BLUEZ_A2DP_VOLUME_MAX);
 
 		/* skip update if nothing has changed */
 		if (volume != t->a2dp.volume) {
@@ -698,6 +691,33 @@ int ba_transport_pcm_volume_update(struct ba_transport_pcm *pcm) {
 final:
 	/* notify connected clients (including requester) */
 	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+	return 0;
+}
+
+/**
+ * Get non-software PCM volume level if available. */
+int ba_transport_pcm_get_hardware_volume(
+		const struct ba_transport_pcm *pcm) {
+
+	const struct ba_transport *t = pcm->t;
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return t->a2dp.volume;
+
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+
+		if (t->sco.rfcomm == NULL)
+			/* TODO: Cache volume level for oFono-based SCO */
+			return HFP_VOLUME_GAIN_MAX;
+
+		if (pcm == &t->sco.pcm_spk)
+			return t->sco.rfcomm->gain_spk;
+		if (pcm == &t->sco.pcm_mic)
+			return t->sco.rfcomm->gain_mic;
+
+	}
+
+	g_assert_not_reached();
 	return 0;
 }
 
@@ -739,4 +759,32 @@ void ba_transport_pcm_delay_adjustment_set(
 	g_hash_table_insert(pcm->delay_adjustments,
 			GINT_TO_POINTER(codec_id), GINT_TO_POINTER(adjustment));
 	pthread_mutex_unlock(&pcm->delay_adjustments_mtx);
+}
+
+const char *ba_transport_pcm_channel_to_string(
+		enum ba_transport_pcm_channel channel) {
+	switch (channel) {
+	case BA_TRANSPORT_PCM_CHANNEL_MONO:
+		return "MONO";
+	case BA_TRANSPORT_PCM_CHANNEL_FL:
+		return "FL";
+	case BA_TRANSPORT_PCM_CHANNEL_FR:
+		return "FR";
+	case BA_TRANSPORT_PCM_CHANNEL_FC:
+		return "FC";
+	case BA_TRANSPORT_PCM_CHANNEL_RL:
+		return "RL";
+	case BA_TRANSPORT_PCM_CHANNEL_RR:
+		return "RR";
+	case BA_TRANSPORT_PCM_CHANNEL_SL:
+		return "SL";
+	case BA_TRANSPORT_PCM_CHANNEL_SR:
+		return "SR";
+	case BA_TRANSPORT_PCM_CHANNEL_LFE:
+		return "LFE";
+	default:
+		error("Unsupported channel type: %#x", channel);
+		g_assert_not_reached();
+		return NULL;
+	}
 }

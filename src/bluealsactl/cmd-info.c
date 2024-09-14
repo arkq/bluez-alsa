@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-status.c
+ * BlueALSA - bluealsactl/cmd-info.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -14,18 +14,21 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
-#include "shared/dbus-client.h"
+#include "bluealsactl.h"
+#include "shared/dbus-client-pcm.h"
+#include "shared/log.h"
 
 static void usage(const char *command) {
-	printf("Show BlueALSA service runtime status.\n\n");
-	cli_print_usage("%s [OPTION]...", command);
+	printf("Show PCM properties.\n\n");
+	bactl_print_usage("%s [OPTION]... PCM-PATH", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
+			"\nPositional arguments:\n"
+			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
 	);
 }
 
-static int cmd_status_func(int argc, char *argv[]) {
+static int cmd_info_func(int argc, char *argv[]) {
 
 	int opt;
 	const char *opts = "hqv";
@@ -38,7 +41,7 @@ static int cmd_status_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -50,31 +53,33 @@ static int cmd_status_func(int argc, char *argv[]) {
 		}
 	}
 
-	if (argc != optind) {
+	if (argc - optind < 1) {
+		cmd_print_error("Missing BlueALSA PCM path argument");
+		return EXIT_FAILURE;
+	}
+	if (argc - optind > 1) {
 		cmd_print_error("Invalid number of arguments");
 		return EXIT_FAILURE;
 	}
 
-	struct ba_service_props props = { 0 };
-
 	DBusError err = DBUS_ERROR_INIT;
-	if (!ba_dbus_service_props_get(&config.dbus, &props, &err)) {
-		cmd_print_error("D-Bus error: %s", err.message);
-		ba_dbus_service_props_free(&props);
+	const char *path = argv[optind];
+
+	struct ba_pcm pcm;
+	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
+		cmd_print_error("Couldn't get BlueALSA PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
-	printf("Service: %s\n", config.dbus.ba_service);
-	printf("Version: %s\n", props.version);
-	cli_print_adapters(&props);
-	cli_print_profiles_and_codecs(&props);
+	bactl_print_pcm_properties(&pcm, &err);
+	if (dbus_error_is_set(&err))
+		warn("Unable to read available codecs: %s", err.message);
 
-	ba_dbus_service_props_free(&props);
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_status = {
-	"status",
-	"Show BlueALSA service status",
-	cmd_status_func,
+const struct bactl_command cmd_info = {
+	"info",
+	"Show PCM properties",
+	cmd_info_func,
 };

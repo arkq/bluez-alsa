@@ -423,12 +423,10 @@ struct ba_transport *ba_transport_new_a2dp(
 	err |= transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
 			t, true);
-	t->a2dp.pcm.soft_volume = !config.a2dp.volume;
 
 	err |= transport_pcm_init(&t->a2dp.pcm_bc,
 			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
 			t, false);
-	t->a2dp.pcm_bc.soft_volume = !config.a2dp.volume;
 
 	if (err != 0)
 		goto fail;

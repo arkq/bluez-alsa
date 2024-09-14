@@ -1,12 +1,12 @@
 # BlueALSA - Makefile.am
 # Copyright (c) 2016-2024 Arkadiusz Bokowy
 
-bin_PROGRAMS = bluealsa
-SUBDIRS = asound
+bin_PROGRAMS = bluealsad
+SUBDIRS = asound bluealsactl
 
 dbusconfdir = @DBUS_CONF_DIR@
-dbusbluealsauser = @BLUEALSA_USER@
-dist_dbusconf_DATA = bluealsa.conf
+dbusbluealsauser = @BLUEALSAD_USER@
+dist_dbusconf_DATA = org.bluealsa.conf
 
 BUILT_SOURCES = \
 	bluealsa-iface.c \
@@ -17,7 +17,7 @@ MOSTLYCLEANFILES = \
 	$(dist_dbusconf_DATA) \
 	$(BUILT_SOURCES)
 
-bluealsa_SOURCES = \
+bluealsad_SOURCES = \
 	shared/a2dp-codecs.c \
 	shared/ffb.c \
 	shared/log.c \
@@ -51,48 +51,48 @@ bluealsa_SOURCES = \
 	main.c
 
 if ENABLE_AAC
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-aac.c
 endif
 
 if ENABLE_APTX
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-aptx.c
 endif
 
 if ENABLE_APTX_HD
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-aptx-hd.c
 endif
 
 if ENABLE_APTX_OR_APTX_HD
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	codec-aptx.c
 endif
 
 if ENABLE_FASTSTREAM
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-faststream.c
 endif
 
 if ENABLE_LC3_SWB
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	codec-lc3-swb.c \
 	sco-lc3-swb.c
 endif
 
 if ENABLE_LC3PLUS
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-lc3plus.c
 endif
 
 if ENABLE_LDAC
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-ldac.c
 endif
 
 if ENABLE_MIDI
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	ble-midi.c \
 	bluez-midi.c \
 	midi.c
@@ -104,29 +104,29 @@ bluealsa_SOURCES += \
 endif
 
 if ENABLE_MPEG
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	codec-msbc.c \
 	sco-msbc.c
 endif
 
 if ENABLE_OPUS
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	a2dp-opus.c
 endif
 
 if ENABLE_OFONO
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	ofono.c \
 	ofono-iface.xml
 endif
 
 if ENABLE_UPOWER
-bluealsa_SOURCES += \
+bluealsad_SOURCES += \
 	upower.c
 endif
 
@@ -177,7 +177,7 @@ LDADD = \
 SUFFIXES = .conf.in .conf
 
 DBUSCONF_SUBS = \
-	s,[@]bluealsauser[@],$(dbusbluealsauser),g;
+	s,[@]bluealsaduser[@],$(dbusbluealsauser),g;
 
 .conf.in.conf:
 	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@

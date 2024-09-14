@@ -6,7 +6,7 @@ org.bluealsa.PCM1
 Bluetooth Audio PCM D-Bus API
 -----------------------------
 
-:Date: July 2024
+:Date: August 2024
 :Manual section: 7
 :Manual group: D-Bus Interface
 :Version: $VERSION$
@@ -21,7 +21,7 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-This page describes the D-Bus PCM interface of the **bluealsa(8)** service.
+This page describes the D-Bus PCM interface of the **bluealsad(8)** service.
 The PCM interface gives access to individual PCM objects created by this
 service.
 
@@ -53,6 +53,8 @@ array{string, dict} GetCodecs()
         List of supported number of audio channels.
     :array{uint32} SupportedSampling:
         List of supported sampling frequency.
+    :array{array{string}} ChannelMaps:
+        List of supported channel maps.
 
 void SelectCodec(string codec, dict props)
     Select PCM codec. This call shall be made before PCM stream opening for
@@ -145,6 +147,9 @@ uint16 Format [readonly]
 byte Channels [readonly]
     Number of audio channels.
 
+array{string} ChannelMap [readonly]
+    Channel map for selected codec.
+
 uint32 Sampling [readonly]
     Sampling frequency.
 
@@ -170,11 +175,10 @@ boolean SoftVolume [readwrite]
     internally or will delegate this task to BlueALSA PCM client or connected
     Bluetooth device respectively for PCM sink or PCM source.
 
-uint16 Volume [readwrite]
-    This property holds volume (loudness) value and mute information for
-    channel 1 (left) and 2 (right). Data for channel 1 is stored in the upper
-    byte, channel 2 is stored in the lower byte. The highest bit of both bytes
-    determines whether channel is muted.
+array{byte} Volume [readwrite]
+    This property holds volume (loudness) for all channels. The highest bit
+    of each byte determines whether channel is muted. The order of channels
+    is defined by the ChannelMap property.
 
     Possible values:
     ::
@@ -185,14 +189,14 @@ uint16 Volume [readwrite]
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluealsa-cli(1)``, ``bluealsa-plugins(5)``, ``bluealsa(8)``
+``bluealsactl(1)``, ``bluealsa-plugins(5)``, ``bluealsad(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

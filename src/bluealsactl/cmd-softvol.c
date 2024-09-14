@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-softvol.c
+ * BlueALSA - bluealsactl/cmd-softvol.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -15,12 +15,12 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
 	printf("Get or set the SoftVolume property of the given PCM.\n\n");
-	cli_print_usage("%s [OPTION]... PCM-PATH [STATE]", command);
+	bactl_print_usage("%s [OPTION]... PCM-PATH [STATE]", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"\nPositional arguments:\n"
@@ -42,7 +42,7 @@ static int cmd_softvol_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -67,19 +67,19 @@ static int cmd_softvol_func(int argc, char *argv[]) {
 	const char *path = argv[optind];
 
 	struct ba_pcm pcm;
-	if (!cli_get_ba_pcm(path, &pcm, &err)) {
+	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
 		cmd_print_error("Couldn't get BlueALSA PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	if (argc - optind == 1) {
-		cli_print_pcm_soft_volume(&pcm);
+		bactl_print_pcm_soft_volume(&pcm);
 		return EXIT_SUCCESS;
 	}
 
 	bool state;
 	const char *value = argv[optind + 1];
-	if (!cli_parse_value_on_off(value, &state)) {
+	if (!bactl_parse_value_on_off(value, &state)) {
 		cmd_print_error("Invalid argument: %s", value);
 		return EXIT_FAILURE;
 	}
@@ -94,7 +94,7 @@ static int cmd_softvol_func(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_softvol = {
+const struct bactl_command cmd_softvol = {
 	"soft-volume",
 	"Get or set PCM SoftVolume property",
 	cmd_softvol_func,

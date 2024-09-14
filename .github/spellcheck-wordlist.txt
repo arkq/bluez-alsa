@@ -125,6 +125,7 @@ utils
 
 # Others
 AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ
+aas
 ABCD
 ABCDEFGHIJKLMNOPQRSTUVWXYZ
 aloader
@@ -147,6 +148,7 @@ BCS
 bdaddr
 bfr
 bluealsa
+bluealsad
 BlueALSA's
 bluetoothctl
 bluetoothd
@@ -249,6 +251,7 @@ SIGIO
 SIGPIPE
 SIGSEGV
 SIGTERM
+SL
 SNR
 spandsp
 SRA

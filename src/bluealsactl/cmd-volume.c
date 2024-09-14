@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-mute.c
+ * BlueALSA - bluealsactl/cmd-volume.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -9,27 +9,26 @@
  */
 
 #include <getopt.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
-	printf("Get or set the mute switch of the given PCM.\n\n");
-	cli_print_usage("%s [OPTION]... PCM-PATH [STATE [STATE]]", command);
+	printf("Get or set the volume value of the given PCM.\n\n");
+	bactl_print_usage("%s [OPTION]... PCM-PATH [VOLUME [VOLUME]...]", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"\nPositional arguments:\n"
 			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-			"  STATE\t\tEnable or disable mute switch\n"
+			"  VOLUME\tVolume value (range depends on BT transport)\n"
 	);
 }
 
-static int cmd_mute_func(int argc, char *argv[]) {
+static int cmd_volume_func(int argc, char *argv[]) {
 
 	int opt;
 	const char *opts = "hqv";
@@ -42,7 +41,7 @@ static int cmd_mute_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -58,59 +57,56 @@ static int cmd_mute_func(int argc, char *argv[]) {
 		cmd_print_error("Missing BlueALSA PCM path argument");
 		return EXIT_FAILURE;
 	}
-	if (argc - optind > 3) {
-		cmd_print_error("Invalid number of arguments");
-		return EXIT_FAILURE;
-	}
 
 	DBusError err = DBUS_ERROR_INIT;
 	const char *path = argv[optind];
 
 	struct ba_pcm pcm;
-	if (!cli_get_ba_pcm(path, &pcm, &err)) {
+	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
 		cmd_print_error("Couldn't get BlueALSA PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	if (argc - optind == 1) {
-		cli_print_pcm_mute(&pcm);
+		bactl_print_pcm_volume(&pcm);
 		return EXIT_SUCCESS;
 	}
 
-	const char *value;
-	bool state;
-
-	value = argv[optind + 1];
-	if (!cli_parse_value_on_off(value, &state)) {
-		cmd_print_error("Invalid argument: %s", value);
+	if (argc - optind - 1 > pcm.channels) {
+		cmd_print_error("Invalid number of channels: %d > %d",
+				argc - optind - 1, pcm.channels);
 		return EXIT_FAILURE;
 	}
 
-	pcm.volume.ch1_muted = state;
-	pcm.volume.ch2_muted = state;
+	const int v_min = 0;
+	const int v_max = pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP ? 127 : 15;
 
-	if (pcm.channels == 2 && argc - optind == 3) {
+	for (size_t i = 0; i < (size_t)argc - optind - 1; i++) {
 
-		value = argv[optind + 2];
-		if (!cli_parse_value_on_off(value, &state)) {
-			cmd_print_error("Invalid argument: %s", value);
+		const int v = atoi(argv[optind + 1 + i]);
+		pcm.volume[i].volume = v;
+
+		if (v < v_min || v > v_max) {
+			cmd_print_error("Invalid volume [%d, %d]: %d", v_min, v_max, v);
 			return EXIT_FAILURE;
 		}
 
-		pcm.volume.ch2_muted = state;
-
 	}
 
+	/* Upscale volume values to update all PCM channels. */
+	for (size_t i = argc - optind - 1; i < pcm.channels; i++)
+		pcm.volume[i].volume = pcm.volume[0].volume;
+
 	if (!ba_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_VOLUME, &err)) {
-		cmd_print_error("Volume mute update failed: %s", err.message);
+		cmd_print_error("Volume update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_mute = {
-	"mute",
-	"Get or set PCM mute switch",
-	cmd_mute_func,
+const struct bactl_command cmd_volume = {
+	"volume",
+	"Get or set PCM audio volume",
+	cmd_volume_func,
 };

@@ -260,9 +260,11 @@ void sco_transport_init(struct ba_transport *t) {
 
 	t->sco.pcm_spk.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.pcm_spk.channels = 1;
+	t->sco.pcm_spk.channel_map[0] = BA_TRANSPORT_PCM_CHANNEL_MONO;
 
 	t->sco.pcm_mic.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.pcm_mic.channels = 1;
+	t->sco.pcm_mic.channel_map[0] = BA_TRANSPORT_PCM_CHANNEL_MONO;
 
 	uint32_t codec_id;
 	switch (codec_id = ba_transport_get_codec(t)) {

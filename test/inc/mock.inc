@@ -53,7 +53,7 @@ static char *strtrim(char *str) {
 	return str;
 }
 
-static void *spawn_bluealsa_mock_stderr_proxy(void *userdata) {
+static void *spawn_bluealsad_mock_stderr_proxy(void *userdata) {
 
 	struct spawn_bluealsa_data *data = userdata;
 	char buffer[512];
@@ -104,8 +104,8 @@ static void *spawn_bluealsa_mock_stderr_proxy(void *userdata) {
 }
 
 /**
- * Full path to the bluealsa-mock executable. */
-char bluealsa_mock_path[256] = "bluealsa-mock";
+ * Full path to the bluealsad-mock executable. */
+char bluealsad_mock_path[256] = "bluealsad-mock";
 
 /**
  * Spawn BlueALSA mock service.
@@ -114,7 +114,7 @@ char bluealsa_mock_path[256] = "bluealsa-mock";
  *   process information, i.e. PID, stdout and stderr file descriptors.
  * @param service BlueALSA D-Bus service name.
  * @param wait_for_ready Block until PCMs are ready.
- * @param ... Additional arguments to be passed to the bluealsa-mock. The list
+ * @param ... Additional arguments to be passed to the bluealsad-mock. The list
  *   shall be terminated by NULL.
  * @return On success this function returns 0. Otherwise -1 is returned and
  *  errno is set appropriately. */
@@ -134,7 +134,7 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 
 	size_t n = 2;
 	char * argv[32] = {
-		bluealsa_mock_path,
+		bluealsad_mock_path,
 		arg_service,
 	};
 
@@ -176,7 +176,7 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 	sp->f_stderr = NULL;
 
 	pthread_t tid;
-	pthread_create(&tid, NULL, spawn_bluealsa_mock_stderr_proxy, data);
+	pthread_create(&tid, NULL, spawn_bluealsad_mock_stderr_proxy, data);
 	pthread_detach(tid);
 
 	pthread_mutex_lock(&data->data_mtx);

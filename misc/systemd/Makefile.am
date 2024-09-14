@@ -1,9 +1,9 @@
 # BlueALSA - Makefile.am
 # Copyright (c) 2016-2021 Arkadiusz Bokowy
 
-systemdbluealsaargs = $(SYSTEMD_BLUEALSA_ARGS)
+systemdbluealsadargs = $(SYSTEMD_BLUEALSAD_ARGS)
 systemdbluealsaaplayargs = $(SYSTEMD_BLUEALSA_APLAY_ARGS)
-bluealsauser = $(BLUEALSA_USER)
+bluealsaduser = $(BLUEALSAD_USER)
 bluealsaaplayuser = $(BLUEALSA_APLAY_USER)
 
 systemdsystemunitdir = $(SYSTEMD_SYSTEM_UNIT_DIR)
@@ -17,9 +17,9 @@ MOSTLYCLEANFILES = $(dist_systemdsystemunit_DATA)
 
 SYSTEMD_SERVICE_SUBS = \
 	s,[@]bindir[@],$(bindir),g; \
-	s,[@]systemdbluealsaargs[@],$(systemdbluealsaargs),g; \
+	s,[@]systemdbluealsadargs[@],$(systemdbluealsadargs),g; \
 	s,[@]systemdbluealsaaplayargs[@],$(systemdbluealsaaplayargs),g; \
-	s,[@]bluealsauser[@],$(bluealsauser),g; \
+	s,[@]bluealsaduser[@],$(bluealsaduser),g; \
 	s,[@]bluealsaaplayuser[@],$(bluealsaaplayuser),g;
 
 .in:

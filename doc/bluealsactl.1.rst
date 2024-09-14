@@ -1,12 +1,12 @@
-============
-bluealsa-cli
-============
+===========
+bluealsactl
+===========
 
 ----------------------------------------------------------
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: July 2024
+:Date: August 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -14,12 +14,12 @@ a simple command line interface for the BlueALSA D-Bus API
 SYNOPSIS
 ========
 
-**bluealsa-cli** [*OPTION*]... [*COMMAND* [*ARG*]...]
+**bluealsactl** [*OPTION*]... [*COMMAND* [*ARG*]...]
 
 DESCRIPTION
 ===========
 
-**bluealsa-cli** provides command-line access to the BlueALSA D-Bus API
+**bluealsactl** provides command-line access to the BlueALSA D-Bus API
 "org.bluealsa.Manager1" and "org.bluealsa.PCM1" interfaces and thus allows
 introspection and some control of BlueALSA PCMs while they are running.
 
@@ -36,7 +36,7 @@ OPTIONS
 
 -B NAME, --dbus=NAME
     BlueALSA service name suffix. For more information see ``--dbus``
-    option of ``bluealsa(8)`` service daemon.
+    option of ``bluealsad(8)`` service daemon.
 
 -q, --quiet
     Do not print any error messages.
@@ -85,7 +85,7 @@ info *PCM_PATH*
     'PropertyName: Value'. Values are presented in human-readable format - for
     example the Volume property is printed as:
 
-    ``Volume: L: 127 R: 127``
+    ``Volume: 127 127``
 
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
@@ -117,12 +117,12 @@ codec [-c NUM] [-s NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
 
     BlueALSA does not support changing the HFP codec from an HFP-HF node. The
     codec can only be changed from the HFP-AG node. Using the
-    **bluealsa-cli codec** command to set the codec from an HFP-HF node fails,
+    **bluealsactl codec** command to set the codec from an HFP-HF node fails,
     reporting an input/output error.
 
     Selecting the HFP codec when using oFono is not supported.
 
-volume *PCM_PATH* [*VOLUME* [*VOLUME*]]
+volume *PCM_PATH* [*VOLUME* [*VOLUME*]...]
     Get or set the volume value of the given PCM.
 
     If *VOLUME* is given, set the loudness component of the volume property of
@@ -131,11 +131,10 @@ volume *PCM_PATH* [*VOLUME* [*VOLUME*]]
     If only one value *VOLUME* is given it is applied to all channels.
     For stereo (2-channel) PCMs the first value *VOLUME* is applied to channel
     1 (Left), and the second value *VOLUME* is applied to channel 2 (Right).
-    For mono (1-channel) PCMs the second value *VOLUME* is ignored.
 
     Valid A2DP values for *VOLUME* are 0-127, valid HFP/HSP values are 0-15.
 
-mute *PCM_PATH* [*STATE* [*STATE*]]
+mute *PCM_PATH* [*STATE* [*STATE*]...]
     Get or set the mute switch of the given PCM.
 
     If *STATE* argument(s) are given, set mute component of the volume property
@@ -233,14 +232,14 @@ open [--hex] *PCM_PATH*
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
+Copyright (c) 2016-2024 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========
 
-``bluealsa(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
+``bluealsad(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

@@ -1,7 +1,7 @@
 # BlueALSA - Makefile.am
 # Copyright (c) 2016-2021 Arkadiusz Bokowy
 
-SUBDIRS = aplay cli rfcomm
+SUBDIRS = aplay rfcomm
 
 bin_PROGRAMS =
 

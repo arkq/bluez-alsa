@@ -320,8 +320,8 @@ CK_START_TEST(test_mute_and_volume) {
 	snd_ctl_elem_value_set_numid(elem_volume, 10);
 
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem_volume), 0);
-	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 127);
-	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 1), 127);
+	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 0), 50);
+	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem_volume, 1), 50);
 
 	snd_ctl_elem_value_set_integer(elem_volume, 0, 42);
 	snd_ctl_elem_value_set_integer(elem_volume, 1, 42);
@@ -580,8 +580,8 @@ int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/libaloader.so");
 
 	char *argv_0 = strdup(argv[0]);
-	snprintf(bluealsa_mock_path, sizeof(bluealsa_mock_path),
-			"%s/mock/bluealsa-mock", dirname(argv_0));
+	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
+			"%s/mock/bluealsad-mock", dirname(argv_0));
 
 	Suite *s = suite_create(__FILE__);
 	TCase *tc = tcase_create(__FILE__);

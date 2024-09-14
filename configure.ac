@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.60])
 AC_INIT([BlueALSA],
-	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v4.2.0]))],
+	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v4.3.1]))],
 	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 
@@ -85,7 +85,7 @@ AC_SEARCH_LIBS([pow], [m],
 AC_SEARCH_LIBS([pthread_create], [pthread],
 	[], [AC_MSG_ERROR([pthread library not found])])
 
-PKG_CHECK_MODULES([ALSA], [alsa])
+PKG_CHECK_MODULES([ALSA], [alsa >= 1.0.27])
 PKG_CHECK_MODULES([BLUEZ], [bluez >= 5.51])
 PKG_CHECK_MODULES([DBUS1], [dbus-1 >= 1.6])
 PKG_CHECK_MODULES([GIO2], [gio-unix-2.0])
@@ -310,13 +310,13 @@ AM_COND_IF([ENABLE_PAYLOADCHECK], [
 	AC_DEFINE([ENABLE_PAYLOADCHECK], [1], [Define to 1 if PAYLOADCHECK is enabled.])
 ])
 
+AC_ARG_ENABLE([ctl],
+	[AS_HELP_STRING([--disable-ctl], [disable building of bluealsactl tool])])
+AM_CONDITIONAL([ENABLE_CTL], [test "x$enable_ctl" != "xno"])
+
 AC_ARG_ENABLE([aplay],
 	[AS_HELP_STRING([--disable-aplay], [disable building of bluealsa-aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
-
-AC_ARG_ENABLE([cli],
-	[AS_HELP_STRING([--enable-cli], [enable building of bluealsa-cli tool])])
-AM_CONDITIONAL([ENABLE_CLI], [test "x$enable_cli" = "xyes"])
 
 AC_ARG_ENABLE([rfcomm],
 	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
@@ -417,12 +417,12 @@ AC_ARG_WITH([systemdsystemunitdir],
 	[systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])])
 AC_SUBST([SYSTEMD_SYSTEM_UNIT_DIR], [$systemdsystemunitdir])
 
-AC_ARG_WITH([systemdbluealsaargs],
-	AS_HELP_STRING([--with-systemdbluealsaargs=ARGS], [bluealsa arguments to be used in
+AC_ARG_WITH([systemdbluealsadargs],
+	AS_HELP_STRING([--with-systemdbluealsadargs=ARGS], [bluealsad arguments to be used in
 		bluealsa.service, defaults to '-S -p a2dp-source -p a2dp-sink' if not specified]),
-	[systemdbluealsaargs="${withval}"],
-	[systemdbluealsaargs="-S -p a2dp-source -p a2dp-sink"])
-AC_SUBST([SYSTEMD_BLUEALSA_ARGS], [$systemdbluealsaargs])
+	[systemdbluealsadargs="${withval}"],
+	[systemdbluealsadargs="-S -p a2dp-source -p a2dp-sink"])
+AC_SUBST([SYSTEMD_BLUEALSAD_ARGS], [$systemdbluealsadargs])
 
 AC_ARG_WITH([systemdbluealsaaplayargs],
 	AS_HELP_STRING([--with-systemdbluealsaaplayargs=ARGS], [bluealsa-aplay arguments to
@@ -431,13 +431,13 @@ AC_ARG_WITH([systemdbluealsaaplayargs],
 	[systemdbluealsaaplayargs="-S"])
 AC_SUBST([SYSTEMD_BLUEALSA_APLAY_ARGS], [$systemdbluealsaaplayargs])
 
-AC_ARG_WITH([bluealsauser],
-	AS_HELP_STRING([--with-bluealsauser=USER], [set up installation to run bluealsa as user
+AC_ARG_WITH([bluealsaduser],
+	AS_HELP_STRING([--with-bluealsaduser=USER], [set up installation to run bluealsad as user
 		USER, defaults to root if not specified. When used with bluez <= 5.50, USER must be a
 		member of the "bluetooth" group.]),
-	[bluealsauser="${withval}"],
-	[bluealsauser="root"])
-AC_SUBST([BLUEALSA_USER], [$bluealsauser])
+	[bluealsaduser="${withval}"],
+	[bluealsaduser="root"])
+AC_SUBST([BLUEALSAD_USER], [$bluealsaduser])
 
 AC_ARG_WITH([bluealsaaplayuser],
 	AS_HELP_STRING([--with-bluealsaaplayuser=USER], [set up installation to run bluealsa-aplay
@@ -454,9 +454,9 @@ AC_CONFIG_FILES([
 	misc/systemd/Makefile
 	src/Makefile
 	src/asound/Makefile
+	src/bluealsactl/Makefile
 	utils/Makefile
 	utils/aplay/Makefile
-	utils/cli/Makefile
 	utils/rfcomm/Makefile
 	test/Makefile
 	test/mock/Makefile])

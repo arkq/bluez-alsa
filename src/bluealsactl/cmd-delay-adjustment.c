@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-delay-adjustment.c
+ * BlueALSA - bluealsactl/cmd-delay-adjustment.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -17,12 +17,12 @@
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
 	printf("Get or set the delay adjustment of the given PCM.\n\n");
-	cli_print_usage("%s [OPTION]... PCM-PATH [ADJUSTMENT]", command);
+	bactl_print_usage("%s [OPTION]... PCM-PATH [ADJUSTMENT]", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"\nPositional arguments:\n"
@@ -44,7 +44,7 @@ static int cmd_delay_adjustment_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		if (opt == 'h') { /* --help */
 			usage(argv[0]);
@@ -65,7 +65,7 @@ static int cmd_delay_adjustment_func(int argc, char *argv[]) {
 	const char *path = argv[optind];
 
 	struct ba_pcm pcm;
-	if (!cli_get_ba_pcm(path, &pcm, &err)) {
+	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
 		cmd_print_error("Couldn't get BlueALSA PCM: %s", err.message);
 		return EXIT_FAILURE;
 	}
@@ -99,7 +99,7 @@ static int cmd_delay_adjustment_func(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_delay_adjustment = {
+const struct bactl_command cmd_delay_adjustment = {
 	"delay-adjustment",
 	"Get or set PCM delay adjustment",
 	cmd_delay_adjustment_func,

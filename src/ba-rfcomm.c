@@ -440,14 +440,14 @@ static int rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
+	const int gain = r->gain_mic = atoi(at->value);
 	const int fd = r->fd;
 
 	/* skip update in case of software volume */
 	if (pcm->soft_volume)
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
 
-	r->gain_mic = atoi(at->value);
-	int level = ba_transport_pcm_volume_range_to_level(r->gain_mic, HFP_VOLUME_GAIN_MAX);
+	int level = ba_transport_pcm_volume_range_to_level(gain, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
@@ -467,8 +467,8 @@ static int rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
 
-	r->gain_mic = atoi(at->value);
-	int level = ba_transport_pcm_volume_range_to_level(r->gain_mic, HFP_VOLUME_GAIN_MAX);
+	int gain = r->gain_mic = atoi(at->value);
+	int level = ba_transport_pcm_volume_range_to_level(gain, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
@@ -485,14 +485,14 @@ static int rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at
 
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
+	const int gain = r->gain_spk = atoi(at->value);
 	const int fd = r->fd;
 
 	/* skip update in case of software volume */
 	if (pcm->soft_volume)
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK");
 
-	r->gain_spk = atoi(at->value);
-	int level = ba_transport_pcm_volume_range_to_level(r->gain_spk, HFP_VOLUME_GAIN_MAX);
+	int level = ba_transport_pcm_volume_range_to_level(gain, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
@@ -512,8 +512,8 @@ static int rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	struct ba_transport * const t_sco = r->sco;
 	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
 
-	r->gain_spk = atoi(at->value);
-	int level = ba_transport_pcm_volume_range_to_level(r->gain_spk, HFP_VOLUME_GAIN_MAX);
+	int gain = r->gain_spk = atoi(at->value);
+	int level = ba_transport_pcm_volume_range_to_level(gain, HFP_VOLUME_GAIN_MAX);
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);

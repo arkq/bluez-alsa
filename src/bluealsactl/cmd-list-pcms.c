@@ -1,5 +1,5 @@
 /*
- * BlueALSA - cmd-list-pcms.c
+ * BlueALSA - bluealsactl/cmd-list-pcms.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -11,15 +11,24 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <dbus/dbus.h>
 
-#include "cli.h"
+#include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
+
+static int ba_pcm_cmp(const void *a, const void *b) {
+	const struct ba_pcm *pcm_a = a;
+	const struct ba_pcm *pcm_b = b;
+	if (pcm_a->sequence == pcm_b->sequence)
+		return strcmp(pcm_a->pcm_path, pcm_b->pcm_path);
+	return pcm_a->sequence - pcm_b->sequence;
+}
 
 static void usage(const char *command) {
 	printf("List all BlueALSA PCM paths.\n\n");
-	cli_print_usage("%s [OPTION]...", command);
+	bactl_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 	);
@@ -38,7 +47,7 @@ static int cmd_list_pcms_func(int argc, char *argv[]) {
 
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
-		if (cli_parse_common_options(opt))
+		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
 		case 'h' /* --help */ :
@@ -64,10 +73,13 @@ static int cmd_list_pcms_func(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	/* Sort PCMs from the oldest to the newest (most recently added). */
+	qsort(pcms, pcms_count, sizeof(*pcms), ba_pcm_cmp);
+
 	for (size_t i = 0; i < pcms_count; i++) {
 		printf("%s\n", pcms[i].pcm_path);
 		if (config.verbose) {
-			cli_print_pcm_properties(&pcms[i], &err);
+			bactl_print_pcm_properties(&pcms[i], &err);
 			printf("\n");
 		}
 	}
@@ -76,7 +88,7 @@ static int cmd_list_pcms_func(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-const struct cli_command cmd_list_pcms = {
+const struct bactl_command cmd_list_pcms = {
 	"list-pcms",
 	"List all BlueALSA PCM paths",
 	cmd_list_pcms_func,

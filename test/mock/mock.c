@@ -20,12 +20,12 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <libgen.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -111,7 +111,7 @@ static void *mock_bt_dump_thread(void *userdata) {
 	ssize_t len;
 
 	if (mock_dump_output)
-		f_output = fopen("bluealsa-mock.dump", "w");
+		f_output = fopen("bluealsad-mock.dump", "w");
 
 	debug("IO loop: START: %s", __func__);
 	while ((len = read(bt_fd, buffer, sizeof(buffer))) > 0) {

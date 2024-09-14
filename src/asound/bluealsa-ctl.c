@@ -1,5 +1,5 @@
 /*
- * bluealsa-ctl.c
+ * BlueALSA - asound/bluealsa-ctl.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -1015,6 +1015,50 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
+static snd_mixer_selem_channel_id_t ba_channel_map_to_id(const char *tag) {
+
+	static const struct {
+		const char *tag;
+		snd_mixer_selem_channel_id_t id;
+	} mapping[] = {
+		{ "MONO", SND_MIXER_SCHN_MONO },
+		{ "FL", SND_MIXER_SCHN_FRONT_LEFT },
+		{ "FR", SND_MIXER_SCHN_FRONT_RIGHT },
+		{ "RL", SND_MIXER_SCHN_REAR_LEFT },
+		{ "RR", SND_MIXER_SCHN_REAR_RIGHT },
+		{ "FC", SND_MIXER_SCHN_FRONT_CENTER },
+		{ "LFE", SND_MIXER_SCHN_WOOFER },
+		{ "SL", SND_MIXER_SCHN_SIDE_LEFT },
+		{ "SR", SND_MIXER_SCHN_SIDE_RIGHT },
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(mapping); i++)
+		if (strcmp(tag, mapping[i].tag) == 0)
+			return mapping[i].id;
+	return SND_MIXER_SCHN_UNKNOWN;
+}
+
+/**
+ * Convert BlueALSA channel index to ALSA mixer simple element channel ID.
+ *
+ * ALSA mixer does not use channel map to identify channels. Instead, it uses
+ * simple element channel ID (index) to identify them. This function converts
+ * BlueALSA channel index to ALSA channel index using channel map.
+ *
+ * @param pcm BlueALSA PCM structure.
+ * @param channel BlueALSA PCM channel index.
+ * @return The ALSA mixer simple element channel ID. */
+static snd_mixer_selem_channel_id_t bluealsa_get_channel_id(const struct ba_pcm *pcm,
+		unsigned int channel) {
+	snd_mixer_selem_channel_id_t id = ba_channel_map_to_id(pcm->channel_map[channel]);
+	/* Make sure that the channel ID is within the valid range. */
+	if (id >= 0 && id < pcm->channels)
+		return id;
+	/* Something went wrong - fallback to the mono channel. */
+	SNDERR("Invalid channel map [channel=%u]: %s", channel, pcm->channel_map[channel]);
+	return SND_MIXER_SCHN_MONO;
+}
+
 static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
 	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
 
@@ -1030,14 +1074,12 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 		value[0] = active ? elem->dev->battery_level : 0;
 		break;
 	case CTL_ELEM_TYPE_SWITCH:
-		value[0] = active ? !pcm->volume.ch1_muted : 0;
-		if (pcm->channels == 2)
-			value[1] = active ? !pcm->volume.ch2_muted : 0;
+		for (size_t i = 0; i < pcm->channels; i++)
+			value[bluealsa_get_channel_id(pcm, i)] = active ? !pcm->volume[i].muted : 0;
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		value[0] = active ? pcm->volume.ch1_volume : 0;
-		if (pcm->channels == 2)
-			value[1] = active ? pcm->volume.ch2_volume : 0;
+		for (size_t i = 0; i < pcm->channels; i++)
+			value[bluealsa_get_channel_id(pcm, i)] = active ? pcm->volume[i].volume : 0;
 		break;
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
@@ -1056,7 +1098,9 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 
 	struct ctl_elem *elem = &ctl->elem_list[key];
 	struct ba_pcm *pcm = elem->pcm;
-	uint16_t old = pcm->volume.raw;
+
+	uint8_t old[ARRAYSIZE(pcm->volume)];
+	memcpy(old, pcm->volume, sizeof(old));
 
 	if (!elem->active) {
 		/* Ignore the write request because the associated PCM profile has been
@@ -1072,14 +1116,12 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 		/* this element should be read-only */
 		return -EINVAL;
 	case CTL_ELEM_TYPE_SWITCH:
-		pcm->volume.ch1_muted = !value[0];
-		if (pcm->channels == 2)
-			pcm->volume.ch2_muted = !value[1];
+		for (size_t i = 0; i < pcm->channels; i++)
+			pcm->volume[i].muted = !value[bluealsa_get_channel_id(pcm, i)];
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
-		pcm->volume.ch1_volume = value[0];
-		if (pcm->channels == 2)
-			pcm->volume.ch2_volume = value[1];
+		for (size_t i = 0; i < pcm->channels; i++)
+			pcm->volume[i].volume = value[bluealsa_get_channel_id(pcm, i)];
 		break;
 	case CTL_ELEM_TYPE_CODEC:
 	case CTL_ELEM_TYPE_VOLUME_MODE:
@@ -1088,7 +1130,7 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	}
 
 	/* check whether update is required */
-	if (pcm->volume.raw == old)
+	if (memcmp(pcm->volume, old, sizeof(old)) == 0)
 		return 0;
 
 	if (!ba_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_VOLUME, NULL))
