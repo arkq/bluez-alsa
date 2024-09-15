@@ -1072,7 +1072,7 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 			const int level = ba_transport_pcm_volume_range_to_level(volume[i] & 0x7F, volume_max);
 
 			debug("Setting volume [ch=%zu]: %u [%.2f dB] [%c]",
-					i, volume[i] & 0x7F, 0.01 * level, muted ? 'x' : ' ');
+					i, volume[i] & 0x7F, 0.01 * level, muted ? 'M' : ' ');
 			ba_transport_pcm_volume_set(&pcm->volume[i], &level, &muted, NULL);
 
 		}

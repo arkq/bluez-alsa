@@ -10,6 +10,7 @@
 
 #include <getopt.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -95,11 +96,21 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 	}
 	else if (monitor_properties_set[PROPERTY_VOLUME].enabled &&
 			strcmp(key, monitor_properties_set[PROPERTY_VOLUME].name) == 0) {
-		if (type != (type_expected = DBUS_TYPE_UINT16))
+		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
-		dbus_uint16_t volume;
-		dbus_message_iter_get_basic(&variant, &volume);
-		printf("PropertyChanged %s Volume 0x%.4X\n", path, volume);
+
+		DBusMessageIter iter;
+		uint8_t *data;
+		int len;
+
+		dbus_message_iter_recurse(&variant, &iter);
+		dbus_message_iter_get_fixed_array(&iter, &data, &len);
+
+		printf("PropertyChanged %s Volume", path);
+		for (size_t i = 0; i < (size_t)len; i++)
+			printf(" %u%s", data[i] & 0x7f, data[i] & 0x80 ? "[M]" : "");
+		printf("\n");
+
 	}
 
 	return TRUE;

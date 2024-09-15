@@ -82,10 +82,30 @@ list-pcms
 info *PCM_PATH*
     Print the properties and available codecs of the given PCM.
     The properties are printed one per line, in the format
-    'PropertyName: Value'. Values are presented in human-readable format - for
-    example the Volume property is printed as:
+    "PropertyName: Value". Values are presented in human-readable format, and
+    for a property with multiple values they are printed as a space-separated
+    list.
 
-    ``Volume: 127 127``
+    The Volume property is presented as two lines; "Volume:" indicating
+    the loudness component of each channel and "Mute:" indicating the mute
+    component of each channel. Both components are presented with their channel
+    values in the same order as the ChannelMap. For example:
+    ::
+
+        ChannelMap: FC FL FR RL RR LFE
+        Volume: 127 127 127 127 127 127
+        Mute: off off off off off off
+
+    If the **--verbose** option is given then "Available codecs:" values include
+    the codec capabilities as a hexadecimal string suffix, separated by a colon.
+    Similarly, the "Selected codec:" value includes the current codec
+    configuration as a hexadecimal string separated by a colon. For example:
+    ::
+
+        Available codecs: SBC:ffff02fa AAC:c0ffff035b60
+        Selected codec: AAC:400084035b60
+
+    A tool such as ``a2dpconf`` can be used to decode the hex string.
 
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
@@ -93,12 +113,13 @@ info *PCM_PATH*
 codec [-c NUM] [-r NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
     Get or set the Bluetooth codec used by the given PCM.
 
+    If *CODEC* is not given, print a list of additional codecs supported by the
+    given PCM and the currently selected codec. With the option **--verbose**
+    the codec capabilities and current configuration are shown in the same
+    format as for the **info** command.
+
     If *CODEC* is given, change the codec to be used by the given PCM. This
     command will terminate the PCM if it is currently running.
-
-    If *CODEC* is not given, print a list of additional codecs supported by the
-    given PCM and the currently selected codec. The level of detail in the
-    output depends on the verbosity level.
 
     Optionally, for A2DP codecs, one can specify A2DP codec configuration which
     should be selected. The *CONFIG* shall be given as a hexadecimal string. If
@@ -112,6 +133,16 @@ codec [-c NUM] [-r NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
     the configuration. However, this may result in a non-working connection and
     in the worst case it may crash remote Bluetooth device!
 
+    The options **-c NUM** and **-r NUM** may be used to select a specific
+    channel count and/or sample rate, provided that the given values are
+    supported by the codec. For example, if the device at path PCM_PATH
+    supports 5.1 surround sound and 96000 rate with the AAC codec, but is
+    currently configured as AAC with stereo at 48000, then the configuration
+    can be changed with:
+    ::
+
+        bluealsactl codec -c6 -r96000 PCM_PATH aac
+
     Selecting an A2DP codec and listing available A2DP codecs requires BlueZ
     SEP support (BlueZ >= 5.52).
 
@@ -123,23 +154,31 @@ codec [-c NUM] [-r NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
     Selecting the HFP codec when using oFono is not supported.
 
 volume *PCM_PATH* [*VOLUME* [*VOLUME*]...]
-    Get or set the volume value of the given PCM.
+    Get or set the volume loudness value(s) of the given PCM.
 
     If *VOLUME* is given, set the loudness component of the volume property of
     the given PCM.
 
     If only one value *VOLUME* is given it is applied to all channels.
-    For stereo (2-channel) PCMs the first value *VOLUME* is applied to channel
-    1 (Left), and the second value *VOLUME* is applied to channel 2 (Right).
+
+    For multi-channel PCMs, if multiple *VOLUME* values are given, then each
+    given value is applied to the corresponding channel of the ChannelMap (see
+    the **info** command). If the number of values given is less than the
+    number of channels, then the remaining channels are set to the first given
+    value.
 
     Valid A2DP values for *VOLUME* are 0-127, valid HFP/HSP values are 0-15.
+
+    Note that A2DP does not support independent channel volumes, so such a
+    setting is better suited to use with soft-volume enabled. See
+    ``bluealsad(8)`` for more details.
 
 mute *PCM_PATH* [*STATE* [*STATE*]...]
     Get or set the mute switch of the given PCM.
 
     If *STATE* argument(s) are given, set mute component of the volume property
-    of the given PCM. The second *STATE* argument is used for stereo PCMs as
-    described for the **volume** command.
+    of the given PCM. Multiple *STATE* arguments are used for multi-channel
+    PCMs as described for the **volume** command.
 
     The *STATE* value can be one of **on**, **yes**, **true**, **y** or **1**
     for mute on, or **off**, **no**, **false**, **n** or **0** for mute off.
@@ -207,12 +246,19 @@ monitor [-p[PROPS] | --properties[=PROPS]]
 
     ``PropertyChanged PCM_PATH PROPERTY_NAME VALUE``
 
-    Property names than can be monitored are **Codec**, **Running**,
+    Property names that can be monitored are **Codec**, **Running**,
     **SoftVolume** and **Volume**.
 
-    The value for Volume is a hexadecimal 16-bit encoding where data for
-    channel 1 is stored in the upper byte, channel 2 is stored in the lower
-    byte. The highest bit of both bytes determines whether channel is muted.
+    Volume is an array of values, each showing the loudness and mute components
+    of a channel. The order of the values corresponds to the ChannelMap
+    property (see the **info** command). The loudness is shown as a decimal
+    integer value, with an optional suffix ``[M]`` indicating that the channel
+    is muted. For example, for a 2-channel (stereo) A2DP PCM at path PCM_PATH
+    with both channels at full volume and the right channel muted, the event
+    would be displayed as:
+    ::
+
+         PropertyChanged PCM_PATH Volume 127 127[M]
 
     *PROPS* is an optional comma-separated list of property names to be
     monitored. If given, only changes to those properties listed will be

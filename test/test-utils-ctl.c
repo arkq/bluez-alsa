@@ -408,8 +408,12 @@ CK_START_TEST(test_monitor) {
 	ck_assert_ptr_ne(strstr(output,
 				"Device: /org/bluez/hci11/dev_23_45_67_89_AB_CD"), NULL);
 
-#if ENABLE_MSBC
 	/* notifications for property changed */
+	ck_assert_ptr_ne(strstr(output,
+				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink Volume 54 54"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"PropertyChanged /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink Volume 84 84"), NULL);
+#if ENABLE_MSBC
 	ck_assert_ptr_ne(strstr(output,
 				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink Codec CVSD"), NULL);
 	ck_assert_ptr_ne(strstr(output,

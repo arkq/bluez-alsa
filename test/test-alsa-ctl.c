@@ -535,12 +535,15 @@ CK_START_TEST(test_notifications) {
 
 	/* Processed events:
 	 * - 0 removes; 2 new elems (12:34:... A2DP)
+	 * - 4 updates per new A2DP (updated delay and volume)
 	 * - 2 removes; 4 new elems (12:34:... A2DP, 23:45:... A2DP)
+	 * - 4 updates per new A2DP (updated delay and volume)
 	 * - 4 removes; 7 new elems (2x A2DP, SCO playback, battery)
 	 * - 7 removes; 9 new elems (2x A2DP, SCO playback/capture, battery)
 	 * - 4 updates per codec (SCO codec updates if codec selection is supported)
 	 */
-	size_t expected_events = (0 + 2) + (2 + 4) + (4 + 7) + (7 + 9) + events_update_codec;
+	size_t expected_events =
+		(0 + 2) + 4 + (2 + 4) + 4 + (4 + 7) + (7 + 9) + events_update_codec;
 
 	/* XXX: It is possible that the battery element (RFCOMM D-Bus path) will not
 	 *      be exported in time. In such case, the number of events will be less

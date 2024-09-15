@@ -297,6 +297,15 @@ int mock_bluez_device_profile_new_connection(const char *device_path,
 	return 0;
 }
 
+static gboolean mock_bluez_media_transport_fuzz(void *userdata) {
+	MockBluezMediaTransport1 *transport = userdata;
+	/* Pseudo-random hash based on the device path to simulate different values. */
+	unsigned int hash = g_str_hash(mock_bluez_media_transport1_get_device(transport));
+	mock_bluez_media_transport1_set_delay(transport, hash % 2777);
+	mock_bluez_media_transport1_set_volume(transport, hash % 101);
+	return G_SOURCE_REMOVE;
+}
+
 static void mock_bluez_media_endpoint_set_configuration_finish(GObject *source,
 		GAsyncResult *result, G_GNUC_UNUSED void *userdata) {
 	MockBluezMediaEndpoint1 *endpoint = MOCK_BLUEZ_MEDIA_ENDPOINT1(source);
@@ -342,6 +351,10 @@ int mock_bluez_device_media_set_configuration(const char *device_path,
 			/* In case of A2DP Sink profile, activate the transport right away. */
 			if (strcmp(uuid, BT_UUID_A2DP_SINK) == 0)
 				mock_bluez_media_transport1_set_state(transport, "pending");
+
+			/* If fuzzing is enabled, update some properties after slight delay. */
+			if (mock_fuzzing_ms)
+				g_timeout_add(mock_fuzzing_ms, mock_bluez_media_transport_fuzz, transport);
 
 			rv = 0;
 			break;
