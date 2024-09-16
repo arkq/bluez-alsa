@@ -6,7 +6,7 @@ bluealsactl
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: August 2024
+:Date: September 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -105,7 +105,7 @@ info *PCM_PATH*
         Available codecs: SBC:ffff02fa AAC:c0ffff035b60
         Selected codec: AAC:400084035b60
 
-    A tool such as ``a2dpconf`` can be used to decode the hex string.
+    A tool such as ``a2dpconf(1)`` can be used to decode the hex string.
 
     The list of available A2DP codecs requires BlueZ SEP support
     (BlueZ >= 5.52)
@@ -285,7 +285,8 @@ The bluez-alsa project is licensed under the terms of the MIT license.
 SEE ALSO
 ========
 
-``bluealsad(8)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``
+``a2dpconf(1)``, ``bluealsa-aplay(1)``, ``bluealsa-rfcomm(1)``,
+``bluealsad(8)``
 
 Project web site
   https://github.com/arkq/bluez-alsa

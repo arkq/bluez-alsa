@@ -23,6 +23,10 @@ if ENABLE_RFCOMM
 man1_MANS += bluealsa-rfcomm.1
 endif
 
+if ENABLE_A2DPCONF
+man1_MANS += a2dpconf.1
+endif
+
 if ENABLE_HCITOP
 man1_MANS += hcitop.1
 endif

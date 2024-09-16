@@ -123,6 +123,7 @@ unregister
 utils
 
 # Others
+a2dpconf
 AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ
 aas
 ABCD
@@ -174,6 +175,7 @@ dlopen
 dmix
 dmx
 docutils
+dpconf
 dpsnk
 dpsrc
 DYN
