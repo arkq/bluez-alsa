@@ -681,8 +681,13 @@ fail:
 /**
  * Get BlueALSA transport type debug name.
  *
+ * It is guaranteed that this function will not lock/unlock any mutex at a
+ * cost of potential race condition when retrieving the name. This function
+ * is intended to be used for debugging purposes only.
+ *
  * @param t Transport structure.
  * @return Human-readable string. */
+__attribute__ ((no_sanitize("thread")))
 const char *ba_transport_debug_name(
 		const struct ba_transport *t) {
 	switch (t->profile) {
@@ -692,7 +697,7 @@ const char *ba_transport_debug_name(
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		return t->a2dp.sep->name;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
-		switch (ba_transport_get_codec(t)) {
+		switch (t->codec_id) {
 		case HFP_CODEC_UNDEFINED:
 			return "HFP Hands-Free (...)";
 		case HFP_CODEC_CVSD:
@@ -703,7 +708,7 @@ const char *ba_transport_debug_name(
 			return "HFP Hands-Free (LC3-SWB)";
 		} break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
-		switch (ba_transport_get_codec(t)) {
+		switch (t->codec_id) {
 		case HFP_CODEC_UNDEFINED:
 			return "HFP Audio Gateway (...)";
 		case HFP_CODEC_CVSD:
@@ -722,8 +727,7 @@ const char *ba_transport_debug_name(
 		return "MIDI";
 #endif
 	}
-	debug("Unknown transport: profile:%#x codec:%#x",
-			t->profile, ba_transport_get_codec(t));
+	debug("Unknown transport: profile:%#x codec:%#x", t->profile, t->codec_id);
 	return "N/A";
 }
 #endif
