@@ -63,7 +63,7 @@ typedef struct {{
 }} {struct}SkeletonClass;
 
 G_DEFINE_TYPE({struct}Skeleton, {func}_skeleton,
-  G_TYPE_DBUS_INTERFACE_SKELETON);
+  G_TYPE_DBUS_INTERFACE_SKELETON)
 
 static void {func}_skeleton_class_init({struct}SkeletonClass *ifc) {{
     GDBusInterfaceSkeletonClass *ifc_ = G_DBUS_INTERFACE_SKELETON_CLASS(ifc);

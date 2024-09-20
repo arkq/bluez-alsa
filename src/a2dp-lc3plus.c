@@ -192,7 +192,6 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct io_poll io = { .timeout = -1 };
 
 	const a2dp_lc3plus_t *configuration = &t->a2dp.configuration.lc3plus;
-	const int lc3plus_frame_dms = a2dp_lc3plus_get_frame_dms(configuration);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 	const unsigned int rtp_ts_clockrate = 96000;
@@ -211,6 +210,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(a2dp_lc3plus_enc_free), handle);
 
+	const int lc3plus_frame_dms = a2dp_lc3plus_get_frame_dms(configuration);
 	if ((err = lc3plus_enc_set_frame_dms(handle, lc3plus_frame_dms)) != LC3PLUS_OK) {
 		error("Couldn't set frame length: %s", lc3plus_strerror(err));
 		goto fail_setup;

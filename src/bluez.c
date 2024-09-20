@@ -418,7 +418,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	const struct a2dp_sep *sep = dbus_obj->sep;
 
 	const void *data;
-	a2dp_t capabilities = {};
+	a2dp_t capabilities = { 0 };
 	size_t size = 0;
 
 	params = g_variant_get_child_value(params, 0);
@@ -454,7 +454,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	enum bluez_a2dp_transport_state state = 0xFFFF;
 	char *device_path = NULL;
-	a2dp_t configuration = {};
+	a2dp_t configuration = { 0 };
 	uint16_t volume = 127;
 	uint16_t delay = 150;
 

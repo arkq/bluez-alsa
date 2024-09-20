@@ -239,7 +239,7 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 	struct pollfd pfds[] = {{ pcm->fd, POLLOUT, 0 }};
 
 	SNDFILE *sf = NULL;
-	SF_INFO sf_info = {};
+	SF_INFO sf_info = { 0 };
 	if ((sf = sf_open(input_pcm_file, SFM_READ, &sf_info)) == NULL) {
 		error("Couldn't load input audio file: %s", sf_strerror(NULL));
 		ck_assert_ptr_ne(sf, NULL);

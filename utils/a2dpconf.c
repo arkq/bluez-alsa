@@ -363,21 +363,21 @@ static void dump_aptx_ll(const void *blob, size_t size) {
 }
 
 static void dump_faststream(const void *blob, size_t size) {
-	const a2dp_faststream_t *faststream = blob;
-	if (check_blob_size(sizeof(*faststream), size) == -1)
+	const a2dp_faststream_t *fs = blob;
+	if (check_blob_size(sizeof(*fs), size) == -1)
 		return;
 	printf("FastStream <hex:%s> {\n", bintohex(blob, size));
-	printf_vendor(&faststream->info);
+	printf_vendor(&fs->info);
 	printf(""
 			"  direction:8 =%s%s\n"
 			"  sample-rate-voice:8 =%s\n"
 			"  sample-rate-music:8 =%s%s\n"
 			"}\n",
-			faststream->direction & FASTSTREAM_DIRECTION_MUSIC ? " Music" : "",
-			faststream->direction & FASTSTREAM_DIRECTION_VOICE ? " Voice" : "",
-			faststream->sampling_freq_voice & FASTSTREAM_SAMPLING_FREQ_VOICE_16000 ? " 16000" : "",
-			faststream->sampling_freq_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 ? " 48000" : "",
-			faststream->sampling_freq_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 ? " 44100" : "");
+			fs->direction & FASTSTREAM_DIRECTION_MUSIC ? " Music" : "",
+			fs->direction & FASTSTREAM_DIRECTION_VOICE ? " Voice" : "",
+			fs->sampling_freq_voice & FASTSTREAM_SAMPLING_FREQ_VOICE_16000 ? " 16000" : "",
+			fs->sampling_freq_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_48000 ? " 48000" : "",
+			fs->sampling_freq_music & FASTSTREAM_SAMPLING_FREQ_MUSIC_44100 ? " 44100" : "");
 }
 
 static void dump_lc3plus(const void *blob, size_t size) {
@@ -537,11 +537,13 @@ static void dump_lhdc_v5(const void *blob, size_t size) {
 		return;
 	printf("LHDC v5 <hex:%s> {\n", bintohex(blob, size));
 	printf_vendor(&lhdc->info);
+	const void *data = (uint8_t *)lhdc + sizeof(lhdc->info);
+	size_t data_size = sizeof(*lhdc) - sizeof(lhdc->info);
 	printf(""
 			"  data:%zu = hex:%s\n"
 			"}\n",
-			sizeof(*lhdc) - sizeof(lhdc->info),
-			bintohex(blob + sizeof(lhdc->info), sizeof(*lhdc) - sizeof(lhdc->info)));
+			data_size,
+			bintohex(data, data_size));
 }
 
 static void dump_opus(const void *blob, size_t size) {

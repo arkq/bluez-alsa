@@ -727,7 +727,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	 * selection on the transport level. */
 	pthread_mutex_lock(&t->codec_select_client_mtx);
 
-	a2dp_t a2dp_configuration = {};
+	a2dp_t a2dp_configuration = { 0 };
 	size_t a2dp_configuration_size = 0;
 	unsigned int channels = 0;
 	unsigned int rate = 0;
