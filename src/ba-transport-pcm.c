@@ -724,7 +724,9 @@ int ba_transport_pcm_get_hardware_volume(
 int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
-	int delay = pcm->delay + ba_transport_pcm_delay_adjustment_get(pcm);
+
+	int delay = pcm->codec_delay_dms + pcm->processing_delay_dms;
+	delay += ba_transport_pcm_delay_adjustment_get(pcm);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		delay += t->a2dp.delay;

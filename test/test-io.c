@@ -394,7 +394,7 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 	if (dump_data) {
 #if HAVE_SNDFILE
 		char fname[128];
-		sprintf(fname, "sample-sine-%s.wav", transport_pcm_to_fname(pcm));
+		sprintf(fname, "sine-%s.wav", transport_pcm_to_fname(pcm));
 		ck_assert_ptr_nonnull(sf = sf_open_format(fname, pcm->rate, pcm->channels, pcm->format));
 #else
 		error("Dumping audio files requires sndfile library!");

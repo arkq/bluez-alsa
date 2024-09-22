@@ -44,6 +44,13 @@ void lc3_swb_init(struct esco_lc3_swb *lc3_swb) {
 }
 
 /**
+ * Get LC3-SWB delay in number of samples. */
+ssize_t lc3_swb_get_delay(struct esco_lc3_swb *lc3_swb) {
+	(void)lc3_swb;
+	return lc3_delay_samples(7500, 32000);
+}
+
+/**
  * Encode single eSCO LC3-SWB frame. */
 ssize_t lc3_swb_encode(struct esco_lc3_swb *lc3_swb) {
 

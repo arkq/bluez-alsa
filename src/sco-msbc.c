@@ -43,6 +43,10 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_msbc;
 	}
 
+	const unsigned int sbc_delay_frames = 73;
+	/* Get the total delay introduced by the codec. */
+	t_pcm->codec_delay_dms = sbc_delay_frames * 10000 / t_pcm->rate;
+
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
@@ -88,7 +92,7 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, msbc.frames * MSBC_CODESAMPLES);
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* Move unprocessed data to the front of our linear
 			 * buffer and clear the mSBC frame counter. */

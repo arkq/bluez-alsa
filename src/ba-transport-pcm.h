@@ -122,9 +122,13 @@ struct ba_transport_pcm {
 	/* PCM sample rate */
 	unsigned int rate;
 
-	/* Overall PCM delay in 1/10 of millisecond, caused by
-	 * audio encoding or decoding and data transfer. */
-	unsigned int delay;
+	/* Delay caused by the codec due to internal buffering. The delay is
+	 * expressed in 1/10 of millisecond. */
+	unsigned int codec_delay_dms;
+	/* Delay caused by data processing. This delay component depends on
+	 * the host computational power. It is used to compensate for the time
+	 * required to encode or decode audio. */
+	unsigned int processing_delay_dms;
 
 	/* guard delay adjustments access */
 	pthread_mutex_t delay_adjustments_mtx;

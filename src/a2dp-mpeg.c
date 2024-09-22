@@ -234,6 +234,10 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
+	/* Get the total delay introduced by the codec. */
+	const int mpeg_delay_frames = lame_get_encoder_delay(handle);
+	t_pcm->codec_delay_dms = mpeg_delay_frames * 10000 / rate;
+
 	rtp_header_t *rtp_header;
 	rtp_mpeg_audio_header_t *rtp_mpeg_audio_header;
 	/* initialize RTP headers and get anchor for payload */
@@ -319,7 +323,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 		rtp_state_update(&rtp, pcm_frames);
 
 		/* update busy delay (encoding overhead) */
-		t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+		t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		/* If the input buffer was not consumed (due to frame alignment), we
 		 * have to append new data to the existing one. Since we do not use

@@ -255,6 +255,13 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
+	/* Get the total delay introduced by the codec. The LC3plus library
+	 * reports total codec delay in case of both encoder and decoder API.
+	 * In order not to overestimate the delay, we are not going to report
+	 * delay in the decoder thread. */
+	const int lc3plus_delay_frames = lc3plus_enc_get_delay(handle);
+	t_pcm->codec_delay_dms = lc3plus_delay_frames * 10000 / rate;
+
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
 	/* initialize RTP headers and get anchor for payload */
@@ -377,7 +384,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed (due to codesize limit), we
 			 * have to append new data to the existing one. Since we do not use

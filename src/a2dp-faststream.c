@@ -150,15 +150,20 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
-	const unsigned int channels = t_pcm->channels;
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
+	const unsigned int channels = t_pcm->channels;
+	const unsigned int rate = t_pcm->rate;
 
 	if (ffb_init_int16_t(&pcm, sbc_frame_samples * 3) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail_ffb;
 	}
+
+	const unsigned int sbc_delay_frames = 73;
+	/* Get the total delay introduced by the codec. */
+	t_pcm->codec_delay_dms = sbc_delay_frames * 10000 / rate;
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
@@ -223,7 +228,7 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 			asrsync_sync(&io.asrs, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed (due to codesize limit), we
 			 * have to append new data to the existing one. Since we do not use

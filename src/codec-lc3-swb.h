@@ -74,6 +74,7 @@ struct esco_lc3_swb {
 
 void lc3_swb_init(struct esco_lc3_swb *lc3_swb);
 
+ssize_t lc3_swb_get_delay(struct esco_lc3_swb *lc3_swb);
 ssize_t lc3_swb_encode(struct esco_lc3_swb *lc3_swb);
 ssize_t lc3_swb_decode(struct esco_lc3_swb *lc3_swb);
 

@@ -79,7 +79,7 @@ void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, mtu_samples);
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		}
 

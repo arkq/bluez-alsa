@@ -179,7 +179,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_AACENCODER handle;
-	AACENC_InfoStruct aacinf;
+	AACENC_InfoStruct info;
 	AACENC_ERROR err;
 
 	const a2dp_aac_t *configuration = &t->a2dp.configuration.aac;
@@ -293,7 +293,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 		error("Couldn't initialize AAC encoder: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
-	if ((err = aacEncInfo(handle, &aacinf)) != AACENC_OK) {
+	if ((err = aacEncInfo(handle, &info)) != AACENC_OK) {
 		error("Couldn't get encoder info: %s", aacenc_strerror(err));
 		goto fail_init;
 	}
@@ -303,13 +303,16 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	const unsigned int aac_frame_size = aacinf.inputChannels * aacinf.frameLength;
+	const unsigned int aac_frame_size = info.inputChannels * info.frameLength;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	if (ffb_init(&pcm, aac_frame_size, sample_size) == -1 ||
-			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + aacinf.maxOutBufBytes) == -1) {
+			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + info.maxOutBufBytes) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
+
+	/* Get the delay introduced by the encoder. */
+	t_pcm->codec_delay_dms = info.nDelay * 10000 / rate;
 
 	rtp_header_t *rtp_header;
 	/* initialize RTP header and get anchor for payload */
@@ -322,7 +325,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	int in_bufferIdentifiers[] = { IN_AUDIO_DATA };
 	int out_bufferIdentifiers[] = { OUT_BITSTREAM_DATA };
 	int in_bufSizes[] = { pcm.nmemb * pcm.size };
-	int out_bufSizes[] = { aacinf.maxOutBufBytes };
+	int out_bufSizes[] = { info.maxOutBufBytes };
 	int in_bufElSizes[] = { pcm.size };
 	int out_bufElSizes[] = { bt.size };
 
@@ -363,7 +366,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		while ((in_args.numInSamples = ffb_len_out(&pcm)) > (int)aacinf.inputChannels) {
+		while ((in_args.numInSamples = ffb_len_out(&pcm)) > (int)info.inputChannels) {
 
 			if ((err = aacEncEncode(handle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK)
 				error("AAC encoding error: %s", aacenc_strerror(err));
@@ -409,14 +412,14 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			}
 
-			unsigned int pcm_frames = out_args.numInSamples / aacinf.inputChannels;
+			unsigned int pcm_frames = out_args.numInSamples / info.inputChannels;
 			/* keep data transfer at a constant bit rate */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */
 			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed, we have to append new data to
 			 * the existing one. Since we do not use ring buffer, we will simply
@@ -553,26 +556,29 @@ void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 		unsigned int data_len = ffb_len_out(&latm);
 		unsigned int valid = ffb_len_out(&latm);
-		CStreamInfo *aacinf;
+		CStreamInfo *info;
 
 		if ((err = aacDecoder_Fill(handle, (uint8_t **)&latm.data, &data_len, &valid)) != AAC_DEC_OK)
 			error("AAC buffer fill error: %s", aacdec_strerror(err));
 		else if ((err = aacDecoder_DecodeFrame(handle, pcm.tail, ffb_blen_in(&pcm), 0)) != AAC_DEC_OK)
 			error("AAC decode frame error: %s", aacdec_strerror(err));
-		else if ((aacinf = aacDecoder_GetStreamInfo(handle)) == NULL)
+		else if ((info = aacDecoder_GetStreamInfo(handle)) == NULL)
 			error("Couldn't get AAC stream info");
 		else {
 
-			if ((unsigned int)aacinf->numChannels != channels)
-				warn("AAC channels mismatch: %u != %u", aacinf->numChannels, channels);
+			if ((unsigned int)info->numChannels != channels)
+				warn("AAC channels mismatch: %u != %u", info->numChannels, channels);
 
-			const size_t samples = (size_t)aacinf->frameSize * channels;
+			const size_t samples = (size_t)info->frameSize * channels;
 			io_pcm_scale(t_pcm, pcm.data, samples);
 			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("PCM write error: %s", strerror(errno));
 
+			/* Update the delay introduced by the decoder. */
+			t_pcm->codec_delay_dms = info->outputDelay * 10000 / rate;
+
 			/* update local state with decoded PCM frames */
-			rtp_state_update(&rtp, aacinf->frameSize);
+			rtp_state_update(&rtp, info->frameSize);
 
 		}
 

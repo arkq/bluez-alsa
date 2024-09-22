@@ -174,6 +174,10 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
+	const unsigned int ldac_delay_frames = 128;
+	/* Get the total delay introduced by the codec. */
+	t_pcm->codec_delay_dms = ldac_delay_frames * 10000 / rate;
+
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
 	/* initialize RTP headers and get anchor for payload */
@@ -266,7 +270,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		}
 

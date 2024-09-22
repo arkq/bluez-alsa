@@ -185,6 +185,10 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
+	const unsigned int sbc_delay_frames = 73;
+	/* Get the total delay introduced by the codec. */
+	t_pcm->codec_delay_dms = sbc_delay_frames * 10000 / rate;
+
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
 
@@ -269,7 +273,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 			rtp_state_update(&rtp, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed (due to codesize limit), we
 			 * have to append new data to the existing one. Since we do not use

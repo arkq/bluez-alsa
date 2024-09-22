@@ -174,6 +174,11 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
+	int32_t opus_delay_frames = 0;
+	/* Get the delay introduced by the encoder. */
+	opus_encoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_frames));
+	t_pcm->codec_delay_dms = opus_delay_frames * 10000 / rate;
+
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
 	/* initialize RTP headers and get anchor for payload */
@@ -237,7 +242,7 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 			rtp_state_update(&rtp, opus_frame_pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->delay = asrsync_get_busy_usec(&io.asrs) / 100;
+			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed (due to encoder frame
 			 * constraint), we have to append new data to the existing one.
@@ -299,6 +304,11 @@ void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
+
+	int32_t opus_delay_frames = 0;
+	/* Get the delay introduced by the decoder. */
+	opus_decoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_frames));
+	t_pcm->codec_delay_dms = opus_delay_frames * 10000 / rate;
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to PCM sample rate */

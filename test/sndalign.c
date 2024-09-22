@@ -9,23 +9,31 @@
  */
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/param.h>
 
 #include <sndfile.h>
 
+static bool is_silence(const short *src, unsigned int channels, size_t frames) {
+	for (size_t i = 0; i < channels * frames; i++)
+		if (src[i] != 0)
+			return false;
+	return true;
+}
+
 int main(int argc, char *argv[]) {
 
 	if (argc != 3) {
-		fprintf(stderr, "Usage: %s <file1> <file2>\n", argv[0]);
-		return 1;
+		printf("Usage: %s <file1> <file2>\n", argv[0]);
+		return EXIT_FAILURE;
 	}
 
 	SNDFILE *sf1;
 	SF_INFO sf1_info = { 0 };
 	if ((sf1 = sf_open(argv[1], SFM_READ, &sf1_info)) == NULL) {
-		fprintf(stderr, "Couldn't open audio file: %s: %s\n", argv[1], sf_strerror(NULL));
+		fprintf(stderr, "ERR: Couldn't open audio file: %s: %s\n", argv[1], sf_strerror(NULL));
 		return EXIT_FAILURE;
 	}
 
@@ -37,7 +45,7 @@ int main(int argc, char *argv[]) {
 	SNDFILE *sf2;
 	SF_INFO sf2_info = { 0 };
 	if ((sf2 = sf_open(argv[2], SFM_READ, &sf2_info)) == NULL) {
-		fprintf(stderr, "Couldn't open audio file: %s: %s\n", argv[2], sf_strerror(NULL));
+		fprintf(stderr, "ERR: Couldn't open audio file: %s: %s\n", argv[2], sf_strerror(NULL));
 		return EXIT_FAILURE;
 	}
 
@@ -47,30 +55,41 @@ int main(int argc, char *argv[]) {
 	printf("  Channels: %d\n", sf2_info.channels);
 
 	if (sf1_info.channels != sf2_info.channels) {
-		fprintf(stderr, "Channels mismatch: %d != %d\n", sf1_info.channels, sf2_info.channels);
+		fprintf(stderr, "ERR: Channels mismatch: %d != %d\n", sf1_info.channels, sf2_info.channels);
 		return EXIT_FAILURE;
 	}
 
 	if (sf1_info.samplerate != sf2_info.samplerate) {
-		fprintf(stderr, "Sample rate mismatch: %d != %d\n", sf1_info.samplerate, sf2_info.samplerate);
+		fprintf(stderr, "ERR: Sample rate mismatch: %d != %d\n", sf1_info.samplerate, sf2_info.samplerate);
 		return EXIT_FAILURE;
 	}
 
 	short *sf1_data = malloc(sf1_info.frames * sf1_info.channels * sizeof(short));
 	if (sf_readf_short(sf1, sf1_data, sf1_info.frames) != sf1_info.frames) {
-		fprintf(stderr, "Couldn't read audio data: %s\n", sf_strerror(sf1));
+		fprintf(stderr, "ERR: Couldn't read audio data: %s\n", sf_strerror(sf1));
+		return EXIT_FAILURE;
+	}
+
+	if (is_silence(sf1_data, sf1_info.channels, sf1_info.frames)) {
+		fprintf(stderr, "ERR: Source 1 is all silence\n");
 		return EXIT_FAILURE;
 	}
 
 	short *sf2_data = malloc(sf2_info.frames * sf2_info.channels * sizeof(short));
 	if (sf_readf_short(sf2, sf2_data, sf2_info.frames) != sf2_info.frames) {
-		fprintf(stderr, "Couldn't read audio data: %s\n", sf_strerror(sf2));
+		fprintf(stderr, "ERR: Couldn't read audio data: %s\n", sf_strerror(sf2));
+		return EXIT_FAILURE;
+	}
+
+	if (is_silence(sf2_data, sf2_info.channels, sf2_info.frames)) {
+		fprintf(stderr, "ERR: Source 2 is all silence\n");
 		return EXIT_FAILURE;
 	}
 
 	/* Calculate cross-correlation between two audio streams by applying
 	 * different offsets while keeping the defined minimal overlap. */
 
+	const size_t channels = sf1_info.channels;
 	const size_t sf1_frames = sf1_info.frames;
 	const size_t sf2_frames = sf2_info.frames;
 	const size_t cross_correlation_frames = sf1_frames + sf2_frames;
@@ -88,14 +107,17 @@ int main(int argc, char *argv[]) {
 			break;
 
 		for (size_t j = 0; j < overlap; j++)
-			cross_correlation[i] += sf1_data[sf1_begin + j] * sf2_data[sf2_begin + j];
+			for (size_t k = 0; k < channels; k++)
+				cross_correlation[i] +=
+					sf1_data[(sf1_begin + j) * channels + k] *
+					sf2_data[(sf2_begin + j) * channels + k];
 
 	}
 
 	ssize_t max_i = 0;
 	long long max_v = cross_correlation[0];
 	/* Find the maximum value in the cross-correlation array. */
-	for (size_t i = 1; i < cross_correlation_frames; i++)
+	for (size_t i = min_overlap; i < cross_correlation_frames; i++)
 		if (cross_correlation[i] > max_v)
 			max_v = cross_correlation[max_i = i];
 
@@ -107,5 +129,5 @@ int main(int argc, char *argv[]) {
 	free(sf1_data);
 	free(sf2_data);
 
-	return 0;
+	return EXIT_SUCCESS;
 }
