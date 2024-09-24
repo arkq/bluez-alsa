@@ -10,10 +10,6 @@
  *
  */
 
-#pragma once
-#ifndef BLUEALSA_TEST_INC_MOCK_H_
-#define BLUEALSA_TEST_INC_MOCK_H_
-
 #include <ctype.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -203,5 +199,3 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 
 	return 0;
 }
-
-#endif

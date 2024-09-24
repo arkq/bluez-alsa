@@ -233,6 +233,54 @@ static bool packet_loss = false;
 static struct bt_dump *btdin = NULL;
 
 #if HAVE_SNDFILE
+static SNDFILE *sf_open_format(const char *path, unsigned int rate,
+		unsigned int channels, uint16_t format) {
+
+	SF_INFO sf_info = {
+		.format = SF_FORMAT_WAV,
+		.channels = channels,
+		.samplerate = rate,
+	};
+
+	switch (BA_TRANSPORT_PCM_FORMAT_WIDTH(format)) {
+	case 8:
+		sf_info.format |= SF_FORMAT_PCM_S8;
+		break;
+	case 16:
+		sf_info.format |= SF_FORMAT_PCM_16;
+		break;
+	case 24:
+		sf_info.format |= SF_FORMAT_PCM_24;
+		break;
+	case 32:
+		sf_info.format |= SF_FORMAT_PCM_32;
+		break;
+	default:
+		g_assert_not_reached();
+	}
+
+	return sf_open(path, SFM_WRITE, &sf_info);
+}
+#endif
+
+#if HAVE_SNDFILE
+static sf_count_t sf_write_format(SNDFILE *sf, const void *buffer,
+		sf_count_t samples, uint16_t format) {
+	switch (BA_TRANSPORT_PCM_FORMAT_BYTES(format)) {
+	case 2:
+		return sf_write_short(sf, buffer, samples);
+	case 4:
+		if (BA_TRANSPORT_PCM_FORMAT_WIDTH(format) == 24)
+			for (size_t i = 0; i < (size_t)samples; i++)
+				((int *)buffer)[i] <<= 8;
+		return sf_write_int(sf, buffer, samples);
+	default:
+		g_assert_not_reached();
+	}
+}
+#endif
+
+#if HAVE_SNDFILE
 static void *pcm_write_frames_sndfile_async(void *userdata) {
 
 	struct ba_transport_pcm *pcm = userdata;
@@ -242,7 +290,7 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 	SF_INFO sf_info = { 0 };
 	if ((sf = sf_open(input_pcm_file, SFM_READ, &sf_info)) == NULL) {
 		error("Couldn't load input audio file: %s", sf_strerror(NULL));
-		ck_assert_ptr_ne(sf, NULL);
+		ck_assert_ptr_nonnull(sf);
 	}
 
 	for (;;) {
@@ -311,43 +359,76 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 	}
 
 	union {
-		int16_t s16[2 * 1024];
-		int32_t s32[2 * 1024];
-	} pcm_sine_buffer;
-	size_t pcm_sine_bytes = 0;
+		int16_t s16[2 /* max channels */ * 1024];
+		int32_t s32[2 /* max channels */ * 1024];
+	} pcm_sine;
+
+	const size_t pcm_format_bytes = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
+	const size_t pcm_sine_frames = 1024;
+	const size_t pcm_sine_samples = pcm->channels * pcm_sine_frames;
+	const size_t pcm_sine_bytes = pcm_sine_samples * pcm_format_bytes;
+#if HAVE_SNDFILE
+	SNDFILE *sf = NULL;
+#endif
 
 	switch (pcm->format) {
 	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
-		snd_pcm_sine_s16_2le(pcm_sine_buffer.s16, 1024, pcm->channels, 0, 1.0 / 128);
-		pcm_sine_bytes = 1024 * pcm->channels * sizeof(int16_t);
+		g_assert_cmpuint(pcm_sine_bytes, <=, sizeof(pcm_sine.s16));
+		snd_pcm_sine_s16_2le(pcm_sine.s16, pcm->channels, pcm_sine_frames, 1.0 / 128, 0);
 		break;
 	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
-		snd_pcm_sine_s24_4le(pcm_sine_buffer.s32, 1024, pcm->channels, 0, 1.0 / 128);
-		pcm_sine_bytes = 1024 * pcm->channels * sizeof(int32_t);
+		g_assert_cmpuint(pcm_sine_bytes, <=, sizeof(pcm_sine.s32));
+		snd_pcm_sine_s24_4le(pcm_sine.s32, pcm->channels, pcm_sine_frames, 1.0 / 128, 0);
 		break;
 	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
-		snd_pcm_sine_s32_4le(pcm_sine_buffer.s32, 1024, pcm->channels, 0, 1.0 / 128);
-		pcm_sine_bytes = 1024 * pcm->channels * sizeof(int32_t);
+		g_assert_cmpuint(pcm_sine_bytes, <=, sizeof(pcm_sine.s32));
+		snd_pcm_sine_s32_4le(pcm_sine.s32, pcm->channels, pcm_sine_frames, 1.0 / 128, 0);
 		break;
 	default:
 		g_assert_not_reached();
 	}
 
 	size_t samples = pcm->channels * frames;
-	size_t bytes = BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format) * samples;
-	debug("PCM write samples: %zu (%zu bytes)", samples, bytes);
+	debug("PCM write samples: %zu", samples);
 
 	if (dump_data) {
-		FILE *f;
-		ck_assert_ptr_ne(f = fopen("sample-sine.pcm", "w"), NULL);
-		ck_assert_int_eq(fwrite(&pcm_sine_buffer, pcm_sine_bytes, 1, f), 1);
-		ck_assert_int_eq(fclose(f), 0);
+#if HAVE_SNDFILE
+		char fname[128];
+		sprintf(fname, "sample-sine-%s.wav", transport_pcm_to_fname(pcm));
+		ck_assert_ptr_nonnull(sf = sf_open_format(fname, pcm->rate, pcm->channels, pcm->format));
+#else
+		error("Dumping audio files requires sndfile library!");
+#endif
 	}
 
-	while (bytes > 0) {
-		size_t len = pcm_sine_bytes <= bytes ? pcm_sine_bytes : bytes;
-		ck_assert_int_eq(write(pcm->fd, &pcm_sine_buffer, len), len);
-		bytes -= len;
+	int8_t buffer[sizeof(pcm_sine.s32)];
+	float fade = 1.0;
+
+	while (samples > 0) {
+		size_t x = samples > pcm_sine_samples ? pcm_sine_samples : samples;
+		size_t x_bytes = x * pcm_format_bytes;
+		samples -= x;
+
+		/* Fade-out the audio signal, so it will be easier to compare
+		 * the original signal with the processed one. */
+		switch (pcm_format_bytes) {
+		case 2:
+			for (size_t i = 0; i < x; i++)
+				((int16_t *)buffer)[i] = pcm_sine.s16[i] * (fade *= 0.9995);
+			break;
+		case 4:
+			for (size_t i = 0; i < x; i++)
+				((int32_t *)buffer)[i] = pcm_sine.s32[i] * (fade *= 0.9995);
+			break;
+		}
+
+		ck_assert_int_eq(write(pcm->fd, buffer, x_bytes), x_bytes);
+
+#if HAVE_SNDFILE
+		if (sf != NULL)
+			ck_assert_int_eq(sf_write_format(sf, buffer, x, pcm->format), x);
+#endif
+
 	}
 
 	if (aging_duration == 0) {
@@ -357,6 +438,11 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 		ba_transport_pcm_release(pcm);
 		pthread_mutex_unlock(&pcm->mutex);
 	}
+
+#if HAVE_SNDFILE
+	if (sf != NULL)
+		sf_close(sf);
+#endif
 
 }
 
@@ -454,9 +540,9 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 	ssize_t len;
 
 	if (dump_data) {
-		char fname[64];
-		sprintf(fname, "encoded-%s.btd", transport_to_fname(t));
-		ck_assert_ptr_ne(btd = bt_dump_create(fname, t), NULL);
+		char fname[128];
+		sprintf(fname, "encoded-%s-%s.btd", transport_to_fname(t), transport_pcm_to_fname(t_pcm));
+		ck_assert_ptr_nonnull(btd = bt_dump_create(fname, t));
 	}
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
@@ -492,38 +578,18 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
+	const size_t pcm_format_bytes = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	size_t decoded_samples_total = 0;
 
 #if HAVE_SNDFILE
 	SNDFILE *sf = NULL;
-	SF_INFO sf_info = {
-		.format = SF_FORMAT_WAV,
-		.channels = t_pcm->channels,
-		.samplerate = t_pcm->rate,
-	};
-	switch (BA_TRANSPORT_PCM_FORMAT_WIDTH(t_pcm->format)) {
-	case 8:
-		sf_info.format |= SF_FORMAT_PCM_S8;
-		break;
-	case 16:
-		sf_info.format |= SF_FORMAT_PCM_16;
-		break;
-	case 24:
-		sf_info.format |= SF_FORMAT_PCM_24;
-		break;
-	case 32:
-		sf_info.format |= SF_FORMAT_PCM_32;
-		break;
-	default:
-		g_assert_not_reached();
-	}
 #endif
 
 	if (dump_data) {
 #if HAVE_SNDFILE
-		char fname[64];
-		sprintf(fname, "decoded-%s.wav", transport_to_fname(t_pcm->t));
-		ck_assert_ptr_ne(sf = sf_open(fname, SFM_WRITE, &sf_info), NULL);
+		char fname[128];
+		sprintf(fname, "decoded-%s-%s.wav", transport_to_fname(t_pcm->t), transport_pcm_to_fname(t_pcm));
+		ck_assert_ptr_nonnull(sf = sf_open_format(fname, t_pcm->rate, t_pcm->channels, t_pcm->format));
 #else
 		error("Dumping audio files requires sndfile library!");
 #endif
@@ -548,34 +614,20 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
-		size_t samples = len / sample_size;
+		size_t samples = len / pcm_format_bytes;
 		debug("Decoded samples: %zd", samples);
 		decoded_samples_total += samples;
 
 #if HAVE_SNDFILE
-		if (sf != NULL) {
-			switch (sample_size) {
-			case 2:
-				sf_write_short(sf, (short *)buffer, samples);
-				break;
-			case 4:
-				if (sf_info.format & SF_FORMAT_PCM_24)
-					for (size_t i = 0; i < samples; i++)
-						((int *)buffer)[i] <<= 8;
-				sf_write_int(sf, (int *)buffer, samples);
-				break;
-			default:
-				g_assert_not_reached();
-			}
-		}
+		if (sf != NULL)
+			sf_write_format(sf, buffer, samples, t_pcm->format);
 #endif
 
 	}
 
 	debug("Decoded samples total [%zu frames]: %zu",
 			decoded_samples_total / t_pcm->channels, decoded_samples_total);
-	ck_assert_int_gt(decoded_samples_total, 0);
+	ck_assert_uint_gt(decoded_samples_total, 0);
 
 #if HAVE_SNDFILE
 	if (sf != NULL)
@@ -1445,7 +1497,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-	unsigned int enabled_codecs = 0xFFFF;
+	unsigned int enabled_codecs = 0xFFFFFFFF;
 
 	if (optind != argc)
 		enabled_codecs = 0;

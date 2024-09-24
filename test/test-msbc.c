@@ -46,7 +46,7 @@ CK_START_TEST(test_msbc_init) {
 CK_START_TEST(test_msbc_encode_decode) {
 
 	int16_t sine[8 * MSBC_CODESAMPLES];
-	snd_pcm_sine_s16_2le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
+	snd_pcm_sine_s16_2le(sine, 1, ARRAYSIZE(sine), 1.0 / 128, 0);
 
 	uint8_t data[sizeof(sine)];
 	uint8_t *data_tail = data;
@@ -108,7 +108,7 @@ CK_START_TEST(test_msbc_encode_decode) {
 CK_START_TEST(test_msbc_decode_plc) {
 
 	int16_t sine[18 * MSBC_CODESAMPLES];
-	snd_pcm_sine_s16_2le(sine, ARRAYSIZE(sine), 1, 0, 1.0 / 128);
+	snd_pcm_sine_s16_2le(sine, 1, ARRAYSIZE(sine), 1.0 / 128, 0);
 
 	struct esco_msbc msbc = { .initialized = false };
 	ck_assert_int_eq(msbc_init(&msbc), 0);

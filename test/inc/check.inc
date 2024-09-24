@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #include <stdio.h>
 
 #include <check.h>

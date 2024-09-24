@@ -56,6 +56,10 @@ TESTS += test-msbc
 check_PROGRAMS += test-msbc
 endif
 
+if HAVE_SNDFILE
+check_PROGRAMS += sndalign
+endif
+
 check_LTLIBRARIES = \
 	libaloader.la
 libaloader_la_LDFLAGS = \

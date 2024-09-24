@@ -158,7 +158,7 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
 static int16_t *test_sine_s16le(snd_pcm_uframes_t size) {
 	static size_t x = 0;
 	assert(ARRAYSIZE(pcm_buffer) >= size * pcm_channels);
-	x = snd_pcm_sine_s16_2le(pcm_buffer, size, pcm_channels, x, 441.0 / pcm_rate);
+	x = snd_pcm_sine_s16_2le(pcm_buffer, pcm_channels, size, 441.0 / pcm_rate, x);
 	return pcm_buffer;
 }
 

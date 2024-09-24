@@ -209,7 +209,7 @@ CK_START_TEST(test_ffb) {
 	ck_assert_int_eq(ffb_shift(&ffb_u8, 33), 33);
 	ck_assert_int_eq(ffb_len_in(&ffb_u8), 64 - (36 - 33));
 	ck_assert_int_eq(ffb_len_out(&ffb_u8), 36 - 33);
-	ck_assert_int_eq(memcmp(ffb_u8.data, "XYZ", ffb_len_out(&ffb_u8)), 0);
+	ck_assert_mem_eq(ffb_u8.data, "XYZ", ffb_len_out(&ffb_u8));
 	ck_assert_int_eq(((uint8_t *)ffb_u8.tail)[-1], 'Z');
 
 	ck_assert_int_eq(ffb_shift(&ffb_u8, 100), 36 - 33);
@@ -256,13 +256,13 @@ CK_START_TEST(test_ffb_resize) {
 
 	ck_assert_int_eq(ffb_len_out(&ffb), data_len);
 	ck_assert_int_eq(ffb_len_in(&ffb), 64 - data_len);
-	ck_assert_int_eq(memcmp(ffb.data, data, data_len), 0);
+	ck_assert_mem_eq(ffb.data, data, data_len);
 
 	ck_assert_int_eq(ffb_init_uint8_t(&ffb, 128), 0);
 
 	ck_assert_int_eq(ffb_len_out(&ffb), data_len);
 	ck_assert_int_eq(ffb_len_in(&ffb), 128 - data_len);
-	ck_assert_int_eq(memcmp(ffb.data, data, data_len), 0);
+	ck_assert_mem_eq(ffb.data, data, data_len);
 
 	ffb_free(&ffb);
 
@@ -285,7 +285,7 @@ CK_START_TEST(test_hex2bin) {
 	uint8_t bin[sizeof(bin_ok)];
 
 	ck_assert_int_eq(hex2bin(hex, bin, sizeof(hex) - 1), 5);
-	ck_assert_int_eq(memcmp(bin, bin_ok, sizeof(bin)), 0);
+	ck_assert_mem_eq(bin, bin_ok, sizeof(bin));
 
 	ck_assert_int_eq(hex2bin(hex, bin, 3), -1);
 	ck_assert_int_eq(errno, EINVAL);

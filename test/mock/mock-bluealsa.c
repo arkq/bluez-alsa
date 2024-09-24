@@ -106,7 +106,7 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 	struct pollfd fds[1] = {{ t_pcm->pipe[0], POLLIN, 0 }};
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
-	int x = 0;
+	size_t x = 0;
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
@@ -138,7 +138,7 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 
 		const size_t samples = ARRAYSIZE(buffer);
 		const size_t frames = samples / channels;
-		x = snd_pcm_sine_s16_2le(buffer, frames, channels, x, 146.83 / rate);
+		x = snd_pcm_sine_s16_2le(buffer, channels, frames, 146.83 / rate, x);
 
 		io_pcm_scale(t_pcm, buffer, samples);
 		if (io_pcm_write(t_pcm, buffer, samples) == -1)

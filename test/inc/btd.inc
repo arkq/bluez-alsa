@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #if HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -203,7 +201,7 @@ fail:
 	return NULL;
 }
 
-static const char *transport_to_fname(struct ba_transport *t) {
+static const char *transport_to_fname(const struct ba_transport *t) {
 
 	const char *profile = NULL;
 	const char *codec = NULL;
@@ -245,6 +243,13 @@ static const char *transport_to_fname(struct ba_transport *t) {
 	return buffer;
 }
 
+static const char *transport_pcm_to_fname(const struct ba_transport_pcm *t_pcm) {
+	static char buffer[64];
+	snprintf(buffer, sizeof(buffer), "s%u-%u-%uc",
+			BA_TRANSPORT_PCM_FORMAT_WIDTH(t_pcm->format), t_pcm->rate, t_pcm->channels);
+	return buffer;
+}
+
 /**
  * Dump incoming BT data to a BT dump file. */
 void *bt_dump_io_thread(struct ba_transport_pcm *t_pcm) {
@@ -259,8 +264,8 @@ void *bt_dump_io_thread(struct ba_transport_pcm *t_pcm) {
 	struct bt_dump *btd = NULL;
 	char fname[256];
 
-	snprintf(fname, sizeof(fname), "/tmp/bluealsa-%s.btd",
-			transport_to_fname(t));
+	snprintf(fname, sizeof(fname), "/tmp/bluealsa-%s-%s.btd",
+			transport_to_fname(t), transport_pcm_to_fname(t_pcm));
 
 	debug("Creating BT dump file: %s", fname);
 	if ((btd = bt_dump_create(fname, t)) == NULL) {

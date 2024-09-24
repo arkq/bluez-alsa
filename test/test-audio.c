@@ -36,8 +36,8 @@ CK_START_TEST(test_audio_interleave_deinterleave_s16_2le) {
 
 	int16_t *dest[] = { dest_ch1, dest_ch2 };
 	audio_deinterleave_s16_2le(dest, interleaved, ARRAYSIZE(dest), ARRAYSIZE(ch1));
-	ck_assert_int_eq(memcmp(dest_ch1, ch1, sizeof(ch1)), 0);
-	ck_assert_int_eq(memcmp(dest_ch2, ch2, sizeof(ch2)), 0);
+	ck_assert_mem_eq(dest_ch1, ch1, sizeof(ch1));
+	ck_assert_mem_eq(dest_ch2, ch2, sizeof(ch2));
 
 } CK_END_TEST
 
@@ -62,9 +62,9 @@ CK_START_TEST(test_audio_interleave_deinterleave_s32_4le) {
 
 	int32_t *dest[] = { dest_ch1, dest_ch2, dest_ch3 };
 	audio_deinterleave_s32_4le(dest, interleaved, ARRAYSIZE(dest), ARRAYSIZE(ch1));
-	ck_assert_int_eq(memcmp(dest_ch1, ch1, sizeof(ch1)), 0);
-	ck_assert_int_eq(memcmp(dest_ch2, ch2, sizeof(ch2)), 0);
-	ck_assert_int_eq(memcmp(dest_ch3, ch3, sizeof(ch3)), 0);
+	ck_assert_mem_eq(dest_ch1, ch1, sizeof(ch1));
+	ck_assert_mem_eq(dest_ch2, ch2, sizeof(ch2));
+	ck_assert_mem_eq(dest_ch3, ch3, sizeof(ch3));
 
 } CK_END_TEST
 
@@ -82,37 +82,37 @@ CK_START_TEST(test_audio_scale_s16_2le) {
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_mute[] = { 0.0 };
 	audio_scale_s16_2le(tmp, scale_mute, 1, ARRAYSIZE(tmp));
-	ck_assert_int_eq(memcmp(tmp, mute, sizeof(mute)), 0);
+	ck_assert_mem_eq(tmp, mute, sizeof(mute));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_none[] = { 1.0 };
 	audio_scale_s16_2le(tmp, scale_none, 1, ARRAYSIZE(tmp));
-	ck_assert_int_eq(memcmp(tmp, in, sizeof(in)), 0);
+	ck_assert_mem_eq(tmp, in, sizeof(in));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_half[] = { 0.5 };
 	audio_scale_s16_2le(tmp, scale_half, 1, ARRAYSIZE(tmp));
-	ck_assert_int_eq(memcmp(tmp, half, sizeof(half)), 0);
+	ck_assert_mem_eq(tmp, half, sizeof(half));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_mute_l[] = { 0.0, 1.0 };
 	audio_scale_s16_2le(tmp, scale_mute_l, 2, ARRAYSIZE(tmp) / 2);
-	ck_assert_int_eq(memcmp(tmp, mute_l, sizeof(mute_l)), 0);
+	ck_assert_mem_eq(tmp, mute_l, sizeof(mute_l));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_mute_r[] = { 1.0, 0.0 };
 	audio_scale_s16_2le(tmp, scale_mute_r, 2, ARRAYSIZE(tmp) / 2);
-	ck_assert_int_eq(memcmp(tmp, mute_r, sizeof(mute_r)), 0);
+	ck_assert_mem_eq(tmp, mute_r, sizeof(mute_r));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_half_l[] = { 0.5, 1.0 };
 	audio_scale_s16_2le(tmp, scale_half_l, 2, ARRAYSIZE(tmp) / 2);
-	ck_assert_int_eq(memcmp(tmp, half_l, sizeof(half_l)), 0);
+	ck_assert_mem_eq(tmp, half_l, sizeof(half_l));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_half_r[] = { 1.0, 0.5 };
 	audio_scale_s16_2le(tmp, scale_half_r, 2, ARRAYSIZE(tmp) / 2);
-	ck_assert_int_eq(memcmp(tmp, half_r, sizeof(half_r)), 0);
+	ck_assert_mem_eq(tmp, half_r, sizeof(half_r));
 
 } CK_END_TEST
 
@@ -128,22 +128,22 @@ CK_START_TEST(test_audio_scale_s32_4le) {
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_mute[] = { 0.0 };
 	audio_scale_s32_4le(tmp, scale_mute, 1, ARRAYSIZE(tmp));
-	ck_assert_int_eq(memcmp(tmp, mute, sizeof(mute)), 0);
+	ck_assert_mem_eq(tmp, mute, sizeof(mute));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_mute_l[] = { 0.0, 1.0 };
 	audio_scale_s32_4le(tmp, scale_mute_l, 2, ARRAYSIZE(tmp) / 2);
-	ck_assert_int_eq(memcmp(tmp, mute_l, sizeof(mute_l)), 0);
+	ck_assert_mem_eq(tmp, mute_l, sizeof(mute_l));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_half[] = { 0.5 };
 	audio_scale_s32_4le(tmp, scale_half, 1, ARRAYSIZE(tmp));
-	ck_assert_int_eq(memcmp(tmp, half, sizeof(half)), 0);
+	ck_assert_mem_eq(tmp, half, sizeof(half));
 
 	memcpy(tmp, in, sizeof(tmp));
 	const double scale_half_r[] = { 1.0, 0.5 };
 	audio_scale_s32_4le(tmp, scale_half_r, 2, ARRAYSIZE(tmp) / 2);
-	ck_assert_int_eq(memcmp(tmp, half_r, sizeof(half_r)), 0);
+	ck_assert_mem_eq(tmp, half_r, sizeof(half_r));
 
 } CK_END_TEST
 

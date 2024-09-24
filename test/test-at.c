@@ -143,18 +143,18 @@ CK_START_TEST(test_at_parse_set_bia) {
 	bool state[__HFP_IND_MAX] = { 0 };
 
 	ck_assert_int_eq(at_parse_set_bia("1,1,1,1,1,1,1", state), 0);
-	ck_assert_int_eq(memcmp(state, state_ok1, sizeof(state)), 0);
+	ck_assert_mem_eq(state, state_ok1, sizeof(state));
 
 	ck_assert_int_eq(at_parse_set_bia("1,0,1,1,1,1,0", state), 0);
-	ck_assert_int_eq(memcmp(state, state_ok2, sizeof(state)), 0);
+	ck_assert_mem_eq(state, state_ok2, sizeof(state));
 
 	/* omitted values shall not be changed */
 	ck_assert_int_eq(at_parse_set_bia(",,0,0,,,1", state), 0);
-	ck_assert_int_eq(memcmp(state, state_ok3, sizeof(state)), 0);
+	ck_assert_mem_eq(state, state_ok3, sizeof(state));
 
 	/* truncated values shall not be changed */
 	ck_assert_int_eq(at_parse_set_bia("1,1", state), 0);
-	ck_assert_int_eq(memcmp(state, state_ok4, sizeof(state)), 0);
+	ck_assert_mem_eq(state, state_ok4, sizeof(state));
 
 } CK_END_TEST
 
@@ -168,7 +168,7 @@ CK_START_TEST(test_at_parse_get_cind) {
 	memset(indmap_ok, HFP_IND_NULL, sizeof(indmap_ok));
 	indmap_ok[0] = HFP_IND_CALL;
 	indmap_ok[2] = HFP_IND_SIGNAL;
-	ck_assert_int_eq(memcmp(indmap, indmap_ok, sizeof(indmap)), 0);
+	ck_assert_mem_eq(indmap, indmap_ok, sizeof(indmap));
 
 	/* parse +CIND response with white-spaces */
 	ck_assert_int_eq(at_parse_get_cind(" ( \"call\", ( 0, 1 ) ), ( \"signal\", ( 0-3 ) )", indmap), 0);
@@ -186,19 +186,19 @@ CK_START_TEST(test_at_parse_set_cmer) {
 
 	/* parse +CMER value */
 	ck_assert_int_eq(at_parse_set_cmer("3,0,0,1,0", cmer), 0);
-	ck_assert_int_eq(memcmp(cmer, cmer_ok1, sizeof(cmer)), 0);
+	ck_assert_mem_eq(cmer, cmer_ok1, sizeof(cmer));
 
 	/* parse +CMER value with white-spaces */
 	ck_assert_int_eq(at_parse_set_cmer("3, 0, 0 , 1 , 0", cmer), 0);
-	ck_assert_int_eq(memcmp(cmer, cmer_ok1, sizeof(cmer)), 0);
+	ck_assert_mem_eq(cmer, cmer_ok1, sizeof(cmer));
 
 	/* parse +CMER value with less elements */
 	ck_assert_int_eq(at_parse_set_cmer("2,0", cmer), 0);
-	ck_assert_int_eq(memcmp(cmer, cmer_ok2, sizeof(cmer)), 0);
+	ck_assert_mem_eq(cmer, cmer_ok2, sizeof(cmer));
 
 	/* parse +CMER empty value */
 	ck_assert_int_eq(at_parse_set_cmer("", cmer), 0);
-	ck_assert_int_eq(memcmp(cmer, cmer_ok2, sizeof(cmer)), 0);
+	ck_assert_mem_eq(cmer, cmer_ok2, sizeof(cmer));
 
 	/* parse +CMER invalid value */
 	ck_assert_int_eq(at_parse_set_cmer("3,error", cmer), -1);
