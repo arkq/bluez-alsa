@@ -48,6 +48,8 @@ void bactl_print_adapters(const struct ba_service_props *props);
 void bactl_print_profiles_and_codecs(const struct ba_service_props *props);
 void bactl_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err);
 void bactl_print_pcm_selected_codec(const struct ba_pcm *pcm);
+void bactl_print_pcm_delay(const struct ba_pcm *pcm);
+void bactl_print_pcm_client_delay(const struct ba_pcm *pcm);
 void bactl_print_pcm_soft_volume(const struct ba_pcm *pcm);
 void bactl_print_pcm_volume(const struct ba_pcm *pcm);
 void bactl_print_pcm_mute(const struct ba_pcm *pcm);

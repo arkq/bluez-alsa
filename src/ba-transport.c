@@ -816,6 +816,12 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (ref_count > 0)
 		return;
 
+	debug("Freeing transport: %s", ba_transport_debug_name(t));
+	g_assert_cmpint(ref_count, ==, 0);
+
+	if (t->bt_fd != -1)
+		close(t->bt_fd);
+
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		storage_pcm_data_update(&t->a2dp.pcm);
 		storage_pcm_data_update(&t->a2dp.pcm_bc);
@@ -824,12 +830,6 @@ void ba_transport_unref(struct ba_transport *t) {
 		storage_pcm_data_update(&t->sco.pcm_spk);
 		storage_pcm_data_update(&t->sco.pcm_mic);
 	}
-
-	debug("Freeing transport: %s", ba_transport_debug_name(t));
-	g_assert_cmpint(ref_count, ==, 0);
-
-	if (t->bt_fd != -1)
-		close(t->bt_fd);
 
 	ba_device_unref(d);
 

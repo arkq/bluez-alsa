@@ -297,13 +297,13 @@ void sco_transport_init(struct ba_transport *t) {
 		bluealsa_dbus_pcm_update(&t->sco.pcm_spk,
 				BA_DBUS_PCM_UPDATE_RATE |
 				BA_DBUS_PCM_UPDATE_CODEC |
-				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
+				BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
 
 	if (t->sco.pcm_mic.ba_dbus_exported)
 		bluealsa_dbus_pcm_update(&t->sco.pcm_mic,
 				BA_DBUS_PCM_UPDATE_RATE |
 				BA_DBUS_PCM_UPDATE_CODEC |
-				BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
+				BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
 
 }
 

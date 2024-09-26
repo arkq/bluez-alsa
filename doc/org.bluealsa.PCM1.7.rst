@@ -80,22 +80,6 @@ void SelectCodec(string codec, dict props)
         dbus.Error.NotSupported
         dbus.Error.Failed
 
-void SetDelayAdjustment(string codec, int16 adjustment)
-    Set an arbitrary adjustment (+/-) to the reported Delay in 1/10 of
-    millisecond for a specific codec. This adjustment is applied to the Delay
-    property when that codec is selected, and can be used to compensate for
-    devices that do not report accurate Delay values.
-
-    Possible Errors:
-    ::
-
-        dbus.Error.InvalidArguments
-
-array{string, int16} GetDelayAdjustments()
-    Return the array of currently set delay adjustments. Each entry of the
-    array gives the name of a codec and the adjustment that the PCM will apply
-    to the Delay property when that codec is selected.
-
 Properties
 ----------
 
@@ -165,10 +149,14 @@ array{byte} CodecConfiguration [readonly]
 uint16 Delay [readonly]
     Approximate PCM delay in 1/10 of millisecond.
 
-int16 DelayAdjustment [readonly]
-    An adjustment (+/-) included within the reported Delay in 1/10 of
-    millisecond to compensate for devices that do not report accurate delay
-    values.
+int16 ClientDelay [readwrite]
+    Positive (or negative) client side delay in 1/10 of millisecond.
+
+    This property shall be set by the client in order to account for the client
+    side delay. In case of PCM source it shall be set to a value reported by a
+    playback subsystem to account for playback delay. In case of PCM sink it
+    can be used to adjust the Delay property to compensate for devices that do
+    not report accurate delay values.
 
 boolean SoftVolume [readwrite]
     This property determines whether BlueALSA will make volume control

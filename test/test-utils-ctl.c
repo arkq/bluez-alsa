@@ -260,7 +260,7 @@ CK_START_TEST(test_codec) {
 
 } CK_END_TEST
 
-CK_START_TEST(test_delay_adjustment) {
+CK_START_TEST(test_client_delay) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
@@ -271,23 +271,26 @@ CK_START_TEST(test_delay_adjustment) {
 
 	/* check printing help text */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"delay-adjustment", "--help", NULL), 0);
+				"client-delay", "--help", NULL), 0);
 	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
 
-	/* check default delay adjustment */
+	/* check default client delay */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"delay-adjustment", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "DelayAdjustment: 0.0 ms"), NULL);
+	ck_assert_ptr_ne(strstr(output, "ClientDelay: 0.0 ms"), NULL);
 
-	/* check setting delay adjustment */
+	/* check setting client delay */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"delay-adjustment", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "-7.5",
+				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "-7.5",
 				NULL), 0);
+
+	/* check that setting client delay does not affect delay */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"delay-adjustment", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
 				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "DelayAdjustment: -7.5 ms"), NULL);
+	ck_assert_ptr_ne(strstr(output, "ClientDelay: -7.5 ms"), NULL);
+	ck_assert_ptr_ne(strstr(output, "Delay: 10.0 ms"), NULL);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -501,7 +504,7 @@ int main(int argc, char *argv[]) {
 	tcase_add_test(tc, test_list_pcms);
 	tcase_add_test(tc, test_info);
 	tcase_add_test(tc, test_codec);
-	tcase_add_test(tc, test_delay_adjustment);
+	tcase_add_test(tc, test_client_delay);
 	tcase_add_test(tc, test_volume);
 	tcase_add_test(tc, test_monitor);
 	tcase_add_test(tc, test_open);

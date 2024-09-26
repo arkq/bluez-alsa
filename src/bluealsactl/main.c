@@ -277,6 +277,14 @@ void bactl_print_pcm_selected_codec(const struct ba_pcm *pcm) {
 	printf("\n");
 }
 
+void bactl_print_pcm_delay(const struct ba_pcm *pcm) {
+	printf("Delay: %#.1f ms\n", pcm->delay / 10.0);
+}
+
+void bactl_print_pcm_client_delay(const struct ba_pcm *pcm) {
+	printf("ClientDelay: %#.1f ms\n", pcm->client_delay / 10.0);
+}
+
 void bactl_print_pcm_soft_volume(const struct ba_pcm *pcm) {
 	printf("SoftVolume: %s\n", pcm->soft_volume ? "true" : "false");
 }
@@ -314,8 +322,8 @@ void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Rate: %d Hz\n", pcm->rate);
 	bactl_print_pcm_available_codecs(pcm, err);
 	bactl_print_pcm_selected_codec(pcm);
-	printf("Delay: %#.1f ms\n", (double)pcm->delay / 10);
-	printf("DelayAdjustment: %#.1f ms\n", (double)pcm->delay_adjustment / 10);
+	bactl_print_pcm_delay(pcm);
+	bactl_print_pcm_client_delay(pcm);
 	bactl_print_pcm_soft_volume(pcm);
 	bactl_print_pcm_volume(pcm);
 	bactl_print_pcm_mute(pcm);
@@ -339,7 +347,7 @@ extern const struct bactl_command cmd_list_pcms;
 extern const struct bactl_command cmd_status;
 extern const struct bactl_command cmd_info;
 extern const struct bactl_command cmd_codec;
-extern const struct bactl_command cmd_delay_adjustment;
+extern const struct bactl_command cmd_client_delay;
 extern const struct bactl_command cmd_monitor;
 extern const struct bactl_command cmd_mute;
 extern const struct bactl_command cmd_open;
@@ -352,7 +360,7 @@ static const struct bactl_command *commands[] = {
 	&cmd_status,
 	&cmd_info,
 	&cmd_codec,
-	&cmd_delay_adjustment,
+	&cmd_client_delay,
 	&cmd_volume,
 	&cmd_mute,
 	&cmd_softvol,

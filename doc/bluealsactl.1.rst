@@ -195,16 +195,15 @@ soft-volume *PCM_PATH* [*STATE*]
     for soft-volume on, or **off**, **no**, **false**, **n** or **0** for
     soft-volume off.
 
-delay-adjustment *PCM_PATH* [*ADJUSTMENT*]
-    Get or set the DelayAdjustment property of the given PCM for the current
-    codec.
+client-delay *PCM_PATH* [[-]\ *DELAY*]
+    Get or set the ClientDelay property of the given PCM.
 
-    If the *ADJUSTMENT* argument is given, set the DelayAdjustment property for
-    the current codec in the given PCM. This property may be used by clients to
+    If the *DELAY* argument is given, set the ClientDelay property for the
+    given PCM. This property may be used by clients to
     adjust the reported audio delay and may be useful with PCM devices that do
     not report an accurate Delay property.
 
-    The *ADJUSTMENT* value is in milliseconds and must be a decimal number with
+    The *DELAY* value is in milliseconds and must be a decimal number with
     optional sign prefix (e.g. **250**, **-500**, **+360.4**). The permitted
     range is [-3276.8, 3276.7].
 

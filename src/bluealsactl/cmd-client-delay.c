@@ -1,5 +1,5 @@
 /*
- * BlueALSA - bluealsactl/cmd-delay-adjustment.c
+ * BlueALSA - bluealsactl/cmd-client-delay.c
  * Copyright (c) 2016-2024 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
@@ -21,17 +21,17 @@
 #include "shared/dbus-client-pcm.h"
 
 static void usage(const char *command) {
-	printf("Get or set the delay adjustment of the given PCM.\n\n");
-	bactl_print_usage("%s [OPTION]... PCM-PATH [ADJUSTMENT]", command);
+	printf("Get or set the client delay of the given PCM.\n\n");
+	bactl_print_usage("%s [OPTION]... PCM-PATH [[-]DELAY]", command);
 	printf("\nOptions:\n"
 			"  -h, --help\t\tShow this message and exit\n"
 			"\nPositional arguments:\n"
 			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-			"  ADJUSTMENT\tAdjustment value (+/-), in milliseconds\n"
+			"  DELAY\tValue (+/-), in milliseconds\n"
 	);
 }
 
-static int cmd_delay_adjustment_func(int argc, char *argv[]) {
+static int cmd_client_delay_func(int argc, char *argv[]) {
 
 	int opt;
 	const char *opts = "+hqv";
@@ -71,7 +71,7 @@ static int cmd_delay_adjustment_func(int argc, char *argv[]) {
 	}
 
 	if (argc == 2) {
-		printf("DelayAdjustment: %#.1f ms\n", (double)pcm.delay_adjustment/ 10);
+		bactl_print_pcm_client_delay(&pcm);
 		return EXIT_SUCCESS;
 	}
 
@@ -90,17 +90,17 @@ static int cmd_delay_adjustment_func(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	if (!ba_dbus_pcm_set_delay_adjustment(&config.dbus, pcm.pcm_path,
-				pcm.codec.name, adjustment, &err)) {
-		cmd_print_error("DelayAdjustment update failed: %s", err.message);
+	pcm.client_delay = adjustment;
+	if (!ba_dbus_pcm_update(&config.dbus, &pcm, BLUEALSA_PCM_CLIENT_DELAY, &err)) {
+		cmd_print_error("ClientDelay update failed: %s", err.message);
 		return EXIT_FAILURE;
 	}
 
 	return EXIT_SUCCESS;
 }
 
-const struct bactl_command cmd_delay_adjustment = {
-	"delay-adjustment",
-	"Get or set PCM delay adjustment",
-	cmd_delay_adjustment_func,
+const struct bactl_command cmd_client_delay = {
+	"client-delay",
+	"Get or set PCM client delay",
+	cmd_client_delay_func,
 };

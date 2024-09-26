@@ -30,7 +30,7 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
-#define BA_STORAGE_KEY_DELAY_ADJUSTMENT "DelayAdjustments"
+#define BA_STORAGE_KEY_CLIENT_DELAYS    "ClientDelays"
 #define BA_STORAGE_KEY_SOFT_VOLUME      "SoftVolume"
 #define BA_STORAGE_KEY_VOLUME           "Volume"
 #define BA_STORAGE_KEY_MUTE             "Mute"
@@ -198,22 +198,24 @@ final:
 	return rv;
 }
 
-static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
-		struct ba_transport_pcm *pcm) {
+/**
+ * Load PCM client delays to the hash table. */
+static GHashTable *storage_pcm_data_load_delays(GKeyFile *db, const char *group,
+		const struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
-	char **adjustments;
-	gsize length;
+	GHashTable *delays = g_hash_table_new(NULL, NULL);
 
-	if ((adjustments = g_key_file_get_string_list(db, group,
-					BA_STORAGE_KEY_DELAY_ADJUSTMENT, &length, NULL)) == NULL)
-		return 0;
+	size_t length = 0;
+	char **list = g_key_file_get_string_list(db, group,
+			BA_STORAGE_KEY_CLIENT_DELAYS, &length, NULL);
 
-	for (gsize index = 0; index < length; index++) {
-		char *codec_name = adjustments[index];
-		char *value = strchr(adjustments[index], ':');
+	for (size_t i = 0; i < length; i++) {
+		char *codec_name = list[i];
+		char *value = strchr(list[i], ':');
 		if (value == NULL)
 			continue;
+		/* Split string into a codec name and delay value. */
 		*value++ = '\0';
 		uint32_t codec_id = 0xFFFFFFFF;
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
@@ -222,12 +224,32 @@ static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
 				(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
 			continue;
-		int16_t adjustment = atoi(value);
-		ba_transport_pcm_delay_adjustment_set(pcm, codec_id, adjustment);
+		const int16_t delay = atoi(value);
+		g_hash_table_insert(delays, GINT_TO_POINTER(codec_id), GINT_TO_POINTER(delay));
 	}
 
-	g_strfreev(adjustments);
-	return 1;
+	g_strfreev(list);
+	return delays;
+}
+
+static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
+		struct ba_transport_pcm *pcm) {
+
+	const struct ba_transport *t = pcm->t;
+	int rv = 0;
+
+	GHashTable *delays = storage_pcm_data_load_delays(db, group, pcm);
+
+	void *value = NULL;
+	const uint32_t codec_id = t->codec_id;
+	if (g_hash_table_lookup_extended(delays, GINT_TO_POINTER(codec_id), NULL, &value)) {
+		/* If the right codec was found, sync the client delay. */
+		pcm->client_delay_dms = GPOINTER_TO_INT(value);
+		rv = 1;
+	}
+
+	g_hash_table_unref(delays);
+	return rv;
 }
 
 static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
@@ -313,17 +335,24 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 		const struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
-	const size_t num_codecs = g_hash_table_size(pcm->delay_adjustments);
+
+	GHashTable *delays = storage_pcm_data_load_delays(db, group, pcm);
+	/* Update the delay value for the current codec. */
+	g_hash_table_insert(delays, GINT_TO_POINTER(t->codec_id),
+			GINT_TO_POINTER(pcm->client_delay_dms));
+
+	const size_t num_codecs = g_hash_table_size(delays);
 	char **list = calloc(num_codecs + 1, sizeof(char *));
 
-	pthread_mutex_lock(MUTABLE(&pcm->delay_adjustments_mtx));
-
 	GHashTableIter iter;
-	g_hash_table_iter_init(&iter, pcm->delay_adjustments);
+	g_hash_table_iter_init(&iter, delays);
 
 	size_t index = 0;
 	void *key, *value;
 	while (g_hash_table_iter_next(&iter, &key, &value)) {
+		if (GPOINTER_TO_INT(value) == 0)
+			/* Do not store the delay if it is zero. */
+			continue;
 		const char *codec = NULL;
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 			codec = a2dp_codecs_codec_id_to_string(GPOINTER_TO_INT(key));
@@ -336,11 +365,10 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 		index++;
 	}
 
-	pthread_mutex_unlock(MUTABLE(&pcm->delay_adjustments_mtx));
-
-	g_key_file_set_string_list(db, group, BA_STORAGE_KEY_DELAY_ADJUSTMENT,
+	g_key_file_set_string_list(db, group, BA_STORAGE_KEY_CLIENT_DELAYS,
 		(const char * const *)list, num_codecs);
 
+	g_hash_table_unref(delays);
 	for (size_t i = 0; i < num_codecs; i++)
 		free(list[i]);
 	free(list);

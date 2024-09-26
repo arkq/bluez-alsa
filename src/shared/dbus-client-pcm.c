@@ -508,44 +508,6 @@ fail:
 	return rv;
 }
 
-dbus_bool_t ba_dbus_pcm_set_delay_adjustment(
-		struct ba_dbus_ctx *ctx,
-		const char *pcm_path,
-		const char *codec,
-		int16_t adjustment,
-		DBusError *error) {
-
-	DBusMessage *msg = NULL, *rep = NULL;
-	dbus_bool_t rv = FALSE;
-
-	if ((msg = dbus_message_new_method_call(ctx->ba_service, pcm_path,
-					BLUEALSA_INTERFACE_PCM, "SetDelayAdjustment")) == NULL) {
-		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	DBusMessageIter iter;
-	dbus_message_iter_init_append(msg, &iter);
-	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &codec) ||
-			!dbus_message_iter_append_basic(&iter, DBUS_TYPE_INT16, &adjustment)) {
-		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
-		goto fail;
-	}
-
-	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
-		goto fail;
-
-	rv = TRUE;
-
-fail:
-	if (msg != NULL)
-		dbus_message_unref(msg);
-	if (rep != NULL)
-		dbus_message_unref(rep);
-	return rv;
-}
-
 /**
  * Update BlueALSA PCM property. */
 dbus_bool_t ba_dbus_pcm_update(
@@ -559,6 +521,10 @@ dbus_bool_t ba_dbus_pcm_update(
 	const char *type = NULL;
 
 	switch (property) {
+	case BLUEALSA_PCM_CLIENT_DELAY:
+		_property = "ClientDelay";
+		type = DBUS_TYPE_INT16_AS_STRING;
+		break;
 	case BLUEALSA_PCM_SOFT_VOLUME:
 		_property = "SoftVolume";
 		type = DBUS_TYPE_BOOLEAN_AS_STRING;
@@ -584,6 +550,10 @@ dbus_bool_t ba_dbus_pcm_update(
 		goto fail;
 
 	switch (property) {
+	case BLUEALSA_PCM_CLIENT_DELAY:
+		if (!dbus_message_iter_append_basic(&variant, DBUS_TYPE_INT16, &pcm->client_delay))
+			goto fail;
+		break;
 	case BLUEALSA_PCM_SOFT_VOLUME:
 		if (!dbus_message_iter_append_basic(&variant, DBUS_TYPE_BOOLEAN, &pcm->soft_volume))
 			goto fail;
@@ -833,10 +803,10 @@ static dbus_bool_t dbus_message_iter_get_ba_pcm_props_cb(const char *key,
 			goto fail;
 		dbus_message_iter_get_basic(&variant, &pcm->delay);
 	}
-	else if (strcmp(key, "DelayAdjustment") == 0) {
+	else if (strcmp(key, "ClientDelay") == 0) {
 		if (type != (type_expected = DBUS_TYPE_INT16))
 			goto fail;
-		dbus_message_iter_get_basic(&variant, &pcm->delay_adjustment);
+		dbus_message_iter_get_basic(&variant, &pcm->client_delay);
 	}
 	else if (strcmp(key, "SoftVolume") == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))

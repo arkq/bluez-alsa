@@ -284,8 +284,8 @@ static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {
 	return g_variant_new_uint16(ba_transport_pcm_get_delay(pcm));
 }
 
-static GVariant *ba_variant_new_pcm_delay_adjustment(const struct ba_transport_pcm *pcm) {
-	return g_variant_new_int16(ba_transport_pcm_delay_adjustment_get(pcm));
+static GVariant *ba_variant_new_pcm_client_delay(const struct ba_transport_pcm *pcm) {
+	return g_variant_new_int16(pcm->client_delay_dms);
 }
 
 static GVariant *ba_variant_new_pcm_soft_volume(const struct ba_transport_pcm *pcm) {
@@ -871,74 +871,6 @@ final:
 		g_variant_unref(value);
 }
 
-static void bluealsa_pcm_set_delay_adjustment(GDBusMethodInvocation *inv, void *userdata) {
-
-	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct ba_transport_pcm *pcm = userdata;
-	const struct ba_transport *t = pcm->t;
-
-	const char *codec;
-	int16_t adjustment;
-
-	g_variant_get(params, "(&sn)", &codec, &adjustment);
-
-	uint32_t codec_id = 0;
-	bool is_valid = false;
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		codec_id = a2dp_codecs_codec_id_from_string(codec);
-		is_valid = codec_id != 0xFFFFFFFF;
-	}
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
-		codec_id = hfp_codec_id_from_string(codec);
-		is_valid = codec_id != HFP_CODEC_UNDEFINED;
-	}
-
-	if (!is_valid) {
-		error("Invalid codec name: %s", codec);
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_INVALID_ARGS, "Invalid codec name: %s", codec);
-		return;
-	}
-
-	ba_transport_pcm_delay_adjustment_set(pcm, codec_id, adjustment);
-	bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT);
-	g_dbus_method_invocation_return_value(inv, NULL);
-
-}
-
-static void bluealsa_pcm_get_delay_adjustments(GDBusMethodInvocation *inv, void *userdata) {
-
-	struct ba_transport_pcm *pcm = userdata;
-	const struct ba_transport *t = pcm->t;
-
-	GVariantBuilder adjustments;
-	g_variant_builder_init(&adjustments, G_VARIANT_TYPE("a{sn}"));
-
-	pthread_mutex_lock(&pcm->delay_adjustments_mtx);
-
-	GHashTableIter iter;
-	g_hash_table_iter_init(&iter, pcm->delay_adjustments);
-
-	void *key, *value;
-	while (g_hash_table_iter_next(&iter, &key, &value)) {
-		const char *codec = NULL;
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-			codec = a2dp_codecs_codec_id_to_string(GPOINTER_TO_INT(key));
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
-			codec = hfp_codec_id_to_string(GPOINTER_TO_INT(key));
-		if (codec != NULL) {
-			int16_t adjustment = GPOINTER_TO_INT(value);
-			g_variant_builder_add(&adjustments, "{sn}", codec, adjustment);
-		}
-	}
-
-	pthread_mutex_unlock(&pcm->delay_adjustments_mtx);
-
-	g_dbus_method_invocation_return_value(inv, g_variant_new("(a{sn})", &adjustments));
-	g_variant_builder_clear(&adjustments);
-
-}
-
 static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	struct ba_rfcomm *r = userdata;
@@ -1002,8 +934,8 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 	}
 	if (strcmp(property, "Delay") == 0)
 		return ba_variant_new_pcm_delay(pcm);
-	if (strcmp(property, "DelayAdjustment") == 0)
-		return ba_variant_new_pcm_delay_adjustment(pcm);
+	if (strcmp(property, "ClientDelay") == 0)
+		return ba_variant_new_pcm_client_delay(pcm);
 	if (strcmp(property, "SoftVolume") == 0)
 		return ba_variant_new_pcm_soft_volume(pcm);
 	if (strcmp(property, "Volume") == 0)
@@ -1027,6 +959,12 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 
 	const bool is_sco = t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
 	const int volume_max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
+
+	if (strcmp(property, "ClientDelay") == 0) {
+		pcm->client_delay_dms = g_variant_get_int16(value);
+		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
+		return TRUE;
+	}
 
 	if (strcmp(property, "SoftVolume") == 0) {
 
@@ -1098,10 +1036,6 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 			.handler = bluealsa_pcm_get_codecs },
 		{ .method = "SelectCodec",
 			.handler = bluealsa_pcm_select_codec },
-		{ .method = "SetDelayAdjustment",
-			.handler = bluealsa_pcm_set_delay_adjustment },
-		{ .method = "GetDelayAdjustments",
-			.handler = bluealsa_pcm_get_delay_adjustments },
 		{ 0 },
 	};
 
@@ -1159,10 +1093,10 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC_CONFIG)
 		g_variant_builder_add(&props, "{sv}", "CodecConfiguration", ba_variant_new_pcm_codec_config(pcm));
-	if (mask & (BA_DBUS_PCM_UPDATE_DELAY | BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT))
+	if (mask & BA_DBUS_PCM_UPDATE_DELAY)
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
-	if (mask & BA_DBUS_PCM_UPDATE_DELAY_ADJUSTMENT)
-		g_variant_builder_add(&props, "{sv}", "DelayAdjustment", ba_variant_new_pcm_delay_adjustment(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_CLIENT_DELAY)
+		g_variant_builder_add(&props, "{sv}", "ClientDelay", ba_variant_new_pcm_client_delay(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_SOFT_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "SoftVolume", ba_variant_new_pcm_soft_volume(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)

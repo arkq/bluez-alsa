@@ -131,7 +131,7 @@ struct bluealsa_ctl {
 	bool show_codec;
 	/* if true, show volume mode control */
 	bool show_vol_mode;
-	/* if true, show delay adjustment sync control */
+	/* if true, show client delay sync control */
 	bool show_delay_sync;
 	/* if true, show battery level indicator */
 	bool show_battery;
@@ -707,7 +707,7 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 		n++;
 	}
 
-	/* add special delay adjustment "sync" element */
+	/* add special client delay "sync" element */
 	if (ctl->show_delay_sync) {
 		elem_list[n].type = CTL_ELEM_TYPE_DELAY_SYNC;
 		elem_list[n].dev = dev;
@@ -1243,7 +1243,7 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		items[0] = pcm->soft_volume ? 1 : 0;
 		break;
 	case CTL_ELEM_TYPE_DELAY_SYNC:
-		items[0] = DIV_ROUND(pcm->delay_adjustment - INT16_MIN, DELAY_SYNC_STEP);
+		items[0] = DIV_ROUND(pcm->client_delay - INT16_MIN, DELAY_SYNC_STEP);
 		break;
 	case CTL_ELEM_TYPE_BATTERY:
 	case CTL_ELEM_TYPE_SWITCH:
@@ -1296,16 +1296,16 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 			return 0;
 		pcm->soft_volume = soft_volume;
 		if (!ba_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_SOFT_VOLUME, NULL))
-			return -ENOMEM;
+			return -EIO;
 		break;
 	case CTL_ELEM_TYPE_DELAY_SYNC:
 		if (items[0] >= DELAY_SYNC_NUM_VALUES)
 			return -EINVAL;
-		const int16_t delay_adjustment = items[0] * DELAY_SYNC_STEP + DELAY_SYNC_MIN_VALUE;
-		if (pcm->delay_adjustment == delay_adjustment)
+		const int16_t delay = items[0] * DELAY_SYNC_STEP + DELAY_SYNC_MIN_VALUE;
+		if (pcm->client_delay == delay)
 			return 0;
-		if (!ba_dbus_pcm_set_delay_adjustment(&ctl->dbus_ctx, pcm->pcm_path,
-					pcm->codec.name, delay_adjustment, NULL))
+		pcm->client_delay = delay;
+		if (!ba_dbus_pcm_update(&ctl->dbus_ctx, pcm, BLUEALSA_PCM_CLIENT_DELAY, NULL))
 			return -EIO;
 		process_events(&ctl->ext);
 		break;

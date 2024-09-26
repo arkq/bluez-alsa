@@ -11,8 +11,8 @@ bluealsactl_SOURCES = \
 	../../src/shared/dbus-client-pcm.c \
 	../../src/shared/hex.c \
 	../../src/shared/log.c \
+	cmd-client-delay.c \
 	cmd-codec.c \
-	cmd-delay-adjustment.c \
 	cmd-info.c \
 	cmd-list-pcms.c \
 	cmd-list-services.c \

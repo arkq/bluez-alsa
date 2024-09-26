@@ -390,7 +390,7 @@ CK_START_TEST(test_storage) {
 	const char *storage_path = TEST_BLUEALSA_STORAGE_DIR "/00:11:22:33:44:55";
 	const char *storage_data =
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/source]\n"
-		"DelayAdjustments=SBC:-200\n"
+		"ClientDelays=SBC:-200\n"
 		"SoftVolume=false\n"
 		"Volume=-5600;-4800;\n"
 		"Mute=false;true;\n";
@@ -426,13 +426,13 @@ CK_START_TEST(test_storage) {
 	ck_assert_int_eq(t->a2dp.pcm.volume[0].soft_mute, false);
 	ck_assert_int_eq(t->a2dp.pcm.volume[1].level, -4800);
 	ck_assert_int_eq(t->a2dp.pcm.volume[1].soft_mute, true);
-	ck_assert_int_eq(ba_transport_pcm_delay_adjustment_get(&t->a2dp.pcm), -200);
+	ck_assert_int_eq(t->a2dp.pcm.client_delay_dms, -200);
 
 	bool muted = true;
 	int level = ba_transport_pcm_volume_range_to_level(100, BLUEZ_A2DP_VOLUME_MAX);
 	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, &muted, NULL);
 	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, &muted, NULL);
-	ba_transport_pcm_delay_adjustment_set(&t->a2dp.pcm, A2DP_CODEC_SBC, 140);
+	t->a2dp.pcm.client_delay_dms = 140;
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -446,13 +446,13 @@ CK_START_TEST(test_storage) {
 
 	const char *storage_data_new =
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/source]\n"
-		"DelayAdjustments=SBC:140;\n"
+		"ClientDelays=SBC:140;\n"
 		"SoftVolume=false\n"
 		"Volume=-344;-344;\n"
 		"Mute=true;true;\n"
 		"\n"
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/sink]\n"
-		"DelayAdjustments=\n"
+		"ClientDelays=\n"
 		"SoftVolume=false\n"
 		"Volume=\n"
 		"Mute=\n";

@@ -934,6 +934,8 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 
 	/* data transfer (communication) and encoding/decoding */
 	delay += (io->rate / 100) * pcm->ba_pcm.delay / 100;
+	/* additional delay specified by the client */
+	delay += (io->rate / 100) * pcm->ba_pcm.client_delay / 100;
 
 	delay += pcm->delay_ex;
 

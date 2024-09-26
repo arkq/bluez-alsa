@@ -129,12 +129,8 @@ struct ba_transport_pcm {
 	 * the host computational power. It is used to compensate for the time
 	 * required to encode or decode audio. */
 	unsigned int processing_delay_dms;
-
-	/* guard delay adjustments access */
-	pthread_mutex_t delay_adjustments_mtx;
-	/* PCM delay adjustments in 1/10 of millisecond, set by client API to allow
-	 * user correction of delay reporting inaccuracy. */
-	GHashTable *delay_adjustments;
+	/* Positive (or negative) delay reported by the client. */
+	int client_delay_dms;
 
 	/* indicates whether FIFO buffer was synchronized */
 	bool synced;
@@ -259,13 +255,6 @@ int ba_transport_pcm_get_hardware_volume(
 
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);
-
-int16_t ba_transport_pcm_delay_adjustment_get(
-		const struct ba_transport_pcm *pcm);
-void ba_transport_pcm_delay_adjustment_set(
-		struct ba_transport_pcm *pcm,
-		uint32_t codec_id,
-		int16_t adjustment);
 
 const char *ba_transport_pcm_channel_to_string(
 		enum ba_transport_pcm_channel channel);

@@ -85,14 +85,11 @@ int transport_pcm_init(
 
 	pthread_mutex_init(&pcm->mutex, NULL);
 	pthread_mutex_init(&pcm->state_mtx, NULL);
-	pthread_mutex_init(&pcm->delay_adjustments_mtx, NULL);
 	pthread_mutex_init(&pcm->client_mtx, NULL);
 	pthread_cond_init(&pcm->cond, NULL);
 
 	if (pipe(pcm->pipe) == -1)
 		return -1;
-
-	pcm->delay_adjustments = g_hash_table_new(NULL, NULL);
 
 	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
 			t->d->ba_dbus_path, transport_get_dbus_path_type(t->profile),
@@ -110,7 +107,6 @@ void transport_pcm_free(
 
 	pthread_mutex_destroy(&pcm->mutex);
 	pthread_mutex_destroy(&pcm->state_mtx);
-	pthread_mutex_destroy(&pcm->delay_adjustments_mtx);
 	pthread_mutex_destroy(&pcm->client_mtx);
 	pthread_cond_destroy(&pcm->cond);
 
@@ -119,7 +115,6 @@ void transport_pcm_free(
 	if (pcm->pipe[1] != -1)
 		close(pcm->pipe[1]);
 
-	g_hash_table_unref(pcm->delay_adjustments);
 	g_free(pcm->ba_dbus_path);
 
 }
@@ -726,7 +721,6 @@ int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 
 	int delay = pcm->codec_delay_dms + pcm->processing_delay_dms;
-	delay += ba_transport_pcm_delay_adjustment_get(pcm);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		delay += t->a2dp.delay;
@@ -734,33 +728,6 @@ int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 		delay += 10;
 
 	return delay;
-}
-
-int16_t ba_transport_pcm_delay_adjustment_get(
-		const struct ba_transport_pcm *pcm) {
-
-	struct ba_transport *t = pcm->t;
-	uint32_t codec_id = ba_transport_get_codec(t);
-	int16_t adjustment = 0;
-
-	pthread_mutex_lock(MUTABLE(&pcm->delay_adjustments_mtx));
-	void *val = g_hash_table_lookup(pcm->delay_adjustments, GINT_TO_POINTER(codec_id));
-	pthread_mutex_unlock(MUTABLE(&pcm->delay_adjustments_mtx));
-
-	if (val != NULL)
-		adjustment = GPOINTER_TO_INT(val);
-
-	return adjustment;
-}
-
-void ba_transport_pcm_delay_adjustment_set(
-		struct ba_transport_pcm *pcm,
-		uint32_t codec_id,
-		int16_t adjustment) {
-	pthread_mutex_lock(&pcm->delay_adjustments_mtx);
-	g_hash_table_insert(pcm->delay_adjustments,
-			GINT_TO_POINTER(codec_id), GINT_TO_POINTER(adjustment));
-	pthread_mutex_unlock(&pcm->delay_adjustments_mtx);
 }
 
 const char *ba_transport_pcm_channel_to_string(
