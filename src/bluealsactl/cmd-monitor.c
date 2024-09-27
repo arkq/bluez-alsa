@@ -26,8 +26,10 @@
 
 enum {
 	PROPERTY_CODEC,
+	PROPERTY_DELAY,
+	PROPERTY_CLIENT_DELAY,
 	PROPERTY_RUNNING,
-	PROPERTY_SOFTVOL,
+	PROPERTY_SOFT_VOLUME,
 	PROPERTY_VOLUME,
 };
 
@@ -39,8 +41,10 @@ struct property {
 static bool monitor_properties = false;
 static struct property monitor_properties_set[] = {
 	[PROPERTY_CODEC] = { "Codec", false },
+	[PROPERTY_DELAY] = { "Delay", false },
+	[PROPERTY_CLIENT_DELAY] = { "ClientDelay", false },
 	[PROPERTY_RUNNING] = { "Running", false },
-	[PROPERTY_SOFTVOL] = { "SoftVolume", false },
+	[PROPERTY_SOFT_VOLUME] = { "SoftVolume", false },
 	[PROPERTY_VOLUME] = { "Volume", false },
 };
 
@@ -76,7 +80,23 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 			goto fail;
 		const char *codec;
 		dbus_message_iter_get_basic(&variant, &codec);
-		printf("PropertyChanged %s Codec %s\n", path, codec);
+		printf("PropertyChanged %s %s %s\n", path, key, codec);
+	}
+	else if (monitor_properties_set[PROPERTY_DELAY].enabled &&
+			strcmp(key, monitor_properties_set[PROPERTY_DELAY].name) == 0) {
+		if (type != (type_expected = DBUS_TYPE_UINT16))
+			goto fail;
+		dbus_uint16_t delay;
+		dbus_message_iter_get_basic(&variant, &delay);
+		printf("PropertyChanged %s %s %#.1f\n", path, key, delay / 10.0);
+	}
+	else if (monitor_properties_set[PROPERTY_CLIENT_DELAY].enabled &&
+			strcmp(key, monitor_properties_set[PROPERTY_CLIENT_DELAY].name) == 0) {
+		if (type != (type_expected = DBUS_TYPE_INT16))
+			goto fail;
+		dbus_int16_t delay;
+		dbus_message_iter_get_basic(&variant, &delay);
+		printf("PropertyChanged %s %s %#.1f\n", path, key, delay / 10.0);
 	}
 	else if (monitor_properties_set[PROPERTY_RUNNING].enabled &&
 			strcmp(key, monitor_properties_set[PROPERTY_RUNNING].name) == 0) {
@@ -84,15 +104,15 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 			goto fail;
 		dbus_bool_t running;
 		dbus_message_iter_get_basic(&variant, &running);
-		printf("PropertyChanged %s Running %s\n", path, running ? "true" : "false");
+		printf("PropertyChanged %s %s %s\n", path, key, running ? "true" : "false");
 	}
-	else if (monitor_properties_set[PROPERTY_SOFTVOL].enabled &&
-			strcmp(key, monitor_properties_set[PROPERTY_SOFTVOL].name) == 0) {
+	else if (monitor_properties_set[PROPERTY_SOFT_VOLUME].enabled &&
+			strcmp(key, monitor_properties_set[PROPERTY_SOFT_VOLUME].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
 			goto fail;
 		dbus_bool_t softvol;
 		dbus_message_iter_get_basic(&variant, &softvol);
-		printf("PropertyChanged %s SoftVolume %s\n", path, softvol ? "true" : "false");
+		printf("PropertyChanged %s %s %s\n", path, key, softvol ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_VOLUME].enabled &&
 			strcmp(key, monitor_properties_set[PROPERTY_VOLUME].name) == 0) {
@@ -106,7 +126,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		dbus_message_iter_recurse(&variant, &iter);
 		dbus_message_iter_get_fixed_array(&iter, &data, &len);
 
-		printf("PropertyChanged %s Volume", path);
+		printf("PropertyChanged %s %s", path, key);
 		for (size_t i = 0; i < (size_t)len; i++)
 			printf(" %u%s", data[i] & 0x7f, data[i] & 0x80 ? "[M]" : "");
 		printf("\n");

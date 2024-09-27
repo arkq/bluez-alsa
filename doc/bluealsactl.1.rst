@@ -245,8 +245,8 @@ monitor [-p[PROPS] | --properties[=PROPS]]
 
     ``PropertyChanged PCM_PATH PROPERTY_NAME VALUE``
 
-    Property names that can be monitored are **Codec**, **Running**,
-    **SoftVolume** and **Volume**.
+    Property names that can be monitored are **Codec**, **Delay**,
+    **ClientDelay**, **Running**, **SoftVolume** and **Volume**.
 
     Volume is an array of values, each showing the loudness and mute components
     of a channel. The order of the values corresponds to the ChannelMap
