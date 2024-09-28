@@ -138,9 +138,9 @@ static void rfcomm_set_hfp_state(struct ba_rfcomm *r, enum hfp_slc_state state) 
  * Finalize HFP codec selection - signal other threads. */
 static void rfcomm_finalize_codec_selection(struct ba_rfcomm *r) {
 
-	pthread_mutex_lock(&r->sco->codec_id_mtx);
+	pthread_mutex_lock(&r->sco->codec_select_client_mtx);
 	r->codec_selection_done = true;
-	pthread_mutex_unlock(&r->sco->codec_id_mtx);
+	pthread_mutex_unlock(&r->sco->codec_select_client_mtx);
 
 	pthread_cond_signal(&r->codec_selection_cond);
 

@@ -413,6 +413,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		return NULL;
 
 	t->profile = profile;
+	t->codec_id = sep->config.codec_id;
 
 	pthread_cond_init(&t->a2dp.state_changed_cond, NULL);
 	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
@@ -440,7 +441,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	ba_transport_set_codec(t, sep->config.codec_id);
+	a2dp_transport_init(t);
 
 	storage_pcm_data_sync(&t->a2dp.pcm);
 	storage_pcm_data_sync(&t->a2dp.pcm_bc);
@@ -547,6 +548,9 @@ struct ba_transport *ba_transport_new_sco(
 		return NULL;
 
 	t->profile = profile;
+	/* In case of the HSP and HFP without codec selection support,
+	 * there is no other option than the CVSD codec. */
+	t->codec_id = HFP_CODEC_CVSD;
 
 	err |= transport_pcm_init(&t->sco.pcm_spk,
 			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
@@ -568,10 +572,6 @@ struct ba_transport *ba_transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	/* In case of the HSP and HFP without codec selection support,
-	 * there is no other option than the CVSD codec. */
-	uint32_t codec_id = HFP_CODEC_CVSD;
-
 #if ENABLE_HFP_CODEC_SELECTION
 	/* Only HFP supports codec selection. */
 	if (profile & BA_TRANSPORT_PROFILE_MASK_HFP &&
@@ -580,16 +580,16 @@ struct ba_transport *ba_transport_new_sco(
 			BA_TEST_ESCO_SUPPORT(device->a)) {
 # if ENABLE_MSBC
 		if (config.hfp.codecs.msbc)
-			codec_id = HFP_CODEC_UNDEFINED;
+			t->codec_id = HFP_CODEC_UNDEFINED;
 # endif
 # if ENABLE_LC3_SWB
 		if (config.hfp.codecs.lc3_swb)
-			codec_id = HFP_CODEC_UNDEFINED;
+			t->codec_id = HFP_CODEC_UNDEFINED;
 # endif
 	}
 #endif
 
-	ba_transport_set_codec(t, codec_id);
+	sco_transport_init(t);
 
 	storage_pcm_data_sync(&t->sco.pcm_spk);
 	storage_pcm_data_sync(&t->sco.pcm_mic);
@@ -898,10 +898,10 @@ int ba_transport_select_codec_a2dp(
 		const struct a2dp_sep_config *remote_sep_cfg,
 		const void *configuration) {
 
-	if (!(t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
-		return errno = ENOTSUP, -1;
-
-	pthread_mutex_lock(&t->codec_id_mtx);
+#if DEBUG
+	/* Assert that we were called with the codec selection mutex locked. */
+	g_assert_cmpint(pthread_mutex_trylock(&t->codec_select_client_mtx), !=, 0);
+#endif
 
 	/* the same codec with the same configuration already selected */
 	if (remote_sep_cfg->codec_id == t->codec_id &&
@@ -920,19 +920,23 @@ int ba_transport_select_codec_a2dp(
 	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path,
 				remote_sep_cfg, configuration, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
-		pthread_mutex_unlock(&t->codec_id_mtx);
 		g_error_free(err);
 		return errno = EIO, -1;
 	}
 
 final:
-	pthread_mutex_unlock(&t->codec_id_mtx);
 	return 0;
 }
 
 int ba_transport_select_codec_sco(
 		struct ba_transport *t,
 		uint8_t codec_id) {
+
+#if DEBUG
+	/* Assert that we were called with the codec selection mutex locked. */
+	g_assert_cmpint(pthread_mutex_trylock(&t->codec_select_client_mtx), !=, 0);
+#endif
+
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -942,18 +946,16 @@ int ba_transport_select_codec_sco(
 		if (t->sco.rfcomm == NULL)
 			return errno = ENOTSUP, -1;
 
-		/* Lock the mutex because we are about to change the codec ID. The codec
-		 * ID itself will be set by the RFCOMM thread. The RFCOMM thread and the
-		 * current one will be synchronized by the RFCOMM codec selection
-		 * condition variable. */
-		pthread_mutex_lock(&t->codec_id_mtx);
-
 		struct ba_rfcomm * const r = t->sco.rfcomm;
 		enum ba_rfcomm_signal rfcomm_signal;
 
 		/* codec already selected, skip switching */
 		if (t->codec_id == codec_id)
-			goto final;
+			return 0;
+
+		/* The codec ID itself will be set by the RFCOMM thread. The
+		 * RFCOMM thread and the current one will be synchronized by
+		 * the RFCOMM codec selection condition variable. */
 
 		switch (codec_id) {
 		case HFP_CODEC_CVSD:
@@ -983,24 +985,22 @@ int ba_transport_select_codec_sco(
 		ba_rfcomm_send_signal(r, rfcomm_signal);
 
 		while (!r->codec_selection_done)
-			pthread_cond_wait(&r->codec_selection_cond, &t->codec_id_mtx);
+			pthread_cond_wait(&r->codec_selection_cond, &t->codec_select_client_mtx);
 
-		if (t->codec_id != codec_id) {
-			pthread_mutex_unlock(&t->codec_id_mtx);
+		if (t->codec_id != codec_id)
 			return errno = EIO, -1;
-		}
 
-final:
-		pthread_mutex_unlock(&t->codec_id_mtx);
 #else
 		(void)codec_id;
 #endif
 		return 0;
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 	case BA_TRANSPORT_PROFILE_HSP_AG:
-	default:
 		return errno = ENOTSUP, -1;
+	default:
+		g_assert_not_reached();
 	}
+
 }
 
 uint32_t ba_transport_get_codec(
