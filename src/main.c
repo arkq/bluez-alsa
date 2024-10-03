@@ -32,6 +32,11 @@
 # include <ldacBT.h>
 #endif
 
+#if ENABLE_LHDC
+# include <lhdcBT.h>
+# include <lhdcBT_dec.h>
+#endif
+
 #include "a2dp.h"
 #include "a2dp-sbc.h"
 #include "audio.h"
@@ -180,6 +185,10 @@ int main(int argc, char **argv) {
 		{ "ldac-abr", no_argument, NULL, 10 },
 		{ "ldac-quality", required_argument, NULL, 11 },
 #endif
+#if ENABLE_LHDC
+		// TODO: LLAC/V3/V4, bit depth, sample frequency, LLAC bitrate
+		{ "lhdc-quality", required_argument, NULL, 24 },
+#endif
 #if ENABLE_MP3LAME
 		{ "mp3-algorithm", required_argument, NULL, 12 },
 		{ "mp3-vbr-quality", required_argument, NULL, 13 },
@@ -232,6 +241,9 @@ int main(int argc, char **argv) {
 #if ENABLE_LDAC
 					"  --ldac-abr\t\t\tenable LDAC adaptive bit rate\n"
 					"  --ldac-quality=MODE\t\tset LDAC encoder quality mode\n"
+#endif
+#if ENABLE_LHDC
+					"  --lhdc-quality=MODE\t\tset LHDC encoder quality mode\n"
 #endif
 #if ENABLE_MP3LAME
 					"  --mp3-algorithm=TYPE\t\tselect LAME encoder algorithm type\n"
@@ -515,6 +527,34 @@ int main(int argc, char **argv) {
 			}
 
 			config.ldac_eqmid = entry->v.ui;
+			break;
+		}
+#endif
+
+#if ENABLE_LHDC
+		case 24 /* --lhdc-quality=MODE */ : {
+
+			static const nv_entry_t values[] = {
+				{ "low0", .v.ui = LHDCBT_QUALITY_LOW0 },
+				{ "low1", .v.ui = LHDCBT_QUALITY_LOW1 },
+				{ "low2", .v.ui = LHDCBT_QUALITY_LOW2 },
+				{ "low3", .v.ui = LHDCBT_QUALITY_LOW3 },
+				{ "low4", .v.ui = LHDCBT_QUALITY_LOW4 },
+				{ "low",  .v.ui = LHDCBT_QUALITY_LOW  },
+				{ "mid",  .v.ui = LHDCBT_QUALITY_MID  },
+				{ "high", .v.ui = LHDCBT_QUALITY_HIGH },
+				{ "auto", .v.ui = LHDCBT_QUALITY_AUTO },
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid LHDC encoder quality mode {%s}: %s",
+						nv_join_names(values), optarg);
+				return EXIT_FAILURE;
+			}
+
+			config.lhdc_eqmid = entry->v.ui;
 			break;
 		}
 #endif

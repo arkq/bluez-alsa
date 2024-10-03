@@ -159,6 +159,10 @@ struct ba_config {
 	uint8_t ldac_eqmid;
 #endif
 
+#if ENABLE_LHDC
+	uint8_t lhdc_eqmid;
+	// TODO: LLAC/V3/V4, bit depth, sample frequency, LLAC bitrate
+#endif
 };
 
 /* Global BlueALSA configuration. */

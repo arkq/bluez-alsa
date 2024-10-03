@@ -98,6 +98,11 @@ bluealsad_SOURCES += \
 	midi.c
 endif
 
+if ENABLE_LHDC
+bluealsad_SOURCES += \
+	a2dp-lhdc.c
+endif
+
 if ENABLE_MPEG
 bluealsad_SOURCES += \
 	a2dp-mpeg.c
@@ -137,6 +142,8 @@ AM_CFLAGS = \
 	@LDAC_ABR_CFLAGS@ \
 	@LDAC_DEC_CFLAGS@ \
 	@LDAC_ENC_CFLAGS@ \
+	@LHDC_DEC_CFLAGS@ \
+	@LHDC_ENC_CFLAGS@ \
 	@LIBBSD_CFLAGS@ \
 	@LIBUNWIND_CFLAGS@ \
 	@MP3LAME_CFLAGS@ \
@@ -158,6 +165,8 @@ LDADD = \
 	@LDAC_ABR_LIBS@ \
 	@LDAC_DEC_LIBS@ \
 	@LDAC_ENC_LIBS@ \
+	@LHDC_DEC_LIBS@ \
+	@LHDC_ENC_LIBS@ \
 	@LIBUNWIND_LIBS@ \
 	@MP3LAME_LIBS@ \
 	@MPG123_LIBS@ \
