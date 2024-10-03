@@ -563,8 +563,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				w->ba_pcm.pcm_path, softvol ? "software" : "pass-through");
 		if (softvol != w->ba_pcm.soft_volume) {
 			w->ba_pcm.soft_volume = softvol;
-			if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm,
-						BLUEALSA_PCM_SOFT_VOLUME, &err)) {
+			if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
 				error("Couldn't set BlueALSA source PCM volume mode: %s", err.message);
 				dbus_error_free(&err);
 				goto fail;
@@ -805,6 +804,26 @@ retry_alsa_write:
 
 		/* move leftovers to the beginning and reposition tail */
 		ffb_shift(&buffer, frames * w->ba_pcm.channels);
+
+		int ret;
+		snd_pcm_sframes_t delay_frames;
+		if ((ret = snd_pcm_delay(w->snd_pcm, &delay_frames)) != 0)
+			warn("Couldn't get PCM delay: %s", snd_strerror(ret));
+		else {
+
+			const int delay = delay_frames * 10000 / w->ba_pcm.rate;
+			if (abs(delay - w->ba_pcm.client_delay) >= 100 /* 10ms */) {
+
+				w->ba_pcm.client_delay = delay;
+				if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm, BLUEALSA_PCM_CLIENT_DELAY, &err)) {
+					error("Couldn't update BlueALSA PCM client delay: %s", err.message);
+					dbus_error_free(&err);
+					goto fail;
+				}
+
+			}
+
+		}
 
 		continue;
 
