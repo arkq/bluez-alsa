@@ -240,9 +240,4 @@ enum a2dp_check_err a2dp_check_configuration(
 const char *a2dp_check_strerror(
 		enum a2dp_check_err err);
 
-int a2dp_transport_init(
-		struct ba_transport *t);
-int a2dp_transport_start(
-		struct ba_transport *t);
-
 #endif

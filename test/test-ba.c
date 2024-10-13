@@ -49,8 +49,6 @@
 /* Keep persistent storage in the current directory. */
 #define TEST_BLUEALSA_STORAGE_DIR "storage-test-ba"
 
-int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
-int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
@@ -313,6 +311,11 @@ CK_START_TEST(test_ba_transport_pcm_format) {
 
 } CK_END_TEST
 
+static int sep_transport_init(struct ba_transport *t) {
+	(void)t;
+	return 0;
+}
+
 CK_START_TEST(test_ba_transport_pcm_volume) {
 
 	struct ba_adapter *a;
@@ -325,7 +328,9 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
-	struct a2dp_sep sep = { .config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC } };
+	struct a2dp_sep sep = {
+		.config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
+		.transport_init = sep_transport_init };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d,
 				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &sep,
@@ -410,7 +415,9 @@ CK_START_TEST(test_storage) {
 	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
 	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
 
-	struct a2dp_sep sep = { .config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC } };
+	struct a2dp_sep sep = {
+		.config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
+		.transport_init = sep_transport_init };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
 	ck_assert_ptr_ne(t = ba_transport_new_a2dp(d,
 				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &sep,

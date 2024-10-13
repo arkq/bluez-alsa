@@ -421,6 +421,9 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->a2dp.sep = sep;
 	memcpy(&t->a2dp.configuration, configuration, sep->config.caps_size);
 
+	t->acquire = transport_acquire_bt_a2dp;
+	t->release = transport_release_bt_a2dp;
+
 	err |= transport_pcm_init(&t->a2dp.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
 			t, true);
@@ -432,16 +435,17 @@ struct ba_transport *ba_transport_new_a2dp(
 	if (err != 0)
 		goto fail;
 
+	/* do codec-specific initialization */
+	if (sep->transport_init(t) != 0) {
+		errno = EINVAL;
+		goto fail;
+	}
+
 	if ((errno = pthread_create(&t->thread_manager_thread_id,
 			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
 		t->thread_manager_thread_id = config.main_thread;
 		goto fail;
 	}
-
-	t->acquire = transport_acquire_bt_a2dp;
-	t->release = transport_release_bt_a2dp;
-
-	a2dp_transport_init(t);
 
 	storage_pcm_data_sync(&t->a2dp.pcm);
 	storage_pcm_data_sync(&t->a2dp.pcm_bc);
@@ -552,26 +556,6 @@ struct ba_transport *ba_transport_new_sco(
 	 * there is no other option than the CVSD codec. */
 	t->codec_id = HFP_CODEC_CVSD;
 
-	err |= transport_pcm_init(&t->sco.pcm_spk,
-			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-			t, true);
-
-	err |= transport_pcm_init(&t->sco.pcm_mic,
-			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-			t, false);
-
-	if (err != 0)
-		goto fail;
-
-	if ((errno = pthread_create(&t->thread_manager_thread_id,
-			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
-		t->thread_manager_thread_id = config.main_thread;
-		goto fail;
-	}
-
-	t->acquire = transport_acquire_bt_sco;
-	t->release = transport_release_bt_sco;
-
 #if ENABLE_HFP_CODEC_SELECTION
 	/* Only HFP supports codec selection. */
 	if (profile & BA_TRANSPORT_PROFILE_MASK_HFP &&
@@ -589,7 +573,30 @@ struct ba_transport *ba_transport_new_sco(
 	}
 #endif
 
-	sco_transport_init(t);
+	t->acquire = transport_acquire_bt_sco;
+	t->release = transport_release_bt_sco;
+
+	err |= transport_pcm_init(&t->sco.pcm_spk,
+			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
+			t, true);
+
+	err |= transport_pcm_init(&t->sco.pcm_mic,
+			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
+			t, false);
+
+	if (err != 0)
+		goto fail;
+
+	if (sco_transport_init(t) != 0) {
+		errno = EINVAL;
+		goto fail;
+	}
+
+	if ((errno = pthread_create(&t->thread_manager_thread_id,
+			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+		t->thread_manager_thread_id = config.main_thread;
+		goto fail;
+	}
 
 	storage_pcm_data_sync(&t->sco.pcm_spk);
 	storage_pcm_data_sync(&t->sco.pcm_mic);
@@ -1026,7 +1033,7 @@ void ba_transport_set_codec(
 		return;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		a2dp_transport_init(t);
+		t->a2dp.sep->transport_init(t);
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		sco_transport_init(t);
 
@@ -1077,7 +1084,7 @@ int ba_transport_start(struct ba_transport *t) {
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return a2dp_transport_start(t);
+		return t->a2dp.sep->transport_start(t);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		return sco_transport_start(t);

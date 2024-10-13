@@ -58,8 +58,6 @@ static void dbus_update_counters_wait(unsigned int *counter, unsigned int value)
 	pthread_mutex_unlock(&dbus_update_mtx);
 }
 
-int a2dp_transport_init(struct ba_transport *t) { (void)t; return 0; }
-int a2dp_transport_start(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }

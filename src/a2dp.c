@@ -43,7 +43,6 @@
 #endif
 #include "a2dp-sbc.h"
 #include "ba-config.h"
-#include "ba-transport.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
@@ -389,14 +388,4 @@ const char *a2dp_check_strerror(
 	}
 	debug("Unknown error code: %#x", err);
 	return "Check error";
-}
-
-int a2dp_transport_init(
-		struct ba_transport *t) {
-	return t->a2dp.sep->transport_init(t);
-}
-
-int a2dp_transport_start(
-		struct ba_transport *t) {
-	return t->a2dp.sep->transport_start(t);
 }

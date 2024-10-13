@@ -726,8 +726,9 @@ static struct ba_transport *test_transport_new_a2dp(
 	if (input_bt_file != NULL)
 		configuration = &btdin->a2dp_configuration;
 #endif
-	struct ba_transport *t = ba_transport_new_a2dp(device, profile, ":test",
-			dbus_path, sep, configuration);
+	struct ba_transport *t;
+	ck_assert_ptr_nonnull(t = ba_transport_new_a2dp(device, profile, ":test",
+				dbus_path, sep, configuration));
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release_bt_a2dp;
 	return t;
@@ -772,7 +773,9 @@ CK_START_TEST(test_a2dp_sbc) {
 
 CK_START_TEST(test_a2dp_sbc_invalid_config) {
 
-	const a2dp_sbc_t config_sbc_invalid = { 0 };
+	const a2dp_sbc_t config_sbc_invalid = {
+		.sampling_freq = SBC_SAMPLING_FREQ_44100,
+		.channel_mode = SBC_CHANNEL_MODE_STEREO };
 	struct ba_transport *t = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
 			&config_sbc_invalid);

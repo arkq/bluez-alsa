@@ -256,7 +256,7 @@ void *sco_dec_thread(struct ba_transport_pcm *pcm) {
 	}
 }
 
-void sco_transport_init(struct ba_transport *t) {
+int sco_transport_init(struct ba_transport *t) {
 
 	t->sco.pcm_spk.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.pcm_spk.channels = 1;
@@ -305,6 +305,7 @@ void sco_transport_init(struct ba_transport *t) {
 				BA_DBUS_PCM_UPDATE_CODEC |
 				BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
 
+	return 0;
 }
 
 int sco_transport_start(struct ba_transport *t) {
