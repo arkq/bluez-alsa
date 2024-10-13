@@ -694,7 +694,9 @@ typedef struct a2dp_lhdc_v5 {
 #define OPUS_VENDOR_ID                  BT_COMPID_GOOGLE
 #define OPUS_CODEC_ID                   0x0001
 
-#define OPUS_SAMPLING_FREQ_48000        (1 << 0)
+#define OPUS_SAMPLING_FREQ_48000        (1 << 2)
+#define OPUS_SAMPLING_FREQ_24000        (1 << 1)
+#define OPUS_SAMPLING_FREQ_16000        (1 << 0)
 
 #define OPUS_FRAME_DURATION_100         (1 << 0)
 #define OPUS_FRAME_DURATION_200         (1 << 1)
@@ -706,15 +708,13 @@ typedef struct a2dp_lhdc_v5 {
 typedef struct a2dp_opus {
 	a2dp_vendor_info_t info;
 #if __BYTE_ORDER == __BIG_ENDIAN
-	uint8_t rfa:2;
-	uint8_t sampling_freq:1;
+	uint8_t sampling_freq:3;
 	uint8_t frame_duration:2;
 	uint8_t channel_mode:3;
 #else
 	uint8_t channel_mode:3;
 	uint8_t frame_duration:2;
-	uint8_t sampling_freq:1;
-	uint8_t rfa:2;
+	uint8_t sampling_freq:3;
 #endif
 } __attribute__ ((packed)) a2dp_opus_t;
 

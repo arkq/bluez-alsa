@@ -553,12 +553,13 @@ static void dump_opus(const void *blob, size_t size) {
 	printf("Opus <hex:%s> {\n", bintohex(blob, size));
 	printf_vendor(&opus->info);
 	printf(""
-			"  <reserved>:2\n"
-			"  sample-rate:1 =%s\n"
+			"  sample-rate:3 =%s%s%s\n"
 			"  frame-duration:2 =%s%s\n"
 			"  channel-mode:3 =%s%s%s\n"
 			"}\n",
 			opus->sampling_freq & OPUS_SAMPLING_FREQ_48000 ? " 48000" : "",
+			opus->sampling_freq & OPUS_SAMPLING_FREQ_24000 ? " 24000" : "",
+			opus->sampling_freq & OPUS_SAMPLING_FREQ_16000 ? " 16000" : "",
 			opus->frame_duration & OPUS_FRAME_DURATION_100 ? " 10ms" : "",
 			opus->frame_duration & OPUS_FRAME_DURATION_200 ? " 20ms" : "",
 			opus->channel_mode & OPUS_CHANNEL_MODE_STEREO ? " Stereo" : "",

@@ -52,6 +52,8 @@ static const struct a2dp_bit_mapping a2dp_opus_channels[] = {
 };
 
 static const struct a2dp_bit_mapping a2dp_opus_rates[] = {
+	{ OPUS_SAMPLING_FREQ_16000, { 16000 } },
+	{ OPUS_SAMPLING_FREQ_24000, { 24000 } },
 	{ OPUS_SAMPLING_FREQ_48000, { 48000 } },
 	{ 0 }
 };
@@ -481,7 +483,9 @@ struct a2dp_sep a2dp_opus_source = {
 		.capabilities.opus = {
 			.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
 			.sampling_freq =
-				OPUS_SAMPLING_FREQ_48000,
+				OPUS_SAMPLING_FREQ_48000 |
+				OPUS_SAMPLING_FREQ_24000 |
+				OPUS_SAMPLING_FREQ_16000,
 			.frame_duration =
 				OPUS_FRAME_DURATION_100 |
 				OPUS_FRAME_DURATION_200,
@@ -511,7 +515,9 @@ struct a2dp_sep a2dp_opus_sink = {
 		.capabilities.opus = {
 			.info = A2DP_VENDOR_INFO_INIT(OPUS_VENDOR_ID, OPUS_CODEC_ID),
 			.sampling_freq =
-				OPUS_SAMPLING_FREQ_48000,
+				OPUS_SAMPLING_FREQ_48000 |
+				OPUS_SAMPLING_FREQ_24000 |
+				OPUS_SAMPLING_FREQ_16000,
 			.frame_duration =
 				OPUS_FRAME_DURATION_100 |
 				OPUS_FRAME_DURATION_200,

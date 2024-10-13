@@ -1693,6 +1693,9 @@ bool bluez_a2dp_set_configuration(
 
 	pthread_mutex_unlock(&bluez_mutex);
 
+	debug("A2DP requested codec: %s", a2dp_codecs_codec_id_to_string(remote_sep_cfg->codec_id));
+	hexdump("A2DP requested configuration blob", configuration, remote_sep_cfg->caps_size);
+
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
