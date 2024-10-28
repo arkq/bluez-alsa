@@ -214,8 +214,9 @@ const char *ba_dbus_pcm_codec_get_canonical_name(
 	return a2dp_codecs_get_canonical_name(alias);
 }
 
-static void dbus_message_iter_get_codec_data(DBusMessageIter *variant,
-		struct ba_pcm_codec *codec) {
+static void dbus_message_iter_get_codec_data(
+		DBusMessageIter * restrict variant,
+		struct ba_pcm_codec * restrict codec) {
 
 	DBusMessageIter iter;
 	unsigned char *data;
@@ -229,8 +230,9 @@ static void dbus_message_iter_get_codec_data(DBusMessageIter *variant,
 
 }
 
-static void dbus_message_iter_get_codec_channels(DBusMessageIter *variant,
-		struct ba_pcm_codec *codec) {
+static void dbus_message_iter_get_codec_channels(
+		DBusMessageIter * restrict variant,
+		struct ba_pcm_codec * restrict codec) {
 
 	DBusMessageIter iter;
 	unsigned char *data;
@@ -245,8 +247,9 @@ static void dbus_message_iter_get_codec_channels(DBusMessageIter *variant,
 
 }
 
-static void dbus_message_iter_get_codec_rates(DBusMessageIter *variant,
-		struct ba_pcm_codec *codec) {
+static void dbus_message_iter_get_codec_rates(
+		DBusMessageIter * restrict variant,
+		struct ba_pcm_codec * restrict codec) {
 
 	DBusMessageIter iter;
 	dbus_uint32_t *data;
@@ -261,8 +264,9 @@ static void dbus_message_iter_get_codec_rates(DBusMessageIter *variant,
 
 }
 
-static void dbus_message_iter_get_codec_channel_maps(DBusMessageIter *variant,
-		struct ba_pcm_codec *codec) {
+static void dbus_message_iter_get_codec_channel_maps(
+		DBusMessageIter * restrict variant,
+		struct ba_pcm_codec * restrict codec) {
 
 	size_t i;
 	DBusMessageIter iter_array;

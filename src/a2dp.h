@@ -86,8 +86,8 @@ enum a2dp_stream {
 };
 
 void a2dp_caps_bitwise_intersect(
-		void *capabilities,
-		const void *mask,
+		void * restrict capabilities,
+		const void * restrict mask,
 		size_t size);
 
 bool a2dp_caps_has_main_stream_only(

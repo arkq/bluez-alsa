@@ -35,8 +35,8 @@ double audio_loudness_to_decibel(double value) {
 
 /**
  * Join channels into interleaved S16 PCM signal. */
-void audio_interleave_s16_2le(int16_t *dest, const int16_t **src,
-		unsigned int channels, size_t frames) {
+void audio_interleave_s16_2le(int16_t * restrict dest,
+		const int16_t * restrict * restrict src, unsigned int channels, size_t frames) {
 	for (size_t f = 0; f < frames; f++)
 		for (size_t c = 0; c < channels; c++)
 			*dest++ = src[c][f];
@@ -44,8 +44,8 @@ void audio_interleave_s16_2le(int16_t *dest, const int16_t **src,
 
 /**
  * Join channels into interleaved S32 PCM signal. */
-void audio_interleave_s32_4le(int32_t *dest, const int32_t **src,
-		unsigned int channels, size_t frames) {
+void audio_interleave_s32_4le(int32_t * restrict dest,
+		const int32_t * restrict * restrict src, unsigned int channels, size_t frames) {
 	for (size_t f = 0; f < frames; f++)
 		for (size_t c = 0; c < channels; c++)
 			*dest++ = src[c][f];
@@ -53,8 +53,8 @@ void audio_interleave_s32_4le(int32_t *dest, const int32_t **src,
 
 /**
  * Split interleaved S16 PCM signal into channels. */
-void audio_deinterleave_s16_2le(int16_t **dest, const int16_t *src,
-		unsigned int channels, size_t frames) {
+void audio_deinterleave_s16_2le(int16_t * restrict * restrict dest,
+		const int16_t * restrict src, unsigned int channels, size_t frames) {
 	for (size_t f = 0; f < frames; f++)
 		for (size_t c = 0; c < channels; c++)
 			dest[c][f] = *src++;
@@ -62,8 +62,8 @@ void audio_deinterleave_s16_2le(int16_t **dest, const int16_t *src,
 
 /**
  * Split interleaved S32 PCM signal into channels. */
-void audio_deinterleave_s32_4le(int32_t **dest, const int32_t *src,
-		unsigned int channels, size_t frames) {
+void audio_deinterleave_s32_4le(int32_t * restrict * restrict dest,
+		const int32_t * restrict src, unsigned int channels, size_t frames) {
 	for (size_t f = 0; f < frames; f++)
 		for (size_t c = 0; c < channels; c++)
 			dest[c][f] = *src++;
@@ -80,24 +80,18 @@ void audio_deinterleave_s32_4le(int32_t **dest, const int32_t *src,
  * @param scale The scaling factor per channel for the PCM signal.
  * @param channels The number of channels in the buffer.
  * @param frames The number of PCM frames in the buffer. */
-void audio_scale_s16_2le(int16_t *buffer, const double *scale,
-		unsigned int channels, size_t frames) {
-	size_t i = 0;
-	while (frames--)
-		for (size_t ii = 0; ii < channels; ii++) {
-			int16_t s = (int16_t)le16toh(buffer[i]) * scale[ii];
-			buffer[i++] = htole16(s);
-		}
+void audio_scale_s16_2le(int16_t * restrict buffer,
+		const double * restrict scale, unsigned int channels, size_t frames) {
+	for (size_t i = 0; frames; frames--)
+		for (size_t c = 0; c < channels; c++, i++)
+			buffer[i] = htole16(((int16_t)le16toh(buffer[i]) * scale[c]));
 }
 
 /**
  * Scale S32_4LE PCM signal. */
-void audio_scale_s32_4le(int32_t *buffer, const double *scale,
-		unsigned int channels, size_t frames) {
-	size_t i = 0;
-	while (frames--)
-		for (size_t ii = 0; ii < channels; ii++) {
-			int32_t s = (int32_t)le32toh(buffer[i]) * scale[ii];
-			buffer[i++] = htole32(s);
-		}
+void audio_scale_s32_4le(int32_t * restrict buffer,
+		const double * restrict scale, unsigned int channels, size_t frames) {
+	for (size_t i = 0; frames; frames--)
+		for (size_t c = 0; c < channels; c++, i++)
+			buffer[i] = htole32((int32_t)le32toh(buffer[i]) * scale[c]);
 }

@@ -100,7 +100,8 @@ static int cmd_open_func(int argc, char *argv[]) {
 	}
 
 	uint8_t buffer[4096];
-	uint8_t buffer_hex[sizeof(buffer) * 2 + 1];
+	uint8_t buffer_bin[sizeof(buffer) / 2];
+	char buffer_hex[sizeof(buffer) * 2 + 1];
 	ssize_t count;
 
 	while ((count = read(fd_input, buffer, sizeof(buffer))) > 0) {
@@ -111,15 +112,16 @@ static int cmd_open_func(int argc, char *argv[]) {
 		if (hex) {
 
 			if (fd_input == STDIN_FILENO) {
-				if ((count = hex2bin((const char *)buffer, buffer, count)) == -1) {
+				pos = buffer_bin;
+				if ((count = hex2bin((const char *)buffer, buffer_bin, count)) == -1) {
 					cmd_print_error("Couldn't decode hex string: %s", strerror(errno));
 					continue;
 				}
 			}
 
 			if (fd_output == STDOUT_FILENO) {
-				count = bin2hex(buffer, (char *)buffer_hex, count);
-				pos = buffer_hex;
+				pos = (const uint8_t *)buffer_hex;
+				count = bin2hex(buffer, buffer_hex, count);
 			}
 
 		}

@@ -156,8 +156,8 @@ uint32_t a2dp_bit_mapping_lookup_value(
  * This function performs a simple bitwise AND operation on given capabilities
  * and mask. */
 void a2dp_caps_bitwise_intersect(
-		void *capabilities,
-		const void *mask,
+		void * restrict capabilities,
+		const void * restrict mask,
 		size_t size) {
 
 	const uint8_t *caps_mask = mask;

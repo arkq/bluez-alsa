@@ -21,7 +21,7 @@
  *   data.
  * @param n The length of the binary buffer which shall be encoded.
  * @return This function returns length of the hex string. */
-ssize_t bin2hex(const void *bin, char *hex, size_t n) {
+ssize_t bin2hex(const void * restrict bin, char * restrict hex, size_t n) {
 
 	static const char map_bin2hex[] = "0123456789abcdef";
 
@@ -45,7 +45,7 @@ ssize_t bin2hex(const void *bin, char *hex, size_t n) {
  * @return On success this function returns the size of the binary data. If
  *   an error has occurred, -1 is returned and errno is set to indicate the
  *   error. */
-ssize_t hex2bin(const char *hex, void *bin, size_t n) {
+ssize_t hex2bin(const char * restrict hex, void * restrict bin, size_t n) {
 
 	static const int map_hex2bin[256] = {
 		['0'] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
