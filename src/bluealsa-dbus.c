@@ -538,6 +538,10 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 			goto fail;
 		}
 
+		/* If the transport thread has updated its codec_delay value during its
+		 * start procedure then we inform clients that the delay has changed */
+		 if (pcm->codec_delay_dms > 0)
+			bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_DELAY);
 	}
 
 	pthread_mutex_lock(&pcm->mutex);
