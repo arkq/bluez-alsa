@@ -129,6 +129,7 @@ struct ba_transport_pcm {
 	 * the host computational power. It is used to compensate for the time
 	 * required to encode or decode audio. */
 	unsigned int processing_delay_dms;
+	unsigned int reported_processing_delay_dms;
 	/* Positive (or negative) delay reported by the client. */
 	int client_delay_dms;
 
@@ -252,6 +253,10 @@ int ba_transport_pcm_volume_update(
 
 int ba_transport_pcm_get_hardware_volume(
 		const struct ba_transport_pcm *pcm);
+
+void ba_transport_pcm_update_processing_delay(
+		struct ba_transport_pcm *pcm,
+		unsigned int delay);
 
 int ba_transport_pcm_get_delay(
 		const struct ba_transport_pcm *pcm);

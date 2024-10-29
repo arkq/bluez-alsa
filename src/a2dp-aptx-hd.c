@@ -220,7 +220,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 			rtp.ts_pcm_frames += pcm_frames;
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
+			ba_transport_pcm_update_processing_delay(t_pcm, asrsync_get_busy_usec(&io.asrs) / 100);
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);
