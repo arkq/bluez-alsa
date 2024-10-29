@@ -323,7 +323,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 		rtp_state_update(&rtp, pcm_frames);
 
 		/* update busy delay (encoding overhead) */
-		t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
+		ba_transport_pcm_update_processing_delay(t_pcm, asrsync_get_busy_usec(&io.asrs) / 100);
 
 		/* If the input buffer was not consumed (due to frame alignment), we
 		 * have to append new data to the existing one. Since we do not use

@@ -51,6 +51,8 @@ int ba_transport_pcm_state_set(struct ba_transport_pcm *pcm,
 enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(struct ba_transport_pcm *pcm) {
 	(void)pcm; return -1; }
 void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; }
+void ba_transport_pcm_update_processing_delay(struct ba_transport_pcm *pcm, unsigned int delay) {
+	(void)pcm; (void)delay;}
 
 CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {
 	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);

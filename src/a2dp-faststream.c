@@ -228,7 +228,7 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 			asrsync_sync(&io.asrs, pcm_frames);
 
 			/* update busy delay (encoding overhead) */
-			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
+			ba_transport_pcm_update_processing_delay(t_pcm, asrsync_get_busy_usec(&io.asrs) / 100);
 
 			/* If the input buffer was not consumed (due to codesize limit), we
 			 * have to append new data to the existing one. Since we do not use

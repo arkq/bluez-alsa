@@ -716,6 +716,22 @@ int ba_transport_pcm_get_hardware_volume(
 	return 0;
 }
 
+void ba_transport_pcm_update_processing_delay(struct ba_transport_pcm *pcm, unsigned int delay) {
+	if (delay == pcm->processing_delay_dms)
+		return;
+	unsigned int diff = delay > pcm->reported_processing_delay_dms ?
+				delay - pcm->reported_processing_delay_dms :
+				pcm->reported_processing_delay_dms - delay;
+	pcm->processing_delay_dms = delay;
+
+	/* To avoid creating a flood of dbus signals, we only notify clients when
+	 * the value changes by more than 10ms */
+	if (diff > 100 || pcm->reported_processing_delay_dms == 0) {
+		pcm->reported_processing_delay_dms = delay;
+		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_DELAY);
+	}
+}
+
 int ba_transport_pcm_get_delay(const struct ba_transport_pcm *pcm) {
 
 	const struct ba_transport *t = pcm->t;
