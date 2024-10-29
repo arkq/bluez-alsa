@@ -36,7 +36,7 @@ OPTIONS
     Print version and exit.
 
 -v, --verbose
-    Sow verbose bit-stream details.
+    Show verbose bit-stream details.
     Display each field as a binary mask with each bit represented by a single
     character.
 

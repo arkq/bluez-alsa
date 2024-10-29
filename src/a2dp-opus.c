@@ -28,6 +28,7 @@
 #include "ba-config.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
+#include "bluealsa-dbus.h"
 #include "io.h"
 #include "rtp.h"
 #include "shared/a2dp-codecs.h"
@@ -172,6 +173,7 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	/* Get the delay introduced by the encoder. */
 	opus_encoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_frames));
 	t_pcm->codec_delay_dms = opus_delay_frames * 10000 / rate;
+	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -233,6 +235,7 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 			if (!io.initiated) {
 				/* Get the delay due to codec processing. */
 				t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+				ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 				io.initiated = true;
 			}
 
@@ -306,6 +309,7 @@ void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm) {
 	/* Get the delay introduced by the decoder. */
 	opus_decoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_frames));
 	t_pcm->codec_delay_dms = opus_delay_frames * 10000 / rate;
+	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to PCM sample rate */

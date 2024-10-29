@@ -26,6 +26,7 @@
 #include "ba-config.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
+#include "bluealsa-dbus.h"
 #include "codec-aptx.h"
 #include "io.h"
 #include "shared/a2dp-codecs.h"
@@ -193,6 +194,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 			if (!io.initiated) {
 				/* Get the delay due to codec processing. */
 				t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+				ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 				io.initiated = true;
 			}
 

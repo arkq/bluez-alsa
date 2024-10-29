@@ -30,6 +30,7 @@
 #include "ba-config.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
+#include "bluealsa-dbus.h"
 #include "io.h"
 #include "rtp.h"
 #include "utils.h"
@@ -290,6 +291,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	/* Get the delay introduced by the encoder. */
 	t_pcm->codec_delay_dms = info.nDelay * 10000 / rate;
+	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
 	/* initialize RTP header and get anchor for payload */
@@ -377,6 +379,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 					if (!io.initiated) {
 						/* Get the delay due to codec processing. */
 						t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+						ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 						io.initiated = true;
 					}
 
@@ -556,6 +559,7 @@ void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 			/* Update the delay introduced by the decoder. */
 			t_pcm->codec_delay_dms = info->outputDelay * 10000 / rate;
+			ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 			/* update local state with decoded PCM frames */
 			rtp_state_update(&rtp, info->frameSize);

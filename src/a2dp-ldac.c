@@ -27,6 +27,7 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "ba-config.h"
+#include "bluealsa-dbus.h"
 #include "io.h"
 #include "rtp.h"
 #include "utils.h"
@@ -169,6 +170,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const unsigned int ldac_delay_frames = 128;
 	/* Get the total delay introduced by the codec. */
 	t_pcm->codec_delay_dms = ldac_delay_frames * 10000 / rate;
+	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
 	rtp_media_header_t *rtp_media_header;
@@ -247,6 +249,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 				if (!io.initiated) {
 					/* Get the delay due to codec processing. */
 					t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+					ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 					io.initiated = true;
 				}
 

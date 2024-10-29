@@ -19,6 +19,7 @@
 
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
+#include "bluealsa-dbus.h"
 #include "codec-msbc.h"
 #include "io.h"
 #include "shared/defs.h"
@@ -46,6 +47,7 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const unsigned int sbc_delay_frames = 73;
 	/* Get the total delay introduced by the codec. */
 	t_pcm->codec_delay_dms = sbc_delay_frames * 10000 / t_pcm->rate;
+	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
@@ -87,6 +89,7 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 				if (!io.initiated) {
 					/* Get the delay due to codec processing. */
 					t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+					ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 					io.initiated = true;
 				}
 
