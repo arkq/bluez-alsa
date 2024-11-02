@@ -455,7 +455,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	 * all channels to the average left-right volume. */
 
 	unsigned int volume_sum = 0, muted = 0;
-	for (size_t i = 1; i < ba_pcm->channels; i++) {
+	for (size_t i = 0; i < ba_pcm->channels; i++) {
 		volume_sum += ba_pcm->volume[i].volume;
 		muted |= ba_pcm->volume[i].muted;
 	}
