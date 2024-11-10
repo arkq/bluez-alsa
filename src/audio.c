@@ -84,7 +84,7 @@ void audio_scale_s16_2le(int16_t * restrict buffer,
 		const double * restrict scale, unsigned int channels, size_t frames) {
 	for (size_t i = 0; frames; frames--)
 		for (size_t c = 0; c < channels; c++, i++)
-			buffer[i] = htole16(((int16_t)le16toh(buffer[i]) * scale[c]));
+			buffer[i] = htole16((int16_t)((int16_t)le16toh(buffer[i]) * scale[c]));
 }
 
 /**
@@ -93,5 +93,5 @@ void audio_scale_s32_4le(int32_t * restrict buffer,
 		const double * restrict scale, unsigned int channels, size_t frames) {
 	for (size_t i = 0; frames; frames--)
 		for (size_t c = 0; c < channels; c++, i++)
-			buffer[i] = htole32((int32_t)le32toh(buffer[i]) * scale[c]);
+			buffer[i] = htole32((int32_t)((int32_t)le32toh(buffer[i]) * scale[c]));
 }
