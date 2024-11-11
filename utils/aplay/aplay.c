@@ -86,8 +86,11 @@ static bool ba_profile_a2dp = true;
 static bool ba_addr_any = false;
 static bdaddr_t *ba_addrs = NULL;
 static size_t ba_addrs_count = 0;
-static unsigned int pcm_buffer_time = 500000;
-static unsigned int pcm_period_time = 100000;
+/* Many devices cannot synchronize A/V with very high audio latency. To keep
+ * the overall latency below 400ms we choose ALSA parameters such that the
+ * ALSA latency is below 200ms. */
+static unsigned int pcm_buffer_time = 200000;
+static unsigned int pcm_period_time = 50000;
 
 /* local PCM muted state for software mute */
 static bool pcm_muted = false;

@@ -89,14 +89,16 @@ static int alsa_pcm_set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size,
 		goto fail;
 	}
 
-	/* start the transfer when the buffer is full (or almost full) */
-	snd_pcm_uframes_t threshold = (buffer_size / period_size) * period_size;
+	/* Start the transfer when the buffer is half full - this allows
+	 * spare capacity to accommodate bursts and short breaks in the
+	 * Bluetooth stream. */
+	snd_pcm_uframes_t threshold = buffer_size / 2;
 	if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0) {
 		snprintf(buf, sizeof(buf), "Set start threshold: %s: %lu", snd_strerror(err), threshold);
 		goto fail;
 	}
 
-	/* allow the transfer when at least period_size samples can be processed */
+	/* Allow the transfer when at least period_size samples can be processed. */
 	if ((err = snd_pcm_sw_params_set_avail_min(pcm, params, period_size)) != 0) {
 		snprintf(buf, sizeof(buf), "Set avail min: %s: %lu", snd_strerror(err), period_size);
 		goto fail;

@@ -89,7 +89,7 @@ OPTIONS
 
 --pcm-buffer-time=INT
     Set the playback PCM buffer duration time to *INT* microseconds.
-    The default is 500000. It is recommended to choose a buffer time that is
+    The default is 200000. It is recommended to choose a buffer time that is
     an exact multiple of the period time to avoid potential issues with some
     ALSA plugins (see --pcm-period-time option below).
     ALSA may choose the nearest available alternative if the requested value is
@@ -101,7 +101,7 @@ OPTIONS
 
 --pcm-period-time=INT
     Set the playback PCM period duration time to *INT* microseconds.
-    The default is 100000.
+    The default is 50000.
     ALSA may choose the nearest available alternative if the requested value is
     not supported.
 
@@ -232,12 +232,12 @@ Instead it will choose its own values, which can lead to rounding errors in the
 period size calculation when used with the ALSA `rate` plugin. To avoid this,
 it is recommended to explicitly define the hardware period size and buffer size
 for dmix in your ALSA configuration. For example, suppose we want a period time
-of 100000 µs and a buffer holding 5 periods with an Intel 'PCH' card:
+of 50000 µs and a buffer holding 4 periods with an Intel 'PCH' card:
 
 ::
 
-    defaults.dmix.PCH.period_time 100000
-    defaults.dmix.PCH.periods 5
+    defaults.dmix.PCH.period_time 50000
+    defaults.dmix.PCH.periods 4
 
 Alternatively we can define a PCM with the required setting:
 
@@ -250,8 +250,8 @@ Alternatively we can define a PCM with the required setting:
             ipc_key 12345
             slave {
                 pcm "hw:0,0"
-                period_time 100000
-                periods 5
+                period_time 50000
+                periods 4
             }
         }
     }

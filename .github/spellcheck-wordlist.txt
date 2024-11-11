@@ -68,6 +68,7 @@ ATRAC
 BlueALSA
 BlueZ
 Fraunhofer
+iPhone
 IWYU
 LDAC
 LHDC
