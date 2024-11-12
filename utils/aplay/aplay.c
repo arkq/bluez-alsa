@@ -27,6 +27,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <sys/eventfd.h>
+#include <sys/ioctl.h>
 #include <sys/param.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -820,10 +821,18 @@ retry_alsa_write:
 		ffb_shift(&buffer, frames * w->ba_pcm.channels);
 
 		int ret;
-		if ((ret = snd_pcm_delay(w->snd_pcm,
-						&pcm_delay_frames[pcm_delay_frames_i++ % ARRAYSIZE(pcm_delay_frames)])) != 0)
+		snd_pcm_sframes_t delay_frames = 0;
+		if ((ret = snd_pcm_delay(w->snd_pcm, &delay_frames)) != 0)
 			warn("Couldn't get PCM delay: %s", snd_strerror(ret));
 		else {
+
+			unsigned int buffered = 0;
+			ioctl(w->ba_pcm_fd, FIONREAD, &buffered);
+			buffered += ffb_blen_out(&buffer);
+			delay_frames +=  buffered / (w->ba_pcm.channels * pcm_format_size);
+
+			pcm_delay_frames[pcm_delay_frames_i % ARRAYSIZE(pcm_delay_frames)] = delay_frames;
+			pcm_delay_frames_i++;
 
 			struct timespec ts_now;
 			/* Rate limit delay updates to 1 update per second. */
