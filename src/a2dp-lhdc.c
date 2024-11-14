@@ -198,6 +198,10 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
+	const unsigned int ldac_delay_frames = 1024;
+	/* Get the total delay introduced by the codec. */
+	t_pcm->codec_delay_dms = ldac_delay_frames * 10000 / rate;
+
 	rtp_header_t *rtp_header;
 	rtp_lhdc_media_header_t *rtp_lhdc_media_header;
 	/* initialize RTP headers and get anchor for payload */
@@ -216,6 +220,7 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		switch (io_poll_and_read_pcm(&io, t_pcm, &pcm)) {
 		case -1:
 			if (errno == ESTALE) {
+				/* TODO: flush encoder internal buffers */
 				ffb_rewind(&pcm);
 				continue;
 			}

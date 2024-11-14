@@ -174,7 +174,7 @@ struct bt_dump *bt_dump_open(const char *path) {
 		goto fail;
 	}
 
-	uint16_t id;
+	uint32_t id;
 	if (bt_dump_read(btd, &id, sizeof(id)) == -1)
 		goto fail;
 	btd->transport_codec_id = be32toh(id);

@@ -571,7 +571,7 @@ typedef struct a2dp_ldac {
 
 #define LHDC_MAX_BITRATE_400K           (1 << 1)
 #define LHDC_MAX_BITRATE_500K           (1 << 0)
-#define LHDC_MAX_BITRATE_900K           0x00
+#define LHDC_MAX_BITRATE_900K           (0)
 
 #define LHDC_CH_SPLIT_MODE_NONE         (1 << 0)
 #define LHDC_CH_SPLIT_MODE_TWS          (1 << 1)

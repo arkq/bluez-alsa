@@ -1,7 +1,7 @@
 # BlueALSA - configure.ac
 # Copyright (c) 2016-2024 Arkadiusz Bokowy
 
-AC_PREREQ([2.60])
+AC_PREREQ([2.62])
 AC_INIT([BlueALSA],
 	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v4.3.1]))],
 	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/arkq/bluez-alsa])
@@ -13,6 +13,7 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AC_USE_SYSTEM_EXTENSIONS
 m4_version_prereq(2.70, [AC_PROG_CC], [AC_PROG_CC_C99])
+AC_OPENMP
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MKDIR_P

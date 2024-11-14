@@ -37,6 +37,9 @@
 #if ENABLE_LDAC_IO_TEST
 # include <ldacBT.h>
 #endif
+#if ENABLE_LHDC
+# include <lhdcBT.h>
+#endif
 #if HAVE_SNDFILE
 # include <sndfile.h>
 #endif
@@ -60,6 +63,9 @@
 #if ENABLE_LDAC_IO_TEST
 # include "a2dp-ldac.h"
 #endif
+#if ENABLE_LHDC
+# include "a2dp-lhdc.h"
+#endif
 #if ENABLE_MPEG
 # include "a2dp-mpeg.h"
 #endif
@@ -81,7 +87,7 @@
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
-#if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
+#if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST || ENABLE_LHDC
 # include "rtp.h"
 #endif
 #include "storage.h"
@@ -112,6 +118,8 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm);
+void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm);
 void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm);
@@ -210,6 +218,13 @@ static const a2dp_ldac_t config_ldac_48000_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(LDAC_VENDOR_ID, LDAC_CODEC_ID),
 	.sampling_freq = LDAC_SAMPLING_FREQ_48000,
 	.channel_mode = LDAC_CHANNEL_MODE_STEREO,
+};
+
+__attribute__ ((unused))
+static const a2dp_lhdc_v3_t config_lhdc_44100_stereo = {
+	.info = A2DP_VENDOR_INFO_INIT(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID),
+	.sampling_freq = LHDC_SAMPLING_FREQ_44100,
+	.bit_depth = LHDC_BIT_DEPTH_24,
 };
 
 __attribute__ ((unused))
@@ -1301,6 +1316,39 @@ CK_START_TEST(test_a2dp_ldac) {
 } CK_END_TEST
 #endif
 
+#if ENABLE_LHDC
+CK_START_TEST(test_a2dp_lhdc) {
+
+	config.lhdc_eqmid = LHDCBT_QUALITY_HIGH;
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lhdc", &a2dp_lhdc_source,
+			&config_lhdc_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lhdc", &a2dp_lhdc_sink,
+			&config_lhdc_44100_stereo);
+
+	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+
+	if (aging_duration) {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990;
+		test_io(t1_pcm, t2_pcm, a2dp_lhdc_enc_thread, a2dp_lhdc_dec_thread, 4 * 1024);
+	}
+	else {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
+			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990;
+		test_io(t1_pcm, t2_pcm, a2dp_lhdc_enc_thread, test_io_thread_dump_bt, 2 * 1024);
+		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_lhdc_dec_thread, 2 * 1024);
+	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
+} CK_END_TEST
+#endif
+
 #if ENABLE_OPUS
 CK_START_TEST(test_a2dp_opus) {
 
@@ -1323,6 +1371,9 @@ CK_START_TEST(test_a2dp_opus) {
 		test_io(t1_pcm, t2_pcm, a2dp_opus_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_opus_dec_thread, 2 * 1024);
 	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
 
 } CK_END_TEST
 #endif
@@ -1436,6 +1487,9 @@ int main(int argc, char *argv[]) {
 #endif
 #if ENABLE_LDAC_IO_TEST
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID)), test_a2dp_ldac },
+#endif
+#if ENABLE_LHDC
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)), test_a2dp_lhdc },
 #endif
 #if ENABLE_OPUS
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },
