@@ -46,10 +46,22 @@ static const struct a2dp_bit_mapping a2dp_lhdc_rates[] = {
 	{ 0 },
 };
 
-static void a2dp_lhdc_caps_intersect(
+static void a2dp_lhdc_v2_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_lhdc_v2_t));
+}
+
+static void a2dp_lhdc_v3_caps_intersect(
 		void *capabilities,
 		const void *mask) {
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_lhdc_v3_t));
+}
+
+static void a2dp_lhdc_v5_caps_intersect(
+		void *capabilities,
+		const void *mask) {
+	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_lhdc_v5_t));
 }
 
 static int a2dp_lhdc_caps_foreach_channel_mode(
@@ -65,12 +77,34 @@ static int a2dp_lhdc_caps_foreach_channel_mode(
 	return -1;
 }
 
-static int a2dp_lhdc_caps_foreach_sample_rate(
+static int a2dp_lhdc_v2_caps_foreach_sample_rate(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_lhdc_v2_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_lhdc_rates, caps->sampling_freq, func, userdata);
+	return -1;
+}
+
+static int a2dp_lhdc_v3_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
 		void *userdata) {
 	const a2dp_lhdc_v3_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		return a2dp_bit_mapping_foreach(a2dp_lhdc_rates, caps->sampling_freq, func, userdata);
+	return -1;
+}
+
+static int a2dp_lhdc_v5_caps_foreach_sample_rate(
+		const void *capabilities,
+		enum a2dp_stream stream,
+		a2dp_bit_mapping_foreach_func func,
+		void *userdata) {
+	const a2dp_lhdc_v5_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_lhdc_rates, caps->sampling_freq, func, userdata);
 	return -1;
@@ -85,7 +119,17 @@ static void a2dp_lhdc_caps_select_channel_mode(
 	(void)channels;
 }
 
-static void a2dp_lhdc_caps_select_sample_rate(
+static void a2dp_lhdc_v2_caps_select_sample_rate(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int rate) {
+	a2dp_lhdc_v2_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_lhdc_rates,
+				caps->sampling_freq, rate);
+}
+
+static void a2dp_lhdc_v3_caps_select_sample_rate(
 		void *capabilities,
 		enum a2dp_stream stream,
 		unsigned int rate) {
@@ -95,44 +139,74 @@ static void a2dp_lhdc_caps_select_sample_rate(
 				caps->sampling_freq, rate);
 }
 
-static struct a2dp_caps_helpers a2dp_lhdc_caps_helpers = {
-	.intersect = a2dp_lhdc_caps_intersect,
-	.has_stream = a2dp_caps_has_main_stream_only,
-	.foreach_channel_mode = a2dp_lhdc_caps_foreach_channel_mode,
-	.foreach_sample_rate = a2dp_lhdc_caps_foreach_sample_rate,
-	.select_channel_mode = a2dp_lhdc_caps_select_channel_mode,
-	.select_sample_rate = a2dp_lhdc_caps_select_sample_rate,
-};
-
-static LHDC_VERSION_SETUP get_version(const a2dp_lhdc_v3_t *configuration) {
-	if (configuration->llac)
-		return LLAC;
-	if (configuration->lhdc_v4)
-		return LHDC_V4;
-	return LHDC_V3;
+static void a2dp_lhdc_v5_caps_select_sample_rate(
+		void *capabilities,
+		enum a2dp_stream stream,
+		unsigned int rate) {
+	a2dp_lhdc_v5_t *caps = capabilities;
+	if (stream == A2DP_MAIN)
+		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_lhdc_rates,
+				caps->sampling_freq, rate);
 }
 
-static lhdc_ver_t get_decoder_version(const a2dp_lhdc_v3_t *configuration) {
+static struct a2dp_caps_helpers a2dp_lhdc_v2_caps_helpers = {
+	.intersect = a2dp_lhdc_v2_caps_intersect,
+	.has_stream = a2dp_caps_has_main_stream_only,
+	.foreach_channel_mode = a2dp_lhdc_caps_foreach_channel_mode,
+	.foreach_sample_rate = a2dp_lhdc_v2_caps_foreach_sample_rate,
+	.select_channel_mode = a2dp_lhdc_caps_select_channel_mode,
+	.select_sample_rate = a2dp_lhdc_v2_caps_select_sample_rate,
+};
+
+static struct a2dp_caps_helpers a2dp_lhdc_v3_caps_helpers = {
+	.intersect = a2dp_lhdc_v3_caps_intersect,
+	.has_stream = a2dp_caps_has_main_stream_only,
+	.foreach_channel_mode = a2dp_lhdc_caps_foreach_channel_mode,
+	.foreach_sample_rate = a2dp_lhdc_v3_caps_foreach_sample_rate,
+	.select_channel_mode = a2dp_lhdc_caps_select_channel_mode,
+	.select_sample_rate = a2dp_lhdc_v3_caps_select_sample_rate,
+};
+
+static struct a2dp_caps_helpers a2dp_lhdc_v5_caps_helpers = {
+	.intersect = a2dp_lhdc_v5_caps_intersect,
+	.has_stream = a2dp_caps_has_main_stream_only,
+	.foreach_channel_mode = a2dp_lhdc_caps_foreach_channel_mode,
+	.foreach_sample_rate = a2dp_lhdc_v5_caps_foreach_sample_rate,
+	.select_channel_mode = a2dp_lhdc_caps_select_channel_mode,
+	.select_sample_rate = a2dp_lhdc_v5_caps_select_sample_rate,
+};
+
+static LHDC_VERSION_SETUP get_lhdc_enc_version(const void *configuration) {
+	switch (((a2dp_vendor_info_t *)configuration)->codec_id) {
+	case LHDC_V2_CODEC_ID:
+		return LHDC_V2;
+	case LHDC_V3_CODEC_ID: {
+		const a2dp_lhdc_v3_t *v3 = configuration;
+		if (v3->llac)
+			return LLAC;
+		if (v3->lhdc_v4)
+			return LHDC_V4;
+		return LHDC_V3;
+	} break;
+	default:
+		return 0;
+	}
+}
+
+static lhdc_ver_t get_lhdc_dec_version(const void *configuration) {
 
 	static const lhdc_ver_t versions[] = {
+		[LHDC_V2] = VERSION_2,
 		[LHDC_V3] = VERSION_3,
 		[LHDC_V4] = VERSION_4,
 		[LLAC]	= VERSION_LLAC,
 	};
 
-	return versions[get_version(configuration)];
+	return versions[get_lhdc_enc_version(configuration)];
 }
 
-static int get_interval(const a2dp_lhdc_v3_t *configuration) {
-	return configuration->low_latency ? 10 : 20;
-}
-
-static int get_bit_depth(const a2dp_lhdc_v3_t *configuration) {
-	return configuration->bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
-}
-
-static LHDCBT_QUALITY_T get_max_bitrate(const a2dp_lhdc_v3_t *configuration) {
-	switch (configuration->max_bitrate) {
+static LHDCBT_QUALITY_T get_lhdc_max_bitrate(uint8_t config_max_bitrate) {
+	switch (config_max_bitrate) {
 	case LHDC_MAX_BITRATE_400K:
 		return LHDCBT_QUALITY_LOW;
 	case LHDC_MAX_BITRATE_500K:
@@ -151,26 +225,44 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct ba_transport *t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
-	const a2dp_lhdc_v3_t *configuration = &t->a2dp.configuration.lhdc_v3;
-	const unsigned int bit_depth = get_bit_depth(configuration);
+	const uint32_t codec_id = ba_transport_get_codec(t);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 
 	HANDLE_LHDC_BT handle;
-	if ((handle = lhdcBT_get_handle(get_version(configuration))) == NULL) {
+	if ((handle = lhdcBT_get_handle(get_lhdc_enc_version(&t->a2dp.configuration))) == NULL) {
 		error("Couldn't get LHDC handle: %s", strerror(errno));
 		goto fail_open_lhdc;
 	}
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(lhdcBT_free_handle), handle);
 
-	lhdcBT_set_hasMinBitrateLimit(handle, configuration->min_bitrate);
-	lhdcBT_set_max_bitrate(handle, get_max_bitrate(configuration));
+	int lhdc_max_bitrate_index = 0;
+	int lhdc_bit_depth = 0;
+	int lhdc_dual_channel = 0;
+	int lhdc_interval = 0;
 
-	if (lhdcBT_init_encoder(handle, rate, bit_depth, config.lhdc_eqmid,
-				configuration->ch_split_mode > LHDC_CH_SPLIT_MODE_NONE, 0,
-				t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_lhdc_media_header_t),
-				get_interval(configuration)) == -1) {
+	switch (codec_id) {
+	case A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID):
+		error("LHDC v2 is not supported yet");
+		goto fail_init;
+	case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
+		lhdcBT_set_hasMinBitrateLimit(handle, t->a2dp.configuration.lhdc_v3.min_bitrate);
+		lhdc_max_bitrate_index = get_lhdc_max_bitrate(t->a2dp.configuration.lhdc_v3.max_bitrate);
+		lhdc_bit_depth = t->a2dp.configuration.lhdc_v3.bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
+		lhdc_dual_channel = t->a2dp.configuration.lhdc_v3.ch_split_mode > LHDC_CH_SPLIT_MODE_NONE;
+		lhdc_interval = t->a2dp.configuration.lhdc_v3.low_latency ? 10 : 20;
+		break;
+	case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
+		error("LHDC v5 is not supported yet");
+		goto fail_init;
+	}
+
+	lhdcBT_set_max_bitrate(handle, lhdc_max_bitrate_index);
+
+	if (lhdcBT_init_encoder(handle, rate, lhdc_bit_depth, config.lhdc_eqmid, lhdc_dual_channel,
+				0, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_lhdc_media_header_t),
+				lhdc_interval) == -1) {
 		error("Couldn't initialize LHDC encoder");
 		goto fail_init;
 	}
@@ -195,9 +287,9 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
-	const unsigned int ldac_delay_frames = 1024;
+	const unsigned int lhdc_delay_frames = 1024;
 	/* Get the total delay introduced by the codec. */
-	t_pcm->codec_delay_dms = ldac_delay_frames * 10000 / rate;
+	t_pcm->codec_delay_dms = lhdc_delay_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
@@ -245,8 +337,9 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 			uint32_t encoded;
 			uint32_t frames;
 
-			if (lhdcBT_encode_stereo(handle, pcm_ch1, pcm_ch2, bt.tail, &encoded, &frames) < 0) {
-				error("LHDC encoding error");
+			int rv;
+			if ((rv = lhdcBT_encode_stereo(handle, pcm_ch1, pcm_ch2, bt.tail, &encoded, &frames)) < 0) {
+				error("LHDC encoding error: %d", rv);
 				break;
 			}
 
@@ -258,9 +351,9 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 				rtp_state_new_frame(&rtp, rtp_header);
 
-				rtp_lhdc_media_header->seq_number = seq_num++;
 				rtp_lhdc_media_header->latency = 0;
 				rtp_lhdc_media_header->frame_count = frames;
+				rtp_lhdc_media_header->seq_number = seq_num++;
 
 				/* Try to get the number of bytes queued in the
 				 * socket output buffer. */
@@ -333,17 +426,24 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	struct ba_transport *t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
-	const a2dp_lhdc_v3_t *configuration = &t->a2dp.configuration.lhdc_v3;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
-	const unsigned int bit_depth = get_bit_depth(configuration);
 
-	tLHDCV3_DEC_CONFIG dec_config = {
-		.version = get_decoder_version(configuration),
-		.sample_rate = rate,
-		.bits_depth = bit_depth,
-	};
+	tLHDCV3_DEC_CONFIG dec_config = { .sample_rate = rate };
+
+	switch (ba_transport_get_codec(t)) {
+	case A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID):
+		error("LHDC v2 is not supported yet");
+		goto fail_open;
+	case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
+		dec_config.version = get_lhdc_dec_version(&t->a2dp.configuration.lhdc_v3);
+		dec_config.bits_depth = t->a2dp.configuration.lhdc_v3.bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
+		break;
+	case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
+		error("LHDC v5 is not supported yet");
+		goto fail_open;
+	}
 
 	if (lhdcBT_dec_init_decoder(&dec_config) < 0) {
 		error("Couldn't initialise LHDC decoder: %s", strerror(errno));
@@ -394,8 +494,12 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 		const uint8_t *rtp_payload = (uint8_t *)rtp_lhdc_media_header;
 		size_t rtp_payload_len = len - (rtp_payload - (uint8_t *)bt.data);
 
+		int rv;
 		uint32_t decoded = ffb_blen_in(&pcm);
-		lhdcBT_dec_decode(rtp_payload, rtp_payload_len, pcm.data, &decoded, 24);
+		if ((rv = lhdcBT_dec_decode(rtp_payload, rtp_payload_len, pcm.data, &decoded, 24)) != 0) {
+			error("LHDC decoding error: %s", lhdcBT_dec_strerror(rv));
+			continue;
+		}
 
 		const size_t samples = decoded / sample_size;
 
@@ -423,17 +527,15 @@ fail_open:
 	return NULL;
 }
 
-static int a2dp_lhdc_configuration_select(
+static int a2dp_lhdc_v2_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
-	warn("LHDC: LLAC/V3/V4 switch logic is not implemented");
-
-	a2dp_lhdc_v3_t *caps = capabilities;
-	const a2dp_lhdc_v3_t saved = *caps;
+	a2dp_lhdc_v2_t *caps = capabilities;
+	const a2dp_lhdc_v2_t saved = *caps;
 
 	/* Narrow capabilities to values supported by BlueALSA. */
-	a2dp_lhdc_caps_intersect(caps, &sep->config.capabilities);
+	a2dp_lhdc_v2_caps_intersect(caps, &sep->config.capabilities);
 
 	if (caps->bit_depth & LHDC_BIT_DEPTH_24)
 		caps->bit_depth = LHDC_BIT_DEPTH_24;
@@ -445,7 +547,7 @@ static int a2dp_lhdc_configuration_select(
 	}
 
 	unsigned int sampling_freq = 0;
-	if (a2dp_lhdc_caps_foreach_sample_rate(caps, A2DP_MAIN,
+	if (a2dp_lhdc_v2_caps_foreach_sample_rate(caps, A2DP_MAIN,
 				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
 		caps->sampling_freq = sampling_freq;
 	else {
@@ -456,7 +558,89 @@ static int a2dp_lhdc_configuration_select(
 	return 0;
 }
 
-static int a2dp_lhdc_configuration_check(
+static int a2dp_lhdc_v3_configuration_select(
+		const struct a2dp_sep *sep,
+		void *capabilities) {
+
+	warn("LHDC: LLAC/V3/V4 switch logic is not implemented");
+
+	a2dp_lhdc_v3_t *caps = capabilities;
+	const a2dp_lhdc_v3_t saved = *caps;
+
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_lhdc_v3_caps_intersect(caps, &sep->config.capabilities);
+
+	if (caps->bit_depth & LHDC_BIT_DEPTH_24)
+		caps->bit_depth = LHDC_BIT_DEPTH_24;
+	else if (caps->bit_depth & LHDC_BIT_DEPTH_16)
+		caps->bit_depth = LHDC_BIT_DEPTH_16;
+	else {
+		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
+		return errno = ENOTSUP, -1;
+	}
+
+	unsigned int sampling_freq = 0;
+	if (a2dp_lhdc_v3_caps_foreach_sample_rate(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+		caps->sampling_freq = sampling_freq;
+	else {
+		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
+}
+
+static int a2dp_lhdc_v5_configuration_select(
+		const struct a2dp_sep *sep,
+		void *capabilities) {
+
+	a2dp_lhdc_v5_t *caps = capabilities;
+	const a2dp_lhdc_v5_t saved = *caps;
+
+	/* Narrow capabilities to values supported by BlueALSA. */
+	a2dp_lhdc_v5_caps_intersect(caps, &sep->config.capabilities);
+
+	if (caps->bit_depth & LHDC_BIT_DEPTH_24)
+		caps->bit_depth = LHDC_BIT_DEPTH_24;
+	else if (caps->bit_depth & LHDC_BIT_DEPTH_16)
+		caps->bit_depth = LHDC_BIT_DEPTH_16;
+	else {
+		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
+		return errno = ENOTSUP, -1;
+	}
+
+	unsigned int sampling_freq = 0;
+	if (a2dp_lhdc_v5_caps_foreach_sample_rate(caps, A2DP_MAIN,
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+		caps->sampling_freq = sampling_freq;
+	else {
+		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
+		return errno = ENOTSUP, -1;
+	}
+
+	return 0;
+}
+
+static int a2dp_lhdc_v2_configuration_check(
+		const struct a2dp_sep *sep,
+		const void *configuration) {
+
+	const a2dp_lhdc_v2_t *conf = configuration;
+	a2dp_lhdc_v2_t conf_v = *conf;
+
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_lhdc_v2_caps_intersect(&conf_v, &sep->config.capabilities);
+
+	if (a2dp_bit_mapping_lookup(a2dp_lhdc_rates, conf_v.sampling_freq) == -1) {
+		debug("LHDC: Invalid sample rate: %#x", conf->sampling_freq);
+		return A2DP_CHECK_ERR_RATE;
+	}
+
+	return A2DP_CHECK_OK;
+}
+
+static int a2dp_lhdc_v3_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -464,7 +648,25 @@ static int a2dp_lhdc_configuration_check(
 	a2dp_lhdc_v3_t conf_v = *conf;
 
 	/* Validate configuration against BlueALSA capabilities. */
-	a2dp_lhdc_caps_intersect(&conf_v, &sep->config.capabilities);
+	a2dp_lhdc_v3_caps_intersect(&conf_v, &sep->config.capabilities);
+
+	if (a2dp_bit_mapping_lookup(a2dp_lhdc_rates, conf_v.sampling_freq) == -1) {
+		debug("LHDC: Invalid sample rate: %#x", conf->sampling_freq);
+		return A2DP_CHECK_ERR_RATE;
+	}
+
+	return A2DP_CHECK_OK;
+}
+
+static int a2dp_lhdc_v5_configuration_check(
+		const struct a2dp_sep *sep,
+		const void *configuration) {
+
+	const a2dp_lhdc_v5_t *conf = configuration;
+	a2dp_lhdc_v5_t conf_v = *conf;
+
+	/* Validate configuration against BlueALSA capabilities. */
+	a2dp_lhdc_v5_caps_intersect(&conf_v, &sep->config.capabilities);
 
 	if (a2dp_bit_mapping_lookup(a2dp_lhdc_rates, conf_v.sampling_freq) == -1) {
 		debug("LHDC: Invalid sample rate: %#x", conf->sampling_freq);
@@ -477,9 +679,25 @@ static int a2dp_lhdc_configuration_check(
 static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 
 	ssize_t rate_i;
-	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
-					t->a2dp.configuration.lhdc_v3.sampling_freq)) == -1)
+	switch (t->codec_id) {
+	case A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID):
+		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
+						t->a2dp.configuration.lhdc_v2.sampling_freq)) == -1)
+			return -1;
+		break;
+	case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
+		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
+						t->a2dp.configuration.lhdc_v3.sampling_freq)) == -1)
+			return -1;
+		break;
+	case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
+		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
+						t->a2dp.configuration.lhdc_v5.sampling_freq)) == -1)
+			return -1;
+		break;
+	default:
 		return -1;
+	}
 
 	/* LHDC library uses 32-bit signed integers for the encoder API and
 	 * 24-bit signed integers for the decoder API. So, the best common
@@ -496,7 +714,17 @@ static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 
 static int a2dp_lhdc_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_44100)
-		sep->config.capabilities.lhdc_v3.sampling_freq = LHDC_SAMPLING_FREQ_44100;
+		switch (sep->config.codec_id) {
+		case A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID):
+			sep->config.capabilities.lhdc_v2.sampling_freq = LHDC_SAMPLING_FREQ_44100;
+			break;
+		case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
+			sep->config.capabilities.lhdc_v3.sampling_freq = LHDC_SAMPLING_FREQ_44100;
+			break;
+		case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
+			sep->config.capabilities.lhdc_v5.sampling_freq = LHDC_SAMPLING_FREQ_44100;
+			break;
+		}
 	return 0;
 }
 
@@ -504,7 +732,64 @@ static int a2dp_lhdc_source_transport_start(struct ba_transport *t) {
 	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_lhdc_enc_thread, "ba-a2dp-lhdc");
 }
 
-struct a2dp_sep a2dp_lhdc_source = {
+static int a2dp_lhdc_sink_transport_start(struct ba_transport *t) {
+	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_lhdc_dec_thread, "ba-a2dp-lhdc");
+}
+
+struct a2dp_sep a2dp_lhdc_v2_source = {
+	.name = "A2DP Source (LHDC v2)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID),
+		.caps_size = sizeof(a2dp_lhdc_v2_t),
+		.capabilities.lhdc_v2 = {
+			.info = A2DP_VENDOR_INFO_INIT(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID),
+			.sampling_freq =
+				LHDC_SAMPLING_FREQ_44100 |
+				LHDC_SAMPLING_FREQ_48000 |
+				LHDC_SAMPLING_FREQ_96000,
+			.bit_depth =
+				LHDC_BIT_DEPTH_16 |
+				LHDC_BIT_DEPTH_24,
+			.max_bitrate = LHDC_MAX_BITRATE_900K,
+			.ch_split_mode = LHDC_CH_SPLIT_MODE_NONE,
+		},
+	},
+	.init = a2dp_lhdc_source_init,
+	.configuration_select = a2dp_lhdc_v2_configuration_select,
+	.configuration_check = a2dp_lhdc_v2_configuration_check,
+	.transport_init = a2dp_lhdc_transport_init,
+	.transport_start = a2dp_lhdc_source_transport_start,
+	.caps_helpers = &a2dp_lhdc_v2_caps_helpers,
+};
+
+struct a2dp_sep a2dp_lhdc_v2_sink = {
+	.name = "A2DP Sink (LHDC v2)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID),
+		.caps_size = sizeof(a2dp_lhdc_v2_t),
+		.capabilities.lhdc_v2 = {
+			.info = A2DP_VENDOR_INFO_INIT(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID),
+			.sampling_freq =
+				LHDC_SAMPLING_FREQ_44100 |
+				LHDC_SAMPLING_FREQ_48000 |
+				LHDC_SAMPLING_FREQ_96000,
+			.bit_depth =
+				LHDC_BIT_DEPTH_16 |
+				LHDC_BIT_DEPTH_24,
+			.max_bitrate = LHDC_MAX_BITRATE_900K,
+			.ch_split_mode = LHDC_CH_SPLIT_MODE_NONE,
+		},
+	},
+	.configuration_select = a2dp_lhdc_v2_configuration_select,
+	.configuration_check = a2dp_lhdc_v2_configuration_check,
+	.transport_init = a2dp_lhdc_transport_init,
+	.transport_start = a2dp_lhdc_sink_transport_start,
+	.caps_helpers = &a2dp_lhdc_v2_caps_helpers,
+};
+
+struct a2dp_sep a2dp_lhdc_v3_source = {
 	.name = "A2DP Source (LHDC v3)",
 	.config = {
 		.type = A2DP_SOURCE,
@@ -528,18 +813,14 @@ struct a2dp_sep a2dp_lhdc_source = {
 		},
 	},
 	.init = a2dp_lhdc_source_init,
-	.configuration_select = a2dp_lhdc_configuration_select,
-	.configuration_check = a2dp_lhdc_configuration_check,
+	.configuration_select = a2dp_lhdc_v3_configuration_select,
+	.configuration_check = a2dp_lhdc_v3_configuration_check,
 	.transport_init = a2dp_lhdc_transport_init,
 	.transport_start = a2dp_lhdc_source_transport_start,
-	.caps_helpers = &a2dp_lhdc_caps_helpers,
+	.caps_helpers = &a2dp_lhdc_v3_caps_helpers,
 };
 
-static int a2dp_lhdc_sink_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_lhdc_dec_thread, "ba-a2dp-lhdc");
-}
-
-struct a2dp_sep a2dp_lhdc_sink = {
+struct a2dp_sep a2dp_lhdc_v3_sink = {
 	.name = "A2DP Sink (LHDC v3)",
 	.config = {
 		.type = A2DP_SINK,
@@ -562,9 +843,64 @@ struct a2dp_sep a2dp_lhdc_sink = {
 			.ch_split_mode = LHDC_CH_SPLIT_MODE_NONE,
 		},
 	},
-	.configuration_select = a2dp_lhdc_configuration_select,
-	.configuration_check = a2dp_lhdc_configuration_check,
+	.configuration_select = a2dp_lhdc_v3_configuration_select,
+	.configuration_check = a2dp_lhdc_v3_configuration_check,
 	.transport_init = a2dp_lhdc_transport_init,
 	.transport_start = a2dp_lhdc_sink_transport_start,
-	.caps_helpers = &a2dp_lhdc_caps_helpers,
+	.caps_helpers = &a2dp_lhdc_v3_caps_helpers,
+};
+
+struct a2dp_sep a2dp_lhdc_v5_source = {
+	.name = "A2DP Source (LHDC v5)",
+	.config = {
+		.type = A2DP_SOURCE,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID),
+		.caps_size = sizeof(a2dp_lhdc_v5_t),
+		.capabilities.lhdc_v5 = {
+			.info = A2DP_VENDOR_INFO_INIT(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID),
+			.sampling_freq =
+				LHDC_SAMPLING_FREQ_44100 |
+				LHDC_SAMPLING_FREQ_48000 |
+				LHDC_SAMPLING_FREQ_96000,
+			.bit_depth =
+				LHDC_BIT_DEPTH_16 |
+				LHDC_BIT_DEPTH_24,
+			.min_bitrate = 0,
+			.max_bitrate = LHDC_MAX_BITRATE_900K,
+			.version = LHDC_VER3,
+		},
+	},
+	.init = a2dp_lhdc_source_init,
+	.configuration_select = a2dp_lhdc_v5_configuration_select,
+	.configuration_check = a2dp_lhdc_v5_configuration_check,
+	.transport_init = a2dp_lhdc_transport_init,
+	.transport_start = a2dp_lhdc_source_transport_start,
+	.caps_helpers = &a2dp_lhdc_v5_caps_helpers,
+};
+
+struct a2dp_sep a2dp_lhdc_v5_sink = {
+	.name = "A2DP Sink (LHDC v5)",
+	.config = {
+		.type = A2DP_SINK,
+		.codec_id = A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID),
+		.caps_size = sizeof(a2dp_lhdc_v5_t),
+		.capabilities.lhdc_v5 = {
+			.info = A2DP_VENDOR_INFO_INIT(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID),
+			.sampling_freq =
+				LHDC_SAMPLING_FREQ_44100 |
+				LHDC_SAMPLING_FREQ_48000 |
+				LHDC_SAMPLING_FREQ_96000,
+			.bit_depth =
+				LHDC_BIT_DEPTH_16 |
+				LHDC_BIT_DEPTH_24,
+			.min_bitrate = 0,
+			.max_bitrate = LHDC_MAX_BITRATE_900K,
+			.version = LHDC_VER3,
+		},
+	},
+	.configuration_select = a2dp_lhdc_v5_configuration_select,
+	.configuration_check = a2dp_lhdc_v5_configuration_check,
+	.transport_init = a2dp_lhdc_transport_init,
+	.transport_start = a2dp_lhdc_sink_transport_start,
+	.caps_helpers = &a2dp_lhdc_v5_caps_helpers,
 };

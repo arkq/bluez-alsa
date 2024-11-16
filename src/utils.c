@@ -26,6 +26,10 @@
 # include "ldacBT.h"
 #endif
 
+#if ENABLE_LHDC
+# include <lhdcBT_dec.h>
+#endif
+
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -430,6 +434,25 @@ const char *ldacBT_strerror(int err) {
 	}
 	debug("Unknown error code: %#x (API: %u, handle: %u, block: %u)",
 			err, LDACBT_API_ERR(err), LDACBT_HANDLE_ERR(err), LDACBT_BLOCK_ERR(err));
+	return "Unknown error";
+}
+#endif
+
+#if ENABLE_LHDC
+const char *lhdcBT_dec_strerror(int err) {
+	switch (err) {
+	case LHDCBT_DEC_FUNC_SUCCEED:
+		return "Success";
+	case LHDCBT_DEC_FUNC_FAIL:
+		return "Decode failed";
+	case LHDCBT_DEC_FUNC_INPUT_NOT_ENOUGH:
+		return "Too small input buffer";
+	case LHDCBT_DEC_FUNC_OUTPUT_NOT_ENOUGH:
+		return "Output buffer too small";
+	case LHDCBT_DEC_FUNC_INVALID_SEQ_NO:
+		return "Invalid sequence number";
+	}
+	debug("Unknown error code: %#x", err);
 	return "Unknown error";
 }
 #endif

@@ -88,7 +88,7 @@
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
-#if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST || ENABLE_LHDC
+#if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
 # include "rtp.h"
 #endif
 #include "storage.h"
@@ -223,9 +223,9 @@ static const a2dp_ldac_t config_ldac_48000_stereo = {
 };
 
 __attribute__ ((unused))
-static const a2dp_lhdc_v3_t config_lhdc_44100_stereo = {
+static const a2dp_lhdc_v3_t config_lhdc_v3_48000_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID),
-	.sampling_freq = LHDC_SAMPLING_FREQ_44100,
+	.sampling_freq = LHDC_SAMPLING_FREQ_48000,
 	.bit_depth = LHDC_BIT_DEPTH_24,
 };
 
@@ -465,7 +465,7 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 
 struct bt_data {
 	struct bt_data *next;
-	uint8_t data[1024];
+	uint8_t data[2048];
 	size_t len;
 };
 
@@ -557,7 +557,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 	struct ba_transport *t = t_pcm->t;
 	struct pollfd pfds[] = {{ t_pcm->fd_bt, POLLIN, 0 }};
 	struct bt_dump *btd = NULL;
-	uint8_t buffer[1024];
+	uint8_t buffer[sizeof(bt_data.data)];
 	ssize_t len;
 
 	if (dump_data) {
@@ -1324,28 +1324,26 @@ CK_START_TEST(test_a2dp_ldac) {
 #endif
 
 #if ENABLE_LHDC
-CK_START_TEST(test_a2dp_lhdc) {
+CK_START_TEST(test_a2dp_lhdc_v3) {
 
 	config.lhdc_eqmid = LHDCBT_QUALITY_HIGH;
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lhdc", &a2dp_lhdc_source,
-			&config_lhdc_44100_stereo);
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lhdc", &a2dp_lhdc_v3_source,
+			&config_lhdc_v3_48000_stereo);
 	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lhdc", &a2dp_lhdc_sink,
-			&config_lhdc_44100_stereo);
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lhdc", &a2dp_lhdc_v3_sink,
+			&config_lhdc_v3_48000_stereo);
 
 	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
 	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
 
 	if (aging_duration) {
-		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
-			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 960;
 		test_io(t1_pcm, t2_pcm, a2dp_lhdc_enc_thread, a2dp_lhdc_dec_thread, 4 * 1024);
 	}
 	else {
-		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
-			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990;
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 960;
 		test_io(t1_pcm, t2_pcm, a2dp_lhdc_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_lhdc_dec_thread, 2 * 1024);
 	}
@@ -1496,7 +1494,7 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID)), test_a2dp_ldac },
 #endif
 #if ENABLE_LHDC
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)), test_a2dp_lhdc },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)), test_a2dp_lhdc_v3 },
 #endif
 #if ENABLE_OPUS
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },

@@ -1,6 +1,6 @@
 /*
- * BlueALSA - a2dp-ldac.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * BlueALSA - a2dp-lhdc.h
+ * Copyright (c) 2016-2024 Arkadiusz Bokowy
  * Copyright (c) 2023      anonymix007
  *
  * This file is a part of bluez-alsa.
@@ -19,7 +19,13 @@
 
 #include "a2dp.h"
 
-extern struct a2dp_sep a2dp_lhdc_sink;
-extern struct a2dp_sep a2dp_lhdc_source;
+extern struct a2dp_sep a2dp_lhdc_v2_source;
+extern struct a2dp_sep a2dp_lhdc_v2_sink;
+
+extern struct a2dp_sep a2dp_lhdc_v3_source;
+extern struct a2dp_sep a2dp_lhdc_v3_sink;
+
+extern struct a2dp_sep a2dp_lhdc_v5_source;
+extern struct a2dp_sep a2dp_lhdc_v5_sink;
 
 #endif
