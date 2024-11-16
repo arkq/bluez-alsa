@@ -1367,6 +1367,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 		debug("Adding new Stream End-Point: %s: %s: %s",
 				batostr_(&addr), sep_cfg.type == A2DP_SOURCE ? "SRC" : "SNK",
 				a2dp_codecs_codec_id_to_string(sep_cfg.codec_id));
+		hexdump("SEP capabilities blob", &sep_cfg.capabilities, sep_cfg.caps_size);
 
 		GArray *sep_cfgs = bluez_adapter_get_device_sep_configs(&bluez_adapters[dev_id], &addr);
 		g_array_append_val(sep_cfgs, sep_cfg);
