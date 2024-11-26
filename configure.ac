@@ -142,7 +142,7 @@ AM_COND_IF([ENABLE_APTX], [
 			AC_DEFINE([HAVE_APTX_DECODE], [1], [Define to 1 if you have apt-X decode library.])
 			AC_DEFINE([WITH_LIBFREEAPTX], [1], [Define to 1 if libfreeaptx shall be used.])
 		], [
-			PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
+			PKG_CHECK_MODULES([APTX], [openaptx >= 2.0.0])
 			if test "$($PKG_CONFIG --variable=aptxdecoder openaptx)" = "true"; then
 				AC_DEFINE([HAVE_APTX_DECODE], [1], [Define to 1 if you have apt-X decode library.])
 			fi
@@ -165,8 +165,8 @@ AM_COND_IF([ENABLE_APTX_HD], [
 			AC_DEFINE([HAVE_APTX_HD_DECODE], [1], [Define to 1 if you have apt-X HD decode library.])
 			AC_DEFINE([WITH_LIBFREEAPTX], [1], [Define to 1 if libfreeaptx shall be used.])
 		], [
-			PKG_CHECK_MODULES([APTX], [openaptx >= 1.2.0])
-			if test "$($PKG_CONFIG --variable=aptxdecoder openaptxhd)" = "true"; then
+			PKG_CHECK_MODULES([APTX_HD], [openaptx >= 2.0.0])
+			if test "$($PKG_CONFIG --variable=aptxdecoder openaptx)" = "true"; then
 				AC_DEFINE([HAVE_APTX_HD_DECODE], [1], [Define to 1 if you have apt-X HD decode library.])
 			fi
 		])
