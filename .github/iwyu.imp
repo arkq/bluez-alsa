@@ -29,8 +29,11 @@
 
 	{ include: [ '<glib/gtypes.h>', private, '<glib.h>', public ] },
 	{ include: [ '"gobject/gclosure.h"', private, '<glib-object.h>', public ] },
+	{ include: [ '"gio/gdbusinterface.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusinterfaceskeleton.h"', private, '<gio/gio.h>', public ] },
+	{ include: [ '"gio/gdbusobject.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectmanager.h"', private, '<gio/gio.h>', public ] },
+	{ include: [ '"gio/gdbusobjectmanagerclient.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectmanagerserver.h"', private, '<gio/gio.h>', public ] },
 	{ include: [ '"gio/gdbusobjectskeleton.h"', private, '<gio/gio.h>', public ] },
 

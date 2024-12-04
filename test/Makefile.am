@@ -18,6 +18,7 @@ TESTS = \
 	test-utils
 
 check_PROGRAMS = \
+	a2dp-caps-monitor \
 	test-a2dp \
 	test-alsa-ctl \
 	test-alsa-pcm \
@@ -74,6 +75,11 @@ BUILT_SOURCES = \
 
 MOSTLYCLEANFILES = \
 	$(BUILT_SOURCES)
+
+a2dp_caps_monitor_SOURCES = \
+	../src/shared/a2dp-codecs.c \
+	../src/shared/hex.c \
+	a2dp-caps-monitor.c
 
 test_a2dp_SOURCES = \
 	../src/shared/a2dp-codecs.c \
