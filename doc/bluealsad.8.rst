@@ -6,7 +6,7 @@ bluealsad
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: August 2024
+:Date: December 2024
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -89,6 +89,15 @@ OPTIONS
     compiled-in).
     For the list of supported audio codecs see the "Available BT audio codecs"
     section of the **bluealsad** command-line help message.
+
+--all-codecs
+    Enable all available Bluetooth audio codecs.
+    This option is equivalent to enabling all available audio codecs by
+    specifying them with the ``--codec`` option.
+
+    After enabling all available codecs, it is still possible to disable some
+    of them by using the ``--codec`` option with the **-** prefix. However, the
+    ``--codec`` option(s) must be specified after the ``--all-codecs`` option.
 
 --initial-volume=NUM
     Set the initial volume to *NUM* % when a device is first connected.

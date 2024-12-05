@@ -422,9 +422,9 @@ AC_SUBST([SYSTEMD_SYSTEM_UNIT_DIR], [$systemdsystemunitdir])
 
 AC_ARG_WITH([systemdbluealsadargs],
 	AS_HELP_STRING([--with-systemdbluealsadargs=ARGS], [bluealsad arguments to be used in
-		bluealsa.service, defaults to '-S -p a2dp-source -p a2dp-sink' if not specified]),
+		bluealsa.service, defaults to '-S -p a2dp-source -p a2dp-sink --all-codecs' if not specified]),
 	[systemdbluealsadargs="${withval}"],
-	[systemdbluealsadargs="-S -p a2dp-source -p a2dp-sink"])
+	[systemdbluealsadargs="-S -p a2dp-source -p a2dp-sink --all-codecs"])
 AC_SUBST([SYSTEMD_BLUEALSAD_ARGS], [$systemdbluealsadargs])
 
 AC_ARG_WITH([systemdbluealsaaplayargs],

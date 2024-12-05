@@ -154,8 +154,8 @@ static void g_bus_name_lost(GDBusConnection *conn, const char *name, void *userd
 int main(int argc, char **argv) {
 
 	int opt;
-	const char *opts = "hVSB:i:p:c:";
-	const struct option longopts[] = {
+	static const char *opts = "hVSB:i:p:c:";
+	static const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "syslog", no_argument, NULL, 'S' },
@@ -164,6 +164,7 @@ int main(int argc, char **argv) {
 		{ "device", required_argument, NULL, 'i' },
 		{ "profile", required_argument, NULL, 'p' },
 		{ "codec", required_argument, NULL, 'c' },
+		{ "all-codecs", no_argument, NULL, 25 },
 		{ "initial-volume", required_argument, NULL, 17 },
 		{ "keep-alive", required_argument, NULL, 8 },
 		{ "io-rt-priority", required_argument, NULL, 3 },
@@ -200,6 +201,19 @@ int main(int argc, char **argv) {
 		{ 0, 0, 0, 0 },
 	};
 
+	static const struct {
+		uint32_t codec_id;
+		bool *ptr;
+	} hfp_codecs[] = {
+		{ HFP_CODEC_CVSD, &config.hfp.codecs.cvsd },
+#if ENABLE_MSBC
+		{ HFP_CODEC_MSBC, &config.hfp.codecs.msbc },
+#endif
+#if ENABLE_LC3_SWB
+		{ HFP_CODEC_LC3_SWB, &config.hfp.codecs.lc3_swb },
+#endif
+	};
+
 	bool syslog = false;
 	char dbus_service[32] = BLUEALSA_SERVICE;
 
@@ -221,6 +235,7 @@ int main(int argc, char **argv) {
 					"  -i, --device=hciX\t\tHCI device(s) to use\n"
 					"  -p, --profile=NAME\t\tset enabled BT profiles\n"
 					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
+					"  --all-codecs\t\t\tenable all available BT audio codecs\n"
 					"  --initial-volume=NUM\t\tinitial volume level [0-100]\n"
 					"  --keep-alive=SEC\t\tkeep Bluetooth transport alive\n"
 					"  --io-rt-priority=NUM\t\treal-time priority for IO threads\n"
@@ -375,19 +390,6 @@ int main(int argc, char **argv) {
 
 		case 'c' /* --codec=NAME */ : {
 
-			static const struct {
-				uint32_t codec_id;
-				bool *ptr;
-			} hfp_codecs[] = {
-				{ HFP_CODEC_CVSD, &config.hfp.codecs.cvsd },
-#if ENABLE_MSBC
-				{ HFP_CODEC_MSBC, &config.hfp.codecs.msbc },
-#endif
-#if ENABLE_LC3_SWB
-				{ HFP_CODEC_LC3_SWB, &config.hfp.codecs.lc3_swb },
-#endif
-			};
-
 			bool enable = true;
 			bool matched = false;
 			if (optarg[0] == '+' || optarg[0] == '-') {
@@ -415,6 +417,15 @@ int main(int argc, char **argv) {
 				return EXIT_FAILURE;
 			}
 
+			break;
+		}
+
+		case 25 /* --all-codecs */ : {
+			struct a2dp_sep * const * seps = a2dp_seps;
+			for (struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps)
+				sep->enabled = true;
+			for (size_t i = 0; i < ARRAYSIZE(hfp_codecs); i++)
+				*hfp_codecs[i].ptr = true;
 			break;
 		}
 
