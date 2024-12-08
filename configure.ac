@@ -220,20 +220,20 @@ AM_COND_IF([ENABLE_LDAC], [
 	AC_DEFINE([ENABLE_LDAC], [1], [Define to 1 if LDAC is enabled.])
 ])
 
-AC_ARG_ENABLE([midi],
-	[AS_HELP_STRING([--enable-midi], [enable Bluetooth LE MIDI support])])
-AM_CONDITIONAL([ENABLE_MIDI], [test "x$enable_midi" = "xyes"])
-AM_COND_IF([ENABLE_MIDI], [
-	AC_DEFINE([ENABLE_MIDI], [1], [Define to 1 if Bluetooth LE MIDI is enabled.])
-])
-
 AC_ARG_ENABLE([lhdc],
 	[AS_HELP_STRING([--enable-lhdc], [enable LHDC support])])
 AM_CONDITIONAL([ENABLE_LHDC], [test "x$enable_lhdc" = "xyes"])
 AM_COND_IF([ENABLE_LHDC], [
 	AC_DEFINE([ENABLE_LHDC], [1], [Define to 1 if LHDC is enabled.])
-	PKG_CHECK_MODULES([LHDC_DEC], [ldhcBT-dec >= 4.0.2])
+	PKG_CHECK_MODULES([LHDC_DEC], [lhdcBT-dec >= 4.0.2])
 	PKG_CHECK_MODULES([LHDC_ENC], [lhdcBT-enc >= 4.0.6])
+])
+
+AC_ARG_ENABLE([midi],
+	[AS_HELP_STRING([--enable-midi], [enable Bluetooth LE MIDI support])])
+AM_CONDITIONAL([ENABLE_MIDI], [test "x$enable_midi" = "xyes"])
+AM_COND_IF([ENABLE_MIDI], [
+	AC_DEFINE([ENABLE_MIDI], [1], [Define to 1 if Bluetooth LE MIDI is enabled.])
 ])
 
 AC_ARG_ENABLE([mp3lame],
