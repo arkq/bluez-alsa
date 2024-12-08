@@ -83,6 +83,8 @@ ssize_t bt_dump_write(struct bt_dump *btd, const void *data, size_t size) {
 /**
  * Close BT dump file. */
 void bt_dump_close(struct bt_dump *btd) {
+	if (btd == NULL)
+		return;
 	if (btd->file != NULL)
 		fclose(btd->file);
 	free(btd);
@@ -203,39 +205,47 @@ fail:
 
 static const char *transport_to_fname(const struct ba_transport *t) {
 
+	const uint32_t codec_id = ba_transport_get_codec(t);
 	const char *profile = NULL;
 	const char *codec = NULL;
+
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "none";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		profile = "a2dp-source";
-		codec = a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t));
+		codec = a2dp_codecs_codec_id_to_string(codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		profile = "a2dp-sink";
-		codec = a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t));
+		codec = a2dp_codecs_codec_id_to_string(codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 		profile = "hfp-ag";
-		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
+		codec = hfp_codec_id_to_string(codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		profile = "hfp-hf";
-		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
+		codec = hfp_codec_id_to_string(codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		profile = "hsp-ag";
-		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
+		codec = hfp_codec_id_to_string(codec_id);
 		break;
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 		profile = "hsp-hs";
-		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
+		codec = hfp_codec_id_to_string(codec_id);
 		break;
 #if ENABLE_MIDI
 	case BA_TRANSPORT_PROFILE_MIDI:
 		return "midi";
 #endif
+	}
+
+	char fallback[16];
+	if (codec == NULL) {
+		snprintf(fallback, sizeof(fallback), "%08x", codec_id);
+		codec = fallback;
 	}
 
 	static char buffer[64];

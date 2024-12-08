@@ -531,9 +531,13 @@ static void bt_data_write(struct ba_transport *t) {
 
 static pthread_cond_t test_terminate = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t test_mutex = PTHREAD_MUTEX_INITIALIZER;
+static bool test_terminated = false;
 
 static void *test_terminate_timer(void *arg) {
 	sleep((uintptr_t)arg);
+	pthread_mutex_lock(&test_mutex);
+	test_terminated = true;
+	pthread_mutex_unlock(&test_mutex);
 	pthread_cond_signal(&test_terminate);
 	return NULL;
 }
@@ -704,7 +708,8 @@ static void test_io(
 	}
 
 	pthread_mutex_lock(&test_mutex);
-	pthread_cond_wait(&test_terminate, &test_mutex);
+	while (!test_terminated)
+		pthread_cond_wait(&test_terminate, &test_mutex);
 	pthread_mutex_unlock(&test_mutex);
 
 	pthread_mutex_lock(&t_src_pcm->mutex);
@@ -1588,8 +1593,16 @@ int main(int argc, char *argv[]) {
 
 		enabled_codecs = 0;
 		for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
-			if (strcmp(codec, codecs[i].name) == 0)
+			if (codec != NULL && strcmp(codec, codecs[i].name) == 0)
 				enabled_codecs |= 1 << i;
+
+		/* If we do not have a test case for the codec, dump the data here. */
+		if (enabled_codecs == 0) {
+			ssize_t len;
+			char buffer[4096];
+			while ((len = bt_dump_read(btdin, buffer, sizeof(buffer))) != -1)
+				hexdump("BT data", buffer, len);
+		}
 
 	}
 
@@ -1622,6 +1635,7 @@ int main(int argc, char *argv[]) {
 	ba_device_unref(device1);
 	ba_device_unref(device2);
 	ba_adapter_unref(adapter);
+	bt_dump_close(btdin);
 
 	return nf == 0 ? 0 : 1;
 }

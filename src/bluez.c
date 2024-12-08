@@ -359,13 +359,14 @@ static const char *bluez_get_media_endpoint_object_path(
 	static char path[64];
 
 	const char *tmp;
-	if ((tmp = a2dp_codecs_codec_id_to_string(sep->config.codec_id)) == NULL)
-		g_assert_not_reached();
-
 	char codec_name[16] = "";
-	for (size_t i = 0, j = 0; tmp[i] != '\0' && j < sizeof(codec_name); i++)
-		if (isupper(tmp[i]) || islower(tmp[i]) || isdigit(tmp[i]))
-			codec_name[j++] = tmp[i];
+	if ((tmp = a2dp_codecs_codec_id_to_string(sep->config.codec_id)) == NULL)
+		snprintf(codec_name, sizeof(codec_name), "%08x", sep->config.codec_id);
+	else {
+		for (size_t i = 0, j = 0; tmp[i] != '\0' && j < sizeof(codec_name); i++)
+			if (isupper(tmp[i]) || islower(tmp[i]) || isdigit(tmp[i]))
+				codec_name[j++] = tmp[i];
+	}
 
 	snprintf(path, sizeof(path), "/org/bluez/%s/A2DP/%s/%s/%u", adapter->hci.name,
 			codec_name, sep->config.type == A2DP_SOURCE ? "source" : "sink", index);
@@ -1367,6 +1368,7 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 		debug("Adding new Stream End-Point: %s: %s: %s",
 				batostr_(&addr), sep_cfg.type == A2DP_SOURCE ? "SRC" : "SNK",
 				a2dp_codecs_codec_id_to_string(sep_cfg.codec_id));
+		hexdump("SEP capabilities blob", &sep_cfg.capabilities, sep_cfg.caps_size);
 
 		GArray *sep_cfgs = bluez_adapter_get_device_sep_configs(&bluez_adapters[dev_id], &addr);
 		g_array_append_val(sep_cfgs, sep_cfg);
