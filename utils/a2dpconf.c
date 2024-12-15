@@ -503,7 +503,7 @@ static void dump_lhdc_v3(const void *blob, size_t size) {
 			"  llac:1 = %s\n"
 			"  low-latency:1 = %s\n"
 			"  max-bitrate:2 = %d\n"
-			"  version:4 = %u\n"
+			"  version:4 =%s\n"
 			"  lhdc-v4:1 = %s\n"
 			"  larc:1 = %s\n"
 			"  min-bitrate:1 = %s\n"
@@ -521,7 +521,7 @@ static void dump_lhdc_v3(const void *blob, size_t size) {
 			lhdc->llac ? "true" : "false",
 			lhdc->low_latency ? "true" : "false",
 			lhdc_get_max_bitrate(lhdc->max_bitrate),
-			lhdc->version,
+			lhdc->version & LHDC_VER3 ? " v3" : "",
 			lhdc->lhdc_v4 ? "true" : "false",
 			lhdc->larc ? "true" : "false",
 			lhdc->min_bitrate ? "true" : "false",

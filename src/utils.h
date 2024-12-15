@@ -57,4 +57,8 @@ const char *lc3plus_strerror(LC3PLUS_Error err);
 const char *ldacBT_strerror(int err);
 #endif
 
+#if ENABLE_LHDC
+const char *lhdcBT_dec_strerror(int err);
+#endif
+
 #endif
