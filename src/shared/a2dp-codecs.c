@@ -48,7 +48,7 @@ static const struct {
  * Get BlueALSA A2DP codec ID from string representation.
  *
  * @param alias Alias of an A2DP audio codec name.
- * @return BlueALSA audio codec ID or 0xFFFFFFFF if there was no match. */
+ * @return BlueALSA A2DP codec ID or 0xFFFFFFFF if there was no match. */
 uint32_t a2dp_codecs_codec_id_from_string(const char *alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
@@ -56,6 +56,17 @@ uint32_t a2dp_codecs_codec_id_from_string(const char *alias) {
 					strcasecmp(codecs[i].aliases[n], alias) == 0)
 				return codecs[i].codec_id;
 	return 0xFFFFFFFF;
+}
+
+/**
+ * Get BlueALSA A2DP codec ID from vendor codec information.
+ *
+ * @param info A2DP vendor codec capabilities.
+ * @return BlueALSA A2DP codec ID. */
+uint32_t a2dp_codecs_vendor_codec_id(const a2dp_vendor_info_t *info) {
+	const uint32_t vendor_id = A2DP_VENDOR_INFO_GET_VENDOR_ID(*info);
+	const uint16_t codec_id = A2DP_VENDOR_INFO_GET_CODEC_ID(*info);
+	return A2DP_CODEC_VENDOR_ID(vendor_id, codec_id);
 }
 
 /**

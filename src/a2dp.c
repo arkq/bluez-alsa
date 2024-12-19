@@ -314,15 +314,9 @@ const struct a2dp_sep *a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
  * @param size A2DP vendor codec capabilities size.
  * @return On success this function returns A2DP 32-bit vendor codec ID. */
 uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
-
 	if (size < sizeof(a2dp_vendor_info_t))
 		return errno = EINVAL, 0xFFFFFFFF;
-
-	const a2dp_vendor_info_t *info = capabilities;
-	const uint32_t vendor_id = A2DP_VENDOR_INFO_GET_VENDOR_ID(*info);
-	const uint16_t codec_id = A2DP_VENDOR_INFO_GET_CODEC_ID(*info);
-
-	return A2DP_CODEC_VENDOR_ID(vendor_id, codec_id);
+	return a2dp_codecs_vendor_codec_id(capabilities);
 }
 
 /**

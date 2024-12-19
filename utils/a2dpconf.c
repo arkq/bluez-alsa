@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -33,6 +34,9 @@ static uint32_t get_codec(const char *s) {
 	strncpy(buffer, s, sizeof(buffer) - 1);
 	if ((tmp = strchr(buffer, ':')) != NULL)
 		tmp[0] = '\0';
+
+	if (strcasecmp(buffer, "vendor") == 0)
+		return A2DP_CODEC_VENDOR;
 
 	return a2dp_codecs_codec_id_from_string(buffer);
 }
@@ -280,15 +284,15 @@ static void dump_vendor(const void *blob, size_t size) {
 
 static void printf_aptx(const a2dp_aptx_t *aptx) {
 	printf(""
-			"  channel-mode:4 =%s%s%s\n"
-			"  sample-rate:4 =%s%s%s%s\n",
-			aptx->channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
-			aptx->channel_mode & APTX_CHANNEL_MODE_TWS ? " DualChannel" : "",
-			aptx->channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "",
+			"  sample-rate:4 =%s%s%s%s\n"
+			"  channel-mode:4 =%s%s%s\n",
 			aptx->sampling_freq & APTX_SAMPLING_FREQ_48000 ? " 48000" : "",
 			aptx->sampling_freq & APTX_SAMPLING_FREQ_44100 ? " 44100" : "",
 			aptx->sampling_freq & APTX_SAMPLING_FREQ_32000 ? " 32000" : "",
-			aptx->sampling_freq & APTX_SAMPLING_FREQ_16000 ? " 16000" : "");
+			aptx->sampling_freq & APTX_SAMPLING_FREQ_16000 ? " 16000" : "",
+			aptx->channel_mode & APTX_CHANNEL_MODE_STEREO ? " Stereo" : "",
+			aptx->channel_mode & APTX_CHANNEL_MODE_TWS ? " DualChannel" : "",
+			aptx->channel_mode & APTX_CHANNEL_MODE_MONO ? " Mono" : "");
 }
 
 static void dump_aptx(const void *blob, size_t size) {
@@ -309,6 +313,39 @@ static void dump_aptx_tws(const void *blob, size_t size) {
 	printf_vendor(&aptx->info);
 	printf_aptx(aptx);
 	printf("}\n");
+}
+
+static void dump_aptx_ad(const void *blob, size_t size) {
+	const a2dp_aptx_ad_t *aptx_ad = blob;
+	if (check_blob_size(sizeof(*aptx_ad), size) == -1)
+		return;
+	printf("aptX Adaptive <hex:%s> {\n", bintohex(blob, size));
+	printf_vendor(&aptx_ad->info);
+	printf(""
+			"  sample-rate:5 =%s%s%s%s\n"
+			"  <reserved>:6\n"
+			"  channel-mode:5 =%s%s%s%s%s\n"
+			"  ttp-ll-low:8 = %u\n"
+			"  ttp-ll-high:8 = %u\n"
+			"  ttp-hq-low:8 = %u\n"
+			"  ttp-hq-high:8 = %u\n"
+			"  ttp-tws-low:8 = %u\n"
+			"  ttp-tws-high:8 = %u\n"
+			"  eoc:24 = hex:%02x%02x%02x\n"
+			"}\n",
+			aptx_ad->sampling_freq & APTX_AD_SAMPLING_FREQ_192000 ? " 192000" : "",
+			aptx_ad->sampling_freq & APTX_AD_SAMPLING_FREQ_88000 ? " 88000" : "",
+			aptx_ad->sampling_freq & APTX_AD_SAMPLING_FREQ_48000 ? " 48000" : "",
+			aptx_ad->sampling_freq & APTX_AD_SAMPLING_FREQ_44100 ? " 44100" : "",
+			aptx_ad->channel_mode & APTX_AD_CHANNEL_MODE_TWS_MONO ? " TWS-Mono" : "",
+			aptx_ad->channel_mode & APTX_AD_CHANNEL_MODE_JOINT_STEREO ? " JointStereo" : "",
+			aptx_ad->channel_mode & APTX_AD_CHANNEL_MODE_STEREO ? " Stereo" : "",
+			aptx_ad->channel_mode & APTX_AD_CHANNEL_MODE_TWS ? " DualChannel" : "",
+			aptx_ad->channel_mode & APTX_AD_CHANNEL_MODE_MONO ? " Mono" : "",
+			aptx_ad->ttp_ll_low, aptx_ad->ttp_ll_high,
+			aptx_ad->ttp_hq_low, aptx_ad->ttp_hq_high,
+			aptx_ad->ttp_tws_low, aptx_ad->ttp_tws_high,
+			aptx_ad->eoc[0], aptx_ad->eoc[1], aptx_ad->eoc[2]);
 }
 
 static void dump_aptx_hd(const void *blob, size_t size) {
@@ -620,7 +657,7 @@ static const struct {
 	{ A2DP_CODEC_VENDOR_ID(APTX_TWS_VENDOR_ID, APTX_TWS_CODEC_ID),
 		sizeof(a2dp_aptx_t), dump_aptx_tws },
 	{ A2DP_CODEC_VENDOR_ID(APTX_AD_VENDOR_ID, APTX_AD_CODEC_ID),
-		-1, dump_vendor },
+		sizeof(a2dp_aptx_ad_t), dump_aptx_ad },
 	{ A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID),
 		sizeof(a2dp_aptx_hd_t), dump_aptx_hd },
 	{ A2DP_CODEC_VENDOR_ID(APTX_LL_VENDOR_ID, APTX_LL_CODEC_ID),
@@ -665,6 +702,10 @@ int dump(const char *config, bool detect) {
 	void *blob = malloc(blob_size);
 	if (get_codec_blob(config, blob, blob_size) == -1)
 		goto final;
+
+	if (codec_id == A2DP_CODEC_VENDOR &&
+			(size_t)blob_size >= sizeof(a2dp_vendor_info_t))
+		codec_id = a2dp_codecs_vendor_codec_id(blob);
 
 	rv = 0;
 	for (size_t i = 0; i < ARRAYSIZE(dumps); i++)
@@ -715,7 +756,7 @@ usage:
 					"  -x, --auto-detect\ttry to auto-detect codec\n"
 					"\nExamples:\n"
 					"  %s sbc:ffff0235\n"
-					"  %s aptx:4f0000000100ff\n",
+					"  %s vendor:4f0000000100ff\n",
 					argv[0], argv[0], argv[0]);
 			return EXIT_SUCCESS;
 

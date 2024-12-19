@@ -186,6 +186,7 @@ EDE
 EINTR
 EINVAL
 ENODEV
+eoc
 EP
 EPIPE
 EPMR
@@ -263,6 +264,7 @@ syslogd
 systemd
 TIOCOUTQ
 TNS
+ttp
 TWS
 ud
 uint
