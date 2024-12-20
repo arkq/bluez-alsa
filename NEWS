@@ -4,7 +4,7 @@ unreleased
 - renamed bluealsa to bluealsad (no backward compatibility)
 - renamed bluealsa.conf to org.bluealsa.conf (no backward compatibility)
 - renamed bluealsa-cli to bluealsactl (no backward compatibility)
-- optional support for A2DP Sink and Source with LHDC v3 codec
+- optional support for A2DP Sink and Source with LHDC v2 and v3 codec
 - channel map and volume control for surround sound (5.1, 7.1) audio
 - native A2DP volume control by default (dropped --a2dp-volume option)
 - fix configuration for Android 13 A2DP Opus codec

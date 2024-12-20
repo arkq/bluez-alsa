@@ -213,8 +213,10 @@ struct a2dp_sep * const a2dp_seps[] = {
 	&a2dp_lc3plus_sink,
 #endif
 #if ENABLE_LHDC
-	&a2dp_lhdc_source,
-	&a2dp_lhdc_sink,
+	&a2dp_lhdc_v3_source,
+	&a2dp_lhdc_v3_sink,
+	&a2dp_lhdc_v2_source,
+	&a2dp_lhdc_v2_sink,
 #endif
 #if ENABLE_LDAC
 	&a2dp_ldac_source,
