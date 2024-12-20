@@ -56,6 +56,11 @@ typedef int (*a2dp_bit_mapping_foreach_func)(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
 
+extern const enum ba_transport_pcm_channel a2dp_channel_map_mono[];
+extern const enum ba_transport_pcm_channel a2dp_channel_map_stereo[];
+extern const enum ba_transport_pcm_channel a2dp_channel_map_5_1[];
+extern const enum ba_transport_pcm_channel a2dp_channel_map_7_1[];
+
 int a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);

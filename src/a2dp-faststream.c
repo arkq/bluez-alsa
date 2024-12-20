@@ -32,14 +32,6 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-static const enum ba_transport_pcm_channel a2dp_fs_channel_map_mono[] = {
-	BA_TRANSPORT_PCM_CHANNEL_MONO,
-};
-
-static const enum ba_transport_pcm_channel a2dp_fs_channel_map_stereo[] = {
-	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
-};
-
 static const struct a2dp_bit_mapping a2dp_fs_rates_music[] = {
 	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_44100, { 44100 } },
 	{ FASTSTREAM_SAMPLING_FREQ_MUSIC_48000, { 48000 } },
@@ -73,9 +65,9 @@ static int a2dp_fs_caps_foreach_channel_mode(
 		void *userdata) {
 	(void)capabilities;
 	const struct a2dp_bit_mapping channels_mono = {
-		.ch = { 1, a2dp_fs_channel_map_mono } };
+		.ch = { 1, a2dp_channel_map_mono } };
 	const struct a2dp_bit_mapping channels_stereo = {
-		.ch = { 2, a2dp_fs_channel_map_stereo } };
+		.ch = { 2, a2dp_channel_map_stereo } };
 	if (stream == A2DP_MAIN)
 		return func(channels_stereo, userdata);
 	return func(channels_mono, userdata);
@@ -416,8 +408,8 @@ static int a2dp_fs_transport_init(struct ba_transport *t) {
 		t->a2dp.pcm.channels = 2;
 		t->a2dp.pcm.rate = a2dp_fs_rates_music[rate_i].value;
 
-		memcpy(t->a2dp.pcm.channel_map,
-				a2dp_fs_channel_map_stereo, sizeof(a2dp_fs_channel_map_stereo));
+		memcpy(t->a2dp.pcm.channel_map, a2dp_channel_map_stereo,
+				2 * sizeof(*a2dp_channel_map_stereo));
 
 	}
 
@@ -432,8 +424,8 @@ static int a2dp_fs_transport_init(struct ba_transport *t) {
 		t->a2dp.pcm_bc.channels = 1;
 		t->a2dp.pcm_bc.rate = a2dp_fs_rates_voice[rate_i].value;
 
-		memcpy(t->a2dp.pcm_bc.channel_map,
-				a2dp_fs_channel_map_mono, sizeof(a2dp_fs_channel_map_mono));
+		memcpy(t->a2dp.pcm_bc.channel_map, a2dp_channel_map_mono,
+				1 * sizeof(*a2dp_channel_map_stereo));
 
 	}
 

@@ -38,10 +38,6 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-static const enum ba_transport_pcm_channel a2dp_lhdc_channel_map_stereo[] = {
-	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
-};
-
 static const struct a2dp_bit_mapping a2dp_lhdc_rates[] = {
 	{ LHDC_SAMPLING_FREQ_44100, { 44100 } },
 	{ LHDC_SAMPLING_FREQ_48000, { 48000 } },
@@ -62,7 +58,7 @@ static int a2dp_lhdc_caps_foreach_channel_mode(
 		void *userdata) {
 	(void)capabilities;
 	static const struct a2dp_bit_mapping channels_stereo = {
-		.ch = { 2, a2dp_lhdc_channel_map_stereo } };
+		.ch = { 2, a2dp_channel_map_stereo } };
 	if (stream == A2DP_MAIN)
 		return func(channels_stereo, userdata);
 	return -1;
@@ -486,8 +482,8 @@ static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 	t->a2dp.pcm.channels = 2;
 	t->a2dp.pcm.rate = a2dp_lhdc_rates[rate_i].value;
 
-	memcpy(t->a2dp.pcm.channel_map,
-			a2dp_lhdc_channel_map_stereo, sizeof(a2dp_lhdc_channel_map_stereo));
+	memcpy(t->a2dp.pcm.channel_map, a2dp_channel_map_stereo,
+			2 * sizeof(*a2dp_channel_map_stereo));
 
 	return 0;
 }

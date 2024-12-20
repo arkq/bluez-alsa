@@ -33,17 +33,9 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-static const enum ba_transport_pcm_channel a2dp_aptx_channel_map_mono[] = {
-	BA_TRANSPORT_PCM_CHANNEL_MONO,
-};
-
-static const enum ba_transport_pcm_channel a2dp_aptx_channel_map_stereo[] = {
-	BA_TRANSPORT_PCM_CHANNEL_FL, BA_TRANSPORT_PCM_CHANNEL_FR,
-};
-
 static const struct a2dp_bit_mapping a2dp_aptx_channels[] = {
-	{ APTX_CHANNEL_MODE_MONO, .ch = { 1, a2dp_aptx_channel_map_mono } },
-	{ APTX_CHANNEL_MODE_STEREO, .ch = { 2, a2dp_aptx_channel_map_stereo } },
+	{ APTX_CHANNEL_MODE_MONO, .ch = { 1, a2dp_channel_map_mono } },
+	{ APTX_CHANNEL_MODE_STEREO, .ch = { 2, a2dp_channel_map_stereo } },
 	{ 0 }
 };
 
