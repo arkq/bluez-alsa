@@ -6,7 +6,7 @@ a2dpconf
 Decode A2DP codec capability hex strings
 ----------------------------------------
 
-:Date: September 2024
+:Date: December 2024
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -35,6 +35,11 @@ OPTIONS
 -V, --version
     Print version and exit.
 
+-v, --verbose
+    Sow verbose bit-stream details.
+    Display each field as a binary mask with each bit represented by a single
+    character.
+
 -x, --auto-detect
     Try to auto-detect the codec. If the name of the codec associated with the
     configuration string is not known, then give this option and the
@@ -48,36 +53,36 @@ EXAMPLES
 
     $ a2dpconf sbc:ffff0235
     SBC <hex:ffff0235> {
-      sample-rate:4 = 48000 44100 32000 16000
-      channel-mode:4 = JointStereo Stereo DualChannel Mono
-      block-length:4 = 16 12 8 4
-      sub-bands:2 = 8 4
-      allocation-method:2 = Loudness SNR
-      min-bit-pool-value:8 = 2
-      max-bit-pool-value:8 = 53
+      Sample Rate ( 16000 Hz | 32000 Hz | 44100 Hz | 48000 Hz )
+      Channel Mode ( Mono | Dual Channel | Stereo | Joint Stereo )
+      Block Length ( 4 | 8 | 12 | 16 )
+      Sub-bands ( 4 | 8 )
+      Allocation Method ( SNR | Loudness )
+      Min Bit-pool ( 2 )
+      Max Bit-pool ( 53 )
     }
 
 ::
 
     $ a2dpconf -x ffff0235
     SBC <hex:ffff0235> {
-      sample-rate:4 = 48000 44100 32000 16000
-      channel-mode:4 = JointStereo Stereo DualChannel Mono
-      block-length:4 = 16 12 8 4
-      sub-bands:2 = 8 4
-      allocation-method:2 = Loudness SNR
-      min-bit-pool-value:8 = 2
-      max-bit-pool-value:8 = 53
+      Sample Rate ( 16000 Hz | 32000 Hz | 44100 Hz | 48000 Hz )
+      Channel Mode ( Mono | Dual Channel | Stereo | Joint Stereo )
+      Block Length ( 4 | 8 | 12 | 16 )
+      Sub-bands ( 4 | 8 )
+      Allocation Method ( SNR | Loudness )
+      Min Bit-pool ( 2 )
+      Max Bit-pool ( 53 )
     }
     MPEG-1,2 Audio <hex:ffff0235> {
-      layer:3 = MP3 MP2 MP1
-      crc:1 = true
-      channel-mode:4 = JointStereo Stereo DualChannel Mono
-      <reserved>:1
-      media-payload-format:1 = MPF-1 MPF-2
-      sample-rate:6 = 48000 44100 32000 24000 22050 16000
-      vbr:1 = false
-      bitrate-index:15 = 0x235
+      Layer ( MP1 | MP2 | MP3 )
+      CRC ( true )
+      Channel Mode ( Mono | Dual Channel | Stereo | Joint Stereo )
+      RFA ( 1 )
+      Media Payload Format ( MPF-1 | MPF-2 )
+      Sample Rate ( 16000 Hz | 22050 Hz | 24000 Hz | 32000 Hz | ... )
+      VBR ( false )
+      Bitrate Index ( 0 | 2 | 4 | 5 | 9 )
     }
 
 COPYRIGHT
