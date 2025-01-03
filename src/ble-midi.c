@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ble-midi.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
 #include <sys/time.h>
@@ -64,10 +65,37 @@ static size_t ble_midi_message_len(uint8_t status) {
 }
 
 /**
+ * Get SysEx buffer which can hold at least additional len bytes. */
+static uint8_t *ble_midi_get_sys_buffer(struct ble_midi_dec *bmd, size_t len) {
+
+	if (bmd->buffer_sys_len + len <= bmd->buffer_sys_size)
+		goto final;
+
+	uint8_t *tmp = bmd->buffer_sys;
+	size_t size = bmd->buffer_sys_size + MAX(len, 512);
+	if ((tmp = realloc(tmp, size * sizeof(*tmp))) == NULL) {
+		warn("Couldn't resize BLE-MIDI SysEx buffer: %s", strerror(errno));
+		goto final;
+	}
+
+	bmd->buffer_sys = tmp;
+	bmd->buffer_sys_size = size;
+
+final:
+	return bmd->buffer_sys;
+}
+
+/**
  * Initialize BLE-MIDI decoder. */
 void ble_midi_decode_init(struct ble_midi_dec *bmd) {
 	memset(bmd, 0, sizeof(*bmd));
 	gettimestamp(&bmd->ts0);
+}
+
+/**
+ * Free BLE-MIDI decoder resources. */
+void ble_midi_decode_free(struct ble_midi_dec *bmd) {
+	free(bmd->buffer_sys);
 }
 
 /**
@@ -99,8 +127,8 @@ int ble_midi_decode(struct ble_midi_dec *bmd, const uint8_t *data, size_t len) {
 	/* If the system exclusive message was not ended in the previous
 	 * packet we need to reconstruct fragmented message. */
 	if (bmd->status_sys) {
-		bm_buffer = bmd->buffer_sys;
-		bm_buffer_size = sizeof(bmd->buffer_sys);
+		bm_buffer = ble_midi_get_sys_buffer(bmd, len);
+		bm_buffer_size = bmd->buffer_sys_size;
 		bm_buffer_len = bmd->buffer_sys_len;
 		bm_status = 0xF0;
 	}
@@ -209,8 +237,8 @@ retry:
 				/* System exclusive message needs to be stored in a dedicated buffer.
 				 * First of all, it can span multiple BLE-MIDI packets. Secondly, it
 				 * can be interleaved with MIDI real-time messages. */
-				bm_buffer = bmd->buffer_sys;
-				bm_buffer_size = sizeof(bmd->buffer_sys);
+				bm_buffer = ble_midi_get_sys_buffer(bmd, len);
+				bm_buffer_size = bmd->buffer_sys_size;
 				bm_buffer_len = bmd->buffer_sys_len;
 				bmd->status_sys = true;
 				break;

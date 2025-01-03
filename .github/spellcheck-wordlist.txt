@@ -261,6 +261,7 @@ SNR
 spandsp
 SRA
 sv
+SysEx
 syslogd
 systemd
 TIOCOUTQ

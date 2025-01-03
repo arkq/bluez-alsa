@@ -32,6 +32,7 @@
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
+#include "ble-midi.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"
@@ -58,6 +59,7 @@ static void dbus_update_counters_wait(unsigned int *counter, unsigned int value)
 	pthread_mutex_unlock(&dbus_update_mtx);
 }
 
+void ble_midi_decode_free(struct ble_midi_dec *bmd) { (void)bmd; }
 int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }

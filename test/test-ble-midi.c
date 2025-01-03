@@ -1,6 +1,6 @@
 /*
  * test-ble-midi.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -185,6 +185,8 @@ CK_START_TEST(test_ble_midi_decode_single_system_exclusive) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
+	ble_midi_decode_free(&bmd);
+
 } CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive) {
@@ -203,6 +205,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive) {
 	ck_assert_uint_eq(timespec2ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
+
+	ble_midi_decode_free(&bmd);
 
 } CK_END_TEST
 
@@ -223,6 +227,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_2) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
+	ble_midi_decode_free(&bmd);
+
 } CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_3) {
@@ -231,11 +237,12 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_3) {
 	ble_midi_decode_init(&bmd);
 
 	const uint8_t data1[] = { 0x80, 0x81, 0xF0, 0x01, 0x02, 0x03 };
-	uint8_t data2[512] = { 0x80, 0x81, 0x77 };
-	memset(data2 + 3, 0x77, sizeof(data2) - 3);
+	uint8_t data2[2 + 512] = { 0x80, 0x81, /* ... */ };
+	memset(data2 + 2, 0x77, sizeof(data2) - 2);
 	const uint8_t data3[] = { 0x80, 0x81, 0xF7 };
-	uint8_t midi[sizeof(bmd.buffer_sys)] = { 0xF0, 0x01, 0x02, 0x03, 0x77 };
-	memset(midi + 5, 0x77, sizeof(midi) - 5);
+	uint8_t midi[1 + 3 + 512 + 1] = { 0xF0, 0x01, 0x02, 0x03, /* ... */ 0xF7 };
+	memset(midi + 4, 0x77, sizeof(midi) - 4);
+	midi[sizeof(midi) - 1] = 0xF7;
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data1, sizeof(data1)), 0);
 	ck_assert_int_eq(ble_midi_decode(&bmd, data2, sizeof(data2)), 0);
@@ -245,7 +252,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_3) {
 	ck_assert_uint_eq(timespec2ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
-	ck_assert_uint_eq(errno, EMSGSIZE);
+
+	ble_midi_decode_free(&bmd);
 
 } CK_END_TEST
 
@@ -257,6 +265,8 @@ CK_START_TEST(test_ble_midi_decode_invalid_system_exclusive) {
 	ble_midi_decode_init(&bmd);
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), -1);
+
+	ble_midi_decode_free(&bmd);
 
 } CK_END_TEST
 

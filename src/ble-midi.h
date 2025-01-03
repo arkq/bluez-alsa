@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ble-midi.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -33,7 +33,8 @@ struct ble_midi_dec {
 	uint8_t buffer_midi[8];
 	size_t buffer_midi_len;
 	/* storage for decoded system exclusive message */
-	uint8_t buffer_sys[256];
+	uint8_t *buffer_sys;
+	size_t buffer_sys_size;
 	size_t buffer_sys_len;
 
 	/* reconstructed timestamp value */
@@ -73,6 +74,7 @@ struct ble_midi_enc {
 };
 
 void ble_midi_decode_init(struct ble_midi_dec *bmd);
+void ble_midi_decode_free(struct ble_midi_dec *bmd);
 int ble_midi_decode(struct ble_midi_dec *bmd, const uint8_t *data, size_t len);
 
 void ble_midi_encode_init(struct ble_midi_enc *bme);

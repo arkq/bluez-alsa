@@ -38,6 +38,7 @@
 #include "ba-rfcomm.h"
 #include "ba-transport-pcm.h"
 #include "ba-config.h"
+#include "ble-midi.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "bluez.h"
@@ -882,6 +883,7 @@ void ba_transport_unref(struct ba_transport *t) {
 	else if (t->profile & BA_TRANSPORT_PROFILE_MIDI) {
 		if (t->midi.seq_parser != NULL)
 			snd_midi_event_free(t->midi.seq_parser);
+		ble_midi_decode_free(&t->midi.ble_decoder);
 	}
 #endif
 
