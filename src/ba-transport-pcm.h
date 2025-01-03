@@ -129,6 +129,9 @@ struct ba_transport_pcm {
 	 * the host computational power. It is used to compensate for the time
 	 * required to encode or decode audio. */
 	unsigned int processing_delay_dms;
+	/* The last reported total codec + processing delay. It is used to limit
+	 * the rate at which changes are reported via D-Bus. */
+	unsigned int reported_codec_delay_dms;
 	/* Positive (or negative) delay reported by the client. */
 	int client_delay_dms;
 
