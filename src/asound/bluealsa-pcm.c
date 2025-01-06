@@ -868,18 +868,25 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		if (pcm->hwcompat == BA_HWCOMPAT_SILENCE) {
 			/* Try to ensure the FIFO is at least twice the period size */
 			int target_capacity = 2 * io->period_size * pcm->frame_size;
-			int max_capacity;
+			int max_capacity = 1048576; /* Linux default max pipe size */
 			FILE *proc_file = fopen("/proc/sys/fs/pipe-max-size", "r");
-			if (fscanf(proc_file, "%d", &max_capacity) != 1) {
-				debug("Unable to read pipe max size: %s", strerror(errno));
-				max_capacity = 1048576; /* Linux default max pipe size */
+			if (proc_file != NULL) {
+				if (fscanf(proc_file, "%d", &max_capacity) != 1)
+					debug("Unable to read pipe max size: %s", strerror(errno));
+				fclose(proc_file);
 			}
-			fclose(proc_file);
 			if (target_capacity > max_capacity)
 				target_capacity = max_capacity;
 			int capacity = fcntl(pcm->ba_pcm_fd, F_GETPIPE_SZ);
-			if (capacity < target_capacity)
-				fcntl(pcm->ba_pcm_fd, F_SETPIPE_SZ, target_capacity);
+			if (capacity < target_capacity) {
+				capacity = fcntl(pcm->ba_pcm_fd, F_SETPIPE_SZ, target_capacity);
+				if (capacity < 0)
+					warn("Unable to increase pipe capacity to 2 periods");
+				else
+					debug("Increased pipe capacity to %d", capacity);
+			}
+			else
+				debug("Pipe capacity = %d", capacity);
 		}
 		if ((ret = fcntl(pcm->ba_pcm_fd, F_GETPIPE_SZ)) == -1) {
 			SNDERR("Unable to read pipe size: %s", strerror(errno));
