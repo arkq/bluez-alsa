@@ -347,6 +347,7 @@ repoll:
 		case BA_TRANSPORT_PCM_SIGNAL_OPEN:
 		case BA_TRANSPORT_PCM_SIGNAL_RESUME:
 			io->asrs.frames = 0;
+			io->initiated = false;
 			io->timeout = -1;
 			goto repoll;
 		case BA_TRANSPORT_PCM_SIGNAL_CLOSE:

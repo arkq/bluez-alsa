@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-sbc.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -259,13 +259,21 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 				goto fail;
 			}
 
-			/* keep data transfer at a constant bit rate */
+			if (!io.initiated) {
+				/* Get the codec processing delay, which is a time spent in the
+				 * processing loop between reading PCM data and writing the first
+				 * encoded SBC frame. Subsequently encoded frames do not contribute
+				 * to the delay, because (assuming no underruns) since the first
+				 * frame is written, the BT sink can start decoding and playing
+				 * audio in a continuous fashion. */
+				t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+				io.initiated = true;
+			}
+
+			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */
 			rtp_state_update(&rtp, pcm_frames);
-
-			/* update busy delay (encoding overhead) */
-			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* If the input buffer was not consumed (due to codesize limit), we
 			 * have to append new data to the existing one. Since we do not use

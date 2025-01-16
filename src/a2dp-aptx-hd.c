@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-aptx-hd.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -205,14 +205,17 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 				goto fail;
 			}
 
+			if (!io.initiated) {
+				/* Get the delay due to codec processing. */
+				t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+				io.initiated = true;
+			}
+
 			unsigned int pcm_frames = pcm_samples / channels;
-			/* keep data transfer at a constant bit rate */
+			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */
 			rtp.ts_pcm_frames += pcm_frames;
-
-			/* update busy delay (encoding overhead) */
-			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* reinitialize output buffer */
 			ffb_rewind(&bt);

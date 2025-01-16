@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rt.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -14,6 +14,18 @@
 #include <sys/time.h>
 
 /**
+ * Initialize rate synchronization.
+ *
+ * @param asrs Pointer to the rate synchronization structure.
+ * @param rate Synchronization sample rate. */
+void asrsync_init(struct asrsync *asrs, unsigned int rate) {
+	asrs->rate = rate;
+	gettimestamp(&asrs->ts0);
+	asrs->ts = asrs->ts0;
+	asrs->frames = 0;
+}
+
+/**
  * Synchronize time with the sample rate.
  *
  * Notes:
@@ -22,18 +34,13 @@
  *   the asrsync structure definition), this counter should be initialized
  *   (zeroed) upon every transfer stop.
  *
- * @param asrs Pointer to the time synchronization structure.
- * @param frames Number of frames since the last call to this function.
- * @return This function returns a positive value or zero respectively for
- *   the case, when the synchronization was required or when blocking was
- *   not necessary. If an error has occurred, -1 is returned and errno is
- *   set to indicate the error. */
-int asrsync_sync(struct asrsync *asrs, unsigned int frames) {
+ * @param asrs Pointer to the rate synchronization structure.
+ * @param frames Number of frames since the last call to this function. */
+void asrsync_sync(struct asrsync *asrs, unsigned int frames) {
 
 	const unsigned int rate = asrs->rate;
 	struct timespec ts_rate;
 	struct timespec ts;
-	int rv = 0;
 
 	asrs->frames += frames;
 	frames = asrs->frames;
@@ -42,18 +49,28 @@ int asrsync_sync(struct asrsync *asrs, unsigned int frames) {
 	ts_rate.tv_nsec = 1000000000L / rate * (frames % rate);
 
 	gettimestamp(&ts);
-	/* calculate delay since the last sync */
-	timespecsub(&ts, &asrs->ts, &asrs->ts_busy);
 
+	asrs->synced = false;
 	/* maintain constant rate */
 	timespecsub(&ts, &asrs->ts0, &ts);
 	if (difftimespec(&ts, &ts_rate, &asrs->ts_idle) > 0) {
 		nanosleep(&asrs->ts_idle, NULL);
-		rv = 1;
+		asrs->synced = true;
 	}
 
 	gettimestamp(&asrs->ts);
-	return rv;
+
+}
+
+/**
+ * Get the time duration in 1/10 of milliseconds since the last sync. */
+unsigned int asrsync_get_dms_since_last_sync(const struct asrsync *asrs) {
+
+	struct timespec ts;
+	gettimestamp(&ts);
+
+	timespecsub(&ts, &asrs->ts, &ts);
+	return ts.tv_sec * (1000000 / 100) + ts.tv_nsec / (1000 * 100);
 }
 
 /**

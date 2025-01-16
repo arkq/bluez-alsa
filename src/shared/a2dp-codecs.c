@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-codecs.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *

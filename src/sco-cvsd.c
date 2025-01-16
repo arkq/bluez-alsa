@@ -1,6 +1,6 @@
 /*
  * BlueALSA - sco-cvsd.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -76,10 +76,8 @@ void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 			input += mtu_samples;
 			input_samples -= mtu_samples;
 
-			/* keep data transfer at a constant bit rate */
+			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, mtu_samples);
-			/* update busy delay (encoding overhead) */
-			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 		}
 

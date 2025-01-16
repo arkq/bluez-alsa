@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,6 +16,7 @@
 # include <config.h>
 #endif
 
+#include <stdbool.h>
 #include <sys/types.h>
 
 #include "ba-transport-pcm.h"
@@ -30,6 +31,8 @@
 struct io_poll {
 	/* transfer bit rate synchronization */
 	struct asrsync asrs;
+	/* transfer has been initiated */
+	bool initiated;
 	/* keep-alive and sync timeout */
 	int timeout;
 };

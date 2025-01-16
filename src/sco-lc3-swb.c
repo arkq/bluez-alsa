@@ -1,6 +1,6 @@
 /*
  * BlueALSA - sco-lc3-swb.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
@@ -77,15 +78,19 @@ void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm) {
 					goto exit;
 				}
 
+				if (!io.initiated) {
+					/* Get the delay due to codec processing. */
+					t_pcm->processing_delay_dms = asrsync_get_dms_since_last_sync(&io.asrs);
+					io.initiated = true;
+				}
+
 				data += len;
 				data_len -= len;
 
 			}
 
-			/* keep data transfer at a constant bit rate */
+			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, codec.frames * LC3_SWB_CODESAMPLES);
-			/* update busy delay (encoding overhead) */
-			t_pcm->processing_delay_dms = asrsync_get_busy_usec(&io.asrs) / 100;
 
 			/* Move unprocessed data to the front of our linear
 			 * buffer and clear the LC3-SWB frame counter. */
