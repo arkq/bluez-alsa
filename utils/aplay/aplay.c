@@ -1,6 +1,6 @@
 /*
  * BlueALSA - aplay.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -65,10 +65,7 @@ struct io_worker {
 	/* opened playback PCM device */
 	struct alsa_pcm	alsa_pcm;
 	/* mixer for volume control */
-	snd_mixer_t *snd_mixer;
-	snd_mixer_elem_t *snd_mixer_elem;
-	long mixer_volume_db_max_value;
-	bool mixer_has_mute_switch;
+	struct alsa_mixer alsa_mixer;
 	/* if true, playback is active */
 	atomic_bool active;
 	/* human-readable BT address */
@@ -332,95 +329,19 @@ final:
 }
 
 /**
- * Open ALSA mixer element for volume control. */
-static int io_worker_mixer_open(
-		struct io_worker *worker,
-		const char *dev_name,
-		const char *elem_name,
-		unsigned int elem_idx) {
-
-	if (dev_name == NULL)
-		return 0;
-
-	debug("Opening ALSA mixer: name=%s elem=%s index=%u",
-			dev_name, elem_name, elem_idx);
-
-	snd_mixer_elem_t *elem;
-	long vmin_db, vmax_db = 0;
-	bool has_mute_switch;
-	char *tmp;
-	int err;
-
-	if (alsa_mixer_open(&worker->snd_mixer, &elem,
-				dev_name, elem_name, elem_idx, &tmp) != 0) {
-		warn("Couldn't open ALSA mixer: %s", tmp);
-		free(tmp);
-		return -1;
-	}
-
-	has_mute_switch = snd_mixer_selem_has_playback_switch(elem);
-
-	if ((err = snd_mixer_selem_get_playback_dB_range(elem, &vmin_db, &vmax_db)) != 0)
-		warn("Couldn't get ALSA mixer playback dB range: %s", snd_strerror(err));
-
-	worker->snd_mixer_elem = elem;
-	worker->mixer_has_mute_switch = has_mute_switch;
-	worker->mixer_volume_db_max_value = vmax_db;
-
-	return 0;
-}
-
-/**
  * Update BlueALSA PCM volume according to ALSA mixer element. */
 static int io_worker_mixer_volume_sync_ba_pcm(
 		struct io_worker *worker,
 		struct ba_pcm *ba_pcm) {
 
-	snd_mixer_elem_t *elem = worker->snd_mixer_elem;
-	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
-	long long volume_db_sum = 0;
-	bool muted = true;
-
-	snd_mixer_selem_channel_id_t ch;
-	for (ch = 0; snd_mixer_selem_has_playback_channel(elem, ch) == 1; ch++) {
-
-		long ch_volume_db;
-		int ch_switch = 1;
-		int err;
-
-		if ((err = snd_mixer_selem_get_playback_dB(elem, ch, &ch_volume_db)) != 0) {
-			error("Couldn't get ALSA mixer playback dB level: %s", snd_strerror(err));
-			return -1;
-		}
-
-		/* Mute switch is an optional feature for a mixer element. */
-		if (worker->mixer_has_mute_switch &&
-				(err = snd_mixer_selem_get_playback_switch(elem, ch, &ch_switch)) != 0) {
-			error("Couldn't get ALSA mixer playback switch: %s", snd_strerror(err));
-			return -1;
-		}
-
-		volume_db_sum += ch_volume_db;
-		/* Normalize volume level so it will not exceed 0.00 dB. */
-		volume_db_sum -= worker->mixer_volume_db_max_value;
-
-		if (ch_switch == 1)
-			muted = false;
-
-	}
-
-	/* Safety check for undefined behavior from
-	 * out-of-bounds dB conversion. */
-	assert(volume_db_sum <= 0LL);
-
-	/* Convert dB to loudness using decibel formula and
-	 * round to the nearest integer. */
-	int volume = lround(pow(2, (0.01 * volume_db_sum / ch) / 10) * vmax);
-
+	unsigned int volume;
 	/* If mixer element does not support playback switch,
-	 * use our global muted state. */
-	if (!worker->mixer_has_mute_switch)
-		muted = pcm_muted;
+	 * use our global muted state as a default value. */
+	bool muted = pcm_muted;
+
+	const int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
+	if (alsa_mixer_get_volume(&worker->alsa_mixer, vmax, &volume, &muted) != 0)
+		return -1;
 
 	for (size_t i = 0; i < ba_pcm->channels; i++) {
 		ba_pcm->volume[i].muted = muted;
@@ -439,7 +360,7 @@ static int io_worker_mixer_volume_sync_ba_pcm(
 
 /**
  * Update ALSA mixer element according to BlueALSA PCM volume. */
-static int io_worker_mixer_volume_sync_snd_mixer_elem(
+static int io_worker_mixer_volume_sync_alsa_mixer(
 		struct io_worker *worker,
 		struct ba_pcm *ba_pcm) {
 
@@ -447,8 +368,7 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	if (ba_pcm->soft_volume)
 		return 0;
 
-	snd_mixer_elem_t *elem = worker->snd_mixer_elem;
-	if (elem == NULL)
+	if (!alsa_mixer_is_open(&worker->alsa_mixer))
 		return 0;
 
 	/* User can connect BlueALSA PCM to mono, stereo or multi-channel output.
@@ -468,55 +388,13 @@ static int io_worker_mixer_volume_sync_snd_mixer_elem(
 	pcm_muted = muted;
 
 	const unsigned int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
-	/* convert loudness to dB using decibel formula */
-	long db = 10 * log2(1.0 * volume_sum / ba_pcm->channels / vmax) * 100;
-	db += worker->mixer_volume_db_max_value;
-
-	int err;
-	if ((err = snd_mixer_selem_set_playback_dB_all(elem, db, 0)) != 0) {
-		error("Couldn't set ALSA mixer playback dB level: %s", snd_strerror(err));
-		return -1;
-	}
-
-	/* mute switch is an optional feature for a mixer element */
-	if (worker->mixer_has_mute_switch &&
-			(err = snd_mixer_selem_set_playback_switch_all(elem, !muted)) != 0) {
-		error("Couldn't set ALSA mixer playback mute switch: %s", snd_strerror(err));
-		return -1;
-	}
-
-	return 0;
+	const unsigned int volume = volume_sum / ba_pcm->channels;
+	return alsa_mixer_set_volume(&worker->alsa_mixer, vmax, volume, muted);
 }
 
-static int io_worker_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
-	struct io_worker *worker = snd_mixer_elem_get_callback_private(elem);
-	if (mask & SND_CTL_EVENT_MASK_VALUE)
-		io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
-	return 0;
-}
-
-/**
- * Setup volume synchronization between ALSA mixer and BlueALSA PCM. */
-static int io_worker_mixer_volume_sync_setup(
-		struct io_worker *worker) {
-
-	/* skip setup in case of software volume */
-	if (worker->ba_pcm.soft_volume)
-		return 0;
-
-	snd_mixer_elem_t *elem = worker->snd_mixer_elem;
-	if (elem == NULL)
-		return 0;
-
-	debug("Setting up ALSA mixer volume synchronization");
-
-	snd_mixer_elem_set_callback(elem, io_worker_mixer_elem_callback);
-	snd_mixer_elem_set_callback_private(elem, worker);
-
-	/* initial synchronization */
+static void io_worker_mixer_event_callback(void *data) {
+	struct io_worker *worker = data;
 	io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
-
-	return 0;
 }
 
 static void io_worker_routine_exit(struct io_worker *worker) {
@@ -529,11 +407,7 @@ static void io_worker_routine_exit(struct io_worker *worker) {
 		worker->ba_pcm_ctrl_fd = -1;
 	}
 	alsa_pcm_close(&worker->alsa_pcm);
-	if (worker->snd_mixer != NULL) {
-		snd_mixer_close(worker->snd_mixer);
-		worker->snd_mixer_elem = NULL;
-		worker->snd_mixer = NULL;
-	}
+	alsa_mixer_close(&worker->alsa_mixer);
 	debug("Exiting IO worker %s", worker->addr);
 }
 
@@ -619,16 +493,15 @@ static void *io_worker_routine(struct io_worker *w) {
 			{ w->ba_pcm_fd, POLLIN, 0 }};
 		nfds_t nfds = 2;
 
-		if (w->snd_mixer != NULL)
-			nfds += snd_mixer_poll_descriptors_count(w->snd_mixer);
-
-		if (nfds > ARRAYSIZE(fds)) {
-			error("Poll FD array size exceeded: %zu > %zu", nfds, ARRAYSIZE(fds));
-			goto fail;
+		if (alsa_mixer_is_open(&w->alsa_mixer)) {
+			nfds += alsa_mixer_poll_descriptors_count(&w->alsa_mixer);
+			if (nfds <= ARRAYSIZE(fds))
+				alsa_mixer_poll_descriptors(&w->alsa_mixer, fds + 2, nfds - 2);
+			else {
+				error("Poll FD array size exceeded: %zu > %zu", nfds, ARRAYSIZE(fds));
+				goto fail;
+			}
 		}
-
-		if (w->snd_mixer != NULL)
-			snd_mixer_poll_descriptors(w->snd_mixer, fds + 2, nfds - 2);
 
 		/* Reading from the FIFO won't block unless there is an open connection
 		 * on the writing side. However, the server does not open PCM FIFO until
@@ -657,8 +530,8 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (fds[0].revents & POLLIN)
 			break;
 
-		if (w->snd_mixer != NULL)
-			snd_mixer_handle_events(w->snd_mixer);
+		if (alsa_mixer_is_open(&w->alsa_mixer))
+			alsa_mixer_handle_events(&w->alsa_mixer);
 
 		size_t read_samples = 0;
 		if (fds[1].revents & POLLIN) {
@@ -745,8 +618,18 @@ static void *io_worker_routine(struct io_worker *w) {
 
 			pcm_max_read_len = w->alsa_pcm.period_frames * w->alsa_pcm.frame_size;
 
-			io_worker_mixer_open(w, mixer_device, mixer_elem_name, mixer_elem_index);
-			io_worker_mixer_volume_sync_setup(w);
+			/* Skip mixer setup in case of software volume. */
+			if (mixer_device != NULL && !w->ba_pcm.soft_volume) {
+				debug("Opening ALSA mixer: name=%s elem=%s index=%u",
+						mixer_device, mixer_elem_name, mixer_elem_index);
+				if (alsa_mixer_open(&w->alsa_mixer, mixer_device,
+							mixer_elem_name, mixer_elem_index, &tmp) == 0)
+					io_worker_mixer_volume_sync_ba_pcm(w, &w->ba_pcm);
+				else {
+					warn("Couldn't open ALSA mixer: %s", tmp);
+					free(tmp);
+				}
+			}
 
 			/* Reset retry counters. */
 			pcm_open_retry_pcm_samples = 0;
@@ -789,7 +672,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		ffb_seek(&buffer, read_samples);
 		size_t samples = ffb_len_out(&buffer);
 
-		if (!w->mixer_has_mute_switch && pcm_muted)
+		if (!w->alsa_mixer.has_mute_switch && pcm_muted)
 			snd_pcm_format_set_silence(pcm_format, buffer.data, samples);
 
 		if (alsa_pcm_write(&w->alsa_pcm, &buffer) < 0)
@@ -844,11 +727,7 @@ close_alsa:
 		ffb_rewind(&buffer);
 		pcm_max_read_len = pcm_max_read_len_init;
 		alsa_pcm_close(&w->alsa_pcm);
-		if (w->snd_mixer != NULL) {
-			snd_mixer_close(w->snd_mixer);
-			w->snd_mixer_elem = NULL;
-			w->snd_mixer = NULL;
-		}
+		alsa_mixer_close(&w->alsa_mixer);
 	}
 
 fail:
@@ -923,9 +802,7 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	worker->ba_pcm_fd = -1;
 	worker->ba_pcm_ctrl_fd = -1;
 	alsa_pcm_init(&worker->alsa_pcm);
-	worker->snd_mixer = NULL;
-	worker->snd_mixer_elem = NULL;
-	worker->mixer_has_mute_switch = false;
+	alsa_mixer_init(&worker->alsa_mixer, io_worker_mixer_event_callback, worker);
 	worker->active = false;
 
 	debug("Creating IO worker %s", worker->addr);
@@ -1047,7 +924,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 		if (!dbus_message_iter_get_ba_pcm_props(&iter, NULL, pcm))
 			goto fail;
 		if ((worker = supervise_io_worker(pcm)) != NULL)
-			io_worker_mixer_volume_sync_snd_mixer_elem(worker, pcm);
+			io_worker_mixer_volume_sync_alsa_mixer(worker, pcm);
 		return DBUS_HANDLER_RESULT_HANDLED;
 	}
 

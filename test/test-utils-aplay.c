@@ -245,14 +245,12 @@ CK_START_TEST(test_play_mixer_setup) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[8192] = "";
+	char output[16384] = "";
 	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 #if DEBUG
 	ck_assert_ptr_ne(strstr(output,
 				"Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"Setting up ALSA mixer volume synchronization"), NULL);
 #endif
 
 	spawn_close(&sp_ba_aplay, NULL);
