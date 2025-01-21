@@ -63,7 +63,7 @@ struct io_worker {
 	/* file descriptor of PCM control */
 	int ba_pcm_ctrl_fd;
 	/* opened playback PCM device */
-	snd_pcm_t *snd_pcm;
+	struct alsa_pcm	alsa_pcm;
 	/* mixer for volume control */
 	snd_mixer_t *snd_mixer;
 	snd_mixer_elem_t *snd_mixer_elem;
@@ -528,10 +528,7 @@ static void io_worker_routine_exit(struct io_worker *worker) {
 		close(worker->ba_pcm_ctrl_fd);
 		worker->ba_pcm_ctrl_fd = -1;
 	}
-	if (worker->snd_pcm != NULL) {
-		snd_pcm_close(worker->snd_pcm);
-		worker->snd_pcm = NULL;
-	}
+	alsa_pcm_close(&worker->alsa_pcm);
 	if (worker->snd_mixer != NULL) {
 		snd_mixer_close(worker->snd_mixer);
 		worker->snd_mixer_elem = NULL;
@@ -542,9 +539,9 @@ static void io_worker_routine_exit(struct io_worker *worker) {
 
 static void *io_worker_routine(struct io_worker *w) {
 
-	snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
-	ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
-	size_t pcm_1s_samples = w->ba_pcm.rate * w->ba_pcm.channels;
+	const snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
+	const ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
+	const size_t pcm_1s_samples = w->ba_pcm.rate * w->ba_pcm.channels;
 	ffb_t buffer = { 0 };
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -719,13 +716,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 		}
 
-		if (w->snd_pcm == NULL) {
-
-			unsigned int buffer_time = pcm_buffer_time;
-			unsigned int period_time = pcm_period_time;
-			snd_pcm_uframes_t buffer_frames;
-			snd_pcm_uframes_t period_frames;
-			char *tmp;
+		if (!alsa_pcm_is_open(&w->alsa_pcm)) {
 
 			if (pcm_open_retries > 0) {
 				/* After PCM open failure wait some time before retry. This can not be
@@ -740,8 +731,10 @@ static void *io_worker_routine(struct io_worker *w) {
 
 			debug("Opening ALSA playback PCM: name=%s channels=%u rate=%u",
 					pcm_device, w->ba_pcm.channels, w->ba_pcm.rate);
-			if (alsa_pcm_open(&w->snd_pcm, pcm_device, pcm_format, w->ba_pcm.channels,
-						w->ba_pcm.rate, &buffer_time, &period_time, &tmp) != 0) {
+
+			char *tmp;
+			if (alsa_pcm_open(&w->alsa_pcm, pcm_device, pcm_format, w->ba_pcm.channels,
+						w->ba_pcm.rate, pcm_buffer_time, pcm_period_time, 0, &tmp) != 0) {
 				warn("Couldn't open ALSA playback PCM: %s", tmp);
 				pcm_max_read_len = pcm_max_read_len_init;
 				pcm_open_retry_pcm_samples = 0;
@@ -750,8 +743,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				continue;
 			}
 
-			snd_pcm_get_params(w->snd_pcm, &buffer_frames, &period_frames);
-			pcm_max_read_len = period_frames * w->ba_pcm.channels * pcm_format_size;
+			pcm_max_read_len = w->alsa_pcm.period_frames * w->alsa_pcm.frame_size;
 
 			io_worker_mixer_open(w, mixer_device, mixer_elem_name, mixer_elem_index);
 			io_worker_mixer_volume_sync_setup(w);
@@ -767,19 +759,19 @@ static void *io_worker_routine(struct io_worker *w) {
 				info("Used configuration for %s:\n"
 						"  ALSA PCM buffer time: %u us (%zu bytes)\n"
 						"  ALSA PCM period time: %u us (%zu bytes)\n"
-						"  PCM format: %s\n"
-						"  Sample rate: %u Hz\n"
-						"  Channels: %u",
+						"  ALSA PCM format: %s\n"
+						"  ALSA PCM sample rate: %u Hz\n"
+						"  ALSA PCM channels: %u",
 						w->addr,
-						buffer_time, snd_pcm_frames_to_bytes(w->snd_pcm, buffer_frames),
-						period_time, snd_pcm_frames_to_bytes(w->snd_pcm, period_frames),
-						snd_pcm_format_name(pcm_format),
-						w->ba_pcm.rate,
-						w->ba_pcm.channels);
+						w->alsa_pcm.buffer_time, alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.buffer_frames),
+						w->alsa_pcm.period_time, alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.period_frames),
+						snd_pcm_format_name(w->alsa_pcm.format),
+						w->alsa_pcm.rate,
+						w->alsa_pcm.channels);
 			}
 
 			if (verbose >= 3)
-				alsa_pcm_dump(w->snd_pcm, stderr);
+				alsa_pcm_dump(&w->alsa_pcm, stderr);
 
 		}
 
@@ -800,29 +792,12 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (!w->mixer_has_mute_switch && pcm_muted)
 			snd_pcm_format_set_silence(pcm_format, buffer.data, samples);
 
-		snd_pcm_sframes_t frames;
-
-retry_alsa_write:
-		frames = samples / w->ba_pcm.channels;
-		if ((frames = snd_pcm_writei(w->snd_pcm, buffer.data, frames)) < 0)
-			switch (-frames) {
-			case EINTR:
-				goto retry_alsa_write;
-			case EPIPE:
-				debug("ALSA playback PCM underrun");
-				snd_pcm_prepare(w->snd_pcm);
-				goto retry_alsa_write;
-			default:
-				error("ALSA playback PCM write error: %s", snd_strerror(frames));
-				goto close_alsa;
-			}
-
-		/* Move leftovers to the beginning and reposition tail. */
-		ffb_shift(&buffer, frames * w->ba_pcm.channels);
+		if (alsa_pcm_write(&w->alsa_pcm, &buffer) < 0)
+			goto close_alsa;
 
 		int ret;
 		snd_pcm_sframes_t delay_frames = 0;
-		if ((ret = snd_pcm_delay(w->snd_pcm, &delay_frames)) != 0)
+		if ((ret = alsa_pcm_delay(&w->alsa_pcm, &delay_frames)) != 0)
 			warn("Couldn't get PCM delay: %s", snd_strerror(ret));
 		else {
 
@@ -868,10 +843,7 @@ retry_alsa_write:
 close_alsa:
 		ffb_rewind(&buffer);
 		pcm_max_read_len = pcm_max_read_len_init;
-		if (w->snd_pcm != NULL) {
-			snd_pcm_close(w->snd_pcm);
-			w->snd_pcm = NULL;
-		}
+		alsa_pcm_close(&w->alsa_pcm);
 		if (w->snd_mixer != NULL) {
 			snd_mixer_close(w->snd_mixer);
 			w->snd_mixer_elem = NULL;
@@ -950,7 +922,7 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	ba2str(&worker->ba_pcm.addr, worker->addr);
 	worker->ba_pcm_fd = -1;
 	worker->ba_pcm_ctrl_fd = -1;
-	worker->snd_pcm = NULL;
+	alsa_pcm_init(&worker->alsa_pcm);
 	worker->snd_mixer = NULL;
 	worker->snd_mixer_elem = NULL;
 	worker->mixer_has_mute_switch = false;

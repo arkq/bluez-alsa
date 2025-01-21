@@ -291,14 +291,14 @@ CK_START_TEST(test_play_dbus_signals) {
 				"Used configuration for 12:34:56:78:9A:BC"), NULL);
 	/* check proper sample rate for CVSD codec */
 	ck_assert_ptr_ne(strstr(output,
-				"Sample rate: 8000 Hz"), NULL);
+				"ALSA PCM sample rate: 8000 Hz"), NULL);
 
 #if ENABLE_MSBC
 	ck_assert_ptr_ne(strstr(output,
 				"Used configuration for 12:34:56:78:9A:BC"), NULL);
 	/* check proper sample rate for mSBC codec */
 	ck_assert_ptr_ne(strstr(output,
-				"Sample rate: 16000 Hz"), NULL);
+				"ALSA PCM sample rate: 16000 Hz"), NULL);
 #endif
 
 	spawn_close(&sp_ba_aplay, NULL);
