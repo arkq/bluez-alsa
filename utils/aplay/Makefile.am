@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2024 Arkadiusz Bokowy
+# Copyright (c) 2016-2025 Arkadiusz Bokowy
 
 if ENABLE_APLAY
 
@@ -16,6 +16,7 @@ bluealsa_aplay_SOURCES = \
 	alsa-mixer.c \
 	alsa-pcm.c \
 	dbus.c \
+	delay-report.c \
 	aplay.c
 
 bluealsa_aplay_CFLAGS = \
