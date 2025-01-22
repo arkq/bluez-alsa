@@ -319,6 +319,14 @@ AC_ARG_ENABLE([aplay],
 	[AS_HELP_STRING([--disable-aplay], [disable building of bluealsa-aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
 
+AC_ARG_ENABLE([aplay-resampler],
+	AS_HELP_STRING([--enable-aplay-resampler], [enable resampler in bluealsa-aplay]))
+AM_CONDITIONAL([ENABLE_APLAY_RESAMPLER], [test "x$enable_aplay_resampler" = "xyes"])
+AM_COND_IF([ENABLE_APLAY_RESAMPLER], [
+	PKG_CHECK_MODULES([SAMPLERATE], [samplerate >= 0.2.2])
+	AC_DEFINE([ENABLE_APLAY_RESAMPLER], [1], [Define to 1 if aplay resampler is enabled.])
+])
+
 AC_ARG_ENABLE([rfcomm],
 	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
 AM_CONDITIONAL([ENABLE_RFCOMM], [test "x$enable_rfcomm" = "xyes"])
