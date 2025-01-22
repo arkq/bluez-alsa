@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple BlueALSA player
 ------------------------
 
-:Date: August 2024
+:Date: February 2025
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -58,7 +58,8 @@ OPTIONS
     (i.e., all messages are logged).
 
 -v, --verbose
-    Make the output more verbose.
+    Make the output more verbose. This option may be given multiple times to
+    increase the verbosity.
 
 -l, --list-devices
     List connected Bluetooth audio devices.
@@ -89,35 +90,40 @@ OPTIONS
 
 --pcm-buffer-time=INT
     Set the playback PCM buffer duration time to *INT* microseconds.
-    The default is 200000. It is recommended to choose a buffer time that is
-    an exact multiple of the period time to avoid potential issues with some
-    ALSA plugins (see --pcm-period-time option below).
-    ALSA may choose the nearest available alternative if the requested value is
-    not supported.
+    The default is four times the period time. It is recommended to choose a
+    buffer time that is an exact multiple of the period time to avoid potential
+    issues with some ALSA plugins (see --pcm-period-time option below). For
+    reliable performance the buffer time should be at least 3 times the period
+    time.
 
-    If you experience underruns on the ALSA device then a larger buffer may
-    help. However, a larger buffer will also increase the latency. For reliable
-    performance the buffer time should be at least 3 times the period time.
+    ALSA may choose the nearest available alternative if the requested value is
+    not supported; and some ALSA devices may ignore the requested value
+    completely (e.g. **dmix**, see dmix_ in the **NOTES** section below).
 
 --pcm-period-time=INT
-    Set the playback PCM period duration time to *INT* microseconds.
-    The default is 50000.
+    Set the playback PCM period duration time to *INT* microseconds. The
+    default is 50000 for A2DP and 20000 for SCO profiles.
     ALSA may choose the nearest available alternative if the requested value is
-    not supported.
+    not supported; and some ALSA devices may ignore the requested value
+    completely (e.g. **dmix**, see dmix_ in the **NOTES** section below).
+
+    If you experience underruns on the ALSA device or overruns on the Bluetooth
+    stream then a larger period time may help. However, a larger period time
+    will also increase the latency.
 
     The ALSA **rate** plugin, which may be invoked by **plug**, does not always
     produce the exact required effective sample rate because of rounding errors
     in the conversion between period time and period size. This can have a
     significant impact on synchronization "drift", especially with small period
     sizes, and can also result in stream underruns (if the effective rate is
-    too fast) or dropped A2DP frames in the **bluealsad(8)** server (if the
-    effective rate is too slow). This effect is avoided if the selected period
-    time results in an exact integer number of frames for both the source rate
-    (Bluetooth) and sink rate (hardware card). For example, in the case of
-    Bluetooth stream sampled at 44100Hz playing to a hardware device that
-    supports only 48000Hz, choosing a period time that is a multiple of 10000
-    microseconds will result in zero rounding error.  (10000 µs at 44100Hz is
-    441 frames, and at 48000Hz is 480 frames).
+    too fast) or dropped frames (if the effective rate is too slow). This
+    effect is avoided if the selected period time results in an exact integer
+    number of frames for both the source rate (Bluetooth) and sink rate
+    (hardware card). For example, in the case of Bluetooth stream sampled at
+    44100 Hz playing to a hardware device that supports only 48000 Hz, choosing
+    a period time that is a multiple of 10000 microseconds will result in zero
+    rounding error. (10000 µs at 44100 Hz is 441 frames, and at 48000 Hz is 480
+    frames).
 
     See also dmix_ in the **NOTES** section below for more information on
     rate calculation rounding errors.
@@ -226,13 +232,14 @@ control.
 dmix
 ----
 
-The ALSA `dmix` plugin will ignore the period and buffer times selected by the
-application (because it has to allow connections from multiple applications).
-Instead it will choose its own values, which can lead to rounding errors in the
-period size calculation when used with the ALSA `rate` plugin. To avoid this,
-it is recommended to explicitly define the hardware period size and buffer size
-for dmix in your ALSA configuration. For example, suppose we want a period time
-of 50000 µs and a buffer holding 4 periods with an Intel 'PCH' card:
+The ALSA **dmix** plugin will ignore the period and buffer times selected by
+the application (because it has to allow connections from multiple
+applications). Instead it will choose its own values, which can lead to
+rounding errors in the period size calculation when used with the ALSA **rate**
+plugin. To avoid this, it is recommended to explicitly define the hardware
+period size and buffer size for **dmix** in your ALSA configuration. For
+example, suppose we want a period time of 50000 µs and a buffer holding 4
+periods with an Intel 'PCH' card:
 
 ::
 
@@ -260,7 +267,7 @@ EXAMPLES
 ========
 
 The simplest usage of **bluealsa-aplay** is to run it with no arguments. It
-will play audio from all connected Bluetooth devices to the ``default`` ALSA
+will play audio from all connected Bluetooth devices to the **default** ALSA
 playback PCM.
 
 ::

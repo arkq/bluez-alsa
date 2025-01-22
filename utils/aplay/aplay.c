@@ -48,6 +48,14 @@
 #include "dbus.h"
 #include "delay-report.h"
 
+/* Many devices cannot synchronize A/V with very high audio latency. To keep
+ * the overall latency below 400ms we choose default ALSA parameters such that
+ * the ALSA latency for A2DP is below 200ms. For SCO we choose to prioritize
+ * much lower latency over audio quality. */
+#define DEFAULT_PERIOD_TIME_A2DP 50000
+#define DEFAULT_PERIOD_TIME_SCO 20000
+#define DEFAULT_PERIODS 4
+
 enum volume_type {
 	VOL_TYPE_AUTO,
 	VOL_TYPE_MIXER,
@@ -85,11 +93,8 @@ static bool ba_profile_a2dp = true;
 static bool ba_addr_any = false;
 static bdaddr_t *ba_addrs = NULL;
 static size_t ba_addrs_count = 0;
-/* Many devices cannot synchronize A/V with very high audio latency. To keep
- * the overall latency below 400ms we choose ALSA parameters such that the
- * ALSA latency is below 200ms. */
-static unsigned int pcm_buffer_time = 200000;
-static unsigned int pcm_period_time = 50000;
+static unsigned int pcm_buffer_time = 0;
+static unsigned int pcm_period_time = 0;
 
 /* local PCM muted state for software mute */
 static bool pcm_muted = false;
@@ -1116,6 +1121,16 @@ int main(int argc, char *argv[]) {
 	if (volume_type == VOL_TYPE_NONE || volume_type == VOL_TYPE_SOFTWARE)
 		mixer_device = NULL;
 
+	if (pcm_buffer_time == 0) {
+		if (pcm_period_time == 0)
+			pcm_period_time = ba_profile_a2dp ?
+				DEFAULT_PERIOD_TIME_A2DP : DEFAULT_PERIOD_TIME_SCO;
+		pcm_buffer_time = pcm_period_time * DEFAULT_PERIODS;
+	}
+	else if (pcm_period_time == 0) {
+		pcm_period_time = pcm_buffer_time / DEFAULT_PERIODS;
+	}
+
 	if (verbose >= 1) {
 
 		char *ba_str = malloc(19 * ba_addrs_count + 1);
@@ -1137,16 +1152,16 @@ int main(int argc, char *argv[]) {
 				"  ALSA PCM device: %s\n"
 				"  ALSA PCM buffer time: %u us\n"
 				"  ALSA PCM period time: %u us\n"
-				"  Volume control type: %s\n"
 				"  ALSA mixer device: %s\n"
 				"  ALSA mixer element: %s\n"
+				"  Volume control type: %s\n"
 				"  Bluetooth device(s): %s\n"
 				"  Profile: %s",
 				dbus_ba_service,
 				pcm_device, pcm_buffer_time, pcm_period_time,
-				volume_type_str,
 				mixer_device_str,
 				mixer_element_str,
+				volume_type_str,
 				ba_addr_any ? "ANY" : &ba_str[2],
 				ba_profile_a2dp ? "A2DP" : "SCO");
 
