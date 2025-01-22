@@ -93,6 +93,12 @@ unsigned int asrsync_get_dms_since_last_sync(const struct asrsync *asrs);
  * @return Time in milliseconds. */
 #define timespec2ms(ts) ((ts)->tv_sec * 1000 + (ts)->tv_nsec / 1000000)
 
+/**
+ * Check whether the time defined by the timespec structure is zero. */
+static inline bool is_timespec_zero(const struct timespec *ts) {
+	return ts->tv_sec == 0 && ts->tv_nsec == 0;
+}
+
 int difftimespec(
 		const struct timespec *ts1,
 		const struct timespec *ts2,
