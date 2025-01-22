@@ -49,12 +49,6 @@ bool delay_report_update(
 		ffb_t *buffer,
 		DBusError *err) {
 
-	int ret;
-	snd_pcm_sframes_t alsa_delay_frames = 0;
-	/* Get the delay reported by the ALSA driver. */
-	if ((ret = alsa_pcm_delay(pcm, &alsa_delay_frames)) != 0)
-		warn("Couldn't get PCM delay: %s", snd_strerror(ret));
-
 	unsigned int ba_pcm_buffered = 0;
 	/* Get the delay due to BlueALSA PCM FIFO buffering. */
 	ioctl(ba_pcm_fd, FIONREAD, &ba_pcm_buffered);
@@ -65,7 +59,7 @@ bool delay_report_update(
 
 	const size_t num_values = ARRAYSIZE(dr->values);
 	/* Store the delay calculated from all components. */
-	dr->values[dr->values_i % num_values] = alsa_delay_frames + ba_pcm_frames + buffer_frames;
+	dr->values[dr->values_i % num_values] = pcm->delay + ba_pcm_frames + buffer_frames;
 	dr->values_i++;
 
 	struct timespec ts_now;

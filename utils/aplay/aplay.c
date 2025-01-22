@@ -431,8 +431,11 @@ static void *io_worker_routine(struct io_worker *w) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(io_worker_routine_exit), w);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
 
-	/* create buffer big enough to hold 100 ms of PCM data */
-	if (ffb_init(&buffer, pcm_1s_samples / 10, pcm_format_size) == -1) {
+	/* Create a buffer big enough to hold enough PCM data for half the
+	 * requested PCM buffer time. This will be revised to match the actual
+	 * ALSA start threshold when the ALSA PCM is opened. */
+	const size_t nmemb = pcm_buffer_time * pcm_1s_samples / 1000000 / 2;
+	if (ffb_init(&buffer, nmemb, pcm_format_size) == -1) {
 		error("Couldn't create PCM buffer: %s", strerror(errno));
 		goto fail;
 	}
@@ -461,11 +464,6 @@ static void *io_worker_routine(struct io_worker *w) {
 		dbus_error_free(&err);
 		goto fail;
 	}
-
-	/* Initialize the max read length to 10 ms. Later, when the PCM device
-	 * will be opened, this value will be adjusted to one period size. */
-	size_t pcm_max_read_len_init = pcm_1s_samples / 100 * pcm_format_size;
-	size_t pcm_max_read_len = pcm_max_read_len_init;
 
 	/* Track the lock state of the single playback mutex within this thread. */
 	bool single_playback_mutex_locked = false;
@@ -522,12 +520,9 @@ static void *io_worker_routine(struct io_worker *w) {
 			error("IO loop poll error: %s", strerror(errno));
 			goto fail;
 		case 0:
-			debug("BT device marked as inactive: %s", w->addr);
-			pause_retry_pcm_samples = pcm_1s_samples;
-			pause_retries = 0;
-			w->active = false;
-			timeout = -1;
-			goto close_alsa;
+			if (!w->ba_pcm.running && ffb_len_out(&buffer) == 0)
+				goto device_inactive;
+			break;
 		}
 
 		if (fds[0].revents & POLLIN)
@@ -539,9 +534,20 @@ static void *io_worker_routine(struct io_worker *w) {
 		size_t read_samples = 0;
 		if (fds[1].revents & POLLIN) {
 
+			/* If the internal buffer is full then we have an overrun. We must
+			 * discard audio frames in order to continue reading fresh data
+			 * from the server. */
+			if (ffb_blen_in(&buffer) == 0) {
+				unsigned int buffered = 0;
+				ioctl(w->ba_pcm_fd, FIONREAD, &buffered);
+				const size_t discard_bytes = MIN(buffered, ffb_blen_out(&buffer));
+				const size_t discard_samples = discard_bytes / pcm_format_size;
+				warn("Dropping PCM frames: %zu", discard_samples / w->ba_pcm.channels);
+				ffb_shift(&buffer, discard_samples);
+			}
+
 			ssize_t ret;
-			size_t _in = MIN(pcm_max_read_len, ffb_blen_in(&buffer));
-			if ((ret = read(w->ba_pcm_fd, buffer.tail, _in)) == -1) {
+			if ((ret = read(w->ba_pcm_fd, buffer.tail, ffb_blen_in(&buffer))) == -1) {
 				if (errno == EINTR)
 					continue;
 				error("BlueALSA source PCM read error: %s", strerror(errno));
@@ -552,6 +558,8 @@ static void *io_worker_routine(struct io_worker *w) {
 			if (ret % pcm_format_size != 0)
 				warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
 
+			ffb_seek(&buffer, read_samples);
+
 		}
 		else if (fds[1].revents & POLLHUP) {
 			/* source PCM FIFO has been terminated on the writing side */
@@ -560,9 +568,6 @@ static void *io_worker_routine(struct io_worker *w) {
 		}
 		else if (fds[1].revents)
 			error("Unexpected BlueALSA source PCM poll event: %#x", fds[1].revents);
-
-		if (read_samples == 0)
-			continue;
 
 		/* If current worker is not active and the single playback mode was
 		 * enabled, we have to check if there is any other active worker. */
@@ -612,14 +617,17 @@ static void *io_worker_routine(struct io_worker *w) {
 			if (alsa_pcm_open(&w->alsa_pcm, pcm_device, pcm_format, w->ba_pcm.channels,
 						w->ba_pcm.rate, pcm_buffer_time, pcm_period_time, 0, &tmp) != 0) {
 				warn("Couldn't open ALSA playback PCM: %s", tmp);
-				pcm_max_read_len = pcm_max_read_len_init;
 				pcm_open_retry_pcm_samples = 0;
 				pcm_open_retries++;
 				free(tmp);
 				continue;
 			}
 
-			pcm_max_read_len = w->alsa_pcm.period_frames * w->alsa_pcm.frame_size;
+			/* Resize the internal buffer to ensure it is not less than the
+			 * ALSA start threshold. This is to ensure that the PCM re-starts
+			 * quickly after an overrun. */
+			if (w->alsa_pcm.start_threshold > buffer.nmemb / w->ba_pcm.channels)
+				ffb_init(&buffer, w->alsa_pcm.start_threshold * w->ba_pcm.channels, buffer.size);
 
 			/* Skip mixer setup in case of software volume. */
 			if (mixer_device != NULL && !w->ba_pcm.soft_volume) {
@@ -661,9 +669,9 @@ static void *io_worker_routine(struct io_worker *w) {
 
 		}
 
-		/* mark device as active and set timeout to 500ms */
+		/* Mark device as active and set timeout to the period time. */
+		timeout = w->alsa_pcm.period_time / 1000;
 		w->active = true;
-		timeout = 500;
 
 		/* Current worker was marked as active, so we can safely
 		 * release the single playback mutex if it was locked. */
@@ -672,14 +680,14 @@ static void *io_worker_routine(struct io_worker *w) {
 			single_playback_mutex_locked = false;
 		}
 
-		ffb_seek(&buffer, read_samples);
-		size_t samples = ffb_len_out(&buffer);
-
 		if (!w->alsa_mixer.has_mute_switch && pcm_muted)
-			snd_pcm_format_set_silence(pcm_format, buffer.data, samples);
+			snd_pcm_format_set_silence(pcm_format, buffer.data, ffb_len_out(&buffer));
 
-		if (alsa_pcm_write(&w->alsa_pcm, &buffer) < 0)
+		if (alsa_pcm_write(&w->alsa_pcm, &buffer, !w->ba_pcm.running, verbose) < 0)
 			goto close_alsa;
+
+		if (!w->ba_pcm.running)
+			goto device_inactive;
 
 		if (!delay_report_update(&dr, &w->alsa_pcm, w->ba_pcm_fd, &buffer, &err)) {
 			error("Couldn't update BlueALSA PCM client delay: %s", err.message);
@@ -689,9 +697,15 @@ static void *io_worker_routine(struct io_worker *w) {
 
 		continue;
 
+device_inactive:
+		debug("BT device marked as inactive: %s", w->addr);
+		pause_retry_pcm_samples = pcm_1s_samples;
+		pause_retries = 0;
+		w->active = false;
+		timeout = -1;
+
 close_alsa:
 		ffb_rewind(&buffer);
-		pcm_max_read_len = pcm_max_read_len_init;
 		alsa_pcm_close(&w->alsa_pcm);
 		alsa_mixer_close(&w->alsa_mixer);
 	}
@@ -741,11 +755,13 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
 			/* If the codec has changed after the device connected, then the
 			 * audio format may have changed. If it has, the worker thread
-			 * needs to be restarted. */
+			 * needs to be restarted. Otherwise, update the running state. */
 			if (!pcm_hw_params_equal(&workers[i].ba_pcm, ba_pcm))
 				io_worker_stop(i);
-			else
+			else {
+				workers[i].ba_pcm.running = ba_pcm->running;
 				return &workers[i];
+			}
 		}
 
 	pthread_rwlock_wrlock(&workers_lock);

@@ -38,6 +38,12 @@ struct alsa_pcm {
 	 * automatic start of the ALSA device. */
 	snd_pcm_uframes_t start_threshold;
 
+	/* The number of frames below which we are going to pad
+	 * the buffer with silence to prevent underrun. */
+	snd_pcm_uframes_t underrun_threshold;
+	/* Indicates whether the last write recovered from an underrun. */
+	bool underrun;
+
 	/* The number of bytes in 1 sample. */
 	size_t sample_size;
 	/* The number of bytes in 1 frame. */
@@ -71,12 +77,6 @@ inline static bool alsa_pcm_is_open(
 	return pcm->pcm != NULL;
 }
 
-inline static int alsa_pcm_delay(
-		const struct alsa_pcm *pcm,
-		snd_pcm_sframes_t *delay) {
-	return snd_pcm_delay(pcm->pcm, delay);
-}
-
 inline static ssize_t alsa_pcm_frames_to_bytes(
 		const struct alsa_pcm *pcm,
 		snd_pcm_sframes_t frames) {
@@ -85,7 +85,9 @@ inline static ssize_t alsa_pcm_frames_to_bytes(
 
 int alsa_pcm_write(
 		struct alsa_pcm *pcm,
-		ffb_t *buffer);
+		ffb_t *buffer,
+		bool drain,
+		unsigned int verbose);
 
 void alsa_pcm_dump(
 		const struct alsa_pcm *pcm,

@@ -102,18 +102,16 @@ static int alsa_pcm_set_sw_params(
 		goto fail;
 	}
 
-	/* Start the transfer when the buffer is half full - this allows
-	 * spare capacity to accommodate bursts and short breaks in the
-	 * Bluetooth stream. */
-	snd_pcm_uframes_t threshold = pcm->start_threshold = buffer_size / 2;
+	/* Start the transfer when three periods have been written (or when the
+	 * buffer is full if it holds less than three periods. */
+	snd_pcm_uframes_t threshold = period_size * 3;
+	if (threshold > buffer_size)
+		threshold = buffer_size;
+
+	pcm->start_threshold = threshold;
+
 	if ((err = snd_pcm_sw_params_set_start_threshold(snd_pcm, params, threshold)) != 0) {
 		snprintf(buf, sizeof(buf), "Set start threshold: %s: %lu", snd_strerror(err), threshold);
-		goto fail;
-	}
-
-	/* Allow the transfer when at least period_size samples can be processed. */
-	if ((err = snd_pcm_sw_params_set_avail_min(snd_pcm, params, period_size)) != 0) {
-		snprintf(buf, sizeof(buf), "Set avail min: %s: %lu", snd_strerror(err), period_size);
 		goto fail;
 	}
 
@@ -131,7 +129,7 @@ fail:
 }
 
 void alsa_pcm_init(struct alsa_pcm *pcm) {
-	pcm->pcm = NULL;
+	memset(pcm, 0, sizeof(*pcm));
 }
 
 int alsa_pcm_open(
@@ -187,6 +185,11 @@ int alsa_pcm_open(
 	pcm->period_time = actual_period_time;
 	pcm->buffer_frames = buffer_size;
 	pcm->period_frames = period_size;
+	pcm->delay = 0;
+
+	/* Maintain buffer fill level above 1 period plus 2ms to allow
+	 * for scheduling delays */
+	pcm->underrun_threshold = pcm->period_frames + pcm->rate * 2 / 1000;
 
 	return 0;
 
@@ -196,7 +199,6 @@ fail:
 		*msg = strdup(buf);
 	free(tmp);
 	return err;
-
 }
 
 void alsa_pcm_close(struct alsa_pcm *pcm) {
@@ -205,30 +207,87 @@ void alsa_pcm_close(struct alsa_pcm *pcm) {
 	pcm->pcm = NULL;
 }
 
-int alsa_pcm_write(struct alsa_pcm *pcm, ffb_t *buffer) {
+int alsa_pcm_write(
+		struct alsa_pcm *pcm,
+		ffb_t *buffer,
+		bool drain,
+		unsigned int verbose) {
 
-	size_t samples = ffb_len_out(buffer);
-	snd_pcm_sframes_t frames;
+	snd_pcm_sframes_t avail = 0;
+	snd_pcm_sframes_t delay = 0;
+	snd_pcm_sframes_t ret;
 
-	for (;;) {
-		frames = samples / pcm->channels;
-		if ((frames = snd_pcm_writei(pcm->pcm, buffer->data, frames)) > 0)
-			break;
-		switch (-frames) {
-		case EINTR:
-			continue;
-		case EPIPE:
+	pcm->underrun = false;
+	if ((ret = snd_pcm_avail_delay(pcm->pcm, &avail, &delay)) < 0) {
+		if (ret == -EPIPE) {
 			debug("ALSA playback PCM underrun");
+			pcm->underrun = true;
 			snd_pcm_prepare(pcm->pcm);
-			continue;
-		default:
-			error("ALSA playback PCM write error: %s", snd_strerror(frames));
+			avail = pcm->buffer_frames;
+			delay = 0;
+		}
+		else {
+			error("ALSA playback PCM error: %s", snd_strerror(ret));
 			return -1;
 		}
 	}
 
-	/* Move leftovers to the beginning of buffer and reposition tail. */
-	ffb_shift(buffer, frames * pcm->channels);
+	snd_pcm_sframes_t frames = ffb_len_out(buffer) / pcm->channels;
+	snd_pcm_sframes_t written_frames = 0;
+
+	/* If not draining, write only as many frames as possible without
+	 * blocking. If necessary insert silence frames to prevent underrun. */
+	if (!drain) {
+		if (frames > avail)
+			frames = avail;
+		else if (pcm->buffer_frames - avail + frames < pcm->underrun_threshold &&
+					snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING) {
+			/* Pad the buffer with enough silence to restore it to the underrun
+			 * threshold. */
+			const size_t padding_frames = pcm->underrun_threshold - frames;
+			const size_t padding_samples = padding_frames * pcm->channels;
+			if (verbose >= 3)
+				info("Underrun imminent: inserting %zu silence frames", padding_frames);
+			snd_pcm_format_set_silence(pcm->format, buffer->tail, padding_samples);
+			ffb_seek(buffer, padding_samples);
+			frames += padding_frames;
+		}
+	}
+
+	while (frames > 0) {
+		ret = snd_pcm_writei(pcm->pcm, buffer->data, frames);
+		if (ret < 0)
+			switch (-ret) {
+			case EINTR:
+				continue;
+			case EPIPE:
+				debug("ALSA playback PCM underrun");
+				pcm->underrun = true;
+				snd_pcm_prepare(pcm->pcm);
+				continue;
+			default:
+				error("ALSA playback PCM write error: %s", snd_strerror(ret));
+				return -1;
+			}
+		else {
+			written_frames += ret;
+			frames -= ret;
+			delay += ret;
+		}
+	}
+
+	if (drain) {
+		snd_pcm_drain(pcm->pcm);
+		ffb_rewind(buffer);
+		return 0;
+	}
+
+	pcm->delay = delay + written_frames;
+
+	/* Move leftovers to the beginning and reposition tail. */
+	if (written_frames > 0)
+		ffb_shift(buffer, written_frames * pcm->channels);
+
 	return 0;
 }
 
