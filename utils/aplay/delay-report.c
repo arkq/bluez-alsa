@@ -30,21 +30,23 @@ void delay_report_init(
 		struct delay_report *dr,
 		struct ba_dbus_ctx *dbus_ctx,
 		struct ba_pcm *ba_pcm) {
-
 	memset(dr, 0, sizeof(*dr));
 	dr->dbus_ctx = dbus_ctx;
 	dr->ba_pcm = ba_pcm;
-
 }
 
 void delay_report_reset(
 		struct delay_report *dr) {
 	memset(dr->values, 0, sizeof(dr->values));
+	dr->values_i = 0;
 }
 
 bool delay_report_update(
 		struct delay_report *dr,
 		struct alsa_pcm *pcm,
+#if ENABLE_APLAY_RESAMPLER
+		size_t resample_delay_frames,
+#endif
 		int ba_pcm_fd,
 		ffb_t *buffer,
 		DBusError *err) {
@@ -60,6 +62,9 @@ bool delay_report_update(
 	const size_t num_values = ARRAYSIZE(dr->values);
 	/* Store the delay calculated from all components. */
 	dr->values[dr->values_i % num_values] = pcm->delay + ba_pcm_frames + buffer_frames;
+#if ENABLE_APLAY_RESAMPLER
+	dr->values[dr->values_i % num_values] += resample_delay_frames;
+#endif
 	dr->values_i++;
 
 	struct timespec ts_now;
@@ -72,7 +77,11 @@ bool delay_report_update(
 	snd_pcm_sframes_t delay_frames_avg = 0;
 	for (size_t i = 0; i < num_values; i++)
 		delay_frames_avg += dr->values[i];
-	delay_frames_avg /= num_values;
+	if (dr->values_i < num_values)
+		delay_frames_avg /= dr->values_i;
+	else
+		delay_frames_avg /= num_values;
+	dr->avg_value = delay_frames_avg;
 
 	const int delay = delay_frames_avg * 10000 / dr->ba_pcm->rate;
 	if (difftimespec(&ts_now, &ts_delay, &ts_delay) >= 0 ||
