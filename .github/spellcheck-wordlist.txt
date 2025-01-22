@@ -215,6 +215,7 @@ HUP
 ioplug
 IPHONEACCEV
 jas
+jitter
 keyp
 larc
 LEAdvertisement
@@ -256,6 +257,7 @@ SIGIO
 SIGPIPE
 SIGSEGV
 SIGTERM
+SINC
 SL
 SNR
 spandsp
