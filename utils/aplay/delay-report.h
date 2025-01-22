@@ -12,6 +12,10 @@
 #ifndef BLUEALSA_APLAY_DELAYREPORT_H_
 #define BLUEALSA_APLAY_DELAYREPORT_H_
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <stdbool.h>
 #include <time.h>
 
@@ -31,7 +35,8 @@ struct delay_report {
 	struct timespec update_ts;
 
 	/* Window buffer for calculating delay moving average. */
-	snd_pcm_sframes_t values[64];
+	snd_pcm_uframes_t values[64];
+	snd_pcm_uframes_t avg_value;
 	size_t values_i;
 
 };
@@ -46,9 +51,7 @@ void delay_report_reset(
 
 bool delay_report_update(
 		struct delay_report *dr,
-		struct alsa_pcm *pcm,
-		int ba_pcm_fd,
-		ffb_t *buffer,
+		snd_pcm_uframes_t delay,
 		DBusError *err);
 
 #endif

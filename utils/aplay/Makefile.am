@@ -19,17 +19,24 @@ bluealsa_aplay_SOURCES = \
 	delay-report.c \
 	aplay.c
 
+if WITH_LIBSAMPLERATE
+bluealsa_aplay_SOURCES += \
+	resampler.c
+endif
+
 bluealsa_aplay_CFLAGS = \
 	-I$(top_srcdir)/src \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@DBUS1_CFLAGS@ \
-	@LIBUNWIND_CFLAGS@
+	@LIBUNWIND_CFLAGS@ \
+	@SAMPLERATE_CFLAGS@
 
 bluealsa_aplay_LDADD = \
 	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@DBUS1_LIBS@ \
-	@LIBUNWIND_LIBS@
+	@LIBUNWIND_LIBS@ \
+	@SAMPLERATE_LIBS@
 
 endif

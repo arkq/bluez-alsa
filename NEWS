@@ -7,6 +7,7 @@ unreleased
 - optional support for A2DP Sink and Source with LHDC v3 codec
 - channel map and volume control for surround sound (5.1, 7.1) audio
 - native A2DP volume control by default (dropped --a2dp-volume option)
+- optional support for adaptive audio resampling in bluealsa-aplay
 - fix configuration for Android 13 A2DP Opus codec
 
 bluez-alsa v4.3.1 (2024-08-30)

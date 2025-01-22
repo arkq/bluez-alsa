@@ -20,13 +20,21 @@ DESCRIPTION
 ===========
 
 Capture audio streams from Bluetooth devices (via ``bluealsad(8)``) and play
-them to an ALSA playback device.
+them to an ALSA playback device. Optionally, Bluetooth AVRCP volume control
+requests are applied to a local mixer control to permit remote volume
+control.
 
 By default **bluealsa-aplay** captures audio from all connected Bluetooth
 devices.  It is possible to select specific Bluetooth devices by providing a
 list of *BT-ADDR* MAC addresses.
 Using the special MAC address **00:00:00:00:00:00** will disable device
 filtering - the same as the default behavior.
+
+If built with **libsamplerate** support **bluealsa-aplay** can compensate for
+timer drift by using adaptive rate resampling.
+
+**bluealsa-aplay** can also be used to list connected Bluetooth audio devices
+and PCMs.
 
 OPTIONS
 =======
@@ -76,10 +84,12 @@ OPTIONS
     Select ALSA playback PCM device to use for audio output.
     The default is ``default``.
 
-    Internally, **bluealsa-aplay** does not perform any audio transformations
+    Internally, **bluealsa-aplay** is able to perform sample rate conversion
+    if it was built with libsamplerate support (see the option
+    **--resampler=**), but does not perform any other audio transformations
     nor streams mixing. If multiple Bluetooth devices are connected it simply
     opens a new connection to the ALSA PCM device for each stream. Selected
-    hardware parameters like sample rate and number of channels are
+    hardware parameters like sample format and number of channels are
     taken from the audio profile of a particular Bluetooth connection. Note,
     that each connection can have a different setup.
 
@@ -187,6 +197,42 @@ OPTIONS
     Note: Only one of A2DP or SCO can be used. If both are specified, the
     last one given will be selected.
 
+--resampler=METHOD
+    Use libsamplerate to convert the stream from the Bluetooth sample rate to
+    the ALSA PCM sample rate. This option is only available if
+    **bluealsa-aplay** was built with libsamplerate support. The resampler uses
+    adaptive resampling to compensate for timer drift between the Bluetooth
+    timer and the ALSA device timer. Resampling can be CPU intensive and
+    therefore by default this option is not enabled. *METHOD* specifies which
+    libsamplerate converter to use, and may be one of 6 values:
+
+    - **sinc-best** - use the SRC_SINC_BEST_QUALITY converter; generates the
+      highest quality output but also has very high CPU usage.
+
+    - **sinc-medium** - use the SRC_SINC_MEDIUM_QUALITY converter; generates
+      high quality output and has moderately high CPU usage.
+
+    - **sinc-fastest** - use the SRC_SINC_FASTEST converter; generates good
+      quality output with lower CPU usage than the other SINC based converters.
+      Often this converter is the best compromise for Bluetooth audio.
+
+    - **linear** - use the SRC_LINEAR converter. The audio quality is
+      relatively poor compared to the SINC converters. Quality and CPU usage
+      is similar to the ALSA rate plugin's own internal linear converter, but
+      this option also compensates for timer drift, which is not possible with
+      the ALSA rate plugin.
+
+    - **zero-order-hold** - use the SRC_ZERO_ORDER_HOLD converter; the lowest
+      quality converter of libsamplerate. CPU usage is very low so may be
+      better suited to very low power embedded processors.
+
+    - **none** - do not perform any resampling; the ALSA PCM device is then
+      responsible for rate conversion, and no timer drift adjustment is made.
+      This is the default when no resampler is specified.
+
+    See `Delay, timer drift, and resampling`_ in the **NOTES** section below
+    for more information.
+
 --single-audio
     Allow only one Bluetooth device to play audio at a time.
     If multiple devices are connected, only the first to start will play, the
@@ -229,6 +275,67 @@ always be available with those devices which provide it.
 See ``bluealsad(8)`` for more information on native and soft-volume volume
 control.
 
+Delay, timer drift, and resampling
+----------------------------------
+
+When using A2DP, **bluealsa-aplay** reports the current stream delay back to
+the source device to permit A/V synchronization (requires BlueZ 5.79 or later).
+The delay is influenced by a number of factors, but the largest single
+contributor is buffering within **bluealsa-aplay**. Some buffering is essential
+to maintain a steady audio stream given that codec decoding and radio
+interference can cause large variations in the timing of audio sample delivery.
+
+By default, **bluealsa-aplay** uses a period time of 50ms for A2DP which
+results in a typical delay of between 160ms and 210ms. The delay is three times
+the period time plus an additional amount which depends on the codec and the
+ALSA device.
+It is possible to modify the period time using the command-line option
+``--pcm-period-time`` and this will directly affect the resulting delay.
+
+In poor radio reception conditions, audio samples may be "lost" and then be
+re-sent by the source device. This can cause a long break in the stream
+followed by a sudden "flood" of samples. A larger delay will give
+**bluealsa-aplay** greater capacity to handle such breaks without interrupting
+the playback stream. However, many devices are unable to synchronize A/V when
+the audio delay is too high. The limit depends very much on the source device,
+and also the application running on that device, but as a general guide it is
+best to keep the delay below about 400ms, and therefore to keep the period time
+below about 100ms.
+
+Real-world timers never "tick" at *exactly* the same rate, and so the ALSA
+device will not consume audio samples at *exactly* the same rate as the
+Bluetooth device produces them. This difference is known as "timer drift" and
+causes the **bluealsa-aplay** buffer to either slowly run empty or to slowly
+become too full to receive samples from the remote device. If the buffer
+becomes empty **bluealsa-aplay** will stop the ALSA device briefly to allow
+time for more samples to arrive; if the buffer becomes full then
+**bluealsa-aplay** will drop samples to create space. In either case there
+will be a noticeable "blip" in the resulting audio.
+
+In most cases the timer drift is very small and in good radio reception
+conditions **bluealsa-aplay** is able to play a continuous stream for several
+hours without any "blips".
+
+There are some ALSA devices for which the timer drift can be more significant
+(for example, see the note on dmix_ below); or instances where it is
+necessary to maintain a steady audio stream for longer. To help with these
+cases **bluealsa-aplay** can perform adaptive resampling which dynamically
+makes small adjustments to the sample rate to compensate for timer drift,
+allowing a continuous stream to be maintained for much longer. (This feature
+is only available if **bluealsa-aplay** was built with **libsamplerate**
+support). Five different sample rate conversion algorithms are offered, each
+offering a different compromise between audio quality and CPU load. Note that
+the three SINC based converters output bandwidth limited audio, guaranteeing
+that the highest frequency component of the output is less than half of the
+output sample rate. The linear and zero-order-hold converters are *not*
+bandwidth limited, and therefore their output may contain some higher frequency
+components. These higher frequencies may result in "aliasing" effects created
+by the DAC which can result in noticeable degradation of the audio quality.
+In practice many sound cards do appear to apply a low-pass filter
+before the DAC which prevents these aliasing effects; however it is
+recommended to only use these two converters if the host CPU lacks sufficient
+processing power to use the sinc-fastest converter.
+
 dmix
 ----
 
@@ -236,10 +343,10 @@ The ALSA **dmix** plugin will ignore the period and buffer times selected by
 the application (because it has to allow connections from multiple
 applications). Instead it will choose its own values, which can lead to
 rounding errors in the period size calculation when used with the ALSA **rate**
-plugin. To avoid this, it is recommended to explicitly define the hardware
-period size and buffer size for **dmix** in your ALSA configuration. For
-example, suppose we want a period time of 50000 µs and a buffer holding 4
-periods with an Intel 'PCH' card:
+plugin (but not when using the *--resampler=* option). To avoid this, it is
+recommended to explicitly define the hardware period size and buffer size for
+**dmix** in your ALSA configuration. For example, suppose we want a period time
+of 50000 µs and a buffer holding 4 periods with an Intel 'PCH' card:
 
 ::
 
@@ -308,7 +415,7 @@ element will be used as a hardware volume control knob.
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
+Copyright (c) 2016-2025 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 

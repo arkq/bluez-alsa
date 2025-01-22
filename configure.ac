@@ -319,6 +319,14 @@ AC_ARG_ENABLE([aplay],
 	[AS_HELP_STRING([--disable-aplay], [disable building of bluealsa-aplay tool])])
 AM_CONDITIONAL([ENABLE_APLAY], [test "x$enable_aplay" != "xno"])
 
+AC_ARG_WITH([libsamplerate],
+	[AS_HELP_STRING([--with-libsamplerate], [use libsamplerate in bluealsa-aplay])])
+AM_CONDITIONAL([WITH_LIBSAMPLERATE], [test "x$with_libsamplerate" = "xyes"])
+AM_COND_IF([WITH_LIBSAMPLERATE], [
+	PKG_CHECK_MODULES([SAMPLERATE], [samplerate >= 0.2.0])
+	AC_DEFINE([WITH_LIBSAMPLERATE], [1], [Define to 1 if libsamplerate shall be used.])
+])
+
 AC_ARG_ENABLE([rfcomm],
 	[AS_HELP_STRING([--enable-rfcomm], [enable building of bluealsa-rfcomm tool])])
 AM_CONDITIONAL([ENABLE_RFCOMM], [test "x$enable_rfcomm" = "xyes"])
