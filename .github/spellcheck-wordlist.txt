@@ -13,6 +13,7 @@ CRC
 CTL
 CTLs
 CVSD
+ADC
 DRC
 ELD
 eSCO
@@ -114,6 +115,7 @@ renderer
 scalable
 signedness
 stdin
+sys
 syslog
 tmp
 tty
@@ -212,6 +214,7 @@ hfphf
 hspag
 hsphs
 HUP
+HWCOMPAT
 ioplug
 IPHONEACCEV
 jas
