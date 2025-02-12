@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2024 Arkadiusz Bokowy
+# Copyright (c) 2016-2025 Arkadiusz Bokowy
 
 check_PROGRAMS = \
 	bluealsad-mock
@@ -28,6 +28,9 @@ bluealsad_mock_SOURCES = \
 	../../src/ba-transport-pcm.c \
 	../../src/bluealsa-dbus.c \
 	../../src/bluealsa-iface.c \
+	../../src/ba-pcm-client.c \
+	../../src/ba-pcm-mix-buffer.c \
+	../../src/ba-pcm-multi.c \
 	../../src/bluez.c \
 	../../src/bluez-iface.c \
 	../../src/codec-sbc.c \

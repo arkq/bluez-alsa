@@ -23,6 +23,7 @@
 
 #include "audio.h"
 #include "ba-config.h"
+#include "ba-pcm-multi.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
@@ -214,7 +215,7 @@ ssize_t io_pcm_flush(struct ba_transport_pcm *pcm) {
 
 /**
  * Read PCM signal from the transport PCM FIFO. */
-ssize_t io_pcm_read(
+ssize_t io_pcm_single_read(
 		struct ba_transport_pcm *pcm,
 		void *buffer,
 		size_t samples) {
@@ -245,8 +246,23 @@ ssize_t io_pcm_read(
 }
 
 /**
- * Write PCM signal to the transport PCM FIFO. */
-ssize_t io_pcm_write(
+ * Read PCM signal from the transport PCM FIFO or mix as appropriate. */
+ssize_t io_pcm_read(
+		struct ba_transport_pcm *pcm,
+		void *buffer,
+		size_t samples) {
+	if (pcm->multi)
+		return ba_pcm_multi_read(pcm->multi, buffer, samples);
+	else
+		return io_pcm_single_read(pcm, buffer, samples);
+}
+
+/**
+ * Write PCM signal to the transport PCM FIFO.
+ *
+ * Note:
+ * This function may temporally re-enable thread cancellation! */
+ssize_t io_pcm_single_write(
 		struct ba_transport_pcm *pcm,
 		const void *buffer,
 		size_t samples) {
@@ -295,6 +311,21 @@ ssize_t io_pcm_write(
 final:
 	pthread_mutex_unlock(&pcm->mutex);
 	return ret;
+}
+
+/**
+ * Write samples to PCM.
+ *
+ * Selects either multi or direct client FIFO depending on whether
+ * multi client support is enabled. */
+ssize_t io_pcm_write(
+		struct ba_transport_pcm *pcm,
+		const void *buffer,
+		size_t samples) {
+	if (pcm->multi == NULL)
+		return io_pcm_single_write(pcm, buffer, samples);
+	else
+		return ba_pcm_multi_write(pcm->multi, buffer, samples);
 }
 
 /**
