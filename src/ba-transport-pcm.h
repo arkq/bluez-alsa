@@ -159,6 +159,9 @@ struct ba_transport_pcm {
 	char *ba_dbus_path;
 	bool ba_dbus_exported;
 
+	/* Multi-client stream support */
+	struct ba_pcm_multi *multi;
+
 };
 
 int transport_pcm_init(
