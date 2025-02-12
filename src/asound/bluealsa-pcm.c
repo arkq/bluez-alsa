@@ -1637,7 +1637,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	pcm->io.version = SND_PCM_IOPLUG_VERSION;
 	pcm->io.name = "BlueALSA";
-	pcm->io.flags = SND_PCM_IOPLUG_FLAG_LISTED;
+	pcm->io.flags = SND_PCM_IOPLUG_FLAG_LISTED | SND_PCM_IOPLUG_FLAG_MONOTONIC;
 #ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
 	pcm->io.flags |= SND_PCM_IOPLUG_FLAG_BOUNDARY_WA;
 #endif
