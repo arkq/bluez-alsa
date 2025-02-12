@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-config.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -45,6 +45,10 @@ struct ba_config config = {
 	.volume_init_level = 0,
 
 	.disable_realtek_usb_fix = false,
+
+	.multi_mix_enabled = false,
+	.multi_snoop_enabled = false,
+	.multi_native_volume = 1.0,
 
 	/* CVSD is a mandatory codec */
 	.hfp.codecs.cvsd = true,

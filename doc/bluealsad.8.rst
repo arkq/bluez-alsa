@@ -6,7 +6,7 @@ bluealsad
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: December 2024
+:Date: May 2025
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -57,6 +57,29 @@ OPTIONS
     BlueALSA D-Bus service name suffix.
     Without this option, **bluealsad** registers itself as an "org.bluealsa"
     D-Bus service.  For more information see the EXAMPLES_ below.
+
+-M[DIRECTION], --multi-client[=DIRECTION]
+    Permit multiple clients to connect to the same PCM stream.
+    Without this option, only one client can connect to a PCM.
+    With this option, for playback clients, the streams are mixed together;
+    for capture each client receives a copy of the stream.
+
+    The optional argument *DIRECTION* can be one of:
+
+    - **output** allow multiple clients only for output (playback) streams.
+    - **input** allow multiple clients only for input (capture) streams.
+    - **both** allow multiple clients for both output and input. This is the
+      default if *DIRECTION* is not specified.
+
+    See `Multiple clients`_ in the **NOTES** section below for more
+    information.
+
+--multi-attenuation=NUM
+    Reduce the amplitude of mixed streams in multi-client mode by a fixed
+    percentage *NUM* to reduce the risk of clipping. *NUM* must be an integer
+    in the range from **0** to **99**. This option is effective only when the
+    option ``--multi-client`` is given. See `Multiple clients`_ in the
+    **NOTES** section below for more information.
 
 -i hciX, --device=hciX
     HCI device to use. Can be specified multiple times to select more than one
@@ -423,6 +446,35 @@ here. It is recommended to use BlueZ release 5.65 or later to be certain that
 native A2DP volume control will always be available with those devices which
 provide it.
 
+Multiple clients
+----------------
+
+Enabling the option ``--multi-client`` imposes certain limitations:
+
+- *Playback volume* - mixing multiple streams can overflow the PCM sample bit
+  depth, resulting in clipping of samples. When a PCM is running in its
+  (default) native volume control mode **bluealsad** can reduce the risk of
+  clipping by attenuating the mixed stream before encoding it. To enable this
+  feature, use the option ``--multi-attenuation`` to apply a fixed percentage
+  attenuation to the mixed PCM samples. The value given must be an integer
+  percentage in the range [0 - 99]; higher values result in greater protection
+  from clipping but also reduce the output volume. When software volume
+  control is enabled for the PCM then this attenuation is not applied, and
+  instead the user should use the BlueALSA PCM volume control to reduce volume
+  if necessary. The software volume adjustment is applied before encoding and
+  therefore has the same effect as the native volume attenuation.
+- *Playback delay* - mixing streams requires additional buffering, which may
+  increase the overall delay of the stream. The delay value reported to
+  applications is also less accurate because the client applications are not
+  synchronized and therefore their actual delay will vary slightly from the
+  reported value. This variance is small and is normally within the error
+  acceptable to watching videos, etc.
+- *Security* - in multi-user environments it is possible for two users to open
+  the same PCM, and this makes it rather trivial for one user to snoop on the
+  incoming streams of another. For this reason use of the ``--multi-client``
+  option is not recommended on such systems if they are used for voice
+  communications.
+
 FILES
 =====
 
@@ -477,7 +529,7 @@ Please add following lines to the BlueALSA D-Bus policy:
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
+Copyright (c) 2016-2025 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 

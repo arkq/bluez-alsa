@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2024 Arkadiusz Bokowy
+# Copyright (c) 2016-2025 Arkadiusz Bokowy
 
 SUBDIRS = mock
 
@@ -128,6 +128,9 @@ test_ba_SOURCES = \
 	../src/ba-transport.c \
 	../src/ba-transport-pcm.c \
 	../src/codec-sbc.c \
+	../src/ba-pcm-client.c \
+	../src/ba-pcm-mix-buffer.c \
+	../src/ba-pcm-multi.c \
 	../src/dbus.c \
 	../src/h2.c \
 	../src/hci.c \
@@ -160,6 +163,9 @@ test_io_SOURCES = \
 	../src/ba-config.c \
 	../src/ba-device.c \
 	../src/ba-transport-pcm.c \
+	../src/ba-pcm-client.c \
+	../src/ba-pcm-mix-buffer.c \
+	../src/ba-pcm-multi.c \
 	../src/codec-sbc.c \
 	../src/dbus.c \
 	../src/h2.c \
@@ -212,6 +218,9 @@ test_rfcomm_SOURCES = \
 	../src/ba-rfcomm.c \
 	../src/ba-transport.c \
 	../src/ba-transport-pcm.c \
+	../src/ba-pcm-client.c \
+	../src/ba-pcm-mix-buffer.c \
+	../src/ba-pcm-multi.c \
 	../src/dbus.c \
 	../src/h2.c \
 	../src/hci.c \
