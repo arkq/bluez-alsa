@@ -33,6 +33,7 @@
 #include "ba-adapter.h"
 #include "ba-config.h"
 #include "ba-device.h"
+#include "ba-pcm-multi.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-iface.h"
@@ -520,7 +521,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	const int pcm_fd = pcm->fd;
 	pthread_mutex_unlock(&pcm->mutex);
 
-	if (pcm_fd != -1) {
+	if (pcm->multi == NULL && pcm_fd != -1) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_LIMITS_EXCEEDED, "%s", strerror(EBUSY));
 		goto fail;
@@ -546,7 +547,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	 * headset will not run voltage converter (power-on its circuit board) until
 	 * the transport is acquired in order to extend battery life. For profiles
 	 * like A2DP Sink and HFP headset, we will wait for incoming connection. */
-	if (t_profile & (
+	if (pcm_fd == -1 && t_profile & (
 				BA_TRANSPORT_PROFILE_A2DP_SOURCE |
 #if ENABLE_ASHA
 				BA_TRANSPORT_PROFILE_ASHA_SOURCE |
@@ -568,23 +569,34 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	}
 
-	pthread_mutex_lock(&pcm->mutex);
+	/* When multiple client support is enabled, management is delegated to the
+	 * multi client thread.
+	 * Otherwise control channels are managed in this thread. */
+	if (pcm->multi) {
+		/* create new multi client instance */
+		if (!ba_pcm_multi_add_client(pcm->multi, pcm_fds[is_sink ? 0 : 1], pcm_fds[2]))
+			goto fail;
+	}
+	else {
+		pthread_mutex_lock(&pcm->mutex);
 
-	/* get correct PIPE endpoint - PIPE is unidirectional */
-	pcm->fd = pcm_fds[is_sink ? 0 : 1];
-	/* set newly opened PCM as active */
-	pcm->paused = false;
+		/* get correct PIPE endpoint - PIPE is unidirectional */
+		pcm->fd = pcm_fds[is_sink ? 0 : 1];
+		/* set newly opened PCM as active */
+		pcm->paused = false;
 
-	GIOChannel * ch = g_io_channel_unix_raw_new(pcm_fds[2]);
-	pcm->controller = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
-			G_IO_IN, bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
-			(GDestroyNotify)ba_transport_pcm_unref);
-	g_io_channel_unref(ch);
+		GIOChannel * ch = g_io_channel_unix_raw_new(pcm_fds[2]);
+		pcm->controller = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
+				G_IO_IN, bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
+				(GDestroyNotify)ba_transport_pcm_unref);
+		g_io_channel_unref(ch);
 
-	pthread_mutex_unlock(&pcm->mutex);
+		pthread_mutex_unlock(&pcm->mutex);
 
-	/* notify our PCM IO thread that the PCM was opened */
-	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_OPEN);
+		/* notify our PCM IO thread that the PCM was opened */
+		ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_OPEN);
+
+	}
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
 	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);
