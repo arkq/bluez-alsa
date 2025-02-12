@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport-pcm.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -162,6 +162,9 @@ struct ba_transport_pcm {
 	/* exported PCM D-Bus API */
 	char *ba_dbus_path;
 	bool ba_dbus_exported;
+
+	/* Multi-client stream support */
+	struct ba_pcm_multi *multi;
 
 };
 
