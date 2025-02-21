@@ -1,6 +1,6 @@
 /*
  * BlueALSA - io.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -26,6 +26,39 @@
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
+
+/**
+ * Fill a buffer with silence. */
+static void io_pcm_fill_silence(struct ba_transport_pcm *pcm, void *buffer, size_t samples) {
+	g_assert_cmpuint((samples % pcm->channels), ==, 0);
+
+	switch (pcm->format) {
+	case BA_TRANSPORT_PCM_FORMAT_S16_2LE:
+		memset(buffer, 0, samples * 2);
+		break;
+	case BA_TRANSPORT_PCM_FORMAT_S24_4LE:
+	case BA_TRANSPORT_PCM_FORMAT_S32_4LE:
+		memset(buffer, 0, samples * 4);
+		break;
+	case BA_TRANSPORT_PCM_FORMAT_S24_3LE:
+		memset(buffer, 0, samples * 3);
+		break;
+	case BA_TRANSPORT_PCM_FORMAT_U8:
+		memset(buffer, 0, samples);
+		break;
+	default:
+		g_assert_not_reached();
+	}
+}
+
+static void io_drain_complete(struct io_poll *io, struct ba_transport_pcm *pcm) {
+	io->drain = false;
+	io->timeout = -1;
+	pthread_mutex_lock(&pcm->mutex);
+	pcm->synced = true;
+	pthread_mutex_unlock(&pcm->mutex);
+	pthread_cond_signal(&pcm->cond);
+}
 
 /**
  * Read data from the BT transport (SCO or SEQPACKET) socket. */
@@ -330,15 +363,15 @@ repoll:
 	/* Poll for reading with optional sync timeout. */
 	switch (poll_rv) {
 	case 0:
-		pthread_mutex_lock(&pcm->mutex);
-		pcm->synced = true;
-		pthread_mutex_unlock(&pcm->mutex);
-		pthread_cond_signal(&pcm->cond);
-		io->timeout = -1;
+		if (io->drain)
+			break;
+		io_drain_complete(io, pcm);
 		return 0;
 	case -1:
 		if (errno == EINTR)
 			goto repoll;
+		if (io->drain)
+			io_drain_complete(io, pcm);
 		return -1;
 	}
 
@@ -349,14 +382,18 @@ repoll:
 			io->asrs.frames = 0;
 			io->initiated = false;
 			io->timeout = -1;
+			io->drain = false;
 			goto repoll;
 		case BA_TRANSPORT_PCM_SIGNAL_CLOSE:
 			/* reuse PCM read disconnection logic */
 			break;
 		case BA_TRANSPORT_PCM_SIGNAL_SYNC:
+			io->drain = true;
 			io->timeout = 100;
 			goto repoll;
 		case BA_TRANSPORT_PCM_SIGNAL_DROP:
+			if (io->drain)
+				io_drain_complete(io, pcm);
 			/* Notify caller that the PCM FIFO has been dropped. This will give
 			 * the caller a chance to reinitialize its internal state. */
 			errno = ESTALE;
@@ -365,20 +402,38 @@ repoll:
 			goto repoll;
 		}
 
-	if (fds[1].revents == 0)
-		return 0;
-
 	ssize_t samples;
 	if ((samples = io_pcm_read(pcm, buffer->tail, ffb_len_in(buffer))) == -1) {
-		if (errno == EAGAIN)
-			goto repoll;
-		if (errno != EBADF)
-			return -1;
-		samples = 0;
+		switch (errno) {
+		case EAGAIN:
+			if (io->drain) {
+				/* The FIFO is now empty, but we must still ensure that any
+				 * remaining frames in the encoder buffer are flushed
+				 * to bt; so we pad the buffer with silence to ensure the
+				 * encoder codesize minimum frames are available. */
+				samples = ffb_len_in(buffer);
+				io_pcm_fill_silence(pcm, buffer->tail, samples);
+				/* Make sure that the next time this function is called we
+				 * flag that the drain is complete */
+				io->drain = false;
+				io->timeout = 0;
+				break;
+			}
+			else
+				goto repoll;
+		case EBADF:
+			samples = 0;
+			break;
+		default:
+			break;
+		}
 	}
 
-	if (samples == 0)
-		return 0;
+	if (samples <= 0) {
+		if (io->drain)
+			io_drain_complete(io, pcm);
+		return samples;
+	}
 
 	/* When the thread is created, there might be no data in the FIFO. In fact
 	 * there might be no data for a long time - until client starts playback.
