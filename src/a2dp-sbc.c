@@ -203,7 +203,6 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 				sbc_reinit_a2dp(&sbc, 0, configuration, sizeof(*configuration));
 				sbc.bitpool = sbc_a2dp_get_bitpool(configuration, config.sbc_quality);
 				sbc.endian = SBC_LE;
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));

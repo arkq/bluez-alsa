@@ -278,7 +278,6 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 				memset(pcm_ch2, 0, lc3plus_ch_samples * sizeof(*pcm_ch2));
 				/* flush encoder internal buffers by feeding it with silence */
 				lc3plus_enc24(handle, pcm_ch_buffers, rtp_payload, &encoded, scratch);
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));

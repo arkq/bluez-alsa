@@ -227,7 +227,7 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 	 * is in progress. To prevent ba_transport_pcm_drain() from blocking
 	 * forever, we signal that drain is no longer in progress. */
 	pthread_mutex_lock(&pcm->mutex);
-	pcm->synced = true;
+	pcm->drained = true;
 	pthread_mutex_unlock(&pcm->mutex);
 	pthread_cond_signal(&pcm->cond);
 
@@ -492,10 +492,10 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 
 	debug("PCM drain: %d", pcm->fd);
 
-	pcm->synced = false;
-	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_SYNC);
+	pcm->drained = false;
+	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_DRAIN);
 
-	while (!pcm->synced)
+	while (!pcm->drained)
 		pthread_cond_wait(&pcm->cond, &pcm->mutex);
 
 	pthread_mutex_unlock(&pcm->mutex);
@@ -522,12 +522,12 @@ int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
 	pthread_mutex_unlock(&pcm->mutex);
 #endif
 
-	if (io_pcm_flush(pcm) == -1)
-		return -1;
-
 	int rv = ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_DROP);
-	if (rv == -1 && errno == ESRCH)
+	if (rv == -1 && errno == ESRCH) {
+		/* If the transport thread is not running flush the PCM here. */
+		io_pcm_flush(pcm);
 		rv = 0;
+	}
 
 	return rv;
 }

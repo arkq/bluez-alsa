@@ -335,7 +335,6 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 				/* flush encoder internal buffers */
 				while (aacEncEncode(handle, NULL, &out_buf, &in_args, &out_args) == AACENC_OK)
 					continue;
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));

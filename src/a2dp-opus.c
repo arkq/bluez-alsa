@@ -192,7 +192,6 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 		case -1:
 			if (errno == ESTALE) {
 				opus_encoder_init(opus, rate, channels, OPUS_APPLICATION_AUDIO);
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));

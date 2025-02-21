@@ -33,7 +33,11 @@ struct io_poll {
 	struct asrsync asrs;
 	/* transfer has been initiated */
 	bool initiated;
-	/* keep-alive and sync timeout */
+	/* true when we have received data after the last drain */
+	bool tainted;
+	/* true when drain is in progress */
+	bool draining;
+	/* keep-alive and drain timeout */
 	int timeout;
 };
 

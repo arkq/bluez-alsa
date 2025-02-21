@@ -82,7 +82,7 @@ enum ba_transport_pcm_signal {
 	BA_TRANSPORT_PCM_SIGNAL_CLOSE,
 	BA_TRANSPORT_PCM_SIGNAL_PAUSE,
 	BA_TRANSPORT_PCM_SIGNAL_RESUME,
-	BA_TRANSPORT_PCM_SIGNAL_SYNC,
+	BA_TRANSPORT_PCM_SIGNAL_DRAIN,
 	BA_TRANSPORT_PCM_SIGNAL_DROP,
 };
 
@@ -135,8 +135,8 @@ struct ba_transport_pcm {
 	/* Positive (or negative) delay reported by the client. */
 	int client_delay_dms;
 
-	/* indicates whether FIFO buffer was synchronized */
-	bool synced;
+	/* Indicates whether FIFO buffer was drained. */
+	bool drained;
 
 	/* internal software volume control */
 	bool soft_volume;

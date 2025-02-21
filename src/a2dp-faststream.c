@@ -167,7 +167,6 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 			if (errno == ESTALE) {
 				sbc_reinit_a2dp_faststream(&sbc, 0, configuration,
 						sizeof(*configuration), is_voice);
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));

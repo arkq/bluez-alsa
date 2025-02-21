@@ -249,7 +249,6 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 		case -1:
 			if (errno == ESTALE) {
 				lame_encode_flush(handle, rtp_payload, mpeg_frame_len);
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));

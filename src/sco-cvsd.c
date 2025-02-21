@@ -49,10 +49,8 @@ void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 		switch (io_poll_and_read_pcm(&io, t_pcm, &buffer)) {
 		case -1:
-			if (errno == ESTALE) {
-				ffb_rewind(&buffer);
+			if (errno == ESTALE)
 				continue;
-			}
 			error("PCM poll and read error: %s", strerror(errno));
 			/* fall-through */
 		case 0:

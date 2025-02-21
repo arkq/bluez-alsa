@@ -311,7 +311,6 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		case -1:
 			if (errno == ESTALE) {
 				/* TODO: flush encoder internal buffers */
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));

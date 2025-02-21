@@ -191,7 +191,6 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 				int tmp;
 				/* flush encoder internal buffers */
 				ldacBT_encode(handle, NULL, &tmp, rtp_payload, &tmp, &tmp);
-				ffb_rewind(&pcm);
 				continue;
 			}
 			error("PCM poll and read error: %s", strerror(errno));
