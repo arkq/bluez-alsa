@@ -186,10 +186,10 @@ int alsa_pcm_open(
 	pcm->buffer_frames = buffer_size;
 	pcm->period_frames = period_size;
 	pcm->delay = 0;
+	pcm->hw_avail = 0;
 
-	/* Maintain buffer fill level above 1 period plus 2ms to allow
-	 * for scheduling delays */
-	pcm->underrun_threshold = pcm->period_frames + pcm->rate * 2 / 1000;
+	/* Maintain buffer fill level above 1 period. */
+	pcm->underrun_threshold = pcm->period_frames;
 
 	return 0;
 
@@ -234,17 +234,18 @@ int alsa_pcm_write(
 
 	snd_pcm_sframes_t frames = ffb_len_out(buffer) / pcm->channels;
 	snd_pcm_sframes_t written_frames = 0;
+	snd_pcm_uframes_t hw_avail = pcm->buffer_frames - avail;
 
 	/* If not draining, write only as many frames as possible without
 	 * blocking. If necessary insert silence frames to prevent underrun. */
 	if (!drain) {
 		if (frames > avail)
 			frames = avail;
-		else if (pcm->buffer_frames - avail + frames < pcm->underrun_threshold &&
+		else if (hw_avail + frames < pcm->underrun_threshold &&
 					snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING) {
 			/* Pad the buffer with enough silence to restore it to the underrun
 			 * threshold. */
-			const size_t padding_frames = pcm->underrun_threshold - frames;
+			const size_t padding_frames = pcm->underrun_threshold - (hw_avail + frames);
 			const size_t padding_samples = padding_frames * pcm->channels;
 			if (verbose >= 3)
 				info("Underrun imminent: inserting %zu silence frames", padding_frames);
@@ -277,11 +278,14 @@ int alsa_pcm_write(
 
 	if (drain) {
 		snd_pcm_drain(pcm->pcm);
+		pcm->delay = 0;
+		pcm->hw_avail = 0;
 		ffb_rewind(buffer);
 		return 0;
 	}
 
 	pcm->delay = delay + written_frames;
+	pcm->hw_avail = hw_avail + written_frames;
 
 	/* Move leftovers to the beginning and reposition tail. */
 	if (written_frames > 0)

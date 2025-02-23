@@ -53,6 +53,10 @@ struct alsa_pcm {
 	 * after the last write. */
 	size_t delay;
 
+	/* The number of frames in the ALSA ring buffer immediately
+	 * after the last write. */
+	size_t hw_avail;
+
 };
 
 void alsa_pcm_init(
