@@ -272,7 +272,6 @@ int alsa_pcm_write(
 		else {
 			written_frames += ret;
 			frames -= ret;
-			delay += ret;
 		}
 	}
 
