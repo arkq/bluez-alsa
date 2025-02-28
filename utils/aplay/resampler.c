@@ -24,12 +24,23 @@
 #include "resampler.h"
 
 /* How many milliseconds to allow the delay to change before adjusting the
- * resampling rate. */
-# define RESAMPLER_TOLERANCE_MS 5
+ * resampling rate. This value must allow the delay to vary due to timer
+ * jitter without triggering a rate change. */
+# define RESAMPLER_TOLERANCE_MS 10
 
 /* How many milliseconds to wait for the delay value to stabilize after a
  * reset. */
 #define RESAMPLER_STABILIZE_MS 5000
+
+/* Step size of rate adjustment */
+#define RESAMPLER_STEP_SIZE 0.000003
+
+/* Limit how many increment steps can be made when adjusting rate ratio. */
+#define RESAMPLER_MAX_STEPS 60
+
+/* Ignore rapid changes in delay since such changes can only result from
+ * stream discontinuities, not timer drift. */
+#define RESAMPLER_MAX_CHANGE_MS 10
 
 struct aplay_resampler {
 	SRC_STATE *src_state;
@@ -41,10 +52,11 @@ struct aplay_resampler {
 	snd_pcm_format_t out_format;
 	snd_pcm_uframes_t max_frames;
 	double nominal_rate_ratio;
-	double rate_delta;
+	int rate_ratio_step_count;
 	snd_pcm_uframes_t target_delay;
 	snd_pcm_uframes_t delay_tolerance;
 	snd_pcm_sframes_t delay_diff;
+	snd_pcm_sframes_t max_delay_diff;
 	struct timespec reset_ts;
 };
 
@@ -124,7 +136,8 @@ struct aplay_resampler *resampler_create(
 	resampler->in_format = in_format;
 	resampler->out_format = out_format;
 	resampler->max_frames = max_frames;
-	resampler->rate_delta = 1.0 / ((double)in_rate * 16);
+	resampler->max_delay_diff = RESAMPLER_MAX_CHANGE_MS * in_rate / 1000;
+	resampler->rate_ratio_step_count = 0;
 	resampler->delay_tolerance = RESAMPLER_TOLERANCE_MS * in_rate / 1000;
 	resampler->nominal_rate_ratio = (double)out_rate / (double)in_rate;
 	resampler->src_data.src_ratio = resampler->nominal_rate_ratio;
@@ -204,6 +217,13 @@ bool resampler_update_rate_ratio(
 			struct aplay_resampler *resampler,
 			snd_pcm_uframes_t delay) {
 
+	/* The direction of rate change required to return the delay to tolerance */
+	enum resampler_rate_change {
+		RATE_DECREASE = -1,
+		RATE_NOCHANGE = 0,
+		RATE_INCREASE = 1,
+	} rate_change = RATE_NOCHANGE;
+
 	/* Check if we need to re-enable adaptive resampling after a reset */
 	if (resampler->target_delay == 0) {
 		struct timespec ts_now;
@@ -218,27 +238,54 @@ bool resampler_update_rate_ratio(
 			return false;
 	}
 
-	bool rate_changed = true;
 	snd_pcm_sframes_t delay_diff = delay - resampler->target_delay;
+
+	/* Ignore a delay change that exceeds the limit. */
+	if (labs(delay_diff - resampler->delay_diff) > resampler->max_delay_diff)
+		return false;
+
 	if (labs(delay_diff) > resampler->delay_tolerance) {
-		if (delay_diff > 0 && delay_diff >= resampler->delay_diff)
-			resampler->src_data.src_ratio -= resampler->rate_delta;
-		else if (delay_diff < 0 && delay_diff <= resampler->delay_diff)
-			resampler->src_data.src_ratio += resampler->rate_delta;
-		else
-			rate_changed = false;
+		/* When the delay is not already moving back towards tolerance,
+		 * step the size of the rate adjustment in the appropriate
+		 * direction */
+		if (delay_diff > 0 && delay_diff > resampler->delay_diff)
+			rate_change = RATE_DECREASE;
+		else if (delay_diff < 0 && delay_diff < resampler->delay_diff)
+			rate_change = RATE_INCREASE;
 	}
 	else if (labs(resampler->delay_diff) > resampler->delay_tolerance) {
+		/* When the delay has returned to tolerance, step the size of the rate
+		 * adjustment back towards the nominal rate to reduce the amount of
+		 * "overshoot". */
 		if (resampler->delay_diff > 0)
-			resampler->src_data.src_ratio += resampler->rate_delta;
+			rate_change = RATE_INCREASE;
 		else
-			resampler->src_data.src_ratio -= resampler->rate_delta;
+			rate_change = RATE_DECREASE;
 	}
-	else
-		rate_changed = false;
+
+	switch(rate_change) {
+	case RATE_INCREASE:
+		if (resampler->rate_ratio_step_count < RESAMPLER_MAX_STEPS) {
+			resampler->src_data.src_ratio += RESAMPLER_STEP_SIZE;
+			resampler->rate_ratio_step_count++;
+		}
+		else
+			rate_change = RATE_NOCHANGE;
+		break;
+	case RATE_DECREASE:
+		if (resampler->rate_ratio_step_count > -RESAMPLER_MAX_STEPS) {
+			resampler->src_data.src_ratio -= RESAMPLER_STEP_SIZE;
+			resampler->rate_ratio_step_count--;
+		}
+		else
+			rate_change = RATE_NOCHANGE;
+		break;
+	default:
+		break;
+	}
 
 	resampler->delay_diff = delay_diff;
-	return rate_changed;
+	return rate_change != RATE_NOCHANGE;
 }
 
 /**
