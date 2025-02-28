@@ -809,7 +809,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		}
 #endif
 
-		if (alsa_pcm_write(&w->alsa_pcm, write_buffer, !w->ba_pcm.running, verbose) < 0)
+		if (alsa_pcm_write(&w->alsa_pcm, write_buffer, !w->ba_pcm.running) < 0)
 			goto close_alsa;
 
 		if (!w->ba_pcm.running)
@@ -848,7 +848,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (use_resampler && alsa_pcm_is_running(&w->alsa_pcm)) {
 			bool rate_changed = resampler_update_rate_ratio(resampler, dr.avg_value);
 			if (verbose >= 5 && rate_changed)
-				debug("new rate ratio %.8f", resampler_current_rate_ratio(resampler));
+				debug("new rate ratio %.6f", resampler_current_rate_ratio(resampler));
 		}
 #endif
 
