@@ -682,7 +682,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (!w->alsa_mixer.has_mute_switch && pcm_muted)
 			snd_pcm_format_set_silence(pcm_format, buffer.data, ffb_len_out(&buffer));
 
-		if (alsa_pcm_write(&w->alsa_pcm, &buffer, !w->ba_pcm.running, verbose) < 0)
+		if (alsa_pcm_write(&w->alsa_pcm, &buffer, !w->ba_pcm.running) < 0)
 			goto close_alsa;
 
 		if (!w->ba_pcm.running)

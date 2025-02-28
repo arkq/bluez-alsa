@@ -38,9 +38,6 @@ struct alsa_pcm {
 	 * automatic start of the ALSA device. */
 	snd_pcm_uframes_t start_threshold;
 
-	/* The number of frames below which we are going to pad
-	 * the buffer with silence to prevent underrun. */
-	snd_pcm_uframes_t underrun_threshold;
 	/* Indicates whether the last write recovered from an underrun. */
 	bool underrun;
 
@@ -90,8 +87,7 @@ inline static ssize_t alsa_pcm_frames_to_bytes(
 int alsa_pcm_write(
 		struct alsa_pcm *pcm,
 		ffb_t *buffer,
-		bool drain,
-		unsigned int verbose);
+		bool drain);
 
 void alsa_pcm_dump(
 		const struct alsa_pcm *pcm,
