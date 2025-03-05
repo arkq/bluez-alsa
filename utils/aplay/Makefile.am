@@ -19,7 +19,7 @@ bluealsa_aplay_SOURCES = \
 	delay-report.c \
 	aplay.c
 
-if ENABLE_APLAY_RESAMPLER
+if WITH_LIBSAMPLERATE
 bluealsa_aplay_SOURCES += \
 	resampler.c
 endif

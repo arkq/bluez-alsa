@@ -52,7 +52,7 @@ void delay_report_reset(
 bool delay_report_update(
 		struct delay_report *dr,
 		struct alsa_pcm *pcm,
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 		size_t resample_delay_frames,
 #endif
 		int ba_pcm_fd,

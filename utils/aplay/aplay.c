@@ -47,7 +47,7 @@
 #include "alsa-pcm.h"
 #include "dbus.h"
 #include "delay-report.h"
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 # include "resampler.h"
 # define RESAMPLER_METHOD_NONE 999
 #endif
@@ -119,7 +119,7 @@ static size_t workers_size = 0;
 
 static int main_loop_quit_event_fd = -1;
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 static int resampler_method = RESAMPLER_METHOD_NONE;
 #endif
 
@@ -444,7 +444,7 @@ static void *io_worker_routine(struct io_worker *w) {
 	 * this only used if the resampler is enabled. */
 	snd_pcm_format_t format_2 = SND_PCM_FORMAT_UNKNOWN;
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 	struct aplay_resampler *resampler = NULL;
 	ffb_t resampled_buffer = { 0 };
 	bool use_resampler = false;
@@ -458,7 +458,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(io_worker_routine_exit), w);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &read_buffer);
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 	pthread_cleanup_push(PTHREAD_CLEANUP(resampler_delete), resampler);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &resampled_buffer);
 #endif
@@ -497,7 +497,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		goto fail;
 	}
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 	if (resampler_method != RESAMPLER_METHOD_NONE &&
 			resampler_supports_input_format(pcm_format)) {
 		use_resampler = true;
@@ -598,7 +598,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				ffb_shift(&read_buffer, discard_samples);
 				if (alsa_pcm_is_open(&w->alsa_pcm)) {
 					warn("Dropping PCM frames: %zu", discard_samples / w->ba_pcm.channels);
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 					if (use_resampler)
 						resampler_reset(resampler);
 #endif
@@ -617,7 +617,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			if (ret % pcm_format_size != 0)
 				warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 			/* libsamplerate requires native endian format */
 			if (use_resampler)
 				resampler_format_le_to_native(&read_buffer.tail, read_samples, pcm_format);
@@ -685,7 +685,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			case 0:
 				break;
 			case -EINVAL:
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 				/* If the PCM failed to open because the soundcard does not
 				 * natively support either the float or integer formats of the
 				 * resampler, then try again but this time with alsa-lib format
@@ -716,7 +716,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			if (w->alsa_pcm.start_threshold > read_buffer.nmemb / w->ba_pcm.channels)
 				ffb_init(&read_buffer, w->alsa_pcm.start_threshold * w->ba_pcm.channels, read_buffer.size);
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 			if (use_resampler) {
 				resampler = resampler_create(
 						resampler_method,
@@ -802,7 +802,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			snd_pcm_format_set_silence(w->alsa_pcm.format, write_buffer->data, ffb_len_out(write_buffer));
 #endif
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 		if (use_resampler) {
 			if (resampler_process(resampler, &read_buffer, write_buffer) != 0)
 				goto close_alsa;
@@ -823,7 +823,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		if ((timeout -= 2) < 0)
 			timeout = 0;
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 		size_t resample_delay_frames;
 		if (use_resampler) {
 			if (!alsa_pcm_is_running(&w->alsa_pcm) || w->alsa_pcm.underrun)
@@ -835,7 +835,7 @@ static void *io_worker_routine(struct io_worker *w) {
 #endif
 
 		if (!delay_report_update(&dr, &w->alsa_pcm,
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 				resample_delay_frames,
 #endif
 				w->ba_pcm_fd, &read_buffer, &err)) {
@@ -844,7 +844,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto fail;
 		}
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 		if (use_resampler && alsa_pcm_is_running(&w->alsa_pcm)) {
 			bool rate_changed = resampler_update_rate_ratio(resampler, dr.avg_value);
 			if (verbose >= 5 && rate_changed)
@@ -863,7 +863,7 @@ device_inactive:
 
 close_alsa:
 		ffb_rewind(&read_buffer);
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 		if (use_resampler) {
 			ffb_rewind(&resampled_buffer);
 			resampler_delete(resampler);
@@ -877,7 +877,7 @@ close_alsa:
 fail:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 #endif
@@ -1105,7 +1105,7 @@ int main(int argc, char *argv[]) {
 		{ "mixer-index", required_argument, NULL, 7 },
 		{ "profile-a2dp", no_argument, NULL, 1 },
 		{ "profile-sco", no_argument, NULL, 2 },
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 		{ "resampler", required_argument, NULL, 10},
 #endif
 		{ "single-audio", no_argument, NULL, 5 },
@@ -1114,7 +1114,7 @@ int main(int argc, char *argv[]) {
 
 	bool syslog = false;
 	const char *volume_type_str = "auto";
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 	const char *resampler_method_str = "none";
 #endif
 
@@ -1145,7 +1145,7 @@ int main(int argc, char *argv[]) {
 					"  --mixer-index=NUM\t\tmixer element index\n"
 					"  --profile-a2dp\t\tuse A2DP profile (default)\n"
 					"  --profile-sco\t\t\tuse SCO profile\n"
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 					"  --resampler=METHOD\t\tresample method [best|medium|fastest|zero-hold|linear|none]\n"
 #endif
 					"  --single-audio\t\tsingle audio mode\n"
@@ -1273,7 +1273,7 @@ int main(int argc, char *argv[]) {
 			force_single_playback = true;
 			break;
 
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 		case 10 /* --resampler */ : {
 			static const nv_entry_t values[] = {
 				{ "best", .v.ui = APLAY_CONV_SINC_BEST_QUALITY },
@@ -1375,7 +1375,7 @@ int main(int argc, char *argv[]) {
 				"  Volume control type: %s\n"
 				"  Bluetooth device(s): %s\n"
 				"  Profile: %s\n"
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 				"  Resampler method: %s"
 #endif
 				,
@@ -1386,7 +1386,7 @@ int main(int argc, char *argv[]) {
 				volume_type_str,
 				ba_addr_any ? "ANY" : &ba_str[2],
 				ba_profile_a2dp ? "A2DP" : "SCO"
-#if ENABLE_APLAY_RESAMPLER
+#if WITH_LIBSAMPLERATE
 				, resampler_method_str
 #endif
 		);
