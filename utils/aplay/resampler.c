@@ -82,13 +82,12 @@ bool resampler_supports_input_format(snd_pcm_format_t format) {
 }
 
 void resampler_delete(struct aplay_resampler *resampler) {
-	if (resampler == NULL || resampler->src_state == NULL)
+	if (resampler == NULL)
 		return;
-	src_delete(resampler->src_state);
-	if (resampler->in_format != SND_PCM_FORMAT_FLOAT)
-		free(resampler->in_buffer);
-	if (resampler->out_format != SND_PCM_FORMAT_FLOAT)
-		free(resampler->out_buffer);
+	if (resampler->src_state != NULL)
+		src_delete(resampler->src_state);
+	free(resampler->in_buffer);
+	free(resampler->out_buffer);
 	free(resampler);
 }
 
@@ -150,7 +149,7 @@ fail:
 }
 
 int resampler_process(struct aplay_resampler *resampler, ffb_t *in, ffb_t *out) {
-	int error = 0;
+	int err = 0;
 	SRC_DATA *src_data = &resampler->src_data;
 	snd_pcm_uframes_t frames_used = 0;
 
@@ -160,6 +159,7 @@ int resampler_process(struct aplay_resampler *resampler, ffb_t *in, ffb_t *out) 
 	size_t max_in_samples = out_samples / resampler->src_data.src_ratio;
 
 	size_t in_samples = MIN(ffb_len_out(in), max_in_samples);
+
 	if (resampler->in_format == SND_PCM_FORMAT_S16) {
 		in_samples = MIN(in_samples, resampler->max_frames * resampler->channels);
 		src_short_to_float_array(in->data, resampler->in_buffer, in_samples);
@@ -175,19 +175,16 @@ int resampler_process(struct aplay_resampler *resampler, ffb_t *in, ffb_t *out) 
 	}
 	src_data->input_frames = in_samples / resampler->channels;
 
-	if (resampler->out_format == SND_PCM_FORMAT_FLOAT) {
+	if (resampler->out_format == SND_PCM_FORMAT_FLOAT)
 		src_data->data_out = out->tail;
-		src_data->output_frames = out_samples / resampler->channels;
-	}
-	else {
+	else
 		src_data->data_out = resampler->out_buffer;
-		src_data->output_frames = resampler->max_frames / resampler->channels;
-	}
+	src_data->output_frames = out_samples / resampler->channels;
 
 	while (true) {
-		if ((error = src_process(resampler->src_state, src_data)) != 0) {
-			error("Resampler failed: %s", src_strerror(error));
-			return error;
+		if ((err = src_process(resampler->src_state, src_data)) != 0) {
+			error("Resampler failed: %s", src_strerror(err));
+			return err;
 		}
 		if (src_data->output_frames_gen == 0)
 			break;
@@ -206,7 +203,7 @@ int resampler_process(struct aplay_resampler *resampler, ffb_t *in, ffb_t *out) 
 	}
 	ffb_shift(in, frames_used * resampler->channels);
 
-	return error;
+	return err;
 }
 
 /**

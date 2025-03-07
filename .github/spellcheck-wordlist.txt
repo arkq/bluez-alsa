@@ -215,6 +215,7 @@ HUP
 ioplug
 IPHONEACCEV
 jas
+jitter
 keyp
 larc
 LEAdvertisement
