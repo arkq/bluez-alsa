@@ -276,7 +276,7 @@ CK_START_TEST(test_play_dbus_signals) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 1500);
 
-	char output[8192] = "";
+	char output[16384] = "";
 	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 #if ENABLE_HFP_CODEC_SELECTION && DEBUG
@@ -305,6 +305,47 @@ CK_START_TEST(test_play_dbus_signals) {
 
 } CK_END_TEST
 
+#if WITH_LIBSAMPLERATE
+CK_START_TEST(test_play_resampler) {
+
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+				"--profile=a2dp-sink",
+				NULL), -1);
+
+	struct spawn_process sp_ba_aplay;
+	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
+				"--profile-a2dp",
+				"--pcm=null",
+				"--resampler=fastest",
+				"--volume=none",
+				"-v", "-v", "-v", "-v", "-v",
+				NULL), -1);
+	spawn_terminate(&sp_ba_aplay, 500);
+
+	char output[8192] = "";
+	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
+
+	ck_assert_ptr_ne(strstr(output,
+				"Used configuration for 12:34:56:78:9A:BC"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"Used configuration for 23:45:67:89:AB:CD"), NULL);
+	ck_assert_ptr_ne(strstr(output,
+				"Resampler method: fastest"), NULL);
+
+#if DEBUG
+	/* check if the resampler correctly configured */
+	ck_assert_ptr_ne(strstr(output,
+				"Resampler rate ratio: 1.00000000"), NULL);
+#endif
+
+	spawn_close(&sp_ba_aplay, NULL);
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock, NULL);
+
+} CK_END_TEST
+#endif
+
 int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/libaloader.so");
 
@@ -330,6 +371,9 @@ int main(int argc, char *argv[]) {
 	tcase_add_test(tc, test_play_single_audio);
 	tcase_add_test(tc, test_play_mixer_setup);
 	tcase_add_test(tc, test_play_dbus_signals);
+#if WITH_LIBSAMPLERATE
+	tcase_add_test(tc, test_play_resampler);
+#endif
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

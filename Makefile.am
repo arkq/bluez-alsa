@@ -14,7 +14,7 @@ endif
 
 if WITH_COVERAGE
 cov:
-	$(MAKE) $(AM_MAKEFLAGS) check CFLAGS="$(CFLAGS) -O0 --coverage"
+	$(MAKE) $(AM_MAKEFLAGS) check CFLAGS="$(CFLAGS) -O0 --coverage -fprofile-update=atomic"
 	$(LCOV) --capture -d src -d utils -d test \
 		--exclude '$(abs_builddir)/*' --exclude '/usr/*' --exclude '*/test/*' \
 		--output-file lcov.info

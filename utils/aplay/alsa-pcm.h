@@ -38,9 +38,6 @@ struct alsa_pcm {
 	 * automatic start of the ALSA device. */
 	snd_pcm_uframes_t start_threshold;
 
-	/* The number of frames below which we are going to pad
-	 * the buffer with silence to prevent underrun. */
-	snd_pcm_uframes_t underrun_threshold;
 	/* Indicates whether the last write recovered from an underrun. */
 	bool underrun;
 
@@ -65,7 +62,8 @@ void alsa_pcm_init(
 int alsa_pcm_open(
 		struct alsa_pcm *pcm,
 		const char *name,
-		snd_pcm_format_t format,
+		snd_pcm_format_t format_1,
+		snd_pcm_format_t format_2,
 		unsigned int channels,
 		unsigned int rate,
 		unsigned int buffer_time,
@@ -81,6 +79,11 @@ inline static bool alsa_pcm_is_open(
 	return pcm->pcm != NULL;
 }
 
+inline static bool alsa_pcm_is_running(
+		const struct alsa_pcm *pcm) {
+	return snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING;
+}
+
 inline static ssize_t alsa_pcm_frames_to_bytes(
 		const struct alsa_pcm *pcm,
 		snd_pcm_sframes_t frames) {
@@ -90,8 +93,7 @@ inline static ssize_t alsa_pcm_frames_to_bytes(
 int alsa_pcm_write(
 		struct alsa_pcm *pcm,
 		ffb_t *buffer,
-		bool drain,
-		unsigned int verbose);
+		bool drain);
 
 void alsa_pcm_dump(
 		const struct alsa_pcm *pcm,
