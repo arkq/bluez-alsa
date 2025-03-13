@@ -31,9 +31,11 @@ or [PulseAudio][], or use BlueZ version 4 which is deprecated and unmaintained.
 
 This project created and maintains a product called BlueALSA, with which one
 can achieve the same Bluetooth audio profile support as with PulseAudio, but
-with fewer dependencies and at a lower level in the software stack.  BlueALSA
-registers all known Bluetooth audio profiles in BlueZ, so in theory every
-Bluetooth device (with audio capabilities) can be connected.
+with fewer dependencies and at a lower level in the software stack. BlueALSA
+registers all the classic Bluetooth audio profiles in BlueZ, and also the
+BLE-MIDI profile, but the other BLE audio profiles are not (yet) supported.
+So in theory every Bluetooth device (with classic audio capabilities)
+can be connected.
 
 BlueALSA is designed specifically for use on small, low-powered, dedicated
 audio or audio/visual systems where the high-level audio management features of

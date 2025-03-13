@@ -119,10 +119,10 @@ sudo make install
 ```
 
 To install into a directory that can be packaged and copied to other hosts (for
-example a directory called BLUEALSA):
+example a sub-directory called BLUEALSA in the current directory):
 
 ```shell
-sudo make DESTDIR=BLUEALSA install
+sudo make DESTDIR=$(pwd)/BLUEALSA install
 ```
 
 ## Runtime Environment

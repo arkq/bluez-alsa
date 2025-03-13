@@ -145,10 +145,10 @@ PulseAudio only when the user logs in, these warnings may not appear in the
 logs.
 
 In the unlikely event that one should need to run BlueALSA at the same time as
-PulseAudio, there are some hints on how to disable the PulseAudio Bluetooth
-modules in the wiki: [PulseAudio integration][]
+PipeWire or PulseAudio, there are some hints on how to disable the PipeWire and
+PulseAudio Bluetooth modules in the wiki: [PipeWire or PulseAudio integration][]
 
-[PulseAudio integration]: https://github.com/arkq/bluez-alsa/wiki/PulseAudio-integration
+[PipeWire or PulseAudio integration]: https://github.com/arkq/bluez-alsa/wiki/PulseAudio-integration
 
 ## 6. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
 
