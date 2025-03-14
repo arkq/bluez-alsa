@@ -111,7 +111,9 @@ static int rfcomm_write_at(int fd, enum bt_at_type type, const char *command,
 	size_t len;
 
 	debug("Sending AT message: %s: command=%s value=%s",
-			at_type2str(type), command, value);
+			at_type2str(type),
+			command != NULL ? command : "(null)",
+			value != NULL ? value : "(null)");
 
 	at_build(msg, sizeof(msg), type, command, value);
 	len = strlen(msg);
