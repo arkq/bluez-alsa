@@ -13,7 +13,7 @@
 #define BLUEALSA_APLAY_DELAYREPORT_H_
 
 #include <stdbool.h>
-#include <sys/time.h>
+#include <time.h>
 
 #include <alsa/asoundlib.h>
 #include <dbus/dbus.h>

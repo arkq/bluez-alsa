@@ -112,8 +112,7 @@ dbus_bool_t ba_dbus_pcm_get_all(
 	goto success;
 
 fail:
-	if (_pcms != NULL)
-		free(_pcms);
+	free(_pcms);
 	rv = FALSE;
 
 success:

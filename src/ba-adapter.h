@@ -15,7 +15,6 @@
 # include <config.h>
 #endif
 
-#include <stdint.h>
 #include <pthread.h>
 
 #include <glib.h>

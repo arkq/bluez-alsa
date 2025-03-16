@@ -16,12 +16,12 @@
 #include <libgen.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/param.h>
+#include <unistd.h>
 
 #include <dbus/dbus.h>
 

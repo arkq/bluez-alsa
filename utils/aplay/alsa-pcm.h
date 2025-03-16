@@ -14,6 +14,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 #include <alsa/asoundlib.h>
 

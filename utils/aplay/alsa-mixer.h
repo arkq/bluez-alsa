@@ -12,7 +12,9 @@
 #ifndef BLUEALSA_APLAY_ALSAMIXER_H_
 #define BLUEALSA_APLAY_ALSAMIXER_H_
 
+#include <poll.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include <alsa/asoundlib.h>
 

@@ -121,7 +121,7 @@ jobs:
         jq 'del(.[] | select(.file | test("-ifaces?.c")))' \
           ${{ github.workspace }}/build/compile_commands.json > tmp.json \
           && mv tmp.json ${{ github.workspace }}/build/compile_commands.json
-        iwyu_tool -p ${{ github.workspace }}/build -- \
+        iwyu_tool -j8 -p ${{ github.workspace }}/build -- \
           -Xiwyu --mapping_file=${{ github.workspace }}/.github/iwyu.imp \
           -Xiwyu --keep=*/config.h \
           -Xiwyu --no_fwd_decls

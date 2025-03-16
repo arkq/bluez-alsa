@@ -16,7 +16,6 @@
 #include <errno.h>
 #include <getopt.h>
 #include <libgen.h>
-#include <math.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -29,7 +28,6 @@
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
-#include <sys/time.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
@@ -42,7 +40,6 @@
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/nv.h"
-#include "shared/rt.h"
 #include "alsa-mixer.h"
 #include "alsa-pcm.h"
 #include "dbus.h"

@@ -20,10 +20,10 @@
 #include <dbus/dbus.h>
 
 #include "alsa-pcm.h"
+#include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
-#include "shared/log.h"
 #include "shared/rt.h"
 
 void delay_report_init(

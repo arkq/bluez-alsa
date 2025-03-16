@@ -23,6 +23,7 @@
 #include <strings.h>
 #include <syslog.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <gio/gio.h>
 #include <glib-unix.h>
