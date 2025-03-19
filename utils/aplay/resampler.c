@@ -195,7 +195,7 @@ int resampler_process(struct resampler *resampler, ffb_t *in, ffb_t *out) {
 				const int16_t *in_data = in->data;
 				src_short_to_float_array(in_data + samples_used, resampler->in_buffer, in_samples);
 			}
-			else if (resampler->in_format == SND_PCM_FORMAT_S24_LE) {
+			else if (resampler->in_format == SND_PCM_FORMAT_S32_LE) {
 				const int32_t *in_data = in->data;
 				src_int_to_float_array(in_data + samples_used, resampler->in_buffer, in_samples);
 			}
@@ -449,6 +449,10 @@ snd_pcm_format_t resampler_native_endian_format(snd_pcm_format_t format) {
 		return format;
 	}
 #else
+	if (format == SND_PCM_FORMAT_S24_LE)
+		/* 24-bit samples must be converted to 32-bit
+		 * before passing to the resampler. */
+		return SND_PCM_FORMAT_S32;
 	return format;
 #endif
 }
