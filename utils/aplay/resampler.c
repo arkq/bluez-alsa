@@ -289,7 +289,7 @@ bool resampler_update_rate_ratio(
 				resampler->target_delay = resampler->max_target;
 				resampler->src_data.src_ratio =
 					resampler->nominal_rate_ratio - RESAMPLER_STEP_SIZE * RESAMPLER_MAX_STEPS;
-				resampler->rate_ratio_step_count = RESAMPLER_MAX_STEPS;
+				resampler->rate_ratio_step_count = -RESAMPLER_MAX_STEPS;
 			}
 			else if (delay < resampler->min_target) {
 				resampler->target_delay = resampler->min_target;
