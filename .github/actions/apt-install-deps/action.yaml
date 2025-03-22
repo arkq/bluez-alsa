@@ -28,6 +28,7 @@ runs:
           libopenaptx-dev
           libopus-dev
           libreadline-dev
+          libsamplerate0-dev
           libsbc-dev
           libspandsp-dev
           python3-docutils

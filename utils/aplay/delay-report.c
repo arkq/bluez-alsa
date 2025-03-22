@@ -30,16 +30,15 @@ void delay_report_init(
 		struct delay_report *dr,
 		struct ba_dbus_ctx *dbus_ctx,
 		struct ba_pcm *ba_pcm) {
-
 	memset(dr, 0, sizeof(*dr));
 	dr->dbus_ctx = dbus_ctx;
 	dr->ba_pcm = ba_pcm;
-
 }
 
 void delay_report_reset(
 		struct delay_report *dr) {
 	memset(dr->values, 0, sizeof(dr->values));
+	dr->values_i = 0;
 }
 
 bool delay_report_update(
@@ -47,19 +46,21 @@ bool delay_report_update(
 		struct alsa_pcm *pcm,
 		int ba_pcm_fd,
 		ffb_t *buffer,
+		snd_pcm_uframes_t extra_delay,
 		DBusError *err) {
 
 	unsigned int ba_pcm_buffered = 0;
 	/* Get the delay due to BlueALSA PCM FIFO buffering. */
 	ioctl(ba_pcm_fd, FIONREAD, &ba_pcm_buffered);
-	snd_pcm_sframes_t ba_pcm_frames = ba_pcm_buffered / pcm->frame_size;
+	snd_pcm_uframes_t ba_pcm_frames = ba_pcm_buffered / pcm->frame_size;
 
 	/* Get the delay due to internal buffering. */
-	snd_pcm_sframes_t buffer_frames = ffb_blen_out(buffer) / pcm->frame_size;
+	snd_pcm_uframes_t buffer_frames = ffb_blen_out(buffer) / pcm->frame_size;
 
 	const size_t num_values = ARRAYSIZE(dr->values);
 	/* Store the delay calculated from all components. */
-	dr->values[dr->values_i % num_values] = pcm->delay + ba_pcm_frames + buffer_frames;
+	dr->values[dr->values_i % num_values] =
+		pcm->delay + ba_pcm_frames + buffer_frames + extra_delay;
 	dr->values_i++;
 
 	struct timespec ts_now;
@@ -69,10 +70,14 @@ bool delay_report_update(
 	gettimestamp(&ts_now);
 	timespecadd(&dr->update_ts, &ts_delay, &ts_delay);
 
-	snd_pcm_sframes_t delay_frames_avg = 0;
+	snd_pcm_uframes_t delay_frames_avg = 0;
 	for (size_t i = 0; i < num_values; i++)
 		delay_frames_avg += dr->values[i];
-	delay_frames_avg /= num_values;
+	if (dr->values_i < num_values)
+		delay_frames_avg /= dr->values_i;
+	else
+		delay_frames_avg /= num_values;
+	dr->avg_value = delay_frames_avg;
 
 	const int delay = delay_frames_avg * 10000 / dr->ba_pcm->rate;
 	if (difftimespec(&ts_now, &ts_delay, &ts_delay) >= 0 ||

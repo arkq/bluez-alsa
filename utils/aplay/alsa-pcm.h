@@ -49,11 +49,11 @@ struct alsa_pcm {
 
 	/* The internal delay of the ALSA device immediately
 	 * after the last write. */
-	size_t delay;
+	snd_pcm_uframes_t delay;
 
 	/* The number of frames in the ALSA ring buffer immediately
 	 * after the last write. */
-	size_t hw_avail;
+	snd_pcm_uframes_t hw_avail;
 
 };
 
@@ -63,7 +63,8 @@ void alsa_pcm_init(
 int alsa_pcm_open(
 		struct alsa_pcm *pcm,
 		const char *name,
-		snd_pcm_format_t format,
+		snd_pcm_format_t format_1,
+		snd_pcm_format_t format_2,
 		unsigned int channels,
 		unsigned int rate,
 		unsigned int buffer_time,
@@ -77,6 +78,11 @@ void alsa_pcm_close(
 inline static bool alsa_pcm_is_open(
 		const struct alsa_pcm *pcm) {
 	return pcm->pcm != NULL;
+}
+
+inline static bool alsa_pcm_is_running(
+		const struct alsa_pcm *pcm) {
+	return snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING;
 }
 
 inline static ssize_t alsa_pcm_frames_to_bytes(
