@@ -12,7 +12,6 @@
 # include <config.h>
 #endif
 
-#include <assert.h>
 #include <errno.h>
 #include <getopt.h>
 #include <libgen.h>
@@ -62,6 +61,9 @@ enum volume_type {
 
 struct io_worker {
 	pthread_t thread;
+	bool thread_started;
+	/* thread-safety for worker data access */
+	pthread_mutex_t mutex;
 	/* used BlueALSA PCM device */
 	struct ba_pcm ba_pcm;
 	/* file descriptor of PCM FIFO */
@@ -106,9 +108,8 @@ static pthread_mutex_t single_playback_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool force_single_playback = false;
 
 static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
-static struct io_worker *workers = NULL;
-static size_t workers_count = 0;
-static size_t workers_size = 0;
+static struct io_worker *workers[16] = { NULL };
+static size_t workers_size = ARRAYSIZE(workers);
 
 static int main_loop_quit_event_fd = -1;
 static void main_loop_stop(int sig) {
@@ -289,9 +290,9 @@ static struct io_worker *get_active_io_worker(void) {
 	pthread_rwlock_rdlock(&workers_lock);
 
 	struct io_worker *w = NULL;
-	for (size_t i = 0; i < workers_count; i++)
-		if (workers[i].active) {
-			w = &workers[i];
+	for (size_t i = 0; i < workers_size; i++)
+		if (workers[i] != NULL && workers[i]->active) {
+			w = workers[i];
 			break;
 		}
 
@@ -367,12 +368,19 @@ static int io_worker_mixer_volume_sync_alsa_mixer(
 		struct io_worker *worker,
 		struct ba_pcm *ba_pcm) {
 
-	/* skip update in case of software volume */
+	/* Skip update in case of software volume. */
 	if (ba_pcm->soft_volume)
 		return 0;
 
+	int ret = 0;
+
+	/* This function is called by the D-Bus signal handler, so we have to
+	 * make sure that we will not have any interference from the IO thread
+	 * trying to modify ALSA mixer at the same time. */
+	pthread_mutex_lock(&worker->mutex);
+
 	if (!alsa_mixer_is_open(&worker->alsa_mixer))
-		return 0;
+		goto final;
 
 	/* User can connect BlueALSA PCM to mono, stereo or multi-channel output.
 	 * For mono input (audio from BlueALSA PCM), case case is simple: we are
@@ -392,7 +400,11 @@ static int io_worker_mixer_volume_sync_alsa_mixer(
 
 	const unsigned int vmax = BA_PCM_VOLUME_MAX(ba_pcm);
 	const unsigned int volume = volume_sum / ba_pcm->channels;
-	return alsa_mixer_set_volume(&worker->alsa_mixer, vmax, volume, muted);
+	ret = alsa_mixer_set_volume(&worker->alsa_mixer, vmax, volume, muted);
+
+final:
+	pthread_mutex_unlock(&worker->mutex);
+	return ret;
 }
 
 static void io_worker_mixer_event_callback(void *data) {
@@ -400,18 +412,25 @@ static void io_worker_mixer_event_callback(void *data) {
 	io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
 }
 
-static void io_worker_routine_exit(struct io_worker *worker) {
-	if (worker->ba_pcm_fd != -1) {
-		close(worker->ba_pcm_fd);
-		worker->ba_pcm_fd = -1;
+static void io_worker_routine_exit(struct io_worker *w) {
+
+	pthread_mutex_lock(&w->mutex);
+
+	if (w->ba_pcm_fd != -1) {
+		close(w->ba_pcm_fd);
+		w->ba_pcm_fd = -1;
 	}
-	if (worker->ba_pcm_ctrl_fd != -1) {
-		close(worker->ba_pcm_ctrl_fd);
-		worker->ba_pcm_ctrl_fd = -1;
+	if (w->ba_pcm_ctrl_fd != -1) {
+		close(w->ba_pcm_ctrl_fd);
+		w->ba_pcm_ctrl_fd = -1;
 	}
-	alsa_pcm_close(&worker->alsa_pcm);
-	alsa_mixer_close(&worker->alsa_mixer);
-	debug("Exiting IO worker %s", worker->addr);
+
+	alsa_pcm_close(&w->alsa_pcm);
+	alsa_mixer_close(&w->alsa_mixer);
+
+	debug("Exiting IO worker %s", w->addr);
+	pthread_mutex_unlock(&w->mutex);
+
 }
 
 static void *io_worker_routine(struct io_worker *w) {
@@ -510,6 +529,11 @@ static void *io_worker_routine(struct io_worker *w) {
 		int poll_rv = poll(fds, nfds, timeout);
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
+		pthread_mutex_lock(&w->mutex);
+		/* Check the PCM running status on every iteration. */
+		bool ba_pcm_running = w->ba_pcm.running;
+		pthread_mutex_unlock(&w->mutex);
+
 		switch (poll_rv) {
 		case -1:
 			if (errno == EINTR)
@@ -517,7 +541,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			error("IO loop poll error: %s", strerror(errno));
 			goto fail;
 		case 0:
-			if (!w->ba_pcm.running && ffb_len_out(&buffer) == 0)
+			if (!ba_pcm_running && ffb_len_out(&buffer) == 0)
 				goto device_inactive;
 			break;
 		}
@@ -628,6 +652,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 			/* Skip mixer setup in case of software volume. */
 			if (mixer_device != NULL && !w->ba_pcm.soft_volume) {
+				pthread_mutex_lock(&w->mutex);
 				debug("Opening ALSA mixer: name=%s elem=%s index=%u",
 						mixer_device, mixer_elem_name, mixer_elem_index);
 				if (alsa_mixer_open(&w->alsa_mixer, mixer_device,
@@ -637,6 +662,7 @@ static void *io_worker_routine(struct io_worker *w) {
 					warn("Couldn't open ALSA mixer: %s", tmp);
 					free(tmp);
 				}
+				pthread_mutex_unlock(&w->mutex);
 			}
 
 			/* Reset retry counters. */
@@ -679,10 +705,10 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (!w->alsa_mixer.has_mute_switch && pcm_muted)
 			snd_pcm_format_set_silence(pcm_format, buffer.data, ffb_len_out(&buffer));
 
-		if (alsa_pcm_write(&w->alsa_pcm, &buffer, !w->ba_pcm.running) < 0)
+		if (alsa_pcm_write(&w->alsa_pcm, &buffer, !ba_pcm_running) < 0)
 			goto close_alsa;
 
-		if (!w->ba_pcm.running)
+		if (!ba_pcm_running)
 			goto device_inactive;
 
 		/* Set poll() timeout such that this thread is always woken before an
@@ -705,13 +731,15 @@ device_inactive:
 		debug("BT device marked as inactive: %s", w->addr);
 		pause_retry_pcm_samples = pcm_1s_samples;
 		pause_retries = 0;
-		w->active = false;
 		timeout = -1;
 
 close_alsa:
 		ffb_rewind(&buffer);
+		pthread_mutex_lock(&w->mutex);
 		alsa_pcm_close(&w->alsa_pcm);
 		alsa_mixer_close(&w->alsa_mixer);
+		pthread_mutex_unlock(&w->mutex);
+		w->active = false;
 	}
 
 fail:
@@ -732,72 +760,95 @@ static bool pcm_hw_params_equal(
 	return true;
 }
 
+static void io_worker_stop(struct io_worker *w) {
+	if (w->thread_started) {
+		pthread_cancel(w->thread);
+		pthread_join(w->thread, NULL);
+		w->thread_started = false;
+	}
+}
+
 /**
- * Stop the worker thread at workers[index]. */
-static void io_worker_stop(size_t index) {
-
-	/* Safety check for out-of-bounds read. */
-	assert(index < workers_count);
-
-	pthread_cancel(workers[index].thread);
-	pthread_join(workers[index].thread, NULL);
-
-	pthread_rwlock_wrlock(&workers_lock);
-
-	if (index != --workers_count)
-		/* Move the last worker in the array to position
-		 * index, to prevent any "gaps" in the array. */
-		memcpy(&workers[index], &workers[workers_count], sizeof(workers[index]));
-
-	pthread_rwlock_unlock(&workers_lock);
-
+ * Stop the IO worker thread and free its resources. */
+static void io_worker_destroy(struct io_worker *w) {
+	io_worker_stop(w);
+	pthread_mutex_destroy(&w->mutex);
+	free(w);
 }
 
 static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) {
 
-	for (size_t i = 0; i < workers_count; i++)
-		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
+	struct io_worker *worker = NULL;
+	char addr[sizeof(worker->addr)];
+	ssize_t worker_slot = -1;
+
+	for (size_t i = 0; i < workers_size; i++) {
+		if (workers[i] == NULL) {
+			if (worker_slot == -1)
+				worker_slot = i;
+		}
+		else if (strcmp(workers[i]->ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
 			/* If the codec has changed after the device connected, then the
 			 * audio format may have changed. If it has, the worker thread
 			 * needs to be restarted. Otherwise, update the running state. */
-			if (!pcm_hw_params_equal(&workers[i].ba_pcm, ba_pcm))
-				io_worker_stop(i);
-			else {
-				workers[i].ba_pcm.running = ba_pcm->running;
-				return &workers[i];
+			if (!pcm_hw_params_equal(&workers[i]->ba_pcm, ba_pcm)) {
+				io_worker_stop(workers[i]);
+				worker = workers[i];
+				worker_slot = i;
+				break;
 			}
-		}
-
-	pthread_rwlock_wrlock(&workers_lock);
-
-	workers_count++;
-	if (workers_size < workers_count) {
-		struct io_worker *tmp = workers;
-		workers_size += 4;  /* coarse-grained realloc */
-		if ((workers = realloc(workers, sizeof(*workers) * workers_size)) == NULL) {
-			error("Couldn't (re)allocate memory for IO workers: %s", strerror(ENOMEM));
-			workers = tmp;
-			pthread_rwlock_unlock(&workers_lock);
-			return NULL;
+			else {
+				pthread_mutex_lock(&workers[i]->mutex);
+				workers[i]->ba_pcm.running = ba_pcm->running;
+				pthread_mutex_unlock(&workers[i]->mutex);
+				return workers[i];
+			}
 		}
 	}
 
-	struct io_worker *worker = &workers[workers_count - 1];
+	if (worker == NULL) {
+
+		/* Human-readable BT address for early error reporting. */
+		ba2str(&ba_pcm->addr, addr);
+
+		if (worker_slot == -1) {
+			error("Couldn't start IO worker %s: %s", addr, "No empty slots");
+			return NULL;
+		}
+
+		if ((worker = malloc(sizeof(struct io_worker))) == NULL) {
+			error("Couldn't start IO worker %s: %s", addr, strerror(errno));
+			return NULL;
+		}
+
+		worker->thread_started = false;
+		pthread_mutex_init(&worker->mutex, NULL);
+		strcpy(worker->addr, addr);
+		worker->ba_pcm_fd = -1;
+		worker->ba_pcm_ctrl_fd = -1;
+
+	}
+
+	/* Synchronize access to the worker data, which we are about
+	 * to modify, with other IO worker threads. */
+	pthread_rwlock_wrlock(&workers_lock);
+
 	memcpy(&worker->ba_pcm, ba_pcm, sizeof(worker->ba_pcm));
-	ba2str(&worker->ba_pcm.addr, worker->addr);
-	worker->ba_pcm_fd = -1;
-	worker->ba_pcm_ctrl_fd = -1;
 	alsa_pcm_init(&worker->alsa_pcm);
 	alsa_mixer_init(&worker->alsa_mixer, io_worker_mixer_event_callback, worker);
 	worker->active = false;
 
-	debug("Creating IO worker %s", worker->addr);
+	debug("Starting IO worker %s", worker->addr);
 	if ((errno = pthread_create(&worker->thread, NULL,
-					PTHREAD_FUNC(io_worker_routine), worker)) != 0) {
-		error("Couldn't create IO worker %s: %s", worker->addr, strerror(errno));
-		workers_count--;
+					PTHREAD_FUNC(io_worker_routine), worker)) == 0)
+		worker->thread_started = true;
+	else {
+		error("Couldn't start IO worker %s: %s", worker->addr, strerror(errno));
+		io_worker_destroy(worker);
 		worker = NULL;
 	}
+
+	workers[worker_slot] = worker;
 
 	pthread_rwlock_unlock(&workers_lock);
 
@@ -805,9 +856,17 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 }
 
 static struct io_worker *supervise_io_worker_stop(const struct ba_pcm *ba_pcm) {
-	for (size_t i = 0; i < workers_count; i++)
-		if (strcmp(workers[i].ba_pcm.pcm_path, ba_pcm->pcm_path) == 0)
-			io_worker_stop(i);
+
+	pthread_rwlock_wrlock(&workers_lock);
+
+	for (size_t i = 0; i < workers_size; i++)
+		if (workers[i] && strcmp(workers[i]->ba_pcm.pcm_path, ba_pcm->pcm_path) == 0) {
+			io_worker_destroy(workers[i]);
+			workers[i] = NULL;
+			break;
+		}
+
+	pthread_rwlock_unlock(&workers_lock);
 	return NULL;
 }
 
@@ -1242,9 +1301,14 @@ int main(int argc, char *argv[]) {
 
 	}
 
-	for (size_t i = workers_count; i > 0; i--)
-		io_worker_stop(i - 1);
-	free(workers);
+	for (size_t i = 0; i < workers_size; i++)
+		if (workers[i] != NULL)
+			io_worker_stop(workers[i]);
+	/* When all workers are stopped, we can safely free the resources
+	 * in a lockless manner without risking any race conditions. */
+	for (size_t i = 0; i < workers_size; i++)
+		if (workers[i] != NULL)
+			io_worker_destroy(workers[i]);
 
 	ba_dbus_connection_ctx_free(&dbus_ctx);
 	return EXIT_SUCCESS;

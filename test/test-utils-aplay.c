@@ -168,11 +168,12 @@ CK_START_TEST(test_play_all) {
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
 				"--profile-a2dp",
 				"--pcm=null",
+				"--volume=none",
 				"-v", "-v",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[8192] = "";
+	char output[16384] = "";
 	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 	/* check if playback was started from both devices */
@@ -199,11 +200,12 @@ CK_START_TEST(test_play_single_audio) {
 				"--single-audio",
 				"--profile-a2dp",
 				"--pcm=null",
+				"--volume=none",
 				"-v", "-v", "-v",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
 
-	char output[8192] = "";
+	char output[16384] = "";
 	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 	/* Check if playback was started for only one device. However,
@@ -211,9 +213,9 @@ CK_START_TEST(test_play_single_audio) {
 
 #if DEBUG
 	ck_assert_ptr_ne(strstr(output,
-				"Creating IO worker 12:34:56:78:9A:BC"), NULL);
+				"Starting IO worker 12:34:56:78:9A:BC"), NULL);
 	ck_assert_ptr_ne(strstr(output,
-				"Creating IO worker 23:45:67:89:AB:CD"), NULL);
+				"Starting IO worker 23:45:67:89:AB:CD"), NULL);
 #endif
 
 	bool d1_ok = strstr(output, "Used configuration for 12:34:56:78:9A:BC") != NULL;
@@ -272,11 +274,12 @@ CK_START_TEST(test_play_dbus_signals) {
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
 				"--profile-sco",
 				"--pcm=null",
+				"--volume=none",
 				"-v", "-v",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 1500);
 
-	char output[8192] = "";
+	char output[16384] = "";
 	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 #if ENABLE_HFP_CODEC_SELECTION && DEBUG
