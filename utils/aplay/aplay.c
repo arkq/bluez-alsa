@@ -711,12 +711,14 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (!ba_pcm_running)
 			goto device_inactive;
 
-		/* Set poll() timeout such that this thread is always woken before an
-		 * ALSA underrun can occur. */
+		/* Set the poll() timeout such that this thread is always woken before
+		 * an ALSA underrun can occur. */
 		timeout = 1000 * w->alsa_pcm.hw_avail / w->alsa_pcm.rate;
-		/* poll() timeouts may be late by up to 2ms depending on the scheduler
-		 * and workload. So we allow for this when setting the timeout value. */
-		if ((timeout -= 2) < 0)
+		/* poll() timeouts may be late because of the kernel scheduler and
+		 * workload, and there may be additional processing delays before
+		 * we can write to the ALSA PCM again. So we allow for this by setting
+		 * the timeout value 5ms before the underrun deadline. */
+		if ((timeout -= 5) < 0)
 			timeout = 0;
 
 		if (!delay_report_update(&dr, &w->alsa_pcm, w->ba_pcm_fd, &buffer, &err)) {

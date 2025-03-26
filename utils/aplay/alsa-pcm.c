@@ -217,7 +217,7 @@ int alsa_pcm_write(
 	pcm->underrun = false;
 	if ((ret = snd_pcm_avail_delay(pcm->pcm, &avail, &delay)) < 0) {
 		if (ret == -EPIPE) {
-			debug("ALSA playback PCM underrun");
+			warn("ALSA playback PCM underrun");
 			snd_pcm_prepare(pcm->pcm);
 			pcm->underrun = true;
 			avail = pcm->buffer_frames;
@@ -235,13 +235,21 @@ int alsa_pcm_write(
 
 	if (!drain) {
 
-		if (frames == 0 && hw_avail < pcm->period_frames &&
+		if (frames + hw_avail < pcm->period_frames &&
 					snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING) {
 			/* When the stream runs dry we drain the ALSA buffer and leave the
 			 * ALSA device stopped until fresh frames arrive from the server. */
-			debug("Draining ALSA playback PCM to avoid underrun");
+			warn("Draining ALSA playback PCM to avoid underrun");
+			if (frames > 0) {
+				/* Ignore any error reported by the write. */
+				snd_pcm_writei(pcm->pcm, buffer->data, frames);
+				ffb_rewind(buffer);
+			}
 			snd_pcm_drain(pcm->pcm);
-			snd_pcm_prepare(pcm->pcm);
+			if ((ret = snd_pcm_prepare(pcm->pcm)) < 0) {
+				error("ALSA playback PCM error: %s", snd_strerror(ret));
+				return -1;
+			}
 			/* Flag an underrun to indicate that there has been a discontinuity
 			 * in the input stream. */
 			pcm->underrun = true;
@@ -264,7 +272,7 @@ int alsa_pcm_write(
 			case EINTR:
 				continue;
 			case EPIPE:
-				debug("ALSA playback PCM underrun");
+				warn("ALSA playback PCM underrun");
 				snd_pcm_prepare(pcm->pcm);
 				pcm->underrun = true;
 				continue;
