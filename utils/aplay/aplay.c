@@ -463,6 +463,7 @@ static void *io_worker_routine(struct io_worker *w) {
 	struct resampler resampler = { 0 };
 	ffb_t resampled_buffer = { 0 };
 	bool use_resampler = false;
+	bool alsa_pcm_started = false;
 #endif
 
 	int pcm_flags = 0;
@@ -881,13 +882,23 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (use_resampler) {
 			bool rate_changed = false;
 			if (w->alsa_pcm.underrun) {
-				debug("Resetting resampler: ALSA underrun detected");
+				debug("Resetting resampler");
 				resampler_reset(&resampler);
 				rate_changed = true;
 			}
-			if (alsa_pcm_is_running(&w->alsa_pcm))
+			if (alsa_pcm_is_running(&w->alsa_pcm)) {
+				if (!alsa_pcm_started) {
+					/* The ALSA start threshold has been reached, so reset the
+					 * resampler to initialize adaptive resampling. */
+					alsa_pcm_started = true;
+					resampler_reset(&resampler);
+				}
 				rate_changed = resampler_update_rate_ratio(&resampler,
 						read_samples / w->ba_pcm.channels, dr.avg_value);
+			}
+			else
+				alsa_pcm_started = false;
+
 			if (verbose >= 4 && rate_changed)
 				debug("PCM sample rate conversion: %u Hz -> %#.2f Hz", w->ba_pcm.rate,
 						w->ba_pcm.rate * resampler_current_rate_ratio(&resampler));
