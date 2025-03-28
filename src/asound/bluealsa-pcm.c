@@ -1677,6 +1677,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if (stream == SND_PCM_STREAM_CAPTURE)
 		if ((pcm->null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK)) == -1) {
 			SNDERR("Couldn't open /dev/null: %s", strerror(errno));
+			ret = -errno;
 			goto fail;
 		}
 

@@ -26,8 +26,10 @@ struct alsa_mixer {
 	snd_mixer_t *mixer;
 	snd_mixer_elem_t *elem;
 
-	long volume_db_max_value;
+	bool has_db_scale;
 	bool has_mute_switch;
+	long volume_min_value;
+	long volume_max_value;
 
 	alsa_mixer_event_handler event_handler;
 	void *event_handler_userdata;

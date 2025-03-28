@@ -6,7 +6,7 @@ bluealsa-aplay
 a simple BlueALSA player
 ------------------------
 
-:Date: February 2025
+:Date: April 2025
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -176,9 +176,13 @@ OPTIONS
     Set the name of the ALSA simple mixer control to use.
     The default is ``Master``.
 
-    To work with **bluealsa-aplay** this simple control must provide decibel
-    scaling information for the volume control. Most, but not all, modern sound
-    cards do provide this information.
+    If this simple control provides decibel scaling information then
+    **bluealsa-aplay** uses that information when converting the Bluetooth
+    volume level to or from a value for the control. When no decibel scaling
+    information is available then **bluealsa-aplay** assumes that the control
+    has a linear scale.
+    Most, but not all, modern sound cards do provide decibel scaling
+    information.
 
 --mixer-index=NUM
     Set the index of the ALSA simple mixer control.

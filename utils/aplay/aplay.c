@@ -838,7 +838,8 @@ static void *io_worker_routine(struct io_worker *w) {
 						"  ALSA PCM period time: %u us (%zu bytes)\n"
 						"  ALSA PCM format: %s\n"
 						"  ALSA PCM sample rate: %u Hz\n"
-						"  ALSA PCM channels: %u",
+						"  ALSA PCM channels: %u\n"
+						"  ALSA mixer volume mapping: %s",
 						w->addr,
 						snd_pcm_format_name(pcm_format),
 						w->ba_pcm.rate,
@@ -847,7 +848,8 @@ static void *io_worker_routine(struct io_worker *w) {
 						w->alsa_pcm.period_time, alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.period_frames),
 						snd_pcm_format_name(w->alsa_pcm.format),
 						w->alsa_pcm.rate,
-						w->alsa_pcm.channels);
+						w->alsa_pcm.channels,
+						w->alsa_mixer.mixer ? (w->alsa_mixer.has_db_scale ? "dB scale" : "linear") : "none");
 			}
 
 			if (verbose >= 3)
