@@ -81,6 +81,12 @@ struct io_worker {
 	atomic_bool active;
 	/* human-readable BT address */
 	char addr[18];
+#if WITH_LIBSAMPLERATE
+	struct resampler resampler;
+	ffb_t resampled_buffer;
+	bool use_resampler;
+#endif
+
 };
 
 static unsigned int verbose = 0;
@@ -418,6 +424,34 @@ static void io_worker_mixer_event_callback(void *data) {
 	io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
 }
 
+inline static snd_pcm_uframes_t io_worker_delay_frames(const struct io_worker *w, size_t frame_size, ffb_t *buffer) {
+
+	snd_pcm_uframes_t delay_frames = 0;
+
+	unsigned int ba_pcm_buffered = 0;
+	/* Get the delay due to BlueALSA PCM FIFO buffering. */
+	ioctl(w->ba_pcm_fd, FIONREAD, &ba_pcm_buffered);
+	delay_frames += ba_pcm_buffered / frame_size;
+
+	/* Get the delay due to read buffer. */
+	delay_frames += ffb_blen_out(buffer) / frame_size;
+
+#if WITH_LIBSAMPLERATE
+	/* Get the resampler delay */
+	if (w->use_resampler)
+		delay_frames += ffb_len_out(&w->resampled_buffer) / w->ba_pcm.channels / resampler_current_rate_ratio(&w->resampler);
+#endif
+
+	/* Get the ALSA device delay */
+#if WITH_LIBSAMPLERATE
+	delay_frames += w->alsa_pcm.delay / resampler_current_rate_ratio(&w->resampler);
+#else
+	delay_frames += w->alsa_pcm.delay;
+#endif
+
+	return delay_frames;
+}
+
 static void io_worker_routine_exit(struct io_worker *w) {
 
 	pthread_mutex_lock(&w->mutex);
@@ -433,6 +467,10 @@ static void io_worker_routine_exit(struct io_worker *w) {
 
 	alsa_pcm_close(&w->alsa_pcm);
 	alsa_mixer_close(&w->alsa_mixer);
+#if WITH_LIBSAMPLERATE
+	resampler_free(&w->resampler);
+	ffb_free(&w->resampled_buffer);
+#endif
 
 	debug("Exiting IO worker %s", w->addr);
 	pthread_mutex_unlock(&w->mutex);
@@ -460,9 +498,8 @@ static void *io_worker_routine(struct io_worker *w) {
 #if WITH_LIBSAMPLERATE
 	/* The resampler requires the native endian format for the input data. */
 	const snd_pcm_format_t resampler_pcm_format = resampler_native_endian_format(pcm_format);
-	struct resampler resampler = { 0 };
-	ffb_t resampled_buffer = { 0 };
-	bool use_resampler = false;
+	/* For detecting when the ALSA device has auto-started after reaching its
+	 * start threshold. */
 	bool alsa_pcm_started = false;
 #endif
 
@@ -474,10 +511,6 @@ static void *io_worker_routine(struct io_worker *w) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(io_worker_routine_exit), w);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &read_buffer);
-#if WITH_LIBSAMPLERATE
-	pthread_cleanup_push(PTHREAD_CLEANUP(resampler_free), &resampler);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &resampled_buffer);
-#endif
 
 	/* Create a buffer big enough to hold enough PCM data for three periods.
 	 * This will be later be revised if necessary to match the actual ALSA
@@ -519,7 +552,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			warn("Resampler not enabled: Unsupported input format: %s",
 					snd_pcm_format_name(pcm_format));
 		else {
-			use_resampler = true;
+			w->use_resampler = true;
 			/* Disable alsa-lib resampling because our internal resampler can
 			 * convert to a rate natively supported by the sound card. Initially
 			 * also disable alsa-lib format conversion to try to use a format
@@ -637,7 +670,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
 
 #if WITH_LIBSAMPLERATE
-			if (use_resampler)
+			if (w->use_resampler)
 				resampler_convert_to_native_endian_format(read_buffer.tail, read_samples, pcm_format);
 #endif
 			ffb_seek(&read_buffer, read_samples);
@@ -710,7 +743,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				 * natively support either the float or integer formats of the
 				 * resampler, then try again but this time with alsa-lib format
 				 * conversion enabled. */
-				if (use_resampler && w->alsa_pcm.format == SND_PCM_FORMAT_UNKNOWN) {
+				if (w->use_resampler && w->alsa_pcm.format == SND_PCM_FORMAT_UNKNOWN) {
 					free(tmp);
 					if (alsa_pcm_open(&w->alsa_pcm, pcm_device, format_1,
 								format_2, w->ba_pcm.channels, w->ba_pcm.rate,
@@ -736,15 +769,16 @@ static void *io_worker_routine(struct io_worker *w) {
 				ffb_init(&read_buffer, w->alsa_pcm.start_threshold * w->ba_pcm.channels, read_buffer.size);
 
 #if WITH_LIBSAMPLERATE
-			if (use_resampler) {
+			if (w->use_resampler) {
 
 				/* Initialize the resampler which will try to keep the playback delay
 				 * within configured limits. The lower and upper limits are set to
 				 * the ALSA start threshold and the start threshold plus the period
 				 * size respectively. The resampler will adapt the rate to keep the
 				 * delay within these limits. */
+				debug("Opening resampler");
 				if ((res = resampler_init(
-								&resampler,
+								&w->resampler,
 								resampler_method,
 								w->ba_pcm.channels,
 								resampler_pcm_format,
@@ -760,7 +794,7 @@ static void *io_worker_routine(struct io_worker *w) {
 #if DEBUG
 				if (verbose >= 4)
 					debug("PCM sample rate conversion: %u Hz -> %#.2f Hz", w->ba_pcm.rate,
-							w->ba_pcm.rate * resampler_current_rate_ratio(&resampler));
+							w->ba_pcm.rate * resampler_current_rate_ratio(&w->resampler));
 #endif
 
 				/* The resampler output buffer is sized to accommodate the
@@ -768,9 +802,8 @@ static void *io_worker_routine(struct io_worker *w) {
 				 * to allow for positive adaptive resampling adjustment. */
 				size_t buffer_size = read_buffer.nmemb * w->alsa_pcm.rate / w->ba_pcm.rate;
 				buffer_size = (buffer_size * 110) / 100;
-				ffb_init(&resampled_buffer, buffer_size, snd_pcm_format_size(w->alsa_pcm.format, 1));
-				write_buffer = &resampled_buffer;
-
+				ffb_init(&w->resampled_buffer, buffer_size, snd_pcm_format_size(w->alsa_pcm.format, 1));
+				write_buffer = &w->resampled_buffer;
 			}
 #endif
 
@@ -835,15 +868,15 @@ static void *io_worker_routine(struct io_worker *w) {
 		if (!w->alsa_mixer.has_mute_switch && pcm_muted) {
 			snd_pcm_format_t format = w->alsa_pcm.format;
 #if WITH_LIBSAMPLERATE
-			if (use_resampler)
+			if (w->use_resampler)
 				format = resampler_pcm_format;
 #endif
 			snd_pcm_format_set_silence(format, read_buffer.data, ffb_len_out(&read_buffer));
 		}
 
 #if WITH_LIBSAMPLERATE
-		if (use_resampler &&
-				resampler_process(&resampler, &read_buffer, write_buffer) != 0)
+		if (w->use_resampler &&
+				resampler_process(&w->resampler, &read_buffer, write_buffer) != 0)
 			goto close_alsa;
 #endif
 
@@ -863,27 +896,20 @@ static void *io_worker_routine(struct io_worker *w) {
 		if ((timeout -= 5) < 0)
 			timeout = 0;
 
-		snd_pcm_uframes_t resampler_delay = 0;
-#if WITH_LIBSAMPLERATE
-		if (use_resampler) {
-			resampler_delay = ffb_len_out(write_buffer) / w->ba_pcm.channels;
-			resampler_delay /= resampler_current_rate_ratio(&resampler);
-		}
-#endif
+		const snd_pcm_uframes_t delay_frames = io_worker_delay_frames(w, pcm_format_size * w->ba_pcm.channels, &read_buffer);
 
-		if (!delay_report_update(&dr, &w->alsa_pcm, w->ba_pcm_fd,
-					&read_buffer, resampler_delay, &err)) {
+		if (!delay_report_update(&dr,delay_frames, &err)) {
 			error("Couldn't update BlueALSA PCM client delay: %s", err.message);
 			dbus_error_free(&err);
 			goto fail;
 		}
 
 #if WITH_LIBSAMPLERATE
-		if (use_resampler) {
+		if (w->use_resampler) {
 			bool rate_changed = false;
 			if (w->alsa_pcm.underrun) {
 				debug("Resetting resampler");
-				resampler_reset(&resampler);
+				resampler_reset(&w->resampler);
 				rate_changed = true;
 			}
 			if (alsa_pcm_is_running(&w->alsa_pcm)) {
@@ -891,9 +917,9 @@ static void *io_worker_routine(struct io_worker *w) {
 					/* The ALSA start threshold has been reached, so reset the
 					 * resampler to initialize adaptive resampling. */
 					alsa_pcm_started = true;
-					resampler_reset(&resampler);
+					resampler_reset(&w->resampler);
 				}
-				rate_changed = resampler_update_rate_ratio(&resampler,
+				rate_changed = resampler_update_rate_ratio(&w->resampler,
 						read_samples / w->ba_pcm.channels, dr.avg_value);
 			}
 			else
@@ -901,7 +927,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 			if (verbose >= 4 && rate_changed)
 				debug("PCM sample rate conversion: %u Hz -> %#.2f Hz", w->ba_pcm.rate,
-						w->ba_pcm.rate * resampler_current_rate_ratio(&resampler));
+						w->ba_pcm.rate * resampler_current_rate_ratio(&w->resampler));
 		}
 #endif
 
@@ -916,9 +942,9 @@ device_inactive:
 close_alsa:
 		ffb_rewind(&read_buffer);
 #if WITH_LIBSAMPLERATE
-		if (use_resampler) {
-			ffb_rewind(&resampled_buffer);
-			resampler_free(&resampler);
+		if (w->use_resampler) {
+			ffb_rewind(&w->resampled_buffer);
+			resampler_free(&w->resampler);
 		}
 #endif
 		pthread_mutex_lock(&w->mutex);
@@ -929,10 +955,6 @@ close_alsa:
 	}
 
 fail:
-#if WITH_LIBSAMPLERATE
-	pthread_cleanup_pop(1);
-	pthread_cleanup_pop(1);
-#endif
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
 	return NULL;
@@ -1026,6 +1048,11 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	memcpy(&worker->ba_pcm, ba_pcm, sizeof(worker->ba_pcm));
 	alsa_pcm_init(&worker->alsa_pcm);
 	alsa_mixer_init(&worker->alsa_mixer, io_worker_mixer_event_callback, worker);
+#if WITH_LIBSAMPLERATE
+	memset(&worker->resampler, 0, sizeof(worker->resampler));
+	memset(&worker->resampled_buffer, 0, sizeof(worker->resampled_buffer));
+	worker->use_resampler = false;
+#endif
 	worker->active = false;
 
 	debug("Starting IO worker %s", worker->addr);

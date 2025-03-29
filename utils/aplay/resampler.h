@@ -107,7 +107,7 @@ void resampler_reset(
 		struct resampler *resampler);
 
 double resampler_current_rate_ratio(
-		struct resampler *resampler);
+		const struct resampler *resampler);
 
 bool resampler_update_rate_ratio(
 		struct resampler *resampler,

@@ -51,10 +51,7 @@ void delay_report_reset(
 
 bool delay_report_update(
 		struct delay_report *dr,
-		struct alsa_pcm *pcm,
-		int ba_pcm_fd,
-		ffb_t *buffer,
-		snd_pcm_uframes_t extra_delay,
+		size_t delay_frames,
 		DBusError *err);
 
 #endif

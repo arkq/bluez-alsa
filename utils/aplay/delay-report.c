@@ -43,24 +43,12 @@ void delay_report_reset(
 
 bool delay_report_update(
 		struct delay_report *dr,
-		struct alsa_pcm *pcm,
-		int ba_pcm_fd,
-		ffb_t *buffer,
-		snd_pcm_uframes_t extra_delay,
+		size_t delay_frames,
 		DBusError *err) {
-
-	unsigned int ba_pcm_buffered = 0;
-	/* Get the delay due to BlueALSA PCM FIFO buffering. */
-	ioctl(ba_pcm_fd, FIONREAD, &ba_pcm_buffered);
-	snd_pcm_uframes_t ba_pcm_frames = ba_pcm_buffered / pcm->frame_size;
-
-	/* Get the delay due to internal buffering. */
-	snd_pcm_uframes_t buffer_frames = ffb_blen_out(buffer) / pcm->frame_size;
 
 	const size_t num_values = ARRAYSIZE(dr->values);
 	/* Store the delay calculated from all components. */
-	dr->values[dr->values_i % num_values] =
-		pcm->delay + ba_pcm_frames + buffer_frames + extra_delay;
+	dr->values[dr->values_i % num_values] = delay_frames;
 	dr->values_i++;
 
 	struct timespec ts_now;

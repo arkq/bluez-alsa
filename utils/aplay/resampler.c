@@ -116,11 +116,15 @@ int resampler_init(
 		if ((resampler->in_buffer = malloc(RESAMPLER_BUFFER_SIZE * sizeof(float))) == NULL)
 			goto fail;
 	}
+	else
+		resampler->in_buffer = NULL;
 
 	if (out_format != SND_PCM_FORMAT_FLOAT) {
 		if ((resampler->out_buffer = malloc(RESAMPLER_BUFFER_SIZE * sizeof(float))) == NULL)
 			goto fail;
 	}
+	else
+		resampler->out_buffer = NULL;
 
 	resampler->channels = channels;
 	resampler->in_format = in_format;
@@ -247,7 +251,7 @@ void resampler_reset(struct resampler *resampler) {
 	gettimestamp(&resampler->reset_ts);
 }
 
-double resampler_current_rate_ratio(struct resampler *resampler) {
+double resampler_current_rate_ratio(const struct resampler *resampler) {
 	return resampler->src_data.src_ratio;
 }
 
