@@ -622,6 +622,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		/* Check the PCM running status on every iteration. */
 		bool ba_pcm_running = w->ba_pcm.running;
 		pthread_mutex_unlock(&w->mutex);
+		bool drain_output = false;
 
 		switch (poll_rv) {
 		case -1:
@@ -631,7 +632,7 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto fail;
 		case 0:
 			if (!ba_pcm_running && ffb_len_out(&read_buffer) == 0)
-				goto device_inactive;
+				drain_output = true;
 			break;
 		}
 
@@ -679,6 +680,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		else if (fds[1].revents & POLLHUP) {
 			/* source PCM FIFO has been terminated on the writing side */
 			debug("BlueALSA source PCM disconnected: %s", w->ba_pcm.pcm_path);
+			drain_output = true;
 			break;
 		}
 		else if (fds[1].revents)
@@ -880,10 +882,10 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto close_alsa;
 #endif
 
-		if (alsa_pcm_write(&w->alsa_pcm, write_buffer, !ba_pcm_running) < 0)
+		if (alsa_pcm_write(&w->alsa_pcm, write_buffer, drain_output) < 0)
 			goto close_alsa;
 
-		if (!ba_pcm_running)
+		if (drain_output)
 			goto device_inactive;
 
 		/* Set the poll() timeout such that this thread is always woken before
