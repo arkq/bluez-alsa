@@ -110,7 +110,7 @@ static int rfcomm_write_at(int fd, enum bt_at_type type, const char *command,
 	char msg[256];
 	size_t len;
 
-	debug("Sending AT message: %s: command:%s, value:%s",
+	debug("Sending AT message: %s: command=%s value=%s",
 			at_type2str(type), command, value);
 
 	at_build(msg, sizeof(msg), type, command, value);
@@ -624,6 +624,7 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 
 	const int fd = r->fd;
 	const uint8_t codec_id = atoi(at->value);
+	char value[8];
 
 	bool is_codec_supported = false;
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
@@ -642,7 +643,8 @@ static int rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *a
 	}
 
 	r->codec_id = codec_id;
-	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", at->value) == -1)
+	snprintf(value, sizeof(value), "%u", codec_id);
+	if (rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BCS", value) == -1)
 		return -1;
 	r->handler = &handler_supported;
 

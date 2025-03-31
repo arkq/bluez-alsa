@@ -1,6 +1,6 @@
 /*
  * BlueALSA - at.c
- * Copyright (c) 2016-2022 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  * Copyright (c) 2017 Juha Kuikka
  *
  * This file is a part of bluez-alsa.
@@ -176,7 +176,8 @@ char *at_parse(const char *str, struct bt_at *at) {
 		command++;
 	}
 
-	debug("AT message: %s: command:%s, value:%s", at_type2str(at->type), at->command, at->value);
+	debug("AT message: %s: command=%s value=%s",
+			at_type2str(at->type), at->command, at->value);
 	return (char *)&feed[1];
 }
 
