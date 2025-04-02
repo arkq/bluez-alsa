@@ -15,6 +15,8 @@ defaults.bluealsa.volume "unchanged"
 # By default do not modify the software volume state
 # when a PCM is opened.
 defaults.bluealsa.softvol "unchanged"
+# By default on a2dp-sink and AG nodes ignore transport acquisition state.
+defaults.bluealsa.hwcompat "none"
 # If Bluetooth sink device (e.g. headphones) supports
 # A2DP v1.3 or later it will report delay by itself,
 # so there is no need to set the delay manually.
@@ -82,7 +84,7 @@ ctl.bluealsa {
 }
 
 pcm.bluealsa {
-	@args [ DEV PROFILE CODEC VOL SOFTVOL DELAY SRV ]
+	@args [ DEV PROFILE CODEC VOL SOFTVOL HWCOMPAT DELAY SRV ]
 	@args.DEV {
 		type string
 		default {
@@ -118,6 +120,13 @@ pcm.bluealsa {
 			name defaults.bluealsa.softvol
 		}
 	}
+	@args.HWCOMPAT {
+		type string
+		default {
+			@func refer
+			name defaults.bluealsa.hwcompat
+		}
+	}
 	@args.DELAY {
 		type integer
 		default {
@@ -140,6 +149,7 @@ pcm.bluealsa {
 		codec $CODEC
 		volume $VOL
 		softvol $SOFTVOL
+		hwcompat $HWCOMPAT
 		delay $DELAY
 		service $SRV
 	}
