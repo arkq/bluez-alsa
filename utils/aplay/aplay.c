@@ -43,6 +43,9 @@
 #include "alsa-pcm.h"
 #include "dbus.h"
 #include "delay-report.h"
+#if WITH_LIBSAMPLERATE
+# include "resampler.h"
+#endif
 
 /* Many devices cannot synchronize A/V with very high audio latency. To keep
  * the overall latency below 400ms we choose default ALSA parameters such that
@@ -78,6 +81,12 @@ struct io_worker {
 	atomic_bool active;
 	/* human-readable BT address */
 	char addr[18];
+#if WITH_LIBSAMPLERATE
+	struct resampler resampler;
+	ffb_t resampled_buffer;
+	bool use_resampler;
+#endif
+
 };
 
 static unsigned int verbose = 0;
@@ -94,6 +103,9 @@ static bdaddr_t *ba_addrs = NULL;
 static size_t ba_addrs_count = 0;
 static unsigned int pcm_buffer_time = 0;
 static unsigned int pcm_period_time = 0;
+#if WITH_LIBSAMPLERATE
+static enum resampler_converter_type resampler_method = RESAMPLER_CONV_NONE;
+#endif
 
 /* local PCM muted state for software mute */
 static bool pcm_muted = false;
@@ -412,6 +424,34 @@ static void io_worker_mixer_event_callback(void *data) {
 	io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
 }
 
+inline static snd_pcm_uframes_t io_worker_delay_frames(const struct io_worker *w, size_t frame_size, ffb_t *buffer) {
+
+	snd_pcm_uframes_t delay_frames = 0;
+
+	unsigned int ba_pcm_buffered = 0;
+	/* Get the delay due to BlueALSA PCM FIFO buffering. */
+	ioctl(w->ba_pcm_fd, FIONREAD, &ba_pcm_buffered);
+	delay_frames += ba_pcm_buffered / frame_size;
+
+	/* Get the delay due to read buffer. */
+	delay_frames += ffb_blen_out(buffer) / frame_size;
+
+#if WITH_LIBSAMPLERATE
+	/* Get the resampler delay */
+	if (w->use_resampler)
+		delay_frames += ffb_len_out(&w->resampled_buffer) / w->ba_pcm.channels / resampler_current_rate_ratio(&w->resampler);
+#endif
+
+	/* Get the ALSA device delay */
+#if WITH_LIBSAMPLERATE
+	delay_frames += w->alsa_pcm.delay / resampler_current_rate_ratio(&w->resampler);
+#else
+	delay_frames += w->alsa_pcm.delay;
+#endif
+
+	return delay_frames;
+}
+
 static void io_worker_routine_exit(struct io_worker *w) {
 
 	pthread_mutex_lock(&w->mutex);
@@ -427,6 +467,10 @@ static void io_worker_routine_exit(struct io_worker *w) {
 
 	alsa_pcm_close(&w->alsa_pcm);
 	alsa_mixer_close(&w->alsa_mixer);
+#if WITH_LIBSAMPLERATE
+	resampler_free(&w->resampler);
+	ffb_free(&w->resampled_buffer);
+#endif
 
 	debug("Exiting IO worker %s", w->addr);
 	pthread_mutex_unlock(&w->mutex);
@@ -438,20 +482,41 @@ static void *io_worker_routine(struct io_worker *w) {
 	const snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
 	const ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
 	const size_t pcm_1s_samples = w->ba_pcm.rate * w->ba_pcm.channels;
-	ffb_t buffer = { 0 };
+	/* Buffer for audio frames read from the BlueALSA server. */
+	ffb_t read_buffer = { 0 };
+	/* Buffer from which audio frames are written to the ALSA PCM. If the
+	 * resampler is used then this is the resampler output buffer. Otherwise
+	 * it is the same as the read buffer. */
+	ffb_t *write_buffer = &read_buffer;
+	/* Preferred format for the ALSA PCM. If not using the resampler then this
+	 * is the format of the incoming BlueALSA stream. */
+	snd_pcm_format_t format_1 = pcm_format;
+	/* Alternative format that can be generated internally by the resampler.
+	 * This is only used if the resampler is enabled. */
+	snd_pcm_format_t format_2 = SND_PCM_FORMAT_UNKNOWN;
+
+#if WITH_LIBSAMPLERATE
+	/* The resampler requires the native endian format for the input data. */
+	const snd_pcm_format_t resampler_pcm_format = resampler_native_endian_format(pcm_format);
+	/* For detecting when the ALSA device has auto-started after reaching its
+	 * start threshold. */
+	bool alsa_pcm_started = false;
+#endif
+
+	int pcm_flags = 0;
 
 	/* Cancellation should be possible only in the carefully selected place
 	 * in order to prevent memory leaks and resources not being released. */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(io_worker_routine_exit), w);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &buffer);
+	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &read_buffer);
 
-	/* Create a buffer big enough to hold enough PCM data for half the
-	 * requested PCM buffer time. This will be revised to match the actual
-	 * ALSA start threshold when the ALSA PCM is opened. */
-	const size_t nmemb = pcm_buffer_time * pcm_1s_samples / 1000000 / 2;
-	if (ffb_init(&buffer, nmemb, pcm_format_size) == -1) {
+	/* Create a buffer big enough to hold enough PCM data for three periods.
+	 * This will be later be revised if necessary to match the actual ALSA
+	 * start threshold when the ALSA PCM is opened. */
+	const size_t nmemb = ((size_t)pcm_period_time * 3 / 1000) * (pcm_1s_samples / 1000);
+	if (ffb_init(&read_buffer, nmemb, pcm_format_size) == -1) {
 		error("Couldn't create PCM buffer: %s", strerror(errno));
 		goto fail;
 	}
@@ -480,6 +545,30 @@ static void *io_worker_routine(struct io_worker *w) {
 		dbus_error_free(&err);
 		goto fail;
 	}
+
+#if WITH_LIBSAMPLERATE
+	if (resampler_method != RESAMPLER_CONV_NONE) {
+		if (!resampler_is_input_format_supported(pcm_format))
+			warn("Resampler not enabled: Unsupported input format: %s",
+					snd_pcm_format_name(pcm_format));
+		else {
+			w->use_resampler = true;
+			/* Disable alsa-lib resampling because our internal resampler can
+			 * convert to a rate natively supported by the sound card. Initially
+			 * also disable alsa-lib format conversion to try to use a format
+			 * generated by the resampler. If that fails, then enable alsa-lib
+			 * format conversion and have the resampler output its preferred
+			 * FLOAT format. In this way the number of format conversions in the
+			 * processing chain is minimized. */
+			pcm_flags = SND_PCM_NO_AUTO_RESAMPLE | SND_PCM_NO_AUTO_FORMAT;
+			/* The resampler uses FLOAT internally, so prefer that if the ALSA
+			 * device supports it, to avoid the need to convert. Otherwise, use
+			 * the resampler native endian integer format - input format. */
+			format_1 = resampler_preferred_output_format();
+			format_2 = resampler_pcm_format;
+		}
+	}
+#endif
 
 	/* Track the lock state of the single playback mutex within this thread. */
 	bool single_playback_mutex_locked = false;
@@ -533,6 +622,7 @@ static void *io_worker_routine(struct io_worker *w) {
 		/* Check the PCM running status on every iteration. */
 		bool ba_pcm_running = w->ba_pcm.running;
 		pthread_mutex_unlock(&w->mutex);
+		bool drain_output = false;
 
 		switch (poll_rv) {
 		case -1:
@@ -541,8 +631,8 @@ static void *io_worker_routine(struct io_worker *w) {
 			error("IO loop poll error: %s", strerror(errno));
 			goto fail;
 		case 0:
-			if (!ba_pcm_running && ffb_len_out(&buffer) == 0)
-				goto device_inactive;
+			if (!ba_pcm_running && ffb_len_out(&read_buffer) == 0)
+				drain_output = true;
 			break;
 		}
 
@@ -555,20 +645,21 @@ static void *io_worker_routine(struct io_worker *w) {
 		size_t read_samples = 0;
 		if (fds[1].revents & POLLIN) {
 
-			/* If the internal buffer is full then we have an overrun. We must
+			/* If the read buffer is full then we have an overrun. We must
 			 * discard audio frames in order to continue reading fresh data
 			 * from the server. */
-			if (ffb_blen_in(&buffer) == 0) {
+			if (ffb_blen_in(&read_buffer) == 0) {
 				unsigned int buffered = 0;
 				ioctl(w->ba_pcm_fd, FIONREAD, &buffered);
-				const size_t discard_bytes = MIN(buffered, ffb_blen_out(&buffer));
+				const size_t discard_bytes = MIN(buffered, ffb_blen_out(&read_buffer));
 				const size_t discard_samples = discard_bytes / pcm_format_size;
-				warn("Dropping PCM frames: %zu", discard_samples / w->ba_pcm.channels);
-				ffb_shift(&buffer, discard_samples);
+				ffb_shift(&read_buffer, discard_samples);
+				if (alsa_pcm_is_open(&w->alsa_pcm))
+					warn("Dropping PCM frames: %zu", discard_samples / w->ba_pcm.channels);
 			}
 
 			ssize_t ret;
-			if ((ret = read(w->ba_pcm_fd, buffer.tail, ffb_blen_in(&buffer))) == -1) {
+			if ((ret = read(w->ba_pcm_fd, read_buffer.tail, ffb_blen_in(&read_buffer))) == -1) {
 				if (errno == EINTR)
 					continue;
 				error("BlueALSA source PCM read error: %s", strerror(errno));
@@ -579,12 +670,17 @@ static void *io_worker_routine(struct io_worker *w) {
 			if (ret % pcm_format_size != 0)
 				warn("Invalid read from BlueALSA source PCM: %zd %% %zd != 0", ret, pcm_format_size);
 
-			ffb_seek(&buffer, read_samples);
+#if WITH_LIBSAMPLERATE
+			if (w->use_resampler)
+				resampler_convert_to_native_endian_format(read_buffer.tail, read_samples, pcm_format);
+#endif
+			ffb_seek(&read_buffer, read_samples);
 
 		}
 		else if (fds[1].revents & POLLHUP) {
 			/* source PCM FIFO has been terminated on the writing side */
 			debug("BlueALSA source PCM disconnected: %s", w->ba_pcm.pcm_path);
+			drain_output = true;
 			break;
 		}
 		else if (fds[1].revents)
@@ -631,12 +727,36 @@ static void *io_worker_routine(struct io_worker *w) {
 					continue;
 			}
 
-			debug("Opening ALSA playback PCM: name=%s channels=%u rate=%u",
-					pcm_device, w->ba_pcm.channels, w->ba_pcm.rate);
+			debug("Opening ALSA playback PCM: name=%s channels=%u rate%s=%u",
+					pcm_device, w->ba_pcm.channels,
+					pcm_flags & SND_PCM_NO_AUTO_RESAMPLE ? "~" : "",
+					w->ba_pcm.rate);
 
-			char *tmp;
-			if (alsa_pcm_open(&w->alsa_pcm, pcm_device, pcm_format, w->ba_pcm.channels,
-						w->ba_pcm.rate, pcm_buffer_time, pcm_period_time, 0, &tmp) != 0) {
+			char *tmp = NULL;
+			int res = alsa_pcm_open(&w->alsa_pcm, pcm_device, format_1, format_2,
+						w->ba_pcm.channels, w->ba_pcm.rate, pcm_buffer_time,
+						pcm_period_time, pcm_flags, &tmp);
+			switch (res) {
+			case 0:
+				break;
+			case -EINVAL:
+#if WITH_LIBSAMPLERATE
+				/* If the PCM failed to open because the sound card does not
+				 * natively support either the float or integer formats of the
+				 * resampler, then try again but this time with alsa-lib format
+				 * conversion enabled. */
+				if (w->use_resampler && w->alsa_pcm.format == SND_PCM_FORMAT_UNKNOWN) {
+					free(tmp);
+					if (alsa_pcm_open(&w->alsa_pcm, pcm_device, format_1,
+								format_2, w->ba_pcm.channels, w->ba_pcm.rate,
+								pcm_buffer_time, pcm_period_time,
+								pcm_flags & ~SND_PCM_NO_AUTO_FORMAT, &tmp) == 0) {
+						break;
+					}
+				}
+#endif
+				/* fall-through */
+			default:
 				warn("Couldn't open ALSA playback PCM: %s", tmp);
 				pcm_open_retry_pcm_samples = 0;
 				pcm_open_retries++;
@@ -644,11 +764,50 @@ static void *io_worker_routine(struct io_worker *w) {
 				continue;
 			}
 
-			/* Resize the internal buffer to ensure it is not less than the
+			/* Resize the read buffer to ensure it is not less than the
 			 * ALSA start threshold. This is to ensure that the PCM re-starts
 			 * quickly after an overrun. */
-			if (w->alsa_pcm.start_threshold > buffer.nmemb / w->ba_pcm.channels)
-				ffb_init(&buffer, w->alsa_pcm.start_threshold * w->ba_pcm.channels, buffer.size);
+			if (w->alsa_pcm.start_threshold > read_buffer.nmemb / w->ba_pcm.channels)
+				ffb_init(&read_buffer, w->alsa_pcm.start_threshold * w->ba_pcm.channels, read_buffer.size);
+
+#if WITH_LIBSAMPLERATE
+			if (w->use_resampler) {
+
+				/* Initialize the resampler which will try to keep the playback delay
+				 * within configured limits. The lower and upper limits are set to
+				 * the ALSA start threshold and the start threshold plus the period
+				 * size respectively. The resampler will adapt the rate to keep the
+				 * delay within these limits. */
+				debug("Opening resampler");
+				if ((res = resampler_init(
+								&w->resampler,
+								resampler_method,
+								w->ba_pcm.channels,
+								resampler_pcm_format,
+								w->ba_pcm.rate,
+								w->alsa_pcm.format,
+								w->alsa_pcm.rate,
+								w->alsa_pcm.start_threshold,
+								w->alsa_pcm.start_threshold + w->alsa_pcm.period_frames)) == -1) {
+					error("Couldn't initialize resampler: %s", strerror(errno));
+					goto fail;
+				}
+
+#if DEBUG
+				if (verbose >= 4)
+					debug("PCM sample rate conversion: %u Hz -> %#.2f Hz", w->ba_pcm.rate,
+							w->ba_pcm.rate * resampler_current_rate_ratio(&w->resampler));
+#endif
+
+				/* The resampler output buffer is sized to accommodate the
+				 * result of resampling a full read_buffer, plus a little extra
+				 * to allow for positive adaptive resampling adjustment. */
+				size_t buffer_size = read_buffer.nmemb * w->alsa_pcm.rate / w->ba_pcm.rate;
+				buffer_size = (buffer_size * 110) / 100;
+				ffb_init(&w->resampled_buffer, buffer_size, snd_pcm_format_size(w->alsa_pcm.format, 1));
+				write_buffer = &w->resampled_buffer;
+			}
+#endif
 
 			/* Skip mixer setup in case of software volume. */
 			if (mixer_device != NULL && !w->ba_pcm.soft_volume) {
@@ -674,12 +833,18 @@ static void *io_worker_routine(struct io_worker *w) {
 
 			if (verbose >= 2) {
 				info("Used configuration for %s:\n"
+						"  BlueALSA PCM format: %s\n"
+						"  BlueALSA PCM sample rate: %u Hz\n"
+						"  BlueALSA PCM channels: %u\n"
 						"  ALSA PCM buffer time: %u us (%zu bytes)\n"
 						"  ALSA PCM period time: %u us (%zu bytes)\n"
 						"  ALSA PCM format: %s\n"
 						"  ALSA PCM sample rate: %u Hz\n"
 						"  ALSA PCM channels: %u",
 						w->addr,
+						snd_pcm_format_name(pcm_format),
+						w->ba_pcm.rate,
+						w->ba_pcm.channels,
 						w->alsa_pcm.buffer_time, alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.buffer_frames),
 						w->alsa_pcm.period_time, alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.period_frames),
 						snd_pcm_format_name(w->alsa_pcm.format),
@@ -702,13 +867,25 @@ static void *io_worker_routine(struct io_worker *w) {
 			single_playback_mutex_locked = false;
 		}
 
-		if (!w->alsa_mixer.has_mute_switch && pcm_muted)
-			snd_pcm_format_set_silence(pcm_format, buffer.data, ffb_len_out(&buffer));
+		if (!w->alsa_mixer.has_mute_switch && pcm_muted) {
+			snd_pcm_format_t format = w->alsa_pcm.format;
+#if WITH_LIBSAMPLERATE
+			if (w->use_resampler)
+				format = resampler_pcm_format;
+#endif
+			snd_pcm_format_set_silence(format, read_buffer.data, ffb_len_out(&read_buffer));
+		}
 
-		if (alsa_pcm_write(&w->alsa_pcm, &buffer, !ba_pcm_running) < 0)
+#if WITH_LIBSAMPLERATE
+		if (w->use_resampler &&
+				resampler_process(&w->resampler, &read_buffer, write_buffer) != 0)
+			goto close_alsa;
+#endif
+
+		if (alsa_pcm_write(&w->alsa_pcm, write_buffer, drain_output) < 0)
 			goto close_alsa;
 
-		if (!ba_pcm_running)
+		if (drain_output)
 			goto device_inactive;
 
 		/* Set the poll() timeout such that this thread is always woken before
@@ -721,11 +898,40 @@ static void *io_worker_routine(struct io_worker *w) {
 		if ((timeout -= 5) < 0)
 			timeout = 0;
 
-		if (!delay_report_update(&dr, &w->alsa_pcm, w->ba_pcm_fd, &buffer, &err)) {
+		const snd_pcm_uframes_t delay_frames = io_worker_delay_frames(w, pcm_format_size * w->ba_pcm.channels, &read_buffer);
+
+		if (!delay_report_update(&dr,delay_frames, &err)) {
 			error("Couldn't update BlueALSA PCM client delay: %s", err.message);
 			dbus_error_free(&err);
 			goto fail;
 		}
+
+#if WITH_LIBSAMPLERATE
+		if (w->use_resampler) {
+			bool rate_changed = false;
+			if (w->alsa_pcm.underrun) {
+				debug("Resetting resampler");
+				resampler_reset(&w->resampler);
+				rate_changed = true;
+			}
+			if (alsa_pcm_is_running(&w->alsa_pcm)) {
+				if (!alsa_pcm_started) {
+					/* The ALSA start threshold has been reached, so reset the
+					 * resampler to initialize adaptive resampling. */
+					alsa_pcm_started = true;
+					resampler_reset(&w->resampler);
+				}
+				rate_changed = resampler_update_rate_ratio(&w->resampler,
+						read_samples / w->ba_pcm.channels, dr.avg_value);
+			}
+			else
+				alsa_pcm_started = false;
+
+			if (verbose >= 4 && rate_changed)
+				debug("PCM sample rate conversion: %u Hz -> %#.2f Hz", w->ba_pcm.rate,
+						w->ba_pcm.rate * resampler_current_rate_ratio(&w->resampler));
+		}
+#endif
 
 		continue;
 
@@ -736,7 +942,13 @@ device_inactive:
 		timeout = -1;
 
 close_alsa:
-		ffb_rewind(&buffer);
+		ffb_rewind(&read_buffer);
+#if WITH_LIBSAMPLERATE
+		if (w->use_resampler) {
+			ffb_rewind(&w->resampled_buffer);
+			resampler_free(&w->resampler);
+		}
+#endif
 		pthread_mutex_lock(&w->mutex);
 		alsa_pcm_close(&w->alsa_pcm);
 		alsa_mixer_close(&w->alsa_mixer);
@@ -838,6 +1050,11 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	memcpy(&worker->ba_pcm, ba_pcm, sizeof(worker->ba_pcm));
 	alsa_pcm_init(&worker->alsa_pcm);
 	alsa_mixer_init(&worker->alsa_mixer, io_worker_mixer_event_callback, worker);
+#if WITH_LIBSAMPLERATE
+	memset(&worker->resampler, 0, sizeof(worker->resampler));
+	memset(&worker->resampled_buffer, 0, sizeof(worker->resampled_buffer));
+	worker->use_resampler = false;
+#endif
 	worker->active = false;
 
 	debug("Starting IO worker %s", worker->addr);
@@ -1001,12 +1218,18 @@ int main(int argc, char *argv[]) {
 		{ "mixer-index", required_argument, NULL, 7 },
 		{ "profile-a2dp", no_argument, NULL, 1 },
 		{ "profile-sco", no_argument, NULL, 2 },
+#if WITH_LIBSAMPLERATE
+		{ "resampler", required_argument, NULL, 10},
+#endif
 		{ "single-audio", no_argument, NULL, 5 },
 		{ 0, 0, 0, 0 },
 	};
 
 	bool syslog = false;
 	const char *volume_type_str = "auto";
+#if WITH_LIBSAMPLERATE
+	const char *resampler_method_str = "none";
+#endif
 
 	/* Check if syslog forwarding has been enabled. This check has to be
 	 * done before anything else, so we can log early stage warnings and
@@ -1035,6 +1258,9 @@ int main(int argc, char *argv[]) {
 					"  --mixer-index=NUM\t\tmixer element index\n"
 					"  --profile-a2dp\t\tuse A2DP profile (default)\n"
 					"  --profile-sco\t\t\tuse SCO profile\n"
+#if WITH_LIBSAMPLERATE
+					"  --resampler=METHOD\t\tresample conversion method\n"
+#endif
 					"  --single-audio\t\tsingle audio mode\n"
 					"\nNote:\n"
 					"If one wants to receive audio from more than one Bluetooth device, it is\n"
@@ -1160,6 +1386,32 @@ int main(int argc, char *argv[]) {
 			force_single_playback = true;
 			break;
 
+#if WITH_LIBSAMPLERATE
+		case 10 /* --resampler */ : {
+
+			static const nv_entry_t values[] = {
+				{ "best", .v.ui = RESAMPLER_CONV_SINC_BEST_QUALITY },
+				{ "medium", .v.ui = RESAMPLER_CONV_SINC_MEDIUM_QUALITY },
+				{ "fastest", .v.ui = RESAMPLER_CONV_SINC_FASTEST },
+				{ "zero-hold", .v.ui = RESAMPLER_CONV_ZERO_ORDER_HOLD },
+				{ "linear", .v.ui = RESAMPLER_CONV_LINEAR },
+				{ "none", .v.ui = RESAMPLER_CONV_NONE },
+				{ 0 },
+			};
+
+			const nv_entry_t *entry;
+			if ((entry = nv_find(values, optarg)) == NULL) {
+				error("Invalid resampler method {%s}: %s",
+						nv_join_names(values), optarg);
+				return EXIT_FAILURE;
+			}
+
+			resampler_method_str = optarg;
+			resampler_method = entry->v.ui;
+			break;
+		}
+#endif
+
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return EXIT_FAILURE;
@@ -1235,6 +1487,9 @@ int main(int argc, char *argv[]) {
 				"  ALSA PCM period time: %u us\n"
 				"  ALSA mixer device: %s\n"
 				"  ALSA mixer element: %s\n"
+#if WITH_LIBSAMPLERATE
+				"  Resampler method: %s\n"
+#endif
 				"  Volume control type: %s\n"
 				"  Bluetooth device(s): %s\n"
 				"  Profile: %s",
@@ -1242,6 +1497,9 @@ int main(int argc, char *argv[]) {
 				pcm_device, pcm_buffer_time, pcm_period_time,
 				mixer_device_str,
 				mixer_element_str,
+#if WITH_LIBSAMPLERATE
+				resampler_method_str,
+#endif
 				volume_type_str,
 				ba_addr_any ? "ANY" : &ba_str[2],
 				ba_profile_a2dp ? "A2DP" : "SCO");

@@ -265,7 +265,7 @@ _bluealsa_aplay() {
 			__ltrim_colon_completions "$cur"
 			return
 			;;
-		--loglevel|--volume)
+		--loglevel|--resampler|--volume)
 			readarray -t list < <(_bluealsa_enum_values "$1" "$prev")
 			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return

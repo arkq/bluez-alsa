@@ -76,10 +76,12 @@ OPTIONS
     Select ALSA playback PCM device to use for audio output.
     The default is ``default``.
 
-    Internally, **bluealsa-aplay** does not perform any audio transformations
+    Internally, **bluealsa-aplay** is able to perform sample rate conversion
+    if it was built with libsamplerate support (see the option
+    **--resampler=**), but does not perform any other audio transformations
     nor streams mixing. If multiple Bluetooth devices are connected it simply
     opens a new connection to the ALSA PCM device for each stream. Selected
-    hardware parameters like sample rate and number of channels are
+    hardware parameters like sample format and number of channels are
     taken from the audio profile of a particular Bluetooth connection. Note,
     that each connection can have a different setup.
 
@@ -187,6 +189,40 @@ OPTIONS
     Note: Only one of A2DP or SCO can be used. If both are specified, the
     last one given will be selected.
 
+--resampler=METHOD
+    Use libsamplerate to convert the stream from the Bluetooth sample rate to
+    the ALSA PCM sample rate. This option is only available if
+    **bluealsa-aplay** was built with libsamplerate support. The resampler uses
+    adaptive resampling to compensate for timer drift between the Bluetooth
+    timer and the ALSA device timer. Resampling can be CPU intensive and
+    therefore by default this option is not enabled. *METHOD* specifies which
+    libsamplerate converter to use, and may be one of 6 values:
+
+    - **best** - use the SRC_SINC_BEST_QUALITY converter; generates the highest
+      quality output but also has very high CPU usage.
+
+    - **medium** - use the SRC_SINC_MEDIUM_QUALITY converter; generates high
+      quality output and has moderately high CPU usage.
+
+    - **fastest** - use the SRC_SINC_FASTEST converter; generates good quality
+      output with lower CPU usage than the other SINC based converters. Often
+      this converter is the best compromise for Bluetooth audio.
+
+    - **linear** - use the SRC_LINEAR converter. The audio quality is
+      relatively poor compared to the SINC converters; it is similar to the
+      ALSA rate plugin's own internal linear converter, but this option
+      also performs adaptive resampling which is not possible with the ALSA
+      rate plugin.
+
+    - **zero-hold** - use the SRC_ZERO_ORDER_HOLD converter; the lowest quality
+      converter of libsamplerate; the audio quality is relatively poor compared
+      to the SINC converters, but CPU usage is very low so may be better suited
+      to very low power embedded processors.
+
+    - **none** - do not perform any resampling; the ALSA PCM device is then
+      responsible for rate conversion, and no timer drift adjustment is made.
+      This is the default when no resampler is specified.
+
 --single-audio
     Allow only one Bluetooth device to play audio at a time.
     If multiple devices are connected, only the first to start will play, the
@@ -236,10 +272,10 @@ The ALSA **dmix** plugin will ignore the period and buffer times selected by
 the application (because it has to allow connections from multiple
 applications). Instead it will choose its own values, which can lead to
 rounding errors in the period size calculation when used with the ALSA **rate**
-plugin. To avoid this, it is recommended to explicitly define the hardware
-period size and buffer size for **dmix** in your ALSA configuration. For
-example, suppose we want a period time of 50000 µs and a buffer holding 4
-periods with an Intel 'PCH' card:
+plugin (but not when using the *--resampler=* option). To avoid this, it is
+recommended to explicitly define the hardware period size and buffer size for
+**dmix** in your ALSA configuration. For example, suppose we want a period time
+of 50000 µs and a buffer holding 4 periods with an Intel 'PCH' card:
 
 ::
 
@@ -308,7 +344,7 @@ element will be used as a hardware volume control knob.
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
+Copyright (c) 2016-2025 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
