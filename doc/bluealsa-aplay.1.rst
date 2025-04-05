@@ -208,14 +208,16 @@ OPTIONS
       output with lower CPU usage than the other SINC based converters. Often
       this converter is the best compromise for Bluetooth audio.
 
-    - **zero-hold** - use the SRC_ZERO_ORDER_HOLD converter; the audio quality
-      is relatively poor compared to the SINC converters, but CPU usage is very
-      low so may be better suited to very low power embedded processors.
+    - **linear** - use the SRC_LINEAR converter. The audio quality is
+      relatively poor compared to the SINC converters; it is similar to the
+      ALSA rate plugin's own internal linear converter, but this option
+      also performs adaptive resampling which is not possible with the ALSA
+      rate plugin.
 
-    - **linear** - use the SRC_LINEAR converter; the lowest quality converter
-      of libsamplerate. Output quality is similar to the ALSA rate plugin's own
-      internal linear converter, but this option also performs adaptive
-      resampling which is not possible with the ALSA rate plugin.
+    - **zero-hold** - use the SRC_ZERO_ORDER_HOLD converter; the lowest quality
+      converter of libsamplerate; the audio quality is relatively poor compared
+      to the SINC converters, but CPU usage is very low so may be better suited
+      to very low power embedded processors.
 
     - **none** - do not perform any resampling; the ALSA PCM device is then
       responsible for rate conversion, and no timer drift adjustment is made.
