@@ -533,7 +533,7 @@ static void bt_data_write(struct ba_transport *t) {
 
 static pthread_cond_t test_terminate = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t test_mutex = PTHREAD_MUTEX_INITIALIZER;
-static bool test_terminated = false;
+static bool test_terminated;
 
 static void *test_terminate_timer(void *arg) {
 	sleep((uintptr_t)arg);
@@ -679,6 +679,9 @@ static void test_io(
 		return;
 	if (dec == test_io_thread_dump_bt && input_bt_file != NULL)
 		return;
+
+	/* Reset the global termination flag before starting the loop. */
+	test_terminated = false;
 
 	int bt_fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
