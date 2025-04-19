@@ -47,6 +47,14 @@ static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
 /* big enough buffer to keep one period of data */
 static int16_t pcm_buffer[1024 * 8];
 
+static const char *hwcompat_values[] = {
+	/* NULL is for "value unspecified" */
+	NULL,
+	"none",
+	"busy",
+	"silence",
+};
+
 static int set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int channels,
 		int rate, unsigned int *buffer_time, unsigned int *period_time) {
 
@@ -121,8 +129,20 @@ static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size, snd_pcm_
 	return 0;
 }
 
+static const char *get_test_pcm_id(int index) {
+	static const char *pcm_name = "bluealsa:DEV=12:34:56:78:9A:BC";
+	static char pcm_id[64];
+
+	if (hwcompat_values[index] == NULL)
+		strcpy(pcm_id, pcm_name);
+	else
+		snprintf(pcm_id, sizeof(pcm_id), "%s,HWCOMPAT=%s", pcm_name, hwcompat_values[index]);
+
+	return pcm_id;
+}
+
 static int test_pcm_open(struct spawn_process *sp_ba_mock, snd_pcm_t **pcm,
-		snd_pcm_stream_t stream) {
+		snd_pcm_stream_t stream, int hwcompat_index) {
 
 	if (pcm_device != NULL)
 		return snd_pcm_open(pcm, pcm_device, stream, 0);
@@ -139,7 +159,9 @@ static int test_pcm_open(struct spawn_process *sp_ba_mock, snd_pcm_t **pcm,
 				NULL) == -1)
 		return -1;
 
-	return snd_pcm_open(pcm, "bluealsa:DEV=12:34:56:78:9A:BC", stream, 0);
+	const char *pcm_id = get_test_pcm_id(hwcompat_index);
+	debug("pcm id = %s", pcm_id);
+	return snd_pcm_open(pcm, pcm_id, stream, 0);
 }
 
 static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
@@ -178,7 +200,7 @@ CK_START_TEST(dump_capture) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(snd_output_stdio_attach(&output, stdout, 0), 0);
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE, _i), 0);
 
 	ck_assert_int_eq(snd_pcm_dump(pcm, output), 0);
 
@@ -197,11 +219,15 @@ CK_START_TEST(test_capture_start) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	/* sleep a little time so that we can check that the PCM has not delivered
+	 * any samples before the start request. */
+	usleep(period_time);
 
 	/* check capture PCM initial state - not running */
 	ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_PREPARED);
@@ -245,7 +271,7 @@ CK_START_TEST(test_capture_drain) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -268,7 +294,7 @@ CK_START_TEST(test_capture_pause) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -309,7 +335,7 @@ CK_START_TEST(test_capture_pause) {
 		ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
 		/* wait a little bit */
-		usleep(period_time);
+		usleep(period_time + 5000);
 
 		/* check resume: more available frames, bigger delay */
 		ck_assert_int_gt(snd_pcm_avail(pcm), frames0);
@@ -331,7 +357,7 @@ CK_START_TEST(test_capture_overrun) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -372,7 +398,7 @@ CK_START_TEST(test_capture_poll) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_CAPTURE, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 
@@ -415,7 +441,7 @@ CK_START_TEST(dump_playback) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_int_eq(snd_output_stdio_attach(&output, stdout, 0), 0);
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 
 	ck_assert_int_eq(snd_pcm_dump(pcm, output), 0);
 
@@ -538,7 +564,7 @@ CK_START_TEST(ba_test_playback_channel_maps) {
 	snd_pcm_chmap_t *ch_map;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 
@@ -675,7 +701,7 @@ CK_START_TEST(test_playback_hw_set_free) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 
 	for (size_t i = 0; i < 5; i++) {
 		int set_hw_param_ret;
@@ -707,7 +733,7 @@ CK_START_TEST(test_playback_start) {
 	snd_pcm_t *pcm = NULL;
 	size_t i;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -747,7 +773,7 @@ CK_START_TEST(test_playback_drain) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -782,7 +808,7 @@ CK_START_TEST(test_playback_drain_not_started) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -815,7 +841,7 @@ CK_START_TEST(test_playback_drain_nonblock) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -867,7 +893,7 @@ CK_START_TEST(test_playback_pause) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -932,7 +958,7 @@ CK_START_TEST(test_playback_reset) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -985,7 +1011,7 @@ CK_START_TEST(test_playback_underrun) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_get_params(pcm, &buffer_size, &period_size), 0);
@@ -1053,7 +1079,7 @@ CK_START_TEST(reference_playback_device_unplug) {
 	/* this test needs user-defined PCM device */
 	ck_assert_ptr_ne(pcm_device, NULL);
 
-	ck_assert_int_eq(test_pcm_open(NULL, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(NULL, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -1095,7 +1121,7 @@ CK_START_TEST(ba_test_playback_device_unplug) {
 	snd_pcm_t *pcm = NULL;
 
 	ck_assert_ptr_eq(pcm_device, NULL);
-	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK, _i), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
 	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
@@ -1196,34 +1222,36 @@ int main(int argc, char *argv[]) {
 	Suite *s = suite_create(__FILE__);
 	SRunner *sr = srunner_create(s);
 
+	const int hwcompat_count = pcm_device ? 1 : ARRAYSIZE(hwcompat_values);
+
 	if (run_capture) {
 		TCase *tc = tcase_create("capture");
-		tcase_add_test(tc, dump_capture);
-		tcase_add_test(tc, test_capture_start);
-		tcase_add_test(tc, test_capture_drain);
-		tcase_add_test(tc, test_capture_pause);
-		tcase_add_test(tc, test_capture_overrun);
-		tcase_add_test(tc, test_capture_poll);
+		tcase_add_loop_test(tc, dump_capture, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_capture_start, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_capture_drain, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_capture_pause, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_capture_overrun, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_capture_poll, 0, hwcompat_count);
 		suite_add_tcase(s, tc);
 	}
 
 	if (run_playback) {
 		TCase *tc = tcase_create("playback");
-		tcase_add_test(tc, dump_playback);
-		tcase_add_test(tc, ba_test_playback_hw_constraints);
-		tcase_add_test(tc, ba_test_playback_channel_maps);
-		tcase_add_test(tc, ba_test_playback_no_codec_selected);
-		tcase_add_test(tc, ba_test_playback_no_such_device);
-		tcase_add_test(tc, ba_test_playback_extra_setup);
-		tcase_add_test(tc, test_playback_hw_set_free);
-		tcase_add_test(tc, test_playback_start);
-		tcase_add_test(tc, test_playback_drain);
-		tcase_add_test(tc, test_playback_drain_not_started);
-		tcase_add_test(tc, test_playback_drain_nonblock);
-		tcase_add_test(tc, test_playback_pause);
-		tcase_add_test(tc, test_playback_reset);
-		tcase_add_test(tc, test_playback_underrun);
-		tcase_add_test(tc, ba_test_playback_device_unplug);
+		tcase_add_loop_test(tc, dump_playback, 0, hwcompat_count);
+		tcase_add_loop_test(tc, ba_test_playback_hw_constraints, 0, hwcompat_count);
+		tcase_add_loop_test(tc, ba_test_playback_channel_maps, 0, hwcompat_count);
+		tcase_add_loop_test(tc, ba_test_playback_no_codec_selected, 0, hwcompat_count);
+		tcase_add_loop_test(tc, ba_test_playback_no_such_device, 0, hwcompat_count);
+		tcase_add_loop_test(tc, ba_test_playback_extra_setup, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_hw_set_free, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_start, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_drain, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_drain_not_started, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_drain_nonblock, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_pause, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_reset, 0, hwcompat_count);
+		tcase_add_loop_test(tc, test_playback_underrun, 0, hwcompat_count);
+		tcase_add_loop_test(tc, ba_test_playback_device_unplug, 0, hwcompat_count);
 		suite_add_tcase(s, tc);
 	}
 
