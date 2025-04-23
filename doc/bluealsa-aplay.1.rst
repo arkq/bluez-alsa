@@ -171,8 +171,12 @@ OPTIONS
     and volume level.
     In order to use this feature, BlueALSA PCM can not use software volume.
     The default is ``default``.
+    Note that **bluealsa-aplay** does not assume that the mixer device has the
+    same name, or is on the same card, as the PCM device. If this option is not
+    given then it will use ``default`` as the mixer device no matter which name
+    is given with the **--pcm=** option.
 
---mixer-name=NAME
+--mixer-control=NAME
     Set the name of the ALSA simple mixer control to use.
     The default is ``Master``.
 
@@ -260,14 +264,15 @@ adjustment will have been applied to the PCM stream within the **bluealsad**
 daemon; so **bluealsa-aplay** does not operate the mixer control in this case.
 
 When using ``--volume=none`` or ``--volume=software``, then the mixer options
-``--mixer-device``, ``--mixer-name`` and ``--mixer-index`` are ignored, and
+``--mixer-device``, ``--mixer-control`` and ``--mixer-index`` are ignored, and
 **bluealsa-aplay** will not operate any mixer controls, even if some other
 application changes the PCM volume mode to native while in use.
 
-When using ``--volume=auto`` or ``--volume=mixer`` the ALSA mixer control will
-be operated only when the PCM stream is active, (i.e., the remote device is
-sending audio). If a connected remote device requests a volume change when no
-active stream is playing, then **bluealsa-aplay** will ignore that request.
+When native volume control is enabled (using either ``--volume=auto`` or
+``--volume=mixer``) then the ALSA mixer control will be operated only when the
+PCM stream is active (i.e., the remote device is sending audio). If a
+connected remote device requests a volume change when no active stream is
+playing, then **bluealsa-aplay** will ignore that request.
 When the audio stream starts then **bluealsa-aplay** will change the Bluetooth
 volume to match the current setting of the ALSA mixer control.
 
@@ -409,7 +414,7 @@ above).
 ::
 
     bluealsa-aplay --pcm=default 94:B8:6D:AF:CD:EF F8:87:F1:B8:30:85 &
-    bluealsa-aplay --pcm=default:USB --mixer-device=hw:USB --mixer-name=Speaker C8:F7:33:66:F0:DE &
+    bluealsa-aplay --pcm=default:USB --mixer-device=hw:USB --mixer-control=Speaker C8:F7:33:66:F0:DE &
 
 Such setup will route ``94:B8:6D:AF:CD:EF`` and ``F8:87:F1:B8:30:85`` Bluetooth
 devices to the ``default`` ALSA playback PCM device and ``C8:F7:33:66:F0:DE``

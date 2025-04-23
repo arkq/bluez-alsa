@@ -1216,7 +1216,7 @@ int main(int argc, char *argv[]) {
 		{ "pcm-period-time", required_argument, NULL, 4 },
 		{ "volume", required_argument, NULL, '8' },
 		{ "mixer-device", required_argument, NULL, 'M' },
-		{ "mixer-name", required_argument, NULL, 6 },
+		{ "mixer-control", required_argument, NULL, 6 },
 		{ "mixer-index", required_argument, NULL, 7 },
 		{ "profile-a2dp", no_argument, NULL, 1 },
 		{ "profile-sco", no_argument, NULL, 2 },
@@ -1256,7 +1256,7 @@ int main(int argc, char *argv[]) {
 					"  --pcm-period-time=INT\t\tplayback PCM period time\n"
 					"  --volume=TYPE\t\t\tvolume control type [auto|mixer|none|software]\n"
 					"  -M, --mixer-device=NAME\tmixer device to use\n"
-					"  --mixer-name=NAME\t\tmixer element name\n"
+					"  --mixer-control=NAME\t\tmixer control name\n"
 					"  --mixer-index=NUM\t\tmixer element index\n"
 					"  --profile-a2dp\t\tuse A2DP profile (default)\n"
 					"  --profile-sco\t\t\tuse SCO profile\n"
@@ -1370,7 +1370,7 @@ int main(int argc, char *argv[]) {
 		case 'M' /* --mixer-device=NAME */ :
 			mixer_device = optarg;
 			break;
-		case 6 /* --mixer-name=NAME */ :
+		case 6 /* --mixer-control=NAME */ :
 			mixer_elem_name = optarg;
 			break;
 		case 7 /* --mixer-index=NUM */ :

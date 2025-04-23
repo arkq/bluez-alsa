@@ -77,7 +77,7 @@ CK_START_TEST(test_configuration) {
 				"--pcm-buffer-time=10000",
 				"--pcm-period-time=500",
 				"--mixer-device=TestMixer",
-				"--mixer-name=TestMixerName",
+				"--mixer-control=TestMixerName",
 				"--mixer-index=1",
 				"--profile-sco",
 				"12:34:56:78:90:AB",
@@ -242,7 +242,7 @@ CK_START_TEST(test_play_mixer_setup) {
 				"--pcm=bluealsa:PROFILE=sco",
 				"--volume=mixer",
 				"--mixer-device=bluealsa:DEV=23:45:67:89:AB:CD",
-				"--mixer-name=SCO",
+				"--mixer-control=SCO",
 				"-v",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 500);
