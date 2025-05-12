@@ -7,6 +7,9 @@ TESTS = \
 	test-a2dp \
 	test-alsa-ctl \
 	test-alsa-pcm \
+	test-alsa-pcm-hwcompat-none \
+	test-alsa-pcm-hwcompat-busy \
+	test-alsa-pcm-hwcompat-silence \
 	test-at \
 	test-audio \
 	test-ba \
@@ -366,3 +369,10 @@ LDADD = \
 .xml.c:
 	$(top_srcdir)/src/dbus-codegen.py --output $@ \
 		--interface-info-body --interface-skeleton-body $<
+
+ALSA_PCM_TEST_VARIANTS = \
+	test-alsa-pcm-hwcompat-busy \
+	test-alsa-pcm-hwcompat-none \
+	test-alsa-pcm-hwcompat-silence
+
+$(ALSA_PCM_TEST_VARIANTS) : test-alsa-pcm

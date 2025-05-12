@@ -470,7 +470,12 @@ AC_CONFIG_FILES([
 	utils/rfcomm/Makefile
 	test/Makefile
 	test/mock/Makefile])
+AC_CONFIG_LINKS([
+	test/test-alsa-pcm-hwcompat-none:test/test-alsa-pcm-hwcompat-none
+	test/test-alsa-pcm-hwcompat-busy:test/test-alsa-pcm-hwcompat-busy
+	test/test-alsa-pcm-hwcompat-silence:test/test-alsa-pcm-hwcompat-silence])
 AC_OUTPUT
+
 
 # warn user that alsa-lib thread-safety makes troubles
 AM_COND_IF([ALSA_1_1_2__1_1_3], [
