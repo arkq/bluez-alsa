@@ -47,6 +47,13 @@ static snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
 /* big enough buffer to keep one period of data */
 static int16_t pcm_buffer[1024 * 8];
 
+static const char *hwcompat_values[] = {
+	"none",
+	"busy",
+	"silence",
+};
+static const char *hwcompat = NULL;
+
 static int set_hw_params(snd_pcm_t *pcm, snd_pcm_format_t format, int channels,
 		int rate, unsigned int *buffer_time, unsigned int *period_time) {
 
@@ -139,7 +146,16 @@ static int test_pcm_open(struct spawn_process *sp_ba_mock, snd_pcm_t **pcm,
 				NULL) == -1)
 		return -1;
 
-	return snd_pcm_open(pcm, "bluealsa:DEV=12:34:56:78:9A:BC", stream, 0);
+	static const char *pcm_name = "bluealsa:DEV=12:34:56:78:9A:BC";
+	char pcm_id[64];
+
+	if (hwcompat == NULL)
+		strcpy(pcm_id, pcm_name);
+	else
+		snprintf(pcm_id, sizeof(pcm_id), "%s,HWCOMPAT=%s", pcm_name, hwcompat);
+
+	debug("pcm id = %s", pcm_id);
+	return snd_pcm_open(pcm, pcm_id, stream, 0);
 }
 
 static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_pcm_t *pcm) {
@@ -313,7 +329,7 @@ CK_START_TEST(test_capture_pause) {
 		ck_assert_int_eq(snd_pcm_state_runtime(pcm), SND_PCM_STATE_RUNNING);
 
 		/* wait a little bit */
-		usleep(period_time);
+		usleep(period_time + 5000);
 
 		/* check resume: more available frames, bigger delay */
 		ck_assert_int_gt(snd_pcm_avail(pcm), frames0);
@@ -1141,13 +1157,14 @@ int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/libaloader.so");
 
 	int opt;
-	const char *opts = "hD:c:f:r:";
+	const char *opts = "hD:c:f:r:H:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "pcm", required_argument, NULL, 'D' },
 		{ "channels", required_argument, NULL, 'c' },
 		{ "format", required_argument, NULL, 'f' },
 		{ "rate", required_argument, NULL, 'r' },
+		{ "hwcompat", required_argument, NULL, 'H' },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -1172,6 +1189,14 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'r' /* --rate=NUM */ :
 			pcm_rate = atoi(optarg);
+			break;
+		case 'H' /* --hwcompat=MODE */ :
+			for (size_t n = 0; n < ARRAYSIZE(hwcompat_values); n++) {
+				if (strcmp(optarg, hwcompat_values[n]) == 0) {
+					hwcompat = optarg;
+					break;
+				}
+			}
 			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);

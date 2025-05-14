@@ -489,6 +489,7 @@ AC_CONFIG_FILES([
 	test/mock/Makefile])
 AC_OUTPUT
 
+
 # warn user that alsa-lib thread-safety makes troubles
 AM_COND_IF([ALSA_1_1_2__1_1_3], [
 	AC_MSG_WARN([         *** alsa-lib >= 1.1.2, <= 1.1.3 ***])
