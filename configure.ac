@@ -175,8 +175,8 @@ AM_COND_IF([ENABLE_APTX_HD], [
 ])
 
 # OR-ed conditional which can be used in the Makefile.am
-AM_CONDITIONAL([ENABLE_APTX_OR_APTX_HD], [
-	test "x$enable_aptx" = "xyes" -o "x$enable_aptx_hd" = "xyes"])
+AM_CONDITIONAL([ENABLE_APTX_OR_APTX_HD],
+	[test "x$enable_aptx" = "xyes" -o "x$enable_aptx_hd" = "xyes"])
 
 AC_ARG_ENABLE([faststream],
 	[AS_HELP_STRING([--enable-faststream], [enable FastStream support])])
@@ -370,18 +370,20 @@ AM_COND_IF([ENABLE_TEST], [
 AC_ARG_WITH([bash-completion],
 	AS_HELP_STRING([--with-bash-completion@<:@=DIR@:>@], [install bash completion
 		script in DIR (or the bash completions default directory if not specified)]))
-AM_CONDITIONAL([WITH_BASH_COMPLETION], [
-	test "x$with_bash_completion" != "x" -a "x$with_bash_completion" != "xno"])
-AS_IF([test "x$with_bash_completion" = "xyes"], [
-	PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
+AM_CONDITIONAL([WITH_BASH_COMPLETION],
+	[test "x$with_bash_completion" != "x" -a "x$with_bash_completion" != "xno"])
+AS_IF([test "x$with_bash_completion" = "xyes"],
+	[PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
 		[bashcompdir=$($PKG_CONFIG --variable=completionsdir bash-completion)],
-		[bashcompdir="$datadir/bash-completion/completions"])
-	], [bashcompdir="$with_bash_completion"])
+		[bashcompdir="$datadir/bash-completion/completions"])],
+	[bashcompdir="$with_bash_completion"])
 AC_SUBST([BASH_COMPLETION_DIR], [$bashcompdir])
 
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=DIR], [path where ALSA plugin files are stored]),
-	[alsaplugindir="$withval"],
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-alsaplugindir requires an argument])],
+		[alsaplugindir="$withval"]),
 	[alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
 AC_SUBST([ALSA_PLUGIN_DIR], [$alsaplugindir])
 
@@ -409,7 +411,9 @@ AC_DEFINE_UNQUOTED(BLUEALSA_STORAGE_DIR, "${localstoragedir}/bluealsa",
 
 AC_ARG_WITH([alsaconfdir],
 	AS_HELP_STRING([--with-alsaconfdir=DIR], [path to ALSA add-on configuration files]),
-	[alsaconfdir="$withval"],
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-alsaconfdir requires an argument])],
+		[alsaconfdir="$withval"]),
 	[AM_COND_IF([ALSA_1_1_7],
 		[alsaconfdir="$sysconfdir/alsa/conf.d"],
 		[alsaconfdir="$datadir/alsa/alsa.conf.d"])])
@@ -417,27 +421,36 @@ AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 
 AC_ARG_WITH([dbusconfdir],
 	AS_HELP_STRING([--with-dbusconfdir=DIR], [path to D-Bus system bus configuration files]),
-	[dbusconfdir="${withval}"],
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-dbusconfdir requires an argument])],
+		[dbusconfdir="${withval}"]),
 	[dbusconfdir=$($PKG_CONFIG --variable=datadir dbus-1)/dbus-1/system.d])
 AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 
 AC_ARG_WITH([systemdsystemunitdir],
 	AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [path to systemd system unit files]),
-	[systemdsystemunitdir="${withval}"], [AM_COND_IF([ENABLE_SYSTEMD],
-	[systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])])
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-systemdsystemunitdir requires an argument])],
+		[systemdsystemunitdir="${withval}"]),
+	[AM_COND_IF([ENABLE_SYSTEMD],
+		[systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])])
 AC_SUBST([SYSTEMD_SYSTEM_UNIT_DIR], [$systemdsystemunitdir])
 
 AC_ARG_WITH([systemdbluealsadargs],
 	AS_HELP_STRING([--with-systemdbluealsadargs=ARGS], [bluealsad arguments to be used in
 		bluealsa.service, defaults to '-S -p a2dp-source -p a2dp-sink --all-codecs' if not specified]),
-	[systemdbluealsadargs="${withval}"],
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-systemdbluealsadargs requires an argument])],
+		[systemdbluealsadargs="${withval}"]),
 	[systemdbluealsadargs="-S -p a2dp-source -p a2dp-sink --all-codecs"])
 AC_SUBST([SYSTEMD_BLUEALSAD_ARGS], [$systemdbluealsadargs])
 
 AC_ARG_WITH([systemdbluealsaaplayargs],
 	AS_HELP_STRING([--with-systemdbluealsaaplayargs=ARGS], [bluealsa-aplay arguments to
 		be used in bluealsa-aplay.service, defaults to '-S' if not specified]),
-	[systemdbluealsaaplayargs="${withval}"],
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-systemdbluealsaaplayargs requires an argument])],
+		[systemdbluealsaaplayargs="${withval}"]),
 	[systemdbluealsaaplayargs="-S"])
 AC_SUBST([SYSTEMD_BLUEALSA_APLAY_ARGS], [$systemdbluealsaaplayargs])
 
@@ -445,7 +458,9 @@ AC_ARG_WITH([bluealsaduser],
 	AS_HELP_STRING([--with-bluealsaduser=USER], [set up installation to run bluealsad as user
 		USER, defaults to root if not specified. When used with bluez <= 5.50, USER must be a
 		member of the "bluetooth" group.]),
-	[bluealsaduser="${withval}"],
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-bluealsaduser requires an argument])],
+		[bluealsaduser="${withval}"]),
 	[bluealsaduser="root"])
 AC_SUBST([BLUEALSAD_USER], [$bluealsaduser])
 
@@ -453,7 +468,9 @@ AC_ARG_WITH([bluealsaaplayuser],
 	AS_HELP_STRING([--with-bluealsaaplayuser=USER], [set up installation to run bluealsa-aplay
 		as user USER, defaults to root if not specified. USER must be a member of the "audio"
 		group.]),
-	[bluealsaaplayuser="${withval}"],
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-bluealsaaplayuser requires an argument])],
+		[bluealsaaplayuser="${withval}"]),
 	[bluealsaaplayuser="root"])
 AC_SUBST([BLUEALSA_APLAY_USER], [$bluealsaaplayuser])
 
