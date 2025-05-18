@@ -90,7 +90,9 @@ struct bluealsa_pcm {
 	int event_fd;
 
 	/* virtual hardware - ring buffer */
-	char * _Atomic io_hw_buffer;
+	char *io_hw_buffer;
+	snd_pcm_channel_area_t *channel_areas;
+
 	/* The IO thread is responsible for maintaining the hardware pointer
 	 * (pcm->io_hw_ptr), the application is responsible for the application
 	 * pointer (io->appl_ptr). These pointers should be atomic as they are
@@ -267,7 +269,8 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 		 * zero: XRUN or drained final samples; we set the HW pointer to
 		 * -1 to indicate we have no work to do. */
 		snd_pcm_uframes_t avail;
-		if ((avail = snd_pcm_ioplug_hw_avail(io, io_hw_ptr, io->appl_ptr)) == 0) {
+		snd_pcm_sframes_t appl_ptr = io->appl_ptr;
+		if ((avail = snd_pcm_ioplug_hw_avail(io, io_hw_ptr, appl_ptr)) == 0) {
 			pcm->io_hw_ptr = io_hw_ptr = -1;
 			io_thread_update_delay(pcm, io_hw_ptr);
 			eventfd_write(pcm->event_fd, 1);
@@ -459,11 +462,14 @@ static snd_pcm_sframes_t bluealsa_pointer(snd_pcm_ioplug_t *io) {
 	if (!pcm->connected)
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
 
-#ifndef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
-	if (pcm->io_hw_ptr != -1)
-		return pcm->io_hw_ptr % io->buffer_size;
-#endif
-	return pcm->io_hw_ptr;
+	snd_pcm_sframes_t hw_ptr = pcm->io_hw_ptr;
+	if (hw_ptr == -1)
+		return hw_ptr;
+
+ #ifndef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
+	return hw_ptr % io->buffer_size;
+ #endif
+	return hw_ptr;
 }
 
 static int bluealsa_close(snd_pcm_ioplug_t *io) {
@@ -622,12 +628,30 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
+	if ((pcm->io_hw_buffer = malloc(io->buffer_size * pcm->frame_size)) == NULL) {
+		ret = -ENOMEM;
+		goto fail;
+	}
+
+	if ((pcm->channel_areas = malloc(sizeof(snd_pcm_channel_area_t) * io->channels)) == NULL) {
+		ret = -ENOMEM;
+		goto fail;
+	}
+
+	snd_pcm_channel_area_t *area = pcm->channel_areas;
+	unsigned channel;
+	for (channel = 0; channel < io->channels; ++channel, ++area) {
+		area->addr = pcm->io_hw_buffer;
+		area->first = channel * snd_pcm_format_physical_width(io->format);
+		area->step = pcm->frame_size * 8;
+	}
+
 	if (!ba_dbus_pcm_open(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				&pcm->ba_pcm_fd, &pcm->ba_pcm_ctrl_fd, &err)) {
 		debug2("Couldn't open PCM: %s", err.message);
 		ret = -dbus_error_to_errno(&err);
 		dbus_error_free(&err);
-		return ret;
+		goto fail;
 	}
 
 	pcm->connected = true;
@@ -654,6 +678,13 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 			buffer_size * pcm->frame_size);
 
 	return 0;
+
+fail:
+	free(pcm->io_hw_buffer);
+	pcm->io_hw_buffer = NULL;
+	free(pcm->channel_areas);
+	pcm->channel_areas = NULL;
+	return ret;
 }
 
 static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
@@ -673,6 +704,11 @@ static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	pcm->ba_pcm_fd = -1;
 	pcm->ba_pcm_ctrl_fd = -1;
 	pcm->connected = false;
+
+	free(pcm->io_hw_buffer);
+	free(pcm->channel_areas);
+	pcm->io_hw_buffer = NULL;
+	pcm->channel_areas = NULL;
 
 	return rv == 0 ? 0 : -errno;
 }
@@ -706,13 +742,6 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 
 	/* initialize ring buffer */
 	pcm->io_hw_ptr = 0;
-
-	/* The ioplug allocates and configures its channel area buffer when the
-	 * HW parameters are fixed, but after calling bluealsa_hw_params(). So,
-	 * this is the earliest opportunity for us to safely cache the ring
-	 * buffer start address. */
-	const snd_pcm_channel_area_t *areas = snd_pcm_ioplug_mmap_areas(io);
-	pcm->io_hw_buffer = (char *)areas->addr + areas->first / 8;
 
 	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
 		/* Indicate that our PCM is ready for IO, even though is is not 100%
@@ -781,9 +810,10 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	int ret = 0;
 
 	snd_pcm_sframes_t hw_ptr;
+	snd_pcm_sframes_t appl_ptr = io->appl_ptr;
 	while ((hw_ptr = bluealsa_pointer(io)) >= 0 && io->state == SND_PCM_STATE_DRAINING) {
 
-		snd_pcm_uframes_t avail = snd_pcm_ioplug_hw_avail(io, hw_ptr, io->appl_ptr);
+		snd_pcm_uframes_t avail = snd_pcm_ioplug_hw_avail(io, hw_ptr, appl_ptr);
 
 		/* If the buffer is empty then the local drain is complete. */
 		if (avail == 0)
@@ -855,6 +885,7 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
  * latency and the time required by the device to decode and play audio. */
 static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
+	snd_pcm_sframes_t appl_ptr = io->appl_ptr;
 
 	/* The Bluetooth audio profiles do not report the delay from the source
 	 * to the sink, so it is impossible to report the true delay of the ALSA
@@ -862,7 +893,7 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 	 * report only the number of frames currently available for reading in the
 	 * ring buffer. */
 	if (io->stream == SND_PCM_STREAM_CAPTURE)
-		return snd_pcm_ioplug_avail(io, io->hw_ptr, io->appl_ptr);
+		return snd_pcm_ioplug_avail(io, io->hw_ptr, appl_ptr);
 
 	struct timespec now;
 	gettimestamp(&now);
@@ -894,7 +925,7 @@ static snd_pcm_sframes_t bluealsa_calculate_delay(snd_pcm_ioplug_t *io) {
 	/* The buffer_delay is the number of frames that were in the buffer at
 	 * pcm->delay_ts, adjusted the number written by the application since
 	 * then. */
-	snd_pcm_uframes_t buffer_delay = snd_pcm_ioplug_hw_avail(io, pcm->delay_hw_ptr, io->appl_ptr);
+	snd_pcm_uframes_t buffer_delay = snd_pcm_ioplug_hw_avail(io, pcm->delay_hw_ptr, appl_ptr);
 
 	/* If the PCM is running, then some frames from the buffer may have been
 	 * consumed, so we add them before adjusting for time elapsed. */
@@ -1140,6 +1171,38 @@ fail:
 	return -ENODEV;
 }
 
+static snd_pcm_sframes_t bluealsa_transfer(snd_pcm_ioplug_t *io, const snd_pcm_channel_area_t *areas, snd_pcm_uframes_t offset, snd_pcm_uframes_t size) {
+	struct bluealsa_pcm *pcm = io->private_data;
+	int result;
+
+	if (io->stream == SND_PCM_STREAM_CAPTURE) {
+		result = snd_pcm_areas_copy_wrap(
+					areas,
+					offset,
+					size + offset,
+					pcm->channel_areas,
+					io->appl_ptr % io->buffer_size,
+					io->buffer_size,
+					io->channels,
+					size,
+					io->format);
+	}
+	else {
+		result = snd_pcm_areas_copy_wrap(
+					pcm->channel_areas,
+					io->appl_ptr % io->buffer_size,
+					io->buffer_size,
+					areas,
+					offset,
+					size + offset,
+					io->channels,
+					size,
+					io->format);
+	}
+
+	return result < 0 ? result : (snd_pcm_sframes_t) size;
+}
+
 static enum snd_pcm_chmap_position ba_channel_map_to_position(const char *tag) {
 
 	static const struct {
@@ -1228,6 +1291,7 @@ static const snd_pcm_ioplug_callback_t bluealsa_callback = {
 	.poll_descriptors_count = bluealsa_poll_descriptors_count,
 	.poll_descriptors = bluealsa_poll_descriptors,
 	.poll_revents = bluealsa_poll_revents,
+	.transfer = bluealsa_transfer,
 	.query_chmaps = bluealsa_query_chmaps,
 	.get_chmap = bluealsa_get_chmap,
 };
