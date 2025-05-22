@@ -1,6 +1,6 @@
 /*
  * test-a2dp.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -17,7 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-
+#include <sys/types.h>
 #include <check.h>
 #include <glib.h>
 
@@ -53,6 +53,10 @@ enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(struct ba_transport_pc
 void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; }
 int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int update_mask) {
 	(void)pcm; (void)update_mask; return -1; }
+
+bool ba_pcm_multi_init(struct ba_pcm_multi *multi, size_t transfer_samples) { (void) multi; (void) transfer_samples; return true; }
+ssize_t ba_pcm_multi_read(struct ba_pcm_multi *multi, void *buffer, size_t samples) { (void) multi; (void) buffer; (void) samples; return -1; }
+ssize_t ba_pcm_multi_write(struct ba_pcm_multi *multi, const void *buffer, size_t samples) { (void) multi; (void) buffer; (void) samples; return -1; }
 
 CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {
 	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);
