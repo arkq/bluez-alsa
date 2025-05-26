@@ -30,6 +30,9 @@ bluealsad_SOURCES = \
 	ba-adapter.c \
 	ba-config.c \
 	ba-device.c \
+	ba-pcm-client.c \
+	ba-pcm-mix-buffer.c \
+	ba-pcm-multi.c \
 	ba-rfcomm.c \
 	ba-transport.c \
 	ba-transport-pcm.c \
