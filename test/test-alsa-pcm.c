@@ -144,8 +144,12 @@ static int test_pcm_open(struct spawn_process *sp_ba_mock, snd_pcm_t **pcm,
 	const char *dev = "bluealsa:DEV=12:34:56:78:9A:BC";
 	snprintf(name, sizeof(name), "%s", dev);
 
-	if (pcm_hwcompat != NULL)
+	if (pcm_hwcompat != NULL) {
 		snprintf(name, sizeof(name), "%s,HWCOMPAT=%s", dev, pcm_hwcompat);
+		/* Allow time for capture stream to reach "Running" state. */
+		if (stream == SND_PCM_STREAM_CAPTURE && strcmp(pcm_hwcompat, "busy") == 0)
+			usleep(100000);
+	}
 
 	return snd_pcm_open(pcm, name, stream, 0);
 }

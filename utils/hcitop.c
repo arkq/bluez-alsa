@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
 			char addr[18];
 			ba2str(&devices[i].bdaddr, addr);
 
-			char *bus = hci_dtypetostr(devices[i].type);
+			const char *bus = hci_dtypetostr(devices[i].type);
 
 			char flags[sizeof(hci_flags_map) / sizeof(*hci_flags_map) + 1];
 			sprint_hci_flags(flags, devices[i].flags);

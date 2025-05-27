@@ -292,7 +292,6 @@ AC_ARG_ENABLE([systemd],
 	AS_HELP_STRING([--enable-systemd], [enable systemd integration]))
 AM_CONDITIONAL([ENABLE_SYSTEMD], [test "x$enable_systemd" = "xyes"])
 AM_COND_IF([ENABLE_SYSTEMD], [
-	PKG_CHECK_MODULES([SYSTEMD], [systemd >= 200])
 	AC_DEFINE([ENABLE_SYSTEMD], [1], [Define to 1 if systemd is enabled.])
 ])
 
