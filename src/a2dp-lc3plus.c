@@ -174,6 +174,16 @@ static int a2dp_lc3plus_get_frame_dms(const a2dp_lc3plus_t *conf) {
 	}
 }
 
+/* With gcc 14, when compiling with optimization enabled, -Wclobbered
+ * (and also -Wextra) issues a warning that some automatic variables
+ * may be clobbered by pthread_cleanup_push() if it returns after a
+ * longjmp(). This warning is bogus because because
+ * pthread_cleanup_push() never returns after the longjmp(), so we can
+ * safely ignore that warning to permit compilation with
+ * "-Wclobbered -Werror".
+ */
+#pragma GCC diagnostic ignored "-Wclobbered"
+
 void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	/* Cancellation should be possible only in the carefully selected place
@@ -204,6 +214,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(a2dp_lc3plus_enc_free), handle);
 
 	const int lc3plus_frame_dms = a2dp_lc3plus_get_frame_dms(configuration);
+
 	if ((err = lc3plus_enc_set_frame_dms(handle, lc3plus_frame_dms)) != LC3PLUS_OK) {
 		error("Couldn't set frame length: %s", lc3plus_strerror(err));
 		goto fail_setup;
@@ -407,6 +418,9 @@ fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
+
+/* restore compiler commandline diagnostics */
+#pragma GCC diagnostic pop
 
 __attribute__ ((weak))
 void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {

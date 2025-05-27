@@ -118,6 +118,16 @@ static struct a2dp_caps_helpers a2dp_fs_caps_helpers = {
 	.select_sample_rate = a2dp_fs_caps_select_sample_rate,
 };
 
+/* With gcc 14, when compiling with optimization enabled, -Wclobbered
+ * (and also -Wextra) issues a warning that some automatic variables
+ * may be clobbered by pthread_cleanup_push() if it returns after a
+ * longjmp(). This warning is bogus because because
+ * pthread_cleanup_push() never returns after the longjmp(), so we can
+ * safely ignore that warning to permit compilation with
+ * "-Wclobbered -Werror".
+ */
+#pragma GCC diagnostic ignored "-Wclobbered"
+
 void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -125,6 +135,7 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	struct ba_transport *t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
+
 
 	/* determine encoder operation mode: music or voice */
 	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
@@ -248,6 +259,9 @@ fail_init:
 	pthread_cleanup_pop(1);
 	return NULL;
 }
+
+/* restore compiler commandline diagnostics */
+#pragma GCC diagnostic pop
 
 __attribute__ ((weak))
 void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm) {
