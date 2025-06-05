@@ -82,7 +82,7 @@ inline static bool alsa_pcm_is_open(
 
 inline static bool alsa_pcm_is_running(
 		const struct alsa_pcm *pcm) {
-	return snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING;
+	return alsa_pcm_is_open(pcm) && snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING;
 }
 
 inline static ssize_t alsa_pcm_frames_to_bytes(

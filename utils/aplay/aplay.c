@@ -633,6 +633,18 @@ static void *io_worker_routine(struct io_worker *w) {
 			goto fail;
 		}
 
+		if (poll_rv == 0 &&
+				ba_pcm_running &&
+				w->active &&
+				ffb_blen_out(&read_buffer) == 0 &&
+				!alsa_pcm_is_running(&w->alsa_pcm)) {
+			/* The BT device is in the running state, but is not sending audio
+			 * frames. As there is no work for the ALSA device to do we simply
+			 * wait for more audio to arrive from the server. */
+			timeout = -1;
+			continue;
+		}
+
 		if (fds[0].revents & POLLIN)
 			break;
 
@@ -686,7 +698,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 		/* If current worker is not active and the single playback mode was
 		 * enabled, we have to check if there is any other active worker. */
-		if (force_single_playback && !w->active) {
+		if (!w->active) {
 
 			/* Before checking active worker, we need to lock the single playback
 			 * mutex. It is required to lock it, because the active state is changed
@@ -890,13 +902,15 @@ static void *io_worker_routine(struct io_worker *w) {
 
 		/* Set the poll() timeout such that this thread is always woken before
 		 * an ALSA underrun can occur. */
-		timeout = 1000 * w->alsa_pcm.hw_avail / w->alsa_pcm.rate;
-		/* poll() timeouts may be late because of the kernel scheduler and
-		 * workload, and there may be additional processing delays before
-		 * we can write to the ALSA PCM again. So we allow for this by setting
-		 * the timeout value 5ms before the underrun deadline. */
-		if ((timeout -= 5) < 0)
-			timeout = 0;
+		if (alsa_pcm_is_running(&w->alsa_pcm)) {
+			timeout = 1000 * w->alsa_pcm.hw_avail / w->alsa_pcm.rate;
+			/* poll() timeouts may be late because of the kernel scheduler and
+			 * workload, and there may be additional processing delays before
+			 * we can write to the ALSA PCM again. So we allow for this by setting
+			 * the timeout value 5ms before the underrun deadline. */
+			if ((timeout -= 5) < 0)
+				timeout = 0;
+		}
 
 		const snd_pcm_uframes_t delay_frames = io_worker_playback_delay(w,
 #if WITH_LIBSAMPLERATE
@@ -956,7 +970,7 @@ close_alsa:
 		alsa_pcm_close(&w->alsa_pcm);
 		alsa_mixer_close(&w->alsa_mixer);
 		pthread_mutex_unlock(&w->mutex);
-		w->active = false;
+		w->active = !force_single_playback;
 	}
 
 fail:
@@ -1057,7 +1071,7 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	memcpy(&worker->ba_pcm, ba_pcm, sizeof(worker->ba_pcm));
 	alsa_pcm_init(&worker->alsa_pcm);
 	alsa_mixer_init(&worker->alsa_mixer, io_worker_mixer_event_callback, worker);
-	worker->active = false;
+	worker->active = !force_single_playback;
 
 	debug("Starting IO worker %s", worker->addr);
 	if ((errno = pthread_create(&worker->thread, NULL,
