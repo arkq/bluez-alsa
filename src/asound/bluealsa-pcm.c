@@ -1,6 +1,6 @@
 /*
  * BlueALSA - asound/bluealsa-pcm.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -1932,6 +1932,17 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm->fifo_active = false;
 	pcm->null_fd = -1;
 
+	if (hwcompat == NULL || strcmp(hwcompat, "none") == 0)
+		pcm->hwcompat = BA_HWCOMPAT_NONE;
+	else if (strcmp(hwcompat, "busy") == 0)
+		pcm->hwcompat = BA_HWCOMPAT_BUSY;
+	else if (strcmp(hwcompat, "silence") == 0)
+		pcm->hwcompat = BA_HWCOMPAT_SILENCE;
+	else {
+		SNDERR("Invalid hwcompat mode: %s", hwcompat);
+		return -EINVAL;
+	}
+
 	dbus_threads_init_default();
 
 	DBusError err = DBUS_ERROR_INIT;
@@ -2001,8 +2012,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	/* HW compatible mode applies only to a2dp-sink, hfp-hf and hsp-hs. */
-	if (pcm->ba_pcm.transport & (BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_MASK_AG))
+	/* HW compatible busy mode applies only to a2dp-sink, hfp-hf and hsp-hs. */
+	if (pcm->ba_pcm.transport & (BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_MASK_AG) &&
+			pcm->hwcompat == BA_HWCOMPAT_BUSY)
 		pcm->hwcompat = BA_HWCOMPAT_NONE;
 
 	if (!bluealsa_pcm_available(pcm)) {

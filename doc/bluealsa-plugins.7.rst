@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: December 2024
+:Date: June 2025
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -105,9 +105,9 @@ PCM Parameters
     softvol value. The default value is **unchanged**.
 
   HWCOMPAT
-    Modifies the behavior of the plugin on ``a2dp-sink``, ``hfp-hf`` and
-    ``hsp-hs`` nodes in order to align better with the behaviour of the ALSA
-    ``hw`` plugin. This is a string option which takes the values **none**,
+    Modifies the behavior of the plugin when the remote device is connected
+    but not active in order to align better with the behavior of the ALSA
+    ``hw`` plugin . This is a string option which takes the values **none**,
     **busy** or **silence**.
     See `Transport acquisition`_ in the **NOTES** section below for more
     information.
@@ -627,6 +627,11 @@ takes one of the following values:
     microphone plugged in: only silence is captured and playback succeeds but
     produces no sound.
 
+The **silence** option can also be used with capture devices on HFP/HSP AG and
+A2DP source nodes (e.g. when using the faststream codec) because in those cases
+it is possible that the remote device is not sending any audio even though the
+transport has been acquired.
+
 PCM drain and non-blocking operation
 ------------------------------------
 
@@ -653,7 +658,7 @@ FILES
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
+Copyright (c) 2016-2025 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 
