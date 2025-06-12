@@ -1,0 +1,2 @@
+#!/bin/sh
+exec ./test-alsa-pcm -Hbusy capture
