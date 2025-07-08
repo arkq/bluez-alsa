@@ -232,6 +232,7 @@ libdbus
 libldac
 libopenaptx
 LLAC
+longjmp
 LTP
 MPF
 MPS
@@ -280,6 +281,9 @@ VGM
 VGS
 VTable
 writei
+Wclobbered
+Werror
+Wextra
 XAPL
 xFFFF
 XHSMICMUTE
