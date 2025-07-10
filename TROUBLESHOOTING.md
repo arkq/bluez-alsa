@@ -117,12 +117,15 @@ Re-install BlueALSA if the file is missing.
 
 ## 4. Couldn't open PCM: Device or resource busy
 
-BlueALSA supports only one client connection to each PCM. This error occurs
-when an application tries to set the hardware parameters for a PCM that is
-already in use. Note that `bluealsa-aplay` opens each PCM (of the appropriate
+BlueALSA supports only one client connection to each PCM unless the daemon
+`bluealsad` is started with the option `--multi-client`. Without that option
+set, his error occurs when an application tries to set the hardware parameters
+for a PCM that is already in use.
+Note that `bluealsa-aplay` opens each PCM (of the appropriate
 profile) as soon as it connects, and therefore attempting to use an application
 such as `arecord` to capture from BlueALSA while `bluealsa-aplay` is running
-will result in this error.
+will result in this error unless the daemon is running with multi-client support
+enabled.
 
 ## 5. Using BlueALSA alongside PulseAudio or PipeWire
 
