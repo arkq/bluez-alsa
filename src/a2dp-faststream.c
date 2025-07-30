@@ -121,13 +121,14 @@ static struct a2dp_caps_helpers a2dp_fs_caps_helpers = {
 void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	struct ba_transport *t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	/* determine encoder operation mode: music or voice */
 	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
+
+	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	sbc_t sbc;
 	const a2dp_faststream_t *configuration = &t->a2dp.configuration.faststream;
