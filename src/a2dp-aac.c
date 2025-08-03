@@ -718,8 +718,8 @@ static int a2dp_aac_transport_init(struct ba_transport *t) {
 
 static int a2dp_aac_source_init(struct a2dp_sep *sep) {
 
-	LIB_INFO info[16] = {
-		[15] = { .module_id = ~FDK_NONE } };
+	LIB_INFO info[FDK_MODULE_LAST];
+	FDKinitLibInfo(info);
 	aacEncGetLibInfo(info);
 
 	unsigned int caps_aac = FDKlibInfo_getCapabilities(info, FDK_AACENC);
@@ -805,8 +805,8 @@ struct a2dp_sep a2dp_aac_source = {
 
 static int a2dp_aac_sink_init(struct a2dp_sep *sep) {
 
-	LIB_INFO info[16] = {
-		[15] = { .module_id = ~FDK_NONE } };
+	LIB_INFO info[FDK_MODULE_LAST];
+	FDKinitLibInfo(info);
 	aacDecoder_GetLibInfo(info);
 
 	unsigned int caps_aac = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
