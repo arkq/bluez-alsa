@@ -41,7 +41,7 @@ BlueALSA is designed specifically for use on small, low-powered, dedicated
 audio or audio/visual systems where the high-level audio management features of
 PulseAudio or PipeWire are not required. The target system must be able to
 function correctly with all its audio applications interfacing directly with
-ALSA, with only one application at a time using each Bluetooth audio stream.
+ALSA.
 In such systems BlueALSA adds Bluetooth audio support to the existing
 ALSA sound card support. Note this means that the applications are constrained
 by the capabilities of the ALSA API, and the higher-level audio processing
