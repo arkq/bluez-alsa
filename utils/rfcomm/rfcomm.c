@@ -253,8 +253,8 @@ usage:
 
 			if ((ret = read(rfcomm_fd, buffer, sizeof(buffer) - 1)) <= 0) {
 				if (output_is_tty) {
+					rl_set_prompt(NULL);
 					rl_replace_line("disconnected", 0);
-					rl_message("");
 					rl_redisplay();
 				}
 				break;

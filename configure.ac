@@ -332,6 +332,7 @@ AC_ARG_ENABLE([rfcomm],
 AM_CONDITIONAL([ENABLE_RFCOMM], [test "x$enable_rfcomm" = "xyes"])
 AM_COND_IF([ENABLE_RFCOMM], [
 	PKG_CHECK_MODULES([READLINE], [readline])
+	AC_CHECK_HEADERS([stdarg.h])
 ])
 
 AC_ARG_ENABLE([a2dpconf],
