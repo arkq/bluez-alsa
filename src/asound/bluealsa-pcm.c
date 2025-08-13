@@ -837,6 +837,10 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	const unsigned int rate = io->rate;
 
 	if (pcm->ba_pcm.channels != channels || pcm->ba_pcm.rate != rate) {
+		if (pcm->ba_pcm.running) {
+			SNDERR("Couldn't change BlueALSA PCM configuration");
+			return -EINVAL;
+		}
 		debug2("Changing BlueALSA PCM configuration: %u ch, %u Hz -> %u ch, %u Hz",
 				pcm->ba_pcm.channels, pcm->ba_pcm.rate, channels, rate);
 
@@ -1730,6 +1734,21 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 	unsigned int list[ARRAYSIZE(codec->rates)];
 	unsigned int n;
 
+	/* If the PCM is already running, we must not change the codec config as
+	* that would terminate the stream for the running client */
+	if (pcm->ba_pcm.running) {
+		if ((err = snd_pcm_ioplug_set_param_minmax(io,
+					SND_PCM_IOPLUG_HW_CHANNELS, pcm->ba_pcm.channels,
+					pcm->ba_pcm.channels)) < 0)
+			return err;
+
+		if ((err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_RATE,
+					pcm->ba_pcm.rate, pcm->ba_pcm.rate)) < 0)
+			return err;
+
+		return 0;
+	}
+
 	/* Populate the list of supported channels and sample rates. For codecs
 	 * with fixed configuration, the list will contain only one element. For
 	 * other codecs, the list might contain all supported configurations. */
@@ -1979,30 +1998,43 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	}
 
 	if (codec_name[0] != '\0') {
-		/* If the codec was given, change it now, so we can get the correct
-		 * sample rate and channels for HW constraints. */
 		const char *canonical = ba_dbus_pcm_codec_get_canonical_name(codec_name);
 		const bool name_changed = strcmp(canonical, pcm->ba_pcm.codec.name) != 0;
-		if (name_changed && !ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
-					canonical, NULL, 0, 0, 0, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
-			SNDERR("Couldn't select BlueALSA PCM codec: %s", err.message);
-			dbus_error_free(&err);
+
+		if (pcm->ba_pcm.running) {
+			/* If the PCM is already running we must not change the codec config
+			 * as that would terminate the stream for the running client */
+			if (name_changed)
+				SNDERR("Couldn't change BlueALSA PCM codec");
+			else if (codec_config_len > 0 && (
+						pcm->ba_pcm.codec.data_len != codec_config_len ||
+						memcmp(pcm->ba_pcm.codec.data, codec_config, codec_config_len) != 0))
+				SNDERR("Couldn't change BlueALSA PCM codec configuration");
 		}
 		else {
-
-			memcpy(pcm->ba_pcm_codec_config, codec_config, codec_config_len);
-			pcm->ba_pcm_codec_config_len = codec_config_len;
-
-			/* Changing the codec may change the audio format, sample rate and/or
-			 * channels. We need to refresh our cache of PCM properties. */
-			if (name_changed && !ba_dbus_pcm_get(&pcm->dbus_ctx, &ba_addr, ba_profile,
-						stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
-						&pcm->ba_pcm, &err)) {
-				SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
-				ret = -dbus_error_to_errno(&err);
-				goto fail;
+			/* If the codec was given, change it now, so we can get the correct
+			 * sample rate and channels for HW constraints. */
+			if (name_changed && !ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
+						canonical, NULL, 0, 0, 0, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
+				SNDERR("Couldn't select BlueALSA PCM codec: %s", err.message);
+				dbus_error_free(&err);
 			}
+			else {
 
+				memcpy(pcm->ba_pcm_codec_config, codec_config, codec_config_len);
+				pcm->ba_pcm_codec_config_len = codec_config_len;
+
+				/* Changing the codec may change the audio format, sample rate and/or
+				 * channels. We need to refresh our cache of PCM properties. */
+				if (name_changed && !ba_dbus_pcm_get(&pcm->dbus_ctx, &ba_addr, ba_profile,
+							stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
+							&pcm->ba_pcm, &err)) {
+					SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
+					ret = -dbus_error_to_errno(&err);
+					goto fail;
+				}
+
+			}
 		}
 	}
 

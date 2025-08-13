@@ -189,6 +189,14 @@ _bluealsad() {
 
 	local prefix list
 
+	case "$cur" in
+		--multi-client)
+			COMPREPLY=( "--multi-client=" )
+			compopt -o nospace
+			return
+			;;
+	esac
+	[[ "$prev" == "--multi-client" && "$cur" == -* ]] && prev=""
 	case "$prev" in
 		--device|-i)
 			readarray -t list < <(ls -I '*:*' /sys/class/bluetooth)
@@ -207,7 +215,7 @@ _bluealsad() {
 			readarray -t COMPREPLY < <(compgen -P "$prefix" -W "${list[*]}" -- "$cur")
 			return
 			;;
-		--loglevel|--sbc-quality|--aac-latm-version|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality)
+		--loglevel|--sbc-quality|--aac-latm-version|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality|--multi-client)
 			readarray -t list < <(_bluealsa_enum_values "$1" "$prev")
 			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return
@@ -220,6 +228,11 @@ _bluealsad() {
 			[[ ${COMP_WORDS[COMP_CWORD]} = = ]] && return
 			;;
 	esac
+	if [[ "$cur" == "--multi-c"* && ${#cur} -le 12 ]] ; then
+			COMPREPLY=( "--multi-client" )
+			compopt -o nospace
+			return
+	fi
 
 	_bluealsa_complete_options "$1"
 }
