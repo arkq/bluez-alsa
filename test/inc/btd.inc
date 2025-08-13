@@ -38,6 +38,8 @@
 enum bt_dump_mode {
 	BT_DUMP_MODE_A2DP_SOURCE = 1,
 	BT_DUMP_MODE_A2DP_SINK,
+	BT_DUMP_MODE_ASHA_SOURCE,
+	BT_DUMP_MODE_ASHA_SINK,
 	BT_DUMP_MODE_SCO,
 };
 
@@ -88,11 +90,11 @@ void bt_dump_close(struct bt_dump *btd) {
 
 /**
  * Create BT dump file. */
-struct bt_dump *bt_dump_create(
-		const char *path,
-		struct ba_transport *t) {
+struct bt_dump * bt_dump_create(
+		const char * path,
+		struct ba_transport * t) {
 
-	struct bt_dump *btd;
+	struct bt_dump * btd;
 	if ((btd = calloc(1, sizeof(*btd))) == NULL)
 		return NULL;
 
@@ -100,7 +102,7 @@ struct bt_dump *bt_dump_create(
 		goto fail;
 
 	enum bt_dump_mode mode = 0;
-	const void *a2dp_configuration = NULL;
+	const void * a2dp_configuration = NULL;
 	size_t a2dp_configuration_size = 0;
 
 	switch (t->profile) {
@@ -119,6 +121,14 @@ struct bt_dump *bt_dump_create(
 		a2dp_configuration_size = t->media.a2dp.sep->config.caps_size;
 		mode = BT_DUMP_MODE_A2DP_SINK;
 		break;
+#if ENABLE_ASHA
+	case BA_TRANSPORT_PROFILE_ASHA_SOURCE:
+		mode = BT_DUMP_MODE_ASHA_SOURCE;
+		break;
+	case BA_TRANSPORT_PROFILE_ASHA_SINK:
+		mode = BT_DUMP_MODE_ASHA_SINK;
+		break;
+#endif
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 	case BA_TRANSPORT_PROFILE_HSP_AG:
@@ -152,9 +162,9 @@ fail:
 
 /**
  * Open BT dump file. */
-struct bt_dump *bt_dump_open(const char *path) {
+struct bt_dump * bt_dump_open(const char * path) {
 
-	struct bt_dump *btd;
+	struct bt_dump * btd;
 	if ((btd = calloc(1, sizeof(*btd))) == NULL)
 		return NULL;
 
@@ -185,6 +195,10 @@ struct bt_dump *bt_dump_open(const char *path) {
 			goto fail;
 		btd->a2dp_configuration_size = size;
 	} break;
+#if ENABLE_ASHA
+	case BT_DUMP_MODE_ASHA_SOURCE:
+	case BT_DUMP_MODE_ASHA_SINK:
+#endif
 	case BT_DUMP_MODE_SCO:
 		break;
 	default:
@@ -199,11 +213,11 @@ fail:
 	return NULL;
 }
 
-static const char *transport_to_fname(const struct ba_transport *t) {
+static const char * transport_to_fname(const struct ba_transport * t) {
 
 	const uint32_t codec_id = ba_transport_get_codec(t);
-	const char *profile = NULL;
-	const char *codec = NULL;
+	const char * profile = NULL;
+	const char * codec = NULL;
 
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
@@ -216,6 +230,16 @@ static const char *transport_to_fname(const struct ba_transport *t) {
 		profile = "a2dp-sink";
 		codec = a2dp_codecs_codec_id_to_string(codec_id);
 		break;
+#if ENABLE_ASHA
+	case BA_TRANSPORT_PROFILE_ASHA_SOURCE:
+		profile = "asha-source";
+		codec = asha_codec_id_to_string(codec_id);
+		break;
+	case BA_TRANSPORT_PROFILE_ASHA_SINK:
+		profile = "asha-sink";
+		codec = asha_codec_id_to_string(codec_id);
+		break;
+#endif
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 		profile = "hfp-ag";
 		codec = hfp_codec_id_to_string(codec_id);

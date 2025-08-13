@@ -308,6 +308,7 @@ file](LICENSE) for details.
 
 1. [Bluetooth Adopted Specifications](https://www.bluetooth.com/specifications/adopted-specifications)
 1. [Bluetooth LE MIDI Specification](https://www.midi.org/specifications-old/item/bluetooth-le-midi)
+1. [Bluetooth ASHA Specification](https://source.android.com/docs/core/connect/bluetooth/asha)
 1. [Bluetooth Design Guidelines](https://developer.apple.com/hardwaredrivers/BluetoothDesignGuidelines.pdf)
 1. [RTP Payload Format for MPEG-4](https://tools.ietf.org/html/rfc6416)
 1. [Coding of MPEG-4 Audio](https://www.iso.org/standard/42739.html)

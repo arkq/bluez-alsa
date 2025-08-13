@@ -1558,9 +1558,11 @@ static int str2bdaddr(const char *str, bdaddr_t *ba) {
 	return 0;
 }
 
-static int str2profile(const char *str) {
+static int str2profile(const char * str) {
 	if (strcasecmp(str, "a2dp") == 0)
 		return BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_A2DP_SINK;
+	if (strcasecmp(str, "asha") == 0)
+		return BA_PCM_TRANSPORT_ASHA_SOURCE | BA_PCM_TRANSPORT_ASHA_SINK;
 	else if (strcasecmp(str, "sco") == 0)
 		return BA_PCM_TRANSPORT_HFP_AG | BA_PCM_TRANSPORT_HFP_HF |
 			BA_PCM_TRANSPORT_HSP_AG | BA_PCM_TRANSPORT_HSP_HS;
@@ -1879,7 +1881,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	int ba_profile = 0;
 	if (profile == NULL || (ba_profile = str2profile(profile)) == 0) {
-		SNDERR("Invalid BT profile [a2dp, sco]: %s", profile);
+		SNDERR("Invalid BT profile [a2dp, asha, sco]: %s", profile);
 		return -EINVAL;
 	}
 
@@ -2009,8 +2011,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		goto fail;
 	}
 
-	/* HW compatible busy mode applies only to a2dp-sink, hfp-hf and hsp-hs. */
-	if (pcm->ba_pcm.transport & (BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_MASK_AG) &&
+	/* HW compatible busy mode applies only to sink profile like a2dp-sink,
+	 * hfp-hf or hsp-hs. */
+	if (pcm->ba_pcm.transport & (
+				BA_PCM_TRANSPORT_A2DP_SOURCE | BA_PCM_TRANSPORT_ASHA_SOURCE |
+				BA_PCM_TRANSPORT_MASK_AG) &&
 			pcm->hwcompat == BA_HWCOMPAT_BUSY)
 		pcm->hwcompat = BA_HWCOMPAT_NONE;
 

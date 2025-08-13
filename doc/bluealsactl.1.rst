@@ -9,7 +9,7 @@ bluealsactl
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: September 2024
+:Date: December 2025
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -170,7 +170,8 @@ volume *PCM_PATH* [*VOLUME* [*VOLUME*]...]
     number of channels, then the remaining channels are set to the first given
     value.
 
-    Valid A2DP values for *VOLUME* are 0-127, valid HFP/HSP values are 0-15.
+    Valid A2DP and ASHA values for *VOLUME* are 0-127, valid HFP/HSP values are
+    0-15.
 
     Note that A2DP does not support independent channel volumes, so such a
     setting is better suited to use with soft-volume enabled. See

@@ -32,6 +32,7 @@ jobs:
           --enable-aptx \
           --enable-aptx-hd \
           --with-libopenaptx \
+          --enable-asha \
           --enable-faststream \
           --enable-lc3-swb \
           --enable-midi \

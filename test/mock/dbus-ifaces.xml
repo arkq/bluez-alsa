@@ -55,6 +55,14 @@ SPDX-License-Identifier: MIT
 		</property>
 		<property name="Device" type="o" access="read" />
 		<property name="DelayReporting" type="b" access="read" />
+		<!-- ASHA specific properties -->
+		<property name="Side" type="s" access="read" />
+		<property name="Binaural" type="b" access="read" />
+		<property name="HiSyncId" type="ay" access="read">
+			<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true" />
+		</property>
+		<property name="Codecs" type="q" access="read" />
+		<property name="Transport" type="o" access="read" />
 	</interface>
 
 	<interface name="org.bluez.MediaTransport1">
@@ -72,6 +80,8 @@ SPDX-License-Identifier: MIT
 		</method>
 		<method name="Release" />
 		<property name="Device" type="o" access="read" />
+		<property name="Endpoint" type="o" access="read" />
+		<property name="Codec" type="y" access="read" />
 		<property name="State" type="s" access="read" />
 		<property name="Delay" type="q" access="readwrite" />
 		<property name="Volume" type="q" access="readwrite" />

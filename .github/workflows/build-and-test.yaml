@@ -23,7 +23,7 @@ jobs:
         - --enable-debug --enable-mp3lame --enable-mpg123 --enable-upower
         - --enable-faststream --enable-midi --enable-mp3lame
         - --enable-aplay --with-libsamplerate --enable-ofono --enable-opus
-        - --disable-aplay --enable-rfcomm --enable-manpages
+        - --disable-aplay --enable-asha --enable-rfcomm --enable-manpages
         - --disable-ctl --enable-aptx --enable-aptx-hd --with-libopenaptx
       fail-fast: false
     runs-on: ubuntu-22.04
@@ -119,6 +119,7 @@ jobs:
           --enable-aptx \
           --enable-aptx-hd \
           --with-libopenaptx \
+          --enable-asha \
           --enable-faststream \
           --enable-lc3-swb \
           --enable-midi \

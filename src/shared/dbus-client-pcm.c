@@ -732,6 +732,10 @@ static dbus_bool_t dbus_message_iter_get_ba_pcm_props_cb(const char *key,
 			pcm->transport = BA_PCM_TRANSPORT_A2DP_SOURCE;
 		else if (strstr(tmp, "A2DP-sink") != NULL)
 			pcm->transport = BA_PCM_TRANSPORT_A2DP_SINK;
+		else if (strstr(tmp, "ASHA-source") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_ASHA_SOURCE;
+		else if (strstr(tmp, "ASHA-sink") != NULL)
+			pcm->transport = BA_PCM_TRANSPORT_ASHA_SINK;
 		else if (strstr(tmp, "HFP-AG") != NULL)
 			pcm->transport = BA_PCM_TRANSPORT_HFP_AG;
 		else if (strstr(tmp, "HFP-HF") != NULL)

@@ -39,6 +39,10 @@ static const char *transport_code_to_string(int transport_code) {
 		return "A2DP-source";
 	case BA_PCM_TRANSPORT_A2DP_SINK:
 		return "A2DP-sink";
+	case BA_PCM_TRANSPORT_ASHA_SOURCE:
+		return "ASHA-source";
+	case BA_PCM_TRANSPORT_ASHA_SINK:
+		return "ASHA-sink";
 	case BA_PCM_TRANSPORT_HFP_AG:
 		return "HFP-AG";
 	case BA_PCM_TRANSPORT_HFP_HF:

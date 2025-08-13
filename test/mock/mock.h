@@ -23,6 +23,7 @@
 #define MOCK_BLUEZ_ADAPTER_PATH "/org/bluez/hci11"
 #define MOCK_BLUEZ_DEVICE_1_PATH MOCK_BLUEZ_ADAPTER_PATH "/dev_12_34_56_78_9A_BC"
 #define MOCK_BLUEZ_DEVICE_1_SEP_PATH MOCK_BLUEZ_DEVICE_1_PATH "/sep"
+#define MOCK_BLUEZ_DEVICE_1_ASHA_PATH MOCK_BLUEZ_DEVICE_1_PATH "/asha"
 #define MOCK_BLUEZ_DEVICE_2_PATH MOCK_BLUEZ_ADAPTER_PATH "/dev_23_45_67_89_AB_CD"
 #define MOCK_BLUEZ_DEVICE_2_SEP_PATH MOCK_BLUEZ_DEVICE_2_PATH "/sep"
 #define MOCK_BLUEZ_MIDI_PATH MOCK_BLUEZ_ADAPTER_PATH "/MIDI"
@@ -50,16 +51,19 @@ void mock_bluealsa_run(void);
 void mock_bluealsa_service_start(void);
 void mock_bluealsa_service_stop(void);
 
-int mock_bluez_device_name_mapping_add(const char *mapping);
-int mock_bluez_device_media_endpoint_add(const char *endpoint_path,
-		const char *device_path, const char *uuid, uint32_t codec_id,
-		const void *capabilities, size_t capabilities_size);
-int mock_bluez_device_profile_new_connection(const char *device_path,
-		const char *uuid, GAsyncQueue *sem_ready);
-int mock_bluez_device_media_set_configuration(const char *device_path,
-		const char *transport_path, const char *uuid, uint32_t codec_id,
-		const void *configuration, size_t configuration_size,
-		GAsyncQueue *sem_ready);
+int mock_bluez_add_device_name_mapping(const char * mapping);
+int mock_bluez_device_add_media_endpoint(const char * device_path,
+		const char * endpoint_path, const char * uuid, uint32_t codec_id,
+		const void * capabilities, size_t capabilities_size);
+int mock_bluez_device_add_asha_transport(const char * device_path,
+		const char * asha_endpoint_path, const char * side, bool binaural,
+		const uint8_t sync_id[8]);
+int mock_bluez_device_profile_new_connection(const char * device_path,
+		const char * uuid, GAsyncQueue * sem_ready);
+int mock_bluez_device_media_set_configuration(const char * device_path,
+		const char * transport_path, const char *uuid, uint32_t codec_id,
+		const void * configuration, size_t configuration_size,
+		GAsyncQueue * sem_ready);
 void mock_bluez_service_start(void);
 void mock_bluez_service_stop(void);
 

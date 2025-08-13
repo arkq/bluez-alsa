@@ -184,11 +184,15 @@ int main(int argc, char *argv[]) {
 		case 'p' /* --profile=NAME */ : {
 
 			static const struct {
-				const char *name;
-				bool *ptr;
+				const char * name;
+				bool * ptr;
 			} map[] = {
 				{ "a2dp-source", &config.profile.a2dp_source },
 				{ "a2dp-sink", &config.profile.a2dp_sink },
+#if ENABLE_ASHA
+				{ "asha-source", &config.profile.asha_source },
+				{ "asha-sink", &config.profile.asha_sink },
+#endif
 #if ENABLE_OFONO
 				{ "hfp-ofono", &config.profile.hfp_ofono },
 #endif
@@ -239,7 +243,7 @@ int main(int argc, char *argv[]) {
 			timeout_ms = atoi(optarg);
 			break;
 		case 2 /* --device-name=MAC:NAME */ :
-			mock_bluez_device_name_mapping_add(optarg);
+			mock_bluez_add_device_name_mapping(optarg);
 			break;
 		case 6 /* --dump-output */ :
 			mock_dump_output = true;

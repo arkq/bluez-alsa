@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <syslog.h>
 #include <time.h>
@@ -36,6 +37,7 @@
 
 #include "a2dp.h"
 #include "a2dp-sbc.h"
+#include "asha.h"
 #include "audio.h"
 #include "ba-config.h"
 #include "bluealsa-dbus.h"
@@ -44,13 +46,9 @@
 #include "codec-sbc.h"
 #include "error.h"
 #include "hfp.h"
-#if ENABLE_OFONO
-# include "ofono.h"
-#endif
+#include "ofono.h"
 #include "storage.h"
-#if ENABLE_UPOWER
-# include "upower.h"
-#endif
+#include "upower.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -91,6 +89,12 @@ static char *get_a2dp_codecs(enum a2dp_type type) {
 
 	return g_strjoinv(", ", (char **)strv);
 }
+
+#if ENABLE_ASHA
+static const char * get_asha_codecs(void) {
+	return asha_codec_id_to_string(ASHA_CODEC_G722);
+}
+#endif
 
 static char *get_hfp_codecs(void) {
 
@@ -333,6 +337,9 @@ int main(int argc, char **argv) {
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (v1.4)\n"
 					"  - a2dp-sink\tAdvanced Audio Sink (v1.4)\n"
+#if ENABLE_ASHA
+					"  - asha-source\tAudio Streaming for Hearing Aids (v1.0)\n"
+#endif
 #if ENABLE_OFONO
 					"  - hfp-ofono\tHands-Free AG/HF handled by oFono\n"
 #endif
@@ -347,6 +354,9 @@ int main(int argc, char **argv) {
 					"Available BT audio codecs:\n"
 					"  a2dp-source:\t%s\n"
 					"  a2dp-sink:\t%s\n"
+#if ENABLE_ASHA
+					"  asha-*:\t%s\n"
+#endif
 					"  hfp-*:\t%s\n"
 					"",
 					argv[0],
@@ -376,6 +386,9 @@ int main(int argc, char **argv) {
 					config.hfp.xapl_product_name,
 					get_a2dp_codecs(A2DP_SOURCE),
 					get_a2dp_codecs(A2DP_SINK),
+#if ENABLE_ASHA
+					get_asha_codecs(),
+#endif
 					get_hfp_codecs());
 			return EXIT_SUCCESS;
 
@@ -429,11 +442,14 @@ int main(int argc, char **argv) {
 		case 'p' /* --profile=NAME */ : {
 
 			static const struct {
-				const char *name;
-				bool *ptr;
+				const char * name;
+				bool * ptr;
 			} map[] = {
 				{ "a2dp-source", &config.profile.a2dp_source },
 				{ "a2dp-sink", &config.profile.a2dp_sink },
+#if ENABLE_ASHA
+				{ "asha-source", &config.profile.asha_source },
+#endif
 #if ENABLE_OFONO
 				{ "hfp-ofono", &config.profile.hfp_ofono },
 #endif
@@ -651,8 +667,9 @@ int main(int argc, char **argv) {
 			return EXIT_FAILURE;
 		}
 
-	/* check whether at least one BT profile was enabled */
+	/* Check whether at least one BT profile was enabled. */
 	if (!(config.profile.a2dp_source || config.profile.a2dp_sink ||
+				config.profile.asha_source || config.profile.asha_sink ||
 				config.profile.hfp_hf || config.profile.hfp_ag ||
 				config.profile.hsp_hs || config.profile.hsp_ag ||
 				config.profile.hfp_ofono || config.profile.midi)) {

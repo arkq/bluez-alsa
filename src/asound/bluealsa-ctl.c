@@ -449,11 +449,13 @@ static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
 	return 0;
 }
 
-static const char *transport2str(unsigned int transport) {
+static const char * transport2str(unsigned int transport) {
 	switch (transport) {
 	case BA_PCM_TRANSPORT_A2DP_SOURCE:
+	case BA_PCM_TRANSPORT_ASHA_SOURCE:
 		return "-SRC";
 	case BA_PCM_TRANSPORT_A2DP_SINK:
+	case BA_PCM_TRANSPORT_ASHA_SINK:
 		return "-SNK";
 	case BA_PCM_TRANSPORT_HFP_AG:
 		return "-HFP-AG";
@@ -564,11 +566,15 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 			sprintf(elem->name, "%.*s%s | Battery", len, name, no);
 		}
 		else {
-			/* avoid name duplication by adding profile suffixes */
+			/* Avoid name duplication by adding profile suffixes. */
 			switch (elem->pcm->transport) {
 			case BA_PCM_TRANSPORT_A2DP_SOURCE:
 			case BA_PCM_TRANSPORT_A2DP_SINK:
 				sprintf(elem->name, "%.*s%s A2DP%s", len, name, no, transport);
+				break;
+			case BA_PCM_TRANSPORT_ASHA_SOURCE:
+			case BA_PCM_TRANSPORT_ASHA_SINK:
+				sprintf(elem->name, "%.*s%s ASHA%s", len, name, no, transport);
 				break;
 			case BA_PCM_TRANSPORT_HFP_AG:
 			case BA_PCM_TRANSPORT_HFP_HF:
@@ -588,6 +594,10 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
 			case BA_PCM_TRANSPORT_A2DP_SOURCE:
 			case BA_PCM_TRANSPORT_A2DP_SINK:
 				sprintf(elem->name, "A2DP%s", transport);
+				break;
+			case BA_PCM_TRANSPORT_ASHA_SOURCE:
+			case BA_PCM_TRANSPORT_ASHA_SINK:
+				sprintf(elem->name, "ASHA%s", transport);
 				break;
 			case BA_PCM_TRANSPORT_HFP_AG:
 			case BA_PCM_TRANSPORT_HFP_HF:
@@ -988,6 +998,8 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		switch (elem->pcm->transport) {
 		case BA_PCM_TRANSPORT_A2DP_SOURCE:
 		case BA_PCM_TRANSPORT_A2DP_SINK:
+		case BA_PCM_TRANSPORT_ASHA_SOURCE:
+		case BA_PCM_TRANSPORT_ASHA_SINK:
 			*imax = 127;
 			break;
 		case BA_PCM_TRANSPORT_HFP_AG:
@@ -1723,6 +1735,8 @@ static int bluealsa_snd_ctl_ext_tlv_callback(snd_ctl_ext_t *ext,
 	switch (elem->pcm->transport) {
 	case BA_PCM_TRANSPORT_A2DP_SOURCE:
 	case BA_PCM_TRANSPORT_A2DP_SINK:
+	case BA_PCM_TRANSPORT_ASHA_SOURCE:
+	case BA_PCM_TRANSPORT_ASHA_SINK:
 		tlv_db_size = sizeof(tlv_db_a2dp);
 		tlv_db = tlv_db_a2dp;
 		break;

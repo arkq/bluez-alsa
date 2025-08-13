@@ -70,6 +70,7 @@ XQ
 # Proper Names
 ALSA
 AlsaProject
+ASHA
 AptX
 ATRAC
 BlueALSA
@@ -106,6 +107,7 @@ enum
 getter
 init
 iter
+jitter
 libs
 middleware
 mutex
@@ -204,6 +206,7 @@ EQMID
 errno
 FB
 FC
+fdf
 fdX
 ffb
 ffff
@@ -218,6 +221,7 @@ HCTL
 HEv
 hfpag
 hfphf
+HiSyncId
 hspag
 hsphs
 HUP
@@ -225,7 +229,6 @@ HWCOMPAT
 ioplug
 IPHONEACCEV
 jas
-jitter
 keyp
 larc
 LEAdvertisement

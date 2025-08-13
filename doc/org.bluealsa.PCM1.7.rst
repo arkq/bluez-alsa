@@ -9,7 +9,7 @@ org.bluealsa.PCM1
 Bluetooth Audio PCM D-Bus API
 -----------------------------
 
-:Date: September 2024
+:Date: December 2025
 :Manual section: 7
 :Manual group: D-Bus Interface
 :Version: $VERSION$
@@ -99,8 +99,10 @@ string Transport [readonly]
     Possible values:
     ::
 
-        "A2DP-sink"
         "A2DP-source"
+        "A2DP-sink"
+        "ASHA-source"
+        "ASHA-sink"
         "HFP-AG"
         "HFP-HF"
         "HSP-AG"
@@ -175,6 +177,7 @@ array{byte} Volume [readwrite]
     ::
 
        A2DP: 0-127
+       ASHA: 0-127
        SCO:  0-15
 
 SEE ALSO

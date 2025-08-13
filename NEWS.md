@@ -3,34 +3,33 @@ SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 
-unreleased
-==========
+# BlueALSA Release Notes
+
+## unreleased
 
 - renamed bluealsa to bluealsad (no backward compatibility)
 - renamed bluealsa.conf to org.bluealsa.conf (no backward compatibility)
 - renamed bluealsa-cli to bluealsactl (no backward compatibility)
 - optional support for A2DP Sink and Source with LHDC v3 codec
+- optional support for Audio Streaming for Hearing Aids (ASHA) profile
 - channel map and volume control for surround sound (5.1, 7.1) audio
 - native A2DP volume control by default (dropped --a2dp-volume option)
 - optional support for adaptive audio resampling in bluealsa-aplay
 - fix configuration for Android 13 A2DP Opus codec
 - improved ALSA PCM support for A2DP-sink, HFP-HF and HSP-HS
 
-bluez-alsa v4.3.1 (2024-08-30)
-==============================
+## bluez-alsa v4.3.1 (2024-08-30)
 
 - fix crash when playing audio with more than 2 channels
 - fix AAC configuration selection for low sample rates
 
-bluez-alsa v4.3.0 (2024-08-13)
-==============================
+## bluez-alsa v4.3.0 (2024-08-13)
 
 - optional support for Android 13 A2DP Opus codec
 - multi channels and sample rates mode for ALSA PCM plug-in
 - bluealsa-aplay: fix volume synchronization on Raspberry Pi
 
-bluez-alsa v4.2.0 (2024-05-11)
-==============================
+## bluez-alsa v4.2.0 (2024-05-11)
 
 - optional support for BLE MIDI 1.0 profile as a GATT server
 - optional support for HFP LC3-SWB (Super Wide Band) codec
@@ -45,15 +44,13 @@ bluez-alsa v4.2.0 (2024-05-11)
 - support use of libfreeaptx for apt-X and apt-X HD codecs
 - stability fixes for ALSA PCM I/O plug-in
 
-bluez-alsa v4.1.1 (2023-06-24)
-==============================
+## bluez-alsa v4.1.1 (2023-06-24)
 
 - fix for oFono HF role SCO socket authorization
 - fix for mSBC MTU adjustment for Realtek USB adapters
 - bluealsa-aplay: fix playback after BT codec update
 
-bluez-alsa v4.1.0 (2023-05-23)
-==============================
+## bluez-alsa v4.1.0 (2023-05-23)
 
 - removed deprecated org.bluealsa.Manager1 D-Bus interface
 - persistent storage for PCM volume and mute state
@@ -70,8 +67,7 @@ bluez-alsa v4.1.0 (2023-05-23)
 - lots of fixes for race conditions (TSAN)
 - lots of updates to the manual pages
 
-bluez-alsa v4.0.0 (2022-06-03)
-==============================
+## bluez-alsa v4.0.0 (2022-06-03)
 
 - changes in command line options (no backward compatibility)
 - implement D-Bus ObjectManager (deprecate org.bluealsa.Manager1)
@@ -91,8 +87,7 @@ bluez-alsa v4.0.0 (2022-06-03)
 - systemd service files for bluealsa and bluealsa-aplay
 - lots of fixes for ALSA PCM I/O and control plug-ins
 
-bluez-alsa v3.1.0 (2021-06-01)
-==============================
+## bluez-alsa v3.1.0 (2021-06-01)
 
 - higher PCM bit depth for apt-X HD (24-bit) and LDAC (32-bit)
 - support for A2DP Sink with apt-X (HD) if decoder is available
@@ -106,8 +101,7 @@ bluez-alsa v3.1.0 (2021-06-01)
 - bluealsa-cli: utility for using D-Bus API from command line
 - bash completion script for installed applications
 
-bluez-alsa v3.0.0 (2020-09-15)
-==============================
+## bluez-alsa v3.0.0 (2020-09-15)
 
 - separate D-Bus paths for PCM sink and source (API breakage)
 - store PCM sample physical width in the D-Bus format property
@@ -120,8 +114,7 @@ bluez-alsa v3.0.0 (2020-09-15)
 - bluealsa-aplay: list connected BT devices and available PCMs
 - bluealsa-aplay: fix PCM corruption due to out-of-bounds read
 
-bluez-alsa v2.1.0 (2020-01-25)
-==============================
+## bluez-alsa v2.1.0 (2020-01-25)
 
 - support HSP/HFP headset mode (connect phone without oFono)
 - optional integration with UPower for battery level reporting
@@ -131,8 +124,7 @@ bluez-alsa v2.1.0 (2020-01-25)
 - route SCO data via transport interface in Broadcom chips
 - lots of fixes for ALSA plug-ins and BlueALSA server
 
-bluez-alsa v2.0.0 (2019-10-15)
-==============================
+## bluez-alsa v2.0.0 (2019-10-15)
 
 - BlueALSA server as a D-Bus service with public API
 - optional support for A2DP Sink and Source with MP3 codec
@@ -141,8 +133,7 @@ bluez-alsa v2.0.0 (2019-10-15)
 - manage internal BlueALSA memory by reference counting
 - lots of fixes for ALSA plug-ins and BlueALSA server
 
-bluez-alsa v1.4.0 (2019-03-16)
-==============================
+## bluez-alsa v1.4.0 (2019-03-16)
 
 - optional support for A2DP Source with LDAC codec
 - optional support for HFP-AG and HFP-HF over oFono
@@ -151,15 +142,13 @@ bluez-alsa v1.4.0 (2019-03-16)
 - HCI selection by MAC address on multi-HCI hosts
 - lots of fixes for ALSA plug-ins and BlueALSA server
 
-bluez-alsa v1.3.1 (2018-09-08)
-==============================
+## bluez-alsa v1.3.1 (2018-09-08)
 
 - bluealsa-aplay: release playback PCM when there is no data
 - workaround for RTP mark bit quirk (fix audio from Android)
 - stability fixes for ALSA plug-ins and BlueALSA server
 
-bluez-alsa v1.3.0 (2018-07-23)
-==============================
+## bluez-alsa v1.3.0 (2018-07-23)
 
 - initial support for Hands-Free Profile (HFP-HF)
 - optional support for A2DP Source with apt-X codec
@@ -172,8 +161,7 @@ bluez-alsa v1.3.0 (2018-07-23)
 - bluealsa-rfcomm tool for handling custom RFCOMM commands
 - lots of fixes for ALSA plug-ins and BlueALSA server
 
-bluez-alsa v1.2.0 (2017-04-13)
-==============================
+## bluez-alsa v1.2.0 (2017-04-13)
 
 - optional A2DP Sink and Source with AAC codec
 - initial support for HSP and HFP Audio Gateway
@@ -186,14 +174,12 @@ bluez-alsa v1.2.0 (2017-04-13)
 - bluealsa-aplay tool for playing audio from BT device
 - lots of fixes for ALSA plug-ins and BlueALSA server
 
-bluez-alsa v1.1.0 (2016-09-19)
-==============================
+## bluez-alsa v1.1.0 (2016-09-19)
 
 - support for PCM pause, resume and delay reporting
 - lots of fixes for ALSA plug-ins and BlueALSA server
 
-bluez-alsa v1.0.0 (2016-08-27)
-==============================
+## bluez-alsa v1.0.0 (2016-08-27)
 
 - A2DP Sink and Source with mandatory SBC codec
 - PCM I/O and control plug-ins for ALSA integration

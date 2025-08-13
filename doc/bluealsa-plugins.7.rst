@@ -9,7 +9,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: June 2025
+:Date: December 2025
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -53,8 +53,9 @@ PCM Parameters
     which selects the most recently connected device of the chosen profile.
 
   PROFILE
-    May be either **a2dp** or **sco**. **sco** selects either Hands-Free (HFP)
-    or Headset (HSP) profile, whichever is connected on the selected device.
+    May be either **a2dp**, **asha** or **sco**. **sco** selects either
+    Hands-Free (HFP) or Headset (HSP) profile, whichever is connected on the
+    selected device.
     The default is **a2dp**.
 
   CODEC
@@ -187,7 +188,7 @@ configuration node has the following fields:
   pcm.name {
     type bluealsa     # Bluetooth PCM
     device STR        # Device address in format XX:XX:XX:XX:XX:XX
-    profile STR       # Profile type (a2dp or sco)
+    profile STR       # Profile type (a2dp, asha or sco)
     [codec STR]       # Preferred codec
     [volume STR]      # Initial volume for this PCM
     [softvol BOOLEAN] # Enable/disable BlueALSA's software volume

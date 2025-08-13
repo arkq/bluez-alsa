@@ -7,6 +7,7 @@
 #include "mock.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -35,7 +36,7 @@ static GDBusObjectManager *media_app_client = NULL;
 /* Mapping between profile UUID and its proxy object. */
 static GHashTable *profiles = NULL;
 
-int mock_bluez_device_name_mapping_add(const char *mapping) {
+int mock_bluez_add_device_name_mapping(const char * mapping) {
 	for (size_t i = 0; i < ARRAYSIZE(devices); i++)
 		if (devices[i] == NULL) {
 			devices[i] = strdup(mapping);
@@ -64,7 +65,7 @@ static gboolean mock_bluez_register_profile_handler(MockBluezProfileManager1 *ma
 	return TRUE;
 }
 
-static void mock_bluez_profile_manager_add(const char *path) {
+static void mock_bluez_add_profile_manager(const char * path) {
 
 	g_autoptr(MockBluezProfileManager1) manager = mock_bluez_profile_manager1_skeleton_new();
 	g_signal_connect(manager, "handle-register-profile",
@@ -109,7 +110,7 @@ static gboolean mock_bluez_media_register_application_handler(MockBluezMedia1 *m
 	return TRUE;
 }
 
-static void mock_bluez_adapter_add(const char *adapter_path, const char *address) {
+static void mock_bluez_add_adapter(const char * adapter_path, const char * address) {
 
 	g_autoptr(MockBluezAdapter1) adapter = mock_bluez_adapter1_skeleton_new();
 	mock_bluez_adapter1_set_address(adapter, address);
@@ -135,8 +136,8 @@ static void mock_bluez_adapter_add(const char *adapter_path, const char *address
 
 }
 
-static void mock_bluez_device_add(const char *device_path, const char *adapter_path,
-		const char *address) {
+static void mock_bluez_adapter_add_device(const char * adapter_path,
+		const char * device_path, const char * address) {
 
 	g_autoptr(MockBluezDevice1) device = mock_bluez_device1_skeleton_new();
 	mock_bluez_device1_set_adapter(device, adapter_path);
@@ -162,9 +163,9 @@ static gboolean mock_bluez_media_ep_set_configuration_handler(MockBluezMediaEndp
 	return TRUE;
 }
 
-int mock_bluez_device_media_endpoint_add(const char *endpoint_path,
-		const char *device_path, const char *uuid, uint32_t codec_id,
-		const void *capabilities, size_t capabilities_size) {
+int mock_bluez_device_add_media_endpoint(const char * device_path,
+		const char * endpoint_path, const char * uuid, uint32_t codec_id,
+		const void * capabilities, size_t capabilities_size) {
 
 	g_autoptr(MockBluezMediaEndpoint1) endpoint = mock_bluez_media_endpoint1_skeleton_new();
 	mock_bluez_media_endpoint1_set_uuid(endpoint, uuid);
@@ -206,10 +207,10 @@ static gboolean mock_bluez_media_transport_release_handler(MockBluezMediaTranspo
 	return TRUE;
 }
 
-static MockBluezMediaTransport1 * mock_bluez_media_transport_add(const char *transport_path,
-		const char *device_path) {
+static MockBluezMediaTransport1 * mock_bluez_device_add_media_transport(const char * device_path,
+		const char * transport_path) {
 
-	MockBluezMediaTransport1 *transport = mock_bluez_media_transport1_skeleton_new();
+	MockBluezMediaTransport1 * transport = mock_bluez_media_transport1_skeleton_new();
 	mock_bluez_media_transport1_set_device(transport, device_path);
 	mock_bluez_media_transport1_set_state(transport, "idle");
 
@@ -326,7 +327,7 @@ int mock_bluez_device_media_set_configuration(const char *device_path,
 				mock_bluez_media_endpoint1_get_vendor(ep) == vendor) {
 
 			g_autoptr(MockBluezMediaTransport1) transport;
-			transport = mock_bluez_media_transport_add(transport_path, device_path);
+			transport = mock_bluez_device_add_media_transport(device_path, transport_path);
 
 			g_autoptr(GVariantBuilder) props = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
 			g_variant_builder_add(props, "{sv}", "Device", g_variant_new_object_path(
@@ -360,6 +361,34 @@ int mock_bluez_device_media_set_configuration(const char *device_path,
 	return rv;
 }
 
+int mock_bluez_device_add_asha_transport(const char * device_path,
+		const char * asha_endpoint_path, const char * side, bool binaural,
+		const uint8_t sync_id[8]) {
+
+	g_autoptr(MockBluezMediaTransport1) transport;
+	g_autofree char * asha_transport_path = g_strconcat(asha_endpoint_path, "/fd0", NULL);
+
+	g_autoptr(MockBluezMediaEndpoint1) endpoint = mock_bluez_media_endpoint1_skeleton_new();
+	mock_bluez_media_endpoint1_set_uuid(endpoint, BT_UUID_ASHA);
+	mock_bluez_media_endpoint1_set_side(endpoint, side);
+	mock_bluez_media_endpoint1_set_binaural(endpoint, binaural);
+	mock_bluez_media_endpoint1_set_hi_sync_id(endpoint,
+			g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, sync_id, 8, sizeof(uint8_t)));
+	mock_bluez_media_endpoint1_set_codecs(endpoint, 0x02 /* G722 codec */);
+	mock_bluez_media_endpoint1_set_device(endpoint, device_path);
+	mock_bluez_media_endpoint1_set_transport(endpoint, asha_transport_path);
+
+	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(asha_endpoint_path);
+	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(endpoint));
+	g_dbus_object_manager_server_export(server, skeleton);
+
+	transport = mock_bluez_device_add_media_transport(device_path, asha_transport_path);
+	mock_bluez_media_transport1_set_endpoint(transport, asha_endpoint_path);
+	mock_bluez_media_transport1_set_codec(transport, 0x02 /* G722 codec */);
+
+	return 0;
+}
+
 static void mock_dbus_name_acquired(GDBusConnection *conn,
 		G_GNUC_UNUSED const char *name, void *userdata) {
 	struct MockService *service = userdata;
@@ -367,11 +396,13 @@ static void mock_dbus_name_acquired(GDBusConnection *conn,
 	server = g_dbus_object_manager_server_new("/");
 	profiles = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_object_unref);
 
-	mock_bluez_profile_manager_add("/org/bluez");
-	mock_bluez_adapter_add(MOCK_BLUEZ_ADAPTER_PATH, MOCK_ADAPTER_ADDRESS);
+	mock_bluez_add_profile_manager("/org/bluez");
+	mock_bluez_add_adapter(MOCK_BLUEZ_ADAPTER_PATH, MOCK_ADAPTER_ADDRESS);
 
-	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_1_PATH, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_1);
-	mock_bluez_device_add(MOCK_BLUEZ_DEVICE_2_PATH, MOCK_BLUEZ_ADAPTER_PATH, MOCK_DEVICE_2);
+	mock_bluez_adapter_add_device(MOCK_BLUEZ_ADAPTER_PATH,
+			MOCK_BLUEZ_DEVICE_1_PATH, MOCK_DEVICE_1);
+	mock_bluez_adapter_add_device(MOCK_BLUEZ_ADAPTER_PATH,
+			MOCK_BLUEZ_DEVICE_2_PATH, MOCK_DEVICE_2);
 
 	g_dbus_object_manager_server_set_connection(server, conn);
 	mock_sem_signal(service->ready);

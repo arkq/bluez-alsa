@@ -134,11 +134,14 @@ static int parse_bt_addresses(char *argv[], size_t count) {
 	return 0;
 }
 
-static const char *bluealsa_get_profile(const struct ba_pcm *pcm) {
+static const char * ba_pcm_get_profile_name(const struct ba_pcm * pcm) {
 	switch (pcm->transport) {
 	case BA_PCM_TRANSPORT_A2DP_SOURCE:
 	case BA_PCM_TRANSPORT_A2DP_SINK:
 		return "A2DP";
+	case BA_PCM_TRANSPORT_ASHA_SOURCE:
+	case BA_PCM_TRANSPORT_ASHA_SINK:
+		return "ASHA";
 	case BA_PCM_TRANSPORT_HFP_AG:
 	case BA_PCM_TRANSPORT_HFP_HF:
 	case BA_PCM_TRANSPORT_HSP_AG:
@@ -147,6 +150,25 @@ static const char *bluealsa_get_profile(const struct ba_pcm *pcm) {
 	default:
 		error("Unknown transport: %#x", pcm->transport);
 		return "[...]";
+	}
+}
+
+static const char * ba_pcm_get_profile_tag(const struct ba_pcm * pcm) {
+	switch (pcm->transport) {
+	case BA_PCM_TRANSPORT_A2DP_SOURCE:
+	case BA_PCM_TRANSPORT_A2DP_SINK:
+		return "a2dp";
+	case BA_PCM_TRANSPORT_ASHA_SOURCE:
+	case BA_PCM_TRANSPORT_ASHA_SINK:
+		return "asha";
+	case BA_PCM_TRANSPORT_HFP_AG:
+	case BA_PCM_TRANSPORT_HFP_HF:
+	case BA_PCM_TRANSPORT_HSP_AG:
+	case BA_PCM_TRANSPORT_HSP_HS:
+		return "sco";
+	default:
+		error("Unknown transport: %#x", pcm->transport);
+		return "unknown";
 	}
 }
 
@@ -171,21 +193,21 @@ static snd_pcm_format_t bluealsa_get_snd_pcm_format(const struct ba_pcm *pcm) {
 static void print_bt_device_list(void) {
 
 	static const struct {
-		const char *label;
+		const char * label;
 		unsigned int mode;
 	} section[2] = {
 		{ "**** List of PLAYBACK Bluetooth Devices ****", BA_PCM_MODE_SINK },
 		{ "**** List of CAPTURE Bluetooth Devices ****", BA_PCM_MODE_SOURCE },
 	};
 
-	const char *tmp;
+	const char * tmp;
 	size_t ii;
 
 	for (size_t i = 0; i < ARRAYSIZE(section); i++) {
 		printf("%s\n", section[i].label);
 		for (ii = 0, tmp = ""; ii < ba_pcms_count; ii++) {
 
-			struct ba_pcm *pcm = &ba_pcms[ii];
+			struct ba_pcm * pcm = &ba_pcms[ii];
 			struct bluez_device dev = { 0 };
 
 			if (!(pcm->mode == section[i].mode))
@@ -210,7 +232,7 @@ static void print_bt_device_list(void) {
 			}
 
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
-					bluealsa_get_profile(pcm),
+					ba_pcm_get_profile_name(pcm),
 					pcm->codec.name,
 					snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 					pcm->channels, pcm->channels != 1 ? "s" : "",
@@ -225,10 +247,10 @@ static void print_bt_pcm_list(void) {
 
 	DBusError err = DBUS_ERROR_INIT;
 	struct bluez_device dev = { 0 };
-	const char *tmp = "";
+	const char * tmp = "";
 
 	for (size_t i = 0; i < ba_pcms_count; i++) {
-		struct ba_pcm *pcm = &ba_pcms[i];
+		struct ba_pcm * pcm = &ba_pcms[i];
 
 		if (strcmp(pcm->device_path, tmp) != 0) {
 			tmp = ba_pcms[i].device_path;
@@ -246,12 +268,12 @@ static void print_bt_pcm_list(void) {
 				"    %s, %s%s, %s\n"
 				"    %s (%s): %s %d channel%s %d Hz\n",
 				bt_addr,
-				pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP ? "a2dp" : "sco",
+				ba_pcm_get_profile_tag(pcm),
 				dbus_ba_service,
 				dev.name,
 				dev.trusted ? "trusted " : "", dev.icon,
 				pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
-				bluealsa_get_profile(pcm),
+				ba_pcm_get_profile_name(pcm),
 				pcm->codec.name,
 				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
 				pcm->channels, pcm->channels != 1 ? "s" : "",

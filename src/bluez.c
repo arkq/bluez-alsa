@@ -31,6 +31,7 @@
 #include <glib.h>
 
 #include "a2dp.h"
+#include "asha.h"
 #include "ba-adapter.h"
 #include "ba-config.h"
 #include "ba-device.h"
@@ -587,11 +588,16 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		goto fail;
 	}
 
-	/* Skip volume level initialization in case of A2DP Source
+	/* Skip volume level initialization in case of A2DP/ASHA Source
 	 * profile and software volume control. */
-	if (!(t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
-				t->media.pcm.soft_volume)) {
+	if (!(t->profile & (
+					BA_TRANSPORT_PROFILE_A2DP_SOURCE |
+#if ENABLE_ASHA
+					BA_TRANSPORT_PROFILE_ASHA_SOURCE |
+#endif
+					0) && t->media.pcm.soft_volume)) {
 
+		/* Volume rage for A2DP and ASHA is the same. */
 		int level = ba_transport_pcm_volume_range_to_level(volume,
 				BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX);
 
@@ -1255,6 +1261,124 @@ static void bluez_media_endpoint_process_a2dp(
 
 }
 
+#if ENABLE_ASHA
+/**
+ * Process ASHA media endpoint and create BlueALSA ASHA transport. */
+static void bluez_media_endpoint_process_asha(
+		struct bluez_adapter * b_adapter,
+		const char * media_endpoint_path,
+		GVariantIter * properties) {
+
+	enum bluez_media_transport_state state = BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
+	const char * transport_path = NULL;
+	const uint8_t * id = NULL;
+	size_t id_size = 0;
+	bool right = false;
+	bool binaural = false;
+	uint16_t delay = 0;
+	uint16_t volume = 0;
+	uint8_t codec = 0;
+
+	const char * property;
+	GVariant * value;
+
+	/* Get some information from the media endpoint properties. */
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+		if (strcmp(property, "HiSyncId") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property))
+			id = g_variant_get_fixed_array(value, &id_size, sizeof(uint8_t));
+		else if (strcmp(property, "Side") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property))
+			right = strcmp(g_variant_get_string(value, NULL), "right") == 0;
+		else if (strcmp(property, "Binaural") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property))
+			binaural = g_variant_get_boolean(value);
+		else if (strcmp(property, "Transport") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_OBJECT_PATH, property))
+			transport_path = g_variant_get_string(value, NULL);
+		g_variant_unref(value);
+	}
+
+	/* Make sure that we have all required data. */
+	if (id == NULL || transport_path == NULL)
+		return;
+
+	GError * err = NULL;
+	if ((properties = g_dbus_get_properties_sync(config.dbus, BLUEZ_SERVICE,
+					transport_path, BLUEZ_IFACE_MEDIA_TRANSPORT, &err)) == NULL) {
+		error("Couldn't get ASHA transport properties: %s", err->message);
+		g_error_free(err);
+		return;
+	}
+
+	/* Get more information from the media transport properties. */
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+		if (strcmp(property, "Codec") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property))
+			codec = g_variant_get_byte(value);
+		else if (strcmp(property, "State") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property))
+			state = media_transport_state_from_string(g_variant_get_string(value, NULL));
+		else if (strcmp(property, "Delay") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property))
+			delay = g_variant_get_uint16(value);
+		else if (strcmp(property, "Volume") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property))
+			volume = g_variant_get_uint16(value);
+		g_variant_unref(value);
+	}
+
+	struct ba_device * d = NULL;
+	struct ba_transport * t = NULL;
+
+	/* There is only one ASHA codec defined by the specification. */
+	if (codec != ASHA_CODEC_G722) {
+		error("Unsupported ASHA codec: %#x", codec);
+		goto fail;
+	}
+
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(media_endpoint_path, &addr);
+	if ((d = ba_device_lookup(b_adapter->adapter, &addr)) == NULL &&
+			(d = ba_device_new(b_adapter->adapter, &addr)) == NULL) {
+		error("Couldn't create new device: %s", media_endpoint_path);
+		goto fail;
+	}
+
+	if ((t = ba_transport_lookup(d, transport_path)) != NULL) {
+		error("Transport already configured: %s", transport_path);
+		goto fail;
+	}
+
+	if ((t = ba_transport_new_asha(d, BA_TRANSPORT_PROFILE_ASHA_SOURCE,
+					BLUEZ_SERVICE, transport_path, id)) == NULL) {
+		error("Couldn't create new transport: %s", strerror(errno));
+		goto fail;
+	}
+
+	t->media.delay = delay;
+	t->media.volume = volume;
+	t->media.asha.right = right;
+	t->media.asha.binaural = binaural;
+
+	debug("%s configured for device %s",
+			ba_transport_debug_name(t),
+			batostr_(&d->addr));
+	debug("PCM configuration: channels=%u rate=%u",
+			t->media.pcm.channels, t->media.pcm.rate);
+
+	ba_transport_set_media_state(t, state);
+
+fail:
+	if (d != NULL)
+		ba_device_unref(d);
+	if (t != NULL)
+		ba_transport_unref(t);
+	/* Free the media transport iterator. */
+	g_variant_iter_free(properties);
+}
+#endif
+
 /**
  * Register to the BlueZ service. */
 static void bluez_register(void) {
@@ -1297,7 +1421,8 @@ static void bluez_register(void) {
 
 	while (g_variant_iter_next(objects, "{&oa{sa{sv}}}", &object_path, &interfaces)) {
 		const int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
-		while (g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
+		while (hci_dev_id != -1 &&
+				g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
 			if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
 
 				unsigned int a_profiles = 0;
@@ -1335,6 +1460,31 @@ static void bluez_register(void) {
 					bluez_adapter_new(a);
 
 				}
+
+			}
+			else {
+
+				/* Validate that this new interface belongs to the HCI
+				 * which matches our HCI filter. */
+				struct bluez_adapter * b_adapter = &bluez_adapters[hci_dev_id];
+				if (b_adapter->adapter == NULL)
+					continue;
+
+#if ENABLE_ASHA
+				if (config.profile.asha_source) {
+					bool processed = false;
+					while (!processed && g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+						if (strcmp(property, "UUID") == 0 &&
+								g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property) &&
+								strcasecmp(g_variant_get_string(value, NULL), BT_UUID_ASHA) == 0) {
+							/* Check for existing ASHA transport and process it. */
+							bluez_media_endpoint_process_asha(b_adapter, object_path, properties);
+							processed = true;
+						}
+						g_variant_unref(value);
+					}
+				}
+#endif
 
 			}
 			g_variant_iter_free(properties);
@@ -1409,6 +1559,11 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 							bluez_media_endpoint_process_a2dp(b_adapter, object_path, properties, A2DP_SOURCE);
 						else if (strcasecmp(uuid, BT_UUID_A2DP_SINK) == 0)
 							bluez_media_endpoint_process_a2dp(b_adapter, object_path, properties, A2DP_SINK);
+#if ENABLE_ASHA
+						else if (config.profile.asha_source &&
+								strcasecmp(uuid, BT_UUID_ASHA) == 0)
+							bluez_media_endpoint_process_asha(b_adapter, object_path, properties);
+#endif
 						processed = true;
 					}
 					g_variant_unref(value);
@@ -1484,6 +1639,22 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 							a2dp_codecs_codec_id_to_string(sep_cfg->codec_id));
 					g_array_remove_index_fast(sep_cfgs, i);
 				}
+			}
+
+		}
+		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_TRANSPORT) == 0) {
+
+			bdaddr_t addr;
+			g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
+			struct bluez_adapter * b_adapter = &bluez_adapters[hci_dev_id];
+
+			struct ba_device * d;
+			if ((d = ba_device_lookup(b_adapter->adapter, &addr)) != NULL) {
+				struct ba_transport * t;
+				/* BlueALSA transport can not operate without BlueZ media transport. */
+				if ((t = ba_transport_lookup(d, object_path)) != NULL)
+					ba_transport_destroy(t);
+				ba_device_unref(d);
 			}
 
 		}

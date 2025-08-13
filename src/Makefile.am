@@ -82,6 +82,12 @@ libbluealsad_la_SOURCES += \
 	codec-aptx.c
 endif
 
+if ENABLE_ASHA
+libbluealsad_la_SOURCES += \
+	asha-g722.c \
+	asha.c
+endif
+
 if ENABLE_FASTSTREAM
 libbluealsad_la_SOURCES += \
 	a2dp-faststream.c

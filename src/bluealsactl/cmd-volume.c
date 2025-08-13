@@ -14,6 +14,14 @@
 #include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 
+static int get_max_volume(const struct ba_pcm * pcm) {
+	if (pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP)
+		return 127;
+	if (pcm->transport & BA_PCM_TRANSPORT_MASK_ASHA)
+		return 127;
+	return 15;
+}
+
 static void usage(const char *command) {
 	printf("Get or set the volume value of the given PCM.\n\n");
 	bactl_print_usage("%s [OPTION]... PCM-PATH [VOLUME [VOLUME]...]", command);
@@ -76,8 +84,7 @@ static int cmd_volume_func(int argc, char *argv[]) {
 	}
 
 	const int v_min = 0;
-	const int v_max = pcm.transport & BA_PCM_TRANSPORT_MASK_A2DP ? 127 : 15;
-
+	const int v_max = get_max_volume(&pcm);
 	for (size_t i = 0; i < (size_t)argc - optind - 1; i++) {
 
 		const int v = atoi(argv[optind + 1 + i]);

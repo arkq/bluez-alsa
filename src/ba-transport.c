@@ -34,6 +34,7 @@
 #include "ba-rfcomm.h"
 #include "ba-transport-pcm.h"
 #include "ba-config.h"
+#include "asha.h"
 #include "ble-midi.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
@@ -129,6 +130,14 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 			if (t->media.pcm.fd == -1 && t->media.pcm_bc.fd == -1)
 				t->stopping = stop = true;
 		}
+#if ENABLE_ASHA
+		else if (t->profile & BA_TRANSPORT_PROFILE_ASHA_SOURCE) {
+			/* Release ASHA transport only in case when there is no active
+			 * PCM connection. ASHA does not support back-channel. */
+			if (t->media.pcm.fd == -1)
+				t->stopping = stop = true;
+		}
+#endif
 		else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
 			/* For Audio Gateway profile it is required to release SCO if we
 			 * are not transferring audio (not sending nor receiving), because
@@ -459,6 +468,67 @@ fail:
 	return NULL;
 }
 
+#if ENABLE_ASHA
+struct ba_transport * ba_transport_new_asha(
+		struct ba_device * device,
+		enum ba_transport_profile profile,
+		const char * dbus_owner,
+		const char * dbus_path,
+		const uint8_t id[8]) {
+
+	const bool is_sink = profile & BA_TRANSPORT_PROFILE_ASHA_SINK;
+	struct ba_transport * t;
+	int err;
+
+	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
+		return NULL;
+
+	t->profile = profile;
+	/* There is only one ASHA codec, so we can hardcode it. */
+	t->codec_id = ASHA_CODEC_G722;
+
+	memcpy(t->media.asha.id, id, sizeof(t->media.asha.id));
+
+	pthread_cond_init(&t->media.state_changed_cond, NULL);
+	t->media.state = BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
+
+	t->acquire = transport_acquire_bt_media;
+	t->release = transport_release_bt_media;
+
+	if (transport_pcm_init(&t->media.pcm,
+				is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
+				t, true) != 0)
+		goto fail;
+	if (transport_pcm_init(&t->media.pcm_bc,
+				is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
+				t, false) != 0)
+		goto fail;
+
+	/* Since there is only one codec, the PCM format is fixed as well. */
+	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->media.pcm.channels = 1;
+	t->media.pcm.channel_map[0] = BA_TRANSPORT_PCM_CHANNEL_MONO;
+	t->media.pcm.rate = 16000;
+
+	if ((errno = pthread_create(&t->thread_manager_thread_id,
+					NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+		t->thread_manager_thread_id = config.main_thread;
+		goto fail;
+	}
+
+	storage_pcm_data_sync(&t->media.pcm);
+	bluealsa_dbus_pcm_register(&t->media.pcm);
+
+	return t;
+
+fail:
+	err = errno;
+	ba_transport_unref(t);
+	errno = err;
+	return NULL;
+}
+#endif
+
 __attribute__ ((weak))
 int transport_acquire_bt_sco(struct ba_transport *t) {
 
@@ -696,6 +766,11 @@ const char *ba_transport_debug_name(
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		return t->media.a2dp.sep->name;
+#if ENABLE_ASHA
+	case BA_TRANSPORT_PROFILE_ASHA_SOURCE:
+	case BA_TRANSPORT_PROFILE_ASHA_SINK:
+		return "ASHA (G722)";
+#endif
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		switch (t->codec_id) {
 		case HFP_CODEC_UNDEFINED:
@@ -1077,8 +1152,13 @@ int ba_transport_start(struct ba_transport *t) {
 
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
-	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t))
 		return t->media.a2dp.sep->transport_start(t);
+
+#if ENABLE_ASHA
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t))
+		return asha_transport_start(t);
+#endif
 
 	if (BA_TRANSPORT_PROFILE_IS_SCO(t))
 		return sco_transport_start(t);

@@ -285,11 +285,11 @@ Profiles
 --------
 
 **bluealsad** provides support for Bluetooth Advanced Audio Distribution
-Profile (A2DP), Hands-Free Profile (HFP), Headset Profile (HSP) and Bluetooth
-Low Energy MIDI (BLE-MIDI).
+Profile (A2DP), Audio Streaming for Hearing Aids (ASHA), Hands-Free Profile
+(HFP), Headset Profile (HSP) and Bluetooth Low Energy MIDI (BLE-MIDI).
 A2DP profile is dedicated for streaming music (i.e., stereo, 48 kHz or higher
 sample rates), while HFP and HSP for two-way voice transmission (mono, 8
-kHz or 16 kHz sample rate). BLE-MIDI, on the other hand, is used for
+kHz, 16 kHz or 32 kHz sample rate). BLE-MIDI, on the other hand, is used for
 transmitting MIDI messages over Bluetooth LE.
 
 The Bluetooth audio profiles are not peer-to-peer; they each have a source or
@@ -326,6 +326,8 @@ sink/target:
 With A2DP, **bluealsad** always includes the mandatory SBC codec and may also
 include various optional codecs like AAC, aptX, and other.
 
+With ASHA, **bluealsad** always includes the mandatory G.722 codec.
+
 With HFP, **bluealsad** always includes the mandatory CVSD codec and may also
 include the optional mSBC and LC3-SWB codecs.
 
@@ -337,6 +339,7 @@ The list of profile *NAME*-s accepted by the ``--profile=NAME`` option:
 
 - **a2dp-source** - Advanced Audio Source (streaming audio to connected device)
 - **a2dp-sink** - Advanced Audio Sink (receiving audio from connected device)
+- **asha-source** - Audio Streaming for Hearing Aids Source
 - **hfp-ofono** - Hands-Free AG/HF handled by oFono
 - **hfp-ag** - Hands-Free Audio Gateway
 - **hfp-hf** - Hands-Free
@@ -344,19 +347,20 @@ The list of profile *NAME*-s accepted by the ``--profile=NAME`` option:
 - **hsp-hs** - Headset
 - **midi** - Bluetooth LE MIDI
 
-The **hfp-ofono** and **midi** profiles are available only when **bluealsad**
-was compiled respectively with oFono and BLE-MIDI support.
+The **asha-source**, **hfp-ofono** and **midi** profiles are available only
+when **bluealsad** was compiled respectively with ASHA, oFono and BLE-MIDI
+support.
 
 Enabling HFP over oFono will automatically disable **hfp-hf** and **hfp-ag**.
 Also, it is important to note that BlueZ permits only one service to register
 the HFP profile, and that service is automatically registered with every HCI
 device.
 
-For the A2DP profile, BlueZ allows each HCI device to be registered to a
-different service, so it is possible to have multiple instances of
-**bluealsad** offering A2DP support, each with a unique service name given with
-the ``--dbus=`` option, so long as they are registered to different HCI devices
-using the ``--device=`` option. See the EXAMPLES_ below.
+For the A2DP and ASHA profiles, BlueZ allows each HCI device to be registered
+to a different service, so it is possible to have multiple instances of
+**bluealsad** offering ASHA and/or A2DP support, each with a unique service
+name given with the ``--dbus=`` option, so long as they are registered to
+different HCI devices using the ``--device=`` option. See the EXAMPLES_ below.
 
 A profile connection does not immediately initiate the audio stream(s); audio
 can only flow when the profile transport is "acquired". Acquisition can only be

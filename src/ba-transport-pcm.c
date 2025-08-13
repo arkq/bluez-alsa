@@ -40,13 +40,19 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 
-static const char *transport_get_dbus_path_type(
+static const char * transport_get_dbus_path_type(
 		enum ba_transport_profile profile) {
 	switch (profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		return "a2dpsrc";
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		return "a2dpsnk";
+#if ENABLE_ASHA
+	case BA_TRANSPORT_PROFILE_ASHA_SOURCE:
+		return "ashasrc";
+	case BA_TRANSPORT_PROFILE_ASHA_SINK:
+		return "ashasnk";
+#endif
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		return "hfphf";
 	case BA_TRANSPORT_PROFILE_HFP_AG:
@@ -653,6 +659,7 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 		for (size_t i = 0; i < pcm->channels; i++)
 			level_sum += pcm->volume[i].level;
 
+		/* Volume rage for A2DP and ASHA is the same. */
 		uint16_t volume = ba_transport_pcm_volume_level_to_range(
 				level_sum / (int)pcm->channels, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX);
 
@@ -719,9 +726,10 @@ int ba_transport_pcm_get_hardware_volume(
 
 /**
  * Get PCM playback/capture cumulative delay. */
-int ba_transport_pcm_delay_get(const struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_delay_get(
+		const struct ba_transport_pcm * pcm) {
 
-	const struct ba_transport *t = pcm->t;
+	const struct ba_transport * t = pcm->t;
 	int delay = 0;
 
 	delay += pcm->codec_delay_dms;
@@ -731,6 +739,11 @@ int ba_transport_pcm_delay_get(const struct ba_transport_pcm *pcm) {
 	 * of A2DP Sink, the BlueZ delay value is in fact our client delay. */
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
 		delay += t->media.delay;
+#if ENABLE_ASHA
+	/* ASHA uses media transport just like A2DP, so the same logic applies. */
+	else if (t->profile & BA_TRANSPORT_PROFILE_ASHA_SOURCE)
+		delay += t->media.delay;
+#endif
 	/* HFP/HSP profiles do not provide any delay information. However, we can
 	 * assume some arbitrary value here - for now it will be 10 ms. */
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG)

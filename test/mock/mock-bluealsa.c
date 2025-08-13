@@ -302,9 +302,16 @@ void mock_bluealsa_run(void) {
 		mock_sem_wait(mock_sem_ready);
 
 	/* Create remote SEP on device 1, so we could test SEP configuration. */
-	mock_bluez_device_media_endpoint_add(MOCK_BLUEZ_DEVICE_1_SEP_PATH,
-			MOCK_BLUEZ_DEVICE_1_PATH, BT_UUID_A2DP_SINK, a2dp_sbc_sink.config.codec_id,
+	mock_bluez_device_add_media_endpoint(MOCK_BLUEZ_DEVICE_1_PATH,
+			MOCK_BLUEZ_DEVICE_1_SEP_PATH, BT_UUID_A2DP_SINK, a2dp_sbc_sink.config.codec_id,
 			&a2dp_sbc_sink.config.capabilities, a2dp_sbc_sink.config.caps_size);
+
+#if ENABLE_ASHA
+	const uint8_t sync_id[8] = { 0xF1, 0x05, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+	/* Create ASHA transport on device 1 for testing ASHA support. */
+	mock_bluez_device_add_asha_transport(MOCK_BLUEZ_DEVICE_1_PATH,
+			MOCK_BLUEZ_DEVICE_1_ASHA_PATH, "right", false, sync_id);
+#endif
 
 	GPtrArray *tt = g_ptr_array_new();
 

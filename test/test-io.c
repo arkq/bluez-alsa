@@ -69,6 +69,9 @@
 # include "a2dp-opus.h"
 #endif
 #include "a2dp-sbc.h"
+#if ENABLE_ASHA
+# include "asha.h"
+#endif
 #include "ba-adapter.h"
 #include "ba-config.h"
 #include "ba-device.h"
@@ -103,28 +106,30 @@
 		(CHECK_MINOR_VERSION << 8 & 0x00ff00) | \
 		(CHECK_MICRO_VERSION << 0 & 0x0000ff))
 
-void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_sbc_dec_thread(struct ba_transport_pcm *t_pcm);
-void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm);
-void *sco_dec_thread(struct ba_transport_pcm *t_pcm);
-void *sco_enc_thread(struct ba_transport_pcm *t_pcm);
+void * a2dp_aac_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_aac_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_aptx_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_aptx_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_aptx_hd_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_aptx_hd_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_fs_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_fs_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_lc3plus_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_lc3plus_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_ldac_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_ldac_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_lhdc_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_lhdc_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_mp3_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_mpeg_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_opus_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_opus_enc_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_sbc_dec_thread(struct ba_transport_pcm * t_pcm);
+void * a2dp_sbc_enc_thread(struct ba_transport_pcm * t_pcm);
+void * asha_g722_enc_thread(struct ba_transport_pcm * t_pcm);
+void * asha_g722_dec_thread(struct ba_transport_pcm * t_pcm);
+void * sco_dec_thread(struct ba_transport_pcm * t_pcm);
+void * sco_enc_thread(struct ba_transport_pcm * t_pcm);
 
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
@@ -755,6 +760,21 @@ static struct ba_transport * test_transport_new_a2dp(
 	return t;
 }
 
+#if ENABLE_ASHA
+static struct ba_transport * test_transport_new_asha(
+		struct ba_device * device,
+		enum ba_transport_profile profile,
+		const char * dbus_path,
+		const uint8_t id[8]) {
+	struct ba_transport * t;
+	ck_assert_ptr_nonnull(t = ba_transport_new_asha(device, profile, ":test",
+				dbus_path, id));
+	t->acquire = test_transport_acquire;
+	t->release = test_transport_release_bt_media;
+	return t;
+}
+#endif
+
 static struct ba_transport * test_transport_new_sco(
 		struct ba_device * device,
 		enum ba_transport_profile profile,
@@ -1383,6 +1403,34 @@ CK_START_TEST(test_a2dp_opus) {
 } CK_END_TEST
 #endif
 
+#if ENABLE_ASHA
+CK_START_TEST(test_asha_g722) {
+
+	const uint8_t id[8] = { 0xF1, 0x05, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+	struct ba_transport * t1 = test_transport_new_asha(device1,
+			BA_TRANSPORT_PROFILE_ASHA_SOURCE, "/path/asha/g722", id);
+	struct ba_transport * t2 = test_transport_new_asha(device2,
+			BA_TRANSPORT_PROFILE_ASHA_SINK, "/path/asha/g722", id);
+
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
+
+	if (aging_duration) {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 161;
+		test_io(t1_pcm, t2_pcm, asha_g722_enc_thread, asha_g722_dec_thread, 4 * 1024);
+	}
+	else {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 161;
+		test_io(t1_pcm, t2_pcm, asha_g722_enc_thread, test_io_thread_dump_bt, 2 * 1024);
+		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, asha_g722_dec_thread, 2 * 1024);
+	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
+} CK_END_TEST
+#endif
+
 CK_START_TEST(test_sco_cvsd) {
 
 	struct ba_transport *t1 = test_transport_new_sco(device1,
@@ -1499,6 +1547,9 @@ int main(int argc, char *argv[]) {
 #if ENABLE_OPUS
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },
 #endif
+#if ENABLE_ASHA
+		{ asha_codec_id_to_string(ASHA_CODEC_G722), test_asha_g722 },
+#endif
 		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), test_sco_cvsd },
 #if ENABLE_MSBC
 		{ hfp_codec_id_to_string(HFP_CODEC_MSBC), test_sco_msbc },
@@ -1584,6 +1635,13 @@ int main(int argc, char *argv[]) {
 			debug("BT dump A2DP codec: %s (%#x)", codec, btdin->transport_codec_id);
 			hexdump("BT dump A2DP configuration",
 					&btdin->a2dp_configuration, btdin->a2dp_configuration_size);
+			break;
+		case BT_DUMP_MODE_ASHA_SOURCE:
+		case BT_DUMP_MODE_ASHA_SINK:
+#if ENABLE_ASHA
+			codec = asha_codec_id_to_string(btdin->transport_codec_id);
+			debug("BT dump ASHA codec: %s (%#x)", codec, btdin->transport_codec_id);
+#endif
 			break;
 		case BT_DUMP_MODE_SCO:
 			codec = hfp_codec_id_to_string(btdin->transport_codec_id);

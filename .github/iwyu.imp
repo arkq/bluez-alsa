@@ -48,6 +48,7 @@
 
 	{ include: [ '"opus_defines.h"', private, '<opus.h>', public ] },
 
+	{ include: [ '<spandsp/g722.h>', private, '<spandsp.h>', public ] },
 	{ include: [ '<spandsp/plc.h>', private, '<spandsp.h>', public ] },
 
 ]

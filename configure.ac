@@ -179,6 +179,14 @@ AM_COND_IF([ENABLE_APTX_HD], [
 AM_CONDITIONAL([ENABLE_APTX_OR_APTX_HD],
 	[test "x$enable_aptx" = "xyes" -o "x$enable_aptx_hd" = "xyes"])
 
+AC_ARG_ENABLE([asha],
+	[AS_HELP_STRING([--enable-asha], [enable ASHA G.722 support])])
+AM_CONDITIONAL([ENABLE_ASHA], [test "x$enable_asha" = "xyes"])
+AM_COND_IF([ENABLE_ASHA], [
+	PKG_CHECK_MODULES([SPANDSP], [spandsp >= 0.0.6])
+	AC_DEFINE([ENABLE_ASHA], [1], [Define to 1 if ASHA G.722 is enabled.])
+])
+
 AC_ARG_ENABLE([faststream],
 	[AS_HELP_STRING([--enable-faststream], [enable FastStream support])])
 AM_CONDITIONAL([ENABLE_FASTSTREAM], [test "x$enable_faststream" = "xyes"])

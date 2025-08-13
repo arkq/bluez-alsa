@@ -38,12 +38,16 @@ enum ba_transport_profile {
 	BA_TRANSPORT_PROFILE_NONE        = 0,
 	BA_TRANSPORT_PROFILE_A2DP_SOURCE = (1 << 0),
 	BA_TRANSPORT_PROFILE_A2DP_SINK   = (2 << 0),
-	BA_TRANSPORT_PROFILE_HFP_HF      = (1 << 2),
-	BA_TRANSPORT_PROFILE_HFP_AG      = (2 << 2),
-	BA_TRANSPORT_PROFILE_HSP_HS      = (1 << 4),
-	BA_TRANSPORT_PROFILE_HSP_AG      = (2 << 4),
+#if ENABLE_ASHA
+	BA_TRANSPORT_PROFILE_ASHA_SOURCE = (1 << 2),
+	BA_TRANSPORT_PROFILE_ASHA_SINK   = (2 << 2),
+#endif
+	BA_TRANSPORT_PROFILE_HFP_HF      = (1 << 4),
+	BA_TRANSPORT_PROFILE_HFP_AG      = (2 << 4),
+	BA_TRANSPORT_PROFILE_HSP_HS      = (1 << 6),
+	BA_TRANSPORT_PROFILE_HSP_AG      = (2 << 6),
 #if ENABLE_MIDI
-	BA_TRANSPORT_PROFILE_MIDI        = (1 << 6),
+	BA_TRANSPORT_PROFILE_MIDI        = (1 << 8),
 #endif
 };
 
@@ -56,9 +60,21 @@ enum ba_transport_profile {
 #define BA_TRANSPORT_PROFILE_MASK_HF \
 	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)
 
-#define BA_TRANSPORT_PROFILE_IS_MEDIA(t) \
+#define BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t) \
 	((t)->profile & ( \
 		BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK))
+
+#if ENABLE_ASHA
+# define BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t) \
+	((t)->profile & ( \
+		BA_TRANSPORT_PROFILE_ASHA_SOURCE | BA_TRANSPORT_PROFILE_ASHA_SINK))
+#else
+# define BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t) false
+#endif
+
+#define BA_TRANSPORT_PROFILE_IS_MEDIA(t) \
+	(BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t) || \
+	 BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t))
 
 #define BA_TRANSPORT_PROFILE_IS_SCO(t) \
 	((t)->profile & ( \
@@ -152,6 +168,13 @@ struct ba_transport {
 					/* selected codec configuration */
 					a2dp_t configuration;
 				} a2dp;
+#if ENABLE_ASHA
+				struct {
+					uint8_t id[8];
+					bool right;
+					bool binaural;
+				} asha;
+#endif
 			};
 
 		} media;
@@ -226,25 +249,33 @@ struct ba_transport {
 
 };
 
-struct ba_transport *ba_transport_new_a2dp(
-		struct ba_device *device,
+struct ba_transport * ba_transport_new_a2dp(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_owner,
-		const char *dbus_path,
-		const struct a2dp_sep *sep,
-		const void *configuration);
-struct ba_transport *ba_transport_new_sco(
-		struct ba_device *device,
+		const char * dbus_owner,
+		const char * dbus_path,
+		const struct a2dp_sep * sep,
+		const void * configuration);
+#if ENABLE_ASHA
+struct ba_transport * ba_transport_new_asha(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_owner,
-		const char *dbus_path,
+		const char * dbus_owner,
+		const char * dbus_path,
+		const uint8_t id[8]);
+#endif
+struct ba_transport * ba_transport_new_sco(
+		struct ba_device * device,
+		enum ba_transport_profile profile,
+		const char * dbus_owner,
+		const char * dbus_path,
 		int rfcomm_fd);
 #if ENABLE_MIDI
-struct ba_transport *ba_transport_new_midi(
-		struct ba_device *device,
+struct ba_transport * ba_transport_new_midi(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_owner,
-		const char *dbus_path);
+		const char * dbus_owner,
+		const char * dbus_path);
 #endif
 
 #if DEBUG
