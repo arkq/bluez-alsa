@@ -131,7 +131,7 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	sbc_t sbc;
-	const a2dp_faststream_t *configuration = &t->a2dp.configuration.faststream;
+	const a2dp_faststream_t *configuration = &t->media.configuration.faststream;
 	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, configuration,
 					sizeof(*configuration), is_voice)) != 0) {
 		error("Couldn't initialize FastStream SBC codec: %s", strerror(errno));
@@ -262,8 +262,8 @@ void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm) {
 	const bool is_voice = t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE;
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, &t->a2dp.configuration.faststream,
-					sizeof(t->a2dp.configuration.faststream), is_voice)) != 0) {
+	if ((errno = -sbc_init_a2dp_faststream(&sbc, 0, &t->media.configuration.faststream,
+					sizeof(t->media.configuration.faststream), is_voice)) != 0) {
 		error("Couldn't initialize FastStream SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -403,34 +403,34 @@ static int a2dp_fs_configuration_check(
 
 static int a2dp_fs_transport_init(struct ba_transport *t) {
 
-	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
+	if (t->media.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
 
 		ssize_t rate_i;
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_fs_rates_music,
-						t->a2dp.configuration.faststream.sampling_freq_music)) == -1)
+						t->media.configuration.faststream.sampling_freq_music)) == -1)
 			return -1;
 
-		t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->a2dp.pcm.channels = 2;
-		t->a2dp.pcm.rate = a2dp_fs_rates_music[rate_i].value;
+		t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+		t->media.pcm.channels = 2;
+		t->media.pcm.rate = a2dp_fs_rates_music[rate_i].value;
 
-		memcpy(t->a2dp.pcm.channel_map, a2dp_channel_map_stereo,
+		memcpy(t->media.pcm.channel_map, a2dp_channel_map_stereo,
 				2 * sizeof(*a2dp_channel_map_stereo));
 
 	}
 
-	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE) {
+	if (t->media.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE) {
 
 		ssize_t rate_i;
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_fs_rates_voice,
-						t->a2dp.configuration.faststream.sampling_freq_voice)) == -1)
+						t->media.configuration.faststream.sampling_freq_voice)) == -1)
 			return -1;
 
-		t->a2dp.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-		t->a2dp.pcm_bc.channels = 1;
-		t->a2dp.pcm_bc.rate = a2dp_fs_rates_voice[rate_i].value;
+		t->media.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+		t->media.pcm_bc.channels = 1;
+		t->media.pcm_bc.rate = a2dp_fs_rates_voice[rate_i].value;
 
-		memcpy(t->a2dp.pcm_bc.channel_map, a2dp_channel_map_mono,
+		memcpy(t->media.pcm_bc.channel_map, a2dp_channel_map_mono,
 				1 * sizeof(*a2dp_channel_map_stereo));
 
 	}
@@ -448,13 +448,13 @@ static int a2dp_fs_source_init(struct a2dp_sep *sep) {
 
 static int a2dp_fs_source_transport_start(struct ba_transport *t) {
 
-	struct ba_transport_pcm *pcm = &t->a2dp.pcm;
-	struct ba_transport_pcm *pcm_bc = &t->a2dp.pcm_bc;
+	struct ba_transport_pcm *pcm = &t->media.pcm;
+	struct ba_transport_pcm *pcm_bc = &t->media.pcm_bc;
 	int rv = 0;
 
-	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
+	if (t->media.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
 		rv |= ba_transport_pcm_start(pcm, a2dp_fs_enc_thread, "ba-a2dp-fs-m");
-	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
+	if (t->media.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
 		rv |= ba_transport_pcm_start(pcm_bc, a2dp_fs_dec_thread, "ba-a2dp-fs-v");
 
 	return rv;
@@ -486,13 +486,13 @@ struct a2dp_sep a2dp_faststream_source = {
 
 static int a2dp_fs_sink_transport_start(struct ba_transport *t) {
 
-	struct ba_transport_pcm *pcm = &t->a2dp.pcm;
-	struct ba_transport_pcm *pcm_bc = &t->a2dp.pcm_bc;
+	struct ba_transport_pcm *pcm = &t->media.pcm;
+	struct ba_transport_pcm *pcm_bc = &t->media.pcm_bc;
 	int rv = 0;
 
-	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
+	if (t->media.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC)
 		rv |= ba_transport_pcm_start(pcm, a2dp_fs_dec_thread, "ba-a2dp-fs-m");
-	if (t->a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
+	if (t->media.configuration.faststream.direction & FASTSTREAM_DIRECTION_VOICE)
 		rv |= ba_transport_pcm_start(pcm_bc, a2dp_fs_enc_thread, "ba-a2dp-fs-v");
 
 	return rv;

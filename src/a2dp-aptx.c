@@ -362,20 +362,20 @@ static int a2dp_aptx_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_aptx_channels,
-					t->a2dp.configuration.aptx.channel_mode)) == -1)
+					t->media.configuration.aptx.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aptx_rates,
-					t->a2dp.configuration.aptx.sampling_freq)) == -1)
+					t->media.configuration.aptx.sampling_freq)) == -1)
 		return -1;
 
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = a2dp_aptx_channels[channels_i].value;
-	t->a2dp.pcm.rate = a2dp_aptx_rates[rate_i].value;
+	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->media.pcm.channels = a2dp_aptx_channels[channels_i].value;
+	t->media.pcm.rate = a2dp_aptx_rates[rate_i].value;
 
-	memcpy(t->a2dp.pcm.channel_map, a2dp_aptx_channels[channels_i].ch.map,
-			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
+	memcpy(t->media.pcm.channel_map, a2dp_aptx_channels[channels_i].ch.map,
+			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
 	return 0;
 }
@@ -389,7 +389,7 @@ static int a2dp_aptx_source_init(struct a2dp_sep *sep) {
 }
 
 static int a2dp_aptx_source_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_enc_thread, "ba-a2dp-aptx");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_aptx_enc_thread, "ba-a2dp-aptx");
 }
 
 struct a2dp_sep a2dp_aptx_source = {
@@ -422,7 +422,7 @@ struct a2dp_sep a2dp_aptx_source = {
 #if HAVE_APTX_DECODE
 
 static int a2dp_aptx_sink_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aptx_dec_thread, "ba-a2dp-aptx");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_aptx_dec_thread, "ba-a2dp-aptx");
 }
 
 struct a2dp_sep a2dp_aptx_sink = {

@@ -134,7 +134,7 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	OpusEncoder *opus = NULL;
 	pthread_cleanup_push(PTHREAD_CLEANUP(opus_encoder_destroy_ptr), &opus);
 
-	const a2dp_opus_t *configuration = &t->a2dp.configuration.opus;
+	const a2dp_opus_t *configuration = &t->media.configuration.opus;
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 	const unsigned int opus_frame_dms = a2dp_opus_get_frame_dms(configuration);
@@ -280,7 +280,7 @@ void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm) {
 	OpusDecoder *opus = NULL;
 	pthread_cleanup_push(PTHREAD_CLEANUP(opus_decoder_destroy_ptr), &opus);
 
-	const a2dp_opus_t *configuration = &t->a2dp.configuration.opus;
+	const a2dp_opus_t *configuration = &t->media.configuration.opus;
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 	const unsigned int opus_frame_dms = a2dp_opus_get_frame_dms(configuration);
@@ -444,20 +444,20 @@ static int a2dp_opus_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_opus_channels,
-					t->a2dp.configuration.opus.channel_mode)) == -1)
+					t->media.configuration.opus.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_opus_rates,
-					t->a2dp.configuration.opus.sampling_freq)) == -1)
+					t->media.configuration.opus.sampling_freq)) == -1)
 		return -1;
 
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = a2dp_opus_channels[channels_i].value;
-	t->a2dp.pcm.rate = a2dp_opus_rates[rate_i].value;
+	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->media.pcm.channels = a2dp_opus_channels[channels_i].value;
+	t->media.pcm.rate = a2dp_opus_rates[rate_i].value;
 
-	memcpy(t->a2dp.pcm.channel_map, a2dp_opus_channels[channels_i].ch.map,
-			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
+	memcpy(t->media.pcm.channel_map, a2dp_opus_channels[channels_i].ch.map,
+			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
 	return 0;
 }
@@ -469,7 +469,7 @@ static int a2dp_opus_source_init(struct a2dp_sep *sep) {
 }
 
 static int a2dp_opus_source_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_opus_enc_thread, "ba-a2dp-opus");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_opus_enc_thread, "ba-a2dp-opus");
 }
 
 struct a2dp_sep a2dp_opus_source = {
@@ -501,7 +501,7 @@ struct a2dp_sep a2dp_opus_source = {
 };
 
 static int a2dp_opus_sink_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_opus_dec_thread, "ba-a2dp-opus");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_opus_dec_thread, "ba-a2dp-opus");
 }
 
 struct a2dp_sep a2dp_opus_sink = {

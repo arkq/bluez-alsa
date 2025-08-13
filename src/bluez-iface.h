@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez-iface.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -38,10 +38,6 @@
 #define BLUEZ_IFACE_MEDIA_TRANSPORT          BLUEZ_SERVICE ".MediaTransport1"
 #define BLUEZ_IFACE_PROFILE                  BLUEZ_SERVICE ".Profile1"
 #define BLUEZ_IFACE_PROFILE_MANAGER          BLUEZ_SERVICE ".ProfileManager1"
-
-#define BLUEZ_TRANSPORT_STATE_IDLE    "idle"
-#define BLUEZ_TRANSPORT_STATE_PENDING "pending"
-#define BLUEZ_TRANSPORT_STATE_ACTIVE  "active"
 
 typedef struct {
 	GDBusInterfaceSkeletonEx parent;

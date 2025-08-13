@@ -427,21 +427,21 @@ CK_START_TEST(test_storage) {
 
 	/* This test does not link with A2DP functionality,
 	 * so the PCM has to be initialized manually. */
-	t->a2dp.pcm.channels = 2;
+	t->media.pcm.channels = 2;
 
 	/* check if persistent storage was loaded */
-	ck_assert_int_eq(t->a2dp.pcm.soft_volume, false);
-	ck_assert_int_eq(t->a2dp.pcm.volume[0].level, -5600);
-	ck_assert_int_eq(t->a2dp.pcm.volume[0].soft_mute, false);
-	ck_assert_int_eq(t->a2dp.pcm.volume[1].level, -4800);
-	ck_assert_int_eq(t->a2dp.pcm.volume[1].soft_mute, true);
-	ck_assert_int_eq(t->a2dp.pcm.client_delay_dms, -200);
+	ck_assert_int_eq(t->media.pcm.soft_volume, false);
+	ck_assert_int_eq(t->media.pcm.volume[0].level, -5600);
+	ck_assert_int_eq(t->media.pcm.volume[0].soft_mute, false);
+	ck_assert_int_eq(t->media.pcm.volume[1].level, -4800);
+	ck_assert_int_eq(t->media.pcm.volume[1].soft_mute, true);
+	ck_assert_int_eq(t->media.pcm.client_delay_dms, -200);
 
 	bool muted = true;
 	int level = ba_transport_pcm_volume_range_to_level(100, BLUEZ_A2DP_VOLUME_MAX);
-	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[0], &level, &muted, NULL);
-	ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[1], &level, &muted, NULL);
-	t->a2dp.pcm.client_delay_dms = 140;
+	ba_transport_pcm_volume_set(&t->media.pcm.volume[0], &level, &muted, NULL);
+	ba_transport_pcm_volume_set(&t->media.pcm.volume[1], &level, &muted, NULL);
+	t->media.pcm.client_delay_dms = 140;
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);

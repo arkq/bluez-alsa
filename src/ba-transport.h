@@ -120,7 +120,7 @@ struct ba_transport {
 
 			/* current state of the transport */
 			pthread_cond_t state_changed_cond;
-			enum bluez_a2dp_transport_state state;
+			enum bluez_media_transport_state state;
 
 			/* SEP configuration */
 			const struct a2dp_sep *sep;
@@ -145,7 +145,7 @@ struct ba_transport {
 			 * subsequent ioctl() calls. */
 			int bt_fd_coutq_init;
 
-		} a2dp;
+		} media;
 
 		struct {
 
@@ -274,8 +274,8 @@ int ba_transport_stop_if_no_clients(struct ba_transport *t);
 int ba_transport_acquire(struct ba_transport *t);
 int ba_transport_release(struct ba_transport *t);
 
-int ba_transport_set_a2dp_state(
+int ba_transport_set_media_state(
 		struct ba_transport *t,
-		enum bluez_a2dp_transport_state state);
+		enum bluez_media_transport_state state);
 
 #endif

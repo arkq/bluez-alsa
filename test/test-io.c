@@ -778,8 +778,8 @@ CK_START_TEST(test_a2dp_sbc) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
 			&config_sbc_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
@@ -811,8 +811,8 @@ CK_START_TEST(test_a2dp_sbc_invalid_config) {
 	t->mtu_read = t->mtu_write = 153 * 3;
 	t->bt_fd = bt_fds[1];
 
-	ck_assert_int_eq(ba_transport_pcm_start(&t->a2dp.pcm, a2dp_sbc_enc_thread, "sbc"), 0);
-	ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t->a2dp.pcm), -1);
+	ck_assert_int_eq(ba_transport_pcm_start(&t->media.pcm, a2dp_sbc_enc_thread, "sbc"), 0);
+	ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t->media.pcm), -1);
 
 	ba_transport_destroy(t);
 	close(bt_fds[0]);
@@ -835,15 +835,15 @@ static void setup_a2dp_link(struct ba_transport *t_source, struct ba_transport *
 	/* Attach sink PCM to the source transport. */
 	ck_assert_int_eq(pipe2(pcm_snk_fds, O_NONBLOCK), 0);
 	debug("Created PCM pipe pair: %d, %d", pcm_snk_fds[0], pcm_snk_fds[1]);
-	t_source->a2dp.pcm.fd = pcm_snk_fds[0];
-	t_source->a2dp.pcm.paused = false;
+	t_source->media.pcm.fd = pcm_snk_fds[0];
+	t_source->media.pcm.paused = false;
 
 	int pcm_src_fds[2];
 	/* Attach source PCM to the sink transport. */
 	ck_assert_int_eq(pipe2(pcm_src_fds, O_NONBLOCK), 0);
 	debug("Created PCM pipe pair: %d, %d", pcm_src_fds[0], pcm_src_fds[1]);
-	t_sink->a2dp.pcm.fd = pcm_src_fds[1];
-	t_sink->a2dp.pcm.paused = false;
+	t_sink->media.pcm.fd = pcm_src_fds[1];
+	t_sink->media.pcm.paused = false;
 
 	*fd_pcm_sink = pcm_snk_fds[1];
 	*fd_pcm_source = pcm_src_fds[0];
@@ -867,7 +867,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drain) {
 	setup_a2dp_link(t1, t2, 256, &fd_pcm_snk, &fd_pcm_src);
 
 	/* start sink PCM IO thread and make sure it is running */
-	struct ba_transport_pcm *pcm = &t1->a2dp.pcm;
+	struct ba_transport_pcm *pcm = &t1->media.pcm;
 	ck_assert_int_eq(ba_transport_pcm_start(pcm, a2dp_sbc_enc_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_pcm_state_wait_running(pcm), 0);
 
@@ -916,7 +916,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drain_and_close) {
 	setup_a2dp_link(t1, t2, 256, &fd_pcm_snk, &fd_pcm_src);
 
 	/* start sink PCM IO thread and make sure it is running */
-	struct ba_transport_pcm *pcm = &t1->a2dp.pcm;
+	struct ba_transport_pcm *pcm = &t1->media.pcm;
 	ck_assert_int_eq(ba_transport_pcm_start(pcm, a2dp_sbc_enc_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_pcm_state_wait_running(pcm), 0);
 
@@ -963,7 +963,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 		continue;
 
 	/* drop sink PCM samples before IO thread was started */
-	struct ba_transport_pcm *pcm = &t1->a2dp.pcm;
+	struct ba_transport_pcm *pcm = &t1->media.pcm;
 	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
 
 	/* start IO thread and make sure it is running */
@@ -1004,8 +1004,8 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	 * non-zero samples. We will check this by writing zero samples and
 	 * checking if decoded data is all silence. */
 
-	ck_assert_int_eq(ba_transport_pcm_start(&t2->a2dp.pcm, a2dp_sbc_dec_thread, "sbc"), 0);
-	ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t2->a2dp.pcm), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(&t2->media.pcm, a2dp_sbc_dec_thread, "sbc"), 0);
+	ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t2->media.pcm), 0);
 
 	/* write some zero samples to sink PCM and process them */
 	for (size_t i = 0; i < 100; i++)
@@ -1041,8 +1041,8 @@ CK_START_TEST(test_a2dp_mp3) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/mp3", &a2dp_mpeg_sink,
 			&config_mp3_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
@@ -1074,8 +1074,8 @@ CK_START_TEST(test_a2dp_aac) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aac", &a2dp_aac_sink,
 			&config_aac_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 450;
@@ -1134,8 +1134,8 @@ CK_START_TEST(test_a2dp_aac_configuration_select) {
 			t->mtu_read = t->mtu_write = 153 * 3;
 			t->bt_fd = bt_fds[1];
 
-			ck_assert_int_eq(ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_enc_thread, "aac"), 0);
-			ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t->a2dp.pcm), 0);
+			ck_assert_int_eq(ba_transport_pcm_start(&t->media.pcm, a2dp_aac_enc_thread, "aac"), 0);
+			ck_assert_int_eq(ba_transport_pcm_state_wait_running(&t->media.pcm), 0);
 
 			ba_transport_destroy(t);
 			close(bt_fds[0]);
@@ -1155,8 +1155,8 @@ CK_START_TEST(test_a2dp_aptx) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aptx", &a2dp_aptx_sink,
 			&config_aptx_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 400;
@@ -1184,8 +1184,8 @@ CK_START_TEST(test_a2dp_aptx_hd) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aptxhd", &a2dp_aptx_hd_sink,
 			&config_aptx_hd_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
@@ -1213,8 +1213,8 @@ CK_START_TEST(test_a2dp_faststream_music) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/faststream", &a2dp_faststream_sink,
 			&config_faststream_44100_16000);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
@@ -1242,8 +1242,8 @@ CK_START_TEST(test_a2dp_faststream_voice) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/faststream", &a2dp_faststream_sink,
 			&config_faststream_44100_16000);
 
-	struct ba_transport_pcm *t1_pcm_bc = &t1->a2dp.pcm_bc;
-	struct ba_transport_pcm *t2_pcm_bc = &t2->a2dp.pcm_bc;
+	struct ba_transport_pcm *t1_pcm_bc = &t1->media.pcm_bc;
+	struct ba_transport_pcm *t2_pcm_bc = &t2->media.pcm_bc;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
@@ -1271,8 +1271,8 @@ CK_START_TEST(test_a2dp_lc3plus) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lc3plus", &a2dp_lc3plus_sink,
 			&config_lc3plus_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
@@ -1305,8 +1305,8 @@ CK_START_TEST(test_a2dp_ldac) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/ldac", &a2dp_ldac_sink,
 			&config_ldac_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
@@ -1338,8 +1338,8 @@ CK_START_TEST(test_a2dp_lhdc_v3) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lhdc", &a2dp_lhdc_v3_sink,
 			&config_lhdc_v3_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 960;
@@ -1367,8 +1367,8 @@ CK_START_TEST(test_a2dp_opus) {
 			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/opus", &a2dp_opus_source,
 			&config_opus_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->a2dp.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->a2dp.pcm;
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;

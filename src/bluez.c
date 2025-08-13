@@ -399,17 +399,19 @@ static const char *bluez_get_profile_object_path(
 }
 
 /**
- * Get transport state from BlueZ state string. */
-static enum bluez_a2dp_transport_state bluez_a2dp_transport_state_from_string(
+ * Get media transport state from BlueZ state string. */
+static enum bluez_media_transport_state bluez_media_transport_state_from_string(
 		const char *state) {
-	if (strcmp(state, BLUEZ_TRANSPORT_STATE_IDLE) == 0)
-		return BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
-	if (strcmp(state, BLUEZ_TRANSPORT_STATE_PENDING) == 0)
-		return BLUEZ_A2DP_TRANSPORT_STATE_PENDING;
-	if (strcmp(state, BLUEZ_TRANSPORT_STATE_ACTIVE) == 0)
-		return BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE;
-	warn("Invalid A2DP transport state: %s", state);
-	return BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
+	if (strcmp(state, "idle") == 0)
+		return BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
+	if (strcmp(state, "pending") == 0)
+		return BLUEZ_MEDIA_TRANSPORT_STATE_PENDING;
+	if (strcmp(state, "broadcasting") == 0)
+		return BLUEZ_MEDIA_TRANSPORT_STATE_BROADCASTING;
+	if (strcmp(state, "active") == 0)
+		return BLUEZ_MEDIA_TRANSPORT_STATE_ACTIVE;
+	warn("Invalid media transport state: %s", state);
+	return BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
 }
 
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
@@ -453,7 +455,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	struct ba_transport *t = NULL;
 	struct ba_device *d = NULL;
 
-	enum bluez_a2dp_transport_state state = 0xFFFF;
+	enum bluez_media_transport_state state = 0xFFFF;
 	char *device_path = NULL;
 	a2dp_t configuration = { 0 };
 	bool delay_reporting = false;
@@ -505,7 +507,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		}
 		else if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
-			state = bluez_a2dp_transport_state_from_string(g_variant_get_string(value, NULL));
+			state = bluez_media_transport_state_from_string(g_variant_get_string(value, NULL));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
@@ -559,21 +561,21 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	/* Skip volume level initialization in case of A2DP Source
 	 * profile and software volume control. */
 	if (!(t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
-				t->a2dp.pcm.soft_volume)) {
+				t->media.pcm.soft_volume)) {
 
 		int level = ba_transport_pcm_volume_range_to_level(volume, BLUEZ_A2DP_VOLUME_MAX);
 
-		pthread_mutex_lock(&t->a2dp.pcm.mutex);
-		for (size_t i = 0; i < t->a2dp.pcm.channels; i++)
-			ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[i], &level, NULL, NULL);
-		pthread_mutex_unlock(&t->a2dp.pcm.mutex);
+		pthread_mutex_lock(&t->media.pcm.mutex);
+		for (size_t i = 0; i < t->media.pcm.channels; i++)
+			ba_transport_pcm_volume_set(&t->media.pcm.volume[i], &level, NULL, NULL);
+		pthread_mutex_unlock(&t->media.pcm.mutex);
 
 	}
 
-	t->a2dp.bluez_dbus_sep_path = dbus_obj->path;
-	t->a2dp.delay_reporting = delay_reporting;
-	t->a2dp.delay = delay;
-	t->a2dp.volume = volume;
+	t->media.bluez_dbus_sep_path = dbus_obj->path;
+	t->media.delay_reporting = delay_reporting;
+	t->media.delay = delay;
+	t->media.volume = volume;
 
 	debug("%s configured for device %s",
 			ba_transport_debug_name(t),
@@ -581,11 +583,11 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	hexdump("A2DP selected configuration blob",
 			&configuration, sep->config.caps_size);
 	debug("PCM configuration: channels=%u rate=%u",
-			t->a2dp.pcm.channels, t->a2dp.pcm.rate);
+			t->media.pcm.channels, t->media.pcm.rate);
 	debug("Delay reporting: %s",
 			delay_reporting ? "supported" : "unsupported");
 
-	ba_transport_set_a2dp_state(t, state);
+	ba_transport_set_media_state(t, state);
 
 	bluez_dbus_object_data_device_set(dbus_obj, d);
 	dbus_obj->connected = true;
@@ -1504,31 +1506,31 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 		if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
 			const char *state = g_variant_get_string(value, NULL);
-			ba_transport_set_a2dp_state(t, bluez_a2dp_transport_state_from_string(state));
+			ba_transport_set_media_state(t, bluez_media_transport_state_from_string(state));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
-			t->a2dp.delay = g_variant_get_uint16(value);
-			bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_DELAY);
+			t->media.delay = g_variant_get_uint16(value);
+			bluealsa_dbus_pcm_update(&t->media.pcm, BA_DBUS_PCM_UPDATE_DELAY);
 		}
 		else if (strcmp(property, "Volume") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
 			/* received volume is in range [0, 127] */
-			uint16_t volume = t->a2dp.volume = g_variant_get_uint16(value);
+			uint16_t volume = t->media.volume = g_variant_get_uint16(value);
 			if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE &&
-					t->a2dp.pcm.soft_volume)
+					t->media.pcm.soft_volume)
 				debug("Skipping A2DP volume update: %u", volume);
 			else {
 
 				int level = ba_transport_pcm_volume_range_to_level(volume, BLUEZ_A2DP_VOLUME_MAX);
 				debug("Updating A2DP volume: %u [%.2f dB]", volume, 0.01 * level);
 
-				pthread_mutex_lock(&t->a2dp.pcm.mutex);
-				for (size_t i = 0; i < t->a2dp.pcm.channels; i++)
-					ba_transport_pcm_volume_set(&t->a2dp.pcm.volume[i], &level, NULL, NULL);
-				pthread_mutex_unlock(&t->a2dp.pcm.mutex);
+				pthread_mutex_lock(&t->media.pcm.mutex);
+				for (size_t i = 0; i < t->media.pcm.channels; i++)
+					ba_transport_pcm_volume_set(&t->media.pcm.volume[i], &level, NULL, NULL);
+				pthread_mutex_unlock(&t->media.pcm.mutex);
 
-				bluealsa_dbus_pcm_update(&t->a2dp.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
+				bluealsa_dbus_pcm_update(&t->media.pcm, BA_DBUS_PCM_UPDATE_VOLUME);
 
 			}
 		}

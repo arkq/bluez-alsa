@@ -160,7 +160,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	AACENC_InfoStruct info;
 	AACENC_ERROR err;
 
-	const a2dp_aac_t *configuration = &t->a2dp.configuration.aac;
+	const a2dp_aac_t *configuration = &t->media.configuration.aac;
 	const unsigned int bitrate = A2DP_AAC_GET_BITRATE(*configuration);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
@@ -698,20 +698,20 @@ static int a2dp_aac_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_aac_channels,
-					t->a2dp.configuration.aac.channel_mode)) == -1)
+					t->media.configuration.aac.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aac_rates,
-					A2DP_AAC_GET_SAMPLING_FREQ(t->a2dp.configuration.aac))) == -1)
+					A2DP_AAC_GET_SAMPLING_FREQ(t->media.configuration.aac))) == -1)
 		return -1;
 
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
-	t->a2dp.pcm.channels = a2dp_aac_channels[channels_i].value;
-	t->a2dp.pcm.rate = a2dp_aac_rates[rate_i].value;
+	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
+	t->media.pcm.channels = a2dp_aac_channels[channels_i].value;
+	t->media.pcm.rate = a2dp_aac_rates[rate_i].value;
 
-	memcpy(t->a2dp.pcm.channel_map, a2dp_aac_channels[channels_i].ch.map,
-			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
+	memcpy(t->media.pcm.channel_map, a2dp_aac_channels[channels_i].ch.map,
+			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
 	return 0;
 }
@@ -757,7 +757,7 @@ static int a2dp_aac_source_init(struct a2dp_sep *sep) {
 }
 
 static int a2dp_aac_source_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_enc_thread, "ba-a2dp-aac");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_aac_enc_thread, "ba-a2dp-aac");
 }
 
 struct a2dp_sep a2dp_aac_source = {
@@ -842,7 +842,7 @@ static int a2dp_aac_sink_init(struct a2dp_sep *sep) {
 }
 
 static int a2dp_aac_sink_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_aac_dec_thread, "ba-a2dp-aac");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_aac_dec_thread, "ba-a2dp-aac");
 }
 
 struct a2dp_sep a2dp_aac_sink = {

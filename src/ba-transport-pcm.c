@@ -661,10 +661,10 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 				level_sum / (int)pcm->channels, BLUEZ_A2DP_VOLUME_MAX);
 
 		/* skip update if nothing has changed */
-		if (volume != t->a2dp.volume) {
+		if (volume != t->media.volume) {
 
 			GError *err = NULL;
-			t->a2dp.volume = volume;
+			t->media.volume = volume;
 			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
 					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
 
@@ -702,7 +702,7 @@ int ba_transport_pcm_get_hardware_volume(
 	const struct ba_transport *t = pcm->t;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return t->a2dp.volume;
+		return t->media.volume;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 
@@ -734,7 +734,7 @@ int ba_transport_pcm_delay_get(const struct ba_transport_pcm *pcm) {
 	/* Add delay reported by BlueZ but only for A2DP Source profile. In case
 	 * of A2DP Sink, the BlueZ delay value is in fact our client delay. */
 	if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE)
-		delay += t->a2dp.delay;
+		delay += t->media.delay;
 	/* HFP/HSP profiles do not provide any delay information. However, we can
 	 * assume some arbitrary value here - for now it will be 10 ms. */
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG)
@@ -761,11 +761,11 @@ int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int updat
 		delay += pcm->processing_delay_dms;
 		delay += pcm->client_delay_dms;
 
-		if (t->a2dp.delay_reporting &&
-					abs(delay - t->a2dp.delay) >= 100 /* 10ms */) {
+		if (t->media.delay_reporting &&
+					abs(delay - t->media.delay) >= 100 /* 10ms */) {
 
 			GError *err = NULL;
-			t->a2dp.delay = delay;
+			t->media.delay = delay;
 			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
 					BLUEZ_IFACE_MEDIA_TRANSPORT, "Delay", g_variant_new_uint16(delay), &err);
 
@@ -776,7 +776,7 @@ int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int updat
 					 * when the delay write operation fails with "not writable"
 					 * error, we should not try to update the delay report
 					 * value any more. */
-					t->a2dp.delay_reporting = false;
+					t->media.delay_reporting = false;
 				warn("Couldn't set A2DP transport delay: %s", err->message);
 				g_error_free(err);
 			}

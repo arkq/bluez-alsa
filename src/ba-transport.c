@@ -54,11 +54,11 @@
 static int ba_transport_pcms_full_lock(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 		/* lock client mutexes first to avoid deadlock */
-		pthread_mutex_lock(&t->a2dp.pcm.client_mtx);
-		pthread_mutex_lock(&t->a2dp.pcm_bc.client_mtx);
+		pthread_mutex_lock(&t->media.pcm.client_mtx);
+		pthread_mutex_lock(&t->media.pcm_bc.client_mtx);
 		/* lock PCM data mutexes */
-		pthread_mutex_lock(&t->a2dp.pcm.mutex);
-		pthread_mutex_lock(&t->a2dp.pcm_bc.mutex);
+		pthread_mutex_lock(&t->media.pcm.mutex);
+		pthread_mutex_lock(&t->media.pcm_bc.mutex);
 		return 0;
 	}
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
@@ -76,10 +76,10 @@ static int ba_transport_pcms_full_lock(struct ba_transport *t) {
 
 static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		pthread_mutex_unlock(&t->a2dp.pcm.mutex);
-		pthread_mutex_unlock(&t->a2dp.pcm_bc.mutex);
-		pthread_mutex_unlock(&t->a2dp.pcm.client_mtx);
-		pthread_mutex_unlock(&t->a2dp.pcm_bc.client_mtx);
+		pthread_mutex_unlock(&t->media.pcm.mutex);
+		pthread_mutex_unlock(&t->media.pcm_bc.mutex);
+		pthread_mutex_unlock(&t->media.pcm.client_mtx);
+		pthread_mutex_unlock(&t->media.pcm_bc.client_mtx);
 		return 0;
 	}
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
@@ -96,8 +96,8 @@ static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
 static void transport_threads_cancel(struct ba_transport *t) {
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		ba_transport_pcm_stop(&t->a2dp.pcm);
-		ba_transport_pcm_stop(&t->a2dp.pcm_bc);
+		ba_transport_pcm_stop(&t->media.pcm);
+		ba_transport_pcm_stop(&t->media.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		ba_transport_pcm_stop(&t->sco.pcm_spk);
@@ -130,7 +130,7 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 		if (t->profile & BA_TRANSPORT_PROFILE_A2DP_SOURCE) {
 			/* Release bidirectional A2DP transport only in case when there
 			 * is no active PCM connection - neither encoder nor decoder. */
-			if (t->a2dp.pcm.fd == -1 && t->a2dp.pcm_bc.fd == -1)
+			if (t->media.pcm.fd == -1 && t->media.pcm_bc.fd == -1)
 				t->stopping = stop = true;
 		}
 		else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG) {
@@ -148,8 +148,8 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 	if (stop) {
 		debug("Stopping transport: %s", "No PCM clients");
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-			ba_transport_pcm_state_set_stopping(&t->a2dp.pcm);
-			ba_transport_pcm_state_set_stopping(&t->a2dp.pcm_bc);
+			ba_transport_pcm_state_set_stopping(&t->media.pcm);
+			ba_transport_pcm_state_set_stopping(&t->media.pcm_bc);
 		}
 		else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 			ba_transport_pcm_state_set_stopping(&t->sco.pcm_spk);
@@ -288,7 +288,7 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
 			t->bluez_dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
-			t->a2dp.state == BLUEZ_A2DP_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
+			t->media.state == BLUEZ_MEDIA_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
@@ -314,7 +314,7 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) == -1)
 		warn("Couldn't set socket output buffer size: %s", strerror(errno));
 
-	if (ioctl(fd, TIOCOUTQ, &t->a2dp.bt_fd_coutq_init) == -1)
+	if (ioctl(fd, TIOCOUTQ, &t->media.bt_fd_coutq_init) == -1)
 		warn("Couldn't get socket queued bytes: %s", strerror(errno));
 
 	debug("New A2DP transport: %d", fd);
@@ -341,7 +341,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the BlueZ. In both cases there is no point in a explicit
 	 * release request. It might even return error (e.g. not authorized). */
-	if (t->a2dp.state != BLUEZ_A2DP_TRANSPORT_STATE_IDLE &&
+	if (t->media.state != BLUEZ_MEDIA_TRANSPORT_STATE_IDLE &&
 			t->bluez_dbus_owner != NULL) {
 
 		debug("Releasing A2DP transport: %d", t->bt_fd);
@@ -372,8 +372,8 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 			 * We have to wait for the state change here, because otherwise we
 			 * might receive this state change signal in the middle of transport
 			 * acquisition, which would lead us to an undefined state. */
-			while (t->a2dp.state != BLUEZ_A2DP_TRANSPORT_STATE_IDLE)
-				pthread_cond_wait(&t->a2dp.state_changed_cond, &t->bt_fd_mtx);
+			while (t->media.state != BLUEZ_MEDIA_TRANSPORT_STATE_IDLE)
+				pthread_cond_wait(&t->media.state_changed_cond, &t->bt_fd_mtx);
 
 		}
 
@@ -416,20 +416,20 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->profile = profile;
 	t->codec_id = sep->config.codec_id;
 
-	pthread_cond_init(&t->a2dp.state_changed_cond, NULL);
-	t->a2dp.state = BLUEZ_A2DP_TRANSPORT_STATE_IDLE;
+	pthread_cond_init(&t->media.state_changed_cond, NULL);
+	t->media.state = BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
 
-	t->a2dp.sep = sep;
-	memcpy(&t->a2dp.configuration, configuration, sep->config.caps_size);
+	t->media.sep = sep;
+	memcpy(&t->media.configuration, configuration, sep->config.caps_size);
 
 	t->acquire = transport_acquire_bt_a2dp;
 	t->release = transport_release_bt_a2dp;
 
-	err |= transport_pcm_init(&t->a2dp.pcm,
+	err |= transport_pcm_init(&t->media.pcm,
 			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
 			t, true);
 
-	err |= transport_pcm_init(&t->a2dp.pcm_bc,
+	err |= transport_pcm_init(&t->media.pcm_bc,
 			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
 			t, false);
 
@@ -448,13 +448,13 @@ struct ba_transport *ba_transport_new_a2dp(
 		goto fail;
 	}
 
-	storage_pcm_data_sync(&t->a2dp.pcm);
-	storage_pcm_data_sync(&t->a2dp.pcm_bc);
+	storage_pcm_data_sync(&t->media.pcm);
+	storage_pcm_data_sync(&t->media.pcm_bc);
 
-	if (t->a2dp.pcm.channels > 0)
-		bluealsa_dbus_pcm_register(&t->a2dp.pcm);
-	if (t->a2dp.pcm_bc.channels > 0)
-		bluealsa_dbus_pcm_register(&t->a2dp.pcm_bc);
+	if (t->media.pcm.channels > 0)
+		bluealsa_dbus_pcm_register(&t->media.pcm);
+	if (t->media.pcm_bc.channels > 0)
+		bluealsa_dbus_pcm_register(&t->media.pcm_bc);
 
 	return t;
 
@@ -703,7 +703,7 @@ const char *ba_transport_debug_name(
 		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		return t->a2dp.sep->name;
+		return t->media.sep->name;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		switch (t->codec_id) {
 		case HFP_CODEC_UNDEFINED:
@@ -773,11 +773,11 @@ void ba_transport_destroy(struct ba_transport *t) {
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm);
-		bluealsa_dbus_pcm_unregister(&t->a2dp.pcm_bc);
+		bluealsa_dbus_pcm_unregister(&t->media.pcm);
+		bluealsa_dbus_pcm_unregister(&t->media.pcm_bc);
 		/* Make sure that the transport A2DP state is set to idle
 		 * prior to stopping the IO threads. */
-		ba_transport_set_a2dp_state(t, BLUEZ_A2DP_TRANSPORT_STATE_IDLE);
+		ba_transport_set_media_state(t, BLUEZ_MEDIA_TRANSPORT_STATE_IDLE);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		bluealsa_dbus_pcm_unregister(&t->sco.pcm_spk);
@@ -794,8 +794,8 @@ void ba_transport_destroy(struct ba_transport *t) {
 
 	/* terminate on-going PCM connections - exit PCM controllers */
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		ba_transport_pcm_release(&t->a2dp.pcm);
-		ba_transport_pcm_release(&t->a2dp.pcm_bc);
+		ba_transport_pcm_release(&t->media.pcm);
+		ba_transport_pcm_release(&t->media.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		ba_transport_pcm_release(&t->sco.pcm_spk);
@@ -831,8 +831,8 @@ void ba_transport_unref(struct ba_transport *t) {
 		close(t->bt_fd);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		storage_pcm_data_update(&t->a2dp.pcm);
-		storage_pcm_data_update(&t->a2dp.pcm_bc);
+		storage_pcm_data_update(&t->media.pcm);
+		storage_pcm_data_update(&t->media.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		storage_pcm_data_update(&t->sco.pcm_spk);
@@ -850,8 +850,8 @@ void ba_transport_unref(struct ba_transport *t) {
 	 * manager to terminate. But the manager will not terminate, because it is
 	 * waiting for a transport thread to terminate - which is us... */
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->a2dp.pcm), ==, true);
-		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->a2dp.pcm_bc), ==, true);
+		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->media.pcm), ==, true);
+		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->media.pcm_bc), ==, true);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->sco.pcm_spk), ==, true);
@@ -865,9 +865,9 @@ void ba_transport_unref(struct ba_transport *t) {
 	}
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		transport_pcm_free(&t->a2dp.pcm);
-		transport_pcm_free(&t->a2dp.pcm_bc);
-		pthread_cond_destroy(&t->a2dp.state_changed_cond);
+		transport_pcm_free(&t->media.pcm);
+		transport_pcm_free(&t->media.pcm_bc);
+		pthread_cond_destroy(&t->media.state_changed_cond);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		if (t->sco.rfcomm != NULL)
@@ -914,7 +914,7 @@ int ba_transport_select_codec_a2dp(
 
 	/* the same codec with the same configuration already selected */
 	if (remote_sep_cfg->codec_id == t->codec_id &&
-			memcmp(configuration, &t->a2dp.configuration, remote_sep_cfg->caps_size) == 0)
+			memcmp(configuration, &t->media.configuration, remote_sep_cfg->caps_size) == 0)
 		goto final;
 
 	/* A2DP codec selection is in fact a transport recreation - new transport
@@ -922,11 +922,11 @@ int ba_transport_select_codec_a2dp(
 	 * the storage is updated only when the transport is released, we need to
 	 * update it manually here. Otherwise, new transport might be created with
 	 * stale storage data. */
-	storage_pcm_data_update(&t->a2dp.pcm);
-	storage_pcm_data_update(&t->a2dp.pcm_bc);
+	storage_pcm_data_update(&t->media.pcm);
+	storage_pcm_data_update(&t->media.pcm_bc);
 
 	GError *err = NULL;
-	if (!bluez_a2dp_set_configuration(t->a2dp.bluez_dbus_sep_path,
+	if (!bluez_a2dp_set_configuration(t->media.bluez_dbus_sep_path,
 				remote_sep_cfg, configuration, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
 		g_error_free(err);
@@ -1035,7 +1035,7 @@ void ba_transport_set_codec(
 		return;
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		t->a2dp.sep->transport_init(t);
+		t->media.sep->transport_init(t);
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		sco_transport_init(t);
 
@@ -1069,8 +1069,8 @@ int ba_transport_start(struct ba_transport *t) {
 
 	bool is_enc_idle = false, is_dec_idle = false;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		is_enc_idle = ba_transport_pcm_state_check_idle(&t->a2dp.pcm);
-		is_dec_idle = ba_transport_pcm_state_check_idle(&t->a2dp.pcm_bc);
+		is_enc_idle = ba_transport_pcm_state_check_idle(&t->media.pcm);
+		is_dec_idle = ba_transport_pcm_state_check_idle(&t->media.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		is_enc_idle = ba_transport_pcm_state_check_idle(&t->sco.pcm_spk);
@@ -1086,7 +1086,7 @@ int ba_transport_start(struct ba_transport *t) {
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return t->a2dp.sep->transport_start(t);
+		return t->media.sep->transport_start(t);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
 		return sco_transport_start(t);
@@ -1108,8 +1108,8 @@ int ba_transport_stop(struct ba_transport *t) {
 #endif
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		if (ba_transport_pcm_state_check_terminated(&t->a2dp.pcm) &&
-				ba_transport_pcm_state_check_terminated(&t->a2dp.pcm_bc))
+		if (ba_transport_pcm_state_check_terminated(&t->media.pcm) &&
+				ba_transport_pcm_state_check_terminated(&t->media.pcm_bc))
 			return 0;
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
@@ -1155,8 +1155,8 @@ int ba_transport_stop_async(struct ba_transport *t) {
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-		ba_transport_pcm_state_set_stopping(&t->a2dp.pcm);
-		ba_transport_pcm_state_set_stopping(&t->a2dp.pcm_bc);
+		ba_transport_pcm_state_set_stopping(&t->media.pcm);
+		ba_transport_pcm_state_set_stopping(&t->media.pcm_bc);
 	}
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 		ba_transport_pcm_state_set_stopping(&t->sco.pcm_spk);
@@ -1218,8 +1218,8 @@ final:
 	if (acquired) {
 
 		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
-			ba_transport_pcm_state_set_idle(&t->a2dp.pcm);
-			ba_transport_pcm_state_set_idle(&t->a2dp.pcm_bc);
+			ba_transport_pcm_state_set_idle(&t->media.pcm);
+			ba_transport_pcm_state_set_idle(&t->media.pcm_bc);
 		}
 		else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
 			ba_transport_pcm_state_set_idle(&t->sco.pcm_spk);
@@ -1266,23 +1266,25 @@ final:
 	return ret;
 }
 
-int ba_transport_set_a2dp_state(
+int ba_transport_set_media_state(
 		struct ba_transport *t,
-		enum bluez_a2dp_transport_state state) {
+		enum bluez_media_transport_state state) {
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
 
-	bool changed = t->a2dp.state != state;
-	t->a2dp.state = state;
+	bool changed = t->media.state != state;
+	t->media.state = state;
 
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
 	if (changed) {
 
-		pthread_cond_signal(&t->a2dp.state_changed_cond);
+		pthread_cond_signal(&t->media.state_changed_cond);
 
 		switch (state) {
-		case BLUEZ_A2DP_TRANSPORT_STATE_PENDING:
+		case BLUEZ_MEDIA_TRANSPORT_STATE_IDLE:
+			return ba_transport_stop(t);
+		case BLUEZ_MEDIA_TRANSPORT_STATE_PENDING:
 			/* When transport is marked as pending, try to acquire transport,
 			 * but only if we are handing A2DP sink profile. For source profile,
 			 * transport has to be acquired by our controller (during the PCM
@@ -1290,10 +1292,10 @@ int ba_transport_set_a2dp_state(
 			if (t->profile == BA_TRANSPORT_PROFILE_A2DP_SINK)
 				return ba_transport_acquire(t);
 			return 0;
-		case BLUEZ_A2DP_TRANSPORT_STATE_ACTIVE:
+		case BLUEZ_MEDIA_TRANSPORT_STATE_BROADCASTING:
+			return -1;
+		case BLUEZ_MEDIA_TRANSPORT_STATE_ACTIVE:
 			return ba_transport_start(t);
-		case BLUEZ_A2DP_TRANSPORT_STATE_IDLE:
-			return ba_transport_stop(t);
 		}
 
 	}

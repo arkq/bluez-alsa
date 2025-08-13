@@ -275,8 +275,8 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->a2dp.configuration,
-				t->a2dp.sep->config.caps_size, sizeof(uint8_t));
+		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->media.configuration,
+				t->media.sep->config.caps_size, sizeof(uint8_t));
 	return NULL;
 }
 
@@ -591,8 +591,8 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
 
 		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
-		const enum a2dp_type pcm_sep_type = t->a2dp.sep->config.type;
-		const enum a2dp_stream pcm_sep_stream = &t->a2dp.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
+		const enum a2dp_type pcm_sep_type = t->media.sep->config.type;
+		const enum a2dp_stream pcm_sep_stream = &t->media.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 
 		for (size_t i = 0; sep_cfgs != NULL && i < sep_cfgs->len; i++) {
 			const struct a2dp_sep_config *remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
@@ -776,8 +776,8 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		}
 
 		uint32_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
-		const enum a2dp_type pcm_sep_type = t->a2dp.sep->config.type;
-		const enum a2dp_stream pcm_sep_stream = &t->a2dp.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
+		const enum a2dp_type pcm_sep_type = t->media.sep->config.type;
+		const enum a2dp_stream pcm_sep_stream = &t->media.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 		struct a2dp_sep_config *remote_sep_cfg = NULL;
 		const GArray *sep_cfgs = t->d->sep_configs;
 

@@ -135,7 +135,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
-	const a2dp_ldac_t *configuration = &t->a2dp.configuration.ldac;
+	const a2dp_ldac_t *configuration = &t->media.configuration.ldac;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
@@ -234,7 +234,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 				 * socket output buffer. */
 				int queued_bytes = 0;
 				if (ioctl(t->bt_fd, TIOCOUTQ, &queued_bytes) != -1)
-					queued_bytes = abs(t->a2dp.bt_fd_coutq_init - queued_bytes);
+					queued_bytes = abs(t->media.bt_fd_coutq_init - queued_bytes);
 
 				errno = 0;
 
@@ -311,7 +311,7 @@ void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
 
-	const a2dp_ldac_t *configuration = &t->a2dp.configuration.ldac;
+	const a2dp_ldac_t *configuration = &t->media.configuration.ldac;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
@@ -461,22 +461,22 @@ static int a2dp_ldac_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_ldac_channels,
-					t->a2dp.configuration.ldac.channel_mode)) == -1)
+					t->media.configuration.ldac.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_ldac_rates,
-					t->a2dp.configuration.ldac.sampling_freq)) == -1)
+					t->media.configuration.ldac.sampling_freq)) == -1)
 		return -1;
 
 	/* LDAC library internally for encoding uses 31-bit integers or
 	 * floats, so the best choice for PCM sample is signed 32-bit. */
-	t->a2dp.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
-	t->a2dp.pcm.channels = a2dp_ldac_channels[channels_i].value;
-	t->a2dp.pcm.rate = a2dp_ldac_rates[rate_i].value;
+	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S32_4LE;
+	t->media.pcm.channels = a2dp_ldac_channels[channels_i].value;
+	t->media.pcm.rate = a2dp_ldac_rates[rate_i].value;
 
-	memcpy(t->a2dp.pcm.channel_map, a2dp_ldac_channels[channels_i].ch.map,
-			t->a2dp.pcm.channels * sizeof(*t->a2dp.pcm.channel_map));
+	memcpy(t->media.pcm.channel_map, a2dp_ldac_channels[channels_i].ch.map,
+			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
 	return 0;
 }
@@ -490,7 +490,7 @@ static int a2dp_ldac_source_init(struct a2dp_sep *sep) {
 }
 
 static int a2dp_ldac_source_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_enc_thread, "ba-a2dp-ldac");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_ldac_enc_thread, "ba-a2dp-ldac");
 }
 
 struct a2dp_sep a2dp_ldac_source = {
@@ -525,7 +525,7 @@ struct a2dp_sep a2dp_ldac_source = {
 #if HAVE_LDAC_DECODE
 
 static int a2dp_ldac_sink_transport_start(struct ba_transport *t) {
-	return ba_transport_pcm_start(&t->a2dp.pcm, a2dp_ldac_dec_thread, "ba-a2dp-ldac");
+	return ba_transport_pcm_start(&t->media.pcm, a2dp_ldac_dec_thread, "ba-a2dp-ldac");
 }
 
 struct a2dp_sep a2dp_ldac_sink = {
