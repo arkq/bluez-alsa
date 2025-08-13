@@ -716,7 +716,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	struct ba_transport_pcm *pcm = userdata;
 	struct ba_transport *t = pcm->t;
 	GVariantIter *properties;
-	GVariant *value = NULL;
+	GVariant *value;
 	const char *errmsg = NULL;
 	const char *codec_name;
 	const char *property;
@@ -765,7 +765,6 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		}
 
 		g_variant_unref(value);
-		value = NULL;
 	}
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
@@ -867,8 +866,6 @@ fail:
 final:
 	pthread_mutex_unlock(&t->codec_select_client_mtx);
 	g_variant_iter_free(properties);
-	if (value != NULL)
-		g_variant_unref(value);
 }
 
 static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {

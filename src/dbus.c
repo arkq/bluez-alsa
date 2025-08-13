@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -170,19 +170,19 @@ bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
  * Get managed objects of a given D-Bus service.
  *
  * @param conn D-Bus connection handler.
- * @param name The name of known D-Bus service.
- * @param path The path which shall be inspected.
+ * @param service Valid D-Bus service name.
+ * @param path Valid D-Bus object path.
  * @param error NULL GError pointer.
  * @return On success this function returns variant iterator with the list of
  *   managed D-Bus objects. After usage, the returned iterator shall be freed
  *   with g_variant_iter_free(). On error, NULL is returned. */
-GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
-		const char *name, const char *path, GError **error) {
+GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn, const char *service,
+		const char *path, GError **error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GVariantIter *objects = NULL;
 
-	msg = g_dbus_message_new_method_call(name, path,
+	msg = g_dbus_message_new_method_call(service, path,
 			DBUS_IFACE_OBJECT_MANAGER, "GetManagedObjects");
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
@@ -200,6 +200,43 @@ fail:
 		g_object_unref(rep);
 
 	return objects;
+}
+
+/**
+ * Get all properties of a given D-Bus interface.
+ *
+ * @param conn D-Bus connection handler.
+ * @param service Valid D-Bus service name.
+ * @param path Valid D-Bus object path.
+ * @param interface Interface for which properties shall be retrieved.
+ * @param error NULL GError pointer.
+ * @return On success this function returns variant iterator with the list of
+ *	 all properties of the given interface. After usage, the returned iterator
+ *   shall be freed with g_variant_iter_free(). On error, NULL is returned. */
+GVariantIter *g_dbus_get_properties(GDBusConnection *conn, const char *service,
+		const char *path, const char *interface, GError **error) {
+
+	GDBusMessage *msg = NULL, *rep = NULL;
+	GVariantIter *properties = NULL;
+
+	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "GetAll");
+	g_dbus_message_set_body(msg, g_variant_new("(s)", interface));
+
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
+			g_dbus_message_to_gerror(rep, error))
+		goto fail;
+
+	g_variant_get(g_dbus_message_get_body(rep), "(a{sv})", &properties);
+
+fail:
+
+	if (msg != NULL)
+		g_object_unref(msg);
+	if (rep != NULL)
+		g_object_unref(rep);
+
+	return properties;
 }
 
 /**

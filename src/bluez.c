@@ -540,8 +540,10 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		goto fail;
 	}
 
-	if (d->sep_configs == NULL)
-		d->sep_configs = bluez_adapter_get_device_sep_configs(&bluez_adapters[a->hci.dev_id], &addr);
+	if (d->sep_configs == NULL) {
+		struct bluez_adapter *b_adapter = &bluez_adapters[a->hci.dev_id];
+		d->sep_configs = bluez_adapter_get_device_sep_configs(b_adapter, &addr);
+	}
 
 	if ((t = ba_transport_lookup(d, transport_path)) != NULL) {
 		error("Transport already configured: %s", transport_path);
@@ -1168,6 +1170,59 @@ static void bluez_register_hfp_all(void) {
 				0x0109 /* HFP 1.9 */, ba_config_get_hfp_sdp_features_ag());
 }
 
+static void bluez_media_endpoint_process_a2dp(
+		struct bluez_adapter *b_adapter,
+		const char *media_endpoint_path,
+		GVariantIter *properties,
+		enum a2dp_type type) {
+
+	struct a2dp_sep_config sep_cfg = { .type = type };
+	const char *property;
+	GVariant *value;
+
+	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+		if (strcmp(property, "Codec") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property))
+			sep_cfg.codec_id = g_variant_get_byte(value);
+		else if (strcmp(property, "Capabilities") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property)) {
+
+			const void *data = g_variant_get_fixed_array(value,
+					&sep_cfg.caps_size, sizeof(char));
+
+			if (sep_cfg.caps_size > sizeof(sep_cfg.capabilities)) {
+				warn("Capabilities blob size exceeded: %zu > %zu",
+						sep_cfg.caps_size, sizeof(sep_cfg.capabilities));
+				sep_cfg.caps_size = sizeof(sep_cfg.capabilities);
+			}
+
+			memcpy(&sep_cfg.capabilities, data, sep_cfg.caps_size);
+
+		}
+		g_variant_unref(value);
+	}
+
+	bdaddr_t addr;
+	g_dbus_bluez_object_path_to_bdaddr(media_endpoint_path, &addr);
+
+	strncpy(sep_cfg.bluez_dbus_path, media_endpoint_path, sizeof(sep_cfg.bluez_dbus_path) - 1);
+	if (sep_cfg.codec_id == A2DP_CODEC_VENDOR)
+		sep_cfg.codec_id = a2dp_get_vendor_codec_id(&sep_cfg.capabilities, sep_cfg.caps_size);
+
+	debug("Adding new Stream End-Point: %s: %s: %s",
+			batostr_(&addr), sep_cfg.type == A2DP_SOURCE ? "SRC" : "SNK",
+			a2dp_codecs_codec_id_to_string(sep_cfg.codec_id));
+	hexdump("SEP capabilities blob", &sep_cfg.capabilities, sep_cfg.caps_size);
+
+	GArray *sep_cfgs = bluez_adapter_get_device_sep_configs(b_adapter, &addr);
+	g_array_append_val(sep_cfgs, sep_cfg);
+
+	/* Collected SEPs are exposed via BlueALSA D-Bus API. We will sort them
+	 * here, so the D-Bus API will return codecs in the defined order. */
+	g_array_sort(sep_cfgs, (GCompareFunc)a2dp_sep_config_cmp);
+
+}
+
 /**
  * Register to the BlueZ service. */
 static void bluez_register(void) {
@@ -1200,10 +1255,7 @@ static void bluez_register(void) {
 		return;
 	}
 
-	bool adapters[HCI_MAX_DEV] = { 0 };
-	unsigned int adapters_profiles[HCI_MAX_DEV] = { 0 };
 	unsigned int profiles = 0;
-
 	GVariantIter *interfaces;
 	GVariantIter *properties;
 	GVariant *value;
@@ -1212,32 +1264,45 @@ static void bluez_register(void) {
 	const char *property;
 
 	while (g_variant_iter_next(objects, "{&oa{sa{sv}}}", &object_path, &interfaces)) {
+		const int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 		while (g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
 			if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
 
-				int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
-				unsigned int adapter_profiles = 0;
+				unsigned int a_profiles = 0;
 				bool valid = false;
 
 				while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
-					if (strcmp(property, "Address") == 0)
-						/* check if adapter as valid for registration */
+					if (strcmp(property, "Address") == 0 &&
+							g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property))
+						/* Check if adapter as valid for registration. */
 						valid = bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL));
-					else if (strcmp(property, "UUIDs") == 0) {
+					else if (strcmp(property, "UUIDs") == 0 &&
+							g_variant_validate_value(value, G_VARIANT_TYPE_STRING_ARRAY, property)) {
 						const char **value_uuids = g_variant_get_strv(value, NULL);
-						/* map UUIDs to BlueALSA transport profile mask */
+						/* Map UUIDs to BlueALSA transport profile mask. */
 						for (size_t i = 0; value_uuids[i] != NULL; i++)
 							for (size_t ii = 0; ii < ARRAYSIZE(uuids); ii++)
 								if (strcasecmp(value_uuids[i], uuids[ii].uuid) == 0)
-									adapter_profiles |= uuids[ii].profile;
+									a_profiles |= uuids[ii].profile;
 						g_free(value_uuids);
 					}
 					g_variant_unref(value);
 				}
 
-				adapters[hci_dev_id] = valid;
-				adapters_profiles[hci_dev_id] = adapter_profiles;
-				profiles |= adapter_profiles;
+				profiles |= a_profiles;
+
+				struct ba_adapter *a;
+				if (valid && (
+						(a = ba_adapter_lookup(hci_dev_id)) != NULL ||
+						(a = ba_adapter_new(hci_dev_id)) != NULL)) {
+
+					for (size_t i = 0; i < ARRAYSIZE(uuids); i++)
+						if (uuids[i].enabled && !uuids[i].global && a_profiles & uuids[i].profile)
+							warn("UUID already registered in BlueZ [%s]: %s", a->hci.name, uuids[i].uuid);
+
+					bluez_adapter_new(a);
+
+				}
 
 			}
 			g_variant_iter_free(properties);
@@ -1246,25 +1311,11 @@ static void bluez_register(void) {
 	}
 	g_variant_iter_free(objects);
 
-	struct ba_adapter *a;
-	for (size_t i = 0; i < ARRAYSIZE(adapters); i++)
-		if (adapters[i] && (
-				(a = ba_adapter_lookup(i)) != NULL ||
-				(a = ba_adapter_new(i)) != NULL)) {
+	for (size_t i = 0; i < ARRAYSIZE(uuids); i++)
+		if (uuids[i].enabled && uuids[i].global && profiles & uuids[i].profile)
+			warn("UUID already registered in BlueZ: %s", uuids[i].uuid);
 
-			for (size_t ii = 0; ii < ARRAYSIZE(uuids); ii++)
-				if (uuids[ii].enabled && !uuids[ii].global && adapters_profiles[i] & uuids[ii].profile)
-					warn("UUID already registered in BlueZ [%s]: %s", a->hci.name, uuids[ii].uuid);
-
-			bluez_adapter_new(a);
-
-		}
-
-	for (size_t ii = 0; ii < ARRAYSIZE(uuids); ii++)
-		if (uuids[ii].enabled && uuids[ii].global && profiles & uuids[ii].profile)
-			warn("UUID already registered in BlueZ: %s", uuids[ii].uuid);
-
-	/* HFP has to be registered globally */
+	/* HFP has to be registered globally. */
 	bluez_register_hfp_all();
 
 }
@@ -1286,57 +1337,50 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	const char *interface;
 	const char *property;
 
-	int hci_dev_id = -1;
-	struct a2dp_sep_config sep_cfg = {
-		.type = A2DP_SOURCE,
-		.codec_id = 0xFFFFFFFF,
-	};
-
 	g_variant_get(params, "(&oa{sa{sv}})", &object_path, &interfaces);
 	debug("Signal: %s.%s(%s, ...)", interface_, signal, object_path);
 
+	const int hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
 	while (g_variant_iter_next(interfaces, "{&sa{sv}}", &interface, &properties)) {
 		if (strcmp(interface, BLUEZ_IFACE_ADAPTER) == 0) {
 			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 				if (strcmp(property, "Address") == 0 &&
-						/* make sure that this new BT adapter matches our HCI filter */
-						bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL)))
-					hci_dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
+						g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property) &&
+						/* Make sure that this new BT adapter matches our HCI filter. */
+						bluez_match_dbus_adapter(object_path, g_variant_get_string(value, NULL))) {
+
+					struct ba_adapter *a;
+					if ((a = ba_adapter_lookup(hci_dev_id)) != NULL ||
+							(a = ba_adapter_new(hci_dev_id)) != NULL) {
+						bluez_adapter_new(a);
+					}
+
+				}
 				g_variant_unref(value);
 			}
 		}
-		else if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0) {
+		else {
 
-			/* Check whether this new media endpoint interface was added in the HCI
-			 * which exists in our local BlueZ adapter cache - HCI that matches our
-			 * HCI filter. */
-			int dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
-			if (dev_id == -1 || bluez_adapters[dev_id].adapter == NULL)
+			/* Check whether this new interface was added on the HCI which exists
+			 * in our local BlueZ adapter cache - HCI that matches our HCI filter. */
+			struct bluez_adapter *b_adapter = &bluez_adapters[hci_dev_id];
+			if (b_adapter->adapter == NULL)
 				continue;
 
-			while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
-				if (strcmp(property, "UUID") == 0) {
-					const char *uuid = g_variant_get_string(value, NULL);
-					if (strcasecmp(uuid, BT_UUID_A2DP_SINK) == 0)
-						sep_cfg.type = A2DP_SINK;
-				}
-				else if (strcmp(property, "Codec") == 0)
-					sep_cfg.codec_id = g_variant_get_byte(value);
-				else if (strcmp(property, "Capabilities") == 0) {
-
-					const void *data = g_variant_get_fixed_array(value,
-							&sep_cfg.caps_size, sizeof(char));
-
-					if (sep_cfg.caps_size > sizeof(sep_cfg.capabilities)) {
-						warn("Capabilities blob size exceeded: %zu > %zu",
-								sep_cfg.caps_size, sizeof(sep_cfg.capabilities));
-						sep_cfg.caps_size = sizeof(sep_cfg.capabilities);
+			if (strcmp(interface, BLUEZ_IFACE_MEDIA_ENDPOINT) == 0) {
+				bool processed = false;
+				while (!processed && g_variant_iter_next(properties, "{&sv}", &property, &value)) {
+					if (strcmp(property, "UUID") == 0 &&
+							g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
+						const char *uuid = g_variant_get_string(value, NULL);
+						if (strcasecmp(uuid, BT_UUID_A2DP_SOURCE) == 0)
+							bluez_media_endpoint_process_a2dp(b_adapter, object_path, properties, A2DP_SOURCE);
+						else if (strcasecmp(uuid, BT_UUID_A2DP_SINK) == 0)
+							bluez_media_endpoint_process_a2dp(b_adapter, object_path, properties, A2DP_SINK);
+						processed = true;
 					}
-
-					memcpy(&sep_cfg.capabilities, data, sep_cfg.caps_size);
-
+					g_variant_unref(value);
 				}
-				g_variant_unref(value);
 			}
 
 		}
@@ -1344,39 +1388,9 @@ static void bluez_signal_interfaces_added(GDBusConnection *conn, const char *sen
 	}
 	g_variant_iter_free(interfaces);
 
-	struct ba_adapter *a;
-	if (hci_dev_id != -1 && (
-			(a = ba_adapter_lookup(hci_dev_id)) != NULL ||
-			(a = ba_adapter_new(hci_dev_id)) != NULL)) {
-		bluez_adapter_new(a);
-	}
-
-	/* HFP has to be registered globally */
-	if (strcmp(object_path, "/org/bluez") == 0)
+	/* HFP has to be registered globally. */
+	if (strcmp(object_path, "/org/bluez") == 0) {
 		bluez_register_hfp_all();
-
-	if (sep_cfg.codec_id != 0xFFFFFFFF) {
-
-		bdaddr_t addr;
-		g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
-		int dev_id = g_dbus_bluez_object_path_to_hci_dev_id(object_path);
-
-		strncpy(sep_cfg.bluez_dbus_path, object_path, sizeof(sep_cfg.bluez_dbus_path) - 1);
-		if (sep_cfg.codec_id == A2DP_CODEC_VENDOR)
-			sep_cfg.codec_id = a2dp_get_vendor_codec_id(&sep_cfg.capabilities, sep_cfg.caps_size);
-
-		debug("Adding new Stream End-Point: %s: %s: %s",
-				batostr_(&addr), sep_cfg.type == A2DP_SOURCE ? "SRC" : "SNK",
-				a2dp_codecs_codec_id_to_string(sep_cfg.codec_id));
-		hexdump("SEP capabilities blob", &sep_cfg.capabilities, sep_cfg.caps_size);
-
-		GArray *sep_cfgs = bluez_adapter_get_device_sep_configs(&bluez_adapters[dev_id], &addr);
-		g_array_append_val(sep_cfgs, sep_cfg);
-
-		/* Collected SEPs are exposed via BlueALSA D-Bus API. We will sort them
-		 * here, so the D-Bus API will return codecs in the defined order. */
-		g_array_sort(sep_cfgs, (GCompareFunc)a2dp_sep_config_cmp);
-
 	}
 
 }
@@ -1427,7 +1441,8 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 
 			bdaddr_t addr;
 			g_dbus_bluez_object_path_to_bdaddr(object_path, &addr);
-			GArray *sep_cfgs = bluez_adapter_get_device_sep_configs(&bluez_adapters[hci_dev_id], &addr);
+			struct bluez_adapter *b_adapter = &bluez_adapters[hci_dev_id];
+			GArray *sep_cfgs = bluez_adapter_get_device_sep_configs(b_adapter, &addr);
 
 			for (size_t i = 0; i < sep_cfgs->len; i++) {
 				const struct a2dp_sep_config *sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ofono.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  * Copyright (c) 2018 Thierry Bultel
  *
  * This file is a part of bluez-alsa.
@@ -344,15 +344,18 @@ static int ofono_card_link_modem(struct ofono_card_data *ocd) {
 		GVariant *value;
 
 		while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
-			if (strcmp(key, "Powered") == 0)
+			if (strcmp(key, "Powered") == 0 &&
+					g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, key))
 				is_powered = g_variant_get_boolean(value);
-			else if (strcmp(key, "Type") == 0) {
+			else if (strcmp(key, "Type") == 0 &&
+					g_variant_validate_value(value, G_VARIANT_TYPE_STRING, key)) {
 				const char *type = g_variant_get_string(value, NULL);
 				if (strcmp(type, OFONO_MODEM_TYPE_HFP) == 0 ||
 						strcmp(type, OFONO_MODEM_TYPE_SAP) == 0)
 					is_bt_device = true;
 			}
-			else if (strcmp(key, "Serial") == 0)
+			else if (strcmp(key, "Serial") == 0 &&
+					g_variant_validate_value(value, G_VARIANT_TYPE_STRING, key))
 				serial = g_variant_get_string(value, NULL);
 			g_variant_unref(value);
 		}
@@ -575,13 +578,16 @@ static void ofono_card_add(const char *dbus_sender, const char *card,
 	int hci_dev_id = -1;
 
 	while (g_variant_iter_next(properties, "{&sv}", &key, &value)) {
-		if (strcmp(key, "RemoteAddress") == 0)
+		if (strcmp(key, "RemoteAddress") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, key))
 			str2ba(g_variant_get_string(value, NULL), &addr_dev);
-		else if (strcmp(key, "LocalAddress") == 0) {
+		else if (strcmp(key, "LocalAddress") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, key)) {
 			str2ba(g_variant_get_string(value, NULL), &addr_hci);
 			hci_dev_id = hci_get_route(&addr_hci);
 		}
-		else if (strcmp(key, "Type") == 0) {
+		else if (strcmp(key, "Type") == 0 &&
+				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, key)) {
 			const char *type = g_variant_get_string(value, NULL);
 			if (strcmp(type, OFONO_AUDIO_CARD_TYPE_AG) == 0)
 				profile = BA_TRANSPORT_PROFILE_HFP_AG;

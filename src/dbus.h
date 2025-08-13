@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -73,8 +73,11 @@ bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
 		const char *path, const char *interface, GVariant *changed,
 		GVariant *invalidated, GError **error);
 
-GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn,
-		const char *name, const char *path, GError **error);
+GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn, const char *service,
+		const char *path, GError **error);
+
+GVariantIter *g_dbus_get_properties(GDBusConnection *conn, const char *service,
+		const char *path, const char *interface, GError **error);
 
 GVariant *g_dbus_get_property(GDBusConnection *conn, const char *service,
 		const char *path, const char *interface, const char *property,
