@@ -1,6 +1,6 @@
 /*
  * test-utils-aplay.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -264,10 +264,18 @@ CK_START_TEST(test_play_mixer_setup) {
 CK_START_TEST(test_play_dbus_signals) {
 
 	struct spawn_process sp_ba_mock;
+	/* Note that this test relies on each instance of the worker thread to
+	 * be given enough time to reach a specific point in its debug output
+	 * before being stopped by a codec change. The time allowed is determined
+	 * by the "fuzzing" parameter. This is naturally racy and therefore
+	 * occasional false negative results may occur. If the fuzzing time is
+	 * increased to reduce the probability of such failures then the output
+	 * buffer size must also be increased accordingly to avoid memory
+	 * overflows. */
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, false,
 				"--timeout=0",
 				"--profile=hfp-ag",
-				"--fuzzing=250",
+				"--fuzzing=500",
 				NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
@@ -279,7 +287,8 @@ CK_START_TEST(test_play_dbus_signals) {
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 1500);
 
-	char output[16384] = "";
+	/* See comment on "fuzzing" parameter above. */
+	char output[32768] = "";
 	ck_assert_int_gt(spawn_read(&sp_ba_aplay, NULL, 0, output, sizeof(output)), 0);
 
 #if ENABLE_HFP_CODEC_SELECTION && DEBUG
