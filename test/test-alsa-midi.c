@@ -1,6 +1,6 @@
 /*
  * test-alsa-midi.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -175,6 +175,14 @@ int main(int argc, char *argv[]) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
+
+	/* snd_seq_event_input() blocks until the event timestamp is reached,
+	 * according to the system clock. The ble_midi_decode() function limits
+	 * the time drift from system clock to 500 ms. So in the worst case,
+	 * with 9 events to process, a total of 4500 ms will pass just blocked
+	 * in calls to snd_seq_event_input(). Added to the total of 2100 ms in
+	 * usleep() calls, this gives a worst-case test time of 6600 ms. */
+	tcase_set_timeout(tc, 8);
 
 	tcase_add_test(tc, test_port);
 	tcase_add_test(tc, test_sequencer);
