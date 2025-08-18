@@ -169,10 +169,10 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
-	int32_t opus_delay_frames = 0;
+	int32_t opus_delay_pcm_frames = 0;
 	/* Get the delay introduced by the encoder. */
-	opus_encoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_frames));
-	t_pcm->codec_delay_dms = opus_delay_frames * 10000 / rate;
+	opus_encoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_pcm_frames));
+	t_pcm->codec_delay_dms = opus_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
@@ -207,7 +207,7 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 		const int16_t *input = pcm.data;
 		size_t input_samples = ffb_len_out(&pcm);
 
-		/* encode and transfer obtained data */
+		/* Encode and transfer obtained data. */
 		while (input_samples >= opus_frame_pcm_samples) {
 
 			ssize_t len;
@@ -304,10 +304,10 @@ void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
-	int32_t opus_delay_frames = 0;
+	int32_t opus_delay_pcm_frames = 0;
 	/* Get the delay introduced by the decoder. */
-	opus_decoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_frames));
-	t_pcm->codec_delay_dms = opus_delay_frames * 10000 / rate;
+	opus_decoder_ctl(opus, OPUS_GET_LOOKAHEAD(&opus_delay_pcm_frames));
+	t_pcm->codec_delay_dms = opus_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	struct rtp_state rtp = { .synced = false };

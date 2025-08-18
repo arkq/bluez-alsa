@@ -145,19 +145,19 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
-	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
+	const size_t sbc_frame_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 
-	if (ffb_init_int16_t(&pcm, sbc_frame_samples * 3) == -1 ||
+	if (ffb_init_int16_t(&pcm, sbc_frame_pcm_samples * 3) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(ENOMEM));
 		goto fail_ffb;
 	}
 
-	const unsigned int sbc_delay_frames = 73;
+	const unsigned int sbc_delay_pcm_frames = 73;
 	/* Get the total delay introduced by the codec. */
-	t_pcm->codec_delay_dms = sbc_delay_frames * 10000 / rate;
+	t_pcm->codec_delay_dms = sbc_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
@@ -183,7 +183,7 @@ void *a2dp_fs_enc_thread(struct ba_transport_pcm *t_pcm) {
 		size_t pcm_frames = 0;
 		size_t sbc_frames = 0;
 
-		while (input_len >= sbc_frame_samples &&
+		while (input_len >= sbc_frame_pcm_samples &&
 				output_len >= sbc_frame_len &&
 				sbc_frames < 3) {
 
@@ -269,7 +269,7 @@ void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm) {
 	}
 
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
-	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
+	const size_t sbc_frame_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 
 	ffb_t bt = { 0 };
 	ffb_t pcm = { 0 };
@@ -277,7 +277,7 @@ void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init_int16_t(&pcm, sbc_frame_samples) == -1 ||
+	if (ffb_init_int16_t(&pcm, sbc_frame_pcm_samples) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;

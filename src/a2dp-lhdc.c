@@ -267,29 +267,29 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_init;
 	}
 
-	const size_t lhdc_ch_samples = lhdcBT_get_block_Size(handle);
-	const size_t lhdc_pcm_samples = lhdc_ch_samples * channels;
+	const size_t lhdc_frame_pcm_frames = lhdcBT_get_block_Size(handle);
+	const size_t lhdc_frame_pcm_samples = lhdc_frame_pcm_frames * channels;
 
 	ffb_t bt = { 0 };
 	ffb_t pcm = { 0 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	int32_t *pcm_ch1 = malloc(lhdc_ch_samples * sizeof(int32_t));
-	int32_t *pcm_ch2 = malloc(lhdc_ch_samples * sizeof(int32_t));
+	int32_t *pcm_ch1 = malloc(lhdc_frame_pcm_frames * sizeof(int32_t));
+	int32_t *pcm_ch2 = malloc(lhdc_frame_pcm_frames * sizeof(int32_t));
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch1);
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch2);
 
-	if (ffb_init_int32_t(&pcm, lhdc_pcm_samples) == -1 ||
+	if (ffb_init_int32_t(&pcm, lhdc_frame_pcm_samples) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1 ||
 			pcm_ch1 == NULL || pcm_ch2 == NULL) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
-	const unsigned int lhdc_delay_frames = 1024;
+	const unsigned int lhdc_delay_pcm_frames = 1024;
 	/* Get the total delay introduced by the codec. */
-	t_pcm->codec_delay_dms = lhdc_delay_frames * 10000 / rate;
+	t_pcm->codec_delay_dms = lhdc_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
@@ -324,14 +324,14 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		ssize_t samples = ffb_len_out(&pcm);
 		size_t input_len = samples;
 
-		/* encode and transfer obtained data */
-		while (input_len >= lhdc_pcm_samples) {
+		/* Encode and transfer obtained data. */
+		while (input_len >= lhdc_frame_pcm_samples) {
 
 			/* anchor for RTP payload */
 			bt.tail = rtp_payload;
 
 			int32_t *pcm_ch_buffers[2] = { pcm_ch1, pcm_ch2 };
-			audio_deinterleave_s24_4le(pcm_ch_buffers, input, channels, lhdc_ch_samples);
+			audio_deinterleave_s24_4le(pcm_ch_buffers, input, channels, lhdc_frame_pcm_frames);
 
 			uint32_t encoded;
 			uint32_t frames;
@@ -342,8 +342,8 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 				break;
 			}
 
-			input += lhdc_pcm_samples;
-			input_len -= lhdc_pcm_samples;
+			input += lhdc_frame_pcm_samples;
+			input_len -= lhdc_frame_pcm_samples;
 			ffb_seek(&bt, encoded);
 
 			if (encoded > 0) {
@@ -387,7 +387,7 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			}
 
-			unsigned int pcm_frames = lhdc_pcm_samples / channels;
+			const size_t pcm_frames = lhdc_frame_pcm_samples / channels;
 			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */

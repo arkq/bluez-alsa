@@ -139,7 +139,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
-	const size_t ldac_pcm_samples = LDACBT_ENC_LSU * channels;
+	const size_t ldac_frame_pcm_samples = LDACBT_ENC_LSU * channels;
 
 	if (ldacBT_init_handle_encode(handle, t->mtu_write, config.ldac_eqmid,
 				configuration->channel_mode, LDACBT_SMPL_FMT_S32, rate) == -1) {
@@ -147,7 +147,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_init;
 	}
 
-	if (ldac_ABR_Init(handle_abr, 1000 * ldac_pcm_samples / channels / rate) == -1) {
+	if (ldac_ABR_Init(handle_abr, 1000 * ldac_frame_pcm_samples / channels / rate) == -1) {
 		error("Couldn't initialize LDAC ABR");
 		goto fail_init;
 	}
@@ -161,15 +161,15 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	if (ffb_init_int32_t(&pcm, ldac_pcm_samples) == -1 ||
+	if (ffb_init_int32_t(&pcm, ldac_frame_pcm_samples) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
-	const unsigned int ldac_delay_frames = 128;
+	const unsigned int ldac_delay_pcm_frames = 128;
 	/* Get the total delay introduced by the codec. */
-	t_pcm->codec_delay_dms = ldac_delay_frames * 10000 / rate;
+	t_pcm->codec_delay_dms = ldac_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
@@ -204,8 +204,8 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 		size_t samples = ffb_len_out(&pcm);
 		size_t input_len = samples;
 
-		/* encode and transfer obtained data */
-		while (input_len >= ldac_pcm_samples) {
+		/* Encode and transfer obtained data. */
+		while (input_len >= ldac_frame_pcm_samples) {
 
 			/* anchor for RTP payload */
 			bt.tail = rtp_payload;
@@ -263,7 +263,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			}
 
-			unsigned int pcm_frames = pcm_samples / channels;
+			const size_t pcm_frames = pcm_samples / channels;
 			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */

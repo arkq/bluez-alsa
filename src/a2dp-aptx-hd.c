@@ -129,12 +129,12 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
-	const size_t aptx_pcm_samples = 4 * channels;
-	const size_t aptx_code_len = 2 * 3 * sizeof(uint8_t);
-	const size_t mtu_write = t->mtu_write;
+	const size_t aptx_frame_len = 2 * 3 * sizeof(uint8_t);
+	const size_t aptx_frame_pcm_samples = 4 * channels;
 
-	if (ffb_init_int32_t(&pcm, aptx_pcm_samples * ((mtu_write - RTP_HEADER_LEN) / aptx_code_len)) == -1 ||
-			ffb_init_uint8_t(&bt, mtu_write) == -1) {
+	const size_t mtu_write_aptx_frames = (t->mtu_write - RTP_HEADER_LEN) / aptx_frame_len;
+	if (ffb_init_int32_t(&pcm, aptx_frame_pcm_samples * mtu_write_aptx_frames) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -165,8 +165,8 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 		const size_t samples = ffb_len_out(&pcm);
 		size_t input_samples = samples;
 
-		/* encode and transfer obtained data */
-		while (input_samples >= aptx_pcm_samples) {
+		/* Encode and transfer obtained data. */
+		while (input_samples >= aptx_frame_pcm_samples) {
 
 			/* anchor for RTP payload */
 			bt.tail = rtp_payload;
@@ -177,7 +177,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 			/* Generate as many apt-X frames as possible to fill the output buffer
 			 * without overflowing it. The size of the output buffer is based on
 			 * the socket MTU, so such a transfer should be most efficient. */
-			while (input_samples >= aptx_pcm_samples && output_len >= aptx_code_len) {
+			while (input_samples >= aptx_frame_pcm_samples && output_len >= aptx_frame_len) {
 
 				size_t encoded = output_len;
 				ssize_t len;
@@ -211,7 +211,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 				io.initiated = true;
 			}
 
-			unsigned int pcm_frames = pcm_samples / channels;
+			const size_t pcm_frames = pcm_samples / channels;
 			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */

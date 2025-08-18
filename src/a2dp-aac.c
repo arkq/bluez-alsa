@@ -281,9 +281,9 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	const unsigned int aac_frame_size = info.inputChannels * info.frameLength;
+	const size_t aac_frame_pcm_samples = info.inputChannels * info.frameLength;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
-	if (ffb_init(&pcm, aac_frame_size, sample_size) == -1 ||
+	if (ffb_init(&pcm, aac_frame_pcm_samples, sample_size) == -1 ||
 			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + info.maxOutBufBytes) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
@@ -397,7 +397,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			}
 
-			unsigned int pcm_frames = out_args.numInSamples / info.inputChannels;
+			const size_t pcm_frames = out_args.numInSamples / info.inputChannels;
 			/* Keep data transfer at a constant bit rate. */
 			asrsync_sync(&io.asrs, pcm_frames);
 			/* move forward RTP timestamp clock */

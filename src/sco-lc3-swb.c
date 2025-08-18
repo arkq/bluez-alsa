@@ -44,8 +44,8 @@ void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm) {
 	lc3_swb_init(&codec);
 
 	/* Get the total delay introduced by the codec. */
-	const ssize_t lc3_swb_delay_frames = lc3_swb_get_delay(&codec);
-	t_pcm->codec_delay_dms = lc3_swb_delay_frames * 10000 / t_pcm->rate;
+	const ssize_t lc3_swb_delay_pcm_frames = lc3_swb_get_delay(&codec);
+	t_pcm->codec_delay_dms = lc3_swb_delay_pcm_frames * 10000 / t_pcm->rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
@@ -65,7 +65,7 @@ void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		/* encode as much PCM data as possible */
+		/* Encode as much PCM data as possible. */
 		while (lc3_swb_encode(&codec) > 0) {
 
 			uint8_t *data = codec.data.data;

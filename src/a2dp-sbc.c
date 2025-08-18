@@ -143,7 +143,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 	pthread_cleanup_push(PTHREAD_CLEANUP(sbc_finish), &sbc);
 
-	const size_t sbc_frame_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
+	const size_t sbc_frame_pcm_samples = sbc_get_codesize(&sbc) / sizeof(int16_t);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 
@@ -163,7 +163,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const size_t mtu_write_payload_len = t->mtu_write - rtp_headers_len;
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 
-	size_t ffb_pcm_len = sbc_frame_samples;
+	size_t ffb_pcm_len = sbc_frame_pcm_samples;
 	if (mtu_write_payload_len / sbc_frame_len > 1)
 		/* account for possible SBC frames packing */
 		ffb_pcm_len *= mtu_write_payload_len / sbc_frame_len;
@@ -178,9 +178,9 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_ffb;
 	}
 
-	const unsigned int sbc_delay_frames = 73;
+	const unsigned int sbc_delay_pcm_frames = 73;
 	/* Get the total delay introduced by the codec. */
-	t_pcm->codec_delay_dms = sbc_delay_frames * 10000 / rate;
+	t_pcm->codec_delay_dms = sbc_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
@@ -224,7 +224,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		/* Generate as many SBC frames as possible, but less than a 4-bit media
 		 * header frame counter can contain. The size of the output buffer is
 		 * based on the socket MTU, so such transfer should be most efficient. */
-		while (input_samples >= sbc_frame_samples &&
+		while (input_samples >= sbc_frame_pcm_samples &&
 				output_len >= sbc_frame_len &&
 				/* do not overflow RTP frame counter */
 				sbc_frames < ((1 << 4) - 1)) {

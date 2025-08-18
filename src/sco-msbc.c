@@ -44,9 +44,9 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_msbc;
 	}
 
-	const unsigned int sbc_delay_frames = 73;
+	const unsigned int sbc_delay_pcm_frames = 73;
 	/* Get the total delay introduced by the codec. */
-	t_pcm->codec_delay_dms = sbc_delay_frames * 10000 / t_pcm->rate;
+	t_pcm->codec_delay_dms = sbc_delay_pcm_frames * 10000 / t_pcm->rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");

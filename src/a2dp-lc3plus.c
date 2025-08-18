@@ -219,14 +219,14 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	const size_t lc3plus_ch_samples = lc3plus_enc_get_input_samples(handle);
-	const size_t lc3plus_frame_samples = lc3plus_ch_samples * channels;
+	const size_t lc3plus_frame_pcm_frames = lc3plus_enc_get_input_samples(handle);
+	const size_t lc3plus_frame_pcm_samples = lc3plus_frame_pcm_frames * channels;
 	const size_t lc3plus_frame_len = lc3plus_enc_get_num_bytes(handle);
 
 	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_media_header_t);
 	const size_t mtu_write_payload_len = t->mtu_write - rtp_headers_len;
 
-	size_t ffb_pcm_len = lc3plus_frame_samples;
+	size_t ffb_pcm_len = lc3plus_frame_pcm_samples;
 	if (mtu_write_payload_len / lc3plus_frame_len > 1)
 		/* account for possible LC3plus frames packing */
 		ffb_pcm_len *= mtu_write_payload_len / lc3plus_frame_len;
@@ -236,8 +236,8 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 		/* bigger than MTU buffer will be fragmented later */
 		ffb_bt_len = rtp_headers_len + lc3plus_frame_len;
 
-	int32_t *pcm_ch1 = malloc(lc3plus_ch_samples * sizeof(int32_t));
-	int32_t *pcm_ch2 = malloc(lc3plus_ch_samples * sizeof(int32_t));
+	int32_t *pcm_ch1 = malloc(lc3plus_frame_pcm_frames * sizeof(int32_t));
+	int32_t *pcm_ch2 = malloc(lc3plus_frame_pcm_frames * sizeof(int32_t));
 	int32_t *pcm_ch_buffers[2] = { pcm_ch1, pcm_ch2 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch1);
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch2);
@@ -253,8 +253,8 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	 * reports total codec delay in case of both encoder and decoder API.
 	 * In order not to overestimate the delay, we are not going to report
 	 * delay in the decoder thread. */
-	const int lc3plus_delay_frames = lc3plus_enc_get_delay(handle);
-	t_pcm->codec_delay_dms = lc3plus_delay_frames * 10000 / rate;
+	const int lc3plus_delay_pcm_frames = lc3plus_enc_get_delay(handle);
+	t_pcm->codec_delay_dms = lc3plus_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
@@ -275,8 +275,8 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 			if (errno == ESTALE) {
 				int encoded = 0;
 				void *scratch = NULL;
-				memset(pcm_ch1, 0, lc3plus_ch_samples * sizeof(*pcm_ch1));
-				memset(pcm_ch2, 0, lc3plus_ch_samples * sizeof(*pcm_ch2));
+				memset(pcm_ch1, 0, lc3plus_frame_pcm_frames * sizeof(*pcm_ch1));
+				memset(pcm_ch2, 0, lc3plus_frame_pcm_frames * sizeof(*pcm_ch2));
 				/* flush encoder internal buffers by feeding it with silence */
 				lc3plus_enc24(handle, pcm_ch_buffers, rtp_payload, &encoded, scratch);
 				continue;
@@ -297,8 +297,8 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 		size_t pcm_frames = 0;
 		size_t lc3plus_frames = 0;
 
-		/* pack as many LC3plus frames as possible */
-		while (input_samples >= lc3plus_frame_samples &&
+		/* Pack as many LC3plus frames as possible. */
+		while (input_samples >= lc3plus_frame_pcm_samples &&
 				output_len >= lc3plus_frame_len &&
 				/* RTP packet shall not exceed 20.0 ms of audio */
 				lc3plus_frames * lc3plus_frame_dms <= 200 &&
@@ -307,17 +307,17 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			int encoded = 0;
 			void *scratch = NULL;
-			audio_deinterleave_s24_4le(pcm_ch_buffers, input, channels, lc3plus_ch_samples);
+			audio_deinterleave_s24_4le(pcm_ch_buffers, input, channels, lc3plus_frame_pcm_frames);
 			if ((err = lc3plus_enc24(handle, pcm_ch_buffers, bt.tail, &encoded, scratch)) != LC3PLUS_OK) {
 				error("LC3plus encoding error: %s", lc3plus_strerror(err));
 				break;
 			}
 
-			input += lc3plus_frame_samples;
-			input_samples -= lc3plus_frame_samples;
+			input += lc3plus_frame_pcm_samples;
+			input_samples -= lc3plus_frame_pcm_samples;
 			ffb_seek(&bt, encoded);
 			output_len -= encoded;
-			pcm_frames += lc3plus_ch_samples;
+			pcm_frames += lc3plus_frame_pcm_frames;
 			lc3plus_frames++;
 
 		}
@@ -451,16 +451,16 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt_payload);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	const size_t lc3plus_ch_samples = lc3plus_dec_get_output_samples(handle);
-	const size_t lc3plus_frame_samples = lc3plus_ch_samples * channels;
+	const size_t lc3plus_frame_pcm_frames = lc3plus_dec_get_output_samples(handle);
+	const size_t lc3plus_frame_pcm_samples = lc3plus_frame_pcm_frames * channels;
 
-	int32_t *pcm_ch1 = malloc(lc3plus_ch_samples * sizeof(int32_t));
-	int32_t *pcm_ch2 = malloc(lc3plus_ch_samples * sizeof(int32_t));
+	int32_t *pcm_ch1 = malloc(lc3plus_frame_pcm_frames * sizeof(int32_t));
+	int32_t *pcm_ch2 = malloc(lc3plus_frame_pcm_frames * sizeof(int32_t));
 	int32_t *pcm_ch_buffers[2] = { pcm_ch1, pcm_ch2 };
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch1);
 	pthread_cleanup_push(PTHREAD_CLEANUP(free), pcm_ch2);
 
-	if (ffb_init_int32_t(&pcm, lc3plus_frame_samples) == -1 ||
+	if (ffb_init_int32_t(&pcm, lc3plus_frame_pcm_samples) == -1 ||
 			ffb_init_uint8_t(&bt_payload, t->mtu_read) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_read) == -1 ||
 			pcm_ch1 == NULL || pcm_ch2 == NULL) {
@@ -513,7 +513,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 #if DEBUG
 		if (missing_pcm_frames > 0) {
-			size_t missing_lc3plus_frames = DIV_ROUND_UP(missing_pcm_frames, lc3plus_ch_samples);
+			size_t missing_lc3plus_frames = DIV_ROUND_UP(missing_pcm_frames, lc3plus_frame_pcm_frames);
 			debug("Missing LC3plus frames: %zu", missing_lc3plus_frames);
 		}
 #endif
@@ -523,16 +523,16 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 			void *scratch = NULL;
 			lc3plus_dec24(handle, bt_payload.data, 0, pcm_ch_buffers, scratch, 1);
 			audio_interleave_s24_4le(pcm.data, (const int32_t **)pcm_ch_buffers,
-					channels, lc3plus_ch_samples);
+					channels, lc3plus_frame_pcm_frames);
 
 			warn("Missing LC3plus data, loss concealment applied");
 
-			const size_t samples = lc3plus_frame_samples;
+			const size_t samples = lc3plus_frame_pcm_samples;
 			io_pcm_scale(t_pcm, pcm.data, samples);
 			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("PCM write error: %s", strerror(errno));
 
-			missing_pcm_frames -= lc3plus_ch_samples;
+			missing_pcm_frames -= lc3plus_frame_pcm_frames;
 
 		}
 
@@ -579,7 +579,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 			void *scratch = NULL;
 			err = lc3plus_dec24(handle, lc3plus_payload, lc3plus_frame_len, pcm_ch_buffers, scratch, 0);
 			audio_interleave_s24_4le(pcm.data, (const int32_t **)pcm_ch_buffers,
-					channels, lc3plus_ch_samples);
+					channels, lc3plus_frame_pcm_frames);
 
 			if (err == LC3PLUS_DECODE_ERROR)
 				warn("Corrupted LC3plus data, loss concealment applied");
@@ -590,13 +590,13 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 			lc3plus_payload += lc3plus_frame_len;
 
-			const size_t samples = lc3plus_frame_samples;
+			const size_t samples = lc3plus_frame_pcm_samples;
 			io_pcm_scale(t_pcm, pcm.data, samples);
 			if (io_pcm_write(t_pcm, pcm.data, samples) == -1)
 				error("PCM write error: %s", strerror(errno));
 
-			/* update local state with decoded PCM frames */
-			rtp_state_update(&rtp, lc3plus_ch_samples);
+			/* Update local state with decoded PCM frames. */
+			rtp_state_update(&rtp, lc3plus_frame_pcm_frames);
 
 		}
 

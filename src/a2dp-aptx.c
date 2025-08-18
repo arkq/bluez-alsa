@@ -127,12 +127,12 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(aptxenc_destroy), handle);
 
 	const unsigned int channels = t_pcm->channels;
-	const size_t aptx_pcm_samples = 4 * channels;
-	const size_t aptx_code_len = 2 * sizeof(uint16_t);
-	const size_t mtu_write = t->mtu_write;
+	const size_t aptx_frame_len = 2 * sizeof(uint16_t);
+	const size_t aptx_frame_pcm_samples = 4 * channels;
 
-	if (ffb_init_int16_t(&pcm, aptx_pcm_samples * (mtu_write / aptx_code_len)) == -1 ||
-			ffb_init_uint8_t(&bt, mtu_write) == -1) {
+	const size_t mtu_write_aptx_frames = t->mtu_write / aptx_frame_len;
+	if (ffb_init_int16_t(&pcm, aptx_frame_pcm_samples * mtu_write_aptx_frames) == -1 ||
+			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -155,8 +155,8 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 		const size_t samples = ffb_len_out(&pcm);
 		size_t input_samples = samples;
 
-		/* encode and transfer obtained data */
-		while (input_samples >= aptx_pcm_samples) {
+		/* Encode and transfer obtained data. */
+		while (input_samples >= aptx_frame_pcm_samples) {
 
 			size_t output_len = ffb_len_in(&bt);
 			size_t pcm_samples = 0;
@@ -164,7 +164,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 			/* Generate as many apt-X frames as possible to fill the output buffer
 			 * without overflowing it. The size of the output buffer is based on
 			 * the socket MTU, so such a transfer should be most efficient. */
-			while (input_samples >= aptx_pcm_samples && output_len >= aptx_code_len) {
+			while (input_samples >= aptx_frame_pcm_samples && output_len >= aptx_frame_len) {
 
 				size_t encoded = output_len;
 				ssize_t len;

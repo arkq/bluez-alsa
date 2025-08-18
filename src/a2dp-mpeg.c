@@ -214,22 +214,22 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &bt);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
-	const size_t mpeg_pcm_samples = lame_get_framesize(handle);
+	const size_t mpeg_frame_pcm_samples = lame_get_framesize(handle);
 	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_mpeg_audio_header_t);
 	/* It is hard to tell the size of the buffer required, but empirical test
 	 * shows that 2KB should be sufficient for encoding. However, encoder flush
 	 * function requires a little bit more space. */
 	const size_t mpeg_frame_len = 4 * 1024;
 
-	if (ffb_init_int16_t(&pcm, mpeg_pcm_samples) == -1 ||
+	if (ffb_init_int16_t(&pcm, mpeg_frame_pcm_samples) == -1 ||
 			ffb_init_uint8_t(&bt, rtp_headers_len + mpeg_frame_len) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
 
 	/* Get the total delay introduced by the codec. */
-	const int mpeg_delay_frames = lame_get_encoder_delay(handle);
-	t_pcm->codec_delay_dms = mpeg_delay_frames * 10000 / rate;
+	const int mpeg_delay_pcm_frames = lame_get_encoder_delay(handle);
+	t_pcm->codec_delay_dms = mpeg_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
 	rtp_header_t *rtp_header;
