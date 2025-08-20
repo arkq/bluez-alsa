@@ -1,6 +1,6 @@
 /*
  * test-alsa-midi.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
 
 	tcase_add_test(tc, test_port);
 	tcase_add_test(tc, test_sequencer);
-
+	tcase_set_timeout(tc, 7);
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
 
