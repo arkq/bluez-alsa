@@ -1204,6 +1204,16 @@ int ba_transport_acquire(struct ba_transport *t) {
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
 
+	/* When the last client connection is closed, there is a possibility that
+	 * this function may be called before the stopping flag has been set. We
+	 * cannot eliminate that race, so we reduce the risk by introducing a short
+	 * delay before testing the stopping flag. */
+	if (t->bt_fd != -1) {
+		pthread_mutex_unlock(&t->bt_fd_mtx);
+		usleep(100000);
+		pthread_mutex_lock(&t->bt_fd_mtx);
+	}
+
 	/* If we are in the middle of IO threads stopping, wait until all resources
 	 * are reclaimed, so we can acquire them in a clean way once more. */
 	while (t->stopping)
