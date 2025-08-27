@@ -459,12 +459,14 @@ CK_START_TEST(test_storage) {
 		"SoftVolume=false\n"
 		"Volume=-344;-344;\n"
 		"Mute=true;true;\n"
+		"Reconfigurable=true\n"
 		"\n"
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/sink]\n"
 		"ClientDelays=\n"
 		"SoftVolume=false\n"
 		"Volume=\n"
-		"Mute=\n";
+		"Mute=\n"
+		"Reconfigurable=true\n";
 
 	/* check if persistent storage was updated */
 	ck_assert_str_eq(buffer, storage_data_new);

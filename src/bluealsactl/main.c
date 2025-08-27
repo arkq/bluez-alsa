@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsactl/main.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -277,6 +277,10 @@ void bactl_print_pcm_selected_codec(const struct ba_pcm *pcm) {
 	printf("\n");
 }
 
+void bactl_print_pcm_reconfigurable(const struct ba_pcm *pcm) {
+	printf("Reconfigurable: %s\n", pcm->reconfigurable ? "true" : "false");
+}
+
 void bactl_print_pcm_delay(const struct ba_pcm *pcm) {
 	printf("Delay: %#.1f ms\n", pcm->delay / 10.0);
 }
@@ -322,6 +326,7 @@ void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	printf("Rate: %d Hz\n", pcm->rate);
 	bactl_print_pcm_available_codecs(pcm, err);
 	bactl_print_pcm_selected_codec(pcm);
+	bactl_print_pcm_reconfigurable(pcm);
 	bactl_print_pcm_delay(pcm);
 	bactl_print_pcm_client_delay(pcm);
 	bactl_print_pcm_soft_volume(pcm);
@@ -351,6 +356,7 @@ extern const struct bactl_command cmd_client_delay;
 extern const struct bactl_command cmd_monitor;
 extern const struct bactl_command cmd_mute;
 extern const struct bactl_command cmd_open;
+extern const struct bactl_command cmd_reconfigurable;
 extern const struct bactl_command cmd_softvol;
 extern const struct bactl_command cmd_volume;
 
@@ -360,6 +366,7 @@ static const struct bactl_command *commands[] = {
 	&cmd_status,
 	&cmd_info,
 	&cmd_codec,
+	&cmd_reconfigurable,
 	&cmd_client_delay,
 	&cmd_volume,
 	&cmd_mute,

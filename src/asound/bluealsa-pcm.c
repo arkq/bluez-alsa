@@ -1728,23 +1728,33 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 		return err;
 
 	unsigned int list[ARRAYSIZE(codec->rates)];
-	unsigned int n;
 
-	/* Populate the list of supported channels and sample rates. For codecs
-	 * with fixed configuration, the list will contain only one element. For
-	 * other codecs, the list might contain all supported configurations. */
+	if (pcm->ba_pcm.reconfigurable) {
+		/* Populate the list of supported channels and sample rates. For codecs
+		 * with fixed configuration, the list will contain only one element.
+		 * For other codecs, the list might contain all supported
+		 * configurations. */
 
-	n = 0;
-	for (size_t i = 0; i < ARRAYSIZE(codec->channels) && codec->channels[i] != 0; i++)
-		list[n++] = codec->channels[i];
-	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_CHANNELS, n, list)) < 0)
-		return err;
+		unsigned int n = 0;
+		for (size_t i = 0; i < ARRAYSIZE(codec->channels) && codec->channels[i] != 0; i++)
+			list[n++] = codec->channels[i];
+		if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_CHANNELS, n, list)) < 0)
+			return err;
 
-	n = 0;
-	for (size_t i = 0; i < ARRAYSIZE(codec->rates) && codec->rates[i] != 0; i++)
-		list[n++] = codec->rates[i];
-	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_RATE, n, list)) < 0)
-		return err;
+		n = 0;
+		for (size_t i = 0; i < ARRAYSIZE(codec->rates) && codec->rates[i] != 0; i++)
+			list[n++] = codec->rates[i];
+		if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_RATE, n, list)) < 0)
+			return err;
+	}
+	else {
+		list[0] = pcm->ba_pcm.channels;
+		if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_CHANNELS, 1, list)) < 0)
+			return err;
+		list[0] = pcm->ba_pcm.rate;
+		if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_RATE, 1, list)) < 0)
+			return err;
+	}
 
 	return 0;
 }

@@ -6,7 +6,7 @@ bluealsactl
 a simple command line interface for the BlueALSA D-Bus API
 ----------------------------------------------------------
 
-:Date: September 2024
+:Date: August 2025
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -143,6 +143,10 @@ codec [-c NUM] [-r NUM] [--force] *PCM_PATH* [*CODEC*\ [:*CONFIG*]]
 
         bluealsactl codec -c6 -r96000 PCM_PATH aac
 
+    Some devices cannot support configuration changes and may drop the A2DP
+    connection if *CONFIG* is given or if **-c** ot **-r** are used. See the
+    **reconfigurable** command below for more information.
+
     Selecting an A2DP codec and listing available A2DP codecs requires BlueZ
     SEP support (BlueZ >= 5.52).
 
@@ -207,6 +211,20 @@ client-delay *PCM_PATH* [[-]\ *DELAY*]
     optional sign prefix (e.g. **250**, **-500**, **+360.4**). The permitted
     range is [-3276.8, 3276.7].
 
+reconfigurable *PCM_PATH* [*STATE*]
+    Get or set the Reconfigurable property of the given PCM. This property is
+    available only for A2DP PCMs, and determines whether BlueALSA will request
+    codec configuration changes such as changing the sample rate or channel
+    count for this PCM.
+
+    If the *STATE* argument is given, set the Reconfigurable property for the
+    given PCM. For duplex codecs such as Faststream the *STATE* is applied to
+    both the source and sink PCMs of the associated transport.
+
+    The *STATE* value can be one of **on**, **yes**, **true**, **y** or **1**
+    to enable A2DP codec reconfiguration, or **off**, **no**, **false**, **n**
+    or **0** to disable A2DP codec reconfiguration.
+
 monitor [-p[PROPS] | --properties[=PROPS]]
     Listen for D-Bus signals indicating adding/removing BlueALSA interfaces.
     Also detect service running and service stopped events, and optionally
@@ -246,7 +264,8 @@ monitor [-p[PROPS] | --properties[=PROPS]]
     ``PropertyChanged PCM_PATH PROPERTY_NAME VALUE``
 
     Property names that can be monitored are **Codec**, **Delay**,
-    **ClientDelay**, **Running**, **SoftVolume** and **Volume**.
+    **ClientDelay**, **Reconfigurable**, **Running**, **SoftVolume** and
+    **Volume**.
 
     Volume is an array of values, each showing the loudness and mute components
     of a channel. The order of the values corresponds to the ChannelMap
@@ -277,7 +296,7 @@ open [--hex] *PCM_PATH*
 COPYRIGHT
 =========
 
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
+Copyright (c) 2016-2025 Arkadiusz Bokowy.
 
 The bluez-alsa project is licensed under the terms of the MIT license.
 

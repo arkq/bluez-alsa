@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport-pcm.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -718,6 +718,20 @@ int ba_transport_pcm_get_hardware_volume(
 	}
 
 	g_assert_not_reached();
+	return 0;
+}
+
+/**
+ * Synchronize PCM codec reconfigurable property.
+ *
+ * This function notifies D-Bus clients. */
+int ba_transport_pcm_reconfigurable_sync(
+		struct ba_transport_pcm *pcm,
+		unsigned int update_mask) {
+
+	/* Notify all connected D-Bus clients. */
+	bluealsa_dbus_pcm_update(pcm, update_mask);
+
 	return 0;
 }
 

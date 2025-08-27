@@ -14,6 +14,7 @@ bluealsactl_SOURCES = \
 	cmd-monitor.c \
 	cmd-mute.c \
 	cmd-open.c \
+	cmd-reconfigurable.c \
 	cmd-softvol.c \
 	cmd-status.c \
 	cmd-volume.c \

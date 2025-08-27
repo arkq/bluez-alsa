@@ -5,7 +5,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: June 2025
+:Date: August 2025
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -439,15 +439,15 @@ CTL Parameters
 
   EXT
     Causes the plugin to include extra controls. These are the controls for
-    Bluetooth codec selection, volume mode selection, client delay (sync)
-    and/or battery level indicator.
+    Bluetooth codec selection, volume mode selection, client delay (sync),
+    A2DP reconfigurability and/or battery level indicator.
     If the value is **yes** then all of these additional controls are included;
     if the value is **no** then none of them are included. The default is
     **no**.
 
     This parameter can also select individual controls by using a colon (':')
     separated list of control names. The control names are **codec**, **mode**,
-    **sync** and **battery**. For example:
+    **sync**, **reconfig** and **battery**. For example:
 
     ::
 
@@ -474,6 +474,13 @@ CTL Parameters
     PCM stream. Values set by this control type are saved in the BlueALSA
     persistent state files, and so are remembered and automatically applied
     each time the PCM is used.
+
+    The reconfigurability control is called "A2DP Reconfig" and is for A2DP
+    PCMs only. Normally its value is "yes" and this permits BlueALSA to modify
+    the rate and channels count used by the Bluetooth transport to match the
+    application stream if possible. When set to "no" then the transport rate
+    and channels are not changed, so that any necessary conversions must be
+    done in software by the ALSA PCM plugin.
 
     The read-only battery level indicator will be shown only if the device
     supports battery level reporting.
