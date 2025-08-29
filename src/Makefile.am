@@ -1,8 +1,12 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2024 Arkadiusz Bokowy
+# Copyright (c) 2016-2025 Arkadiusz Bokowy
+
+SUBDIRS = shared
+# Make sure that shared library is built before anything else.
+SUBDIRS += asound bluealsactl
 
 bin_PROGRAMS = bluealsad
-SUBDIRS = asound bluealsactl
+noinst_LTLIBRARIES = libbluealsad.la
 
 dbusconfdir = @DBUS_CONF_DIR@
 dbusbluealsauser = @BLUEALSAD_USER@
@@ -18,11 +22,9 @@ MOSTLYCLEANFILES = \
 	$(BUILT_SOURCES)
 
 bluealsad_SOURCES = \
-	shared/a2dp-codecs.c \
-	shared/ffb.c \
-	shared/log.c \
-	shared/rt.c \
-	shared/nv.c \
+	main.c
+
+libbluealsad_la_SOURCES = \
 	a2dp.c \
 	a2dp-sbc.c \
 	at.c \
@@ -47,86 +49,85 @@ bluealsad_SOURCES = \
 	sco.c \
 	sco-cvsd.c \
 	storage.c \
-	utils.c \
-	main.c
+	utils.c
 
 if ENABLE_AAC
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-aac.c
 endif
 
 if ENABLE_APTX
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-aptx.c
 endif
 
 if ENABLE_APTX_HD
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-aptx-hd.c
 endif
 
 if ENABLE_APTX_OR_APTX_HD
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	codec-aptx.c
 endif
 
 if ENABLE_FASTSTREAM
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-faststream.c
 endif
 
 if ENABLE_LC3_SWB
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	codec-lc3-swb.c \
 	sco-lc3-swb.c
 endif
 
 if ENABLE_LC3PLUS
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-lc3plus.c
 endif
 
 if ENABLE_LDAC
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-ldac.c
 endif
 
 if ENABLE_MIDI
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	ble-midi.c \
 	bluez-midi.c \
 	midi.c
 endif
 
 if ENABLE_LHDC
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-lhdc.c
 endif
 
 if ENABLE_MPEG
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-mpeg.c
 endif
 
 if ENABLE_MSBC
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	codec-msbc.c \
 	sco-msbc.c
 endif
 
 if ENABLE_OPUS
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	a2dp-opus.c
 endif
 
 if ENABLE_OFONO
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	ofono.c \
 	ofono-iface.xml
 endif
 
 if ENABLE_UPOWER
-bluealsad_SOURCES += \
+libbluealsad_la_SOURCES += \
 	upower.c
 endif
 
@@ -144,15 +145,18 @@ AM_CFLAGS = \
 	@LDAC_ENC_CFLAGS@ \
 	@LHDC_DEC_CFLAGS@ \
 	@LHDC_ENC_CFLAGS@ \
-	@LIBBSD_CFLAGS@ \
-	@LIBUNWIND_CFLAGS@ \
 	@MP3LAME_CFLAGS@ \
 	@MPG123_CFLAGS@ \
 	@OPUS_CFLAGS@ \
 	@SBC_CFLAGS@ \
 	@SPANDSP_CFLAGS@
 
-LDADD = \
+bluealsad_LDADD = \
+	shared/libshared.la \
+	libbluealsad.la
+
+libbluealsad_la_LIBADD = \
+	shared/libshared.la \
 	@AAC_LIBS@ \
 	@ALSA_LIBS@ \
 	@APTX_HD_LIBS@ \
@@ -167,7 +171,6 @@ LDADD = \
 	@LDAC_ENC_LIBS@ \
 	@LHDC_DEC_LIBS@ \
 	@LHDC_ENC_LIBS@ \
-	@LIBUNWIND_LIBS@ \
 	@MP3LAME_LIBS@ \
 	@MPG123_LIBS@ \
 	@OPUS_LIBS@ \

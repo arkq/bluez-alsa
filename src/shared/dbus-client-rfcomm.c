@@ -8,13 +8,13 @@
  *
  */
 
-#include "shared/dbus-client-rfcomm.h"
+#include "dbus-client-rfcomm.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
 
-#include "shared/defs.h"
+#include "defs.h"
 
 /**
  * Callback function for rfcomm object properties parser. */

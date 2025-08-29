@@ -1,16 +1,11 @@
 # BlueALSA - bluealsactl/Makefile.am
-# Copyright (c) 2016-2024 Arkadiusz Bokowy
+# Copyright (c) 2016-2025 Arkadiusz Bokowy
 
 if ENABLE_CTL
 
 bin_PROGRAMS = bluealsactl
 
 bluealsactl_SOURCES = \
-	../../src/shared/a2dp-codecs.c \
-	../../src/shared/dbus-client.c \
-	../../src/shared/dbus-client-pcm.c \
-	../../src/shared/hex.c \
-	../../src/shared/log.c \
 	cmd-client-delay.c \
 	cmd-codec.c \
 	cmd-info.c \
@@ -24,13 +19,12 @@ bluealsactl_SOURCES = \
 	cmd-volume.c \
 	main.c
 
-bluealsactl_CFLAGS = \
+AM_CFLAGS = \
 	-I$(top_srcdir)/src \
-	@DBUS1_CFLAGS@ \
-	@LIBUNWIND_CFLAGS@
+	@DBUS1_CFLAGS@
 
 bluealsactl_LDADD = \
-	@DBUS1_LIBS@ \
-	@LIBUNWIND_LIBS@
+	../shared/libshared.la \
+	@DBUS1_LIBS@
 
 endif

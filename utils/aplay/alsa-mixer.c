@@ -11,6 +11,7 @@
 #include "alsa-mixer.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

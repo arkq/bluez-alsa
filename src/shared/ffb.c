@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/ffb.h"
+#include "ffb.h"
 
 #include <stdlib.h>
 #include <string.h>

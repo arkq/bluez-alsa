@@ -8,12 +8,12 @@
  *
  */
 
+#include "nv.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-
-#include "shared/nv.h"
 
 /**
  * Find entry in the NULL-terminated entry list.

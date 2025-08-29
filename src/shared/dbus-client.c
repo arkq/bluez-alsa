@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/dbus-client.h"
+#include "dbus-client.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -16,7 +16,7 @@
 #include <string.h>
 #include <sys/param.h>
 
-#include "shared/defs.h"
+#include "defs.h"
 
 static dbus_bool_t ba_dbus_watch_add(DBusWatch *watch, void *data) {
 	struct ba_dbus_ctx *ctx = (struct ba_dbus_ctx *)data;

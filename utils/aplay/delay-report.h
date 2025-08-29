@@ -22,9 +22,6 @@
 #include <alsa/asoundlib.h>
 #include <dbus/dbus.h>
 
-#include "alsa-pcm.h"
-#include "shared/ffb.h"
-
 struct delay_report {
 
 	struct ba_dbus_ctx *dbus_ctx;

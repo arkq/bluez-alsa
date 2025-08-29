@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/rt.h"
+#include "rt.h"
 
 #include <stdlib.h>
 #include <sys/time.h>

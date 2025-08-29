@@ -13,17 +13,14 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <sys/time.h>
 
 #include <alsa/asoundlib.h>
 #include <dbus/dbus.h>
 
-#include "alsa-pcm.h"
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
-#include "shared/ffb.h"
 #include "shared/rt.h"
 
 void delay_report_init(

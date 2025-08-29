@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/dbus-client-pcm.h"
+#include "dbus-client-pcm.h"
 
 #include <errno.h>
 #include <poll.h>
@@ -22,8 +22,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "shared/a2dp-codecs.h"
-#include "shared/defs.h"
+#include "a2dp-codecs.h"
+#include "defs.h"
 
 static int path2ba(const char *path, bdaddr_t *ba) {
 

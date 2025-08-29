@@ -20,7 +20,7 @@
 
 #include <dbus/dbus.h>
 
-#include "shared/dbus-client.h"
+#include "dbus-client.h"
 
 /**
  * BlueALSA RFCOMM property object. */

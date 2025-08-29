@@ -8,13 +8,13 @@
  *
  */
 
-#include "shared/a2dp-codecs.h"
+#include "a2dp-codecs.h"
 
 #include <stddef.h>
 #include <stdint.h>
 #include <strings.h>
 
-#include "shared/defs.h"
+#include "defs.h"
 
 static const struct {
 	uint32_t codec_id;

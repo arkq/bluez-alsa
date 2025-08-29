@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/hex.h"
+#include "hex.h"
 
 #include <errno.h>
 

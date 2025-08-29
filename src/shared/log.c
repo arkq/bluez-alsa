@@ -8,7 +8,7 @@
  *
  */
 
-#include "shared/log.h"
+#include "log.h"
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -32,8 +32,8 @@
 # include <execinfo.h>
 #endif
 
-#include "shared/defs.h"
-#include "shared/rt.h"
+#include "defs.h"
+#include "rt.h"
 
 /* internal logging identifier */
 static char *_ident = NULL;
