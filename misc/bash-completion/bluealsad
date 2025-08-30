@@ -61,7 +61,7 @@ _bluealsa_pcm_codecs() {
 
 # helper function completes supported bluealsactl monitor properties
 _bluealsactl_properties() {
-	local properties=( codec running softvolume volume )
+	local properties=( codec reconfigurable running softvolume volume )
 	if [[ "$cur" == *,* ]]; then
 		local realcur prefix chosen remaining
 		realcur="${cur##*,}"
@@ -291,7 +291,7 @@ _bluealsactl() {
 
 	# the command names supported by this version of bluealsactl
 	local simple_commands="list-pcms list-services monitor status"
-	local path_commands="codec client-delay info mute open soft-volume volume"
+	local path_commands="codec client-delay info mute open reconfigurable soft-volume volume"
 
 	# options that may appear before or after the command
 	local global_shortopts="-h"
@@ -417,7 +417,7 @@ _bluealsactl() {
 				fi
 			fi
 			;;
-		soft-volume)
+		reconfigurable|soft-volume)
 			if (( COMP_CWORD < path_offset + 2 )) ; then
 				if [[ "$cur" == "" ]] ; then
 					COMPREPLY=( true false )

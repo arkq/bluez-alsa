@@ -63,7 +63,7 @@ If the D-Bus policy file is edited, then it is necessary to refresh the D-Bus
 service for the change to take effect. On most systems this can be achieved
 with (as `root`) :
 
-```sh
+```console
 systemctl reload dbus.service
 ```
 
@@ -124,7 +124,26 @@ profile) as soon as it connects, and therefore attempting to use an application
 such as `arecord` to capture from BlueALSA while `bluealsa-aplay` is running
 will result in this error.
 
-## 5. Using BlueALSA alongside PulseAudio or PipeWire
+## 5. Couldn't change BlueALSA PCM configuration: Input/output error
+
+Some devices are unable to change the sample rate or channel count for A2DP
+after initial connection, and drop the A2DP connection as a result. This error
+may indicate that your device is one of these. To prevent BlueALSA attempting
+to change the codec configuration on such a device first re-connect it then use
+either `bluealsactl` or the ALSA mixer API to set the PCM Reconfigurable
+property to *false*. For example if the device address is `00:11:22:33:44:55`
+
+```console
+bluealsactl reconfigurable /org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsrc/sink false
+```
+
+or
+
+```console
+amixer -D bluealsa:00:11:22:33:44:55,EXT=reconfig sset 'A2DP Reconfig' no
+```
+
+## 6. Using BlueALSA alongside PulseAudio or PipeWire
 
 It is not advisable to run BlueALSA if either PulseAudio or PipeWire are also
 running with their own Bluetooth modules enabled. If one would like to have a
@@ -150,7 +169,7 @@ PulseAudio Bluetooth modules in the wiki: [PipeWire or PulseAudio integration][]
 
 [PipeWire or PulseAudio integration]: https://github.com/arkq/bluez-alsa/wiki/PulseAudio-integration
 
-## 6. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
+## 7. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
 
 ALSA library versions 1.1.2 and 1.1.3 had a bug in their thread-safe API
 functions. This bug does not affect hardware audio devices, but it affects
@@ -158,6 +177,8 @@ many software plug-ins. Random deadlocks are inevitable. The best advice is
 to use a more recent alsa-lib release, or if that is not possible then
 disable the thread locking code via an environment variable, as follows:
 
-```shell
+```console
 export LIBASOUND_THREAD_SAFE=0
 ```
+
+<!-- markdownlint-configure-file { line_length: { code_blocks: false } } -->

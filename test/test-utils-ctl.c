@@ -1,6 +1,6 @@
 /*
  * test-utils-ctl.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -480,6 +480,61 @@ CK_START_TEST(test_open) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_reconfigurable) {
+
+	struct spawn_process sp_ba_mock;
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+				"--profile=a2dp-source",
+				NULL), -1);
+
+	char output[4096];
+
+	/* check printing help text */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"reconfigurable", "--help", NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+
+	/* check default reconfigurable */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"reconfigurable", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "Reconfigurable: true"), NULL);
+
+	/* check setting reconfigurable false */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"reconfigurable", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "false",
+				NULL), 0);
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"reconfigurable", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "Reconfigurable: false"), NULL);
+
+	/* check selecting A2DP codec config now fails (with our mock BlueZ) */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"SBC:FF150255", "--channels=1", "--rate=44100",
+				NULL), EXIT_FAILURE);
+
+	/* check setting reconfigurable true */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"reconfigurable", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "true",
+				NULL), 0);
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"reconfigurable", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				NULL), 0);
+	ck_assert_ptr_ne(strstr(output, "Reconfigurable: true"), NULL);
+
+	/* check selecting A2DP codec config now works (with our mock BlueZ) */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
+				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
+				"SBC:FF150255", "--channels=1", "--rate=44100",
+				NULL), EXIT_SUCCESS);
+
+	spawn_terminate(&sp_ba_mock, 0);
+	spawn_close(&sp_ba_mock, NULL);
+
+} CK_END_TEST
+
 int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/libaloader.so");
 
@@ -508,6 +563,7 @@ int main(int argc, char *argv[]) {
 	tcase_add_test(tc, test_volume);
 	tcase_add_test(tc, test_monitor);
 	tcase_add_test(tc, test_open);
+	tcase_add_test(tc, test_reconfigurable);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

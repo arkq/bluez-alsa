@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport-pcm.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -251,6 +251,10 @@ void ba_transport_pcm_volume_set(
 		const bool *hard_mute);
 
 int ba_transport_pcm_volume_sync(
+		struct ba_transport_pcm *pcm,
+		unsigned int update_mask);
+
+int ba_transport_pcm_reconfigurable_sync(
 		struct ba_transport_pcm *pcm,
 		unsigned int update_mask);
 

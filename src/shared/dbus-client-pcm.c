@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client-pcm.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -536,6 +536,14 @@ dbus_bool_t ba_dbus_pcm_update(
 		_property = "Volume";
 		type = DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING;
 		break;
+	case BLUEALSA_PCM_RECONFIGURABLE:
+		if (!(pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP)) {
+			dbus_set_error_const(error, DBUS_ERROR_NOT_SUPPORTED, NULL);
+			return FALSE;
+		}
+		_property = "Reconfigurable";
+		type = DBUS_TYPE_BOOLEAN_AS_STRING;
+		break;
 	}
 
 	DBusMessage *msg;
@@ -569,6 +577,10 @@ dbus_bool_t ba_dbus_pcm_update(
 				!dbus_message_iter_close_container(&variant, &array))
 			goto fail;
 	} break;
+	case BLUEALSA_PCM_RECONFIGURABLE:
+		if (!dbus_message_iter_append_basic(&variant, DBUS_TYPE_BOOLEAN, &pcm->reconfigurable))
+			goto fail;
+		break;
 	}
 
 	if (!dbus_message_iter_close_container(&iter, &variant))
@@ -800,6 +812,11 @@ static dbus_bool_t dbus_message_iter_get_ba_pcm_props_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
 		dbus_message_iter_get_codec_data(&variant, &pcm->codec);
+	}
+	else if (strcmp(key, "Reconfigurable") == 0) {
+		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
+			goto fail;
+		dbus_message_iter_get_basic(&variant, &pcm->reconfigurable);
 	}
 	else if (strcmp(key, "Delay") == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - storage.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -34,6 +34,7 @@
 #define BA_STORAGE_KEY_SOFT_VOLUME      "SoftVolume"
 #define BA_STORAGE_KEY_VOLUME           "Volume"
 #define BA_STORAGE_KEY_MUTE             "Mute"
+#define BA_STORAGE_KEY_RECONFIGURABLE   "Reconfigurable"
 
 struct storage {
 	/* remote BT device address */
@@ -297,6 +298,24 @@ static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
 	return rv;
 }
 
+static int storage_pcm_data_sync_reconfigurable(GKeyFile *db,
+		const char *group, struct ba_transport_pcm *pcm) {
+
+	int rv = 0;
+
+	if (!(pcm->t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP))
+		return rv;
+
+	if (g_key_file_has_key(db, group, BA_STORAGE_KEY_RECONFIGURABLE, NULL)) {
+		const bool reconfigurable = g_key_file_get_boolean(db, group,
+				BA_STORAGE_KEY_RECONFIGURABLE, NULL);
+		ba_transport_a2dp_set_reconfigurable(pcm->t, reconfigurable);
+		rv = 1;
+	}
+
+	return rv;
+}
+
 /**
  * Synchronize PCM with persistent storage.
  *
@@ -324,6 +343,8 @@ int storage_pcm_data_sync(struct ba_transport_pcm *pcm) {
 	if (storage_pcm_data_sync_delay(keyfile, group, pcm))
 		rv = 1;
 	if (storage_pcm_data_sync_volume(keyfile, group, pcm))
+		rv = 1;
+	if (storage_pcm_data_sync_reconfigurable(keyfile, group, pcm))
 		rv = 1;
 
 final:
@@ -393,6 +414,15 @@ static void storage_pcm_data_update_volume(GKeyFile *db, const char *group,
 
 }
 
+static void storage_pcm_data_update_reconfigurable(GKeyFile *db,
+		const char *group, const struct ba_transport_pcm *pcm) {
+	const struct ba_transport *t = pcm->t;
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		const bool reconfigurable = t->media.reconfigurable;
+		g_key_file_set_boolean(db, group, BA_STORAGE_KEY_RECONFIGURABLE, reconfigurable);
+	}
+}
+
 /**
  * Update persistent storage with PCM data.
  *
@@ -416,6 +446,7 @@ int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
 
 	storage_pcm_data_update_delay(keyfile, group, pcm);
 	storage_pcm_data_update_volume(keyfile, group, pcm);
+	storage_pcm_data_update_reconfigurable(keyfile, group, pcm);
 
 	rv = 0;
 
