@@ -76,6 +76,7 @@
 #include "ba-adapter.h"
 #include "ba-config.h"
 #include "ba-device.h"
+#include "ba-pcm-multi.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
@@ -664,7 +665,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 }
 
 /**
- * Drive PCM signal through source/sink loop. */
+ * Drive PCM signal through source/sink loop (single client mode). */
 static void test_io(
 		struct ba_transport_pcm *t_src_pcm, struct ba_transport_pcm *t_snk_pcm,
 		ba_transport_pcm_thread_func enc, ba_transport_pcm_thread_func dec,
@@ -729,6 +730,132 @@ static void test_io(
 
 	ba_transport_stop(t_snk);
 
+}
+
+/**
+ * Drive PCM signal through source/sink loop (multi client mix mode). */
+static void test_io_multi_mix(
+		struct ba_transport_pcm *t_src_pcm, struct ba_transport_pcm *t_snk_pcm,
+		ba_transport_pcm_thread_func enc, ba_transport_pcm_thread_func dec,
+		size_t pcm_write_frames_count) {
+
+	const char *enc_name = "encode";
+	const char *dec_name = "dump-bt";
+	struct ba_transport *t_src = t_src_pcm->t;
+	struct ba_transport *t_snk = t_snk_pcm->t;
+
+	if (input_bt_file != NULL)
+		return;
+
+	/* Reset the global termination flag before starting the loop. */
+	test_terminated = false;
+
+	int bt_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
+
+	t_src->bt_fd = bt_fds[1];
+	t_snk->bt_fd = bt_fds[0];
+
+	int pcm_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, pcm_fds), 0);
+	debug("Created PCM socket pair: %d, %d", pcm_fds[0], pcm_fds[1]);
+	t_snk_pcm->fd = pcm_fds[0];
+
+	int ctl_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, ctl_fds), 0);
+
+	bt_data_init();
+
+	if (aging_duration)
+		test_start_terminate_timer(aging_duration);
+
+	ck_assert_ptr_nonnull(t_src_pcm->multi = ba_pcm_multi_create(t_src_pcm));
+	ck_assert_int_eq(ba_transport_pcm_start(t_src_pcm, enc, enc_name), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(t_snk_pcm, dec, dec_name), 0);
+	ck_assert_int_eq(ba_pcm_multi_add_client(t_src_pcm->multi, pcm_fds[1], ctl_fds[1]), 1);
+	pcm_write_frames(t_snk_pcm, pcm_write_frames_count);
+
+	pthread_mutex_lock(&test_mutex);
+	while (!test_terminated)
+		pthread_cond_wait(&test_terminate, &test_mutex);
+	pthread_mutex_unlock(&test_mutex);
+
+	pthread_mutex_lock(&t_src_pcm->mutex);
+	ba_transport_pcm_release(t_src_pcm);
+	pthread_mutex_unlock(&t_src_pcm->mutex);
+
+	ba_transport_stop(t_src);
+
+	pthread_mutex_lock(&t_snk_pcm->mutex);
+	ba_transport_pcm_release(t_snk_pcm);
+	pthread_mutex_unlock(&t_snk_pcm->mutex);
+
+	ba_transport_stop(t_snk);
+	close(ctl_fds[0]);
+	close(ctl_fds[1]);
+}
+
+/**
+ * Drive PCM signal through source/sink loop (multi client snoop mode). */
+static void test_io_multi_snoop(
+		struct ba_transport_pcm *t_src_pcm, struct ba_transport_pcm *t_snk_pcm,
+		ba_transport_pcm_thread_func enc, ba_transport_pcm_thread_func dec) {
+
+	const char *enc_name = "dump-pcm";
+	const char *dec_name = "decode";
+	struct ba_transport *t_src = t_src_pcm->t;
+	struct ba_transport *t_snk = t_snk_pcm->t;
+
+	if (input_pcm_file != NULL)
+		return;
+
+	/* Reset the global termination flag before starting the loop. */
+	test_terminated = false;
+
+	int bt_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
+	debug("Created BT socket pair: %d, %d", bt_fds[0], bt_fds[1]);
+	t_src->bt_fd = bt_fds[1];
+	t_snk->bt_fd = bt_fds[0];
+
+	int pcm_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, pcm_fds), 0);
+	debug("Created PCM socket pair: %d, %d", pcm_fds[0], pcm_fds[1]);
+	t_src_pcm->fd = pcm_fds[1];
+	t_snk_pcm->fd = pcm_fds[0];
+
+	int ctl_fds[2];
+	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, ctl_fds), 0);
+
+	if (aging_duration)
+		test_start_terminate_timer(aging_duration);
+
+	ck_assert_ptr_nonnull(t_snk_pcm->multi = ba_pcm_multi_create(t_snk_pcm));
+	ck_assert_int_eq(ba_pcm_multi_init(t_snk_pcm->multi), 1);
+	ck_assert_int_eq(ba_pcm_multi_add_client(t_snk_pcm->multi, pcm_fds[0], ctl_fds[0]), 1);
+	ck_assert_int_eq(ba_transport_pcm_start(t_snk_pcm, dec, dec_name), 0);
+	ck_assert_int_eq(ba_transport_pcm_start(t_src_pcm, enc, enc_name), 0);
+	bt_data_write(t_src);
+
+	pthread_mutex_lock(&test_mutex);
+	while (!test_terminated)
+		pthread_cond_wait(&test_terminate, &test_mutex);
+	pthread_mutex_unlock(&test_mutex);
+
+	pthread_mutex_lock(&t_src_pcm->mutex);
+	ba_transport_pcm_release(t_src_pcm);
+	pthread_mutex_unlock(&t_src_pcm->mutex);
+
+	ba_transport_stop(t_src);
+
+	pthread_mutex_lock(&t_snk_pcm->mutex);
+	ba_transport_pcm_release(t_snk_pcm);
+	pthread_mutex_unlock(&t_snk_pcm->mutex);
+
+	ba_transport_stop(t_snk);
+	close(ctl_fds[0]);
+	close(ctl_fds[1]);
 }
 
 static int test_transport_acquire(struct ba_transport *t) {
@@ -1029,6 +1156,33 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_a2dp_sbc_multi) {
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
+			&config_sbc_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
+			&config_sbc_44100_stereo);
+
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+
+	if (aging_duration) {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
+		test_io_multi_mix(t1_pcm, t2_pcm, a2dp_sbc_enc_thread, a2dp_sbc_dec_thread, 4 * 1024);
+	}
+	else {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
+		test_io_multi_mix(t1_pcm, t2_pcm, a2dp_sbc_enc_thread, test_io_thread_dump_bt, 4 * 1024);
+		test_io_multi_snoop(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_sbc_dec_thread);
+	}
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
+} CK_END_TEST
+
 #if ENABLE_MP3LAME
 CK_START_TEST(test_a2dp_mp3) {
 
@@ -1195,6 +1349,33 @@ CK_START_TEST(test_a2dp_aptx_hd) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
 		test_io(t1_pcm, t2_pcm, a2dp_aptx_hd_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_aptx_hd_dec_thread, 2 * 1024);
+	};
+
+	ba_transport_destroy(t1);
+	ba_transport_destroy(t2);
+
+} CK_END_TEST
+
+CK_START_TEST(test_a2dp_aptx_hd_multi) {
+
+	struct ba_transport *t1 = test_transport_new_a2dp(device1,
+			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aptxhd", &a2dp_aptx_hd_source,
+			&config_aptx_hd_44100_stereo);
+	struct ba_transport *t2 = test_transport_new_a2dp(device2,
+			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aptxhd", &a2dp_aptx_hd_sink,
+			&config_aptx_hd_44100_stereo);
+
+	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+
+	if (aging_duration) {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
+		test_io_multi_mix(t1_pcm, t2_pcm, a2dp_aptx_hd_enc_thread, a2dp_aptx_hd_dec_thread, 4 * 1024);
+	}
+	else {
+		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
+		test_io_multi_mix(t1_pcm, t2_pcm, a2dp_aptx_hd_enc_thread, test_io_thread_dump_bt, 4 * 1024);
+		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_aptx_hd_dec_thread, 4 * 1024);
 	};
 
 	ba_transport_destroy(t1);
@@ -1423,8 +1604,8 @@ CK_START_TEST(test_sco_msbc) {
 	struct ba_transport_pcm *t2_pcm = &t2->sco.pcm_spk;
 
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
-	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 600);
-	test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, sco_dec_thread, 600);
+	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 2 * 600);
+	test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, sco_dec_thread, 2 * 600);
 
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
@@ -1449,8 +1630,8 @@ CK_START_TEST(test_sco_lc3_swb) {
 	struct ba_transport_pcm *t2_pcm = &t2->sco.pcm_spk;
 
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
-	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 600);
-	test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, sco_dec_thread, 600);
+	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 2 * 600);
+	test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, sco_dec_thread, 2 * 600);
 
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
@@ -1473,6 +1654,7 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain_and_close },
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drop },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_multi },
 #if ENABLE_MP3LAME
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },
 #endif
@@ -1485,6 +1667,7 @@ int main(int argc, char *argv[]) {
 #endif
 #if ENABLE_APTX_HD_IO_TEST
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID)), test_a2dp_aptx_hd },
+		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID)), test_a2dp_aptx_hd_multi },
 #endif
 #if ENABLE_FASTSTREAM
 		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_music },
