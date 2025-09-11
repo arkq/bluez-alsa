@@ -33,7 +33,7 @@ bluealsad_mock_LDADD = \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@
 
-.xml.h:
+dbus-ifaces.h: dbus-ifaces.xml
 	gdbus-codegen --output $@ \
 		--interface-prefix org \
 		--c-namespace Mock \
