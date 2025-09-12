@@ -1,6 +1,6 @@
 /*
  * BlueALSA - storage.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -88,9 +88,10 @@ static void storage_free(struct storage *st) {
 int storage_init(const char *root) {
 
 	debug("Initializing persistent storage: %s", root);
+
 	strncpy(storage_root_dir, root, sizeof(storage_root_dir) - 1);
 	if (mkdir(storage_root_dir, S_IRWXU) == -1 && errno != EEXIST)
-		warn("Couldn't create storage directory: %s", strerror(errno));
+		warn("Couldn't create directory: %s: %s", storage_root_dir, strerror(errno));
 
 	if (storage_map == NULL)
 		storage_map = g_hash_table_new_full(g_bdaddr_hash, g_bdaddr_equal,
@@ -129,7 +130,7 @@ int storage_device_load(const struct ba_device *d) {
 	GError *err = NULL;
 	if (!g_key_file_load_from_file(st->keyfile, path, G_KEY_FILE_NONE, &err)) {
 		if (err->code != G_FILE_ERROR_NOENT)
-			warn("Couldn't load storage: %s", err->message);
+			warn("Couldn't load storage: %s: %s", path, err->message);
 		g_error_free(err);
 		goto final;
 	}
@@ -161,7 +162,7 @@ int storage_device_save(const struct ba_device *d) {
 
 	GError *err = NULL;
 	if (!g_key_file_save_to_file(st->keyfile, path, &err)) {
-		error("Couldn't save storage: %s", err->message);
+		error("Couldn't save storage: %s: %s", path, err->message);
 		g_error_free(err);
 		goto final;
 	}
