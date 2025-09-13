@@ -1,6 +1,6 @@
 /*
  * BlueALSA - dbus-client-pcm.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -71,6 +71,7 @@
 /**
  * BlueALSA PCM object property. */
 enum ba_pcm_property {
+	BLUEALSA_PCM_RECONFIGURABLE,
 	BLUEALSA_PCM_CLIENT_DELAY,
 	BLUEALSA_PCM_SOFT_VOLUME,
 	BLUEALSA_PCM_VOLUME,
@@ -133,6 +134,8 @@ struct ba_pcm {
 	bdaddr_t addr;
 	/* transport codec */
 	struct ba_pcm_codec codec;
+	/* codec reconfigurability */
+	dbus_bool_t reconfigurable;
 	/* approximate PCM delay */
 	dbus_uint16_t delay;
 	/* client delay */

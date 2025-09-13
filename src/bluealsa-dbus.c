@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -277,6 +277,13 @@ static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->media.configuration,
 				t->media.sep->config.caps_size, sizeof(uint8_t));
+	return NULL;
+}
+
+static GVariant *ba_variant_new_pcm_reconfigurable(const struct ba_transport_pcm *pcm) {
+	const struct ba_transport *t = pcm->t;
+	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		return g_variant_new_boolean(t->media.reconfigurable);
 	return NULL;
 }
 
@@ -929,6 +936,11 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 			goto unavailable;
 		return value;
 	}
+	if (strcmp(property, "Reconfigurable") == 0) {
+		if ((value = ba_variant_new_pcm_reconfigurable(pcm)) == NULL)
+			goto unavailable;
+		return value;
+	}
 	if (strcmp(property, "Delay") == 0)
 		return ba_variant_new_pcm_delay(pcm);
 	if (strcmp(property, "ClientDelay") == 0)
@@ -956,6 +968,18 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 
 	const bool is_sco = t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
 	const int volume_max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
+
+	if (strcmp(property, "Reconfigurable") == 0) {
+		if (is_sco) {
+			*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_NOT_SUPPORTED,
+					"SCO transport codecs are not reconfigurable");
+			return false;
+		}
+		const bool reconfigurable = g_variant_get_boolean(value);
+		ba_transport_a2dp_set_reconfigurable(t, reconfigurable);
+		ba_transport_pcm_reconfigurable_sync(pcm, BA_DBUS_PCM_UPDATE_RECONFIGURABLE);
+		return true;
+	}
 
 	if (strcmp(property, "ClientDelay") == 0) {
 		pcm->client_delay_dms = g_variant_get_int16(value);
@@ -1090,6 +1114,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC_CONFIG)
 		g_variant_builder_add(&props, "{sv}", "CodecConfiguration", ba_variant_new_pcm_codec_config(pcm));
+	if (mask & BA_DBUS_PCM_UPDATE_RECONFIGURABLE)
+		g_variant_builder_add(&props, "{sv}", "Reconfigurable", ba_variant_new_pcm_reconfigurable(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_DELAY)
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CLIENT_DELAY)

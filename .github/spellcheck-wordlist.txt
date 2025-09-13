@@ -251,6 +251,8 @@ ptr
 qsort
 readi
 readline
+reconfigurability
+reconfigurable
 revents
 rl
 RST

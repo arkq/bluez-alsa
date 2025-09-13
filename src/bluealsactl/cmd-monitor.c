@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsactl/cmd-monitor.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -27,6 +27,7 @@
 
 enum {
 	PROPERTY_CODEC,
+	PROPERTY_RECONFIGURABLE,
 	PROPERTY_DELAY,
 	PROPERTY_CLIENT_DELAY,
 	PROPERTY_RUNNING,
@@ -42,6 +43,7 @@ struct property {
 static bool monitor_properties = false;
 static struct property monitor_properties_set[] = {
 	[PROPERTY_CODEC] = { "Codec", false },
+	[PROPERTY_RECONFIGURABLE] = { "Reconfigurable", false },
 	[PROPERTY_DELAY] = { "Delay", false },
 	[PROPERTY_CLIENT_DELAY] = { "ClientDelay", false },
 	[PROPERTY_RUNNING] = { "Running", false },
@@ -82,6 +84,14 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		const char *codec;
 		dbus_message_iter_get_basic(&variant, &codec);
 		printf("PropertyChanged %s %s %s\n", path, key, codec);
+	}
+	else if (monitor_properties_set[PROPERTY_RECONFIGURABLE].enabled &&
+			strcmp(key, monitor_properties_set[PROPERTY_RECONFIGURABLE].name) == 0) {
+		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
+			goto fail;
+		dbus_bool_t reconfigurable;
+		dbus_message_iter_get_basic(&variant, &reconfigurable);
+		printf("PropertyChanged %s %s %s\n", path, key, reconfigurable ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_DELAY].enabled &&
 			strcmp(key, monitor_properties_set[PROPERTY_DELAY].name) == 0) {
