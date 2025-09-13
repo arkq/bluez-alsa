@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluealsa-dbus.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -462,9 +462,6 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		ba_transport_pcm_release(pcm);
 		pthread_mutex_unlock(&pcm->mutex);
 		ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_CLOSE);
-		/* Check whether we've just closed the last PCM client and in
-		 * such a case schedule transport IO threads termination. */
-		ba_transport_stop_if_no_clients(pcm->t);
 		/* remove channel from watch */
 		return FALSE;
 	}

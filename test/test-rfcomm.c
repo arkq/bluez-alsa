@@ -186,6 +186,7 @@ CK_START_TEST(test_rfcomm_hsp_hs) {
 #if ENABLE_HFP_CODEC_SELECTION
 static void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
 	struct ba_transport *sco = userdata;
+	usleep(5000);
 	pthread_mutex_lock(&sco->codec_select_client_mtx);
 	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_CVSD), 0);
 	/* The test code rejects first codec selection request for mSBC. */
