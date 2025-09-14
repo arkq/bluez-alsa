@@ -1,6 +1,6 @@
 /*
  * test-a2dp.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -30,6 +30,7 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "codec-sbc.h"
+#include "error.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -142,10 +143,10 @@ CK_START_TEST(test_a2dp_check_configuration) {
 	};
 
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
-			&cfg_valid, sizeof(cfg_valid) + 1), A2DP_CHECK_ERR_SIZE);
+			&cfg_valid, sizeof(cfg_valid) + 1), ERROR_CODE_INVALID_SIZE);
 
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
-				&cfg_valid, sizeof(cfg_valid)), A2DP_CHECK_OK);
+				&cfg_valid, sizeof(cfg_valid)), ERROR_CODE_OK);
 
 	const a2dp_sbc_t cfg_invalid = {
 		.sampling_freq = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100,
@@ -155,7 +156,7 @@ CK_START_TEST(test_a2dp_check_configuration) {
 	};
 
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_sbc_source,
-				&cfg_invalid, sizeof(cfg_invalid)), A2DP_CHECK_ERR_RATE);
+				&cfg_invalid, sizeof(cfg_invalid)), ERROR_CODE_A2DP_INVALID_SAMPLE_RATE);
 
 #if ENABLE_AAC
 	a2dp_aac_t cfg_aac_invalid = {
@@ -164,7 +165,7 @@ CK_START_TEST(test_a2dp_check_configuration) {
 		A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_44100)
 		.channel_mode = AAC_CHANNEL_MODE_MONO };
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_aac_source,
-			&cfg_aac_invalid, sizeof(cfg_aac_invalid)), A2DP_CHECK_ERR_OBJECT_TYPE);
+			&cfg_aac_invalid, sizeof(cfg_aac_invalid)), ERROR_CODE_A2DP_INVALID_OBJECT_TYPE);
 #endif
 
 #if ENABLE_FASTSTREAM
@@ -174,27 +175,22 @@ CK_START_TEST(test_a2dp_check_configuration) {
 
 	/* FastStream codec requires at least one direction to be set. */
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
-			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_ERR_DIRECTIONS);
+			&cfg_faststream, sizeof(cfg_faststream)), ERROR_CODE_A2DP_INVALID_DIRECTIONS);
 
 	/* Check for valid unidirectional configuration. */
 	cfg_faststream.direction |= FASTSTREAM_DIRECTION_MUSIC;
 	cfg_faststream.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
-			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_OK);
+			&cfg_faststream, sizeof(cfg_faststream)), ERROR_CODE_OK);
 
 	/* Check for valid bidirectional configuration. */
 	cfg_faststream.direction |= FASTSTREAM_DIRECTION_VOICE;
 	cfg_faststream.sampling_freq_voice = FASTSTREAM_SAMPLING_FREQ_VOICE_16000;
 	ck_assert_int_eq(a2dp_check_configuration(&a2dp_faststream_source,
-			&cfg_faststream, sizeof(cfg_faststream)), A2DP_CHECK_OK);
+			&cfg_faststream, sizeof(cfg_faststream)), ERROR_CODE_OK);
 
 #endif
 
-} CK_END_TEST
-
-CK_START_TEST(test_a2dp_check_strerror) {
-	ck_assert_str_eq(a2dp_check_strerror(A2DP_CHECK_ERR_SIZE), "Invalid size");
-	ck_assert_str_eq(a2dp_check_strerror(0xFFFF), "Check error");
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_caps) {
@@ -300,12 +296,12 @@ CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 
 	unsigned int channel_mode = 0;
 	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_channel_mode(&caps_sbc,
-			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode), 0);
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode), ERROR_CODE_OK);
 	ck_assert_uint_eq(channel_mode, SBC_CHANNEL_MODE_STEREO);
 
 	unsigned int sampling_freq = 0;
 	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_sample_rate(&caps_sbc,
-			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq), 0);
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq), ERROR_CODE_OK);
 	ck_assert_uint_eq(sampling_freq, SBC_SAMPLING_FREQ_44100);
 
 #if ENABLE_AAC
@@ -320,12 +316,12 @@ CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 
 	channel_mode = 0;
 	ck_assert_int_eq(a2dp_aac_source.caps_helpers->foreach_channel_mode(&caps_aac,
-			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode), 1);
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode), ERROR_CODE_OK);
 	ck_assert_uint_eq(channel_mode, AAC_CHANNEL_MODE_STEREO);
 
 	sampling_freq = 0;
 	ck_assert_int_eq(a2dp_aac_source.caps_helpers->foreach_sample_rate(&caps_aac,
-			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq), 1);
+			A2DP_MAIN, a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq), ERROR_CODE_OK);
 	ck_assert_uint_eq(sampling_freq, AAC_SAMPLING_FREQ_48000);
 
 #endif
@@ -361,11 +357,11 @@ CK_START_TEST(test_a2dp_select_configuration) {
 	};
 
 	cfg = cfg_;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg) + 1), -1);
-	ck_assert_int_eq(errno, EINVAL);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg) + 1),
+			ERROR_CODE_INVALID_SIZE);
 
 	cfg = cfg_;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), ERROR_CODE_OK);
 	ck_assert_int_eq(cfg.sampling_freq, SBC_SAMPLING_FREQ_48000);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_STEREO);
 	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);
@@ -376,14 +372,14 @@ CK_START_TEST(test_a2dp_select_configuration) {
 
 	cfg = cfg_;
 	config.a2dp.force_mono = true;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), ERROR_CODE_OK);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_MONO);
 
 	cfg = cfg_;
 	config.a2dp.force_mono = false;
 	config.a2dp.force_44100 = true;
 	config.sbc_quality = SBC_QUALITY_XQ;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), 0);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_sbc_source, &cfg, sizeof(cfg)), ERROR_CODE_OK);
 	ck_assert_int_eq(cfg.sampling_freq, SBC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(cfg.channel_mode, SBC_CHANNEL_MODE_DUAL_CHANNEL);
 	ck_assert_int_eq(cfg.block_length, SBC_BLOCK_LENGTH_8);
@@ -402,7 +398,8 @@ CK_START_TEST(test_a2dp_select_configuration) {
 		.vbr = 1 };
 
 	cfg_aac = cfg_aac_;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), 0);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)),
+			ERROR_CODE_OK);
 	ck_assert_int_eq(cfg_aac.object_type, AAC_OBJECT_TYPE_MPEG4_LC);
 	ck_assert_int_eq(A2DP_AAC_GET_SAMPLING_FREQ(cfg_aac), AAC_SAMPLING_FREQ_44100);
 	ck_assert_int_eq(cfg_aac.channel_mode, AAC_CHANNEL_MODE_MONO);
@@ -410,13 +407,15 @@ CK_START_TEST(test_a2dp_select_configuration) {
 
 	cfg_aac = cfg_aac_;
 	config.aac_prefer_vbr = true;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), 0);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)),
+			ERROR_CODE_OK);
 	ck_assert_int_eq(cfg_aac.vbr, 1);
 
 	cfg_aac = cfg_aac_;
 	/* FDK-AAC encoder does not support AAC Long Term Prediction */
 	cfg_aac.object_type = AAC_OBJECT_TYPE_MPEG4_LTP;
-	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)), -1);
+	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)),
+			ERROR_CODE_A2DP_NOT_SUPPORTED_OBJECT_TYPE);
 
 #endif
 
@@ -446,7 +445,6 @@ int main(void) {
 	tcase_add_test(tc, test_a2dp_caps_select_channels_and_sampling);
 
 	tcase_add_test(tc, test_a2dp_check_configuration);
-	tcase_add_test(tc, test_a2dp_check_strerror);
 	tcase_add_test(tc, test_a2dp_select_configuration);
 
 	srunner_run_all(sr, CK_ENV);

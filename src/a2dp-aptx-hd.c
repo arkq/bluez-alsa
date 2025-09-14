@@ -28,6 +28,7 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "codec-aptx.h"
+#include "error.h"
 #include "io.h"
 #include "rtp.h"
 #include "shared/a2dp-codecs.h"
@@ -56,7 +57,7 @@ static void a2dp_aptx_hd_caps_intersect(
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_aptx_hd_t));
 }
 
-static int a2dp_aptx_hd_caps_foreach_channel_mode(
+static error_code_t a2dp_aptx_hd_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -64,10 +65,10 @@ static int a2dp_aptx_hd_caps_foreach_channel_mode(
 	const a2dp_aptx_hd_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_aptx_channels, caps->aptx.channel_mode, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_aptx_hd_caps_foreach_sample_rate(
+static error_code_t a2dp_aptx_hd_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -75,7 +76,7 @@ static int a2dp_aptx_hd_caps_foreach_sample_rate(
 	const a2dp_aptx_hd_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_aptx_rates, caps->aptx.sampling_freq, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_aptx_hd_caps_select_channel_mode(
@@ -341,7 +342,7 @@ fail_init:
 }
 #endif
 
-static int a2dp_aptx_hd_configuration_select(
+static error_code_t a2dp_aptx_hd_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -353,26 +354,26 @@ static int a2dp_aptx_hd_configuration_select(
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_aptx_hd_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
 		caps->aptx.sampling_freq = sampling_freq;
 	else {
 		error("apt-X HD: No supported sample rates: %#x", saved.aptx.sampling_freq);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
 	unsigned int channel_mode = 0;
 	if (a2dp_aptx_hd_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == ERROR_CODE_OK)
 		caps->aptx.channel_mode = channel_mode;
 	else {
 		error("apt-X HD: No supported channel modes: %#x", saved.aptx.channel_mode);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_aptx_hd_configuration_check(
+static error_code_t a2dp_aptx_hd_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -384,15 +385,15 @@ static int a2dp_aptx_hd_configuration_check(
 
 	if (a2dp_bit_mapping_lookup(a2dp_aptx_rates, conf_v.aptx.sampling_freq) == -1) {
 		debug("apt-X HD: Invalid sample rate: %#x", conf->aptx.sampling_freq);
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
 	if (a2dp_bit_mapping_lookup(a2dp_aptx_channels, conf_v.aptx.channel_mode) == -1) {
 		debug("apt-X HD: Invalid channel mode: %#x", conf->aptx.channel_mode);
-		return A2DP_CHECK_ERR_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_INVALID_CHANNEL_MODE;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
@@ -417,12 +418,12 @@ static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_aptx_hd_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_aptx_hd_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		warn("apt-X HD: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
 		sep->config.capabilities.aptx_hd.aptx.sampling_freq = APTX_SAMPLING_FREQ_44100;
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_aptx_hd_source_transport_start(struct ba_transport *t) {

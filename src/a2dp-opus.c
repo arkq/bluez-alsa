@@ -29,6 +29,7 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
+#include "error.h"
 #include "io.h"
 #include "rtp.h"
 #include "shared/a2dp-codecs.h"
@@ -57,7 +58,7 @@ static void a2dp_opus_caps_intersect(
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_opus_t));
 }
 
-static int a2dp_opus_caps_foreach_channel_mode(
+static error_code_t a2dp_opus_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -65,10 +66,10 @@ static int a2dp_opus_caps_foreach_channel_mode(
 	const a2dp_opus_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_opus_channels, caps->channel_mode, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_opus_caps_foreach_sample_rate(
+static error_code_t a2dp_opus_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -76,7 +77,7 @@ static int a2dp_opus_caps_foreach_sample_rate(
 	const a2dp_opus_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_opus_rates, caps->sampling_freq, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_opus_caps_select_channel_mode(
@@ -368,7 +369,7 @@ fail_init:
 	return NULL;
 }
 
-static int a2dp_opus_configuration_select(
+static error_code_t a2dp_opus_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -380,11 +381,11 @@ static int a2dp_opus_configuration_select(
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_opus_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("Opus: No supported sample rates: %#x", saved.sampling_freq);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
 	if (caps->frame_duration & OPUS_FRAME_DURATION_200)
@@ -393,22 +394,22 @@ static int a2dp_opus_configuration_select(
 		caps->frame_duration = OPUS_FRAME_DURATION_100;
 	else {
 		error("Opus: No supported frame durations: %#x", saved.frame_duration);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_FRAME_DURATION;
 	}
 
 	unsigned int channel_mode = 0;
 	if (a2dp_opus_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == ERROR_CODE_OK)
 		caps->channel_mode = channel_mode;
 	else {
 		error("Opus: No supported channel modes: %#x", saved.channel_mode);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_opus_configuration_check(
+static error_code_t a2dp_opus_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -420,7 +421,7 @@ static int a2dp_opus_configuration_check(
 
 	if (a2dp_bit_mapping_lookup(a2dp_opus_rates, conf_v.sampling_freq) == -1) {
 		debug("Opus: Invalid sample rate: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
 	switch (conf_v.frame_duration) {
@@ -429,15 +430,15 @@ static int a2dp_opus_configuration_check(
 		break;
 	default:
 		debug("Opus: Invalid frame duration: %#x", conf->frame_duration);
-		return A2DP_CHECK_ERR_FRAME_DURATION;
+		return ERROR_CODE_A2DP_INVALID_FRAME_DURATION;
 	}
 
 	if (a2dp_bit_mapping_lookup(a2dp_opus_channels, conf_v.channel_mode) == -1) {
 		debug("Opus: Invalid channel mode: %#x", conf->channel_mode);
-		return A2DP_CHECK_ERR_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_INVALID_CHANNEL_MODE;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_opus_transport_init(struct ba_transport *t) {
@@ -462,10 +463,10 @@ static int a2dp_opus_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_opus_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_opus_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		sep->config.capabilities.opus.channel_mode = OPUS_CHANNEL_MODE_MONO;
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_opus_source_transport_start(struct ba_transport *t) {

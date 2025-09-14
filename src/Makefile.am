@@ -41,6 +41,7 @@ libbluealsad_la_SOURCES = \
 	bluez-iface.xml \
 	codec-sbc.c \
 	dbus.c \
+	error.c \
 	h2.c \
 	hci.c \
 	hfp.c \

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -46,6 +46,7 @@
 #endif
 #include "a2dp-sbc.h"
 #include "ba-config.h"
+#include "error.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
 
@@ -78,7 +79,7 @@ const enum ba_transport_pcm_channel a2dp_channel_map_7_1[] = {
  * Note:
  * The user data passed to a2dp_bit_mapping_foreach() function shall be
  * a pointer to an unsigned integer variable initialized to 0. */
-int a2dp_bit_mapping_foreach_get_best_channel_mode(
+error_code_t a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
 		void *userdata) {
 
@@ -87,15 +88,15 @@ int a2dp_bit_mapping_foreach_get_best_channel_mode(
 	/* Skip multi-channel modes. If desired, multi-channel mode can be selected
 	 * manually by the user using the SelectCodec() D-Bus method. */
 	if (mapping.value > 2 && *output != 0)
-		return 1;
+		return ERROR_CODE_OK;
 
 	*output = mapping.bit_value;
 
 	if (config.a2dp.force_mono && mapping.value == 1)
-		return 1;
+		return ERROR_CODE_OK;
 
 	/* Keep iterating, so the last channel mode will be selected. */
-	return 0;
+	return ERROR_CODE_CONTINUE;
 }
 
 /**
@@ -104,7 +105,7 @@ int a2dp_bit_mapping_foreach_get_best_channel_mode(
  * Note:
  * The user data passed to a2dp_bit_mapping_foreach() function shall be
  * a pointer to an unsigned integer variable initialized to 0. */
-int a2dp_bit_mapping_foreach_get_best_sample_rate(
+error_code_t a2dp_bit_mapping_foreach_get_best_sample_rate(
 		struct a2dp_bit_mapping mapping,
 		void *userdata) {
 
@@ -113,31 +114,30 @@ int a2dp_bit_mapping_foreach_get_best_sample_rate(
 	/* Skip anything above 48000 Hz. If desired, bigger sample rates can be
 	 * selected manually by the user using the SelectCodec() D-Bus method. */
 	if (mapping.value > 48000 && *output != 0)
-		return 1;
+		return ERROR_CODE_OK;
 
 	*output = mapping.bit_value;
 
 	if (config.a2dp.force_44100 && mapping.value == 44100)
-		return 1;
+		return ERROR_CODE_OK;
 
 	/* Keep iterating, so the last sample rate will be selected. */
-	return 0;
+	return ERROR_CODE_CONTINUE;
 }
 
 /**
  * Iterate over A2DP bit-field mappings. */
-int a2dp_bit_mapping_foreach(
+error_code_t a2dp_bit_mapping_foreach(
 		const struct a2dp_bit_mapping *mappings,
 		uint32_t bitmask,
 		a2dp_bit_mapping_foreach_func func,
 		void *userdata) {
-	int rv = -1;
+	error_code_t err = ERROR_CODE_NOT_FOUND;
 	for (size_t i = 0; mappings[i].bit_value != 0; i++)
 		if (mappings[i].bit_value & bitmask)
-			/* stop iteration if callback returns non-zero */
-			if ((rv = func(mappings[i], userdata)) != 0)
-				break;
-	return rv;
+			if ((err = func(mappings[i], userdata)) != ERROR_CODE_CONTINUE)
+				return err;
+	return err == ERROR_CODE_CONTINUE ? ERROR_CODE_OK : err;
 }
 
 /**
@@ -257,7 +257,7 @@ struct a2dp_sep * const a2dp_seps[] = {
 
 /**
  * Initialize A2DP SEPs. */
-int a2dp_seps_init(void) {
+error_code_t a2dp_seps_init(void) {
 
 	for (size_t i = 0; a2dp_seps[i] != NULL; i++) {
 		/* We want the list of SEPs to be seen as const outside
@@ -273,13 +273,15 @@ int a2dp_seps_init(void) {
 			break;
 		}
 
-		if (sep->init != NULL && sep->enabled)
-			if (sep->init(sep) != 0)
-				return -1;
+		if (sep->init != NULL && sep->enabled) {
+			error_code_t err;
+			if ((err = sep->init(sep)) != ERROR_CODE_OK)
+				return err;
+		}
 
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
@@ -344,7 +346,7 @@ uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 
 /**
  * Select best possible A2DP codec configuration. */
-int a2dp_select_configuration(
+error_code_t a2dp_select_configuration(
 		const struct a2dp_sep *sep,
 		void *capabilities,
 		size_t size) {
@@ -353,7 +355,7 @@ int a2dp_select_configuration(
 		return sep->configuration_select(sep, capabilities);
 
 	error("Invalid capabilities size: %zu != %zu", size, sep->config.caps_size);
-	return errno = EINVAL, -1;
+	return ERROR_CODE_INVALID_SIZE;
 }
 
 /**
@@ -362,9 +364,9 @@ int a2dp_select_configuration(
  * @param sep A2DP Stream End-Point setup.
  * @param configuration A2DP codec configuration blob.
  * @param size The size of the A2DP codec configuration blob.
- * @return On success this function returns A2DP_CHECK_OK. Otherwise,
- *   one of the A2DP_CHECK_ERR_* values is returned. */
-enum a2dp_check_err a2dp_check_configuration(
+ * @return On success this function returns ERROR_CODE_OK. Otherwise,
+ *   one of the application error codes is returned. */
+error_code_t a2dp_check_configuration(
 		const struct a2dp_sep *sep,
 		const void *configuration,
 		size_t size) {
@@ -373,43 +375,5 @@ enum a2dp_check_err a2dp_check_configuration(
 		return sep->configuration_check(sep, configuration);
 
 	error("Invalid configuration size: %zu != %zu", size, sep->config.caps_size);
-	return A2DP_CHECK_ERR_SIZE;
-}
-
-/**
- * Get string representation of A2DP configuration check error. */
-const char *a2dp_check_strerror(
-		enum a2dp_check_err err) {
-	switch (err) {
-	case A2DP_CHECK_OK:
-		return "Success";
-	case A2DP_CHECK_ERR_SIZE:
-		return "Invalid size";
-	case A2DP_CHECK_ERR_CHANNEL_MODE:
-		return "Invalid channel mode";
-	case A2DP_CHECK_ERR_RATE:
-		return "Invalid sample rate";
-	case A2DP_CHECK_ERR_ALLOCATION_METHOD:
-		return "Invalid allocation method";
-	case A2DP_CHECK_ERR_BIT_POOL_RANGE:
-		return "Invalid bit-pool range";
-	case A2DP_CHECK_ERR_SUB_BANDS:
-		return "Invalid sub-bands";
-	case A2DP_CHECK_ERR_BLOCK_LENGTH:
-		return "Invalid block length";
-	case A2DP_CHECK_ERR_MPEG_LAYER:
-		return "Invalid MPEG layer";
-	case A2DP_CHECK_ERR_OBJECT_TYPE:
-		return "Invalid object type";
-	case A2DP_CHECK_ERR_DIRECTIONS:
-		return "Invalid directions";
-	case A2DP_CHECK_ERR_RATE_VOICE:
-		return "Invalid voice sample rate";
-	case A2DP_CHECK_ERR_RATE_MUSIC:
-		return "Invalid music sample rate";
-	case A2DP_CHECK_ERR_FRAME_DURATION:
-		return "Invalid frame duration";
-	}
-	debug("Unknown error code: %#x", err);
-	return "Check error";
+	return ERROR_CODE_INVALID_SIZE;
 }

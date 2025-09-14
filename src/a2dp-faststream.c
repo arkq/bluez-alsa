@@ -26,6 +26,7 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "codec-sbc.h"
+#include "error.h"
 #include "io.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
@@ -59,7 +60,7 @@ static bool a2dp_fs_caps_has_stream(
 	return caps->direction & FASTSTREAM_DIRECTION_VOICE;
 }
 
-static int a2dp_fs_caps_foreach_channel_mode(
+static error_code_t a2dp_fs_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -74,7 +75,7 @@ static int a2dp_fs_caps_foreach_channel_mode(
 	return func(channels_mono, userdata);
 }
 
-static int a2dp_fs_caps_foreach_sample_rate(
+static error_code_t a2dp_fs_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -333,7 +334,7 @@ fail_init:
 	return NULL;
 }
 
-static int a2dp_fs_configuration_select(
+static error_code_t a2dp_fs_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -345,33 +346,33 @@ static int a2dp_fs_configuration_select(
 
 	if ((caps->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 		error("FastStream: No supported directions: %#x", saved.direction);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_DIRECTIONS;
 	}
 
 	unsigned int sampling_freq_v = 0;
 	if (caps->direction & FASTSTREAM_DIRECTION_VOICE &&
 			a2dp_fs_caps_foreach_sample_rate(caps, A2DP_BACKCHANNEL,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq_v) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq_v) == ERROR_CODE_OK)
 		caps->sampling_freq_voice = sampling_freq_v;
 	else {
 		error("FastStream: No supported voice sample rates: %#x", saved.sampling_freq_voice);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE_VOICE;
 	}
 
 	unsigned int sampling_freq_m = 0;
 	if (caps->direction & FASTSTREAM_DIRECTION_MUSIC &&
 			a2dp_fs_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq_m) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq_m) == ERROR_CODE_OK)
 		caps->sampling_freq_music = sampling_freq_m;
 	else {
 		error("FastStream: No supported music sample rates: %#x", saved.sampling_freq_music);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE_MUSIC;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_fs_configuration_check(
+static error_code_t a2dp_fs_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -383,22 +384,22 @@ static int a2dp_fs_configuration_check(
 
 	if ((conf_v.direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 		debug("FastStream: Invalid direction: %#x", conf->direction);
-		return A2DP_CHECK_ERR_DIRECTIONS;
+		return ERROR_CODE_A2DP_INVALID_DIRECTIONS;
 	}
 
 	if (conf_v.direction & FASTSTREAM_DIRECTION_VOICE &&
 			a2dp_bit_mapping_lookup(a2dp_fs_rates_voice, conf_v.sampling_freq_voice) == -1) {
 		debug("FastStream: Invalid voice sample rate: %#x", conf->sampling_freq_voice);
-		return A2DP_CHECK_ERR_RATE_VOICE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE_VOICE;
 	}
 
 	if (conf_v.direction & FASTSTREAM_DIRECTION_MUSIC &&
 			a2dp_bit_mapping_lookup(a2dp_fs_rates_music, conf_v.sampling_freq_music) == -1) {
 		debug("FastStream: Invalid music sample rate: %#x", conf->sampling_freq_music);
-		return A2DP_CHECK_ERR_RATE_MUSIC;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE_MUSIC;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_fs_transport_init(struct ba_transport *t) {
@@ -438,12 +439,12 @@ static int a2dp_fs_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_fs_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_fs_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		warn("FastStream: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
 		sep->config.capabilities.faststream.sampling_freq_music = FASTSTREAM_SAMPLING_FREQ_MUSIC_44100;
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_fs_source_transport_start(struct ba_transport *t) {

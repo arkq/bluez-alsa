@@ -38,27 +38,6 @@ gboolean g_bdaddr_equal(const void *v1, const void *v2);
 
 #if ENABLE_MP3LAME
 int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask);
-const char *lame_encode_strerror(int err);
-#endif
-
-#if ENABLE_AAC
-# include <fdk-aac/aacdecoder_lib.h>
-# include <fdk-aac/aacenc_lib.h>
-const char *aacdec_strerror(AAC_DECODER_ERROR err);
-const char *aacenc_strerror(AACENC_ERROR err);
-#endif
-
-#if ENABLE_LC3PLUS
-# include <lc3plus.h>
-const char *lc3plus_strerror(LC3PLUS_Error err);
-#endif
-
-#if ENABLE_LDAC
-const char *ldacBT_strerror(int err);
-#endif
-
-#if ENABLE_LHDC
-const char *lhdcBT_dec_strerror(int err);
 #endif
 
 #endif

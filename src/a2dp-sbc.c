@@ -31,6 +31,7 @@
 #include "ba-config.h"
 #include "bluealsa-dbus.h"
 #include "codec-sbc.h"
+#include "error.h"
 #include "io.h"
 #include "rtp.h"
 #include "shared/a2dp-codecs.h"
@@ -71,7 +72,7 @@ static void a2dp_sbc_caps_intersect(
 
 }
 
-static int a2dp_sbc_caps_foreach_channel_mode(
+static error_code_t a2dp_sbc_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -79,10 +80,10 @@ static int a2dp_sbc_caps_foreach_channel_mode(
 	const a2dp_sbc_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_sbc_channels, caps->channel_mode, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_sbc_caps_foreach_sample_rate(
+static error_code_t a2dp_sbc_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -90,7 +91,7 @@ static int a2dp_sbc_caps_foreach_sample_rate(
 	const a2dp_sbc_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_sbc_rates, caps->sampling_freq, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_sbc_caps_select_channel_mode(
@@ -413,7 +414,7 @@ fail_init:
 	return NULL;
 }
 
-static int a2dp_sbc_configuration_select(
+static error_code_t a2dp_sbc_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -425,16 +426,16 @@ static int a2dp_sbc_configuration_select(
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_sbc_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == -1) {
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != ERROR_CODE_OK) {
 		error("SBC: No supported sample rates: %#x", saved.sampling_freq);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
 	unsigned int channel_mode = 0;
 	if (a2dp_sbc_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == -1) {
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != ERROR_CODE_OK) {
 		error("SBC: No supported channel modes: %#x", saved.channel_mode);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
 	}
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
@@ -462,7 +463,7 @@ static int a2dp_sbc_configuration_select(
 		caps->block_length = SBC_BLOCK_LENGTH_4;
 	else {
 		error("SBC: No supported block lengths: %#x", saved.block_length);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_BLOCK_LENGTH;
 	}
 
 	if (caps->subbands & SBC_SUBBANDS_8)
@@ -471,7 +472,7 @@ static int a2dp_sbc_configuration_select(
 		caps->subbands = SBC_SUBBANDS_4;
 	else {
 		error("SBC: No supported sub-bands: %#x", saved.subbands);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SUB_BANDS;
 	}
 
 	if (caps->allocation_method & SBC_ALLOCATION_LOUDNESS)
@@ -480,19 +481,19 @@ static int a2dp_sbc_configuration_select(
 		caps->allocation_method = SBC_ALLOCATION_SNR;
 	else {
 		error("SBC: No supported allocation methods: %#x", saved.allocation_method);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_ALLOCATION_METHOD;
 	}
 
 	if (caps->min_bitpool > caps->max_bitpool) {
 		error("SBC: No supported bit-pool range: [%u, %u]",
 				saved.min_bitpool, saved.max_bitpool);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_MIN_BIT_POOL_VALUE;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_sbc_configuration_check(
+static error_code_t a2dp_sbc_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -504,12 +505,12 @@ static int a2dp_sbc_configuration_check(
 
 	if (a2dp_bit_mapping_lookup(a2dp_sbc_rates, conf_v.sampling_freq) == -1) {
 		debug("SBC: Invalid sample rate: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
 	if (a2dp_bit_mapping_lookup(a2dp_sbc_channels, conf_v.channel_mode) == -1) {
 		debug("SBC: Invalid channel mode: %#x", conf->channel_mode);
-		return A2DP_CHECK_ERR_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_INVALID_CHANNEL_MODE;
 	}
 
 	switch (conf_v.block_length) {
@@ -520,7 +521,7 @@ static int a2dp_sbc_configuration_check(
 		break;
 	default:
 		debug("SBC: Invalid block length: %#x", conf->block_length);
-		return A2DP_CHECK_ERR_BLOCK_LENGTH;
+		return ERROR_CODE_A2DP_INVALID_BLOCK_LENGTH;
 	}
 
 	switch (conf_v.subbands) {
@@ -529,7 +530,7 @@ static int a2dp_sbc_configuration_check(
 		break;
 	default:
 		debug("SBC: Invalid sub-bands: %#x", conf->subbands);
-		return A2DP_CHECK_ERR_SUB_BANDS;
+		return ERROR_CODE_A2DP_INVALID_SUB_BANDS;
 	}
 
 	switch (conf_v.allocation_method) {
@@ -538,19 +539,19 @@ static int a2dp_sbc_configuration_check(
 		break;
 	default:
 		debug("SBC: Invalid allocation method: %#x", conf->allocation_method);
-		return A2DP_CHECK_ERR_ALLOCATION_METHOD;
+		return ERROR_CODE_A2DP_INVALID_ALLOCATION_METHOD;
 	}
 
 	if (conf_v.min_bitpool > conf_v.max_bitpool) {
 		error("SBC: Invalid bit-pool range: [%u, %u]",
 				conf->min_bitpool, conf->max_bitpool);
-		return A2DP_CHECK_ERR_BIT_POOL_RANGE;
+		return ERROR_CODE_A2DP_INVALID_MIN_BIT_POOL_VALUE;
 	}
 
 	debug("SBC: Selected bit-pool range: [%u, %u]",
 			conf->min_bitpool, conf->max_bitpool);
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_sbc_transport_init(struct ba_transport *t) {
@@ -575,7 +576,7 @@ static int a2dp_sbc_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_sbc_source_init(struct a2dp_sep *sep) {
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
 			config.sbc_quality == SBC_QUALITY_XQPLUS) {
@@ -595,7 +596,7 @@ static int a2dp_sbc_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_44100)
 		sep->config.capabilities.sbc.sampling_freq = SBC_SAMPLING_FREQ_44100;
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_sbc_source_transport_start(struct ba_transport *t) {

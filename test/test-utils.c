@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -21,6 +21,7 @@
 #include <bluetooth/bluetooth.h>
 #include <check.h>
 
+#include "error.h"
 #include "hci.h"
 #include "utils.h"
 #include "shared/defs.h"
@@ -78,6 +79,11 @@ CK_START_TEST(test_batostr_) {
 
 } CK_END_TEST
 #endif
+
+CK_START_TEST(test_error_code_strerror) {
+	ck_assert_str_eq(error_code_strerror(ERROR_CODE_INVALID_SIZE), "Invalid size");
+	ck_assert_str_eq(error_code_strerror(0xFFFF), "Unknown error");
+} CK_END_TEST
 
 CK_START_TEST(test_nv_find) {
 
@@ -299,6 +305,9 @@ int main(void) {
 	SRunner *sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
+
+	/* error.c */
+	tcase_add_test(tc, test_error_code_strerror);
 
 	/* shared/ffb.c */
 	tcase_add_test(tc, test_ffb);

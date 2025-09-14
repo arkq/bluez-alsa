@@ -31,9 +31,9 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
+#include "error.h"
 #include "io.h"
 #include "rtp.h"
-#include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
@@ -78,7 +78,7 @@ static void a2dp_aac_caps_intersect(
 
 }
 
-static int a2dp_aac_caps_foreach_channel_mode(
+static error_code_t a2dp_aac_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -86,10 +86,10 @@ static int a2dp_aac_caps_foreach_channel_mode(
 	const a2dp_aac_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_aac_channels, caps->channel_mode, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_aac_caps_foreach_sample_rate(
+static error_code_t a2dp_aac_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -99,7 +99,7 @@ static int a2dp_aac_caps_foreach_sample_rate(
 		const uint16_t sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(*caps);
 		return a2dp_bit_mapping_foreach(a2dp_aac_rates, sampling_freq, func, userdata);
 	}
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_aac_caps_select_channel_mode(
@@ -583,7 +583,7 @@ fail_open:
 	return NULL;
 }
 
-static int a2dp_aac_configuration_select(
+static error_code_t a2dp_aac_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -595,20 +595,20 @@ static int a2dp_aac_configuration_select(
 
 	unsigned int channel_mode = 0;
 	if (a2dp_aac_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == ERROR_CODE_OK)
 		caps->channel_mode = channel_mode;
 	else {
 		error("AAC: No supported channel modes: %#x", saved.channel_mode);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNELS;
 	}
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_aac_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
 		A2DP_AAC_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
 		error("AAC: No supported sample rates: %#x", A2DP_AAC_GET_SAMPLING_FREQ(saved));
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
 	if (caps->object_type & AAC_OBJECT_TYPE_MPEG4_HE2 &&
@@ -640,7 +640,7 @@ static int a2dp_aac_configuration_select(
 		caps->object_type = AAC_OBJECT_TYPE_MPEG2_LC;
 	else {
 		error("AAC: No supported object types: %#x", saved.object_type);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_OBJECT_TYPE;
 	}
 
 	unsigned int ba_bitrate = A2DP_AAC_GET_BITRATE(sep->config.capabilities.aac);
@@ -653,10 +653,10 @@ static int a2dp_aac_configuration_select(
 	if (!config.aac_prefer_vbr)
 		caps->vbr = 0;
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_aac_configuration_check(
+static error_code_t a2dp_aac_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -677,21 +677,21 @@ static int a2dp_aac_configuration_check(
 		break;
 	default:
 		debug("AAC: Invalid object type: %#x", conf->object_type);
-		return A2DP_CHECK_ERR_OBJECT_TYPE;
+		return ERROR_CODE_A2DP_INVALID_OBJECT_TYPE;
 	}
 
 	const uint16_t conf_sampling_freq = A2DP_AAC_GET_SAMPLING_FREQ(conf_v);
 	if (a2dp_bit_mapping_lookup(a2dp_aac_rates, conf_sampling_freq) == -1) {
 		debug("AAC: Invalid sample rate: %#x", A2DP_AAC_GET_SAMPLING_FREQ(*conf));
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
 	if (a2dp_bit_mapping_lookup(a2dp_aac_channels, conf_v.channel_mode) == -1) {
 		debug("AAC: Invalid channel mode: %#x", conf->channel_mode);
-		return A2DP_CHECK_ERR_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_INVALID_CHANNELS;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_aac_transport_init(struct ba_transport *t) {
@@ -716,7 +716,7 @@ static int a2dp_aac_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_aac_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_aac_source_init(struct a2dp_sep *sep) {
 
 	LIB_INFO info[FDK_MODULE_LAST];
 	FDKinitLibInfo(info);
@@ -729,7 +729,7 @@ static int a2dp_aac_source_init(struct a2dp_sep *sep) {
 	/* Check whether mandatory AAC profile is supported. */
 	if ((caps_aac & CAPF_AAC_LC) == 0) {
 		error("AAC: Low Complexity (AAC-LC) is not supported");
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_MISSING_CAPABILITIES;
 	}
 
 	if (caps_aac & CAPF_ER_AAC_SCAL)
@@ -753,7 +753,7 @@ static int a2dp_aac_source_init(struct a2dp_sep *sep) {
 
 	A2DP_AAC_SET_BITRATE(sep->config.capabilities.aac, config.aac_bitrate);
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_aac_source_transport_start(struct ba_transport *t) {
@@ -803,7 +803,7 @@ struct a2dp_sep a2dp_aac_source = {
 	.enabled = true,
 };
 
-static int a2dp_aac_sink_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_aac_sink_init(struct a2dp_sep *sep) {
 
 	LIB_INFO info[FDK_MODULE_LAST];
 	FDKinitLibInfo(info);
@@ -818,7 +818,7 @@ static int a2dp_aac_sink_init(struct a2dp_sep *sep) {
 	/* Check whether mandatory AAC profile is supported. */
 	if ((caps_aac & CAPF_AAC_LC) == 0) {
 		error("AAC: Low Complexity (AAC-LC) is not supported");
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_MISSING_CAPABILITIES;
 	}
 
 	if (caps_aac & CAPF_ER_AAC_SCAL)
@@ -838,7 +838,7 @@ static int a2dp_aac_sink_init(struct a2dp_sep *sep) {
 
 	A2DP_AAC_SET_BITRATE(sep->config.capabilities.aac, config.aac_bitrate);
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_aac_sink_transport_start(struct ba_transport *t) {

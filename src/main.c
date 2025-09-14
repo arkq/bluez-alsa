@@ -46,6 +46,7 @@
 #include "bluealsa-iface.h"
 #include "bluez.h"
 #include "codec-sbc.h"
+#include "error.h"
 #include "hfp.h"
 #if ENABLE_OFONO
 # include "ofono.h"
@@ -680,7 +681,7 @@ int main(int argc, char **argv) {
 	a2dp_sbc_sink.enabled = true;
 	config.hfp.codecs.cvsd = true;
 
-	if (a2dp_seps_init() == -1)
+	if (a2dp_seps_init() != ERROR_CODE_OK)
 		return EXIT_FAILURE;
 
 	const char *storage_base_dir = BLUEALSA_STORAGE_DIR;

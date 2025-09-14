@@ -31,6 +31,7 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
+#include "error.h"
 #include "io.h"
 #include "rtp.h"
 #include "utils.h"
@@ -58,7 +59,7 @@ static void a2dp_lc3plus_caps_intersect(
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_lc3plus_t));
 }
 
-static int a2dp_lc3plus_caps_foreach_channel_mode(
+static error_code_t a2dp_lc3plus_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -66,10 +67,10 @@ static int a2dp_lc3plus_caps_foreach_channel_mode(
 	const a2dp_lc3plus_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_lc3plus_channels, caps->channel_mode, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_lc3plus_caps_foreach_sample_rate(
+static error_code_t a2dp_lc3plus_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -79,7 +80,7 @@ static int a2dp_lc3plus_caps_foreach_sample_rate(
 		const uint16_t sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(*caps);
 		return a2dp_bit_mapping_foreach(a2dp_lc3plus_rates, sampling_freq, func, userdata);
 	}
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_lc3plus_caps_select_channel_mode(
@@ -620,7 +621,7 @@ fail_init:
 	return NULL;
 }
 
-static int a2dp_lc3plus_configuration_select(
+static error_code_t a2dp_lc3plus_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -638,31 +639,31 @@ static int a2dp_lc3plus_configuration_select(
 		caps->frame_duration = LC3PLUS_FRAME_DURATION_025;
 	else {
 		error("LC3plus: No supported frame durations: %#x", saved.frame_duration);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_FRAME_DURATION;
 	}
 
 	unsigned int channel_mode = 0;
 	if (a2dp_lc3plus_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != -1)
+				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == ERROR_CODE_OK)
 		caps->channel_mode = channel_mode;
 	else {
 		error("LC3plus: No supported channel modes: %#x", saved.channel_mode);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
 	}
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_lc3plus_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
 		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
 		error("LC3plus: No supported sample rates: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(saved));
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_lc3plus_configuration_check(
+static error_code_t a2dp_lc3plus_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -679,21 +680,21 @@ static int a2dp_lc3plus_configuration_check(
 		break;
 	default:
 		debug("LC3plus: Invalid frame duration: %#x", conf->frame_duration);
-		return A2DP_CHECK_ERR_FRAME_DURATION;
+		return ERROR_CODE_A2DP_INVALID_FRAME_DURATION;
 	}
 
 	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_channels, conf_v.channel_mode) == -1) {
 		debug("LC3plus: Invalid channel mode: %#x", conf->channel_mode);
-		return A2DP_CHECK_ERR_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_INVALID_CHANNEL_MODE;
 	}
 
 	uint16_t conf_sampling_freq = A2DP_LC3PLUS_GET_SAMPLING_FREQ(conf_v);
 	if (a2dp_bit_mapping_lookup(a2dp_lc3plus_rates, conf_sampling_freq) == -1) {
 		debug("LC3plus: Invalid sample rate: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(*conf));
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
@@ -718,12 +719,12 @@ static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_lc3plus_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_lc3plus_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_mono)
 		sep->config.capabilities.lc3plus.channel_mode = LC3PLUS_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
 		warn("LC3plus: 44.1 kHz sample rate not supported");
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_lc3plus_source_transport_start(struct ba_transport *t) {

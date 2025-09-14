@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.h
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -23,6 +23,7 @@
 #include <sys/types.h>
 
 #include "ba-transport-pcm.h"
+#include "error.h"
 #include "shared/a2dp-codecs.h"
 
 /**
@@ -52,7 +53,7 @@ static_assert(
 
 /**
  * Callback function for iterating over A2DP bit-field. */
-typedef int (*a2dp_bit_mapping_foreach_func)(
+typedef error_code_t (*a2dp_bit_mapping_foreach_func)(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
 
@@ -61,14 +62,14 @@ extern const enum ba_transport_pcm_channel a2dp_channel_map_stereo[];
 extern const enum ba_transport_pcm_channel a2dp_channel_map_5_1[];
 extern const enum ba_transport_pcm_channel a2dp_channel_map_7_1[];
 
-int a2dp_bit_mapping_foreach_get_best_channel_mode(
+error_code_t a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
-int a2dp_bit_mapping_foreach_get_best_sample_rate(
+error_code_t a2dp_bit_mapping_foreach_get_best_sample_rate(
 		struct a2dp_bit_mapping mapping,
 		void *userdata);
 
-int a2dp_bit_mapping_foreach(
+error_code_t a2dp_bit_mapping_foreach(
 		const struct a2dp_bit_mapping *mappings,
 		uint32_t bitmask,
 		a2dp_bit_mapping_foreach_func func,
@@ -115,14 +116,14 @@ struct a2dp_caps_helpers {
 			enum a2dp_stream stream);
 
 	/* Function for iterating over channel modes. */
-	int (*foreach_channel_mode)(
+	error_code_t (*foreach_channel_mode)(
 			const void *capabilities,
 			enum a2dp_stream stream,
 			a2dp_bit_mapping_foreach_func func,
 			void *userdata);
 
 	/* Function for iterating over sample rates. */
-	int (*foreach_sample_rate)(
+	error_code_t (*foreach_sample_rate)(
 			const void *capabilities,
 			enum a2dp_stream stream,
 			a2dp_bit_mapping_foreach_func func,
@@ -172,15 +173,15 @@ struct a2dp_sep {
 	struct a2dp_sep_config config;
 
 	/* callback function for SEP initialization */
-	int (*init)(struct a2dp_sep *sep);
+	error_code_t (*init)(struct a2dp_sep *sep);
 
 	/* callback function for selecting configuration */
-	int (*configuration_select)(
+	error_code_t (*configuration_select)(
 			const struct a2dp_sep *sep,
 			void *capabilities);
 
 	/* callback function for checking configuration correctness */
-	int (*configuration_check)(
+	error_code_t (*configuration_check)(
 			const struct a2dp_sep *sep,
 			const void *configuration);
 
@@ -198,7 +199,7 @@ struct a2dp_sep {
 /* NULL-terminated list of available local A2DP SEPs */
 extern struct a2dp_sep * const a2dp_seps[];
 
-int a2dp_seps_init(void);
+error_code_t a2dp_seps_init(void);
 
 int a2dp_sep_config_cmp(
 		const struct a2dp_sep_config *a,
@@ -215,34 +216,14 @@ uint32_t a2dp_get_vendor_codec_id(
 		const void *capabilities,
 		size_t size);
 
-int a2dp_select_configuration(
+error_code_t a2dp_select_configuration(
 		const struct a2dp_sep *sep,
 		void *capabilities,
 		size_t size);
 
-enum a2dp_check_err {
-	A2DP_CHECK_OK = 0,
-	A2DP_CHECK_ERR_SIZE,
-	A2DP_CHECK_ERR_CHANNEL_MODE,
-	A2DP_CHECK_ERR_RATE,
-	A2DP_CHECK_ERR_ALLOCATION_METHOD,
-	A2DP_CHECK_ERR_BIT_POOL_RANGE,
-	A2DP_CHECK_ERR_SUB_BANDS,
-	A2DP_CHECK_ERR_BLOCK_LENGTH,
-	A2DP_CHECK_ERR_MPEG_LAYER,
-	A2DP_CHECK_ERR_OBJECT_TYPE,
-	A2DP_CHECK_ERR_DIRECTIONS,
-	A2DP_CHECK_ERR_RATE_VOICE,
-	A2DP_CHECK_ERR_RATE_MUSIC,
-	A2DP_CHECK_ERR_FRAME_DURATION,
-};
-
-enum a2dp_check_err a2dp_check_configuration(
+error_code_t a2dp_check_configuration(
 		const struct a2dp_sep *sep,
 		const void *configuration,
 		size_t size);
-
-const char *a2dp_check_strerror(
-		enum a2dp_check_err err);
 
 #endif

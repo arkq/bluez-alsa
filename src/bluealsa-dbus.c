@@ -41,6 +41,7 @@
 #include "bluealsa-iface.h"
 #include "bluez.h"
 #include "dbus.h"
+#include "error.h"
 #include "hfp.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
@@ -316,26 +317,26 @@ struct ba_populate_data {
 	unsigned int value;
 };
 
-static int ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata) {
+static error_code_t ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata) {
 	struct ba_populate_data *data = userdata;
 	if (data->value == mapping.value)
-		return 0;
+		return ERROR_CODE_CONTINUE;
 	g_variant_builder_add_value(data->builder, g_variant_new_byte(mapping.value));
 	data->value = mapping.value;
-	return 0;
+	return ERROR_CODE_CONTINUE;
 }
 
-static int ba_populate_rates(struct a2dp_bit_mapping mapping, void *userdata) {
+static error_code_t ba_populate_rates(struct a2dp_bit_mapping mapping, void *userdata) {
 	struct ba_populate_data *data = userdata;
 	g_variant_builder_add_value(data->builder, g_variant_new_uint32(mapping.value));
-	return 0;
+	return ERROR_CODE_CONTINUE;
 }
 
-static int ba_populate_channel_map(struct a2dp_bit_mapping mapping, void *userdata) {
+static error_code_t ba_populate_channel_map(struct a2dp_bit_mapping mapping, void *userdata) {
 	struct ba_populate_data *data = userdata;
 
 	if (data->value == mapping.ch.channels)
-		return 0;
+		return ERROR_CODE_CONTINUE;
 
 	const char *strv[16];
 	for (size_t i = 0; i < mapping.ch.channels; i++)
@@ -343,7 +344,7 @@ static int ba_populate_channel_map(struct a2dp_bit_mapping mapping, void *userda
 
 	g_variant_builder_add_value(data->builder, g_variant_new_strv(strv, mapping.ch.channels));
 	data->value = mapping.ch.channels;
-	return 0;
+	return ERROR_CODE_CONTINUE;
 }
 
 /**
@@ -806,7 +807,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		else {
 			/* Validate the size of provided configuration blob. */
 			if (a2dp_configuration_size != remote_sep_cfg->caps_size) {
-				errmsg = a2dp_check_strerror(A2DP_CHECK_ERR_SIZE);
+				errmsg = error_code_strerror(ERROR_CODE_INVALID_SIZE);
 				goto fail;
 			}
 		}
@@ -823,15 +824,15 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 		if (a2dp_configuration_size == 0) {
 			/* Setup default configuration if it was not provided. */
-			if (a2dp_select_configuration(sep, &a2dp_configuration, sep->config.caps_size) == -1)
+			if (a2dp_select_configuration(sep, &a2dp_configuration, sep->config.caps_size) != ERROR_CODE_OK)
 				goto fail;
 		}
 		else if (conformance_check) {
-			enum a2dp_check_err rv;
+			error_code_t rv;
 			/* Validate provided configuration. */
 			if ((rv = a2dp_check_configuration(sep, &a2dp_configuration,
-						a2dp_configuration_size)) != A2DP_CHECK_OK) {
-				errmsg = a2dp_check_strerror(rv);
+						a2dp_configuration_size)) != ERROR_CODE_OK) {
+				errmsg = error_code_strerror(rv);
 				goto fail;
 			}
 		}

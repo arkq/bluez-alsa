@@ -46,6 +46,7 @@
 # include "bluez-midi.h"
 #endif
 #include "dbus.h"
+#include "error.h"
 #include "hci.h"
 #include "sco.h"
 #include "utils.h"
@@ -430,7 +431,7 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	g_variant_unref(params);
 
 	hexdump("A2DP peer capabilities blob", &capabilities, size);
-	if (a2dp_select_configuration(sep, &capabilities, size) == -1)
+	if (a2dp_select_configuration(sep, &capabilities, size) != ERROR_CODE_OK)
 		goto fail;
 
 	GVariant *rv[] = {
@@ -497,10 +498,10 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			const void *data = g_variant_get_fixed_array(value, &size, sizeof(char));
 			memcpy(&configuration, data, MIN(size, sizeof(configuration)));
 
-			enum a2dp_check_err rv;
-			if ((rv = a2dp_check_configuration(sep, data, size)) != A2DP_CHECK_OK) {
+			error_code_t err;
+			if ((err = a2dp_check_configuration(sep, data, size)) != ERROR_CODE_OK) {
 				error("Invalid configuration: %s: %s",
-						"Invalid configuration blob", a2dp_check_strerror(rv));
+						"Invalid configuration blob", error_code_strerror(err));
 				goto fail;
 			}
 

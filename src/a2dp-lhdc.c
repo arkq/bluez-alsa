@@ -30,6 +30,7 @@
 #include "ba-transport-pcm.h"
 #include "ba-config.h"
 #include "bluealsa-dbus.h"
+#include "error.h"
 #include "io.h"
 #include "rtp.h"
 #include "utils.h"
@@ -64,7 +65,7 @@ static void a2dp_lhdc_v5_caps_intersect(
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_lhdc_v5_t));
 }
 
-static int a2dp_lhdc_caps_foreach_channel_mode(
+static error_code_t a2dp_lhdc_caps_foreach_channel_mode(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -74,10 +75,10 @@ static int a2dp_lhdc_caps_foreach_channel_mode(
 		.ch = { 2, a2dp_channel_map_stereo } };
 	if (stream == A2DP_MAIN)
 		return func(channels_stereo, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_lhdc_v2_caps_foreach_sample_rate(
+static error_code_t a2dp_lhdc_v2_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -85,10 +86,10 @@ static int a2dp_lhdc_v2_caps_foreach_sample_rate(
 	const a2dp_lhdc_v2_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_lhdc_rates, caps->sampling_freq, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_lhdc_v3_caps_foreach_sample_rate(
+static error_code_t a2dp_lhdc_v3_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -96,10 +97,10 @@ static int a2dp_lhdc_v3_caps_foreach_sample_rate(
 	const a2dp_lhdc_v3_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_lhdc_rates, caps->sampling_freq, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
-static int a2dp_lhdc_v5_caps_foreach_sample_rate(
+static error_code_t a2dp_lhdc_v5_caps_foreach_sample_rate(
 		const void *capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
@@ -107,7 +108,7 @@ static int a2dp_lhdc_v5_caps_foreach_sample_rate(
 	const a2dp_lhdc_v5_t *caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_lhdc_rates, caps->sampling_freq, func, userdata);
-	return -1;
+	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_lhdc_caps_select_channel_mode(
@@ -526,7 +527,7 @@ fail_open:
 	return NULL;
 }
 
-static int a2dp_lhdc_v2_configuration_select(
+static error_code_t a2dp_lhdc_v2_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -542,22 +543,22 @@ static int a2dp_lhdc_v2_configuration_select(
 		caps->bit_depth = LHDC_BIT_DEPTH_16;
 	else {
 		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_BIT_DEPTH;
 	}
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_lhdc_v2_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_lhdc_v3_configuration_select(
+static error_code_t a2dp_lhdc_v3_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -575,22 +576,22 @@ static int a2dp_lhdc_v3_configuration_select(
 		caps->bit_depth = LHDC_BIT_DEPTH_16;
 	else {
 		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_BIT_DEPTH;
 	}
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_lhdc_v3_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_lhdc_v5_configuration_select(
+static error_code_t a2dp_lhdc_v5_configuration_select(
 		const struct a2dp_sep *sep,
 		void *capabilities) {
 
@@ -606,22 +607,22 @@ static int a2dp_lhdc_v5_configuration_select(
 		caps->bit_depth = LHDC_BIT_DEPTH_16;
 	else {
 		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_BIT_DEPTH;
 	}
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_lhdc_v5_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != -1)
+				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
-		return errno = ENOTSUP, -1;
+		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_lhdc_v2_configuration_check(
+static error_code_t a2dp_lhdc_v2_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -633,13 +634,13 @@ static int a2dp_lhdc_v2_configuration_check(
 
 	if (a2dp_bit_mapping_lookup(a2dp_lhdc_rates, conf_v.sampling_freq) == -1) {
 		debug("LHDC: Invalid sample rate: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_lhdc_v3_configuration_check(
+static error_code_t a2dp_lhdc_v3_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -651,13 +652,13 @@ static int a2dp_lhdc_v3_configuration_check(
 
 	if (a2dp_bit_mapping_lookup(a2dp_lhdc_rates, conf_v.sampling_freq) == -1) {
 		debug("LHDC: Invalid sample rate: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
-static int a2dp_lhdc_v5_configuration_check(
+static error_code_t a2dp_lhdc_v5_configuration_check(
 		const struct a2dp_sep *sep,
 		const void *configuration) {
 
@@ -669,10 +670,10 @@ static int a2dp_lhdc_v5_configuration_check(
 
 	if (a2dp_bit_mapping_lookup(a2dp_lhdc_rates, conf_v.sampling_freq) == -1) {
 		debug("LHDC: Invalid sample rate: %#x", conf->sampling_freq);
-		return A2DP_CHECK_ERR_RATE;
+		return ERROR_CODE_A2DP_INVALID_SAMPLE_RATE;
 	}
 
-	return A2DP_CHECK_OK;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_lhdc_transport_init(struct ba_transport *t) {
@@ -711,7 +712,7 @@ static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-static int a2dp_lhdc_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_lhdc_source_init(struct a2dp_sep *sep) {
 	if (config.a2dp.force_44100)
 		switch (sep->config.codec_id) {
 		case A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID):
@@ -724,7 +725,7 @@ static int a2dp_lhdc_source_init(struct a2dp_sep *sep) {
 			sep->config.capabilities.lhdc_v5.sampling_freq = LHDC_SAMPLING_FREQ_44100;
 			break;
 		}
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static int a2dp_lhdc_source_transport_start(struct ba_transport *t) {
