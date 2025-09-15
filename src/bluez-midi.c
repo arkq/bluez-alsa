@@ -270,8 +270,8 @@ static void bluez_midi_characteristic_acquire_write(
 	return;
 
 fail:
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_INVALID_ARGS, "Unable to acquire write access");
+	g_dbus_method_invocation_return_dbus_error(inv,
+			BLUEZ_ERROR_FAILED, "Unable to acquire write access");
 }
 
 static gboolean bluez_midi_characteristic_release_notify(
@@ -334,8 +334,8 @@ static void bluez_midi_characteristic_acquire_notify(
 	return;
 
 fail:
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_INVALID_ARGS, "Unable to acquire notification");
+	g_dbus_method_invocation_return_dbus_error(inv,
+			BLUEZ_ERROR_FAILED, "Unable to acquire notification");
 }
 
 static GVariant *bluez_midi_characteristic_iface_get_property(

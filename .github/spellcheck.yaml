@@ -11,7 +11,7 @@
 aspell: &aspell
   ignore-case: true
   run-together: true
-  run-together-limit: 4
+  run-together-limit: 5
   lang: en
 
 dictionary: &dict

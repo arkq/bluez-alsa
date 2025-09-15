@@ -24,6 +24,10 @@ MOSTLYCLEANFILES = \
 bluealsad_SOURCES = \
 	main.c
 
+bluealsad_LDADD = \
+	shared/libshared.la \
+	libbluealsad.la
+
 libbluealsad_la_SOURCES = \
 	a2dp.c \
 	a2dp-sbc.c \
@@ -150,11 +154,8 @@ AM_CFLAGS = \
 	@MPG123_CFLAGS@ \
 	@OPUS_CFLAGS@ \
 	@SBC_CFLAGS@ \
-	@SPANDSP_CFLAGS@
-
-bluealsad_LDADD = \
-	shared/libshared.la \
-	libbluealsad.la
+	@SPANDSP_CFLAGS@ \
+	-static
 
 libbluealsad_la_LIBADD = \
 	shared/libshared.la \

@@ -401,7 +401,7 @@ static const char *bluez_get_profile_object_path(
 
 /**
  * Get media transport state from BlueZ state string. */
-static enum bluez_media_transport_state bluez_media_transport_state_from_string(
+static enum bluez_media_transport_state media_transport_state_from_string(
 		const char *state) {
 	if (strcmp(state, "idle") == 0)
 		return BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
@@ -413,6 +413,33 @@ static enum bluez_media_transport_state bluez_media_transport_state_from_string(
 		return BLUEZ_MEDIA_TRANSPORT_STATE_ACTIVE;
 	warn("Invalid media transport state: %s", state);
 	return BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
+}
+
+static const char * media_endpoint_error_from_error_code(error_code_t err) {
+	switch (err) {
+	case ERROR_CODE_A2DP_INVALID_CHANNELS:
+		return BLUEZ_ERROR_A2DP_INVALID_CHANNELS;
+	case ERROR_CODE_A2DP_INVALID_CHANNEL_MODE:
+		return BLUEZ_ERROR_A2DP_INVALID_CHANNEL_MODE;
+	case ERROR_CODE_A2DP_INVALID_SAMPLE_RATE:
+		return BLUEZ_ERROR_A2DP_INVALID_SAMPLING_FREQ;
+	case ERROR_CODE_A2DP_INVALID_BLOCK_LENGTH:
+		return BLUEZ_ERROR_A2DP_INVALID_BLOCK_LENGTH;
+	case ERROR_CODE_A2DP_INVALID_SUB_BANDS:
+		return BLUEZ_ERROR_A2DP_INVALID_SUB_BANDS;
+	case ERROR_CODE_A2DP_INVALID_ALLOCATION_METHOD:
+		return BLUEZ_ERROR_A2DP_INVALID_ALLOC_METHOD;
+	case ERROR_CODE_A2DP_INVALID_MIN_BIT_POOL_VALUE:
+		return BLUEZ_ERROR_A2DP_INVALID_MIN_BIT_POOL;
+	case ERROR_CODE_A2DP_INVALID_MAX_BIT_POOL_VALUE:
+		return BLUEZ_ERROR_A2DP_INVALID_MAX_BIT_POOL;
+	case ERROR_CODE_A2DP_INVALID_LAYER:
+		return BLUEZ_ERROR_A2DP_INVALID_LAYER;
+	case ERROR_CODE_A2DP_INVALID_OBJECT_TYPE:
+		return BLUEZ_ERROR_A2DP_INVALID_OBJECT_TYPE;
+	default:
+		return BLUEZ_ERROR_A2DP_INVALID_CODEC_PARAM;
+	}
 }
 
 static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void *userdata) {
@@ -441,8 +468,8 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	return;
 
 fail:
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_INVALID_ARGS, "Invalid capabilities");
+	g_dbus_method_invocation_return_dbus_error(inv,
+			BLUEZ_ERROR_FAILED, "Invalid capabilities");
 }
 
 static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *userdata) {
@@ -450,6 +477,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	const char *sender = g_dbus_method_invocation_get_sender(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 	struct bluez_dbus_object_data *dbus_obj = userdata;
+	const char * dbus_error = BLUEZ_ERROR_FAILED;
 	const struct a2dp_sep *sep = dbus_obj->sep;
 
 	struct ba_adapter *a = NULL;
@@ -487,6 +515,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			if (codec_value != codec_value_ok) {
 				error("Invalid configuration: %s: %u != %u",
 						"Codec mismatch", codec_value, codec_value_ok);
+				dbus_error = BLUEZ_ERROR_A2DP_INVALID_CODEC_TYPE;
 				goto fail;
 			}
 
@@ -502,13 +531,14 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 			if ((err = a2dp_check_configuration(sep, data, size)) != ERROR_CODE_OK) {
 				error("Invalid configuration: %s: %s",
 						"Invalid configuration blob", error_code_strerror(err));
+				dbus_error = media_endpoint_error_from_error_code(err);
 				goto fail;
 			}
 
 		}
 		else if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
-			state = bluez_media_transport_state_from_string(g_variant_get_string(value, NULL));
+			state = media_transport_state_from_string(g_variant_get_string(value, NULL));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
@@ -527,6 +557,7 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 
 	if (state == 0xFFFF) {
 		error("Invalid configuration: %s", "Missing state");
+		dbus_error = BLUEZ_ERROR_INVALID_ARGUMENTS;
 		goto fail;
 	}
 
@@ -598,8 +629,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 	goto final;
 
 fail:
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_INVALID_ARGS, "Unable to set configuration");
+	g_dbus_method_invocation_return_dbus_error(inv,
+			dbus_error, "Unable to set configuration");
 
 final:
 	if (a != NULL)
@@ -962,8 +993,8 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 	goto final;
 
 fail:
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_INVALID_ARGS, "Unable to connect profile");
+	g_dbus_method_invocation_return_dbus_error(inv,
+			BLUEZ_ERROR_FAILED, "Unable to connect profile");
 	if (fd != -1)
 		close(fd);
 
@@ -1507,7 +1538,7 @@ static void bluez_signal_transport_changed(GDBusConnection *conn, const char *se
 		if (strcmp(property, "State") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_STRING, property)) {
 			const char *state = g_variant_get_string(value, NULL);
-			ba_transport_set_media_state(t, bluez_media_transport_state_from_string(state));
+			ba_transport_set_media_state(t, media_transport_state_from_string(state));
 		}
 		else if (strcmp(property, "Delay") == 0 &&
 				g_variant_validate_value(value, G_VARIANT_TYPE_UINT16, property)) {
