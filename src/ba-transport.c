@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-transport.c
- * Copyright (c) 2016-2024 Arkadiusz Bokowy
+ * Copyright (c) 2016-2025 Arkadiusz Bokowy
  *
  * This file is a part of bluez-alsa.
  *
@@ -196,10 +196,18 @@ static void *transport_thread_manager(struct ba_transport *t) {
 			switch (cmd) {
 			case BA_TRANSPORT_THREAD_MANAGER_TERMINATE:
 				goto exit;
-			case BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS:
-				transport_threads_cancel(t);
-				timeout = -1;
+			case BA_TRANSPORT_THREAD_MANAGER_CANCEL_THREADS: {
+				/* No not cancel the threads again if they are already stopped */
+				bool stopping;
+				pthread_mutex_lock(&t->bt_fd_mtx);
+				stopping = t->stopping;
+				pthread_mutex_unlock(&t->bt_fd_mtx);
+				if (stopping) {
+					transport_threads_cancel(t);
+					timeout = -1;
+				}
 				break;
+			}
 			case BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS:
 				debug("PCM clients check keep-alive: %d ms", config.keep_alive_time);
 				timeout = config.keep_alive_time;
@@ -1195,6 +1203,16 @@ int ba_transport_acquire(struct ba_transport *t) {
 	pthread_mutex_lock(&t->acquisition_mtx);
 
 	pthread_mutex_lock(&t->bt_fd_mtx);
+
+	/* When the last client connection is closed, there is a possibility that
+	 * this function may be called before the stopping flag has been set. We
+	 * cannot eliminate that race, so we reduce the risk by introducing a short
+	 * delay before testing the stopping flag. */
+	if (t->bt_fd != -1) {
+		pthread_mutex_unlock(&t->bt_fd_mtx);
+		usleep(100000);
+		pthread_mutex_lock(&t->bt_fd_mtx);
+	}
 
 	/* If we are in the middle of IO threads stopping, wait until all resources
 	 * are reclaimed, so we can acquire them in a clean way once more. */
