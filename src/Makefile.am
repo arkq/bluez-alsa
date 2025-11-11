@@ -9,13 +9,18 @@ bin_PROGRAMS = bluealsad
 noinst_LTLIBRARIES = libbluealsad.la
 
 dbusconfdir = @DBUS_CONF_DIR@
+dbusifacedir = @DBUS_IFACE_DIR@
 dbusbluealsauser = @BLUEALSAD_USER@
 dist_dbusconf_DATA = org.bluealsa.conf
+dist_dbusiface_DATA = dbus/org.bluealsa.xml
 
 BUILT_SOURCES = \
-	bluealsa-iface.c \
-	bluez-iface.c \
-	ofono-iface.c
+	dbus/org.bluealsa.h \
+	dbus/org.bluealsa.c \
+	dbus/org.bluez.h \
+	dbus/org.bluez.c \
+	dbus/org.ofono.h \
+	dbus/org.ofono.c
 
 MOSTLYCLEANFILES = \
 	$(dist_dbusconf_DATA) \
@@ -40,11 +45,11 @@ libbluealsad_la_SOURCES = \
 	ba-transport.c \
 	ba-transport-pcm.c \
 	bluealsa-dbus.c \
-	bluealsa-iface.xml \
 	bluez.c \
-	bluez-iface.xml \
 	codec-sbc.c \
 	dbus.c \
+	dbus/org.bluealsa.xml \
+	dbus/org.bluez.xml \
 	error.c \
 	h2.c \
 	hci.c \
@@ -128,7 +133,7 @@ endif
 if ENABLE_OFONO
 libbluealsad_la_SOURCES += \
 	ofono.c \
-	ofono-iface.xml
+	dbus/org.ofono.xml
 endif
 
 if ENABLE_UPOWER
@@ -192,6 +197,10 @@ if ENABLE_MIDI
 CODEGEN_DEFS += --define=ENABLE_MIDI
 endif
 
+.xml.h:
+	$(srcdir)/dbus/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \
+		--interface-info-header --interface-skeleton-header $<
+
 .xml.c:
-	$(srcdir)/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \
+	$(srcdir)/dbus/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \
 		--interface-info-body --interface-skeleton-body $<

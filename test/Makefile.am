@@ -73,13 +73,14 @@ libaloader_la_LIBADD = \
 	@ALSA_LIBS@
 
 BUILT_SOURCES = \
+	test-dbus-iface.h \
 	test-dbus-iface.c
 
 MOSTLYCLEANFILES = \
 	$(BUILT_SOURCES)
 
 test_dbus_SOURCES = \
-	test-dbus-iface.c \
+	test-dbus-iface.xml \
 	test-dbus.c
 
 AM_TESTS_ENVIRONMENT = \
@@ -87,6 +88,7 @@ AM_TESTS_ENVIRONMENT = \
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
+	-I$(top_builddir)/src \
 	@ALSA_CFLAGS@ \
 	@BLUEZ_CFLAGS@ \
 	@CHECK_CFLAGS@ \
@@ -110,6 +112,10 @@ LDADD = \
 	@GLIB2_LIBS@ \
 	@SNDFILE_LIBS@
 
+.xml.h:
+	$(top_srcdir)/src/dbus/dbus-codegen.py --output $@ \
+		--interface-info-header --interface-skeleton-header $<
+
 .xml.c:
-	$(top_srcdir)/src/dbus-codegen.py --output $@ \
+	$(top_srcdir)/src/dbus/dbus-codegen.py --output $@ \
 		--interface-info-body --interface-skeleton-body $<

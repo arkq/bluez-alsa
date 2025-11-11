@@ -426,6 +426,14 @@ AC_ARG_WITH([dbusconfdir],
 	[dbusconfdir=$($PKG_CONFIG --variable=datadir dbus-1)/dbus-1/system.d])
 AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 
+AC_ARG_WITH([dbus-iface-xml],
+	AS_HELP_STRING([--with-dbus-iface-xml=DIR], [path to D-Bus interface XML files]),
+	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+		[AC_MSG_ERROR([Option --with-dbus-iface-xml requires an argument])],
+		[dbusifacedir="${withval}"]),
+	[dbusifacedir=$($PKG_CONFIG --variable=interfaces_dir dbus-1)])
+AC_SUBST([DBUS_IFACE_DIR], [$dbusifacedir])
+
 AC_ARG_WITH([systemdsystemunitdir],
 	AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [path to systemd system unit files]),
 	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],

@@ -12,14 +12,7 @@
 #ifndef BLUEALSA_BLUEZIFACE_H_
 #define BLUEALSA_BLUEZIFACE_H_
 
-#if HAVE_CONFIG_H
-# include <config.h>
-#endif
-
-#include <gio/gio.h>
-#include <glib.h>
-
-#include "dbus.h"
+#include "dbus/org.bluez.h"
 
 #define BLUEZ_SERVICE "org.bluez"
 
@@ -54,57 +47,5 @@
 #define BLUEZ_ERROR_A2DP_INVALID_MAX_BIT_POOL   BLUEZ_ERROR ".A2DP.InvalidMaximumBitpoolValue"
 #define BLUEZ_ERROR_A2DP_INVALID_LAYER          BLUEZ_ERROR ".A2DP.InvalidLayer"
 #define BLUEZ_ERROR_A2DP_INVALID_OBJECT_TYPE    BLUEZ_ERROR ".A2DP.InvalidObjectType"
-
-typedef struct {
-	GDBusInterfaceSkeletonEx parent;
-} OrgBluezBatteryProvider1Skeleton;
-
-OrgBluezBatteryProvider1Skeleton *org_bluez_battery_provider1_skeleton_new(
-		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
-		GDestroyNotify userdata_free_func);
-
-#if ENABLE_MIDI
-
-typedef struct {
-	GDBusInterfaceSkeletonEx parent;
-} OrgBluezGattCharacteristic1Skeleton;
-
-OrgBluezGattCharacteristic1Skeleton *org_bluez_gatt_characteristic1_skeleton_new(
-		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
-		GDestroyNotify userdata_free_func);
-
-typedef struct {
-	GDBusInterfaceSkeletonEx parent;
-} OrgBluezGattService1Skeleton;
-
-OrgBluezGattService1Skeleton *org_bluez_gatt_service1_skeleton_new(
-		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
-		GDestroyNotify userdata_free_func);
-
-typedef struct {
-	GDBusInterfaceSkeletonEx parent;
-} OrgBluezLeadvertisement1Skeleton;
-
-OrgBluezLeadvertisement1Skeleton *org_bluez_leadvertisement1_skeleton_new(
-		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
-		GDestroyNotify userdata_free_func);
-
-#endif
-
-typedef struct {
-	GDBusInterfaceSkeletonEx parent;
-} OrgBluezMediaEndpoint1Skeleton;
-
-OrgBluezMediaEndpoint1Skeleton *org_bluez_media_endpoint1_skeleton_new(
-		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
-		GDestroyNotify userdata_free_func);
-
-typedef struct {
-	GDBusInterfaceSkeletonEx parent;
-} OrgBluezProfile1Skeleton;
-
-OrgBluezProfile1Skeleton *org_bluez_profile1_skeleton_new(
-		const GDBusInterfaceSkeletonVTable *vtable, void *userdata,
-		GDestroyNotify userdata_free_func);
 
 #endif

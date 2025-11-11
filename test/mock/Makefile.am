@@ -5,14 +5,14 @@ check_PROGRAMS = \
 	bluealsad-mock
 
 BUILT_SOURCES = \
-	dbus-ifaces.c \
-	dbus-ifaces.h
+	dbus-ifaces.h \
+	dbus-ifaces.c
 
 MOSTLYCLEANFILES = \
 	$(BUILT_SOURCES)
 
 bluealsad_mock_SOURCES = \
-	dbus-ifaces.c \
+	dbus-ifaces.xml \
 	mock-bluealsa.c \
 	mock-bluez.c \
 	mock-ofono.c \
@@ -22,6 +22,7 @@ bluealsad_mock_SOURCES = \
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
 	-I$(top_srcdir)/test \
+	-I$(top_builddir)/src \
 	@BLUEZ_CFLAGS@ \
 	@GIO2_CFLAGS@ \
 	@GLIB2_CFLAGS@
@@ -33,7 +34,7 @@ bluealsad_mock_LDADD = \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@
 
-dbus-ifaces.h: dbus-ifaces.xml
+.xml.h:
 	gdbus-codegen --output $@ \
 		--interface-prefix org \
 		--c-namespace Mock \
