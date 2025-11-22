@@ -6,7 +6,7 @@ SUBDIRS = shared
 SUBDIRS += asound bluealsactl
 
 bin_PROGRAMS = bluealsad
-noinst_LTLIBRARIES = libbluealsad.la
+lib_LTLIBRARIES = libbluealsad.la
 
 dbusconfdir = @DBUS_CONF_DIR@
 dbusifacedir = @DBUS_IFACE_DIR@
@@ -29,9 +29,20 @@ MOSTLYCLEANFILES = \
 bluealsad_SOURCES = \
 	main.c
 
-bluealsad_LDADD = \
-	shared/libshared.la \
-	libbluealsad.la
+libbluealsaddir = $(includedir)/bluealsad/shared
+
+libbluealsad_HEADERS = \
+	shared/a2dp-codecs.h \
+	shared/dbus-client.h \
+	shared/dbus-client-rfcomm.h \
+	shared/ffb.h \
+	shared/log.h \
+	shared/rt.h \
+	shared/bluetooth.h \
+	shared/dbus-client-pcm.h \
+	shared/defs.h \
+	shared/hex.h \
+	shared/nv.h
 
 libbluealsad_la_SOURCES = \
 	a2dp.c \
@@ -159,8 +170,11 @@ AM_CFLAGS = \
 	@MPG123_CFLAGS@ \
 	@OPUS_CFLAGS@ \
 	@SBC_CFLAGS@ \
-	@SPANDSP_CFLAGS@ \
-	-static
+	@SPANDSP_CFLAGS@
+
+bluealsad_LDADD = \
+	shared/libshared.la \
+	libbluealsad.la
 
 libbluealsad_la_LIBADD = \
 	shared/libshared.la \
