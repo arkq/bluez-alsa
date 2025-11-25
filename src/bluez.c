@@ -575,7 +575,8 @@ static void bluez_endpoint_set_configuration(GDBusMethodInvocation *inv, void *u
 		d->sep_configs = bluez_adapter_get_device_sep_configs(b_adapter, &addr);
 	}
 
-	if ((t = ba_transport_lookup(d, transport_path)) != NULL) {
+	if ((t = ba_transport_lookup(d, transport_path)) != NULL &&
+			dbus_obj->connected) {
 		error("Transport already configured: %s", transport_path);
 		goto fail;
 	}
