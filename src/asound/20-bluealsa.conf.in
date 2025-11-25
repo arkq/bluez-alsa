@@ -1,4 +1,6 @@
 # BlueALSA integration setup
+# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 
 # By default the predefined "bluealsa" PCM will use
 # the most recently connected Bluetooth device.

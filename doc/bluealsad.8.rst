@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: 2020-2025 BlueALSA developers
+.. SPDX-License-Identifier: MIT
+
 =========
 bluealsad
 =========
@@ -473,13 +476,6 @@ Please add following lines to the BlueALSA D-Bus policy:
     <allow send_destination="org.bluealsa.sink" />
     <allow send_destination="org.bluealsa.source" />
     ...
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========

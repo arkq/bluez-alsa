@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: 2020-2025 BlueALSA developers
+.. SPDX-License-Identifier: MIT
+
 ===============
 bluealsa-rfcomm
 ===============
@@ -50,13 +53,6 @@ EXAMPLES
     > AT+IPHONEACCEV=2,1,6,2,0
     > AT+CKPD=200
     disconnected
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========

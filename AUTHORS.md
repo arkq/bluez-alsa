@@ -1,0 +1,39 @@
+<!--
+SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-License-Identifier: MIT
+-->
+
+# Project Authors
+
+## Lead Developers
+
+- Arkadiusz Bokowy <arkadiusz.bokowy@gmail.com>
+- borine <32966433+borine@users.noreply.github.com>
+
+## Contributors (alphabetical order)
+
+- anonymix007 <48598263+anonymix007@users.noreply.github.com>
+- Christoph Scheurer <christoph.scheurer@web.de>
+- Đoàn Trần Công Danh <congdanhqx@gmail.com>
+- Gioele Barabucci <gioele@svario.it>
+- Graham Horner <graham@hornercs.co.uk>
+- Guillaume Zin <guillaume.zin@gmail.com>
+- Jochen Sprickerhof <jspricke@debian.org>
+- John Cox <jc@kynesim.co.uk>
+- Jörg Krause <joerg.krause@embedded.rocks>
+- Juha Kuikka <juha.kuikka@synapse.com>
+- Juha Yrjölä <juha.yrjola@iki.fi>
+- Lars Wendler <polynomial-c@gentoo.org>
+- mcz <emcze@ya.ru>
+- Michał Kępień <github@kempniu.pl>
+- Ming Liu <liu.ming50@gmail.com>
+- Nicolas Cavallari <nicolas.cavallari@green-communications.fr>
+- Parthiban Nallathambi <pn@denx.de>
+- paul-1 <6473457+paul-1@users.noreply.github.com>
+- René Rebe <rene@exactcode.com>
+- Sebastian Würl <bastiwuerl@gmail.com>
+- Snehal Tangadpalliwar <snehal.tangadpalliwar@fusionentertainment.com>
+- tassig <57493426+tassig@users.noreply.github.com>
+- Thierry Bultel <thierry.bultel@iot.bzh>
+- Trent Piepho <tpiepho@gmail.com>
+- Wade Berrier <wberrier@gmail.com>

@@ -1,5 +1,6 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2024 Arkadiusz Bokowy
+# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 
 SUBDIRS =
 

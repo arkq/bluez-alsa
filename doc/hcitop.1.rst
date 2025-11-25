@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: 2021-2025 BlueALSA developers
+.. SPDX-License-Identifier: MIT
+
 ======
 hcitop
 ======
@@ -96,13 +99,6 @@ Q
 
 X
     Raw mode is enabled.
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2023 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========

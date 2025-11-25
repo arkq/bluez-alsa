@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-License-Identifier: MIT
+-->
+
 # Bluetooth Audio ALSA Backend
 
 > [!WARNING]
@@ -10,6 +15,7 @@
 > for more information.
 
 [![Build Status](https://github.com/arkq/bluez-alsa/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/arkq/bluez-alsa/actions/workflows/build-and-test.yaml)
+[![REUSE status](https://api.reuse.software/badge/github.com/arkq/bluez-alsa)](https://api.reuse.software/info/github.com/arkq/bluez-alsa)
 [![Code Coverage](https://codecov.io/gh/arkq/bluez-alsa/branch/master/graph/badge.svg)](https://app.codecov.io/gh/arkq/bluez-alsa)
 
 ## About BlueALSA
@@ -283,7 +289,7 @@ if you are not sure that it is a bug. In this way readers will
 be given specific information about the context of the problem which will make
 it easier to find a solution.
 
-[NEWS]: NEWS
+[NEWS]: NEWS.md
 [CONTRIBUTING]: CONTRIBUTING.md
 [TROUBLESHOOTING]: TROUBLESHOOTING.md
 [manual pages]: doc/

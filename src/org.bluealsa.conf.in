@@ -1,8 +1,14 @@
-<!-- This configuration file specifies the required security policies
-     for BlueALSA core daemon to work. -->
-
 <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+
+<!--
+SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-License-Identifier: MIT
+
+This configuration file specifies the required security policies for BlueALSA
+core daemon to work.
+-->
+
 <busconfig>
 
   <!-- ../system.conf have denied everything, so we just punch some holes -->

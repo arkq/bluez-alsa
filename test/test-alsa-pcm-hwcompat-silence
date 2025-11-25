@@ -1,2 +1,4 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2024-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 exec ./test-alsa-pcm -Hsilence

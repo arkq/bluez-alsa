@@ -1,4 +1,6 @@
 ---
+# SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 name: "\U0001F41B Bug report"
 about: Create a report to help improve bluez-alsa.
 title:

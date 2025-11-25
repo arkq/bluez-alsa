@@ -1,5 +1,6 @@
-# BlueALSA - bluealsactl/Makefile.am
-# Copyright (c) 2016-2025 Arkadiusz Bokowy
+# BlueALSA - Makefile.am
+# SPDX-FileCopyrightText: 2021-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 
 if ENABLE_CTL
 

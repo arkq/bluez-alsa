@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+SPDX-License-Identifier: MIT
+-->
+
 # Contributing To BlueALSA
 
 ## Code and manual pages

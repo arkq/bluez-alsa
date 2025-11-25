@@ -1,5 +1,6 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2022 Arkadiusz Bokowy
+# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 
 ACLOCAL_AMFLAGS = -I m4
 SUBDIRS = misc src utils

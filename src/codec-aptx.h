@@ -1,11 +1,7 @@
 /*
  * BlueALSA - codec-aptx.h
- * Copyright (c) 2016-2021 Arkadiusz Bokowy
- *
- * This file is a part of bluez-alsa.
- *
- * This project is licensed under the terms of the MIT license.
- *
+ * SPDX-FileCopyrightText: 2020-2025 BlueALSA developers
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef BLUEALSA_CODECAPTX_H_

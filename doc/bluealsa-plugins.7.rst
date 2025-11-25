@@ -1,6 +1,10 @@
+.. SPDX-FileCopyrightText: 2021-2025 BlueALSA developers
+.. SPDX-License-Identifier: MIT
+
 ================
 bluealsa-plugins
 ================
+
 ----------------------------
 Bluetooth Audio ALSA Plugins
 ----------------------------
@@ -654,13 +658,6 @@ FILES
     BlueALSA device configuration file.
     ALSA additional configuration, defines the ``bluealsa`` PCM and CTL
     devices.
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2025 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========

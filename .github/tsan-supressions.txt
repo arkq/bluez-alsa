@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
+
 # Unfortunately glib-2.0 has some issues with thread safety
 # https://gitlab.gnome.org/GNOME/glib/-/issues/1672
 race:glib/gslice.c

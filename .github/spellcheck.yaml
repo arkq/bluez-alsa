@@ -1,5 +1,6 @@
 # BlueALSA - spellcheck.yaml
-# Copyright (c) 2016-2024 Arkadiusz Bokowy
+# SPDX-FileCopyrightText: 2022-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 #
 # This file provides PySpelling configuration for BlueALSA project. In order
 # to run spellcheck locally, do as follows:
@@ -61,7 +62,7 @@ matrix:
 
 - name: Markdown
   sources:
-  - '**/*.md|!build/**'
+  - '**/*.md|!AUTHORS.md|!build/**'
   aspell: *aspell
   dictionary: *dict
   pipeline:
@@ -78,6 +79,9 @@ matrix:
       # Ignore URL in hyperlinks [title](url)
       - open: '\]\('
         close: '\)'
+      # Ignore "at" references
+      - open: '@'
+        close: '\W'
 
 - name: reStructuredText
   sources:
@@ -107,9 +111,3 @@ matrix:
   dictionary: *dict
   pipeline:
   - pyspelling.filters.url:
-  - pyspelling.filters.context:
-      context_visible_first: true
-      delimiters:
-      # Ignore "at" references
-      - open: '@'
-        close: '\W'

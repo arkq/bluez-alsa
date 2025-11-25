@@ -1,5 +1,9 @@
 #!/bin/bash
-# bash completion for bluez-alsa project applications
+#
+# SPDX-FileCopyrightText: 2021-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
+#
+# Bash completion for bluez-alsa project applications.
 
 # helper function gets available profiles
 # @param $1 the bluealsad executable name

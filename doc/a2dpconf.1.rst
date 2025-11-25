@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: 2024-2025 BlueALSA developers
+.. SPDX-License-Identifier: MIT
+
 ========
 a2dpconf
 ========
@@ -84,13 +87,6 @@ EXAMPLES
       VBR ( false )
       Bitrate Index ( 0 | 2 | 4 | 5 | 9 )
     }
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2024 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========

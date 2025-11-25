@@ -1,12 +1,7 @@
 /*
  * BlueALSA - a2dp-lhdc.c
- * Copyright (c) 2016-2025 Arkadiusz Bokowy
- * Copyright (c) 2023      anonymix007
- *
- * This file is a part of bluez-alsa.
- *
- * This project is licensed under the terms of the MIT license.
- *
+ * SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+ * SPDX-License-Identifier: MIT
  */
 
 #include "a2dp-lhdc.h"

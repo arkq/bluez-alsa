@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
+
 name: Code Coverage
 
 on:
@@ -14,7 +17,7 @@ jobs:
     if: github.repository_owner == 'arkq'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment

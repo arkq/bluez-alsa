@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-License-Identifier: CC0-1.0
+
 # Object files
 *.o
 *.ko

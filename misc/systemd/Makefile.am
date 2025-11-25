@@ -1,5 +1,6 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2021 Arkadiusz Bokowy
+# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 
 systemdbluealsadargs = $(SYSTEMD_BLUEALSAD_ARGS)
 systemdbluealsaaplayargs = $(SYSTEMD_BLUEALSA_APLAY_ARGS)

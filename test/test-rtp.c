@@ -1,11 +1,7 @@
 /*
  * test-rtp.c
- * Copyright (c) 2016-2023 Arkadiusz Bokowy
- *
- * This file is a part of bluez-alsa.
- *
- * This project is licensed under the terms of the MIT license.
- *
+ * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-License-Identifier: MIT
  */
 
 #if HAVE_CONFIG_H

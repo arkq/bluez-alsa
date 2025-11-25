@@ -1,5 +1,6 @@
 # BlueALSA - Makefile.am
-# Copyright (c) 2016-2025 Arkadiusz Bokowy
+# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
 
 asound_module_ctl_LTLIBRARIES = libasound_module_ctl_bluealsa.la
 asound_module_pcm_LTLIBRARIES = libasound_module_pcm_bluealsa.la

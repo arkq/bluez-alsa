@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: 2020-2025 BlueALSA developers
+.. SPDX-License-Identifier: MIT
+
 ==============
 bluealsa-aplay
 ==============
@@ -420,13 +423,6 @@ Such setup will route ``94:B8:6D:AF:CD:EF`` and ``F8:87:F1:B8:30:85`` Bluetooth
 devices to the ``default`` ALSA playback PCM device and ``C8:F7:33:66:F0:DE``
 device to the USB sound card. For the USB sound card the ``Speaker`` control
 element will be used as a hardware volume control knob.
-
-COPYRIGHT
-=========
-
-Copyright (c) 2016-2025 Arkadiusz Bokowy.
-
-The bluez-alsa project is licensed under the terms of the MIT license.
 
 SEE ALSO
 ========

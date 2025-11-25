@@ -1,3 +1,7 @@
+---
+# SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
+---
 > Please have a good description of the problem and the fix. Help the reviewer
 > understand what to expect.
 >
