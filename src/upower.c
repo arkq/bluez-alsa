@@ -101,6 +101,44 @@ static void upower_subscribe_signals(void) {
 
 }
 
+static void upower_get_is_present_finish(GObject * source, GAsyncResult * result,
+		void * userdata) {
+	(void)userdata;
+
+	GVariant * property;
+	GError *err = NULL;
+
+	GDBusConnection * conn = G_DBUS_CONNECTION(source);
+	if ((property = g_dbus_get_property_finish(conn, result, &err)) == NULL) {
+		error("Couldn't get battery availability: %s", err->message);
+		g_error_free(err);
+		return;
+	}
+
+	config.battery.available = g_variant_get_boolean(property);
+	g_variant_unref(property);
+
+}
+
+static void upower_get_percentage_finish(GObject * source, GAsyncResult * result,
+		void * userdata) {
+	(void)userdata;
+
+	GVariant * property;
+	GError *err = NULL;
+
+	GDBusConnection * conn = G_DBUS_CONNECTION(source);
+	if ((property = g_dbus_get_property_finish(conn, result, &err)) == NULL) {
+		error("Couldn't get battery percentage: %s", err->message);
+		g_error_free(err);
+		return;
+	}
+
+	config.battery.level = lround(g_variant_get_double(property));
+	g_variant_unref(property);
+
+}
+
 /**
  * Initialize integration with UPower service.
  *
@@ -109,20 +147,10 @@ int upower_init(void) {
 
 	upower_subscribe_signals();
 
-	GVariant *present = g_dbus_get_property(config.dbus, UPOWER_SERVICE,
-			UPOWER_PATH_DISPLAY_DEVICE, UPOWER_IFACE_DEVICE, "IsPresent", NULL);
-	GVariant *percentage = g_dbus_get_property(config.dbus, UPOWER_SERVICE,
-			UPOWER_PATH_DISPLAY_DEVICE, UPOWER_IFACE_DEVICE, "Percentage", NULL);
-
-	if (present != NULL) {
-		config.battery.available = g_variant_get_boolean(present);
-		g_variant_unref(present);
-	}
-
-	if (percentage != NULL) {
-		config.battery.level = lround(g_variant_get_double(percentage));
-		g_variant_unref(percentage);
-	}
+	g_dbus_get_property(config.dbus, UPOWER_SERVICE, UPOWER_PATH_DISPLAY_DEVICE,
+			UPOWER_IFACE_DEVICE, "IsPresent", upower_get_is_present_finish, NULL);
+	g_dbus_get_property(config.dbus, UPOWER_SERVICE, UPOWER_PATH_DISPLAY_DEVICE,
+			UPOWER_IFACE_DEVICE, "Percentage", upower_get_percentage_finish, NULL);
 
 	return 0;
 }

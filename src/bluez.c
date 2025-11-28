@@ -1279,7 +1279,7 @@ static void bluez_register(void) {
 
 	GError *err = NULL;
 	GVariantIter *objects = NULL;
-	if ((objects = g_dbus_get_managed_objects(config.dbus, BLUEZ_SERVICE, "/", &err)) == NULL) {
+	if ((objects = g_dbus_get_managed_objects_sync(config.dbus, BLUEZ_SERVICE, "/", &err)) == NULL) {
 		warn("Couldn't get managed objects: %s", err->message);
 		g_error_free(err);
 		return;

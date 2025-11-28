@@ -661,7 +661,7 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 
 			GError *err = NULL;
 			t->media.volume = volume;
-			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+			g_dbus_set_property_sync(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
 					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
 
 			if (err != NULL) {
@@ -762,7 +762,7 @@ int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int updat
 
 			GError *err = NULL;
 			t->media.delay = delay;
-			g_dbus_set_property(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
+			g_dbus_set_property_sync(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
 					BLUEZ_IFACE_MEDIA_TRANSPORT, "Delay", g_variant_new_uint16(delay), &err);
 
 			if (err != NULL) {

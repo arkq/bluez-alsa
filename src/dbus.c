@@ -172,8 +172,8 @@ bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
  * @return On success this function returns variant iterator with the list of
  *   managed D-Bus objects. After usage, the returned iterator shall be freed
  *   with g_variant_iter_free(). On error, NULL is returned. */
-GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn, const char *service,
-		const char *path, GError **error) {
+GVariantIter * g_dbus_get_managed_objects_sync(GDBusConnection * conn,
+		const char * service, const char * path, GError ** error) {
 
 	GDBusMessage *msg = NULL, *rep = NULL;
 	GVariantIter *objects = NULL;
@@ -209,15 +209,17 @@ fail:
  * @return On success this function returns variant iterator with the list of
  *	 all properties of the given interface. After usage, the returned iterator
  *   shall be freed with g_variant_iter_free(). On error, NULL is returned. */
-GVariantIter *g_dbus_get_properties(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, GError **error) {
+GVariantIter * g_dbus_get_properties_sync(GDBusConnection * conn,
+		const char * service, const char * path, const char * interface,
+		GError ** error) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GVariantIter *properties = NULL;
+	GVariantIter * properties = NULL;
 
-	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "GetAll");
+	GDBusMessage * msg = g_dbus_message_new_method_call(service, path,
+			DBUS_IFACE_PROPERTIES, "GetAll");
 	g_dbus_message_set_body(msg, g_variant_new("(s)", interface));
 
+	GDBusMessage * rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
@@ -227,8 +229,7 @@ GVariantIter *g_dbus_get_properties(GDBusConnection *conn, const char *service,
 
 fail:
 
-	if (msg != NULL)
-		g_object_unref(msg);
+	g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
 
@@ -243,34 +244,47 @@ fail:
  * @param path Valid D-Bus object path.
  * @param interface Interface with the given property.
  * @param property The property name.
- * @param error NULL GError pointer.
- * @return On success this function returns variant containing property value.
- *   After usage, returned variant shall be freed with g_variant_unref(). On
- *   error, NULL is returned. */
-GVariant *g_dbus_get_property(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, const char *property,
-		GError **error) {
+ * @param callback The callback to call when the request is complete.
+ * @param userdata Data to pass to the callback function. */
+void g_dbus_get_property(GDBusConnection * conn, const char * service,
+		const char * path, const char * interface, const char * property,
+		GAsyncReadyCallback callback, void * userdata) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GVariant *value = NULL;
-
-	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "Get");
+	GDBusMessage * msg = g_dbus_message_new_method_call(service, path,
+			DBUS_IFACE_PROPERTIES, "Get");
 	g_dbus_message_set_body(msg, g_variant_new("(ss)", interface, property));
 
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
+	g_dbus_connection_send_message_with_reply(conn, msg,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, callback, userdata);
+
+	g_object_unref(msg);
+}
+
+/**
+ * Finish asynchronous property get operation.
+ *
+ * @param conn D-Bus connection handler.
+ * @param result The async result obtained from the callback.
+ * @param error NULL GError pointer.
+ * @return On success this function returns variant containing the property
+ *   value. Returned variant shall be freed with g_variant_unref(). On error,
+ *   NULL is returned. */
+GVariant * g_dbus_get_property_finish(GDBusConnection * conn,
+		GAsyncResult * result, GError ** error) {
+
+	GVariant * value = NULL;
+
+	GDBusMessage * rep;
+	if ((rep = g_dbus_connection_send_message_with_reply_finish(conn,
+				result, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
 		goto fail;
 
 	g_variant_get(g_dbus_message_get_body(rep), "(v)", &value);
 
 fail:
-
-	if (msg != NULL)
-		g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
-
 	return value;
 }
 
@@ -285,16 +299,17 @@ fail:
  * @param value Variant containing property value.
  * @param error NULL GError pointer.
  * @return On success this function returns true. */
-bool g_dbus_set_property(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, const char *property,
-		const GVariant *value, GError **error) {
+bool g_dbus_set_property_sync(GDBusConnection * conn, const char * service,
+		const char * path, const char * interface, const char * property,
+		const GVariant * value, GError ** error) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
 	bool rv = false;
 
-	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "Set");
+	GDBusMessage * msg = g_dbus_message_new_method_call(service, path,
+			DBUS_IFACE_PROPERTIES, "Set");
 	g_dbus_message_set_body(msg, g_variant_new("(ssv)", interface, property, value));
 
+	GDBusMessage * rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
@@ -304,8 +319,7 @@ bool g_dbus_set_property(GDBusConnection *conn, const char *service,
 
 fail:
 
-	if (msg != NULL)
-		g_object_unref(msg);
+	g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
 

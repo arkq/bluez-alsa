@@ -69,17 +69,21 @@ bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
 		const char *path, const char *interface, GVariant *changed,
 		GVariant *invalidated, GError **error);
 
-GVariantIter *g_dbus_get_managed_objects(GDBusConnection *conn, const char *service,
-		const char *path, GError **error);
+GVariantIter * g_dbus_get_managed_objects_sync(GDBusConnection * conn,
+		const char * service, const char * path, GError ** error);
 
-GVariantIter *g_dbus_get_properties(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, GError **error);
+GVariantIter * g_dbus_get_properties_sync(GDBusConnection * conn,
+		const char * service, const char * path, const char * interface,
+		GError ** error);
 
-GVariant *g_dbus_get_property(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, const char *property,
-		GError **error);
-bool g_dbus_set_property(GDBusConnection *conn, const char *service,
-		const char *path, const char *interface, const char *property,
-		const GVariant *value, GError **error);
+void g_dbus_get_property(GDBusConnection * conn, const char * service,
+		const char * path, const char * interface, const char * property,
+		GAsyncReadyCallback callback, void * userdata);
+GVariant * g_dbus_get_property_finish(GDBusConnection * conn,
+		GAsyncResult * result, GError ** error);
+
+bool g_dbus_set_property_sync(GDBusConnection * conn, const char * service,
+		const char * path, const char * interface, const char * property,
+		const GVariant * value, GError ** error);
 
 #endif

@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
@@ -48,7 +48,7 @@ jobs:
       working-directory: ${{ github.workspace }}/build/test
       run: make check-TESTS
     - name: Upload Tests Log
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       if: ${{ always() }}
       with:
         name: ${{ github.job }} (${{ matrix.features }}) logs
@@ -104,7 +104,7 @@ jobs:
     needs: sanitize-prepare
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
@@ -160,7 +160,7 @@ jobs:
         esac
         make check-TESTS
     - name: Upload Tests Log
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       if: ${{ always() }}
       with:
         name: ${{ github.job }} (${{ matrix.sanitize }}) logs

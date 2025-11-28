@@ -255,23 +255,23 @@ CK_START_TEST(test_g_dbus_connection_emit_properties_changed) {
 
 } CK_END_TEST
 
-CK_START_TEST(test_g_dbus_get_managed_objects) {
+CK_START_TEST(test_g_dbus_get_managed_objects_sync) {
 
-	FooServer *server;
-	GTestDBusConnection *tc;
+	FooServer * server;
+	GTestDBusConnection * tc;
 
 	ck_assert_ptr_nonnull((tc = test_dbus_connection_new()));
 	ck_assert_ptr_nonnull((server = dbus_foo_server_new(tc->conn)));
 
 	/* try to get managed objects from non-managed path */
-	GError *err = NULL;
-	ck_assert_ptr_null(g_dbus_get_managed_objects(tc->conn, "org.example", "/test", &err));
+	GError * err = NULL;
+	ck_assert_ptr_null(g_dbus_get_managed_objects_sync(tc->conn, "org.example", "/test", &err));
 	ck_assert_uint_eq(err->code, G_DBUS_ERROR_UNKNOWN_METHOD);
 	g_error_free(err);
 
-	GVariantIter *objects;
+	GVariantIter * objects;
 	/* try to get managed objects from managed path */
-	objects = g_dbus_get_managed_objects(tc->conn, "org.example", "/", NULL);
+	objects = g_dbus_get_managed_objects_sync(tc->conn, "org.example", "/", NULL);
 	ck_assert_ptr_nonnull(objects);
 	g_variant_iter_free(objects);
 
@@ -280,23 +280,23 @@ CK_START_TEST(test_g_dbus_get_managed_objects) {
 
 } CK_END_TEST
 
-CK_START_TEST(test_g_dbus_get_properties) {
+CK_START_TEST(test_g_dbus_get_properties_sync) {
 
-	FooServer *server;
-	GTestDBusConnection *tc;
+	FooServer * server;
+	GTestDBusConnection * tc;
 
 	ck_assert_ptr_nonnull((tc = test_dbus_connection_new()));
 	ck_assert_ptr_nonnull((server = dbus_foo_server_new(tc->conn)));
 
-	GError *err = NULL;
+	GError * err = NULL;
 	/* try to get properties on non-existing interface */
-	ck_assert_ptr_null(g_dbus_get_properties(tc->conn,
+	ck_assert_ptr_null(g_dbus_get_properties_sync(tc->conn,
 			"org.example", "/foo", "org.example.Foo5", &err));
 	ck_assert_int_eq(err->code, G_DBUS_ERROR_INVALID_ARGS);
 	g_error_free(err);
 
 	/* try to get properties on existing interface */
-	GVariantIter *props = g_dbus_get_properties(tc->conn,
+	GVariantIter * props = g_dbus_get_properties_sync(tc->conn,
 			"org.example", "/foo", "org.example.Foo", NULL);
 	ck_assert_ptr_nonnull(props);
 	g_variant_iter_free(props);
@@ -306,35 +306,66 @@ CK_START_TEST(test_g_dbus_get_properties) {
 
 } CK_END_TEST
 
+typedef struct {
+	GVariant * property;
+	SyncBarrier barrier;
+} GetPropertyData;
+
+static void dbus_get_property_init(GetPropertyData * data) {
+	sync_barrier_init(&data->barrier, 1);
+}
+
+static void dbus_get_property_free(GetPropertyData * data) {
+	if (data->property != NULL)
+		g_variant_unref(data->property);
+	sync_barrier_free(&data->barrier);
+}
+
+static void dbus_get_property_finish(GObject * source, GAsyncResult * result, void * userdata) {
+	GetPropertyData * data = userdata;
+	data->property = g_dbus_get_property_finish(G_DBUS_CONNECTION(source), result, NULL);
+	sync_barrier_signal(&data->barrier);
+}
+
 CK_START_TEST(test_g_dbus_get_property) {
 
-	FooServer *server;
-	GTestDBusConnection *tc;
+	FooServer * server;
+	GTestDBusConnection * tc;
 
 	ck_assert_ptr_nonnull((tc = test_dbus_connection_new()));
 	ck_assert_ptr_nonnull((server = dbus_foo_server_new(tc->conn)));
 
-	GError *err = NULL;
+	GetPropertyData data1;
+	dbus_get_property_init(&data1);
+
 	/* try to get non-existing property */
-	ck_assert_ptr_null(g_dbus_get_property(tc->conn,
-			"org.example", "/foo", "org.example.Foo", "No", &err));
+	g_dbus_get_property(tc->conn, "org.example", "/foo", "org.example.Foo", "No",
+			dbus_get_property_finish, &data1);
+	sync_barrier_wait(&data1.barrier);
+
+	ck_assert_ptr_null(data1.property);
 	ck_assert_uint_eq(server->called_get_property, false);
-	ck_assert_int_eq(err->code, G_DBUS_ERROR_INVALID_ARGS);
-	g_error_free(err);
+	dbus_get_property_free(&data1);
+
+	GetPropertyData data2;
+	dbus_get_property_init(&data2);
 
 	/* try to get existing property */
-	GVariant *prop = g_dbus_get_property(tc->conn,
-			"org.example", "/foo", "org.example.Foo", "Bar", NULL);
+	g_dbus_get_property(tc->conn, "org.example", "/foo", "org.example.Foo", "Bar",
+			dbus_get_property_finish, &data2);
+	sync_barrier_wait(&data2.barrier);
+
+	ck_assert_ptr_nonnull(data2.property);
+	ck_assert_uint_eq(g_variant_get_boolean(data2.property), false);
 	ck_assert_uint_eq(server->called_get_property, true);
-	ck_assert_ptr_nonnull(prop);
-	ck_assert_uint_eq(g_variant_get_boolean(prop), false);
+	dbus_get_property_free(&data2);
 
 	dbus_foo_server_free(server);
 	test_dbus_connection_free(tc);
 
 } CK_END_TEST
 
-CK_START_TEST(test_g_dbus_set_property) {
+CK_START_TEST(test_g_dbus_set_property_sync) {
 
 	FooServer *server;
 	GTestDBusConnection *tc;
@@ -344,14 +375,14 @@ CK_START_TEST(test_g_dbus_set_property) {
 
 	GError *err = NULL;
 	/* try to set non-existing property */
-	ck_assert_uint_eq(g_dbus_set_property(tc->conn, "org.example", "/foo",
+	ck_assert_uint_eq(g_dbus_set_property_sync(tc->conn, "org.example", "/foo",
 			"org.example.Foo", "No", g_variant_new_boolean(TRUE), &err), false);
 	ck_assert_uint_eq(server->called_set_property, false);
 	ck_assert_int_eq(err->code, G_DBUS_ERROR_INVALID_ARGS);
 	g_error_free(err);
 
 	/* try to set existing property */
-	ck_assert_int_eq(g_dbus_set_property(tc->conn, "org.example", "/foo",
+	ck_assert_int_eq(g_dbus_set_property_sync(tc->conn, "org.example", "/foo",
 			"org.example.Foo", "Bar", g_variant_new_boolean(TRUE), NULL), true);
 	ck_assert_uint_eq(server->called_set_property, true);
 
@@ -370,10 +401,10 @@ int main(void) {
 
 	tcase_add_test(tc, test_dbus_dispatch_method_call);
 	tcase_add_test(tc, test_g_dbus_connection_emit_properties_changed);
-	tcase_add_test(tc, test_g_dbus_get_managed_objects);
-	tcase_add_test(tc, test_g_dbus_get_properties);
+	tcase_add_test(tc, test_g_dbus_get_managed_objects_sync);
+	tcase_add_test(tc, test_g_dbus_get_properties_sync);
 	tcase_add_test(tc, test_g_dbus_get_property);
-	tcase_add_test(tc, test_g_dbus_set_property);
+	tcase_add_test(tc, test_g_dbus_set_property_sync);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
