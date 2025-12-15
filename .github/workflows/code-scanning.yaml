@@ -24,7 +24,7 @@ jobs:
     - uses: actions/checkout@v6
     - name: Run cccc analysis
       uses: sarnold/cccc-action@main
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       with:
         name: ${{ github.job }} logs
         path: metrics
