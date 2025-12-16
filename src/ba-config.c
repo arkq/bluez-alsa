@@ -73,6 +73,11 @@ struct ba_config config = {
 	.a2dp.force_mono = false,
 	.a2dp.force_44100 = false,
 
+#if ENABLE_MIDI
+	.midi.advertise = false,
+	.midi.name = "BlueALSA MIDI",
+#endif
+
 	/* Try to use high SBC encoding quality as a default. */
 	.sbc_quality = SBC_QUALITY_HIGH,
 
@@ -119,7 +124,7 @@ struct ba_config config = {
 
 #if ENABLE_LHDC
 	/* Use ABR as a reasonable default. */
-	.lhdc_eqmid = LHDCBT_QUALITY_AUTO,
+	.lhdc_quality = LHDCBT_QUALITY_AUTO,
 #endif
 
 };

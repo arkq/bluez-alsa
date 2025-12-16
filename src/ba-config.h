@@ -123,6 +123,8 @@ struct ba_config {
 	struct {
 		/* advertise BLE-MIDI via LE advertisement */
 		bool advertise;
+		/* name used in the BLE-MIDI advertisement */
+		char name[16];
 	} midi;
 #endif
 
@@ -156,7 +158,7 @@ struct ba_config {
 #endif
 
 #if ENABLE_LHDC
-	uint8_t lhdc_eqmid;
+	uint8_t lhdc_quality;
 	// TODO: LLAC/V3/V4, bit depth, sample frequency, LLAC bitrate
 #endif
 };

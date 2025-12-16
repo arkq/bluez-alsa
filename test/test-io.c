@@ -1325,7 +1325,7 @@ CK_START_TEST(test_a2dp_ldac) {
 #if ENABLE_LHDC
 CK_START_TEST(test_a2dp_lhdc_v3) {
 
-	config.lhdc_eqmid = LHDCBT_QUALITY_HIGH;
+	config.lhdc_quality = LHDCBT_QUALITY_HIGH;
 
 	struct ba_transport *t1 = test_transport_new_a2dp(device1,
 			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lhdc", &a2dp_lhdc_v3_source,

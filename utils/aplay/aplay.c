@@ -1237,11 +1237,35 @@ int main(int argc, char *argv[]) {
 		{ 0, 0, 0, 0 },
 	};
 
-	bool syslog = false;
-	const char *volume_type_str = "auto";
+	static const nv_entry_t nv_log_levels[] = {
+		{ "error", .v.i = LOG_ERR },
+		{ "warning", .v.i = LOG_WARNING },
+		{ "info", .v.i = LOG_INFO },
+		{ "debug", .v.i = LOG_DEBUG },
+		{ 0 },
+	};
+
+	static const nv_entry_t nv_volume_types[] = {
+		{ "auto", .v.u = VOL_TYPE_AUTO },
+		{ "mixer", .v.u = VOL_TYPE_MIXER },
+		{ "software", .v.u = VOL_TYPE_SOFTWARE },
+		{ "none", .v.u = VOL_TYPE_NONE },
+		{ 0 },
+	};
+
 #if WITH_LIBSAMPLERATE
-	const char *resampler_method_str = "none";
+	static const nv_entry_t nv_resampler_methods[] = {
+		{ "sinc-best", .v.u = RESAMPLER_CONV_SINC_BEST_QUALITY },
+		{ "sinc-medium", .v.u = RESAMPLER_CONV_SINC_MEDIUM_QUALITY },
+		{ "sinc-fastest", .v.u = RESAMPLER_CONV_SINC_FASTEST },
+		{ "linear", .v.u = RESAMPLER_CONV_LINEAR },
+		{ "zero-order-hold", .v.u = RESAMPLER_CONV_ZERO_ORDER_HOLD },
+		{ "none", .v.u = RESAMPLER_CONV_NONE },
+		{ 0 },
+	};
 #endif
+
+	bool syslog = false;
 
 	/* Check if syslog forwarding has been enabled. This check has to be
 	 * done before anything else, so we can log early stage warnings and
@@ -1255,31 +1279,44 @@ int main(int argc, char *argv[]) {
 					"\nOptions:\n"
 					"  -h, --help\t\t\tprint this help and exit\n"
 					"  -V, --version\t\t\tprint version and exit\n"
-					"  -S, --syslog\t\t\tsend output to syslog\n"
-					"  --loglevel=LEVEL\t\tminimum message priority\n"
-					"  -v, --verbose\t\t\tmake output more verbose\n"
+					"  -S, --syslog\t\t\tsend logs to the system logger\n"
+					"      --loglevel=LEVEL\t\tset logging level; default: %s\n"
+					"  -v, --verbose\t\t\tincrease output verbosity\n"
 					"  -l, --list-devices\t\tlist available BT audio devices\n"
 					"  -L, --list-pcms\t\tlist available BT audio PCMs\n"
-					"  -B, --dbus=NAME\t\tBlueALSA service name suffix\n"
-					"  -D, --pcm=NAME\t\tplayback PCM device to use\n"
-					"  --pcm-buffer-time=INT\t\tplayback PCM buffer time\n"
-					"  --pcm-period-time=INT\t\tplayback PCM period time\n"
-					"  --volume=TYPE\t\t\tvolume control type [auto|mixer|none|software]\n"
-					"  -M, --mixer-device=NAME\tmixer device to use\n"
-					"  --mixer-control=NAME\t\tmixer control name\n"
-					"  --mixer-index=NUM\t\tmixer element index\n"
-					"  --profile-a2dp\t\tuse A2DP profile (default)\n"
-					"  --profile-sco\t\t\tuse SCO profile\n"
+					"  -B, --dbus=NAME\t\tBlueALSA D-Bus service name suffix\n"
+					"  -D, --pcm=NAME\t\tplayback PCM device to use; default: %s\n"
+					"      --pcm-buffer-time=SEC\tplayback PCM buffer time in us; default: %u\n"
+					"      --pcm-period-time=SEC\tplayback PCM period time in us; default: %u\n"
+					"      --volume=TYPE\t\tset volume control type; default: %s\n"
+					"  -M, --mixer-device=NAME\tmixer device to use; default: %s\n"
+					"      --mixer-control=NAME\tmixer control name; default: %s\n"
+					"      --mixer-index=NUM\t\tmixer element index; default: %u\n"
+					"      --profile-a2dp\t\tuse A2DP profile (default)\n"
+					"      --profile-sco\t\tuse SCO profile\n"
 #if WITH_LIBSAMPLERATE
-					"  --resampler=METHOD\t\tresample conversion method\n"
+					"      --resampler=METHOD\tresample conversion method; default: %s\n"
 #endif
-					"  --single-audio\t\tsingle audio mode\n"
+					"      --single-audio\t\tenable single audio mode\n"
+					"%s"
 					"\nNote:\n"
 					"If one wants to receive audio from more than one Bluetooth device, it is\n"
 					"possible to specify more than one MAC address. By specifying any/empty MAC\n"
 					"address (00:00:00:00:00:00), one will allow connections from any Bluetooth\n"
 					"device. Without given explicit MAC address any/empty MAC is assumed.\n",
-					argv[0]);
+					argv[0],
+					nv_name_from_int(nv_log_levels, log_level),
+					pcm_device,
+					pcm_buffer_time,
+					pcm_period_time,
+					nv_name_from_uint(nv_volume_types, volume_type),
+					mixer_device,
+					mixer_elem_name,
+					mixer_elem_index,
+#if WITH_LIBSAMPLERATE
+					nv_name_from_uint(nv_resampler_methods, resampler_method),
+#endif
+					"");
 			return EXIT_SUCCESS;
 
 		case 'V' /* --version */ :
@@ -1309,24 +1346,12 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 9 /* --loglevel=LEVEL */ : {
-
-			static const nv_entry_t values[] = {
-				{ "error", .v.ui = LOG_ERR },
-				{ "warning", .v.ui = LOG_WARNING },
-				{ "info", .v.ui = LOG_INFO },
-#if DEBUG
-				{ "debug", .v.ui = LOG_DEBUG },
-#endif
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
-				error("Invalid loglevel {%s}: %s", nv_join_names(values), optarg);
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_log_levels, optarg)) == NULL) {
+				error("Invalid loglevel {%s}: %s", nv_join_names(nv_log_levels), optarg);
 				return EXIT_FAILURE;
 			}
-
-			log_set_min_priority(entry->v.ui);
+			log_level = entry->v.i;
 			break;
 		}
 
@@ -1348,32 +1373,21 @@ int main(int argc, char *argv[]) {
 		case 'D' /* --pcm=NAME */ :
 			pcm_device = optarg;
 			break;
-		case 3 /* --pcm-buffer-time=INT */ :
+		case 3 /* --pcm-buffer-time=SEC */ :
 			pcm_buffer_time = atoi(optarg);
 			break;
-		case 4 /* --pcm-period-time=INT */ :
+		case 4 /* --pcm-period-time=SEC */ :
 			pcm_period_time = atoi(optarg);
 			break;
 
 		case '8' /* --volume */ : {
-
-			static const nv_entry_t values[] = {
-				{ "auto", .v.ui = VOL_TYPE_AUTO },
-				{ "mixer", .v.ui = VOL_TYPE_MIXER },
-				{ "software", .v.ui = VOL_TYPE_SOFTWARE },
-				{ "none", .v.ui = VOL_TYPE_NONE },
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_volume_types, optarg)) == NULL) {
 				error("Invalid volume control type {%s}: %s",
-						nv_join_names(values), optarg);
+						nv_join_names(nv_volume_types), optarg);
 				return EXIT_FAILURE;
 			}
-
-			volume_type_str = optarg;
-			volume_type = entry->v.ui;
+			volume_type = entry->v.u;
 			break;
 		}
 
@@ -1400,26 +1414,13 @@ int main(int argc, char *argv[]) {
 
 #if WITH_LIBSAMPLERATE
 		case 10 /* --resampler */ : {
-
-			static const nv_entry_t values[] = {
-				{ "sinc-best", .v.ui = RESAMPLER_CONV_SINC_BEST_QUALITY },
-				{ "sinc-medium", .v.ui = RESAMPLER_CONV_SINC_MEDIUM_QUALITY },
-				{ "sinc-fastest", .v.ui = RESAMPLER_CONV_SINC_FASTEST },
-				{ "linear", .v.ui = RESAMPLER_CONV_LINEAR },
-				{ "zero-order-hold", .v.ui = RESAMPLER_CONV_ZERO_ORDER_HOLD },
-				{ "none", .v.ui = RESAMPLER_CONV_NONE },
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_resampler_methods, optarg)) == NULL) {
 				error("Invalid resampler method {%s}: %s",
-						nv_join_names(values), optarg);
+						nv_join_names(nv_resampler_methods), optarg);
 				return EXIT_FAILURE;
 			}
-
-			resampler_method_str = optarg;
-			resampler_method = entry->v.ui;
+			resampler_method = entry->v.u;
 			break;
 		}
 #endif
@@ -1510,9 +1511,9 @@ int main(int argc, char *argv[]) {
 				mixer_device_str,
 				mixer_element_str,
 #if WITH_LIBSAMPLERATE
-				resampler_method_str,
+				nv_name_from_uint(nv_resampler_methods, resampler_method),
 #endif
-				volume_type_str,
+				nv_name_from_uint(nv_volume_types, volume_type),
 				ba_addr_any ? "ANY" : &ba_str[2],
 				ba_profile_a2dp ? "A2DP" : "SCO");
 

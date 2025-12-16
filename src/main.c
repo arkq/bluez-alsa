@@ -194,6 +194,7 @@ int main(int argc, char **argv) {
 #endif
 #if ENABLE_MIDI
 		{ "midi-advertisement", no_argument, NULL, 22 },
+		{ "midi-adv-name", required_argument, NULL, 9 },
 #endif
 		{ "xapl-resp-name", required_argument, NULL, 16 },
 		{ 0, 0, 0, 0 },
@@ -212,6 +213,65 @@ int main(int argc, char **argv) {
 #endif
 	};
 
+	static const nv_entry_t nv_log_levels[] = {
+		{ "error", .v.i = LOG_ERR },
+		{ "warning", .v.i = LOG_WARNING },
+		{ "info", .v.i = LOG_INFO },
+		{ "debug", .v.i = LOG_DEBUG },
+		{ 0 },
+	};
+
+	static const nv_entry_t nv_sbc_qualities[] = {
+		{ "low", .v.u = SBC_QUALITY_LOW },
+		{ "medium", .v.u = SBC_QUALITY_MEDIUM },
+		{ "high", .v.u = SBC_QUALITY_HIGH },
+		{ "xq", .v.u = SBC_QUALITY_XQ },
+		{ "xq+", .v.u = SBC_QUALITY_XQPLUS },
+		{ 0 },
+	};
+
+#if ENABLE_LDAC
+	static const nv_entry_t nv_ldac_qualities[] = {
+		{ "mobile", .v.u = LDACBT_EQMID_MQ },
+		{ "standard", .v.u = LDACBT_EQMID_SQ },
+		{ "high", .v.u = LDACBT_EQMID_HQ },
+		{ 0 },
+	};
+#endif
+
+#if ENABLE_LHDC
+	static const nv_entry_t nv_lhdc_qualities[] = {
+		{ "low0", .v.u = LHDCBT_QUALITY_LOW0 },
+		{ "low1", .v.u = LHDCBT_QUALITY_LOW1 },
+		{ "low2", .v.u = LHDCBT_QUALITY_LOW2 },
+		{ "low3", .v.u = LHDCBT_QUALITY_LOW3 },
+		{ "low4", .v.u = LHDCBT_QUALITY_LOW4 },
+		{ "low", .v.u = LHDCBT_QUALITY_LOW },
+		{ "mid", .v.u = LHDCBT_QUALITY_MID },
+		{ "high", .v.u = LHDCBT_QUALITY_HIGH },
+		{ "auto", .v.u = LHDCBT_QUALITY_AUTO },
+		{ 0 },
+	};
+#endif
+
+#if ENABLE_MP3LAME
+	static const nv_entry_t nv_lame_algorithms[] = {
+		{ "fast", .v.u = 7 },
+		{ "cheap", .v.u = 5 },
+		{ "expensive", .v.u = 2 },
+		{ "best", .v.u = 0 },
+		{ 0 },
+	};
+	static const nv_entry_t nv_lame_qualities[] = {
+		{ "low", .v.u = 6 },
+		{ "medium", .v.u = 4 },
+		{ "standard", .v.u = 2 },
+		{ "high", .v.u = 1 },
+		{ "extreme", .v.u = 0 },
+		{ 0 },
+	};
+#endif
+
 	bool syslog = false;
 	char dbus_service[32] = BLUEALSA_SERVICE;
 
@@ -224,48 +284,52 @@ int main(int argc, char **argv) {
 		case 'h' /* --help */ :
 			printf("Usage:\n"
 					"  %s -p PROFILE [OPTION]...\n"
-					"\nOptions:\n"
+					"\nGeneral options:\n"
 					"  -h, --help\t\t\tprint this help and exit\n"
 					"  -V, --version\t\t\tprint version and exit\n"
-					"  -S, --syslog\t\t\tsend output to syslog\n"
-					"  --loglevel=LEVEL\t\tminimum message priority\n"
-					"  -B, --dbus=NAME\t\tD-Bus service name suffix\n"
-					"  -i, --device=hciX\t\tHCI device(s) to use\n"
-					"  -p, --profile=NAME\t\tset enabled BT profiles\n"
-					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
-					"  --all-codecs\t\t\tenable all available BT audio codecs\n"
-					"  --initial-volume=NUM\t\tinitial volume level [0-100]\n"
-					"  --keep-alive=SEC\t\tkeep Bluetooth transport alive\n"
-					"  --io-rt-priority=NUM\t\treal-time priority for IO threads\n"
-					"  --disable-realtek-usb-fix\tdisable fix for mSBC on Realtek USB\n"
-					"  --a2dp-force-mono\t\ttry to force monophonic sound\n"
-					"  --a2dp-force-audio-cd\t\ttry to force 44.1 kHz sampling\n"
-					"  --sbc-quality=MODE\t\tset SBC encoder quality mode\n"
+					"  -S, --syslog\t\t\tsend logs to the system logger\n"
+					"      --loglevel=LEVEL\t\tset logging level; default: %s\n"
+					"  -B, --dbus=NAME\t\tprepend BlueALSA D-Bus service name suffix\n"
+					"  -i, --device=DEV\t\tHCI device to use given by name or MAC address\n"
+					"  -p, --profile=NAME\t\tenable BT profile by NAME\n"
+					"  -c, --codec=[-]NAME\t\tenable/disable audio codec by NAME\n"
+					"      --all-codecs\t\tenable all supported audio codecs\n"
+					"      --initial-volume=NUM\tinitial volume level in percent; default: 100\n"
+					"      --keep-alive=SEC\t\tkeep transport alive for SEC seconds; default: %.1f\n"
+					"      --io-rt-priority=NUM\tenable real-time priority for IO threads\n"
+					"      --disable-realtek-usb-fix\tdisable fix for mSBC on Realtek USB adapters\n"
+					"\nA2DP options:\n"
+					"      --a2dp-force-mono\t\ttry to force monophonic audio for A2DP profiles\n"
+					"      --a2dp-force-audio-cd\ttry to force 44.1 kHz sampling for A2DP profiles\n"
+					"      --sbc-quality=MODE\tset SBC encoder quality; default: %s\n"
 #if ENABLE_AAC
-					"  --aac-afterburner\t\tenable FDK AAC afterburner\n"
-					"  --aac-bitrate=BPS\t\tCBR bitrate or max peak for VBR\n"
-					"  --aac-latm-version=NUM\tselect LATM syntax version\n"
-					"  --aac-true-bps\t\tenable true bit-per-second bit rate\n"
-					"  --aac-vbr\t\t\tprefer VBR mode over CBR mode\n"
+					"      --aac-afterburner\t\tenable FDK AAC afterburner\n"
+					"      --aac-bitrate=BPS\t\tset AAC CBR bitrate or max peak for VBR; default: %u\n"
+					"      --aac-latm-version=NUM\tselect AAC LATM syntax version; default: %u\n"
+					"      --aac-true-bps\t\tenable true bit-per-second bit rate for AAC codec\n"
+					"      --aac-vbr\t\t\tprefer AAC VBR mode over CBR mode for A2DP source\n"
 #endif
 #if ENABLE_LC3PLUS
-					"  --lc3plus-bitrate=BPS\t\tset LC3plus encoder CBR bitrate\n"
+					"      --lc3plus-bitrate=BPS\tset LC3plus encoder CBR bitrate; default: %u\n"
 #endif
 #if ENABLE_LDAC
-					"  --ldac-abr\t\t\tenable LDAC adaptive bit rate\n"
-					"  --ldac-quality=MODE\t\tset LDAC encoder quality mode\n"
+					"      --ldac-abr\t\tenable LDAC adaptive bit rate\n"
+					"      --ldac-quality=MODE\tset LDAC encoder quality; default: %s\n"
 #endif
 #if ENABLE_LHDC
-					"  --lhdc-quality=MODE\t\tset LHDC encoder quality mode\n"
+					"      --lhdc-quality=MODE\tset LHDC encoder quality; default: %s\n"
 #endif
 #if ENABLE_MP3LAME
-					"  --mp3-algorithm=TYPE\t\tselect LAME encoder algorithm type\n"
-					"  --mp3-vbr-quality=MODE\tset LAME encoder VBR quality mode\n"
+					"      --mp3-algorithm=TYPE\tset LAME encoder algorithm; default: %s\n"
+					"      --mp3-vbr-quality=MODE\tset LAME encoder VBR quality; default: %s\n"
 #endif
 #if ENABLE_MIDI
-					"  --midi-advertisement\t\tenable LE advertisement for BLE-MIDI\n"
+					"\nBLE-MIDI options:\n"
+					"      --midi-advertisement\tenable LE advertisement for BLE-MIDI\n"
+					"      --midi-adv-name=NAME\tset name for BLE-MIDI advertisement; default: %s\n"
 #endif
-					"  --xapl-resp-name=NAME\t\tset product name used by XAPL\n"
+					"\nHFP/HSP options:\n"
+					"      --xapl-resp-name=NAME\tset product name for Apple extension; default: %s\n"
 					"\nAvailable BT profiles:\n"
 					"  - a2dp-source\tAdvanced Audio Source (v1.4)\n"
 					"  - a2dp-sink\tAdvanced Audio Sink (v1.4)\n"
@@ -286,6 +350,30 @@ int main(int argc, char **argv) {
 					"  hfp-*:\t%s\n"
 					"",
 					argv[0],
+					nv_name_from_int(nv_log_levels, log_level),
+					config.keep_alive_time / 1000.0,
+					nv_name_from_uint(nv_sbc_qualities, config.sbc_quality),
+#if ENABLE_AAC
+					config.aac_bitrate,
+					config.aac_latm_version,
+#endif
+#if ENABLE_LC3PLUS
+					config.lc3plus_bitrate,
+#endif
+#if ENABLE_LDAC
+					nv_name_from_uint(nv_ldac_qualities, config.ldac_eqmid),
+#endif
+#if ENABLE_LHDC
+					nv_name_from_uint(nv_lhdc_qualities, config.lhdc_quality),
+#endif
+#if ENABLE_MP3LAME
+					nv_name_from_uint(nv_lame_algorithms, config.lame_quality),
+					nv_name_from_uint(nv_lame_qualities, config.lame_vbr_quality),
+#endif
+#if ENABLE_MIDI
+					config.midi.name,
+#endif
+					config.hfp.xapl_product_name,
 					get_a2dp_codecs(A2DP_SOURCE),
 					get_a2dp_codecs(A2DP_SINK),
 					get_hfp_codecs());
@@ -317,24 +405,12 @@ int main(int argc, char **argv) {
 			break;
 
 		case 23 /* --loglevel=LEVEL */ : {
-
-			static const nv_entry_t values[] = {
-				{ "error", .v.ui = LOG_ERR },
-				{ "warning", .v.ui = LOG_WARNING },
-				{ "info", .v.ui = LOG_INFO },
-#if DEBUG
-				{ "debug", .v.ui = LOG_DEBUG },
-#endif
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
-				error("Invalid loglevel {%s}: %s", nv_join_names(values), optarg);
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_log_levels, optarg)) == NULL) {
+				error("Invalid loglevel {%s}: %s", nv_join_names(nv_log_levels), optarg);
 				return EXIT_FAILURE;
 			}
-
-			log_set_min_priority(entry->v.ui);
+			log_level = entry->v.i;
 			break;
 		}
 
@@ -346,7 +422,7 @@ int main(int argc, char **argv) {
 			}
 			break;
 
-		case 'i' /* --device=HCI */ :
+		case 'i' /* --device=DEV */ :
 			g_array_append_val(config.hci_filter, optarg);
 			break;
 
@@ -464,24 +540,13 @@ int main(int argc, char **argv) {
 			break;
 
 		case 14 /* --sbc-quality=MODE */ : {
-
-			static const nv_entry_t values[] = {
-				{ "low", .v.ui = SBC_QUALITY_LOW },
-				{ "medium", .v.ui = SBC_QUALITY_MEDIUM },
-				{ "high", .v.ui = SBC_QUALITY_HIGH },
-				{ "xq", .v.ui = SBC_QUALITY_XQ },
-				{ "xq+", .v.ui = SBC_QUALITY_XQPLUS },
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_sbc_qualities, optarg)) == NULL) {
 				error("Invalid SBC encoder quality mode {%s}: %s",
-						nv_join_names(values), optarg);
+						nv_join_names(nv_sbc_qualities), optarg);
 				return EXIT_FAILURE;
 			}
-
-			config.sbc_quality = entry->v.ui;
+			config.sbc_quality = entry->v.u;
 			break;
 		}
 
@@ -520,95 +585,50 @@ int main(int argc, char **argv) {
 			config.ldac_abr = true;
 			break;
 		case 11 /* --ldac-quality=MODE */ : {
-
-			static const nv_entry_t values[] = {
-				{ "mobile", .v.ui = LDACBT_EQMID_MQ },
-				{ "standard", .v.ui = LDACBT_EQMID_SQ },
-				{ "high", .v.ui = LDACBT_EQMID_HQ },
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_ldac_qualities, optarg)) == NULL) {
 				error("Invalid LDAC encoder quality mode {%s}: %s",
-						nv_join_names(values), optarg);
+						nv_join_names(nv_ldac_qualities), optarg);
 				return EXIT_FAILURE;
 			}
-
-			config.ldac_eqmid = entry->v.ui;
+			config.ldac_eqmid = entry->v.u;
 			break;
 		}
 #endif
 
 #if ENABLE_LHDC
 		case 24 /* --lhdc-quality=MODE */ : {
-
-			static const nv_entry_t values[] = {
-				{ "low0", .v.ui = LHDCBT_QUALITY_LOW0 },
-				{ "low1", .v.ui = LHDCBT_QUALITY_LOW1 },
-				{ "low2", .v.ui = LHDCBT_QUALITY_LOW2 },
-				{ "low3", .v.ui = LHDCBT_QUALITY_LOW3 },
-				{ "low4", .v.ui = LHDCBT_QUALITY_LOW4 },
-				{ "low",  .v.ui = LHDCBT_QUALITY_LOW  },
-				{ "mid",  .v.ui = LHDCBT_QUALITY_MID  },
-				{ "high", .v.ui = LHDCBT_QUALITY_HIGH },
-				{ "auto", .v.ui = LHDCBT_QUALITY_AUTO },
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_lhdc_qualities, optarg)) == NULL) {
 				error("Invalid LHDC encoder quality mode {%s}: %s",
-						nv_join_names(values), optarg);
+						nv_join_names(nv_lhdc_qualities), optarg);
 				return EXIT_FAILURE;
 			}
-
-			config.lhdc_eqmid = entry->v.ui;
+			config.lhdc_quality = entry->v.u;
 			break;
 		}
 #endif
 
 #if ENABLE_MP3LAME
 		case 12 /* --mp3-algorithm=TYPE */ : {
-
-			static const nv_entry_t values[] = {
-				{ "fast", .v.ui = 7 },
-				{ "cheap", .v.ui = 5 },
-				{ "expensive", .v.ui = 2 },
-				{ "best", .v.ui = 0 },
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_lame_algorithms, optarg)) == NULL) {
 				error("Invalid LAME encoder algorithm type {%s}: %s",
-						nv_join_names(values), optarg);
+						nv_join_names(nv_lame_algorithms), optarg);
 				return EXIT_FAILURE;
 			}
-
-			config.lame_quality = entry->v.ui;
+			config.lame_quality = entry->v.u;
 			break;
 		}
 
 		case 13 /* --mp3-vbr-quality=MODE */ : {
-
-			static const nv_entry_t values[] = {
-				{ "low", .v.ui = 6 },
-				{ "medium", .v.ui = 4 },
-				{ "standard", .v.ui = 2 },
-				{ "high", .v.ui = 1 },
-				{ "extreme", .v.ui = 0 },
-				{ 0 },
-			};
-
-			const nv_entry_t *entry;
-			if ((entry = nv_find(values, optarg)) == NULL) {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_lame_qualities, optarg)) == NULL) {
 				error("Invalid LAME VBR quality mode {%s}: %s",
-						nv_join_names(values), optarg);
+						nv_join_names(nv_lame_qualities), optarg);
 				return EXIT_FAILURE;
 			}
-
-			config.lame_vbr_quality = entry->v.ui;
+			config.lame_vbr_quality = entry->v.u;
 			break;
 		}
 #endif
@@ -616,6 +636,9 @@ int main(int argc, char **argv) {
 #if ENABLE_MIDI
 		case 22 /* --midi-advertisement */ :
 			config.midi.advertise = true;
+			break;
+		case 9 /* --midi-adv-name=NAME */ :
+			strncpy(config.midi.name, optarg, sizeof(config.midi.name) - 1);
 			break;
 #endif
 

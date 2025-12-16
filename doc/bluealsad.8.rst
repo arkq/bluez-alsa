@@ -9,7 +9,7 @@ bluealsad
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: December 2024
+:Date: December 2025
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -37,7 +37,7 @@ OPTIONS
     Output the version number and exit.
 
 -S, --syslog
-    Send output to system logger (``syslogd(8)``).
+    Send log output to system logger (``syslogd(8)``).
     By default, log output is sent to stderr.
 
 --loglevel=LEVEL
@@ -61,11 +61,11 @@ OPTIONS
     Without this option, **bluealsad** registers itself as an "org.bluealsa"
     D-Bus service.  For more information see the EXAMPLES_ below.
 
--i hciX, --device=hciX
+-i DEV, --device=DEV
     HCI device to use. Can be specified multiple times to select more than one
     HCI.  Because HCI numbering can change after a system reboot, this option
-    also accepts HCI MAC address for the *hciX* value, for example:
-    ``--device=00:11:22:33:44:55``
+    accepts device HCI name and device MAC address, for example:
+    ``--device=hci0`` or ``--device=00:11:22:33:44:55``
 
     Without this option, the default is to use all available HCI devices.
 
@@ -266,6 +266,10 @@ OPTIONS
 
 --midi-advertisement
     Advertise BLE-MIDI service using Bluetooth LE advertising.
+
+--midi-adv-name=NAME
+    Set the name used in the BLE-MIDI advertisement.
+    By default, the name is set as "BlueALSA MIDI".
 
 --xapl-resp-name=NAME
     Set the product name send in the XAPL response message.

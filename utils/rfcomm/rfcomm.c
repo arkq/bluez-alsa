@@ -141,7 +141,7 @@ usage:
 					"\nOptions:\n"
 					"  -h, --help\t\tprint this help and exit\n"
 					"  -V, --version\t\tprint version and exit\n"
-					"  -B, --dbus=NAME\tBlueALSA service name suffix\n"
+					"  -B, --dbus=NAME\tBlueALSA D-Bus service name suffix\n"
 					"  -p, --properties\tprint device properties and exit\n",
 					argv[0]);
 			return EXIT_SUCCESS;

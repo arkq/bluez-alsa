@@ -31,12 +31,12 @@
 #include "defs.h"
 #include "rt.h"
 
+int log_level = LOG_DEBUG;
+
 /* internal logging identifier */
 static char *_ident = NULL;
 /* if true, system logging is enabled */
 static bool _syslog = false;
-/* minimum priority to be logged */
-static int _priority_limit = LOG_DEBUG;
 
 #if DEBUG_TIME
 
@@ -58,10 +58,6 @@ void log_open(const char *ident, bool syslog) {
 	if ((_syslog = syslog) == true)
 		openlog(ident, 0, LOG_USER);
 
-}
-
-void log_set_min_priority(int priority) {
-	_priority_limit = priority;
 }
 
 static const char *priority2str[] = {
@@ -127,7 +123,7 @@ static void vlog(int priority, const char *format, va_list ap) {
 }
 
 void log_message(int priority, const char *format, ...) {
-	if (priority > _priority_limit)
+	if (priority > log_level)
 		return;
 	va_list ap;
 	va_start(ap, format);

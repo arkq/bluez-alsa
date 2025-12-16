@@ -256,7 +256,7 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	lhdcBT_set_max_bitrate(handle, lhdc_max_bitrate_index);
 
-	if (lhdcBT_init_encoder(handle, rate, lhdc_bit_depth, config.lhdc_eqmid, lhdc_dual_channel,
+	if (lhdcBT_init_encoder(handle, rate, lhdc_bit_depth, config.lhdc_quality, lhdc_dual_channel,
 				0, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_lhdc_media_header_t),
 				lhdc_interval) == -1) {
 		error("Couldn't initialize LHDC encoder");
@@ -378,7 +378,7 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 					 * arbitrary big value. */
 					queued_bytes = 1024 * 16;
 
-				if (config.lhdc_eqmid == LHDCBT_QUALITY_AUTO)
+				if (config.lhdc_quality == LHDCBT_QUALITY_AUTO)
 					lhdcBT_adjust_bitrate(handle, queued_bytes / t->mtu_write);
 
 			}

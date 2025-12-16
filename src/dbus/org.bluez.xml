@@ -44,7 +44,7 @@ SPDX-License-Identifier: MIT
 		<property name="Type" type="s" access="read"/>
 		<property name="ServiceUUIDs" type="as" access="read"/>
 		<property name="Discoverable" type="b" access="read"/>
-		<property name="Includes" type="as" access="read"/>
+		<property name="LocalName" type="s" access="read"/>
 	</interface>
 
 	<interface name="org.bluez.MediaEndpoint1">

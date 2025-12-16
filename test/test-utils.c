@@ -81,7 +81,7 @@ CK_START_TEST(test_error_code_strerror) {
 	ck_assert_str_eq(error_code_strerror(0xFFFF), "Unknown error");
 } CK_END_TEST
 
-CK_START_TEST(test_nv_find) {
+CK_START_TEST(test_nv_lookup_entry) {
 
 	const nv_entry_t entries[] = {
 		{ "name1", .v.i = 1 },
@@ -89,8 +89,34 @@ CK_START_TEST(test_nv_find) {
 		{ 0 }
 	};
 
-	ck_assert_ptr_eq(nv_find(entries, "invalid"), NULL);
-	ck_assert_ptr_eq(nv_find(entries, "name2"), &entries[1]);
+	ck_assert_ptr_eq(nv_lookup_entry(entries, "invalid"), NULL);
+	ck_assert_ptr_eq(nv_lookup_entry(entries, "name2"), &entries[1]);
+
+} CK_END_TEST
+
+CK_START_TEST(test_nv_name_from_int) {
+
+	const nv_entry_t entries[] = {
+		{ "name1", .v.i = 1 },
+		{ "name2", .v.i = -42 },
+		{ 0 }
+	};
+
+	ck_assert_ptr_eq(nv_name_from_int(entries, 0), NULL);
+	ck_assert_str_eq(nv_name_from_int(entries, -42), "name2");
+
+} CK_END_TEST
+
+CK_START_TEST(test_nv_name_from_uint) {
+
+	const nv_entry_t entries[] = {
+		{ "name1", .v.u = 1 },
+		{ "name2", .v.u = 0xFFEEDDCC },
+		{ 0 }
+	};
+
+	ck_assert_ptr_eq(nv_name_from_uint(entries, 0), NULL);
+	ck_assert_str_eq(nv_name_from_uint(entries, 0xFFEEDDCC), "name2");
 
 } CK_END_TEST
 
@@ -315,7 +341,9 @@ int main(void) {
 	tcase_add_test(tc, test_hex2bin);
 
 	/* shared/nv.c */
-	tcase_add_test(tc, test_nv_find);
+	tcase_add_test(tc, test_nv_lookup_entry);
+	tcase_add_test(tc, test_nv_name_from_int);
+	tcase_add_test(tc, test_nv_name_from_uint);
 	tcase_add_test(tc, test_nv_join_names);
 
 	/* shared/rt.c */

@@ -18,8 +18,11 @@
 
 #include "defs.h"
 
+/**
+ * Minimal log level/priority to be reported. */
+extern int log_level;
+
 void log_open(const char *ident, bool syslog);
-void log_set_min_priority(int priority);
 void log_message(int priority, const char *format, ...) __attribute__ ((format(printf, 2, 3)));
 
 #if DEBUG

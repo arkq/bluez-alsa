@@ -136,10 +136,8 @@ static GVariant *bluez_midi_advertisement_iface_get_property(
 	if (strcmp(property, "Discoverable") == 0)
 		/* advertise as general discoverable LE-only device */
 		return g_variant_new_boolean(TRUE);
-	if (strcmp(property, "Includes") == 0) {
-		const char *values[] = { "local-name" };
-		return g_variant_new_strv(values, ARRAYSIZE(values));
-	}
+	if (strcmp(property, "LocalName") == 0)
+		return g_variant_new_string(config.midi.name);
 
 	g_assert_not_reached();
 	return NULL;

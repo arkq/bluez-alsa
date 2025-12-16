@@ -9,7 +9,7 @@ bluealsa-aplay
 a simple BlueALSA player
 ------------------------
 
-:Date: April 2025
+:Date: December 2025
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -49,7 +49,7 @@ OPTIONS
     Output the version number and exit.
 
 -S, --syslog
-    Send output to system logger (``syslogd(8)``).
+    Send log output to system logger (``syslogd(8)``).
     By default, log output is sent to stderr.
 
 --loglevel=LEVEL
@@ -101,8 +101,8 @@ OPTIONS
 
     For more information see the EXAMPLES_ section below.
 
---pcm-buffer-time=INT
-    Set the playback PCM buffer duration time to *INT* microseconds.
+--pcm-buffer-time=SEC
+    Set the playback PCM buffer duration time to *SEC* microseconds.
     The default is four times the period time. It is recommended to choose a
     buffer time that is an exact multiple of the period time to avoid potential
     issues with some ALSA plugins (see --pcm-period-time option below). For
@@ -113,8 +113,8 @@ OPTIONS
     not supported; and some ALSA devices may ignore the requested value
     completely (e.g. **dmix**, see dmix_ in the **NOTES** section below).
 
---pcm-period-time=INT
-    Set the playback PCM period duration time to *INT* microseconds. The
+--pcm-period-time=SEC
+    Set the playback PCM period duration time to *SEC* microseconds. The
     default is 50000 for A2DP and 20000 for SCO profiles.
     ALSA may choose the nearest available alternative if the requested value is
     not supported; and some ALSA devices may ignore the requested value
