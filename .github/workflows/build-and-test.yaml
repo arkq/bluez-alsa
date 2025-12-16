@@ -138,7 +138,7 @@ jobs:
         make clean
         SANITIZERS=$(for x in ${{ matrix.sanitize }}; do echo -n " -fsanitize=$x"; done)
         make check CFLAGS="-g -O2 $SANITIZERS -fno-sanitize-recover=all" TESTS=
-    - uses: actions/cache/restore@v4
+    - uses: actions/cache/restore@v5
       if: ${{ matrix.sanitize == 'thread' }}
       with:
         key: sanitize-env
