@@ -47,18 +47,27 @@ enum ba_transport_profile {
 #endif
 };
 
-#define BA_TRANSPORT_PROFILE_MASK_A2DP \
-	(BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK)
 #define BA_TRANSPORT_PROFILE_MASK_HFP \
 	(BA_TRANSPORT_PROFILE_HFP_HF | BA_TRANSPORT_PROFILE_HFP_AG)
 #define BA_TRANSPORT_PROFILE_MASK_HSP \
 	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HSP_AG)
-#define BA_TRANSPORT_PROFILE_MASK_SCO \
-	(BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP)
 #define BA_TRANSPORT_PROFILE_MASK_AG \
 	(BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)
 #define BA_TRANSPORT_PROFILE_MASK_HF \
 	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)
+
+#define BA_TRANSPORT_PROFILE_IS_MEDIA(t) \
+	((t)->profile & ( \
+		BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK))
+
+#define BA_TRANSPORT_PROFILE_IS_SCO(t) \
+	((t)->profile & ( \
+		BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP))
+
+#if ENABLE_MIDI
+# define BA_TRANSPORT_PROFILE_IS_MIDI(t) \
+	((t)->profile & BA_TRANSPORT_PROFILE_MIDI)
+#endif
 
 struct ba_transport {
 
@@ -118,11 +127,6 @@ struct ba_transport {
 			pthread_cond_t state_changed_cond;
 			enum bluez_media_transport_state state;
 
-			/* SEP configuration */
-			const struct a2dp_sep *sep;
-			/* selected audio codec configuration */
-			a2dp_t configuration;
-
 			/* delay reporting support */
 			bool delay_reporting;
 			/* delay reported by BlueZ */
@@ -140,6 +144,15 @@ struct ba_transport {
 			 * have to subtract the initial value from values returned by
 			 * subsequent ioctl() calls. */
 			int bt_fd_coutq_init;
+
+			union {
+				struct {
+					/* selected stream endpoint */
+					const struct a2dp_sep * sep;
+					/* selected codec configuration */
+					a2dp_t configuration;
+				} a2dp;
+			};
 
 		} media;
 

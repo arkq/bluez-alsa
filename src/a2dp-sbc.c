@@ -128,7 +128,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct io_poll io = { .timeout = -1 };
 
 	sbc_t sbc;
-	const a2dp_sbc_t *configuration = &t->media.configuration.sbc;
+	const a2dp_sbc_t * configuration = &t->media.a2dp.configuration.sbc;
 	if ((errno = -sbc_init_a2dp(&sbc, 0, configuration, sizeof(*configuration))) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
@@ -307,8 +307,8 @@ void *a2dp_sbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 	struct io_poll io = { .timeout = -1 };
 
 	sbc_t sbc;
-	if ((errno = -sbc_init_a2dp(&sbc, 0, &t->media.configuration.sbc,
-					sizeof(t->media.configuration.sbc))) != 0) {
+	if ((errno = -sbc_init_a2dp(&sbc, 0, &t->media.a2dp.configuration.sbc,
+					sizeof(t->media.a2dp.configuration.sbc))) != 0) {
 		error("Couldn't initialize SBC codec: %s", strerror(errno));
 		goto fail_init;
 	}
@@ -554,12 +554,12 @@ static int a2dp_sbc_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_sbc_channels,
-					t->media.configuration.sbc.channel_mode)) == -1)
+					t->media.a2dp.configuration.sbc.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_sbc_rates,
-					t->media.configuration.sbc.sampling_freq)) == -1)
+					t->media.a2dp.configuration.sbc.sampling_freq)) == -1)
 		return -1;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;

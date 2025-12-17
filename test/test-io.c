@@ -732,35 +732,36 @@ static int test_transport_acquire(struct ba_transport *t) {
 	return 0;
 }
 
-static int test_transport_release_bt_a2dp(struct ba_transport *t) {
+static int test_transport_release_bt_media(struct ba_transport * t) {
 	free(t->bluez_dbus_owner); t->bluez_dbus_owner = NULL;
-	return transport_release_bt_a2dp(t);
+	return transport_release_bt_media(t);
 }
 
-static struct ba_transport *test_transport_new_a2dp(
-		struct ba_device *device,
+static struct ba_transport * test_transport_new_a2dp(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_path,
-		const struct a2dp_sep *sep,
-		const void *configuration) {
+		const char * dbus_path,
+		const struct a2dp_sep * sep,
+		const void * configuration) {
 #if DEBUG
 	if (input_bt_file != NULL)
 		configuration = &btdin->a2dp_configuration;
 #endif
-	struct ba_transport *t;
+	struct ba_transport * t;
 	ck_assert_ptr_nonnull(t = ba_transport_new_a2dp(device, profile, ":test",
 				dbus_path, sep, configuration));
 	t->acquire = test_transport_acquire;
-	t->release = test_transport_release_bt_a2dp;
+	t->release = test_transport_release_bt_media;
 	return t;
 }
 
-static struct ba_transport *test_transport_new_sco(
-		struct ba_device *device,
+static struct ba_transport * test_transport_new_sco(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_path) {
-	struct ba_transport *t = ba_transport_new_sco(device, profile, ":test",
-			dbus_path, -1);
+		const char * dbus_path) {
+	struct ba_transport * t;
+	ck_assert_ptr_nonnull(t = ba_transport_new_sco(device, profile, ":test",
+				dbus_path, -1));
 	t->acquire = test_transport_acquire;
 	return t;
 }

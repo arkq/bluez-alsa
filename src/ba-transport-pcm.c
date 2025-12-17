@@ -643,7 +643,7 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 				BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_MASK_AG))
 		goto final;
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 
 		/* A2DP specification defines volume property as a single value - volume
 		 * for only one channel. For multi-channel audio, we will use calculated
@@ -654,12 +654,12 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 			level_sum += pcm->volume[i].level;
 
 		uint16_t volume = ba_transport_pcm_volume_level_to_range(
-				level_sum / (int)pcm->channels, BLUEZ_A2DP_VOLUME_MAX);
+				level_sum / (int)pcm->channels, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX);
 
-		/* skip update if nothing has changed */
+		/* Skip update if nothing has changed. */
 		if (volume != t->media.volume) {
 
-			GError *err = NULL;
+			GError * err = NULL;
 			t->media.volume = volume;
 			g_dbus_set_property_sync(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
 					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
@@ -672,7 +672,7 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 		}
 
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 
 		if (t->sco.rfcomm != NULL)
 			/* notify associated RFCOMM transport */
@@ -697,10 +697,10 @@ int ba_transport_pcm_get_hardware_volume(
 
 	const struct ba_transport *t = pcm->t;
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
 		return t->media.volume;
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 
 		if (t->sco.rfcomm == NULL)
 			/* TODO: Cache volume level for oFono-based SCO */

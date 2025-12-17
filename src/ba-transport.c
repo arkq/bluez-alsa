@@ -48,7 +48,7 @@
 #include "shared/rt.h"
 
 static int ba_transport_pcms_full_lock(struct ba_transport *t) {
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		/* lock client mutexes first to avoid deadlock */
 		pthread_mutex_lock(&t->media.pcm.client_mtx);
 		pthread_mutex_lock(&t->media.pcm_bc.client_mtx);
@@ -57,7 +57,7 @@ static int ba_transport_pcms_full_lock(struct ba_transport *t) {
 		pthread_mutex_lock(&t->media.pcm_bc.mutex);
 		return 0;
 	}
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		/* lock client mutexes first to avoid deadlock */
 		pthread_mutex_lock(&t->sco.pcm_spk.client_mtx);
 		pthread_mutex_lock(&t->sco.pcm_mic.client_mtx);
@@ -71,14 +71,14 @@ static int ba_transport_pcms_full_lock(struct ba_transport *t) {
 }
 
 static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		pthread_mutex_unlock(&t->media.pcm.mutex);
 		pthread_mutex_unlock(&t->media.pcm_bc.mutex);
 		pthread_mutex_unlock(&t->media.pcm.client_mtx);
 		pthread_mutex_unlock(&t->media.pcm_bc.client_mtx);
 		return 0;
 	}
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		pthread_mutex_unlock(&t->sco.pcm_spk.mutex);
 		pthread_mutex_unlock(&t->sco.pcm_mic.mutex);
 		pthread_mutex_unlock(&t->sco.pcm_spk.client_mtx);
@@ -91,11 +91,11 @@ static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
 
 static void transport_threads_cancel(struct ba_transport *t) {
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		ba_transport_pcm_stop(&t->media.pcm);
 		ba_transport_pcm_stop(&t->media.pcm_bc);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		ba_transport_pcm_stop(&t->sco.pcm_spk);
 		ba_transport_pcm_stop(&t->sco.pcm_mic);
 	}
@@ -143,11 +143,11 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
 
 	if (stop) {
 		debug("Stopping transport: %s", "No PCM clients");
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 			ba_transport_pcm_state_set_stopping(&t->media.pcm);
 			ba_transport_pcm_state_set_stopping(&t->media.pcm_bc);
 		}
-		else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 			ba_transport_pcm_state_set_stopping(&t->sco.pcm_spk);
 			ba_transport_pcm_state_set_stopping(&t->sco.pcm_mic);
 		}
@@ -276,10 +276,10 @@ fail:
 	return NULL;
 }
 
-static int transport_acquire_bt_a2dp(struct ba_transport *t) {
+static int transport_acquire_bt_media(struct ba_transport * t) {
 
-	GDBusMessage *msg, *rep;
-	GError *err = NULL;
+	GDBusMessage * msg, * rep;
+	GError * err = NULL;
 	int fd = -1;
 
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
@@ -295,7 +295,7 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	g_variant_get(g_dbus_message_get_body(rep), "(hqq)",
 			NULL, &mtu_read, &mtu_write);
 
-	GUnixFDList *fd_list = g_dbus_message_get_unix_fd_list(rep);
+	GUnixFDList * fd_list = g_dbus_message_get_unix_fd_list(rep);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1)
 		goto fail;
 
@@ -313,25 +313,25 @@ static int transport_acquire_bt_a2dp(struct ba_transport *t) {
 	if (ioctl(fd, TIOCOUTQ, &t->media.bt_fd_coutq_init) == -1)
 		warn("Couldn't get socket queued bytes: %s", strerror(errno));
 
-	debug("New A2DP transport: %d", fd);
-	debug("A2DP socket MTU: %d: R:%u W:%u", fd, mtu_read, mtu_write);
+	debug("New media transport: %d", fd);
+	debug("Media transport socket MTU [%d]: read=%u write=%u", fd, mtu_read, mtu_write);
 
 fail:
 	g_object_unref(msg);
 	if (rep != NULL)
 		g_object_unref(rep);
 	if (err != NULL) {
-		error("Couldn't acquire transport: %s", err->message);
+		error("Couldn't acquire media transport: %s", err->message);
 		g_error_free(err);
 	}
 
 	return fd;
 }
 
-static int transport_release_bt_a2dp(struct ba_transport *t) {
+static int transport_release_bt_media(struct ba_transport * t) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
+	GDBusMessage * msg = NULL, * rep = NULL;
+	GError * err = NULL;
 	int ret = -1;
 
 	/* If the state is idle, it means that either transport was not acquired, or
@@ -340,7 +340,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 	if (t->media.state != BLUEZ_MEDIA_TRANSPORT_STATE_IDLE &&
 			t->bluez_dbus_owner != NULL) {
 
-		debug("Releasing A2DP transport: %d", t->bt_fd);
+		debug("Releasing media transport: %d", t->bt_fd);
 
 		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
 				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
@@ -375,7 +375,7 @@ static int transport_release_bt_a2dp(struct ba_transport *t) {
 
 	}
 
-	debug("Closing A2DP transport: %d", t->bt_fd);
+	debug("Closing media transport: %d", t->bt_fd);
 
 	ret = 0;
 	close(t->bt_fd);
@@ -387,7 +387,7 @@ fail:
 	if (rep != NULL)
 		g_object_unref(rep);
 	if (err != NULL) {
-		error("Couldn't release transport: %s", err->message);
+		error("Couldn't release media transport: %s", err->message);
 		g_error_free(err);
 	}
 
@@ -415,21 +415,19 @@ struct ba_transport *ba_transport_new_a2dp(
 	pthread_cond_init(&t->media.state_changed_cond, NULL);
 	t->media.state = BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;
 
-	t->media.sep = sep;
-	memcpy(&t->media.configuration, configuration, sep->config.caps_size);
+	t->media.a2dp.sep = sep;
+	memcpy(&t->media.a2dp.configuration, configuration, sep->config.caps_size);
 
-	t->acquire = transport_acquire_bt_a2dp;
-	t->release = transport_release_bt_a2dp;
+	t->acquire = transport_acquire_bt_media;
+	t->release = transport_release_bt_media;
 
-	err |= transport_pcm_init(&t->media.pcm,
-			is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-			t, true);
-
-	err |= transport_pcm_init(&t->media.pcm_bc,
-			is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-			t, false);
-
-	if (err != 0)
+	if (transport_pcm_init(&t->media.pcm,
+				is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
+				t, true) != 0)
+		goto fail;
+	if (transport_pcm_init(&t->media.pcm_bc,
+				is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
+				t, false) != 0)
 		goto fail;
 
 	/* do codec-specific initialization */
@@ -439,7 +437,7 @@ struct ba_transport *ba_transport_new_a2dp(
 	}
 
 	if ((errno = pthread_create(&t->thread_manager_thread_id,
-			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+					NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
 		t->thread_manager_thread_id = config.main_thread;
 		goto fail;
 	}
@@ -573,15 +571,13 @@ struct ba_transport *ba_transport_new_sco(
 	t->acquire = transport_acquire_bt_sco;
 	t->release = transport_release_bt_sco;
 
-	err |= transport_pcm_init(&t->sco.pcm_spk,
-			is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-			t, true);
-
-	err |= transport_pcm_init(&t->sco.pcm_mic,
-			is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-			t, false);
-
-	if (err != 0)
+	if (transport_pcm_init(&t->sco.pcm_spk,
+				is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
+				t, true) != 0)
+		goto fail;
+	if (transport_pcm_init(&t->sco.pcm_mic,
+				is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
+				t, false) != 0)
 		goto fail;
 
 	if (sco_transport_init(t) != 0) {
@@ -590,7 +586,7 @@ struct ba_transport *ba_transport_new_sco(
 	}
 
 	if ((errno = pthread_create(&t->thread_manager_thread_id,
-			NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+					NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
 		t->thread_manager_thread_id = config.main_thread;
 		goto fail;
 	}
@@ -699,7 +695,7 @@ const char *ba_transport_debug_name(
 		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
-		return t->media.sep->name;
+		return t->media.a2dp.sep->name;
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		switch (t->codec_id) {
 		case HFP_CODEC_UNDEFINED:
@@ -768,14 +764,14 @@ void ba_transport_destroy(struct ba_transport *t) {
 
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		bluealsa_dbus_pcm_unregister(&t->media.pcm);
 		bluealsa_dbus_pcm_unregister(&t->media.pcm_bc);
 		/* Make sure that the transport A2DP state is set to idle
 		 * prior to stopping the IO threads. */
 		ba_transport_set_media_state(t, BLUEZ_MEDIA_TRANSPORT_STATE_IDLE);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		bluealsa_dbus_pcm_unregister(&t->sco.pcm_spk);
 		bluealsa_dbus_pcm_unregister(&t->sco.pcm_mic);
 		if (t->sco.rfcomm != NULL)
@@ -789,11 +785,11 @@ void ba_transport_destroy(struct ba_transport *t) {
 	ba_transport_pcms_full_lock(t);
 
 	/* terminate on-going PCM connections - exit PCM controllers */
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		ba_transport_pcm_release(&t->media.pcm);
 		ba_transport_pcm_release(&t->media.pcm_bc);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		ba_transport_pcm_release(&t->sco.pcm_spk);
 		ba_transport_pcm_release(&t->sco.pcm_mic);
 	}
@@ -826,11 +822,11 @@ void ba_transport_unref(struct ba_transport *t) {
 	if (t->bt_fd != -1)
 		close(t->bt_fd);
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		storage_pcm_data_update(&t->media.pcm);
 		storage_pcm_data_update(&t->media.pcm_bc);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		storage_pcm_data_update(&t->sco.pcm_spk);
 		storage_pcm_data_update(&t->sco.pcm_mic);
 	}
@@ -845,11 +841,11 @@ void ba_transport_unref(struct ba_transport *t) {
 	 * will stuck here, because we are about to wait for the transport thread
 	 * manager to terminate. But the manager will not terminate, because it is
 	 * waiting for a transport thread to terminate - which is us... */
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->media.pcm), ==, true);
 		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->media.pcm_bc), ==, true);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->sco.pcm_spk), ==, true);
 		g_assert_cmpint(ba_transport_pcm_state_check_terminated(&t->sco.pcm_mic), ==, true);
 	}
@@ -860,12 +856,12 @@ void ba_transport_unref(struct ba_transport *t) {
 		pthread_join(t->thread_manager_thread_id, NULL);
 	}
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		transport_pcm_free(&t->media.pcm);
 		transport_pcm_free(&t->media.pcm_bc);
 		pthread_cond_destroy(&t->media.state_changed_cond);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		if (t->sco.rfcomm != NULL)
 			ba_rfcomm_destroy(t->sco.rfcomm);
 		transport_pcm_free(&t->sco.pcm_spk);
@@ -876,7 +872,7 @@ void ba_transport_unref(struct ba_transport *t) {
 #endif
 	}
 #if ENABLE_MIDI
-	else if (t->profile & BA_TRANSPORT_PROFILE_MIDI) {
+	else if (BA_TRANSPORT_PROFILE_IS_MIDI(t)) {
 		if (t->midi.seq_parser != NULL)
 			snd_midi_event_free(t->midi.seq_parser);
 		ble_midi_decode_free(&t->midi.ble_decoder);
@@ -910,7 +906,7 @@ int ba_transport_select_codec_a2dp(
 
 	/* the same codec with the same configuration already selected */
 	if (remote_sep_cfg->codec_id == t->codec_id &&
-			memcmp(configuration, &t->media.configuration, remote_sep_cfg->caps_size) == 0)
+			memcmp(configuration, &t->media.a2dp.configuration, remote_sep_cfg->caps_size) == 0)
 		goto final;
 
 	/* A2DP codec selection is in fact a transport recreation - new transport
@@ -1030,9 +1026,9 @@ void ba_transport_set_codec(
 	if (!changed)
 		return;
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		t->media.sep->transport_init(t);
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
+		t->media.a2dp.sep->transport_init(t);
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t))
 		sco_transport_init(t);
 
 }
@@ -1050,7 +1046,7 @@ void ba_transport_set_codec(
 int ba_transport_start(struct ba_transport *t) {
 
 #if ENABLE_MIDI
-	if (t->profile & BA_TRANSPORT_PROFILE_MIDI)
+	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
 		return midi_transport_start(t);
 #endif
 
@@ -1064,11 +1060,11 @@ int ba_transport_start(struct ba_transport *t) {
 		pthread_mutex_lock(&t->acquisition_mtx);
 
 	bool is_enc_idle = false, is_dec_idle = false;
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		is_enc_idle = ba_transport_pcm_state_check_idle(&t->media.pcm);
 		is_dec_idle = ba_transport_pcm_state_check_idle(&t->media.pcm_bc);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		is_enc_idle = ba_transport_pcm_state_check_idle(&t->sco.pcm_spk);
 		is_dec_idle = ba_transport_pcm_state_check_idle(&t->sco.pcm_mic);
 	}
@@ -1081,10 +1077,10 @@ int ba_transport_start(struct ba_transport *t) {
 
 	debug("Starting transport: %s", ba_transport_debug_name(t));
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return t->media.sep->transport_start(t);
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
+		return t->media.a2dp.sep->transport_start(t);
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	if (BA_TRANSPORT_PROFILE_IS_SCO(t))
 		return sco_transport_start(t);
 
 	g_assert_not_reached();
@@ -1099,16 +1095,16 @@ int ba_transport_start(struct ba_transport *t) {
 int ba_transport_stop(struct ba_transport *t) {
 
 #if ENABLE_MIDI
-	if (t->profile & BA_TRANSPORT_PROFILE_MIDI)
+	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
 		return midi_transport_stop(t);
 #endif
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		if (ba_transport_pcm_state_check_terminated(&t->media.pcm) &&
 				ba_transport_pcm_state_check_terminated(&t->media.pcm_bc))
 			return 0;
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		if (ba_transport_pcm_state_check_terminated(&t->sco.pcm_spk) &&
 				ba_transport_pcm_state_check_terminated(&t->sco.pcm_mic))
 			return 0;
@@ -1150,11 +1146,11 @@ int ba_transport_stop_async(struct ba_transport *t) {
 	 * we acquire the lock again. */
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		ba_transport_pcm_state_set_stopping(&t->media.pcm);
 		ba_transport_pcm_state_set_stopping(&t->media.pcm_bc);
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		ba_transport_pcm_state_set_stopping(&t->sco.pcm_spk);
 		ba_transport_pcm_state_set_stopping(&t->sco.pcm_mic);
 	}
@@ -1181,7 +1177,7 @@ int ba_transport_stop_if_no_clients(struct ba_transport *t) {
 int ba_transport_acquire(struct ba_transport *t) {
 
 #if ENABLE_MIDI
-	if (t->profile & BA_TRANSPORT_PROFILE_MIDI)
+	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
 		return t->acquire(t);
 #endif
 
@@ -1213,18 +1209,18 @@ final:
 
 	if (acquired) {
 
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 			ba_transport_pcm_state_set_idle(&t->media.pcm);
 			ba_transport_pcm_state_set_idle(&t->media.pcm_bc);
 		}
-		else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 			ba_transport_pcm_state_set_idle(&t->sco.pcm_spk);
 			ba_transport_pcm_state_set_idle(&t->sco.pcm_mic);
 		}
 
 		/* For SCO profiles we can start transport IO threads right away. There
 		 * is no asynchronous signaling from BlueZ like with A2DP profiles. */
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+		if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 			if (ba_transport_start(t) == -1) {
 				t->release(t);
 				return -1;
@@ -1241,7 +1237,7 @@ final:
 int ba_transport_release(struct ba_transport *t) {
 
 #if ENABLE_MIDI
-	if (t->profile & BA_TRANSPORT_PROFILE_MIDI)
+	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
 		return t->release(t);
 #endif
 

@@ -396,12 +396,12 @@ static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_aptx_channels,
-					t->media.configuration.aptx_hd.aptx.channel_mode)) == -1)
+					t->media.a2dp.configuration.aptx_hd.aptx.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aptx_rates,
-					t->media.configuration.aptx_hd.aptx.sampling_freq)) == -1)
+					t->media.a2dp.configuration.aptx_hd.aptx.sampling_freq)) == -1)
 		return -1;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;

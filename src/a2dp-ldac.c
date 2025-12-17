@@ -132,7 +132,7 @@ void *a2dp_ldac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldac_ABR_free_handle), handle_abr);
 
-	const a2dp_ldac_t *configuration = &t->media.configuration.ldac;
+	const a2dp_ldac_t * configuration = &t->media.a2dp.configuration.ldac;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
@@ -308,7 +308,7 @@ void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ldacBT_free_handle), handle);
 
-	const a2dp_ldac_t *configuration = &t->media.configuration.ldac;
+	const a2dp_ldac_t *configuration = &t->media.a2dp.configuration.ldac;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
@@ -458,12 +458,12 @@ static int a2dp_ldac_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_ldac_channels,
-					t->media.configuration.ldac.channel_mode)) == -1)
+					t->media.a2dp.configuration.ldac.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_ldac_rates,
-					t->media.configuration.ldac.sampling_freq)) == -1)
+					t->media.a2dp.configuration.ldac.sampling_freq)) == -1)
 		return -1;
 
 	/* LDAC library internally for encoding uses 31-bit integers or

@@ -156,7 +156,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	AACENC_InfoStruct info;
 	AACENC_ERROR err;
 
-	const a2dp_aac_t *configuration = &t->media.configuration.aac;
+	const a2dp_aac_t * configuration = &t->media.a2dp.configuration.aac;
 	const unsigned int bitrate = A2DP_AAC_GET_BITRATE(*configuration);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
@@ -694,12 +694,12 @@ static int a2dp_aac_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_aac_channels,
-					t->media.configuration.aac.channel_mode)) == -1)
+					t->media.a2dp.configuration.aac.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aac_rates,
-					A2DP_AAC_GET_SAMPLING_FREQ(t->media.configuration.aac))) == -1)
+					A2DP_AAC_GET_SAMPLING_FREQ(t->media.a2dp.configuration.aac))) == -1)
 		return -1;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;

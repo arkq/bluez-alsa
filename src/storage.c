@@ -215,10 +215,10 @@ static GHashTable *storage_pcm_data_load_delays(GKeyFile *db, const char *group,
 		/* Split string into a codec name and delay value. */
 		*value++ = '\0';
 		uint32_t codec_id = 0xFFFFFFFF;
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP &&
+		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t) &&
 				(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFFFFFF)
 			continue;
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+		if (BA_TRANSPORT_PROFILE_IS_SCO(t) &&
 				(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
 			continue;
 		const int16_t delay = atoi(value);
@@ -351,9 +351,9 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 			/* Do not store the delay if it is zero. */
 			continue;
 		const char *codec = NULL;
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
 			codec = a2dp_codecs_codec_id_to_string(GPOINTER_TO_INT(key));
-		if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+		if (BA_TRANSPORT_PROFILE_IS_SCO(t))
 			codec = hfp_codec_id_to_string(GPOINTER_TO_INT(key));
 		if (codec == NULL)
 			continue;

@@ -340,11 +340,11 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
-	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0, BLUEZ_A2DP_VOLUME_MAX), -9600);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600, BLUEZ_A2DP_VOLUME_MAX), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), -9600);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), 0);
 
-	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(127, BLUEZ_A2DP_VOLUME_MAX), 0);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(0, BLUEZ_A2DP_VOLUME_MAX), 127);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(127, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(0, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), 127);
 
 	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0, HFP_VOLUME_GAIN_MAX), -9600);
 	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600, HFP_VOLUME_GAIN_MAX), 0);
@@ -434,7 +434,7 @@ CK_START_TEST(test_storage) {
 	ck_assert_int_eq(t->media.pcm.client_delay_dms, -200);
 
 	bool muted = true;
-	int level = ba_transport_pcm_volume_range_to_level(100, BLUEZ_A2DP_VOLUME_MAX);
+	int level = ba_transport_pcm_volume_range_to_level(100, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX);
 	ba_transport_pcm_volume_set(&t->media.pcm.volume[0], &level, &muted, NULL);
 	ba_transport_pcm_volume_set(&t->media.pcm.volume[1], &level, &muted, NULL);
 	t->media.pcm.client_delay_dms = 140;

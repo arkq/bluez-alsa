@@ -226,7 +226,7 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const unsigned int rate = t_pcm->rate;
 
 	HANDLE_LHDC_BT handle;
-	if ((handle = lhdcBT_get_handle(get_lhdc_enc_version(&t->media.configuration))) == NULL) {
+	if ((handle = lhdcBT_get_handle(get_lhdc_enc_version(&t->media.a2dp.configuration))) == NULL) {
 		error("Couldn't get LHDC handle: %s", strerror(errno));
 		goto fail_open_lhdc;
 	}
@@ -243,11 +243,11 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 		error("LHDC v2 is not supported yet");
 		goto fail_init;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
-		lhdcBT_set_hasMinBitrateLimit(handle, t->media.configuration.lhdc_v3.min_bitrate);
-		lhdc_max_bitrate_index = get_lhdc_max_bitrate(t->media.configuration.lhdc_v3.max_bitrate);
-		lhdc_bit_depth = t->media.configuration.lhdc_v3.bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
-		lhdc_dual_channel = t->media.configuration.lhdc_v3.ch_split_mode > LHDC_CH_SPLIT_MODE_NONE;
-		lhdc_interval = t->media.configuration.lhdc_v3.low_latency ? 10 : 20;
+		lhdcBT_set_hasMinBitrateLimit(handle, t->media.a2dp.configuration.lhdc_v3.min_bitrate);
+		lhdc_max_bitrate_index = get_lhdc_max_bitrate(t->media.a2dp.configuration.lhdc_v3.max_bitrate);
+		lhdc_bit_depth = t->media.a2dp.configuration.lhdc_v3.bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
+		lhdc_dual_channel = t->media.a2dp.configuration.lhdc_v3.ch_split_mode > LHDC_CH_SPLIT_MODE_NONE;
+		lhdc_interval = t->media.a2dp.configuration.lhdc_v3.low_latency ? 10 : 20;
 		break;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
 		error("LHDC v5 is not supported yet");
@@ -432,8 +432,8 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 		error("LHDC v2 is not supported yet");
 		goto fail_open;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
-		dec_config.version = get_lhdc_dec_version(&t->media.configuration.lhdc_v3);
-		dec_config.bits_depth = t->media.configuration.lhdc_v3.bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
+		dec_config.version = get_lhdc_dec_version(&t->media.a2dp.configuration.lhdc_v3);
+		dec_config.bits_depth = t->media.a2dp.configuration.lhdc_v3.bit_depth == LHDC_BIT_DEPTH_16 ? 16 : 24;
 		break;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
 		error("LHDC v5 is not supported yet");
@@ -677,17 +677,17 @@ static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 	switch (t->codec_id) {
 	case A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID):
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
-						t->media.configuration.lhdc_v2.sampling_freq)) == -1)
+						t->media.a2dp.configuration.lhdc_v2.sampling_freq)) == -1)
 			return -1;
 		break;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
-						t->media.configuration.lhdc_v3.sampling_freq)) == -1)
+						t->media.a2dp.configuration.lhdc_v3.sampling_freq)) == -1)
 			return -1;
 		break;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
-						t->media.configuration.lhdc_v5.sampling_freq)) == -1)
+						t->media.a2dp.configuration.lhdc_v5.sampling_freq)) == -1)
 			return -1;
 		break;
 	default:

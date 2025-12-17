@@ -131,7 +131,7 @@ void *a2dp_opus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	OpusEncoder *opus = NULL;
 	pthread_cleanup_push(PTHREAD_CLEANUP(opus_encoder_destroy_ptr), &opus);
 
-	const a2dp_opus_t *configuration = &t->media.configuration.opus;
+	const a2dp_opus_t * configuration = &t->media.a2dp.configuration.opus;
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 	const unsigned int opus_frame_dms = a2dp_opus_get_frame_dms(configuration);
@@ -277,7 +277,7 @@ void *a2dp_opus_dec_thread(struct ba_transport_pcm *t_pcm) {
 	OpusDecoder *opus = NULL;
 	pthread_cleanup_push(PTHREAD_CLEANUP(opus_decoder_destroy_ptr), &opus);
 
-	const a2dp_opus_t *configuration = &t->media.configuration.opus;
+	const a2dp_opus_t * configuration = &t->media.a2dp.configuration.opus;
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 	const unsigned int opus_frame_dms = a2dp_opus_get_frame_dms(configuration);
@@ -441,12 +441,12 @@ static int a2dp_opus_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_opus_channels,
-					t->media.configuration.opus.channel_mode)) == -1)
+					t->media.a2dp.configuration.opus.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_opus_rates,
-					t->media.configuration.opus.sampling_freq)) == -1)
+					t->media.a2dp.configuration.opus.sampling_freq)) == -1)
 		return -1;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;

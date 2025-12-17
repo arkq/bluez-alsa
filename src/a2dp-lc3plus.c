@@ -180,7 +180,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	struct ba_transport *t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
-	const a2dp_lc3plus_t *configuration = &t->media.configuration.lc3plus;
+	const a2dp_lc3plus_t * configuration = &t->media.a2dp.configuration.lc3plus;
 	const int lc3plus_frame_dms = a2dp_lc3plus_get_frame_dms(configuration);
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
@@ -416,7 +416,7 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 	struct ba_transport *t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
-	const a2dp_lc3plus_t *configuration = &t->media.configuration.lc3plus;
+	const a2dp_lc3plus_t * configuration = &t->media.a2dp.configuration.lc3plus;
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
 	const unsigned int rtp_ts_clockrate = 96000;
@@ -697,12 +697,12 @@ static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_channels,
-					t->media.configuration.lc3plus.channel_mode)) == -1)
+					t->media.a2dp.configuration.lc3plus.channel_mode)) == -1)
 		return -1;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_rates,
-					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->media.configuration.lc3plus))) == -1)
+					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->media.a2dp.configuration.lc3plus))) == -1)
 		return -1;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;

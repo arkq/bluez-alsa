@@ -260,9 +260,9 @@ static GVariant *ba_variant_new_pcm_rate(const struct ba_transport_pcm *pcm) {
 static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	const char *codec = NULL;
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
 		codec = a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t));
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO)
+	if (BA_TRANSPORT_PROFILE_IS_SCO(t))
 		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
 	if (codec != NULL)
 		return g_variant_new_string(codec);
@@ -271,9 +271,9 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 
 static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
-		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->media.configuration,
-				t->media.sep->config.caps_size, sizeof(uint8_t));
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
+		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->media.a2dp.configuration,
+				t->media.a2dp.sep->config.caps_size, sizeof(uint8_t));
 	return NULL;
 }
 
@@ -295,8 +295,8 @@ static uint8_t ba_volume_pack_dbus_volume(bool muted, int value) {
 
 static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 
-	const bool is_sco = pcm->t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
-	const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
+	const bool is_sco = BA_TRANSPORT_PROFILE_IS_SCO(pcm->t);
+	const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX;
 	const size_t n = pcm->channels;
 
 	uint8_t volume[ARRAYSIZE(pcm->volume)];
@@ -482,7 +482,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	pthread_mutex_lock(&pcm->client_mtx);
 
 	/* preliminary check whether HFP codes is selected */
-	if (t_profile & BA_TRANSPORT_PROFILE_MASK_SCO &&
+	if (BA_TRANSPORT_PROFILE_IS_SCO(pcm->t) &&
 			ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED) {
 		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
 				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
@@ -585,10 +585,10 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	GVariantBuilder codecs;
 	g_variant_builder_init(&codecs, G_VARIANT_TYPE("a{sa{sv}}"));
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 
 		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
-		const enum a2dp_type pcm_sep_type = t->media.sep->config.type;
+		const enum a2dp_type pcm_sep_type = t->media.a2dp.sep->config.type;
 		const enum a2dp_stream pcm_sep_stream = &t->media.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 
 		for (size_t i = 0; sep_cfgs != NULL && i < sep_cfgs->len; i++) {
@@ -645,7 +645,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		g_array_free(codec_ids, TRUE);
 
 	}
-	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_SCO) {
+	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 
 		const struct ba_rfcomm *t_sco_rfcomm = t->sco.rfcomm;
 
@@ -764,7 +764,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		g_variant_unref(value);
 	}
 
-	if (t->profile & BA_TRANSPORT_PROFILE_MASK_A2DP) {
+	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 
 		/* support for Stream End-Points not enabled in BlueZ */
 		if (t->d->sep_configs == NULL) {
@@ -773,7 +773,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		}
 
 		uint32_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
-		const enum a2dp_type pcm_sep_type = t->media.sep->config.type;
+		const enum a2dp_type pcm_sep_type = t->media.a2dp.sep->config.type;
 		const enum a2dp_stream pcm_sep_stream = &t->media.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 		struct a2dp_sep_config *remote_sep_cfg = NULL;
 		const GArray *sep_cfgs = t->d->sep_configs;
@@ -951,8 +951,8 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 	struct ba_transport_pcm *pcm = userdata;
 	struct ba_transport *t = pcm->t;
 
-	const bool is_sco = t->profile & BA_TRANSPORT_PROFILE_MASK_SCO;
-	const int volume_max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_A2DP_VOLUME_MAX;
+	const bool is_sco = BA_TRANSPORT_PROFILE_IS_SCO(t);
+	const int volume_max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX;
 
 	if (strcmp(property, "ClientDelay") == 0) {
 		pcm->client_delay_dms = g_variant_get_int16(value);
