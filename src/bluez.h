@@ -27,6 +27,10 @@ enum bluez_media_transport_state {
 	BLUEZ_MEDIA_TRANSPORT_STATE_ACTIVE,
 };
 
+/**
+ * BlueZ service D-Bus unique name. */
+extern char bluez_dbus_unique_name[32];
+
 int bluez_init(void);
 void bluez_destroy(void);
 

@@ -29,10 +29,11 @@
 #include <bluetooth/hci.h>
 
 #include "ba-adapter.h"
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "ble-midi.h"
-#include "ba-config.h"
+#include "bluez.h"
 #include "bluez-iface.h"
 #include "dbus.h"
 #include "midi.h"
@@ -61,10 +62,6 @@ struct bluez_midi_app {
 	/* memory self-management */
 	atomic_int ref_count;
 };
-
-/**
- * D-Bus unique name of the BlueZ daemon. */
-static char bluez_dbus_unique_name[64] = "";
 
 static struct bluez_midi_app *bluez_midi_app_ref(struct bluez_midi_app *app) {
 	atomic_fetch_add_explicit(&app->ref_count, 1, memory_order_relaxed);
@@ -390,22 +387,15 @@ static GDBusObjectSkeleton *bluez_midi_characteristic_skeleton_new(
 	return skeleton;
 }
 
-static void bluez_midi_app_register_finish(
-		GObject *source, GAsyncResult *result, G_GNUC_UNUSED void *userdata) {
+static void midi_app_register_finish(
+		GObject * source, GAsyncResult * result, G_GNUC_UNUSED void * userdata) {
 
-	GError *err = NULL;
-	GDBusMessage *rep;
-
+	GDBusMessage * rep;
+	GError * err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_finish(
-					G_DBUS_CONNECTION(source), result, &err)) == NULL ||
-			g_dbus_message_to_gerror(rep, &err))
-		goto fail;
+					G_DBUS_CONNECTION(source), result, &err)) != NULL)
+		g_dbus_message_to_gerror(rep, &err);
 
-	/* Save sender (BlueZ) unique name for calls filtering. */
-	const char *sender = g_dbus_message_get_sender(rep);
-	strncpy(bluez_dbus_unique_name, sender, sizeof(bluez_dbus_unique_name) - 1);
-
-fail:
 	if (rep != NULL)
 		g_object_unref(rep);
 	if (err != NULL) {
@@ -427,7 +417,7 @@ static void bluez_midi_app_register(
 	debug("Registering MIDI GATT application: %s", app->path);
 	g_dbus_connection_send_message_with_reply(config.dbus, msg,
 			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
-			bluez_midi_app_register_finish, NULL);
+			midi_app_register_finish, NULL);
 
 	g_object_unref(msg);
 }

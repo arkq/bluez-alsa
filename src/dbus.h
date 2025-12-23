@@ -17,6 +17,7 @@
 #define DBUS_SERVICE "org.freedesktop.DBus"
 
 #define DBUS_IFACE_DBUS             DBUS_SERVICE
+#define DBUS_IFACE_INTROSPECTABLE   DBUS_SERVICE ".Introspectable"
 #define DBUS_IFACE_OBJECT_MANAGER   DBUS_SERVICE ".ObjectManager"
 #define DBUS_IFACE_PROPERTIES       DBUS_SERVICE ".Properties"
 
@@ -68,6 +69,9 @@ void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
 bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
 		const char *path, const char *interface, GVariant *changed,
 		GVariant *invalidated, GError **error);
+
+char * g_dbus_get_unique_name_sync(GDBusConnection * conn,
+		const char * service);
 
 GVariantIter * g_dbus_get_managed_objects_sync(GDBusConnection * conn,
 		const char * service, const char * path, GError ** error);

@@ -68,6 +68,7 @@ struct ofono_card_data {
 static GHashTable *ofono_card_data_map = NULL;
 static const char *dbus_agent_object_path = "/org/bluez/HFP/oFono";
 static OrgOfonoHandsfreeAudioAgentSkeleton *dbus_hf_agent = NULL;
+static char ofono_dbus_unique_name[32] = "";
 
 /**
  * Ask oFono to connect to a card. */
@@ -843,8 +844,10 @@ int ofono_register(void) {
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "NewConnection",
+			.sender = ofono_dbus_unique_name,
 			.handler = ofono_agent_new_connection },
 		{ .method = "Release",
+			.sender = ofono_dbus_unique_name,
 			.handler = ofono_agent_release },
 		{ 0 },
 	};
@@ -1030,6 +1033,12 @@ int ofono_init(void) {
 	if (ofono_card_data_map == NULL)
 		ofono_card_data_map = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, free);
 
+	char * name;
+	if ((name = g_dbus_get_unique_name_sync(config.dbus, OFONO_SERVICE)) != NULL) {
+		strncpy(ofono_dbus_unique_name, name, sizeof(ofono_dbus_unique_name) - 1);
+		g_free(name);
+	}
+
 	g_dbus_connection_signal_subscribe(config.dbus, OFONO_SERVICE,
 			OFONO_IFACE_HF_AUDIO_MANAGER, "CardAdded", NULL, NULL,
 			G_DBUS_SIGNAL_FLAGS_NONE, ofono_signal_card_added, NULL, NULL);
@@ -1052,22 +1061,14 @@ int ofono_init(void) {
  * Check whether oFono service is running. */
 bool ofono_detect_service(void) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	bool status = true;
-
 	debug("Checking oFono service presence");
 
-	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
-			OFONO_IFACE_MANAGER, "GetModems");
-	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL)) == NULL ||
-			g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
-		status = false;
-
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
+	char * name;
+	bool status = false;
+	if ((name = g_dbus_get_unique_name_sync(config.dbus, OFONO_SERVICE)) != NULL) {
+		status = true;
+		g_free(name);
+	}
 
 	return status;
 }

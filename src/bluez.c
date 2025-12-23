@@ -99,27 +99,20 @@ struct bluez_adapter {
 static pthread_mutex_t bluez_mutex = PTHREAD_MUTEX_INITIALIZER;
 static GHashTable *dbus_object_data_map = NULL;
 static struct bluez_adapter bluez_adapters[HCI_MAX_DEV] = { 0 };
-static char bluez_dbus_unique_name[64] = "";
+char bluez_dbus_unique_name[32] = "";
 
 static void bluez_register_a2dp_all(struct ba_adapter *);
 
-static void bluez_register_media_application_finish(GObject *source,
-		GAsyncResult *result, void *userdata) {
+static void register_media_application_finish(GObject * source,
+		GAsyncResult * result, void * userdata) {
 	(void)userdata;
 
-	GDBusMessage *rep;
-	GError *err = NULL;
-
+	GDBusMessage * rep;
+	GError * err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_finish(
-					G_DBUS_CONNECTION(source), result, &err)) == NULL ||
-			g_dbus_message_to_gerror(rep, &err))
-		goto fail;
+					G_DBUS_CONNECTION(source), result, &err)) != NULL)
+		g_dbus_message_to_gerror(rep, &err);
 
-	/* Save sender (BlueZ) unique name for calls filtering. */
-	const char *sender = g_dbus_message_get_sender(rep);
-	strncpy(bluez_dbus_unique_name, sender, sizeof(bluez_dbus_unique_name) - 1);
-
-fail:
 	if (rep != NULL)
 		g_object_unref(rep);
 	if (err != NULL) {
@@ -151,7 +144,7 @@ static void bluez_register_media_application(struct bluez_adapter *b_adapter) {
 	debug("Registering media application: %s", path);
 	g_dbus_connection_send_message_with_reply(config.dbus, msg,
 			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
-			bluez_register_media_application_finish, NULL);
+			register_media_application_finish, NULL);
 
 	g_object_unref(msg);
 
@@ -1093,10 +1086,6 @@ static int bluez_register_profile(
 			g_dbus_message_to_gerror(rep, error))
 		goto fail;
 
-	/* Save sender (BlueZ) unique name for calls filtering. */
-	const char *sender = g_dbus_message_get_sender(rep);
-	strncpy(bluez_dbus_unique_name, sender, sizeof(bluez_dbus_unique_name) - 1);
-
 	ret = 0;
 
 fail:
@@ -1814,6 +1803,13 @@ int bluez_init(void) {
 
 	dbus_object_data_map = g_hash_table_new_full(g_str_hash, g_str_equal,
 			NULL, (GDestroyNotify)bluez_dbus_object_data_free);
+
+	char * name;
+	/* Get BlueZ service D-Bus unique name for calls filtering. */
+	if ((name = g_dbus_get_unique_name_sync(config.dbus, BLUEZ_SERVICE)) != NULL) {
+		strncpy(bluez_dbus_unique_name, name, sizeof(bluez_dbus_unique_name) - 1);
+		g_free(name);
+	}
 
 	bluez_signals_subscribe();
 	bluez_register();

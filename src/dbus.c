@@ -163,6 +163,36 @@ bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
 }
 
 /**
+ * Get unique name of a given D-Bus service.
+ *
+ * @param conn D-Bus connection handler.
+ * @param service Valid D-Bus service name.
+ * @return On success this function returns the unique name of the given D-Bus
+ *   service. The returned string shall be freed with g_free() after usage. On
+ *   error, NULL is returned. */
+char * g_dbus_get_unique_name_sync(GDBusConnection * conn,
+		const char * service) {
+
+	GDBusMessage * msg = g_dbus_message_new_method_call(service, "/",
+			DBUS_IFACE_INTROSPECTABLE, "Introspect");
+
+	bool ok = true;
+	GDBusMessage * rep;
+	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
+					G_DBUS_SEND_MESSAGE_FLAGS_NONE, 1000, NULL, NULL, NULL)) == NULL ||
+			g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
+		ok = false;
+
+	char * name = ok ? g_strdup(g_dbus_message_get_sender(rep)) : NULL;
+
+	if (rep != NULL)
+		g_object_unref(rep);
+	g_object_unref(msg);
+
+	return name;
+}
+
+/**
  * Get managed objects of a given D-Bus service.
  *
  * @param conn D-Bus connection handler.

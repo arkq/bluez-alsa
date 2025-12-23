@@ -255,6 +255,27 @@ CK_START_TEST(test_g_dbus_connection_emit_properties_changed) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_g_dbus_get_unique_name_sync) {
+
+	FooServer * server;
+	GTestDBusConnection * tc;
+
+	ck_assert_ptr_nonnull((tc = test_dbus_connection_new()));
+	ck_assert_ptr_nonnull((server = dbus_foo_server_new(tc->conn)));
+
+	/* Try to get unique name for non-existing service. */
+	ck_assert_ptr_null(g_dbus_get_unique_name_sync(tc->conn, "org.nonexistent"));
+
+	char * name;
+	/* Try to get unique name for existing service. */
+	ck_assert_ptr_nonnull((name = g_dbus_get_unique_name_sync(tc->conn, "org.example")));
+	g_free(name);
+
+	dbus_foo_server_free(server);
+	test_dbus_connection_free(tc);
+
+} CK_END_TEST
+
 CK_START_TEST(test_g_dbus_get_managed_objects_sync) {
 
 	FooServer * server;
@@ -401,6 +422,7 @@ int main(void) {
 
 	tcase_add_test(tc, test_dbus_dispatch_method_call);
 	tcase_add_test(tc, test_g_dbus_connection_emit_properties_changed);
+	tcase_add_test(tc, test_g_dbus_get_unique_name_sync);
 	tcase_add_test(tc, test_g_dbus_get_managed_objects_sync);
 	tcase_add_test(tc, test_g_dbus_get_properties_sync);
 	tcase_add_test(tc, test_g_dbus_get_property);
