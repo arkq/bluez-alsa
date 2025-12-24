@@ -460,8 +460,8 @@ CK_START_TEST(test_rfcomm_self_hfp_slc) {
 	dbus_update_counters_wait(&dbus_update_counters.codec, 0 + (2 + 2));
 
 	pthread_mutex_lock(&adapter->devices_mutex);
-	ck_assert_int_eq(device1->ref_count, 1 + 1);
-	ck_assert_int_eq(device2->ref_count, 1 + 1);
+	ck_assert_int_eq(device1->_rc.count, 1 + 1);
+	ck_assert_int_eq(device2->_rc.count, 1 + 1);
 	pthread_mutex_unlock(&adapter->devices_mutex);
 
 	ck_assert_int_eq(ba_transport_get_codec(ag), HFP_CODEC_CVSD);
@@ -478,8 +478,8 @@ CK_START_TEST(test_rfcomm_self_hfp_slc) {
 	usleep(100000);
 
 	pthread_mutex_lock(&adapter->devices_mutex);
-	ck_assert_int_eq(device1->ref_count, 1);
-	ck_assert_int_eq(device2->ref_count, 1);
+	ck_assert_int_eq(device1->_rc.count, 1);
+	ck_assert_int_eq(device2->_rc.count, 1);
 	pthread_mutex_unlock(&adapter->devices_mutex);
 
 } CK_END_TEST

@@ -13,6 +13,7 @@ libshared_la_SOURCES = \
 	hex.c \
 	log.c \
 	nv.c \
+	rc.c \
 	rt.c
 
 AM_CFLAGS = \

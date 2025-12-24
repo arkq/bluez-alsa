@@ -9,6 +9,7 @@
 #endif
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,7 @@
 #include "shared/ffb.h"
 #include "shared/hex.h"
 #include "shared/nv.h"
+#include "shared/rc.h"
 #include "shared/rt.h"
 
 #include "inc/check.inc"
@@ -136,6 +138,38 @@ CK_START_TEST(test_nv_join_names) {
 
 	ck_assert_str_eq(tmp = nv_join_names(entries), "name1, name2");
 	free(tmp);
+
+} CK_END_TEST
+
+struct test_rc {
+	rc_t rc;
+	bool freed;
+};
+
+static void test_rc_free(void * ptr) {
+	struct test_rc * tmp = ptr;
+	tmp->freed = true;
+}
+
+CK_START_TEST(test_rc_callback) {
+
+	struct test_rc rc;
+
+	rc_init(&rc.rc, test_rc_free);
+	ck_assert_int_eq(rc.rc.count, 1);
+	rc.freed = false;
+
+	ck_assert_ptr_eq(rc_ref(&rc), &rc);
+	ck_assert_int_eq(rc.rc.count, 2);
+	ck_assert_int_eq(rc.freed, false);
+
+	ck_assert_int_eq(rc_unref_with_count(&rc), 1);
+	ck_assert_int_eq(rc.rc.count, 1);
+	ck_assert_int_eq(rc.freed, false);
+
+	ck_assert_int_eq(rc_unref_with_count(&rc), 0);
+	ck_assert_int_eq(rc.rc.count, 0);
+	ck_assert_int_eq(rc.freed, true);
 
 } CK_END_TEST
 
@@ -345,6 +379,9 @@ int main(void) {
 	tcase_add_test(tc, test_nv_name_from_int);
 	tcase_add_test(tc, test_nv_name_from_uint);
 	tcase_add_test(tc, test_nv_join_names);
+
+	/* shared/rc.c */
+	tcase_add_test(tc, test_rc_callback);
 
 	/* shared/rt.c */
 	tcase_add_test(tc, test_difftimespec);

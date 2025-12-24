@@ -11,7 +11,6 @@
 #endif
 
 #include <errno.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -41,11 +40,13 @@
 #include "shared/bluetooth.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "shared/rc.h"
 
 /**
  * BlueALSA MIDI GATT application. */
 struct bluez_midi_app {
-	/* D-Bus object registration paths */
+	rc_t _rc;
+	/* D-Bus object registration paths. */
 	char path[64];
 	char path_adv[64 + 8];
 	char path_service[64 + 8];
@@ -59,26 +60,7 @@ struct bluez_midi_app {
 	/* characteristic notify link */
 	GSource *notify_watch_hup;
 	bool notify_acquired;
-	/* memory self-management */
-	atomic_int ref_count;
 };
-
-static struct bluez_midi_app *bluez_midi_app_ref(struct bluez_midi_app *app) {
-	atomic_fetch_add_explicit(&app->ref_count, 1, memory_order_relaxed);
-	return app;
-}
-
-static void bluez_midi_app_unref(struct bluez_midi_app *app) {
-	if (atomic_fetch_sub_explicit(&app->ref_count, 1, memory_order_relaxed) > 1)
-		return;
-	debug("Freeing MIDI GATT application: %s", app->path);
-	if (app->notify_watch_hup != NULL) {
-		g_source_destroy(app->notify_watch_hup);
-		g_source_unref(app->notify_watch_hup);
-	}
-	ba_transport_destroy(app->t);
-	free(app);
-}
 
 /**
  * Create new local MIDI transport. */
@@ -157,15 +139,15 @@ static GDBusObjectSkeleton *bluez_midi_advertisement_skeleton_new(
 
 	OrgBluezLeadvertisement1Skeleton *ifs_gatt_adv;
 	if ((ifs_gatt_adv = org_bluez_leadvertisement1_skeleton_new(&vtable,
-					app, (GDestroyNotify)bluez_midi_app_unref)) == NULL)
+					app, rc_unref)) == NULL)
 		return NULL;
 
+	rc_ref(app);
 	GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_gatt_adv);
 	GDBusObjectSkeleton *skeleton = g_dbus_object_skeleton_new(app->path_adv);
 	g_dbus_object_skeleton_add_interface(skeleton, ifs);
 	g_object_unref(ifs_gatt_adv);
 
-	bluez_midi_app_ref(app);
 	return skeleton;
 }
 
@@ -182,24 +164,24 @@ static GVariant *bluez_midi_service_iface_get_property(
 	return NULL;
 }
 
-static GDBusObjectSkeleton *bluez_midi_service_skeleton_new(
-		struct bluez_midi_app *app) {
+static GDBusObjectSkeleton * bluez_midi_service_skeleton_new(
+		struct bluez_midi_app * app) {
 
 	static const GDBusInterfaceSkeletonVTable vtable = {
 		.get_property = bluez_midi_service_iface_get_property,
 	};
 
-	OrgBluezGattService1Skeleton *ifs_gatt_service;
+	OrgBluezGattService1Skeleton * ifs_gatt_service;
 	if ((ifs_gatt_service = org_bluez_gatt_service1_skeleton_new(&vtable,
-					app, (GDestroyNotify)bluez_midi_app_unref)) == NULL)
+					app, rc_unref)) == NULL)
 		return NULL;
 
-	GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_gatt_service);
-	GDBusObjectSkeleton *skeleton = g_dbus_object_skeleton_new(app->path_service);
+	rc_ref(app);
+	GDBusInterfaceSkeleton * ifs = G_DBUS_INTERFACE_SKELETON(ifs_gatt_service);
+	GDBusObjectSkeleton * skeleton = g_dbus_object_skeleton_new(app->path_service);
 	g_dbus_object_skeleton_add_interface(skeleton, ifs);
 	g_object_unref(ifs_gatt_service);
 
-	bluez_midi_app_ref(app);
 	return skeleton;
 }
 
@@ -352,8 +334,8 @@ static GVariant *bluez_midi_characteristic_iface_get_property(
 	return NULL;
 }
 
-static GDBusObjectSkeleton *bluez_midi_characteristic_skeleton_new(
-		struct bluez_midi_app *app) {
+static GDBusObjectSkeleton * bluez_midi_characteristic_skeleton_new(
+		struct bluez_midi_app * app) {
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "ReadValue",
@@ -373,17 +355,17 @@ static GDBusObjectSkeleton *bluez_midi_characteristic_skeleton_new(
 		.get_property = bluez_midi_characteristic_iface_get_property,
 	};
 
-	OrgBluezGattCharacteristic1Skeleton *ifs_gatt_char;
+	OrgBluezGattCharacteristic1Skeleton * ifs_gatt_char;
 	if ((ifs_gatt_char = org_bluez_gatt_characteristic1_skeleton_new(&vtable,
-					app, (GDestroyNotify)bluez_midi_app_unref)) == NULL)
+					app, rc_unref)) == NULL)
 		return NULL;
 
-	GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_gatt_char);
-	GDBusObjectSkeleton *skeleton = g_dbus_object_skeleton_new(app->path_char);
+	rc_ref(app);
+	GDBusInterfaceSkeleton * ifs = G_DBUS_INTERFACE_SKELETON(ifs_gatt_char);
+	GDBusObjectSkeleton * skeleton = g_dbus_object_skeleton_new(app->path_char);
 	g_dbus_object_skeleton_add_interface(skeleton, ifs);
 	g_object_unref(ifs_gatt_char);
 
-	bluez_midi_app_ref(app);
 	return skeleton;
 }
 
@@ -458,20 +440,33 @@ static void bluez_midi_app_advertise(
 	g_object_unref(msg);
 }
 
-GDBusObjectManagerServer *bluez_midi_app_new(
-		struct ba_adapter *adapter, const char *path) {
+static void app_free(void * ptr) {
+	struct bluez_midi_app * app = ptr;
+	debug("Freeing MIDI GATT application: %s", app->path);
+	if (app->notify_watch_hup != NULL) {
+		g_source_destroy(app->notify_watch_hup);
+		g_source_unref(app->notify_watch_hup);
+	}
+	ba_transport_destroy(app->t);
+	free(app);
+}
 
-	struct bluez_midi_app *app;
+GDBusObjectManagerServer * bluez_midi_app_new(
+		struct ba_adapter * adapter,
+		const char * path) {
+
+	struct bluez_midi_app * app;
 	if ((app = calloc(1, sizeof(*app))) == NULL)
 		return NULL;
 
+	rc_init(&app->_rc, app_free);
 	snprintf(app->path, sizeof(app->path), "%s", path);
 	snprintf(app->path_adv, sizeof(app->path_adv), "%s/adv", path);
 	snprintf(app->path_service, sizeof(app->path_service), "%s/service", path);
 	snprintf(app->path_char, sizeof(app->path_char), "%s/char", app->path_service);
 	app->hci_dev_id = adapter->hci.dev_id;
 
-	struct ba_transport *t;
+	struct ba_transport * t;
 	/* Setup local MIDI transport associated with our GATT server. */
 	if ((t = bluez_midi_transport_new(app)) == NULL)
 		error("Couldn't create local MIDI transport: %s", strerror(errno));
@@ -481,8 +476,8 @@ GDBusObjectManagerServer *bluez_midi_app_new(
 		error("Couldn't start local MIDI transport: %s", strerror(errno));
 	app->t = t;
 
-	GDBusObjectManagerServer *manager = g_dbus_object_manager_server_new(path);
-	GDBusObjectSkeleton *skeleton;
+	GDBusObjectManagerServer * manager = g_dbus_object_manager_server_new(path);
+	GDBusObjectSkeleton * skeleton;
 
 	skeleton = bluez_midi_service_skeleton_new(app);
 	g_dbus_object_manager_server_export(manager, skeleton);
@@ -503,6 +498,10 @@ GDBusObjectManagerServer *bluez_midi_app_new(
 	bluez_midi_app_register(adapter, app);
 	if (config.midi.advertise)
 		bluez_midi_app_advertise(adapter, app);
+
+	/* The application is referenced by interface skeletons which are owned
+	 * by the object manager server. Freeing the manager will free the app. */
+	rc_unref(app);
 
 	return manager;
 }

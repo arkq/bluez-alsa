@@ -19,8 +19,11 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include "shared/rc.h"
+
 /* Data associated with BT adapter. */
 struct ba_adapter {
+	rc_t _rc;
 
 	/* basic info about HCI device */
 	struct hci_dev_info hci;
@@ -37,16 +40,17 @@ struct ba_adapter {
 	pthread_mutex_t devices_mutex;
 	GHashTable *devices;
 
-	/* memory self-management */
-	int ref_count;
-
 };
 
-struct ba_adapter *ba_adapter_new(int dev_id);
-struct ba_adapter *ba_adapter_lookup(int dev_id);
-struct ba_adapter *ba_adapter_ref(struct ba_adapter *a);
-void ba_adapter_destroy(struct ba_adapter *a);
-void ba_adapter_unref(struct ba_adapter *a);
+struct ba_adapter * ba_adapter_new(int dev_id);
+struct ba_adapter * ba_adapter_lookup(int dev_id);
+static inline struct ba_adapter * ba_adapter_ref(
+		struct ba_adapter * a) {
+	return rc_ref(a);
+}
+
+void ba_adapter_destroy(struct ba_adapter * a);
+void ba_adapter_unref(struct ba_adapter * a);
 
 /**
  * Macro for testing whether eSCO is supported. */

@@ -24,14 +24,21 @@
 #include "hfp.h"
 #include "utils.h"
 #include "shared/log.h"
+#include "shared/rc.h"
 
-struct ba_adapter *ba_adapter_new(int dev_id) {
+static void adapter_detach(void * ptr) {
+	struct ba_adapter * a = ptr;
+	/* Detach adapter from global configuration. */
+	config.adapters[a->hci.dev_id] = NULL;
+}
+
+struct ba_adapter * ba_adapter_new(int dev_id) {
 
 	/* make sure we are within array boundaries */
 	if (dev_id < 0 || dev_id >= HCI_MAX_DEV)
 		return errno = EINVAL, NULL;
 
-	struct ba_adapter *a;
+	struct ba_adapter * a;
 	if ((a = calloc(1, sizeof(*a))) == NULL)
 		return NULL;
 
@@ -48,8 +55,8 @@ struct ba_adapter *ba_adapter_new(int dev_id) {
 	if (hci_get_version(dev_id, &a->chip) == -1)
 		warn("Couldn't get HCI version: %s", strerror(errno));
 
+	rc_init(&a->_rc, adapter_detach);
 	a->sco_dispatcher = config.main_thread;
-	a->ref_count = 1;
 
 	sprintf(a->ba_dbus_path, "/org/bluealsa/%s", a->hci.name);
 	g_variant_sanitize_object_path(a->ba_dbus_path);
@@ -66,29 +73,22 @@ struct ba_adapter *ba_adapter_new(int dev_id) {
 	return a;
 }
 
-struct ba_adapter *ba_adapter_lookup(int dev_id) {
+struct ba_adapter * ba_adapter_lookup(int dev_id) {
 
 	if (dev_id < 0 || dev_id >= HCI_MAX_DEV)
 		return errno = EINVAL, NULL;
 
-	struct ba_adapter *a;
+	struct ba_adapter * a;
 
 	pthread_mutex_lock(&config.adapters_mutex);
 	if ((a = config.adapters[dev_id]) != NULL)
-		a->ref_count++;
+		rc_ref(a);
 	pthread_mutex_unlock(&config.adapters_mutex);
 
 	return a;
 }
 
-struct ba_adapter *ba_adapter_ref(struct ba_adapter *a) {
-	pthread_mutex_lock(&config.adapters_mutex);
-	a->ref_count++;
-	pthread_mutex_unlock(&config.adapters_mutex);
-	return a;
-}
-
-void ba_adapter_destroy(struct ba_adapter *a) {
+void ba_adapter_destroy(struct ba_adapter * a) {
 
 	if (a == NULL)
 		return;
@@ -102,17 +102,17 @@ void ba_adapter_destroy(struct ba_adapter *a) {
 	for (;;) {
 
 		GHashTableIter iter;
-		struct ba_device *d;
+		struct ba_device * d;
 
 		pthread_mutex_lock(&a->devices_mutex);
 
 		g_hash_table_iter_init(&iter, a->devices);
-		if (!g_hash_table_iter_next(&iter, NULL, (gpointer)&d)) {
+		if (!g_hash_table_iter_next(&iter, NULL, (void *)&d)) {
 			pthread_mutex_unlock(&a->devices_mutex);
 			break;
 		}
 
-		d->ref_count++;
+		ba_device_ref(d);
 		g_hash_table_iter_steal(&iter);
 
 		pthread_mutex_unlock(&a->devices_mutex);
@@ -123,15 +123,12 @@ void ba_adapter_destroy(struct ba_adapter *a) {
 	ba_adapter_unref(a);
 }
 
-void ba_adapter_unref(struct ba_adapter *a) {
+void ba_adapter_unref(struct ba_adapter * a) {
 
 	int ref_count;
-	int err;
 
 	pthread_mutex_lock(&config.adapters_mutex);
-	if ((ref_count = --a->ref_count) == 0)
-		/* detach adapter from global configuration */
-		config.adapters[a->hci.dev_id] = NULL;
+	ref_count = rc_unref_with_count(a);
 	pthread_mutex_unlock(&config.adapters_mutex);
 
 	if (ref_count > 0)
@@ -140,7 +137,8 @@ void ba_adapter_unref(struct ba_adapter *a) {
 	debug("Freeing adapter: %s", a->hci.name);
 	g_assert_cmpint(ref_count, ==, 0);
 
-	/* make sure that the SCO dispatcher is terminated before free() */
+	int err;
+	/* Make sure that the SCO dispatcher is terminated before free(). */
 	if (!pthread_equal(a->sco_dispatcher, config.main_thread)) {
 		if ((err = pthread_cancel(a->sco_dispatcher)) != 0)
 			warn("Couldn't cancel SCO dispatcher thread: %s", strerror(err));

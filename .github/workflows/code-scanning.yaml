@@ -125,7 +125,7 @@ jobs:
       run: bear -- make check TESTS=
     - name: Run IWYU Check
       run: |
-        jq 'del(.[] | select(.file | test("-ifaces?.c")))' \
+        jq 'del(.[] | select(.file | test("/build/")))' \
           ${{ github.workspace }}/build/compile_commands.json > tmp.json \
           && mv tmp.json ${{ github.workspace }}/build/compile_commands.json
         iwyu_tool -j8 -p ${{ github.workspace }}/build -- \

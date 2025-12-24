@@ -12,6 +12,8 @@
 
 #include "ba-adapter.h"
 
-GDBusObjectManagerServer *bluez_midi_app_new(struct ba_adapter *adapter, const char *path);
+GDBusObjectManagerServer * bluez_midi_app_new(
+		struct ba_adapter * adapter,
+		const char * path);
 
 #endif

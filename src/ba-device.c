@@ -16,19 +16,25 @@
 #include "storage.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "shared/rc.h"
 
-struct ba_device *ba_device_new(
-		struct ba_adapter *adapter,
-		const bdaddr_t *addr) {
+static void device_detach(void * ptr) {
+	struct ba_device * d = ptr;
+	/* Detach device from the adapter. */
+	g_hash_table_steal(d->a->devices, &d->addr);
+}
+
+struct ba_device * ba_device_new(
+		struct ba_adapter * adapter,
+		const bdaddr_t * addr) {
 
 	struct ba_device *d;
-
 	if ((d = calloc(1, sizeof(*d))) == NULL)
 		return NULL;
 
+	rc_init(&d->_rc, device_detach);
 	d->a = ba_adapter_ref(adapter);
 	bacpy(&d->addr, addr);
-	d->ref_count = 1;
 
 	d->seq = atomic_fetch_add_explicit(&config.device_seq, 1, memory_order_relaxed);
 
@@ -47,39 +53,27 @@ struct ba_device *ba_device_new(
 	g_hash_table_insert(adapter->devices, &d->addr, d);
 	pthread_mutex_unlock(&adapter->devices_mutex);
 
-	/* load data from persistent storage */
+	/* Load data from persistent storage. */
 	storage_device_load(d);
 
 	return d;
 }
 
-struct ba_device *ba_device_lookup(
-		const struct ba_adapter *adapter,
-		const bdaddr_t *addr) {
+struct ba_device * ba_device_lookup(
+		const struct ba_adapter * adapter,
+		const bdaddr_t * addr) {
 
-	struct ba_device *d;
+	struct ba_device * d;
 
 	pthread_mutex_lock(MUTABLE(&adapter->devices_mutex));
 	if ((d = g_hash_table_lookup(adapter->devices, addr)) != NULL)
-		d->ref_count++;
+		rc_ref(d);
 	pthread_mutex_unlock(MUTABLE(&adapter->devices_mutex));
 
 	return d;
 }
 
-struct ba_device *ba_device_ref(
-		struct ba_device *d) {
-
-	struct ba_adapter *a = d->a;
-
-	pthread_mutex_lock(&a->devices_mutex);
-	d->ref_count++;
-	pthread_mutex_unlock(&a->devices_mutex);
-
-	return d;
-}
-
-void ba_device_destroy(struct ba_device *d) {
+void ba_device_destroy(struct ba_device * d) {
 
 	/* XXX: Modification-safe remove-all loop.
 	 *
@@ -108,7 +102,7 @@ void ba_device_destroy(struct ba_device *d) {
 			break;
 		}
 
-		t->ref_count++;
+		ba_transport_ref(t);
 		g_hash_table_iter_steal(&iter);
 
 		pthread_mutex_unlock(&d->transports_mutex);
@@ -119,21 +113,19 @@ void ba_device_destroy(struct ba_device *d) {
 	ba_device_unref(d);
 }
 
-void ba_device_unref(struct ba_device *d) {
+void ba_device_unref(struct ba_device * d) {
 
+	struct ba_adapter * a = d->a;
 	int ref_count;
-	struct ba_adapter *a = d->a;
 
 	pthread_mutex_lock(&a->devices_mutex);
-	if ((ref_count = --d->ref_count) == 0)
-		/* detach device from the adapter */
-		g_hash_table_steal(a->devices, &d->addr);
+	ref_count = rc_unref_with_count(d);
 	pthread_mutex_unlock(&a->devices_mutex);
 
 	if (ref_count > 0)
 		return;
 
-	/* save persistent storage */
+	/* Save persistent storage. */
 	storage_device_save(d);
 
 	debug("Freeing device: %s", batostr_(&d->addr));

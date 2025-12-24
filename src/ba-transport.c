@@ -227,6 +227,12 @@ static int transport_thread_manager_send_command(struct ba_transport *t,
 	return -1;
 }
 
+static void transport_detach(void * ptr) {
+	struct ba_transport * t = ptr;
+	/* Detach transport from the device. */
+	g_hash_table_steal(t->d->transports, t->bluez_dbus_path);
+}
+
 /**
  * Create new transport.
  *
@@ -247,10 +253,10 @@ static struct ba_transport *transport_new(
 	if ((t = calloc(1, sizeof(*t))) == NULL)
 		return NULL;
 
+	rc_init(&t->_rc, transport_detach);
 	t->d = ba_device_ref(device);
 	t->profile = BA_TRANSPORT_PROFILE_NONE;
 	t->codec_id = -1;
-	t->ref_count = 1;
 
 	pthread_mutex_init(&t->codec_id_mtx, NULL);
 	pthread_mutex_init(&t->codec_select_client_mtx, NULL);
@@ -807,35 +813,23 @@ const char *ba_transport_debug_name(
 }
 #endif
 
-struct ba_transport *ba_transport_lookup(
-		const struct ba_device *device,
-		const char *dbus_path) {
+struct ba_transport * ba_transport_lookup(
+		const struct ba_device * device,
+		const char * dbus_path) {
 
-	struct ba_transport *t;
+	struct ba_transport * t;
 
 	pthread_mutex_lock(MUTABLE(&device->transports_mutex));
 	if ((t = g_hash_table_lookup(device->transports, dbus_path)) != NULL)
-		t->ref_count++;
+		rc_ref(t);
 	pthread_mutex_unlock(MUTABLE(&device->transports_mutex));
-
-	return t;
-}
-
-struct ba_transport *ba_transport_ref(
-		struct ba_transport *t) {
-
-	struct ba_device *d = t->d;
-
-	pthread_mutex_lock(&d->transports_mutex);
-	t->ref_count++;
-	pthread_mutex_unlock(&d->transports_mutex);
 
 	return t;
 }
 
 /**
  * Unregister D-Bus interfaces, stop IO threads and release transport. */
-void ba_transport_destroy(struct ba_transport *t) {
+void ba_transport_destroy(struct ba_transport * t) {
 
 	/* Remove D-Bus interfaces, so no one will access
 	 * this transport during the destroy procedure. */
@@ -877,15 +871,13 @@ void ba_transport_destroy(struct ba_transport *t) {
 	ba_transport_unref(t);
 }
 
-void ba_transport_unref(struct ba_transport *t) {
+void ba_transport_unref(struct ba_transport * t) {
 
+	struct ba_device * d = t->d;
 	int ref_count;
-	struct ba_device *d = t->d;
 
 	pthread_mutex_lock(&d->transports_mutex);
-	if ((ref_count = --t->ref_count) == 0)
-		/* detach transport from the device */
-		g_hash_table_steal(d->transports, t->bluez_dbus_path);
+	ref_count = rc_unref_with_count(t);
 	pthread_mutex_unlock(&d->transports_mutex);
 
 	if (ref_count > 0)

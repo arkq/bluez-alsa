@@ -27,6 +27,7 @@
 #include "ble-midi.h"
 #include "bluez.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/rc.h"
 
 enum ba_transport_thread_manager_command {
 	BA_TRANSPORT_THREAD_MANAGER_TERMINATE = 0,
@@ -86,6 +87,7 @@ enum ba_transport_profile {
 #endif
 
 struct ba_transport {
+	rc_t _rc;
 
 	/* backward reference to device */
 	struct ba_device *d;
@@ -244,9 +246,6 @@ struct ba_transport {
 	int (*acquire)(struct ba_transport *);
 	int (*release)(struct ba_transport *);
 
-	/* memory self-management */
-	int ref_count;
-
 };
 
 struct ba_transport * ba_transport_new_a2dp(
@@ -279,18 +278,20 @@ struct ba_transport * ba_transport_new_midi(
 #endif
 
 #if DEBUG
-const char *ba_transport_debug_name(
-		const struct ba_transport *t);
+const char * ba_transport_debug_name(
+		const struct ba_transport * t);
 #endif
 
-struct ba_transport *ba_transport_lookup(
-		const struct ba_device *device,
-		const char *dbus_path);
-struct ba_transport *ba_transport_ref(
-		struct ba_transport *t);
+struct ba_transport * ba_transport_lookup(
+		const struct ba_device * device,
+		const char * dbus_path);
+static inline struct ba_transport * ba_transport_ref(
+		struct ba_transport * t) {
+	return rc_ref(t);
+}
 
-void ba_transport_destroy(struct ba_transport *t);
-void ba_transport_unref(struct ba_transport *t);
+void ba_transport_destroy(struct ba_transport * t);
+void ba_transport_unref(struct ba_transport * t);
 
 int ba_transport_select_codec_a2dp(
 		struct ba_transport *t,

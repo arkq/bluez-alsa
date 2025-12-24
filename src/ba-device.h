@@ -19,8 +19,10 @@
 #include <glib.h>
 
 #include "ba-adapter.h"
+#include "shared/rc.h"
 
 struct ba_device {
+	rc_t _rc;
 
 	/* backward reference to adapter */
 	struct ba_adapter *a;
@@ -64,23 +66,21 @@ struct ba_device {
 	pthread_mutex_t transports_mutex;
 	GHashTable *transports;
 
-	/* memory self-management */
-	int ref_count;
-
 };
 
-struct ba_device *ba_device_new(
-		struct ba_adapter *adapter,
-		const bdaddr_t *addr);
+struct ba_device * ba_device_new(
+		struct ba_adapter * adapter,
+		const bdaddr_t * addr);
+struct ba_device * ba_device_lookup(
+		const struct ba_adapter * adapter,
+		const bdaddr_t * addr);
+static inline struct ba_device * ba_device_ref(
+		struct ba_device * d) {
+	return rc_ref(d);
+}
 
-struct ba_device *ba_device_lookup(
-		const struct ba_adapter *adapter,
-		const bdaddr_t *addr);
-struct ba_device *ba_device_ref(
-		struct ba_device *d);
-
-void ba_device_destroy(struct ba_device *d);
-void ba_device_unref(struct ba_device *d);
+void ba_device_destroy(struct ba_device * d);
+void ba_device_unref(struct ba_device * d);
 
 /**
  * Return the device SEP configuration as the given index. */
