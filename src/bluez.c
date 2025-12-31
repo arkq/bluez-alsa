@@ -245,27 +245,19 @@ static struct bluez_adapter *bluez_adapter_new(struct ba_adapter *a) {
 	return ba;
 }
 
-static void bluez_adapter_free(struct bluez_adapter *b_adapter) {
+static void bluez_adapter_free(struct bluez_adapter * b_adapter) {
 	if (b_adapter->adapter == NULL)
 		return;
-	ba_adapter_destroy(b_adapter->adapter);
-	b_adapter->adapter = NULL;
-	if (b_adapter->manager_media_application != NULL) {
-		g_object_unref(b_adapter->manager_media_application);
-		b_adapter->manager_media_application = NULL;
-	}
-	if (b_adapter->manager_battery_provider != NULL) {
-		g_object_unref(b_adapter->manager_battery_provider);
-		b_adapter->manager_battery_provider = NULL;
-	}
 #if ENABLE_MIDI
-	if (b_adapter->manager_midi_application != NULL) {
-		g_object_unref(b_adapter->manager_midi_application);
-		b_adapter->manager_midi_application = NULL;
-	}
+	if (b_adapter->manager_midi_application != NULL)
+		g_object_unref(g_steal_pointer(&b_adapter->manager_midi_application));
 #endif
-	g_hash_table_unref(b_adapter->device_sep_configs_map);
-	b_adapter->device_sep_configs_map = NULL;
+	ba_adapter_destroy(g_steal_pointer(&b_adapter->adapter));
+	if (b_adapter->manager_media_application != NULL)
+		g_object_unref(g_steal_pointer(&b_adapter->manager_media_application));
+	if (b_adapter->manager_battery_provider != NULL)
+		g_object_unref(g_steal_pointer(&b_adapter->manager_battery_provider));
+	g_hash_table_unref(g_steal_pointer(&b_adapter->device_sep_configs_map));
 }
 
 /**

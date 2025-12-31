@@ -34,6 +34,7 @@
 #include "ble-midi.h"
 #include "bluez.h"
 #include "bluez-iface.h"
+#include "bluez-le-advertisement.h"
 #include "dbus.h"
 #include "midi.h"
 #include "utils.h"
@@ -48,18 +49,19 @@ struct bluez_midi_app {
 	rc_t _rc;
 	/* D-Bus object registration paths. */
 	char path[64];
-	char path_adv[64 + 8];
 	char path_service[64 + 8];
 	char path_char[64 + 16];
-	/* associated adapter */
+	/* Associated adapter. */
 	int hci_dev_id;
-	/* associated transport */
-	struct ba_transport *t;
-	/* characteristic write link */
+	/* Associated transport. */
+	struct ba_transport * t;
+	/* Characteristic write link. */
 	bool write_acquired;
-	/* characteristic notify link */
-	GSource *notify_watch_hup;
+	/* Characteristic notify link. */
+	GSource * notify_watch_hup;
 	bool notify_acquired;
+	/* LE advertisement. */
+	struct bluez_le_advertisement * adv;
 };
 
 /**
@@ -94,61 +96,6 @@ fail:
 	if (d != NULL)
 		ba_device_unref(d);
 	return t;
-}
-
-static void bluez_midi_advertisement_release(
-		GDBusMethodInvocation *inv, G_GNUC_UNUSED void *userdata) {
-	debug("Releasing MIDI LE advertisement: %s", ((struct bluez_midi_app *)userdata)->path);
-	g_object_unref(inv);
-}
-
-static GVariant *bluez_midi_advertisement_iface_get_property(
-		const char *property, G_GNUC_UNUSED GError **error, void *userdata) {
-	(void)userdata;
-
-	if (strcmp(property, "Type") == 0)
-		return g_variant_new_string("peripheral");
-	if (strcmp(property, "ServiceUUIDs") == 0) {
-		static const char *uuids[] = { BT_UUID_MIDI };
-		return g_variant_new_strv(uuids, ARRAYSIZE(uuids));
-	}
-	if (strcmp(property, "Discoverable") == 0)
-		/* advertise as general discoverable LE-only device */
-		return g_variant_new_boolean(TRUE);
-	if (strcmp(property, "LocalName") == 0)
-		return g_variant_new_string(config.midi.name);
-
-	g_assert_not_reached();
-	return NULL;
-}
-
-static GDBusObjectSkeleton *bluez_midi_advertisement_skeleton_new(
-		struct bluez_midi_app *app) {
-
-	static const GDBusMethodCallDispatcher dispatchers[] = {
-		{ .method = "Release",
-			.sender = bluez_dbus_unique_name,
-			.handler = bluez_midi_advertisement_release },
-		{ 0 },
-	};
-
-	static const GDBusInterfaceSkeletonVTable vtable = {
-		.dispatchers = dispatchers,
-		.get_property = bluez_midi_advertisement_iface_get_property,
-	};
-
-	OrgBluezLeadvertisement1Skeleton *ifs_gatt_adv;
-	if ((ifs_gatt_adv = org_bluez_leadvertisement1_skeleton_new(&vtable,
-					app, rc_unref)) == NULL)
-		return NULL;
-
-	rc_ref(app);
-	GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_gatt_adv);
-	GDBusObjectSkeleton *skeleton = g_dbus_object_skeleton_new(app->path_adv);
-	g_dbus_object_skeleton_add_interface(skeleton, ifs);
-	g_object_unref(ifs_gatt_adv);
-
-	return skeleton;
 }
 
 static GVariant *bluez_midi_service_iface_get_property(
@@ -404,42 +351,6 @@ static void bluez_midi_app_register(
 	g_object_unref(msg);
 }
 
-static void bluez_midi_app_advertise_finish(
-		GObject *source, GAsyncResult *result, G_GNUC_UNUSED void *userdata) {
-
-	GError *err = NULL;
-	GDBusMessage *rep;
-
-	if ((rep = g_dbus_connection_send_message_with_reply_finish(
-					G_DBUS_CONNECTION(source), result, &err)) != NULL)
-		g_dbus_message_to_gerror(rep, &err);
-
-	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
-		error("Couldn't advertise MIDI GATT application: %s", err->message);
-		g_error_free(err);
-	}
-
-}
-
-static void bluez_midi_app_advertise(
-		struct ba_adapter *adapter, struct bluez_midi_app *app) {
-
-	GDBusMessage *msg;
-	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
-			BLUEZ_IFACE_LE_ADVERTISING_MANAGER, "RegisterAdvertisement");
-
-	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", app->path_adv, NULL));
-
-	debug("Registering MIDI LE advertisement: %s", app->path);
-	g_dbus_connection_send_message_with_reply(config.dbus, msg,
-			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
-			bluez_midi_app_advertise_finish, NULL);
-
-	g_object_unref(msg);
-}
-
 static void app_free(void * ptr) {
 	struct bluez_midi_app * app = ptr;
 	debug("Freeing MIDI GATT application: %s", app->path);
@@ -447,7 +358,9 @@ static void app_free(void * ptr) {
 		g_source_destroy(app->notify_watch_hup);
 		g_source_unref(app->notify_watch_hup);
 	}
+	bluez_le_advertisement_unregister_sync(app->adv);
 	ba_transport_destroy(app->t);
+	rc_unref(app->adv);
 	free(app);
 }
 
@@ -461,7 +374,6 @@ GDBusObjectManagerServer * bluez_midi_app_new(
 
 	rc_init(&app->_rc, app_free);
 	snprintf(app->path, sizeof(app->path), "%s", path);
-	snprintf(app->path_adv, sizeof(app->path_adv), "%s/adv", path);
 	snprintf(app->path_service, sizeof(app->path_service), "%s/service", path);
 	snprintf(app->path_char, sizeof(app->path_char), "%s/char", app->path_service);
 	app->hci_dev_id = adapter->hci.dev_id;
@@ -487,17 +399,17 @@ GDBusObjectManagerServer * bluez_midi_app_new(
 	g_dbus_object_manager_server_export(manager, skeleton);
 	g_object_unref(skeleton);
 
-	if (config.midi.advertise) {
-		skeleton = bluez_midi_advertisement_skeleton_new(app);
-		g_dbus_object_manager_server_export(manager, skeleton);
-		g_object_unref(skeleton);
-	}
+	char path_adv[sizeof(app->path) + 4];
+	snprintf(path_adv, sizeof(path_adv), "%s/adv", app->path);
+	app->adv = bluez_le_advertisement_new(manager, BT_UUID_MIDI,
+			config.midi.name, path_adv);
 
 	g_dbus_object_manager_server_set_connection(manager, config.dbus);
 
 	bluez_midi_app_register(adapter, app);
+
 	if (config.midi.advertise)
-		bluez_midi_app_advertise(adapter, app);
+		bluez_le_advertisement_register(app->adv, adapter);
 
 	/* The application is referenced by interface skeletons which are owned
 	 * by the object manager server. Freeing the manager will free the app. */
