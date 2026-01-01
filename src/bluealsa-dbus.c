@@ -438,22 +438,23 @@ void bluealsa_dbus_register(void) {
 
 }
 
-static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
-		void *userdata) {
-	(void)condition;
+static gboolean bluealsa_pcm_controller(
+		GIOChannel * ch,
+		G_GNUC_UNUSED GIOCondition cond,
+		void * userdata) {
 
-	struct ba_transport_pcm *pcm = userdata;
-	GError *err = NULL;
+	struct ba_transport_pcm * pcm = userdata;
+	GError * err = NULL;
 	char command[32];
 	size_t len;
 
 	switch (g_io_channel_read_chars(ch, command, sizeof(command), &len, &err)) {
 	case G_IO_STATUS_AGAIN:
-		return TRUE;
+		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_ERROR:
 		error("PCM controller read error: %s", err->message);
 		g_error_free(err);
-		return TRUE;
+		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_NORMAL:
 		if (strncmp(command, BLUEALSA_PCM_CTRL_DRAIN, len) == 0) {
 			if (pcm->mode == BA_TRANSPORT_PCM_MODE_SINK)
@@ -478,7 +479,7 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 			g_io_channel_write_chars(ch, "Invalid", -1, &len, NULL);
 		}
 		g_io_channel_flush(ch, NULL);
-		return TRUE;
+		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_EOF:
 		pthread_mutex_lock(&pcm->mutex);
 		ba_transport_pcm_release(pcm);
@@ -487,11 +488,11 @@ static gboolean bluealsa_pcm_controller(GIOChannel *ch, GIOCondition condition,
 		/* Check whether we've just closed the last PCM client and in
 		 * such a case schedule transport IO threads termination. */
 		ba_transport_stop_if_no_clients(pcm->t);
-		/* remove channel from watch */
-		return FALSE;
+		/* Remove channel from watch. */
+		return G_SOURCE_REMOVE;
 	}
 
-	return TRUE;
+	return G_SOURCE_CONTINUE;
 }
 
 static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {

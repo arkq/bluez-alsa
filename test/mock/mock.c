@@ -56,8 +56,9 @@ static GDBusConnection *mock_dbus_connection_new_sync(GError **error) {
 			NULL, NULL, error);
 }
 
-static void *mock_loop_run(void *userdata) {
-	struct MockService *service = userdata;
+static void * mock_loop_run(void * userdata) {
+	struct MockService * service = userdata;
+	debug("Starting service loop: %s", service->name);
 
 	g_autoptr(GMainContext) context = g_main_context_new();
 	service->loop = g_main_loop_new(context, FALSE);

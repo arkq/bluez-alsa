@@ -967,8 +967,9 @@ static void bluez_profile_new_connection(GDBusMethodInvocation *inv, void *userd
 		goto fail;
 	}
 
-	if (sco_setup_connection_dispatcher(a) == -1) {
-		error("Couldn't setup SCO connection dispatcher: %s", strerror(errno));
+	error_code_t ec;
+	if (((ec = sco_setup_connection_dispatcher(a))) != ERROR_CODE_OK) {
+		error("Couldn't setup SCO connection dispatcher: %s", error_code_strerror(ec));
 		goto fail;
 	}
 

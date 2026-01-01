@@ -42,6 +42,7 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "codec-sbc.h"
+#include "error.h"
 #include "hci.h"
 #include "hfp.h"
 #include "io.h"
@@ -224,6 +225,13 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 	g_thread_unref(mock_bt_dump_thread_new(bt_fds[1]));
 
 	return bt_fds[0];
+}
+
+/* SCO dispatcher override for testing purposes. */
+error_code_t sco_setup_connection_dispatcher(G_GNUC_UNUSED struct ba_adapter * a) {
+	/* In the mock implementation we can not setup SCO dispatcher because
+	 * there is no real HCI device to bind SCO sockets to. */
+	return ERROR_CODE_OK;
 }
 
 static struct ba_transport *mock_transport_new_sco(struct ba_device *d,

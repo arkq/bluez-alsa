@@ -195,14 +195,14 @@ fail:
 }
 
 static gboolean bluez_midi_characteristic_release_notify(
-		G_GNUC_UNUSED GIOChannel *ch, G_GNUC_UNUSED GIOCondition cond,
-		void *userdata) {
+		G_GNUC_UNUSED GIOChannel * ch,
+		G_GNUC_UNUSED GIOCondition cond,
+		void * userdata) {
 
-	struct bluez_midi_app *app = userdata;
-	struct ba_transport *t = app->t;
+	struct bluez_midi_app * app = userdata;
+	struct ba_transport * t = app->t;
 
-	g_source_unref(app->notify_watch_hup);
-	app->notify_watch_hup = NULL;
+	g_source_unref(g_steal_pointer(&app->notify_watch_hup));
 
 	debug("Releasing BLE-MIDI notify link: %d", t->midi.ble_fd_notify);
 
@@ -210,8 +210,8 @@ static gboolean bluez_midi_characteristic_release_notify(
 	close(t->midi.ble_fd_notify);
 	t->midi.ble_fd_notify = -1;
 
-	/* remove channel from watch */
-	return FALSE;
+	/* Remove channel from watch. */
+	return G_SOURCE_REMOVE;
 }
 
 static void bluez_midi_characteristic_acquire_notify(

@@ -11,9 +11,7 @@
 #endif
 
 #include <errno.h>
-#include <poll.h>
 #include <pthread.h>
-#include <signal.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -26,151 +24,96 @@
 
 #include <glib.h>
 
-#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
+#include "error.h"
 #include "hci.h"
 #include "hfp.h"
 #include "sco-cvsd.h"
 #include "sco-lc3-swb.h"
 #include "sco-msbc.h"
 #include "shared/bluetooth.h"
-#include "shared/defs.h"
 #include "shared/log.h"
+#include "utils.h"
 
-/**
- * SCO dispatcher internal data. */
-struct sco_data {
-	struct ba_adapter *a;
-	struct pollfd pfd;
-};
+static gboolean sco_connection_dispatcher(
+		GIOChannel * ch,
+		G_GNUC_UNUSED GIOCondition cond,
+		void * userdata) {
 
-static void sco_dispatcher_cleanup(struct sco_data *data) {
-	debug("SCO dispatcher cleanup: %s", data->a->hci.name);
-	if (data->pfd.fd != -1)
-		close(data->pfd.fd);
-}
+	int listen_fd = g_io_channel_unix_get_fd(ch);
+	struct ba_adapter * a = userdata;
+	struct ba_device * d = NULL;
+	struct ba_transport * t = NULL;
+	int fd = -1;
 
-static void *sco_dispatcher_thread(struct ba_adapter *a) {
+	struct sockaddr_sco addr;
+	socklen_t addrlen = sizeof(addr);
+	if ((fd = accept(listen_fd, (struct sockaddr *)&addr, &addrlen)) == -1) {
+		error("Couldn't accept incoming SCO link: %s", strerror(errno));
+		goto cleanup;
+	}
 
-	struct sco_data data = { .a = a, .pfd = { -1, POLLIN, 0 } };
+	char addrstr[18];
+	ba2str(&addr.sco_bdaddr, addrstr);
+	debug("New incoming SCO link: %s: %d", addrstr, fd);
 
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	pthread_cleanup_push(PTHREAD_CLEANUP(sco_dispatcher_cleanup), &data);
+	if ((d = ba_device_lookup(a, &addr.sco_bdaddr)) == NULL) {
+		error("Couldn't lookup device: %s", addrstr);
+		goto cleanup;
+	}
 
-	sigset_t sigset;
-	/* See the ba_transport_pcm_start() function for information
-	 * why we have to mask all signals. */
-	sigfillset(&sigset);
-	pthread_sigmask(SIG_SETMASK, &sigset, NULL);
-
-	if ((data.pfd.fd = hci_sco_open(data.a->hci.dev_id)) == -1) {
-		error("Couldn't open SCO socket: %s", strerror(errno));
-		goto fail;
+	if ((t = ba_transport_lookup(d, d->bluez_dbus_path)) == NULL) {
+		error("Couldn't lookup transport: %s", d->bluez_dbus_path);
+		goto cleanup;
 	}
 
 #if ENABLE_HFP_CODEC_SELECTION
-	uint32_t defer = 1;
-	if (setsockopt(data.pfd.fd, SOL_BLUETOOTH, BT_DEFER_SETUP, &defer, sizeof(defer)) == -1) {
-		error("Couldn't set deferred connection setup: %s", strerror(errno));
-		goto fail;
+	const uint32_t codec_id = ba_transport_get_codec(t);
+	struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
+	if ((codec_id == HFP_CODEC_MSBC || codec_id == HFP_CODEC_LC3_SWB) &&
+			setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
+		error("Couldn't setup transparent voice: %s", strerror(errno));
+		goto cleanup;
+	}
+	if (read(fd, &voice, 1) == -1) {
+		error("Couldn't authorize SCO connection: %s", strerror(errno));
+		goto cleanup;
 	}
 #endif
 
-	if (listen(data.pfd.fd, 10) == -1) {
-		error("Couldn't listen on SCO socket: %s", strerror(errno));
-		goto fail;
-	}
+	ba_transport_stop(t);
 
-	debug("Starting SCO dispatcher loop: %s", a->hci.name);
-	for (;;) {
+	pthread_mutex_lock(&t->bt_fd_mtx);
 
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-		int poll_rv = poll(&data.pfd, 1, -1);
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	t->bt_fd = fd;
+	t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, a);
+	fd = -1;
 
-		if (poll_rv == -1) {
-			if (errno == EINTR)
-				continue;
-			error("SCO dispatcher poll error: %s", strerror(errno));
-			goto fail;
-		}
+	pthread_mutex_unlock(&t->bt_fd_mtx);
 
-		struct sockaddr_sco addr;
-		socklen_t addrlen = sizeof(addr);
-		struct ba_device *d = NULL;
-		struct ba_transport *t = NULL;
-		char addrstr[18];
-		int fd = -1;
-
-		if ((fd = accept(data.pfd.fd, (struct sockaddr *)&addr, &addrlen)) == -1) {
-			error("Couldn't accept incoming SCO link: %s", strerror(errno));
-			goto cleanup;
-		}
-
-		ba2str(&addr.sco_bdaddr, addrstr);
-		debug("New incoming SCO link: %s: %d", addrstr, fd);
-
-		if ((d = ba_device_lookup(data.a, &addr.sco_bdaddr)) == NULL) {
-			error("Couldn't lookup device: %s", addrstr);
-			goto cleanup;
-		}
-
-		if ((t = ba_transport_lookup(d, d->bluez_dbus_path)) == NULL) {
-			error("Couldn't lookup transport: %s", d->bluez_dbus_path);
-			goto cleanup;
-		}
-
-#if ENABLE_HFP_CODEC_SELECTION
-		const uint32_t codec_id = ba_transport_get_codec(t);
-		struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
-		if ((codec_id == HFP_CODEC_MSBC || codec_id == HFP_CODEC_LC3_SWB) &&
-				setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
-			error("Couldn't setup transparent voice: %s", strerror(errno));
-			goto cleanup;
-		}
-		if (read(fd, &voice, 1) == -1) {
-			error("Couldn't authorize SCO connection: %s", strerror(errno));
-			goto cleanup;
-		}
-#endif
-
-		ba_transport_stop(t);
-
-		pthread_mutex_lock(&t->bt_fd_mtx);
-
-		t->bt_fd = fd;
-		t->mtu_read = t->mtu_write = hci_sco_get_mtu(fd, a);
-		fd = -1;
-
-		pthread_mutex_unlock(&t->bt_fd_mtx);
-
-		ba_transport_pcm_state_set_idle(&t->sco.pcm_spk);
-		ba_transport_pcm_state_set_idle(&t->sco.pcm_mic);
-		ba_transport_start(t);
+	ba_transport_pcm_state_set_idle(&t->sco.pcm_spk);
+	ba_transport_pcm_state_set_idle(&t->sco.pcm_mic);
+	ba_transport_start(t);
 
 cleanup:
-		if (d != NULL)
-			ba_device_unref(d);
-		if (t != NULL)
-			ba_transport_unref(t);
-		if (fd != -1)
-			close(fd);
-
-	}
-
-fail:
-	pthread_cleanup_pop(1);
-	return NULL;
+	if (d != NULL)
+		ba_device_unref(d);
+	if (t != NULL)
+		ba_transport_unref(t);
+	if (fd != -1)
+		close(fd);
+	return G_SOURCE_CONTINUE;
 }
 
-int sco_setup_connection_dispatcher(struct ba_adapter *a) {
+__attribute__ ((weak))
+error_code_t sco_setup_connection_dispatcher(struct ba_adapter * a) {
 
-	/* skip setup if dispatcher thread is already running */
-	if (!pthread_equal(a->sco_dispatcher, config.main_thread))
-		return 0;
+	/* Skip setup if dispatcher is already running. */
+	if (a->sco_dispatcher != NULL)
+		return ERROR_CODE_OK;
 
 	/* XXX: It is a known issue with Broadcom chips, that by default, the SCO
 	 *      packets are routed via the chip's PCM interface. However, the IO
@@ -200,23 +143,35 @@ int sco_setup_connection_dispatcher(struct ba_adapter *a) {
 
 	}
 
-	int ret;
+	int fd;
+	if ((fd = hci_sco_open(a->hci.dev_id)) == -1)
+		return ERROR_SYSTEM(errno);
 
-	/* Please note, that during the SCO dispatcher thread creation the adapter
-	 * is not referenced. It is guaranteed that the adapter will be available
-	 * during the whole live-span of the thread, because the thread is canceled
-	 * in the adapter cleanup routine. See the ba_adapter_unref() function. */
-	if ((ret = pthread_create(&a->sco_dispatcher, NULL,
-					PTHREAD_FUNC(sco_dispatcher_thread), a)) != 0) {
-		error("Couldn't create SCO dispatcher: %s", strerror(ret));
-		a->sco_dispatcher = config.main_thread;
-		return -1;
-	}
+#if ENABLE_HFP_CODEC_SELECTION
+	uint32_t defer = 1;
+	if (setsockopt(fd, SOL_BLUETOOTH, BT_DEFER_SETUP, &defer, sizeof(defer)) == -1)
+		return close(fd), ERROR_SYSTEM(errno);
+#endif
 
-	pthread_setname_np(a->sco_dispatcher, "ba-sco-dispatch");
-	debug("Created SCO dispatcher [%s]: %s", "ba-sco-dispatch", a->hci.name);
+	if (listen(fd, 10) == -1)
+		return close(fd), ERROR_SYSTEM(errno);
 
-	return 0;
+	GIOChannel * ch = g_io_channel_unix_new(fd);
+	g_io_channel_set_close_on_unref(ch, TRUE);
+	g_io_channel_set_encoding(ch, NULL, NULL);
+	g_io_channel_set_buffered(ch, FALSE);
+
+	/* Attach SCO dispatcher to the default main context. Please note,
+	 * that the adapter is not referenced. It is guaranteed that it will be
+	 * available during the whole live-span of the dispatcher, because the
+	 * dispatcher is destroyed in the adapter cleanup routine. For details
+	 * see the ba_adapter_unref() function. */
+	a->sco_dispatcher = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
+			G_IO_IN, sco_connection_dispatcher, a, NULL);
+	g_io_channel_unref(ch);
+
+	debug("Created SCO dispatcher: %s", a->hci.name);
+	return ERROR_CODE_OK;
 }
 
 void *sco_enc_thread(struct ba_transport_pcm *pcm) {
@@ -252,7 +207,7 @@ void *sco_dec_thread(struct ba_transport_pcm *pcm) {
 	}
 }
 
-int sco_transport_init(struct ba_transport *t) {
+int sco_transport_init(struct ba_transport * t) {
 
 	t->sco.pcm_spk.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->sco.pcm_spk.channels = 1;
@@ -304,7 +259,7 @@ int sco_transport_init(struct ba_transport *t) {
 	return 0;
 }
 
-int sco_transport_start(struct ba_transport *t) {
+int sco_transport_start(struct ba_transport * t) {
 
 	int rv = 0;
 

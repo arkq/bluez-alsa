@@ -26,10 +26,12 @@
 #include "utils.h"
 #include "shared/log.h"
 
-static gboolean midi_watch_read_alsa_seq(G_GNUC_UNUSED GIOChannel *ch,
-		G_GNUC_UNUSED GIOCondition condition, void *userdata) {
+static gboolean midi_watch_read_alsa_seq(
+		G_GNUC_UNUSED GIOChannel * ch,
+		G_GNUC_UNUSED GIOCondition cond,
+		void * userdata) {
 
-	struct ba_transport *t = userdata;
+	struct ba_transport * t = userdata;
 	unsigned char buf[1024];
 	long len;
 	int rv;
@@ -37,10 +39,10 @@ static gboolean midi_watch_read_alsa_seq(G_GNUC_UNUSED GIOChannel *ch,
 	if (t->midi.ble_fd_notify == -1) {
 		/* Drop all events if notification is not acquired. */
 		snd_seq_drop_input(t->midi.seq);
-		return TRUE;
+		return G_SOURCE_CONTINUE;
 	}
 
-	snd_seq_event_t *ev;
+	snd_seq_event_t * ev;
 	while (snd_seq_event_input(t->midi.seq, &ev) >= 0) {
 
 		if ((len = snd_midi_event_decode(t->midi.seq_parser, buf, sizeof(buf), ev)) < 0)
@@ -73,14 +75,16 @@ retry:
 		error("BLE-MIDI link write error: %s", strerror(errno));
 	t->midi.ble_encoder.len = 0;
 
-	return TRUE;
+	return G_SOURCE_CONTINUE;
 }
 
-static gboolean midi_watch_read_ble_midi(GIOChannel *ch,
-		G_GNUC_UNUSED GIOCondition condition, void *userdata) {
+static gboolean midi_watch_read_ble_midi(
+		GIOChannel * ch,
+		G_GNUC_UNUSED GIOCondition cond,
+		void * userdata) {
 
-	struct ba_transport *t = userdata;
-	GError *err = NULL;
+	struct ba_transport * t = userdata;
+	GError * err = NULL;
 	uint8_t data[512];
 	long encoded;
 	size_t len;
@@ -88,16 +92,16 @@ static gboolean midi_watch_read_ble_midi(GIOChannel *ch,
 
 	switch (g_io_channel_read_chars(ch, (char *)data, sizeof(data), &len, &err)) {
 	case G_IO_STATUS_AGAIN:
-		return TRUE;
+		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_ERROR:
 		error("BLE-MIDI link read error: %s", err->message);
 		g_error_free(err);
-		return TRUE;
+		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_NORMAL:
 		break;
 	case G_IO_STATUS_EOF:
-		/* remove channel from watch */
-		return FALSE;
+		/* Remove channel from watch. */
+		return G_SOURCE_REMOVE;
 	}
 
 	snd_seq_event_t ev = { 0 };
@@ -133,7 +137,7 @@ static gboolean midi_watch_read_ble_midi(GIOChannel *ch,
 	if ((rv = snd_seq_drain_output(t->midi.seq)) < 0)
 		warn("Couldn't drain MIDI output: %s", snd_strerror(rv));
 
-	return TRUE;
+	return G_SOURCE_CONTINUE;
 }
 
 int midi_transport_alsa_seq_create(struct ba_transport *t) {

@@ -25,20 +25,20 @@
 struct ba_adapter {
 	rc_t _rc;
 
-	/* basic info about HCI device */
+	/* Basic info about HCI device. */
 	struct hci_dev_info hci;
 	struct hci_version chip;
 
-	/* incoming SCO links dispatcher */
-	pthread_t sco_dispatcher;
+	/* Dispatcher for incoming SCO connections. */
+	GSource * sco_dispatcher;
 
-	/* data for D-Bus management */
+	/* Data for D-Bus management. */
 	char ba_dbus_path[32];
 	char bluez_dbus_path[32];
 
-	/* collection of connected devices */
+	/* Collection of connected devices. */
 	pthread_mutex_t devices_mutex;
-	GHashTable *devices;
+	GHashTable * devices;
 
 };
 
