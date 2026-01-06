@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 import argparse
@@ -36,6 +36,12 @@ typedef struct {{
     const GDBusInterfaceSkeletonVTable *vtable,
     void *userdata,
     GDestroyNotify userdata_free_func);
+'''
+
+TEMPLATE_HEADER_CLEANUP = '''
+#if GLIB_CHECK_VERSION(2, 44, 0)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC({struct}Skeleton, g_object_unref)
+#endif
 '''
 
 TEMPLATE_HEADER_CLOSING = '#endif'
@@ -90,6 +96,9 @@ static void {func}_skeleton_init(G_GNUC_UNUSED {struct}Skeleton *ifs) {{
 '''
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--c-generate-autocleanup', default='objects',
+                    choices=['none', 'objects', 'all'],
+                    help='Generate autocleanup support')
 parser.add_argument('--interface-info-header', action='store_true',
                     help='Generate GDBusInterfaceInfo header')
 parser.add_argument('--interface-info-body', action='store_true',
@@ -129,6 +138,9 @@ if args.interface_info_header or args.interface_info_body:
         ET.ElementTree(xml).write(f.name)
         f.flush()
         command = ['gdbus-codegen', '--output', args.output]
+        if args.c_generate_autocleanup:
+            command += ['--c-generate-autocleanup',
+                        args.c_generate_autocleanup]
         if args.interface_info_header:
             command += ['--interface-info-header']
         if args.interface_info_body:
@@ -155,6 +167,9 @@ with open(args.output, 'a' if args.append else 'w') as f:
 
         if args.interface_skeleton_header:
             f.write(TEMPLATE_HEADER.format(struct=struct, func=func))
+            if args.c_generate_autocleanup in ('objects', 'all'):
+                f.write(TEMPLATE_HEADER_CLEANUP.format(struct=struct,
+                                                       func=func))
         if args.interface_skeleton_body:
             f.write(TEMPLATE_BODY.format(
                 iface=iface, struct=struct, func=func))

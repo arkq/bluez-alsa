@@ -115,7 +115,8 @@ LDADD = \
 
 .xml.h:
 	$(top_srcdir)/src/dbus/dbus-codegen.py --output $@ \
-		--interface-info-header --interface-skeleton-header $<
+		--interface-info-header --interface-skeleton-header \
+		--c-generate-autocleanup all $<
 
 .xml.c:
 	$(top_srcdir)/src/dbus/dbus-codegen.py --output $@ \

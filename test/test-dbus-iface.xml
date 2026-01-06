@@ -1,11 +1,11 @@
 <!-- BlueALSA - test-dbus-iface.xml
-SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+SPDX-FileCopyrightText: 2023-2026 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 <node>
 	<interface name="org.example.Foo">
-		<property name="Bar" type="b" access="readwrite"/>
-		<method name="Boom"/>
-		<method name="Ping"/>
+		<method name="Boom" />
+		<method name="Ping" />
+		<property name="Bar" type="b" access="readwrite" />
 	</interface>
 </node>

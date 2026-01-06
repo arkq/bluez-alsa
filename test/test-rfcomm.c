@@ -484,7 +484,7 @@ CK_START_TEST(test_rfcomm_self_hfp_slc) {
 
 } CK_END_TEST
 
-void tc_setup(void) {
+static void tc_setup(void) {
 
 	config.battery.available = true;
 	config.battery.level = 80;
