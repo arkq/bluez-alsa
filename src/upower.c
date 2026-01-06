@@ -15,6 +15,7 @@
 #include <bluetooth/hci.h>
 
 #include <gio/gio.h>
+#include <glib-object.h>
 #include <glib.h>
 
 #include "ba-adapter.h"

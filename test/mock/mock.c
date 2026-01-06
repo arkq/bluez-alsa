@@ -2,12 +2,14 @@
  * mock.c
  * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
+ *
  * This program might be used to debug or check the functionality of ALSA
  * plug-ins. It should work exactly the same as the BlueALSA server.
  *
  */
 
 #include "mock.h"
+#include "service.h"
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -42,105 +44,20 @@
 /* Keep persistent storage in the current directory. */
 #define TEST_BLUEALSA_STORAGE_DIR "storage-mock"
 
-GAsyncQueue *mock_sem_ready = NULL;
-GAsyncQueue *mock_sem_timeout = NULL;
-char mock_ba_service_name[32] = BLUEALSA_SERVICE;
-bool mock_dump_output = false;
-int mock_fuzzing_ms = 0;
-
-static const char *dbus_address = NULL;
-static GDBusConnection *mock_dbus_connection_new_sync(GError **error) {
-	return g_dbus_connection_new_for_address_sync(dbus_address,
+static GDBusConnection * mock_dbus_connection_new_sync(const char * address) {
+	return g_dbus_connection_new_for_address_sync(address,
 			G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
 			G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
-			NULL, NULL, error);
+			NULL, NULL, NULL);
 }
 
-static void * mock_loop_run(void * userdata) {
-	struct MockService * service = userdata;
-	debug("Starting service loop: %s", service->name);
-
-	g_autoptr(GMainContext) context = g_main_context_new();
-	service->loop = g_main_loop_new(context, FALSE);
-	g_main_context_push_thread_default(context);
-
-	g_autoptr(GDBusConnection) conn = mock_dbus_connection_new_sync(NULL);
-	g_assert((service->id = g_bus_own_name_on_connection(conn, service->name,
-					G_BUS_NAME_OWNER_FLAGS_NONE, service->name_acquired_cb, service->name_lost_cb,
-					userdata, NULL)) != 0);
-
-	g_main_loop_run(service->loop);
-
-	g_main_context_pop_thread_default(context);
+static void * main_loop_run(void * userdata) {
+	g_main_loop_run(userdata);
 	return NULL;
 }
 
-void mock_sem_signal(GAsyncQueue *sem) {
-	g_async_queue_push(sem, GINT_TO_POINTER(1));
-}
-
-void mock_sem_wait(GAsyncQueue *sem) {
-	g_async_queue_pop(sem);
-}
-
-void mock_service_start(struct MockService *service) {
-	service->ready = g_async_queue_new();
-	service->thread = g_thread_new(service->name, mock_loop_run, service);
-	mock_sem_wait(service->ready);
-	g_async_queue_unref(service->ready);
-}
-
-void mock_service_stop(struct MockService *service) {
-
-	g_bus_unown_name(service->id);
-
-	g_main_loop_quit(service->loop);
-	g_main_loop_unref(service->loop);
-	g_thread_join(service->thread);
-
-}
-
-static void *mock_bt_dump_thread(void *userdata) {
-
-	int bt_fd = GPOINTER_TO_INT(userdata);
-	FILE *f_output = NULL;
-	uint8_t buffer[1024];
-	ssize_t len;
-
-	if (mock_dump_output)
-		f_output = fopen("bluealsad-mock.dump", "w");
-
-	debug("IO loop: START: %s", __func__);
-	while ((len = read(bt_fd, buffer, sizeof(buffer))) > 0) {
-		fprintf(stderr, "#");
-
-		if (!mock_dump_output)
-			continue;
-
-		for (ssize_t i = 0; i < len; i++)
-			fprintf(f_output, "%02x", buffer[i]);
-		fprintf(f_output, "\n");
-
-	}
-
-	debug("IO loop: EXIT: %s", __func__);
-	if (f_output != NULL)
-		fclose(f_output);
-	close(bt_fd);
-	return NULL;
-}
-
-GThread *mock_bt_dump_thread_new(int fd) {
-	return g_thread_new(NULL, mock_bt_dump_thread, GINT_TO_POINTER(fd));
-}
-
-static void *mock_main_loop_run(void *userdata) {
-	g_main_loop_run((GMainLoop *)userdata);
-	return NULL;
-}
-
-static int mock_sem_signal_handler(void *userdata) {
-	mock_sem_signal((GAsyncQueue *)userdata);
+static int queue_push_callback(void * userdata) {
+	g_async_queue_push(userdata, GINT_TO_POINTER(1));
 	return G_SOURCE_REMOVE;
 }
 
@@ -155,12 +72,13 @@ int main(int argc, char *argv[]) {
 		{ "codec", required_argument, NULL, 'c' },
 		{ "timeout", required_argument, NULL, 't' },
 		{ "device-name", required_argument, NULL, 2 },
-		{ "dump-output", no_argument, NULL, 6 },
 		{ "fuzzing", required_argument, NULL, 7 },
 		{ 0, 0, 0, 0 },
 	};
 
+	char ba_service_name[32] = BLUEALSA_SERVICE;
 	int timeout_ms = 5000;
+	int fuzzing_ms = 0;
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
@@ -174,12 +92,11 @@ int main(int argc, char *argv[]) {
 					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
 					"  -t, --timeout=MSEC\t\tmock server exit timeout\n"
 					"  --device-name=MAC:NAME\tmock BT device name\n"
-					"  --dump-output\t\t\tdump Bluetooth transport data\n"
 					"  --fuzzing=MSEC\t\tmock human actions with timings\n",
 					argv[0]);
 			return EXIT_SUCCESS;
 		case 'B' /* --dbus=NAME */ :
-			snprintf(mock_ba_service_name, sizeof(mock_ba_service_name),
+			snprintf(ba_service_name, sizeof(ba_service_name),
 					BLUEALSA_SERVICE ".%s", optarg);
 			break;
 		case 'p' /* --profile=NAME */ : {
@@ -244,13 +161,10 @@ int main(int argc, char *argv[]) {
 			timeout_ms = atoi(optarg);
 			break;
 		case 2 /* --device-name=MAC:NAME */ :
-			mock_bluez_add_device_name_mapping(optarg);
-			break;
-		case 6 /* --dump-output */ :
-			mock_dump_output = true;
+			mock_bluez_service_add_device_name_mapping(optarg);
 			break;
 		case 7 /* --fuzzing=MSEC */ :
-			mock_fuzzing_ms = atoi(optarg);
+			fuzzing_ms = atoi(optarg);
 			break;
 		default:
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
@@ -271,44 +185,57 @@ int main(int argc, char *argv[]) {
 	g_autoptr(GTestDBus) dbus = g_test_dbus_new(G_TEST_DBUS_NONE);
 	g_test_dbus_up(dbus);
 
-	dbus_address = g_test_dbus_get_bus_address(dbus);
+	const char * dbus_address = g_test_dbus_get_bus_address(dbus);
 	fprintf(stderr, "DBUS_SYSTEM_BUS_ADDRESS=%s\n", dbus_address);
 
 	/* receive EPIPE error code */
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	/* thread synchronization queues (semaphores) */
-	mock_sem_ready = g_async_queue_new();
-	mock_sem_timeout = g_async_queue_new();
+	/* Timeout queue. */
+	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
 
 	/* Set up main loop with graceful termination handlers. */
 	g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
-	GThread *loop_th = g_thread_new(NULL, mock_main_loop_run, loop);
-	g_unix_signal_add(SIGINT, mock_sem_signal_handler, mock_sem_timeout);
-	g_unix_signal_add(SIGTERM, mock_sem_signal_handler, mock_sem_timeout);
+	GThread * loop_th = g_thread_new(NULL, main_loop_run, loop);
+	g_unix_signal_add(SIGINT, queue_push_callback, queue);
+	g_unix_signal_add(SIGTERM, queue_push_callback, queue);
 
-	mock_bluez_service_start();
-	mock_ofono_service_start();
-	mock_upower_service_start();
+	g_autoptr(BlueZMockService) bluez = mock_bluez_service_new();
+	bluez->media_transport_update_ms = fuzzing_ms;
+
+	g_autoptr(OFonoMockService) ofono = mock_ofono_service_new();
+
+	g_autoptr(UPowerMockService) upower = mock_upower_service_new();
+
+	g_autoptr(BlueALSAMockService) ba = mock_bluealsa_service_new(
+			ba_service_name, bluez, ofono, upower);
+	ba->fuzzing_ms = fuzzing_ms;
+
+	g_autoptr(GDBusConnection) conn1 = mock_dbus_connection_new_sync(dbus_address);
+	mock_service_start(&bluez->service, conn1);
+	g_autoptr(GDBusConnection) conn2 = mock_dbus_connection_new_sync(dbus_address);
+	mock_service_start(&ofono->service, conn2);
+	g_autoptr(GDBusConnection) conn3 = mock_dbus_connection_new_sync(dbus_address);
+	mock_service_start(&upower->service, conn3);
 	/* Start BlueALSA as the last service. */
-	mock_bluealsa_service_start();
+	g_autoptr(GDBusConnection) conn4 = mock_dbus_connection_new_sync(dbus_address);
+	mock_service_start(&ba->service, conn4);
 
 #if ENABLE_OFONO
 	assert(ofono_detect_service() == true);
 #endif
 
 	/* Start the termination timer after all services are up and running. */
-	g_timeout_add(timeout_ms, mock_sem_signal_handler, mock_sem_timeout);
-
+	g_timeout_add(timeout_ms, queue_push_callback, queue);
 	/* Run mock until timeout or SIGINT/SIGTERM signal. */
-	mock_bluealsa_run();
+	mock_bluealsa_service_run(ba, queue);
 
-	mock_ofono_service_stop();
-	mock_upower_service_stop();
+	mock_service_stop(&ofono->service);
+	mock_service_stop(&upower->service);
 	/* Simulate BlueZ termination while BlueALSA is still running. */
-	mock_bluez_service_stop();
-	mock_bluealsa_service_stop();
+	mock_service_stop(&bluez->service);
+	mock_service_stop(&ba->service);
 
 	g_main_loop_quit(loop);
 	g_thread_join(loop_th);

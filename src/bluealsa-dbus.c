@@ -438,7 +438,7 @@ void bluealsa_dbus_register(void) {
 
 }
 
-static gboolean bluealsa_pcm_controller(
+static int bluealsa_pcm_controller(
 		GIOChannel * ch,
 		G_GNUC_UNUSED GIOCondition cond,
 		void * userdata) {

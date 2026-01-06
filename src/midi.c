@@ -26,7 +26,7 @@
 #include "utils.h"
 #include "shared/log.h"
 
-static gboolean midi_watch_read_alsa_seq(
+static int midi_watch_read_alsa_seq(
 		G_GNUC_UNUSED GIOChannel * ch,
 		G_GNUC_UNUSED GIOCondition cond,
 		void * userdata) {
@@ -78,7 +78,7 @@ retry:
 	return G_SOURCE_CONTINUE;
 }
 
-static gboolean midi_watch_read_ble_midi(
+static int midi_watch_read_ble_midi(
 		GIOChannel * ch,
 		G_GNUC_UNUSED GIOCondition cond,
 		void * userdata) {

@@ -1,9 +1,9 @@
 # BlueALSA - Makefile.am
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
-check_PROGRAMS = \
-	bluealsad-mock
+check_PROGRAMS = bluealsad-mock
+check_LTLIBRARIES = libservices.la
 
 BUILT_SOURCES = \
 	dbus-ifaces.h \
@@ -12,26 +12,36 @@ BUILT_SOURCES = \
 MOSTLYCLEANFILES = \
 	$(BUILT_SOURCES)
 
-bluealsad_mock_SOURCES = \
-	dbus-ifaces.xml \
-	mock-bluealsa.c \
-	mock-bluez.c \
-	mock-ofono.c \
-	mock-upower.c \
-	mock.c
-
 AM_CFLAGS = \
 	-I$(top_srcdir)/src \
 	-I$(top_srcdir)/test \
 	-I$(top_builddir)/src \
 	@BLUEZ_CFLAGS@ \
 	@GIO2_CFLAGS@ \
-	@GLIB2_CFLAGS@
+	@GLIB2_CFLAGS@ \
+	-static
+
+bluealsad_mock_SOURCES = \
+	mock-bluealsa.c \
+	mock.c
 
 bluealsad_mock_LDADD = \
 	../../src/shared/libshared.la \
 	../../src/libbluealsad.la \
+	libservices.la \
 	@BLUEZ_LIBS@ \
+	@GIO2_LIBS@ \
+	@GLIB2_LIBS@
+
+libservices_la_SOURCES = \
+	dbus-ifaces.xml \
+	service-bluez.c \
+	service-ofono.c \
+	service-upower.c \
+	service.c
+
+libservices_la_LIBADD = \
+	../../src/shared/libshared.la \
 	@GIO2_LIBS@ \
 	@GLIB2_LIBS@
 

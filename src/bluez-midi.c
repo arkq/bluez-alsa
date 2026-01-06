@@ -194,7 +194,7 @@ fail:
 			BLUEZ_ERROR_FAILED, "Unable to acquire write access");
 }
 
-static gboolean bluez_midi_characteristic_release_notify(
+static int bluez_midi_characteristic_release_notify(
 		G_GNUC_UNUSED GIOChannel * ch,
 		G_GNUC_UNUSED GIOCondition cond,
 		void * userdata) {

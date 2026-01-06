@@ -38,7 +38,7 @@
 #include "shared/log.h"
 #include "utils.h"
 
-static gboolean sco_connection_dispatcher(
+static int sco_connection_dispatcher(
 		GIOChannel * ch,
 		G_GNUC_UNUSED GIOCondition cond,
 		void * userdata) {

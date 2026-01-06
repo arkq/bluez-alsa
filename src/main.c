@@ -112,7 +112,7 @@ static char *get_hfp_codecs(void) {
 	return g_strjoinv(", ", (char **)strv);
 }
 
-static gboolean main_loop_exit_handler(void *userdata) {
+static int main_loop_exit_handler(void *userdata) {
 	g_main_loop_quit((GMainLoop *)userdata);
 	return G_SOURCE_REMOVE;
 }

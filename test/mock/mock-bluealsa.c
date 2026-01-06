@@ -57,6 +57,18 @@
 #include "shared/rt.h"
 
 #include "inc/sine.inc"
+#include "service.h"
+
+typedef struct BlueALSAMockServicePriv {
+	/* Mock adapter and devices. */
+	struct ba_adapter * adapter;
+	struct ba_device * device_1;
+	struct ba_device * device_2;
+	/* Other mock services. */
+	BlueZMockService * bluez;
+	OFonoMockService * ofono;
+	UPowerMockService * upower;
+} BlueALSAMockServicePriv;
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.sampling_freq = SBC_SAMPLING_FREQ_44100,
@@ -158,12 +170,8 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(
 void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 void *sco_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
 
-static struct ba_adapter *ba_adapter = NULL;
-static struct ba_device *ba_device_1 = NULL;
-static struct ba_device *ba_device_2 = NULL;
-
-static struct ba_adapter *mock_adapter_new(int dev_id) {
-	struct ba_adapter *a;
+static struct ba_adapter * mock_adapter_new(int dev_id) {
+	struct ba_adapter * a;
 	if ((a = ba_adapter_new(dev_id)) == NULL)
 		return NULL;
 	/* make dummy test HCI mSBC-ready */
@@ -187,19 +195,22 @@ static struct ba_device *mock_device_new(struct ba_adapter *a, const char *addre
 	return d;
 }
 
-static struct ba_transport *mock_transport_new_a2dp(struct ba_device *d,
-		const char *uuid, const struct a2dp_sep *sep, const void *configuration) {
+static struct ba_transport * mock_transport_new_a2dp(BlueALSAMockService * srv,
+		struct ba_device * d, const char * uuid, const struct a2dp_sep * sep,
+		const void * configuration) {
+	BlueALSAMockServicePriv * priv = srv->priv;
 
-	usleep(mock_fuzzing_ms * 1000);
+	usleep(srv->fuzzing_ms * 1000);
 
 	char transport_path[128];
 	const int index = (strcmp(uuid, BT_UUID_A2DP_SINK) == 0) ? 1 : 2;
 	sprintf(transport_path, "%s/sep/fd%u", d->bluez_dbus_path, index);
 
-	g_autoptr(GAsyncQueue) sem = g_async_queue_new();
-	assert(mock_bluez_device_media_set_configuration(d->bluez_dbus_path, transport_path,
-				uuid, sep->config.codec_id, configuration, sep->config.caps_size, sem) == 0);
-	mock_sem_wait(sem);
+	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
+	mock_bluez_service_device_media_set_configuration(priv->bluez,
+			d->bluez_dbus_path, transport_path, uuid, sep->config.codec_id,
+			configuration, sep->config.caps_size, queue);
+	g_async_queue_pop(queue);
 
 	char device[18];
 	ba2str(&d->addr, device);
@@ -222,7 +233,15 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 	t->mtu_write = 48;
 
 	debug("New SCO link: %s: %d", batostr_(&t->d->addr), t->bt_fd);
-	g_thread_unref(mock_bt_dump_thread_new(bt_fds[1]));
+
+	g_autoptr(GIOChannel) ch = g_io_channel_unix_new(bt_fds[1]);
+	g_io_channel_set_close_on_unref(ch, TRUE);
+	g_io_channel_set_encoding(ch, NULL, NULL);
+	g_io_channel_set_buffered(ch, FALSE);
+
+	g_autoptr(GSource) watch = g_io_create_watch(ch, G_IO_IN | G_IO_HUP | G_IO_ERR);
+	g_source_set_callback(watch, G_SOURCE_FUNC(channel_drain_callback), NULL, NULL);
+	g_source_attach(watch, NULL);
 
 	return bt_fds[0];
 }
@@ -234,14 +253,15 @@ error_code_t sco_setup_connection_dispatcher(G_GNUC_UNUSED struct ba_adapter * a
 	return ERROR_CODE_OK;
 }
 
-static struct ba_transport *mock_transport_new_sco(struct ba_device *d,
-		const char *uuid) {
+static struct ba_transport *mock_transport_new_sco(BlueALSAMockService * srv,
+		struct ba_device *d, const char *uuid) {
+	BlueALSAMockServicePriv * priv = srv->priv;
 
-	usleep(mock_fuzzing_ms * 1000);
+	usleep(srv->fuzzing_ms * 1000);
 
-	g_autoptr(GAsyncQueue) sem = g_async_queue_new();
-	assert(mock_bluez_device_profile_new_connection(d->bluez_dbus_path, uuid, sem) == 0);
-	mock_sem_wait(sem);
+	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
+	mock_bluez_service_device_profile_new_connection(priv->bluez, d->bluez_dbus_path, uuid, queue);
+	g_async_queue_pop(queue);
 
 	struct ba_transport *t;
 	assert((t = ba_transport_lookup(d, d->bluez_dbus_path)) != NULL);
@@ -273,11 +293,13 @@ static struct ba_transport *mock_transport_new_sco(struct ba_device *d,
 }
 
 #if ENABLE_MIDI
-static struct ba_transport *mock_transport_new_midi(const char *path) {
+static struct ba_transport * mock_transport_new_midi(BlueALSAMockService * srv,
+		const char *path) {
+	BlueALSAMockServicePriv * priv = srv->priv;
 
-	usleep(mock_fuzzing_ms * 1000);
+	usleep(srv->fuzzing_ms * 1000);
 
-	struct ba_device *d = ba_device_lookup(ba_adapter, &ba_adapter->hci.bdaddr);
+	struct ba_device *d = ba_device_lookup(priv->adapter, &priv->adapter->hci.bdaddr);
 	struct ba_transport *t = ba_transport_lookup(d, path);
 
 	int fds[2];
@@ -298,26 +320,30 @@ static struct ba_transport *mock_transport_new_midi(const char *path) {
 }
 #endif
 
-void mock_bluealsa_run(void) {
+void mock_bluealsa_service_run(BlueALSAMockService * srv, GAsyncQueue * sync) {
+	BlueALSAMockServicePriv * priv = srv->priv;
 
 	/* Wait for profiles to be registered. */
-	size_t events = (config.profile.a2dp_source || config.profile.a2dp_sink) ? 1 : 0;
-	events += config.profile.hfp_ag ? 1 : 0;
-	events += config.profile.hfp_hf ? 1 : 0;
-	events += config.profile.hsp_ag ? 1 : 0;
-	events += config.profile.hsp_hs ? 1 : 0;
-	while (events--)
-		mock_sem_wait(mock_sem_ready);
+	if (config.profile.a2dp_source || config.profile.a2dp_sink)
+		g_async_queue_pop(priv->bluez->media_application_ready_queue);
+	if (config.profile.hfp_ag)
+		g_async_queue_pop(priv->bluez->profile_ready_queue);
+	if (config.profile.hfp_hf)
+		g_async_queue_pop(priv->bluez->profile_ready_queue);
+	if (config.profile.hsp_ag)
+		g_async_queue_pop(priv->bluez->profile_ready_queue);
+	if (config.profile.hsp_hs)
+		g_async_queue_pop(priv->bluez->profile_ready_queue);
 
 	/* Create remote SEP on device 1, so we could test SEP configuration. */
-	mock_bluez_device_add_media_endpoint(MOCK_BLUEZ_DEVICE_1_PATH,
+	mock_bluez_service_device_add_media_endpoint(priv->bluez, MOCK_BLUEZ_DEVICE_1_PATH,
 			MOCK_BLUEZ_DEVICE_1_SEP_PATH, BT_UUID_A2DP_SINK, a2dp_sbc_sink.config.codec_id,
 			&a2dp_sbc_sink.config.capabilities, a2dp_sbc_sink.config.caps_size);
 
 #if ENABLE_ASHA
 	const uint8_t sync_id[8] = { 0xF1, 0x05, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
 	/* Create ASHA transport on device 1 for testing ASHA support. */
-	mock_bluez_device_add_asha_transport(MOCK_BLUEZ_DEVICE_1_PATH,
+	mock_bluez_service_device_add_asha_transport(priv->bluez, MOCK_BLUEZ_DEVICE_1_PATH,
 			MOCK_BLUEZ_DEVICE_1_ASHA_PATH, "right", false, sync_id);
 #endif
 
@@ -326,29 +352,29 @@ void mock_bluealsa_run(void) {
 	if (config.profile.a2dp_source) {
 
 		if (a2dp_sbc_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SOURCE,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_1, BT_UUID_A2DP_SOURCE,
 						&a2dp_sbc_source, &config_sbc_44100_stereo));
 
 #if ENABLE_APTX
 		if (a2dp_aptx_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_aptx_source, &config_aptx_44100_stereo));
 		else
 #endif
 #if ENABLE_APTX_HD
 		if (a2dp_aptx_hd_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_aptx_hd_source, &config_aptx_hd_48000_stereo));
 		else
 #endif
 #if ENABLE_FASTSTREAM
 		if (a2dp_faststream_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_faststream_source, &config_faststream_44100_16000));
 		else
 #endif
 		if (a2dp_sbc_source.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SOURCE,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_2, BT_UUID_A2DP_SOURCE,
 						&a2dp_sbc_source, &config_sbc_44100_stereo));
 
 	}
@@ -357,22 +383,22 @@ void mock_bluealsa_run(void) {
 
 #if ENABLE_APTX
 		if (a2dp_aptx_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SINK,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_1, BT_UUID_A2DP_SINK,
 						&a2dp_aptx_sink, &config_aptx_44100_stereo));
 		else
 #endif
 #if ENABLE_APTX_HD
 		if (a2dp_aptx_hd_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SINK,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_1, BT_UUID_A2DP_SINK,
 						&a2dp_aptx_hd_sink, &config_aptx_hd_48000_stereo));
 		else
 #endif
 		if (a2dp_sbc_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_1, BT_UUID_A2DP_SINK,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_1, BT_UUID_A2DP_SINK,
 						&a2dp_sbc_sink, &config_sbc_44100_stereo));
 
 		if (a2dp_sbc_sink.enabled)
-			g_ptr_array_add(tt, mock_transport_new_a2dp(ba_device_2, BT_UUID_A2DP_SINK,
+			g_ptr_array_add(tt, mock_transport_new_a2dp(srv, priv->device_2, BT_UUID_A2DP_SINK,
 						&a2dp_sbc_sink, &config_sbc_44100_stereo));
 
 	}
@@ -380,19 +406,19 @@ void mock_bluealsa_run(void) {
 	if (config.profile.hfp_ag) {
 
 		struct ba_transport *t;
-		g_ptr_array_add(tt, t = mock_transport_new_sco(ba_device_1, BT_UUID_HFP_AG));
+		g_ptr_array_add(tt, t = mock_transport_new_sco(srv, priv->device_1, BT_UUID_HFP_AG));
 
 		/* In case of fuzzing, select available codecs
 		 * one by one with some delay in between. */
 
-		if (mock_fuzzing_ms) {
+		if (srv->fuzzing_ms) {
 			ba_transport_set_codec(t, HFP_CODEC_CVSD);
 #if ENABLE_MSBC
-			usleep(mock_fuzzing_ms * 1000);
+			usleep(srv->fuzzing_ms * 1000);
 			ba_transport_set_codec(t, HFP_CODEC_MSBC);
 #endif
 #if ENABLE_LC3_SWB
-			usleep(mock_fuzzing_ms * 1000);
+			usleep(srv->fuzzing_ms * 1000);
 			ba_transport_set_codec(t, HFP_CODEC_LC3_SWB);
 #endif
 		}
@@ -400,40 +426,41 @@ void mock_bluealsa_run(void) {
 	}
 
 	if (config.profile.hfp_hf)
-		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_1, BT_UUID_HFP_HF));
+		g_ptr_array_add(tt, mock_transport_new_sco(srv, priv->device_1, BT_UUID_HFP_HF));
 
 	if (config.profile.hsp_ag)
-		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_2, BT_UUID_HSP_AG));
+		g_ptr_array_add(tt, mock_transport_new_sco(srv, priv->device_2, BT_UUID_HSP_AG));
 
 	if (config.profile.hsp_hs)
-		g_ptr_array_add(tt, mock_transport_new_sco(ba_device_2, BT_UUID_HSP_HS));
+		g_ptr_array_add(tt, mock_transport_new_sco(srv, priv->device_2, BT_UUID_HSP_HS));
 
 #if ENABLE_UPOWER
-	mock_upower_display_device_set_percentage(50.00);
-	mock_upower_display_device_set_is_present(false);
+	mock_upower_service_display_device_set_percentage(priv->upower, 50.00);
+	mock_upower_service_display_device_set_is_present(priv->upower, false);
 #endif
 
 #if ENABLE_MIDI
 	if (config.profile.midi)
-		g_ptr_array_add(tt, mock_transport_new_midi(MOCK_BLUEZ_MIDI_PATH));
+		g_ptr_array_add(tt, mock_transport_new_midi(srv, MOCK_BLUEZ_MIDI_PATH));
 #endif
 
-	mock_sem_wait(mock_sem_timeout);
+	g_async_queue_pop(sync);
 
 	for (size_t i = 0; i < tt->len; i++) {
-		usleep(mock_fuzzing_ms * 1000);
+		usleep(srv->fuzzing_ms * 1000);
 		ba_transport_destroy(tt->pdata[i]);
 	}
 
-	usleep(mock_fuzzing_ms * 1000);
+	usleep(srv->fuzzing_ms * 1000);
 
 	g_ptr_array_free(tt, TRUE);
 
 }
 
-static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
-		const char *name, void *userdata) {
-	struct MockService *service = userdata;
+static void name_acquired(G_GNUC_UNUSED GDBusConnection * conn,
+		const char * name, void * userdata) {
+	BlueALSAMockService * srv = userdata;
+	BlueALSAMockServicePriv * priv = srv->priv;
 
 	config.dbus = conn;
 	/* do not generate lots of data */
@@ -441,10 +468,10 @@ static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 	/* initialize SEPs capabilities */
 	a2dp_seps_init();
 
-	/* create mock devices attached to the mock adapter */
-	ba_adapter = mock_adapter_new(MOCK_ADAPTER_ID);
-	ba_device_1 = mock_device_new(ba_adapter, MOCK_DEVICE_1);
-	ba_device_2 = mock_device_new(ba_adapter, MOCK_DEVICE_2);
+	/* Create mock devices attached to the mock adapter. */
+	priv->adapter = mock_adapter_new(MOCK_ADAPTER_ID);
+	priv->device_1 = mock_device_new(priv->adapter, MOCK_DEVICE_1);
+	priv->device_2 = mock_device_new(priv->adapter, MOCK_DEVICE_2);
 
 	/* register D-Bus interfaces */
 	bluealsa_dbus_register();
@@ -460,25 +487,34 @@ static void mock_dbus_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
 #endif
 
 	fprintf(stderr, "BLUEALSA_DBUS_SERVICE_NAME=%s\n", name);
-	mock_sem_signal(service->ready);
+	mock_service_ready(&srv->service);
 
 }
 
-static struct MockService service = {
-	.name = mock_ba_service_name,
-	.name_acquired_cb = mock_dbus_name_acquired,
-};
+BlueALSAMockService * mock_bluealsa_service_new(char * name,
+		BlueZMockService * bluez, OFonoMockService * ofono, UPowerMockService * upower) {
 
-void mock_bluealsa_service_start(void) {
-	mock_service_start(&service);
+	BlueALSAMockService * srv = g_new0(BlueALSAMockService, 1);
+	srv->service.name = name;
+	srv->service.name_acquired_cb = name_acquired;
+
+	BlueALSAMockServicePriv * priv = g_new0(BlueALSAMockServicePriv, 1);
+	priv->bluez = bluez;
+	priv->ofono = ofono;
+	priv->upower = upower;
+	srv->priv = priv;
+
+	return srv;
 }
 
-void mock_bluealsa_service_stop(void) {
+void mock_bluealsa_service_free(BlueALSAMockService * srv) {
 
-	mock_service_stop(&service);
+	BlueALSAMockServicePriv * priv = srv->priv;
+	ba_device_unref(priv->device_1);
+	ba_device_unref(priv->device_2);
+	ba_adapter_destroy(priv->adapter);
 
-	ba_device_unref(ba_device_1);
-	ba_device_unref(ba_device_2);
-	ba_adapter_destroy(ba_adapter);
+	g_free(srv->priv);
+	g_free(srv);
 
 }

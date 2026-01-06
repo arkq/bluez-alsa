@@ -11,11 +11,9 @@
 #endif
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <gio/gio.h>
 #include <glib-object.h>
@@ -26,8 +24,6 @@
 #include "bluez-iface.h"
 #include "bluez.h"
 #include "dbus.h"
-#include "utils.h"
-#include "shared/bluetooth.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rc.h"
