@@ -51,8 +51,8 @@ check_PROGRAMS += test-lc3-swb
 endif
 
 if ENABLE_MIDI
-TESTS += test-alsa-midi test-ble-midi
-check_PROGRAMS += test-alsa-midi test-ble-midi
+TESTS += test-alsa-midi test-ble-advertisement test-ble-midi
+check_PROGRAMS += test-alsa-midi test-ble-advertisement test-ble-midi
 endif
 
 if ENABLE_MSBC
@@ -106,6 +106,7 @@ AM_CFLAGS = \
 LDADD = \
 	../src/shared/libshared.la \
 	../src/libbluealsad.la \
+	mock/libservices.la \
 	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@CHECK_LIBS@ \

@@ -61,7 +61,7 @@ struct bluez_midi_app {
 	GSource * notify_watch_hup;
 	bool notify_acquired;
 	/* LE advertisement. */
-	struct bluez_le_advertisement * adv;
+	BlueZLEAdvertisement * adv;
 };
 
 /**
@@ -360,7 +360,7 @@ static void app_free(void * ptr) {
 	}
 	bluez_le_advertisement_unregister_sync(app->adv);
 	ba_transport_destroy(app->t);
-	rc_unref(app->adv);
+	g_object_unref(app->adv);
 	free(app);
 }
 
@@ -409,7 +409,7 @@ GDBusObjectManagerServer * bluez_midi_app_new(
 	bluez_midi_app_register(adapter, app);
 
 	if (config.midi.advertise)
-		bluez_le_advertisement_register(app->adv, adapter);
+		bluez_le_advertisement_register(app->adv, adapter, NULL, NULL);
 
 	/* The application is referenced by interface skeletons which are owned
 	 * by the object manager server. Freeing the manager will free the app. */

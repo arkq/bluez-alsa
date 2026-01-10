@@ -12,6 +12,7 @@
 #include <gio/gio.h>
 #include <glib.h>
 
+#include "dbus.h"
 #include "shared/defs.h"
 
 /**
@@ -24,13 +25,15 @@
 #define CK_END_TEST } END_TEST
 
 static GTestDBus * tc_dbus;
+static const char * tc_dbus_address;
 static GDBusConnection * tc_dbus_connection;
 
 /**
  * Test case setup function to initialize a mock D-Bus connection. */
 static inline void tc_setup_dbus(void) {
 	g_test_dbus_up(tc_dbus = g_test_dbus_new(G_TEST_DBUS_NONE));
-	tc_dbus_connection = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
+	tc_dbus_address = g_test_dbus_get_bus_address(tc_dbus);
+	tc_dbus_connection = g_dbus_connection_new_for_address_simple_sync(tc_dbus_address, NULL);
 }
 
 /**

@@ -212,6 +212,7 @@ ffb
 ffff
 FMT
 fs
+GDBusConnection
 GError
 GHashTable
 hciconfig

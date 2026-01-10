@@ -31,12 +31,10 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "ba-config.h"
-#include "ble-midi.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"
 #include "midi.h"
-#include "ofono.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/log.h"
@@ -46,12 +44,10 @@
 /* Keep persistent storage in the current directory. */
 #define TEST_BLUEALSA_STORAGE_DIR "storage-test-ba"
 
-void ble_midi_decode_free(struct ble_midi_dec *bmd) { (void)bmd; }
 int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_stop(struct ba_transport *t) { (void)t; return 0; }
-void *sco_enc_thread(struct ba_transport_pcm *t_pcm);
 
 void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
 int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
@@ -71,8 +67,6 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
 	return false; }
-int ofono_call_volume_update(struct ba_transport *t) {
-	debug("%s: %p", __func__, t); (void)t; return 0; }
 
 CK_START_TEST(test_ba_adapter) {
 
@@ -250,7 +244,9 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 } CK_END_TEST
 
-static void *cleanup_thread(struct ba_transport_pcm *t_pcm) {
+void * sco_enc_thread(struct ba_transport_pcm * t_pcm);
+
+static void * cleanup_thread(struct ba_transport_pcm * t_pcm) {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	ba_transport_pcm_thread_cleanup(t_pcm);
 	return NULL;

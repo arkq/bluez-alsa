@@ -286,7 +286,7 @@ static void bluez_dbus_object_data_device_set(
 
 	if (d != NULL) {
 		GVariantBuilder props;
-		g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+		g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 		g_variant_builder_add(&props, "{sv}", "Device",
 				g_variant_new_object_path(d->bluez_dbus_path));
 		changed = g_variant_builder_end(&props);
@@ -1064,7 +1064,7 @@ static int bluez_register_profile(
 			BLUEZ_IFACE_PROFILE_MANAGER, "RegisterProfile");
 
 	GVariantBuilder options;
-	g_variant_builder_init(&options, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_init(&options, G_VARIANT_TYPE_VARDICT);
 
 	if (version)
 		g_variant_builder_add(&options, "{sv}", "Version", g_variant_new_uint16(version));
@@ -1897,7 +1897,7 @@ bool bluez_a2dp_set_configuration(
 	}
 
 	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 	g_variant_builder_add(&props, "{sv}", "Capabilities", g_variant_new_fixed_array(
 				G_VARIANT_TYPE_BYTE, configuration, remote_sep_cfg->caps_size, sizeof(uint8_t)));
 
@@ -1943,7 +1943,7 @@ void bluez_battery_provider_update(
 		return;
 
 	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 	g_variant_builder_add(&props, "{sv}", "Percentage",
 			ba_variant_new_device_battery(device));

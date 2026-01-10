@@ -35,6 +35,7 @@
 #include "a2dp.h"
 #include "ba-config.h"
 #include "bluealsa-iface.h"
+#include "dbus.h"
 #include "ofono.h"
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
@@ -43,13 +44,6 @@
 
 /* Keep persistent storage in the current directory. */
 #define TEST_BLUEALSA_STORAGE_DIR "storage-mock"
-
-static GDBusConnection * mock_dbus_connection_new_sync(const char * address) {
-	return g_dbus_connection_new_for_address_sync(address,
-			G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-			G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
-			NULL, NULL, NULL);
-}
 
 static void * main_loop_run(void * userdata) {
 	g_main_loop_run(userdata);
@@ -203,24 +197,27 @@ int main(int argc, char *argv[]) {
 
 	g_autoptr(BlueZMockService) bluez = mock_bluez_service_new();
 	bluez->media_transport_update_ms = fuzzing_ms;
+	g_autoptr(GDBusConnection) conn1 = g_dbus_connection_new_for_address_simple_sync(
+			dbus_address, NULL);
+	mock_service_start(bluez, conn1);
 
 	g_autoptr(OFonoMockService) ofono = mock_ofono_service_new();
+	g_autoptr(GDBusConnection) conn2 = g_dbus_connection_new_for_address_simple_sync(
+			dbus_address, NULL);
+	mock_service_start(ofono, conn2);
 
 	g_autoptr(UPowerMockService) upower = mock_upower_service_new();
+	g_autoptr(GDBusConnection) conn3 = g_dbus_connection_new_for_address_simple_sync(
+			dbus_address, NULL);
+	mock_service_start(upower, conn3);
 
+	/* Start BlueALSA as the last service. */
 	g_autoptr(BlueALSAMockService) ba = mock_bluealsa_service_new(
 			ba_service_name, bluez, ofono, upower);
 	ba->fuzzing_ms = fuzzing_ms;
-
-	g_autoptr(GDBusConnection) conn1 = mock_dbus_connection_new_sync(dbus_address);
-	mock_service_start(&bluez->service, conn1);
-	g_autoptr(GDBusConnection) conn2 = mock_dbus_connection_new_sync(dbus_address);
-	mock_service_start(&ofono->service, conn2);
-	g_autoptr(GDBusConnection) conn3 = mock_dbus_connection_new_sync(dbus_address);
-	mock_service_start(&upower->service, conn3);
-	/* Start BlueALSA as the last service. */
-	g_autoptr(GDBusConnection) conn4 = mock_dbus_connection_new_sync(dbus_address);
-	mock_service_start(&ba->service, conn4);
+	g_autoptr(GDBusConnection) conn4 = g_dbus_connection_new_for_address_simple_sync(
+			dbus_address, NULL);
+	mock_service_start(ba, conn4);
 
 #if ENABLE_OFONO
 	assert(ofono_detect_service() == true);
@@ -231,11 +228,11 @@ int main(int argc, char *argv[]) {
 	/* Run mock until timeout or SIGINT/SIGTERM signal. */
 	mock_bluealsa_service_run(ba, queue);
 
-	mock_service_stop(&ofono->service);
-	mock_service_stop(&upower->service);
+	mock_service_stop(ofono);
+	mock_service_stop(upower);
 	/* Simulate BlueZ termination while BlueALSA is still running. */
-	mock_service_stop(&bluez->service);
-	mock_service_stop(&ba->service);
+	mock_service_stop(bluez);
+	mock_service_stop(ba);
 
 	g_main_loop_quit(loop);
 	g_thread_join(loop_th);

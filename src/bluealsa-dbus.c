@@ -659,7 +659,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 				continue;
 
 			GVariantBuilder props;
-			g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+			g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 			ba_variant_populate_remote_sep(&props, sep, remote_sep_cfg, pcm_sep_stream);
 
@@ -679,7 +679,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 	else if (BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t)) {
 
 		GVariantBuilder props;
-		g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+		g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 		const uint8_t channels[] = { 1 };
 		g_variant_builder_add(&props, "{sv}", "Channels", g_variant_new_fixed_array(
@@ -734,7 +734,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 					sco_codecs[i].is_available_in_rfcomm_hf) {
 
 				GVariantBuilder props;
-				g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+				g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 				const uint8_t channels[] = { 1 };
 				g_variant_builder_add(&props, "{sv}", "Channels", g_variant_new_fixed_array(
@@ -1126,7 +1126,7 @@ fail:
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 
 	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 	if (mask & BA_DBUS_PCM_UPDATE_RUNNING)
 		g_variant_builder_add(&props, "{sv}", "Running", ba_variant_new_pcm_running(pcm));
@@ -1227,7 +1227,7 @@ fail:
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 
 	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 	if (mask & BA_DBUS_RFCOMM_UPDATE_FEATURES)
 		g_variant_builder_add(&props, "{sv}", "Features", ba_variant_new_rfcomm_features(r));

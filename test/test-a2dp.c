@@ -23,8 +23,6 @@
 #include "a2dp-faststream.h"
 #include "a2dp-sbc.h"
 #include "ba-config.h"
-#include "ba-transport.h"
-#include "ba-transport-pcm.h"
 #include "codec-sbc.h"
 #include "error.h"
 #include "shared/a2dp-codecs.h"
@@ -32,24 +30,6 @@
 #include "shared/log.h"
 
 #include "inc/check.inc"
-
-const char *ba_transport_debug_name(const struct ba_transport *t) { (void)t; return "x"; }
-uint32_t ba_transport_get_codec(const struct ba_transport *t) { (void)t; return 0; }
-bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) { (void)pcm; return false; }
-int ba_transport_pcm_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
-int ba_transport_stop_if_no_clients(struct ba_transport *t) { (void)t; return -1; }
-int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) { (void)pcm; return -1; }
-int ba_transport_pcm_start(struct ba_transport_pcm *pcm,
-		ba_transport_pcm_thread_func th_func, const char *name) {
-	(void)pcm; (void)th_func; (void)name; return -1; }
-int ba_transport_pcm_state_set(struct ba_transport_pcm *pcm,
-		enum ba_transport_pcm_state state) {
-	(void)pcm; (void)state; return -1; }
-enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(struct ba_transport_pcm *pcm) {
-	(void)pcm; return -1; }
-void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) { (void)pcm; }
-int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int update_mask) {
-	(void)pcm; (void)update_mask; return -1; }
 
 CK_START_TEST(test_a2dp_codecs_codec_id_from_string) {
 	ck_assert_uint_eq(a2dp_codecs_codec_id_from_string("SBC"), A2DP_CODEC_SBC);

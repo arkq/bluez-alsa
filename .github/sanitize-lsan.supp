@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: 2025 BlueALSA developers
+# SPDX-License-Identifier: MIT
+
+# This function can create a type singleton which triggers memory leak warning.
+leak:g_initable_new

@@ -882,7 +882,7 @@ int ofono_register(void) {
 
 	GVariantBuilder options;
 
-	g_variant_builder_init(&options, G_VARIANT_TYPE("ay"));
+	g_variant_builder_init(&options, G_VARIANT_TYPE_BYTESTRING);
 	if (config.hfp.codecs.cvsd)
 		g_variant_builder_add(&options, "y", OFONO_AUDIO_CODEC_CVSD);
 #if ENABLE_MSBC

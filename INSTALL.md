@@ -56,7 +56,7 @@ Dependencies:
 - [opus](https://opus-codec.org/) (when Opus support is enabled with
   `--enable-opus`)
 - [spandsp](https://www.soft-switch.org) (when mSBC support is enabled with
-  `--enable-msbc`)
+  `--enable-msbc` or ASHA support is enabled with `--enable-asha`)
 
 Dependencies for client applications (e.g. `bluealsactl` or `bluealsa-aplay`):
 

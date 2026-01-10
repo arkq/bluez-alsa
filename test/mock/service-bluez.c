@@ -24,15 +24,21 @@
 
 #include "dbus-ifaces.h"
 
+typedef struct BlueZMockServicePriv {
+	/* Public members. */
+	BlueZMockService p;
+	/* Global BlueZ mock server object manager. */
+	GDBusObjectManagerServer * server;
+	/* Client manager for registered media applications. */
+	GDBusObjectManager * media_app_client;
+	/* Mapping between profile UUID and its proxy object. */
+	GHashTable * profiles;
+	/* Registered LE advertisement. */
+	MockBluezLEAdvertisement1 * advertisement;
+} BlueZMockServicePriv;
+
 /* Bluetooth device name mappings in form of "MAC:name". */
 static const char * devices[8] = { NULL };
-/* Global BlueZ mock server object manager. */
-static GDBusObjectManagerServer *server = NULL;
-
-/* Client manager for registered media applications. */
-static GDBusObjectManager *media_app_client = NULL;
-/* Mapping between profile UUID and its proxy object. */
-static GHashTable *profiles = NULL;
 
 int mock_bluez_service_add_device_name_mapping(const char * mapping) {
 	for (size_t i = 0; i < ARRAYSIZE(devices); i++)
@@ -44,31 +50,29 @@ int mock_bluez_service_add_device_name_mapping(const char * mapping) {
 }
 
 typedef struct {
-	BlueZMockService * srv;
+	BlueZMockServicePriv * service;
 	char * uuid;
 } RegisterProfileData;
 
 static void mock_bluez_profile_proxy_finish(G_GNUC_UNUSED GObject * source,
 		GAsyncResult * result, void * userdata) {
-	RegisterProfileData * data = userdata;
+	g_autofree RegisterProfileData * data = userdata;
+	BlueZMockServicePriv * self = data->service;
 
 	MockBluezProfile1 * profile = mock_bluez_profile1_proxy_new_finish(result, NULL);
-	g_hash_table_insert(profiles, g_steal_pointer(&data->uuid), profile);
-
+	g_hash_table_insert(self->profiles, g_steal_pointer(&data->uuid), profile);
 	/* Add profile to the ready queue. */
-	g_async_queue_push(data->srv->profile_ready_queue, profile);
-
-	g_free(data);
+	g_async_queue_push(self->p.profile_ready_queue, profile);
 }
 
 static gboolean mock_bluez_register_profile_handler(MockBluezProfileManager1 *manager,
 		GDBusMethodInvocation *invocation, const char *path, const char *uuid,
 		G_GNUC_UNUSED GVariant * options, void * userdata) {
-	BlueZMockService * srv = userdata;
+	BlueZMockServicePriv * self = userdata;
 
 	RegisterProfileData * data = g_new0(RegisterProfileData, 1);
 	data->uuid = g_strdup(uuid);
-	data->srv = srv;
+	data->service = self;
 
 	GDBusConnection * conn = g_dbus_method_invocation_get_connection(invocation);
 	const char * sender = g_dbus_method_invocation_get_sender(invocation);
@@ -79,83 +83,133 @@ static gboolean mock_bluez_register_profile_handler(MockBluezProfileManager1 *ma
 	return TRUE;
 }
 
-static void mock_bluez_add_profile_manager(BlueZMockService * srv, const char * path) {
+static void mock_bluez_add_profile_manager(BlueZMockServicePriv * self, const char * path) {
 
 	g_autoptr(MockBluezProfileManager1) manager = mock_bluez_profile_manager1_skeleton_new();
 	g_signal_connect(manager, "handle-register-profile",
-			G_CALLBACK(mock_bluez_register_profile_handler), srv);
+			G_CALLBACK(mock_bluez_register_profile_handler), self);
 
 	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(path);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(manager));
-	g_dbus_object_manager_server_export(server, skeleton);
+	g_dbus_object_manager_server_export(self->server, skeleton);
 
 }
 
-static gboolean mock_bluez_bpm_register_provider_handler(MockBluezBatteryProviderManager1 *bpm,
-		GDBusMethodInvocation *invocation, G_GNUC_UNUSED const char *provider,
-		G_GNUC_UNUSED GVariant *options, G_GNUC_UNUSED void *userdata) {
-	mock_bluez_battery_provider_manager1_complete_register_battery_provider(bpm, invocation);
+static gboolean bat_manager_register_provider_handler(MockBluezBatteryProviderManager1 * obj,
+		GDBusMethodInvocation * invocation, G_GNUC_UNUSED const char * path,
+		G_GNUC_UNUSED GVariant * options, G_GNUC_UNUSED void * userdata) {
+	mock_bluez_battery_provider_manager1_complete_register_battery_provider(obj, invocation);
 	return TRUE;
 }
 
-static gboolean mock_bluez_gatt_register_application_handler(MockBluezGattManager1 *gatt,
-		GDBusMethodInvocation *invocation, G_GNUC_UNUSED const char *root,
-		G_GNUC_UNUSED GVariant *options, G_GNUC_UNUSED void *userdata) {
-	mock_bluez_gatt_manager1_complete_register_application(gatt, invocation);
+static gboolean gatt_manager_register_application_handler(MockBluezGattManager1 * obj,
+		GDBusMethodInvocation * invocation, G_GNUC_UNUSED const char * path,
+		G_GNUC_UNUSED GVariant * options, G_GNUC_UNUSED void * userdata) {
+	mock_bluez_gatt_manager1_complete_register_application(obj, invocation);
+	return TRUE;
+}
+
+static gboolean adv_manager_handle_register_advertisement(MockBluezLEAdvertisingManager1 * obj,
+		GDBusMethodInvocation * invocation, const char * path,
+		G_GNUC_UNUSED GVariant * options, void * userdata) {
+	BlueZMockServicePriv * self = userdata;
+
+	g_autoptr(GError) err = NULL;
+	GDBusConnection * conn = g_dbus_method_invocation_get_connection(invocation);
+	const char * sender = g_dbus_method_invocation_get_sender(invocation);
+	if ((self->advertisement = mock_bluez_leadvertisement1_proxy_new_sync(conn,
+					G_DBUS_PROXY_FLAGS_NONE, sender, path, NULL, &err)) == NULL) {
+		error("Failed to create LE advertisement proxy: %s", err->message);
+		g_dbus_method_invocation_return_error_literal(invocation,
+				G_DBUS_ERROR, G_DBUS_ERROR_FAILED, err->message);
+		return TRUE;
+	}
+
+	mock_bluez_leadvertising_manager1_complete_register_advertisement(obj, invocation);
+	return TRUE;
+}
+
+char * mock_bluez_service_get_advertisement_name(BlueZMockService * srv) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
+	if (self->advertisement == NULL)
+		return NULL;
+	return mock_bluez_leadvertisement1_dup_local_name(self->advertisement);
+}
+
+GVariant * mock_bluez_service_get_advertisement_service_data(BlueZMockService * srv,
+		const char * uuid) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
+	if (self->advertisement == NULL)
+		return NULL;
+	g_autoptr(GVariant) data = mock_bluez_leadvertisement1_dup_service_data(self->advertisement);
+	return g_variant_lookup_value(data, uuid, G_VARIANT_TYPE_BYTESTRING);
+}
+
+static gboolean adv_manager_handle_unregister_advertisement(MockBluezLEAdvertisingManager1 * obj,
+		GDBusMethodInvocation * invocation, G_GNUC_UNUSED const char * path,
+		G_GNUC_UNUSED void * userdata) {
+	mock_bluez_leadvertising_manager1_complete_unregister_advertisement(obj, invocation);
 	return TRUE;
 }
 
 static void mock_bluez_media_application_client_finish(G_GNUC_UNUSED GObject * source,
 		GAsyncResult * result, void * userdata) {
-	BlueZMockService * srv = userdata;
-	media_app_client = mock_object_manager_client_new_finish(result, NULL);
+	BlueZMockServicePriv * self = userdata;
+	self->media_app_client = mock_object_manager_client_new_finish(result, NULL);
 	/* Add media application to the ready queue. */
-	g_async_queue_push(srv->media_application_ready_queue, media_app_client);
+	g_async_queue_push(self->p.media_application_ready_queue, self->media_app_client);
 }
 
-static gboolean mock_bluez_media_register_application_handler(MockBluezMedia1 * media,
-		GDBusMethodInvocation * invocation, const char * root, G_GNUC_UNUSED GVariant * options,
-		void * userdata) {
-	BlueZMockService * srv = userdata;
+static gboolean media_register_application_handler(MockBluezMedia1 * obj,
+		GDBusMethodInvocation * invocation, const char * path,
+		G_GNUC_UNUSED GVariant * options, void * userdata) {
+	BlueZMockServicePriv * self = userdata;
 
-	GDBusConnection *conn = g_dbus_method_invocation_get_connection(invocation);
-	const char *sender = g_dbus_method_invocation_get_sender(invocation);
+	GDBusConnection * conn = g_dbus_method_invocation_get_connection(invocation);
+	const char * sender = g_dbus_method_invocation_get_sender(invocation);
 	mock_object_manager_client_new(conn, G_DBUS_OBJECT_MANAGER_CLIENT_FLAGS_NONE,
-			sender, root, NULL, mock_bluez_media_application_client_finish, srv);
+			sender, path, NULL, mock_bluez_media_application_client_finish, self);
 
-	mock_bluez_media1_complete_register_application(media, invocation);
+	mock_bluez_media1_complete_register_application(obj, invocation);
 	return TRUE;
 }
 
-static void mock_bluez_add_adapter(BlueZMockService * srv,
+static void mock_bluez_add_adapter(BlueZMockServicePriv * self,
 		const char * adapter_path, const char * address) {
 
 	g_autoptr(MockBluezAdapter1) adapter = mock_bluez_adapter1_skeleton_new();
 	mock_bluez_adapter1_set_address(adapter, address);
 
-	g_autoptr(MockBluezBatteryProviderManager1) bpm = mock_bluez_battery_provider_manager1_skeleton_new();
-	g_signal_connect(bpm, "handle-register-battery-provider",
-			G_CALLBACK(mock_bluez_bpm_register_provider_handler), srv);
+	g_autoptr(MockBluezBatteryProviderManager1) bat = mock_bluez_battery_provider_manager1_skeleton_new();
+	g_signal_connect(bat, "handle-register-battery-provider",
+			G_CALLBACK(bat_manager_register_provider_handler), self);
 
 	g_autoptr(MockBluezGattManager1) gatt = mock_bluez_gatt_manager1_skeleton_new();
 	g_signal_connect(gatt, "handle-register-application",
-			G_CALLBACK(mock_bluez_gatt_register_application_handler), srv);
+			G_CALLBACK(gatt_manager_register_application_handler), self);
+
+	g_autoptr(MockBluezLEAdvertisingManager1) adv = mock_bluez_leadvertising_manager1_skeleton_new();
+	g_signal_connect(adv, "handle-register-advertisement",
+			G_CALLBACK(adv_manager_handle_register_advertisement), self);
+	g_signal_connect(adv, "handle-unregister-advertisement",
+			G_CALLBACK(adv_manager_handle_unregister_advertisement), self);
 
 	g_autoptr(MockBluezMedia1) media = mock_bluez_media1_skeleton_new();
 	g_signal_connect(media, "handle-register-application",
-			G_CALLBACK(mock_bluez_media_register_application_handler), srv);
+			G_CALLBACK(media_register_application_handler), self);
 
 	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(adapter_path);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(adapter));
-	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(bpm));
+	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(bat));
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(gatt));
+	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(adv));
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(media));
-	g_dbus_object_manager_server_export(server, skeleton);
+	g_dbus_object_manager_server_export(self->server, skeleton);
 
 }
 
-static void mock_bluez_adapter_add_device(const char * adapter_path,
-		const char * device_path, const char * address) {
+static void mock_bluez_adapter_add_device(BlueZMockServicePriv * self,
+		const char * adapter_path, const char * device_path, const char * address) {
 
 	g_autoptr(MockBluezDevice1) device = mock_bluez_device1_skeleton_new();
 	mock_bluez_device1_set_adapter(device, adapter_path);
@@ -170,7 +224,7 @@ static void mock_bluez_adapter_add_device(const char * adapter_path,
 
 	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(device_path);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(device));
-	g_dbus_object_manager_server_export(server, skeleton);
+	g_dbus_object_manager_server_export(self->server, skeleton);
 
 }
 
@@ -184,6 +238,7 @@ static gboolean mock_bluez_media_ep_set_configuration_handler(MockBluezMediaEndp
 void mock_bluez_service_device_add_media_endpoint(BlueZMockService * srv,
 		const char * device_path, const char * endpoint_path, const char * uuid,
 		uint32_t codec_id, const void * capabilities, size_t capabilities_size) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
 
 	g_autoptr(MockBluezMediaEndpoint1) endpoint = mock_bluez_media_endpoint1_skeleton_new();
 	mock_bluez_media_endpoint1_set_uuid(endpoint, uuid);
@@ -193,11 +248,11 @@ void mock_bluez_service_device_add_media_endpoint(BlueZMockService * srv,
 	mock_bluez_media_endpoint1_set_device(endpoint, device_path);
 
 	g_signal_connect(endpoint, "handle-set-configuration",
-			G_CALLBACK(mock_bluez_media_ep_set_configuration_handler), srv);
+			G_CALLBACK(mock_bluez_media_ep_set_configuration_handler), self);
 
 	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(endpoint_path);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(endpoint));
-	g_dbus_object_manager_server_export(server, skeleton);
+	g_dbus_object_manager_server_export(self->server, skeleton);
 
 }
 
@@ -232,23 +287,23 @@ static gboolean media_transport_release_handler(MockBluezMediaTransport1 *transp
 	return TRUE;
 }
 
-static MockBluezMediaTransport1 * mock_bluez_device_add_media_transport(BlueZMockService * srv,
-		const char * device_path, const char * transport_path) {
+static MockBluezMediaTransport1 * mock_bluez_device_add_media_transport(
+		BlueZMockServicePriv * self, const char * device_path, const char * transport_path) {
 
 	MockBluezMediaTransport1 * transport = mock_bluez_media_transport1_skeleton_new();
 	mock_bluez_media_transport1_set_device(transport, device_path);
 	mock_bluez_media_transport1_set_state(transport, "idle");
 
 	g_signal_connect(transport, "handle-acquire",
-			G_CALLBACK(media_transport_acquire_handler), srv);
+			G_CALLBACK(media_transport_acquire_handler), self);
 	g_signal_connect(transport, "handle-try-acquire",
-			G_CALLBACK(media_transport_acquire_handler), srv);
+			G_CALLBACK(media_transport_acquire_handler), self);
 	g_signal_connect(transport, "handle-release",
-			G_CALLBACK(media_transport_release_handler), srv);
+			G_CALLBACK(media_transport_release_handler), self);
 
 	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(transport_path);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(transport));
-	g_dbus_object_manager_server_export(server, skeleton);
+	g_dbus_object_manager_server_export(self->server, skeleton);
 
 	return transport;
 }
@@ -311,12 +366,13 @@ static void profile_new_connection_finish(GObject * source, GAsyncResult * resul
 
 void mock_bluez_service_device_profile_new_connection(BlueZMockService * srv,
 		const char * device_path, const char * uuid, GAsyncQueue * ready) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
 
 	int fds[2];
 	g_assert(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
 
 	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[0], 1);
-	mock_bluez_profile1_call_new_connection(g_hash_table_lookup(profiles, uuid),
+	mock_bluez_profile1_call_new_connection(g_hash_table_lookup(self->profiles, uuid),
 			device_path, g_variant_new_handle(0), g_variant_new("a{sv}", NULL),
 			fd_list, NULL, profile_new_connection_finish, ready);
 
@@ -326,7 +382,7 @@ void mock_bluez_service_device_profile_new_connection(BlueZMockService * srv,
 	g_io_channel_set_buffered(ch, FALSE);
 
 	g_autoptr(GSource) watch = g_io_create_watch(ch, G_IO_IN);
-	g_source_set_callback(watch, G_SOURCE_FUNC(profile_rfcomm_callback), srv, NULL);
+	g_source_set_callback(watch, G_SOURCE_FUNC(profile_rfcomm_callback), self, NULL);
 	g_source_attach(watch, NULL);
 
 }
@@ -351,12 +407,13 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 		const char * device_path, const char * transport_path, const char * uuid,
 		uint32_t codec_id, const void * configuration, size_t configuration_size,
 		GAsyncQueue * ready) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
 
 	const uint8_t codec = codec_id < A2DP_CODEC_VENDOR ? codec_id : A2DP_CODEC_VENDOR;
 	const uint32_t vendor = codec_id < A2DP_CODEC_VENDOR ? 0 : codec_id;
 	bool found = false;
 
-	GList *endpoints = g_dbus_object_manager_get_objects(media_app_client);
+	GList *endpoints = g_dbus_object_manager_get_objects(self->media_app_client);
 	for (GList *elem = endpoints; elem != NULL; elem = elem->next) {
 		MockBluezMediaEndpoint1 *ep = mock_object_get_bluez_media_endpoint1(elem->data);
 		if (mock_bluez_media_endpoint1_get_device(ep) == NULL &&
@@ -365,9 +422,9 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 				mock_bluez_media_endpoint1_get_vendor(ep) == vendor) {
 
 			g_autoptr(MockBluezMediaTransport1) transport;
-			transport = mock_bluez_device_add_media_transport(srv, device_path, transport_path);
+			transport = mock_bluez_device_add_media_transport(self, device_path, transport_path);
 
-			g_autoptr(GVariantBuilder) props = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+			g_autoptr(GVariantBuilder) props = g_variant_builder_new(G_VARIANT_TYPE_VARDICT);
 			g_variant_builder_add(props, "{sv}", "Device", g_variant_new_object_path(
 						mock_bluez_media_transport1_get_device(transport)));
 			g_variant_builder_add(props, "{sv}", "Codec", g_variant_new_byte(codec));
@@ -387,8 +444,8 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 				mock_bluez_media_transport1_set_state(transport, "pending");
 
 			/* If enabled, update some properties after given delay. */
-			if (srv->media_transport_update_ms > 0)
-				g_timeout_add(srv->media_transport_update_ms,
+			if (self->p.media_transport_update_ms > 0)
+				g_timeout_add(self->p.media_transport_update_ms,
 						G_SOURCE_FUNC(media_transport_update), transport);
 
 			found = true;
@@ -404,6 +461,7 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 void mock_bluez_service_device_add_asha_transport(BlueZMockService * srv,
 		const char * device_path, const char * asha_endpoint_path, const char * side,
 		bool binaural, const uint8_t sync_id[8]) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
 
 	g_autoptr(MockBluezMediaTransport1) transport;
 	g_autofree char * asha_transport_path = g_strconcat(asha_endpoint_path, "/fd0", NULL);
@@ -420,9 +478,9 @@ void mock_bluez_service_device_add_asha_transport(BlueZMockService * srv,
 
 	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new(asha_endpoint_path);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(endpoint));
-	g_dbus_object_manager_server_export(server, skeleton);
+	g_dbus_object_manager_server_export(self->server, skeleton);
 
-	transport = mock_bluez_device_add_media_transport(srv, device_path, asha_transport_path);
+	transport = mock_bluez_device_add_media_transport(self, device_path, asha_transport_path);
 	mock_bluez_media_transport1_set_endpoint(transport, asha_endpoint_path);
 	mock_bluez_media_transport1_set_codec(transport, 0x02 /* G722 codec */);
 
@@ -430,42 +488,48 @@ void mock_bluez_service_device_add_asha_transport(BlueZMockService * srv,
 
 static void name_acquired(GDBusConnection * conn,
 		G_GNUC_UNUSED const char * name, void * userdata) {
-	struct BlueZMockService * srv = userdata;
+	BlueZMockServicePriv * self = userdata;
 
-	server = g_dbus_object_manager_server_new("/");
-	profiles = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_object_unref);
+	self->server = g_dbus_object_manager_server_new("/");
 
-	mock_bluez_add_profile_manager(srv, "/org/bluez");
-	mock_bluez_add_adapter(srv, MOCK_BLUEZ_ADAPTER_PATH, MOCK_ADAPTER_ADDRESS);
+	mock_bluez_add_profile_manager(self, "/org/bluez");
+	mock_bluez_add_adapter(self, MOCK_BLUEZ_ADAPTER_PATH, MOCK_ADAPTER_ADDRESS);
 
-	mock_bluez_adapter_add_device(MOCK_BLUEZ_ADAPTER_PATH,
+	mock_bluez_adapter_add_device(self, MOCK_BLUEZ_ADAPTER_PATH,
 			MOCK_BLUEZ_DEVICE_1_PATH, MOCK_DEVICE_1);
-	mock_bluez_adapter_add_device(MOCK_BLUEZ_ADAPTER_PATH,
+	mock_bluez_adapter_add_device(self, MOCK_BLUEZ_ADAPTER_PATH,
 			MOCK_BLUEZ_DEVICE_2_PATH, MOCK_DEVICE_2);
 
-	g_dbus_object_manager_server_set_connection(server, conn);
-	mock_service_ready(&srv->service);
+	g_dbus_object_manager_server_set_connection(self->server, conn);
+	mock_service_ready(self);
+}
+
+static void service_free(void * service) {
+	g_autofree BlueZMockServicePriv * self = service;
+
+	g_async_queue_unref(self->p.profile_ready_queue);
+	g_async_queue_unref(self->p.media_application_ready_queue);
+	g_hash_table_unref(self->profiles);
+
+	if (self->server != NULL)
+		g_object_unref(self->server);
+	if (self->media_app_client != NULL)
+		g_object_unref(self->media_app_client);
+	if (self->advertisement != NULL)
+		g_object_unref(self->advertisement);
 
 }
 
 BlueZMockService * mock_bluez_service_new(void) {
-	BlueZMockService * srv = g_new0(BlueZMockService, 1);
-	srv->service.name = BLUEZ_SERVICE;
-	srv->service.name_acquired_cb = name_acquired;
-	srv->profile_ready_queue = g_async_queue_new();
-	srv->media_application_ready_queue = g_async_queue_new();
-	return srv;
-}
 
-void mock_bluez_service_free(BlueZMockService * srv) {
+	BlueZMockServicePriv * self = g_new0(BlueZMockServicePriv, 1);
+	self->p.service.name = BLUEZ_SERVICE;
+	self->p.service.name_acquired_cb = name_acquired;
+	self->p.service.free = service_free;
 
-	g_async_queue_unref(srv->profile_ready_queue);
-	g_async_queue_unref(srv->media_application_ready_queue);
-	g_free(srv);
+	self->p.profile_ready_queue = g_async_queue_new();
+	self->p.media_application_ready_queue = g_async_queue_new();
+	self->profiles = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_object_unref);
 
-	g_hash_table_unref(profiles);
-	if (media_app_client != NULL)
-		g_object_unref(media_app_client);
-	g_object_unref(server);
-
+	return (BlueZMockService *)self;
 }

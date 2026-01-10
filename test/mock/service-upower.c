@@ -17,6 +17,8 @@
 #include "dbus-ifaces.h"
 
 typedef struct UPowerMockServicePriv {
+	/* Public members. */
+	UPowerMockService p;
 	/* Global UPower object manager. */
 	GDBusObjectManagerServer * server;
 	/* Display device exposed by the UPower service. */
@@ -39,43 +41,37 @@ static MockFreedesktopUPowerDevice * device_new(
 
 void mock_upower_service_display_device_set_is_present(UPowerMockService * srv,
 		bool present) {
-	UPowerMockServicePriv * priv = srv->priv;
-	mock_freedesktop_upower_device_set_is_present(priv->display_device, present);
+	UPowerMockServicePriv * self = (UPowerMockServicePriv *)srv;
+	mock_freedesktop_upower_device_set_is_present(self->display_device, present);
 }
 
 void mock_upower_service_display_device_set_percentage(UPowerMockService * srv,
 		double percentage) {
-	UPowerMockServicePriv * priv = srv->priv;
-	mock_freedesktop_upower_device_set_percentage(priv->display_device, percentage);
+	UPowerMockServicePriv * self = (UPowerMockServicePriv *)srv;
+	mock_freedesktop_upower_device_set_percentage(self->display_device, percentage);
 }
 
 static void name_acquired(GDBusConnection * conn,
 		G_GNUC_UNUSED const char * name, void * userdata) {
-	UPowerMockService * srv = userdata;
-	UPowerMockServicePriv * priv = srv->priv;
+	UPowerMockServicePriv * self = userdata;
 
-	priv->server = g_dbus_object_manager_server_new("/");
-	priv->display_device = device_new(priv->server, UPOWER_PATH_DISPLAY_DEVICE);
-	g_dbus_object_manager_server_set_connection(priv->server, conn);
+	self->server = g_dbus_object_manager_server_new("/");
+	self->display_device = device_new(self->server, UPOWER_PATH_DISPLAY_DEVICE);
+	g_dbus_object_manager_server_set_connection(self->server, conn);
 
-	mock_service_ready(&srv->service);
+	mock_service_ready(self);
+}
+
+static void service_free(void * service) {
+	g_autofree UPowerMockServicePriv * self = service;
+	g_object_unref(self->display_device);
+	g_object_unref(self->server);
 }
 
 UPowerMockService * mock_upower_service_new(void) {
-	UPowerMockService * srv = g_new0(UPowerMockService, 1);
-	srv->service.name = UPOWER_SERVICE;
-	srv->service.name_acquired_cb = name_acquired;
-	srv->priv = g_new0(UPowerMockServicePriv, 1);
-	return srv;
-}
-
-void mock_upower_service_free(UPowerMockService * srv) {
-
-	UPowerMockServicePriv * priv = srv->priv;
-	g_object_unref(priv->display_device);
-	g_object_unref(priv->server);
-
-	g_free(srv->priv);
-	g_free(srv);
-
+	UPowerMockServicePriv * self = g_new0(UPowerMockServicePriv, 1);
+	self->p.service.name = UPOWER_SERVICE;
+	self->p.service.name_acquired_cb = name_acquired;
+	self->p.service.free = service_free;
+	return (UPowerMockService *)self;
 }

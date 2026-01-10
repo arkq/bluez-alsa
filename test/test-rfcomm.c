@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -27,7 +28,6 @@
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "ble-midi.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "hfp.h"
@@ -54,11 +54,6 @@ static void dbus_update_counters_wait(unsigned int *counter, unsigned int value)
 	pthread_mutex_unlock(&dbus_update_mtx);
 }
 
-void ble_midi_decode_free(struct ble_midi_dec *bmd) { (void)bmd; }
-int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
-int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
-int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
-int midi_transport_stop(struct ba_transport *t) { (void)t; return 0; }
 int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
 int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
 int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
@@ -94,8 +89,6 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 	return false; }
 void bluez_battery_provider_update(struct ba_device *device) {
 	debug("%s: %p", __func__, device); (void)device; }
-int ofono_call_volume_update(struct ba_transport *t) {
-	debug("%s: %p", __func__, t); (void)t; return 0; }
 
 #define ck_assert_rfcomm_recv(fd, command) { \
 	char buffer[sizeof(command)] = { 0 }; \

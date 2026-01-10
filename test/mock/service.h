@@ -33,8 +33,9 @@ int channel_drain_callback(GIOChannel * ch, GIOCondition cond, void * userdata);
 typedef struct MockService {
 
 	const char * name;
-	void (*name_acquired_cb)(GDBusConnection * conn, const char * name, void * userdata);
-	void (*name_lost_cb)(GDBusConnection * conn, const char * name, void * userdata);
+	void (* name_acquired_cb)(GDBusConnection * conn, const char * name, void * userdata);
+	void (* name_lost_cb)(GDBusConnection * conn, const char * name, void * userdata);
+	void (* free)(void * service);
 
 	GThread * _thread;
 	GDBusConnection * _conn;
@@ -44,9 +45,10 @@ typedef struct MockService {
 
 } MockService;
 
-void mock_service_start(MockService * service, GDBusConnection * conn);
-void mock_service_ready(MockService * service);
-void mock_service_stop(MockService * service);
+void mock_service_start(void * service, GDBusConnection * conn);
+void mock_service_ready(void * service);
+void mock_service_stop(void * service);
+void mock_service_free(void * service);
 
 typedef struct BlueZMockService {
 	MockService service;
@@ -56,12 +58,12 @@ typedef struct BlueZMockService {
 	GAsyncQueue * media_application_ready_queue;
 	/* If non-zero, update media transport properties after given time. */
 	unsigned int media_transport_update_ms;
-	/* Service private data. */
-	void * priv;
 } BlueZMockService;
 
-int mock_bluez_service_add_device_name_mapping(const char * mapping);
 BlueZMockService * mock_bluez_service_new(void);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(BlueZMockService, mock_service_free)
+
+int mock_bluez_service_add_device_name_mapping(const char * mapping);
 void mock_bluez_service_device_add_media_endpoint(BlueZMockService * srv,
 		const char * device_path, const char * endpoint_path, const char * uuid,
 		uint32_t codec_id, const void * capabilities, size_t capabilities_size);
@@ -74,31 +76,28 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 		const char * device_path, const char * transport_path, const char *uuid,
 		uint32_t codec_id, const void * configuration, size_t configuration_size,
 		GAsyncQueue * ready);
-void mock_bluez_service_free(BlueZMockService * srv);
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(BlueZMockService, mock_bluez_service_free)
+
+char * mock_bluez_service_get_advertisement_name(BlueZMockService * srv);
+GVariant * mock_bluez_service_get_advertisement_service_data(BlueZMockService * srv,
+		const char * uuid);
 
 typedef struct OFonoMockService {
 	MockService service;
-	/* Service private data. */
-	void * priv;
 } OFonoMockService;
 
 OFonoMockService * mock_ofono_service_new(void);
-void mock_ofono_service_free(OFonoMockService * srv);
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(OFonoMockService, mock_ofono_service_free)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(OFonoMockService, mock_service_free)
 
 typedef struct UPowerMockService {
 	MockService service;
-	/* Service private data. */
-	void * priv;
 } UPowerMockService;
 
 UPowerMockService * mock_upower_service_new(void);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(UPowerMockService, mock_service_free)
+
 void mock_upower_service_display_device_set_is_present(UPowerMockService * srv,
 		bool present);
 void mock_upower_service_display_device_set_percentage(UPowerMockService * srv,
 		double percentage);
-void mock_upower_service_free(UPowerMockService * srv);
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(UPowerMockService, mock_upower_service_free)
 
 #endif

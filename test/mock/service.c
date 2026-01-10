@@ -58,29 +58,40 @@ static void * mock_loop_run(void * userdata) {
 	return NULL;
 }
 
-void mock_service_start(MockService * service, GDBusConnection * conn) {
+void mock_service_start(void * service, GDBusConnection * conn) {
+	MockService * srv = service;
 
-	if (service->name_acquired_cb == NULL)
+	if (srv->name_acquired_cb == NULL)
 		/* Set default name acquired callback if not provided. */
-		service->name_acquired_cb = name_acquired;
+		srv->name_acquired_cb = name_acquired;
 
-	service->_conn = g_object_ref(conn);
-	service->_ready = g_async_queue_new();
+	srv->_conn = g_object_ref(conn);
+	srv->_ready = g_async_queue_new();
 
-	service->_thread = g_thread_new(service->name, mock_loop_run, service);
-	g_async_queue_pop(service->_ready);
+	srv->_thread = g_thread_new(srv->name, mock_loop_run, service);
+	g_async_queue_pop(srv->_ready);
 
 }
 
-void mock_service_ready(MockService * service) {
-	g_async_queue_push(service->_ready, GINT_TO_POINTER(1));
+void mock_service_ready(void * service) {
+	MockService * srv = service;
+	g_async_queue_push(srv->_ready, GINT_TO_POINTER(1));
 }
 
-void mock_service_stop(MockService * service) {
-	g_bus_unown_name(service->_id);
-	g_main_loop_quit(service->_loop);
-	g_main_loop_unref(service->_loop);
-	g_thread_join(service->_thread);
-	g_async_queue_unref(service->_ready);
-	g_object_unref(service->_conn);
+void mock_service_stop(void * service) {
+	MockService * srv = service;
+
+	g_bus_unown_name(srv->_id);
+	g_main_loop_quit(srv->_loop);
+	g_main_loop_unref(srv->_loop);
+	g_thread_join(srv->_thread);
+
+	g_async_queue_unref(srv->_ready);
+	g_object_unref(srv->_conn);
+
+}
+
+void mock_service_free(void * service) {
+	MockService * srv = service;
+	srv->free(service);
 }

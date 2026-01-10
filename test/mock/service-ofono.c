@@ -17,6 +17,8 @@
 #include "dbus-ifaces.h"
 
 typedef struct OFonoMockServicePriv {
+	/* Public members. */
+	OFonoMockService p;
 	/* Global oFono manager. */
 	MockOfonoManager * manager;
 	/* Global oFono HF audio manager. */
@@ -59,30 +61,24 @@ static MockOfonoHandsfreeAudioManager * hf_audio_manager_new(GDBusConnection * c
 
 static void name_acquired(GDBusConnection * conn,
 		G_GNUC_UNUSED const char * name, void * userdata) {
-	OFonoMockService * srv = userdata;
-	OFonoMockServicePriv * priv = srv->priv;
+	OFonoMockServicePriv * self = userdata;
 
-	priv->manager = manager_new(conn, "/");
-	priv->hf_manager = hf_audio_manager_new(conn, "/");
+	self->manager = manager_new(conn, "/");
+	self->hf_manager = hf_audio_manager_new(conn, "/");
 
-	mock_service_ready(&srv->service);
+	mock_service_ready(self);
+}
+
+static void service_free(void * service) {
+	g_autofree OFonoMockServicePriv * self = service;
+	g_object_unref(self->manager);
+	g_object_unref(self->hf_manager);
 }
 
 OFonoMockService * mock_ofono_service_new(void) {
-	OFonoMockService * srv = g_new0(OFonoMockService, 1);
-	srv->service.name = OFONO_SERVICE;
-	srv->service.name_acquired_cb = name_acquired;
-	srv->priv = g_new0(OFonoMockServicePriv, 1);
-	return srv;
-}
-
-void mock_ofono_service_free(OFonoMockService * srv) {
-
-	struct OFonoMockServicePriv * priv = srv->priv;
-	g_object_unref(priv->manager);
-	g_object_unref(priv->hf_manager);
-
-	g_free(srv->priv);
-	g_free(srv);
-
+	OFonoMockServicePriv * self = g_new0(OFonoMockServicePriv, 1);
+	self->p.service.name = OFONO_SERVICE;
+	self->p.service.name_acquired_cb = name_acquired;
+	self->p.service.free = service_free;
+	return (OFonoMockService *)self;
 }

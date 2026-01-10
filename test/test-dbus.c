@@ -155,7 +155,7 @@ CK_START_TEST(test_g_dbus_connection_emit_properties_changed) {
 			NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE, dbus_signal_handler, queue, NULL);
 
 	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 	g_variant_builder_add(&props, "{sv}", "Bar", g_variant_new_boolean(FALSE));
 
 	bool ok = g_dbus_connection_emit_properties_changed(tc_dbus_connection, "/foo",

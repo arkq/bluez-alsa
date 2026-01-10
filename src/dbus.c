@@ -103,7 +103,7 @@ GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
 		return iface->vtable.get_properties(iface->userdata);
 
 	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 	GVariant *v;
 	GDBusPropertyInfo **pp = iface->interface_info->properties;

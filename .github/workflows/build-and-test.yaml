@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 name: Build and Test
@@ -10,6 +10,7 @@ on:
 
 env:
   MAKEFLAGS: -j8
+  SANITIZE_MEMORY_LIBS: ${{ github.workspace }}/sanitize-memory-libs
   SANITIZE_THREAD_LIBS: ${{ github.workspace }}/sanitize-thread-libs
 
 jobs:
@@ -61,11 +62,14 @@ jobs:
       id: cache
       with:
         key: sanitize-env
-        path: ${{ env.SANITIZE_THREAD_LIBS }}
+        path: |
+          ${{ env.SANITIZE_MEMORY_LIBS }}
+          ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Create Build Environment
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
         sudo apt install --yes --quiet --no-install-recommends autoconf-archive meson
+        mkdir -p ${{ env.SANITIZE_MEMORY_LIBS }}
         mkdir -p ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Compile Patched GCC Thread Sanitizer Library
       if: steps.cache.outputs.cache-hit != 'true'
@@ -80,18 +84,28 @@ jobs:
         mkdir libstdc++-v3 && cd $_ && ../gcc/libstdc++-v3/configure --disable-multilib && make && cd -
         mkdir libsanitizer && cd $_ && ../gcc/libsanitizer/configure --disable-multilib && make && cd -
         mv libsanitizer/tsan/.libs/libtsan.so* ${{ env.SANITIZE_THREAD_LIBS }}
-    - name: Compile dbus-1 with Thread Sanitizer
+    - name: Compile dbus-1
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
         git clone --depth=1 --branch=dbus-1.12.20 https://gitlab.freedesktop.org/dbus/dbus.git
-        cd dbus && autoreconf -i && ./configure --prefix=/usr && make CFLAGS="-O2 -g -fsanitize=thread" && cd -
+        cd dbus && autoreconf -i && ./configure --prefix=/usr && cd -
+        # Build dbus-1 with preserved frame pointers
+        make -C dbus clean && make -C dbus CFLAGS="-g -O2 -fno-omit-frame-pointer"
+        mv dbus/dbus/.libs/libdbus-1.so* ${{ env.SANITIZE_MEMORY_LIBS }}
+        # Build dbus-1 with thread sanitizer
+        make -C dbus clean && make -C dbus CFLAGS="-g -O2 -fno-omit-frame-pointer -fsanitize=thread"
         mv dbus/dbus/.libs/libdbus-1.so* ${{ env.SANITIZE_THREAD_LIBS }}
-    - name: Compile glib-2.0 with Thread Sanitizer
+    - name: Compile glib-2.0
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
         git clone --depth=1 --branch=2.72.4 https://github.com/GNOME/glib.git
-        CFLAGS="-O2 -g -fsanitize=thread" meson glib/build glib
-        DESTDIR=../build-image ninja -C glib/build install
+        # Build glib with preserved frame pointers
+        CFLAGS="-g -O2 -fno-omit-frame-pointer" meson glib/build-memory glib
+        DESTDIR=../build-image ninja -C glib/build-memory install
+        mv glib/build-image/usr/local/lib/x86_64-linux-gnu/lib* ${{ env.SANITIZE_MEMORY_LIBS }}
+        # Build glib with thread sanitizer
+        CFLAGS="-g -O2 -fno-omit-frame-pointer -fsanitize=thread" meson glib/build-thread glib
+        DESTDIR=../build-image ninja -C glib/build-thread install
         mv glib/build-image/usr/local/lib/x86_64-linux-gnu/lib* ${{ env.SANITIZE_THREAD_LIBS }}
 
   sanitize:
@@ -138,24 +152,26 @@ jobs:
       run: |
         make clean
         SANITIZERS=$(for x in ${{ matrix.sanitize }}; do echo -n " -fsanitize=$x"; done)
-        make check CFLAGS="-g -O2 $SANITIZERS -fno-sanitize-recover=all" TESTS=
+        make check CFLAGS="-g -O2 $SANITIZERS -fno-omit-frame-pointer -fno-sanitize-recover=all" TESTS=
     - uses: actions/cache/restore@v4
-      if: ${{ matrix.sanitize == 'thread' }}
       with:
         key: sanitize-env
-        path: ${{ env.SANITIZE_THREAD_LIBS }}
+        path: |
+          ${{ env.SANITIZE_MEMORY_LIBS }}
+          ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       env:
         CK_TIMEOUT_MULTIPLIER: 5
         ASAN_OPTIONS: detect_stack_use_after_return=1
-        TSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/tsan-supressions.txt
+        LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/sanitize-lsan.supp
+        TSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/sanitize-tsan.supp
       run: |
         case "${{ matrix.sanitize }}" in
           *address*)
+            export LD_LIBRARY_PATH="${{ env.SANITIZE_MEMORY_LIBS }}:$LD_LIBRARY_PATH"
             export LD_PRELOAD_SANITIZER="libasan.so.6" ;;
           *thread*)
-            # As for now, not all tests pass with thread sanitizer enabled...
             export LD_LIBRARY_PATH="${{ env.SANITIZE_THREAD_LIBS }}:$LD_LIBRARY_PATH"
             export LD_PRELOAD_SANITIZER="libtsan.so.0" ;;
         esac

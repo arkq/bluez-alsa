@@ -35,6 +35,25 @@ SPDX-License-Identifier: MIT
 		</method>
 	</interface>
 
+	<interface name="org.bluez.LEAdvertisingManager1">
+		<method name="RegisterAdvertisement">
+			<arg name="advertisement" type="o" direction="in" />
+			<arg name="options" type="a{sv}" direction="in" />
+		</method>
+		<method name="UnregisterAdvertisement">
+			<arg name="advertisement" type="o" direction="in" />
+		</method>
+	</interface>
+
+	<interface name="org.bluez.LEAdvertisement1">
+		<property name="Type" type="s" access="read" />
+		<property name="ServiceUUIDs" type="as" access="read" />
+		<property name="ServiceData" type="a{sv}" access="read">
+			<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true" />
+		</property>
+		<property name="LocalName" type="s" access="read" />
+	</interface>
+
 	<interface name="org.bluez.Media1">
 		<method name="RegisterApplication">
 			<arg name="root" type="o" direction="in" />

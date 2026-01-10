@@ -66,6 +66,16 @@ void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
 		GDBusInterfaceInfo *interface_info, const GDBusInterfaceSkeletonVTable *vtable,
 		void *userdata, GDestroyNotify userdata_free_func);
 
+/**
+ * Create a new message bus GDBusConnection for the given address. */
+static inline GDBusConnection * g_dbus_connection_new_for_address_simple_sync(
+		const char * address, GError ** error) {
+	return g_dbus_connection_new_for_address_sync(address,
+			G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+			G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
+			NULL, NULL, error);
+}
+
 bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
 		const char *path, const char *interface, GVariant *changed,
 		GVariant *invalidated, GError **error);

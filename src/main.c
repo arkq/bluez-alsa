@@ -694,10 +694,7 @@ int main(int argc, char **argv) {
 
 	err = NULL;
 	address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
-	if ((config.dbus = g_dbus_connection_new_for_address_sync(address,
-					G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
-					NULL, NULL, &err)) == NULL) {
+	if ((config.dbus = g_dbus_connection_new_for_address_simple_sync(address, &err)) == NULL) {
 		error("Couldn't obtain D-Bus connection: %s", err->message);
 		return EXIT_FAILURE;
 	}
