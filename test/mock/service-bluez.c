@@ -30,10 +30,13 @@ typedef struct BlueZMockServicePriv {
 	BlueZMockService p;
 	/* Global BlueZ mock server object manager. */
 	GDBusObjectManagerServer * server;
-	/* Client manager for registered media applications. */
+	/* Client manager for registered media application. */
 	GDBusObjectManager * media_app_client;
 	/* Mapping between profile UUID and its proxy object. */
 	GHashTable * profiles;
+	/* Registered GATT application (service + characteristic). */
+	MockBluezGattService1 * gatt_service;
+	MockBluezGattCharacteristic1 * gatt_characteristic;
 	/* Registered LE advertisement. */
 	MockBluezLEAdvertisement1 * advertisement;
 } BlueZMockServicePriv;
@@ -105,9 +108,77 @@ static gboolean bat_manager_register_provider_handler(MockBluezBatteryProviderMa
 
 static gboolean gatt_manager_register_application_handler(MockBluezGattManager1 * obj,
 		GDBusMethodInvocation * invocation, G_GNUC_UNUSED const char * path,
-		G_GNUC_UNUSED GVariant * options, G_GNUC_UNUSED void * userdata) {
+		G_GNUC_UNUSED GVariant * options, void * userdata) {
+	BlueZMockServicePriv * self = userdata;
+
+	g_autoptr(GError) err = NULL;
+	g_autoptr(GDBusObjectManager) client;
+	GDBusConnection * conn = g_dbus_method_invocation_get_connection(invocation);
+	const char * sender = g_dbus_method_invocation_get_sender(invocation);
+	if ((client = mock_object_manager_client_new_sync(conn,
+					G_DBUS_OBJECT_MANAGER_CLIENT_FLAGS_NONE, sender, path, NULL, &err)) == NULL) {
+		error("Failed to create GATT application client: %s", err->message);
+		g_dbus_method_invocation_return_error_literal(invocation,
+				G_DBUS_ERROR, G_DBUS_ERROR_FAILED, err->message);
+		return TRUE;
+	}
+
+	void * object;
+	/* Retrieve GATT service and characteristic objects from the application. */
+	g_autoptr(GObjectList) objects = g_dbus_object_manager_get_objects(client);
+	for (GList * elem = objects; elem != NULL; elem = elem->next) {
+		if ((object = mock_object_get_bluez_gatt_service1(elem->data)) != NULL)
+			self->gatt_service = object;
+		else if ((object = mock_object_get_bluez_gatt_characteristic1(elem->data)) != NULL)
+			self->gatt_characteristic = object;
+	}
+
 	mock_bluez_gatt_manager1_complete_register_application(obj, invocation);
 	return TRUE;
+}
+
+char * mock_bluez_service_get_gatt_service_uuid(BlueZMockService * srv) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
+	if (self->gatt_service == NULL)
+		return NULL;
+	return mock_bluez_gatt_service1_dup_uuid(self->gatt_service);
+}
+
+char * mock_bluez_service_get_gatt_characteristic_uuid(BlueZMockService * srv) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
+	if (self->gatt_characteristic == NULL)
+		return NULL;
+	return mock_bluez_gatt_characteristic1_dup_uuid(self->gatt_characteristic);
+}
+
+GVariant * mock_bluez_service_get_gatt_characteristic_value(BlueZMockService * srv) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
+	if (self->gatt_characteristic == NULL)
+		return NULL;
+	g_autoptr(GVariant) value = NULL;
+	mock_bluez_gatt_characteristic1_call_read_value_sync(self->gatt_characteristic,
+			g_variant_new("a{sv}", NULL), &value, NULL, NULL);
+	return g_steal_pointer(&value);
+}
+
+GIOChannel * mock_bluez_service_acquire_gatt_characteristic_notify_channel(
+		BlueZMockService * srv) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
+  g_autoptr(GUnixFDList) fd_list = NULL;
+	mock_bluez_gatt_characteristic1_call_acquire_notify_sync(self->gatt_characteristic,
+			g_variant_new("a{sv}", NULL), NULL, NULL, NULL, &fd_list, NULL, NULL);
+	/* Wrap the acquired file descriptor in an IO channel. */
+	return g_io_channel_unix_raw_new(g_unix_fd_list_get(fd_list, 0, NULL));
+}
+
+GIOChannel * mock_bluez_service_acquire_gatt_characteristic_write_channel(
+		BlueZMockService * srv) {
+	BlueZMockServicePriv * self = (BlueZMockServicePriv *)srv;
+	g_autoptr(GUnixFDList) fd_list = NULL;
+	mock_bluez_gatt_characteristic1_call_acquire_write_sync(self->gatt_characteristic,
+			g_variant_new("a{sv}", NULL), NULL, NULL, NULL, &fd_list, NULL, NULL);
+	/* Wrap the acquired file descriptor in an IO channel. */
+	return g_io_channel_unix_raw_new(g_unix_fd_list_get(fd_list, 0, NULL));
 }
 
 static gboolean adv_manager_handle_register_advertisement(MockBluezLEAdvertisingManager1 * obj,
@@ -406,9 +477,9 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 	const uint32_t vendor = codec_id < A2DP_CODEC_VENDOR ? 0 : codec_id;
 	bool found = false;
 
-	GList *endpoints = g_dbus_object_manager_get_objects(self->media_app_client);
-	for (GList *elem = endpoints; elem != NULL; elem = elem->next) {
-		MockBluezMediaEndpoint1 *ep = mock_object_get_bluez_media_endpoint1(elem->data);
+	g_autoptr(GObjectList) endpoints = g_dbus_object_manager_get_objects(self->media_app_client);
+	for (GList * elem = endpoints; elem != NULL; elem = elem->next) {
+		MockBluezMediaEndpoint1 * ep = mock_object_peek_bluez_media_endpoint1(elem->data);
 		if (mock_bluez_media_endpoint1_get_device(ep) == NULL &&
 				strcmp(mock_bluez_media_endpoint1_get_uuid(ep), uuid) == 0 &&
 				mock_bluez_media_endpoint1_get_codec(ep) == codec &&
@@ -446,7 +517,6 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 		}
 	}
 
-	g_list_free_full(endpoints, g_object_unref);
 	g_assert_true(found);
 
 }
@@ -503,12 +573,11 @@ static void service_free(void * service) {
 	g_async_queue_unref(self->p.media_application_ready_queue);
 	g_hash_table_unref(self->profiles);
 
-	if (self->server != NULL)
-		g_object_unref(self->server);
-	if (self->media_app_client != NULL)
-		g_object_unref(self->media_app_client);
-	if (self->advertisement != NULL)
-		g_object_unref(self->advertisement);
+	g_clear_object(&self->server);
+	g_clear_object(&self->media_app_client);
+	g_clear_object(&self->gatt_service);
+	g_clear_object(&self->gatt_characteristic);
+	g_clear_object(&self->advertisement);
 
 }
 

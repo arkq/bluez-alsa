@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.h
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -18,6 +18,10 @@
 #include <bluetooth/bluetooth.h>
 
 #include <glib.h>
+
+typedef GList GObjectList;
+void g_object_list_free(GObjectList * list);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GObjectList, g_object_list_free)
 
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);

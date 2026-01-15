@@ -112,8 +112,9 @@ endif
 if ENABLE_MIDI
 libbluealsad_la_SOURCES += \
 	ble-midi.c \
-	bluez-le-advertisement.c \
 	bluez-midi.c \
+	bt-advertising.c \
+	bt-gatt.c \
 	midi.c
 endif
 

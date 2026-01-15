@@ -35,6 +35,37 @@ SPDX-License-Identifier: MIT
 		</method>
 	</interface>
 
+	<interface name="org.bluez.GattService1">
+		<property name="UUID" type="s" access="read" />
+		<property name="Primary" type="b" access="read" />
+	</interface>
+
+	<interface name="org.bluez.GattCharacteristic1">
+		<method name="ReadValue">
+			<arg direction="in" type="a{sv}" name="options" />
+			<arg direction="out" type="ay" name="value">
+				<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true" />
+			</arg>
+		</method>
+		<method name="AcquireWrite">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg direction="in" type="a{sv}" name="options" />
+			<arg direction="out" type="h" name="fd" />
+			<arg direction="out" type="q" name="mtu" />
+		</method>
+		<method name="AcquireNotify">
+			<annotation name="org.gtk.GDBus.C.UnixFD" value="true" />
+			<arg direction="in" type="a{sv}" name="options" />
+			<arg direction="out" type="h" name="fd" />
+			<arg direction="out" type="q" name="mtu" />
+		</method>
+		<property name="UUID" type="s" access="read" />
+		<property name="Service" type="o" access="read" />
+		<property name="WriteAcquired" type="b" access="read" />
+		<property name="NotifyAcquired" type="b" access="read" />
+		<property name="Flags" type="as" access="read" />
+	</interface>
+
 	<interface name="org.bluez.LEAdvertisingManager1">
 		<method name="RegisterAdvertisement">
 			<arg name="advertisement" type="o" direction="in" />

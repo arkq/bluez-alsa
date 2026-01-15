@@ -89,8 +89,8 @@ struct bluez_adapter {
 	/* manager for battery provider objects */
 	GDBusObjectManagerServer *manager_battery_provider;
 #if ENABLE_MIDI
-	/* manager for MIDI GATT objects */
-	GDBusObjectManagerServer *manager_midi_application;
+	/* Bluetooth LE MIDI based on BlueZ GATT application. */
+	BluetoothMIDI * midi;
 #endif
 	/* array of SEP configs per connected devices */
 	GHashTable *device_sep_configs_map;
@@ -208,15 +208,11 @@ static void bluez_register_battery_provider(struct bluez_adapter *b_adapter) {
 #if ENABLE_MIDI
 /**
  * Register BLE MIDI application in BlueZ. */
-static void bluez_register_midi_application(struct bluez_adapter *b_adapter) {
-
+static void bluez_register_midi_application(struct bluez_adapter * b_adapter) {
 	char path[64];
-	struct ba_adapter *a = b_adapter->adapter;
+	struct ba_adapter * a = b_adapter->adapter;
 	snprintf(path, sizeof(path), "/org/bluez/%s/MIDI", a->hci.name);
-
-	GDBusObjectManagerServer *manager = bluez_midi_app_new(a, path);
-	b_adapter->manager_midi_application = manager;
-
+	b_adapter->midi = bluetooth_midi_new(a, path);
 }
 #endif
 
@@ -249,8 +245,7 @@ static void bluez_adapter_free(struct bluez_adapter * b_adapter) {
 	if (b_adapter->adapter == NULL)
 		return;
 #if ENABLE_MIDI
-	if (b_adapter->manager_midi_application != NULL)
-		g_object_unref(g_steal_pointer(&b_adapter->manager_midi_application));
+	g_clear_object(&b_adapter->midi);
 #endif
 	ba_adapter_destroy(g_steal_pointer(&b_adapter->adapter));
 	if (b_adapter->manager_media_application != NULL)

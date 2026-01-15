@@ -1,6 +1,6 @@
 /*
  * BlueALSA - utils.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -18,8 +18,19 @@
 
 #include <bluetooth/bluetooth.h>
 
+#include <glib.h>
+#include <glib-object.h>
+
 #include "shared/defs.h"
 #include "shared/log.h"
+
+/**
+ * Convenience function to free a list of glib objects.
+ *
+ * @param list A pointer to the GObjectList. */
+void g_object_list_free(GObjectList * list) {
+	g_list_free_full((GList *)list, g_object_unref);
+}
 
 /**
  * Extract HCI device ID from the BlueZ D-Bus object path.

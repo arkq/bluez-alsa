@@ -33,6 +33,7 @@ int channel_drain_callback(GIOChannel * ch, GIOCondition cond, void * userdata);
 typedef struct MockService {
 
 	const char * name;
+	char * unique_name;
 	void (* name_acquired_cb)(GDBusConnection * conn, const char * name, void * userdata);
 	void (* name_lost_cb)(GDBusConnection * conn, const char * name, void * userdata);
 	void (* free)(void * service);
@@ -76,6 +77,12 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 		const char * device_path, const char * transport_path, const char *uuid,
 		uint32_t codec_id, const void * configuration, size_t configuration_size,
 		GAsyncQueue * ready);
+
+char * mock_bluez_service_get_gatt_service_uuid(BlueZMockService * srv);
+char * mock_bluez_service_get_gatt_characteristic_uuid(BlueZMockService * srv);
+GVariant * mock_bluez_service_get_gatt_characteristic_value(BlueZMockService * srv);
+GIOChannel * mock_bluez_service_acquire_gatt_characteristic_notify_channel(BlueZMockService * srv);
+GIOChannel * mock_bluez_service_acquire_gatt_characteristic_write_channel(BlueZMockService * srv);
 
 char * mock_bluez_service_get_advertisement_name(BlueZMockService * srv);
 GVariant * mock_bluez_service_get_advertisement_service_data(BlueZMockService * srv,

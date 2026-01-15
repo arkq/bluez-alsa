@@ -158,7 +158,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - name: Run Spell Check
-      uses: rojopolis/spellcheck-github-actions@master
+      uses: rojopolis/spellcheck-github-actions@v0
       with:
         config_path: .github/spellcheck.yaml
 

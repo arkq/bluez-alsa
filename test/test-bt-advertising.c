@@ -1,6 +1,6 @@
 /*
- * test-ble-midi.c
- * SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+ * test-bt-advertising.c
+ * SPDX-FileCopyrightText: 2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -15,7 +15,7 @@
 
 #include "ba-adapter.h"
 #include "ba-config.h"
-#include "bluez-le-advertisement.h"
+#include "bt-advertising.h"
 #include "dbus.h"
 #include "error.h"
 
@@ -30,22 +30,22 @@ static GDBusObjectManagerServer * manager = NULL;
 
 static void register_finish(
 		GObject * source, GAsyncResult * result, void * userdata) {
-	BlueZLEAdvertisement * adv = BLUEZ_LE_ADVERTISEMENT(source);
-	bool ok = bluez_le_advertisement_register_finish(adv, result, NULL);
+	BluetoothAdvertising * adv = BLUETOOTH_ADVERTISING(source);
+	bool ok = bluetooth_advertising_register_finish(adv, result, NULL);
 	/* Notify the test case about the result. */
 	g_async_queue_push(userdata, GINT_TO_POINTER(ok ? REGISTER_SUCCESS : REGISTER_FAILURE));
 }
 
-CK_START_TEST(test_ble_advertisement) {
+CK_START_TEST(test_bt_advertising) {
 
 	struct ba_adapter * adapter;
 	ck_assert_ptr_ne(adapter = ba_adapter_new(MOCK_ADAPTER_ID), NULL);
 
-	g_autoptr(BlueZLEAdvertisement) adv;
-	ck_assert_ptr_ne(adv = bluez_le_advertisement_new(manager, "0xFFFF", "Foo", "/adv"), NULL);
+	g_autoptr(BluetoothAdvertising) adv;
+	ck_assert_ptr_ne(adv = bluetooth_advertising_new(manager, "/adv", "0xFFFF", "Foo"), NULL);
 
 	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
-	bluez_le_advertisement_register(adv, adapter, register_finish, queue);
+	bluetooth_advertising_register(adv, adapter, register_finish, queue);
 
 	/* Wait for the registration to complete and verify that it succeeded. */
 	ck_assert_int_eq(GPOINTER_TO_INT(g_async_queue_pop(queue)), REGISTER_SUCCESS);
@@ -54,31 +54,31 @@ CK_START_TEST(test_ble_advertisement) {
 	g_autofree char * name = mock_bluez_service_get_advertisement_name(bluez);
 	ck_assert_str_eq(name, "Foo");
 
-	bluez_le_advertisement_unregister_sync(adv);
+	bluetooth_advertising_unregister_sync(adv);
 	ba_adapter_unref(adapter);
 
 } CK_END_TEST
 
-CK_START_TEST(test_ble_advertisement_service_data) {
+CK_START_TEST(test_bt_advertising_service_data) {
 
 	struct ba_adapter * adapter;
 	ck_assert_ptr_ne(adapter = ba_adapter_new(MOCK_ADAPTER_ID), NULL);
 
-	g_autoptr(BlueZLEAdvertisement) adv;
-	ck_assert_ptr_ne(adv = bluez_le_advertisement_new(manager, "0xFFFF", "Foo", "/adv"), NULL);
+	g_autoptr(BluetoothAdvertising) adv;
+	ck_assert_ptr_ne(adv = bluetooth_advertising_new(manager, "/adv", "0xFFFF", "Foo"), NULL);
 
 	/* Verify what happens if service data is too big. */
 	uint8_t big[128] = { 0 };
-	ck_assert_int_eq(bluez_le_advertisement_set_service_data(adv, big, sizeof(big)),
+	ck_assert_int_eq(bluetooth_advertising_set_service_data(adv, big, sizeof(big)),
 				ERROR_CODE_INVALID_SIZE);
 
 	/* Set service data. */
 	uint8_t data[] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
-	ck_assert_int_eq(bluez_le_advertisement_set_service_data(adv, data, sizeof(data)),
+	ck_assert_int_eq(bluetooth_advertising_set_service_data(adv, data, sizeof(data)),
 				ERROR_CODE_OK);
 
 	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
-	bluez_le_advertisement_register(adv, adapter, register_finish, queue);
+	bluetooth_advertising_register(adv, adapter, register_finish, queue);
 
 	/* Wait for the registration to complete and verify that it succeeded. */
 	ck_assert_int_eq(GPOINTER_TO_INT(g_async_queue_pop(queue)), REGISTER_SUCCESS);
@@ -92,7 +92,7 @@ CK_START_TEST(test_ble_advertisement_service_data) {
 	ck_assert_int_eq(size, sizeof(data));
 	ck_assert_mem_eq(sd_bytes, data, sizeof(data));
 
-	bluez_le_advertisement_unregister_sync(adv);
+	bluetooth_advertising_unregister_sync(adv);
 	ba_adapter_unref(adapter);
 
 } CK_END_TEST
@@ -128,8 +128,8 @@ int main(void) {
 	tcase_add_checked_fixture(tc, tc_setup_g_main_loop, tc_teardown_g_main_loop);
 	tcase_add_checked_fixture(tc, tc_setup, tc_teardown);
 
-	tcase_add_test(tc, test_ble_advertisement);
-	tcase_add_test(tc, test_ble_advertisement_service_data);
+	tcase_add_test(tc, test_bt_advertising);
+	tcase_add_test(tc, test_bt_advertising_service_data);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
 		{ "mp3-vbr-quality", required_argument, NULL, 13 },
 #endif
 #if ENABLE_MIDI
-		{ "midi-advertisement", no_argument, NULL, 22 },
+		{ "midi-advertise", no_argument, NULL, 22 },
 		{ "midi-adv-name", required_argument, NULL, 9 },
 #endif
 		{ "xapl-resp-name", required_argument, NULL, 16 },
@@ -329,8 +329,8 @@ int main(int argc, char **argv) {
 #endif
 #if ENABLE_MIDI
 					"\nBLE-MIDI options:\n"
-					"      --midi-advertisement\tenable LE advertisement for BLE-MIDI\n"
-					"      --midi-adv-name=NAME\tset name for BLE-MIDI advertisement; default: %s\n"
+					"      --midi-advertise\t\tenable LE advertising for BLE-MIDI\n"
+					"      --midi-adv-name=NAME\tset name for BLE-MIDI advertising; default: %s\n"
 #endif
 					"\nHFP/HSP options:\n"
 					"      --xapl-resp-name=NAME\tset product name for Apple extension; default: %s\n"
@@ -650,7 +650,7 @@ int main(int argc, char **argv) {
 #endif
 
 #if ENABLE_MIDI
-		case 22 /* --midi-advertisement */ :
+		case 22 /* --midi-advertise */ :
 			config.midi.advertise = true;
 			break;
 		case 9 /* --midi-adv-name=NAME */ :

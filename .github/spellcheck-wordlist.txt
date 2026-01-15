@@ -216,6 +216,7 @@ fs
 GDBusConnection
 GError
 GHashTable
+GObjectList
 GVariant
 hciconfig
 hcitop

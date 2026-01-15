@@ -10,6 +10,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include "dbus.h"
 #include "shared/log.h"
 
 /**
@@ -71,6 +72,9 @@ void mock_service_start(void * service, GDBusConnection * conn) {
 	srv->_thread = g_thread_new(srv->name, mock_loop_run, service);
 	g_async_queue_pop(srv->_ready);
 
+	/* Get the unique bus name assigned to the service. */
+	srv->unique_name = g_dbus_get_unique_name_sync(conn, srv->name);
+
 }
 
 void mock_service_ready(void * service) {
@@ -85,6 +89,7 @@ void mock_service_stop(void * service) {
 	g_main_loop_quit(srv->_loop);
 	g_main_loop_unref(srv->_loop);
 	g_thread_join(srv->_thread);
+	g_free(g_steal_pointer(&srv->unique_name));
 
 	g_async_queue_unref(srv->_ready);
 	g_object_unref(srv->_conn);

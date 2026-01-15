@@ -264,11 +264,11 @@ OPTIONS
     - **standard** - standard quality (44.1 kHz: 606 kbps, 48 kHz: 660 kbps)
     - **high** - high quality (44.1 kHz: 909 kbps, 48 kHz: 990 kbps)
 
---midi-advertisement
+--midi-advertise
     Advertise BLE-MIDI service using Bluetooth LE advertising.
 
 --midi-adv-name=NAME
-    Set the name used in the BLE-MIDI advertisement.
+    Set the name used in the BLE-MIDI advertising.
     By default, the name is set as "BlueALSA MIDI".
 
 --xapl-resp-name=NAME

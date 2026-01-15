@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 SUBDIRS = mock
@@ -51,8 +51,8 @@ check_PROGRAMS += test-lc3-swb
 endif
 
 if ENABLE_MIDI
-TESTS += test-alsa-midi test-ble-advertisement test-ble-midi
-check_PROGRAMS += test-alsa-midi test-ble-advertisement test-ble-midi
+TESTS += test-alsa-midi test-bt-advertising test-bt-gatt test-ble-midi
+check_PROGRAMS += test-alsa-midi test-bt-advertising test-bt-gatt test-ble-midi
 endif
 
 if ENABLE_MSBC
