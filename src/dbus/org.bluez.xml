@@ -9,7 +9,7 @@ SPDX-License-Identifier: MIT
 	-->
 
 	<interface name="org.bluez.GattCharacteristic1">
-		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_MIDI"/>
+		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_GATT"/>
 		<method name="ReadValue">
 			<arg direction="in" type="a{sv}" name="options"/>
 			<arg direction="out" type="ay" name="value"/>
@@ -32,13 +32,13 @@ SPDX-License-Identifier: MIT
 	</interface>
 
 	<interface name="org.bluez.GattService1">
-		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_MIDI"/>
+		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_GATT"/>
 		<property name="UUID" type="s" access="read"/>
 		<property name="Primary" type="b" access="read"/>
 	</interface>
 
 	<interface name="org.bluez.LEAdvertisement1">
-		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_MIDI"/>
+		<annotation name="org.gtk.GDBus.CPP.if" value="ENABLE_GATT"/>
 		<method name="Release">
 		</method>
 		<property name="Type" type="s" access="read"/>

@@ -153,6 +153,7 @@ ARGS
 asound
 asoundrc
 asrsync
+ATT
 autoreconf
 ay
 BAC
@@ -163,8 +164,8 @@ BCS
 bdaddr
 bfr
 bluealsa
-bluealsad
 BlueALSA's
+bluealsad
 bluetoothctl
 bluetoothd
 BRSF
@@ -182,6 +183,7 @@ CKPD
 CLCC
 CLCK
 CMER
+CoC
 ctrl
 ctx
 dbus
@@ -195,7 +197,6 @@ dpsnk
 dpsrc
 DYN
 EAGAIN
-EDE
 EINTR
 EINVAL
 ENODEV
@@ -207,7 +208,6 @@ EQMID
 errno
 FB
 FC
-fdf
 fdX
 ffb
 ffff
@@ -225,6 +225,7 @@ HCTL
 HEv
 hfpag
 hfphf
+HiSync
 HiSyncId
 hspag
 hsphs
@@ -258,6 +259,7 @@ openaptx
 PCH
 pfd
 pfds
+PSM
 pthread
 ptr
 qsort

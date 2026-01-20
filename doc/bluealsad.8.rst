@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020-2025 BlueALSA developers
+.. SPDX-FileCopyrightText: 2020-2026 BlueALSA developers
 .. SPDX-License-Identifier: MIT
 
 =========
@@ -9,7 +9,7 @@ bluealsad
 Bluetooth Audio ALSA Backend
 ----------------------------
 
-:Date: December 2025
+:Date: January 2026
 :Manual section: 8
 :Manual group: System Manager's Manual
 :Version: $VERSION$
@@ -264,8 +264,31 @@ OPTIONS
     - **standard** - standard quality (44.1 kHz: 606 kbps, 48 kHz: 660 kbps)
     - **high** - high quality (44.1 kHz: 909 kbps, 48 kHz: 990 kbps)
 
+--asha-sync-id=ID
+    Set ASHA Sink HiSync ID to *ID*.
+
+    The *ID* must be a 16-digit hexadecimal number (64 bits).
+
+--asha-side=SIDE
+    Set ASHA Sink device side to *SIDE*.
+    Default value is **left**.
+
+    The *SIDE* can be one of:
+
+    - **left** - left side device
+    - **left+** - left side of a binaural device
+    - **right** - right side device
+    - **right+** - right side of a binaural device
+
+--asha-advertise
+    Enable LE advertising for ASHA Sink.
+
+--asha-adv-name=NAME
+    Set the name used in the ASHA Sink advertising.
+    By default, the name is set as "BlueALSA ASHA".
+
 --midi-advertise
-    Advertise BLE-MIDI service using Bluetooth LE advertising.
+    Enable LE advertising for BLE-MIDI.
 
 --midi-adv-name=NAME
     Set the name used in the BLE-MIDI advertising.
@@ -340,6 +363,7 @@ The list of profile *NAME*-s accepted by the ``--profile=NAME`` option:
 - **a2dp-source** - Advanced Audio Source (streaming audio to connected device)
 - **a2dp-sink** - Advanced Audio Sink (receiving audio from connected device)
 - **asha-source** - Audio Streaming for Hearing Aids Source
+- **asha-sink** - Audio Streaming for Hearing Aids Sink
 - **hfp-ofono** - Hands-Free AG/HF handled by oFono
 - **hfp-ag** - Hands-Free Audio Gateway
 - **hfp-hf** - Hands-Free
