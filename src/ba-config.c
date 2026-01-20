@@ -23,6 +23,8 @@
 #endif
 
 #include "codec-sbc.h"
+#include "shared/bluetooth.h"
+#include "shared/bluetooth-asha.h"
 #include "shared/bluetooth-hfp.h"
 
 /* Initialize global configuration variable. */
@@ -55,8 +57,8 @@ struct ba_config config = {
 	.hfp.codecs.lc3_swb = true,
 #endif
 
-	/* built-in Apple accessory identification */
-	.hfp.xapl_vendor_id = 0xB103,
+	/* Built-in Apple accessory identification. */
+	.hfp.xapl_vendor_id = BT_COMPID_LINUX_FOUNDATION,
 	.hfp.xapl_product_id = 0xA15A,
 	.hfp.xapl_sw_version = 0x0400,
 	.hfp.xapl_product_name = "BlueALSA",
@@ -74,7 +76,12 @@ struct ba_config config = {
 	.a2dp.force_44100 = false,
 
 #if ENABLE_ASHA
+	.asha.id = ASHA_HI_SYNC_ID_INIT(
+			BT_COMPID_LINUX_FOUNDATION, 0xB1, 0x03, 0xA1, 0x5A, 0x04, 0x05),
+	.asha.side = ASHA_CAPABILITY_SIDE_LEFT,
 	.asha.codecs.g722 = true,
+	.asha.advertise = false,
+	.asha.name = "BlueALSA ASHA",
 #endif
 
 #if ENABLE_MIDI
@@ -134,13 +141,9 @@ struct ba_config config = {
 };
 
 int ba_config_init(void) {
-
 	config.hci_filter = g_array_sized_new(FALSE, FALSE, sizeof(const char *), 4);
-
 	config.main_thread = pthread_self();
-
 	config.null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK);
-
 	return 0;
 }
 

@@ -1,6 +1,6 @@
 /*
  * BlueALSA - main.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -8,7 +8,9 @@
 # include <config.h>
 #endif
 
+#include <endian.h>
 #include <getopt.h>
+#include <inttypes.h>
 #include <libgen.h>
 #include <sched.h>
 #include <signal.h>
@@ -52,6 +54,7 @@
 #include "shared/bluetooth-asha.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
+#include "shared/hex.h"
 #include "shared/log.h"
 #include "shared/nv.h"
 
@@ -197,9 +200,15 @@ int main(int argc, char **argv) {
 		{ "mp3-algorithm", required_argument, NULL, 12 },
 		{ "mp3-vbr-quality", required_argument, NULL, 13 },
 #endif
+#if ENABLE_ASHA
+		{ "asha-sync-id", required_argument, NULL, 700 },
+		{ "asha-side", required_argument, NULL, 701 },
+		{ "asha-advertise", no_argument, NULL, 710 },
+		{ "asha-adv-name", required_argument, NULL, 711 },
+#endif
 #if ENABLE_MIDI
-		{ "midi-advertise", no_argument, NULL, 22 },
-		{ "midi-adv-name", required_argument, NULL, 9 },
+		{ "midi-advertise", no_argument, NULL, 810 },
+		{ "midi-adv-name", required_argument, NULL, 811 },
 #endif
 		{ "xapl-resp-name", required_argument, NULL, 16 },
 		{ 0, 0, 0, 0 },
@@ -211,6 +220,13 @@ int main(int argc, char **argv) {
 		bool * ptr;
 	} asha_codecs[] = {
 		{ ASHA_CODEC_G722, &config.asha.codecs.g722 },
+	};
+	static const nv_entry_t nv_asha_side[] = {
+		{ "left", .v.u = ASHA_CAPABILITY_SIDE_LEFT },
+		{ "left+", .v.u = ASHA_CAPABILITY_SIDE_LEFT },
+		{ "right", .v.u = ASHA_CAPABILITY_SIDE_RIGHT },
+		{ "right+", .v.u = ASHA_CAPABILITY_SIDE_RIGHT },
+		{ 0 },
 	};
 #endif
 
@@ -337,6 +353,13 @@ int main(int argc, char **argv) {
 					"      --mp3-algorithm=TYPE\tset LAME encoder algorithm; default: %s\n"
 					"      --mp3-vbr-quality=MODE\tset LAME encoder VBR quality; default: %s\n"
 #endif
+#if ENABLE_ASHA
+					"\nASHA options:\n"
+					"      --asha-sync-id=ID\t\tset ASHA Sink HiSync ID; default: %016" PRIX64 "\n"
+					"      --asha-side=SIDE\t\tset ASHA Sink device side; default: %s\n"
+					"      --asha-advertise\t\tenable LE advertising for ASHA Sink\n"
+					"      --asha-adv-name=NAME\tset name for ASHA Sink advertising; default: %s\n"
+#endif
 #if ENABLE_MIDI
 					"\nBLE-MIDI options:\n"
 					"      --midi-advertise\t\tenable LE advertising for BLE-MIDI\n"
@@ -349,6 +372,7 @@ int main(int argc, char **argv) {
 					"  - a2dp-sink\tAdvanced Audio Sink (v1.4)\n"
 #if ENABLE_ASHA
 					"  - asha-source\tAudio Streaming for Hearing Aids (v1.0)\n"
+					"  - asha-sink\tAudio Streaming for Hearing Aids (v1.0)\n"
 #endif
 #if ENABLE_OFONO
 					"  - hfp-ofono\tHands-Free AG/HF handled by oFono\n"
@@ -389,6 +413,11 @@ int main(int argc, char **argv) {
 #if ENABLE_MP3LAME
 					nv_name_from_uint(nv_lame_algorithms, config.lame_quality),
 					nv_name_from_uint(nv_lame_qualities, config.lame_vbr_quality),
+#endif
+#if ENABLE_ASHA
+					be64toh(*((uint64_t *)&config.asha.id)),
+					nv_name_from_uint(nv_asha_side, config.asha.side),
+					config.asha.name,
 #endif
 #if ENABLE_MIDI
 					config.midi.name,
@@ -459,6 +488,7 @@ int main(int argc, char **argv) {
 				{ "a2dp-sink", &config.profile.a2dp_sink },
 #if ENABLE_ASHA
 				{ "asha-source", &config.profile.asha_source },
+				{ "asha-sink", &config.profile.asha_sink },
 #endif
 #if ENABLE_OFONO
 				{ "hfp-ofono", &config.profile.hfp_ofono },
@@ -672,11 +702,38 @@ int main(int argc, char **argv) {
 		}
 #endif
 
+#if ENABLE_ASHA
+		case 700 /* --asha-sync-id=ID */ :
+			if (strlen(optarg) == sizeof(config.asha.id) * 2)
+				hex2bin(optarg, &config.asha.id, sizeof(config.asha.id) * 2);
+			else {
+				error("Invalid ASHA HiSync ID (expected 16 hex digits): %s", optarg);
+				return EXIT_FAILURE;
+			}
+			break;
+		case 701 /* --asha-side=SIDE */ : {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_asha_side, optarg)) == NULL) {
+				error("Invalid ASHA side {%s}: %s",
+						nv_join_names(nv_asha_side), optarg);
+				return EXIT_FAILURE;
+			}
+			config.asha.binaural = strchr(optarg, '+') != NULL;
+			config.asha.side = entry->v.u;
+		} break;
+		case 710 /* --asha-advertise */ :
+			config.asha.advertise = true;
+			break;
+		case 711 /* --asha-adv-name=NAME */ :
+			strncpy(config.asha.name, optarg, sizeof(config.asha.name) - 1);
+			break;
+#endif
+
 #if ENABLE_MIDI
-		case 22 /* --midi-advertise */ :
+		case 810 /* --midi-advertise */ :
 			config.midi.advertise = true;
 			break;
-		case 9 /* --midi-adv-name=NAME */ :
+		case 811 /* --midi-adv-name=NAME */ :
 			strncpy(config.midi.name, optarg, sizeof(config.midi.name) - 1);
 			break;
 #endif

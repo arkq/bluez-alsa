@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 SUBDIRS = shared
@@ -22,6 +22,8 @@ BUILT_SOURCES = \
 	dbus/org.bluez.c \
 	dbus/org.ofono.h \
 	dbus/org.ofono.c
+
+CODEGEN_DEFS =
 
 MOSTLYCLEANFILES = \
 	$(dist_dbusconf_DATA) \
@@ -82,9 +84,13 @@ libbluealsad_la_SOURCES += \
 endif
 
 if ENABLE_ASHA
+CODEGEN_DEFS += --define=ENABLE_GATT
 libbluealsad_la_SOURCES += \
 	asha-g722.c \
-	asha.c
+	asha.c \
+	bt-asha.c \
+	bt-advertising.c \
+	bt-gatt.c
 endif
 
 if ENABLE_FASTSTREAM
@@ -109,9 +115,10 @@ libbluealsad_la_SOURCES += \
 endif
 
 if ENABLE_MIDI
+CODEGEN_DEFS += --define=ENABLE_GATT
 libbluealsad_la_SOURCES += \
 	ble-midi.c \
-	bluez-midi.c \
+	bt-midi.c \
 	bt-advertising.c \
 	bt-gatt.c \
 	midi.c
@@ -199,11 +206,6 @@ DBUSCONF_SUBS = \
 
 .conf.in.conf:
 	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@
-
-CODEGEN_DEFS =
-if ENABLE_MIDI
-CODEGEN_DEFS += --define=ENABLE_MIDI
-endif
 
 .xml.h:
 	$(srcdir)/dbus/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \

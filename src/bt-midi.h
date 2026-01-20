@@ -1,12 +1,12 @@
 /*
- * BlueALSA - bluez-midi.h
+ * BlueALSA - bt-midi.h
  * SPDX-FileCopyrightText: 2023-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
 #pragma once
-#ifndef BLUEALSA_BLUEZ_MIDI_H_
-#define BLUEALSA_BLUEZ_MIDI_H_
+#ifndef BLUEALSA_BT_MIDI_H_
+#define BLUEALSA_BT_MIDI_H_
 
 #include <glib-object.h>
 #include <glib.h>

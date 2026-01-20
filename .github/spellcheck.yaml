@@ -52,6 +52,10 @@ matrix:
       # Ignore parameter name in docstring
       - open: '@param '
         close: '\W'
+      # Ignore UUID strings
+      - open: '[0-9a-f]{8}-[0-9a-f]{4}-'
+        content: '[0-9a-f]{4}-[0-9a-f]{4}-'
+        close: '[0-9a-f]{12}'
       # Ignore printf format placeholder
       - open: '%'
         content: '[0-9]*[#]*[lz]*'

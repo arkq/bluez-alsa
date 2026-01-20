@@ -211,7 +211,7 @@ _bluealsad() {
 			readarray -t COMPREPLY < <(compgen -P "$prefix" -W "${list[*]}" -- "$cur")
 			return
 			;;
-		--loglevel|--sbc-quality|--aac-latm-version|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality)
+		--loglevel|--sbc-quality|--aac-latm-version|--mp3-algorithm|--mp3-vbr-quality|--ldac-quality|--asha-side)
 			readarray -t list < <(_bluealsa_enum_values "$1" "$prev")
 			readarray -t COMPREPLY < <(compgen -W "${list[*]}" -- "$cur")
 			return

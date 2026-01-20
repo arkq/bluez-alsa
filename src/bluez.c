@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluez.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -39,9 +39,8 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
-#if ENABLE_MIDI
-# include "bluez-midi.h"
-#endif
+#include "bt-asha.h"
+#include "bt-midi.h"
 #include "dbus.h"
 #include "error.h"
 #include "hci.h"
@@ -83,18 +82,22 @@ struct bluez_dbus_object_data {
 /**
  * BlueALSA copy of BlueZ adapter data. */
 struct bluez_adapter {
-	/* reference to the adapter structure */
-	struct ba_adapter *adapter;
-	/* manager for media endpoint objects */
-	GDBusObjectManagerServer *manager_media_application;
-	/* manager for battery provider objects */
-	GDBusObjectManagerServer *manager_battery_provider;
+	/* Reference to the adapter structure. */
+	struct ba_adapter * adapter;
+	/* Manager for media endpoint objects. */
+	GDBusObjectManagerServer * manager_media_application;
+	/* Manager for battery provider objects. */
+	GDBusObjectManagerServer * manager_battery_provider;
+#if ENABLE_ASHA
+	/* Bluetooth ASHA based on BlueZ GATT application. */
+	BluetoothASHA * asha;
+#endif
 #if ENABLE_MIDI
 	/* Bluetooth LE MIDI based on BlueZ GATT application. */
 	BluetoothMIDI * midi;
 #endif
-	/* array of SEP configs per connected devices */
-	GHashTable *device_sep_configs_map;
+	/* Array of SEP configs per connected devices. */
+	GHashTable * device_sep_configs_map;
 };
 
 static pthread_mutex_t bluez_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -222,6 +225,14 @@ static void bluez_adapter_register_media_application(
  * to be available on the given adapter. */
 static void bluez_adapter_register_gatt_applications(
 		G_GNUC_UNUSED struct bluez_adapter * b_adapter) {
+#if ENABLE_ASHA
+	if (config.profile.asha_sink) {
+		char path[64];
+		struct ba_adapter * a = b_adapter->adapter;
+		snprintf(path, sizeof(path), "/org/bluez/%s/ASHA", a->hci.name);
+		b_adapter->asha = bluetooth_asha_new(a, path);
+	}
+#endif
 #if ENABLE_MIDI
 	if (config.profile.midi) {
 		char path[64];
@@ -236,6 +247,9 @@ static void bluez_adapter_free(
 		struct bluez_adapter * b_adapter) {
 	if (b_adapter->adapter == NULL)
 		return;
+#if ENABLE_ASHA
+	g_clear_object(&b_adapter->asha);
+#endif
 #if ENABLE_MIDI
 	g_clear_object(&b_adapter->midi);
 #endif
@@ -1294,9 +1308,9 @@ static void bluez_media_endpoint_process_asha(
 		goto fail;
 	}
 
-	/* Make sure that HiSyncId size is valid. */
+	/* Make sure that HiSync ID size is valid. */
 	if (id_size != sizeof(asha_hi_sync_id_t)) {
-		error("Invalid HiSyncId size: %zu != %zu", id_size, sizeof(asha_hi_sync_id_t));
+		error("Invalid HiSync ID size: %zu != %zu", id_size, sizeof(asha_hi_sync_id_t));
 		goto fail;
 	}
 

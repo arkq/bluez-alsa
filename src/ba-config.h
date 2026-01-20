@@ -23,6 +23,8 @@
 #include <gio/gio.h>
 #include <glib.h>
 
+#include "shared/bluetooth-asha.h"
+
 struct ba_config {
 
 	/* set of enabled profiles */
@@ -120,11 +122,26 @@ struct ba_config {
 		bool force_44100;
 
 	} a2dp;
+
 #if ENABLE_ASHA
 	struct {
+
+		/* Device ID. */
+		asha_hi_sync_id_t id;
+		/* The side of the device. */
+		unsigned int side;
+		/* Indicates whether the device is part of a binaural set. */
+		bool binaural;
+
 		struct {
 			bool g722;
 		} codecs;
+
+		/* Advertise ASHA via LE advertisement. */
+		bool advertise;
+		/* Name used in the LE advertisement. */
+		char name[16];
+
 	} asha;
 #endif
 

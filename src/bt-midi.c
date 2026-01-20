@@ -1,10 +1,10 @@
 /*
- * BlueALSA - bluez-midi.c
+ * BlueALSA - bt-midi.c
  * SPDX-FileCopyrightText: 2023-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
-#include "bluez-midi.h"
+#include "bt-midi.h"
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -14,7 +14,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -32,15 +31,12 @@
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "ble-midi.h"
-#include "bluez.h"
 #include "bluez-iface.h"
 #include "bt-advertising.h"
 #include "bt-gatt.h"
-#include "dbus.h"
 #include "midi.h"
 #include "utils.h"
 #include "shared/bluetooth.h"
-#include "shared/defs.h"
 #include "shared/log.h"
 
 /**
@@ -118,17 +114,26 @@ fail:
 	return t;
 }
 
+/**
+ * Extract MTU from characteristic parameters. */
+static uint16_t chr_get_mtu(GDBusMethodInvocation * inv) {
+
+	GVariant * params = g_dbus_method_invocation_get_parameters(inv);
+	g_autoptr(GVariant) params_ = g_variant_get_child_value(params, 0);
+
+	uint16_t mtu;
+	if (!g_variant_lookup(params_, "mtu", "q", &mtu))
+		/* Fallback to minimum ATT MTU. */
+		return 23;
+	return mtu;
+}
+
 static bool midi_characteristic_read_value(
 		G_GNUC_UNUSED BluetoothGATTCharacteristic * chr,
 		GDBusMethodInvocation * inv, G_GNUC_UNUSED void * userdata) {
 	GVariant * rv = g_variant_new_fixed_byte_array(NULL /* empty reply */, 0);
 	g_dbus_method_invocation_return_value(inv, g_variant_new_tuple(&rv, 1));
 	return true;
-}
-
-static bool midi_chr_params_get_mtu(GVariant * params, uint16_t * mtu) {
-	g_autoptr(GVariant) params_ = g_variant_get_child_value(params, 0);
-	return g_variant_lookup(params_, "mtu", "q", mtu) == TRUE;
 }
 
 /* Unfortunately, BlueZ doesn't provide any meaningful information about the
@@ -144,14 +149,8 @@ static bool midi_characteristic_acquire_write(
 		GDBusMethodInvocation * inv, void * userdata) {
 	BluetoothMIDI * midi = userdata;
 
-	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct ba_transport *t = midi->t;
-
-	uint16_t mtu = 0;
-	if (!midi_chr_params_get_mtu(params, &mtu)) {
-		error("Couldn't acquire BLE-MIDI char write: %s", "Invalid options");
-		goto fail;
-	}
+	struct ba_transport * t = midi->t;
+	uint16_t mtu = chr_get_mtu(inv);
 
 	int fds[2];
 	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
@@ -204,14 +203,8 @@ static bool midi_characteristic_acquire_notify(
 		GDBusMethodInvocation * inv, void * userdata) {
 	BluetoothMIDI * midi = userdata;
 
-	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct ba_transport *t = midi->t;
-
-	uint16_t mtu = 0;
-	if (!midi_chr_params_get_mtu(params, &mtu)) {
-		error("Couldn't acquire BLE-MIDI char notify: %s", "Invalid options");
-		goto fail;
-	}
+	struct ba_transport * t = midi->t;
+	uint16_t mtu = chr_get_mtu(inv);
 
 	int fds[2];
 	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
