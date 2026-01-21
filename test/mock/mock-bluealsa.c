@@ -55,6 +55,7 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
+#include "utils.h"
 
 #include "inc/sine.inc"
 #include "service.h"
@@ -235,11 +236,7 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 
 	debug("New SCO link: %s: %d", batostr_(&t->d->addr), t->bt_fd);
 
-	g_autoptr(GIOChannel) ch = g_io_channel_unix_new(bt_fds[1]);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_set_buffered(ch, FALSE);
-
+	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(bt_fds[1]);
 	g_autoptr(GSource) watch = g_io_create_watch(ch, G_IO_IN | G_IO_HUP | G_IO_ERR);
 	g_source_set_callback(watch, G_SOURCE_FUNC(channel_drain_callback), NULL, NULL);
 	g_source_attach(watch, NULL);

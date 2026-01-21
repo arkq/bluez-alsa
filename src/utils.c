@@ -62,7 +62,7 @@ bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
  *
  * @param path D-Bus object path.
  * @return Pointer to the object path string. */
-char *g_variant_sanitize_object_path(char *path) {
+char * g_variant_sanitize_object_path(char * path) {
 
 	char *tmp = path - 1;
 
@@ -74,19 +74,46 @@ char *g_variant_sanitize_object_path(char *path) {
 }
 
 /**
+ * Create a new byte array GVariant from raw data.
+ *
+ * @param data Pointer to the raw data.
+ * @param size Size of the data in bytes.
+ * @return New GVariant byte array. */
+GVariant * g_variant_new_fixed_byte_array(const void * data, size_t len) {
+	return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, data, len, sizeof(uint8_t));
+}
+
+/**
  * Convenience wrapper around g_variant_is_of_type().
  *
  * @param value Variant for validation.
  * @param type Expected variant type.
  * @param name Variant name for logging.
  * @return If variant matches type, this function returns true. */
-bool g_variant_validate_value(GVariant *value, const GVariantType *type,
-		const char *name) {
+bool g_variant_validate_value(GVariant * value, const GVariantType * type,
+		const char * name) {
 	if (g_variant_is_of_type(value, type))
 		return true;
 	warn("Invalid variant type: %s: %s != %s", name,
 			g_variant_get_type_string(value), (const char *)type);
 	return false;
+}
+
+/**
+ * Create a new IO channel for raw (unbuffered, no encoding) access.
+ *
+ * The returned IO channel takes ownership of the given file descriptor - the
+ * file descriptor will be closed when the channel is freed. Users can disable
+ * this by calling g_io_channel_set_close_on_unref() on the returned channel.
+ *
+ * @param fd File descriptor.
+ * @return New raw IO channel. */
+GIOChannel * g_io_channel_unix_raw_new(int fd) {
+	GIOChannel * ch = g_io_channel_unix_new(fd);
+	g_io_channel_set_close_on_unref(ch, TRUE);
+	g_io_channel_set_encoding(ch, NULL, NULL);
+	g_io_channel_set_buffered(ch, FALSE);
+	return ch;
 }
 
 /**
@@ -99,9 +126,9 @@ bool g_variant_validate_value(GVariant *value, const GVariantType *type,
  * @param userdata Data to pass to the function.
  * @param notify Function to call when the source is destroyed.
  * @return New watch source. */
-GSource *g_io_create_watch_full(GIOChannel *channel, int priority,
-		GIOCondition cond, GIOFunc func, void *userdata, GDestroyNotify notify) {
-	GSource *watch = g_io_create_watch(channel, cond);
+GSource * g_io_create_watch_full(GIOChannel * channel, int priority,
+		GIOCondition cond, GIOFunc func, void * userdata, GDestroyNotify notify) {
+	GSource * watch = g_io_create_watch(channel, cond);
 	g_source_set_callback(watch, G_SOURCE_FUNC(func), userdata, notify);
 	g_source_set_priority(watch, priority);
 	g_source_attach(watch, NULL);

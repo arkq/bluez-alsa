@@ -297,8 +297,8 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t))
-		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &t->media.a2dp.configuration,
-				t->media.a2dp.sep->config.caps_size, sizeof(uint8_t));
+		return g_variant_new_fixed_byte_array(&t->media.a2dp.configuration,
+				t->media.a2dp.sep->config.caps_size);
 	return NULL;
 }
 
@@ -329,7 +329,7 @@ static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
 		volume[i] = ba_volume_pack_dbus_volume(pcm->volume[i].scale == 0,
 				ba_transport_pcm_volume_level_to_range(pcm->volume[i].level, max));
 
-	return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, volume, n, sizeof(*volume));
+	return g_variant_new_fixed_byte_array(volume, n);
 }
 
 struct ba_populate_data {
@@ -380,8 +380,8 @@ static void ba_variant_populate_remote_sep(GVariantBuilder *props,
 	a2dp_t caps = remote_sep_cfg->capabilities;
 	sep->caps_helpers->intersect(&caps, &sep->config.capabilities);
 
-	g_variant_builder_add(props, "{sv}", "Capabilities", g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, &caps, remote_sep_cfg->caps_size, sizeof(uint8_t)));
+	g_variant_builder_add(props, "{sv}", "Capabilities",
+				g_variant_new_fixed_byte_array(&caps, remote_sep_cfg->caps_size));
 
 	data.value = 0;
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("ay"));
@@ -574,11 +574,7 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	/* set newly opened PCM as active */
 	pcm->paused = false;
 
-	GIOChannel *ch = g_io_channel_unix_new(pcm_fds[2]);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_set_buffered(ch, FALSE);
-
+	GIOChannel * ch = g_io_channel_unix_raw_new(pcm_fds[2]);
 	pcm->controller = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
 			G_IO_IN, bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
 			(GDestroyNotify)ba_transport_pcm_unref);
@@ -682,11 +678,11 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 		g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 		const uint8_t channels[] = { 1 };
-		g_variant_builder_add(&props, "{sv}", "Channels", g_variant_new_fixed_array(
-					G_VARIANT_TYPE_BYTE, channels, 1, sizeof(*channels)));
+		g_variant_builder_add(&props, "{sv}", "Channels",
+					g_variant_new_fixed_byte_array(channels, 1));
 		const uint32_t rates[] = { 16000 };
-		g_variant_builder_add(&props, "{sv}", "Rates", g_variant_new_fixed_array(
-					G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
+		g_variant_builder_add(&props, "{sv}", "Rates",
+					g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
 
 		g_variant_builder_add(&codecs, "{sa{sv}}",
 				asha_codec_id_to_string(ASHA_CODEC_G722), &props);
@@ -737,11 +733,11 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 				g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 				const uint8_t channels[] = { 1 };
-				g_variant_builder_add(&props, "{sv}", "Channels", g_variant_new_fixed_array(
-							G_VARIANT_TYPE_BYTE, channels, 1, sizeof(*channels)));
+				g_variant_builder_add(&props, "{sv}", "Channels",
+							g_variant_new_fixed_byte_array(channels, 1));
 				const uint32_t rates[] = { sco_codecs[i].rate };
-				g_variant_builder_add(&props, "{sv}", "Rates", g_variant_new_fixed_array(
-							G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
+				g_variant_builder_add(&props, "{sv}", "Rates",
+							g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
 
 				g_variant_builder_add(&codecs, "{sa{sv}}",
 						hfp_codec_id_to_string(sco_codecs[i].codec_id), &props);

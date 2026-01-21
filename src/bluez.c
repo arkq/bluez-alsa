@@ -443,9 +443,8 @@ static void bluez_endpoint_select_configuration(GDBusMethodInvocation *inv, void
 	if (a2dp_select_configuration(sep, &capabilities, size) != ERROR_CODE_OK)
 		goto fail;
 
-	GVariant *rv[] = {
-		g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, &capabilities, size, sizeof(uint8_t)) };
-	g_dbus_method_invocation_return_value(inv, g_variant_new_tuple(rv, 1));
+	GVariant * rv = g_variant_new_fixed_byte_array(&capabilities, size);
+	g_dbus_method_invocation_return_value(inv, g_variant_new_tuple(&rv, 1));
 
 	return;
 
@@ -702,8 +701,7 @@ static GVariant *bluez_media_endpoint_iface_get_property(
 		return g_variant_new_uint32(sep->config.codec_id);
 	}
 	if (strcmp(property, "Capabilities") == 0)
-		return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE,
-				&sep->config.capabilities, sep->config.caps_size, sizeof(uint8_t));
+		return g_variant_new_fixed_byte_array(&sep->config.capabilities, sep->config.caps_size);
 	if (strcmp(property, "Device") == 0) {
 		if (!dbus_obj->connected)
 			goto unavailable;
@@ -1898,8 +1896,8 @@ bool bluez_a2dp_set_configuration(
 
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
-	g_variant_builder_add(&props, "{sv}", "Capabilities", g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, configuration, remote_sep_cfg->caps_size, sizeof(uint8_t)));
+	g_variant_builder_add(&props, "{sv}", "Capabilities",
+				g_variant_new_fixed_byte_array(configuration, remote_sep_cfg->caps_size));
 
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
 			remote_sep_cfg->bluez_dbus_path, BLUEZ_IFACE_MEDIA_ENDPOINT, "SetConfiguration");

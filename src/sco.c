@@ -156,11 +156,7 @@ error_code_t sco_setup_connection_dispatcher(struct ba_adapter * a) {
 	if (listen(fd, 10) == -1)
 		return close(fd), ERROR_SYSTEM(errno);
 
-	GIOChannel * ch = g_io_channel_unix_new(fd);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_set_buffered(ch, FALSE);
-
+	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(fd);
 	/* Attach SCO dispatcher to the default main context. Please note,
 	 * that the adapter is not referenced. It is guaranteed that it will be
 	 * available during the whole live-span of the dispatcher, because the
@@ -168,7 +164,6 @@ error_code_t sco_setup_connection_dispatcher(struct ba_adapter * a) {
 	 * see the ba_adapter_unref() function. */
 	a->sco_dispatcher = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
 			G_IO_IN, sco_connection_dispatcher, a, NULL);
-	g_io_channel_unref(ch);
 
 	debug("Created SCO dispatcher: %s", a->hci.name);
 	return ERROR_CODE_OK;

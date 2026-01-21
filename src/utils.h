@@ -22,12 +22,14 @@
 int g_dbus_bluez_object_path_to_hci_dev_id(const char *path);
 bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr);
 
-char *g_variant_sanitize_object_path(char *path);
-bool g_variant_validate_value(GVariant *value, const GVariantType *type,
-		const char *name);
+char * g_variant_sanitize_object_path(char * path);
+GVariant * g_variant_new_fixed_byte_array(const void * data, size_t len);
+bool g_variant_validate_value(GVariant * value, const GVariantType * type,
+		const char * name);
 
-GSource *g_io_create_watch_full(GIOChannel *channel, int priority,
-		GIOCondition cond, GIOFunc func, void *userdata, GDestroyNotify notify);
+GIOChannel * g_io_channel_unix_raw_new(int fd);
+GSource * g_io_create_watch_full(GIOChannel * channel, int priority,
+		GIOCondition cond, GIOFunc func, void * userdata, GDestroyNotify notify);
 
 unsigned int g_bdaddr_hash(const void *v);
 gboolean g_bdaddr_equal(const void *v1, const void *v2);

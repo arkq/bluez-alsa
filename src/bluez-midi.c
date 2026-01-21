@@ -133,10 +133,9 @@ static GDBusObjectSkeleton * bluez_midi_service_skeleton_new(
 }
 
 static void bluez_midi_characteristic_read_value(
-		GDBusMethodInvocation *inv, G_GNUC_UNUSED void *userdata) {
-	GVariant *rv[] = { /* respond with no payload */
-		g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, NULL, 0, sizeof(uint8_t)) };
-	g_dbus_method_invocation_return_value(inv, g_variant_new_tuple(rv, 1));
+		GDBusMethodInvocation * inv, G_GNUC_UNUSED void * userdata) {
+	GVariant * rv = g_variant_new_fixed_byte_array(NULL /* empty reply */, 0);
+	g_dbus_method_invocation_return_value(inv, g_variant_new_tuple(&rv, 1));
 }
 
 static bool bluez_midi_params_get_mtu(GVariant *params, uint16_t *mtu) {
@@ -241,7 +240,7 @@ static void bluez_midi_characteristic_acquire_notify(
 
 	/* Setup IO watch for checking HUP condition on the socket. HUP means
 	 * that the client does not want to receive notifications anymore. */
-	GIOChannel *ch = g_io_channel_unix_new(fds[0]);
+	GIOChannel * ch = g_io_channel_unix_raw_new(dup(fds[0]));
 	app->notify_watch_hup = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
 			G_IO_HUP, bluez_midi_characteristic_release_notify, app, NULL);
 	g_io_channel_unref(ch);

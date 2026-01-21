@@ -25,6 +25,7 @@
 #include "error.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "utils.h"
 
 /**
  * BlueZ LE advertisement configuration. */
@@ -97,9 +98,8 @@ static GVariant * advertisement_iface_get_property(
 		GVariantBuilder builder;
 		g_variant_builder_init(&builder, G_VARIANT_TYPE_VARDICT);
 		if (adv->service_data_len > 0) {
-			GVariant * array = g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE,
-					adv->service_data, adv->service_data_len, sizeof(uint8_t));
-			g_variant_builder_add(&builder, "{sv}", adv->uuid, array);
+			g_variant_builder_add(&builder, "{sv}", adv->uuid,
+					g_variant_new_fixed_byte_array(adv->service_data, adv->service_data_len));
 		}
 		return g_variant_builder_end(&builder);
 	}

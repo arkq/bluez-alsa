@@ -21,6 +21,7 @@
 #include "shared/bluetooth.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "utils.h"
 
 #include "dbus-ifaces.h"
 
@@ -243,8 +244,8 @@ void mock_bluez_service_device_add_media_endpoint(BlueZMockService * srv,
 	g_autoptr(MockBluezMediaEndpoint1) endpoint = mock_bluez_media_endpoint1_skeleton_new();
 	mock_bluez_media_endpoint1_set_uuid(endpoint, uuid);
 	mock_bluez_media_endpoint1_set_codec(endpoint, codec_id);
-	mock_bluez_media_endpoint1_set_capabilities(endpoint, g_variant_new_fixed_array(
-				G_VARIANT_TYPE_BYTE, capabilities, capabilities_size, sizeof(uint8_t)));
+	mock_bluez_media_endpoint1_set_capabilities(endpoint,
+				g_variant_new_fixed_byte_array(capabilities, capabilities_size));
 	mock_bluez_media_endpoint1_set_device(endpoint, device_path);
 
 	g_signal_connect(endpoint, "handle-set-configuration",
@@ -266,11 +267,7 @@ static gboolean media_transport_acquire_handler(MockBluezMediaTransport1 * trans
 	mock_bluez_media_transport1_complete_try_acquire(transport, invocation,
 			fd_list, g_variant_new_handle(0), 256, 256);
 
-	g_autoptr(GIOChannel) ch = g_io_channel_unix_new(fds[1]);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_set_buffered(ch, FALSE);
-
+	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(fds[1]);
 	g_autoptr(GSource) watch = g_io_create_watch(ch, G_IO_IN | G_IO_HUP | G_IO_ERR);
 	g_source_set_callback(watch, G_SOURCE_FUNC(channel_drain_callback), NULL, NULL);
 	g_source_attach(watch, NULL);
@@ -376,11 +373,7 @@ void mock_bluez_service_device_profile_new_connection(BlueZMockService * srv,
 			device_path, g_variant_new_handle(0), g_variant_new("a{sv}", NULL),
 			fd_list, NULL, profile_new_connection_finish, ready);
 
-	g_autoptr(GIOChannel) ch = g_io_channel_unix_new(fds[1]);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_set_buffered(ch, FALSE);
-
+	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(fds[1]);
 	g_autoptr(GSource) watch = g_io_create_watch(ch, G_IO_IN);
 	g_source_set_callback(watch, G_SOURCE_FUNC(profile_rfcomm_callback), self, NULL);
 	g_source_attach(watch, NULL);
@@ -428,8 +421,8 @@ void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
 			g_variant_builder_add(props, "{sv}", "Device", g_variant_new_object_path(
 						mock_bluez_media_transport1_get_device(transport)));
 			g_variant_builder_add(props, "{sv}", "Codec", g_variant_new_byte(codec));
-			g_variant_builder_add(props, "{sv}", "Configuration", g_variant_new_fixed_array(
-						G_VARIANT_TYPE_BYTE, configuration, configuration_size, sizeof(uint8_t)));
+			g_variant_builder_add(props, "{sv}", "Configuration",
+						g_variant_new_fixed_byte_array(configuration, configuration_size));
 			g_variant_builder_add(props, "{sv}", "State", g_variant_new_string(
 						mock_bluez_media_transport1_get_state(transport)));
 			g_variant_builder_add(props, "{sv}", "Delay", g_variant_new_uint16(100));
@@ -470,8 +463,7 @@ void mock_bluez_service_device_add_asha_transport(BlueZMockService * srv,
 	mock_bluez_media_endpoint1_set_uuid(endpoint, BT_UUID_ASHA);
 	mock_bluez_media_endpoint1_set_side(endpoint, side);
 	mock_bluez_media_endpoint1_set_binaural(endpoint, binaural);
-	mock_bluez_media_endpoint1_set_hi_sync_id(endpoint,
-			g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, sync_id, 8, sizeof(uint8_t)));
+	mock_bluez_media_endpoint1_set_hi_sync_id(endpoint, g_variant_new_fixed_byte_array(sync_id, 8));
 	mock_bluez_media_endpoint1_set_codecs(endpoint, 0x02 /* G722 codec */);
 	mock_bluez_media_endpoint1_set_device(endpoint, device_path);
 	mock_bluez_media_endpoint1_set_transport(endpoint, asha_transport_path);

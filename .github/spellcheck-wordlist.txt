@@ -127,6 +127,7 @@ sys
 syslog
 tmp
 tty
+unbuffered
 unexported
 unmute
 unmutes
@@ -215,6 +216,7 @@ fs
 GDBusConnection
 GError
 GHashTable
+GVariant
 hciconfig
 hcitop
 hciX

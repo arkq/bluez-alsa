@@ -255,13 +255,10 @@ int midi_transport_start_watch_alsa_seq(struct ba_transport *t) {
 
 	debug("Starting ALSA sequencer IO watch: %d", pfd.fd);
 
-	GIOChannel *ch = g_io_channel_unix_new(pfd.fd);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_set_buffered(ch, FALSE);
+	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(dup(pfd.fd));
 	t->midi.watch_seq = g_io_create_watch_full(ch, G_PRIORITY_HIGH,
 			G_IO_IN, midi_watch_read_alsa_seq, ba_transport_ref(t),
 			(GDestroyNotify)ba_transport_unref);
-	g_io_channel_unref(ch);
 
 	ble_midi_encode_init(&t->midi.ble_encoder);
 
@@ -272,14 +269,10 @@ int midi_transport_start_watch_ble_midi(struct ba_transport *t) {
 
 	debug("Starting BLE-MIDI IO watch: %d", t->midi.ble_fd_write);
 
-	GIOChannel *ch = g_io_channel_unix_new(t->midi.ble_fd_write);
-	g_io_channel_set_close_on_unref(ch, TRUE);
-	g_io_channel_set_encoding(ch, NULL, NULL);
-	g_io_channel_set_buffered(ch, FALSE);
+	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(t->midi.ble_fd_write);
 	t->midi.watch_ble = g_io_create_watch_full(ch, G_PRIORITY_HIGH,
 			G_IO_IN, midi_watch_read_ble_midi, ba_transport_ref(t),
 			(GDestroyNotify)ba_transport_unref);
-	g_io_channel_unref(ch);
 
 	ble_midi_decode_init(&t->midi.ble_decoder);
 	snd_seq_start_queue(t->midi.seq, t->midi.seq_queue, NULL);
