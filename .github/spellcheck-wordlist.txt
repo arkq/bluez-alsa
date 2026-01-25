@@ -174,6 +174,8 @@ BTRH
 BTT
 bttransport
 btusb
+# aspell considers PIPE_BUF to be 2 words :(
+BUF
 CCE
 CIEV
 CIND
@@ -202,6 +204,7 @@ eoc
 EP
 EPIPE
 EPMR
+epoll
 EQMID
 errno
 FB
