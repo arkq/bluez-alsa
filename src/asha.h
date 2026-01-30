@@ -1,6 +1,6 @@
 /*
  * BlueALSA - asha.h
- * SPDX-FileCopyrightText: 2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2025-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -15,10 +15,6 @@
 #include <stdint.h>
 
 #include "ba-transport.h"
-
-/* ASHA codec IDs */
-#define ASHA_CODEC_UNDEFINED 0x00
-#define ASHA_CODEC_G722      (1 << 1)
 
 uint8_t asha_codec_id_from_string(const char * alias);
 const char * asha_codec_id_to_string(uint8_t codec_id);

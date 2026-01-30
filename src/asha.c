@@ -14,6 +14,7 @@
 
 #include "asha-g722.h"
 #include "ba-transport-pcm.h"
+#include "shared/bluetooth-asha.h"
 
 /**
  * Get ASHA codec ID from string representation.

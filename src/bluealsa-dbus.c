@@ -42,6 +42,7 @@
 #include "hfp.h"
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-asha.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 

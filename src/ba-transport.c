@@ -44,6 +44,7 @@
 #include "midi.h"
 #include "sco.h"
 #include "storage.h"
+#include "shared/bluetooth-asha.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
@@ -480,7 +481,7 @@ struct ba_transport * ba_transport_new_asha(
 		enum ba_transport_profile profile,
 		const char * dbus_owner,
 		const char * dbus_path,
-		const uint8_t id[8]) {
+		asha_hi_sync_id_t id) {
 
 	const bool is_sink = profile & BA_TRANSPORT_PROFILE_ASHA_SINK;
 	struct ba_transport * t;
@@ -493,7 +494,7 @@ struct ba_transport * ba_transport_new_asha(
 	/* There is only one ASHA codec, so we can hardcode it. */
 	t->codec_id = ASHA_CODEC_G722;
 
-	memcpy(t->media.asha.id, id, sizeof(t->media.asha.id));
+	t->media.asha.id = id;
 
 	pthread_cond_init(&t->media.state_changed_cond, NULL);
 	t->media.state = BLUEZ_MEDIA_TRANSPORT_STATE_IDLE;

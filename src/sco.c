@@ -49,7 +49,7 @@ static int sco_connection_dispatcher(
 	struct ba_transport * t = NULL;
 	int fd = -1;
 
-	struct sockaddr_sco addr;
+	struct sockaddr_sco addr = { 0 };
 	socklen_t addrlen = sizeof(addr);
 	if ((fd = accept(listen_fd, (struct sockaddr *)&addr, &addrlen)) == -1) {
 		error("Couldn't accept incoming SCO link: %s", strerror(errno));
@@ -58,7 +58,7 @@ static int sco_connection_dispatcher(
 
 	char addrstr[18];
 	ba2str(&addr.sco_bdaddr, addrstr);
-	debug("New incoming SCO link: %s: %d", addrstr, fd);
+	debug("New incoming SCO link [%s]: %d", addrstr, fd);
 
 	if ((d = ba_device_lookup(a, &addr.sco_bdaddr)) == NULL) {
 		error("Couldn't lookup device: %s", addrstr);

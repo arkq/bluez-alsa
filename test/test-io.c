@@ -87,6 +87,7 @@
 #endif
 #include "storage.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-asha.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -753,7 +754,7 @@ static struct ba_transport * test_transport_new_asha(
 		struct ba_device * device,
 		enum ba_transport_profile profile,
 		const char * dbus_path,
-		const uint8_t id[8]) {
+		asha_hi_sync_id_t id) {
 	struct ba_transport * t;
 	ck_assert_ptr_nonnull(t = ba_transport_new_asha(device, profile, ":test",
 				dbus_path, id));
@@ -1394,7 +1395,8 @@ CK_START_TEST(test_a2dp_opus) {
 #if ENABLE_ASHA
 CK_START_TEST(test_asha_g722) {
 
-	const uint8_t id[8] = { 0xF1, 0x05, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+	asha_hi_sync_id_t id = ASHA_HI_SYNC_ID_INIT(
+			BT_COMPID_LINUX_FOUNDATION, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66);
 	struct ba_transport * t1 = test_transport_new_asha(device1,
 			BA_TRANSPORT_PROFILE_ASHA_SOURCE, "/path/asha/g722", id);
 	struct ba_transport * t2 = test_transport_new_asha(device2,

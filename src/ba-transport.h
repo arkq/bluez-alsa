@@ -27,6 +27,7 @@
 #include "ble-midi.h"
 #include "bluez.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-asha.h"
 #include "shared/rc.h"
 
 enum ba_transport_thread_manager_command {
@@ -172,8 +173,8 @@ struct ba_transport {
 				} a2dp;
 #if ENABLE_ASHA
 				struct {
-					uint8_t id[8];
-					bool right;
+					asha_hi_sync_id_t id;
+					unsigned int side;
 					bool binaural;
 				} asha;
 #endif
@@ -261,7 +262,7 @@ struct ba_transport * ba_transport_new_asha(
 		enum ba_transport_profile profile,
 		const char * dbus_owner,
 		const char * dbus_path,
-		const uint8_t id[8]);
+		asha_hi_sync_id_t id);
 #endif
 struct ba_transport * ba_transport_new_sco(
 		struct ba_device * device,

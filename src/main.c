@@ -50,6 +50,7 @@
 #include "storage.h"
 #include "upower.h"
 #include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-asha.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/nv.h"
@@ -203,6 +204,15 @@ int main(int argc, char **argv) {
 		{ "xapl-resp-name", required_argument, NULL, 16 },
 		{ 0, 0, 0, 0 },
 	};
+
+#if ENABLE_ASHA
+	static const struct {
+		uint32_t codec_id;
+		bool * ptr;
+	} asha_codecs[] = {
+		{ ASHA_CODEC_G722, &config.asha.codecs.g722 },
+	};
+#endif
 
 	static const struct {
 		uint32_t codec_id;
@@ -495,6 +505,15 @@ int main(int argc, char **argv) {
 					matched = true;
 				}
 
+#if ENABLE_ASHA
+			codec_id = asha_codec_id_from_string(optarg);
+			for (size_t i = 0; i < ARRAYSIZE(asha_codecs); i++)
+				if (asha_codecs[i].codec_id == codec_id) {
+					*asha_codecs[i].ptr = enable;
+					matched = true;
+				}
+#endif
+
 			codec_id = hfp_codec_id_from_string(optarg);
 			for (size_t i = 0; i < ARRAYSIZE(hfp_codecs); i++)
 				if (hfp_codecs[i].codec_id == codec_id) {
@@ -514,6 +533,10 @@ int main(int argc, char **argv) {
 			struct a2dp_sep * const * seps = a2dp_seps;
 			for (struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps)
 				sep->enabled = true;
+#if ENABLE_ASHA
+			for (size_t i = 0; i < ARRAYSIZE(asha_codecs); i++)
+				*asha_codecs[i].ptr = true;
+#endif
 			for (size_t i = 0; i < ARRAYSIZE(hfp_codecs); i++)
 				*hfp_codecs[i].ptr = true;
 			break;
@@ -712,6 +735,9 @@ int main(int argc, char **argv) {
 	/* Make sure that mandatory codecs are enabled. */
 	a2dp_sbc_source.enabled = true;
 	a2dp_sbc_sink.enabled = true;
+#if ENABLE_ASHA
+	config.asha.codecs.g722 = true;
+#endif
 	config.hfp.codecs.cvsd = true;
 
 	if (a2dp_seps_init() != ERROR_CODE_OK)

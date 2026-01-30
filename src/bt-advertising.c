@@ -172,7 +172,7 @@ BluetoothAdvertising * bluetooth_advertising_new(
  * @return ERROR_CODE_OK on success, otherwise an appropriate error code. */
 error_code_t bluetooth_advertising_set_service_data(
 		BluetoothAdvertising * adv,
-		const uint8_t * data,
+		const void * data,
 		size_t len) {
 
 	if (len > sizeof(adv->service_data))

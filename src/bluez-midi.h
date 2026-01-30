@@ -8,7 +8,6 @@
 #ifndef BLUEALSA_BLUEZ_MIDI_H_
 #define BLUEALSA_BLUEZ_MIDI_H_
 
-#include <gio/gio.h>
 #include <glib-object.h>
 #include <glib.h>
 

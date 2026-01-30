@@ -120,12 +120,19 @@ struct ba_config {
 		bool force_44100;
 
 	} a2dp;
+#if ENABLE_ASHA
+	struct {
+		struct {
+			bool g722;
+		} codecs;
+	} asha;
+#endif
 
 #if ENABLE_MIDI
 	struct {
-		/* advertise BLE-MIDI via LE advertisement */
+		/* Advertise BLE-MIDI via LE advertisement. */
 		bool advertise;
-		/* name used in the BLE-MIDI advertisement */
+		/* Name used in the LE advertisement. */
 		char name[16];
 	} midi;
 #endif

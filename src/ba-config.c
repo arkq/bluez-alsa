@@ -73,6 +73,10 @@ struct ba_config config = {
 	.a2dp.force_mono = false,
 	.a2dp.force_44100 = false,
 
+#if ENABLE_ASHA
+	.asha.codecs.g722 = true,
+#endif
+
 #if ENABLE_MIDI
 	.midi.advertise = false,
 	.midi.name = "BlueALSA MIDI",

@@ -177,9 +177,6 @@ void * asha_g722_dec_thread(struct ba_transport_pcm * t_pcm) {
 			goto fail;
 		}
 
-		if (!ba_transport_pcm_is_active(t_pcm))
-			continue;
-
 		uint8_t hdr_seq_number = ((uint8_t *)bt.data)[0];
 		const uint8_t * payload = (uint8_t *)bt.data + 1;
 		size_t payload_len = len - 1;
@@ -191,6 +188,9 @@ void * asha_g722_dec_thread(struct ba_transport_pcm * t_pcm) {
 					hdr_seq_number, expect_seq_number, missing_asha_frames);
 			seq_number = hdr_seq_number + 1;
 		}
+
+		if (!ba_transport_pcm_is_active(t_pcm))
+			continue;
 
 		size_t samples = g722_decode(state, pcm.data, payload, payload_len);
 

@@ -49,6 +49,7 @@
 #include "utils.h"
 #include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
+#include "shared/bluetooth-asha.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -1293,6 +1294,12 @@ static void bluez_media_endpoint_process_asha(
 		goto fail;
 	}
 
+	/* Make sure that HiSyncId size is valid. */
+	if (id_size != sizeof(asha_hi_sync_id_t)) {
+		error("Invalid HiSyncId size: %zu != %zu", id_size, sizeof(asha_hi_sync_id_t));
+		goto fail;
+	}
+
 	bdaddr_t addr;
 	g_dbus_bluez_object_path_to_bdaddr(media_endpoint_path, &addr);
 	if ((d = ba_device_lookup(b_adapter->adapter, &addr)) == NULL &&
@@ -1306,15 +1313,17 @@ static void bluez_media_endpoint_process_asha(
 		goto fail;
 	}
 
+	asha_hi_sync_id_t tmp;
+	memcpy(&tmp, id, sizeof(tmp));
 	if ((t = ba_transport_new_asha(d, BA_TRANSPORT_PROFILE_ASHA_SOURCE,
-					BLUEZ_SERVICE, transport_path, id)) == NULL) {
+					BLUEZ_SERVICE, transport_path, tmp)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
 
 	t->media.delay = delay;
 	t->media.volume = volume;
-	t->media.asha.right = right;
+	t->media.asha.side = right ? ASHA_CAPABILITY_SIDE_RIGHT : ASHA_CAPABILITY_SIDE_LEFT;
 	t->media.asha.binaural = binaural;
 
 	debug("%s configured for device %s",
