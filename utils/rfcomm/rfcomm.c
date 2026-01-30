@@ -119,7 +119,7 @@ static void rl_callback_handler(char *line) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVB:p";
+	const char * opts = "hVB:p";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },

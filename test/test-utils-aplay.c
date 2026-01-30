@@ -75,7 +75,8 @@ CK_START_TEST(test_configuration) {
 				"--mixer-device=TestMixer",
 				"--mixer-control=TestMixerName",
 				"--mixer-index=1",
-				"--profile-sco",
+				"--profile=A2DP",
+				"--profile=SCO",
 				"12:34:56:78:90:AB",
 				NULL), -1);
 	spawn_terminate(&sp_ba_aplay, 100);
@@ -91,7 +92,7 @@ CK_START_TEST(test_configuration) {
 	ck_assert_ptr_ne(strstr(output, "  ALSA mixer device: TestMixer"), NULL);
 	ck_assert_ptr_ne(strstr(output, "  ALSA mixer element: 'TestMixerName',1"), NULL);
 	ck_assert_ptr_ne(strstr(output, "  Bluetooth device(s): 12:34:56:78:90:AB"), NULL);
-	ck_assert_ptr_ne(strstr(output, "  Profile: SCO"), NULL);
+	ck_assert_ptr_ne(strstr(output, "  Profile(s): A2DP, SCO"), NULL);
 
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
@@ -162,7 +163,6 @@ CK_START_TEST(test_play_all) {
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--profile-a2dp",
 				"--pcm=null",
 				"--volume=none",
 				"-v", "-v",
@@ -194,7 +194,6 @@ CK_START_TEST(test_play_single_audio) {
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
 				"--single-audio",
-				"--profile-a2dp",
 				"--pcm=null",
 				"--volume=none",
 				"-v", "-v", "-v",
@@ -234,7 +233,7 @@ CK_START_TEST(test_play_mixer_setup) {
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--profile-sco",
+				"--profile=SCO",
 				"--pcm=bluealsa:PROFILE=sco",
 				"--volume=mixer",
 				"--mixer-device=bluealsa:DEV=23:45:67:89:AB:CD",
@@ -276,7 +275,7 @@ CK_START_TEST(test_play_dbus_signals) {
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--profile-sco",
+				"--profile=SCO",
 				"--pcm=null",
 				"--volume=none",
 				"-v", "-v",
@@ -323,7 +322,6 @@ CK_START_TEST(test_play_resampler) {
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--profile-a2dp",
 				"--pcm=null",
 				"--volume=none",
 				"--resampler=sinc-fastest",

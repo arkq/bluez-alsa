@@ -396,7 +396,7 @@ int main(int argc, char *argv[]) {
 	progname = argv[0];
 
 	int opt;
-	const char *opts = "+hqvB:V";
+	const char * opts = "+hqvB:V";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "quiet", no_argument, NULL, 'q' },

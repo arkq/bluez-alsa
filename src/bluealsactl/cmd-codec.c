@@ -39,7 +39,7 @@ static void usage(const char *command) {
 static int cmd_codec_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hqvc:r:f";
+	const char * opts = "hqvc:r:f";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "quiet", no_argument, NULL, 'q' },

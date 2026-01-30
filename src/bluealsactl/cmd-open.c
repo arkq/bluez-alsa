@@ -33,7 +33,7 @@ static void usage(const char *command) {
 static int cmd_open_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hqvx";
+	const char * opts = "hqvx";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "quiet", no_argument, NULL, 'q' },

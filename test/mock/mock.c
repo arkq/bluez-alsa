@@ -58,7 +58,7 @@ static int queue_push_callback(void * userdata) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hB:p:c:t:";
+	const char * opts = "hB:p:c:t:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "dbus", required_argument, NULL, 'B' },

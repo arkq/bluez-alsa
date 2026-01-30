@@ -336,7 +336,7 @@ static void usage(const char *command) {
 static int cmd_monitor_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hqvp::";
+	const char * opts = "hqvp::";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "quiet", no_argument, NULL, 'q' },

@@ -85,7 +85,7 @@ static void sprint_hci_flags(char *str, unsigned int flags) {
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVd:";
+	const char * opts = "hVd:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },

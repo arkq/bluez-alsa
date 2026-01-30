@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020-2025 BlueALSA developers
+.. SPDX-FileCopyrightText: 2020-2026 BlueALSA developers
 .. SPDX-License-Identifier: MIT
 
 ==============
@@ -9,7 +9,7 @@ bluealsa-aplay
 a simple BlueALSA player
 ------------------------
 
-:Date: December 2025
+:Date: January 2026
 :Manual section: 1
 :Manual group: General Commands Manual
 :Version: $VERSION$
@@ -199,14 +199,19 @@ OPTIONS
     simple controls on the same card. This is most common with HDMI devices
     for which the index indicates the controlled HDMI PCM device.
 
---profile-a2dp
-    Use A2DP profile (default).
+--profile=TYPE
+    Select the Bluetooth audio profile to use.
+    The default is ``A2DP``.
 
---profile-sco
-    Use SCO profile.
+    The *TYPE* can be one of the following values:
 
-    Note: Only one of A2DP or SCO can be used. If both are specified, the
-    last one given will be selected.
+    - **A2DP** - use A2DP profile.
+    - **ASHA** - use ASHA profile.
+    - **SCO** - use SCO profile.
+
+    It is possible to specify more than one profile by giving this option
+    multiple times. In that case, **bluealsa-aplay** will accept audio from
+    any of the specified profiles.
 
 --resampler=METHOD
     Use libsamplerate to convert the stream from the Bluetooth sample rate to

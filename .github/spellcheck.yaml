@@ -41,7 +41,7 @@ matrix:
       - open: '^# *include'
         close: '$'
       # Ignore opt-string passed to optarg()
-      - open: 'const char \*opts = '
+      - open: 'const char \* opts = '
         close: '$'
   - pyspelling.filters.cpp:
       prefix: c

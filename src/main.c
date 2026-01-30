@@ -157,7 +157,7 @@ static void g_bus_name_lost(GDBusConnection *conn, const char *name, void *userd
 int main(int argc, char **argv) {
 
 	int opt;
-	static const char *opts = "hVSB:i:p:c:";
+	static const char * opts = "hVSB:i:p:c:";
 	static const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },

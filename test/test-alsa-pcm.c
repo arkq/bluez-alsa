@@ -1149,7 +1149,7 @@ int main(int argc, char *argv[]) {
 	preload(argc, argv, ".libs/libaloader.so");
 
 	int opt;
-	const char *opts = "hD:H:c:f:r:";
+	const char * opts = "hD:H:c:f:r:";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "pcm", required_argument, NULL, 'D' },

@@ -1550,7 +1550,7 @@ int main(int argc, char *argv[]) {
 	};
 
 	int opt;
-	const char *opts = "ha:dl";
+	const char * opts = "ha:dl";
 	struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "aging", required_argument, NULL, 'a' },

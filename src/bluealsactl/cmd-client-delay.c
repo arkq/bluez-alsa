@@ -31,7 +31,7 @@ static void usage(const char *command) {
 static int cmd_client_delay_func(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "+hqv";
+	const char * opts = "+hqv";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "quiet", no_argument, NULL, 'q' },

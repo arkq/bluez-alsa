@@ -51,6 +51,12 @@
 #define DEFAULT_PERIOD_TIME_SCO 20000
 #define DEFAULT_PERIODS 4
 
+enum profile {
+	PROFILE_A2DP,
+	PROFILE_ASHA,
+	PROFILE_SCO,
+};
+
 enum volume_type {
 	VOL_TYPE_AUTO,
 	VOL_TYPE_MIXER,
@@ -87,9 +93,9 @@ static enum volume_type volume_type = VOL_TYPE_AUTO;
 static const char *mixer_device = "default";
 static const char *mixer_elem_name = "Master";
 static unsigned int mixer_elem_index = 0;
-static bool ba_profile_a2dp = true;
+static bool ba_profiles[3] = { 0 };
 static bool ba_addr_any = false;
-static bdaddr_t *ba_addrs = NULL;
+static bdaddr_t * ba_addrs = NULL;
 static size_t ba_addrs_count = 0;
 static unsigned int pcm_buffer_time = 0;
 static unsigned int pcm_period_time = 0;
@@ -118,7 +124,19 @@ static void main_loop_stop(int sig) {
 	eventfd_write(main_loop_quit_event_fd, sig);
 }
 
-static int parse_bt_addresses(char *argv[], size_t count) {
+static const char * profile2str(enum profile profile) {
+	switch (profile) {
+	case PROFILE_A2DP:
+		return "A2DP";
+	case PROFILE_ASHA:
+		return "ASHA";
+	case PROFILE_SCO:
+		return "SCO";
+	}
+	return "UNKNOWN";
+}
+
+static int parse_bt_addresses(char * argv[], size_t count) {
 
 	ba_addrs_count = count;
 	if ((ba_addrs = malloc(sizeof(*ba_addrs) * ba_addrs_count)) == NULL)
@@ -1131,11 +1149,12 @@ static struct io_worker *supervise_io_worker(const struct ba_pcm *ba_pcm) {
 	if (ba_pcm->mode != BA_PCM_MODE_SOURCE)
 		goto stop;
 
-	if ((ba_profile_a2dp && !(ba_pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP)) ||
-			(!ba_profile_a2dp && !(ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO)))
+	if (!(ba_profiles[PROFILE_A2DP] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP)) &&
+			!(ba_profiles[PROFILE_ASHA] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_ASHA)) &&
+			!(ba_profiles[PROFILE_SCO] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO)))
 		goto stop;
 
-	/* check whether SCO has selected codec */
+	/* Check whether SCO has selected codec. */
 	if (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO &&
 			ba_pcm->rate == 0) {
 		debug("Skipping SCO with codec not selected");
@@ -1233,7 +1252,7 @@ fail:
 int main(int argc, char *argv[]) {
 
 	int opt;
-	const char *opts = "hVSvlLB:D:M:";
+	const char * opts = "hVSvlLB:D:M:p:";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
@@ -1246,12 +1265,11 @@ int main(int argc, char *argv[]) {
 		{ "pcm", required_argument, NULL, 'D' },
 		{ "pcm-buffer-time", required_argument, NULL, 3 },
 		{ "pcm-period-time", required_argument, NULL, 4 },
-		{ "volume", required_argument, NULL, '8' },
+		{ "volume", required_argument, NULL, 8 },
 		{ "mixer-device", required_argument, NULL, 'M' },
 		{ "mixer-control", required_argument, NULL, 6 },
 		{ "mixer-index", required_argument, NULL, 7 },
-		{ "profile-a2dp", no_argument, NULL, 1 },
-		{ "profile-sco", no_argument, NULL, 2 },
+		{ "profile", required_argument, NULL, 'p' },
 #if WITH_LIBSAMPLERATE
 		{ "resampler", required_argument, NULL, 10},
 #endif
@@ -1264,6 +1282,13 @@ int main(int argc, char *argv[]) {
 		{ "warning", .v.i = LOG_WARNING },
 		{ "info", .v.i = LOG_INFO },
 		{ "debug", .v.i = LOG_DEBUG },
+		{ 0 },
+	};
+
+	static const nv_entry_t nv_profile_types[] = {
+		{ "A2DP", .v.u = PROFILE_A2DP },
+		{ "ASHA", .v.u = PROFILE_ASHA },
+		{ "SCO", .v.u = PROFILE_SCO },
 		{ 0 },
 	};
 
@@ -1288,6 +1313,7 @@ int main(int argc, char *argv[]) {
 #endif
 
 	bool syslog = false;
+	bool profile_set = false;
 
 	/* Check if syslog forwarding has been enabled. This check has to be
 	 * done before anything else, so we can log early stage warnings and
@@ -1314,8 +1340,7 @@ int main(int argc, char *argv[]) {
 					"  -M, --mixer-device=NAME\tmixer device to use; default: %s\n"
 					"      --mixer-control=NAME\tmixer control name; default: %s\n"
 					"      --mixer-index=NUM\t\tmixer element index; default: %u\n"
-					"      --profile-a2dp\t\tuse A2DP profile (default)\n"
-					"      --profile-sco\t\tuse SCO profile\n"
+					"  -p, --profile=TYPE\t\tset profile to handle; default: A2DP\n"
 #if WITH_LIBSAMPLERATE
 					"      --resampler=METHOD\tresample conversion method; default: %s\n"
 #endif
@@ -1374,8 +1399,7 @@ int main(int argc, char *argv[]) {
 				return EXIT_FAILURE;
 			}
 			log_level = entry->v.i;
-			break;
-		}
+		} break;
 
 		case 'l' /* --list-devices */ :
 			list_bt_devices = true;
@@ -1402,7 +1426,18 @@ int main(int argc, char *argv[]) {
 			pcm_period_time = atoi(optarg);
 			break;
 
-		case '8' /* --volume */ : {
+		case 'p' /* --profile=TYPE */ : {
+			const nv_entry_t * entry;
+			if ((entry = nv_lookup_entry(nv_profile_types, optarg)) == NULL) {
+				error("Invalid profile type {%s}: %s",
+						nv_join_names(nv_profile_types), optarg);
+				return EXIT_FAILURE;
+			}
+			ba_profiles[entry->v.u] = true;
+			profile_set = true;
+		} break;
+
+		case 8 /* --volume */ : {
 			const nv_entry_t * entry;
 			if ((entry = nv_lookup_entry(nv_volume_types, optarg)) == NULL) {
 				error("Invalid volume control type {%s}: %s",
@@ -1410,8 +1445,7 @@ int main(int argc, char *argv[]) {
 				return EXIT_FAILURE;
 			}
 			volume_type = entry->v.u;
-			break;
-		}
+		} break;
 
 		case 'M' /* --mixer-device=NAME */ :
 			mixer_device = optarg;
@@ -1421,13 +1455,6 @@ int main(int argc, char *argv[]) {
 			break;
 		case 7 /* --mixer-index=NUM */ :
 			mixer_elem_index = atoi(optarg);
-			break;
-
-		case 1 /* --profile-a2dp */ :
-			ba_profile_a2dp = true;
-			break;
-		case 2 /* --profile-sco */ :
-			ba_profile_a2dp = false;
 			break;
 
 		case 5 /* --single-audio */ :
@@ -1443,8 +1470,7 @@ int main(int argc, char *argv[]) {
 				return EXIT_FAILURE;
 			}
 			resampler_method = entry->v.u;
-			break;
-		}
+		} break;
 #endif
 
 		default:
@@ -1479,6 +1505,9 @@ int main(int argc, char *argv[]) {
 		return EXIT_SUCCESS;
 	}
 
+	if (!profile_set)
+		ba_profiles[PROFILE_A2DP] = true;
+
 	if (optind == argc)
 		ba_addr_any = true;
 	else if (parse_bt_addresses(&argv[optind], argc - optind) == -1) {
@@ -1491,7 +1520,7 @@ int main(int argc, char *argv[]) {
 
 	if (pcm_buffer_time == 0) {
 		if (pcm_period_time == 0)
-			pcm_period_time = ba_profile_a2dp ?
+			pcm_period_time = ba_profiles[PROFILE_A2DP] ?
 				DEFAULT_PERIOD_TIME_A2DP : DEFAULT_PERIOD_TIME_SCO;
 		pcm_buffer_time = pcm_period_time * DEFAULT_PERIODS;
 	}
@@ -1501,9 +1530,16 @@ int main(int argc, char *argv[]) {
 
 	if (verbose >= 1) {
 
-		char *ba_str = malloc(19 * ba_addrs_count + 1);
-		char *tmp = ba_str;
+		char * ba_profiles_str = malloc(8 * ARRAYSIZE(ba_profiles) + 1);
+		char * ba_addrs_str = malloc(19 * ba_addrs_count + 1);
+		char * tmp;
 
+		tmp = ba_profiles_str;
+		for (size_t i = 0; i < ARRAYSIZE(ba_profiles); i++)
+			if (ba_profiles[i])
+				tmp = stpcpy(stpcpy(tmp, ", "), profile2str(i));
+
+		tmp = ba_addrs_str;
 		for (size_t i = 0; i < ba_addrs_count; i++, tmp += 19)
 			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
 
@@ -1527,7 +1563,7 @@ int main(int argc, char *argv[]) {
 #endif
 				"  Volume control type: %s\n"
 				"  Bluetooth device(s): %s\n"
-				"  Profile: %s",
+				"  Profile(s): %s",
 				dbus_ba_service,
 				pcm_device, pcm_buffer_time, pcm_period_time,
 				mixer_device_str,
@@ -1536,10 +1572,12 @@ int main(int argc, char *argv[]) {
 				nv_name_from_uint(nv_resampler_methods, resampler_method),
 #endif
 				nv_name_from_uint(nv_volume_types, volume_type),
-				ba_addr_any ? "ANY" : &ba_str[2],
-				ba_profile_a2dp ? "A2DP" : "SCO");
+				ba_addr_any ? "ANY" : &ba_addrs_str[2],
+				&ba_profiles_str[2]);
 
-		free(ba_str);
+		free(ba_profiles_str);
+		free(ba_addrs_str);
+
 	}
 
 	ba_dbus_connection_signal_match_add(&dbus_ctx,
