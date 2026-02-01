@@ -1,6 +1,6 @@
 /*
  * BlueALSA - codec-msbc.c
- * SPDX-FileCopyrightText: 2017-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2017-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -28,6 +28,22 @@
  * PCM samples. Such behavior should ensure that a PCM client will receive
  * correct number of PCM samples - matching sample rate. */
 #define MSBC_DECODE_ERROR_PLC 1
+
+/**
+ * Reinitialize SBC audio codec for mSBC mode.
+ *
+ * This implementation overrides the function int the libsbc library. The
+ * original one is buggy and the library maintainer seems not to care
+ * about fixing it...
+ *
+ * @param sbc SBC structure which shall be reinitialized.
+ * @param flags SBC initialization flags.
+ * @return This function returns 0 on success or a negative error value
+ *   in case of SBC audio codec initialization failure. */
+int sbc_reinit_msbc(sbc_t * sbc, unsigned long flags) {
+	sbc_finish(sbc);
+	return sbc_init_msbc(sbc, flags);
+}
 
 /**
  * Initialize mSBC codec structure.

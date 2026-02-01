@@ -1,11 +1,14 @@
 /*
  * BlueALSA - codec-sbc.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
 #include "codec-sbc.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <errno.h>
 #include <stdbool.h>
@@ -25,7 +28,7 @@
  * @param conf A2DP SBC configuration.
  * @param quality Target quality level.
  * @return SBC bitpool value. */
-uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality) {
+uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t * conf, unsigned int quality) {
 
 	static const uint8_t bitpool_mono_44100[] = {
 		[SBC_QUALITY_LOW] = SBC_BITPOOL_LQ_MONO_44100,
@@ -204,20 +207,6 @@ int sbc_reinit_a2dp_faststream(sbc_t *sbc, unsigned long flags,
 	return sbc_set_a2dp_faststream(sbc, conf, size, voice);
 }
 
-#endif
-
-#if ENABLE_MSBC
-/**
- * Reinitialize SBC audio codec for mSBC mode.
- *
- * @param sbc SBC structure which shall be reinitialized.
- * @param flags SBC initialization flags.
- * @return This function returns 0 on success or a negative error value
- *   in case of SBC audio codec initialization failure. */
-int sbc_reinit_msbc(sbc_t *sbc, unsigned long flags) {
-	sbc_finish(sbc);
-	return sbc_init_msbc(sbc, flags);
-}
 #endif
 
 /**

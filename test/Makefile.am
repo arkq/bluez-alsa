@@ -14,6 +14,7 @@ TESTS = \
 	test-at \
 	test-audio \
 	test-ba \
+	test-codec-sbc \
 	test-dbus \
 	test-h2 \
 	test-io \
@@ -28,6 +29,7 @@ check_PROGRAMS = \
 	test-at \
 	test-audio \
 	test-ba \
+	test-codec-sbc \
 	test-dbus \
 	test-h2 \
 	test-io \
@@ -38,6 +40,11 @@ check_PROGRAMS = \
 if ENABLE_APLAY
 TESTS += test-utils-aplay
 check_PROGRAMS += test-utils-aplay
+endif
+
+if ENABLE_APTX_OR_APTX_HD
+TESTS += test-codec-aptx
+check_PROGRAMS += test-codec-aptx
 endif
 
 if ENABLE_CTL
@@ -56,8 +63,8 @@ check_PROGRAMS += test-alsa-midi test-bt-advertising test-bt-gatt test-ble-midi
 endif
 
 if ENABLE_MSBC
-TESTS += test-msbc
-check_PROGRAMS += test-msbc
+TESTS += test-codec-msbc
+check_PROGRAMS += test-codec-msbc
 endif
 
 if HAVE_SNDFILE

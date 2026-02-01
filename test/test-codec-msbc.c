@@ -1,9 +1,10 @@
 /*
- * test-msbc.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * test-codec-msbc.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -36,6 +37,8 @@ CK_START_TEST(test_msbc_init) {
 	ck_assert_int_eq(ffb_len_out(&msbc.pcm), 0);
 
 	msbc_finish(&msbc);
+	/* Check that NULL can be passed safely. */
+	msbc_finish(NULL);
 
 } CK_END_TEST
 
@@ -45,12 +48,16 @@ CK_START_TEST(test_msbc_encode_decode) {
 	snd_pcm_sine_s16_2le(sine, 1, ARRAYSIZE(sine), 1.0 / 128, 0);
 
 	uint8_t data[sizeof(sine)];
-	uint8_t *data_tail = data;
+	uint8_t * data_tail = data;
 
-	struct esco_msbc msbc = { 0 };
+	struct esco_msbc msbc = { .initialized = false };
 	size_t len;
 	size_t i;
 	int rv;
+
+	/* Check calling encode/decode without initialization. */
+	ck_assert_int_eq(msbc_encode(&msbc), -EINVAL);
+	ck_assert_int_eq(msbc_decode(&msbc), -EINVAL);
 
 	msbc.initialized = false;
 	ck_assert_int_eq(msbc_init(&msbc), 0);
@@ -75,7 +82,7 @@ CK_START_TEST(test_msbc_encode_decode) {
 	msbc_finish(&msbc);
 
 	int16_t pcm[sizeof(sine)];
-	int16_t *pcm_tail = pcm;
+	int16_t * pcm_tail = pcm;
 
 	msbc.initialized = false;
 	ck_assert_int_eq(msbc_init(&msbc), 0);
@@ -110,7 +117,7 @@ CK_START_TEST(test_msbc_decode_plc) {
 	ck_assert_int_eq(msbc_init(&msbc), 0);
 
 	uint8_t data[sizeof(sine)];
-	uint8_t *data_tail = data;
+	uint8_t * data_tail = data;
 
 	debug("Simulating eSCO packet loss events");
 
@@ -177,17 +184,23 @@ CK_START_TEST(test_msbc_decode_plc) {
 
 } CK_END_TEST
 
+CK_START_TEST(test_msbc_stderr) {
+	ck_assert_str_eq(msbc_strerror(0), "Success");
+	ck_assert_str_eq(msbc_strerror(-EINVAL), "Invalid argument");
+} CK_END_TEST
+
 int main(void) {
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	SRunner * sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
 	tcase_add_test(tc, test_msbc_init);
 	tcase_add_test(tc, test_msbc_encode_decode);
 	tcase_add_test(tc, test_msbc_decode_plc);
+	tcase_add_test(tc, test_msbc_stderr);
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
