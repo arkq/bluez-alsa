@@ -447,7 +447,7 @@ struct ba_transport *ba_transport_new_a2dp(
 		goto fail;
 
 	/* do codec-specific initialization */
-	if (sep->transport_init(t) != 0) {
+	if (sep->transport_init(t) != ERROR_CODE_OK) {
 		errno = EINVAL;
 		goto fail;
 	}
@@ -657,7 +657,7 @@ struct ba_transport *ba_transport_new_sco(
 				t, false) != 0)
 		goto fail;
 
-	if (sco_transport_init(t) != 0) {
+	if (sco_transport_init(t) != ERROR_CODE_OK) {
 		errno = EINVAL;
 		goto fail;
 	}

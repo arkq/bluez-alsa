@@ -1,6 +1,6 @@
 /*
  * test-utils.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -79,8 +79,11 @@ CK_START_TEST(test_batostr_) {
 #endif
 
 CK_START_TEST(test_error_code_strerror) {
+	ck_assert_str_eq(error_code_strerror(ERROR_CODE_OK), "Success");
 	ck_assert_str_eq(error_code_strerror(ERROR_CODE_INVALID_SIZE), "Invalid size");
-	ck_assert_str_eq(error_code_strerror(0xFFFF), "Unknown error");
+	ck_assert_str_eq(error_code_strerror(ERROR_SYSTEM(EPERM)), "Operation not permitted");
+	ck_assert_str_eq(error_code_strerror(ERROR(ERROR_DOMAIN_APP, 0xFFFF)), "Unknown error");
+	ck_assert_str_eq(error_code_strerror(ERROR(0xF, 0xFF)), "Unknown error");
 } CK_END_TEST
 
 CK_START_TEST(test_nv_lookup_entry) {
@@ -170,6 +173,16 @@ CK_START_TEST(test_rc_callback) {
 	ck_assert_int_eq(rc_unref_with_count(&rc), 0);
 	ck_assert_int_eq(rc.rc.count, 0);
 	ck_assert_int_eq(rc.freed, true);
+
+} CK_END_TEST
+
+CK_START_TEST(test_is_timespec_zero) {
+
+	const struct timespec ts_0 = { .tv_sec = 0, .tv_nsec = 0 };
+	ck_assert_int_eq(is_timespec_zero(&ts_0), true);
+
+	const struct timespec ts_1 = { .tv_sec = 1, .tv_nsec = 0 };
+	ck_assert_int_eq(is_timespec_zero(&ts_1), 0);
 
 } CK_END_TEST
 
@@ -384,6 +397,7 @@ int main(void) {
 	tcase_add_test(tc, test_rc_callback);
 
 	/* shared/rt.c */
+	tcase_add_test(tc, test_is_timespec_zero);
 	tcase_add_test(tc, test_difftimespec);
 
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_hci_dev_id);

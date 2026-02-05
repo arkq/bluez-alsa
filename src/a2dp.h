@@ -165,27 +165,27 @@ struct a2dp_sep_config {
  * A2DP Stream End-Point. */
 struct a2dp_sep {
 
-	const char *name;
+	const char * name;
 	struct a2dp_sep_config config;
 
 	/* callback function for SEP initialization */
-	error_code_t (*init)(struct a2dp_sep *sep);
+	error_code_t (*init)(struct a2dp_sep * sep);
 
 	/* callback function for selecting configuration */
 	error_code_t (*configuration_select)(
-			const struct a2dp_sep *sep,
-			void *capabilities);
+			const struct a2dp_sep * sep,
+			void * capabilities);
 
 	/* callback function for checking configuration correctness */
 	error_code_t (*configuration_check)(
-			const struct a2dp_sep *sep,
-			const void *configuration);
+			const struct a2dp_sep * sep,
+			const void * configuration);
 
-	int (*transport_init)(struct ba_transport *t);
-	int (*transport_start)(struct ba_transport *t);
+	error_code_t (*transport_init)(struct ba_transport * t);
+	int (*transport_start)(struct ba_transport * t);
 
 	/* Codec-specific capabilities helper functions. */
-	const struct a2dp_caps_helpers *caps_helpers;
+	const struct a2dp_caps_helpers * caps_helpers;
 
 	/* determine whether SEP shall be enabled */
 	bool enabled;

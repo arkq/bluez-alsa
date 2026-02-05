@@ -552,7 +552,7 @@ static error_code_t a2dp_mpeg_configuration_select(
 		caps->layer = MPEG_LAYER_MP1;
 	else {
 		error("MPEG: No supported layers: %#x", saved.layer);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_LAYER;
+		return ERROR_CODE_A2DP_UNSUPPORTED_LAYER;
 	}
 
 	unsigned int channel_mode = 0;
@@ -561,7 +561,7 @@ static error_code_t a2dp_mpeg_configuration_select(
 		caps->channel_mode = channel_mode;
 	else {
 		error("MPEG: No supported channel modes: %#x", saved.channel_mode);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 	}
 
 	unsigned int sampling_freq = 0;
@@ -570,7 +570,7 @@ static error_code_t a2dp_mpeg_configuration_select(
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("MPEG: No supported sample rates: %#x", saved.sampling_freq);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 	}
 
 	/* do not waste bits for CRC protection */
@@ -614,17 +614,17 @@ static error_code_t a2dp_mpeg_configuration_check(
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_mpeg_transport_init(struct ba_transport *t) {
+static error_code_t a2dp_mpeg_transport_init(struct ba_transport * t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_mpeg_channels,
 					t->media.a2dp.configuration.mpeg.channel_mode)) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_mpeg_rates,
 					t->media.a2dp.configuration.mpeg.sampling_freq)) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->media.pcm.channels = a2dp_mpeg_channels[channels_i].value;
@@ -633,7 +633,7 @@ static int a2dp_mpeg_transport_init(struct ba_transport *t) {
 	memcpy(t->media.pcm.channel_map, a2dp_mpeg_channels[channels_i].ch.map,
 			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 #if ENABLE_MP3LAME

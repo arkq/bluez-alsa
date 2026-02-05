@@ -17,7 +17,7 @@
 #include "error.h"
 
 error_code_t sco_setup_connection_dispatcher(struct ba_adapter * a);
-int sco_transport_init(struct ba_transport * t);
+error_code_t sco_transport_init(struct ba_transport * t);
 int sco_transport_start(struct ba_transport * t);
 
 #endif

@@ -538,7 +538,7 @@ static error_code_t a2dp_lhdc_v2_configuration_select(
 		caps->bit_depth = LHDC_BIT_DEPTH_16;
 	else {
 		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_BIT_DEPTH;
+		return ERROR_CODE_A2DP_UNSUPPORTED_BIT_DEPTH;
 	}
 
 	unsigned int sampling_freq = 0;
@@ -547,7 +547,7 @@ static error_code_t a2dp_lhdc_v2_configuration_select(
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 	}
 
 	return ERROR_CODE_OK;
@@ -571,7 +571,7 @@ static error_code_t a2dp_lhdc_v3_configuration_select(
 		caps->bit_depth = LHDC_BIT_DEPTH_16;
 	else {
 		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_BIT_DEPTH;
+		return ERROR_CODE_A2DP_UNSUPPORTED_BIT_DEPTH;
 	}
 
 	unsigned int sampling_freq = 0;
@@ -580,7 +580,7 @@ static error_code_t a2dp_lhdc_v3_configuration_select(
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 	}
 
 	return ERROR_CODE_OK;
@@ -602,7 +602,7 @@ static error_code_t a2dp_lhdc_v5_configuration_select(
 		caps->bit_depth = LHDC_BIT_DEPTH_16;
 	else {
 		error("LHDC: No supported bit depths: %#x", saved.bit_depth);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_BIT_DEPTH;
+		return ERROR_CODE_A2DP_UNSUPPORTED_BIT_DEPTH;
 	}
 
 	unsigned int sampling_freq = 0;
@@ -611,7 +611,7 @@ static error_code_t a2dp_lhdc_v5_configuration_select(
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("LHDC: No supported sample rates: %#x", saved.sampling_freq);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 	}
 
 	return ERROR_CODE_OK;
@@ -671,27 +671,27 @@ static error_code_t a2dp_lhdc_v5_configuration_check(
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_lhdc_transport_init(struct ba_transport *t) {
+static error_code_t a2dp_lhdc_transport_init(struct ba_transport * t) {
 
 	ssize_t rate_i;
 	switch (t->codec_id) {
 	case A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID):
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
 						t->media.a2dp.configuration.lhdc_v2.sampling_freq)) == -1)
-			return -1;
+			return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 		break;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID):
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
 						t->media.a2dp.configuration.lhdc_v3.sampling_freq)) == -1)
-			return -1;
+			return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 		break;
 	case A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID):
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lhdc_rates,
 						t->media.a2dp.configuration.lhdc_v5.sampling_freq)) == -1)
-			return -1;
+			return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 		break;
 	default:
-		return -1;
+		return ERROR_CODE_UNSUPPORTED_CODEC;
 	}
 
 	/* LHDC library uses 32-bit signed integers for the encoder API and
@@ -704,7 +704,7 @@ static int a2dp_lhdc_transport_init(struct ba_transport *t) {
 	memcpy(t->media.pcm.channel_map, a2dp_channel_map_stereo,
 			2 * sizeof(*a2dp_channel_map_stereo));
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static error_code_t a2dp_lhdc_source_init(struct a2dp_sep *sep) {

@@ -342,7 +342,7 @@ static error_code_t a2dp_fs_configuration_select(
 
 	if ((caps->direction & (FASTSTREAM_DIRECTION_MUSIC | FASTSTREAM_DIRECTION_VOICE)) == 0) {
 		error("FastStream: No supported directions: %#x", saved.direction);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_DIRECTIONS;
+		return ERROR_CODE_A2DP_UNSUPPORTED_DIRECTIONS;
 	}
 
 	unsigned int sampling_freq_v = 0;
@@ -352,7 +352,7 @@ static error_code_t a2dp_fs_configuration_select(
 		caps->sampling_freq_voice = sampling_freq_v;
 	else {
 		error("FastStream: No supported voice sample rates: %#x", saved.sampling_freq_voice);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE_VOICE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE_VOICE;
 	}
 
 	unsigned int sampling_freq_m = 0;
@@ -362,7 +362,7 @@ static error_code_t a2dp_fs_configuration_select(
 		caps->sampling_freq_music = sampling_freq_m;
 	else {
 		error("FastStream: No supported music sample rates: %#x", saved.sampling_freq_music);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE_MUSIC;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE_MUSIC;
 	}
 
 	return ERROR_CODE_OK;
@@ -398,14 +398,14 @@ static error_code_t a2dp_fs_configuration_check(
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_fs_transport_init(struct ba_transport *t) {
+static error_code_t a2dp_fs_transport_init(struct ba_transport * t) {
 
 	if (t->media.a2dp.configuration.faststream.direction & FASTSTREAM_DIRECTION_MUSIC) {
 
 		ssize_t rate_i;
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_fs_rates_music,
 						t->media.a2dp.configuration.faststream.sampling_freq_music)) == -1)
-			return -1;
+			return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE_MUSIC;
 
 		t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 		t->media.pcm.channels = 2;
@@ -421,7 +421,7 @@ static int a2dp_fs_transport_init(struct ba_transport *t) {
 		ssize_t rate_i;
 		if ((rate_i = a2dp_bit_mapping_lookup(a2dp_fs_rates_voice,
 						t->media.a2dp.configuration.faststream.sampling_freq_voice)) == -1)
-			return -1;
+			return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE_VOICE;
 
 		t->media.pcm_bc.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 		t->media.pcm_bc.channels = 1;
@@ -432,7 +432,7 @@ static int a2dp_fs_transport_init(struct ba_transport *t) {
 
 	}
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static error_code_t a2dp_fs_source_init(struct a2dp_sep *sep) {

@@ -354,7 +354,7 @@ static error_code_t a2dp_aptx_hd_configuration_select(
 		caps->aptx.sampling_freq = sampling_freq;
 	else {
 		error("apt-X HD: No supported sample rates: %#x", saved.aptx.sampling_freq);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 	}
 
 	unsigned int channel_mode = 0;
@@ -363,7 +363,7 @@ static error_code_t a2dp_aptx_hd_configuration_select(
 		caps->aptx.channel_mode = channel_mode;
 	else {
 		error("apt-X HD: No supported channel modes: %#x", saved.aptx.channel_mode);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 	}
 
 	return ERROR_CODE_OK;
@@ -392,17 +392,17 @@ static error_code_t a2dp_aptx_hd_configuration_check(
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
+static error_code_t a2dp_aptx_hd_transport_init(struct ba_transport * t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_aptx_channels,
 					t->media.a2dp.configuration.aptx_hd.aptx.channel_mode)) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aptx_rates,
 					t->media.a2dp.configuration.aptx_hd.aptx.sampling_freq)) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
 	t->media.pcm.channels = a2dp_aptx_channels[channels_i].value;
@@ -411,7 +411,7 @@ static int a2dp_aptx_hd_transport_init(struct ba_transport *t) {
 	memcpy(t->media.pcm.channel_map, a2dp_aptx_channels[channels_i].ch.map,
 			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static error_code_t a2dp_aptx_hd_source_init(struct a2dp_sep *sep) {

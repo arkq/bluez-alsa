@@ -635,7 +635,7 @@ static error_code_t a2dp_lc3plus_configuration_select(
 		caps->frame_duration = LC3PLUS_FRAME_DURATION_025;
 	else {
 		error("LC3plus: No supported frame durations: %#x", saved.frame_duration);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_FRAME_DURATION;
+		return ERROR_CODE_A2DP_UNSUPPORTED_FRAME_DURATION;
 	}
 
 	unsigned int channel_mode = 0;
@@ -644,7 +644,7 @@ static error_code_t a2dp_lc3plus_configuration_select(
 		caps->channel_mode = channel_mode;
 	else {
 		error("LC3plus: No supported channel modes: %#x", saved.channel_mode);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 	}
 
 	unsigned int sampling_freq = 0;
@@ -653,7 +653,7 @@ static error_code_t a2dp_lc3plus_configuration_select(
 		A2DP_LC3PLUS_SET_SAMPLING_FREQ(*caps, sampling_freq);
 	else {
 		error("LC3plus: No supported sample rates: %#x", A2DP_LC3PLUS_GET_SAMPLING_FREQ(saved));
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 	}
 
 	return ERROR_CODE_OK;
@@ -693,17 +693,17 @@ static error_code_t a2dp_lc3plus_configuration_check(
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
+static error_code_t a2dp_lc3plus_transport_init(struct ba_transport * t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_channels,
 					t->media.a2dp.configuration.lc3plus.channel_mode)) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_lc3plus_rates,
 					A2DP_LC3PLUS_GET_SAMPLING_FREQ(t->media.a2dp.configuration.lc3plus))) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S24_4LE;
 	t->media.pcm.channels = a2dp_lc3plus_channels[channels_i].value;
@@ -712,7 +712,7 @@ static int a2dp_lc3plus_transport_init(struct ba_transport *t) {
 	memcpy(t->media.pcm.channel_map, a2dp_lc3plus_channels[channels_i].ch.map,
 			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static error_code_t a2dp_lc3plus_source_init(struct a2dp_sep *sep) {

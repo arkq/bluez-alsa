@@ -33,6 +33,7 @@
 #include "ba-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
+#include "error.h"
 #include "hfp.h"
 #include "midi.h"
 #include "storage.h"
@@ -305,9 +306,9 @@ CK_START_TEST(test_ba_transport_pcm_format) {
 
 } CK_END_TEST
 
-static int sep_transport_init(struct ba_transport *t) {
+static error_code_t sep_transport_init(struct ba_transport * t) {
 	(void)t;
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 CK_START_TEST(test_ba_transport_pcm_volume) {

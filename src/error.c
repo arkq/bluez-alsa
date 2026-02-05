@@ -39,65 +39,67 @@ static const char * app_strerror(enum error_code err) {
 		return "Invalid stream";
 	case ERROR_CODE_MISSING_CAPABILITIES:
 		return "Missing capabilities";
+	case ERROR_CODE_UNSUPPORTED_CODEC:
+		return "Unsupported codec";
 	case ERROR_CODE_A2DP_INVALID_CHANNELS:
 		return "Invalid number of channels";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNELS:
+	case ERROR_CODE_A2DP_UNSUPPORTED_CHANNELS:
 		return "Unsupported number of channels";
 	case ERROR_CODE_A2DP_INVALID_CHANNEL_MODE:
 		return "Invalid channel mode";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE:
+	case ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE:
 		return "Unsupported channel mode";
 	case ERROR_CODE_A2DP_INVALID_SAMPLE_RATE:
 		return "Invalid sample rate";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE:
+	case ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE:
 		return "Unsupported sample rate";
 	case ERROR_CODE_A2DP_INVALID_SAMPLE_RATE_MUSIC:
 		return "Invalid music sample rate";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE_MUSIC:
+	case ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE_MUSIC:
 		return "Unsupported music sample rate";
 	case ERROR_CODE_A2DP_INVALID_SAMPLE_RATE_VOICE:
 		return "Invalid voice sample rate";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE_VOICE:
+	case ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE_VOICE:
 		return "Unsupported voice sample rate";
 	case ERROR_CODE_A2DP_INVALID_BLOCK_LENGTH:
 		return "Invalid block length";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_BLOCK_LENGTH:
+	case ERROR_CODE_A2DP_UNSUPPORTED_BLOCK_LENGTH:
 		return "Unsupported block length";
 	case ERROR_CODE_A2DP_INVALID_SUB_BANDS:
 		return "Invalid sub-bands";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_SUB_BANDS:
+	case ERROR_CODE_A2DP_UNSUPPORTED_SUB_BANDS:
 		return "Unsupported sub-bands";
 	case ERROR_CODE_A2DP_INVALID_ALLOCATION_METHOD:
 		return "Invalid allocation method";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_ALLOCATION_METHOD:
+	case ERROR_CODE_A2DP_UNSUPPORTED_ALLOCATION_METHOD:
 		return "Unsupported allocation method";
 	case ERROR_CODE_A2DP_INVALID_MIN_BIT_POOL_VALUE:
 		return "Invalid min bit-pool value";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_MIN_BIT_POOL_VALUE:
+	case ERROR_CODE_A2DP_UNSUPPORTED_MIN_BIT_POOL_VALUE:
 		return "Unsupported min bit-pool value";
 	case ERROR_CODE_A2DP_INVALID_MAX_BIT_POOL_VALUE:
 		return "Invalid max bit-pool value";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_MAX_BIT_POOL_VALUE:
+	case ERROR_CODE_A2DP_UNSUPPORTED_MAX_BIT_POOL_VALUE:
 		return "Unsupported max bit-pool value";
 	case ERROR_CODE_A2DP_INVALID_LAYER:
 		return "Invalid layer";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_LAYER:
+	case ERROR_CODE_A2DP_UNSUPPORTED_LAYER:
 		return "Unsupported layer";
 	case ERROR_CODE_A2DP_INVALID_OBJECT_TYPE:
 		return "Invalid object type";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_OBJECT_TYPE:
+	case ERROR_CODE_A2DP_UNSUPPORTED_OBJECT_TYPE:
 		return "Unsupported object type";
 	case ERROR_CODE_A2DP_INVALID_DIRECTIONS:
 		return "Invalid directions";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_DIRECTIONS:
+	case ERROR_CODE_A2DP_UNSUPPORTED_DIRECTIONS:
 		return "Unsupported directions";
 	case ERROR_CODE_A2DP_INVALID_FRAME_DURATION:
 		return "Invalid frame duration";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_FRAME_DURATION:
+	case ERROR_CODE_A2DP_UNSUPPORTED_FRAME_DURATION:
 		return "Unsupported frame duration";
 	case ERROR_CODE_A2DP_INVALID_BIT_DEPTH:
 		return "Invalid bit depth";
-	case ERROR_CODE_A2DP_NOT_SUPPORTED_BIT_DEPTH:
+	case ERROR_CODE_A2DP_UNSUPPORTED_BIT_DEPTH:
 		return "Unsupported bit depth";
 	}
 	debug("Unknown error code: %#x", err);

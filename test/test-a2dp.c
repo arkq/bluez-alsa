@@ -391,7 +391,7 @@ CK_START_TEST(test_a2dp_select_configuration) {
 	/* FDK-AAC encoder does not support AAC Long Term Prediction */
 	cfg_aac.object_type = AAC_OBJECT_TYPE_MPEG4_LTP;
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)),
-			ERROR_CODE_A2DP_NOT_SUPPORTED_OBJECT_TYPE);
+			ERROR_CODE_A2DP_UNSUPPORTED_OBJECT_TYPE);
 
 #endif
 

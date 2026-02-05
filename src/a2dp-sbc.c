@@ -424,14 +424,14 @@ static error_code_t a2dp_sbc_configuration_select(
 	if (a2dp_sbc_caps_foreach_sample_rate(caps, A2DP_MAIN,
 				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) != ERROR_CODE_OK) {
 		error("SBC: No supported sample rates: %#x", saved.sampling_freq);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SAMPLE_RATE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 	}
 
 	unsigned int channel_mode = 0;
 	if (a2dp_sbc_caps_foreach_channel_mode(caps, A2DP_MAIN,
 				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) != ERROR_CODE_OK) {
 		error("SBC: No supported channel modes: %#x", saved.channel_mode);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_CHANNEL_MODE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 	}
 
 	if (config.sbc_quality == SBC_QUALITY_XQ ||
@@ -459,7 +459,7 @@ static error_code_t a2dp_sbc_configuration_select(
 		caps->block_length = SBC_BLOCK_LENGTH_4;
 	else {
 		error("SBC: No supported block lengths: %#x", saved.block_length);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_BLOCK_LENGTH;
+		return ERROR_CODE_A2DP_UNSUPPORTED_BLOCK_LENGTH;
 	}
 
 	if (caps->subbands & SBC_SUBBANDS_8)
@@ -468,7 +468,7 @@ static error_code_t a2dp_sbc_configuration_select(
 		caps->subbands = SBC_SUBBANDS_4;
 	else {
 		error("SBC: No supported sub-bands: %#x", saved.subbands);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_SUB_BANDS;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SUB_BANDS;
 	}
 
 	if (caps->allocation_method & SBC_ALLOCATION_LOUDNESS)
@@ -477,13 +477,13 @@ static error_code_t a2dp_sbc_configuration_select(
 		caps->allocation_method = SBC_ALLOCATION_SNR;
 	else {
 		error("SBC: No supported allocation methods: %#x", saved.allocation_method);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_ALLOCATION_METHOD;
+		return ERROR_CODE_A2DP_UNSUPPORTED_ALLOCATION_METHOD;
 	}
 
 	if (caps->min_bitpool > caps->max_bitpool) {
 		error("SBC: No supported bit-pool range: [%u, %u]",
 				saved.min_bitpool, saved.max_bitpool);
-		return ERROR_CODE_A2DP_NOT_SUPPORTED_MIN_BIT_POOL_VALUE;
+		return ERROR_CODE_A2DP_UNSUPPORTED_MIN_BIT_POOL_VALUE;
 	}
 
 	return ERROR_CODE_OK;
@@ -550,17 +550,17 @@ static error_code_t a2dp_sbc_configuration_check(
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_sbc_transport_init(struct ba_transport *t) {
+static error_code_t a2dp_sbc_transport_init(struct ba_transport * t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_sbc_channels,
 					t->media.a2dp.configuration.sbc.channel_mode)) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_sbc_rates,
 					t->media.a2dp.configuration.sbc.sampling_freq)) == -1)
-		return -1;
+		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
 	t->media.pcm.channels = a2dp_sbc_channels[channels_i].value;
@@ -569,7 +569,7 @@ static int a2dp_sbc_transport_init(struct ba_transport *t) {
 	memcpy(t->media.pcm.channel_map, a2dp_sbc_channels[channels_i].ch.map,
 			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
-	return 0;
+	return ERROR_CODE_OK;
 }
 
 static error_code_t a2dp_sbc_source_init(struct a2dp_sep *sep) {
