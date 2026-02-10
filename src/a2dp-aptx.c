@@ -26,7 +26,7 @@
 #include "codec-aptx.h"
 #include "error.h"
 #include "io.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"

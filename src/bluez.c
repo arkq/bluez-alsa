@@ -47,8 +47,8 @@
 #include "hci.h"
 #include "sco.h"
 #include "utils.h"
-#include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
 #include "shared/defs.h"
 #include "shared/log.h"
@@ -328,7 +328,7 @@ static const char *bluez_get_media_endpoint_object_path(
 
 	const char *tmp;
 	char codec_name[16] = "";
-	if ((tmp = a2dp_codecs_codec_id_to_string(sep->config.codec_id)) == NULL)
+	if ((tmp = a2dp_codec_to_string(sep->config.codec_id)) == NULL)
 		snprintf(codec_name, sizeof(codec_name), "%08x", sep->config.codec_id);
 	else {
 		for (size_t i = 0, j = 0; tmp[i] != '\0' && j < sizeof(codec_name); i++)
@@ -1206,7 +1206,7 @@ static void bluez_media_endpoint_process_a2dp(
 
 	debug("Adding new Stream End-Point: %s: %s: %s",
 			batostr_(&addr), sep_cfg.type == A2DP_SOURCE ? "SRC" : "SNK",
-			a2dp_codecs_codec_id_to_string(sep_cfg.codec_id));
+			a2dp_codec_to_string(sep_cfg.codec_id));
 	hexdump("SEP capabilities blob", &sep_cfg.capabilities, sep_cfg.caps_size);
 
 	GArray *sep_cfgs = bluez_adapter_get_device_sep_configs(b_adapter, &addr);
@@ -1620,7 +1620,7 @@ static void bluez_signal_interfaces_removed(GDBusConnection *conn, const char *s
 				if (strcmp(sep_cfg->bluez_dbus_path, object_path) == 0) {
 					debug("Removing Stream End-Point: %s: %s: %s",
 							batostr_(&addr), sep_cfg->type == A2DP_SOURCE ? "SRC" : "SNK",
-							a2dp_codecs_codec_id_to_string(sep_cfg->codec_id));
+							a2dp_codec_to_string(sep_cfg->codec_id));
 					g_array_remove_index_fast(sep_cfgs, i);
 				}
 			}
@@ -1910,7 +1910,7 @@ bool bluez_a2dp_set_configuration(
 
 	pthread_mutex_unlock(&bluez_mutex);
 
-	debug("A2DP requested codec: %s", a2dp_codecs_codec_id_to_string(remote_sep_cfg->codec_id));
+	debug("A2DP requested codec: %s", a2dp_codec_to_string(remote_sep_cfg->codec_id));
 	hexdump("A2DP requested configuration blob", configuration, remote_sep_cfg->caps_size);
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,

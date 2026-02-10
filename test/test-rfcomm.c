@@ -30,7 +30,7 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
-#include "hfp.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
 
 #include "inc/check.inc"

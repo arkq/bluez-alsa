@@ -54,8 +54,8 @@ matrix:
         close: '\W'
       # Ignore printf format placeholder
       - open: '%'
-        content: '#?(l|z)'
-        close: 'd|u|x'
+        content: '[0-9]*[#]*[lz]*'
+        close: '[duxX]'
       # Ignore D-Bus type format string
       - open: '^a?[{(]+'
         close: '[)}]+$'

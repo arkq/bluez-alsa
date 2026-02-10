@@ -1,12 +1,12 @@
 /*
- * BlueALSA - a2dp-codecs.h
+ * BlueALSA - bluetooth-a2dp.h
  * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
 #pragma once
-#ifndef BLUEALSA_SHARED_A2DPCODECS_H_
-#define BLUEALSA_SHARED_A2DPCODECS_H_
+#ifndef BLUEALSA_SHARED_BLUETOOTH_A2DP_H_
+#define BLUEALSA_SHARED_BLUETOOTH_A2DP_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -18,12 +18,13 @@
 #include "bluetooth.h"
 #include "defs.h"
 
-#define A2DP_CODEC_SBC      0x00
-#define A2DP_CODEC_MPEG12   0x01
-#define A2DP_CODEC_MPEG24   0x02
-#define A2DP_CODEC_MPEGD    0x03
-#define A2DP_CODEC_ATRAC    0x04
-#define A2DP_CODEC_VENDOR   0xFF
+#define A2DP_CODEC_UNDEFINED            0xFFFFFFFF
+#define A2DP_CODEC_SBC                  0x00
+#define A2DP_CODEC_MPEG12               0x01
+#define A2DP_CODEC_MPEG24               0x02
+#define A2DP_CODEC_MPEGD                0x03
+#define A2DP_CODEC_ATRAC                0x04
+#define A2DP_CODEC_VENDOR               0xFF
 
 /**
  * Customized (BlueALSA) 32-bit vendor extension. */
@@ -809,9 +810,32 @@ typedef union a2dp {
 	a2dp_opus_pw_t opus_pw;
 } a2dp_t;
 
-uint32_t a2dp_codecs_codec_id_from_string(const char *alias);
-uint32_t a2dp_codecs_vendor_codec_id(const a2dp_vendor_info_t *info);
-const char *a2dp_codecs_codec_id_to_string(uint32_t codec_id);
-const char *a2dp_codecs_get_canonical_name(const char *alias);
+/**
+ * Get BlueALSA A2DP codec ID from string representation.
+ *
+ * @param alias Alias of an A2DP audio codec name.
+ * @return A2DP audio codec ID or A2DP_CODEC_UNDEFINED in case of no match. */
+uint32_t a2dp_codec_from_string(const char * alias);
+
+/**
+ * Get BlueALSA A2DP codec ID from vendor codec information.
+ *
+ * @param info A2DP vendor codec capabilities.
+ * @return A2DP audio codec ID. */
+uint32_t a2dp_codec_from_vendor_info(const a2dp_vendor_info_t * info);
+
+/**
+ * Convert BlueALSA A2DP codec ID into a human-readable string.
+ *
+ * @param codec BlueALSA A2DP audio codec ID.
+ * @return Canonical codec name or NULL for unknown codec. */
+const char * a2dp_codec_to_string(uint32_t codec);
+
+/**
+ * Get A2DP codec canonical name.
+ *
+ * @param alias Alias of an A2DP audio codec name.
+ * @return Canonical codec name or passed alias if there was no match. */
+const char * a2dp_codec_canonical_name(const char * alias);
 
 #endif

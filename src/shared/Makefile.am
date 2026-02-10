@@ -1,11 +1,13 @@
 # BlueALSA - Makefile.am
-# SPDX-FileCopyrightText: 2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2025-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 noinst_LTLIBRARIES = libshared.la
 
 libshared_la_SOURCES = \
-	a2dp-codecs.c \
+	bluetooth-a2dp.c \
+	bluetooth-asha.c \
+	bluetooth-hfp.c \
 	dbus-client-pcm.c \
 	dbus-client-rfcomm.c \
 	dbus-client.c \

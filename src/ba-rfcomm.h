@@ -19,7 +19,7 @@
 
 #include "at.h"
 #include "ba-transport.h"
-#include "hfp.h"
+#include "shared/bluetooth-hfp.h"
 
 /* Timeout for the command acknowledgment. */
 #define BA_RFCOMM_TIMEOUT_ACK 1000

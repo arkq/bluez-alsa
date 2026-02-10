@@ -18,7 +18,7 @@
 
 #include <sbc/sbc.h>
 
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 
 #define SBC_QUALITY_LOW    0
 #define SBC_QUALITY_MEDIUM 1

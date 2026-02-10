@@ -498,6 +498,7 @@ AC_CONFIG_FILES([
 	src/Makefile
 	src/asound/Makefile
 	src/bluealsactl/Makefile
+	src/dumper/Makefile
 	src/shared/Makefile
 	utils/Makefile
 	utils/aplay/Makefile

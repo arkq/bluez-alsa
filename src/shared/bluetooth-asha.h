@@ -37,4 +37,18 @@ typedef struct asha_hi_sync_id {
 #define ASHA_HI_SYNC_ID_GET_UNIQUE_ID(a) (a).unique_id
 } __attribute__ ((packed)) asha_hi_sync_id_t;
 
+/**
+ * Get ASHA codec ID from string representation.
+ *
+ * @param alias Alias of ASHA audio codec name.
+ * @return ASHA audio codec ID or ASHA_CODEC_UNDEFINED in case of no match. */
+uint8_t asha_codec_from_string(const char * alias);
+
+/**
+ * Convert ASHA codec ID into a human-readable string.
+ *
+ * @param codec ASHA audio codec ID.
+ * @return Human-readable string or NULL for unknown codec. */
+const char * asha_codec_to_string(uint8_t codec);
+
 #endif

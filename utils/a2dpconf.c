@@ -20,7 +20,7 @@
 
 #include <bluetooth/bluetooth.h>
 
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/defs.h"
 #include "shared/hex.h"
 
@@ -36,7 +36,7 @@ static uint32_t get_codec(const char *s) {
 	if (strcasecmp(buffer, "vendor") == 0)
 		return A2DP_CODEC_VENDOR;
 
-	return a2dp_codecs_codec_id_from_string(buffer);
+	return a2dp_codec_from_string(buffer);
 }
 
 static ssize_t get_codec_blob(const char *s, void *dest, size_t n) {
@@ -1070,7 +1070,7 @@ int dump(const char *config, bool detect) {
 
 	if (codec_id == A2DP_CODEC_VENDOR &&
 			(size_t)blob_size >= sizeof(a2dp_vendor_info_t))
-		codec_id = a2dp_codecs_vendor_codec_id(blob);
+		codec_id = a2dp_codec_from_vendor_info(blob);
 
 	rv = 0;
 	for (size_t i = 0; i < ARRAYSIZE(dumps); i++)

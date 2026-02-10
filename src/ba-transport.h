@@ -26,7 +26,7 @@
 #include "ba-transport-pcm.h"
 #include "ble-midi.h"
 #include "bluez.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
 #include "shared/rc.h"
 
@@ -53,6 +53,10 @@ enum ba_transport_profile {
 #endif
 };
 
+#define BA_TRANSPORT_PROFILE_MASK_A2DP \
+	(BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK)
+#define BA_TRANSPORT_PROFILE_MASK_ASHA \
+	(BA_TRANSPORT_PROFILE_ASHA_SOURCE | BA_TRANSPORT_PROFILE_ASHA_SINK)
 #define BA_TRANSPORT_PROFILE_MASK_HFP \
 	(BA_TRANSPORT_PROFILE_HFP_HF | BA_TRANSPORT_PROFILE_HFP_AG)
 #define BA_TRANSPORT_PROFILE_MASK_HSP \
@@ -61,15 +65,15 @@ enum ba_transport_profile {
 	(BA_TRANSPORT_PROFILE_HSP_AG | BA_TRANSPORT_PROFILE_HFP_AG)
 #define BA_TRANSPORT_PROFILE_MASK_HF \
 	(BA_TRANSPORT_PROFILE_HSP_HS | BA_TRANSPORT_PROFILE_HFP_HF)
+#define BA_TRANSPORT_PROFILE_MASK_MIDI \
+	(BA_TRANSPORT_PROFILE_MIDI)
 
 #define BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t) \
-	((t)->profile & ( \
-		BA_TRANSPORT_PROFILE_A2DP_SOURCE | BA_TRANSPORT_PROFILE_A2DP_SINK))
+	((t)->profile & BA_TRANSPORT_PROFILE_MASK_A2DP)
 
 #if ENABLE_ASHA
 # define BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t) \
-	((t)->profile & ( \
-		BA_TRANSPORT_PROFILE_ASHA_SOURCE | BA_TRANSPORT_PROFILE_ASHA_SINK))
+	((t)->profile & BA_TRANSPORT_PROFILE_MASK_ASHA)
 #else
 # define BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t) false
 #endif
@@ -84,7 +88,7 @@ enum ba_transport_profile {
 
 #if ENABLE_MIDI
 # define BA_TRANSPORT_PROFILE_IS_MIDI(t) \
-	((t)->profile & BA_TRANSPORT_PROFILE_MIDI)
+	((t)->profile & BA_TRANSPORT_PROFILE_MASK_MIDI)
 #endif
 
 struct ba_transport {

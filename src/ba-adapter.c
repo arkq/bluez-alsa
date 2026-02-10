@@ -21,8 +21,8 @@
 #include "ba-config.h"
 #include "ba-device.h"
 #include "hci.h"
-#include "hfp.h"
 #include "utils.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
 #include "shared/rc.h"
 

@@ -38,7 +38,7 @@
 #include "dbus.h"
 #include "ofono.h"
 #include "storage.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
 		}
 		case 'c' /* --codec=NAME */ : {
 
-			uint32_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
+			uint32_t codec_id = a2dp_codec_from_string(optarg);
 			bool matched = false;
 
 			struct a2dp_sep * const * seps = a2dp_seps;

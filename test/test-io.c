@@ -24,6 +24,7 @@
 #include <strings.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -80,20 +81,21 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
-#include "hfp.h"
 #include "io.h"
 #if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
 # include "rtp.h"
 #endif
 #include "storage.h"
-#include "shared/a2dp-codecs.h"
+#include "dumper/dumper.h"
+#include "shared/bluetooth.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
 #include "../src/a2dp.c"
 #include "../src/ba-transport.c"
-#include "inc/btd.inc"
 #include "inc/check.inc"
 #include "inc/sine.inc"
 
@@ -236,8 +238,11 @@ static bool enable_vbr_mode = false;
 static bool dump_data = false;
 static bool packet_loss = false;
 
-/* input BT dump file */
-static struct bt_dump *btdin = NULL;
+/* Input BlueALSA dump file. */
+static FILE * input_bt_f = NULL;
+static uint32_t input_bt_profile_mask = 0;
+static uint32_t input_bt_codec_id = 0;
+static a2dp_t input_bt_a2dp_configuration = { 0 };
 
 #if HAVE_SNDFILE
 static SNDFILE *sf_open_format(const char *path, unsigned int rate,
@@ -401,7 +406,7 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 	if (dump_data) {
 #if HAVE_SNDFILE
 		char fname[128];
-		sprintf(fname, "sine-%s.wav", transport_pcm_to_fname(pcm));
+		sprintf(fname, "sine-%s.wav", ba_transport_pcm_to_string(pcm));
 		ck_assert_ptr_nonnull(sf = sf_open_format(fname, pcm->rate, pcm->channels, pcm->format));
 #else
 		error("Dumping audio files requires sndfile library!");
@@ -483,11 +488,11 @@ static void bt_data_write(struct ba_transport *t) {
 	struct bt_data *bt_data_head = &bt_data;
 	bool first_packet = true;
 	char buffer[2024];
-	ssize_t len;
 
 	if (input_bt_file != NULL) {
 
-		while ((len = bt_dump_read(btdin, buffer, sizeof(buffer))) != -1) {
+		ssize_t len;
+		while ((len = ba_dumper_read(input_bt_f, buffer, sizeof(buffer))) > 0) {
 			if (packet_loss && random() < INT32_MAX / 3 && !first_packet) {
 				debug("Simulating packet loss: Dropping BT packet!");
 				continue;
@@ -506,7 +511,7 @@ static void bt_data_write(struct ba_transport *t) {
 	else {
 
 		for (; bt_data_head != bt_data_end; bt_data_head = bt_data_head->next) {
-			len = bt_data_head->len;
+			const size_t len = bt_data_head->len;
 			if (packet_loss && random() < INT32_MAX / 3 && !first_packet) {
 				debug("Simulating packet loss: Dropping BT packet!");
 				continue;
@@ -544,16 +549,18 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	FILE * f_dump = NULL;
+	struct ba_transport * t = t_pcm->t;
 	struct pollfd pfds[] = {{ t_pcm->fd_bt, POLLIN, 0 }};
-	struct bt_dump *btd = NULL;
 	uint8_t buffer[sizeof(bt_data.data)];
 	ssize_t len;
 
 	if (dump_data) {
 		char fname[128];
-		sprintf(fname, "encoded-%s-%s.btd", transport_to_fname(t), transport_pcm_to_fname(t_pcm));
-		ck_assert_ptr_nonnull(btd = bt_dump_create(fname, t));
+		sprintf(fname, "encoded-%s-%s.txt",
+				ba_transport_to_string(t), ba_transport_pcm_to_string(t_pcm));
+		ck_assert_ptr_nonnull(f_dump = fopen(fname, "w"));
+		ck_assert_int_ne(ba_dumper_write_header(f_dump, t), -1);
 	}
 
 	debug_transport_pcm_thread_loop(t_pcm, "START");
@@ -569,13 +576,13 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 		bt_data_push(buffer, len);
 		hexdump("BT data", buffer, len);
 
-		if (btd != NULL)
-			bt_dump_write(btd, buffer, len);
+		if (f_dump != NULL)
+			ba_dumper_write(f_dump, buffer, len);
 
 	}
 
-	if (btd != NULL)
-		bt_dump_close(btd);
+	if (f_dump != NULL)
+		fclose(f_dump);
 
 	/* signal termination and wait for cancellation */
 	test_start_terminate_timer(0);
@@ -599,7 +606,8 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 	if (dump_data) {
 #if HAVE_SNDFILE
 		char fname[128];
-		sprintf(fname, "decoded-%s-%s.wav", transport_to_fname(t_pcm->t), transport_pcm_to_fname(t_pcm));
+		sprintf(fname, "decoded-%s-%s.wav",
+				ba_transport_to_string(t_pcm->t), ba_transport_pcm_to_string(t_pcm));
 		ck_assert_ptr_nonnull(sf = sf_open_format(fname, t_pcm->rate, t_pcm->channels, t_pcm->format));
 #else
 		error("Dumping audio files requires sndfile library!");
@@ -739,7 +747,7 @@ static struct ba_transport * test_transport_new_a2dp(
 		const void * configuration) {
 #if DEBUG
 	if (input_bt_file != NULL)
-		configuration = &btdin->a2dp_configuration;
+		configuration = &input_bt_a2dp_configuration;
 #endif
 	struct ba_transport * t;
 	ck_assert_ptr_nonnull(t = ba_transport_new_a2dp(device, profile, ":test",
@@ -1503,49 +1511,49 @@ int main(int argc, char *argv[]) {
 		TFun tf;
 #endif
 	} codecs[] = {
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc },
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_invalid_config },
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain },
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain_and_close },
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drop },
+		{ a2dp_codec_to_string(A2DP_CODEC_SBC), test_a2dp_sbc },
+		{ a2dp_codec_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_invalid_config },
+		{ a2dp_codec_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain },
+		{ a2dp_codec_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drain_and_close },
+		{ a2dp_codec_to_string(A2DP_CODEC_SBC), test_a2dp_sbc_pcm_drop },
 #if ENABLE_MP3LAME
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },
+		{ a2dp_codec_to_string(A2DP_CODEC_MPEG12), test_a2dp_mp3 },
 #endif
 #if ENABLE_AAC
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac },
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac_configuration_select },
+		{ a2dp_codec_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac },
+		{ a2dp_codec_to_string(A2DP_CODEC_MPEG24), test_a2dp_aac_configuration_select },
 #endif
 #if ENABLE_APTX_IO_TEST
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID)), test_a2dp_aptx },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID)), test_a2dp_aptx },
 #endif
 #if ENABLE_APTX_HD_IO_TEST
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID)), test_a2dp_aptx_hd },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID)), test_a2dp_aptx_hd },
 #endif
 #if ENABLE_FASTSTREAM
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_music },
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_voice },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_music },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_voice },
 #endif
 #if ENABLE_LC3PLUS
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID)), test_a2dp_lc3plus },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID)), test_a2dp_lc3plus },
 #endif
 #if ENABLE_LDAC_IO_TEST
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID)), test_a2dp_ldac },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID)), test_a2dp_ldac },
 #endif
 #if ENABLE_LHDC
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)), test_a2dp_lhdc_v3 },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)), test_a2dp_lhdc_v3 },
 #endif
 #if ENABLE_OPUS
-		{ a2dp_codecs_codec_id_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },
 #endif
 #if ENABLE_ASHA
-		{ asha_codec_id_to_string(ASHA_CODEC_G722), test_asha_g722 },
+		{ asha_codec_to_string(ASHA_CODEC_G722), test_asha_g722 },
 #endif
-		{ hfp_codec_id_to_string(HFP_CODEC_CVSD), test_sco_cvsd },
+		{ hfp_codec_to_string(HFP_CODEC_CVSD), test_sco_cvsd },
 #if ENABLE_MSBC
-		{ hfp_codec_id_to_string(HFP_CODEC_MSBC), test_sco_msbc },
+		{ hfp_codec_to_string(HFP_CODEC_MSBC), test_sco_msbc },
 #endif
 #if ENABLE_LC3_SWB
-		{ hfp_codec_id_to_string(HFP_CODEC_LC3_SWB), test_sco_lc3_swb },
+		{ hfp_codec_to_string(HFP_CODEC_LC3_SWB), test_sco_lc3_swb },
 #endif
 	};
 
@@ -1600,7 +1608,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-	unsigned int enabled_codecs = 0xFFFFFFFF;
+	uint32_t enabled_codecs = A2DP_CODEC_UNDEFINED;
 
 	if (optind != argc)
 		enabled_codecs = 0;
@@ -1612,30 +1620,32 @@ int main(int argc, char *argv[]) {
 
 	if (input_bt_file != NULL) {
 
-		if ((btdin = bt_dump_open(input_bt_file)) == NULL) {
+		size_t input_bt_a2dp_configuration_size = sizeof(input_bt_a2dp_configuration);
+		if ((input_bt_f = fopen(input_bt_file, "r")) == NULL ||
+				ba_dumper_read_header(input_bt_f, &input_bt_profile_mask, &input_bt_codec_id,
+						&input_bt_a2dp_configuration, &input_bt_a2dp_configuration_size) == -1) {
 			error("Couldn't open input BT dump file: %s", strerror(errno));
 			return EXIT_FAILURE;
 		}
 
-		const char *codec = "";
-		switch (btdin->mode) {
-		case BT_DUMP_MODE_A2DP_SOURCE:
-		case BT_DUMP_MODE_A2DP_SINK:
-			codec = a2dp_codecs_codec_id_to_string(btdin->transport_codec_id);
-			debug("BT dump A2DP codec: %s (%#x)", codec, btdin->transport_codec_id);
+		const char * codec = "";
+		switch (input_bt_profile_mask) {
+		case BA_TRANSPORT_PROFILE_MASK_A2DP:
+			codec = a2dp_codec_to_string(input_bt_codec_id);
+			debug("BT dump A2DP codec: %s (%#x)", codec, input_bt_codec_id);
 			hexdump("BT dump A2DP configuration",
-					&btdin->a2dp_configuration, btdin->a2dp_configuration_size);
+					&input_bt_a2dp_configuration, input_bt_a2dp_configuration_size);
 			break;
-		case BT_DUMP_MODE_ASHA_SOURCE:
-		case BT_DUMP_MODE_ASHA_SINK:
 #if ENABLE_ASHA
-			codec = asha_codec_id_to_string(btdin->transport_codec_id);
-			debug("BT dump ASHA codec: %s (%#x)", codec, btdin->transport_codec_id);
-#endif
+		case BA_TRANSPORT_PROFILE_MASK_ASHA:
+			codec = asha_codec_to_string(input_bt_codec_id);
+			debug("BT dump ASHA codec: %s (%#x)", codec, input_bt_codec_id);
 			break;
-		case BT_DUMP_MODE_SCO:
-			codec = hfp_codec_id_to_string(btdin->transport_codec_id);
-			debug("BT dump HFP codec: %s (%#x)", codec, btdin->transport_codec_id);
+#endif
+		case BA_TRANSPORT_PROFILE_MASK_HFP:
+		case BA_TRANSPORT_PROFILE_MASK_HSP:
+			codec = hfp_codec_to_string(input_bt_codec_id);
+			debug("BT dump HFP codec: %s (%#x)", codec, input_bt_codec_id);
 			break;
 		}
 
@@ -1648,7 +1658,7 @@ int main(int argc, char *argv[]) {
 		if (enabled_codecs == 0) {
 			ssize_t len;
 			char buffer[4096];
-			while ((len = bt_dump_read(btdin, buffer, sizeof(buffer))) != -1)
+			while ((len = ba_dumper_read(input_bt_f, buffer, sizeof(buffer))) != -1)
 				hexdump("BT data", buffer, len);
 		}
 
@@ -1673,8 +1683,14 @@ int main(int argc, char *argv[]) {
 		tcase_set_timeout(tc, aging_duration + 3600);
 
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
-		if (enabled_codecs & (1 << i))
+		if (enabled_codecs & (1 << i)) {
 			tcase_add_test(tc, codecs[i].tf);
+			/* A single codec might have multiple test cases. In all cases, the
+			 * first test case is the positive test which should be run when we
+			 * have an input BT dump file. */
+			if (input_bt_file != NULL)
+				break;
+		}
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
@@ -1683,7 +1699,6 @@ int main(int argc, char *argv[]) {
 	ba_device_unref(device1);
 	ba_device_unref(device2);
 	ba_adapter_unref(adapter);
-	bt_dump_close(btdin);
 
 	return nf == 0 ? 0 : 1;
 }

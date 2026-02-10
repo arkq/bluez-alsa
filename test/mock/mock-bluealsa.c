@@ -44,14 +44,14 @@
 #include "codec-sbc.h"
 #include "error.h"
 #include "hci.h"
-#include "hfp.h"
 #include "io.h"
 #include "midi.h"
 #include "ofono.h"
 #include "storage.h"
 #include "upower.h"
-#include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
+#include "shared/bluetooth-a2dp.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
@@ -217,7 +217,7 @@ static struct ba_transport * mock_transport_new_a2dp(BlueALSAMockServicePriv * s
 	char device[18];
 	ba2str(&d->addr, device);
 	fprintf(stderr, "BLUEALSA_READY=A2DP:%s:%s\n", device,
-			a2dp_codecs_codec_id_to_string(sep->config.codec_id));
+			a2dp_codec_to_string(sep->config.codec_id));
 
 	struct ba_transport *t;
 	assert((t = ba_transport_lookup(d, transport_path)) != NULL);
@@ -284,7 +284,7 @@ static struct ba_transport *mock_transport_new_sco(BlueALSAMockServicePriv * sel
 	char device[18];
 	ba2str(&d->addr, device);
 	fprintf(stderr, "BLUEALSA_READY=SCO:%s:%s\n", device,
-			hfp_codec_id_to_string(ba_transport_get_codec(t)));
+			hfp_codec_to_string(ba_transport_get_codec(t)));
 
 	return t;
 }

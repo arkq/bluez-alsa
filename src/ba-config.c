@@ -23,7 +23,7 @@
 #endif
 
 #include "codec-sbc.h"
-#include "hfp.h"
+#include "shared/bluetooth-hfp.h"
 
 /* Initialize global configuration variable. */
 struct ba_config config = {

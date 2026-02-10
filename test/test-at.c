@@ -11,7 +11,7 @@
 #include <check.h>
 
 #include "at.h"
-#include "hfp.h"
+#include "shared/bluetooth-hfp.h"
 
 #include "inc/check.inc"
 

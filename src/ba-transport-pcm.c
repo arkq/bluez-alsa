@@ -32,11 +32,11 @@
 #include "bluez-iface.h"
 #include "bluez.h"
 #include "dbus.h"
-#include "hfp.h"
 #include "io.h"
 #if ENABLE_OFONO
 # include "ofono.h"
 #endif
+#include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 

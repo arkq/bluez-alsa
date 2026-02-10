@@ -4,7 +4,7 @@
 
 SUBDIRS = shared
 # Make sure that shared library is built before anything else.
-SUBDIRS += asound bluealsactl
+SUBDIRS += asound bluealsactl dumper
 
 bin_PROGRAMS = bluealsad
 noinst_LTLIBRARIES = libbluealsad.la
@@ -54,7 +54,6 @@ libbluealsad_la_SOURCES = \
 	error.c \
 	h2.c \
 	hci.c \
-	hfp.c \
 	io.c \
 	rtp.c \
 	sco.c \

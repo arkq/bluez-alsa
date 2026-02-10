@@ -1,10 +1,10 @@
 /*
- * BlueALSA - a2dp-codecs.c
+ * BlueALSA - bluetooth-a2dp.c
  * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
-#include "a2dp-codecs.h"
+#include "bluetooth-a2dp.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -13,8 +13,8 @@
 #include "defs.h"
 
 static const struct {
-	uint32_t codec_id;
-	const char *aliases[3];
+	uint32_t codec;
+	const char * aliases[3];
 } codecs[] = {
 	{ A2DP_CODEC_SBC, { "SBC" } },
 	{ A2DP_CODEC_MPEG12, { "MP3", "MPEG12", "MPEG" } },
@@ -40,50 +40,29 @@ static const struct {
 	{ A2DP_CODEC_VENDOR_ID(SAMSUNG_SC_VENDOR_ID, SAMSUNG_SC_CODEC_ID), { "samsung-SC" } },
 };
 
-/**
- * Get BlueALSA A2DP codec ID from string representation.
- *
- * @param alias Alias of an A2DP audio codec name.
- * @return BlueALSA A2DP codec ID or 0xFFFFFFFF if there was no match. */
-uint32_t a2dp_codecs_codec_id_from_string(const char *alias) {
+uint32_t a2dp_codec_from_string(const char * alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
 					strcasecmp(codecs[i].aliases[n], alias) == 0)
-				return codecs[i].codec_id;
-	return 0xFFFFFFFF;
+				return codecs[i].codec;
+	return A2DP_CODEC_UNDEFINED;
 }
 
-/**
- * Get BlueALSA A2DP codec ID from vendor codec information.
- *
- * @param info A2DP vendor codec capabilities.
- * @return BlueALSA A2DP codec ID. */
-uint32_t a2dp_codecs_vendor_codec_id(const a2dp_vendor_info_t *info) {
+uint32_t a2dp_codec_from_vendor_info(const a2dp_vendor_info_t * info) {
 	const uint32_t vendor_id = A2DP_VENDOR_INFO_GET_VENDOR_ID(*info);
 	const uint16_t codec_id = A2DP_VENDOR_INFO_GET_CODEC_ID(*info);
 	return A2DP_CODEC_VENDOR_ID(vendor_id, codec_id);
 }
 
-/**
- * Convert BlueALSA A2DP codec ID into a human-readable string.
- *
- * @param codec BlueALSA A2DP audio codec ID.
- * @return Human-readable string or NULL for unknown codec. */
-const char *a2dp_codecs_codec_id_to_string(uint32_t codec_id) {
+const char * a2dp_codec_to_string(uint32_t codec) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
-		if (codecs[i].codec_id == codec_id)
+		if (codecs[i].codec == codec)
 			return codecs[i].aliases[0];
 	return NULL;
 }
 
-/**
- * Get A2DP audio codec canonical name.
- *
- * @param alias Alias of an A2DP audio codec name.
- * @return Canonical name of the codec or passed alias string in case when
- *   there was no match. */
-const char *a2dp_codecs_get_canonical_name(const char *alias) {
+const char * a2dp_codec_canonical_name(const char * alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&

@@ -18,7 +18,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "a2dp-codecs.h"
+#include "bluetooth-a2dp.h"
 #include "defs.h"
 
 static int path2ba(const char *path, bdaddr_t *ba) {
@@ -206,7 +206,7 @@ const char *ba_dbus_pcm_codec_get_canonical_name(
 		if (strcasecmp(sco_codecs[i], alias) == 0)
 			return sco_codecs[i];
 
-	return a2dp_codecs_get_canonical_name(alias);
+	return a2dp_codec_canonical_name(alias);
 }
 
 static void dbus_message_iter_get_codec_data(

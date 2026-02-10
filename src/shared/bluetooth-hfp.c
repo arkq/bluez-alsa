@@ -1,36 +1,28 @@
 /*
- * BlueALSA - hfp.c
+ * BlueALSA - bluetooth-hfp.c
  * SPDX-FileCopyrightText: 2017-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
-#include "hfp.h"
+#include "bluetooth-hfp.h"
 
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <strings.h>
 
-#include "shared/defs.h"
+#include "defs.h"
 
 static const struct {
-	uint8_t codec_id;
-	const char *aliases[1];
+	uint8_t codec;
+	const char * aliases[1];
 } codecs[] = {
 	{ HFP_CODEC_CVSD, { "CVSD" } },
 	{ HFP_CODEC_MSBC, { "mSBC" } },
 	{ HFP_CODEC_LC3_SWB, { "LC3-SWB" } },
 };
 
-/**
- * Convert HFP AG features into human-readable strings.
- *
- * @param features HFP AG feature mask.
- * @param out Array of strings to be filled with feature names.
- * @param size Size of the output array.
- * @return On success this function returns number of features. Otherwise, -1
- *   is returned and errno is set to indicate the error. */
-ssize_t hfp_ag_features_to_strings(uint32_t features, const char **out, size_t size) {
+ssize_t hfp_ag_features_to_strings(uint32_t features, const char ** out, size_t size) {
 
 	if (size < 12)
 		return errno = ENOMEM, -1;
@@ -65,15 +57,7 @@ ssize_t hfp_ag_features_to_strings(uint32_t features, const char **out, size_t s
 	return i;
 }
 
-/**
- * Convert HFP HF features into human-readable strings.
- *
- * @param features HFP HF feature mask.
- * @param out Array of strings to be filled with feature names.
- * @param size Size of the output array.
- * @return On success this function returns number of features. Otherwise, -1
- *   is returned and errno is set to indicate the error. */
-ssize_t hfp_hf_features_to_strings(uint32_t features, const char **out, size_t size) {
+ssize_t hfp_hf_features_to_strings(uint32_t features, const char ** out, size_t size) {
 
 	if (size < 10)
 		return errno = ENOMEM, -1;
@@ -104,29 +88,18 @@ ssize_t hfp_hf_features_to_strings(uint32_t features, const char **out, size_t s
 	return i;
 }
 
-/**
- * Get BlueALSA HFP codec ID from string representation.
- *
- * @param alias Alias of HFP audio codec name.
- * @return BlueALSA HFP audio codec ID or HFP_CODEC_UNDEFINED if there was no
- *   match. */
-uint8_t hfp_codec_id_from_string(const char *alias) {
+uint8_t hfp_codec_from_string(const char * alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
 					strcasecmp(codecs[i].aliases[n], alias) == 0)
-				return codecs[i].codec_id;
+				return codecs[i].codec;
 	return HFP_CODEC_UNDEFINED;
 }
 
-/**
- * Convert BlueALSA HFP codec ID into a human-readable string.
- *
- * @param codec BlueALSA HFP audio codec ID.
- * @return Human-readable string or NULL for unknown codec. */
-const char *hfp_codec_id_to_string(uint8_t codec_id) {
+const char * hfp_codec_to_string(uint8_t codec) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
-		if (codecs[i].codec_id == codec_id)
+		if (codecs[i].codec == codec)
 			return codecs[i].aliases[0];
 	return NULL;
 }

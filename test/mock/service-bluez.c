@@ -17,8 +17,8 @@
 #include <glib.h>
 
 #include "bluez-iface.h"
-#include "shared/a2dp-codecs.h"
 #include "shared/bluetooth.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "utils.h"

@@ -5,7 +5,9 @@
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
+#include <sys/socket.h>
 
 #include <check.h>
 #include <gio/gio.h>
@@ -15,7 +17,6 @@
 
 #include "ba-adapter.h"
 #include "bluez.h"
-#include "bluez-iface.h"
 #include "bt-gatt.h"
 #include "dbus.h"
 #include "utils.h"

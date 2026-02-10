@@ -43,7 +43,7 @@
 #include "a2dp-sbc.h"
 #include "ba-config.h"
 #include "error.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/log.h"
 
 const enum ba_transport_pcm_channel a2dp_channel_map_mono[] = {
@@ -284,10 +284,10 @@ static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
 	if (a < A2DP_CODEC_VENDOR || b < A2DP_CODEC_VENDOR)
 		return a < b ? -1 : (a == b ? 0 : 1);
 	const char *a_name;
-	if ((a_name = a2dp_codecs_codec_id_to_string(a)) == NULL)
+	if ((a_name = a2dp_codec_to_string(a)) == NULL)
 		return 1;
 	const char *b_name;
-	if ((b_name = a2dp_codecs_codec_id_to_string(b)) == NULL)
+	if ((b_name = a2dp_codec_to_string(b)) == NULL)
 		return -1;
 	return strcasecmp(a_name, b_name);
 }
@@ -336,8 +336,8 @@ const struct a2dp_sep *a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
  * @return On success this function returns A2DP 32-bit vendor codec ID. */
 uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 	if (size < sizeof(a2dp_vendor_info_t))
-		return errno = EINVAL, 0xFFFFFFFF;
-	return a2dp_codecs_vendor_codec_id(capabilities);
+		return errno = EINVAL, A2DP_CODEC_UNDEFINED;
+	return a2dp_codec_from_vendor_info(capabilities);
 }
 
 /**

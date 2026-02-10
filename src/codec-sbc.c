@@ -16,7 +16,7 @@
 #include <glib.h>
 #include <sbc/sbc.h>
 
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/log.h"
 
 /**

@@ -44,6 +44,8 @@
 
 	{ include: [ '<lc3_private.h>', private, '<lc3.h>', public ] },
 
+	{ include: [ '"lhdc_api.h"', private, '<lhdcBT.h>', public ] },
+
 	{ include: [ '<fmt123.h>', private, '<mpg123.h>', public ] },
 
 	{ include: [ '"opus_defines.h"', private, '<opus.h>', public ] },

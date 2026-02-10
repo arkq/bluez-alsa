@@ -45,12 +45,12 @@
 #include "bluez.h"
 #include "codec-sbc.h"
 #include "error.h"
-#include "hfp.h"
 #include "ofono.h"
 #include "storage.h"
 #include "upower.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/nv.h"
@@ -86,26 +86,26 @@ static char *get_a2dp_codecs(enum a2dp_type type) {
 			QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++)
-		strv[i] = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->config.codec_id);
+		strv[i] = a2dp_codec_to_string(a2dp_seps_tmp[i]->config.codec_id);
 
 	return g_strjoinv(", ", (char **)strv);
 }
 
 #if ENABLE_ASHA
 static const char * get_asha_codecs(void) {
-	return asha_codec_id_to_string(ASHA_CODEC_G722);
+	return asha_codec_to_string(ASHA_CODEC_G722);
 }
 #endif
 
 static char *get_hfp_codecs(void) {
 
 	const char *strv[] = {
-		hfp_codec_id_to_string(HFP_CODEC_CVSD),
+		hfp_codec_to_string(HFP_CODEC_CVSD),
 #if ENABLE_MSBC
-		hfp_codec_id_to_string(HFP_CODEC_MSBC),
+		hfp_codec_to_string(HFP_CODEC_MSBC),
 #endif
 #if ENABLE_LC3_SWB
-		hfp_codec_id_to_string(HFP_CODEC_LC3_SWB),
+		hfp_codec_to_string(HFP_CODEC_LC3_SWB),
 #endif
 		NULL,
 	};
@@ -498,7 +498,7 @@ int main(int argc, char **argv) {
 			}
 
 			struct a2dp_sep * const * seps = a2dp_seps;
-			uint32_t codec_id = a2dp_codecs_codec_id_from_string(optarg);
+			uint32_t codec_id = a2dp_codec_from_string(optarg);
 			for (struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps)
 				if (sep->config.codec_id == codec_id) {
 					sep->enabled = enable;
@@ -506,7 +506,7 @@ int main(int argc, char **argv) {
 				}
 
 #if ENABLE_ASHA
-			codec_id = asha_codec_id_from_string(optarg);
+			codec_id = asha_codec_from_string(optarg);
 			for (size_t i = 0; i < ARRAYSIZE(asha_codecs); i++)
 				if (asha_codecs[i].codec_id == codec_id) {
 					*asha_codecs[i].ptr = enable;
@@ -514,7 +514,7 @@ int main(int argc, char **argv) {
 				}
 #endif
 
-			codec_id = hfp_codec_id_from_string(optarg);
+			codec_id = hfp_codec_from_string(optarg);
 			for (size_t i = 0; i < ARRAYSIZE(hfp_codecs); i++)
 				if (hfp_codecs[i].codec_id == codec_id) {
 					*hfp_codecs[i].ptr = enable;

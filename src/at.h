@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "hfp.h"
+#include "shared/bluetooth-hfp.h"
 
 enum bt_at_type {
 	AT_TYPE_RAW,

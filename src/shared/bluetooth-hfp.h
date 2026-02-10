@@ -1,12 +1,12 @@
 /*
- * BlueALSA - hfp.h
+ * BlueALSA - bluetooth-hfp.h
  * SPDX-FileCopyrightText: 2017-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
 #pragma once
-#ifndef BLUEALSA_HFP_H_
-#define BLUEALSA_HFP_H_
+#ifndef BLUEALSA_SHARED_BLUETOOTH_HFP_H_
+#define BLUEALSA_SHARED_BLUETOOTH_HFP_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>
@@ -156,10 +156,38 @@ enum __attribute__ ((packed)) hfp_ind {
 /* a roaming is active */
 #define HFP_IND_ROAM_ACTIVE         1
 
-ssize_t hfp_ag_features_to_strings(uint32_t features, const char **out, size_t size);
-ssize_t hfp_hf_features_to_strings(uint32_t features, const char **out, size_t size);
+/**
+ * Convert HFP AG features into human-readable strings.
+ *
+ * @param features HFP AG feature mask.
+ * @param out Array of strings to be filled with feature names.
+ * @param size Size of the output array.
+ * @return On success this function returns number of features. Otherwise, -1
+ *   is returned and errno is set to indicate the error. */
+ssize_t hfp_ag_features_to_strings(uint32_t features, const char ** out, size_t size);
 
-uint8_t hfp_codec_id_from_string(const char *alias);
-const char *hfp_codec_id_to_string(uint8_t codec_id);
+/**
+ * Convert HFP HF features into human-readable strings.
+ *
+ * @param features HFP HF feature mask.
+ * @param out Array of strings to be filled with feature names.
+ * @param size Size of the output array.
+ * @return On success this function returns number of features. Otherwise, -1
+ *   is returned and errno is set to indicate the error. */
+ssize_t hfp_hf_features_to_strings(uint32_t features, const char ** out, size_t size);
+
+/**
+ * Get BlueALSA HFP codec ID from string representation.
+ *
+ * @param alias Alias of HFP audio codec name.
+ * @return HFP audio codec ID or HFP_CODEC_UNDEFINED in case of no match. */
+uint8_t hfp_codec_from_string(const char * alias);
+
+/**
+ * Convert BlueALSA HFP codec ID into a human-readable string.
+ *
+ * @param codec BlueALSA HFP audio codec ID.
+ * @return Human-readable string or NULL for unknown codec. */
+const char * hfp_codec_to_string(uint8_t codec);
 
 #endif

@@ -34,10 +34,10 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "error.h"
-#include "hfp.h"
 #include "midi.h"
 #include "storage.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
 
 #include "inc/check.inc"

@@ -16,6 +16,7 @@ TESTS = \
 	test-ba \
 	test-codec-sbc \
 	test-dbus \
+	test-dumper \
 	test-h2 \
 	test-io \
 	test-rfcomm \
@@ -31,6 +32,7 @@ check_PROGRAMS = \
 	test-ba \
 	test-codec-sbc \
 	test-dbus \
+	test-dumper \
 	test-h2 \
 	test-io \
 	test-rfcomm \
@@ -111,6 +113,7 @@ AM_CFLAGS = \
 	@SNDFILE_CFLAGS@
 
 LDADD = \
+	../src/dumper/libbadumper.la \
 	../src/shared/libshared.la \
 	../src/libbluealsad.la \
 	mock/libservices.la \

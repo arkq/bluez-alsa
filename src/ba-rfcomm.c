@@ -994,7 +994,7 @@ static int rfcomm_hfp_set_codec(struct ba_rfcomm *r, uint8_t codec_id) {
 
 	debug("RFCOMM: %s setting codec: %s",
 			ba_transport_debug_name(t_sco),
-			hfp_codec_id_to_string(codec_id));
+			hfp_codec_to_string(codec_id));
 
 	/* SLC is required for codec connection */
 	if (r->state != HFP_SLC_CONNECTED)

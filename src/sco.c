@@ -30,11 +30,11 @@
 #include "bluealsa-dbus.h"
 #include "error.h"
 #include "hci.h"
-#include "hfp.h"
 #include "sco-cvsd.h"
 #include "sco-lc3-swb.h"
 #include "sco-msbc.h"
 #include "shared/bluetooth.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
 #include "utils.h"
 

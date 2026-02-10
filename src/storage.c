@@ -20,9 +20,9 @@
 #include <glib.h>
 
 #include "ba-transport.h"
-#include "hfp.h"
 #include "utils.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -214,12 +214,12 @@ static GHashTable *storage_pcm_data_load_delays(GKeyFile *db, const char *group,
 			continue;
 		/* Split string into a codec name and delay value. */
 		*value++ = '\0';
-		uint32_t codec_id = 0xFFFFFFFF;
+		uint32_t codec_id = A2DP_CODEC_UNDEFINED;
 		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t) &&
-				(codec_id = a2dp_codecs_codec_id_from_string(codec_name)) == 0xFFFFFFFF)
+				(codec_id = a2dp_codec_from_string(codec_name)) == A2DP_CODEC_UNDEFINED)
 			continue;
 		if (BA_TRANSPORT_PROFILE_IS_SCO(t) &&
-				(codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
+				(codec_id = hfp_codec_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
 			continue;
 		const int16_t delay = atoi(value);
 		g_hash_table_insert(delays, GINT_TO_POINTER(codec_id), GINT_TO_POINTER(delay));
@@ -352,9 +352,9 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 			continue;
 		const char *codec = NULL;
 		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
-			codec = a2dp_codecs_codec_id_to_string(GPOINTER_TO_INT(key));
+			codec = a2dp_codec_to_string(GPOINTER_TO_INT(key));
 		if (BA_TRANSPORT_PROFILE_IS_SCO(t))
-			codec = hfp_codec_id_to_string(GPOINTER_TO_INT(key));
+			codec = hfp_codec_to_string(GPOINTER_TO_INT(key));
 		if (codec == NULL)
 			continue;
 		list[index] = malloc(strlen(codec) + 1 + 6 + 1);

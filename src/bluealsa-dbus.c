@@ -39,10 +39,10 @@
 #include "bluez.h"
 #include "dbus.h"
 #include "error.h"
-#include "hfp.h"
 #include "utils.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
+#include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 
@@ -129,7 +129,7 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 	for (size_t i = 0; i < n; i++) {
 		const char * profile = a2dp_seps_tmp[i]->config.type == A2DP_SOURCE ?
 				BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE : BLUEALSA_TRANSPORT_TYPE_A2DP_SINK;
-		const char * name = a2dp_codecs_codec_id_to_string(a2dp_seps_tmp[i]->config.codec_id);
+		const char * name = a2dp_codec_to_string(a2dp_seps_tmp[i]->config.codec_id);
 		snprintf(tmp[i], sizeof(tmp[i]), "%s:%s", profile, name);
 		strv[i] = (const char *)&tmp[i];
 	}
@@ -139,7 +139,7 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 		BLUEALSA_TRANSPORT_TYPE_ASHA_SOURCE,
 		BLUEALSA_TRANSPORT_TYPE_ASHA_SINK };
 	for (size_t i = 0; i < ARRAYSIZE(asha_profiles); i++) {
-		const char * name = asha_codec_id_to_string(ASHA_CODEC_G722);
+		const char * name = asha_codec_to_string(ASHA_CODEC_G722);
 		snprintf(tmp[n], sizeof(tmp[n]), "%s:%s", asha_profiles[i], name);
 		strv[n] = (const char *)&tmp[n];
 		n++;
@@ -170,7 +170,7 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 	for (size_t i = 0; i < ARRAYSIZE(hfp_profiles); i++)
 		for (size_t ii = 0; ii < ARRAYSIZE(hfp_codecs); ii++)
 			if (hfp_codecs[ii].enabled) {
-				const char * name = hfp_codec_id_to_string(hfp_codecs[ii].codec_id);
+				const char * name = hfp_codec_to_string(hfp_codecs[ii].codec_id);
 				snprintf(tmp[n], sizeof(tmp[n]), "%s:%s", hfp_profiles[i], name);
 				strv[n] = (const char *)&tmp[n];
 				n++;
@@ -180,7 +180,7 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 		BLUEALSA_TRANSPORT_TYPE_HSP_AG,
 		BLUEALSA_TRANSPORT_TYPE_HSP_HS };
 	for (size_t i = 0; i < ARRAYSIZE(hsp_profiles); i++) {
-		const char * name = hfp_codec_id_to_string(HFP_CODEC_CVSD);
+		const char * name = hfp_codec_to_string(HFP_CODEC_CVSD);
 		snprintf(tmp[n], sizeof(tmp[n]), "%s:%s", hsp_profiles[i], name);
 		strv[n] = (const char *)&tmp[n];
 		n++;
@@ -283,13 +283,13 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 	const struct ba_transport *t = pcm->t;
 	const char *codec = NULL;
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t))
-		codec = a2dp_codecs_codec_id_to_string(ba_transport_get_codec(t));
+		codec = a2dp_codec_to_string(ba_transport_get_codec(t));
 #if ENABLE_ASHA
 	else if (BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t))
-		codec = asha_codec_id_to_string(ba_transport_get_codec(t));
+		codec = asha_codec_to_string(ba_transport_get_codec(t));
 #endif
 	else if (BA_TRANSPORT_PROFILE_IS_SCO(t))
-		codec = hfp_codec_id_to_string(ba_transport_get_codec(t));
+		codec = hfp_codec_to_string(ba_transport_get_codec(t));
 	if (codec != NULL)
 		return g_variant_new_string(codec);
 	return NULL;
@@ -661,7 +661,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 			ba_variant_populate_remote_sep(&props, sep, remote_sep_cfg, pcm_sep_stream);
 
 			g_variant_builder_add(&codecs, "{sa{sv}}",
-					a2dp_codecs_codec_id_to_string(remote_sep_cfg->codec_id), &props);
+					a2dp_codec_to_string(remote_sep_cfg->codec_id), &props);
 			g_variant_builder_clear(&props);
 
 			/* Remember reported codec ID. */
@@ -686,7 +686,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 					g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
 
 		g_variant_builder_add(&codecs, "{sa{sv}}",
-				asha_codec_id_to_string(ASHA_CODEC_G722), &props);
+				asha_codec_to_string(ASHA_CODEC_G722), &props);
 		g_variant_builder_clear(&props);
 
 	}
@@ -741,7 +741,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 							g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
 
 				g_variant_builder_add(&codecs, "{sa{sv}}",
-						hfp_codec_id_to_string(sco_codecs[i].codec_id), &props);
+						hfp_codec_to_string(sco_codecs[i].codec_id), &props);
 				g_variant_builder_clear(&props);
 
 			}
@@ -818,7 +818,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			goto fail;
 		}
 
-		uint32_t codec_id = a2dp_codecs_codec_id_from_string(codec_name);
+		uint32_t codec_id = a2dp_codec_from_string(codec_name);
 		const enum a2dp_type pcm_sep_type = t->media.a2dp.sep->config.type;
 		const enum a2dp_stream pcm_sep_stream = &t->media.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 		struct a2dp_sep_config *remote_sep_cfg = NULL;
@@ -892,7 +892,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 
 		uint8_t codec_id;
-		if ((codec_id = hfp_codec_id_from_string(codec_name)) == HFP_CODEC_UNDEFINED) {
+		if ((codec_id = hfp_codec_from_string(codec_name)) == HFP_CODEC_UNDEFINED) {
 			errmsg = "HFP codec not available";
 			goto fail;
 		}

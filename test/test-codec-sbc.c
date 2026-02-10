@@ -14,7 +14,7 @@
 #include <check.h>
 
 #include "codec-sbc.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 
 #include <sbc/sbc.h>
 

@@ -20,7 +20,7 @@
 
 #include "ba-transport-pcm.h"
 #include "error.h"
-#include "shared/a2dp-codecs.h"
+#include "shared/bluetooth-a2dp.h"
 
 /**
  * Mapping between A2DP bit-field and its real value.
