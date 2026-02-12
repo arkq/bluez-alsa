@@ -160,7 +160,7 @@ static void g_bus_name_lost(GDBusConnection *conn, const char *name, void *userd
 int main(int argc, char **argv) {
 
 	int opt;
-	static const char * opts = "hVSB:i:p:c:";
+	static const char * opts = "hVSB:Mi:p:c:";
 	static const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
@@ -168,10 +168,12 @@ int main(int argc, char **argv) {
 		{ "loglevel", required_argument, NULL, 23 },
 		{ "dbus", required_argument, NULL, 'B' },
 		{ "device", required_argument, NULL, 'i' },
+		{ "multi-client", optional_argument, NULL, 'M' },
 		{ "profile", required_argument, NULL, 'p' },
 		{ "codec", required_argument, NULL, 'c' },
 		{ "all-codecs", no_argument, NULL, 25 },
 		{ "initial-volume", required_argument, NULL, 17 },
+		{ "multi-attenuation", required_argument, NULL, 26 },
 		{ "keep-alive", required_argument, NULL, 8 },
 		{ "io-rt-priority", required_argument, NULL, 3 },
 		{ "disable-realtek-usb-fix", no_argument, NULL, 21 },
@@ -321,6 +323,8 @@ int main(int argc, char **argv) {
 					"      --loglevel=LEVEL\t\tset logging level; default: %s\n"
 					"  -B, --dbus=NAME\t\tprepend BlueALSA D-Bus service name suffix\n"
 					"  -i, --device=DEV\t\tHCI device to use given by name or MAC address\n"
+					"  -M, --multi-client[=DIRECTION]\tpermit multiple clients for each transport PCM\n"
+					"      --multi-attenuation=NUM\tattenuate mix pass-through volume [0-99]\n"
 					"  -p, --profile=NAME\t\tenable BT profile by NAME\n"
 					"  -c, --codec=[-]NAME\t\tenable/disable audio codec by NAME\n"
 					"      --all-codecs\t\tenable all supported audio codecs\n"
@@ -478,6 +482,33 @@ int main(int argc, char **argv) {
 			g_array_append_val(config.hci_filter, optarg);
 			break;
 
+		case 'M' /* --multi-client */ : {
+
+			if (optarg == NULL) {
+				config.multi_mix_enabled = true;
+				config.multi_snoop_enabled = true;
+			}
+			else {
+				static const nv_entry_t values[] = {
+					{ "output", .v.u = 0x1 },
+					{ "input", .v.u = 0x2 },
+					{ "both", .v.u = 0x3 },
+					{ 0 },
+				};
+
+				const nv_entry_t *entry;
+				if ((entry = nv_lookup_entry(values, optarg)) == NULL) {
+					error("Invalid multi-client direction {%s}: %s", nv_join_names(values), optarg);
+					return EXIT_FAILURE;
+				}
+				if (entry->v.u & 0x1)
+					config.multi_mix_enabled = true;
+				if (entry->v.u & 0x2)
+					config.multi_snoop_enabled = true;
+			}
+			break;
+		}
+
 		case 'p' /* --profile=NAME */ : {
 
 			static const struct {
@@ -580,6 +611,16 @@ int main(int argc, char **argv) {
 			}
 			double level = audio_loudness_to_decibel(1.0 * vol / 100);
 			config.volume_init_level = MIN(MAX(level, -96.0), 96.0) * 100;
+			break;
+		}
+
+		case 26 /* --multi-attenuation=NUM */ : {
+			unsigned int attenuation = atoi(optarg);
+			if (attenuation > 99) {
+				error("Invalid multi mix attenuation [0, 100]: %s", optarg);
+				return EXIT_FAILURE;
+			}
+			config.multi_native_volume = (double)(100 - attenuation) / 100;
 			break;
 		}
 
