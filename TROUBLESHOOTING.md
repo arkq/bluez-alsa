@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 
@@ -129,7 +129,29 @@ profile) as soon as it connects, and therefore attempting to use an application
 such as `arecord` to capture from BlueALSA while `bluealsa-aplay` is running
 will result in this error.
 
-## 5. Using BlueALSA alongside PulseAudio or PipeWire
+## 5. Couldn't set IO thread RT priority: Operation not permitted
+
+This error may be reported by the BlueALSA service when the `bluealsad` daemon
+is started with the option `--io-rt-priority=`. It indicates that the user
+account that is starting the service does not have the necessary capability
+(`CAP_SYS_NICE`) to raise its thread scheduling priority.
+
+Most often this is caused by that capability being denied by `systemd`. The
+`systemd` service unit file included in the BlueALSA sources deliberately
+denies this capability, so when using that unit file it is necessary to
+override some of the unit directives. It is necessary to both grant the
+capability, and to allow the service to use real-time resources. The necessary
+additions are:
+
+```ini
+[Service]
+AmbientCapabilities=CAP_SYS_NICE
+CapabilityBoundingSet=CAP_SYS_NICE
+RestrictRealtime=false
+SystemCallFilter=@resources
+```
+
+## 6. Using BlueALSA alongside PulseAudio or PipeWire
 
 It is not advisable to run BlueALSA if either PulseAudio or PipeWire are also
 running with their own Bluetooth modules enabled. If one would like to have a
@@ -155,7 +177,7 @@ PulseAudio Bluetooth modules in the wiki: [PipeWire or PulseAudio integration][]
 
 [PipeWire or PulseAudio integration]: https://github.com/arkq/bluez-alsa/wiki/PulseAudio-integration
 
-## 6. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
+## 7. ALSA thread-safe API (alsa-lib >= 1.1.2, <= 1.1.3)
 
 ALSA library versions 1.1.2 and 1.1.3 had a bug in their thread-safe API
 functions. This bug does not affect hardware audio devices, but it affects
