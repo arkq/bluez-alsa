@@ -15,7 +15,7 @@
 
 #include <lc3.h>
 
-#include "h2.h"
+#include "shared/h2.h"
 #include "shared/log.h"
 
 /**

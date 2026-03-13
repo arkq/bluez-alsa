@@ -20,7 +20,7 @@
 
 #include <lc3.h>
 
-#include "h2.h"
+#include "shared/h2.h"
 #include "shared/ffb.h"
 
 /* LC3-SWB uses LC3 encoding with precisely defined parameters: mono, 32 kHz

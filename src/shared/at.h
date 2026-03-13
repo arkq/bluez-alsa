@@ -5,14 +5,14 @@
  */
 
 #pragma once
-#ifndef BLUEALSA_AT_H_
-#define BLUEALSA_AT_H_
+#ifndef BLUEALSA_SHARED_AT_H_
+#define BLUEALSA_SHARED_AT_H_
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "shared/bluetooth-hfp.h"
+#include "bluetooth-hfp.h"
 
 enum bt_at_type {
 	AT_TYPE_RAW,

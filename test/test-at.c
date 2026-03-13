@@ -10,7 +10,7 @@
 
 #include <check.h>
 
-#include "at.h"
+#include "shared/at.h"
 #include "shared/bluetooth-hfp.h"
 
 #include "inc/check.inc"

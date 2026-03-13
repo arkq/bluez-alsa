@@ -22,9 +22,9 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
-#include "ble-midi.h"
-#include "utils.h"
+#include "shared/bluetooth-midi.h"
 #include "shared/log.h"
+#include "utils.h"
 
 static int midi_watch_read_alsa_seq(
 		G_GNUC_UNUSED GIOChannel * ch,

@@ -10,7 +10,7 @@
 
 #include <check.h>
 
-#include "ble-midi.h"
+#include "shared/bluetooth-midi.h"
 #include "shared/rt.h"
 
 #include "inc/check.inc"
@@ -125,6 +125,8 @@ CK_START_TEST(test_ble_midi_decode_single_joined) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
+	ble_midi_decode_free(&bmd);
+
 } CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_real_time) {
@@ -139,6 +141,8 @@ CK_START_TEST(test_ble_midi_decode_single_real_time) {
 	ck_assert_uint_eq(timespec2ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
+
+	ble_midi_decode_free(&bmd);
 
 } CK_END_TEST
 
@@ -163,6 +167,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_real_time) {
 	ck_assert_uint_eq(timespec2ms(&bmd.ts), 1);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
+
+	ble_midi_decode_free(&bmd);
 
 } CK_END_TEST
 
@@ -295,6 +301,8 @@ CK_START_TEST(test_ble_midi_decode_single_running_status) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
 
+	ble_midi_decode_free(&bmd);
+
 } CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_running_status_with_real_time) {
@@ -325,6 +333,8 @@ CK_START_TEST(test_ble_midi_decode_single_running_status_with_real_time) {
 	ck_assert_uint_eq(timespec2ms(&bmd.ts), 3);
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
+
+	ble_midi_decode_free(&bmd);
 
 } CK_END_TEST
 
@@ -357,6 +367,8 @@ CK_START_TEST(test_ble_midi_decode_single_running_status_with_common) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
 
+	ble_midi_decode_free(&bmd);
+
 } CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_timestamp_overflow) {
@@ -381,6 +393,8 @@ CK_START_TEST(test_ble_midi_decode_single_timestamp_overflow) {
 	ck_assert_uint_eq(timespec2ms(&bmd.ts), 136);
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
+
+	ble_midi_decode_free(&bmd);
 
 } CK_END_TEST
 
@@ -414,6 +428,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_running_status) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi3));
 	ck_assert_mem_eq(bmd.buffer, midi3, sizeof(midi3));
 
+	ble_midi_decode_free(&bmd);
+
 } CK_END_TEST
 
 CK_START_TEST(test_ble_midi_encode_no_mtu) {
@@ -425,6 +441,8 @@ CK_START_TEST(test_ble_midi_encode_no_mtu) {
 
 	ck_assert_int_eq(ble_midi_encode(&bme, midi, sizeof(midi)), -1);
 	ck_assert_uint_eq(errno, EINVAL);
+
+	ble_midi_encode_free(&bme);
 
 } CK_END_TEST
 
@@ -443,6 +461,8 @@ CK_START_TEST(test_ble_midi_encode_single) {
 	ck_assert_uint_eq(bme.buffer[0] >> 6, 0x02);
 	ck_assert_uint_eq(bme.buffer[1] & 0x80, 0x80);
 	ck_assert_mem_eq(&bme.buffer[2], midi, sizeof(midi));
+
+	ble_midi_encode_free(&bme);
 
 } CK_END_TEST
 
@@ -476,6 +496,8 @@ CK_START_TEST(test_ble_midi_encode_multiple) {
 	ck_assert_uint_eq(bme.buffer[8] & 0x80, 0x80);
 	ck_assert_mem_eq(&bme.buffer[9], midi3, sizeof(midi3));
 
+	ble_midi_encode_free(&bme);
+
 } CK_END_TEST
 
 CK_START_TEST(test_ble_midi_encode_multiple_too_long) {
@@ -493,6 +515,8 @@ CK_START_TEST(test_ble_midi_encode_multiple_too_long) {
 
 	/* Messages up to the MTU should be encoded properly. */
 	ck_assert_uint_eq(bme.len, 2 + sizeof(midi1));
+
+	ble_midi_encode_free(&bme);
 
 } CK_END_TEST
 
@@ -523,6 +547,8 @@ CK_START_TEST(test_ble_midi_encode_system_exclusive) {
 	ck_assert_mem_eq(&bme.buffer[1], &midi1[6], sizeof(midi1) - 6);
 	ck_assert_uint_eq(bme.buffer[3] & 0x80, 0x80);
 	ck_assert_mem_eq(&bme.buffer[4], midi2, sizeof(midi2));
+
+	ble_midi_encode_free(&bme);
 
 } CK_END_TEST
 

@@ -5,13 +5,16 @@
 noinst_LTLIBRARIES = libshared.la
 
 libshared_la_SOURCES = \
+	at.c \
 	bluetooth-a2dp.c \
 	bluetooth-asha.c \
 	bluetooth-hfp.c \
+	bluetooth-midi.c \
 	dbus-client-pcm.c \
 	dbus-client-rfcomm.c \
 	dbus-client.c \
 	ffb.c \
+	h2.c \
 	hex.c \
 	log.c \
 	nv.c \

@@ -1,10 +1,10 @@
 /*
- * BlueALSA - ble-midi.c
+ * BlueALSA - bluetooth-midi.c
  * SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
-#include "ble-midi.h"
+#include "bluetooth-midi.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -15,11 +15,11 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include "shared/log.h"
-#include "shared/rt.h"
+#include "log.h"
+#include "rt.h"
 
 /**
- * Determine length of the MIDI message based on the status byte. */
+ * Determine the length of the MIDI message based on the status byte. */
 static size_t ble_midi_message_len(uint8_t status) {
 	switch (status & 0xF0) {
 	case 0x80 /* note off */ :
@@ -62,7 +62,9 @@ static size_t ble_midi_message_len(uint8_t status) {
 
 /**
  * Get SysEx buffer which can hold at least additional len bytes. */
-static uint8_t *ble_midi_get_sys_buffer(struct ble_midi_dec *bmd, size_t len) {
+static uint8_t * ble_midi_get_sys_buffer(
+		struct ble_midi_dec * bmd,
+		size_t len) {
 
 	if (bmd->buffer_sys_len + len <= bmd->buffer_sys_size)
 		goto final;
@@ -81,35 +83,23 @@ final:
 	return bmd->buffer_sys;
 }
 
-/**
- * Initialize BLE-MIDI decoder. */
-void ble_midi_decode_init(struct ble_midi_dec *bmd) {
+void ble_midi_decode_init(
+		struct ble_midi_dec * bmd) {
 	memset(bmd, 0, sizeof(*bmd));
 	gettimestamp(&bmd->ts0);
 }
 
-/**
- * Free BLE-MIDI decoder resources. */
-void ble_midi_decode_free(struct ble_midi_dec *bmd) {
+void ble_midi_decode_free(
+		struct ble_midi_dec * bmd) {
 	free(bmd->buffer_sys);
 }
 
-/**
- * Decode BLE-MIDI packet.
- *
- * Before decoding next BLE-MIDI packet, this function should be called until
- * it returns 0 or -1. Alternatively, caller can set the decoder structure to
- * all-zeroes, which will reset the decoding state.
- *
- * @param bmd BLE-MIDI decoder structure.
- * @param data BLE-MIDI packet data.
- * @param len Length of the packet data.
- * @return On success, in case when at least one full MIDI message was decoded,
- *   this function returns 1. If the BLE-MIDI packet does not contain any more
- *   (complete) MIDI message, 0 is returned. On error, -1 is returned. */
-int ble_midi_decode(struct ble_midi_dec *bmd, const uint8_t *data, size_t len) {
+int ble_midi_decode(
+		struct ble_midi_dec * bmd,
+		const uint8_t * data,
+		size_t len) {
 
-	uint8_t *bm_buffer = bmd->buffer_midi;
+	uint8_t * bm_buffer = bmd->buffer_midi;
 	size_t bm_buffer_size = sizeof(bmd->buffer_midi);
 	size_t bm_buffer_len = 0;
 
@@ -337,26 +327,20 @@ fail:
 	return -1;
 }
 
-/**
- * Initialize BLE-MIDI encoder. */
-void ble_midi_encode_init(struct ble_midi_enc *bme) {
-	memset(bme, 0, sizeof(*bme));
+void ble_midi_encode_init(
+		struct ble_midi_enc * enc) {
+	memset(enc, 0, sizeof(*enc));
 }
 
-/**
- * Encode BLE-MIDI packet.
- *
- * It is possible that a single MIDI system exclusive message will not fit
- * into the MTU of the BLE link. In such case, this function will return 1
- * and the caller should call this function again with the same MIDI message.
- * The encoder structure should not be modified between consecutive calls.
- *
- * @param bme BLE-MIDI encoder structure.
- * @param data Single MIDI message.
- * @param len Length of the MIDI message data.
- * @return On success, this function returns 0. If the BLE-MIDI packet has to
- *   be split into multiple packets, 1 is returned. On error, -1 is returned. */
-int ble_midi_encode(struct ble_midi_enc *enc, const uint8_t *data, size_t len) {
+void ble_midi_encode_free(
+		struct ble_midi_enc * enc) {
+	(void)enc;
+}
+
+int ble_midi_encode(
+		struct ble_midi_enc * enc,
+		const uint8_t * data,
+		size_t len) {
 
 	const bool is_sys = data[0] == 0xF0;
 	bool is_sys_continue = false;
@@ -411,12 +395,5 @@ int ble_midi_encode(struct ble_midi_enc *enc, const uint8_t *data, size_t len) {
 		enc->current_len = 0;
 	}
 
-	return 0;
-}
-
-/**
- * Set BLE-MIDI encoder MTU. */
-int ble_midi_encode_set_mtu(struct ble_midi_enc *bme, size_t mtu) {
-	bme->mtu = MIN(mtu, sizeof(bme->buffer));
 	return 0;
 }

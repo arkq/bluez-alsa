@@ -20,7 +20,7 @@
 #include <sbc/sbc.h>
 #include <spandsp.h>
 
-#include "h2.h"
+#include "shared/h2.h"
 #include "shared/ffb.h"
 
 /* HFP uses SBC encoding with precisely defined parameters. Hence, the size

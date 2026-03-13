@@ -9,7 +9,7 @@
 
 #include <check.h>
 
-#include "h2.h"
+#include "shared/h2.h"
 #include "shared/defs.h"
 
 #include "inc/check.inc"

@@ -17,7 +17,7 @@
 #include <spandsp.h>
 
 #include "codec-sbc.h"
-#include "h2.h"
+#include "shared/h2.h"
 #include "shared/log.h"
 
 /**

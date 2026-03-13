@@ -17,8 +17,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "at.h"
 #include "ba-transport.h"
+#include "shared/at.h"
 #include "shared/bluetooth-hfp.h"
 
 /* Timeout for the command acknowledgment. */

@@ -39,7 +39,6 @@ bluealsad_LDADD = \
 libbluealsad_la_SOURCES = \
 	a2dp.c \
 	a2dp-sbc.c \
-	at.c \
 	audio.c \
 	ba-adapter.c \
 	ba-config.c \
@@ -54,7 +53,6 @@ libbluealsad_la_SOURCES = \
 	dbus/org.bluealsa.xml \
 	dbus/org.bluez.xml \
 	error.c \
-	h2.c \
 	hci.c \
 	io.c \
 	rtp.c \
@@ -117,7 +115,6 @@ endif
 if ENABLE_MIDI
 CODEGEN_DEFS += --define=ENABLE_GATT
 libbluealsad_la_SOURCES += \
-	ble-midi.c \
 	bt-midi.c \
 	bt-advertising.c \
 	bt-gatt.c \

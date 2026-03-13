@@ -87,6 +87,9 @@ retry:
 		return -1;
 	}
 
+	debug("Received AT message: %s: command=%s value=%s",
+			at_type2str(reader->at.type), reader->at.command, reader->at.value);
+
 	reader->next = tmp[0] != '\0' ? tmp : NULL;
 	return 0;
 }

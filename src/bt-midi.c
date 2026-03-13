@@ -30,13 +30,13 @@
 #include "ba-config.h"
 #include "ba-device.h"
 #include "ba-transport.h"
-#include "ble-midi.h"
 #include "bluez-iface.h"
 #include "bt-advertising.h"
 #include "bt-gatt.h"
 #include "midi.h"
 #include "utils.h"
 #include "shared/bluetooth.h"
+#include "shared/bluetooth-midi.h"
 #include "shared/log.h"
 
 /**

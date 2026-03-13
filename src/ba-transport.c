@@ -35,7 +35,6 @@
 #include "ba-transport-pcm.h"
 #include "ba-config.h"
 #include "asha.h"
-#include "ble-midi.h"
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "bluez.h"
@@ -45,6 +44,7 @@
 #include "storage.h"
 #include "shared/bluetooth-asha.h"
 #include "shared/bluetooth-hfp.h"
+#include "shared/bluetooth-midi.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
@@ -943,6 +943,7 @@ void ba_transport_unref(struct ba_transport * t) {
 	else if (BA_TRANSPORT_PROFILE_IS_MIDI(t)) {
 		if (t->midi.seq_parser != NULL)
 			snd_midi_event_free(t->midi.seq_parser);
+		ble_midi_encode_free(&t->midi.ble_encoder);
 		ble_midi_decode_free(&t->midi.ble_decoder);
 	}
 #endif

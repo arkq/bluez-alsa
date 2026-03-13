@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#pragma once
 #ifndef BLUEALSA_SHARED_FFB_H_
 #define BLUEALSA_SHARED_FFB_H_
 

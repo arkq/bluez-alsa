@@ -5,8 +5,8 @@
  */
 
 #pragma once
-#ifndef BLUEALSA_H2_H_
-#define BLUEALSA_H2_H_
+#ifndef BLUEALSA_SHARED_H2_H_
+#define BLUEALSA_SHARED_H2_H_
 
 #if HAVE_CONFIG_H
 # include <config.h>

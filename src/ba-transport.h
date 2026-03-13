@@ -24,10 +24,10 @@
 #include "a2dp.h"
 #include "ba-device.h"
 #include "ba-transport-pcm.h"
-#include "ble-midi.h"
 #include "bluez.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
+#include "shared/bluetooth-midi.h"
 #include "shared/rc.h"
 
 enum ba_transport_thread_manager_command {

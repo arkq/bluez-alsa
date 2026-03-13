@@ -13,8 +13,7 @@
 #include <string.h>
 #include <strings.h>
 
-#include "shared/defs.h"
-#include "shared/log.h"
+#include "defs.h"
 
 /**
  * Convert AT type into a human-readable string.
@@ -171,8 +170,6 @@ char *at_parse(const char *str, struct bt_at *at) {
 		command++;
 	}
 
-	debug("AT message: %s: command=%s value=%s",
-			at_type2str(at->type), at->command, at->value);
 	return (char *)&feed[1];
 }
 
