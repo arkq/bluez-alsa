@@ -1,6 +1,6 @@
 /*
  * BlueALSA - bluetooth-hfp.h
- * SPDX-FileCopyrightText: 2017-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2017-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -112,7 +112,7 @@ enum __attribute__ ((packed)) hfp_setup {
 	HFP_SETUP_ACCESSORY_XAPL,
 	HFP_SETUP_ACCESSORY_BATT,
 	HFP_SETUP_SELECT_CODEC,
-	HFP_SETUP_COMPLETE,
+	HFP_SETUP_COMPLETED,
 };
 
 /**

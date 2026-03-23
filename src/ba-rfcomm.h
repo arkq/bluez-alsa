@@ -1,6 +1,6 @@
 /*
  * BlueALSA - ba-rfcomm.h
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include "ba-transport.h"
+#include "error.h"
 #include "shared/at.h"
 #include "shared/bluetooth-hfp.h"
 
@@ -133,7 +134,7 @@ struct ba_rfcomm {
 
 /**
  * Callback function used for RFCOMM AT message dispatching. */
-typedef int ba_rfcomm_callback(struct ba_rfcomm *r, const struct bt_at *at);
+typedef error_code_t ba_rfcomm_callback(struct ba_rfcomm *, const struct bt_at *);
 
 /**
  * AT message dispatching handler. */
