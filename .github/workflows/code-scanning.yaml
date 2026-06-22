@@ -21,7 +21,7 @@ jobs:
   cccc:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Run cccc analysis
       uses: sarnold/cccc-action@main
     - uses: actions/upload-artifact@v7
@@ -32,7 +32,7 @@ jobs:
   code-ql:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Initialize CodeQL
@@ -77,7 +77,7 @@ jobs:
   doc8-lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Run reStructuredText Linter
       uses: deep-entertainment/doc8-action@v5
       with:
@@ -86,7 +86,7 @@ jobs:
   include-what-you-use:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
@@ -136,7 +136,7 @@ jobs:
   markdown-lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Run Markdown Linter
       uses: nosborn/github-action-markdown-cli@v3
       with:
@@ -145,7 +145,7 @@ jobs:
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
     - name: Run ShellCheck Scan
@@ -156,7 +156,7 @@ jobs:
   spellcheck:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Run Spell Check
       uses: rojopolis/spellcheck-github-actions@v0
       with:
@@ -165,6 +165,6 @@ jobs:
   reuse:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: REUSE Compliance Check
         uses: fsfe/reuse-action@v6

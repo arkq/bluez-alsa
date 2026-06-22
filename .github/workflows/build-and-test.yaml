@@ -29,7 +29,7 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
@@ -118,7 +118,7 @@ jobs:
     needs: sanitize-prepare
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
