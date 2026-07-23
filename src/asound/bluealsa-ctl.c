@@ -1,6 +1,6 @@
 /*
  * BlueALSA - asound/bluealsa-ctl.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -26,6 +26,7 @@
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
 
+#include "asound/log.h"
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
@@ -239,7 +240,7 @@ static int bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev)
 	DBusError err = DBUS_ERROR_INIT;
 	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, "org.bluez",
 					dev->device_path, "org.bluez.Device1", "Alias", &err)) == NULL) {
-		SNDERR("Couldn't get device name: %s", err.message);
+		snd_error(CONTROL, "Couldn't get device name: %s", err.message);
 		dbus_error_free(&err);
 		return -1;
 	}
@@ -264,7 +265,7 @@ static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *d
 	DBusError err = DBUS_ERROR_INIT;
 	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, ctl->dbus_ctx.ba_service,
 					dev->rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, "Battery", &err)) == NULL) {
-		SNDERR("Couldn't get device battery status: %s", err.message);
+		snd_error(CONTROL, "Couldn't get device battery status: %s", err.message);
 		dbus_error_free(&err);
 		return -1;
 	}
@@ -1064,7 +1065,7 @@ static snd_mixer_selem_channel_id_t bluealsa_get_channel_id(const struct ba_pcm 
 	if (id >= 0 && id < pcm->channels)
 		return id;
 	/* Something went wrong - fallback to the mono channel. */
-	SNDERR("Invalid channel map [channel=%u]: %s", channel, pcm->channel_map[channel]);
+	snd_error(CONTROL, "Invalid channel map [channel=%u]: %s", channel, pcm->channel_map[channel]);
 	return SND_MIXER_SCHN_MONO;
 }
 
@@ -1777,6 +1778,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	struct bluealsa_ctl *ctl;
 	int ret;
 
+	snd_log_init();
+
 	snd_config_iterator_t pos, next;
 	snd_config_for_each(pos, next, conf) {
 		snd_config_t *n = snd_config_iterator_entry(pos);
@@ -1792,33 +1795,33 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 		if (strcmp(id, "service") == 0) {
 			if (snd_config_get_string(n, &service) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
 		if (strcmp(id, "device") == 0) {
 			if (snd_config_get_string(n, &device) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
 		if (strcmp(id, "extended") == 0) {
 			if ((ret = snd_config_get_string(n, &extended)) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			if (parse_extended(extended, &show_codec, &show_vol_mode,
 						&show_delay_sync, &show_battery) < 0) {
-				SNDERR("Invalid extended options: %s", extended);
+				snd_error(CONFIG, "Invalid extended options: %s", extended);
 				return -EINVAL;
 			}
 			continue;
 		}
 		if (strcmp(id, "bttransport") == 0) {
 			if ((ret = snd_config_get_bool(n)) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			show_bt_transport = !!ret;
@@ -1826,20 +1829,20 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 		if (strcmp(id, "dynamic") == 0) {
 			if ((ret = snd_config_get_bool(n)) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			dynamic = !!ret;
 			continue;
 		}
 
-		SNDERR("Unknown field %s", id);
+		snd_error(CONFIG, "Unknown field %s", id);
 		return -EINVAL;
 	}
 
 	bdaddr_t ba_addr = *BDADDR_ALL;
 	if (device != NULL && str2bdaddr(device, &ba_addr) == -1) {
-		SNDERR("Invalid BT device address: %s", device);
+		snd_error(CONFIG, "Invalid BT device address: %s", device);
 		return -EINVAL;
 	}
 
@@ -1886,19 +1889,20 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	dbus_threads_init_default();
 
 	if (!ba_dbus_connection_ctx_init(&ctl->dbus_ctx, service, &err)) {
-		SNDERR("Couldn't initialize D-Bus context: %s", err.message);
+		snd_error(CONTROL, "Couldn't initialize D-Bus context: %s", err.message);
 		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
 
 	if (!dbus_connection_add_filter(ctl->dbus_ctx.conn, bluealsa_dbus_msg_filter, ctl, NULL)) {
-		SNDERR("Couldn't add D-Bus filter: %s", strerror(ENOMEM));
-		ret = -ENOMEM;
+		errno = ENOMEM;
+		snd_errornum(CONTROL, "Couldn't add D-Bus filter");
+		ret = -errno;
 		goto fail;
 	}
 
 	if (!ba_dbus_pcm_get_all(&ctl->dbus_ctx, &pcm_list, &pcm_list_size, &err)) {
-		SNDERR("Couldn't get BlueALSA PCM list: %s", err.message);
+		snd_error(CONTROL, "Couldn't get BlueALSA PCM list: %s", err.message);
 		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
@@ -1913,7 +1917,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 			uint32_t seq = 0;
 
 			if (pcm_list_size == 0) {
-				SNDERR("No BlueALSA audio devices connected");
+				snd_error(CONTROL, "No BlueALSA audio devices connected");
 				ret = -ENODEV;
 				goto fail;
 			}
@@ -1942,7 +1946,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	/* add PCMs to CTL internal PCM list */
 	for (size_t i = 0; i < pcm_list_size; i++)
 		if (bluealsa_pcm_add(ctl, &pcm_list[i]) == -1) {
-			SNDERR("Couldn't add BlueALSA PCM: %s", strerror(errno));
+			snd_errornum(CONTROL, "Couldn't add BlueALSA PCM");
 			ret = -errno;
 			goto fail;
 		}
@@ -1951,7 +1955,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	pcm_list = NULL;
 
 	if (bluealsa_create_elem_list(ctl) == -1) {
-		SNDERR("Couldn't create control elements: %s", strerror(errno));
+		snd_errornum(CONTROL, "Couldn't create control elements");
 		ret = -errno;
 		goto fail;
 	}
@@ -1959,13 +1963,13 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	if (ctl->single_device) {
 
 		if (ctl->dev_list_size != 1) {
-			SNDERR("No such BlueALSA audio device: %s", device);
+			snd_error(CONTROL, "No such BlueALSA audio device: %s", device);
 			ret = -ENODEV;
 			goto fail;
 		}
 
 		if (pipe2(ctl->pipefd, O_CLOEXEC | O_NONBLOCK) == -1) {
-			SNDERR("Couldn't create event pipe: %s", strerror(errno));
+			snd_errornum(CONTROL, "Couldn't create event pipe");
 			ret = -errno;
 			goto fail;
 		}

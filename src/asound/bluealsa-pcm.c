@@ -1,6 +1,6 @@
 /*
  * BlueALSA - asound/bluealsa-pcm.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -31,16 +31,23 @@
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
 
+#include "asound/log.h"
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
 #include "shared/hex.h"
-#include "shared/log.h"
 #include "shared/rt.h"
 
 #define BA_PAUSE_STATE_RUNNING 0
 #define BA_PAUSE_STATE_PAUSED  (1 << 0)
 #define BA_PAUSE_STATE_PENDING (1 << 1)
+
+#if DEBUG
+# define ba_debug_pcm(pcm, M, ...) \
+			snd_debug(PCM, "%s: " M, pcm->ba_pcm.pcm_path, ##__VA_ARGS__)
+#else
+# define ba_debug_pcm(pcm, M, ...) do {} while (0)
+#endif
 
 #if SND_LIB_VERSION >= 0x010104 && SND_LIB_VERSION < 0x010206
 #include <alloca.h>
@@ -138,11 +145,6 @@ struct bluealsa_pcm {
 
 };
 
-/**
- * Helper debug macro for internal usage. */
-#define debug2(M, ...) \
-	debug("%s: " M, pcm->ba_pcm.pcm_path, ## __VA_ARGS__)
-
 #if SND_LIB_VERSION < 0x010106
 /**
  * Get the available frames.
@@ -193,7 +195,7 @@ static void io_thread_cancel(struct bluealsa_pcm *pcm) {
 /**
  * Helper function for logging IO thread termination. */
 static void io_thread_cleanup(struct bluealsa_pcm *pcm) {
-	debug2("IO thread cleanup");
+	ba_debug_pcm(pcm, "IO thread cleanup");
 	(void)pcm;
 }
 
@@ -265,19 +267,19 @@ static bool io_thread_read_hwcompat(struct bluealsa_pcm *pcm,
 		gettimestamp(&now);
 		if (difftimespec(deadline, &now, &timeout) > 0) {
 			/* We have already exceeded the time allowance for this read. */
-			debug2("Sync lost: I/O thread too slow to maintain rate");
+			ba_debug_pcm(pcm, "Sync lost: I/O thread too slow to maintain rate");
 			timeout.tv_nsec = 0;
 			timeout.tv_sec = 0;
 		}
 
 		int pollret = ppoll(&pfd, 1, &timeout, NULL);
 		if (pollret == -1) {
-			SNDERR("PCM FIFO read error: %s", strerror(errno));
+			snd_errornum(PCM, "PCM FIFO read error");
 			break;
 		}
 		else if (pollret == 0) {
 			if (pcm->fifo_active) {
-				debug2("Stream inactive, inserting silence");
+				ba_debug_pcm(pcm, "Stream inactive, inserting silence");
 				pcm->fifo_active = false;
 			}
 			capture_silence(pcm, offset, frames - tframes);
@@ -319,7 +321,7 @@ static bool io_thread_read_hwcompat(struct bluealsa_pcm *pcm,
 					}
 				}
 
-				debug2("Stream active");
+				ba_debug_pcm(pcm, "Stream active");
 				pcm->fifo_active = true;
 
 				if (tframes == frames)
@@ -337,7 +339,7 @@ static bool io_thread_read_hwcompat(struct bluealsa_pcm *pcm,
 			size_t len = chunk * pcm->frame_size;
 			ssize_t ret = read(pcm->ba_pcm_fd, pos, len);
 			if (ret == -1) {
-				SNDERR("PCM FIFO read error: %s", strerror(errno));
+				snd_errornum(PCM, "PCM FIFO read error");
 				break;
 			}
 			if (ret == 0)
@@ -394,7 +396,7 @@ static bool io_thread_read(struct bluealsa_pcm *pcm,
 			if (ret == -1) {
 				if (errno == EINTR)
 					continue;
-				SNDERR("PCM FIFO read error: %s", strerror(errno));
+				snd_errornum(PCM, "PCM FIFO read error");
 				return false;
 			}
 			else if (ret == 0)
@@ -426,13 +428,13 @@ static bool io_thread_write(struct bluealsa_pcm *pcm,
 	if (pcm->hwcompat == BA_HWCOMPAT_SILENCE) {
 		if (!pcm->fifo_active) {
 			if (!pcm->discarding) {
-				debug2("Stream inactive, discarding samples");
+				ba_debug_pcm(pcm, "Stream inactive, discarding samples");
 				pcm->discarding = true;
 				bluealsa_pcm_clear_fifo(pcm);
 			}
 			struct pollfd pfd = { pcm->ba_pcm_fd, POLLOUT, 0  };
 			if (poll(&pfd, 1, 0) < 0) {
-				SNDERR("PCM FIFO write error: %s", strerror(errno));
+				snd_errornum(PCM, "PCM FIFO write error");
 				return false;
 			}
 			if (pfd.revents & POLLERR)
@@ -442,7 +444,7 @@ static bool io_thread_write(struct bluealsa_pcm *pcm,
 		}
 
 		if (pcm->discarding) {
-			debug2("Stream active");
+			ba_debug_pcm(pcm, "Stream active");
 			pcm->discarding = false;
 		}
 	}
@@ -465,7 +467,7 @@ static bool io_thread_write(struct bluealsa_pcm *pcm,
 				if (errno == EINTR)
 					continue;
 				if (errno != EPIPE)
-					SNDERR("PCM FIFO write error: %s", strerror(errno));
+					snd_errornum(PCM, "PCM FIFO write error");
 				return false;
 			}
 			pos += ret;
@@ -497,7 +499,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	 * any interference from signal handlers. */
 	sigfillset(&sigset);
 	if ((errno = pthread_sigmask(SIG_SETMASK, &sigset, NULL)) != 0) {
-		SNDERR("Thread signal mask error: %s", strerror(errno));
+		snd_errornum(PCM, "Thread signal mask error");
 		goto fail;
 	}
 
@@ -509,7 +511,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 	 * transfer procedure. */
 	snd_pcm_sframes_t io_hw_ptr = pcm->io_hw_ptr;
 
-	debug2("Starting IO loop: %d", pcm->ba_pcm_fd);
+	ba_debug_pcm(pcm, "Starting IO loop: %d", pcm->ba_pcm_fd);
 	for (;;) {
 
 		pthread_mutex_lock(&pcm->mutex);
@@ -518,7 +520,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 
 		if (is_pause_pending ||
 				pcm->io_hw_ptr == -1) {
-			debug2("Pausing IO thread");
+			ba_debug_pcm(pcm, "Pausing IO thread");
 
 			pthread_mutex_lock(&pcm->mutex);
 			pcm->pause_state = BA_PAUSE_STATE_PAUSED;
@@ -532,7 +534,7 @@ static void *io_thread(snd_pcm_ioplug_t *io) {
 			pcm->pause_state = BA_PAUSE_STATE_RUNNING;
 			pthread_mutex_unlock(&pcm->mutex);
 
-			debug2("IO thread resumed");
+			ba_debug_pcm(pcm, "IO thread resumed");
 
 			if (pcm->io_hw_ptr == -1)
 				continue;
@@ -624,7 +626,7 @@ fail:
 
 static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	debug2("Starting");
+	ba_debug_pcm(pcm, "Starting");
 
 	/* If the IO thread is already started, skip thread creation. Otherwise,
 	 * we might end up with a bunch of IO threads reading or writing to the
@@ -635,7 +637,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	}
 
 	if (!ba_dbus_pcm_ctrl_send_resume(pcm->ba_pcm_ctrl_fd, NULL)) {
-		debug2("Couldn't start PCM: %s", strerror(errno));
+		ba_debug_pcm(pcm, "Couldn't start PCM: %s", strerror(errno));
 		return -EIO;
 	}
 
@@ -647,7 +649,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 	pcm->io_started = true;
 	if ((errno = pthread_create(&pcm->io_thread, NULL,
 					PTHREAD_FUNC(io_thread), io)) != 0) {
-		debug2("Couldn't create IO thread: %s", strerror(errno));
+		ba_debug_pcm(pcm, "Couldn't create IO thread: %s", strerror(errno));
 		pcm->io_started = false;
 		return -EIO;
 	}
@@ -658,7 +660,7 @@ static int bluealsa_start(snd_pcm_ioplug_t *io) {
 
 static int bluealsa_stop(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	debug2("Stopping");
+	ba_debug_pcm(pcm, "Stopping");
 
 	io_thread_cancel(pcm);
 
@@ -731,7 +733,7 @@ static snd_pcm_sframes_t bluealsa_transfer(snd_pcm_ioplug_t *io,
 
 static int bluealsa_close(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	debug2("Closing");
+	ba_debug_pcm(pcm, "Closing");
 	ba_dbus_pcm_codecs_free(&pcm->ba_pcm_codecs);
 	ba_dbus_connection_ctx_free(&pcm->dbus_ctx);
 	if (pcm->event_fd != -1)
@@ -773,7 +775,7 @@ static int bluealsa_fix_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *par
 	if (buffer_size % period_size == 0)
 		return 0;
 
-	debug2("Attempting to fix hw params buffer size");
+	ba_debug_pcm(pcm, "Attempting to fix hw params buffer size");
 
 	snd_pcm_hw_params_t *refined_params;
 
@@ -824,7 +826,7 @@ static int bluealsa_fix_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *par
 static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params) {
 	struct bluealsa_pcm *pcm = io->private_data;
 
-	debug2("Initializing HW");
+	ba_debug_pcm(pcm, "Initializing HW");
 
 	DBusError err = DBUS_ERROR_INIT;
 	int ret;
@@ -833,14 +835,14 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	const unsigned int rate = io->rate;
 
 	if (pcm->ba_pcm.channels != channels || pcm->ba_pcm.rate != rate) {
-		debug2("Changing BlueALSA PCM configuration: %u ch, %u Hz -> %u ch, %u Hz",
+		ba_debug_pcm(pcm, "Changing BlueALSA PCM configuration: %u ch, %u Hz -> %u ch, %u Hz",
 				pcm->ba_pcm.channels, pcm->ba_pcm.rate, channels, rate);
 
 		const char *codec_name = pcm->ba_pcm.codec.name;
 		if (!ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				codec_name, pcm->ba_pcm_codec_config, pcm->ba_pcm_codec_config_len,
 				channels, rate, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
-			SNDERR("Couldn't change BlueALSA PCM configuration: %s", err.message);
+			snd_error(PCM, "Couldn't change BlueALSA PCM configuration: %s", err.message);
 			return -dbus_error_to_errno(&err);
 		}
 
@@ -868,7 +870,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 #if BLUEALSA_HW_PARAMS_FIX
 	if ((ret = bluealsa_fix_hw_params(io, params)) < 0)
-		debug2("Couldn't fix hw params: %s", snd_strerror(ret));
+		ba_debug_pcm(pcm, "Couldn't fix hw params: %s", snd_strerror(ret));
 #endif
 
 	snd_pcm_uframes_t period_size;
@@ -897,7 +899,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 
 	if (!ba_dbus_pcm_open(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				&pcm->ba_pcm_fd, &pcm->ba_pcm_ctrl_fd, &err)) {
-		debug2("Couldn't open PCM: %s", err.message);
+		ba_debug_pcm(pcm, "Couldn't open PCM: %s", err.message);
 		ret = -dbus_error_to_errno(&err);
 		dbus_error_free(&err);
 		goto fail;
@@ -913,8 +915,8 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 		 * low value, but big enough to prevent audio tearing. Note, that the size
 		 * will be rounded up to the page size (typically 4096 bytes). */
 		if ((ret = fcntl(pcm->ba_pcm_fd, F_SETPIPE_SZ, 2048)) == -1) {
-			SNDERR("Unable to set pipe size: %s", strerror(errno));
-			return ret;
+			snd_errornum(PCM, "Unable to set pipe size");
+			return -errno;
 		}
 	}
 	else {
@@ -925,7 +927,7 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 			int max_capacity = 1048576; /* Linux default max pipe size */
 			if ((f = fopen("/proc/sys/fs/pipe-max-size", "r")) != NULL) {
 				if (fscanf(f, "%d", &max_capacity) != 1)
-					debug("Unable to read pipe max size: %s", strerror(errno));
+					ba_debug_pcm(pcm, "Unable to read pipe max size: %s", strerror(errno));
 				fclose(f);
 			}
 
@@ -933,25 +935,25 @@ static int bluealsa_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 			int capacity = MIN(2 * io->period_size * pcm_frame_size, max_capacity);
 			if ((ret = fcntl(pcm->ba_pcm_fd, F_GETPIPE_SZ)) < capacity) {
 				if ((ret = fcntl(pcm->ba_pcm_fd, F_SETPIPE_SZ, capacity)) == -1)
-					warn("Unable to increase pipe capacity to 2 periods");
+					snd_warn(PCM, "Unable to increase pipe capacity to 2 periods");
 			}
 
 		}
 
 		if ((ret = fcntl(pcm->ba_pcm_fd, F_GETPIPE_SZ)) == -1) {
-			SNDERR("Unable to read pipe size: %s", strerror(errno));
-			return ret;
+			snd_errornum(PCM, "Unable to read pipe size");
+			return -errno;
 		}
 
 	}
 
 	pcm->delay_fifo_size = (unsigned)ret / pcm_frame_size;
-	debug2("FIFO buffer size: %zd frames", pcm->delay_fifo_size);
+	ba_debug_pcm(pcm, "FIFO buffer size: %zd frames", pcm->delay_fifo_size);
 
 	/* ALSA default for avail min is one period. */
 	pcm->io_avail_min = period_size;
 
-	debug2("Selected HW buffer: %zd periods x %zd bytes %c= %zd bytes",
+	ba_debug_pcm(pcm, "Selected HW buffer: %zd periods x %zd bytes %c= %zd bytes",
 			buffer_size / period_size, pcm_frame_size * period_size,
 			period_size * (buffer_size / period_size) == buffer_size ? '=' : '<',
 			buffer_size * pcm_frame_size);
@@ -968,7 +970,7 @@ fail:
 
 static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	debug2("Freeing HW");
+	ba_debug_pcm(pcm, "Freeing HW");
 
 	/* Before closing PCM transport make sure that
 	 * the IO thread is terminated. */
@@ -997,7 +999,7 @@ static int bluealsa_hw_free(snd_pcm_ioplug_t *io) {
 
 static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	debug2("Initializing SW");
+	ba_debug_pcm(pcm, "Initializing SW");
 
 	snd_pcm_uframes_t boundary;
 	snd_pcm_sw_params_get_boundary(params, &boundary);
@@ -1006,7 +1008,7 @@ static int bluealsa_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 	snd_pcm_uframes_t avail_min;
 	snd_pcm_sw_params_get_avail_min(params, &avail_min);
 	if (avail_min != pcm->io_avail_min) {
-		debug2("Changing SW avail min: %zu -> %zu", pcm->io_avail_min, avail_min);
+		ba_debug_pcm(pcm, "Changing SW avail min: %zu -> %zu", pcm->io_avail_min, avail_min);
 		pcm->io_avail_min = avail_min;
 	}
 
@@ -1049,13 +1051,13 @@ static int bluealsa_prepare(snd_pcm_ioplug_t *io) {
 		}
 	}
 
-	debug2("Prepared");
+	ba_debug_pcm(pcm, "Prepared");
 	return 0;
 }
 
 static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 	struct bluealsa_pcm *pcm = io->private_data;
-	debug2("Draining");
+	ba_debug_pcm(pcm, "Draining");
 
 	if (!pcm->connected) {
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_DISCONNECTED);
@@ -1119,11 +1121,11 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 				if (io->nonblock != 2)
 					continue;
 				/* Application has aborted the drain. */
-				debug2("Drain aborted by signal");
+				ba_debug_pcm(pcm, "Drain aborted by signal");
 				aborted = true;
 			}
 			else {
-				debug2("Drain poll error: %s", strerror(errno));
+				ba_debug_pcm(pcm, "Drain poll error: %s", strerror(errno));
 				bluealsa_stop(io);
 				snd_pcm_ioplug_set_state(io, SND_PCM_STATE_SETUP);
 				ret = -EIO;
@@ -1133,7 +1135,7 @@ static int bluealsa_drain(snd_pcm_ioplug_t *io) {
 		}
 		if (nready == 0) {
 			/* Timeout - do not wait any longer. */
-			SNDERR("Drain timed out: Possible Bluetooth transport failure");
+			snd_error(PCM, "Drain timed out: Possible Bluetooth transport failure");
 			bluealsa_stop(io);
 			io->state = SND_PCM_STATE_SETUP;
 			ret = -EIO;
@@ -1647,7 +1649,7 @@ static snd_pcm_format_t get_snd_pcm_format(uint16_t format) {
 	case 0x8420:
 		return SND_PCM_FORMAT_S32_LE;
 	default:
-		SNDERR("Unknown PCM format: %#x", format);
+		snd_error(PCM, "Unknown PCM format: %#x", format);
 		return SND_PCM_FORMAT_UNKNOWN;
 	}
 }
@@ -1691,7 +1693,7 @@ static int bluealsa_set_hw_constraint(struct bluealsa_pcm *pcm) {
 
 	int err;
 
-	debug2("Setting constraints");
+	ba_debug_pcm(pcm, "Setting constraints");
 
 	const struct ba_pcm_codec *codec = &pcm->ba_pcm.codec;
 	for (size_t i = 0; i < pcm->ba_pcm_codecs.codecs_len; i++)
@@ -1794,6 +1796,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	struct bluealsa_pcm *pcm;
 	int ret;
 
+	snd_log_init();
+
 	snd_config_iterator_t pos, next;
 	snd_config_for_each(pos, next, conf) {
 		snd_config_t *n = snd_config_iterator_entry(pos);
@@ -1809,28 +1813,28 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 		if (strcmp(id, "service") == 0) {
 			if (snd_config_get_string(n, &service) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
 		if (strcmp(id, "device") == 0) {
 			if (snd_config_get_string(n, &device) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
 		if (strcmp(id, "profile") == 0) {
 			if (snd_config_get_string(n, &profile) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
 		if (strcmp(id, "codec") == 0) {
 			if (snd_config_get_string(n, &codec) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			if (strcmp(codec, "unchanged") == 0)
@@ -1839,7 +1843,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 		if (strcmp(id, "volume") == 0) {
 			if (snd_config_get_string(n, &volume) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			if (strcmp(volume, "unchanged") == 0)
@@ -1848,7 +1852,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 		if (strcmp(id, "softvol") == 0) {
 			if (snd_config_get_string(n, &softvol) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			if (strcmp(softvol, "unchanged") == 0)
@@ -1857,31 +1861,31 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		}
 		if (strcmp(id, "delay") == 0) {
 			if (snd_config_get_integer(n, &delay) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
 		if (strcmp(id, "hwcompat") == 0) {
 			if (snd_config_get_string(n, &hwcompat) < 0) {
-				SNDERR("Invalid type for %s", id);
+				snd_error(CONFIG, "Invalid type for %s", id);
 				return -EINVAL;
 			}
 			continue;
 		}
-		SNDERR("Unknown field %s", id);
+		snd_error(CONFIG, "Unknown field %s", id);
 		return -EINVAL;
 	}
 
 	bdaddr_t ba_addr;
 	if (device == NULL || str2bdaddr(device, &ba_addr) != 0) {
-		SNDERR("Invalid BT device address: %s", device);
+		snd_error(CONFIG, "Invalid BT device address: %s", device);
 		return -EINVAL;
 	}
 
 	int ba_profile = 0;
 	if (profile == NULL || (ba_profile = str2profile(profile)) == 0) {
-		SNDERR("Invalid BT profile [a2dp, asha, sco]: %s", profile);
+		snd_error(CONFIG, "Invalid BT profile [a2dp, asha, sco]: %s", profile);
 		return -EINVAL;
 	}
 
@@ -1890,20 +1894,20 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	size_t codec_config_len = 0;
 	if (codec != NULL && str2codec(codec, codec_name, sizeof(codec_name),
 				codec_config, sizeof(codec_config), &codec_config_len) == -1) {
-		SNDERR("Invalid codec: %s", codec);
+		snd_error(CONFIG, "Invalid codec: %s", codec);
 		return -EINVAL;
 	}
 
 	int pcm_mute = -1;
 	int pcm_volume = -1;
 	if (volume != NULL && str2volume(volume, &pcm_volume, &pcm_mute) != 0) {
-		SNDERR("Invalid volume [0-100][+-]: %s", volume);
+		snd_error(CONFIG, "Invalid volume [0-100][+-]: %s", volume);
 		return -EINVAL;
 	}
 
 	int pcm_softvol = -1;
 	if (softvol != NULL && (pcm_softvol = str2softvol(softvol)) < 0) {
-		SNDERR("Invalid softvol: %s", softvol);
+		snd_error(CONFIG, "Invalid softvol: %s", softvol);
 		return -EINVAL;
 	}
 
@@ -1915,7 +1919,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	else if (strcmp(hwcompat, "silence") == 0)
 		pcm_ba_hwcompat = BA_HWCOMPAT_SILENCE;
 	else {
-		SNDERR("Invalid hwcompat mode: %s", hwcompat);
+		snd_error(CONFIG, "Invalid hwcompat mode: %s", hwcompat);
 		return -EINVAL;
 	}
 
@@ -1946,22 +1950,23 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	DBusError err = DBUS_ERROR_INIT;
 	if (ba_dbus_connection_ctx_init(&pcm->dbus_ctx, service, &err) != TRUE) {
-		SNDERR("Couldn't initialize D-Bus context: %s", err.message);
+		snd_error(PCM, "Couldn't initialize D-Bus context: %s", err.message);
 		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
 
 	if (!dbus_connection_add_filter(pcm->dbus_ctx.conn, bluealsa_dbus_msg_filter, pcm, NULL)) {
-		SNDERR("Couldn't add D-Bus filter: %s", strerror(ENOMEM));
-		ret = -ENOMEM;
+		errno = ENOMEM;
+		snd_errornum(PCM, "Couldn't add D-Bus filter");
+		ret = -errno;
 		goto fail;
 	}
 
-	debug("Getting BlueALSA PCM: %s %s %s", snd_pcm_stream_name(stream), device, profile);
+	snd_debug(PCM, "Getting BlueALSA PCM: %s %s %s", snd_pcm_stream_name(stream), device, profile);
 	if (!ba_dbus_pcm_get(&pcm->dbus_ctx, &ba_addr, ba_profile,
 				stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
 				&pcm->ba_pcm, &err)) {
-		SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
+		snd_error(PCM, "Couldn't get BlueALSA PCM: %s", err.message);
 		ret = -dbus_error_to_errno(&err);
 		goto fail;
 	}
@@ -1983,7 +1988,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 		const bool name_changed = strcmp(canonical, pcm->ba_pcm.codec.name) != 0;
 		if (name_changed && !ba_dbus_pcm_select_codec(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 					canonical, NULL, 0, 0, 0, BA_PCM_SELECT_CODEC_FLAG_NONE, &err)) {
-			SNDERR("Couldn't select BlueALSA PCM codec: %s", err.message);
+			snd_error(PCM, "Couldn't select BlueALSA PCM codec: %s", err.message);
 			dbus_error_free(&err);
 		}
 		else {
@@ -1996,7 +2001,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 			if (name_changed && !ba_dbus_pcm_get(&pcm->dbus_ctx, &ba_addr, ba_profile,
 						stream == SND_PCM_STREAM_PLAYBACK ? BA_PCM_MODE_SINK : BA_PCM_MODE_SOURCE,
 						&pcm->ba_pcm, &err)) {
-				SNDERR("Couldn't get BlueALSA PCM: %s", err.message);
+				snd_error(PCM, "Couldn't get BlueALSA PCM: %s", err.message);
 				ret = -dbus_error_to_errno(&err);
 				goto fail;
 			}
@@ -2026,7 +2031,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if (stream == SND_PCM_STREAM_CAPTURE || pcm->hwcompat == BA_HWCOMPAT_SILENCE)
 		if ((pcm->null_fd = open("/dev/null", O_WRONLY | O_NONBLOCK)) == -1) {
-			SNDERR("Couldn't open /dev/null: %s", strerror(errno));
+			snd_errornum(PCM, "Couldn't open /dev/null");
 			ret = -errno;
 			goto fail;
 		}
@@ -2041,7 +2046,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	 * IO-plug plug-ins. It causes deadlocks which often make our PCM plug-in
 	 * unusable. As a workaround we are going to disable this functionality. */
 	if (setenv("LIBASOUND_THREAD_SAFE", "0", 0) == -1)
-		SNDERR("Couldn't disable ALSA thread-safe API: %s", strerror(errno));
+		snd_errornum(PCM, "Couldn't disable ALSA thread-safe API");
 #endif
 
 	if ((ret = snd_pcm_ioplug_create(&pcm->io, name, stream, mode)) < 0)
@@ -2049,7 +2054,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 
 	if (!ba_dbus_pcm_codecs_get(&pcm->dbus_ctx, pcm->ba_pcm.pcm_path,
 				&pcm->ba_pcm_codecs, &err))
-		SNDERR("Couldn't get BlueALSA PCM codecs: %s", err.message);
+		snd_error(PCM, "Couldn't get BlueALSA PCM codecs: %s", err.message);
 
 	if ((ret = bluealsa_set_hw_constraint(pcm)) < 0) {
 		snd_pcm_ioplug_delete(&pcm->io);
@@ -2057,12 +2062,12 @@ SND_PCM_PLUGIN_DEFINE_FUNC(bluealsa) {
 	}
 
 	if (!bluealsa_update_pcm_softvol(pcm, pcm_softvol, &err)) {
-		SNDERR("Couldn't set BlueALSA PCM soft-volume: %s", err.message);
+		snd_error(PCM, "Couldn't set BlueALSA PCM soft-volume: %s", err.message);
 		dbus_error_free(&err);
 	}
 
 	if (!bluealsa_update_pcm_volume(pcm, pcm_volume, pcm_mute, &err)) {
-		SNDERR("Couldn't set BlueALSA PCM volume: %s", err.message);
+		snd_error(PCM, "Couldn't set BlueALSA PCM volume: %s", err.message);
 		dbus_error_free(&err);
 	}
 

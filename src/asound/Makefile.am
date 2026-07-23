@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 asound_module_ctl_LTLIBRARIES = libasound_module_ctl_bluealsa.la
@@ -7,9 +7,9 @@ asound_module_pcm_LTLIBRARIES = libasound_module_pcm_bluealsa.la
 asound_module_conf_DATA = 20-bluealsa.conf
 
 libasound_module_ctl_bluealsa_la_SOURCES = \
-	bluealsa-ctl.c
+	bluealsa-ctl.c log.c
 libasound_module_pcm_bluealsa_la_SOURCES = \
-	bluealsa-pcm.c
+	bluealsa-pcm.c log.c
 
 asound_module_ctldir = @ALSA_PLUGIN_DIR@
 asound_module_pcmdir = @ALSA_PLUGIN_DIR@

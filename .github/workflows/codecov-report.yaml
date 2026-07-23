@@ -17,7 +17,7 @@ jobs:
     if: github.repository_owner == 'arkq'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Create Build Environment
@@ -51,7 +51,7 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: make cov
     - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v6
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: build/lcov.info

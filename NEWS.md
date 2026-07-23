@@ -17,6 +17,7 @@ SPDX-License-Identifier: MIT
 - optional support for adaptive audio resampling in bluealsa-aplay
 - fix configuration for Android 13 A2DP Opus codec
 - improved ALSA PCM support for A2DP-sink, HFP-HF and HSP-HS
+- use the alsa-lib API for logging in the ALSA plugins
 
 ## bluez-alsa v4.3.1 (2024-08-30)
 

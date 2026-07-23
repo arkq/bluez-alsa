@@ -9,7 +9,7 @@ bluealsa-plugins
 Bluetooth Audio ALSA Plugins
 ----------------------------
 
-:Date: December 2025
+:Date: July 2026
 :Manual section: 7
 :Manual group: Miscellaneous
 :Version: $VERSION$
@@ -651,6 +651,89 @@ mode the plugin will inform the application of drain completion as soon as the
 ALSA ring buffer has been flushed; this means that some audio frames at the end
 of the stream may be lost in non-blocking mode as the PCM may stop before the
 server has had time to encode and play out all the frames.
+
+ENVIRONMENT
+===========
+
+alsa-lib 1.2.15 and later
+-------------------------
+
+When built with alsa-lib version 1.2.15 or later, the BlueALSA plugins use the
+alsa-lib logging API for all error and debug message logging. All messages are
+sent to the log handler set by the application. The default log handler
+writes messages to stderr. The following environment variable is used by that
+API to filter the messaging:
+
+LIBASOUND_DEBUG=LEVEL
+    Set the priority level threshold for log messages. Only messages of
+    the given *LEVEL* or higher are logged. The *LEVEL* may be specified by
+    name or number.
+
+    The *LEVELs* are, in decreasing priority level order:
+
+    - **error**   (1) - error conditions
+    - **warning** (2) - warning conditions
+    - **info**    (3) - informational messages
+    - **debug**   (4) - debug messages
+    - **trace**   (5) - trace messages
+
+    The BlueALSA plugins do not contain any **trace** messages; **debug**
+    messages are only included if the plugins were built with debug enabled.
+
+    If this environment variable is not set, or has some other value not
+    listed above, then the default is to log only error messages.
+
+    The log messages have the following syntax: ::
+
+      ALSA lib <file>:<line>:(<function>) [<priority>.<interface>] <error description>
+
+    where, for BlueALSA messages:
+
+    <priority> is one of **error**, **warning**, **info**, or **debug**.
+
+    <interface> is one of **config**, **control**, or **pcm**.
+
+    For example: ::
+
+      ALSA lib ../../../../src/asound/bluealsa-pcm.c:1882:(_snd_pcm_bluealsa_open) [error.config] Invalid BT device address: 0
+
+    For BlueALSA debug messages the <error description> begins with the D-Bus
+    object path of the corresponding PCM or CTL, for example: ::
+
+      ALSA lib ../../../../src/asound/bluealsa-pcm.c:829:(bluealsa_hw_params) [debug.pcm] /org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dpsrc/sink: Initializing HW
+
+alsa-lib 1.2.14 and earlier
+---------------------------
+
+Earlier versions of alsa-lib do not support filtering of messages. When the
+BlueALSA plugins are built with alsa-lib version 1.2.14 or earlier the
+plugins use their own message filtering logic before passing them to the
+alsa-lib API. With these versions of alsa-lib we can use the following
+environment variable to filter the BlueALSA messaging:
+
+BLUEALSA_LOG_LEVEL=LEVEL
+    Set the priority level threshold for log messages. Only messages of the
+    given level or higher are logged. The *LEVELs* are, in decreasing order:
+
+    - **error**   - error conditions
+    - **warning** - warning conditions
+    - **info**    - informational messages
+    - **debug**   - debug messages (only if built with debug enabled)
+
+    If this environment variable is not set, or has some other value not
+    listed above, then the default is to log only error messages.
+
+    With these versions of alsa-lib, the message format is the same as for
+    version 1.2.15 and later, except that the `.<interface>` component is
+    missing. For example:
+
+    **error message:** ::
+
+      ALSA lib ../../../../src/asound/bluealsa-pcm.c:1882:(_snd_pcm_bluealsa_open) [error] Invalid BT device address: 0
+
+    **debug message:** ::
+
+      ALSA lib ../../../../src/asound/bluealsa-pcm.c:829:(bluealsa_hw_params) [debug] /org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dpsrc/sink: Initializing HW
 
 FILES
 =====
