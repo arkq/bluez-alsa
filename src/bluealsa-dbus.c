@@ -29,7 +29,6 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#include "asha.h"
 #include "ba-adapter.h"
 #include "ba-config.h"
 #include "ba-device.h"

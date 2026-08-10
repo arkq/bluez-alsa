@@ -1,12 +1,12 @@
 <!--
-SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 
 # Bluetooth Audio ALSA Backend
 
 > [!WARNING]
-> The latest source uses new names for some core components:
+> The latest version uses new names for some core components:
 >
 > * The `bluealsa` daemon is now called `bluealsad`
 > * The `bluealsa-cli` utility is now called `bluealsactl`
@@ -139,14 +139,14 @@ manual page](doc/bluealsad.8.rst).
 When a Bluetooth audio device is connected one can use the `bluealsa`
 virtual PCM device with ALSA applications just like any other PCM device:
 
-```sh
+```shell
 aplay -D bluealsa Bourree_in_E_minor.wav
 ```
 
 If there is more than one Bluetooth device connected, the target one can be
 specified as a parameter to the PCM:
 
-```sh
+```shell
 aplay -D bluealsa:XX:XX:XX:XX:XX:XX, Bourree_in_E_minor.wav
 ```
 
@@ -160,7 +160,7 @@ the [ALSA Kernel proc interface][].
 Setup parameters of the `bluealsa` PCM device can be set in the local
 `.asoundrc` configuration file like this:
 
-```sh
+```shell
 cat ~/.asoundrc
 defaults.bluealsa.service "org.bluealsa"
 defaults.bluealsa.device "XX:XX:XX:XX:XX:XX"
@@ -171,7 +171,7 @@ defaults.bluealsa.delay 10000
 BlueALSA also allows to capture audio from the connected Bluetooth device. To
 do so, one has to use the capture PCM device, e.g.:
 
-```sh
+```shell
 arecord -D bluealsa -f s16_le -c 2 -r 48000 capture.wav
 ```
 
@@ -183,7 +183,7 @@ shall switch to `sco` profile like follows:
 
 [oFono]: https://01.org/ofono
 
-```sh
+```shell
 aplay -D bluealsa:DEV=XX:XX:XX:XX:XX:XX,PROFILE=sco Bourree_in_E_minor.wav
 ```
 
@@ -191,14 +191,14 @@ In order to control input or output audio level, one can use provided
 `bluealsa` control plug-in. This plug-in allows adjusting the volume of the
 audio stream or simply mute/unmute it, e.g.:
 
-```sh
+```shell
 amixer -D bluealsa sset '<control name>' 70%
 ```
 
 where the control name is the name of a connected Bluetooth device with a
 control element suffix, e.g.:
 
-```sh
+```shell
 amixer -D bluealsa sset 'Jabra MOVE v2.3.0 A2DP' 50%
 ```
 
@@ -224,7 +224,7 @@ BlueALSA includes a program called `bluealsa-aplay`, which acts as a simple
 BlueALSA player. Connect your Bluetooth device (e.g. smartphone) and do as
 follows:
 
-```sh
+```shell
 bluealsa-aplay XX:XX:XX:XX:XX:XX
 ```
 
@@ -237,7 +237,7 @@ with audio capabilities) can be obtained directly from [BlueALSA D-Bus
 API](doc/org.bluealsa.PCM1.7.rst) or using `bluealsa-aplay` as a convenient
 wrapper as follows:
 
-```sh
+```shell
 bluealsa-aplay -L
 ```
 

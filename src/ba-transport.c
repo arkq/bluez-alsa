@@ -38,6 +38,7 @@
 #include "bluealsa-dbus.h"
 #include "bluez-iface.h"
 #include "bluez.h"
+#include "error.h"
 #include "hci.h"
 #include "midi.h"
 #include "sco.h"

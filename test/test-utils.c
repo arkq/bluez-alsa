@@ -17,6 +17,7 @@
 
 #include <bluetooth/bluetooth.h>
 #include <check.h>
+#include <glib.h>
 
 #include "error.h"
 #include "fixtures.h"

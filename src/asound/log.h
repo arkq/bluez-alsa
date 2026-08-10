@@ -13,7 +13,6 @@
 #endif
 
 #include <alsa/asoundlib.h>
-#include <errno.h>
 
 #if SND_LIB_VERSION >= 0x01020F
 
@@ -27,6 +26,8 @@
 #define snd_log_init() do {} while (0)
 
 #else /* SND_LIB_VERSION < 0x01020F */
+
+#include <errno.h>
 
 #define BA_LOG_ERR   4
 #define BA_LOG_WARN  3

@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -31,7 +32,6 @@
 #include <glib.h>
 
 #include "a2dp.h"
-#include "asha.h"
 #include "ba-adapter.h"
 #include "ba-config.h"
 #include "ba-device.h"

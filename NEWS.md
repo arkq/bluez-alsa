@@ -1,11 +1,13 @@
 <!--
-SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 
 # BlueALSA Release Notes
 
 ## unreleased
+
+## bluez-alsa v5.0.0 (2026-08-27)
 
 - renamed bluealsa to bluealsad (no backward compatibility)
 - renamed bluealsa.conf to org.bluealsa.conf (no backward compatibility)
@@ -15,6 +17,7 @@ SPDX-License-Identifier: MIT
 - channel map and volume control for surround sound (5.1, 7.1) audio
 - native A2DP volume control by default (dropped --a2dp-volume option)
 - optional support for adaptive audio resampling in bluealsa-aplay
+- support for playback delay reporting for A2DP Sink profiles
 - fix configuration for Android 13 A2DP Opus codec
 - improved ALSA PCM support for A2DP-sink, HFP-HF and HSP-HS
 - use the alsa-lib API for logging in the ALSA plugins

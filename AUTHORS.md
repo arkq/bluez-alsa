@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 
@@ -26,6 +26,7 @@ SPDX-License-Identifier: MIT
 - Lars Wendler <polynomial-c@gentoo.org>
 - mcz <emcze@ya.ru>
 - Michał Kępień <github@kempniu.pl>
+- Mike Gilbert <floppym@gentoo.org>
 - Ming Liu <liu.ming50@gmail.com>
 - Nicolas Cavallari <nicolas.cavallari@green-communications.fr>
 - Parthiban Nallathambi <pn@denx.de>

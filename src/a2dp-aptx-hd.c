@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/types.h>
 
 #include "a2dp.h"
 #include "ba-config.h"

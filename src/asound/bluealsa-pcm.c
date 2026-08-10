@@ -24,6 +24,8 @@
 #include <sys/ioctl.h>
 #include <sys/param.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>

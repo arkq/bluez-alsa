@@ -86,6 +86,9 @@ libalsaloader_la_LIBADD = \
 
 libfixtures_la_SOURCES = \
 	fixtures.c
+libfixtures_la_LIBADD = \
+	../src/shared/libshared.la \
+	@GIO2_LIBS@
 
 BUILT_SOURCES = \
 	test-dbus-iface.h \

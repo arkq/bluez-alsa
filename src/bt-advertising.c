@@ -11,6 +11,7 @@
 #endif
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <gio/gio.h>

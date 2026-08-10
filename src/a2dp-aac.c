@@ -13,14 +13,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/param.h>
+#include <sys/types.h>
 
 #include <fdk-aac/aacdecoder_lib.h>
 #include <fdk-aac/aacenc_lib.h>
 #define AACENCODER_LIB_VERSION LIB_VERSION( \
 		AACENCODER_LIB_VL0, AACENCODER_LIB_VL1, AACENCODER_LIB_VL2)
-
-#include <glib.h>
 
 #include "a2dp.h"
 #include "ba-config.h"

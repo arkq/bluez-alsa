@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <pthread.h>
 #include <unistd.h>
 
 #include <gio/gio.h>
@@ -31,6 +32,7 @@
 #include "ba-adapter.h"
 #include "ba-device.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "ba-config.h"
 #include "bluez-iface.h"
 #include "bt-advertising.h"

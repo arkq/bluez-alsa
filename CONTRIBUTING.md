@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+SPDX-FileCopyrightText: 2023-2026 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 
@@ -31,13 +31,13 @@ Before submitting a pull request, if possible please configure your build with
 `--enable-test`; and to catch as many coding errors as possible please compile
 with:
 
-```sh
+```shell
 make CFLAGS="-Wall -Wextra -Wshadow -Werror"
 ```
 
 and then run the unit test suite:
 
-```sh
+```shell
 make check
 ```
 

@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include <check.h>
+#include <glib.h>
 
 #include "fixtures.h"
 #include "shared/at.h"

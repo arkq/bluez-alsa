@@ -9,6 +9,7 @@
 #define BLUEALSA_DBUS_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include <gio/gio.h>
 #include <glib-object.h>

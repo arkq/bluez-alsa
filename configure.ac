@@ -1,10 +1,10 @@
 # BlueALSA - configure.ac
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 AC_PREREQ([2.62])
 AC_INIT([BlueALSA],
-	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v4.3.1]))],
+	[m4_normalize(esyscmd([test -d .git && git describe --always --dirty || echo v5.0.0]))],
 	[arkadiusz.bokowy@gmail.com], [bluez-alsa], [https://github.com/arkq/bluez-alsa])
 AM_INIT_AUTOMAKE([foreign subdir-objects -Wall -Werror])
 

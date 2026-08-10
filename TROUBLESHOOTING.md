@@ -68,7 +68,7 @@ If the D-Bus policy file is edited, then it is necessary to refresh the D-Bus
 service for the change to take effect. On most systems this can be achieved
 with (as `root`) :
 
-```sh
+```shell
 systemctl reload dbus.service
 ```
 

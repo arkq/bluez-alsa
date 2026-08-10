@@ -1,6 +1,6 @@
 /*
  * BlueALSA - fixtures.c
- * SPDX-FileCopyrightText: 2022-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2022-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -10,33 +10,17 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
+#include <glib-object.h>
+#include <gio/gio.h>
+
+#include "dbus.h"
 #include "shared/spawn.h"
-
-/**
- * Full path to the bluealsad-mock executable. */
-char bluealsad_mock_path[256] = "bluealsad-mock";
-
-static char * strtrim(char * str) {
-	while (isspace(*str))
-		str++;
-	if (*str == '\0')
-		return str;
-	char * end = &str[strlen(str) - 1];
-	while (end > str && isspace(*end))
-		end--;
-	end[1] = '\0';
-	return str;
-}
 
 #define LD_PRELOAD           "LD_PRELOAD"
 #define LD_PRELOAD_SANITIZER "LD_PRELOAD_SANITIZER"
@@ -66,6 +50,58 @@ int preload(int argc, char * const argv[], const char * filename) {
 
 	putenv(preload);
 	return execv(argv[0], argv);
+}
+
+const char * tc_dbus_address = NULL;
+GDBusConnection * tc_dbus_connection = NULL;
+
+static GTestDBus * tc_dbus = NULL;
+static GMainLoop * tc_loop = NULL;
+static GThread * tc_loop_thread = NULL;
+
+static void * tc_g_main_loop_run(void * userdata) {
+	g_main_loop_run(userdata);
+	return NULL;
+}
+
+void tc_setup_dbus(void) {
+	g_test_dbus_up(tc_dbus = g_test_dbus_new(G_TEST_DBUS_NONE));
+	tc_dbus_address = g_test_dbus_get_bus_address(tc_dbus);
+	tc_dbus_connection = g_dbus_connection_new_for_address_simple_sync(tc_dbus_address, NULL);
+}
+
+void tc_teardown_dbus(void) {
+	tc_dbus_address = NULL;
+	g_clear_object(&tc_dbus_connection);
+	g_test_dbus_down(tc_dbus);
+	g_object_unref(tc_dbus);
+}
+
+void tc_setup_g_main_loop(void) {
+	tc_loop = g_main_loop_new(NULL, FALSE);
+	tc_loop_thread = g_thread_new(NULL, tc_g_main_loop_run, tc_loop);
+}
+
+void tc_teardown_g_main_loop(void) {
+	g_main_loop_quit(tc_loop);
+	g_main_loop_unref(tc_loop);
+	g_thread_join(tc_loop_thread);
+}
+
+/**
+ * Full path to the bluealsad-mock executable. */
+char bluealsad_mock_path[256] = "bluealsad-mock";
+
+static char * strtrim(char * str) {
+	while (isspace(*str))
+		str++;
+	if (*str == '\0')
+		return str;
+	char * end = &str[strlen(str) - 1];
+	while (end > str && isspace(*end))
+		end--;
+	end[1] = '\0';
+	return str;
 }
 
 struct spawn_bluealsa_data {

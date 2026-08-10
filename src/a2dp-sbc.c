@@ -16,9 +16,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/param.h>
+#include <sys/types.h>
 
-#include <glib.h>
 #include <sbc/sbc.h>
 
 #include "a2dp.h"

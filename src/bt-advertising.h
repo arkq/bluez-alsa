@@ -9,7 +9,6 @@
 #define BLUEALSA_BT_ADVERTISING_H_
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stddef.h>
 
 #include <gio/gio.h>

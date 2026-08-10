@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 SPDX-License-Identifier: MIT
 -->
 
@@ -19,13 +19,13 @@ missing or incorrect, feel free to make a wiki contribution.
 Firstly, create the `configure` script. Run, in the top level project
 directory:
 
-```sh
+```shell
 autoreconf --install
 ```
 
 then, to see a complete list of all options:
 
-```sh
+```shell
 ./configure --help
 ```
 
@@ -91,7 +91,7 @@ If not using systemd, then some manual setup of the host will be required, see
 
 Once the desired options have been chosen, run:
 
-```sh
+```shell
 mkdir build && cd build
 ../configure [ OPTION ... ]
 ```
@@ -145,7 +145,7 @@ to prevent accidental corruption of the state files the permissions should be
 `rwx------`. For example, on a standard file hierarchy, with the `bluealsad`
 daemon running as user `bluealsa`:
 
-```sh
+```shell
 sudo mkdir /var/lib/bluealsa
 sudo chown bluealsa /var/lib/bluealsa
 sudo chmod 0700 /var/lib/bluealsa

@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <check.h>
+#include <glib.h>
 
 #include "audio.h"
 #include "fixtures.h"
