@@ -1,5 +1,5 @@
 /*
- * test-bt-advertising.c
+ * test-dumper.c
  * SPDX-FileCopyrightText: 2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -8,15 +8,15 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #include <check.h>
 
+#include "a2dp.h"
 #include "ba-transport.h"
+#include "ba-transport-pcm.h"
 #include "dumper/dumper.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-hfp.h"
-#include "shared/log.h"
 
 #include "inc/check.inc"
 

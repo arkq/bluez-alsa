@@ -70,9 +70,6 @@
 # include "a2dp-opus.h"
 #endif
 #include "a2dp-sbc.h"
-#if ENABLE_ASHA
-# include "asha.h"
-#endif
 #include "ba-adapter.h"
 #include "ba-config.h"
 #include "ba-device.h"
@@ -93,11 +90,11 @@
 #include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "shared/sine.h"
 
 #include "../src/a2dp.c"
 #include "../src/ba-transport.c"
 #include "inc/check.inc"
-#include "inc/sine.inc"
 
 #define CHECK_VERSION ( \
 		(CHECK_MAJOR_VERSION << 16 & 0xff0000) | \

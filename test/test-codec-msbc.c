@@ -17,9 +17,9 @@
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
+#include "shared/sine.h"
 
 #include "inc/check.inc"
-#include "inc/sine.inc"
 
 CK_START_TEST(test_msbc_init) {
 

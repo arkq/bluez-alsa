@@ -10,6 +10,8 @@ on:
 
 env:
   MAKEFLAGS: -j8
+  LIBASOUND_DEBUG: debug
+  BLUEALSA_LOG_LEVEL: debug
   SANITIZE_MEMORY_LIBS: ${{ github.workspace }}/sanitize-memory-libs
   SANITIZE_THREAD_LIBS: ${{ github.workspace }}/sanitize-thread-libs
 

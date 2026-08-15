@@ -21,6 +21,12 @@ libshared_la_SOURCES = \
 	rc.c \
 	rt.c
 
+if ENABLE_TEST
+libshared_la_SOURCES += \
+	sine.c \
+	spawn.c
+endif
+
 AM_CFLAGS = \
 	@BLUEZ_CFLAGS@ \
 	@DBUS1_CFLAGS@ \

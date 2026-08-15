@@ -55,9 +55,9 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
+#include "shared/sine.h"
 #include "utils.h"
 
-#include "inc/sine.inc"
 #include "service.h"
 
 typedef struct BlueALSAMockServicePriv {

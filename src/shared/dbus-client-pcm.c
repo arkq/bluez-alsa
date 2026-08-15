@@ -16,6 +16,7 @@
 #include <strings.h>
 #include <sys/param.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "bluetooth-a2dp.h"

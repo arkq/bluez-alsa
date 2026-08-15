@@ -19,11 +19,11 @@
 #include <alsa/asoundlib.h>
 
 #include "shared/log.h"
+#include "shared/spawn.h"
 
 #include "inc/check.inc"
 #include "inc/mock.inc"
 #include "inc/preload.inc"
-#include "inc/spawn.inc"
 
 static int test_ctl_open(struct spawn_process *sp_ba_mock, snd_ctl_t **ctl, int mode) {
 	if (spawn_bluealsa_mock(sp_ba_mock, NULL, true,

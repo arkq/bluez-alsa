@@ -1,6 +1,6 @@
 /*
  * aloader.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -48,8 +48,7 @@ static const char *buildrootdir() {
 		snprintf(buffer, sizeof(buffer), "%s/..", dirname(tmp));
 		free(tmp);
 
-		if (strstr(buffer, "../utils/aplay") != NULL ||
-				strstr(buffer, "../utils/cli") != NULL)
+		if (strstr(buffer, "../utils/aplay") != NULL)
 			strcat(buffer, "/..");
 
 	}

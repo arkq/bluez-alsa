@@ -20,15 +20,15 @@
 #include <alsa/asoundlib.h>
 
 #include "shared/log.h"
+#include "shared/spawn.h"
 
 #include "inc/check.inc"
 #include "inc/mock.inc"
-#include "inc/spawn.inc"
 
 static int test_seq_open(struct spawn_process *sp_ba_mock, snd_seq_t **seq,
 		int streams, int mode) {
 	if (spawn_bluealsa_mock(sp_ba_mock, NULL, true,
-				"--timeout=5000",
+				"--timeout=10000",
 				"--profile=midi",
 				NULL) == -1)
 		return -1;

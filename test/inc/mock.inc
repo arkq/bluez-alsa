@@ -15,7 +15,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "spawn.inc"
+#include "shared/spawn.h"
 
 struct spawn_bluealsa_data {
 
@@ -164,8 +164,8 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 	pthread_mutex_init(&data->data_mtx, NULL);
 	pthread_cond_init(&data->data_updated, NULL);
 
-	data->f_stderr = sp->f_stderr;
-	sp->f_stderr = NULL;
+	data->f_stderr = sp->f_out;
+	sp->f_out = NULL;
 
 	pthread_t tid;
 	pthread_create(&tid, NULL, spawn_bluealsad_mock_stderr_proxy, data);

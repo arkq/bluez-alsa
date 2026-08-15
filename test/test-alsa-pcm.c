@@ -13,6 +13,7 @@
 #include <getopt.h>
 #include <libgen.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -27,12 +28,12 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
+#include "shared/sine.h"
+#include "shared/spawn.h"
 
 #include "inc/check.inc"
 #include "inc/mock.inc"
 #include "inc/preload.inc"
-#include "inc/sine.inc"
-#include "inc/spawn.inc"
 
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 
@@ -1211,6 +1212,9 @@ int main(int argc, char *argv[]) {
 				run_unplug = true;
 		}
 	}
+
+	struct sigaction sigact = { .sa_handler = SIG_IGN };
+	sigaction(SIGPIPE, &sigact, NULL);
 
 	Suite *s = suite_create(__FILE__);
 	SRunner *sr = srunner_create(s);

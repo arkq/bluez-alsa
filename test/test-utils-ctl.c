@@ -1,6 +1,6 @@
 /*
  * test-utils-ctl.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -19,13 +19,14 @@
 
 #include <check.h>
 
+#include "shared/spawn.h"
+
 #include "inc/check.inc"
 #include "inc/mock.inc"
 #include "inc/preload.inc"
-#include "inc/spawn.inc"
 
 static char bluealsactl_path[256];
-static int run_bluealsactl(char *output, size_t size, ...) {
+static int run_bluealsactl(char * output, size_t size, ...) {
 
 	char * argv[32] = { bluealsactl_path };
 	size_t n = 1;
@@ -33,7 +34,7 @@ static int run_bluealsactl(char *output, size_t size, ...) {
 	va_list ap;
 	va_start(ap, size);
 
-	char *arg;
+	char * arg;
 	while ((arg = va_arg(ap, char *)) != NULL) {
 		argv[n++] = arg;
 		argv[n] = NULL;
@@ -45,7 +46,10 @@ static int run_bluealsactl(char *output, size_t size, ...) {
 	if (spawn(&sp, argv, NULL, SPAWN_FLAG_REDIRECT_STDOUT) == -1)
 		return -1;
 
-	spawn_read(&sp, output, size, NULL, 0);
+	size_t len;
+	if ((len = fread(output, 1, size, sp.f_out)) == size)
+		len--;
+	output[len] = '\0';
 
 	int wstatus = 0;
 	spawn_close(&sp, &wstatus);
