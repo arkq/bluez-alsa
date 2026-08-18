@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2022-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 # Abbreviations
@@ -209,6 +209,7 @@ EPIPE
 EPMR
 EQMID
 errno
+EXECV
 FB
 FC
 fdX
@@ -239,6 +240,7 @@ IPHONEACCEV
 jas
 keyp
 larc
+LD
 LEAdvertisement
 LEAdvertisingManager
 LF

@@ -1,5 +1,5 @@
 /*
- * test-codec-aptx.c
+ * BlueALSA - test-codec-aptx.c
  * SPDX-FileCopyrightText: 2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -13,10 +13,9 @@
 
 #include <check.h>
 
+#include "fixtures.h"
 #include "codec-aptx.h"
 #include "shared/defs.h"
-
-#include "inc/check.inc"
 
 #if ENABLE_APTX
 CK_START_TEST(test_codec_aptx_encode) {
@@ -159,7 +158,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

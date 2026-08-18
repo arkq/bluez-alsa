@@ -1,5 +1,5 @@
 /*
- * service-ofono.c
+ * BlueALSA - service-ofono.c
  * SPDX-FileCopyrightText: 2024-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */

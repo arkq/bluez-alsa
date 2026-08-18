@@ -1,6 +1,6 @@
 /*
- * test-alsa-midi.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * BlueALSA - test-alsa-midi.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -16,14 +16,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <check.h>
 #include <alsa/asoundlib.h>
+#include <check.h>
+#include <glib.h>
 
+#include "fixtures.h"
 #include "shared/log.h"
 #include "shared/spawn.h"
-
-#include "inc/check.inc"
-#include "inc/mock.inc"
 
 static int test_seq_open(struct spawn_process *sp_ba_mock, snd_seq_t **seq,
 		int streams, int mode) {
@@ -162,13 +161,13 @@ int main(int argc, char *argv[]) {
 		return 77 /* magic number for skipping tests */;
 	}
 
-	char *argv_0 = strdup(argv[0]);
+	g_autofree char * argv_0 = strdup(argv[0]);
 	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
 			"%s/mock/bluealsad-mock", dirname(argv_0));
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -185,9 +184,6 @@ int main(int argc, char *argv[]) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-
-	srunner_free(sr);
-	free(argv_0);
 
 	return nf == 0 ? 0 : 1;
 }

@@ -1,10 +1,12 @@
 /*
- * check.inc
- * vim: ft=c
- *
- * SPDX-FileCopyrightText: 2023-2025 BlueALSA developers
+ * BlueALSA - fixtures.h
+ * SPDX-FileCopyrightText: 2023-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
+
+#pragma once
+#ifndef BLUEALSA_TEST_CHECK_SETUP_H_
+#define BLUEALSA_TEST_CHECK_SETUP_H_
 
 #include <stdio.h>
 
@@ -14,6 +16,9 @@
 
 #include "dbus.h"
 #include "shared/defs.h"
+#include "shared/spawn.h"
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(SRunner, srunner_free)
 
 /**
  * Wrapper for START_TEST() macro with additional print with test name. */
@@ -27,6 +32,26 @@
 static GTestDBus * tc_dbus;
 static const char * tc_dbus_address;
 static GDBusConnection * tc_dbus_connection;
+
+/**
+ * Full path to the bluealsad-mock executable. */
+extern char bluealsad_mock_path[256];
+
+int preload(int argc, char * const argv[], const char * filename);
+
+/**
+ * Spawn BlueALSA mock service.
+ *
+ * @param process Pointer to the structure which will be filled with spawned
+ *   process information, i.e. PID, stdout and stderr file descriptors.
+ * @param service BlueALSA D-Bus service name.
+ * @param wait_for_ready Block until PCMs are ready.
+ * @param ... Additional arguments to be passed to the bluealsad-mock. The list
+ *   shall be terminated by NULL.
+ * @return On success this function returns 0. Otherwise -1 is returned and
+ *  errno is set appropriately. */
+int spawn_bluealsa_mock(struct spawn_process * sp, const char * service,
+		int wait_for_ready, ...);
 
 /**
  * Test case setup function to initialize a mock D-Bus connection. */
@@ -73,3 +98,5 @@ static inline void tc_teardown_g_main_loop(void) {
 	g_main_loop_unref(tc_loop);
 	g_thread_join(tc_loop_thread);
 }
+
+#endif

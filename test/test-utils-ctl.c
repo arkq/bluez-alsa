@@ -1,5 +1,5 @@
 /*
- * test-utils-ctl.c
+ * BlueALSA - test-utils-ctl.c
  * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -18,12 +18,10 @@
 #include <unistd.h>
 
 #include <check.h>
+#include <glib.h>
 
+#include "fixtures.h"
 #include "shared/spawn.h"
-
-#include "inc/check.inc"
-#include "inc/mock.inc"
-#include "inc/preload.inc"
 
 static char bluealsactl_path[256];
 static int run_bluealsactl(char * output, size_t size, ...) {
@@ -481,19 +479,19 @@ CK_START_TEST(test_open) {
 } CK_END_TEST
 
 int main(int argc, char *argv[]) {
-	preload(argc, argv, ".libs/libaloader.so");
+	preload(argc, argv, ".libs/libalsaloader.so");
 
-	char *argv_0 = strdup(argv[0]);
-	char *argv_0_dir = dirname(argv_0);
+	g_autofree char * argv_0 = strdup(argv[0]);
+	const char * argv_0_dir = dirname(argv_0);
 
 	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
 			"%s/mock/bluealsad-mock", argv_0_dir);
 	snprintf(bluealsactl_path, sizeof(bluealsactl_path),
 			"%s/../src/bluealsactl/bluealsactl", argv_0_dir);
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -511,9 +509,6 @@ int main(int argc, char *argv[]) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-
-	srunner_free(sr);
-	free(argv_0);
 
 	return nf == 0 ? 0 : 1;
 }

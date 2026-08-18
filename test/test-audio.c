@@ -1,6 +1,6 @@
 /*
- * test-audio.c
- * SPDX-FileCopyrightText: 2018-2025 BlueALSA developers
+ * BlueALSA - test-audio.c
+ * SPDX-FileCopyrightText: 2018-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -10,9 +10,8 @@
 #include <check.h>
 
 #include "audio.h"
+#include "fixtures.h"
 #include "shared/defs.h"
-
-#include "inc/check.inc"
 
 CK_START_TEST(test_audio_interleave_deinterleave_s16_2le) {
 
@@ -145,9 +144,9 @@ CK_START_TEST(test_audio_scale_s32_4le) {
 
 int main(void) {
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -158,7 +157,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

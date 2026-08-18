@@ -1,5 +1,5 @@
 /*
- * sndalign.c
+ * BlueALSA - sndalign.c
  * SPDX-FileCopyrightText: 2024-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */

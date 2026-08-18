@@ -1,5 +1,5 @@
 /*
- * test-dbus.c
+ * BlueALSA - test-dbus.c
  * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -15,10 +15,11 @@
 
 #include "dbus.h"
 
+#include "fixtures.h"
 #include "test-dbus-iface.h"
-#include "inc/check.inc"
 
 typedef struct {
+	unsigned int owner;
 	GDBusObjectManagerServer * manager;
 	GAsyncQueue * queue;
 	bool called_method_error;
@@ -93,7 +94,7 @@ static FooServer * foo_server_new(GDBusConnection * conn) {
 	fs->manager = g_dbus_object_manager_server_new("/");
 	g_dbus_object_manager_server_export(fs->manager, skeleton);
 
-	g_bus_own_name_on_connection(conn, "org.example", G_BUS_NAME_OWNER_FLAGS_NONE,
+	fs->owner = g_bus_own_name_on_connection(conn, "org.example", G_BUS_NAME_OWNER_FLAGS_NONE,
 			dbus_foo_server_name_acquired, NULL, fs, NULL);
 	g_async_queue_pop(fs->queue);
 
@@ -105,6 +106,8 @@ static FooServer * foo_server_new(GDBusConnection * conn) {
 /**
  * Free FooServer instance. */
 static void foo_server_free(FooServer * fs) {
+	g_dbus_object_manager_server_set_connection(fs->manager, NULL);
+	g_bus_unown_name(fs->owner);
 	g_object_unref(fs->manager);
 	g_async_queue_unref(fs->queue);
 	g_free(fs);
@@ -290,9 +293,9 @@ CK_START_TEST(test_g_dbus_set_property_sync) {
 
 int main(void) {
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 	tcase_add_checked_fixture(tc, tc_setup_dbus, tc_teardown_dbus);
@@ -308,7 +311,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

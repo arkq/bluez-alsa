@@ -1,6 +1,6 @@
 /*
- * test-ba.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * BlueALSA - test-ba.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -34,13 +34,12 @@
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "error.h"
+#include "fixtures.h"
 #include "midi.h"
 #include "storage.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
-
-#include "inc/check.inc"
 
 /* Keep persistent storage in the current directory. */
 #define TEST_BLUEALSA_STORAGE_DIR "storage-test-ba"
@@ -477,9 +476,9 @@ int main(void) {
 	config.hfp.codecs.lc3_swb = false;
 #endif
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -499,7 +498,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

@@ -1,6 +1,6 @@
 /*
- * test-io.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * BlueALSA - test-io.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -78,6 +78,7 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
+#include "fixtures.h"
 #include "io.h"
 #if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
 # include "rtp.h"
@@ -94,7 +95,6 @@
 
 #include "../src/a2dp.c"
 #include "../src/ba-transport.c"
-#include "inc/check.inc"
 
 #define CHECK_VERSION ( \
 		(CHECK_MAJOR_VERSION << 16 & 0xff0000) | \
@@ -1669,9 +1669,9 @@ int main(int argc, char *argv[]) {
 	device1 = ba_device_new(adapter, &addr1);
 	device2 = ba_device_new(adapter, &addr2);
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -1692,7 +1692,6 @@ int main(int argc, char *argv[]) {
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
 
-	srunner_free(sr);
 	ba_device_unref(device1);
 	ba_device_unref(device2);
 	ba_adapter_unref(adapter);

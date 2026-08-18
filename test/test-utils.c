@@ -1,5 +1,5 @@
 /*
- * test-utils.c
+ * BlueALSA - test-utils.c
  * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -19,6 +19,7 @@
 #include <check.h>
 
 #include "error.h"
+#include "fixtures.h"
 #include "hci.h"
 #include "utils.h"
 #include "shared/defs.h"
@@ -27,8 +28,6 @@
 #include "shared/nv.h"
 #include "shared/rc.h"
 #include "shared/rt.h"
-
-#include "inc/check.inc"
 
 CK_START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
 
@@ -369,9 +368,9 @@ CK_START_TEST(test_hex2bin) {
 
 int main(void) {
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -409,7 +408,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

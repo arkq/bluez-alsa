@@ -1,5 +1,5 @@
 /*
- * mock-bluealsa.c
+ * BlueALSA - mock-bluealsa.c
  * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */

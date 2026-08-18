@@ -1,5 +1,5 @@
 /*
- * test-dumper.c
+ * BlueALSA - test-dumper.c
  * SPDX-FileCopyrightText: 2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -15,10 +15,9 @@
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
 #include "dumper/dumper.h"
+#include "fixtures.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-hfp.h"
-
-#include "inc/check.inc"
 
 CK_START_TEST(test_ba_dumper_profile_to_mask) {
 	ck_assert_uint_eq(ba_dumper_profile_to_mask(BA_TRANSPORT_PROFILE_HSP_AG),
@@ -185,7 +184,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

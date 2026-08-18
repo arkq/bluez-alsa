@@ -1,6 +1,6 @@
 /*
- * test-a2dp.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * BlueALSA - test-a2dp.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -25,11 +25,10 @@
 #include "ba-config.h"
 #include "codec-sbc.h"
 #include "error.h"
+#include "fixtures.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
-
-#include "inc/check.inc"
 
 CK_START_TEST(test_a2dp_codec_from_string) {
 	ck_assert_uint_eq(a2dp_codec_from_string("SBC"), A2DP_CODEC_SBC);
@@ -399,9 +398,9 @@ CK_START_TEST(test_a2dp_select_configuration) {
 
 int main(void) {
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -425,7 +424,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

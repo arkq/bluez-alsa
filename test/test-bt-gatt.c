@@ -1,5 +1,5 @@
 /*
- * test-bt-gatt.c
+ * BlueALSA - test-bt-gatt.c
  * SPDX-FileCopyrightText: 2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -21,7 +21,7 @@
 #include "dbus.h"
 #include "utils.h"
 
-#include "inc/check.inc"
+#include "fixtures.h"
 #include "mock/service.h"
 
 static BlueZMockService * bluez = NULL;
@@ -199,7 +199,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

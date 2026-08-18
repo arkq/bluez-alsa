@@ -1,5 +1,5 @@
 /*
- * test-codec-msbc.c
+ * BlueALSA - test-codec-msbc.c
  * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -14,12 +14,11 @@
 #include <glib.h>
 
 #include "codec-msbc.h"
+#include "fixtures.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/sine.h"
-
-#include "inc/check.inc"
 
 CK_START_TEST(test_msbc_init) {
 
@@ -204,7 +203,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

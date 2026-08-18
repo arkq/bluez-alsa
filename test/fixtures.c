@@ -1,10 +1,10 @@
 /*
- * mock.inc
- * vim: ft=c
- *
+ * BlueALSA - fixtures.c
  * SPDX-FileCopyrightText: 2022-2025 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
+
+#include "fixtures.h"
 
 #include <ctype.h>
 #include <pthread.h>
@@ -14,36 +14,75 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <libgen.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "shared/spawn.h"
 
-struct spawn_bluealsa_data {
+/**
+ * Full path to the bluealsad-mock executable. */
+char bluealsad_mock_path[256] = "bluealsad-mock";
 
-	/* stderr from the BlueALSA server */
-	FILE *f_stderr;
-
-	pthread_mutex_t data_mtx;
-	pthread_cond_t data_updated;
-
-	char *dbus_bus_address;
-	char *acquired_service_name;
-	unsigned int ready_count_a2dp;
-	unsigned int ready_count_midi;
-	unsigned int ready_count_sco;
-
-};
-
-static char *strtrim(char *str) {
+static char * strtrim(char * str) {
 	while (isspace(*str))
 		str++;
 	if (*str == '\0')
 		return str;
-	char *end = &str[strlen(str) - 1];
+	char * end = &str[strlen(str) - 1];
 	while (end > str && isspace(*end))
 		end--;
 	end[1] = '\0';
 	return str;
 }
+
+#define LD_PRELOAD           "LD_PRELOAD"
+#define LD_PRELOAD_SANITIZER "LD_PRELOAD_SANITIZER"
+
+int preload(int argc, char * const argv[], const char * filename) {
+	(void)argc;
+
+	const char * env_preload;
+	if ((env_preload = getenv(LD_PRELOAD)) == NULL)
+		env_preload = "";
+
+	const char * env_preload_sanitizer;
+	if ((env_preload_sanitizer = getenv(LD_PRELOAD_SANITIZER)) == NULL)
+		env_preload_sanitizer = "";
+
+	/* if required library is already preloaded, do nothing */
+	if (strstr(env_preload, filename) != NULL)
+		return 0;
+
+	fprintf(stderr, "EXECV PRELOAD: %s\n", filename);
+
+	char app[1024];
+	char preload[1024];
+	char * dir = dirname(strncpy(app, argv[0], sizeof(app) - 1));
+	snprintf(preload, sizeof(preload), "%s=%s:%s/%s:%s",
+			LD_PRELOAD, env_preload_sanitizer, dir, filename, env_preload);
+
+	putenv(preload);
+	return execv(argv[0], argv);
+}
+
+struct spawn_bluealsa_data {
+
+	/* The standard error from the BlueALSA server. */
+	FILE * f_stderr;
+
+	pthread_mutex_t data_mtx;
+	pthread_cond_t data_updated;
+
+	char * dbus_bus_address;
+	char * acquired_service_name;
+	unsigned int ready_count_a2dp;
+	unsigned int ready_count_midi;
+	unsigned int ready_count_sco;
+
+};
 
 static void * spawn_bluealsad_mock_stderr_proxy(void * userdata) {
 	struct spawn_bluealsa_data * data = userdata;
@@ -92,22 +131,7 @@ static void * spawn_bluealsad_mock_stderr_proxy(void * userdata) {
 	return NULL;
 }
 
-/**
- * Full path to the bluealsad-mock executable. */
-char bluealsad_mock_path[256] = "bluealsad-mock";
-
-/**
- * Spawn BlueALSA mock service.
- *
- * @param process Pointer to the structure which will be filled with spawned
- *   process information, i.e. PID, stdout and stderr file descriptors.
- * @param service BlueALSA D-Bus service name.
- * @param wait_for_ready Block until PCMs are ready.
- * @param ... Additional arguments to be passed to the bluealsad-mock. The list
- *   shall be terminated by NULL.
- * @return On success this function returns 0. Otherwise -1 is returned and
- *  errno is set appropriately. */
-int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
+int spawn_bluealsa_mock(struct spawn_process * sp, const char * service,
 		int wait_for_ready, ...) {
 
 	/* bus address of D-Bus mock server */
@@ -130,7 +154,7 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 	va_list ap;
 	va_start(ap, wait_for_ready);
 
-	char *arg;
+	char * arg;
 	while ((arg = va_arg(ap, char *)) != NULL) {
 
 		argv[n++] = arg;

@@ -1,6 +1,6 @@
 /*
- * test-rfcomm.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * BlueALSA - test-rfcomm.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -30,10 +30,9 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
+#include "fixtures.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
-
-#include "inc/check.inc"
 
 static struct ba_adapter *adapter = NULL;
 static struct ba_device *device1 = NULL;
@@ -505,9 +504,9 @@ int main(void) {
 	bdaddr_t addr2 = {{ 2, 2, 2, 2, 2, 2 }};
 	device2 = ba_device_new(adapter, &addr2);
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 	tcase_add_checked_fixture(tc, tc_setup, NULL);
@@ -522,7 +521,6 @@ int main(void) {
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
 
-	srunner_free(sr);
 	ba_device_unref(device1);
 	ba_device_unref(device2);
 	ba_adapter_unref(adapter);

@@ -1,6 +1,6 @@
 /*
- * test-alsa-pcm.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * BlueALSA - test-alsa-pcm.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -22,18 +22,16 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <check.h>
 #include <alsa/asoundlib.h>
+#include <check.h>
+#include <glib.h>
 
+#include "fixtures.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
 #include "shared/sine.h"
 #include "shared/spawn.h"
-
-#include "inc/check.inc"
-#include "inc/mock.inc"
-#include "inc/preload.inc"
 
 #define dumprv(fn) fprintf(stderr, #fn " = %d\n", (int)fn)
 
@@ -1147,7 +1145,7 @@ CK_START_TEST(ba_test_playback_device_unplug) {
 } CK_END_TEST
 
 int main(int argc, char *argv[]) {
-	preload(argc, argv, ".libs/libaloader.so");
+	preload(argc, argv, ".libs/libalsaloader.so");
 
 	int opt;
 	const char * opts = "hD:H:c:f:r:";
@@ -1194,7 +1192,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-	char *argv_0 = strdup(argv[0]);
+	g_autofree char * argv_0 = strdup(argv[0]);
 	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
 			"%s/mock/bluealsad-mock", dirname(argv_0));
 
@@ -1216,11 +1214,11 @@ int main(int argc, char *argv[]) {
 	struct sigaction sigact = { .sa_handler = SIG_IGN };
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	Suite *s = suite_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	if (run_capture) {
-		TCase *tc = tcase_create("capture");
+		TCase * tc = tcase_create("capture");
 		tcase_add_test(tc, dump_capture);
 		tcase_add_test(tc, test_capture_start);
 		tcase_add_test(tc, test_capture_drain);
@@ -1231,7 +1229,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (run_playback) {
-		TCase *tc = tcase_create("playback");
+		TCase * tc = tcase_create("playback");
 		tcase_add_test(tc, dump_playback);
 		tcase_add_test(tc, ba_test_playback_hw_constraints);
 		tcase_add_test(tc, ba_test_playback_channel_maps);
@@ -1251,16 +1249,13 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (run_unplug) {
-		TCase *tc = tcase_create("unplug");
+		TCase * tc = tcase_create("unplug");
 		tcase_add_test(tc, reference_playback_device_unplug);
 		suite_add_tcase(s, tc);
 	}
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-
-	srunner_free(sr);
-	free(argv_0);
 
 	return nf == 0 ? 0 : 1;
 }

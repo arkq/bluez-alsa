@@ -1,6 +1,6 @@
 /*
- * test-rtp.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * BlueALSA - test-rtp.c
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -15,10 +15,9 @@
 
 #include <check.h>
 
+#include "fixtures.h"
 #include "rtp.h"
 #include "shared/defs.h"
-
-#include "inc/check.inc"
 
 CK_START_TEST(test_rtp_a2dp_init) {
 
@@ -172,9 +171,9 @@ CK_START_TEST(test_rtp_state_update) {
 
 int main(void) {
 
-	Suite *s = suite_create(__FILE__);
-	TCase *tc = tcase_create(__FILE__);
-	SRunner *sr = srunner_create(s);
+	Suite * s = suite_create(__FILE__);
+	TCase * tc = tcase_create(__FILE__);
+	g_autoptr(SRunner) sr = srunner_create(s);
 
 	suite_add_tcase(s, tc);
 
@@ -187,7 +186,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

@@ -1,5 +1,5 @@
 /*
- * service.c
+ * BlueALSA - service.c
  * SPDX-FileCopyrightText: 2023-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */

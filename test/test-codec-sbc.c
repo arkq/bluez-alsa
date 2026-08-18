@@ -1,5 +1,5 @@
 /*
- * test-codec-sbc.c
+ * BlueALSA - test-codec-sbc.c
  * SPDX-FileCopyrightText: 2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
@@ -12,13 +12,11 @@
 #include <stdbool.h>
 
 #include <check.h>
-
-#include "codec-sbc.h"
-#include "shared/bluetooth-a2dp.h"
-
 #include <sbc/sbc.h>
 
-#include "inc/check.inc"
+#include "codec-sbc.h"
+#include "fixtures.h"
+#include "shared/bluetooth-a2dp.h"
 
 CK_START_TEST(test_sbc_a2dp_get_bitpool) {
 
@@ -112,7 +110,6 @@ int main(void) {
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);
-	srunner_free(sr);
 
 	return nf == 0 ? 0 : 1;
 }

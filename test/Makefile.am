@@ -74,13 +74,18 @@ check_PROGRAMS += sndalign
 endif
 
 check_LTLIBRARIES = \
-	libaloader.la
-libaloader_la_LDFLAGS = \
+	libalsaloader.la \
+	libfixtures.la
+
+libalsaloader_la_LDFLAGS = \
 	-rpath /nowhere \
 	-avoid-version \
 	-shared
-libaloader_la_LIBADD = \
+libalsaloader_la_LIBADD = \
 	@ALSA_LIBS@
+
+libfixtures_la_SOURCES = \
+	fixtures.c
 
 BUILT_SOURCES = \
 	test-dbus-iface.h \
@@ -117,6 +122,7 @@ LDADD = \
 	../src/shared/libshared.la \
 	../src/libbluealsad.la \
 	mock/libservices.la \
+	libfixtures.la \
 	@ALSA_LIBS@ \
 	@BLUEZ_LIBS@ \
 	@CHECK_LIBS@ \

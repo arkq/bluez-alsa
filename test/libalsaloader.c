@@ -1,5 +1,5 @@
 /*
- * aloader.c
+ * BlueALSA - alsaloader.c
  * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
