@@ -485,6 +485,9 @@ static void name_acquired(G_GNUC_UNUSED GDBusConnection * conn,
 	mock_service_ready(self);
 }
 
+static void service_stop(G_GNUC_UNUSED void * service) {
+}
+
 static void service_free(void * service) {
 	g_autofree BlueALSAMockServicePriv * self = service;
 	ba_device_unref(self->device_1);
@@ -498,6 +501,7 @@ BlueALSAMockService * mock_bluealsa_service_new(char * name,
 	BlueALSAMockServicePriv * self = g_new0(BlueALSAMockServicePriv, 1);
 	self->p.service.name = name;
 	self->p.service.name_acquired_cb = name_acquired;
+	self->p.service.stop = service_stop;
 	self->p.service.free = service_free;
 
 	self->bluez = bluez;

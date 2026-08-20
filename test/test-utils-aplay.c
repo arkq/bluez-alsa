@@ -41,7 +41,7 @@ static int spawn_bluealsa_aplay(struct spawn_process *sp, ...) {
 	va_end(ap);
 
 	const int flags = SPAWN_FLAG_REDIRECT_STDOUT | SPAWN_FLAG_REDIRECT_STDERR;
-	return spawn(sp, argv, NULL, flags);
+	return spawn(sp, argv, NULL, NULL, flags);
 }
 
 /**
@@ -60,7 +60,7 @@ CK_START_TEST(test_help) {
 				"-v", "--help", NULL), -1);
 
 	char output[1024];
-	/* Check is the end notice is printed. */
+	/* Check if the end notice is printed. */
 	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
 				"Without given explicit MAC address any/empty MAC is assumed."), NULL);
 
@@ -261,8 +261,11 @@ CK_START_TEST(test_play_mixer_setup) {
 				"-v",
 				NULL), -1);
 
-#if DEBUG
 	char output[1024];
+	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"ALSA mixer device: bluealsa:DEV=23:45:67:89:AB:CD"), NULL);
+
+#if DEBUG
 	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
 				"Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"), NULL);
 #endif

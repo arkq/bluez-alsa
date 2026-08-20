@@ -3,7 +3,8 @@
 
 # Unfortunately glib-2.0 has some issues with thread safety
 # https://gitlab.gnome.org/GNOME/glib/-/issues/1672
-race:glib/gslice.c
+race:g_type_free_instance
+race:message_to_write_data_free
 
 # TSAN detects some issues within libdbus-1 library:
 # 1. It detects a cycle in lock order graph when the connection dispatch

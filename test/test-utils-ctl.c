@@ -43,7 +43,7 @@ static int run_bluealsactl(char * output, size_t size, ...) {
 	va_end(ap);
 
 	struct spawn_process sp;
-	if (spawn(&sp, argv, NULL, SPAWN_FLAG_REDIRECT_STDOUT) == -1)
+	if (spawn(&sp, argv, NULL, NULL, SPAWN_FLAG_REDIRECT_STDOUT) == -1)
 		return -1;
 
 	size_t len;
@@ -451,11 +451,11 @@ CK_START_TEST(test_open) {
 		NULL };
 
 	struct spawn_process sp_bactl_in;
-	ck_assert_int_ne(spawn(&sp_bactl_in, bactl_in_argv,
+	ck_assert_int_ne(spawn(&sp_bactl_in, bactl_in_argv, NULL,
 				NULL, SPAWN_FLAG_REDIRECT_STDOUT), -1);
 
 	struct spawn_process sp_bactl_out;
-	ck_assert_int_ne(spawn(&sp_bactl_out, bactl_out_argv,
+	ck_assert_int_ne(spawn(&sp_bactl_out, bactl_out_argv, NULL,
 				sp_bactl_in.f_stdout, SPAWN_FLAG_NONE), -1);
 
 	/* let it run for a while */

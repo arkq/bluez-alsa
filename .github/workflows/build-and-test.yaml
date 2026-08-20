@@ -29,7 +29,7 @@ jobs:
         - --disable-aplay --enable-asha --enable-rfcomm --enable-manpages
         - --disable-ctl --enable-aptx --enable-aptx-hd --with-libopenaptx
       fail-fast: false
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
     - name: Install Dependencies
@@ -50,6 +50,9 @@ jobs:
     - name: Run Tests
       working-directory: ${{ github.workspace }}/build/test
       run: make check-TESTS
+    - name: Show Test Status
+      if: ${{ always() }}
+      run: cat ${{ github.workspace }}/build/test/test-suite.log
     - name: Upload Tests Log
       uses: actions/upload-artifact@v7
       if: ${{ always() }}
@@ -58,55 +61,65 @@ jobs:
         path: ${{ github.workspace }}/build/test/*.log
 
   sanitize-prepare:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/cache@v6
       id: cache
       with:
-        key: sanitize-env
+        key: ${{ runner.os }}-${{ runner.arch }}-sanitize-env
         path: |
           ${{ env.SANITIZE_MEMORY_LIBS }}
           ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Create Build Environment
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        sudo apt install --yes --quiet --no-install-recommends autoconf-archive meson
+        sudo apt install --yes --quiet --no-install-recommends \
+          autoconf-archive libgmp-dev libmpc-dev libmpfr-dev meson
         mkdir -p ${{ env.SANITIZE_MEMORY_LIBS }}
         mkdir -p ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Compile Patched GCC Thread Sanitizer Library
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        git clone --depth=1 --branch=releases/gcc-11.3.0 https://github.com/gcc-mirror/gcc.git
+        git clone --depth=1 --branch=releases/gcc-15.2.0 https://github.com/gcc-mirror/gcc.git
         # GCC (and Clang) skips interception in case when the call is made while the
         # thread is waiting on a blocking system call. In most cases this is a case
         # when the call is made from a signal handler. However, BlueALSA uses thread
         # cancellation to stop the thread, which operates in a similar way. Therefore,
         # we need to patch the thread sanitizer library to not skip the interception.
         sed -i 's/|| thr->ignore_interceptors//' gcc/libsanitizer/tsan/tsan_interceptors.h
-        mkdir libstdc++-v3 && cd $_ && ../gcc/libstdc++-v3/configure --disable-multilib && make && cd -
-        mkdir libsanitizer && cd $_ && ../gcc/libsanitizer/configure --disable-multilib && make && cd -
-        mv libsanitizer/tsan/.libs/libtsan.so* ${{ env.SANITIZE_THREAD_LIBS }}
+        # Build patched thread sanitizer library
+        mkdir -p gcc-build && cd gcc-build && ../gcc/configure --disable-multilib && cd -
+        make -C gcc-build all-build-fixincludes
+        make -C gcc-build all-stage1-gcc
+        make -C gcc-build all-stage1-target-libstdc++-v3
+        make -C gcc-build all-target-libsanitizer
+        mv gcc-build/x86_64-pc-linux-gnu/libsanitizer/tsan/.libs/libtsan.so* ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Compile dbus-1
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        git clone --depth=1 --branch=dbus-1.12.20 https://gitlab.freedesktop.org/dbus/dbus.git
-        cd dbus && autoreconf -i && ./configure --prefix=/usr && cd -
+        git clone --depth=1 --branch=dbus-1.16.2 https://gitlab.freedesktop.org/dbus/dbus.git
         # Build dbus-1 with preserved frame pointers
-        make -C dbus clean && make -C dbus CFLAGS="-g -O2 -fno-omit-frame-pointer"
-        mv dbus/dbus/.libs/libdbus-1.so* ${{ env.SANITIZE_MEMORY_LIBS }}
+        CFLAGS="-g -O2 -fno-omit-frame-pointer" \
+          cmake -S dbus -B dbus/build-memory -DCMAKE_INSTALL_PREFIX=/usr -DDBUS_BUILD_TESTS=OFF -DDBUS_ENABLE_STATS=ON
+        cmake --build dbus/build-memory
+        mv dbus/build-memory/lib/libdbus-1.so* ${{ env.SANITIZE_MEMORY_LIBS }}
         # Build dbus-1 with thread sanitizer
-        make -C dbus clean && make -C dbus CFLAGS="-g -O2 -fno-omit-frame-pointer -fsanitize=thread"
-        mv dbus/dbus/.libs/libdbus-1.so* ${{ env.SANITIZE_THREAD_LIBS }}
+        CFLAGS="-g -O2 -fno-omit-frame-pointer -fsanitize=thread" \
+          cmake -S dbus -B dbus/build-thread -DCMAKE_INSTALL_PREFIX=/usr -DDBUS_BUILD_TESTS=OFF -DDBUS_ENABLE_STATS=ON
+        cmake --build dbus/build-thread
+        mv dbus/build-thread/lib/libdbus-1.so* ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Compile glib-2.0
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        git clone --depth=1 --branch=2.72.4 https://github.com/GNOME/glib.git
+        git clone --depth=1 --branch=2.88.0 https://github.com/GNOME/glib.git
         # Build glib with preserved frame pointers
-        CFLAGS="-g -O2 -fno-omit-frame-pointer" meson glib/build-memory glib
+        CFLAGS="-g -O2 -fno-omit-frame-pointer" \
+          meson setup glib/build-memory glib -Dtests=false
         DESTDIR=../build-image ninja -C glib/build-memory install
         mv glib/build-image/usr/local/lib/x86_64-linux-gnu/lib* ${{ env.SANITIZE_MEMORY_LIBS }}
         # Build glib with thread sanitizer
-        CFLAGS="-g -O2 -fno-omit-frame-pointer -fsanitize=thread" meson glib/build-thread glib
+        CFLAGS="-g -O2 -fno-omit-frame-pointer" \
+          meson setup glib/build-thread glib -Dtests=false -Db_sanitize=thread
         DESTDIR=../build-image ninja -C glib/build-thread install
         mv glib/build-image/usr/local/lib/x86_64-linux-gnu/lib* ${{ env.SANITIZE_THREAD_LIBS }}
 
@@ -118,7 +131,7 @@ jobs:
         - thread
       fail-fast: false
     needs: sanitize-prepare
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
     - name: Install Dependencies
@@ -157,27 +170,30 @@ jobs:
         make check CFLAGS="-g -O2 $SANITIZERS -fno-omit-frame-pointer -fno-sanitize-recover=all" TESTS=
     - uses: actions/cache/restore@v6
       with:
-        key: sanitize-env
+        key: ${{ runner.os }}-${{ runner.arch }}-sanitize-env
         path: |
           ${{ env.SANITIZE_MEMORY_LIBS }}
           ${{ env.SANITIZE_THREAD_LIBS }}
     - name: Run Tests
-      working-directory: ${{ github.workspace }}/build/test
+      working-directory: ${{ github.workspace }}/build
       env:
         CK_TIMEOUT_MULTIPLIER: 5
         ASAN_OPTIONS: detect_stack_use_after_return=1
         LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/sanitize-lsan.supp
-        TSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/sanitize-tsan.supp
+        TSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/sanitize-tsan.supp atexit_sleep_ms=0
       run: |
         case "${{ matrix.sanitize }}" in
           *address*)
             export LD_LIBRARY_PATH="${{ env.SANITIZE_MEMORY_LIBS }}:$LD_LIBRARY_PATH"
-            export LD_PRELOAD_SANITIZER="libasan.so.6" ;;
+            export LD_PRELOAD_SANITIZER="libasan.so.8" ;;
           *thread*)
             export LD_LIBRARY_PATH="${{ env.SANITIZE_THREAD_LIBS }}:$LD_LIBRARY_PATH"
-            export LD_PRELOAD_SANITIZER="libtsan.so.0" ;;
+            export LD_PRELOAD_SANITIZER="libtsan.so.2" ;;
         esac
-        make check-TESTS
+        make -C test check-TESTS
+    - name: Show Test Status
+      if: ${{ always() }}
+      run: cat ${{ github.workspace }}/build/test/test-suite.log
     - name: Upload Tests Log
       uses: actions/upload-artifact@v7
       if: ${{ always() }}

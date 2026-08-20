@@ -45,19 +45,16 @@ static char *strtrim(char *str) {
 	return str;
 }
 
-static void *spawn_bluealsad_mock_stderr_proxy(void *userdata) {
+static void * spawn_bluealsad_mock_stderr_proxy(void * userdata) {
+	struct spawn_bluealsa_data * data = userdata;
 
-	struct spawn_bluealsa_data *data = userdata;
 	char buffer[512];
-	char *tmp;
-
 	while (fgets(buffer, sizeof(buffer), data->f_stderr) != NULL) {
-		fputs(buffer, stderr);
 
 		bool updated = false;
-
 		pthread_mutex_lock(&data->data_mtx);
 
+		char * tmp;
 		if ((tmp = strstr(buffer, "DBUS_SYSTEM_BUS_ADDRESS=")) != NULL) {
 			data->dbus_bus_address = strtrim(strdup(tmp));
 			updated = true;
@@ -154,7 +151,13 @@ int spawn_bluealsa_mock(struct spawn_process *sp, const char *service,
 
 	va_end(ap);
 
-	if (spawn(sp, argv, NULL, SPAWN_FLAG_REDIRECT_STDERR) == -1)
+	/* NOTE: When testing with ThreadSanitizer on GitHub Actions, we are using
+	 *       patched sanitizer library to avoid false positives in cancellation
+	 *       cleanup handlers. However, this patch seems to break the sanitizer
+	 *       in a way that it does not work correctly with our mock service.
+	 *       Therefore, the sanitizer needs to be disabled here. */
+	char * const envp[] = { "TSAN_OPTIONS=report_bugs=0", NULL };
+	if (spawn(sp, argv, envp, NULL, SPAWN_FLAG_REDIRECT_STDERR) == -1)
 		return -1;
 
 	struct spawn_bluealsa_data *data;

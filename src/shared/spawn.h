@@ -59,6 +59,9 @@ struct spawn_process {
  *   information, i.e. PID, stdout and stderr file descriptors.
  * @param argv List of arguments to be passed to the process. The list shall be
  *   terminated by NULL. The first argument is the name of the executable.
+ * @param envp List of environment variables to be passed to the process. The
+ *   list shall be terminated by NULL. If NULL, then the environment from the
+ *   parent process will be used.
  * @param f_stdin FILE stream to be used as stdin for the process. If NULL,
  *   then the stdin from the parent process will be used.
  * @param flags Bitwise OR of the SPAWN_FLAG_* flags.
@@ -66,10 +69,26 @@ struct spawn_process {
  *   errno is set appropriately. */
 int spawn(
 		struct spawn_process * sp,
-		char * argv[],
+		char * const argv[],
+		char * const envp[],
 		FILE * f_stdin,
 		int flags);
 
+/**
+ * Terminate spawned process.
+ *
+ * Please make sure to wait for the process to actually start before calling
+ * this function. Otherwise, the SIGTERM may be delivered to the clone of the
+ * parent process (after fork() but before exec()) instead of the spawned one.
+ * In case of testing with the check framework, the SIGTERM is handled by the
+ * signal handler registered by the framework which will lead to termination
+ * of the entire test suite.
+ *
+ * @param sp Pointer to the initialized process information structure.
+ * @param delay_msec Delay in milliseconds before sending the SIGTERM to the
+ *   process.
+ * @return On success this function returns 0. Otherwise -1 is returned and
+ *   errno is set appropriately. */
 int spawn_terminate(
 		struct spawn_process * sp,
 		unsigned int delay_msec);

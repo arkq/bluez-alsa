@@ -1,21 +1,17 @@
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 name: Install Dependencies
 runs:
   using: composite
   steps:
-    - name: Add PPA with LC3 codec
-      shell: bash
-      run: sudo add-apt-repository ppa:savoury1/pipewire
     - name: Install DEB Packages
       uses: awalsh128/cache-apt-pkgs-action@v1
       with:
-        # XXX: iwyu package depends on clang-14, but is built with clang-13
         packages: >
           bear
           check
-          iwyu libclang-13-dev
+          iwyu
           jq
           lcov
           libasound2-dev

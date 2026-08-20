@@ -566,6 +566,17 @@ static void name_acquired(GDBusConnection * conn,
 	mock_service_ready(self);
 }
 
+static void service_stop(void * service) {
+	BlueZMockServicePriv * self = service;
+
+	g_hash_table_remove_all(self->profiles);
+	g_clear_object(&self->media_app_client);
+	g_clear_object(&self->gatt_service);
+	g_clear_object(&self->gatt_characteristic);
+	g_clear_object(&self->advertisement);
+
+}
+
 static void service_free(void * service) {
 	g_autofree BlueZMockServicePriv * self = service;
 
@@ -574,10 +585,6 @@ static void service_free(void * service) {
 	g_hash_table_unref(self->profiles);
 
 	g_clear_object(&self->server);
-	g_clear_object(&self->media_app_client);
-	g_clear_object(&self->gatt_service);
-	g_clear_object(&self->gatt_characteristic);
-	g_clear_object(&self->advertisement);
 
 }
 
@@ -586,6 +593,7 @@ BlueZMockService * mock_bluez_service_new(void) {
 	BlueZMockServicePriv * self = g_new0(BlueZMockServicePriv, 1);
 	self->p.service.name = BLUEZ_SERVICE;
 	self->p.service.name_acquired_cb = name_acquired;
+	self->p.service.stop = service_stop;
 	self->p.service.free = service_free;
 
 	self->p.profile_ready_queue = g_async_queue_new();

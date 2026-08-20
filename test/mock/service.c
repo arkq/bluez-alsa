@@ -44,9 +44,9 @@ static void * mock_loop_run(void * userdata) {
 	MockService * service = userdata;
 	debug("Starting service loop: %s", service->name);
 
-	g_autoptr(GMainContext) context = g_main_context_new();
-	service->_loop = g_main_loop_new(context, FALSE);
-	g_main_context_push_thread_default(context);
+	service->_context = g_main_context_new();
+	service->_loop = g_main_loop_new(service->_context, FALSE);
+	g_main_context_push_thread_default(service->_context);
 
 	g_assert((service->_id = g_bus_own_name_on_connection(service->_conn,
 					service->name, G_BUS_NAME_OWNER_FLAGS_NONE,
@@ -55,8 +55,13 @@ static void * mock_loop_run(void * userdata) {
 
 	g_main_loop_run(service->_loop);
 
-	g_main_context_pop_thread_default(context);
+	g_main_context_pop_thread_default(service->_context);
 	return NULL;
+}
+
+static int mock_loop_quit(void * userdata) {
+	g_main_loop_quit(userdata);
+	return G_SOURCE_REMOVE;
 }
 
 void mock_service_start(void * service, GDBusConnection * conn) {
@@ -86,17 +91,28 @@ void mock_service_stop(void * service) {
 	MockService * srv = service;
 
 	g_bus_unown_name(srv->_id);
-	g_main_loop_quit(srv->_loop);
-	g_main_loop_unref(srv->_loop);
+	srv->stop(service);
+
+	/* Quit the loop after any pending idle sources have been dispatched. */
+	g_autoptr(GSource) source = g_idle_source_new();
+	g_source_set_priority(source, G_PRIORITY_LOW);
+	g_source_set_callback(source, mock_loop_quit, srv->_loop, NULL);
+	g_source_attach(source, srv->_context);
+
 	g_thread_join(srv->_thread);
 	g_free(g_steal_pointer(&srv->unique_name));
 
-	g_async_queue_unref(srv->_ready);
-	g_object_unref(srv->_conn);
 
 }
 
 void mock_service_free(void * service) {
 	MockService * srv = service;
+
+	g_main_loop_unref(srv->_loop);
+	g_main_context_unref(srv->_context);
+	g_async_queue_unref(srv->_ready);
+	g_object_unref(srv->_conn);
+
 	srv->free(service);
+
 }

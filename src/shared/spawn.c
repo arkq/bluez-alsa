@@ -62,7 +62,8 @@ static void * spawn_forwarder_thread(void * arg) {
 
 int spawn(
 		struct spawn_process * sp,
-		char * argv[],
+		char * const argv[],
+		char * const envp[],
 		FILE * f_stdin,
 		int flags) {
 
@@ -115,7 +116,9 @@ int spawn(
 			close(pipe_stderr[1]);
 		}
 
-		return execv(argv[0], argv);
+		if (envp == NULL)
+			return execv(argv[0], argv);
+		return execve(argv[0], argv, envp);
 	}
 
 	if (pipe(pipe_local) == -1)

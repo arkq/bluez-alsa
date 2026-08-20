@@ -36,11 +36,15 @@ typedef struct MockService {
 	char * unique_name;
 	void (* name_acquired_cb)(GDBusConnection * conn, const char * name, void * userdata);
 	void (* name_lost_cb)(GDBusConnection * conn, const char * name, void * userdata);
+	/* Callback for releasing resources while the main loop is still running. */
+	void (* stop)(void * service);
+	/* Callback for releasing resources after the main loop has been stopped. */
 	void (* free)(void * service);
 
 	GThread * _thread;
 	GDBusConnection * _conn;
 	GAsyncQueue * _ready;
+	GMainContext * _context;
 	GMainLoop * _loop;
 	unsigned int _id;
 

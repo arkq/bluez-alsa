@@ -69,6 +69,9 @@ static void name_acquired(GDBusConnection * conn,
 	mock_service_ready(self);
 }
 
+static void service_stop(G_GNUC_UNUSED void * service) {
+}
+
 static void service_free(void * service) {
 	g_autofree OFonoMockServicePriv * self = service;
 	g_object_unref(self->manager);
@@ -79,6 +82,7 @@ OFonoMockService * mock_ofono_service_new(void) {
 	OFonoMockServicePriv * self = g_new0(OFonoMockServicePriv, 1);
 	self->p.service.name = OFONO_SERVICE;
 	self->p.service.name_acquired_cb = name_acquired;
+	self->p.service.stop = service_stop;
 	self->p.service.free = service_free;
 	return (OFonoMockService *)self;
 }
