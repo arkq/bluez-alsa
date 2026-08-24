@@ -16,7 +16,7 @@
 
 static int alsa_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
 	struct alsa_mixer *mixer = snd_mixer_elem_get_callback_private(elem);
-	if (mask & SND_CTL_EVENT_MASK_REMOVE)
+	if (mask == SND_CTL_EVENT_MASK_REMOVE)
 		/* The element has been removed and cannot
 		 * now be used - we must close the mixer. */
 		 return -1;
