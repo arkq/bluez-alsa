@@ -53,4 +53,6 @@
 	{ include: [ '<spandsp/g722.h>', private, '<spandsp.h>', public ] },
 	{ include: [ '<spandsp/plc.h>', private, '<spandsp.h>', public ] },
 
+	{ include: [ '<bits/types/struct_itimerspec.h>', private, '<sys/timerfd.h>', public ] },
+
 ]
