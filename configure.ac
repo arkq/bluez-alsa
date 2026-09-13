@@ -389,7 +389,7 @@ AC_SUBST([BASH_COMPLETION_DIR], [$bashcompdir])
 
 AC_ARG_WITH([alsaplugindir],
 	AS_HELP_STRING([--with-alsaplugindir=DIR], [path where ALSA plugin files are stored]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-alsaplugindir requires an argument])],
 		[alsaplugindir="$withval"]),
 	[alsaplugindir=$($PKG_CONFIG --variable=libdir alsa)/alsa-lib])
@@ -419,7 +419,7 @@ AC_DEFINE_UNQUOTED(BLUEALSA_STORAGE_DIR, "${localstoragedir}/bluealsa",
 
 AC_ARG_WITH([alsaconfdir],
 	AS_HELP_STRING([--with-alsaconfdir=DIR], [path to ALSA add-on configuration files]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-alsaconfdir requires an argument])],
 		[alsaconfdir="$withval"]),
 	[AM_COND_IF([ALSA_1_1_7],
@@ -429,7 +429,7 @@ AC_SUBST([ALSA_CONF_DIR], [$alsaconfdir])
 
 AC_ARG_WITH([dbusconfdir],
 	AS_HELP_STRING([--with-dbusconfdir=DIR], [path to D-Bus system bus configuration files]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-dbusconfdir requires an argument])],
 		[dbusconfdir="${withval}"]),
 	[dbusconfdir=$($PKG_CONFIG --variable=datadir dbus-1)/dbus-1/system.d])
@@ -437,7 +437,7 @@ AC_SUBST([DBUS_CONF_DIR], [$dbusconfdir])
 
 AC_ARG_WITH([dbus-iface-xml],
 	AS_HELP_STRING([--with-dbus-iface-xml=DIR], [path to D-Bus interface XML files]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-dbus-iface-xml requires an argument])],
 		[dbusifacedir="${withval}"]),
 	[dbusifacedir=$($PKG_CONFIG --variable=interfaces_dir dbus-1)])
@@ -445,7 +445,7 @@ AC_SUBST([DBUS_IFACE_DIR], [$dbusifacedir])
 
 AC_ARG_WITH([systemdsystemunitdir],
 	AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [path to systemd system unit files]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-systemdsystemunitdir requires an argument])],
 		[systemdsystemunitdir="${withval}"]),
 	[AM_COND_IF([ENABLE_SYSTEMD],
@@ -455,7 +455,7 @@ AC_SUBST([SYSTEMD_SYSTEM_UNIT_DIR], [$systemdsystemunitdir])
 AC_ARG_WITH([systemdbluealsadargs],
 	AS_HELP_STRING([--with-systemdbluealsadargs=ARGS], [bluealsad arguments to be used in
 		bluealsa.service, defaults to '-S -p a2dp-source -p a2dp-sink --all-codecs' if not specified]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-systemdbluealsadargs requires an argument])],
 		[systemdbluealsadargs="${withval}"]),
 	[systemdbluealsadargs="-S -p a2dp-source -p a2dp-sink --all-codecs"])
@@ -464,7 +464,7 @@ AC_SUBST([SYSTEMD_BLUEALSAD_ARGS], [$systemdbluealsadargs])
 AC_ARG_WITH([systemdbluealsaaplayargs],
 	AS_HELP_STRING([--with-systemdbluealsaaplayargs=ARGS], [bluealsa-aplay arguments to
 		be used in bluealsa-aplay.service, defaults to '-S' if not specified]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-systemdbluealsaaplayargs requires an argument])],
 		[systemdbluealsaaplayargs="${withval}"]),
 	[systemdbluealsaaplayargs="-S"])
@@ -474,7 +474,7 @@ AC_ARG_WITH([bluealsaduser],
 	AS_HELP_STRING([--with-bluealsaduser=USER], [set up installation to run bluealsad as user
 		USER, defaults to root if not specified. When used with bluez <= 5.50, USER must be a
 		member of the "bluetooth" group.]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-bluealsaduser requires an argument])],
 		[bluealsaduser="${withval}"]),
 	[bluealsaduser="root"])
@@ -484,7 +484,7 @@ AC_ARG_WITH([bluealsaaplayuser],
 	AS_HELP_STRING([--with-bluealsaaplayuser=USER], [set up installation to run bluealsa-aplay
 		as user USER, defaults to root if not specified. USER must be a member of the "audio"
 		group.]),
-	AS_IF([test "x$withval" == "xyes" -o "x$withval" == "xno"],
+	AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
 		[AC_MSG_ERROR([Option --with-bluealsaaplayuser requires an argument])],
 		[bluealsaaplayuser="${withval}"]),
 	[bluealsaaplayuser="root"])
