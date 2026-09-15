@@ -28,6 +28,7 @@
 #include "audio.h"
 #include "ba-config.h"
 #include "ba-device.h"
+#include "ba-pcm-multi.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "bluealsa-dbus.h"
@@ -83,6 +84,9 @@ int transport_pcm_init(
 	pcm->pipe[0] = -1;
 	pcm->pipe[1] = -1;
 
+	pcm->multi = NULL;
+	pcm->paused = false;
+
 	for (size_t i = 0; i < ARRAYSIZE(pcm->volume); i++) {
 		pcm->volume[i].level = config.volume_init_level;
 		ba_transport_pcm_volume_set(&pcm->volume[i], NULL, NULL, NULL);
@@ -99,6 +103,9 @@ int transport_pcm_init(
 	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
 			t->d->ba_dbus_path, transport_get_dbus_path_type(t->profile),
 			mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
+
+	if (ba_pcm_multi_enabled(pcm))
+		pcm->multi = ba_pcm_multi_create(pcm);
 
 	return 0;
 }
@@ -121,6 +128,11 @@ void transport_pcm_free(
 		close(pcm->pipe[1]);
 
 	g_free(pcm->ba_dbus_path);
+
+	if (pcm->multi != NULL) {
+		ba_pcm_multi_free(pcm->multi);
+		pcm->multi = NULL;
+	}
 
 }
 
@@ -242,6 +254,10 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 	ba_transport_stop_async(t);
 	pthread_mutex_unlock(&t->bt_fd_mtx);
 
+	/* Stop multi client thread if required. */
+	if (pcm->multi)
+		ba_pcm_multi_reset(pcm->multi);
+
 	/* Release BT socket file descriptor duplicate created either in the
 	 * ba_transport_pcm_start() function or in the IO thread itself. */
 	ba_transport_pcm_bt_release(pcm);
@@ -352,6 +368,11 @@ int ba_transport_pcm_start(
 	if ((ret = pthread_sigmask(SIG_SETMASK, &sigset, &oldset)) != 0)
 		warn("Couldn't set signal mask: %s", strerror(ret));
 
+	/* Ensure that, if required, the multi-client support is initialised
+	 * before the PCM I/O thread is started. */
+	if (pcm->multi)
+		ba_pcm_multi_init(pcm->multi);
+
 	if ((ret = pthread_create(&pcm->tid, NULL, PTHREAD_FUNC(th_func), pcm)) != 0) {
 		error("Couldn't create IO thread: %s", strerror(ret));
 		pcm->state = BA_TRANSPORT_PCM_STATE_TERMINATED;
@@ -374,6 +395,8 @@ int ba_transport_pcm_start(
 	debug("Created new IO thread [%s]: %s", name, ba_transport_debug_name(t));
 
 fail:
+	if (pcm->multi && ret != 0)
+		ba_pcm_multi_reset(pcm->multi);
 	pthread_mutex_unlock(&pcm->state_mtx);
 	pthread_cond_broadcast(&pcm->cond);
 	return ret == 0 ? 0 : -1;
@@ -751,7 +774,10 @@ int ba_transport_pcm_delay_get(
 	else if (t->profile & BA_TRANSPORT_PROFILE_MASK_AG)
 		delay += 10;
 
-	return delay;
+	if (pcm->multi)
+		return delay + ba_pcm_multi_delay_get(pcm->multi);
+	else
+		return delay;
 }
 
 /**
