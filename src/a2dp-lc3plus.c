@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp-lc3plus.c
- * SPDX-FileCopyrightText: 2021-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2021-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -563,11 +563,18 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		uint8_t *lc3plus_payload = bt_payload.data;
+		size_t lc3plus_frames;
 		/* For not-fragmented transfer, the frame count shall indicate the number
 		 * of LC3plus frames within a single RTP payload. In case of fragmented
-		 * transfer, the last fragment should have the frame count set to 1. */
-		size_t lc3plus_frames = rtp_media_header->frame_count;
+		 * transfer, the last fragment should have the frame count set to 1. Skip
+		 * processing if the frame count is invalid. */
+		if ((lc3plus_frames = rtp_media_header->frame_count) == 0) {
+			warn("Dropping LC3plus payload: Invalid RTP frame count");
+			ffb_rewind(&bt_payload);
+			continue;
+		}
+
+		uint8_t * lc3plus_payload = bt_payload.data;
 		size_t lc3plus_frame_len = ffb_blen_out(&bt_payload) / lc3plus_frames;
 
 		/* Decode retrieved LC3plus frames. */
