@@ -23,23 +23,26 @@
 #include "shared/log.h"
 #include "shared/spawn.h"
 
-static int test_seq_open(struct spawn_process *sp_ba_mock, snd_seq_t **seq,
+static int test_seq_open(struct spawn_process * sp_ba_mock, snd_seq_t ** seq,
 		int streams, int mode) {
 	if (spawn_bluealsa_mock(sp_ba_mock, NULL, true,
-				"--timeout=10000",
-				"--profile=midi",
-				NULL) == -1)
+	                        "--timeout=10000",
+	                        "--profile=midi",
+	                        NULL) == -1)
 		return -1;
 	return snd_seq_open(seq, "default", streams, mode);
 }
 
-static int test_seq_create_port(snd_seq_t *seq) {
+static int test_seq_create_port(snd_seq_t * seq) {
 	return snd_seq_create_simple_port(seq, NULL,
-			SND_SEQ_PORT_CAP_DUPLEX | SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE,
-			SND_SEQ_PORT_TYPE_MIDI_GENERIC | SND_SEQ_PORT_TYPE_APPLICATION);
+	                                  SND_SEQ_PORT_CAP_DUPLEX |
+	                                  SND_SEQ_PORT_CAP_READ |
+	                                  SND_SEQ_PORT_CAP_WRITE,
+	                                  SND_SEQ_PORT_TYPE_MIDI_GENERIC |
+	                                  SND_SEQ_PORT_TYPE_APPLICATION);
 }
 
-static int test_seq_close(struct spawn_process *sp_ba_mock, snd_seq_t *seq) {
+static int test_seq_close(struct spawn_process * sp_ba_mock, snd_seq_t * seq) {
 	int rv = 0;
 	if (seq != NULL)
 		rv = snd_seq_close(seq);
@@ -53,14 +56,14 @@ static int test_seq_close(struct spawn_process *sp_ba_mock, snd_seq_t *seq) {
 CK_START_TEST(test_port) {
 
 	struct spawn_process sp_ba_mock;
-	snd_seq_t *seq = NULL;
+	snd_seq_t * seq = NULL;
 
 	ck_assert_int_eq(test_seq_open(&sp_ba_mock, &seq, SND_SEQ_OPEN_DUPLEX, 0), 0);
 
-	snd_seq_client_info_t *cinfo;
+	snd_seq_client_info_t * cinfo;
 	snd_seq_client_info_alloca(&cinfo);
 
-	snd_seq_port_info_t *pinfo;
+	snd_seq_port_info_t * pinfo;
 	snd_seq_port_info_alloca(&pinfo);
 
 	bool ba_client_found = false;
@@ -78,7 +81,7 @@ CK_START_TEST(test_port) {
 		snd_seq_port_info_set_port(pinfo, -1);
 		while (snd_seq_query_next_port(seq, pinfo) == 0) {
 			debug("%d:%d - %s", snd_seq_port_info_get_client(pinfo),
-					snd_seq_port_info_get_port(pinfo), snd_seq_port_info_get_name(pinfo));
+			      snd_seq_port_info_get_port(pinfo), snd_seq_port_info_get_name(pinfo));
 			ba_port_found = true;
 		}
 
@@ -89,7 +92,8 @@ CK_START_TEST(test_port) {
 
 	ck_assert_int_eq(test_seq_close(&sp_ba_mock, seq), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_sequencer) {
 
@@ -107,7 +111,7 @@ CK_START_TEST(test_sequencer) {
 	};
 
 	struct spawn_process sp_ba_mock;
-	snd_seq_t *seq = NULL;
+	snd_seq_t * seq = NULL;
 	int port;
 
 	ck_assert_int_eq(test_seq_open(&sp_ba_mock, &seq, SND_SEQ_OPEN_DUPLEX, 0), 0);
@@ -118,7 +122,7 @@ CK_START_TEST(test_sequencer) {
 	ck_assert_int_eq(snd_seq_connect_from(seq, port, ba_seq_addr.client, ba_seq_addr.port), 0);
 	ck_assert_int_eq(snd_seq_connect_to(seq, port, ba_seq_addr.client, ba_seq_addr.port), 0);
 
-	snd_midi_event_t *parser;
+	snd_midi_event_t * parser;
 	ck_assert_int_eq(snd_midi_event_new(1024, &parser), 0);
 	snd_midi_event_no_status(parser, 1);
 
@@ -135,7 +139,7 @@ CK_START_TEST(test_sequencer) {
 
 		ck_assert_int_gt(snd_seq_event_output_direct(seq, &ev), 0);
 
-		snd_seq_event_t *ev_o;
+		snd_seq_event_t * ev_o;
 		uint8_t buf[16];
 
 		ck_assert_int_gt(snd_seq_event_input(seq, &ev_o), 0);
@@ -148,9 +152,10 @@ CK_START_TEST(test_sequencer) {
 	snd_seq_delete_simple_port(seq, port);
 	ck_assert_int_eq(test_seq_close(&sp_ba_mock, seq), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 	(void)argc;
 
 	/* Check whether current host supports ALSA sequencer. If not, then
@@ -162,7 +167,7 @@ int main(int argc, char *argv[]) {
 
 	g_autofree char * argv_0 = strdup(argv[0]);
 	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
-			"%s/mock/bluealsad-mock", dirname(argv_0));
+	         "%s/mock/bluealsad-mock", dirname(argv_0));
 
 	Suite * s = suite_create(__FILE__);
 	TCase * tc = tcase_create(__FILE__);

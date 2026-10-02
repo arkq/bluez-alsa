@@ -34,20 +34,20 @@ HANDLE_APTX aptxhddec_init(void);
 #endif
 
 #if ENABLE_APTX
-ssize_t aptxenc_encode(HANDLE_APTX handle, const int16_t *input, size_t samples,
-		void *output, size_t *len);
+ssize_t aptxenc_encode(HANDLE_APTX handle, const int16_t * input, size_t samples,
+		void * output, size_t * len);
 # if HAVE_APTX_DECODE
-ssize_t aptxdec_decode(HANDLE_APTX handle, const void *input, size_t len,
-		int16_t *output, size_t *samples);
+ssize_t aptxdec_decode(HANDLE_APTX handle, const void * input, size_t len,
+		int16_t * output, size_t * samples);
 # endif
 #endif
 
 #if ENABLE_APTX_HD
-ssize_t aptxhdenc_encode(HANDLE_APTX handle, const int32_t *input, size_t samples,
-		void *output, size_t *len);
+ssize_t aptxhdenc_encode(HANDLE_APTX handle, const int32_t * input, size_t samples,
+		void * output, size_t * len);
 # if HAVE_APTX_HD_DECODE
-ssize_t aptxhddec_decode(HANDLE_APTX handle, const void *input, size_t len,
-		int32_t *output, size_t *samples);
+ssize_t aptxhddec_decode(HANDLE_APTX handle, const void * input, size_t len,
+		int32_t * output, size_t * samples);
 # endif
 #endif
 

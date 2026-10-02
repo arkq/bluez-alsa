@@ -53,15 +53,15 @@
  * Determine whether given PCM is transported
  * over A2DP codec main-channel link. */
 #define BA_PCM_A2DP_MAIN_CHANNEL(pcm) ( \
-	((pcm)->transport & BA_PCM_TRANSPORT_A2DP_SOURCE && (pcm)->mode & BA_PCM_MODE_SINK) || \
-	((pcm)->transport & BA_PCM_TRANSPORT_A2DP_SINK && (pcm)->mode & BA_PCM_MODE_SOURCE))
+		((pcm)->transport & BA_PCM_TRANSPORT_A2DP_SOURCE && (pcm)->mode & BA_PCM_MODE_SINK) || \
+		((pcm)->transport & BA_PCM_TRANSPORT_A2DP_SINK && (pcm)->mode & BA_PCM_MODE_SOURCE))
 
 /**
  * Determine whether given PCM is transported
  * over HFP/HSP speaker channel link. */
 #define BA_PCM_SCO_SPEAKER_CHANNEL(pcm) ( \
-	((pcm)->transport & BA_PCM_TRANSPORT_MASK_AG && (pcm)->mode & BA_PCM_MODE_SINK) || \
-	((pcm)->transport & BA_PCM_TRANSPORT_MASK_HF && (pcm)->mode & BA_PCM_MODE_SOURCE))
+		((pcm)->transport & BA_PCM_TRANSPORT_MASK_AG && (pcm)->mode & BA_PCM_MODE_SINK) || \
+		((pcm)->transport & BA_PCM_TRANSPORT_MASK_HF && (pcm)->mode & BA_PCM_MODE_SOURCE))
 
 /**
  * Get max volume level for given PCM. */
@@ -97,7 +97,7 @@ struct ba_pcm_codec {
 /**
  * BlueALSA PCM codecs object. */
 struct ba_pcm_codecs {
-	struct ba_pcm_codec *codecs;
+	struct ba_pcm_codec * codecs;
 	size_t codecs_len;
 };
 
@@ -159,63 +159,63 @@ struct ba_pcm {
 };
 
 dbus_bool_t ba_dbus_pcm_get_all(
-		struct ba_dbus_ctx *ctx,
-		struct ba_pcm **pcms,
-		size_t *length,
-		DBusError *error);
+		struct ba_dbus_ctx * ctx,
+		struct ba_pcm ** pcms,
+		size_t * length,
+		DBusError * error);
 
 dbus_bool_t ba_dbus_pcm_get(
-		struct ba_dbus_ctx *ctx,
-		const bdaddr_t *addr,
+		struct ba_dbus_ctx * ctx,
+		const bdaddr_t * addr,
 		unsigned int transports,
 		unsigned int mode,
-		struct ba_pcm *pcm,
-		DBusError *error);
+		struct ba_pcm * pcm,
+		DBusError * error);
 
 dbus_bool_t ba_dbus_pcm_open(
-		struct ba_dbus_ctx *ctx,
-		const char *pcm_path,
-		int *fd_pcm,
-		int *fd_pcm_ctrl,
-		DBusError *error);
+		struct ba_dbus_ctx * ctx,
+		const char * pcm_path,
+		int * fd_pcm,
+		int * fd_pcm_ctrl,
+		DBusError * error);
 
-const char *ba_dbus_pcm_codec_get_canonical_name(
-		const char *alias);
+const char * ba_dbus_pcm_codec_get_canonical_name(
+		const char * alias);
 
 dbus_bool_t ba_dbus_pcm_codecs_get(
-		struct ba_dbus_ctx *ctx,
-		const char *pcm_path,
-		struct ba_pcm_codecs *codecs,
-		DBusError *error);
+		struct ba_dbus_ctx * ctx,
+		const char * pcm_path,
+		struct ba_pcm_codecs * codecs,
+		DBusError * error);
 
 void ba_dbus_pcm_codecs_free(
-		struct ba_pcm_codecs *codecs);
+		struct ba_pcm_codecs * codecs);
 
 #define BA_PCM_SELECT_CODEC_FLAG_NONE           (0)
 #define BA_PCM_SELECT_CODEC_FLAG_NON_CONFORMANT (1 << 0)
 
 dbus_bool_t ba_dbus_pcm_select_codec(
-		struct ba_dbus_ctx *ctx,
-		const char *pcm_path,
-		const char *codec,
-		const void *configuration,
+		struct ba_dbus_ctx * ctx,
+		const char * pcm_path,
+		const char * codec,
+		const void * configuration,
 		size_t configuration_len,
 		unsigned int channels,
 		unsigned int rate,
 		unsigned int flags,
-		DBusError *error);
+		DBusError * error);
 
 dbus_bool_t ba_dbus_pcm_update(
-		struct ba_dbus_ctx *ctx,
-		const struct ba_pcm *pcm,
+		struct ba_dbus_ctx * ctx,
+		const struct ba_pcm * pcm,
 		enum ba_pcm_property property,
-		DBusError *error);
+		DBusError * error);
 
 dbus_bool_t ba_dbus_pcm_ctrl_send(
 		int fd_pcm_ctrl,
-		const char *command,
+		const char * command,
 		int timeout,
-		DBusError *error);
+		DBusError * error);
 
 #define ba_dbus_pcm_ctrl_send_drain(fd, err) \
 	ba_dbus_pcm_ctrl_send(fd, "Drain", 3000, err)
@@ -230,13 +230,13 @@ dbus_bool_t ba_dbus_pcm_ctrl_send(
 	ba_dbus_pcm_ctrl_send(fd, "Resume", 200, err)
 
 dbus_bool_t dbus_message_iter_get_ba_pcm(
-		DBusMessageIter *iter,
-		DBusError *error,
-		struct ba_pcm *pcm);
+		DBusMessageIter * iter,
+		DBusError * error,
+		struct ba_pcm * pcm);
 
 dbus_bool_t dbus_message_iter_get_ba_pcm_props(
-		DBusMessageIter *iter,
-		DBusError *error,
-		struct ba_pcm *pcm);
+		DBusMessageIter * iter,
+		DBusError * error,
+		struct ba_pcm * pcm);
 
 #endif

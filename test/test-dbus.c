@@ -10,8 +10,8 @@
 #include <check.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "dbus.h"
 
@@ -29,32 +29,30 @@ typedef struct {
 	bool bar;
 } FooServer;
 
-static void dbus_foo_server_method_call_error(GDBusMethodInvocation *inv,
-		void *userdata) {
+static void dbus_foo_server_method_call_error(GDBusMethodInvocation * inv, void * userdata) {
 	((FooServer *)userdata)->called_method_error = true;
 	g_dbus_method_invocation_return_value(inv, NULL);
 }
 
-static void dbus_foo_server_method_call_ping(GDBusMethodInvocation *inv,
-		void *userdata) {
+static void dbus_foo_server_method_call_ping(GDBusMethodInvocation * inv, void * userdata) {
 	((FooServer *)userdata)->called_method_ping = true;
 	g_dbus_method_invocation_return_value(inv, NULL);
 }
 
-static GVariant *dbus_foo_server_get_property(G_GNUC_UNUSED const char *property,
-		G_GNUC_UNUSED GError **error, void *userdata) {
+static GVariant * dbus_foo_server_get_property(G_GNUC_UNUSED const char * property,
+		G_GNUC_UNUSED GError ** error, void * userdata) {
 	((FooServer *)userdata)->called_get_property = true;
 	return g_variant_new_boolean(((FooServer *)userdata)->bar);
 }
 
-static bool dbus_foo_server_set_property(G_GNUC_UNUSED const char *property,
-		G_GNUC_UNUSED GVariant *value, G_GNUC_UNUSED GError **error, void *userdata) {
+static bool dbus_foo_server_set_property(G_GNUC_UNUSED const char * property,
+		G_GNUC_UNUSED GVariant * value, G_GNUC_UNUSED GError ** error, void * userdata) {
 	((FooServer *)userdata)->called_set_property = true;
 	return true;
 }
 
-static void dbus_foo_server_name_acquired(G_GNUC_UNUSED GDBusConnection *conn,
-		G_GNUC_UNUSED const char *name, void *userdata) {
+static void dbus_foo_server_name_acquired(G_GNUC_UNUSED GDBusConnection * conn,
+		G_GNUC_UNUSED const char * name, void * userdata) {
 	g_async_queue_push(((FooServer *)userdata)->queue, GINT_TO_POINTER(1));
 }
 
@@ -87,15 +85,15 @@ static FooServer * foo_server_new(GDBusConnection * conn) {
 	FooServer * fs = g_new0(FooServer, 1);
 	fs->queue = g_async_queue_new();
 
-	g_autoptr (GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new("/foo");
-	g_autoptr (OrgExampleFooSkeleton) ifs = org_example_foo_skeleton_new(&vtable, fs, NULL);
+	g_autoptr(GDBusObjectSkeleton) skeleton = g_dbus_object_skeleton_new("/foo");
+	g_autoptr(OrgExampleFooSkeleton) ifs = org_example_foo_skeleton_new(&vtable, fs, NULL);
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(ifs));
 
 	fs->manager = g_dbus_object_manager_server_new("/");
 	g_dbus_object_manager_server_export(fs->manager, skeleton);
 
 	fs->owner = g_bus_own_name_on_connection(conn, "org.example", G_BUS_NAME_OWNER_FLAGS_NONE,
-			dbus_foo_server_name_acquired, NULL, fs, NULL);
+	                                         dbus_foo_server_name_acquired, NULL, fs, NULL);
 	g_async_queue_pop(fs->queue);
 
 	g_dbus_object_manager_server_set_connection(fs->manager, conn);
@@ -122,28 +120,33 @@ CK_START_TEST(test_dbus_dispatch_method_call) {
 
 	/* Call not-handled method. */
 	g_autoptr(GError) err = NULL;
-	g_autoptr(GDBusMessage) msg = g_dbus_message_new_method_call(
-			"org.example", "/foo", "org.example.Foo", "Boom");
-	g_autoptr(GDBusMessage) rep = g_dbus_connection_send_message_with_reply_sync(
-			tc_dbus_connection, msg, G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL);
+	g_autoptr(GDBusMessage) msg = g_dbus_message_new_method_call("org.example", "/foo",
+	                                                             "org.example.Foo", "Boom");
+	g_autoptr(GDBusMessage) rep =
+		g_dbus_connection_send_message_with_reply_sync(tc_dbus_connection, msg,
+		                                               G_DBUS_SEND_MESSAGE_FLAGS_NONE,
+		                                               -1, NULL, NULL, NULL);
 	ck_assert_uint_eq(g_dbus_message_to_gerror(rep, &err), TRUE);
 	ck_assert_uint_eq(err->code, G_DBUS_ERROR_UNKNOWN_METHOD);
 
 	/* Call handled method and wait for reply. */
-	g_autoptr(GDBusMessage) msg2 = g_dbus_message_new_method_call(
-			"org.example", "/foo", "org.example.Foo", "Ping");
-	g_autoptr(GDBusMessage) rep2 = g_dbus_connection_send_message_with_reply_sync(
-			tc_dbus_connection, msg2, G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL);
+	g_autoptr(GDBusMessage) msg2 = g_dbus_message_new_method_call("org.example", "/foo",
+	                                                              "org.example.Foo", "Ping");
+	g_autoptr(GDBusMessage) rep2 =
+		g_dbus_connection_send_message_with_reply_sync(tc_dbus_connection, msg2,
+		                                               G_DBUS_SEND_MESSAGE_FLAGS_NONE,
+		                                               -1, NULL, NULL, NULL);
 
 	/* Check if the right handler was called. */
 	ck_assert_uint_eq(server->called_method_error, false);
 	ck_assert_uint_eq(server->called_method_ping, true);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
-static void dbus_signal_handler(G_GNUC_UNUSED GDBusConnection *conn,
-		G_GNUC_UNUSED const char *sender, const char *path, const char *interface,
-		const char *signal, G_GNUC_UNUSED GVariant *params, void *userdata) {
+static void dbus_signal_handler(G_GNUC_UNUSED GDBusConnection * conn,
+		G_GNUC_UNUSED const char * sender, const char * path, const char * interface,
+		const char * signal, G_GNUC_UNUSED GVariant * params, void * userdata) {
 	ck_assert_str_eq(path, "/foo");
 	ck_assert_str_eq(interface, "org.freedesktop.DBus.Properties");
 	ck_assert_str_eq(signal, "PropertiesChanged");
@@ -155,21 +158,24 @@ CK_START_TEST(test_g_dbus_connection_emit_properties_changed) {
 	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
 	/* Subscribe for signal, so we can check the emit function. */
 	g_dbus_connection_signal_subscribe(tc_dbus_connection, NULL, NULL, "PropertiesChanged",
-			NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE, dbus_signal_handler, queue, NULL);
+	                                   NULL, NULL, G_DBUS_SIGNAL_FLAGS_NONE, dbus_signal_handler,
+	                                   queue, NULL);
 
-	GVariantBuilder props;
-	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
-	g_variant_builder_add(&props, "{sv}", "Bar", g_variant_new_boolean(FALSE));
+	GVariantBuilder builder;
+	g_variant_builder_init(&builder, G_VARIANT_TYPE_VARDICT);
+	g_variant_builder_add(&builder, "{sv}", "Bar", g_variant_new_boolean(FALSE));
 
+	GVariant * props = g_variant_builder_end(&builder);
 	bool ok = g_dbus_connection_emit_properties_changed(tc_dbus_connection, "/foo",
-			"org.example.Foo", g_variant_builder_end(&props), NULL, NULL);
+	                                                    "org.example.Foo", props, NULL, NULL);
 	ck_assert_uint_eq(ok, true);
 
 	/* Wait for signal to be received. The signal handler will check
 	 * if the signal was received with the right parameters. */
 	g_async_queue_pop(queue);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_g_dbus_get_unique_name_sync) {
 
@@ -183,7 +189,8 @@ CK_START_TEST(test_g_dbus_get_unique_name_sync) {
 	/* Try to get unique name for existing service. */
 	ck_assert_ptr_nonnull((name = g_dbus_get_unique_name_sync(tc_dbus_connection, "org.example")));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_g_dbus_get_managed_objects_sync) {
 
@@ -191,16 +198,18 @@ CK_START_TEST(test_g_dbus_get_managed_objects_sync) {
 	ck_assert_ptr_nonnull((server = foo_server_new(tc_dbus_connection)));
 
 	/* Try to get managed objects from non-managed path. */
+	g_autoptr(GVariantIter) objects;
 	g_autoptr(GError) err = NULL;
-	ck_assert_ptr_null(g_dbus_get_managed_objects_sync(tc_dbus_connection, "org.example", "/test", &err));
+	objects = g_dbus_get_managed_objects_sync(tc_dbus_connection, "org.example", "/test", &err);
+	ck_assert_ptr_null(objects);
 	ck_assert_uint_eq(err->code, G_DBUS_ERROR_UNKNOWN_METHOD);
 
 	/* Try to get managed objects from managed path. */
-	g_autoptr(GVariantIter) objects = g_dbus_get_managed_objects_sync(
-			tc_dbus_connection, "org.example", "/", NULL);
+	objects = g_dbus_get_managed_objects_sync(tc_dbus_connection, "org.example", "/", NULL);
 	ck_assert_ptr_nonnull(objects);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_g_dbus_get_properties_sync) {
 
@@ -209,16 +218,18 @@ CK_START_TEST(test_g_dbus_get_properties_sync) {
 
 	g_autoptr(GError) err = NULL;
 	/* Try to get properties on non-existing interface. */
-	ck_assert_ptr_null(g_dbus_get_properties_sync(tc_dbus_connection,
-			"org.example", "/foo", "org.example.Foo5", &err));
+	ck_assert_ptr_null(g_dbus_get_properties_sync(tc_dbus_connection, "org.example", "/foo",
+	                                              "org.example.Foo5", &err));
 	ck_assert_int_eq(err->code, G_DBUS_ERROR_INVALID_ARGS);
 
 	/* Try to get properties on existing interface. */
-	g_autoptr(GVariantIter) props = g_dbus_get_properties_sync(
-			tc_dbus_connection, "org.example", "/foo", "org.example.Foo", NULL);
+	g_autoptr(GVariantIter) props;
+	props = g_dbus_get_properties_sync(tc_dbus_connection, "org.example", "/foo",
+	                                   "org.example.Foo", NULL);
 	ck_assert_ptr_nonnull(props);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 typedef struct {
 	GVariant * property;
@@ -253,8 +264,8 @@ CK_START_TEST(test_g_dbus_get_property) {
 
 	g_autoptr(GetPropertyData) data1 = get_property_data_new();
 	/* Try to get non-existing property. */
-	g_dbus_get_property(tc_dbus_connection, "org.example", "/foo", "org.example.Foo", "No",
-			dbus_get_property_finish, data1);
+	g_dbus_get_property(tc_dbus_connection, "org.example", "/foo",
+	                    "org.example.Foo", "No", dbus_get_property_finish, data1);
 	g_async_queue_pop(data1->queue);
 
 	ck_assert_ptr_null(data1->property);
@@ -262,15 +273,16 @@ CK_START_TEST(test_g_dbus_get_property) {
 
 	g_autoptr(GetPropertyData) data2 = get_property_data_new();
 	/* Try to get existing property. */
-	g_dbus_get_property(tc_dbus_connection, "org.example", "/foo", "org.example.Foo", "Bar",
-			dbus_get_property_finish, data2);
+	g_dbus_get_property(tc_dbus_connection, "org.example", "/foo",
+	                    "org.example.Foo", "Bar", dbus_get_property_finish, data2);
 	g_async_queue_pop(data2->queue);
 
 	ck_assert_ptr_nonnull(data2->property);
 	ck_assert_uint_eq(g_variant_get_boolean(data2->property), false);
 	ck_assert_uint_eq(server->called_get_property, true);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_g_dbus_set_property_sync) {
 
@@ -280,16 +292,19 @@ CK_START_TEST(test_g_dbus_set_property_sync) {
 	g_autoptr(GError) err = NULL;
 	/* Try to set non-existing property. */
 	ck_assert_uint_eq(g_dbus_set_property_sync(tc_dbus_connection, "org.example", "/foo",
-			"org.example.Foo", "No", g_variant_new_boolean(TRUE), &err), false);
+	                                           "org.example.Foo", "No", g_variant_new_boolean(TRUE),
+	                                           &err), false);
 	ck_assert_uint_eq(server->called_set_property, false);
 	ck_assert_int_eq(err->code, G_DBUS_ERROR_INVALID_ARGS);
 
 	/* Try to set existing property. */
 	ck_assert_int_eq(g_dbus_set_property_sync(tc_dbus_connection, "org.example", "/foo",
-			"org.example.Foo", "Bar", g_variant_new_boolean(TRUE), NULL), true);
+	                                          "org.example.Foo", "Bar", g_variant_new_boolean(TRUE),
+	                                          NULL), true);
 	ck_assert_uint_eq(server->called_set_property, true);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

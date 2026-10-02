@@ -20,11 +20,11 @@
 #include <glib.h>
 
 #include "ba-transport.h"
-#include "utils.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "utils.h"
 
 #define BA_STORAGE_KEY_CLIENT_DELAYS    "ClientDelays"
 #define BA_STORAGE_KEY_SOFT_VOLUME      "SoftVolume"
@@ -35,20 +35,20 @@ struct storage {
 	/* remote BT device address */
 	bdaddr_t addr;
 	/* associated storage file */
-	GKeyFile *keyfile;
+	GKeyFile * keyfile;
 };
 
 static char storage_root_dir[128];
 static pthread_mutex_t storage_mutex = PTHREAD_MUTEX_INITIALIZER;
-static GHashTable *storage_map = NULL;
+static GHashTable * storage_map = NULL;
 
-static struct storage *storage_lookup(const bdaddr_t *addr) {
+static struct storage * storage_lookup(const bdaddr_t * addr) {
 	return g_hash_table_lookup(storage_map, addr);
 }
 
-static struct storage *storage_new(const bdaddr_t *addr) {
+static struct storage * storage_new(const bdaddr_t * addr) {
 
-	struct storage *st;
+	struct storage * st;
 	/* return existing storage if it exists */
 	if ((st = storage_lookup(addr)) != NULL)
 		goto final;
@@ -69,7 +69,7 @@ final:
 	return st;
 }
 
-static void storage_free(struct storage *st) {
+static void storage_free(struct storage * st) {
 	if (st == NULL)
 		return;
 	g_key_file_free(st->keyfile);
@@ -81,7 +81,7 @@ static void storage_free(struct storage *st) {
  *
  * @param root The root directory for the persistent storage.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int storage_init(const char *root) {
+int storage_init(const char * root) {
 
 	debug("Initializing persistent storage: %s", root);
 
@@ -91,7 +91,7 @@ int storage_init(const char *root) {
 
 	if (storage_map == NULL)
 		storage_map = g_hash_table_new_full(g_bdaddr_hash, g_bdaddr_equal,
-				NULL, (GDestroyNotify)storage_free);
+		                                    NULL, (GDestroyNotify)storage_free);
 
 	return 0;
 }
@@ -107,7 +107,7 @@ void storage_destroy(void) {
 
 /**
  * Load persistent storage file for the given BT device. */
-int storage_device_load(const struct ba_device *d) {
+int storage_device_load(const struct ba_device * d) {
 
 	char addrstr[18];
 	char path[sizeof(storage_root_dir) + sizeof(addrstr)];
@@ -119,11 +119,11 @@ int storage_device_load(const struct ba_device *d) {
 
 	debug("Loading storage: %s", path);
 
-	struct storage *st;
+	struct storage * st;
 	if ((st = storage_new(&d->addr)) == NULL)
 		goto final;
 
-	GError *err = NULL;
+	GError * err = NULL;
 	if (!g_key_file_load_from_file(st->keyfile, path, G_KEY_FILE_NONE, &err)) {
 		if (err->code != G_FILE_ERROR_NOENT)
 			warn("Couldn't load storage: %s: %s", path, err->message);
@@ -140,7 +140,7 @@ final:
 
 /**
  * Save persistent storage file for the given BT device. */
-int storage_device_save(const struct ba_device *d) {
+int storage_device_save(const struct ba_device * d) {
 
 	char addrstr[18];
 	char path[sizeof(storage_root_dir) + sizeof(addrstr)];
@@ -150,13 +150,13 @@ int storage_device_save(const struct ba_device *d) {
 
 	pthread_mutex_lock(&storage_mutex);
 
-	struct storage *st;
+	struct storage * st;
 	if ((st = storage_lookup(&d->addr)) == NULL)
 		goto final;
 
 	debug("Saving storage: %s", path);
 
-	GError *err = NULL;
+	GError * err = NULL;
 	if (!g_key_file_save_to_file(st->keyfile, path, &err)) {
 		error("Couldn't save storage: %s: %s", path, err->message);
 		g_error_free(err);
@@ -175,13 +175,13 @@ final:
 
 /**
  * Clear persistent storage for the given BT device. */
-int storage_device_clear(const struct ba_device *d) {
+int storage_device_clear(const struct ba_device * d) {
 
 	int rv = -1;
 
 	pthread_mutex_lock(&storage_mutex);
 
-	struct storage *st;
+	struct storage * st;
 	if ((st = storage_lookup(&d->addr)) == NULL)
 		goto final;
 
@@ -197,29 +197,29 @@ final:
 
 /**
  * Load PCM client delays to the hash table. */
-static GHashTable *storage_pcm_data_load_delays(GKeyFile *db, const char *group,
-		const struct ba_transport_pcm *pcm) {
+static GHashTable * storage_pcm_data_load_delays(GKeyFile * db, const char * group,
+		const struct ba_transport_pcm * pcm) {
 
-	const struct ba_transport *t = pcm->t;
-	GHashTable *delays = g_hash_table_new(NULL, NULL);
+	const struct ba_transport * t = pcm->t;
+	GHashTable * delays = g_hash_table_new(NULL, NULL);
 
 	size_t length = 0;
-	char **list = g_key_file_get_string_list(db, group,
-			BA_STORAGE_KEY_CLIENT_DELAYS, &length, NULL);
+	char ** list = g_key_file_get_string_list(db, group, BA_STORAGE_KEY_CLIENT_DELAYS,
+	                                          &length, NULL);
 
 	for (size_t i = 0; i < length; i++) {
-		char *codec_name = list[i];
-		char *value = strchr(list[i], ':');
+		char * codec_name = list[i];
+		char * value = strchr(list[i], ':');
 		if (value == NULL)
 			continue;
 		/* Split string into a codec name and delay value. */
 		*value++ = '\0';
 		uint32_t codec_id = A2DP_CODEC_UNDEFINED;
 		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t) &&
-				(codec_id = a2dp_codec_from_string(codec_name)) == A2DP_CODEC_UNDEFINED)
+		    (codec_id = a2dp_codec_from_string(codec_name)) == A2DP_CODEC_UNDEFINED)
 			continue;
 		if (BA_TRANSPORT_PROFILE_IS_SCO(t) &&
-				(codec_id = hfp_codec_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
+		    (codec_id = hfp_codec_from_string(codec_name)) == HFP_CODEC_UNDEFINED)
 			continue;
 		const int16_t delay = atoi(value);
 		g_hash_table_insert(delays, GINT_TO_POINTER(codec_id), GINT_TO_POINTER(delay));
@@ -229,15 +229,15 @@ static GHashTable *storage_pcm_data_load_delays(GKeyFile *db, const char *group,
 	return delays;
 }
 
-static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
-		struct ba_transport_pcm *pcm) {
+static int storage_pcm_data_sync_delay(GKeyFile * db, const char * group,
+		struct ba_transport_pcm * pcm) {
 
-	const struct ba_transport *t = pcm->t;
+	const struct ba_transport * t = pcm->t;
 	int rv = 0;
 
-	GHashTable *delays = storage_pcm_data_load_delays(db, group, pcm);
+	GHashTable * delays = storage_pcm_data_load_delays(db, group, pcm);
 
-	void *value = NULL;
+	void * value = NULL;
 	const uint32_t codec_id = t->codec_id;
 	if (g_hash_table_lookup_extended(delays, GINT_TO_POINTER(codec_id), NULL, &value)) {
 		/* If the right codec was found, sync the client delay. */
@@ -249,24 +249,23 @@ static int storage_pcm_data_sync_delay(GKeyFile *db, const char *group,
 	return rv;
 }
 
-static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
-		struct ba_transport_pcm *pcm) {
+static int storage_pcm_data_sync_volume(GKeyFile * db, const char * group,
+		struct ba_transport_pcm * pcm) {
 
 	const size_t channels = pcm->channels;
-	int *list_volume;
-	gboolean *list_mute;
+	int * list_volume;
+	gboolean * list_mute;
 	gsize len;
 	int rv = 0;
 
 	if (g_key_file_has_key(db, group, BA_STORAGE_KEY_SOFT_VOLUME, NULL)) {
-		pcm->soft_volume = g_key_file_get_boolean(db, group,
-				BA_STORAGE_KEY_SOFT_VOLUME, NULL);
+		pcm->soft_volume = g_key_file_get_boolean(db, group, BA_STORAGE_KEY_SOFT_VOLUME, NULL);
 		rv = 1;
 	}
 
-	if ((list_volume = g_key_file_get_integer_list(db, group,
-					BA_STORAGE_KEY_VOLUME, &len, NULL)) != NULL &&
-			len <= ARRAYSIZE(pcm->volume)) {
+	if ((list_volume = g_key_file_get_integer_list(db, group, BA_STORAGE_KEY_VOLUME,
+	                                               &len, NULL)) != NULL &&
+	    len <= ARRAYSIZE(pcm->volume)) {
 		for (size_t i = 0; i < len; i++)
 			ba_transport_pcm_volume_set(&pcm->volume[i], &list_volume[i], NULL, NULL);
 		/* Upscale volume for the rest of the channels if needed. */
@@ -275,9 +274,9 @@ static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
 		rv = 1;
 	}
 
-	if ((list_mute = g_key_file_get_boolean_list(db, group,
-					BA_STORAGE_KEY_MUTE, &len, NULL)) != NULL &&
-			len <= ARRAYSIZE(pcm->volume)) {
+	if ((list_mute = g_key_file_get_boolean_list(db, group, BA_STORAGE_KEY_MUTE,
+	                                             &len, NULL)) != NULL &&
+	    len <= ARRAYSIZE(pcm->volume)) {
 		for (size_t i = 0; i < len; i++) {
 			const bool mute = list_mute[i];
 			ba_transport_pcm_volume_set(&pcm->volume[i], NULL, &mute, NULL);
@@ -300,20 +299,20 @@ static int storage_pcm_data_sync_volume(GKeyFile *db, const char *group,
  * @param pcm The PCM structure to synchronize.
  * @return This function returns 1 or 0 respectively if the storage data was
  *   synchronized or not. On error -1 is returned. */
-int storage_pcm_data_sync(struct ba_transport_pcm *pcm) {
+int storage_pcm_data_sync(struct ba_transport_pcm * pcm) {
 
-	const struct ba_transport *t = pcm->t;
-	const struct ba_device *d = t->d;
+	const struct ba_transport * t = pcm->t;
+	const struct ba_device * d = t->d;
 	int rv = 0;
 
 	pthread_mutex_lock(&storage_mutex);
 
-	struct storage *st;
+	struct storage * st;
 	if ((st = storage_lookup(&d->addr)) == NULL)
 		goto final;
 
-	GKeyFile *keyfile = st->keyfile;
-	const char *group = pcm->ba_dbus_path;
+	GKeyFile * keyfile = st->keyfile;
+	const char * group = pcm->ba_dbus_path;
 
 	if (!g_key_file_has_group(keyfile, group))
 		goto final;
@@ -328,29 +327,29 @@ final:
 	return rv;
 }
 
-static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
-		const struct ba_transport_pcm *pcm) {
+static void storage_pcm_data_update_delay(GKeyFile * db, const char * group,
+		const struct ba_transport_pcm * pcm) {
 
-	const struct ba_transport *t = pcm->t;
+	const struct ba_transport * t = pcm->t;
 
-	GHashTable *delays = storage_pcm_data_load_delays(db, group, pcm);
+	GHashTable * delays = storage_pcm_data_load_delays(db, group, pcm);
 	/* Update the delay value for the current codec. */
 	g_hash_table_insert(delays, GINT_TO_POINTER(t->codec_id),
-			GINT_TO_POINTER(pcm->client_delay_dms));
+	                    GINT_TO_POINTER(pcm->client_delay_dms));
 
 	const size_t num_codecs = g_hash_table_size(delays);
-	char **list = calloc(num_codecs + 1, sizeof(char *));
+	char ** list = calloc(num_codecs + 1, sizeof(char *));
 
 	GHashTableIter iter;
 	g_hash_table_iter_init(&iter, delays);
 
 	size_t index = 0;
-	void *key, *value;
+	void * key, * value;
 	while (g_hash_table_iter_next(&iter, &key, &value)) {
 		if (GPOINTER_TO_INT(value) == 0)
 			/* Do not store the delay if it is zero. */
 			continue;
-		const char *codec = NULL;
+		const char * codec = NULL;
 		if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
 			codec = a2dp_codec_to_string(GPOINTER_TO_INT(key));
 		if (BA_TRANSPORT_PROFILE_IS_SCO(t))
@@ -363,7 +362,7 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 	}
 
 	g_key_file_set_string_list(db, group, BA_STORAGE_KEY_CLIENT_DELAYS,
-		(const char * const *)list, num_codecs);
+	                           (const char * const *)list, num_codecs);
 
 	g_hash_table_unref(delays);
 	for (size_t i = 0; i < num_codecs; i++)
@@ -372,8 +371,8 @@ static void storage_pcm_data_update_delay(GKeyFile *db, const char *group,
 
 }
 
-static void storage_pcm_data_update_volume(GKeyFile *db, const char *group,
-		const struct ba_transport_pcm *pcm) {
+static void storage_pcm_data_update_volume(GKeyFile * db, const char * group,
+		const struct ba_transport_pcm * pcm) {
 
 	const size_t channels = pcm->channels;
 	gboolean mute[ARRAYSIZE(pcm->volume)];
@@ -395,21 +394,21 @@ static void storage_pcm_data_update_volume(GKeyFile *db, const char *group,
  *
  * @param pcm The PCM structure for which to update the storage.
  * @return On success this function returns 0. Otherwise -1 is returned. */
-int storage_pcm_data_update(const struct ba_transport_pcm *pcm) {
+int storage_pcm_data_update(const struct ba_transport_pcm * pcm) {
 
-	const struct ba_transport *t = pcm->t;
-	const struct ba_device *d = t->d;
+	const struct ba_transport * t = pcm->t;
+	const struct ba_device * d = t->d;
 	int rv = -1;
 
 	pthread_mutex_lock(&storage_mutex);
 
-	struct storage *st;
+	struct storage * st;
 	if ((st = storage_lookup(&d->addr)) == NULL)
 		if ((st = storage_new(&d->addr)) == NULL)
 			goto final;
 
-	GKeyFile *keyfile = st->keyfile;
-	const char *group = pcm->ba_dbus_path;
+	GKeyFile * keyfile = st->keyfile;
+	const char * group = pcm->ba_dbus_path;
 
 	storage_pcm_data_update_delay(keyfile, group, pcm);
 	storage_pcm_data_update_volume(keyfile, group, pcm);

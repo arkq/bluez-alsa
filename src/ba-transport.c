@@ -27,30 +27,30 @@
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
+#include "asha.h"
 #include "ba-adapter.h"
+#include "ba-config.h"
 #include "ba-rfcomm.h"
 #include "ba-transport-pcm.h"
-#include "ba-config.h"
-#include "asha.h"
 #include "bluealsa-dbus.h"
-#include "bluez-iface.h"
 #include "bluez.h"
+#include "bluez-iface.h"
 #include "error.h"
 #include "hci.h"
 #include "midi.h"
 #include "sco.h"
-#include "storage.h"
 #include "shared/bluetooth-asha.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/bluetooth-midi.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rt.h"
+#include "storage.h"
 
-static int ba_transport_pcms_full_lock(struct ba_transport *t) {
+static int ba_transport_pcms_full_lock(struct ba_transport * t) {
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		/* lock client mutexes first to avoid deadlock */
 		pthread_mutex_lock(&t->media.pcm.client_mtx);
@@ -73,7 +73,7 @@ static int ba_transport_pcms_full_lock(struct ba_transport *t) {
 	return -1;
 }
 
-static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
+static int ba_transport_pcms_full_unlock(struct ba_transport * t) {
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		pthread_mutex_unlock(&t->media.pcm.mutex);
 		pthread_mutex_unlock(&t->media.pcm_bc.mutex);
@@ -92,7 +92,7 @@ static int ba_transport_pcms_full_unlock(struct ba_transport *t) {
 	return -1;
 }
 
-static void transport_threads_cancel(struct ba_transport *t) {
+static void transport_threads_cancel(struct ba_transport * t) {
 
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		ba_transport_pcm_stop(&t->media.pcm);
@@ -111,7 +111,7 @@ static void transport_threads_cancel(struct ba_transport *t) {
 
 }
 
-static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
+static void transport_threads_cancel_if_no_clients(struct ba_transport * t) {
 
 	/* Hold PCM client and data locks. The data lock is required because we
 	 * are going to check the PCM FIFO file descriptor. The client lock is
@@ -176,12 +176,11 @@ static void transport_threads_cancel_if_no_clients(struct ba_transport *t) {
  * Transport thread manager.
  *
  * This manager handles transport IO threads asynchronous cancellation. */
-static void *transport_thread_manager(struct ba_transport *t) {
+static void * transport_thread_manager(struct ba_transport * t) {
 
 	pthread_setname_np(pthread_self(), "ba-th-manager");
 
-	struct pollfd fds[] = {
-		{ t->thread_manager_pipe[0], POLLIN, 0 }};
+	struct pollfd fds[] = { { t->thread_manager_pipe[0], POLLIN, 0 } };
 	int timeout = -1;
 
 	for (;;) {
@@ -221,7 +220,7 @@ exit:
 	return NULL;
 }
 
-static int transport_thread_manager_send_command(struct ba_transport *t,
+static int transport_thread_manager_send_command(struct ba_transport * t,
 		enum ba_transport_thread_manager_command cmd) {
 	if (write(t->thread_manager_pipe[1], &cmd, sizeof(cmd)) == sizeof(cmd))
 		return 0;
@@ -244,12 +243,12 @@ static void transport_detach(void * ptr) {
  * @return On success, the pointer to the newly allocated transport structure
  *   is returned. If error occurs, NULL is returned and the errno variable is
  *   set to indicated the cause of the error. */
-static struct ba_transport *transport_new(
-		struct ba_device *device,
-		const char *dbus_owner,
-		const char *dbus_path) {
+static struct ba_transport * transport_new(
+		struct ba_device * device,
+		const char * dbus_owner,
+		const char * dbus_path) {
 
-	struct ba_transport *t;
+	struct ba_transport * t;
 	int err;
 
 	if ((t = calloc(1, sizeof(*t))) == NULL)
@@ -299,18 +298,19 @@ static int transport_acquire_bt_media(struct ba_transport * t) {
 	GError * err = NULL;
 	int fd = -1;
 
-	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
-			t->bluez_dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
-			t->media.state == BLUEZ_MEDIA_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
+	const char * method = t->media.state ==
+	                      BLUEZ_MEDIA_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire";
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
+	                                     BLUEZ_IFACE_MEDIA_TRANSPORT, method);
 
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
-			g_dbus_message_to_gerror(rep, &err))
+	                                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1,
+	                                                          NULL, NULL, &err)) == NULL ||
+	    g_dbus_message_to_gerror(rep, &err))
 		goto fail;
 
 	uint16_t mtu_read, mtu_write;
-	g_variant_get(g_dbus_message_get_body(rep), "(hqq)",
-			NULL, &mtu_read, &mtu_write);
+	g_variant_get(g_dbus_message_get_body(rep), "(hqq)", NULL, &mtu_read, &mtu_write);
 
 	GUnixFDList * fd_list = g_dbus_message_get_unix_fd_list(rep);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1)
@@ -355,19 +355,20 @@ static int transport_release_bt_media(struct ba_transport * t) {
 	 * was released by the BlueZ. In both cases there is no point in a explicit
 	 * release request. It might even return error (e.g. not authorized). */
 	if (t->media.state != BLUEZ_MEDIA_TRANSPORT_STATE_IDLE &&
-			t->bluez_dbus_owner != NULL) {
+	    t->bluez_dbus_owner != NULL) {
 
 		debug("Releasing media transport: %d", t->bt_fd);
 
 		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
-				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
+		                                     BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
 
 		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
-				g_dbus_message_to_gerror(rep, &err)) {
+		                                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1,
+		                                                          NULL, NULL, &err)) == NULL ||
+		    g_dbus_message_to_gerror(rep, &err)) {
 			if (err->code == G_DBUS_ERROR_NO_REPLY ||
-					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN ||
-					err->code == G_DBUS_ERROR_UNKNOWN_OBJECT) {
+			    err->code == G_DBUS_ERROR_SERVICE_UNKNOWN ||
+			    err->code == G_DBUS_ERROR_UNKNOWN_OBJECT) {
 				/* If BlueZ is already terminated (or is terminating) or BlueZ
 				 * transport interface was already removed (ClearConfiguration
 				 * call), we won't receive success response. Do not treat such
@@ -411,16 +412,16 @@ fail:
 	return ret;
 }
 
-struct ba_transport *ba_transport_new_a2dp(
-		struct ba_device *device,
+struct ba_transport * ba_transport_new_a2dp(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_owner,
-		const char *dbus_path,
-		const struct a2dp_sep *sep,
-		const void *configuration) {
+		const char * dbus_owner,
+		const char * dbus_path,
+		const struct a2dp_sep * sep,
+		const void * configuration) {
 
 	const bool is_sink = profile & BA_TRANSPORT_PROFILE_A2DP_SINK;
-	struct ba_transport *t;
+	struct ba_transport * t;
 	int err = 0;
 
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
@@ -439,12 +440,12 @@ struct ba_transport *ba_transport_new_a2dp(
 	t->release = transport_release_bt_media;
 
 	if (transport_pcm_init(&t->media.pcm,
-				is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-				t, true) != 0)
+	                       is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
+	                       t, true) != 0)
 		goto fail;
 	if (transport_pcm_init(&t->media.pcm_bc,
-				is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-				t, false) != 0)
+	                       is_sink ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
+	                       t, false) != 0)
 		goto fail;
 
 	/* do codec-specific initialization */
@@ -453,8 +454,8 @@ struct ba_transport *ba_transport_new_a2dp(
 		goto fail;
 	}
 
-	if ((errno = pthread_create(&t->thread_manager_thread_id,
-					NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+	if ((errno = pthread_create(&t->thread_manager_thread_id, NULL,
+	                            PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
 		t->thread_manager_thread_id = config.main_thread;
 		goto fail;
 	}
@@ -504,12 +505,12 @@ struct ba_transport * ba_transport_new_asha(
 	t->release = transport_release_bt_media;
 
 	if (transport_pcm_init(&t->media.pcm,
-				is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-				t, true) != 0)
+	                       is_sink ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
+	                       t, true) != 0)
 		goto fail;
 	if (transport_pcm_init(&t->media.pcm_bc,
-				is_sink ?  BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-				t, false) != 0)
+	                       is_sink ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
+	                       t, false) != 0)
 		goto fail;
 
 	/* Since there is only one codec, the PCM format is fixed as well. */
@@ -518,8 +519,8 @@ struct ba_transport * ba_transport_new_asha(
 	t->media.pcm.channel_map[0] = BA_TRANSPORT_PCM_CHANNEL_MONO;
 	t->media.pcm.rate = 16000;
 
-	if ((errno = pthread_create(&t->thread_manager_thread_id,
-					NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+	if ((errno = pthread_create(&t->thread_manager_thread_id, NULL,
+	                            PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
 		t->thread_manager_thread_id = config.main_thread;
 		goto fail;
 	}
@@ -538,9 +539,9 @@ fail:
 #endif
 
 __attribute__ ((weak))
-int transport_acquire_bt_sco(struct ba_transport *t) {
+int transport_acquire_bt_sco(struct ba_transport * t) {
 
-	struct ba_device *d = t->d;
+	struct ba_device * d = t->d;
 	int fd = -1;
 
 	if ((fd = hci_sco_open(d->a->hci.dev_id)) == -1) {
@@ -549,20 +550,18 @@ int transport_acquire_bt_sco(struct ba_transport *t) {
 	}
 
 	struct timespec now;
-	struct timespec delay = {
-		.tv_nsec = HCI_SCO_CLOSE_CONNECT_QUIRK_DELAY * 1000000 };
+	struct timespec delay = { .tv_nsec = HCI_SCO_CLOSE_CONNECT_QUIRK_DELAY * 1000000 };
 
 	gettimestamp(&now);
 	timespecadd(&t->sco.closed_at, &delay, &delay);
 	if (difftimespec(&now, &delay, &delay) > 0) {
-		info("SCO link close-connect quirk delay: %d ms",
-				(int)(delay.tv_nsec / 1000000));
+		info("SCO link close-connect quirk delay: %d ms", (int)(delay.tv_nsec / 1000000));
 		nanosleep(&delay, NULL);
 	}
 
 	const uint32_t codec_id = ba_transport_get_codec(t);
-	if (hci_sco_connect(fd, &d->addr,
-				codec_id == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT) == -1) {
+	const uint16_t voice = codec_id == HFP_CODEC_CVSD ? BT_VOICE_CVSD_16BIT : BT_VOICE_TRANSPARENT;
+	if (hci_sco_connect(fd, &d->addr, voice) == -1) {
 		error("Couldn't establish SCO link: %s", strerror(errno));
 		goto fail;
 	}
@@ -580,7 +579,7 @@ fail:
 	return -1;
 }
 
-static int transport_release_bt_sco(struct ba_transport *t) {
+static int transport_release_bt_sco(struct ba_transport * t) {
 
 	debug("Releasing SCO link: %d", t->bt_fd);
 
@@ -595,15 +594,15 @@ static int transport_release_bt_sco(struct ba_transport *t) {
 	return 0;
 }
 
-struct ba_transport *ba_transport_new_sco(
-		struct ba_device *device,
+struct ba_transport * ba_transport_new_sco(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_owner,
-		const char *dbus_path,
+		const char * dbus_owner,
+		const char * dbus_path,
 		int rfcomm_fd) {
 
 	const bool is_ag = profile & BA_TRANSPORT_PROFILE_MASK_AG;
-	struct ba_transport *t;
+	struct ba_transport * t;
 	int err = 0;
 
 	/* BlueALSA can only support one SCO transport per device, so we arbitrarily
@@ -632,9 +631,9 @@ struct ba_transport *ba_transport_new_sco(
 #if ENABLE_HFP_CODEC_SELECTION
 	/* Only HFP supports codec selection. */
 	if (profile & BA_TRANSPORT_PROFILE_MASK_HFP &&
-			/* Check whether support for codecs other than the
-			 * CVSD is possible with the underlying adapter. */
-			ba_adapter_is_esco_supported(device->a)) {
+	    /* Check whether support for codecs other than the
+	     * CVSD is possible with the underlying adapter. */
+	    ba_adapter_is_esco_supported(device->a)) {
 # if ENABLE_MSBC
 		if (config.hfp.codecs.msbc)
 			t->codec_id = HFP_CODEC_UNDEFINED;
@@ -650,12 +649,12 @@ struct ba_transport *ba_transport_new_sco(
 	t->release = transport_release_bt_sco;
 
 	if (transport_pcm_init(&t->sco.pcm_spk,
-				is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
-				t, true) != 0)
+	                       is_ag ? BA_TRANSPORT_PCM_MODE_SINK : BA_TRANSPORT_PCM_MODE_SOURCE,
+	                       t, true) != 0)
 		goto fail;
 	if (transport_pcm_init(&t->sco.pcm_mic,
-				is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
-				t, false) != 0)
+	                       is_ag ? BA_TRANSPORT_PCM_MODE_SOURCE : BA_TRANSPORT_PCM_MODE_SINK,
+	                       t, false) != 0)
 		goto fail;
 
 	if (sco_transport_init(t) != ERROR_CODE_OK) {
@@ -663,8 +662,8 @@ struct ba_transport *ba_transport_new_sco(
 		goto fail;
 	}
 
-	if ((errno = pthread_create(&t->thread_manager_thread_id,
-					NULL, PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
+	if ((errno = pthread_create(&t->thread_manager_thread_id, NULL,
+	                            PTHREAD_FUNC(transport_thread_manager), t)) != 0) {
 		t->thread_manager_thread_id = config.main_thread;
 		goto fail;
 	}
@@ -693,11 +692,11 @@ fail:
 
 #if ENABLE_MIDI
 
-static int transport_acquire_bt_midi(struct ba_transport *t) {
+static int transport_acquire_bt_midi(struct ba_transport * t) {
 	return midi_transport_alsa_seq_create(t);
 }
 
-static int transport_release_bt_midi(struct ba_transport *t) {
+static int transport_release_bt_midi(struct ba_transport * t) {
 
 	midi_transport_alsa_seq_delete(t);
 
@@ -716,13 +715,13 @@ static int transport_release_bt_midi(struct ba_transport *t) {
 	return 0;
 }
 
-struct ba_transport *ba_transport_new_midi(
-		struct ba_device *device,
+struct ba_transport * ba_transport_new_midi(
+		struct ba_device * device,
 		enum ba_transport_profile profile,
-		const char *dbus_owner,
-		const char *dbus_path) {
+		const char * dbus_owner,
+		const char * dbus_path) {
 
-	struct ba_transport *t;
+	struct ba_transport * t;
 	if ((t = transport_new(device, dbus_owner, dbus_path)) == NULL)
 		return NULL;
 
@@ -766,19 +765,19 @@ fail:
  * @param t Transport structure.
  * @return Human-readable string. */
 __attribute__ ((no_sanitize("thread")))
-const char *ba_transport_debug_name(
-		const struct ba_transport *t) {
+const char * ba_transport_debug_name(
+		const struct ba_transport * t) {
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_NONE:
 		return "NONE";
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 	case BA_TRANSPORT_PROFILE_A2DP_SINK:
 		return t->media.a2dp.sep->name;
-#if ENABLE_ASHA
+# if ENABLE_ASHA
 	case BA_TRANSPORT_PROFILE_ASHA_SOURCE:
 	case BA_TRANSPORT_PROFILE_ASHA_SINK:
 		return "ASHA (G722)";
-#endif
+# endif
 	case BA_TRANSPORT_PROFILE_HFP_HF:
 		switch (t->codec_id) {
 		case HFP_CODEC_UNDEFINED:
@@ -789,7 +788,8 @@ const char *ba_transport_debug_name(
 			return "HFP Hands-Free (mSBC)";
 		case HFP_CODEC_LC3_SWB:
 			return "HFP Hands-Free (LC3-SWB)";
-		} break;
+		}
+		break;
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 		switch (t->codec_id) {
 		case HFP_CODEC_UNDEFINED:
@@ -800,15 +800,16 @@ const char *ba_transport_debug_name(
 			return "HFP Audio Gateway (mSBC)";
 		case HFP_CODEC_LC3_SWB:
 			return "HFP Audio Gateway (LC3-SWB)";
-		} break;
+		}
+		break;
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 		return "HSP Headset";
 	case BA_TRANSPORT_PROFILE_HSP_AG:
 		return "HSP Audio Gateway";
-#if ENABLE_MIDI
+# if ENABLE_MIDI
 	case BA_TRANSPORT_PROFILE_MIDI:
 		return "MIDI";
-#endif
+# endif
 	}
 	debug("Unknown transport: profile:%#x codec:%#x", t->profile, t->codec_id);
 	return "N/A";
@@ -965,9 +966,9 @@ void ba_transport_unref(struct ba_transport * t) {
 }
 
 int ba_transport_select_codec_a2dp(
-		struct ba_transport *t,
-		const struct a2dp_sep_config *remote_sep_cfg,
-		const void *configuration) {
+		struct ba_transport * t,
+		const struct a2dp_sep_config * remote_sep_cfg,
+		const void * configuration) {
 
 #if DEBUG
 	/* Assert that we were called with the codec selection mutex locked. */
@@ -976,7 +977,7 @@ int ba_transport_select_codec_a2dp(
 
 	/* the same codec with the same configuration already selected */
 	if (remote_sep_cfg->codec_id == t->codec_id &&
-			memcmp(configuration, &t->media.a2dp.configuration, remote_sep_cfg->caps_size) == 0)
+	    memcmp(configuration, &t->media.a2dp.configuration, remote_sep_cfg->caps_size) == 0)
 		goto final;
 
 	/* A2DP codec selection is in fact a transport recreation - new transport
@@ -987,9 +988,9 @@ int ba_transport_select_codec_a2dp(
 	storage_pcm_data_update(&t->media.pcm);
 	storage_pcm_data_update(&t->media.pcm_bc);
 
-	GError *err = NULL;
+	GError * err = NULL;
 	if (!bluez_a2dp_set_configuration(t->media.bluez_dbus_sep_path,
-				remote_sep_cfg, configuration, &err)) {
+	                                  remote_sep_cfg, configuration, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
 		g_error_free(err);
 		return errno = EIO, -1;
@@ -1000,7 +1001,7 @@ final:
 }
 
 int ba_transport_select_codec_sco(
-		struct ba_transport *t,
+		struct ba_transport * t,
 		uint8_t codec_id) {
 
 #if DEBUG
@@ -1075,7 +1076,7 @@ int ba_transport_select_codec_sco(
 }
 
 uint32_t ba_transport_get_codec(
-		const struct ba_transport *t) {
+		const struct ba_transport * t) {
 	pthread_mutex_lock(MUTABLE(&t->codec_id_mtx));
 	uint32_t codec_id = t->codec_id;
 	pthread_mutex_unlock(MUTABLE(&t->codec_id_mtx));
@@ -1083,7 +1084,7 @@ uint32_t ba_transport_get_codec(
 }
 
 void ba_transport_set_codec(
-		struct ba_transport *t,
+		struct ba_transport * t,
 		uint32_t codec_id) {
 
 	pthread_mutex_lock(&t->codec_id_mtx);
@@ -1113,7 +1114,7 @@ void ba_transport_set_codec(
  * @param t Transport structure.
  * @return On success this function returns 0. Otherwise -1 is returned and
  *   errno is set to indicate the error. */
-int ba_transport_start(struct ba_transport *t) {
+int ba_transport_start(struct ba_transport * t) {
 
 #if ENABLE_MIDI
 	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
@@ -1167,7 +1168,7 @@ int ba_transport_start(struct ba_transport *t) {
  *
  * This function waits for transport IO threads termination. It is not safe
  * to call it from IO thread itself - it will cause deadlock! */
-int ba_transport_stop(struct ba_transport *t) {
+int ba_transport_stop(struct ba_transport * t) {
 
 #if ENABLE_MIDI
 	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
@@ -1176,12 +1177,12 @@ int ba_transport_stop(struct ba_transport *t) {
 
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t)) {
 		if (ba_transport_pcm_state_check_terminated(&t->media.pcm) &&
-				ba_transport_pcm_state_check_terminated(&t->media.pcm_bc))
+		    ba_transport_pcm_state_check_terminated(&t->media.pcm_bc))
 			return 0;
 	}
 	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 		if (ba_transport_pcm_state_check_terminated(&t->sco.pcm_spk) &&
-				ba_transport_pcm_state_check_terminated(&t->sco.pcm_mic))
+		    ba_transport_pcm_state_check_terminated(&t->sco.pcm_mic))
 			return 0;
 	}
 
@@ -1201,7 +1202,7 @@ fail:
 
 /**
  * Schedule transport IO threads cancellation. */
-int ba_transport_stop_async(struct ba_transport *t) {
+int ba_transport_stop_async(struct ba_transport * t) {
 
 #if DEBUG
 	/* Assert that we were called with the lock held, so we
@@ -1244,12 +1245,12 @@ int ba_transport_stop_async(struct ba_transport *t) {
  * This function does not wait for actual threads termination. It is safe to
  * call it even from the IO thread itself. Please note, that the check for
  * present PCM clients will happen after the keep-alive number of seconds. */
-int ba_transport_stop_if_no_clients(struct ba_transport *t) {
+int ba_transport_stop_if_no_clients(struct ba_transport * t) {
 	transport_thread_manager_send_command(t, BA_TRANSPORT_THREAD_MANAGER_CANCEL_IF_NO_CLIENTS);
 	return 0;
 }
 
-int ba_transport_acquire(struct ba_transport *t) {
+int ba_transport_acquire(struct ba_transport * t) {
 
 #if ENABLE_MIDI
 	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
@@ -1309,7 +1310,7 @@ final:
 	return fd;
 }
 
-int ba_transport_release(struct ba_transport *t) {
+int ba_transport_release(struct ba_transport * t) {
 
 #if ENABLE_MIDI
 	if (BA_TRANSPORT_PROFILE_IS_MIDI(t))
@@ -1334,7 +1335,7 @@ final:
 }
 
 int ba_transport_set_media_state(
-		struct ba_transport *t,
+		struct ba_transport * t,
 		enum bluez_media_transport_state state) {
 
 	pthread_mutex_lock(&t->bt_fd_mtx);

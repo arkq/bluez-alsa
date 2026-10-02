@@ -45,6 +45,6 @@ static inline uint8_t h2_header_unpack(h2_header_t h2) {
 	return (H2_GET_SN1(v) & 2) | (H2_GET_SN0(v) & 1);
 }
 
-void *h2_header_find(const void *data, size_t *len);
+void * h2_header_find(const void * data, size_t * len);
 
 #endif

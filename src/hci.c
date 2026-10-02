@@ -31,7 +31,7 @@
  * @param ver Pointer to the HCI version structure for output data.
  * @return On success this function returns 0. Otherwise, -1 is returned
  *   and errno is set to indicate the error. */
-int hci_get_version(int dev_id, struct hci_version *ver) {
+int hci_get_version(int dev_id, struct hci_version * ver) {
 
 	int dd;
 
@@ -84,7 +84,7 @@ fail:
  * @param voice Bluetooth voice mode used during connection.
  * @return On success this function returns 0. Otherwise, -1 is returned and
  *   errno is set to indicate the error. */
-int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
+int hci_sco_connect(int sco_fd, const bdaddr_t * ba, uint16_t voice) {
 
 	struct sockaddr_sco addr_dev = {
 		.sco_family = AF_BLUETOOTH,
@@ -112,7 +112,7 @@ int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice) {
  * @param a The adapter associated with sco_fd.
  * @return On success this function returns MTU value. Otherwise, 0 is returned and
  *   errno is set to indicate the error. */
-unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter *a) {
+unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter * a) {
 
 	struct sco_options options = { 0 };
 	struct bt_voice voice = { 0 };
@@ -152,8 +152,8 @@ unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter *a) {
 
 /**
  * Broadcom vendor HCI command for reading SCO routing configuration. */
-int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *clock,
-		uint8_t *frame, uint8_t *sync, uint8_t *clk, int to) {
+int hci_bcm_read_sco_pcm_params(int dd, uint8_t * routing, uint8_t * clock,
+		uint8_t * frame, uint8_t * sync, uint8_t * clk, int to) {
 
 	struct __attribute__ ((packed)) {
 		uint8_t status;
@@ -241,7 +241,7 @@ int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t clock,
  * @param ba Pointer to the Bluetooth address structure.
  * @return On success this function returns statically allocated buffer with
  *   human-readable Bluetooth address. On error, it returns NULL. */
-const char *batostr_(const bdaddr_t *ba) {
+const char * batostr_(const bdaddr_t * ba) {
 	static char addr[18];
 	if (ba2str(ba, addr) > 0)
 		return addr;

@@ -14,9 +14,9 @@
 
 #include "defs.h"
 
-static dbus_bool_t ba_dbus_watch_add(DBusWatch *watch, void *data) {
-	struct ba_dbus_ctx *ctx = (struct ba_dbus_ctx *)data;
-	DBusWatch **tmp = ctx->watches;
+static dbus_bool_t ba_dbus_watch_add(DBusWatch * watch, void * data) {
+	struct ba_dbus_ctx * ctx = (struct ba_dbus_ctx *)data;
+	DBusWatch ** tmp = ctx->watches;
 	if ((tmp = realloc(tmp, (ctx->watches_len + 1) * sizeof(*tmp))) == NULL)
 		return FALSE;
 	tmp[ctx->watches_len++] = watch;
@@ -24,22 +24,22 @@ static dbus_bool_t ba_dbus_watch_add(DBusWatch *watch, void *data) {
 	return TRUE;
 }
 
-static void ba_dbus_watch_del(DBusWatch *watch, void *data) {
-	struct ba_dbus_ctx *ctx = (struct ba_dbus_ctx *)data;
+static void ba_dbus_watch_del(DBusWatch * watch, void * data) {
+	struct ba_dbus_ctx * ctx = (struct ba_dbus_ctx *)data;
 	for (size_t i = 0; i < ctx->watches_len; i++)
 		if (ctx->watches[i] == watch)
 			ctx->watches[i] = ctx->watches[--ctx->watches_len];
 }
 
-static void ba_dbus_watch_toggled(DBusWatch *watch, void *data) {
+static void ba_dbus_watch_toggled(DBusWatch * watch, void * data) {
 	(void)watch;
 	(void)data;
 }
 
 dbus_bool_t ba_dbus_connection_ctx_init(
-		struct ba_dbus_ctx *ctx,
-		const char *ba_service_name,
-		DBusError *error) {
+		struct ba_dbus_ctx * ctx,
+		const char * ba_service_name,
+		DBusError * error) {
 
 	/* Zero-out context structure, so it will be
 	 * safe to call *_ctx_free() upon error. */
@@ -51,8 +51,8 @@ dbus_bool_t ba_dbus_connection_ctx_init(
 	/* do not terminate in case of D-Bus connection being lost */
 	dbus_connection_set_exit_on_disconnect(ctx->conn, FALSE);
 
-	if (!dbus_connection_set_watch_functions(ctx->conn, ba_dbus_watch_add,
-				ba_dbus_watch_del, ba_dbus_watch_toggled, ctx, NULL)) {
+	if (!dbus_connection_set_watch_functions(ctx->conn, ba_dbus_watch_add, ba_dbus_watch_del,
+	                                         ba_dbus_watch_toggled, ctx, NULL)) {
 		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
@@ -63,7 +63,7 @@ dbus_bool_t ba_dbus_connection_ctx_init(
 }
 
 void ba_dbus_connection_ctx_free(
-		struct ba_dbus_ctx *ctx) {
+		struct ba_dbus_ctx * ctx) {
 	if (ctx->conn != NULL) {
 		dbus_connection_close(ctx->conn);
 		dbus_connection_unref(ctx->conn);
@@ -82,12 +82,12 @@ void ba_dbus_connection_ctx_free(
 }
 
 dbus_bool_t ba_dbus_connection_signal_match_add(
-		struct ba_dbus_ctx *ctx,
-		const char *sender,
-		const char *path,
-		const char *iface,
-		const char *member,
-		const char *extra) {
+		struct ba_dbus_ctx * ctx,
+		const char * sender,
+		const char * path,
+		const char * iface,
+		const char * member,
+		const char * extra) {
 
 	char match[512] = "type='signal'";
 	size_t len = 13;
@@ -111,7 +111,7 @@ dbus_bool_t ba_dbus_connection_signal_match_add(
 	if (extra != NULL)
 		snprintf(&match[len], sizeof(match) - len, ",%s", extra);
 
-	char **tmp = ctx->matches;
+	char ** tmp = ctx->matches;
 	size_t tmp_len = ctx->matches_len;
 	if ((tmp = realloc(tmp, (tmp_len + 1) * sizeof(*tmp))) == NULL)
 		return FALSE;
@@ -125,7 +125,7 @@ dbus_bool_t ba_dbus_connection_signal_match_add(
 }
 
 dbus_bool_t ba_dbus_connection_signal_match_clean(
-		struct ba_dbus_ctx *ctx) {
+		struct ba_dbus_ctx * ctx) {
 
 	for (size_t i = 0; i < ctx->matches_len; i++) {
 		dbus_bus_remove_match(ctx->conn, ctx->matches[i], NULL);
@@ -139,7 +139,7 @@ dbus_bool_t ba_dbus_connection_signal_match_clean(
 /**
  * Dispatch D-Bus messages synchronously. */
 dbus_bool_t ba_dbus_connection_dispatch(
-		struct ba_dbus_ctx *ctx) {
+		struct ba_dbus_ctx * ctx) {
 
 	struct pollfd fds[8];
 	nfds_t nfds = ARRAYSIZE(fds);
@@ -157,9 +157,9 @@ dbus_bool_t ba_dbus_connection_dispatch(
 }
 
 dbus_bool_t ba_dbus_connection_poll_fds(
-		struct ba_dbus_ctx *ctx,
-		struct pollfd *fds,
-		nfds_t *nfds) {
+		struct ba_dbus_ctx * ctx,
+		struct pollfd * fds,
+		nfds_t * nfds) {
 
 	if (*nfds < ctx->watches_len) {
 		*nfds = ctx->watches_len;
@@ -167,7 +167,7 @@ dbus_bool_t ba_dbus_connection_poll_fds(
 	}
 
 	for (size_t i = 0; i < ctx->watches_len; i++) {
-		DBusWatch *watch = ctx->watches[i];
+		DBusWatch * watch = ctx->watches[i];
 
 		fds[i].fd = -1;
 		fds[i].events = 0;
@@ -184,8 +184,8 @@ dbus_bool_t ba_dbus_connection_poll_fds(
 }
 
 dbus_bool_t ba_dbus_connection_poll_dispatch(
-		struct ba_dbus_ctx *ctx,
-		struct pollfd *fds,
+		struct ba_dbus_ctx * ctx,
+		struct pollfd * fds,
 		nfds_t nfds) {
 
 	dbus_bool_t rv = FALSE;
@@ -212,18 +212,18 @@ dbus_bool_t ba_dbus_connection_poll_dispatch(
 }
 
 dbus_bool_t ba_dbus_props_get_all(
-		struct ba_dbus_ctx *ctx,
-		const char *path,
-		const char *interface,
-		DBusError *error,
-		dbus_bool_t (*cb)(const char *key, DBusMessageIter *val, void *data, DBusError *err),
-		void *userdata) {
+		struct ba_dbus_ctx * ctx,
+		const char * path,
+		const char * interface,
+		DBusError * error,
+		dbus_bool_t (*cb)(const char * key, DBusMessageIter * val, void * data, DBusError * err),
+		void * userdata) {
 
-	DBusMessage *msg = NULL, *rep = NULL;
+	DBusMessage * msg = NULL, * rep = NULL;
 	dbus_bool_t rv = FALSE;
 
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, path,
-					DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
+	                                        DBUS_INTERFACE_PROPERTIES, "GetAll")) == NULL) {
 		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
@@ -235,8 +235,8 @@ dbus_bool_t ba_dbus_props_get_all(
 		goto fail;
 	}
 
-	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL)
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn, msg, DBUS_TIMEOUT_USE_DEFAULT,
+	                                                     error)) == NULL)
 		goto fail;
 
 	if (!dbus_message_iter_init(rep, &iter)) {
@@ -259,14 +259,14 @@ fail:
 
 /**
  * Callback function for manager object properties parser. */
-static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char *key,
-		DBusMessageIter *value, void *userdata, DBusError *error) {
-	struct ba_service_props *props = (struct ba_service_props *)userdata;
+static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char * key,
+		DBusMessageIter * value, void * userdata, DBusError * error) {
+	struct ba_service_props * props = (struct ba_service_props *)userdata;
 
 	char type;
 	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		               "Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
 		return FALSE;
 	}
 
@@ -281,7 +281,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char *k
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
 
-		const char *tmp;
+		const char * tmp;
 		dbus_message_iter_get_basic(&variant, &tmp);
 		strncpy(props->version, tmp, sizeof(props->version) - 1);
 
@@ -291,7 +291,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char *k
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
 
-		const char *tmp[ARRAYSIZE(props->adapters)];
+		const char * tmp[ARRAYSIZE(props->adapters)];
 		size_t length = ARRAYSIZE(tmp);
 		if (!dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
 			return FALSE;
@@ -306,7 +306,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char *k
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
 
-		const char *tmp[32];
+		const char * tmp[32];
 		size_t length = ARRAYSIZE(tmp);
 		if (!dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
 			return FALSE;
@@ -322,7 +322,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char *k
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
 
-		const char *tmp[64];
+		const char * tmp[64];
 		size_t length = ARRAYSIZE(tmp);
 		if (!dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
 			return FALSE;
@@ -338,7 +338,7 @@ static dbus_bool_t bluealsa_dbus_message_iter_get_manager_props_cb(const char *k
 
 fail:
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect variant for '%s': %c != %c", key, type, type_expected);
+	               "Incorrect variant for '%s': %c != %c", key, type, type_expected);
 	return FALSE;
 }
 
@@ -348,24 +348,23 @@ fail:
  * This function allocates resources within the properties structure, which
  * shall be freed with the ba_dbus_service_props_free() function. */
 dbus_bool_t ba_dbus_service_props_get(
-		struct ba_dbus_ctx *ctx,
-		struct ba_service_props *props,
-		DBusError *error) {
+		struct ba_dbus_ctx * ctx,
+		struct ba_service_props * props,
+		DBusError * error) {
 
 	props->profiles = NULL;
 	props->profiles_len = 0;
 	props->codecs = NULL;
 	props->codecs_len = 0;
 
-	return ba_dbus_props_get_all(ctx,
-			"/org/bluealsa", BLUEALSA_INTERFACE_MANAGER, error,
-			bluealsa_dbus_message_iter_get_manager_props_cb, props);
+	return ba_dbus_props_get_all(ctx, "/org/bluealsa", BLUEALSA_INTERFACE_MANAGER, error,
+	                             bluealsa_dbus_message_iter_get_manager_props_cb, props);
 }
 
 /**
  * Free BlueALSA service properties structure. */
 void ba_dbus_service_props_free(
-		struct ba_service_props *props) {
+		struct ba_service_props * props) {
 	if (props->profiles != NULL) {
 		for (size_t i = 0; i < props->profiles_len; i++)
 			free(props->profiles[i]);
@@ -383,12 +382,12 @@ void ba_dbus_service_props_free(
 /**
  * Extract strings from the string array. */
 dbus_bool_t dbus_message_iter_array_get_strings(
-		DBusMessageIter *iter,
-		DBusError *error,
-		const char **strings,
-		size_t *length) {
+		DBusMessageIter * iter,
+		DBusError * error,
+		const char ** strings,
+		size_t * length) {
 
-	char *signature;
+	char * signature;
 	size_t i;
 
 	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_ARRAY)
@@ -396,8 +395,8 @@ dbus_bool_t dbus_message_iter_array_get_strings(
 
 	DBusMessageIter iter_array;
 	for (dbus_message_iter_recurse(iter, &iter_array), i = 0;
-			dbus_message_iter_get_arg_type(&iter_array) != DBUS_TYPE_INVALID;
-			dbus_message_iter_next(&iter_array)) {
+	     dbus_message_iter_get_arg_type(&iter_array) != DBUS_TYPE_INVALID;
+	     dbus_message_iter_next(&iter_array)) {
 		if (dbus_message_iter_get_arg_type(&iter_array) != DBUS_TYPE_STRING)
 			goto fail;
 		if (i < *length)
@@ -411,7 +410,7 @@ dbus_bool_t dbus_message_iter_array_get_strings(
 fail:
 	signature = dbus_message_iter_get_signature(iter);
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect signature: %s != as", signature);
+	               "Incorrect signature: %s != as", signature);
 	dbus_free(signature);
 	return FALSE;
 }
@@ -419,23 +418,23 @@ fail:
 /**
  * Call the given function for each key/value pairs. */
 dbus_bool_t dbus_message_iter_dict(
-		DBusMessageIter *iter,
-		DBusError *error,
-		dbus_bool_t (*cb)(const char *key, DBusMessageIter *val, void *data, DBusError *err),
-		void *userdata) {
+		DBusMessageIter * iter,
+		DBusError * error,
+		dbus_bool_t (*cb)(const char * key, DBusMessageIter * val, void * data, DBusError * err),
+		void * userdata) {
 
-	char *signature;
+	char * signature;
 
 	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_ARRAY)
 		goto fail;
 
 	DBusMessageIter iter_dict;
 	for (dbus_message_iter_recurse(iter, &iter_dict);
-			dbus_message_iter_get_arg_type(&iter_dict) != DBUS_TYPE_INVALID;
-			dbus_message_iter_next(&iter_dict)) {
+	     dbus_message_iter_get_arg_type(&iter_dict) != DBUS_TYPE_INVALID;
+	     dbus_message_iter_next(&iter_dict)) {
 
 		DBusMessageIter iter_entry;
-		const char *key;
+		const char * key;
 
 		if (dbus_message_iter_get_arg_type(&iter_dict) != DBUS_TYPE_DICT_ENTRY)
 			goto fail;
@@ -456,7 +455,7 @@ dbus_bool_t dbus_message_iter_dict(
 fail:
 	signature = dbus_message_iter_get_signature(iter);
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect signature: %s != a{s#}", signature);
+	               "Incorrect signature: %s != a{s#}", signature);
 	dbus_free(signature);
 	return FALSE;
 }
@@ -464,28 +463,28 @@ fail:
 /**
  * Append key-value pair with basic type value to the D-Bus message. */
 dbus_bool_t dbus_message_iter_dict_append_basic(
-		DBusMessageIter *iter,
-		const char *key,
+		DBusMessageIter * iter,
+		const char * key,
 		int value_type,
-		const void *value) {
+		const void * value) {
 
 	DBusMessageIter entry;
 	DBusMessageIter variant;
 	const char signature[2] = { value_type, '\0' };
 
 	if (dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &entry) &&
-			dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key) &&
-			dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, signature, &variant) &&
-			dbus_message_iter_append_basic(&variant, value_type, value) &&
-			dbus_message_iter_close_container(&entry, &variant) &&
-			dbus_message_iter_close_container(iter, &entry))
+	    dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key) &&
+	    dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, signature, &variant) &&
+	    dbus_message_iter_append_basic(&variant, value_type, value) &&
+	    dbus_message_iter_close_container(&entry, &variant) &&
+	    dbus_message_iter_close_container(iter, &entry))
 		return TRUE;
 
 	return FALSE;
 }
 
 int dbus_error_to_errno(
-		const DBusError *error) {
+		const DBusError * error) {
 	if (strcmp(error->name, DBUS_ERROR_NO_MEMORY) == 0)
 		return ENOMEM;
 	if (strcmp(error->name, DBUS_ERROR_BAD_ADDRESS) == 0)
@@ -495,7 +494,7 @@ int dbus_error_to_errno(
 	if (strcmp(error->name, DBUS_ERROR_ACCESS_DENIED) == 0)
 		return EACCES;
 	if (strcmp(error->name, DBUS_ERROR_NO_REPLY) == 0 ||
-			strcmp(error->name, DBUS_ERROR_TIMEOUT) == 0)
+	    strcmp(error->name, DBUS_ERROR_TIMEOUT) == 0)
 		return ETIMEDOUT;
 	if (strcmp(error->name, DBUS_ERROR_INVALID_ARGS) == 0)
 		return EINVAL;

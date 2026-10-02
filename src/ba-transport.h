@@ -83,8 +83,7 @@ enum ba_transport_profile {
 	 BA_TRANSPORT_PROFILE_IS_MEDIA_ASHA(t))
 
 #define BA_TRANSPORT_PROFILE_IS_SCO(t) \
-	((t)->profile & ( \
-		BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP))
+	((t)->profile & (BA_TRANSPORT_PROFILE_MASK_HFP | BA_TRANSPORT_PROFILE_MASK_HSP))
 
 #if ENABLE_MIDI
 # define BA_TRANSPORT_PROFILE_IS_MIDI(t) \
@@ -95,7 +94,7 @@ struct ba_transport {
 	rc_t _rc;
 
 	/* backward reference to device */
-	struct ba_device *d;
+	struct ba_device * d;
 
 	/* Transport structure covers all transports supported by BlueALSA. However,
 	 * every transport requires specific handling - link acquisition, transport
@@ -111,8 +110,8 @@ struct ba_transport {
 	pthread_mutex_t codec_select_client_mtx;
 
 	/* data for D-Bus management */
-	char *bluez_dbus_owner;
-	char *bluez_dbus_path;
+	char * bluez_dbus_owner;
+	char * bluez_dbus_path;
 
 	/* guard modifications of our file descriptor
 	 * and the IO threads stopping flag */
@@ -144,7 +143,7 @@ struct ba_transport {
 		struct {
 
 			/* used D-Bus endpoint path */
-			const char *bluez_dbus_sep_path;
+			const char * bluez_dbus_sep_path;
 
 			/* current state of the transport */
 			pthread_cond_t state_changed_cond;
@@ -190,13 +189,13 @@ struct ba_transport {
 
 			/* Associated RFCOMM thread for SCO transport handled by local
 			 * HSP/HFP implementation. Otherwise, this field is set to NULL. */
-			struct ba_rfcomm *rfcomm;
+			struct ba_rfcomm * rfcomm;
 
 #if ENABLE_OFONO
 			/* Associated oFono card and modem paths. In case when SCO transport
 			 * is not oFono-based, these fields are set to NULL. */
-			char *ofono_dbus_path_card;
-			char *ofono_dbus_path_modem;
+			char * ofono_dbus_path_card;
+			char * ofono_dbus_path_modem;
 #endif
 
 			/* Speaker and microphone signals should to be exposed as
@@ -218,14 +217,14 @@ struct ba_transport {
 		struct {
 
 			/* ALSA sequencer. */
-			snd_seq_t *seq;
+			snd_seq_t * seq;
 			/* Associated sequencer port. */
 			int seq_port;
 			/* Associated scheduling queue. */
 			int seq_queue;
 
 			/* ALSA MIDI event parser. */
-			snd_midi_event_t *seq_parser;
+			snd_midi_event_t * seq_parser;
 
 			/* BLE-MIDI input link */
 			int ble_fd_write;
@@ -238,9 +237,9 @@ struct ba_transport {
 			struct ble_midi_enc ble_encoder;
 
 			/* Watch associated with the BLE-MIDI link. */
-			GSource *watch_ble;
+			GSource * watch_ble;
 			/* Watch associated with ALSA sequencer. */
-			GSource *watch_seq;
+			GSource * watch_seq;
 
 		} midi;
 #endif
@@ -299,29 +298,29 @@ void ba_transport_destroy(struct ba_transport * t);
 void ba_transport_unref(struct ba_transport * t);
 
 int ba_transport_select_codec_a2dp(
-		struct ba_transport *t,
-		const struct a2dp_sep_config *remote_sep_cfg,
-		const void *configuration);
+		struct ba_transport * t,
+		const struct a2dp_sep_config * remote_sep_cfg,
+		const void * configuration);
 int ba_transport_select_codec_sco(
-		struct ba_transport *t,
+		struct ba_transport * t,
 		uint8_t codec_id);
 
 uint32_t ba_transport_get_codec(
-		const struct ba_transport *t);
+		const struct ba_transport * t);
 void ba_transport_set_codec(
-		struct ba_transport *t,
+		struct ba_transport * t,
 		uint32_t codec_id);
 
-int ba_transport_start(struct ba_transport *t);
-int ba_transport_stop(struct ba_transport *t);
-int ba_transport_stop_async(struct ba_transport *t);
-int ba_transport_stop_if_no_clients(struct ba_transport *t);
+int ba_transport_start(struct ba_transport * t);
+int ba_transport_stop(struct ba_transport * t);
+int ba_transport_stop_async(struct ba_transport * t);
+int ba_transport_stop_if_no_clients(struct ba_transport * t);
 
-int ba_transport_acquire(struct ba_transport *t);
-int ba_transport_release(struct ba_transport *t);
+int ba_transport_acquire(struct ba_transport * t);
+int ba_transport_release(struct ba_transport * t);
 
 int ba_transport_set_media_state(
-		struct ba_transport *t,
+		struct ba_transport * t,
 		enum bluez_media_transport_state state);
 
 #endif

@@ -29,18 +29,18 @@
 #include <unistd.h>
 
 #include <gio/gio.h>
-#include <glib-unix.h>
 #include <glib.h>
+#include <glib-unix.h>
 
 #include "a2dp.h"
 #include "ba-config.h"
 #include "bluealsa-iface.h"
 #include "dbus.h"
 #include "ofono.h"
-#include "storage.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "storage.h"
 
 /* Keep persistent storage in the current directory. */
 #define TEST_BLUEALSA_STORAGE_DIR "storage-mock"
@@ -55,7 +55,7 @@ static int queue_push_callback(void * userdata) {
 	return G_SOURCE_REMOVE;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hB:p:c:t:";
@@ -78,22 +78,22 @@ int main(int argc, char *argv[]) {
 		switch (opt) {
 		case 'h':
 			printf("Usage:\n"
-					"  %s [OPTION]...\n"
-					"\nOptions:\n"
-					"  -h, --help\t\t\tprint this help and exit\n"
-					"  -B, --dbus=NAME\t\tBlueALSA service name suffix\n"
-					"  -p, --profile=NAME\t\tset enabled BT profiles\n"
-					"  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
-					"  -t, --timeout=MSEC\t\tmock server exit timeout\n"
-					"  --device-name=MAC:NAME\tmock BT device name\n"
-					"  --fuzzing=MSEC\t\tmock human actions with timings\n",
-					argv[0]);
+			       "  %s [OPTION]...\n"
+			       "\nOptions:\n"
+			       "  -h, --help\t\t\tprint this help and exit\n"
+			       "  -B, --dbus=NAME\t\tBlueALSA service name suffix\n"
+			       "  -p, --profile=NAME\t\tset enabled BT profiles\n"
+			       "  -c, --codec=NAME\t\tset enabled BT audio codecs\n"
+			       "  -t, --timeout=MSEC\t\tmock server exit timeout\n"
+			       "  --device-name=MAC:NAME\tmock BT device name\n"
+			       "  --fuzzing=MSEC\t\tmock human actions with timings\n",
+			       argv[0]);
 			return EXIT_SUCCESS;
-		case 'B' /* --dbus=NAME */ :
+		case 'B' /* --dbus=NAME */:
 			snprintf(ba_service_name, sizeof(ba_service_name),
-					BLUEALSA_SERVICE ".%s", optarg);
+			         BLUEALSA_SERVICE ".%s", optarg);
 			break;
-		case 'p' /* --profile=NAME */ : {
+		case 'p' /* --profile=NAME */: {
 
 			static const struct {
 				const char * name;
@@ -132,13 +132,13 @@ int main(int argc, char *argv[]) {
 
 			break;
 		}
-		case 'c' /* --codec=NAME */ : {
+		case 'c' /* --codec=NAME */: {
 
 			uint32_t codec_id = a2dp_codec_from_string(optarg);
 			bool matched = false;
 
 			struct a2dp_sep * const * seps = a2dp_seps;
-			for (struct a2dp_sep *sep = *seps; sep != NULL; sep = *++seps)
+			for (struct a2dp_sep * sep = *seps; sep != NULL; sep = *++seps)
 				if (sep->config.codec_id == codec_id) {
 					sep->enabled = true;
 					matched = true;
@@ -151,13 +151,13 @@ int main(int argc, char *argv[]) {
 
 			break;
 		}
-		case 't' /* --timeout=MSEC */ :
+		case 't' /* --timeout=MSEC */:
 			timeout_ms = atoi(optarg);
 			break;
-		case 2 /* --device-name=MAC:NAME */ :
+		case 2 /* --device-name=MAC:NAME */:
 			mock_bluez_service_add_device_name_mapping(optarg);
 			break;
-		case 7 /* --fuzzing=MSEC */ :
+		case 7 /* --fuzzing=MSEC */:
 			fuzzing_ms = atoi(optarg);
 			break;
 		default:
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
 	assert(ba_config_init() == 0);
 
 	/* Add BT address to the HCI filter to test filtering logic. */
-	const char *filter = MOCK_ADAPTER_ADDRESS;
+	const char * filter = MOCK_ADAPTER_ADDRESS;
 	g_array_append_val(config.hci_filter, filter);
 
 	assert(mkdir(TEST_BLUEALSA_STORAGE_DIR, 0755) == 0 || errno == EEXIST);
@@ -197,26 +197,26 @@ int main(int argc, char *argv[]) {
 
 	g_autoptr(BlueZMockService) bluez = mock_bluez_service_new();
 	bluez->media_transport_update_ms = fuzzing_ms;
-	g_autoptr(GDBusConnection) conn1 = g_dbus_connection_new_for_address_simple_sync(
-			dbus_address, NULL);
+	g_autoptr(GDBusConnection) conn1 =
+		g_dbus_connection_new_for_address_simple_sync(dbus_address, NULL);
 	mock_service_start(bluez, conn1);
 
 	g_autoptr(OFonoMockService) ofono = mock_ofono_service_new();
-	g_autoptr(GDBusConnection) conn2 = g_dbus_connection_new_for_address_simple_sync(
-			dbus_address, NULL);
+	g_autoptr(GDBusConnection) conn2 =
+		g_dbus_connection_new_for_address_simple_sync(dbus_address, NULL);
 	mock_service_start(ofono, conn2);
 
 	g_autoptr(UPowerMockService) upower = mock_upower_service_new();
-	g_autoptr(GDBusConnection) conn3 = g_dbus_connection_new_for_address_simple_sync(
-			dbus_address, NULL);
+	g_autoptr(GDBusConnection) conn3 =
+		g_dbus_connection_new_for_address_simple_sync(dbus_address, NULL);
 	mock_service_start(upower, conn3);
 
 	/* Start BlueALSA as the last service. */
-	g_autoptr(BlueALSAMockService) ba = mock_bluealsa_service_new(
-			ba_service_name, bluez, ofono, upower);
+	g_autoptr(BlueALSAMockService) ba =
+		mock_bluealsa_service_new(ba_service_name, bluez, ofono, upower);
 	ba->fuzzing_ms = fuzzing_ms;
-	g_autoptr(GDBusConnection) conn4 = g_dbus_connection_new_for_address_simple_sync(
-			dbus_address, NULL);
+	g_autoptr(GDBusConnection) conn4 =
+		g_dbus_connection_new_for_address_simple_sync(dbus_address, NULL);
 	mock_service_start(ba, conn4);
 
 #if ENABLE_OFONO

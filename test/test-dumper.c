@@ -21,16 +21,19 @@
 
 CK_START_TEST(test_ba_dumper_profile_to_mask) {
 	ck_assert_uint_eq(ba_dumper_profile_to_mask(BA_TRANSPORT_PROFILE_HSP_AG),
-			BA_TRANSPORT_PROFILE_MASK_HSP);
-} CK_END_TEST
+	                  BA_TRANSPORT_PROFILE_MASK_HSP);
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_profile_mask_from_string) {
 	ck_assert_uint_eq(ba_dumper_profile_mask_from_string("A2DP"), BA_TRANSPORT_PROFILE_MASK_A2DP);
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_profile_mask_to_string) {
 	ck_assert_str_eq(ba_dumper_profile_mask_to_string(BA_TRANSPORT_PROFILE_MASK_A2DP), "A2DP");
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_read_header_simple) {
 
@@ -48,7 +51,8 @@ CK_START_TEST(test_ba_dumper_read_header_simple) {
 
 	fclose(f);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_write_header_simple) {
 
@@ -68,7 +72,8 @@ CK_START_TEST(test_ba_dumper_write_header_simple) {
 
 	ck_assert_str_eq(buffer, expected);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_read_header_full) {
 
@@ -88,14 +93,17 @@ CK_START_TEST(test_ba_dumper_read_header_full) {
 
 	fclose(f);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_write_header_full) {
 
 	const struct a2dp_sep sep = {
 		.config.type = A2DP_SOURCE,
 		.config.codec_id = A2DP_CODEC_SBC,
-		.config.caps_size = sizeof(a2dp_sbc_t) };
+		.config.caps_size = sizeof(a2dp_sbc_t),
+	};
+
 	const struct ba_transport t = {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec_id_mtx = PTHREAD_MUTEX_INITIALIZER,
@@ -114,7 +122,8 @@ CK_START_TEST(test_ba_dumper_write_header_full) {
 
 	ck_assert_str_eq(buffer, expected);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_read) {
 
@@ -128,7 +137,8 @@ CK_START_TEST(test_ba_dumper_read) {
 
 	fclose(f);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_dumper_write) {
 
@@ -143,23 +153,28 @@ CK_START_TEST(test_ba_dumper_write) {
 
 	ck_assert_str_eq(buffer, expected);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_transport_to_string) {
 	const struct ba_transport t = {
 		.profile = BA_TRANSPORT_PROFILE_A2DP_SOURCE,
 		.codec_id_mtx = PTHREAD_MUTEX_INITIALIZER,
-		.codec_id = A2DP_CODEC_SBC };
+		.codec_id = A2DP_CODEC_SBC,
+	};
 	ck_assert_str_eq(ba_transport_to_string(&t), "A2DP-SBC");
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_transport_pcm_to_string) {
 	const struct ba_transport_pcm t_pcm = {
 		.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE,
 		.channels = 2,
-		.rate = 44100 };
+		.rate = 44100,
+	};
 	ck_assert_str_eq(ba_transport_pcm_to_string(&t_pcm), "s16-44100-2c");
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

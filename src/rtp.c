@@ -83,11 +83,11 @@ void rtp_state_init(
 }
 
 void rtp_state_new_frame(
-		struct rtp_state *rtp,
-		rtp_header_t *hdr) {
+		struct rtp_state * rtp,
+		rtp_header_t * hdr) {
 
-	uint32_t timestamp = rtp_convert_clock_rate(rtp->ts_pcm_frames,
-			rtp->ts_pcm_samplerate, rtp->ts_rtp_clockrate) + rtp->ts_offset;
+	unsigned int timestamp = rtp_convert_clock_rate(rtp->ts_pcm_frames, rtp->ts_pcm_samplerate,
+	                                                rtp->ts_rtp_clockrate) + rtp->ts_offset;
 
 	hdr->seq_number = htobe16(++rtp->seq_number);
 	hdr->timestamp = htobe32(timestamp);
@@ -117,7 +117,7 @@ void rtp_state_sync_stream(
 	if (missing_rtp_frames != NULL) {
 		if ((*missing_rtp_frames = hdr_seq_number - expect_seq_number) != 0) {
 			warn("Missing RTP packets [%u != %u]: %d",
-					hdr_seq_number, expect_seq_number, *missing_rtp_frames);
+			     hdr_seq_number, expect_seq_number, *missing_rtp_frames);
 			rtp->seq_number = hdr_seq_number;
 		}
 	}
@@ -127,8 +127,8 @@ void rtp_state_sync_stream(
 
 		/* Calculate expected PCM frames based on local timestamp. */
 		const uint32_t timestamp = hdr_timestamp - rtp->ts_offset;
-		unsigned int expect_pcm_frames = rtp_convert_clock_rate(timestamp,
-				rtp->ts_rtp_clockrate, rtp->ts_pcm_samplerate);
+		unsigned int expect_pcm_frames = rtp_convert_clock_rate(timestamp, rtp->ts_rtp_clockrate,
+		                                                        rtp->ts_pcm_samplerate);
 
 		if ((*missing_pcm_frames = expect_pcm_frames - rtp->ts_pcm_frames) != 0) {
 			debug("Missing PCM frames [%u]: %d", hdr_timestamp, *missing_pcm_frames);

@@ -14,7 +14,7 @@
 
 #include "ba-transport-pcm.h"
 
-void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm);
-void *sco_cvsd_dec_thread(struct ba_transport_pcm *t_pcm);
+void * sco_cvsd_enc_thread(struct ba_transport_pcm * t_pcm);
+void * sco_cvsd_dec_thread(struct ba_transport_pcm * t_pcm);
 
 #endif

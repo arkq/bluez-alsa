@@ -12,9 +12,9 @@
 #include <errno.h>
 #include <libgen.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <alsa/asoundlib.h>
 
@@ -38,13 +38,13 @@ static void init(void) {
 
 /**
  * Get build root directory. */
-static const char *buildrootdir() {
+static const char * buildrootdir() {
 
 	static char buffer[1024] = "";
 
 	if (buffer[0] == '\0') {
 
-		char *tmp = strdup(program_invocation_name);
+		char * tmp = strdup(program_invocation_name);
 		snprintf(buffer, sizeof(buffer), "%s/..", dirname(tmp));
 		free(tmp);
 
@@ -56,7 +56,7 @@ static const char *buildrootdir() {
 	return buffer;
 }
 
-void *dlopen(const char *filename, int flags) {
+void * dlopen(const char * filename, int flags) {
 
 	char tmp[PATH_MAX];
 	snprintf(tmp, sizeof(tmp), "%s", buildrootdir());
@@ -74,22 +74,22 @@ void *dlopen(const char *filename, int flags) {
 
 /**
  * Remove any pre-existing bluealsa configuration nodes. */
-static void snd_config_ba_cleanup(snd_config_t *config) {
+static void snd_config_ba_cleanup(snd_config_t * config) {
 
-	const char *nodes[] = {
+	const char * nodes[] = {
 		"defaults.bluealsa",
 		"pcm.bluealsa",
 		"ctl.bluealsa",
 	};
 
-	snd_config_t *node;
+	snd_config_t * node;
 	for (size_t i = 0; i < ARRAYSIZE(nodes); i++)
 		if (snd_config_search(config, nodes[i], &node) == 0)
 			snd_config_delete(node);
 
 }
 
-int snd_ctl_open(snd_ctl_t **ctl, const char *name, int mode) {
+int snd_ctl_open(snd_ctl_t ** ctl, const char * name, int mode) {
 
 	if (strstr(name, "bluealsa") == NULL)
 		return snd_ctl_open_orig(ctl, name, mode);
@@ -97,8 +97,8 @@ int snd_ctl_open(snd_ctl_t **ctl, const char *name, int mode) {
 	char tmp[PATH_MAX];
 	snprintf(tmp, sizeof(tmp), "%s/src/asound/20-bluealsa.conf", buildrootdir());
 
-	snd_config_t *top = NULL;
-	snd_input_t *input = NULL;
+	snd_config_t * top = NULL;
+	snd_input_t * input = NULL;
 	int err;
 
 	if ((err = snd_config_update_ref(&top)) < 0)
@@ -118,7 +118,7 @@ fail:
 	return err;
 }
 
-int snd_pcm_open(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int mode) {
+int snd_pcm_open(snd_pcm_t ** pcm, const char * name, snd_pcm_stream_t stream, int mode) {
 
 	if (strstr(name, "bluealsa") == NULL)
 		return snd_pcm_open_orig(pcm, name, stream, mode);
@@ -126,8 +126,8 @@ int snd_pcm_open(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int
 	char tmp[PATH_MAX];
 	snprintf(tmp, sizeof(tmp), "%s/src/asound/20-bluealsa.conf", buildrootdir());
 
-	snd_config_t *top = NULL;
-	snd_input_t *input = NULL;
+	snd_config_t * top = NULL;
+	snd_input_t * input = NULL;
 	int err;
 
 	if ((err = snd_config_update_ref(&top)) < 0)

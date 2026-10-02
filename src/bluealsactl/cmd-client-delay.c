@@ -17,18 +17,17 @@
 #include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Get or set the client delay of the given PCM.\n\n");
 	bactl_print_usage("%s [OPTION]... PCM-PATH [[-]DELAY]", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-			"\nPositional arguments:\n"
-			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-			"  DELAY\tValue (+/-), in milliseconds\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n"
+	       "\nPositional arguments:\n"
+	       "  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
+	       "  DELAY\tValue (+/-), in milliseconds\n");
 }
 
-static int cmd_client_delay_func(int argc, char *argv[]) {
+static int cmd_client_delay_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "+hqv";
@@ -59,7 +58,7 @@ static int cmd_client_delay_func(int argc, char *argv[]) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	const char *path = argv[optind];
+	const char * path = argv[optind];
 
 	struct ba_pcm pcm;
 	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
@@ -72,9 +71,9 @@ static int cmd_client_delay_func(int argc, char *argv[]) {
 		return EXIT_SUCCESS;
 	}
 
-	const char *value = argv[optind + 1];
+	const char * value = argv[optind + 1];
 	errno = 0;
-	char *endptr = NULL;
+	char * endptr = NULL;
 	double dbl = strtod(value, &endptr);
 	if (endptr == value || errno == ERANGE) {
 		cmd_print_error("Invalid argument: %s", value);

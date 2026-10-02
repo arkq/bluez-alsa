@@ -19,27 +19,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
 #include <sys/types.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include <alsa/asoundlib.h>
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
 
+#include "alsa-mixer.h"
+#include "alsa-pcm.h"
+#include "dbus.h"
+#include "delay-report.h"
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/nv.h"
-#include "alsa-mixer.h"
-#include "alsa-pcm.h"
-#include "dbus.h"
-#include "delay-report.h"
 #if WITH_LIBSAMPLERATE
 # include "resampler.h"
 #endif
@@ -77,7 +77,7 @@ struct io_worker {
 	/* file descriptor of PCM control */
 	int ba_pcm_ctrl_fd;
 	/* opened playback PCM device */
-	struct alsa_pcm	alsa_pcm;
+	struct alsa_pcm alsa_pcm;
 	/* mixer for volume control */
 	struct alsa_mixer alsa_mixer;
 	/* if true, playback is active */
@@ -89,10 +89,10 @@ struct io_worker {
 static unsigned int verbose = 0;
 static bool list_bt_devices = false;
 static bool list_bt_pcms = false;
-static const char *pcm_device = "default";
+static const char * pcm_device = "default";
 static enum volume_type volume_type = VOL_TYPE_AUTO;
-static const char *mixer_device = "default";
-static const char *mixer_elem_name = "Master";
+static const char * mixer_device = "default";
+static const char * mixer_elem_name = "Master";
 static unsigned int mixer_elem_index = 0;
 static bool ba_profiles[3] = { 0 };
 static bool ba_addr_any = false;
@@ -110,14 +110,14 @@ static bool pcm_muted = false;
 static struct ba_dbus_ctx dbus_ctx;
 static char dbus_ba_service[32] = BLUEALSA_SERVICE;
 
-static struct ba_pcm *ba_pcms = NULL;
+static struct ba_pcm * ba_pcms = NULL;
 static size_t ba_pcms_count = 0;
 
 static pthread_mutex_t single_playback_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool force_single_playback = false;
 
 static pthread_rwlock_t workers_lock = PTHREAD_RWLOCK_INITIALIZER;
-static struct io_worker *workers[16] = { NULL };
+static struct io_worker * workers[16] = { NULL };
 static size_t workers_size = ARRAYSIZE(workers);
 
 static int main_loop_quit_event_fd = -1;
@@ -191,7 +191,7 @@ static const char * ba_pcm_get_profile_tag(const struct ba_pcm * pcm) {
 	}
 }
 
-static snd_pcm_format_t bluealsa_get_snd_pcm_format(const struct ba_pcm *pcm) {
+static snd_pcm_format_t bluealsa_get_snd_pcm_format(const struct ba_pcm * pcm) {
 	switch (pcm->format) {
 	case 0x0108:
 		return SND_PCM_FORMAT_U8;
@@ -245,17 +245,17 @@ static void print_bt_device_list(void) {
 				ba2str(&dev.bt_addr, bt_addr);
 
 				printf("%s: %s [%s], %s%s\n",
-						dev.hci_name, bt_addr, dev.name,
-						dev.trusted ? "trusted " : "", dev.icon);
+				       dev.hci_name, bt_addr, dev.name,
+				       dev.trusted ? "trusted " : "", dev.icon);
 
 			}
 
 			printf("  %s (%s): %s %d channel%s %d Hz\n",
-					ba_pcm_get_profile_name(pcm),
-					pcm->codec.name,
-					snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
-					pcm->channels, pcm->channels != 1 ? "s" : "",
-					pcm->rate);
+			       ba_pcm_get_profile_name(pcm),
+			       pcm->codec.name,
+			       snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
+			       pcm->channels, pcm->channels != 1 ? "s" : "",
+			       pcm->rate);
 
 		}
 	}
@@ -282,28 +282,27 @@ static void print_bt_pcm_list(void) {
 		char bt_addr[18];
 		ba2str(&dev.bt_addr, bt_addr);
 
-		printf(
-				"bluealsa:DEV=%s,PROFILE=%s,SRV=%s\n"
-				"    %s, %s%s, %s\n"
-				"    %s (%s): %s %d channel%s %d Hz\n",
-				bt_addr,
-				ba_pcm_get_profile_tag(pcm),
-				dbus_ba_service,
-				dev.name,
-				dev.trusted ? "trusted " : "", dev.icon,
-				pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
-				ba_pcm_get_profile_name(pcm),
-				pcm->codec.name,
-				snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
-				pcm->channels, pcm->channels != 1 ? "s" : "",
-				pcm->rate);
+		printf("bluealsa:DEV=%s,PROFILE=%s,SRV=%s\n"
+		       "    %s, %s%s, %s\n"
+		       "    %s (%s): %s %d channel%s %d Hz\n",
+		       bt_addr,
+		       ba_pcm_get_profile_tag(pcm),
+		       dbus_ba_service,
+		       dev.name,
+		       dev.trusted ? "trusted " : "", dev.icon,
+		       pcm->mode == BA_PCM_MODE_SINK ? "playback" : "capture",
+		       ba_pcm_get_profile_name(pcm),
+		       pcm->codec.name,
+		       snd_pcm_format_name(bluealsa_get_snd_pcm_format(pcm)),
+		       pcm->channels, pcm->channels != 1 ? "s" : "",
+		       pcm->rate);
 
 	}
 
 }
 
-static struct ba_pcm *ba_pcm_add(const struct ba_pcm *pcm) {
-	struct ba_pcm *tmp;
+static struct ba_pcm * ba_pcm_add(const struct ba_pcm * pcm) {
+	struct ba_pcm * tmp;
 	if ((tmp = realloc(ba_pcms, (ba_pcms_count + 1) * sizeof(*ba_pcms))) == NULL)
 		return NULL;
 	ba_pcms = tmp;
@@ -311,28 +310,28 @@ static struct ba_pcm *ba_pcm_add(const struct ba_pcm *pcm) {
 	return &ba_pcms[ba_pcms_count++];
 }
 
-static struct ba_pcm *ba_pcm_get(const char *path) {
+static struct ba_pcm * ba_pcm_get(const char * path) {
 	for (size_t i = 0; i < ba_pcms_count; i++)
 		if (strcmp(ba_pcms[i].pcm_path, path) == 0)
 			return &ba_pcms[i];
 	return NULL;
 }
 
-static void ba_pcm_remove(const char *path) {
+static void ba_pcm_remove(const char * path) {
 	for (size_t i = 0; i < ba_pcms_count; i++)
 		if (strcmp(ba_pcms[i].pcm_path, path) == 0) {
 			memmove(&ba_pcms[i], &ba_pcms[i + 1],
-					(ba_pcms_count - i - 1) * sizeof(*ba_pcms));
+			        (ba_pcms_count - i - 1) * sizeof(*ba_pcms));
 			ba_pcms_count--;
 			break;
 		}
 }
 
-static struct io_worker *get_active_io_worker(void) {
+static struct io_worker * get_active_io_worker(void) {
 
 	pthread_rwlock_rdlock(&workers_lock);
 
-	struct io_worker *w = NULL;
+	struct io_worker * w = NULL;
 	for (size_t i = 0; i < workers_size; i++)
 		if (workers[i] != NULL && workers[i]->active) {
 			w = workers[i];
@@ -344,9 +343,9 @@ static struct io_worker *get_active_io_worker(void) {
 	return w;
 }
 
-static int pause_device_player(const struct ba_pcm *ba_pcm) {
+static int pause_device_player(const struct ba_pcm * ba_pcm) {
 
-	DBusMessage *msg = NULL, *rep = NULL;
+	DBusMessage * msg = NULL, * rep = NULL;
 	DBusError err = DBUS_ERROR_INIT;
 	char path[160];
 	int ret = 0;
@@ -355,7 +354,7 @@ static int pause_device_player(const struct ba_pcm *ba_pcm) {
 	msg = dbus_message_new_method_call("org.bluez", path, "org.bluez.MediaPlayer1", "Pause");
 
 	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn, msg,
-					DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
+	                                                     DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
 		warn("Couldn't pause player: %s", err.message);
 		dbus_error_free(&err);
 		goto fail;
@@ -378,8 +377,8 @@ final:
 /**
  * Update BlueALSA PCM volume according to ALSA mixer element. */
 static int io_worker_mixer_volume_sync_ba_pcm(
-		struct io_worker *worker,
-		struct ba_pcm *ba_pcm) {
+		struct io_worker * worker,
+		struct ba_pcm * ba_pcm) {
 
 	unsigned int volume;
 	/* If mixer element does not support playback switch,
@@ -408,8 +407,8 @@ static int io_worker_mixer_volume_sync_ba_pcm(
 /**
  * Update ALSA mixer element according to BlueALSA PCM volume. */
 static int io_worker_mixer_volume_sync_alsa_mixer(
-		struct io_worker *worker,
-		struct ba_pcm *ba_pcm) {
+		struct io_worker * worker,
+		struct ba_pcm * ba_pcm) {
 
 	/* Skip update in case of software volume. */
 	if (ba_pcm->soft_volume)
@@ -450,18 +449,18 @@ final:
 	return ret;
 }
 
-static void io_worker_mixer_event_callback(void *data) {
-	struct io_worker *worker = data;
+static void io_worker_mixer_event_callback(void * data) {
+	struct io_worker * worker = data;
 	io_worker_mixer_volume_sync_ba_pcm(worker, &worker->ba_pcm);
 }
 
 static snd_pcm_uframes_t io_worker_playback_delay(
-		const struct io_worker *w,
+		const struct io_worker * w,
 #if WITH_LIBSAMPLERATE
-		const struct resampler *resampler,
-		const ffb_t *resampler_buffer,
+		const struct resampler * resampler,
+		const ffb_t * resampler_buffer,
 #endif
-		const ffb_t *read_buffer) {
+		const ffb_t * read_buffer) {
 
 	snd_pcm_uframes_t delay = 0;
 	double rate_ratio = 1.0;
@@ -489,7 +488,7 @@ static snd_pcm_uframes_t io_worker_playback_delay(
 	return delay;
 }
 
-static void io_worker_routine_exit(struct io_worker *w) {
+static void io_worker_routine_exit(struct io_worker * w) {
 
 	pthread_mutex_lock(&w->mutex);
 
@@ -510,7 +509,7 @@ static void io_worker_routine_exit(struct io_worker *w) {
 
 }
 
-static void *io_worker_routine(struct io_worker *w) {
+static void * io_worker_routine(struct io_worker * w) {
 
 	const snd_pcm_format_t pcm_format = bluealsa_get_snd_pcm_format(&w->ba_pcm);
 	const ssize_t pcm_format_size = snd_pcm_format_size(pcm_format, 1);
@@ -520,7 +519,7 @@ static void *io_worker_routine(struct io_worker *w) {
 	/* Buffer from which audio frames are written to the ALSA PCM. If the
 	 * resampler is used then this is the resampler output buffer. Otherwise
 	 * it is the same as the read buffer. */
-	ffb_t *write_buffer = &read_buffer;
+	ffb_t * write_buffer = &read_buffer;
 	/* Preferred format for the ALSA PCM. If not using the resampler then this
 	 * is the format of the incoming BlueALSA stream. */
 	snd_pcm_format_t format_1 = pcm_format;
@@ -567,7 +566,7 @@ static void *io_worker_routine(struct io_worker *w) {
 	if (volume_type != VOL_TYPE_AUTO) {
 		bool softvol = (volume_type == VOL_TYPE_SOFTWARE);
 		debug("Setting BlueALSA source PCM volume mode: %s: %s",
-				w->ba_pcm.pcm_path, softvol ? "software" : "pass-through");
+		      w->ba_pcm.pcm_path, softvol ? "software" : "pass-through");
 		if (softvol != w->ba_pcm.soft_volume) {
 			w->ba_pcm.soft_volume = softvol;
 			if (!ba_dbus_pcm_update(&dbus_ctx, &w->ba_pcm, BLUEALSA_PCM_SOFT_VOLUME, &err)) {
@@ -580,7 +579,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 	debug("Opening BlueALSA source PCM: %s", w->ba_pcm.pcm_path);
 	if (!ba_dbus_pcm_open(&dbus_ctx, w->ba_pcm.pcm_path,
-				&w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
+	                      &w->ba_pcm_fd, &w->ba_pcm_ctrl_fd, &err)) {
 		error("Couldn't open BlueALSA source PCM: %s", err.message);
 		dbus_error_free(&err);
 		goto fail;
@@ -590,7 +589,7 @@ static void *io_worker_routine(struct io_worker *w) {
 	if (resampler_method != RESAMPLER_CONV_NONE) {
 		if (!resampler_is_input_format_supported(pcm_format))
 			warn("Resampler not enabled: Unsupported input format: %s",
-					snd_pcm_format_name(pcm_format));
+			     snd_pcm_format_name(pcm_format));
 		else {
 			use_resampler = true;
 			/* Disable alsa-lib resampling because our internal resampler can
@@ -636,7 +635,8 @@ static void *io_worker_routine(struct io_worker *w) {
 
 		struct pollfd fds[16] = {
 			{ main_loop_quit_event_fd, POLLIN, 0 },
-			{ w->ba_pcm_fd, POLLIN, 0 }};
+			{ w->ba_pcm_fd, POLLIN, 0 },
+		};
 		nfds_t nfds = 2;
 
 		if (alsa_mixer_is_open(&w->alsa_mixer)) {
@@ -671,10 +671,10 @@ static void *io_worker_routine(struct io_worker *w) {
 		}
 
 		if (poll_rv == 0 &&
-				ba_pcm_running &&
-				w->active &&
-				ffb_blen_out(&read_buffer) == 0 &&
-				!alsa_pcm_is_running(&w->alsa_pcm)) {
+		    ba_pcm_running &&
+		    w->active &&
+		    ffb_blen_out(&read_buffer) == 0 &&
+		    !alsa_pcm_is_running(&w->alsa_pcm)) {
 			/* The BT device is in the running state, but is not sending audio
 			 * frames. As there is no work for the ALSA device to do we simply
 			 * wait for more audio to arrive from the server. */
@@ -748,7 +748,7 @@ static void *io_worker_routine(struct io_worker *w) {
 				/* In order not to flood BT connection with AVRCP packets,
 				 * we are going to send pause command every 0.5 second. */
 				if (pause_retries < 5 &&
-						(pause_retry_pcm_samples += read_samples) > pcm_1s_samples / 2) {
+				    (pause_retry_pcm_samples += read_samples) > pcm_1s_samples / 2) {
 					if (pause_device_player(&w->ba_pcm) == -1)
 						/* pause command does not work, stop further requests */
 						pause_retries = 5;
@@ -768,21 +768,21 @@ static void *io_worker_routine(struct io_worker *w) {
 				 * done with a sleep() call, because we have to drain PCM FIFO, so it
 				 * will not have any stale data. */
 				unsigned int interval = pcm_open_retries > ARRAYSIZE(pcm_open_retry_intervals) ?
-					pcm_open_retry_intervals[ARRAYSIZE(pcm_open_retry_intervals) - 1] :
-					pcm_open_retry_intervals[pcm_open_retries - 1];
+				                        pcm_open_retry_intervals[ARRAYSIZE(pcm_open_retry_intervals) - 1] :
+				                        pcm_open_retry_intervals[pcm_open_retries - 1];
 				if ((pcm_open_retry_pcm_samples += read_samples) <= interval * pcm_1s_samples)
 					continue;
 			}
 
 			debug("Opening ALSA playback PCM: name=%s channels=%u rate%s=%u",
-					pcm_device, w->ba_pcm.channels,
-					pcm_flags & SND_PCM_NO_AUTO_RESAMPLE ? "~" : "",
-					w->ba_pcm.rate);
+			      pcm_device, w->ba_pcm.channels,
+			      pcm_flags & SND_PCM_NO_AUTO_RESAMPLE ? "~" : "",
+			      w->ba_pcm.rate);
 
-			char *tmp = NULL;
+			char * tmp = NULL;
 			int res = alsa_pcm_open(&w->alsa_pcm, pcm_device, format_1, format_2,
-						w->ba_pcm.channels, w->ba_pcm.rate, pcm_buffer_time,
-						pcm_period_time, pcm_flags, &tmp);
+			                        w->ba_pcm.channels, w->ba_pcm.rate, pcm_buffer_time,
+			                        pcm_period_time, pcm_flags, &tmp);
 			switch (res) {
 			case 0:
 				break;
@@ -795,9 +795,9 @@ static void *io_worker_routine(struct io_worker *w) {
 				if (use_resampler && w->alsa_pcm.format == SND_PCM_FORMAT_UNKNOWN) {
 					free(tmp);
 					if (alsa_pcm_open(&w->alsa_pcm, pcm_device, format_1,
-								format_2, w->ba_pcm.channels, w->ba_pcm.rate,
-								pcm_buffer_time, pcm_period_time,
-								pcm_flags & ~SND_PCM_NO_AUTO_FORMAT, &tmp) == 0) {
+					                  format_2, w->ba_pcm.channels, w->ba_pcm.rate,
+					                  pcm_buffer_time, pcm_period_time,
+					                  pcm_flags & ~SND_PCM_NO_AUTO_FORMAT, &tmp) == 0) {
 						break;
 					}
 				}
@@ -825,25 +825,20 @@ static void *io_worker_routine(struct io_worker *w) {
 				 * the ALSA start threshold and the start threshold plus the period
 				 * size respectively. The resampler will adapt the rate to keep the
 				 * delay within these limits. */
-				if ((res = resampler_init(
-								&resampler,
-								resampler_method,
-								w->ba_pcm.channels,
-								resampler_pcm_format,
-								w->ba_pcm.rate,
-								w->alsa_pcm.format,
-								w->alsa_pcm.rate,
-								w->alsa_pcm.start_threshold,
-								w->alsa_pcm.start_threshold + w->alsa_pcm.period_frames)) == -1) {
+				const snd_pcm_uframes_t min_target_delay = w->alsa_pcm.start_threshold;
+				const snd_pcm_uframes_t max_target_delay = min_target_delay + w->alsa_pcm.period_frames;
+				if ((res = resampler_init(&resampler, resampler_method, w->ba_pcm.channels,
+				                          resampler_pcm_format, w->ba_pcm.rate, w->alsa_pcm.format,
+				                          w->alsa_pcm.rate, min_target_delay, max_target_delay)) == -1) {
 					error("Couldn't initialize resampler: %s", strerror(errno));
 					goto fail;
 				}
 
-#if DEBUG
+# if DEBUG
 				if (verbose >= 4)
 					debug("PCM sample rate conversion: %u Hz -> %#.2f Hz", w->ba_pcm.rate,
-							w->ba_pcm.rate * resampler_current_rate_ratio(&resampler));
-#endif
+					      w->ba_pcm.rate * resampler_current_rate_ratio(&resampler));
+# endif
 
 				/* The resampler output buffer is sized to accommodate the
 				 * result of resampling a full read_buffer, plus a little extra
@@ -860,9 +855,9 @@ static void *io_worker_routine(struct io_worker *w) {
 			if (mixer_device != NULL && !w->ba_pcm.soft_volume) {
 				pthread_mutex_lock(&w->mutex);
 				debug("Opening ALSA mixer: name=%s elem=%s index=%u",
-						mixer_device, mixer_elem_name, mixer_elem_index);
+				      mixer_device, mixer_elem_name, mixer_elem_index);
 				if (alsa_mixer_open(&w->alsa_mixer, mixer_device,
-							mixer_elem_name, mixer_elem_index, &tmp) == 0)
+				                    mixer_elem_name, mixer_elem_index, &tmp) == 0)
 					io_worker_mixer_volume_sync_ba_pcm(w, &w->ba_pcm);
 				else {
 					warn("Couldn't open ALSA mixer: %s", tmp);
@@ -880,25 +875,27 @@ static void *io_worker_routine(struct io_worker *w) {
 
 			if (verbose >= 2) {
 				info("Used configuration for %s:\n"
-						"  BlueALSA PCM format: %s\n"
-						"  BlueALSA PCM sample rate: %u Hz\n"
-						"  BlueALSA PCM channels: %u\n"
-						"  ALSA PCM buffer time: %u us (%zu bytes)\n"
-						"  ALSA PCM period time: %u us (%zu bytes)\n"
-						"  ALSA PCM format: %s\n"
-						"  ALSA PCM sample rate: %u Hz\n"
-						"  ALSA PCM channels: %u\n"
-						"  ALSA mixer volume mapping: %s",
-						w->addr,
-						snd_pcm_format_name(pcm_format),
-						w->ba_pcm.rate,
-						w->ba_pcm.channels,
-						w->alsa_pcm.buffer_time, alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.buffer_frames),
-						w->alsa_pcm.period_time, alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.period_frames),
-						snd_pcm_format_name(w->alsa_pcm.format),
-						w->alsa_pcm.rate,
-						w->alsa_pcm.channels,
-						w->alsa_mixer.mixer ? (w->alsa_mixer.has_db_scale ? "dB scale" : "linear") : "none");
+				     "  BlueALSA PCM format: %s\n"
+				     "  BlueALSA PCM sample rate: %u Hz\n"
+				     "  BlueALSA PCM channels: %u\n"
+				     "  ALSA PCM buffer time: %u us (%zu bytes)\n"
+				     "  ALSA PCM period time: %u us (%zu bytes)\n"
+				     "  ALSA PCM format: %s\n"
+				     "  ALSA PCM sample rate: %u Hz\n"
+				     "  ALSA PCM channels: %u\n"
+				     "  ALSA mixer volume mapping: %s",
+				     w->addr,
+				     snd_pcm_format_name(pcm_format),
+				     w->ba_pcm.rate,
+				     w->ba_pcm.channels,
+				     w->alsa_pcm.buffer_time,
+				     alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.buffer_frames),
+				     w->alsa_pcm.period_time,
+				     alsa_pcm_frames_to_bytes(&w->alsa_pcm, w->alsa_pcm.period_frames),
+				     snd_pcm_format_name(w->alsa_pcm.format),
+				     w->alsa_pcm.rate,
+				     w->alsa_pcm.channels,
+				     w->alsa_mixer.mixer ? (w->alsa_mixer.has_db_scale ? "dB scale" : "linear") : "none");
 			}
 
 			if (verbose >= 3)
@@ -927,7 +924,7 @@ static void *io_worker_routine(struct io_worker *w) {
 
 #if WITH_LIBSAMPLERATE
 		if (use_resampler &&
-				resampler_process(&resampler, &read_buffer, write_buffer) != 0)
+		    resampler_process(&resampler, &read_buffer, write_buffer) != 0)
 			goto close_alsa;
 #endif
 
@@ -949,12 +946,13 @@ static void *io_worker_routine(struct io_worker *w) {
 				timeout = 0;
 		}
 
-		const snd_pcm_uframes_t delay_frames = io_worker_playback_delay(w,
 #if WITH_LIBSAMPLERATE
-				use_resampler ? &resampler : NULL, &resampled_buffer,
+		const snd_pcm_uframes_t delay = io_worker_playback_delay(w, use_resampler ? &resampler : NULL,
+		                                                         &resampled_buffer, &read_buffer);
+#else
+		const snd_pcm_uframes_t delay = io_worker_playback_delay(w, &read_buffer);
 #endif
-				&read_buffer);
-		if (!delay_report_update(&dr, delay_frames, &err)) {
+		if (!delay_report_update(&dr, delay, &err)) {
 			error("Couldn't update BlueALSA PCM client delay: %s", err.message);
 			dbus_error_free(&err);
 			goto fail;
@@ -977,13 +975,13 @@ static void *io_worker_routine(struct io_worker *w) {
 					resampler_reset(&resampler);
 					alsa_pcm_started = true;
 				}
-				rate_changed = resampler_update_rate_ratio(&resampler,
-						read_samples / w->ba_pcm.channels, dr.avg_value);
+				const snd_pcm_uframes_t read_frames = read_samples / w->ba_pcm.channels;
+				rate_changed = resampler_update_rate_ratio(&resampler, read_frames, dr.avg_value);
 			}
-
-			if (verbose >= 4 && rate_changed)
-				debug("PCM sample rate conversion: %u Hz -> %#.2f Hz", w->ba_pcm.rate,
-						w->ba_pcm.rate * resampler_current_rate_ratio(&resampler));
+			if (verbose >= 4 && rate_changed) {
+				debug("PCM sample rate conversion: %u Hz -> %#.2f Hz",
+				      w->ba_pcm.rate, w->ba_pcm.rate * resampler_current_rate_ratio(&resampler));
+			}
 		}
 #endif
 
@@ -1021,8 +1019,8 @@ fail:
 }
 
 static bool pcm_hw_params_equal(
-		const struct ba_pcm *ba_pcm_1,
-		const struct ba_pcm *ba_pcm_2) {
+		const struct ba_pcm * ba_pcm_1,
+		const struct ba_pcm * ba_pcm_2) {
 	if (ba_pcm_1->format != ba_pcm_2->format)
 		return false;
 	if (ba_pcm_1->channels != ba_pcm_2->channels)
@@ -1032,7 +1030,7 @@ static bool pcm_hw_params_equal(
 	return true;
 }
 
-static void io_worker_stop(struct io_worker *w) {
+static void io_worker_stop(struct io_worker * w) {
 	if (w->thread_started) {
 		pthread_cancel(w->thread);
 		pthread_join(w->thread, NULL);
@@ -1042,15 +1040,15 @@ static void io_worker_stop(struct io_worker *w) {
 
 /**
  * Stop the IO worker thread and free its resources. */
-static void io_worker_destroy(struct io_worker *w) {
+static void io_worker_destroy(struct io_worker * w) {
 	io_worker_stop(w);
 	pthread_mutex_destroy(&w->mutex);
 	free(w);
 }
 
-static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) {
+static struct io_worker * supervise_io_worker_start(const struct ba_pcm * ba_pcm) {
 
-	struct io_worker *worker = NULL;
+	struct io_worker * worker = NULL;
 	char addr[sizeof(worker->addr)];
 	ssize_t worker_slot = -1;
 
@@ -1112,7 +1110,7 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 
 	debug("Starting IO worker %s", worker->addr);
 	if ((errno = pthread_create(&worker->thread, NULL,
-					PTHREAD_FUNC(io_worker_routine), worker)) == 0)
+	                            PTHREAD_FUNC(io_worker_routine), worker)) == 0)
 		worker->thread_started = true;
 	else {
 		error("Couldn't start IO worker %s: %s", worker->addr, strerror(errno));
@@ -1127,7 +1125,7 @@ static struct io_worker *supervise_io_worker_start(const struct ba_pcm *ba_pcm) 
 	return worker;
 }
 
-static struct io_worker *supervise_io_worker_stop(const struct ba_pcm *ba_pcm) {
+static struct io_worker * supervise_io_worker_stop(const struct ba_pcm * ba_pcm) {
 
 	pthread_rwlock_wrlock(&workers_lock);
 
@@ -1142,7 +1140,7 @@ static struct io_worker *supervise_io_worker_stop(const struct ba_pcm *ba_pcm) {
 	return NULL;
 }
 
-static struct io_worker *supervise_io_worker(const struct ba_pcm *ba_pcm) {
+static struct io_worker * supervise_io_worker(const struct ba_pcm * ba_pcm) {
 
 	if (ba_pcm == NULL)
 		return NULL;
@@ -1151,13 +1149,13 @@ static struct io_worker *supervise_io_worker(const struct ba_pcm *ba_pcm) {
 		goto stop;
 
 	if (!(ba_profiles[PROFILE_A2DP] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_A2DP)) &&
-			!(ba_profiles[PROFILE_ASHA] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_ASHA)) &&
-			!(ba_profiles[PROFILE_SCO] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO)))
+	    !(ba_profiles[PROFILE_ASHA] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_ASHA)) &&
+	    !(ba_profiles[PROFILE_SCO] && (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO)))
 		goto stop;
 
 	/* Check whether SCO has selected codec. */
 	if (ba_pcm->transport & BA_PCM_TRANSPORT_MASK_SCO &&
-			ba_pcm->rate == 0) {
+	    ba_pcm->rate == 0) {
 		debug("Skipping SCO with codec not selected");
 		goto stop;
 	}
@@ -1175,19 +1173,20 @@ start:
 	return supervise_io_worker_start(ba_pcm);
 }
 
-static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *message, void *data) {
+static DBusHandlerResult dbus_signal_handler(DBusConnection * conn, DBusMessage * message,
+		void * data) {
 	(void)conn;
 	(void)data;
 
 	if (dbus_message_get_type(message) != DBUS_MESSAGE_TYPE_SIGNAL)
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
-	const char *path = dbus_message_get_path(message);
-	const char *interface = dbus_message_get_interface(message);
-	const char *signal = dbus_message_get_member(message);
+	const char * path = dbus_message_get_path(message);
+	const char * interface = dbus_message_get_interface(message);
+	const char * signal = dbus_message_get_member(message);
 
 	DBusMessageIter iter;
-	struct io_worker *worker;
+	struct io_worker * worker;
 
 	if (strcmp(interface, DBUS_INTERFACE_OBJECT_MANAGER) == 0) {
 
@@ -1213,12 +1212,12 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 		if (strcmp(signal, "InterfacesRemoved") == 0) {
 			if (!dbus_message_iter_init(message, &iter) ||
-					dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH) {
+			    dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH) {
 				error("Couldn't remove BlueALSA PCM: %s", "Invalid signal signature");
 				goto fail;
 			}
 			dbus_message_iter_get_basic(&iter, &path);
-			struct ba_pcm *pcm;
+			struct ba_pcm * pcm;
 			if ((pcm = ba_pcm_get(path)) == NULL)
 				goto fail;
 			supervise_io_worker_stop(pcm);
@@ -1229,11 +1228,11 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 	}
 
 	if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0) {
-		struct ba_pcm *pcm;
+		struct ba_pcm * pcm;
 		if ((pcm = ba_pcm_get(path)) == NULL)
 			goto fail;
 		if (!dbus_message_iter_init(message, &iter) ||
-				dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING) {
+		    dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING) {
 			error("Couldn't update BlueALSA PCM: %s", "Invalid signal signature");
 			goto fail;
 		}
@@ -1250,7 +1249,7 @@ fail:
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hVSvlLB:D:M:p:";
@@ -1272,7 +1271,7 @@ int main(int argc, char *argv[]) {
 		{ "mixer-index", required_argument, NULL, 7 },
 		{ "profile", required_argument, NULL, 'p' },
 #if WITH_LIBSAMPLERATE
-		{ "resampler", required_argument, NULL, 10},
+		{ "resampler", required_argument, NULL, 10 },
 #endif
 		{ "single-audio", no_argument, NULL, 5 },
 		{ 0, 0, 0, 0 },
@@ -1322,60 +1321,60 @@ int main(int argc, char *argv[]) {
 	opterr = 0;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			printf("Usage:\n"
-					"  %s [OPTION]... [BT-ADDR]...\n"
-					"\nOptions:\n"
-					"  -h, --help\t\t\tprint this help and exit\n"
-					"  -V, --version\t\t\tprint version and exit\n"
-					"  -S, --syslog\t\t\tsend logs to the system logger\n"
-					"      --loglevel=LEVEL\t\tset logging level; default: %s\n"
-					"  -v, --verbose\t\t\tincrease output verbosity\n"
-					"  -l, --list-devices\t\tlist available BT audio devices\n"
-					"  -L, --list-pcms\t\tlist available BT audio PCMs\n"
-					"  -B, --dbus=NAME\t\tBlueALSA D-Bus service name suffix\n"
-					"  -D, --pcm=NAME\t\tplayback PCM device to use; default: %s\n"
-					"      --pcm-buffer-time=SEC\tplayback PCM buffer time in us; default: %u\n"
-					"      --pcm-period-time=SEC\tplayback PCM period time in us; default: %u\n"
-					"      --volume=TYPE\t\tset volume control type; default: %s\n"
-					"  -M, --mixer-device=NAME\tmixer device to use; default: %s\n"
-					"      --mixer-control=NAME\tmixer control name; default: %s\n"
-					"      --mixer-index=NUM\t\tmixer element index; default: %u\n"
-					"  -p, --profile=TYPE\t\tset profile to handle; default: A2DP\n"
+			       "  %s [OPTION]... [BT-ADDR]...\n"
+			       "\nOptions:\n"
+			       "  -h, --help\t\t\tprint this help and exit\n"
+			       "  -V, --version\t\t\tprint version and exit\n"
+			       "  -S, --syslog\t\t\tsend logs to the system logger\n"
+			       "      --loglevel=LEVEL\t\tset logging level; default: %s\n"
+			       "  -v, --verbose\t\t\tincrease output verbosity\n"
+			       "  -l, --list-devices\t\tlist available BT audio devices\n"
+			       "  -L, --list-pcms\t\tlist available BT audio PCMs\n"
+			       "  -B, --dbus=NAME\t\tBlueALSA D-Bus service name suffix\n"
+			       "  -D, --pcm=NAME\t\tplayback PCM device to use; default: %s\n"
+			       "      --pcm-buffer-time=SEC\tplayback PCM buffer time in us; default: %u\n"
+			       "      --pcm-period-time=SEC\tplayback PCM period time in us; default: %u\n"
+			       "      --volume=TYPE\t\tset volume control type; default: %s\n"
+			       "  -M, --mixer-device=NAME\tmixer device to use; default: %s\n"
+			       "      --mixer-control=NAME\tmixer control name; default: %s\n"
+			       "      --mixer-index=NUM\t\tmixer element index; default: %u\n"
+			       "  -p, --profile=TYPE\t\tset profile to handle; default: A2DP\n"
 #if WITH_LIBSAMPLERATE
-					"      --resampler=METHOD\tresample conversion method; default: %s\n"
+			       "      --resampler=METHOD\tresample conversion method; default: %s\n"
 #endif
-					"      --single-audio\t\tenable single audio mode\n"
-					"%s"
-					"\nNote:\n"
-					"If one wants to receive audio from more than one Bluetooth device, it is\n"
-					"possible to specify more than one MAC address. By specifying any/empty MAC\n"
-					"address (00:00:00:00:00:00), one will allow connections from any Bluetooth\n"
-					"device. Without given explicit MAC address any/empty MAC is assumed.\n",
-					argv[0],
-					nv_name_from_int(nv_log_levels, log_level),
-					pcm_device,
-					pcm_buffer_time,
-					pcm_period_time,
-					nv_name_from_uint(nv_volume_types, volume_type),
-					mixer_device,
-					mixer_elem_name,
-					mixer_elem_index,
+			       "      --single-audio\t\tenable single audio mode\n"
+			       "%s"
+			       "\nNote:\n"
+			       "If one wants to receive audio from more than one Bluetooth device, it is\n"
+			       "possible to specify more than one MAC address. By specifying any/empty MAC\n"
+			       "address (00:00:00:00:00:00), one will allow connections from any Bluetooth\n"
+			       "device. Without given explicit MAC address any/empty MAC is assumed.\n",
+			       argv[0],
+			       nv_name_from_int(nv_log_levels, log_level),
+			       pcm_device,
+			       pcm_buffer_time,
+			       pcm_period_time,
+			       nv_name_from_uint(nv_volume_types, volume_type),
+			       mixer_device,
+			       mixer_elem_name,
+			       mixer_elem_index,
 #if WITH_LIBSAMPLERATE
-					nv_name_from_uint(nv_resampler_methods, resampler_method),
+			       nv_name_from_uint(nv_resampler_methods, resampler_method),
 #endif
-					"");
+			       "");
 			return EXIT_SUCCESS;
 
-		case 'V' /* --version */ :
+		case 'V' /* --version */:
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
-		case 'S' /* --syslog */ :
+		case 'S' /* --syslog */:
 			syslog = true;
 			break;
 
-		case 'v' /* --verbose */ :
+		case 'v' /* --verbose */:
 			verbose++;
 			break;
 		}
@@ -1387,13 +1386,13 @@ int main(int argc, char *argv[]) {
 	optind = 0; opterr = 1;
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h' /* --help */ :
-		case 'V' /* --version */ :
-		case 'S' /* --syslog */ :
-		case 'v' /* --verbose */ :
+		case 'h' /* --help */:
+		case 'V' /* --version */:
+		case 'S' /* --syslog */:
+		case 'v' /* --verbose */:
 			break;
 
-		case 9 /* --loglevel=LEVEL */ : {
+		case 9 /* --loglevel=LEVEL */: {
 			const nv_entry_t * entry;
 			if ((entry = nv_lookup_entry(nv_log_levels, optarg)) == NULL) {
 				error("Invalid loglevel {%s}: %s", nv_join_names(nv_log_levels), optarg);
@@ -1402,14 +1401,14 @@ int main(int argc, char *argv[]) {
 			log_level = entry->v.i;
 		} break;
 
-		case 'l' /* --list-devices */ :
+		case 'l' /* --list-devices */:
 			list_bt_devices = true;
 			break;
-		case 'L' /* --list-pcms */ :
+		case 'L' /* --list-pcms */:
 			list_bt_pcms = true;
 			break;
 
-		case 'B' /* --dbus=NAME */ :
+		case 'B' /* --dbus=NAME */:
 			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
 			if (!dbus_validate_bus_name(dbus_ba_service, NULL)) {
 				error("Invalid BlueALSA D-Bus service name: %s", dbus_ba_service);
@@ -1417,57 +1416,57 @@ int main(int argc, char *argv[]) {
 			}
 			break;
 
-		case 'D' /* --pcm=NAME */ :
+		case 'D' /* --pcm=NAME */:
 			pcm_device = optarg;
 			break;
-		case 3 /* --pcm-buffer-time=SEC */ :
+		case 3 /* --pcm-buffer-time=SEC */:
 			pcm_buffer_time = atoi(optarg);
 			break;
-		case 4 /* --pcm-period-time=SEC */ :
+		case 4 /* --pcm-period-time=SEC */:
 			pcm_period_time = atoi(optarg);
 			break;
 
-		case 'p' /* --profile=TYPE */ : {
+		case 'p' /* --profile=TYPE */: {
 			const nv_entry_t * entry;
 			if ((entry = nv_lookup_entry(nv_profile_types, optarg)) == NULL) {
 				error("Invalid profile type {%s}: %s",
-						nv_join_names(nv_profile_types), optarg);
+				      nv_join_names(nv_profile_types), optarg);
 				return EXIT_FAILURE;
 			}
 			ba_profiles[entry->v.u] = true;
 			profile_set = true;
 		} break;
 
-		case 8 /* --volume */ : {
+		case 8 /* --volume */: {
 			const nv_entry_t * entry;
 			if ((entry = nv_lookup_entry(nv_volume_types, optarg)) == NULL) {
 				error("Invalid volume control type {%s}: %s",
-						nv_join_names(nv_volume_types), optarg);
+				      nv_join_names(nv_volume_types), optarg);
 				return EXIT_FAILURE;
 			}
 			volume_type = entry->v.u;
 		} break;
 
-		case 'M' /* --mixer-device=NAME */ :
+		case 'M' /* --mixer-device=NAME */:
 			mixer_device = optarg;
 			break;
-		case 6 /* --mixer-control=NAME */ :
+		case 6 /* --mixer-control=NAME */:
 			mixer_elem_name = optarg;
 			break;
-		case 7 /* --mixer-index=NUM */ :
+		case 7 /* --mixer-index=NUM */:
 			mixer_elem_index = atoi(optarg);
 			break;
 
-		case 5 /* --single-audio */ :
+		case 5 /* --single-audio */:
 			force_single_playback = true;
 			break;
 
 #if WITH_LIBSAMPLERATE
-		case 10 /* --resampler */ : {
+		case 10 /* --resampler */: {
 			const nv_entry_t * entry;
 			if ((entry = nv_lookup_entry(nv_resampler_methods, optarg)) == NULL) {
 				error("Invalid resampler method {%s}: %s",
-						nv_join_names(nv_resampler_methods), optarg);
+				      nv_join_names(nv_resampler_methods), optarg);
 				return EXIT_FAILURE;
 			}
 			resampler_method = entry->v.u;
@@ -1522,7 +1521,7 @@ int main(int argc, char *argv[]) {
 	if (pcm_buffer_time == 0) {
 		if (pcm_period_time == 0)
 			pcm_period_time = ba_profiles[PROFILE_A2DP] ?
-				DEFAULT_PERIOD_TIME_A2DP : DEFAULT_PERIOD_TIME_SCO;
+			                  DEFAULT_PERIOD_TIME_A2DP : DEFAULT_PERIOD_TIME_SCO;
 		pcm_buffer_time = pcm_period_time * DEFAULT_PERIODS;
 	}
 	else if (pcm_period_time == 0) {
@@ -1544,52 +1543,52 @@ int main(int argc, char *argv[]) {
 		for (size_t i = 0; i < ba_addrs_count; i++, tmp += 19)
 			ba2str(&ba_addrs[i], stpcpy(tmp, ", "));
 
-		const char *mixer_device_str = "(not used)";
+		const char * mixer_device_str = "(not used)";
 		char mixer_element_str[128] = "(not used)";
 		if (mixer_device != NULL) {
 			mixer_device_str = mixer_device;
 			snprintf(mixer_element_str, sizeof(mixer_element_str), "'%s',%u",
-					mixer_elem_name, mixer_elem_index);
+			         mixer_elem_name, mixer_elem_index);
 		}
 
 		info("Selected configuration:\n"
-				"  BlueALSA service: %s\n"
-				"  ALSA PCM device: %s\n"
-				"  ALSA PCM buffer time: %u us\n"
-				"  ALSA PCM period time: %u us\n"
-				"  ALSA mixer device: %s\n"
-				"  ALSA mixer element: %s\n"
+		     "  BlueALSA service: %s\n"
+		     "  ALSA PCM device: %s\n"
+		     "  ALSA PCM buffer time: %u us\n"
+		     "  ALSA PCM period time: %u us\n"
+		     "  ALSA mixer device: %s\n"
+		     "  ALSA mixer element: %s\n"
 #if WITH_LIBSAMPLERATE
-				"  Resampler method: %s\n"
+		     "  Resampler method: %s\n"
 #endif
-				"  Volume control type: %s\n"
-				"  Bluetooth device(s): %s\n"
-				"  Profile(s): %s",
-				dbus_ba_service,
-				pcm_device, pcm_buffer_time, pcm_period_time,
-				mixer_device_str,
-				mixer_element_str,
+		     "  Volume control type: %s\n"
+		     "  Bluetooth device(s): %s\n"
+		     "  Profile(s): %s",
+		     dbus_ba_service,
+		     pcm_device, pcm_buffer_time, pcm_period_time,
+		     mixer_device_str,
+		     mixer_element_str,
 #if WITH_LIBSAMPLERATE
-				nv_name_from_uint(nv_resampler_methods, resampler_method),
+		     nv_name_from_uint(nv_resampler_methods, resampler_method),
 #endif
-				nv_name_from_uint(nv_volume_types, volume_type),
-				ba_addr_any ? "ANY" : &ba_addrs_str[2],
-				&ba_profiles_str[2]);
+		     nv_name_from_uint(nv_volume_types, volume_type),
+		     ba_addr_any ? "ANY" : &ba_addrs_str[2],
+		     &ba_profiles_str[2]);
 
 		free(ba_profiles_str);
 		free(ba_addrs_str);
 
 	}
 
-	ba_dbus_connection_signal_match_add(&dbus_ctx,
-			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
-			"path_namespace='/org/bluealsa'");
-	ba_dbus_connection_signal_match_add(&dbus_ctx,
-			dbus_ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
-			"path_namespace='/org/bluealsa'");
-	ba_dbus_connection_signal_match_add(&dbus_ctx,
-			dbus_ba_service, NULL, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
-			"arg0='"BLUEALSA_INTERFACE_PCM"'");
+	ba_dbus_connection_signal_match_add(&dbus_ctx, dbus_ba_service, NULL,
+	                                    DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
+	                                    "path_namespace='/org/bluealsa'");
+	ba_dbus_connection_signal_match_add(&dbus_ctx, dbus_ba_service, NULL,
+	                                    DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
+	                                    "path_namespace='/org/bluealsa'");
+	ba_dbus_connection_signal_match_add(&dbus_ctx, dbus_ba_service, NULL,
+	                                    DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
+	                                    "arg0='"BLUEALSA_INTERFACE_PCM"'");
 
 	if (!dbus_connection_add_filter(dbus_ctx.conn, dbus_signal_handler, NULL, NULL)) {
 		error("Couldn't add D-Bus filter: %s", err.message);
@@ -1602,9 +1601,7 @@ int main(int argc, char *argv[]) {
 	for (size_t i = 0; i < ba_pcms_count; i++)
 		supervise_io_worker(&ba_pcms[i]);
 
-	struct sigaction sigact = {
-		.sa_handler = main_loop_stop,
-		.sa_flags = SA_RESETHAND };
+	struct sigaction sigact = { .sa_handler = main_loop_stop, .sa_flags = SA_RESETHAND };
 	/* Call to these handlers restores the default action, so on the
 	 * second call the program will be forcefully terminated. */
 	sigaction(SIGTERM, &sigact, NULL);
@@ -1613,8 +1610,7 @@ int main(int argc, char *argv[]) {
 	debug("Starting main loop");
 	for (;;) {
 
-		struct pollfd fds[10] = {
-			{ main_loop_quit_event_fd, POLLIN, 0 } };
+		struct pollfd fds[10] = { { main_loop_quit_event_fd, POLLIN, 0 } };
 		nfds_t nfds = ARRAYSIZE(fds) - 1;
 
 		if (!ba_dbus_connection_poll_fds(&dbus_ctx, &fds[1], &nfds)) {
@@ -1623,7 +1619,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		if (poll(fds, nfds + 1, -1) == -1 &&
-				errno == EINTR)
+		    errno == EINTR)
 			continue;
 
 		if (fds[0].revents & POLLIN)

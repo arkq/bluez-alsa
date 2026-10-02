@@ -30,11 +30,11 @@ struct bluez_device {
 
 };
 
-DBusMessage *dbus_get_properties(DBusConnection *conn,
-		const char *service, const char *path, const char *interface,
-		const char *property, DBusError *error);
+DBusMessage * dbus_get_properties(DBusConnection * conn,
+		const char * service, const char * path, const char * interface,
+		const char * property, DBusError * error);
 
-int dbus_bluez_get_device(DBusConnection *conn, const char *path,
-		struct bluez_device *dev, DBusError *error);
+int dbus_bluez_get_device(DBusConnection * conn, const char * path,
+		struct bluez_device * dev, DBusError * error);
 
 #endif

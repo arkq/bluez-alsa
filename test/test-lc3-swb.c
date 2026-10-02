@@ -32,7 +32,8 @@ CK_START_TEST(test_lc3_swb_init) {
 	lc3_swb_init(&lc3_swb);
 	ck_assert_int_eq(ffb_len_out(&lc3_swb.pcm), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_lc3_swb_encode_decode) {
 
@@ -40,7 +41,7 @@ CK_START_TEST(test_lc3_swb_encode_decode) {
 	snd_pcm_sine_s16_2le(sine, 1, ARRAYSIZE(sine), 1.0 / 128, 0);
 
 	uint8_t data[sizeof(sine)];
-	uint8_t *data_tail = data;
+	uint8_t * data_tail = data;
 
 	struct esco_lc3_swb lc3_swb;
 	size_t len;
@@ -67,10 +68,10 @@ CK_START_TEST(test_lc3_swb_encode_decode) {
 	ck_assert_int_eq(data_tail - data, 480);
 
 	int16_t pcm[sizeof(sine)];
-	int16_t *pcm_tail = pcm;
+	int16_t * pcm_tail = pcm;
 
 	lc3_swb_init(&lc3_swb);
-	for (rv = 1, i = 0; rv > 0; ) {
+	for (rv = 1, i = 0; rv > 0;) {
 
 		len = MIN((data_tail - data) - i, ffb_blen_in(&lc3_swb.data));
 		memcpy(lc3_swb.data.tail, &data[i], len);
@@ -88,7 +89,8 @@ CK_START_TEST(test_lc3_swb_encode_decode) {
 
 	ck_assert_int_eq(pcm_tail - pcm, 8 * LC3_SWB_CODESAMPLES);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_lc3_swb_decode_plc) {
 
@@ -99,7 +101,7 @@ CK_START_TEST(test_lc3_swb_decode_plc) {
 	lc3_swb_init(&lc3_swb);
 
 	uint8_t data[sizeof(sine)];
-	uint8_t *data_tail = data;
+	uint8_t * data_tail = data;
 
 	debug("Simulating eSCO packet loss events");
 
@@ -121,9 +123,9 @@ CK_START_TEST(test_lc3_swb_decode_plc) {
 
 		/* simulate packet loss */
 		if (counter == 2 ||
-				(6 <= counter && counter <= 8) ||
-				/* 4 packets (undetectable) */
-				(12 <= counter && counter <= 15)) {
+		    (6 <= counter && counter <= 8) ||
+		    /* 4 packets (undetectable) */
+		    (12 <= counter && counter <= 15)) {
 			fprintf(stderr, "_");
 			continue;
 		}
@@ -145,7 +147,7 @@ CK_START_TEST(test_lc3_swb_decode_plc) {
 	lc3_swb_init(&lc3_swb);
 
 	size_t samples = 0;
-	for (rv = 1, i = 0; rv > 0; ) {
+	for (rv = 1, i = 0; rv > 0;) {
 
 		size_t len = MIN((data_tail - data) - i, ffb_blen_in(&lc3_swb.data));
 		memcpy(lc3_swb.data.tail, &data[i], len);
@@ -162,7 +164,8 @@ CK_START_TEST(test_lc3_swb_decode_plc) {
 	/* we should recover all except consecutive 4 frames */
 	ck_assert_int_eq(samples, (18 - 4) * LC3_SWB_CODESAMPLES);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

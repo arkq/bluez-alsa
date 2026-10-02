@@ -22,13 +22,13 @@
 #include "error.h"
 #include "fixtures.h"
 #include "hci.h"
-#include "utils.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/hex.h"
 #include "shared/nv.h"
 #include "shared/rc.h"
 #include "shared/rt.h"
+#include "utils.h"
 
 CK_START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
 
@@ -36,25 +36,27 @@ CK_START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci0"), 0);
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci5"), 5);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
 
-	bdaddr_t addr_ok = {{ 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12 }};
+	bdaddr_t addr_ok = { { 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12 } };
 	bdaddr_t addr;
 
-	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr(
-				"/org/bluez/hci0/dev_12_34_56_78_9A_BC", &addr), &addr);
+	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr("/org/bluez/hci0/dev_12_34_56_78_9A_BC",
+	                                                    &addr), &addr);
 	ck_assert_int_eq(bacmp(&addr, &addr_ok), 0);
 
-	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr(
-				"/org/bluez/dev_12_34_56_78_9A_BC/fd1", &addr), &addr);
+	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr("/org/bluez/dev_12_34_56_78_9A_BC/fd1",
+	                                                    &addr), &addr);
 	ck_assert_int_eq(bacmp(&addr, &addr_ok), 0);
 
-	ck_assert_ptr_null(g_dbus_bluez_object_path_to_bdaddr(
-				"/org/bluez/dev_12_34_56_78_9A_XX", &addr));
+	ck_assert_ptr_null(g_dbus_bluez_object_path_to_bdaddr("/org/bluez/dev_12_34_56_78_9A_XX",
+	                                                      &addr));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_g_variant_sanitize_object_path) {
 
@@ -64,18 +66,20 @@ CK_START_TEST(test_g_variant_sanitize_object_path) {
 	ck_assert_str_eq(g_variant_sanitize_object_path(path1), "/some/valid_path/123");
 	ck_assert_str_eq(g_variant_sanitize_object_path(path2), "/a___/invalid_path");
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 #if DEBUG
 CK_START_TEST(test_batostr_) {
 
-	const bdaddr_t ba = {{ 1, 2, 3, 4, 5, 6 }};
+	const bdaddr_t ba = { { 1, 2, 3, 4, 5, 6 } };
 	char tmp[18];
 
 	ba2str(&ba, tmp);
 	ck_assert_str_eq(batostr_(&ba), tmp);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 CK_START_TEST(test_error_code_strerror) {
@@ -84,7 +88,8 @@ CK_START_TEST(test_error_code_strerror) {
 	ck_assert_str_eq(error_code_strerror(ERROR_SYSTEM(EPERM)), "Operation not permitted");
 	ck_assert_str_eq(error_code_strerror(ERROR(ERROR_DOMAIN_APP, 0xFFFF)), "Unknown error");
 	ck_assert_str_eq(error_code_strerror(ERROR(0xF, 0xFF)), "Unknown error");
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_nv_lookup_entry) {
 
@@ -97,7 +102,8 @@ CK_START_TEST(test_nv_lookup_entry) {
 	ck_assert_ptr_null(nv_lookup_entry(entries, "invalid"));
 	ck_assert_ptr_eq(nv_lookup_entry(entries, "name2"), &entries[1]);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_nv_name_from_int) {
 
@@ -110,7 +116,8 @@ CK_START_TEST(test_nv_name_from_int) {
 	ck_assert_ptr_null(nv_name_from_int(entries, 0));
 	ck_assert_str_eq(nv_name_from_int(entries, -42), "name2");
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_nv_name_from_uint) {
 
@@ -123,18 +130,19 @@ CK_START_TEST(test_nv_name_from_uint) {
 	ck_assert_ptr_null(nv_name_from_uint(entries, 0));
 	ck_assert_str_eq(nv_name_from_uint(entries, 0xFFEEDDCC), "name2");
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_nv_join_names) {
 
-	const nv_entry_t entries_zero[] = {{ 0 }};
+	const nv_entry_t entries_zero[] = { { 0 } };
 	const nv_entry_t entries[] = {
 		{ "name1", .v.i = 1 },
 		{ "name2", .v.i = 2 },
 		{ 0 }
 	};
 
-	char *tmp;
+	char * tmp;
 
 	ck_assert_str_eq(tmp = nv_join_names(entries_zero), "");
 	free(tmp);
@@ -142,7 +150,8 @@ CK_START_TEST(test_nv_join_names) {
 	ck_assert_str_eq(tmp = nv_join_names(entries), "name1, name2");
 	free(tmp);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 struct test_rc {
 	rc_t rc;
@@ -174,7 +183,8 @@ CK_START_TEST(test_rc_callback) {
 	ck_assert_int_eq(rc.rc.count, 0);
 	ck_assert_int_eq(rc.freed, true);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_is_timespec_zero) {
 
@@ -184,7 +194,8 @@ CK_START_TEST(test_is_timespec_zero) {
 	const struct timespec ts_1 = { .tv_sec = 1, .tv_nsec = 0 };
 	ck_assert_int_eq(is_timespec_zero(&ts_1), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_difftimespec) {
 
@@ -244,7 +255,8 @@ CK_START_TEST(test_difftimespec) {
 	ck_assert_int_eq(ts.tv_sec, 2);
 	ck_assert_int_eq(ts.tv_nsec, 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ffb) {
 
@@ -266,7 +278,8 @@ CK_START_TEST(test_ffb) {
 	memcpy(ffb_u8.data, "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", 36);
 	ffb_seek(&ffb_u8, 36);
 
-	memcpy(ffb_16.data, "11223344556677889900AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ", 36 * 2);
+	memcpy(ffb_16.data, "11223344556677889900AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ",
+	       36 * 2);
 	ffb_seek(&ffb_16, 36);
 
 	ck_assert_int_eq(ffb_len_in(&ffb_u8), 64 - 36);
@@ -302,7 +315,8 @@ CK_START_TEST(test_ffb) {
 	ffb_free(&ffb_16);
 	ck_assert_ptr_null(ffb_16.data);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ffb_static) {
 
@@ -316,11 +330,12 @@ CK_START_TEST(test_ffb_static) {
 	ck_assert_uint_eq(ffb.nmemb, ARRAYSIZE(buffer));
 	ck_assert_uint_eq(ffb.size, 4);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ffb_resize) {
 
-	const char *data = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	const char * data = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	const size_t data_len = strlen(data);
 
 	ffb_t ffb = { 0 };
@@ -341,7 +356,8 @@ CK_START_TEST(test_ffb_resize) {
 
 	ffb_free(&ffb);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_bin2hex) {
 
@@ -351,7 +367,8 @@ CK_START_TEST(test_bin2hex) {
 	ck_assert_int_eq(bin2hex(bin, hex, sizeof(bin)), 12);
 	ck_assert_str_eq(hex, "deadbeef00ff");
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_hex2bin) {
 
@@ -365,7 +382,8 @@ CK_START_TEST(test_hex2bin) {
 	ck_assert_int_eq(hex2bin(hex, bin, 3), -1);
 	ck_assert_int_eq(errno, EINVAL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

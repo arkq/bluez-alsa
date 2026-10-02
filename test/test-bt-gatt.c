@@ -12,8 +12,8 @@
 #include <check.h>
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
 #include "bluez.h"
@@ -45,9 +45,9 @@ static bool characteristic_acquire_notify_callback(
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, fds);
 	characteristic_notify_fd = fds[1];
+	GVariant * params = g_variant_new("(hq)", 0, 512);
 	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, 512), fd_list);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	return true;
 }
 
@@ -58,9 +58,9 @@ static bool characteristic_acquire_write_callback(
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, fds);
 	characteristic_write_fd = fds[1];
+	GVariant * params = g_variant_new("(hq)", 0, 512);
 	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, 512), fd_list);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	return true;
 }
 
@@ -80,12 +80,13 @@ static BluetoothGATTApplication * gatt_application_new(void) {
 	const char * const flags[] = { "read", "write", "notify", NULL };
 	bluetooth_gatt_characteristic_set_flags(chr, flags);
 
-	bluetooth_gatt_characteristic_set_read_callback(chr,
-			characteristic_read_callback, NULL);
+	bluetooth_gatt_characteristic_set_read_callback(chr, characteristic_read_callback, NULL);
 	bluetooth_gatt_characteristic_set_acquire_notify_callback(chr,
-			characteristic_acquire_notify_callback, NULL);
+	                                                          characteristic_acquire_notify_callback,
+	                                                          NULL);
 	bluetooth_gatt_characteristic_set_acquire_write_callback(chr,
-			characteristic_acquire_write_callback, NULL);
+	                                                         characteristic_acquire_write_callback,
+	                                                         NULL);
 
 	return g_steal_pointer(&app);
 }
@@ -129,7 +130,8 @@ CK_START_TEST(test_bt_gatt_application_register) {
 
 	ba_adapter_unref(adapter);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_bt_gatt_characteristic_callbacks) {
 
@@ -165,7 +167,8 @@ CK_START_TEST(test_bt_gatt_characteristic_callbacks) {
 
 	ba_adapter_unref(adapter);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 static void tc_setup(void) {
 	g_printerr("\n");

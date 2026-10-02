@@ -22,18 +22,17 @@ static int get_max_volume(const struct ba_pcm * pcm) {
 	return 15;
 }
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Get or set the volume value of the given PCM.\n\n");
 	bactl_print_usage("%s [OPTION]... PCM-PATH [VOLUME [VOLUME]...]", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-			"\nPositional arguments:\n"
-			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-			"  VOLUME\tVolume value (range depends on BT transport)\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n"
+	       "\nPositional arguments:\n"
+	       "  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
+	       "  VOLUME\tVolume value (range depends on BT transport)\n");
 }
 
-static int cmd_volume_func(int argc, char *argv[]) {
+static int cmd_volume_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqv";
@@ -49,7 +48,7 @@ static int cmd_volume_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
 		default:
@@ -64,7 +63,7 @@ static int cmd_volume_func(int argc, char *argv[]) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	const char *path = argv[optind];
+	const char * path = argv[optind];
 
 	struct ba_pcm pcm;
 	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
@@ -79,7 +78,7 @@ static int cmd_volume_func(int argc, char *argv[]) {
 
 	if (argc - optind - 1 > pcm.channels) {
 		cmd_print_error("Invalid number of channels: %d > %d",
-				argc - optind - 1, pcm.channels);
+		                argc - optind - 1, pcm.channels);
 		return EXIT_FAILURE;
 	}
 

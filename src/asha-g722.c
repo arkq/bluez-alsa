@@ -55,7 +55,7 @@ void * asha_g722_enc_thread(struct ba_transport_pcm * t_pcm) {
 	const size_t g722_frame_pcm_samples = g722_frame_pcm_frames * channels;
 
 	if (ffb_init_int16_t(&pcm, g722_frame_pcm_samples) == -1 ||
-			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
+	    ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -159,7 +159,7 @@ void * asha_g722_dec_thread(struct ba_transport_pcm * t_pcm) {
 	const size_t g722_frame_pcm_samples = g722_frame_pcm_frames * channels;
 
 	if (ffb_init_int16_t(&pcm, g722_frame_pcm_samples) == -1 ||
-			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+	    ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -185,7 +185,7 @@ void * asha_g722_dec_thread(struct ba_transport_pcm * t_pcm) {
 		uint8_t expect_seq_number = seq_number++;
 		if ((missing_asha_frames = hdr_seq_number - expect_seq_number) != 0) {
 			warn("Missing ASHA packets [%u != %u]: %d",
-					hdr_seq_number, expect_seq_number, missing_asha_frames);
+			     hdr_seq_number, expect_seq_number, missing_asha_frames);
 			seq_number = hdr_seq_number + 1;
 		}
 

@@ -19,7 +19,7 @@
 struct alsa_pcm {
 
 	/* The ALSA device handle. */
-	snd_pcm_t *pcm;
+	snd_pcm_t * pcm;
 
 	snd_pcm_format_t format;
 	/* The hardware parameters actually set within the ALSA device. Note that
@@ -54,11 +54,11 @@ struct alsa_pcm {
 };
 
 void alsa_pcm_init(
-		struct alsa_pcm *pcm);
+		struct alsa_pcm * pcm);
 
 int alsa_pcm_open(
-		struct alsa_pcm *pcm,
-		const char *name,
+		struct alsa_pcm * pcm,
+		const char * name,
 		snd_pcm_format_t format_1,
 		snd_pcm_format_t format_2,
 		unsigned int channels,
@@ -66,34 +66,34 @@ int alsa_pcm_open(
 		unsigned int buffer_time,
 		unsigned int period_time,
 		int flags,
-		char **msg);
+		char ** msg);
 
 void alsa_pcm_close(
-		struct alsa_pcm *pcm);
+		struct alsa_pcm * pcm);
 
 inline static bool alsa_pcm_is_open(
-		const struct alsa_pcm *pcm) {
+		const struct alsa_pcm * pcm) {
 	return pcm->pcm != NULL;
 }
 
 inline static bool alsa_pcm_is_running(
-		const struct alsa_pcm *pcm) {
+		const struct alsa_pcm * pcm) {
 	return alsa_pcm_is_open(pcm) && snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING;
 }
 
 inline static ssize_t alsa_pcm_frames_to_bytes(
-		const struct alsa_pcm *pcm,
+		const struct alsa_pcm * pcm,
 		snd_pcm_sframes_t frames) {
 	return snd_pcm_frames_to_bytes(pcm->pcm, frames);
 }
 
 int alsa_pcm_write(
-		struct alsa_pcm *pcm,
-		ffb_t *buffer,
+		struct alsa_pcm * pcm,
+		ffb_t * buffer,
 		bool drain);
 
 void alsa_pcm_dump(
-		const struct alsa_pcm *pcm,
-		FILE *fp);
+		const struct alsa_pcm * pcm,
+		FILE * fp);
 
 #endif

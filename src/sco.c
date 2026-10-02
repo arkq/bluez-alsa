@@ -74,7 +74,7 @@ static int sco_connection_dispatcher(
 	const uint32_t codec_id = ba_transport_get_codec(t);
 	struct bt_voice voice = { .setting = BT_VOICE_TRANSPARENT };
 	if ((codec_id == HFP_CODEC_MSBC || codec_id == HFP_CODEC_LC3_SWB) &&
-			setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
+	    setsockopt(fd, SOL_BLUETOOTH, BT_VOICE, &voice, sizeof(voice)) == -1) {
 		error("Couldn't setup transparent voice: %s", strerror(errno));
 		goto cleanup;
 	}
@@ -126,15 +126,15 @@ error_code_t sco_setup_connection_dispatcher(struct ba_adapter * a) {
 		debug("Checking Broadcom internal SCO routing");
 
 		if ((dd = hci_open_dev(a->hci.dev_id)) == -1 ||
-				hci_bcm_read_sco_pcm_params(dd, &routing, &clock, &frame, &sync, &clk, 1000) == -1)
+		    hci_bcm_read_sco_pcm_params(dd, &routing, &clock, &frame, &sync, &clk, 1000) == -1)
 			error("Couldn't read SCO routing params: %s", strerror(errno));
 		else {
 			debug("Current SCO interface setup: %u %u %u %u %u", routing, clock, frame, sync, clk);
 			if (routing != BT_BCM_PARAM_ROUTING_TRANSPORT) {
 				debug("Setting SCO routing via transport interface");
 				if (hci_bcm_write_sco_pcm_params(dd, BT_BCM_PARAM_ROUTING_TRANSPORT,
-						clock, frame, sync, clk, 1000) == -1)
-				error("Couldn't write SCO routing params: %s", strerror(errno));
+				                                 clock, frame, sync, clk, 1000) == -1)
+					error("Couldn't write SCO routing params: %s", strerror(errno));
 			}
 		}
 
@@ -162,14 +162,14 @@ error_code_t sco_setup_connection_dispatcher(struct ba_adapter * a) {
 	 * available during the whole live-span of the dispatcher, because the
 	 * dispatcher is destroyed in the adapter cleanup routine. For details
 	 * see the ba_adapter_unref() function. */
-	a->sco_dispatcher = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
-			G_IO_IN, sco_connection_dispatcher, a, NULL);
+	a->sco_dispatcher = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
+	                                           sco_connection_dispatcher, a, NULL);
 
 	debug("Created SCO dispatcher: %s", a->hci.name);
 	return ERROR_CODE_OK;
 }
 
-void *sco_enc_thread(struct ba_transport_pcm *pcm) {
+void * sco_enc_thread(struct ba_transport_pcm * pcm) {
 	switch (ba_transport_get_codec(pcm->t)) {
 	case HFP_CODEC_CVSD:
 	default:
@@ -186,7 +186,7 @@ void *sco_enc_thread(struct ba_transport_pcm *pcm) {
 }
 
 __attribute__ ((weak))
-void *sco_dec_thread(struct ba_transport_pcm *pcm) {
+void * sco_dec_thread(struct ba_transport_pcm * pcm) {
 	switch (ba_transport_get_codec(pcm->t)) {
 	case HFP_CODEC_CVSD:
 	default:
@@ -241,15 +241,15 @@ error_code_t sco_transport_init(struct ba_transport * t) {
 
 	if (t->sco.pcm_spk.ba_dbus_exported)
 		bluealsa_dbus_pcm_update(&t->sco.pcm_spk,
-				BA_DBUS_PCM_UPDATE_RATE |
-				BA_DBUS_PCM_UPDATE_CODEC |
-				BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
+		                         BA_DBUS_PCM_UPDATE_RATE |
+		                         BA_DBUS_PCM_UPDATE_CODEC |
+		                         BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
 
 	if (t->sco.pcm_mic.ba_dbus_exported)
 		bluealsa_dbus_pcm_update(&t->sco.pcm_mic,
-				BA_DBUS_PCM_UPDATE_RATE |
-				BA_DBUS_PCM_UPDATE_CODEC |
-				BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
+		                         BA_DBUS_PCM_UPDATE_RATE |
+		                         BA_DBUS_PCM_UPDATE_CODEC |
+		                         BA_DBUS_PCM_UPDATE_CLIENT_DELAY);
 
 	return ERROR_CODE_OK;
 }

@@ -57,18 +57,18 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t * conf, unsigned int quality) {
 	uint8_t bitpool = SBC_MIN_BITPOOL;
 
 	if (quality == SBC_QUALITY_XQ ||
-			quality == SBC_QUALITY_XQPLUS) {
+	    quality == SBC_QUALITY_XQPLUS) {
 		/* Check whether XQ/XQ+ is possible. If not,
 		 * downgrade to high quality. */
 		if (conf->sampling_freq == SBC_SAMPLING_FREQ_44100 &&
-				conf->channel_mode == SBC_CHANNEL_MODE_DUAL_CHANNEL &&
-				conf->block_length == SBC_BLOCK_LENGTH_16 &&
-				conf->subbands == SBC_SUBBANDS_8 &&
-				conf->allocation_method == SBC_ALLOCATION_LOUDNESS)
+		    conf->channel_mode == SBC_CHANNEL_MODE_DUAL_CHANNEL &&
+		    conf->block_length == SBC_BLOCK_LENGTH_16 &&
+		    conf->subbands == SBC_SUBBANDS_8 &&
+		    conf->allocation_method == SBC_ALLOCATION_LOUDNESS)
 			bitpool = quality == SBC_QUALITY_XQ ? 38 : 47;
 		else {
 			warn("Unable to use SBC %s, downgrading to high quality",
-					quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
+			     quality == SBC_QUALITY_XQ ? "XQ" : "XQ+");
 			quality = SBC_QUALITY_HIGH;
 		}
 	}
@@ -110,10 +110,10 @@ uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t * conf, unsigned int quality) {
 
 #if ENABLE_FASTSTREAM
 
-static int sbc_set_a2dp_faststream(sbc_t *sbc,
-		const void *conf, size_t size, bool voice) {
+static int sbc_set_a2dp_faststream(sbc_t * sbc,
+		const void * conf, size_t size, bool voice) {
 
-	const a2dp_faststream_t *a2dp = conf;
+	const a2dp_faststream_t * a2dp = conf;
 	if (size != sizeof(*a2dp))
 		return -EINVAL;
 
@@ -174,8 +174,8 @@ static int sbc_set_a2dp_faststream(sbc_t *sbc,
  * @param voice It true, SBC will be initialized for voice direction.
  * @return This function returns 0 on success or a negative error value
  *   in case of SBC audio codec initialization failure. */
-int sbc_init_a2dp_faststream(sbc_t *sbc, unsigned long flags,
-		const void *conf, size_t size, bool voice) {
+int sbc_init_a2dp_faststream(sbc_t * sbc, unsigned long flags,
+		const void * conf, size_t size, bool voice) {
 
 	int rv;
 	if ((rv = sbc_init(sbc, flags)) != 0)
@@ -199,8 +199,8 @@ int sbc_init_a2dp_faststream(sbc_t *sbc, unsigned long flags,
  * @param voice It true, SBC will be initialized for voice direction.
  * @return This function returns 0 on success or a negative error value
  *   in case of SBC audio codec initialization failure. */
-int sbc_reinit_a2dp_faststream(sbc_t *sbc, unsigned long flags,
-		const void *conf, size_t size, bool voice) {
+int sbc_reinit_a2dp_faststream(sbc_t * sbc, unsigned long flags,
+		const void * conf, size_t size, bool voice) {
 	int rv;
 	if ((rv = sbc_reinit(sbc, flags)) != 0)
 		return rv;
@@ -214,7 +214,7 @@ int sbc_reinit_a2dp_faststream(sbc_t *sbc, unsigned long flags,
  *
  * @param err The encode/decode error code.
  * @return Human-readable string. */
-const char *sbc_strerror(int err) {
+const char * sbc_strerror(int err) {
 	if (err >= 0)
 		return "Success";
 	switch (err) {
@@ -238,15 +238,15 @@ const char *sbc_strerror(int err) {
 }
 
 #if DEBUG
-void sbc_print_internals(const sbc_t *sbc) {
+void sbc_print_internals(const sbc_t * sbc) {
 
-	static const char *mode[] = {
+	static const char * mode[] = {
 		[SBC_MODE_MONO] = "Mono",
 		[SBC_MODE_DUAL_CHANNEL] = "DualChannel",
 		[SBC_MODE_STEREO] = "Stereo",
 		[SBC_MODE_JOINT_STEREO] = "JointStereo",
 	};
-	static const char *allocation[] = {
+	static const char * allocation[] = {
 		[SBC_AM_LOUDNESS] = "Loudness",
 		[SBC_AM_SNR] = "SNR",
 	};
@@ -258,16 +258,16 @@ void sbc_print_internals(const sbc_t *sbc) {
 	};
 
 	const unsigned int br = 8 * sbc_get_frame_length((sbc_t *)sbc) * rate[sbc->frequency] /
-		((sbc->subbands + 1) * 4) / ((sbc->blocks + 1) * 4);
+	                        ((sbc->subbands + 1) * 4) / ((sbc->blocks + 1) * 4);
 
 	debug("SBC setup: %u Hz %s allocation=%s blocks=%u sub-bands=%u bit-pool=%u => %u bps",
-			rate[sbc->frequency],
-			mode[sbc->mode],
-			allocation[sbc->allocation],
-			(sbc->blocks + 1) * 4,
-			(sbc->subbands + 1) * 4,
-			sbc->bitpool,
-			br);
+	      rate[sbc->frequency],
+	      mode[sbc->mode],
+	      allocation[sbc->allocation],
+	      (sbc->blocks + 1) * 4,
+	      (sbc->subbands + 1) * 4,
+	      sbc->bitpool,
+	      br);
 
 }
 #endif

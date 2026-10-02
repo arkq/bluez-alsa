@@ -8,8 +8,8 @@
 #ifndef BLUEALSA_BT_ASHA_H_
 #define BLUEALSA_BT_ASHA_H_
 
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
 
@@ -18,7 +18,7 @@ G_DECLARE_FINAL_TYPE(BluetoothASHA, bluetooth_asha, BLUETOOTH, ASHA, GObject)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(BluetoothASHA, g_object_unref)
 
 BluetoothASHA * bluetooth_asha_new(
-		struct ba_adapter * adapter,
-		const char * path);
+	struct ba_adapter * adapter,
+	const char * path);
 
 #endif

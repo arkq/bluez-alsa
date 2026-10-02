@@ -19,8 +19,8 @@
  * Generate sine S16_2LE PCM signal.
  *
  * @param dest Address of the PCM buffer, where the data will be stored.
-     This buffer has to be big enough to store channels * frames number of
-     PCM samples.
+ *   This buffer has to be big enough to store channels * frames number of
+ *   PCM samples.
  * @param channels Number of channels per PCM frame. The sine wave for each
  *   channel is phase shifted by PI/3.3.
  * @param frames The number of PCM frames to generate.

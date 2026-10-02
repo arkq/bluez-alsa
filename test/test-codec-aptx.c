@@ -8,13 +8,13 @@
 # include <config.h>
 #endif
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include <check.h>
 
-#include "fixtures.h"
 #include "codec-aptx.h"
+#include "fixtures.h"
 #include "shared/defs.h"
 
 #if ENABLE_APTX
@@ -44,7 +44,8 @@ CK_START_TEST(test_codec_aptx_encode) {
 
 	aptxenc_destroy(handle);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_APTX && HAVE_APTX_DECODE
@@ -73,7 +74,8 @@ CK_START_TEST(test_codec_aptx_decode) {
 
 	aptxdec_destroy(handle);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_APTX_HD
@@ -103,7 +105,8 @@ CK_START_TEST(test_codec_aptx_hd_encode) {
 
 	aptxhdenc_destroy(handle);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_APTX_HD && HAVE_APTX_HD_DECODE
@@ -132,7 +135,8 @@ CK_START_TEST(test_codec_aptx_hd_decode) {
 
 	aptxhddec_destroy(handle);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 int main(void) {

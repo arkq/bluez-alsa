@@ -34,9 +34,9 @@
 #include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
 
-static struct ba_adapter *adapter = NULL;
-static struct ba_device *device1 = NULL;
-static struct ba_device *device2 = NULL;
+static struct ba_adapter * adapter = NULL;
+static struct ba_device * device1 = NULL;
+static struct ba_device * device2 = NULL;
 
 static pthread_mutex_t dbus_update_mtx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t dbus_update_cond = PTHREAD_COND_INITIALIZER;
@@ -46,65 +46,74 @@ static struct {
 	unsigned int battery;
 } dbus_update_counters;
 
-static void dbus_update_counters_wait(unsigned int *counter, unsigned int value) {
+static void dbus_update_counters_wait(unsigned int * counter, unsigned int value) {
 	pthread_mutex_lock(&dbus_update_mtx);
 	while (*counter != value)
 		pthread_cond_wait(&dbus_update_cond, &dbus_update_mtx);
 	pthread_mutex_unlock(&dbus_update_mtx);
 }
 
-int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
-int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
-int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
-int storage_pcm_data_update(const struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
+int storage_device_load(const struct ba_device * d) { (void)d; return 0; }
+int storage_device_save(const struct ba_device * d) { (void)d; return 0; }
+int storage_pcm_data_sync(struct ba_transport_pcm * pcm) { (void)pcm; return 0; }
+int storage_pcm_data_update(const struct ba_transport_pcm * pcm) { (void)pcm; return 0; }
 
-int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
+int bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
 	debug("%s: %p", __func__, (void *)pcm);
 	pcm->ba_dbus_exported = true;
-	return 0; }
-void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
+	return 0;
+}
+void bluealsa_dbus_pcm_update(struct ba_transport_pcm * pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm;
 	pthread_mutex_lock(&dbus_update_mtx);
 	dbus_update_counters.codec += !!(mask & BA_DBUS_PCM_UPDATE_CODEC);
 	dbus_update_counters.volume += !!(mask & BA_DBUS_PCM_UPDATE_VOLUME);
 	pthread_mutex_unlock(&dbus_update_mtx);
-	pthread_cond_signal(&dbus_update_cond); }
-void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
-int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); (void)r; return 0; }
-void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
+	pthread_cond_signal(&dbus_update_cond);
+}
+void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm * pcm) {
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm;
+}
+int bluealsa_dbus_rfcomm_register(struct ba_rfcomm * r) {
+	debug("%s: %p", __func__, (void *)r); (void)r;
+	return 0;
+}
+void bluealsa_dbus_rfcomm_update(struct ba_rfcomm * r, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)r, mask); (void)r;
 	pthread_mutex_lock(&dbus_update_mtx);
 	dbus_update_counters.battery += !!(mask & BA_DBUS_RFCOMM_UPDATE_BATTERY);
 	pthread_mutex_unlock(&dbus_update_mtx);
-	pthread_cond_signal(&dbus_update_cond); }
-void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); (void)r; }
-bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep_config *sep, const void *configuration, GError **error) {
+	pthread_cond_signal(&dbus_update_cond);
+}
+void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm * r) {
+	debug("%s: %p", __func__, (void *)r); (void)r;
+}
+bool bluez_a2dp_set_configuration(const char * current_dbus_sep_path,
+		const struct a2dp_sep_config * sep, const void * configuration, GError ** error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
-	return false; }
-void bluez_battery_provider_update(struct ba_device *device) {
-	debug("%s: %p", __func__, device); (void)device; }
+	return false;
+}
+void bluez_battery_provider_update(struct ba_device * device) {
+	debug("%s: %p", __func__, device); (void)device;
+}
 
 #define ck_assert_rfcomm_recv(fd, command) { \
-	char buffer[sizeof(command)] = { 0 }; \
-	const ssize_t len = strlen(command); \
-	ck_assert_int_eq(read(fd, buffer, sizeof(buffer) - 1), len); \
-	ck_assert_str_eq(buffer, command); }
+		char buffer[sizeof(command)] = { 0 }; \
+		const ssize_t len = strlen(command); \
+		ck_assert_int_eq(read(fd, buffer, sizeof(buffer) - 1), len); \
+		ck_assert_str_eq(buffer, command); }
 
 #define ck_assert_rfcomm_send(fd, command) { \
-	const ssize_t len = strlen(command); \
-	ck_assert_int_eq(write(fd, command, len), len); }
+		const ssize_t len = strlen(command); \
+		ck_assert_int_eq(write(fd, command, len), len); }
 
 CK_START_TEST(test_rfcomm_hsp_ag) {
 
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-	struct ba_transport *sco = ba_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HSP_AG, ":test", "/sco", fds[0]);
+	struct ba_transport * sco = ba_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HSP_AG,
+	                                                 ":test", "/sco", fds[0]);
 	const int fd = fds[1];
 
 	/* check support for setting microphone gain */
@@ -129,14 +138,15 @@ CK_START_TEST(test_rfcomm_hsp_ag) {
 	ba_transport_destroy(sco);
 	close(fd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_rfcomm_hsp_hs) {
 
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-	struct ba_transport *sco = ba_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HSP_HS, ":test", "/sco", fds[0]);
+	struct ba_transport * sco = ba_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HSP_HS,
+	                                                 ":test", "/sco", fds[0]);
 	const int fd = fds[1];
 
 	/* wait for initial microphone gain */
@@ -169,11 +179,12 @@ CK_START_TEST(test_rfcomm_hsp_hs) {
 	ba_transport_destroy(sco);
 	close(fd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 #if ENABLE_HFP_CODEC_SELECTION
-static void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
-	struct ba_transport *sco = userdata;
+static void * test_rfcomm_hfp_ag_switch_codecs(void * userdata) {
+	struct ba_transport * sco = userdata;
 	pthread_mutex_lock(&sco->codec_select_client_mtx);
 	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_CVSD), 0);
 	/* The test code rejects first codec selection request for mSBC. */
@@ -188,8 +199,8 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-	struct ba_transport *sco = ba_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco", fds[0]);
+	struct ba_transport * sco = ba_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                 ":test", "/sco", fds[0]);
 	const int fd = fds[1];
 
 	/* SLC initialization shall be started by the HF */
@@ -208,21 +219,21 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	/* verify that AG supports codec negotiation and eSCO */
 	ck_assert_int_ne(2784 & (HFP_AG_FEAT_CODEC | HFP_AG_FEAT_ESCO), 0);
 	/* codec negotiation */
-#if ENABLE_MSBC && ENABLE_LC3_SWB
+# if ENABLE_MSBC && ENABLE_LC3_SWB
 	ck_assert_rfcomm_send(fd, "AT+BAC=1,2,3\r");
-#elif ENABLE_MSBC
+# elif ENABLE_MSBC
 	ck_assert_rfcomm_send(fd, "AT+BAC=1,2\r");
-#elif ENABLE_LC3_SWB
+# elif ENABLE_LC3_SWB
 	ck_assert_rfcomm_send(fd, "AT+BAC=1,3\r");
-#endif
+# endif
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 #endif
 
 	/* AG indicators: retrieve supported indicators and their ordering */
 	ck_assert_rfcomm_send(fd, "AT+CIND=?\r");
-	ck_assert_rfcomm_recv(fd,
-			"\r\n+CIND:(\"service\",(0,1)),(\"call\",(0,1)),(\"callsetup\",(0-3)),"
-			"(\"callheld\",(0-2)),(\"signal\",(0-5)),(\"roam\",(0,1)),(\"battchg\",(0-5))\r\n");
+	ck_assert_rfcomm_recv(fd, "\r\n+CIND:(\"service\",(0,1)),(\"call\",(0,1)),"
+	                      "(\"callsetup\",(0-3)),(\"callheld\",(0-2)),(\"signal\",(0-5)),"
+	                      "(\"roam\",(0,1)),(\"battchg\",(0-5))\r\n");
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 
 	/* AG indicators: retrieve the current status of the indicators */
@@ -267,7 +278,7 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ck_assert_rfcomm_recv(fd, "\r\n+BCS:2\r\n");
 	ck_assert_rfcomm_send(fd, "AT+BCS=2\r");
 # else
-# error "Invalid codec configuration"
+#  error "Invalid codec configuration"
 # endif
 	ck_assert_rfcomm_recv(fd, "\r\nOK\r\n");
 	dbus_update_counters_wait(&dbus_update_counters.codec, 2);
@@ -276,7 +287,7 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 #if ENABLE_MSBC
 
 	/* use internal API to select the codec */
-	GThread *th = g_thread_new(NULL, test_rfcomm_hfp_ag_switch_codecs, sco);
+	GThread * th = g_thread_new(NULL, test_rfcomm_hfp_ag_switch_codecs, sco);
 
 	ck_assert_rfcomm_recv(fd, "\r\n+BCS:1\r\n");
 	ck_assert_rfcomm_send(fd, "AT+BCS=1\r");
@@ -309,7 +320,7 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ck_assert_rfcomm_recv(fd, "");
 
 	const int level = -1000;
-	struct ba_transport_pcm *pcm = &sco->sco.pcm_spk;
+	struct ba_transport_pcm * pcm = &sco->sco.pcm_spk;
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_volume_set(&pcm->volume[0], &level, NULL, NULL);
 	pthread_mutex_unlock(&pcm->mutex);
@@ -320,14 +331,15 @@ CK_START_TEST(test_rfcomm_hfp_ag) {
 	ba_transport_destroy(sco);
 	close(fd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_rfcomm_hfp_hf) {
 
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-	struct ba_transport *sco = ba_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco", fds[0]);
+	struct ba_transport * sco = ba_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HFP_HF,
+	                                                 ":test", "/sco", fds[0]);
 	const int fd = fds[1];
 
 	/* SLC initialization shall be started by the HF */
@@ -358,9 +370,9 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 
 	/* AG indicators: retrieve supported indicators and their ordering */
 	ck_assert_rfcomm_recv(fd, "AT+CIND=?\r");
-	ck_assert_rfcomm_send(fd,
-			"\r\n+CIND:(\"service\",(0,1)),(\"call\",(0,1)),(\"callsetup\",(0-3)),"
-			"(\"callheld\",(0-2)),(\"signal\",(0-5)),(\"roam\",(0,1)),(\"battchg\",(0-5))\r\n");
+	ck_assert_rfcomm_send(fd, "\r\n+CIND:(\"service\",(0,1)),(\"call\",(0,1)),"
+	                      "(\"callsetup\",(0-3)),(\"callheld\",(0-2)),(\"signal\",(0-5)),"
+	                      "(\"roam\",(0,1)),(\"battchg\",(0-5))\r\n");
 	ck_assert_rfcomm_send(fd, "\r\nOK\r\n");
 
 	/* AG indicators: retrieve the current status of the indicators */
@@ -429,7 +441,8 @@ CK_START_TEST(test_rfcomm_hfp_hf) {
 	ba_transport_destroy(sco);
 	close(fd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_rfcomm_self_hfp_slc) {
 
@@ -440,10 +453,10 @@ CK_START_TEST(test_rfcomm_self_hfp_slc) {
 	int fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
 
-	struct ba_transport *ag = ba_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HFP_AG, ":test", "/sco/ag", fds[0]);
-	struct ba_transport *hf = ba_transport_new_sco(device2,
-			BA_TRANSPORT_PROFILE_HFP_HF, ":test", "/sco/hf", fds[1]);
+	struct ba_transport * ag = ba_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                ":test", "/sco/ag", fds[0]);
+	struct ba_transport * hf = ba_transport_new_sco(device2, BA_TRANSPORT_PROFILE_HFP_HF,
+	                                                ":test", "/sco/hf", fds[1]);
 
 	ck_assert_int_eq(ba_transport_get_codec(ag), HFP_CODEC_CVSD);
 	ck_assert_int_eq(ba_transport_get_codec(hf), HFP_CODEC_CVSD);
@@ -474,7 +487,8 @@ CK_START_TEST(test_rfcomm_self_hfp_slc) {
 	ck_assert_int_eq(device2->_rc.count, 1);
 	pthread_mutex_unlock(&adapter->devices_mutex);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 static void tc_setup(void) {
 
@@ -499,9 +513,9 @@ int main(void) {
 	sigaction(SIGPIPE, &sigact, NULL);
 
 	adapter = ba_adapter_new(0);
-	bdaddr_t addr1 = {{ 1, 1, 1, 1, 1, 1 }};
+	bdaddr_t addr1 = { { 1, 1, 1, 1, 1, 1 } };
 	device1 = ba_device_new(adapter, &addr1);
-	bdaddr_t addr2 = {{ 2, 2, 2, 2, 2, 2 }};
+	bdaddr_t addr2 = { { 2, 2, 2, 2, 2, 2 } };
 	device2 = ba_device_new(adapter, &addr2);
 
 	Suite * s = suite_create(__FILE__);

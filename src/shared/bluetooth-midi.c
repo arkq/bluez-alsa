@@ -22,37 +22,37 @@
  * Determine the length of the MIDI message based on the status byte. */
 static size_t ble_midi_message_len(uint8_t status) {
 	switch (status & 0xF0) {
-	case 0x80 /* note off */ :
-	case 0x90 /* note on */ :
-	case 0xA0 /* polyphonic key pressure */ :
-	case 0xB0 /* control change */ :
+	case 0x80 /* note off */:
+	case 0x90 /* note on */:
+	case 0xA0 /* polyphonic key pressure */:
+	case 0xB0 /* control change */:
 		return 3;
-	case 0xC0 /* program change */ :
-	case 0xD0 /* channel pressure */ :
+	case 0xC0 /* program change */:
+	case 0xD0 /* channel pressure */:
 		return 2;
-	case 0xE0 /* pitch bend */ :
+	case 0xE0 /* pitch bend */:
 		return 3;
-	case 0xF0 /* system messages */ :
+	case 0xF0 /* system messages */:
 		switch (status) {
-		case 0xF0 /* system exclusive start */ :
+		case 0xF0 /* system exclusive start */:
 			/* System exclusive message size is unknown. It is just a
 			 * stream of bytes terminated by the system exclusive end
 			 * status byte. */
 			return SIZE_MAX;
-		case 0xF1 /* MIDI timing code */ :
+		case 0xF1 /* MIDI timing code */:
 			return 2;
-		case 0xF2 /* song position pointer */ :
+		case 0xF2 /* song position pointer */:
 			return 3;
-		case 0xF3 /* song select */ :
+		case 0xF3 /* song select */:
 			return 2;
-		case 0xF6 /* tune request */ :
-		case 0xF7 /* system exclusive end */ :
-		case 0xF8 /* timing clock */ :
-		case 0xFA /* start sequence */ :
-		case 0xFB /* continue sequence */ :
-		case 0xFC /* stop sequence */ :
-		case 0xFE /* active sensing */ :
-		case 0xFF /* system reset */ :
+		case 0xF6 /* tune request */:
+		case 0xF7 /* system exclusive end */:
+		case 0xF8 /* timing clock */:
+		case 0xFA /* start sequence */:
+		case 0xFB /* continue sequence */:
+		case 0xFC /* stop sequence */:
+		case 0xFE /* active sensing */:
+		case 0xFF /* system reset */:
 			return 1;
 		}
 	}
@@ -69,7 +69,7 @@ static uint8_t * ble_midi_get_sys_buffer(
 	if (bmd->buffer_sys_len + len <= bmd->buffer_sys_size)
 		goto final;
 
-	uint8_t *tmp = bmd->buffer_sys;
+	uint8_t * tmp = bmd->buffer_sys;
 	size_t size = bmd->buffer_sys_size + MAX(len, 512);
 	if ((tmp = realloc(tmp, size * sizeof(*tmp))) == NULL) {
 		warn("Couldn't resize BLE-MIDI SysEx buffer: %s", strerror(errno));
@@ -159,7 +159,9 @@ retry:
 
 		struct timespec ts = {
 			.tv_sec = ts_high_low_diff / 1000,
-			.tv_nsec = (ts_high_low_diff % 1000) * 1000000 };
+			.tv_nsec = (ts_high_low_diff % 1000) * 1000000,
+		};
+
 		timespecadd(&bmd->ts, &ts, &bmd->ts);
 
 		/* Check timestamp drift based on the first timestamp byte in the
@@ -219,7 +221,7 @@ retry:
 		if (data[bm_current_len] & 0x80) {
 
 			switch (bm_status = data[bm_current_len]) {
-			case 0xF0 /* system exclusive start */ :
+			case 0xF0 /* system exclusive start */:
 				/* System exclusive message needs to be stored in a dedicated buffer.
 				 * First of all, it can span multiple BLE-MIDI packets. Secondly, it
 				 * can be interleaved with MIDI real-time messages. */
@@ -228,7 +230,7 @@ retry:
 				bm_buffer_len = bmd->buffer_sys_len;
 				bmd->status_sys = true;
 				break;
-			case 0xF7 /* system exclusive end */ :
+			case 0xF7 /* system exclusive end */:
 				bmd->status_sys = false;
 				break;
 			}
@@ -259,8 +261,8 @@ retry:
 	/* Extract MIDI message data bytes. All these bytes shall have
 	 * bit 7 set to 0. */
 	while (--midi_msg_len > 0 && !(data[bm_current_len] & 0x80) &&
-			/* Make sure that we do not overflow the buffer. */
-			bm_buffer_len < bm_buffer_size) {
+	       /* Make sure that we do not overflow the buffer. */
+	       bm_buffer_len < bm_buffer_size) {
 		bm_buffer[bm_buffer_len++] = data[bm_current_len];
 		if (++bm_current_len == len)
 			goto final;
@@ -308,10 +310,10 @@ final:
 	bmd->current_len = bm_current_len;
 
 	switch (bm_status) {
-	case 0xF0 /* system exclusive start */ :
+	case 0xF0 /* system exclusive start */:
 		bmd->buffer_sys_len = bm_buffer_len;
 		goto reset;
-	case 0xF7 /* system exclusive end */ :
+	case 0xF7 /* system exclusive end */:
 		bmd->buffer_sys_len = 0;
 		break;
 	}
@@ -372,7 +374,7 @@ int ble_midi_encode(
 
 	if (enc->len == 0) {
 		/* Construct the BLE-MIDI header with the most significant
-		* 6 bits of the 13-bits milliseconds timestamp. */
+		 * 6 bits of the 13-bits milliseconds timestamp. */
 		enc->buffer[enc->len++] = 0x80 | ((ts_high_low >> 7) & 0x3F);
 	}
 

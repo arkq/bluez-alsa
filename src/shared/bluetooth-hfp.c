@@ -92,7 +92,7 @@ uint8_t hfp_codec_from_string(const char * alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
-					strcasecmp(codecs[i].aliases[n], alias) == 0)
+			    strcasecmp(codecs[i].aliases[n], alias) == 0)
 				return codecs[i].codec;
 	return HFP_CODEC_UNDEFINED;
 }

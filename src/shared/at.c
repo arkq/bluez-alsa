@@ -20,8 +20,8 @@
  *
  * @param type AT message type.
  * @return Human-readable string. */
-const char *at_type2str(enum bt_at_type type) {
-	static const char *types[__AT_TYPE_MAX] = {
+const char * at_type2str(enum bt_at_type type) {
+	static const char * types[__AT_TYPE_MAX] = {
 		[AT_TYPE_RAW] = "RAW",
 		[AT_TYPE_CMD] = "CMD",
 		[AT_TYPE_CMD_GET] = "GET",
@@ -44,8 +44,8 @@ const char *at_type2str(enum bt_at_type type) {
  *   be build.
  * @param value AT command value or unsolicited response code.
  * @return Pointer to the destination buffer. */
-char *at_build(char *buffer, size_t size, enum bt_at_type type,
-		const char *command, const char *value) {
+char * at_build(char * buffer, size_t size, enum bt_at_type type,
+		const char * command, const char * value) {
 	switch (type) {
 	case AT_TYPE_RAW:
 		snprintf(buffer, size, "%s", command);
@@ -84,12 +84,12 @@ char *at_build(char *buffer, size_t size, enum bt_at_type type,
  *   within the input string. If the input string contains only one message,
  *   returned value will point to the end null byte. On error, this function
  *   returns NULL. */
-char *at_parse(const char *str, struct bt_at *at) {
+char * at_parse(const char * str, struct bt_at * at) {
 
-	char *command = at->command;
+	char * command = at->command;
 	bool is_command = false;
-	const char *feed;
-	char *tmp;
+	const char * feed;
+	char * tmp;
 
 	/* locate <CR> character, which indicates end of message */
 	if ((feed = strchr(str, '\r')) == NULL)
@@ -179,7 +179,7 @@ char *at_parse(const char *str, struct bt_at *at) {
  * @param str Command value string.
  * @param state Array with the state to be updated.
  * @return On success this function returns 0, otherwise -1 is returned. */
-int at_parse_set_bia(const char *str, bool state[__HFP_IND_MAX]) {
+int at_parse_set_bia(const char * str, bool state[__HFP_IND_MAX]) {
 
 	enum hfp_ind ind = HFP_IND_NULL + 1;
 	while (ind < __HFP_IND_MAX && *str != '\0') {
@@ -213,10 +213,10 @@ int at_parse_set_bia(const char *str, bool state[__HFP_IND_MAX]) {
  * @param map Address where the mapping between the indicator index and the
  *   HFP indicator type will be stored.
  * @return On success this function returns 0, otherwise -1 is returned. */
-int at_parse_get_cind(const char *str, enum hfp_ind map[20]) {
+int at_parse_get_cind(const char * str, enum hfp_ind map[20]) {
 
 	static const struct {
-		const char *str;
+		const char * str;
 		enum hfp_ind ind;
 	} mapping[] = {
 		{ "service", HFP_IND_SERVICE },
@@ -253,9 +253,9 @@ int at_parse_get_cind(const char *str, enum hfp_ind map[20]) {
  * @param str CMER command value string.
  * @param map Address where the CMER values will be stored.
  * @return On success this function returns 0, otherwise -1 is returned. */
-int at_parse_set_cmer(const char *str, unsigned int map[5]) {
+int at_parse_set_cmer(const char * str, unsigned int map[5]) {
 
-	char *tmp;
+	char * tmp;
 
 	for (size_t i = 0; i < 5; i++) {
 		while (isspace(*str) || *str == ',')
@@ -279,8 +279,8 @@ int at_parse_set_cmer(const char *str, unsigned int map[5]) {
  * @param version Address where the version number will be stored.
  * @param features Address where the features bitmap will be stored.
  * @return On success this function returns 0, otherwise -1 is returned. */
-int at_parse_set_xapl(const char *str, uint16_t *vendor, uint16_t *product,
-		uint16_t *version, uint8_t *features) {
+int at_parse_set_xapl(const char * str, uint16_t * vendor, uint16_t * product,
+		uint16_t * version, uint8_t * features) {
 
 	unsigned int _vendor, _product, _version, _features;
 	int n = 0;

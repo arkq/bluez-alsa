@@ -33,9 +33,9 @@ static const struct {
 	{ A2DP_CODEC_VENDOR_ID(LHDC_V2_VENDOR_ID, LHDC_V2_CODEC_ID), { "LHDC-v2" } },
 	{ A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID), { "LHDC-v3", "LHDC-v4", "LLAC" } },
 	{ A2DP_CODEC_VENDOR_ID(LHDC_V5_VENDOR_ID, LHDC_V5_CODEC_ID), { "LHDC-v5" } },
-	{ A2DP_CODEC_VENDOR_ID(LHDC_LL_VENDOR_ID, LHDC_LL_CODEC_ID), { "LHDC-LL"} },
-	{ A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID), { "Opus"} },
-	{ A2DP_CODEC_VENDOR_ID(OPUS_PW_VENDOR_ID, OPUS_PW_CODEC_ID), { "Opus-PW"} },
+	{ A2DP_CODEC_VENDOR_ID(LHDC_LL_VENDOR_ID, LHDC_LL_CODEC_ID), { "LHDC-LL" } },
+	{ A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID), { "Opus" } },
+	{ A2DP_CODEC_VENDOR_ID(OPUS_PW_VENDOR_ID, OPUS_PW_CODEC_ID), { "Opus-PW" } },
 	{ A2DP_CODEC_VENDOR_ID(SAMSUNG_HD_VENDOR_ID, SAMSUNG_HD_CODEC_ID), { "samsung-HD" } },
 	{ A2DP_CODEC_VENDOR_ID(SAMSUNG_SC_VENDOR_ID, SAMSUNG_SC_CODEC_ID), { "samsung-SC" } },
 };
@@ -44,7 +44,7 @@ uint32_t a2dp_codec_from_string(const char * alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
-					strcasecmp(codecs[i].aliases[n], alias) == 0)
+			    strcasecmp(codecs[i].aliases[n], alias) == 0)
 				return codecs[i].codec;
 	return A2DP_CODEC_UNDEFINED;
 }
@@ -66,7 +66,7 @@ const char * a2dp_codec_canonical_name(const char * alias) {
 	for (size_t i = 0; i < ARRAYSIZE(codecs); i++)
 		for (size_t n = 0; n < ARRAYSIZE(codecs[i].aliases); n++)
 			if (codecs[i].aliases[n] != NULL &&
-					strcasecmp(codecs[i].aliases[n], alias) == 0)
+			    strcasecmp(codecs[i].aliases[n], alias) == 0)
 				return codecs[i].aliases[0];
 	return alias;
 }

@@ -52,7 +52,8 @@ CK_START_TEST(test_sbc_a2dp_get_bitpool) {
 	conf.channel_mode = SBC_CHANNEL_MODE_STEREO;
 	ck_assert_int_eq(sbc_a2dp_get_bitpool(&conf, SBC_QUALITY_HIGH), 53);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 #if ENABLE_FASTSTREAM
 CK_START_TEST(test_sbc_init_a2dp_faststream) {
@@ -86,13 +87,15 @@ CK_START_TEST(test_sbc_init_a2dp_faststream) {
 
 	sbc_finish(&sbc);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 CK_START_TEST(test_sbc_stderr) {
 	ck_assert_str_eq(sbc_strerror(0), "Success");
 	ck_assert_str_eq(sbc_strerror(-2), "Invalid sync-word");
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

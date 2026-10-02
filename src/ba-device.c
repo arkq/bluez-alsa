@@ -13,10 +13,10 @@
 #include "ba-config.h"
 #include "ba-transport.h"
 #include "hci.h"
-#include "storage.h"
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/rc.h"
+#include "storage.h"
 
 static void device_detach(void * ptr) {
 	struct ba_device * d = ptr;
@@ -28,7 +28,7 @@ struct ba_device * ba_device_new(
 		struct ba_adapter * adapter,
 		const bdaddr_t * addr) {
 
-	struct ba_device *d;
+	struct ba_device * d;
 	if ((d = calloc(1, sizeof(*d))) == NULL)
 		return NULL;
 
@@ -39,7 +39,7 @@ struct ba_device * ba_device_new(
 	d->seq = atomic_fetch_add_explicit(&config.device_seq, 1, memory_order_relaxed);
 
 	sprintf(d->addr_dbus_str, "dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X",
-			addr->b[5], addr->b[4], addr->b[3], addr->b[2], addr->b[1], addr->b[0]);
+	        addr->b[5], addr->b[4], addr->b[3], addr->b[2], addr->b[1], addr->b[0]);
 	d->ba_dbus_path = g_strdup_printf("%s/%s", adapter->ba_dbus_path, d->addr_dbus_str);
 	d->bluez_dbus_path = g_strdup_printf("%s/%s", adapter->bluez_dbus_path, d->addr_dbus_str);
 
@@ -92,12 +92,12 @@ void ba_device_destroy(struct ba_device * d) {
 	for (;;) {
 
 		GHashTableIter iter;
-		struct ba_transport *t;
+		struct ba_transport * t;
 
 		pthread_mutex_lock(&d->transports_mutex);
 
 		g_hash_table_iter_init(&iter, d->transports);
-		if (!g_hash_table_iter_next(&iter, NULL, (gpointer)&t)) {
+		if (!g_hash_table_iter_next(&iter, NULL, (void *)&t)) {
 			pthread_mutex_unlock(&d->transports_mutex);
 			break;
 		}

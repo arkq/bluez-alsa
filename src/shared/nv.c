@@ -81,7 +81,7 @@ char * nv_join_names(const nv_entry_t * entries) {
 		tmp -= 2;
 
 	/* add terminating null byte */
-	* tmp = '\0';
+	*tmp = '\0';
 
 	return buffer;
 }

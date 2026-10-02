@@ -34,7 +34,7 @@
 int log_level = LOG_DEBUG;
 
 /* internal logging identifier */
-static char *_ident = NULL;
+static char * _ident = NULL;
 /* if true, system logging is enabled */
 static bool _syslog = false;
 
@@ -50,7 +50,7 @@ static void init_ts0(void) {
 
 #endif
 
-void log_open(const char *ident, bool syslog) {
+void log_open(const char * ident, bool syslog) {
 
 	if (ident != NULL)
 		_ident = strdup(ident);
@@ -60,7 +60,7 @@ void log_open(const char *ident, bool syslog) {
 
 }
 
-static const char *priority2str[] = {
+static const char * priority2str[] = {
 	[LOG_EMERG] = "X",
 	[LOG_ALERT] = "A",
 	[LOG_CRIT] = "C",
@@ -71,7 +71,7 @@ static const char *priority2str[] = {
 	[LOG_DEBUG] = "D",
 };
 
-static void vlog(int priority, const char *format, va_list ap) {
+static void vlog(int priority, const char * format, va_list ap) {
 
 	int oldstate;
 
@@ -122,7 +122,7 @@ static void vlog(int priority, const char *format, va_list ap) {
 
 }
 
-void log_message(int priority, const char *format, ...) {
+void log_message(int priority, const char * format, ...) {
 	if (priority > log_level)
 		return;
 	va_list ap;
@@ -134,12 +134,12 @@ void log_message(int priority, const char *format, ...) {
 #if DEBUG
 /**
  * Dump current thread's call stack. */
-void callstackdump_(const char *label) {
+void callstackdump_(const char * label) {
 
 	char buffer[1024 * 2] = "Call stack backtrace not supported";
-	char *ptr = buffer;
+	char * ptr = buffer;
 
-#if WITH_LIBUNWIND
+# if WITH_LIBUNWIND
 
 	unw_cursor_t cursor;
 	unw_context_t context;
@@ -152,25 +152,24 @@ void callstackdump_(const char *label) {
 	while (unw_step(&cursor)) {
 		char symbol[256] = "";
 		unw_get_proc_name(&cursor, symbol, sizeof(symbol), &off);
-		ptr += snprintf(ptr, sizeof(buffer) + buffer - ptr, "%s+%#zx < ",
-				symbol, off);
+		ptr += snprintf(ptr, sizeof(buffer) + buffer - ptr, "%s+%#zx < ", symbol, off);
 	}
 
 	ptr[-3] = '\0';
 
-#elif HAVE_EXECINFO_H
+# elif HAVE_EXECINFO_H
 
-	void *frames[32];
+	void * frames[32];
 	size_t n = backtrace(frames, ARRAYSIZE(frames));
-	char **symbols = backtrace_symbols(frames, n);
+	char ** symbols = backtrace_symbols(frames, n);
 
 	for (size_t i = 1; i < n; i++)
 		ptr += snprintf(ptr, sizeof(buffer) + buffer - ptr, "%s%s",
-				symbols[i], (i + 1 < n) ? " < " : "");
+		                symbols[i], (i + 1 < n) ? " < " : "");
 
 	free(symbols);
 
-#endif
+# endif
 
 	log_message(LOG_DEBUG, "%s: %s", label, buffer);
 
@@ -184,10 +183,10 @@ void callstackdump_(const char *label) {
  * @param label Label printed before the memory block output.
  * @param data Address of the memory block.
  * @param len Number of bytes which should be printed. */
-void hexdump_(const char *label, const void *data, size_t len) {
+void hexdump_(const char * label, const void * data, size_t len) {
 
-	char *buf = malloc(len * 3 + 1);
-	char *p = buf;
+	char * buf = malloc(len * 3 + 1);
+	char * p = buf;
 
 	for (size_t i = 0; i < len; i++) {
 		p += sprintf(p, "%02x", *(unsigned char *)data & 0xFF);

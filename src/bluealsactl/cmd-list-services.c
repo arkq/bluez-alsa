@@ -16,22 +16,21 @@
 #include "bluealsactl.h"
 #include "shared/dbus-client.h"
 
-static bool print_service(const char *name, void *data) {
+static bool print_service(const char * name, void * data) {
 	(void)data;
 	if (strncmp(name, BLUEALSA_SERVICE, sizeof(BLUEALSA_SERVICE) - 1) == 0)
 		printf("%s\n", name);
 	return true;
 }
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("List all BlueALSA services.\n\n");
 	bactl_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n");
 }
 
-static int cmd_list_services_func(int argc, char *argv[]) {
+static int cmd_list_services_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqv";
@@ -47,7 +46,7 @@ static int cmd_list_services_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
 		default:

@@ -14,15 +14,14 @@
 #include "bluealsactl.h"
 #include "shared/dbus-client.h"
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Show BlueALSA service runtime status.\n\n");
 	bactl_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n");
 }
 
-static int cmd_status_func(int argc, char *argv[]) {
+static int cmd_status_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqv";
@@ -38,7 +37,7 @@ static int cmd_status_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
 		default:

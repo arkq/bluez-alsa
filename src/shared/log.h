@@ -22,8 +22,8 @@
  * Minimal log level/priority to be reported. */
 extern int log_level;
 
-void log_open(const char *ident, bool syslog);
-void log_message(int priority, const char *format, ...) __attribute__ ((format(printf, 2, 3)));
+void log_open(const char * ident, bool syslog);
+void log_message(int priority, const char * format, ...) __attribute__ ((format(printf, 2, 3)));
 
 #if DEBUG
 # define DEBUG_LOG_PREFIX __FILE__ ":" STRINGIZE(__LINE__) ": "
@@ -39,14 +39,14 @@ void log_message(int priority, const char *format, ...) __attribute__ ((format(p
 #endif
 
 #if DEBUG
-void callstackdump_(const char *label);
+void callstackdump_(const char * label);
 # define callstackdump(M) callstackdump_(DEBUG_LOG_PREFIX M)
 #else
 # define callstackdump(M) do {} while (0)
 #endif
 
 #if DEBUG
-void hexdump_(const char *label, const void *data, size_t len);
+void hexdump_(const char * label, const void * data, size_t len);
 # define hexdump(M, D, L) hexdump_(DEBUG_LOG_PREFIX M, D, L)
 #else
 # define hexdump(M, D, L) do {} while (0)

@@ -35,12 +35,12 @@
 #include "error.h"
 #include "io.h"
 #include "rtp.h"
-#include "utils.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/defs.h"
 #include "shared/ffb.h"
 #include "shared/log.h"
 #include "shared/rt.h"
+#include "utils.h"
 
 static const struct a2dp_bit_mapping a2dp_mpeg_channels[] = {
 	{ MPEG_CHANNEL_MODE_MONO, .ch = { 1, a2dp_channel_map_mono } },
@@ -61,51 +61,51 @@ static const struct a2dp_bit_mapping a2dp_mpeg_rates[] = {
 };
 
 static void a2dp_mpeg_caps_intersect(
-		void *capabilities,
-		const void *mask) {
+		void * capabilities,
+		const void * mask) {
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_mpeg_t));
 }
 
 static error_code_t a2dp_mpeg_caps_foreach_channel_mode(
-		const void *capabilities,
+		const void * capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
-		void *userdata) {
-	const a2dp_mpeg_t *caps = capabilities;
+		void * userdata) {
+	const a2dp_mpeg_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_mpeg_channels, caps->channel_mode, func, userdata);
 	return ERROR_CODE_INVALID_STREAM;
 }
 
 static error_code_t a2dp_mpeg_caps_foreach_sample_rate(
-		const void *capabilities,
+		const void * capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
-		void *userdata) {
-	const a2dp_mpeg_t *caps = capabilities;
+		void * userdata) {
+	const a2dp_mpeg_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_mpeg_rates, caps->sampling_freq, func, userdata);
 	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_mpeg_caps_select_channel_mode(
-		void *capabilities,
+		void * capabilities,
 		enum a2dp_stream stream,
 		unsigned int channels) {
-	a2dp_mpeg_t *caps = capabilities;
+	a2dp_mpeg_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		caps->channel_mode = a2dp_bit_mapping_lookup_value(a2dp_mpeg_channels,
-				caps->channel_mode, channels);
+		                                                   caps->channel_mode, channels);
 }
 
 static void a2dp_mpeg_caps_select_sample_rate(
-		void *capabilities,
+		void * capabilities,
 		enum a2dp_stream stream,
 		unsigned int rate) {
-	a2dp_mpeg_t *caps = capabilities;
+	a2dp_mpeg_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_mpeg_rates,
-				caps->sampling_freq, rate);
+		                                                    caps->sampling_freq, rate);
 }
 
 static struct a2dp_caps_helpers a2dp_mpeg_caps_helpers = {
@@ -118,12 +118,12 @@ static struct a2dp_caps_helpers a2dp_mpeg_caps_helpers = {
 };
 
 #if ENABLE_MP3LAME
-void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
+void * a2dp_mp3_enc_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	lame_t handle;
@@ -191,7 +191,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail_setup;
 		}
 		if (mpeg_bitrate & MPEG_BITRATE_FREE &&
-				lame_set_free_format(handle, 1) != 0) {
+		    lame_set_free_format(handle, 1) != 0) {
 			error("LAME: Couldn't enable free format");
 			goto fail_setup;
 		}
@@ -219,7 +219,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const size_t mpeg_frame_len = 4 * 1024;
 
 	if (ffb_init_int16_t(&pcm, mpeg_frame_pcm_samples) == -1 ||
-			ffb_init_uint8_t(&bt, rtp_headers_len + mpeg_frame_len) == -1) {
+	    ffb_init_uint8_t(&bt, rtp_headers_len + mpeg_frame_len) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -229,11 +229,12 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 	t_pcm->codec_delay_dms = mpeg_delay_pcm_frames * 10000 / rate;
 	ba_transport_pcm_delay_sync(t_pcm, BA_DBUS_PCM_UPDATE_DELAY);
 
-	rtp_header_t *rtp_header;
-	rtp_mpeg_audio_header_t *rtp_mpeg_audio_header;
-	/* initialize RTP headers and get anchor for payload */
-	uint8_t *rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
-			(void **)&rtp_mpeg_audio_header, sizeof(*rtp_mpeg_audio_header));
+	rtp_header_t * rtp_header;
+	rtp_mpeg_audio_header_t * rtp_mpeg_audio_header;
+	/* Initialize RTP headers and get anchor for payload. */
+	uint8_t * rtp_payload = rtp_a2dp_init(bt.data, &rtp_header,
+	                                      (void **)&rtp_mpeg_audio_header,
+	                                      sizeof(*rtp_mpeg_audio_header));
 
 	struct rtp_state rtp = { .synced = false };
 	/* RTP clock frequency equal to 90kHz */
@@ -259,11 +260,11 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 		bt.tail = rtp_payload;
 
 		size_t pcm_frames = ffb_len_out(&pcm) / channels;
-		ssize_t len;
+		ssize_t len = ffb_len_in(&bt);
 
 		if ((len = channels == 1 ?
-					lame_encode_buffer(handle, pcm.data, NULL, pcm_frames, bt.tail, ffb_len_in(&bt)) :
-					lame_encode_buffer_interleaved(handle, pcm.data, pcm_frames, bt.tail, ffb_len_in(&bt))) < 0) {
+		           lame_encode_buffer(handle, pcm.data, NULL, pcm_frames, bt.tail, len) :
+		           lame_encode_buffer_interleaved(handle, pcm.data, pcm_frames, bt.tail, len)) < 0) {
 			error("LAME encoding error: %s", lame_encode_strerror(len));
 			continue;
 		}
@@ -342,21 +343,21 @@ fail_init:
 
 #if ENABLE_MPG123 || ENABLE_MP3LAME
 __attribute__ ((weak))
-void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
+void * a2dp_mpeg_dec_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
-#if ENABLE_MPG123
+# if ENABLE_MPG123
 
 	static pthread_once_t once = PTHREAD_ONCE_INIT;
-	pthread_once(&once, (void (*)(void))mpg123_init);
+	pthread_once(&once, (void (*)(void)) mpg123_init);
 
 	int err;
-	mpg123_handle *handle;
+	mpg123_handle * handle;
 	if ((handle = mpg123_new(NULL, &err)) == NULL) {
 		error("Couldn't initialize MPG123 decoder: %s", mpg123_plain_strerror(err));
 		goto fail_init;
@@ -369,9 +370,9 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 	mpg123_param(handle, MPG123_RESYNC_LIMIT, -1, 0);
 	mpg123_param(handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0);
-#if MPG123_API_VERSION >= 45
+#  if MPG123_API_VERSION >= 45
 	mpg123_param(handle, MPG123_ADD_FLAGS, MPG123_NO_READAHEAD, 0);
-#endif
+#  endif
 
 	mpg123_format_none(handle);
 	if (mpg123_format(handle, rate, channels, MPG123_ENC_SIGNED_16) != MPG123_OK) {
@@ -384,9 +385,9 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 		goto fail_open;
 	}
 
-	#define MPEG_PCM_DECODE_SAMPLES 4096
+#  define MPEG_PCM_DECODE_SAMPLES 4096
 
-#else
+# else
 
 	hip_t handle;
 	if ((handle = hip_decode_init()) == NULL) {
@@ -402,9 +403,9 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 	 *       even worse, the boundary check is so fucked-up that the hard-coded
 	 *       limit can very easily overflow. In order to mitigate crash, we are
 	 *       going to provide very big buffer - let's hope it will be enough. */
-	#define MPEG_PCM_DECODE_SAMPLES 4096 * 100
+#  define MPEG_PCM_DECODE_SAMPLES 4096 * 100
 
-#endif
+# endif
 
 	ffb_t bt = { 0 };
 	ffb_t pcm = { 0 };
@@ -412,7 +413,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
 	if (ffb_init_int16_t(&pcm, MPEG_PCM_DECODE_SAMPLES) == -1 ||
-			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+	    ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -447,10 +448,10 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		uint8_t *rtp_mpeg = (uint8_t *)(rtp_mpeg_header + 1);
+		uint8_t * rtp_mpeg = (uint8_t *)(rtp_mpeg_header + 1);
 		size_t rtp_mpeg_len = len - (rtp_mpeg - (uint8_t *)bt.data);
 
-#if ENABLE_MPG123
+# if ENABLE_MPG123
 
 		long rate_;
 		int channels_;
@@ -458,7 +459,7 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 
 decode:
 		switch (mpg123_decode(handle, rtp_mpeg, rtp_mpeg_len,
-					(uint8_t *)pcm.data, ffb_blen_in(&pcm), (size_t *)&len)) {
+		                      (uint8_t *)pcm.data, ffb_blen_in(&pcm), (size_t *)&len)) {
 		case MPG123_DONE:
 		case MPG123_NEED_MORE:
 		case MPG123_OK:
@@ -485,7 +486,7 @@ decode:
 			goto decode;
 		}
 
-#else
+# else
 
 		int16_t pcm_l[MPEG_PCM_DECODE_SAMPLES];
 		int16_t pcm_r[MPEG_PCM_DECODE_SAMPLES];
@@ -517,7 +518,7 @@ decode:
 		/* update local state with decoded PCM frames */
 		rtp_state_update(&rtp, samples / channels);
 
-#endif
+# endif
 
 	}
 
@@ -526,9 +527,9 @@ fail:
 fail_ffb:
 	pthread_cleanup_pop(1);
 	pthread_cleanup_pop(1);
-#if ENABLE_MPG123
+# if ENABLE_MPG123
 fail_open:
-#endif
+# endif
 	pthread_cleanup_pop(1);
 fail_init:
 	pthread_cleanup_pop(1);
@@ -537,10 +538,10 @@ fail_init:
 #endif
 
 static error_code_t a2dp_mpeg_configuration_select(
-		const struct a2dp_sep *sep,
-		void *capabilities) {
+		const struct a2dp_sep * sep,
+		void * capabilities) {
 
-	a2dp_mpeg_t *caps = capabilities;
+	a2dp_mpeg_t * caps = capabilities;
 	const a2dp_mpeg_t saved = *caps;
 
 	/* Narrow capabilities to values supported by BlueALSA. */
@@ -559,7 +560,8 @@ static error_code_t a2dp_mpeg_configuration_select(
 
 	unsigned int channel_mode = 0;
 	if (a2dp_mpeg_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == ERROR_CODE_OK)
+	                                        a2dp_bit_mapping_foreach_get_best_channel_mode,
+	                                        &channel_mode) == ERROR_CODE_OK)
 		caps->channel_mode = channel_mode;
 	else {
 		error("MPEG: No supported channel modes: %#x", saved.channel_mode);
@@ -568,7 +570,8 @@ static error_code_t a2dp_mpeg_configuration_select(
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_mpeg_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
+	                                       a2dp_bit_mapping_foreach_get_best_sample_rate,
+	                                       &sampling_freq) == ERROR_CODE_OK)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("MPEG: No supported sample rates: %#x", saved.sampling_freq);
@@ -584,10 +587,10 @@ static error_code_t a2dp_mpeg_configuration_select(
 }
 
 static error_code_t a2dp_mpeg_configuration_check(
-		const struct a2dp_sep *sep,
-		const void *configuration) {
+		const struct a2dp_sep * sep,
+		const void * configuration) {
 
-	const a2dp_mpeg_t *conf = configuration;
+	const a2dp_mpeg_t * conf = configuration;
 	a2dp_mpeg_t conf_v = *conf;
 
 	/* Validate configuration against BlueALSA capabilities. */
@@ -619,13 +622,13 @@ static error_code_t a2dp_mpeg_configuration_check(
 static error_code_t a2dp_mpeg_transport_init(struct ba_transport * t) {
 
 	ssize_t channels_i;
-	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_mpeg_channels,
-					t->media.a2dp.configuration.mpeg.channel_mode)) == -1)
+	const unsigned int channel_mode = t->media.a2dp.configuration.mpeg.channel_mode;
+	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_mpeg_channels, channel_mode)) == -1)
 		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 
 	ssize_t rate_i;
-	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_mpeg_rates,
-					t->media.a2dp.configuration.mpeg.sampling_freq)) == -1)
+	const unsigned int sampling_freq = t->media.a2dp.configuration.mpeg.sampling_freq;
+	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_mpeg_rates, sampling_freq)) == -1)
 		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
@@ -633,14 +636,14 @@ static error_code_t a2dp_mpeg_transport_init(struct ba_transport * t) {
 	t->media.pcm.rate = a2dp_mpeg_rates[rate_i].value;
 
 	memcpy(t->media.pcm.channel_map, a2dp_mpeg_channels[channels_i].ch.map,
-			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
+	       t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
 	return ERROR_CODE_OK;
 }
 
 #if ENABLE_MP3LAME
 
-static error_code_t a2dp_mpeg_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_mpeg_source_init(struct a2dp_sep * sep) {
 	if (config.a2dp.force_mono)
 		sep->config.capabilities.mpeg.channel_mode = MPEG_CHANNEL_MODE_MONO;
 	if (config.a2dp.force_44100)
@@ -648,7 +651,7 @@ static error_code_t a2dp_mpeg_source_init(struct a2dp_sep *sep) {
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_mpeg_source_transport_start(struct ba_transport *t) {
+static int a2dp_mpeg_source_transport_start(struct ba_transport * t) {
 	if (t->media.a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
 		return ba_transport_pcm_start(&t->media.pcm, a2dp_mp3_enc_thread, "ba-a2dp-mp3");
 	g_assert_not_reached();
@@ -696,8 +699,7 @@ struct a2dp_sep a2dp_mpeg_source = {
 				MPEG_BITRATE_INDEX_11 |
 				MPEG_BITRATE_INDEX_12 |
 				MPEG_BITRATE_INDEX_13 |
-				MPEG_BITRATE_INDEX_14
-			)
+				MPEG_BITRATE_INDEX_14)
 		},
 	},
 	.init = a2dp_mpeg_source_init,
@@ -716,15 +718,15 @@ struct a2dp_sep a2dp_mpeg_source = {
 
 #if ENABLE_MPG123 || ENABLE_MP3LAME
 
-static int a2dp_mpeg_sink_transport_start(struct ba_transport *t) {
-#if ENABLE_MPG123
+static int a2dp_mpeg_sink_transport_start(struct ba_transport * t) {
+# if ENABLE_MPG123
 	return ba_transport_pcm_start(&t->media.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mpeg");
-#else
+# else
 	if (t->media.a2dp.configuration.mpeg.layer == MPEG_LAYER_MP3)
 		return ba_transport_pcm_start(&t->media.pcm, a2dp_mpeg_dec_thread, "ba-a2dp-mp3");
 	g_assert_not_reached();
 	return -1;
-#endif
+# endif
 }
 
 struct a2dp_sep a2dp_mpeg_sink = {
@@ -735,19 +737,19 @@ struct a2dp_sep a2dp_mpeg_sink = {
 		.caps_size = sizeof(a2dp_mpeg_t),
 		.capabilities.mpeg = {
 			.layer =
-#if ENABLE_MPG123
+# if ENABLE_MPG123
 				MPEG_LAYER_MP1 |
 				MPEG_LAYER_MP2 |
-#endif
+# endif
 				MPEG_LAYER_MP3,
 			.crc = 1,
 			/* NOTE: LAME does not support dual-channel mode. Be aware, that
 			 *       lack of this feature violates A2DP Sink specification. */
 			.channel_mode =
 				MPEG_CHANNEL_MODE_MONO |
-#if ENABLE_MPG123
+# if ENABLE_MPG123
 				MPEG_CHANNEL_MODE_DUAL_CHANNEL |
-#endif
+# endif
 				MPEG_CHANNEL_MODE_STEREO |
 				MPEG_CHANNEL_MODE_JOINT_STEREO,
 			/* NOTE: Since MPF-2 is not required for neither Sink
@@ -776,8 +778,7 @@ struct a2dp_sep a2dp_mpeg_sink = {
 				MPEG_BITRATE_INDEX_11 |
 				MPEG_BITRATE_INDEX_12 |
 				MPEG_BITRATE_INDEX_13 |
-				MPEG_BITRATE_INDEX_14
-			)
+				MPEG_BITRATE_INDEX_14)
 		},
 	},
 	.configuration_select = a2dp_mpeg_configuration_select,

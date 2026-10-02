@@ -401,7 +401,7 @@ const char * ldacBT_strerror(int err) {
 		return "Configuration updated";
 	}
 	debug("Unknown error code: %#x (API: %u, handle: %u, block: %u)",
-			err, LDACBT_API_ERR(err), LDACBT_HANDLE_ERR(err), LDACBT_BLOCK_ERR(err));
+	      err, LDACBT_API_ERR(err), LDACBT_HANDLE_ERR(err), LDACBT_BLOCK_ERR(err));
 	return "Unknown error";
 }
 #endif

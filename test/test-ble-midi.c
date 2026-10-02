@@ -28,7 +28,8 @@ CK_START_TEST(test_ble_midi_decode_init) {
 	 * we can not be very strict (0 ms) here. */
 	ck_assert_uint_lt(timespec2ms(&bmd.ts), 5);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single) {
 
@@ -45,7 +46,8 @@ CK_START_TEST(test_ble_midi_decode_single) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi));
 	ck_assert_mem_eq(bmd.buffer, midi, sizeof(midi));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple) {
 
@@ -71,7 +73,8 @@ CK_START_TEST(test_ble_midi_decode_multiple) {
 	ck_assert_uint_eq(bmd.len, sizeof(midi2));
 	ck_assert_mem_eq(bmd.buffer, midi2, sizeof(midi2));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_invalid_header) {
 
@@ -82,7 +85,8 @@ CK_START_TEST(test_ble_midi_decode_invalid_header) {
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), -1);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_invalid_status) {
 
@@ -93,7 +97,8 @@ CK_START_TEST(test_ble_midi_decode_invalid_status) {
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), -1);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_invalid_interleaved_real_time) {
 
@@ -104,7 +109,8 @@ CK_START_TEST(test_ble_midi_decode_invalid_interleaved_real_time) {
 
 	ck_assert_int_eq(ble_midi_decode(&bmd, data, sizeof(data)), -1);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_joined) {
 
@@ -127,7 +133,8 @@ CK_START_TEST(test_ble_midi_decode_single_joined) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_real_time) {
 
@@ -144,7 +151,8 @@ CK_START_TEST(test_ble_midi_decode_single_real_time) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple_real_time) {
 
@@ -170,7 +178,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_real_time) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_system_exclusive) {
 
@@ -189,7 +198,8 @@ CK_START_TEST(test_ble_midi_decode_single_system_exclusive) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive) {
 
@@ -210,7 +220,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_2) {
 
@@ -231,7 +242,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_2) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_3) {
 
@@ -257,7 +269,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_system_exclusive_3) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_invalid_system_exclusive) {
 
@@ -270,7 +283,8 @@ CK_START_TEST(test_ble_midi_decode_invalid_system_exclusive) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_running_status) {
 
@@ -303,7 +317,8 @@ CK_START_TEST(test_ble_midi_decode_single_running_status) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_running_status_with_real_time) {
 
@@ -336,7 +351,8 @@ CK_START_TEST(test_ble_midi_decode_single_running_status_with_real_time) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_running_status_with_common) {
 
@@ -369,7 +385,8 @@ CK_START_TEST(test_ble_midi_decode_single_running_status_with_common) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_single_timestamp_overflow) {
 
@@ -396,7 +413,8 @@ CK_START_TEST(test_ble_midi_decode_single_timestamp_overflow) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_decode_multiple_running_status) {
 
@@ -430,7 +448,8 @@ CK_START_TEST(test_ble_midi_decode_multiple_running_status) {
 
 	ble_midi_decode_free(&bmd);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_encode_no_mtu) {
 
@@ -444,7 +463,8 @@ CK_START_TEST(test_ble_midi_encode_no_mtu) {
 
 	ble_midi_encode_free(&bme);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_encode_single) {
 
@@ -464,7 +484,8 @@ CK_START_TEST(test_ble_midi_encode_single) {
 
 	ble_midi_encode_free(&bme);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_encode_multiple) {
 
@@ -498,7 +519,8 @@ CK_START_TEST(test_ble_midi_encode_multiple) {
 
 	ble_midi_encode_free(&bme);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_encode_multiple_too_long) {
 
@@ -518,7 +540,8 @@ CK_START_TEST(test_ble_midi_encode_multiple_too_long) {
 
 	ble_midi_encode_free(&bme);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ble_midi_encode_system_exclusive) {
 
@@ -550,7 +573,8 @@ CK_START_TEST(test_ble_midi_encode_system_exclusive) {
 
 	ble_midi_encode_free(&bme);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

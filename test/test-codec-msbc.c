@@ -39,7 +39,8 @@ CK_START_TEST(test_msbc_init) {
 	/* Check that NULL can be passed safely. */
 	msbc_finish(NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_msbc_encode_decode) {
 
@@ -85,7 +86,7 @@ CK_START_TEST(test_msbc_encode_decode) {
 
 	msbc.initialized = false;
 	ck_assert_int_eq(msbc_init(&msbc), 0);
-	for (rv = 1, i = 0; rv > 0; ) {
+	for (rv = 1, i = 0; rv > 0;) {
 
 		len = MIN((data_tail - data) - i, ffb_blen_in(&msbc.data));
 		memcpy(msbc.data.tail, &data[i], len);
@@ -105,7 +106,8 @@ CK_START_TEST(test_msbc_encode_decode) {
 
 	msbc_finish(&msbc);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_msbc_decode_plc) {
 
@@ -138,9 +140,9 @@ CK_START_TEST(test_msbc_decode_plc) {
 
 		/* simulate packet loss */
 		if (counter == 2 ||
-				(6 <= counter && counter <= 8) ||
-				/* 4 packets (undetectable) */
-				(12 <= counter && counter <= 15)) {
+		    (6 <= counter && counter <= 8) ||
+		    /* 4 packets (undetectable) */
+		    (12 <= counter && counter <= 15)) {
 			fprintf(stderr, "_");
 			continue;
 		}
@@ -162,7 +164,7 @@ CK_START_TEST(test_msbc_decode_plc) {
 	ck_assert_int_eq(msbc_init(&msbc), 0);
 
 	size_t samples = 0;
-	for (rv = 1, i = 0; rv > 0; ) {
+	for (rv = 1, i = 0; rv > 0;) {
 
 		size_t len = MIN((data_tail - data) - i, ffb_blen_in(&msbc.data));
 		memcpy(msbc.data.tail, &data[i], len);
@@ -181,12 +183,14 @@ CK_START_TEST(test_msbc_decode_plc) {
 
 	msbc_finish(&msbc);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_msbc_stderr) {
 	ck_assert_str_eq(msbc_strerror(0), "Success");
 	ck_assert_str_eq(msbc_strerror(-EINVAL), "Invalid argument");
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

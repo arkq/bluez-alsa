@@ -14,7 +14,7 @@
  *
  * @param asrs Pointer to the rate synchronization structure.
  * @param rate Synchronization sample rate. */
-void asrsync_init(struct asrsync *asrs, unsigned int rate) {
+void asrsync_init(struct asrsync * asrs, unsigned int rate) {
 	asrs->rate = rate;
 	gettimestamp(&asrs->ts0);
 	asrs->ts = asrs->ts0;
@@ -32,7 +32,7 @@ void asrsync_init(struct asrsync *asrs, unsigned int rate) {
  *
  * @param asrs Pointer to the rate synchronization structure.
  * @param frames Number of frames since the last call to this function. */
-void asrsync_sync(struct asrsync *asrs, unsigned int frames) {
+void asrsync_sync(struct asrsync * asrs, unsigned int frames) {
 
 	const unsigned int rate = asrs->rate;
 	struct timespec ts_rate;
@@ -60,7 +60,7 @@ void asrsync_sync(struct asrsync *asrs, unsigned int frames) {
 
 /**
  * Get the time duration in 1/10 of milliseconds since the last sync. */
-unsigned int asrsync_get_dms_since_last_sync(const struct asrsync *asrs) {
+unsigned int asrsync_get_dms_since_last_sync(const struct asrsync * asrs) {
 
 	struct timespec ts;
 	gettimestamp(&ts);
@@ -80,9 +80,9 @@ unsigned int asrsync_get_dms_since_last_sync(const struct asrsync *asrs) {
  *   than zero, if t2 time point is found to be, respectively, less than,
  *   equal to, or greater than the t1 time point.*/
 int difftimespec(
-		const struct timespec *ts1,
-		const struct timespec *ts2,
-		struct timespec *ts) {
+		const struct timespec * ts1,
+		const struct timespec * ts2,
+		struct timespec * ts) {
 
 	const struct timespec _ts1 = *ts1;
 	const struct timespec _ts2 = *ts2;

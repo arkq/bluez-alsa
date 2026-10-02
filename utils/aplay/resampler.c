@@ -20,14 +20,14 @@
 #include <alsa/asoundlib.h>
 #include <samplerate.h>
 
-#include "shared/log.h"
 #include "shared/ffb.h"
+#include "shared/log.h"
 #include "shared/rt.h"
 
 /* How many milliseconds to allow the delay to change before adjusting the
  * resampling rate. This value must allow the delay to vary due to timer
  * jitter without triggering a rate change. */
-# define RESAMPLER_TOLERANCE_MS 3
+#define RESAMPLER_TOLERANCE_MS 3
 
 /* How many milliseconds to wait for the delay value to stabilize after a
  * reset. */
@@ -59,16 +59,16 @@ static const struct timespec ts_stabilize = {
  * Check whether audio format is supported as input by the resampler. */
 bool resampler_is_input_format_supported(snd_pcm_format_t format) {
 	return format == SND_PCM_FORMAT_S16_LE ||
-		format == SND_PCM_FORMAT_S32_LE ||
-		format == SND_PCM_FORMAT_S24_LE;
+	       format == SND_PCM_FORMAT_S32_LE ||
+	       format == SND_PCM_FORMAT_S24_LE;
 }
 
 /**
  * Check whether audio format is supported as output by the resampler. */
 bool resampler_is_output_format_supported(snd_pcm_format_t format) {
 	return format == SND_PCM_FORMAT_S16 ||
-		format == SND_PCM_FORMAT_S32 ||
-		format == SND_PCM_FORMAT_FLOAT;
+	       format == SND_PCM_FORMAT_S32 ||
+	       format == SND_PCM_FORMAT_FLOAT;
 }
 
 /**
@@ -85,7 +85,7 @@ bool resampler_is_output_format_supported(snd_pcm_format_t format) {
  * @param max_target The maximum target delay.
  * @return On success this function returns 0. Otherwise -1 is returned. */
 int resampler_init(
-		struct resampler *resampler,
+		struct resampler * resampler,
 		enum resampler_converter_type type,
 		unsigned int channels,
 		snd_pcm_format_t in_format,
@@ -96,11 +96,11 @@ int resampler_init(
 		snd_pcm_uframes_t max_target) {
 
 	debug("Initializing resampler: min-delay=%#.1f max-delay=%#.1f",
-			1000.0 * min_target / in_rate, 1000.0 * max_target / in_rate);
+	      1000.0 * min_target / in_rate, 1000.0 * max_target / in_rate);
 
 	/* Check whether formats can be resampled. */
 	if (!resampler_is_input_format_supported(in_format) ||
-			!resampler_is_output_format_supported(out_format)) {
+	    !resampler_is_output_format_supported(out_format)) {
 		return errno = EINVAL, -1;
 	}
 
@@ -147,7 +147,7 @@ fail:
 
 /**
  * Free resources allocated for the resampler. */
-void resampler_free(struct resampler *resampler) {
+void resampler_free(struct resampler * resampler) {
 	if (resampler->src_state != NULL) {
 		src_delete(resampler->src_state);
 		resampler->src_state = NULL;
@@ -160,11 +160,11 @@ void resampler_free(struct resampler *resampler) {
 
 /**
  * Resample as many frames as possible from the buffer in to the buffer out. */
-int resampler_process(struct resampler *resampler, ffb_t *in, ffb_t *out) {
+int resampler_process(struct resampler * resampler, ffb_t * in, ffb_t * out) {
 
 	const unsigned int channels = resampler->channels;
 	const size_t in_samples_total = ffb_len_out(in);
-	SRC_DATA *src_data = &resampler->src_data;
+	SRC_DATA * src_data = &resampler->src_data;
 	size_t samples_used = 0;
 
 	/* If the input sample format is FLOAT we can process them directly
@@ -181,7 +181,7 @@ int resampler_process(struct resampler *resampler, ffb_t *in, ffb_t *out) {
 	else
 		src_data->data_out = out->tail;
 
-	while (true) {
+	for (;;) {
 
 		size_t in_samples = in_samples_total - samples_used;
 		size_t out_samples = ffb_len_in(out);
@@ -192,11 +192,11 @@ int resampler_process(struct resampler *resampler, ffb_t *in, ffb_t *out) {
 			in_samples = MIN(in_samples, RESAMPLER_BUFFER_SIZE);
 
 			if (resampler->in_format == SND_PCM_FORMAT_S16_LE) {
-				const int16_t *in_data = in->data;
+				const int16_t * in_data = in->data;
 				src_short_to_float_array(in_data + samples_used, resampler->in_buffer, in_samples);
 			}
 			else if (resampler->in_format == SND_PCM_FORMAT_S32_LE) {
-				const int32_t *in_data = in->data;
+				const int32_t * in_data = in->data;
 				src_int_to_float_array(in_data + samples_used, resampler->in_buffer, in_samples);
 			}
 
@@ -238,7 +238,7 @@ int resampler_process(struct resampler *resampler, ffb_t *in, ffb_t *out) {
  * Reset the resampling ratio to its nominal rate.
  *
  * This function should be called after any discontinuity in the stream. */
-void resampler_reset(struct resampler *resampler) {
+void resampler_reset(struct resampler * resampler) {
 	resampler->src_data.src_ratio = resampler->nominal_rate_ratio;
 	resampler->rate_ratio_step_count = 0;
 	resampler->steady_rate_ratio_step_count = 0;
@@ -247,7 +247,7 @@ void resampler_reset(struct resampler *resampler) {
 	gettimestamp(&resampler->reset_ts);
 }
 
-double resampler_current_rate_ratio(const struct resampler *resampler) {
+double resampler_current_rate_ratio(const struct resampler * resampler) {
 	return resampler->src_data.src_ratio;
 }
 
@@ -257,7 +257,7 @@ double resampler_current_rate_ratio(const struct resampler *resampler) {
  *
  * @return Returns true if the rate ratio was changed. */
 bool resampler_update_rate_ratio(
-		struct resampler *resampler,
+		struct resampler * resampler,
 		snd_pcm_uframes_t frames_read,
 		snd_pcm_uframes_t delay) {
 
@@ -307,7 +307,7 @@ bool resampler_update_rate_ratio(
 			}
 			resampler->delay_diff = delay - resampler->target_delay;
 			debug("Adaptive resampling target delay: %#.1f ms",
-					1000.0 * resampler->target_delay / resampler->in_rate);
+			      1000.0 * resampler->target_delay / resampler->in_rate);
 			return true;
 		}
 		return false;
@@ -325,7 +325,7 @@ bool resampler_update_rate_ratio(
 				/* Omit the log message if the target delay is not yet set. In such
 				 * case we are just initializing the resampler, not resetting it. */
 				debug("Resetting resampler: Delay difference limit exceeded: %zu > %zu",
-						delay_diff_abs, resampler->max_delay_diff);
+				      delay_diff_abs, resampler->max_delay_diff);
 #endif
 			resampler_reset(resampler);
 			return true;
@@ -388,17 +388,17 @@ bool resampler_update_rate_ratio(
  * @param len The number of samples in the buffer.
  * @param format The original format of the samples. */
 void resampler_convert_to_native_endian_format(
-		void *buffer, size_t len, snd_pcm_format_t format) {
+		void * buffer, size_t len, snd_pcm_format_t format) {
 #if __BYTE_ORDER == __BIG_ENDIAN
 
 	switch (format) {
 	case SND_PCM_FORMAT_S16_LE: {
-		uint16_t *data = buffer;
+		uint16_t * data = buffer;
 		for (size_t n = 0; n < len; n++)
 			le16toh(data[n]);
 	} break;
 	case SND_PCM_FORMAT_S24_LE: {
-		uint32_t *data = buffer;
+		uint32_t * data = buffer;
 		for (size_t n = 0; n < len; n++) {
 			le32toh(data[n]);
 			/* convert to S32 */
@@ -406,7 +406,7 @@ void resampler_convert_to_native_endian_format(
 		}
 	} break;
 	case SND_PCM_FORMAT_S32_LE: {
-		uint32_t *data = buffer;
+		uint32_t * data = buffer;
 		for (size_t n = 0; n < len; n++)
 			le32toh(data[n]);
 	} break;
@@ -418,7 +418,7 @@ void resampler_convert_to_native_endian_format(
 
 	switch (format) {
 	case SND_PCM_FORMAT_S24_LE: {
-		uint32_t *data = buffer;
+		uint32_t * data = buffer;
 		for (size_t n = 0; n < len; n++) {
 			/* convert to S32 */
 			data[n] <<= 8;

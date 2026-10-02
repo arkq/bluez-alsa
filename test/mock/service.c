@@ -7,8 +7,8 @@
 #include "service.h"
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "dbus.h"
 #include "shared/log.h"
@@ -48,10 +48,11 @@ static void * mock_loop_run(void * userdata) {
 	service->_loop = g_main_loop_new(service->_context, FALSE);
 	g_main_context_push_thread_default(service->_context);
 
-	g_assert((service->_id = g_bus_own_name_on_connection(service->_conn,
-					service->name, G_BUS_NAME_OWNER_FLAGS_NONE,
-					service->name_acquired_cb, service->name_lost_cb,
-					userdata, NULL)) != 0);
+	g_assert((service->_id = g_bus_own_name_on_connection(service->_conn, service->name,
+	                                                      G_BUS_NAME_OWNER_FLAGS_NONE,
+	                                                      service->name_acquired_cb,
+	                                                      service->name_lost_cb,
+	                                                      userdata, NULL)) != 0);
 
 	g_main_loop_run(service->_loop);
 

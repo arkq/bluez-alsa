@@ -9,8 +9,8 @@
 #include <stdbool.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "upower.h"
 

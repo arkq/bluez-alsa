@@ -53,7 +53,7 @@ struct ba_rfcomm_hfp_codecs {
 struct ba_rfcomm {
 
 	/* associated SCO transport */
-	struct ba_transport *sco;
+	struct ba_transport * sco;
 
 	/* RFCOMM socket */
 	int fd;
@@ -71,7 +71,7 @@ struct ba_rfcomm {
 	enum hfp_setup setup;
 
 	/* handler used for sync response dispatching */
-	const struct ba_rfcomm_handler *handler;
+	const struct ba_rfcomm_handler * handler;
 	enum hfp_slc_state handler_resp_ok_new_state;
 	bool handler_resp_ok_success;
 
@@ -120,7 +120,7 @@ struct ba_rfcomm {
 	uint8_t gain_spk;
 
 	/* exported RFCOMM D-Bus API */
-	char *ba_dbus_path;
+	char * ba_dbus_path;
 	bool ba_dbus_exported;
 
 	/* BlueZ does not trigger profile disconnection signal when the Bluetooth
@@ -140,13 +140,13 @@ typedef error_code_t ba_rfcomm_callback(struct ba_rfcomm *, const struct bt_at *
  * AT message dispatching handler. */
 struct ba_rfcomm_handler {
 	enum bt_at_type type;
-	const char *command;
-	ba_rfcomm_callback *callback;
+	const char * command;
+	ba_rfcomm_callback * callback;
 };
 
-struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd);
-void ba_rfcomm_destroy(struct ba_rfcomm *r);
+struct ba_rfcomm * ba_rfcomm_new(struct ba_transport * sco, int fd);
+void ba_rfcomm_destroy(struct ba_rfcomm * r);
 
-int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig);
+int ba_rfcomm_send_signal(struct ba_rfcomm * r, enum ba_rfcomm_signal sig);
 
 #endif

@@ -34,7 +34,7 @@ void * ba_dumper_io_thread(struct ba_transport_pcm * t_pcm) {
 
 	char fname[256];
 	snprintf(fname, sizeof(fname), "/tmp/bluealsa-%s-%s.txt",
-			ba_transport_to_string(t), ba_transport_pcm_to_string(t_pcm));
+	         ba_transport_to_string(t), ba_transport_pcm_to_string(t_pcm));
 
 	FILE * f;
 	debug("Creating BT dump file: %s", fname);

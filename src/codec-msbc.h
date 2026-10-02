@@ -20,8 +20,8 @@
 #include <sbc/sbc.h>
 #include <spandsp.h>
 
-#include "shared/h2.h"
 #include "shared/ffb.h"
+#include "shared/h2.h"
 
 /* HFP uses SBC encoding with precisely defined parameters. Hence, the size
  * of the input (number of PCM samples) and output is known up front. */
@@ -51,7 +51,7 @@ struct esco_msbc {
 	size_t frames;
 
 	/* packet loss concealment */
-	plc_state_t *plc;
+	plc_state_t * plc;
 
 	/* Determine whether structure has been initialized. This field is
 	 * used for reinitialization - it makes msbc_init() idempotent. */
@@ -66,12 +66,12 @@ struct esco_msbc {
 
 };
 
-int msbc_init(struct esco_msbc *msbc);
-void msbc_finish(struct esco_msbc *msbc);
+int msbc_init(struct esco_msbc * msbc);
+void msbc_finish(struct esco_msbc * msbc);
 
-ssize_t msbc_decode(struct esco_msbc *msbc);
-ssize_t msbc_encode(struct esco_msbc *msbc);
+ssize_t msbc_decode(struct esco_msbc * msbc);
+ssize_t msbc_encode(struct esco_msbc * msbc);
 
-const char *msbc_strerror(int err);
+const char * msbc_strerror(int err);
 
 #endif

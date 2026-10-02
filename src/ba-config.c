@@ -76,8 +76,7 @@ struct ba_config config = {
 	.a2dp.force_44100 = false,
 
 #if ENABLE_ASHA
-	.asha.id = ASHA_HI_SYNC_ID_INIT(
-			BT_COMPID_LINUX_FOUNDATION, 0xB1, 0x03, 0xA1, 0x5A, 0x04, 0x05),
+	.asha.id = ASHA_HI_SYNC_ID_INIT(BT_COMPID_LINUX_FOUNDATION, 0xB1, 0x03, 0xA1, 0x5A, 0x04, 0x05),
 	.asha.side = ASHA_CAPABILITY_SIDE_LEFT,
 	.asha.codecs.g722 = true,
 	.asha.advertise = false,

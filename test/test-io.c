@@ -83,7 +83,6 @@
 #if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
 # include "rtp.h"
 #endif
-#include "storage.h"
 #include "dumper/dumper.h"
 #include "shared/bluetooth.h"
 #include "shared/bluetooth-a2dp.h"
@@ -92,6 +91,7 @@
 #include "shared/defs.h"
 #include "shared/log.h"
 #include "shared/sine.h"
+#include "storage.h"
 
 #include "../src/a2dp.c"
 #include "../src/ba-transport.c"
@@ -126,27 +126,37 @@ void * asha_g722_dec_thread(struct ba_transport_pcm * t_pcm);
 void * sco_dec_thread(struct ba_transport_pcm * t_pcm);
 void * sco_enc_thread(struct ba_transport_pcm * t_pcm);
 
-int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
-void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask; }
-void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
-struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
-	debug("%s: %p", __func__, (void *)sco); (void)sco; (void)fd; return NULL; }
-void ba_rfcomm_destroy(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); (void)r; }
-int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
-	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig; return 0; }
-bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep_config *sep, const void *configuration, GError **error) {
+int bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm;
+	return 0;
+}
+void bluealsa_dbus_pcm_update(struct ba_transport_pcm * pcm, unsigned int mask) {
+	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask;
+}
+void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm * pcm) {
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm;
+}
+struct ba_rfcomm * ba_rfcomm_new(struct ba_transport * sco, int fd) {
+	debug("%s: %p", __func__, (void *)sco); (void)sco; (void)fd;
+	return NULL;
+}
+void ba_rfcomm_destroy(struct ba_rfcomm * r) {
+	debug("%s: %p", __func__, (void *)r); (void)r;
+}
+int ba_rfcomm_send_signal(struct ba_rfcomm * r, enum ba_rfcomm_signal sig) {
+	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig;
+	return 0;
+}
+bool bluez_a2dp_set_configuration(const char * current_dbus_sep_path,
+		const struct a2dp_sep_config * sep, const void * configuration, GError ** error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
-	return false; }
-int storage_device_load(const struct ba_device *d) { (void)d; return 0; }
-int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
-int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
-int storage_pcm_data_update(const struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
+	return false;
+}
+int storage_device_load(const struct ba_device * d) { (void)d; return 0; }
+int storage_device_save(const struct ba_device * d) { (void)d; return 0; }
+int storage_pcm_data_sync(struct ba_transport_pcm * pcm) { (void)pcm; return 0; }
+int storage_pcm_data_update(const struct ba_transport_pcm * pcm) { (void)pcm; return 0; }
 
 static const a2dp_sbc_t config_sbc_44100_stereo = {
 	.sampling_freq = SBC_SAMPLING_FREQ_44100,
@@ -169,9 +179,9 @@ static a2dp_mpeg_t config_mp3_44100_stereo = {
 __attribute__ ((unused))
 static a2dp_aac_t config_aac_44100_stereo = {
 	.object_type = AAC_OBJECT_TYPE_MPEG2_LC,
-	A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_44100)
+	A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_44100),
 	.channel_mode = AAC_CHANNEL_MODE_STEREO,
-	A2DP_AAC_INIT_BITRATE(0xFFFF)
+	A2DP_AAC_INIT_BITRATE(0xFFFF),
 };
 
 __attribute__ ((unused))
@@ -201,7 +211,7 @@ static const a2dp_lc3plus_t config_lc3plus_48000_stereo = {
 	.info = A2DP_VENDOR_INFO_INIT(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID),
 	.frame_duration = LC3PLUS_FRAME_DURATION_050,
 	.channel_mode = LC3PLUS_CHANNEL_MODE_STEREO,
-	A2DP_LC3PLUS_INIT_SAMPLING_FREQ(LC3PLUS_SAMPLING_FREQ_48000)
+	A2DP_LC3PLUS_INIT_SAMPLING_FREQ(LC3PLUS_SAMPLING_FREQ_48000),
 };
 
 __attribute__ ((unused))
@@ -225,11 +235,11 @@ static const a2dp_opus_t config_opus_48000_stereo = {
 	.channel_mode = OPUS_CHANNEL_MODE_STEREO,
 };
 
-static struct ba_adapter *adapter = NULL;
-static struct ba_device *device1 = NULL;
-static struct ba_device *device2 = NULL;
-static const char *input_bt_file = NULL;
-static const char *input_pcm_file = NULL;
+static struct ba_adapter * adapter = NULL;
+static struct ba_device * device1 = NULL;
+static struct ba_device * device2 = NULL;
+static const char * input_bt_file = NULL;
+static const char * input_pcm_file = NULL;
 static unsigned int aging_duration = 0;
 static bool enable_vbr_mode = false;
 static bool dump_data = false;
@@ -242,7 +252,7 @@ static uint32_t input_bt_codec_id = 0;
 static a2dp_t input_bt_a2dp_configuration = { 0 };
 
 #if HAVE_SNDFILE
-static SNDFILE *sf_open_format(const char *path, unsigned int rate,
+static SNDFILE * sf_open_format(const char * path, unsigned int rate,
 		unsigned int channels, uint16_t format) {
 
 	SF_INFO sf_info = {
@@ -273,7 +283,7 @@ static SNDFILE *sf_open_format(const char *path, unsigned int rate,
 #endif
 
 #if HAVE_SNDFILE
-static sf_count_t sf_write_format(SNDFILE *sf, const void *buffer,
+static sf_count_t sf_write_format(SNDFILE * sf, const void * buffer,
 		sf_count_t samples, uint16_t format) {
 	switch (BA_TRANSPORT_PCM_FORMAT_BYTES(format)) {
 	case 2:
@@ -290,12 +300,12 @@ static sf_count_t sf_write_format(SNDFILE *sf, const void *buffer,
 #endif
 
 #if HAVE_SNDFILE
-static void *pcm_write_frames_sndfile_async(void *userdata) {
+static void * pcm_write_frames_sndfile_async(void * userdata) {
 
-	struct ba_transport_pcm *pcm = userdata;
-	struct pollfd pfds[] = {{ pcm->fd, POLLOUT, 0 }};
+	struct ba_transport_pcm * pcm = userdata;
+	struct pollfd pfds[] = { { pcm->fd, POLLOUT, 0 } };
 
-	SNDFILE *sf = NULL;
+	SNDFILE * sf = NULL;
 	SF_INFO sf_info = { 0 };
 	if ((sf = sf_open(input_pcm_file, SFM_READ, &sf_info)) == NULL) {
 		error("Couldn't load input audio file: %s", sf_strerror(NULL));
@@ -337,7 +347,7 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 
 		ck_assert_int_eq(write(pfds[0].fd, &buffer, len), len);
 
-	};
+	}
 
 	if (aging_duration == 0) {
 		/* If we are not performing aging test, close the PCM right
@@ -354,7 +364,7 @@ static void *pcm_write_frames_sndfile_async(void *userdata) {
 
 /**
  * Write test PCM signal to the file descriptor. */
-static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
+static void pcm_write_frames(struct ba_transport_pcm * pcm, size_t frames) {
 
 	if (input_pcm_file != NULL) {
 #if HAVE_SNDFILE
@@ -377,7 +387,7 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 	const size_t pcm_sine_samples = pcm->channels * pcm_sine_frames;
 	const size_t pcm_sine_bytes = pcm_sine_samples * pcm_format_bytes;
 #if HAVE_SNDFILE
-	SNDFILE *sf = NULL;
+	SNDFILE * sf = NULL;
 #endif
 
 	switch (pcm->format) {
@@ -456,7 +466,7 @@ static void pcm_write_frames(struct ba_transport_pcm *pcm, size_t frames) {
 }
 
 struct bt_data {
-	struct bt_data *next;
+	struct bt_data * next;
 	uint8_t data[2048];
 	size_t len;
 };
@@ -464,13 +474,13 @@ struct bt_data {
 /**
  * Linked list with generated BT data. */
 static struct bt_data bt_data = { 0 };
-static struct bt_data *bt_data_end;
+static struct bt_data * bt_data_end;
 
 static void bt_data_init(void) {
 	bt_data_end = &bt_data;
 }
 
-static void bt_data_push(uint8_t *data, size_t len) {
+static void bt_data_push(uint8_t * data, size_t len) {
 	memcpy(bt_data_end->data, data, bt_data_end->len = len);
 	if (bt_data_end->next == NULL) {
 		bt_data_end->next = malloc(sizeof(*bt_data_end->next));
@@ -479,10 +489,10 @@ static void bt_data_push(uint8_t *data, size_t len) {
 	bt_data_end = bt_data_end->next;
 }
 
-static void bt_data_write(struct ba_transport *t) {
+static void bt_data_write(struct ba_transport * t) {
 
-	struct pollfd fds[] = {{ t->bt_fd, POLLOUT, 0 }};
-	struct bt_data *bt_data_head = &bt_data;
+	struct pollfd fds[] = { { t->bt_fd, POLLOUT, 0 } };
+	struct bt_data * bt_data_head = &bt_data;
 	bool first_packet = true;
 	char buffer[2024];
 
@@ -527,7 +537,7 @@ static pthread_cond_t test_terminate = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t test_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool test_terminated;
 
-static void *test_terminate_timer(void *arg) {
+static void * test_terminate_timer(void * arg) {
 	sleep((uintptr_t)arg);
 	pthread_mutex_lock(&test_mutex);
 	test_terminated = true;
@@ -542,20 +552,20 @@ static void test_start_terminate_timer(unsigned int delay) {
 	pthread_detach(thread);
 }
 
-static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
+static void * test_io_thread_dump_bt(struct ba_transport_pcm * t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	FILE * f_dump = NULL;
 	struct ba_transport * t = t_pcm->t;
-	struct pollfd pfds[] = {{ t_pcm->fd_bt, POLLIN, 0 }};
+	struct pollfd pfds[] = { { t_pcm->fd_bt, POLLIN, 0 } };
 	uint8_t buffer[sizeof(bt_data.data)];
 	ssize_t len;
 
 	if (dump_data) {
 		char fname[128];
 		sprintf(fname, "encoded-%s-%s.txt",
-				ba_transport_to_string(t), ba_transport_pcm_to_string(t_pcm));
+		        ba_transport_to_string(t), ba_transport_pcm_to_string(t_pcm));
 		ck_assert_ptr_nonnull(f_dump = fopen(fname, "w"));
 		ck_assert_int_ne(ba_dumper_write_header(f_dump, t), -1);
 	}
@@ -589,7 +599,7 @@ static void *test_io_thread_dump_bt(struct ba_transport_pcm *t_pcm) {
 	return NULL;
 }
 
-static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
+static void * test_io_thread_dump_pcm(struct ba_transport_pcm * t_pcm) {
 
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
@@ -597,14 +607,14 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 	size_t decoded_samples_total = 0;
 
 #if HAVE_SNDFILE
-	SNDFILE *sf = NULL;
+	SNDFILE * sf = NULL;
 #endif
 
 	if (dump_data) {
 #if HAVE_SNDFILE
 		char fname[128];
 		sprintf(fname, "decoded-%s-%s.wav",
-				ba_transport_to_string(t_pcm->t), ba_transport_pcm_to_string(t_pcm));
+		        ba_transport_to_string(t_pcm->t), ba_transport_pcm_to_string(t_pcm));
 		ck_assert_ptr_nonnull(sf = sf_open_format(fname, t_pcm->rate, t_pcm->channels, t_pcm->format));
 #else
 		error("Dumping audio files requires sndfile library!");
@@ -614,7 +624,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 	debug_transport_pcm_thread_loop(t_pcm, "START");
 	for (ba_transport_pcm_state_set_running(t_pcm);;) {
 
-		struct pollfd pfds[] = {{ -1, POLLIN, 0 }};
+		struct pollfd pfds[] = { { -1, POLLIN, 0 } };
 		uint8_t buffer[2048];
 		ssize_t len;
 
@@ -642,7 +652,7 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 	}
 
 	debug("Decoded samples total [%zu frames]: %zu",
-			decoded_samples_total / t_pcm->channels, decoded_samples_total);
+	      decoded_samples_total / t_pcm->channels, decoded_samples_total);
 	ck_assert_uint_gt(decoded_samples_total, 0);
 
 #if HAVE_SNDFILE
@@ -661,14 +671,14 @@ static void *test_io_thread_dump_pcm(struct ba_transport_pcm *t_pcm) {
 /**
  * Drive PCM signal through source/sink loop. */
 static void test_io(
-		struct ba_transport_pcm *t_src_pcm, struct ba_transport_pcm *t_snk_pcm,
+		struct ba_transport_pcm * t_src_pcm, struct ba_transport_pcm * t_snk_pcm,
 		ba_transport_pcm_thread_func enc, ba_transport_pcm_thread_func dec,
 		size_t pcm_write_frames_count) {
 
-	const char *enc_name = enc == test_io_thread_dump_pcm ? "dump-pcm" : "encode";
-	const char *dec_name = dec == test_io_thread_dump_bt ? "dump-bt" : "decode";
-	struct ba_transport *t_src = t_src_pcm->t;
-	struct ba_transport *t_snk = t_snk_pcm->t;
+	const char * enc_name = enc == test_io_thread_dump_pcm ? "dump-pcm" : "encode";
+	const char * dec_name = dec == test_io_thread_dump_bt ? "dump-bt" : "decode";
+	struct ba_transport * t_src = t_src_pcm->t;
+	struct ba_transport * t_snk = t_snk_pcm->t;
 
 	if (enc == test_io_thread_dump_pcm && input_pcm_file != NULL)
 		return;
@@ -726,7 +736,7 @@ static void test_io(
 
 }
 
-static int test_transport_acquire(struct ba_transport *t) {
+static int test_transport_acquire(struct ba_transport * t) {
 	debug("Acquire transport: %d", t->bt_fd); (void)t;
 	return 0;
 }
@@ -748,7 +758,7 @@ static struct ba_transport * test_transport_new_a2dp(
 #endif
 	struct ba_transport * t;
 	ck_assert_ptr_nonnull(t = ba_transport_new_a2dp(device, profile, ":test",
-				dbus_path, sep, configuration));
+	                                                dbus_path, sep, configuration));
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release_bt_media;
 	return t;
@@ -762,7 +772,7 @@ static struct ba_transport * test_transport_new_asha(
 		asha_hi_sync_id_t id) {
 	struct ba_transport * t;
 	ck_assert_ptr_nonnull(t = ba_transport_new_asha(device, profile, ":test",
-				dbus_path, id));
+	                                                dbus_path, id));
 	t->acquire = test_transport_acquire;
 	t->release = test_transport_release_bt_media;
 	return t;
@@ -775,22 +785,22 @@ static struct ba_transport * test_transport_new_sco(
 		const char * dbus_path) {
 	struct ba_transport * t;
 	ck_assert_ptr_nonnull(t = ba_transport_new_sco(device, profile, ":test",
-				dbus_path, -1));
+	                                               dbus_path, -1));
 	t->acquire = test_transport_acquire;
 	return t;
 }
 
 CK_START_TEST(test_a2dp_sbc) {
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
-			&config_sbc_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
-			&config_sbc_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/sbc", &a2dp_sbc_source,
+	                                                   &config_sbc_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/sbc", &a2dp_sbc_sink,
+	                                                   &config_sbc_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 153 * 3;
@@ -805,16 +815,16 @@ CK_START_TEST(test_a2dp_sbc) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_a2dp_sbc_invalid_config) {
 
-	const a2dp_sbc_t config_sbc_invalid = {
-		.sampling_freq = SBC_SAMPLING_FREQ_44100,
-		.channel_mode = SBC_CHANNEL_MODE_STEREO };
-	struct ba_transport *t = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
-			&config_sbc_invalid);
+	const a2dp_sbc_t config_sbc_invalid = { .sampling_freq = SBC_SAMPLING_FREQ_44100,
+		                                      .channel_mode = SBC_CHANNEL_MODE_STEREO };
+	struct ba_transport * t = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                  "/path/sbc", &a2dp_sbc_source,
+	                                                  &config_sbc_invalid);
 
 	int bt_fds[2];
 	ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
@@ -828,10 +838,11 @@ CK_START_TEST(test_a2dp_sbc_invalid_config) {
 	ba_transport_destroy(t);
 	close(bt_fds[0]);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
-static void setup_a2dp_link(struct ba_transport *t_source, struct ba_transport *t_sink,
-		size_t mtu, int *fd_pcm_sink, int *fd_pcm_source) {
+static void setup_a2dp_link(struct ba_transport * t_source, struct ba_transport * t_sink,
+		size_t mtu, int * fd_pcm_sink, int * fd_pcm_source) {
 
 	int bt_fds[2];
 	/* Link transports together using BT socket pair. */
@@ -866,19 +877,19 @@ CK_START_TEST(test_a2dp_sbc_pcm_drain) {
 	int16_t pcm_zero[90] = { 0 };
 	unsigned int nread = 0;
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
-			&config_sbc_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
-			&config_sbc_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/sbc", &a2dp_sbc_source,
+	                                                   &config_sbc_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/sbc", &a2dp_sbc_sink,
+	                                                   &config_sbc_44100_stereo);
 
 	int fd_pcm_snk = -1;
 	int fd_pcm_src = -1;
 	setup_a2dp_link(t1, t2, 256, &fd_pcm_snk, &fd_pcm_src);
 
 	/* start sink PCM IO thread and make sure it is running */
-	struct ba_transport_pcm *pcm = &t1->media.pcm;
+	struct ba_transport_pcm * pcm = &t1->media.pcm;
 	ck_assert_int_eq(ba_transport_pcm_start(pcm, a2dp_sbc_enc_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_pcm_state_wait_running(pcm), 0);
 
@@ -902,10 +913,11 @@ CK_START_TEST(test_a2dp_sbc_pcm_drain) {
 	close(fd_pcm_snk);
 	close(fd_pcm_src);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
-static void *test_transport_destroy(void *userdata) {
-	struct ba_transport *t = userdata;
+static void * test_transport_destroy(void * userdata) {
+	struct ba_transport * t = userdata;
 	usleep(10000);
 	ba_transport_destroy(t);
 	return NULL;
@@ -915,19 +927,19 @@ CK_START_TEST(test_a2dp_sbc_pcm_drain_and_close) {
 
 	int16_t pcm_zero[90] = { 0 };
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
-			&config_sbc_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
-			&config_sbc_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/sbc", &a2dp_sbc_source,
+	                                                   &config_sbc_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/sbc", &a2dp_sbc_sink,
+	                                                   &config_sbc_44100_stereo);
 
 	int fd_pcm_snk = -1;
 	int fd_pcm_src = -1;
 	setup_a2dp_link(t1, t2, 256, &fd_pcm_snk, &fd_pcm_src);
 
 	/* start sink PCM IO thread and make sure it is running */
-	struct ba_transport_pcm *pcm = &t1->media.pcm;
+	struct ba_transport_pcm * pcm = &t1->media.pcm;
 	ck_assert_int_eq(ba_transport_pcm_start(pcm, a2dp_sbc_enc_thread, "sbc"), 0);
 	ck_assert_int_eq(ba_transport_pcm_state_wait_running(pcm), 0);
 
@@ -949,7 +961,8 @@ CK_START_TEST(test_a2dp_sbc_pcm_drain_and_close) {
 	close(fd_pcm_snk);
 	close(fd_pcm_src);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 
@@ -958,12 +971,12 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	for (size_t i = 0; i < ARRAYSIZE(pcm_rand); i++)
 		pcm_rand[i] = rand();
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/sbc", &a2dp_sbc_source,
-			&config_sbc_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/sbc", &a2dp_sbc_sink,
-			&config_sbc_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/sbc", &a2dp_sbc_source,
+	                                                   &config_sbc_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/sbc", &a2dp_sbc_sink,
+	                                                   &config_sbc_44100_stereo);
 
 	int fd_pcm_snk = -1;
 	int fd_pcm_src = -1;
@@ -974,7 +987,7 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 		continue;
 
 	/* drop sink PCM samples before IO thread was started */
-	struct ba_transport_pcm *pcm = &t1->media.pcm;
+	struct ba_transport_pcm * pcm = &t1->media.pcm;
 	ck_assert_int_eq(ba_transport_pcm_drop(pcm), 0);
 
 	/* start IO thread and make sure it is running */
@@ -1038,22 +1051,23 @@ CK_START_TEST(test_a2dp_sbc_pcm_drop) {
 	close(fd_pcm_snk);
 	close(fd_pcm_src);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 #if ENABLE_MP3LAME
 CK_START_TEST(test_a2dp_mp3) {
 
 	config_mp3_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/mp3", &a2dp_mpeg_source,
-			&config_mp3_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/mp3", &a2dp_mpeg_sink,
-			&config_mp3_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/mp3", &a2dp_mpeg_source,
+	                                                   &config_mp3_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/mp3", &a2dp_mpeg_sink,
+	                                                   &config_mp3_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 1024;
@@ -1068,7 +1082,8 @@ CK_START_TEST(test_a2dp_mp3) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_AAC
@@ -1078,15 +1093,15 @@ CK_START_TEST(test_a2dp_aac) {
 	config.aac_prefer_vbr = enable_vbr_mode;
 	config_aac_44100_stereo.vbr = enable_vbr_mode ? 1 : 0;
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aac", &a2dp_aac_source,
-			&config_aac_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aac", &a2dp_aac_sink,
-			&config_aac_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/aac", &a2dp_aac_source,
+	                                                   &config_aac_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/aac", &a2dp_aac_sink,
+	                                                   &config_aac_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 450;
@@ -1101,15 +1116,16 @@ CK_START_TEST(test_a2dp_aac) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_AAC
 CK_START_TEST(test_a2dp_aac_configuration_select) {
 
 	static const unsigned int channels[] = { 1, 2, 6, 8 };
-	static const unsigned int rates[] = {
-		8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000 };
+	static const unsigned int rates[] = { 8000, 11025, 12000, 16000, 22050, 24000,
+		                                    32000, 44100, 48000, 64000, 88200, 96000 };
 
 	/* Probe AAC encoder for supported configurations. */
 	a2dp_aac_source.init(&a2dp_aac_source);
@@ -1130,14 +1146,14 @@ CK_START_TEST(test_a2dp_aac_configuration_select) {
 			/* Select the configuration based on the pre-selected capabilities. */
 			if (a2dp_aac_source.configuration_select(&a2dp_aac_source, &config_aac) != 0) {
 				debug("AAC unsupported configuration: channels=%u, rate=%u",
-						channels[i], rates[j]);
+				      channels[i], rates[j]);
 				continue;
 			}
 
 			hexdump("AAC configuration", &config_aac, sizeof(config_aac));
-			struct ba_transport *t = test_transport_new_a2dp(device1,
-					BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aac", &a2dp_aac_source,
-					&config_aac);
+			struct ba_transport * t = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+			                                                  "/path/aac", &a2dp_aac_source,
+			                                                  &config_aac);
 
 			int bt_fds[2];
 			ck_assert_int_eq(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, bt_fds), 0);
@@ -1153,21 +1169,22 @@ CK_START_TEST(test_a2dp_aac_configuration_select) {
 
 		}
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_APTX_IO_TEST
 CK_START_TEST(test_a2dp_aptx) {
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aptx", &a2dp_aptx_source,
-			&config_aptx_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aptx", &a2dp_aptx_sink,
-			&config_aptx_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/aptx", &a2dp_aptx_source,
+	                                                   &config_aptx_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/aptx", &a2dp_aptx_sink,
+	                                                   &config_aptx_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 400;
@@ -1177,26 +1194,27 @@ CK_START_TEST(test_a2dp_aptx) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 40;
 		test_io(t1_pcm, t2_pcm, a2dp_aptx_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_aptx_dec_thread, 2 * 1024);
-	};
+	}
 
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_APTX_HD_IO_TEST
 CK_START_TEST(test_a2dp_aptx_hd) {
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/aptxhd", &a2dp_aptx_hd_source,
-			&config_aptx_hd_44100_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/aptxhd", &a2dp_aptx_hd_sink,
-			&config_aptx_hd_44100_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/aptxhd", &a2dp_aptx_hd_source,
+	                                                   &config_aptx_hd_44100_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/aptxhd", &a2dp_aptx_hd_sink,
+	                                                   &config_aptx_hd_44100_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
@@ -1206,26 +1224,27 @@ CK_START_TEST(test_a2dp_aptx_hd) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 60;
 		test_io(t1_pcm, t2_pcm, a2dp_aptx_hd_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_aptx_hd_dec_thread, 2 * 1024);
-	};
+	}
 
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_FASTSTREAM
 CK_START_TEST(test_a2dp_faststream_music) {
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/faststream", &a2dp_faststream_source,
-			&config_faststream_44100_16000);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/faststream", &a2dp_faststream_sink,
-			&config_faststream_44100_16000);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/faststream", &a2dp_faststream_source,
+	                                                   &config_faststream_44100_16000);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/faststream", &a2dp_faststream_sink,
+	                                                   &config_faststream_44100_16000);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
@@ -1240,21 +1259,22 @@ CK_START_TEST(test_a2dp_faststream_music) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_FASTSTREAM
 CK_START_TEST(test_a2dp_faststream_voice) {
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/faststream", &a2dp_faststream_source,
-			&config_faststream_44100_16000);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/faststream", &a2dp_faststream_sink,
-			&config_faststream_44100_16000);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/faststream", &a2dp_faststream_source,
+	                                                   &config_faststream_44100_16000);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/faststream", &a2dp_faststream_sink,
+	                                                   &config_faststream_44100_16000);
 
-	struct ba_transport_pcm *t1_pcm_bc = &t1->media.pcm_bc;
-	struct ba_transport_pcm *t2_pcm_bc = &t2->media.pcm_bc;
+	struct ba_transport_pcm * t1_pcm_bc = &t1->media.pcm_bc;
+	struct ba_transport_pcm * t2_pcm_bc = &t2->media.pcm_bc;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 72 * 3;
@@ -1269,21 +1289,22 @@ CK_START_TEST(test_a2dp_faststream_voice) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_LC3PLUS
 CK_START_TEST(test_a2dp_lc3plus) {
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lc3plus", &a2dp_lc3plus_source,
-			&config_lc3plus_48000_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lc3plus", &a2dp_lc3plus_sink,
-			&config_lc3plus_48000_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/lc3plus", &a2dp_lc3plus_source,
+	                                                   &config_lc3plus_48000_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/lc3plus", &a2dp_lc3plus_sink,
+	                                                   &config_lc3plus_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
@@ -1300,7 +1321,8 @@ CK_START_TEST(test_a2dp_lc3plus) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_LDAC_IO_TEST
@@ -1309,15 +1331,15 @@ CK_START_TEST(test_a2dp_ldac) {
 	config.ldac_abr = true;
 	config.ldac_eqmid = LDACBT_EQMID_HQ;
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/ldac", &a2dp_ldac_source,
-			&config_ldac_48000_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/ldac", &a2dp_ldac_sink,
-			&config_ldac_48000_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/ldac", &a2dp_ldac_source,
+	                                                   &config_ldac_48000_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/ldac", &a2dp_ldac_sink,
+	                                                   &config_ldac_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
@@ -1334,7 +1356,8 @@ CK_START_TEST(test_a2dp_ldac) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_LHDC
@@ -1342,15 +1365,15 @@ CK_START_TEST(test_a2dp_lhdc_v3) {
 
 	config.lhdc_quality = LHDCBT_QUALITY_HIGH;
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/lhdc", &a2dp_lhdc_v3_source,
-			&config_lhdc_v3_48000_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/lhdc", &a2dp_lhdc_v3_sink,
-			&config_lhdc_v3_48000_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/lhdc", &a2dp_lhdc_v3_source,
+	                                                   &config_lhdc_v3_48000_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/lhdc", &a2dp_lhdc_v3_sink,
+	                                                   &config_lhdc_v3_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 960;
@@ -1365,21 +1388,22 @@ CK_START_TEST(test_a2dp_lhdc_v3) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_OPUS
 CK_START_TEST(test_a2dp_opus) {
 
-	struct ba_transport *t1 = test_transport_new_a2dp(device1,
-			BA_TRANSPORT_PROFILE_A2DP_SOURCE, "/path/opus", &a2dp_opus_source,
-			&config_opus_48000_stereo);
-	struct ba_transport *t2 = test_transport_new_a2dp(device2,
-			BA_TRANSPORT_PROFILE_A2DP_SINK, "/path/opus", &a2dp_opus_source,
-			&config_opus_48000_stereo);
+	struct ba_transport * t1 = test_transport_new_a2dp(device1, BA_TRANSPORT_PROFILE_A2DP_SOURCE,
+	                                                   "/path/opus", &a2dp_opus_source,
+	                                                   &config_opus_48000_stereo);
+	struct ba_transport * t2 = test_transport_new_a2dp(device2, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                   "/path/opus", &a2dp_opus_source,
+	                                                   &config_opus_48000_stereo);
 
-	struct ba_transport_pcm *t1_pcm = &t1->media.pcm;
-	struct ba_transport_pcm *t2_pcm = &t2->media.pcm;
+	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
+	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 600;
@@ -1394,18 +1418,19 @@ CK_START_TEST(test_a2dp_opus) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_ASHA
 CK_START_TEST(test_asha_g722) {
 
-	asha_hi_sync_id_t id = ASHA_HI_SYNC_ID_INIT(
-			BT_COMPID_LINUX_FOUNDATION, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66);
-	struct ba_transport * t1 = test_transport_new_asha(device1,
-			BA_TRANSPORT_PROFILE_ASHA_SOURCE, "/path/asha/g722", id);
-	struct ba_transport * t2 = test_transport_new_asha(device2,
-			BA_TRANSPORT_PROFILE_ASHA_SINK, "/path/asha/g722", id);
+	asha_hi_sync_id_t id = ASHA_HI_SYNC_ID_INIT(BT_COMPID_LINUX_FOUNDATION,
+	                                            0x11, 0x22, 0x33, 0x44, 0x55, 0x66);
+	struct ba_transport * t1 = test_transport_new_asha(device1, BA_TRANSPORT_PROFILE_ASHA_SOURCE,
+	                                                   "/path/asha/g722", id);
+	struct ba_transport * t2 = test_transport_new_asha(device2, BA_TRANSPORT_PROFILE_ASHA_SINK,
+	                                                   "/path/asha/g722", id);
 
 	struct ba_transport_pcm * t1_pcm = &t1->media.pcm;
 	struct ba_transport_pcm * t2_pcm = &t2->media.pcm;
@@ -1423,18 +1448,19 @@ CK_START_TEST(test_asha_g722) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 CK_START_TEST(test_sco_cvsd) {
 
-	struct ba_transport *t1 = test_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HSP_AG, "/path/sco/cvsd");
-	struct ba_transport *t2 = test_transport_new_sco(device2,
-			BA_TRANSPORT_PROFILE_HSP_AG, "/path/sco/cvsd");
+	struct ba_transport * t1 = test_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HSP_AG,
+	                                                  "/path/sco/cvsd");
+	struct ba_transport * t2 = test_transport_new_sco(device2, BA_TRANSPORT_PROFILE_HSP_AG,
+	                                                  "/path/sco/cvsd");
 
-	struct ba_transport_pcm *t1_pcm = &t1->sco.pcm_spk;
-	struct ba_transport_pcm *t2_pcm = &t2->sco.pcm_spk;
+	struct ba_transport_pcm * t1_pcm = &t1->sco.pcm_spk;
+	struct ba_transport_pcm * t2_pcm = &t2->sco.pcm_spk;
 
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 48;
 	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 600);
@@ -1443,7 +1469,8 @@ CK_START_TEST(test_sco_cvsd) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 #if ENABLE_MSBC
 CK_START_TEST(test_sco_msbc) {
@@ -1452,15 +1479,15 @@ CK_START_TEST(test_sco_msbc) {
 	adapter->hci.features[3] = LMP_ESCO;
 	config.io_thread_rt_priority = 10;
 
-	struct ba_transport *t1 = test_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/msbc");
+	struct ba_transport * t1 = test_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                  "/path/sco/msbc");
 	ba_transport_set_codec(t1, HFP_CODEC_MSBC);
-	struct ba_transport *t2 = test_transport_new_sco(device2,
-			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/msbc");
+	struct ba_transport * t2 = test_transport_new_sco(device2, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                  "/path/sco/msbc");
 	ba_transport_set_codec(t2, HFP_CODEC_MSBC);
 
-	struct ba_transport_pcm *t1_pcm = &t1->sco.pcm_spk;
-	struct ba_transport_pcm *t2_pcm = &t2->sco.pcm_spk;
+	struct ba_transport_pcm * t1_pcm = &t1->sco.pcm_spk;
+	struct ba_transport_pcm * t2_pcm = &t2->sco.pcm_spk;
 
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
 	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 600);
@@ -1469,7 +1496,8 @@ CK_START_TEST(test_sco_msbc) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 #if ENABLE_LC3_SWB
@@ -1478,15 +1506,15 @@ CK_START_TEST(test_sco_lc3_swb) {
 	adapter->hci.features[2] = LMP_TRSP_SCO;
 	adapter->hci.features[3] = LMP_ESCO;
 
-	struct ba_transport *t1 = test_transport_new_sco(device1,
-			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/lc3swb");
+	struct ba_transport * t1 = test_transport_new_sco(device1, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                  "/path/sco/lc3swb");
 	ba_transport_set_codec(t1, HFP_CODEC_LC3_SWB);
-	struct ba_transport *t2 = test_transport_new_sco(device2,
-			BA_TRANSPORT_PROFILE_HFP_AG, "/path/sco/lc3swb");
+	struct ba_transport * t2 = test_transport_new_sco(device2, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                  "/path/sco/lc3swb");
 	ba_transport_set_codec(t2, HFP_CODEC_LC3_SWB);
 
-	struct ba_transport_pcm *t1_pcm = &t1->sco.pcm_spk;
-	struct ba_transport_pcm *t2_pcm = &t2->sco.pcm_spk;
+	struct ba_transport_pcm * t1_pcm = &t1->sco.pcm_spk;
+	struct ba_transport_pcm * t2_pcm = &t2->sco.pcm_spk;
 
 	t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write = 24;
 	test_io(t1_pcm, t2_pcm, sco_enc_thread, test_io_thread_dump_bt, 600);
@@ -1495,15 +1523,16 @@ CK_START_TEST(test_sco_lc3_swb) {
 	ba_transport_destroy(t1);
 	ba_transport_destroy(t2);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 
 	const struct {
-		const char *name;
+		const char * name;
 #if CHECK_VERSION >= 0x000D00 /* 0.13.0 */
-		const TTest *tf;
+		const TTest * tf;
 #else
 		TFun tf;
 #endif
@@ -1524,20 +1553,25 @@ int main(int argc, char *argv[]) {
 		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID)), test_a2dp_aptx },
 #endif
 #if ENABLE_APTX_HD_IO_TEST
-		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID)), test_a2dp_aptx_hd },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(APTX_HD_VENDOR_ID, APTX_HD_CODEC_ID)),
+			test_a2dp_aptx_hd },
 #endif
 #if ENABLE_FASTSTREAM
-		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_music },
-		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)), test_a2dp_faststream_voice },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)),
+			test_a2dp_faststream_music },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(FASTSTREAM_VENDOR_ID, FASTSTREAM_CODEC_ID)),
+			test_a2dp_faststream_voice },
 #endif
 #if ENABLE_LC3PLUS
-		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID)), test_a2dp_lc3plus },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LC3PLUS_VENDOR_ID, LC3PLUS_CODEC_ID)),
+			test_a2dp_lc3plus },
 #endif
 #if ENABLE_LDAC_IO_TEST
 		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LDAC_VENDOR_ID, LDAC_CODEC_ID)), test_a2dp_ldac },
 #endif
 #if ENABLE_LHDC
-		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)), test_a2dp_lhdc_v3 },
+		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(LHDC_V3_VENDOR_ID, LHDC_V3_CODEC_ID)),
+			test_a2dp_lhdc_v3 },
 #endif
 #if ENABLE_OPUS
 		{ a2dp_codec_to_string(A2DP_CODEC_VENDOR_ID(OPUS_VENDOR_ID, OPUS_CODEC_ID)), test_a2dp_opus },
@@ -1569,35 +1603,35 @@ int main(int argc, char *argv[]) {
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			printf("Usage:\n"
-					"  %s [OPTION]... [CODEC]...\n"
-					"\nOptions:\n"
-					"  -h, --help\t\tprint this help and exit\n"
-					"  -a, --aging=SEC\tperform aging test for SEC seconds\n"
-					"  -d, --dump\t\tdump PCM and Bluetooth data\n"
-					"  -l, --packet-loss\tsimulate packet loss events\n"
-					"  --input-bt=FILE\tload Bluetooth data from FILE\n"
-					"  --input-pcm=FILE\tload audio from FILE (via libsndfile)\n"
-					"  --vbr\t\t\tuse VBR if supported by the codec\n",
-					argv[0]);
+			       "  %s [OPTION]... [CODEC]...\n"
+			       "\nOptions:\n"
+			       "  -h, --help\t\tprint this help and exit\n"
+			       "  -a, --aging=SEC\tperform aging test for SEC seconds\n"
+			       "  -d, --dump\t\tdump PCM and Bluetooth data\n"
+			       "  -l, --packet-loss\tsimulate packet loss events\n"
+			       "  --input-bt=FILE\tload Bluetooth data from FILE\n"
+			       "  --input-pcm=FILE\tload audio from FILE (via libsndfile)\n"
+			       "  --vbr\t\t\tuse VBR if supported by the codec\n",
+			       argv[0]);
 			return EXIT_SUCCESS;
-		case 'a' /* --aging=SEC */ :
+		case 'a' /* --aging=SEC */:
 			aging_duration = atoi(optarg);
 			break;
-		case 'd' /* --dump */ :
+		case 'd' /* --dump */:
 			dump_data = true;
 			break;
-		case 'l' /* --packet-loss */ :
+		case 'l' /* --packet-loss */:
 			packet_loss = true;
 			break;
-		case 1 /* --input-bt=FILE */ :
+		case 1 /* --input-bt=FILE */:
 			input_bt_file = optarg;
 			break;
-		case 2 /* --input-pcm=FILE */ :
+		case 2 /* --input-pcm=FILE */:
 			input_pcm_file = optarg;
 			break;
-		case 3 /* --vbr */ :
+		case 3 /* --vbr */:
 			enable_vbr_mode = true;
 			break;
 		default:
@@ -1619,8 +1653,9 @@ int main(int argc, char *argv[]) {
 
 		size_t input_bt_a2dp_configuration_size = sizeof(input_bt_a2dp_configuration);
 		if ((input_bt_f = fopen(input_bt_file, "r")) == NULL ||
-				ba_dumper_read_header(input_bt_f, &input_bt_profile_mask, &input_bt_codec_id,
-						&input_bt_a2dp_configuration, &input_bt_a2dp_configuration_size) == -1) {
+		    ba_dumper_read_header(input_bt_f, &input_bt_profile_mask, &input_bt_codec_id,
+		                          &input_bt_a2dp_configuration,
+		                          &input_bt_a2dp_configuration_size) == -1) {
 			error("Couldn't open input BT dump file: %s", strerror(errno));
 			return EXIT_FAILURE;
 		}
@@ -1631,7 +1666,7 @@ int main(int argc, char *argv[]) {
 			codec = a2dp_codec_to_string(input_bt_codec_id);
 			debug("BT dump A2DP codec: %s (%#x)", codec, input_bt_codec_id);
 			hexdump("BT dump A2DP configuration",
-					&input_bt_a2dp_configuration, input_bt_a2dp_configuration_size);
+			        &input_bt_a2dp_configuration, input_bt_a2dp_configuration_size);
 			break;
 #if ENABLE_ASHA
 		case BA_TRANSPORT_PROFILE_MASK_ASHA:
@@ -1663,8 +1698,8 @@ int main(int argc, char *argv[]) {
 
 	ba_config_init();
 
-	bdaddr_t addr1 = {{ 1, 2, 3, 4, 5, 6 }};
-	bdaddr_t addr2 = {{ 1, 2, 3, 7, 8, 9 }};
+	bdaddr_t addr1 = { { 1, 2, 3, 4, 5, 6 } };
+	bdaddr_t addr2 = { { 1, 2, 3, 7, 8, 9 } };
 	adapter = ba_adapter_new(0);
 	device1 = ba_device_new(adapter, &addr1);
 	device2 = ba_device_new(adapter, &addr2);

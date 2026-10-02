@@ -9,27 +9,27 @@
 #include <stdbool.h>
 #include <string.h>
 
-static bool dbus_message_iter_get_basic_boolean(DBusMessageIter *iter) {
+static bool dbus_message_iter_get_basic_boolean(DBusMessageIter * iter) {
 	dbus_bool_t tmp;
 	return dbus_message_iter_get_basic(iter, &tmp), tmp;
 }
 
-static const char *dbus_message_iter_get_basic_string(DBusMessageIter *iter) {
-	static const char *tmp;
+static const char * dbus_message_iter_get_basic_string(DBusMessageIter * iter) {
+	static const char * tmp;
 	return dbus_message_iter_get_basic(iter, &tmp), tmp;
 }
 
-DBusMessage *dbus_get_properties(DBusConnection *conn,
-		const char *service, const char *path, const char *interface,
-		const char *property, DBusError *error) {
+DBusMessage * dbus_get_properties(DBusConnection * conn,
+		const char * service, const char * path, const char * interface,
+		const char * property, DBusError * error) {
 
-	DBusMessage *msg;
-	const char *method = property == NULL ? "GetAll" : "Get";
-	if ((msg = dbus_message_new_method_call(service, path,
-					DBUS_INTERFACE_PROPERTIES, method)) == NULL)
+	DBusMessage * msg;
+	const char * method = property == NULL ? "GetAll" : "Get";
+	if ((msg = dbus_message_new_method_call(service, path, DBUS_INTERFACE_PROPERTIES,
+	                                        method)) == NULL)
 		return NULL;
 
-	DBusMessage *rep = NULL;
+	DBusMessage * rep = NULL;
 
 	DBusMessageIter iter;
 	dbus_message_iter_init_append(msg, &iter);
@@ -37,22 +37,21 @@ DBusMessage *dbus_get_properties(DBusConnection *conn,
 	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface))
 		goto fail;
 	if (property != NULL &&
-			!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &property))
+	    !dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &property))
 		goto fail;
 
-	rep = dbus_connection_send_with_reply_and_block(conn, msg,
-			DBUS_TIMEOUT_USE_DEFAULT, error);
+	rep = dbus_connection_send_with_reply_and_block(conn, msg, DBUS_TIMEOUT_USE_DEFAULT, error);
 
 fail:
 	dbus_message_unref(msg);
 	return rep;
 }
 
-int dbus_bluez_get_device(DBusConnection *conn, const char *path,
-		struct bluez_device *dev, DBusError *error) {
+int dbus_bluez_get_device(DBusConnection * conn, const char * path,
+		struct bluez_device * dev, DBusError * error) {
 
 	char path_addr[sizeof("00:00:00:00:00:00")] = { 0 };
-	const char *tmp;
+	const char * tmp;
 
 	memset(dev, 0, sizeof(*dev));
 	strncpy(dev->path, path, sizeof(dev->path) - 1);
@@ -67,9 +66,9 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 			path_addr[i] = ':';
 	str2ba(path_addr, &dev->bt_addr);
 
-	DBusMessage *rep;
-	if ((rep = dbus_get_properties(conn, "org.bluez", path,
-					"org.bluez.Device1", NULL, error)) == NULL)
+	DBusMessage * rep;
+	if ((rep = dbus_get_properties(conn, "org.bluez", path, "org.bluez.Device1",
+	                               NULL, error)) == NULL)
 		return -1;
 
 	DBusMessageIter iter;
@@ -77,12 +76,12 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 
 	DBusMessageIter iter_dict;
 	for (dbus_message_iter_recurse(&iter, &iter_dict);
-			dbus_message_iter_get_arg_type(&iter_dict) != DBUS_TYPE_INVALID;
-			dbus_message_iter_next(&iter_dict)) {
+	     dbus_message_iter_get_arg_type(&iter_dict) != DBUS_TYPE_INVALID;
+	     dbus_message_iter_next(&iter_dict)) {
 
 		DBusMessageIter iter_entry;
 		DBusMessageIter iter_entry_val;
-		const char *key;
+		const char * key;
 
 		dbus_message_iter_recurse(&iter_dict, &iter_entry);
 		dbus_message_iter_get_basic(&iter_entry, &key);
@@ -96,9 +95,11 @@ int dbus_bluez_get_device(DBusConnection *conn, const char *path,
 		else if (strcmp(key, "Address") == 0)
 			str2ba(dbus_message_iter_get_basic_string(&iter_entry_val), &dev->bt_addr);
 		else if (strcmp(key, "Alias") == 0)
-			strncpy(dev->name, dbus_message_iter_get_basic_string(&iter_entry_val), sizeof(dev->name) - 1);
+			strncpy(dev->name, dbus_message_iter_get_basic_string(&iter_entry_val),
+			        sizeof(dev->name) - 1);
 		else if (strcmp(key, "Icon") == 0)
-			strncpy(dev->icon, dbus_message_iter_get_basic_string(&iter_entry_val), sizeof(dev->icon) - 1);
+			strncpy(dev->icon, dbus_message_iter_get_basic_string(&iter_entry_val),
+			        sizeof(dev->icon) - 1);
 		else if (strcmp(key, "Paired") == 0)
 			dev->paired = dbus_message_iter_get_basic_boolean(&iter_entry_val);
 		else if (strcmp(key, "Trusted") == 0)

@@ -35,12 +35,12 @@ int bluez_init(void);
 void bluez_destroy(void);
 
 bool bluez_a2dp_set_configuration(
-		const char *dbus_current_sep_path,
-		const struct a2dp_sep_config *remote_sep_cfg,
-		const void *configuration,
-		GError **error);
+		const char * dbus_current_sep_path,
+		const struct a2dp_sep_config * remote_sep_cfg,
+		const void * configuration,
+		GError ** error);
 
 void bluez_battery_provider_update(
-		struct ba_device *device);
+		struct ba_device * device);
 
 #endif

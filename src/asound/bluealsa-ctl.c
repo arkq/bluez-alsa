@@ -55,8 +55,8 @@ enum ctl_elem_type {
  * Control element. */
 struct ctl_elem {
 	enum ctl_elem_type type;
-	struct bt_dev *dev;
-	struct ba_pcm *pcm;
+	struct bt_dev * dev;
+	struct ba_pcm * pcm;
 	/* element ID exposed by ALSA */
 	int numid;
 	char name[44 /* internal ALSA constraint */];
@@ -73,7 +73,7 @@ struct ctl_elem {
 struct ctl_elem_update {
 	/* PCM associated with the element being updated. This pointer shall not
 	 * be dereferenced, because it might point to already freed memory region. */
-	const struct ba_pcm *pcm;
+	const struct ba_pcm * pcm;
 	/* the ID of the element */
 	int numid;
 	/* the name of the element being updated */
@@ -103,19 +103,19 @@ struct bluealsa_ctl {
 	struct ba_dbus_ctx dbus_ctx;
 
 	/* list of BT devices */
-	struct bt_dev **dev_list;
+	struct bt_dev ** dev_list;
 	size_t dev_list_size;
 
 	/* list of all BlueALSA PCMs */
-	struct ba_pcm **pcm_list;
+	struct ba_pcm ** pcm_list;
 	size_t pcm_list_size;
 
 	/* list of ALSA control elements */
-	struct ctl_elem *elem_list;
+	struct ctl_elem * elem_list;
 	size_t elem_list_size;
 
 	/* list of control element update events */
-	struct ctl_elem_update *elem_update_list;
+	struct ctl_elem_update * elem_update_list;
 	size_t elem_update_list_size;
 	size_t elem_update_event_i;
 
@@ -142,16 +142,16 @@ struct bluealsa_ctl {
 
 };
 
-static const char *soft_volume_names[] = {
+static const char * soft_volume_names[] = {
 	"pass-through",
 	"software",
 };
 
-static int str2bdaddr(const char *str, bdaddr_t *ba) {
+static int str2bdaddr(const char * str, bdaddr_t * ba) {
 
 	unsigned int x[6];
 	if (sscanf(str, "%x:%x:%x:%x:%x:%x",
-				&x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
+	           &x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
 		return -1;
 
 	for (size_t i = 0; i < 6; i++)
@@ -160,16 +160,16 @@ static int str2bdaddr(const char *str, bdaddr_t *ba) {
 	return 0;
 }
 
-static int bluealsa_bt_dev_cmp(const void *p1, const void *p2) {
-	const struct bt_dev *d1 = *(const struct bt_dev **)p1;
-	const struct bt_dev *d2 = *(const struct bt_dev **)p2;
+static int bluealsa_bt_dev_cmp(const void * p1, const void * p2) {
+	const struct bt_dev * d1 = *(const struct bt_dev **)p1;
+	const struct bt_dev * d2 = *(const struct bt_dev **)p2;
 	return strcmp(d1->device_path, d2->device_path);
 }
 
-static int bluealsa_elem_cmp(const void *p1, const void *p2) {
+static int bluealsa_elem_cmp(const void * p1, const void * p2) {
 
-	const struct ctl_elem *e1 = (const struct ctl_elem *)p1;
-	const struct ctl_elem *e2 = (const struct ctl_elem *)p2;
+	const struct ctl_elem * e1 = (const struct ctl_elem *)p1;
+	const struct ctl_elem * e2 = (const struct ctl_elem *)p2;
 	int rv;
 
 	/* Sort elements by device names. In case were names
@@ -187,9 +187,9 @@ static int bluealsa_elem_cmp(const void *p1, const void *p2) {
 	if ((rv = e1->pcm->transport - e2->pcm->transport))
 		return rv;
 	if (!(e1->type == CTL_ELEM_TYPE_CODEC ||
-				e1->type == CTL_ELEM_TYPE_BATTERY ||
-				e2->type == CTL_ELEM_TYPE_CODEC ||
-				e2->type == CTL_ELEM_TYPE_BATTERY))
+	      e1->type == CTL_ELEM_TYPE_BATTERY ||
+	      e2->type == CTL_ELEM_TYPE_CODEC ||
+	      e2->type == CTL_ELEM_TYPE_BATTERY))
 		if ((rv = e1->playback - e2->playback) != 0)
 			return -rv;
 	if ((rv = e1->type - e2->type) != 0)
@@ -197,25 +197,24 @@ static int bluealsa_elem_cmp(const void *p1, const void *p2) {
 	return 0;
 }
 
-static DBusMessage *bluealsa_dbus_get_property(DBusConnection *conn,
-		const char *service, const char *path, const char *interface,
-		const char *property, DBusError *error) {
+static DBusMessage * bluealsa_dbus_get_property(DBusConnection * conn,
+		const char * service, const char * path, const char * interface,
+		const char * property, DBusError * error) {
 
-	DBusMessage *msg;
+	DBusMessage * msg;
 	if ((msg = dbus_message_new_method_call(service, path,
-					DBUS_INTERFACE_PROPERTIES, "Get")) == NULL)
+	                                        DBUS_INTERFACE_PROPERTIES, "Get")) == NULL)
 		return NULL;
 
-	DBusMessage *rep = NULL;
+	DBusMessage * rep = NULL;
 
 	if (!dbus_message_append_args(msg,
-			DBUS_TYPE_STRING, &interface,
-			DBUS_TYPE_STRING, &property,
-			DBUS_TYPE_INVALID))
+	                              DBUS_TYPE_STRING, &interface,
+	                              DBUS_TYPE_STRING, &property,
+	                              DBUS_TYPE_INVALID))
 		goto fail;
 
-	rep = dbus_connection_send_with_reply_and_block(conn, msg,
-			DBUS_TIMEOUT_USE_DEFAULT, error);
+	rep = dbus_connection_send_with_reply_and_block(conn, msg, DBUS_TIMEOUT_USE_DEFAULT, error);
 
 fail:
 	dbus_message_unref(msg);
@@ -228,19 +227,20 @@ fail:
  * @param ctl The BlueALSA controller context.
  * @param pcm BlueALSA PCM structure.
  * @return The device ID number, or -1 upon error. */
-static int bluealsa_dev_get_id(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
+static int bluealsa_dev_get_id(struct bluealsa_ctl * ctl, const struct ba_pcm * pcm) {
 	for (size_t i = 0; i < ctl->dev_list_size; i++)
 		if (strcmp(ctl->dev_list[i]->device_path, pcm->device_path) == 0)
 			return i + 1;
 	return -1;
 }
 
-static int bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
+static int bluealsa_dev_fetch_name(struct bluealsa_ctl * ctl, struct bt_dev * dev) {
 
-	DBusMessage *rep;
+	DBusMessage * rep;
 	DBusError err = DBUS_ERROR_INIT;
 	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, "org.bluez",
-					dev->device_path, "org.bluez.Device1", "Alias", &err)) == NULL) {
+	                                      dev->device_path, "org.bluez.Device1", "Alias",
+	                                      &err)) == NULL) {
 		snd_error(CONTROL, "Couldn't get device name: %s", err.message);
 		dbus_error_free(&err);
 		return -1;
@@ -252,7 +252,7 @@ static int bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev)
 	dbus_message_iter_init(rep, &iter);
 	dbus_message_iter_recurse(&iter, &iter_val);
 
-	const char *name;
+	const char * name;
 	dbus_message_iter_get_basic(&iter_val, &name);
 	*stpncpy(dev->name, name, sizeof(dev->name) - 1) = '\0';
 
@@ -260,12 +260,13 @@ static int bluealsa_dev_fetch_name(struct bluealsa_ctl *ctl, struct bt_dev *dev)
 	return 0;
 }
 
-static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *dev) {
+static int bluealsa_dev_fetch_battery(struct bluealsa_ctl * ctl, struct bt_dev * dev) {
 
-	DBusMessage *rep;
+	DBusMessage * rep;
 	DBusError err = DBUS_ERROR_INIT;
 	if ((rep = bluealsa_dbus_get_property(ctl->dbus_ctx.conn, ctl->dbus_ctx.ba_service,
-					dev->rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, "Battery", &err)) == NULL) {
+	                                      dev->rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, "Battery",
+	                                      &err)) == NULL) {
 		snd_error(CONTROL, "Couldn't get device battery status: %s", err.message);
 		dbus_error_free(&err);
 		return -1;
@@ -285,8 +286,8 @@ static int bluealsa_dev_fetch_battery(struct bluealsa_ctl *ctl, struct bt_dev *d
 	return level;
 }
 
-static int bluealsa_pcm_fetch_codecs(struct bluealsa_ctl *ctl, struct ba_pcm *pcm,
-		struct ba_pcm_codecs *codecs) {
+static int bluealsa_pcm_fetch_codecs(struct bluealsa_ctl * ctl, struct ba_pcm * pcm,
+		struct ba_pcm_codecs * codecs) {
 
 	codecs->codecs = NULL;
 	codecs->codecs_len = 0;
@@ -317,7 +318,7 @@ static int bluealsa_pcm_fetch_codecs(struct bluealsa_ctl *ctl, struct ba_pcm *pc
  * @param ctl The BlueALSA controller context.
  * @param pcm BlueALSA PCM structure.
  * @return The BT device, or NULL upon error. */
-static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
+static struct bt_dev * bluealsa_dev_get(struct bluealsa_ctl * ctl, const struct ba_pcm * pcm) {
 
 	for (size_t i = 0; i < ctl->dev_list_size; i++)
 		if (strcmp(ctl->dev_list[i]->device_path, pcm->device_path) == 0)
@@ -326,13 +327,13 @@ static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba
 	/* If device is not cached yet, fetch data from
 	 * the BlueZ via the B-Bus interface. */
 
-	struct bt_dev **dev_list = ctl->dev_list;
+	struct bt_dev ** dev_list = ctl->dev_list;
 	size_t size = ctl->dev_list_size;
 	if ((dev_list = realloc(dev_list, (size + 1) * sizeof(*dev_list))) == NULL)
 		return NULL;
 	ctl->dev_list = dev_list;
 
-	struct bt_dev *dev;
+	struct bt_dev * dev;
 	if ((dev_list[size] = dev = malloc(sizeof(*dev))) == NULL)
 		return NULL;
 	ctl->dev_list_size++;
@@ -340,8 +341,8 @@ static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba
 	strcpy(dev->device_path, pcm->device_path);
 	sprintf(dev->rfcomm_path, "/org/bluealsa%.64s/rfcomm", &dev->device_path[10]);
 	sprintf(dev->name, "%.2X:%.2X:%.2X:%.2X:%.2X:%.2X",
-			pcm->addr.b[5], pcm->addr.b[4], pcm->addr.b[3],
-			pcm->addr.b[2], pcm->addr.b[1], pcm->addr.b[0]);
+	        pcm->addr.b[5], pcm->addr.b[4], pcm->addr.b[3],
+	        pcm->addr.b[2], pcm->addr.b[1], pcm->addr.b[0]);
 	dev->battery_level = -1;
 
 	/* Sort device list by an object path, so the bluealsa_dev_get_id() will
@@ -352,20 +353,20 @@ static struct bt_dev *bluealsa_dev_get(struct bluealsa_ctl *ctl, const struct ba
 	return dev;
 }
 
-static ssize_t bluealsa_pipefd_ping(struct bluealsa_ctl *ctl) {
+static ssize_t bluealsa_pipefd_ping(struct bluealsa_ctl * ctl) {
 	char ping = 1;
 	return write(ctl->pipefd[1], &ping, sizeof(ping));
 }
 
-static ssize_t bluealsa_pipefd_flush(struct bluealsa_ctl *ctl) {
+static ssize_t bluealsa_pipefd_flush(struct bluealsa_ctl * ctl) {
 	char buffer[16];
 	return read(ctl->pipefd[0], buffer, sizeof(buffer));
 }
 
-static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
-		const struct ctl_elem *elem, unsigned int mask) {
+static int bluealsa_elem_update_list_add(struct bluealsa_ctl * ctl,
+		const struct ctl_elem * elem, unsigned int mask) {
 
-	struct ctl_elem_update *tmp = ctl->elem_update_list;
+	struct ctl_elem_update * tmp = ctl->elem_update_list;
 	if ((tmp = realloc(tmp, (ctl->elem_update_list_size + 1) * sizeof(*tmp))) == NULL)
 		return -1;
 
@@ -391,8 +392,8 @@ static int bluealsa_elem_update_list_add(struct bluealsa_ctl *ctl,
 
 /**
  * Add new PCM to the list of known PCMs. */
-static int bluealsa_pcm_add(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
-	struct ba_pcm **list = ctl->pcm_list;
+static int bluealsa_pcm_add(struct bluealsa_ctl * ctl, const struct ba_pcm * pcm) {
+	struct ba_pcm ** list = ctl->pcm_list;
 	const size_t list_size = ctl->pcm_list_size;
 	if ((list = realloc(list, (list_size + 1) * sizeof(*list))) == NULL)
 		return -1;
@@ -406,7 +407,7 @@ static int bluealsa_pcm_add(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) 
 
 /**
  * Remove PCM from the list of known PCMs. */
-static int bluealsa_pcm_remove(struct bluealsa_ctl *ctl, const char *path) {
+static int bluealsa_pcm_remove(struct bluealsa_ctl * ctl, const char * path) {
 	for (size_t i = 0; i < ctl->pcm_list_size; i++)
 		if (strcmp(ctl->pcm_list[i]->pcm_path, path) == 0) {
 
@@ -423,7 +424,7 @@ static int bluealsa_pcm_remove(struct bluealsa_ctl *ctl, const char *path) {
 	return 0;
 }
 
-static int bluealsa_pcm_activate(struct bluealsa_ctl *ctl, const struct ba_pcm *pcm) {
+static int bluealsa_pcm_activate(struct bluealsa_ctl * ctl, const struct ba_pcm * pcm) {
 	for (size_t i = 0; i < ctl->pcm_list_size; i++)
 		if (strcmp(ctl->pcm_list[i]->pcm_path, pcm->pcm_path) == 0) {
 
@@ -442,7 +443,7 @@ static int bluealsa_pcm_activate(struct bluealsa_ctl *ctl, const struct ba_pcm *
 	return 0;
 }
 
-static int bluealsa_pcm_deactivate(struct bluealsa_ctl *ctl, const char *path) {
+static int bluealsa_pcm_deactivate(struct bluealsa_ctl * ctl, const char * path) {
 	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		if (strcmp(ctl->elem_list[i].pcm->pcm_path, path) == 0) {
 			ctl->elem_list[i].active = false;
@@ -472,8 +473,8 @@ static const char * transport2str(unsigned int transport) {
 	}
 }
 
-static int parse_extended(const char *extended,
-		bool *show_codec, bool *show_vol_mode, bool *show_delay_sync, bool *show_battery) {
+static int parse_extended(const char * extended,
+		bool * show_codec, bool * show_vol_mode, bool * show_delay_sync, bool * show_battery) {
 
 	bool codec = false, vol_mode = false, sync = false, battery = false;
 	int ret = 0;
@@ -488,11 +489,11 @@ static int parse_extended(const char *extended,
 		battery = true;
 		break;
 	default: {
-		char *next, *ptr = NULL;
-		char *buffer = strdupa(extended);
+		char * next, * ptr = NULL;
+		char * buffer = strdupa(extended);
 		for (next = strtok_r(buffer, ":", &ptr);
-				next != NULL;
-				next = strtok_r(NULL, ":", &ptr)) {
+		     next != NULL;
+		     next = strtok_r(NULL, ":", &ptr)) {
 			if (strcasecmp(next, "codec") == 0)
 				codec = true;
 			else if (strcasecmp(next, "mode") == 0)
@@ -506,7 +507,8 @@ static int parse_extended(const char *extended,
 				break;
 			}
 		}
-	}}
+	}
+	}
 
 	if (ret != -1) {
 		*show_codec = codec;
@@ -527,10 +529,10 @@ static int parse_extended(const char *extended,
  *   be NULL if no base prefix is required.
  * @param with_device_id If true, Bluetooth device ID number will be attached
  *   to the element name in order to prevent duplications. */
-static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *elem,
-		const char *name, bool with_device_id) {
+static void bluealsa_elem_set_name(struct bluealsa_ctl * ctl, struct ctl_elem * elem,
+		const char * name, bool with_device_id) {
 
-	const char *transport = "";
+	const char * transport = "";
 	if (ctl->show_bt_transport)
 		transport = transport2str(elem->pcm->transport);
 
@@ -657,11 +659,11 @@ static void bluealsa_elem_set_name(struct bluealsa_ctl *ctl, struct ctl_elem *el
  *   the codec list structure is transferred to associated control element.
  * @param add_battery_elem If true, add battery level indicator element.
  * @return The number of elements added. */
-static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
-		struct ctl_elem *elem_list, struct bt_dev *dev, struct ba_pcm *pcm,
-		struct ba_pcm_codecs *codecs, bool add_battery_elem) {
+static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl * ctl,
+		struct ctl_elem * elem_list, struct bt_dev * dev, struct ba_pcm * pcm,
+		struct ba_pcm_codecs * codecs, bool add_battery_elem) {
 
-	const char *name = ctl->single_device ? NULL : dev->name;
+	const char * name = ctl->single_device ? NULL : dev->name;
 	const bool playback = pcm->mode == BA_PCM_MODE_SINK;
 	size_t n = 0;
 
@@ -735,13 +737,13 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 
 	/* add special battery level indicator element */
 	if (add_battery_elem &&
-			dev->battery_level != -1 &&
-			/* There has to be attached some PCM to an element structure. Since
-			 * battery level is set only when SCO profile is connected (battery
-			 * requires RFCOMM), for simplicity and convenience, we will bind
-			 * battery element with SCO sink PCM. */
-			pcm->transport & BA_PCM_TRANSPORT_MASK_SCO &&
-			pcm->mode == BA_PCM_MODE_SINK) {
+	    dev->battery_level != -1 &&
+	    /* There has to be attached some PCM to an element structure. Since
+	     * battery level is set only when SCO profile is connected (battery
+	     * requires RFCOMM), for simplicity and convenience, we will bind
+	     * battery element with SCO sink PCM. */
+	    pcm->transport & BA_PCM_TRANSPORT_MASK_SCO &&
+	    pcm->mode == BA_PCM_MODE_SINK) {
 		elem_list[n].type = CTL_ELEM_TYPE_BATTERY;
 		elem_list[n].dev = dev;
 		elem_list[n].pcm = pcm;
@@ -756,19 +758,19 @@ static size_t bluealsa_elem_list_add_pcm_elems(struct bluealsa_ctl *ctl,
 	return n;
 }
 
-static bool elem_list_dev_has_battery_elem(const struct ctl_elem *elem_list,
-		size_t elem_list_size, const struct bt_dev *dev) {
+static bool elem_list_dev_has_battery_elem(const struct ctl_elem * elem_list,
+		size_t elem_list_size, const struct bt_dev * dev) {
 	for (size_t i = 0; i < elem_list_size; i++)
 		if (elem_list[i].type == CTL_ELEM_TYPE_BATTERY &&
-				elem_list[i].dev == dev)
+		    elem_list[i].dev == dev)
 			return true;
 	return false;
 }
 
-static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
+static int bluealsa_create_elem_list(struct bluealsa_ctl * ctl) {
 
 	size_t count = 0;
-	struct ctl_elem *elem_list = ctl->elem_list;
+	struct ctl_elem * elem_list = ctl->elem_list;
 
 	if (ctl->pcm_list_size > 0) {
 
@@ -805,8 +807,8 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	/* Construct control elements based on available PCMs. */
 	for (size_t i = 0; i < ctl->pcm_list_size; i++) {
 
-		struct ba_pcm *pcm = ctl->pcm_list[i];
-		struct bt_dev *dev = bluealsa_dev_get(ctl, pcm);
+		struct ba_pcm * pcm = ctl->pcm_list[i];
+		struct bt_dev * dev = bluealsa_dev_get(ctl, pcm);
 		struct ba_pcm_codecs codecs = { 0 };
 		bool add_battery_elem = false;
 
@@ -819,13 +821,13 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			bluealsa_pcm_fetch_codecs(ctl, pcm, &codecs);
 
 		if (ctl->show_battery &&
-				!elem_list_dev_has_battery_elem(elem_list, count, dev)) {
+		    !elem_list_dev_has_battery_elem(elem_list, count, dev)) {
 			bluealsa_dev_fetch_battery(ctl, dev);
 			add_battery_elem = true;
 		}
 
 		count += bluealsa_elem_list_add_pcm_elems(ctl, &elem_list[count],
-				dev, pcm, &codecs, add_battery_elem);
+		                                          dev, pcm, &codecs, add_battery_elem);
 
 	}
 
@@ -841,7 +843,7 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 			bool duplicated = false;
 			for (size_t ii = i + 1; ii < count; ii++)
 				if (elem_list[i].dev != elem_list[ii].dev &&
-						strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
+				    strcmp(elem_list[i].name, elem_list[ii].name) == 0) {
 					bluealsa_elem_set_name(ctl, &elem_list[ii], elem_list[ii].dev->name, true);
 					duplicated = true;
 				}
@@ -866,15 +868,15 @@ static int bluealsa_create_elem_list(struct bluealsa_ctl *ctl) {
 	return count;
 }
 
-static void bluealsa_free_elem_list(struct bluealsa_ctl *ctl) {
+static void bluealsa_free_elem_list(struct bluealsa_ctl * ctl) {
 	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		if (ctl->elem_list[i].type == CTL_ELEM_TYPE_CODEC)
 			ba_dbus_pcm_codecs_free(&ctl->elem_list[i].codecs);
 }
 
-static void bluealsa_close(snd_ctl_ext_t *ext) {
+static void bluealsa_close(snd_ctl_ext_t * ext) {
 
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	ba_dbus_connection_ctx_free(&ctl->dbus_ctx);
 	bluealsa_free_elem_list(ctl);
@@ -895,13 +897,13 @@ static void bluealsa_close(snd_ctl_ext_t *ext) {
 	free(ctl);
 }
 
-static int bluealsa_elem_count(snd_ctl_ext_t *ext) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_elem_count(snd_ctl_ext_t * ext) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 	return ctl->elem_list_size;
 }
 
-static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_elem_id_t *id) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_elem_list(snd_ctl_ext_t * ext, unsigned int offset, snd_ctl_elem_id_t * id) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (offset > ctl->elem_list_size)
 		return -EINVAL;
@@ -914,34 +916,34 @@ static int bluealsa_elem_list(snd_ctl_ext_t *ext, unsigned int offset, snd_ctl_e
 	return 0;
 }
 
-static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t *ext, const snd_ctl_elem_id_t *id) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static snd_ctl_ext_key_t bluealsa_find_elem(snd_ctl_ext_t * ext, const snd_ctl_elem_id_t * id) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	unsigned int numid = snd_ctl_elem_id_get_numid(id);
 
 	if (numid > 0 && numid <= ctl->elem_list_size)
 		return numid - 1;
 
-	const char *name = snd_ctl_elem_id_get_name(id);
+	const char * name = snd_ctl_elem_id_get_name(id);
 	unsigned int index = snd_ctl_elem_id_get_index(id);
 
 	for (size_t i = 0; i < ctl->elem_list_size; i++)
 		if (strcmp(ctl->elem_list[i].name, name) == 0 &&
-				ctl->elem_list[i].index == index)
+		    ctl->elem_list[i].index == index)
 			return i;
 
 	return SND_CTL_EXT_KEY_NOT_FOUND;
 }
 
-static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
-		int *type, unsigned int *acc, unsigned int *count) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_get_attribute(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
+		int * type, unsigned int * acc, unsigned int * count) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
-	const struct ba_pcm *pcm = elem->pcm;
+	const struct ctl_elem * elem = &ctl->elem_list[key];
+	const struct ba_pcm * pcm = elem->pcm;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -971,8 +973,8 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		break;
 	case CTL_ELEM_TYPE_VOLUME:
 		*acc = SND_CTL_EXT_ACCESS_READWRITE |
-			SND_CTL_EXT_ACCESS_TLV_CALLBACK |
-			SND_CTL_EXT_ACCESS_TLV_READ;
+		       SND_CTL_EXT_ACCESS_TLV_CALLBACK |
+		       SND_CTL_EXT_ACCESS_TLV_READ;
 		*type = SND_CTL_ELEM_TYPE_INTEGER;
 		*count = pcm->channels;
 		break;
@@ -981,14 +983,14 @@ static int bluealsa_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
-static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
-		long *imin, long *imax, long *istep) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_get_integer_info(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
+		long * imin, long * imax, long * istep) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
+	const struct ctl_elem * elem = &ctl->elem_list[key];
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_BATTERY:
@@ -1026,10 +1028,10 @@ static int bluealsa_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
-static snd_mixer_selem_channel_id_t ba_channel_map_to_id(const char *tag) {
+static snd_mixer_selem_channel_id_t ba_channel_map_to_id(const char * tag) {
 
 	static const struct {
-		const char *tag;
+		const char * tag;
 		snd_mixer_selem_channel_id_t id;
 	} mapping[] = {
 		{ "MONO", SND_MIXER_SCHN_MONO },
@@ -1059,7 +1061,7 @@ static snd_mixer_selem_channel_id_t ba_channel_map_to_id(const char *tag) {
  * @param pcm BlueALSA PCM structure.
  * @param channel BlueALSA PCM channel index.
  * @return The ALSA mixer simple element channel ID. */
-static snd_mixer_selem_channel_id_t bluealsa_get_channel_id(const struct ba_pcm *pcm,
+static snd_mixer_selem_channel_id_t bluealsa_get_channel_id(const struct ba_pcm * pcm,
 		unsigned int channel) {
 	snd_mixer_selem_channel_id_t id = ba_channel_map_to_id(pcm->channel_map[channel]);
 	/* Make sure that the channel ID is within the valid range. */
@@ -1070,14 +1072,14 @@ static snd_mixer_selem_channel_id_t bluealsa_get_channel_id(const struct ba_pcm 
 	return SND_MIXER_SCHN_MONO;
 }
 
-static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_read_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key, long * value) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
-	const struct ba_pcm *pcm = elem->pcm;
+	const struct ctl_elem * elem = &ctl->elem_list[key];
+	const struct ba_pcm * pcm = elem->pcm;
 	const bool active = elem->active;
 
 	switch (elem->type) {
@@ -1101,14 +1103,14 @@ static int bluealsa_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long
 	return 0;
 }
 
-static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *value) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key, long * value) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	struct ctl_elem *elem = &ctl->elem_list[key];
-	struct ba_pcm *pcm = elem->pcm;
+	struct ctl_elem * elem = &ctl->elem_list[key];
+	struct ba_pcm * pcm = elem->pcm;
 
 	uint8_t old[ARRAYSIZE(pcm->volume)];
 	memcpy(old, pcm->volume, sizeof(old));
@@ -1150,13 +1152,14 @@ static int bluealsa_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, lon
 	return 1;
 }
 
-int bluealsa_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, unsigned int *items) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+int bluealsa_get_enumerated_info(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
+		unsigned int * items) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
+	const struct ctl_elem * elem = &ctl->elem_list[key];
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_CODEC:
@@ -1177,14 +1180,14 @@ int bluealsa_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, unsi
 	return 0;
 }
 
-int bluealsa_get_enumerated_name(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
-		unsigned int item, char *name, size_t name_max_len) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+int bluealsa_get_enumerated_name(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
+		unsigned int item, char * name, size_t name_max_len) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
+	const struct ctl_elem * elem = &ctl->elem_list[key];
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_CODEC:
@@ -1214,15 +1217,15 @@ int bluealsa_get_enumerated_name(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
-static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
-		unsigned int *items) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_read_enumerated(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
+		unsigned int * items) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
-	const struct ba_pcm *pcm = elem->pcm;
+	const struct ctl_elem * elem = &ctl->elem_list[key];
+	const struct ba_pcm * pcm = elem->pcm;
 	int ret = 0;
 
 	switch (elem->type) {
@@ -1232,7 +1235,7 @@ static int bluealsa_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		 * will be used if available, or CVSD if not, since we do not
 		 * want "unknown" as an enumeration item. */
 		if (pcm->transport & BA_PCM_TRANSPORT_MASK_HFP &&
-				pcm->codec.name[0] == '\0') {
+		    pcm->codec.name[0] == '\0') {
 			for (size_t i = 0; i < elem->codecs.codecs_len; i++) {
 				if (strcmp("mSBC", elem->codecs.codecs[i].name) == 0) {
 					items[0] = i;
@@ -1267,9 +1270,9 @@ finish:
 	return ret;
 }
 
-static void process_events(snd_ctl_ext_t *ext) {
+static void process_events(snd_ctl_ext_t * ext) {
 
-	snd_ctl_elem_id_t *elem_id;
+	snd_ctl_elem_id_t * elem_id;
 	snd_ctl_elem_id_alloca(&elem_id);
 
 	unsigned int event_mask;
@@ -1278,15 +1281,15 @@ static void process_events(snd_ctl_ext_t *ext) {
 
 }
 
-static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
-		unsigned int *items) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static int bluealsa_write_enumerated(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
+		unsigned int * items) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	if (key > ctl->elem_list_size)
 		return -EINVAL;
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
-	struct ba_pcm *pcm = elem->pcm;
+	const struct ctl_elem * elem = &ctl->elem_list[key];
+	struct ba_pcm * pcm = elem->pcm;
 
 	switch (elem->type) {
 	case CTL_ELEM_TYPE_CODEC:
@@ -1295,7 +1298,7 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 		if (strcmp(pcm->codec.name, elem->codecs.codecs[items[0]].name) == 0)
 			return 0;
 		if (!ba_dbus_pcm_select_codec(&ctl->dbus_ctx, pcm->pcm_path,
-					elem->codecs.codecs[items[0]].name, NULL, 0, 0, 0, 0, NULL))
+		                              elem->codecs.codecs[items[0]].name, NULL, 0, 0, 0, 0, NULL))
 			return -EIO;
 		process_events(&ctl->ext);
 		break;
@@ -1329,24 +1332,29 @@ static int bluealsa_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 1;
 }
 
-static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+static void bluealsa_subscribe_events(snd_ctl_ext_t * ext, int subscribe) {
+	struct bluealsa_ctl * ctl = (struct bluealsa_ctl *)ext->private_data;
 
 	if (subscribe) {
 		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-				DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded", "path_namespace='/org/bluealsa'");
+		                                    DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
+		                                    "path_namespace='/org/bluealsa'");
 		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-				DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved", "path_namespace='/org/bluealsa'");
+		                                    DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
+		                                    "path_namespace='/org/bluealsa'");
 		char dbus_args[50];
 		snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", ctl->dbus_ctx.ba_service);
 		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, DBUS_SERVICE_DBUS, NULL,
-				DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
+		                                    DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
 		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_PCM"'");
+		                                    DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
+		                                    "arg0='"BLUEALSA_INTERFACE_PCM"'");
 		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, ctl->dbus_ctx.ba_service, NULL,
-				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_RFCOMM"'");
+		                                    DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
+		                                    "arg0='"BLUEALSA_INTERFACE_RFCOMM"'");
 		ba_dbus_connection_signal_match_add(&ctl->dbus_ctx, "org.bluez", NULL,
-				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='org.bluez.Device1'");
+		                                    DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
+		                                    "arg0='org.bluez.Device1'");
 	}
 	else
 		ba_dbus_connection_signal_match_clean(&ctl->dbus_ctx);
@@ -1354,11 +1362,11 @@ static void bluealsa_subscribe_events(snd_ctl_ext_t *ext, int subscribe) {
 	dbus_connection_flush(ctl->dbus_ctx.conn);
 }
 
-static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
-		DBusMessageIter *value, void *userdata, DBusError *error) {
+static dbus_bool_t bluealsa_dbus_msg_update_dev(const char * key,
+		DBusMessageIter * value, void * userdata, DBusError * error) {
 	(void)error;
 
-	struct bt_dev *dev = (struct bt_dev *)userdata;
+	struct bt_dev * dev = (struct bt_dev *)userdata;
 	dev->mask = BT_DEV_MASK_NONE;
 
 	if (dbus_message_iter_get_arg_type(value) != DBUS_TYPE_VARIANT)
@@ -1368,7 +1376,7 @@ static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 	dbus_message_iter_recurse(value, &variant);
 
 	if (strcmp(key, "Alias") == 0) {
-		const char *alias;
+		const char * alias;
 		dbus_message_iter_get_basic(&variant, &alias);
 		*stpncpy(dev->name, alias, sizeof(dev->name) - 1) = '\0';
 		dev->mask = BT_DEV_MASK_UPDATE;
@@ -1392,9 +1400,9 @@ static dbus_bool_t bluealsa_dbus_msg_update_dev(const char *key,
 	return TRUE;
 }
 
-static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
-		DBusMessage *message, void *data) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)data;
+static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection * conn,
+		DBusMessage * message, void * data) {
+	struct bluealsa_ctl * ctl = (struct bluealsa_ctl *)data;
 	(void)conn;
 
 	if (dbus_message_get_type(message) != DBUS_MESSAGE_TYPE_SIGNAL)
@@ -1404,28 +1412,27 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 	if (!dbus_message_iter_init(message, &iter))
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
-	const char *path = dbus_message_get_path(message);
-	const char *interface = dbus_message_get_interface(message);
-	const char *signal = dbus_message_get_member(message);
+	const char * path = dbus_message_get_path(message);
+	const char * interface = dbus_message_get_interface(message);
+	const char * signal = dbus_message_get_member(message);
 
 	if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0 &&
-			strcmp(signal, "PropertiesChanged") == 0) {
+	    strcmp(signal, "PropertiesChanged") == 0) {
 
-		const char *updated_interface;
+		const char * updated_interface;
 		dbus_message_iter_get_basic(&iter, &updated_interface);
 		dbus_message_iter_next(&iter);
 
 		/* handle BlueZ device properties update */
 		if (strcmp(updated_interface, "org.bluez.Device1") == 0)
 			for (size_t i = 0; i < ctl->elem_list_size; i++) {
-				struct bt_dev *dev = ctl->elem_list[i].dev;
+				struct bt_dev * dev = ctl->elem_list[i].dev;
 				if (strcmp(dev->device_path, path) == 0) {
-					dbus_message_iter_dict(&iter, NULL,
-							bluealsa_dbus_msg_update_dev, dev);
+					dbus_message_iter_dict(&iter, NULL, bluealsa_dbus_msg_update_dev, dev);
 					if (dev->mask & BT_DEV_MASK_UPDATE)
 						goto remove_add;
 					if (ctl->single_device &&
-							dev->mask & BT_DEV_MASK_REMOVE) {
+					    dev->mask & BT_DEV_MASK_REMOVE) {
 						/* Single device mode does not process PCM removes, however,
 						 * when the device disconnects we would like to simulate CTL
 						 * unplug event. */
@@ -1438,14 +1445,13 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 		/* handle BlueALSA RFCOMM properties update */
 		if (strcmp(updated_interface, BLUEALSA_INTERFACE_RFCOMM) == 0)
 			for (size_t i = 0; i < ctl->elem_list_size; i++) {
-				struct ctl_elem *elem = &ctl->elem_list[i];
-				struct bt_dev *dev = elem->dev;
+				struct ctl_elem * elem = &ctl->elem_list[i];
+				struct bt_dev * dev = elem->dev;
 				if (strcmp(dev->rfcomm_path, path) == 0) {
-					dbus_message_iter_dict(&iter, NULL,
-							bluealsa_dbus_msg_update_dev, dev);
+					dbus_message_iter_dict(&iter, NULL, bluealsa_dbus_msg_update_dev, dev);
 					/* for non-dynamic mode we need to use update logic */
 					if (ctl->dynamic &&
-							dev->mask & BT_DEV_MASK_ADD)
+					    dev->mask & BT_DEV_MASK_ADD)
 						goto remove_add;
 					if (elem->type != CTL_ELEM_TYPE_BATTERY)
 						continue;
@@ -1457,8 +1463,8 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 		/* handle BlueALSA PCM properties update */
 		if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0)
 			for (size_t i = 0; i < ctl->elem_list_size; i++) {
-				struct ctl_elem *elem = &ctl->elem_list[i];
-				struct ba_pcm *pcm = elem->pcm;
+				struct ctl_elem * elem = &ctl->elem_list[i];
+				struct ba_pcm * pcm = elem->pcm;
 				if (elem->type == CTL_ELEM_TYPE_BATTERY)
 					continue;
 				if (strcmp(pcm->pcm_path, path) == 0) {
@@ -1473,7 +1479,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 		if (strcmp(signal, "InterfacesAdded") == 0) {
 			struct ba_pcm pcm;
 			if (dbus_message_iter_get_ba_pcm(&iter, NULL, &pcm) &&
-					pcm.transport != BA_PCM_TRANSPORT_NONE) {
+			    pcm.transport != BA_PCM_TRANSPORT_NONE) {
 
 				if (ctl->dynamic)
 					bluealsa_pcm_add(ctl, &pcm);
@@ -1487,7 +1493,7 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 
 		if (strcmp(signal, "InterfacesRemoved") == 0) {
 
-			const char *pcm_path;
+			const char * pcm_path;
 			dbus_message_iter_get_basic(&iter, &pcm_path);
 
 			if (ctl->dynamic)
@@ -1503,14 +1509,14 @@ static DBusHandlerResult bluealsa_dbus_msg_filter(DBusConnection *conn,
 
 	}
 	else if (strcmp(interface, DBUS_INTERFACE_DBUS) == 0 &&
-			strcmp(signal, "NameOwnerChanged") == 0) {
+	         strcmp(signal, "NameOwnerChanged") == 0) {
 
-		const char *service, *arg2;
+		const char * service, * arg2;
 		dbus_message_iter_get_basic(&iter, &service);
 		if (strcmp(service, ctl->dbus_ctx.ba_service) == 0) {
 			if (dbus_message_iter_next(&iter) &&
-					dbus_message_iter_next(&iter) &&
-					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING) {
+			    dbus_message_iter_next(&iter) &&
+			    dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING) {
 				dbus_message_iter_get_basic(&iter, &arg2);
 				if (strlen(arg2) == 0) {
 					/* BlueALSA daemon has terminated,
@@ -1558,8 +1564,9 @@ final:
 	return DBUS_HANDLER_RESULT_HANDLED;
 }
 
-static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsigned int *event_mask) {
-	struct bluealsa_ctl *ctl = ext->private_data;
+static int bluealsa_read_event(snd_ctl_ext_t * ext, snd_ctl_elem_id_t * id,
+		unsigned int * event_mask) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	/* Some applications (e.g. MPD) ignore POLLERR and rely on snd_ctl_read()
 	 * to return an appropriate error code. So we check the state of our
@@ -1570,7 +1577,7 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 
 	if (ctl->elem_update_list_size) {
 
-		const struct ctl_elem_update *update = &ctl->elem_update_list[ctl->elem_update_event_i];
+		const struct ctl_elem_update * update = &ctl->elem_update_list[ctl->elem_update_event_i];
 
 		snd_ctl_elem_id_set_numid(id, update->numid);
 		snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
@@ -1605,8 +1612,8 @@ static int bluealsa_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsign
 	return -EAGAIN;
 }
 
-static int bluealsa_poll_descriptors_count(snd_ctl_ext_t *ext) {
-	struct bluealsa_ctl *ctl = ext->private_data;
+static int bluealsa_poll_descriptors_count(snd_ctl_ext_t * ext) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	nfds_t nfds = 0;
 	ba_dbus_connection_poll_fds(&ctl->dbus_ctx, NULL, &nfds);
@@ -1619,9 +1626,9 @@ static int bluealsa_poll_descriptors_count(snd_ctl_ext_t *ext) {
 	return nfds;
 }
 
-static int bluealsa_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd,
+static int bluealsa_poll_descriptors(snd_ctl_ext_t * ext, struct pollfd * pfd,
 		unsigned int nfds) {
-	struct bluealsa_ctl *ctl = ext->private_data;
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	nfds_t pipe_nfds = 0;
 
@@ -1650,9 +1657,9 @@ static int bluealsa_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd,
 	return pipe_nfds + dbus_nfds;
 }
 
-static int bluealsa_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd,
-		unsigned int nfds, unsigned short *revents) {
-	struct bluealsa_ctl *ctl = ext->private_data;
+static int bluealsa_poll_revents(snd_ctl_ext_t * ext, struct pollfd * pfd,
+		unsigned int nfds, unsigned short * revents) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 
 	nfds_t pipe_nfds = 0;
 	*revents = 0;
@@ -1696,12 +1703,12 @@ static const snd_ctl_ext_callback_t bluealsa_snd_ctl_ext_callback = {
 };
 
 #if SND_CTL_EXT_VERSION >= 0x010001
-#define TLV_DB_RANGE_SCALE_MIN_MAX(min, max, min_dB, max_dB) \
+# define TLV_DB_RANGE_SCALE_MIN_MAX(min, max, min_dB, max_dB) \
 	(min), (max), 4 /* dB min/max scale */, 2 * sizeof(int), (min_dB), (max_dB)
-static int bluealsa_snd_ctl_ext_tlv_callback(snd_ctl_ext_t *ext,
+static int bluealsa_snd_ctl_ext_tlv_callback(snd_ctl_ext_t * ext,
 		snd_ctl_ext_key_t key, int op_flag, unsigned int numid,
-		unsigned int *tlv, unsigned int tlv_size) {
-	struct bluealsa_ctl *ctl = (struct bluealsa_ctl *)ext->private_data;
+		unsigned int * tlv, unsigned int tlv_size) {
+	struct bluealsa_ctl * ctl = ext->private_data;
 	(void)numid;
 
 	static const unsigned int tlv_db_a2dp[] = {
@@ -1730,8 +1737,8 @@ static int bluealsa_snd_ctl_ext_tlv_callback(snd_ctl_ext_t *ext,
 		TLV_DB_RANGE_SCALE_MIN_MAX(11, 15, -438, 0),
 	};
 
-	const struct ctl_elem *elem = &ctl->elem_list[key];
-	const unsigned int *tlv_db = NULL;
+	const struct ctl_elem * elem = &ctl->elem_list[key];
+	const unsigned int * tlv_db = NULL;
 	size_t tlv_db_size = 0;
 
 	switch (elem->pcm->transport) {
@@ -1767,31 +1774,31 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	(void)root;
 
 	DBusError err = DBUS_ERROR_INIT;
-	const char *service = BLUEALSA_SERVICE;
-	const char *device = NULL;
-	const char *extended = NULL;
+	const char * service = BLUEALSA_SERVICE;
+	const char * device = NULL;
+	const char * extended = NULL;
 	bool show_battery = false;
 	bool show_bt_transport = false;
 	bool show_codec = false;
 	bool show_vol_mode = false;
 	bool show_delay_sync = false;
 	bool dynamic = true;
-	struct bluealsa_ctl *ctl;
+	struct bluealsa_ctl * ctl;
 	int ret;
 
 	snd_log_init();
 
 	snd_config_iterator_t pos, next;
 	snd_config_for_each(pos, next, conf) {
-		snd_config_t *n = snd_config_iterator_entry(pos);
+		snd_config_t * n = snd_config_iterator_entry(pos);
 
-		const char *id;
+		const char * id;
 		if (snd_config_get_id(n, &id) < 0)
 			continue;
 
 		if (strcmp(id, "comment") == 0 ||
-				strcmp(id, "type") == 0 ||
-				strcmp(id, "hint") == 0)
+		    strcmp(id, "type") == 0 ||
+		    strcmp(id, "hint") == 0)
 			continue;
 
 		if (strcmp(id, "service") == 0) {
@@ -1814,7 +1821,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 				return -EINVAL;
 			}
 			if (parse_extended(extended, &show_codec, &show_vol_mode,
-						&show_delay_sync, &show_battery) < 0) {
+			                   &show_delay_sync, &show_battery) < 0) {
 				snd_error(CONFIG, "Invalid extended options: %s", extended);
 				return -EINVAL;
 			}
@@ -1884,7 +1891,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 	ctl->single_device = single_device_mode;
 	ctl->dynamic = dynamic;
 
-	struct ba_pcm *pcm_list = NULL;
+	struct ba_pcm * pcm_list = NULL;
 	size_t pcm_list_size = 0;
 
 	dbus_threads_init_default();
@@ -1914,7 +1921,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(bluealsa) {
 			/* Interpret BT address ANY as a request for the most
 			 * recently connected Bluetooth audio device. */
 
-			const struct ba_pcm *latest = NULL;
+			const struct ba_pcm * latest = NULL;
 			uint32_t seq = 0;
 
 			if (pcm_list_size == 0) {
